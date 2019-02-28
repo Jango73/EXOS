@@ -1,0 +1,279 @@
+
+2 - PPP - Point-to-Point Protocol
+
+PPP PCI
+
+Flag (1 byte)
+
+Address (1 byte)
+
+Control (1 byte)
+
+Protocol (2 bytes)
+
+INFORMATION (n bytes)
+
+FCS (2 bytes)
+
+---------------------------------------------------------------------------------------------------
+
+PPP PCI
+
+2 - Point-to-Point Protocol
+
+PPP provides WAN links on point-to-point lines. PPP is the successor of SLIP which could only serve
+the Internet Protocol (IP); PPP is able so serve any kind of network protocol (IPX, AppleTalk, DECnet
+and others). 
+
+Main components:
+
+1.
+
+A method for encapsulating datagrams over serial links. PPP uses HDLC (ISO 3309-1979) as a basis
+for encapsulating datagrams over point-to-point links. At this time, PPP specifies the use of
+asynchronous or synchronous duplex circuits, either dedicated or circuit switched. 
+
+2.
+
+An extensible Link Control Protocol (LCP) to establish, configure, and test the data-link connection.
+
+3.
+
+A family of Network Control Protocols (NCP) for establishing and configuring different network-layer
+protocols. PPP is designed to allow the simultaneous use of multiple network-layer protocols.
+
+In order to establish communications over a point-to-point link, the originating PPP would first send
+LCP packets to configure and test the data link. After the link has been establish and optional facilities
+have been negotiated as needed by the LCP, the originating PPP would send NCP packets to choose
+and configure one or more network-layer protocols. Once each of the chosen network-layer protocols
+has been configured, datagrams from each network-layer protocol can be sent over the link. 
+
+The link will remain configured for communications until explicit LCP or NCP packets close the link
+down, or until some external event occurs (e.g., inactivity timer expires or user intervention).
+
+Physical Layer Requirements:
+
+The Point-to-Point Protocol is capable of operating across any DTE/DCE interface (e.g., EIA
+RS-232-C, EIA RS-422, EIA RS-423 and CCITT V.35). The only absolute requirement imposed by
+PPP is the provision of a duplex circuit, either dedicated or circuit switched, which can operate in either
+an asynchronous (start/stop) or synchronous bit-serial mode, transparent to PPP Data Link Layer
+frames. PPP does not impose any restrictions regarding transmission rate, other than those imposed by
+the particular DTE/DCE interface in use. 
+
+PPP does not require the use of modem control signals, such as Request To Send (RTS), Clear To
+Send (CTS), Data Carrier Detect (DCD), and Data Terminal ready (DTR). However, using such
+signals when available can allow greater functionality and performance. 
+
+Literature/Sources:
+
+PPP
+
+---------------------------------------------------------------------------------------------------
+
+Flag (1 byte)
+
+Protocol: PPP PPP PCI
+
+Field: flag
+
+Length: 1 byte
+
+Contents: frame delimiter.
+
+The Flag Sequence is a single octet and indicates the beginning or end of a frame. The Flag Sequence
+consists of the binary sequence 01111110 (hexadecimal 0x7e).
+
+---------------------------------------------------------------------------------------------------
+
+Address (1 byte)
+
+Protocol: PPP PPP PCI
+
+Field: address
+
+Length: 1 byte
+
+Contents: destination address (predefined).
+
+The Address field is a single octet and contains the binary sequence 11111111 (hexadecimal 0xff), the
+All-Stations address. PPP does not assign individual station addresses. The All-Stations address should
+always be recognized and received. The use of other address lengths and values may be defined at a
+later time, or by prior agreement. Frames with unrecognized Addresses should be reported through the
+normal network management facility. 
+
+---------------------------------------------------------------------------------------------------
+
+Control (1 byte)
+
+Protocol: PPP PPP PCI
+
+Field: address
+
+Length: 1 byte
+
+Contents: type of PPP operation (predefined: HDLC-UI).
+
+The Control field is a single octet and contains the binary sequence 00000011 (hexadecimal 0x03), the
+Unnumbered Information (UI) command with the P/F bit set to zero. Frames with other Control field
+values should be silently discarded. 
+
+---------------------------------------------------------------------------------------------------
+
+Protocol (2 bytes)
+
+Protocol: PPP PPP PCI
+
+Field: protocol
+
+Length: 2 bytes
+
+Contents: uppler layer protocol ID.
+
+The Protocol field is two octets and its value identifies the protocol encapsulated in the Information field
+of the frame. The most up-to-date values of the Protocol field are specified in the most recent
+"Assigned Numbers" RFC. Initial values are also listed below. 
+
+Protocol field values in the "cxxx" range identify datagrams as belonging to the Link Control Protocol
+(LCP) or associated protocols. Values in the "8xxx" range identify datagrams belonging to the family
+of Network Control Protocols (NCP). Values in the "0xxx" range identify the network protocol of
+specific datagrams. 
+
+0x0xxx: Network Layer Protocols
+
+0x4xxx: (user defined)
+
+0x8xxx: Network Control Protocols (NCPs)
+
+0xCxxx: Link Control Protocols (LCPs)
+
+This Protocol field is defined by PPP and is not a field defined by HDLC. However, the Protocol field
+is consistent with the ISO 3309 extension mechanism for Address fields. All Protocols MUST be odd;
+the least significant bit of the least significant octet MUST equal "1". Also, all Protocols MUST be
+assigned such that the least significant bit of the most significant octet equals "0". 
+
+New Protocol values are assigned by IANA (Internet Assigned Numbers Authority / IANA@isi.edu).
+
+Frames received which don't comply with these rules should be considered as having an unrecognized
+Protocol, and should be handled as specified by the LCP. 
+
+The Protocol field is transmitted and received most significant octet first.
+
+Link establishment is done by LCP which is a function of PPP. The protocol value C021 indicates that
+the Information field contains LCP data.
+
+Setup of network-layer protocols is done by NCPs (Network Control Protocols), for example by IPCP
+(Internet Protocol Control Protocol) for etablishment of IP links.
+
+---------------------------------------------------------------------------------------------------
+
+INFORMATION (n bytes)
+
+Protocol: PPP PPP PCI
+
+Field: information
+
+Length: n bytes
+
+Contents: LCP / NCP protocol data / user data
+
+The Information field is zero or more octets. The Information field contains the datagram for the
+protocol specified in the Protocol field. The end of the Information field is found by locating the closing
+Flag Sequence and allowing two octets for the Frame Check Sequence field. The default maximum
+length of the Information field is 1500 octets. By prior agreement, consenting PPP implementations may
+use other values for the maximum Information field length. 
+
+On transmission, the Information field may be padded with an arbitrary number of octets up to the
+maximum length. It is the responsibility of each protocol to disambiguate padding octets from real
+information. 
+
+---------------------------------------------------------------------------------------------------
+
+FCS (2 bytes)
+
+Protocol: PPP PPP PCI
+
+Field: frame check sequence
+
+Length: 2 bytes
+
+Contents: checksum.
+
+---------------------------------------------------------------------------------------------------
+
+PPP - Protocol IDs
+
+PPP Protocol IDs
+
+hex. Protocol
+
+---- ----------------------------------------------------------------
+
+0001--
+
+001F (reserved)
+
+0021 Internet Protocol
+
+0021 Internet Protocol
+
+0023 OSI Network Layer
+
+0025 Xerox NS IDP
+
+0027 DECnet Phase IV
+
+0029 AppleTalk
+
+002B Novell IPX
+
+002D Van Jacobson Compressed TCP/IP 1
+
+002F Van Jacobson Compressed TCP/IP 2
+
+0031 Bridging PDU
+
+0033 Stream Protocol (ST-II)
+
+0035 Banyan Vines
+
+0037 (reserved)
+
+00FF (reserved)
+
+0201 IEEE 802.1d Hello Packets (Spanning Tree)
+
+0231 Luxcom
+
+0233 Sigma Network Systems
+
+8021 Internet Protocol / Control Protocol
+
+8023 OSI Network Layer / Control Protocol
+
+8025 Xerox NS IDP / Control Protocol
+
+8027 DECnet Phase IV / Control Protocol
+
+8029 AppleTalk / Control Protocol
+
+802B Novell IPX / Control Protocol
+
+802D (reserved)
+
+802F (reserved)
+
+8031 Bridging NCP
+
+8033 Stream Protocol / Control Protocol
+
+8035 Banyan Vines / Control Protocol
+
+C021 LCP / Link Control Protocol
+
+C023 User/Password Authentication Protocol
+
+C025 Link Quality Report
+
+C223 Challenge Handshake Authentication Protocol
+
+---------------------------------------------------------------------------------------------------

@@ -1,0 +1,59 @@
+
+all :
+
+  bin/stub.o
+  bin/system.o
+  bin/int.o
+  bin/rmc.o
+  bin/main.o
+  bin/kernel.o
+  bin/log.o
+  bin/fault.o
+  bin/clock.o
+  bin/schedule.o
+  bin/segment.o
+  bin/process.o
+  bin/task.o
+  bin/sem.o
+  bin/desktop.o
+  bin/string.o
+  bin/list.o
+  bin/vmm.o
+  bin/heap.o
+  bin/crypt.o
+  bin/keyboard.o
+  bin/key.o
+  bin/sermouse.o
+  bin/console.o
+  bin/file.o
+  bin/hd.o
+  bin/ramdisk.o
+  bin/filesys.o
+  bin/systemfs.o
+  bin/fat16.o
+  bin/fat32.o
+  bin/xfs.o
+  bin/vesa.o
+  bin/shell.o
+  bin/syscall.o
+  bin/drvcall.o
+  bin/dco.o
+  bin/memedit.o
+  bin/edit.o
+  bin/text.o
+
+STUB: 0 0 0
+  ,,,.stub
+
+CODE: 0 0C0000000 STUB.i_after#1000
+  ,,,.text
+
+DATA: 0 CODE.after#10 CODE.i_after#10
+  ,,,.data
+
+BSS: 0 DATA.after#10 DATA.i_after#10
+  ,,,global
+  ,,,.bss
+
+STACK: 0 BSS.after#1000 BSS.i_after#1000
+  ,,,.stack

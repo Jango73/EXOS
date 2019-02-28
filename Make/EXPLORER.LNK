@@ -1,0 +1,13 @@
+
+all :
+
+  explorer.o
+  exos.o
+  exosrt1.o
+  exosrt2.o
+
+CODE: 0 400000 0
+  ,,,_TEXT
+
+DATA: 0 CODE.after CODE.i_after
+  *

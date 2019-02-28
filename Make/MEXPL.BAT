@@ -1,0 +1,1 @@
+@make -f explorer.mak
