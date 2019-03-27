@@ -1,6 +1,6 @@
 # EXOS
 
-This is an attempt to create an operating system.
-It is a work in progress.
+This was an attempt, around 1997, to create an operating system.
+It is work in progress.
 
 Because it is a very old work, it will probably never be finished.
