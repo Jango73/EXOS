@@ -21,3 +21,6 @@ Because it is a very old work, it will probably never be finished.
 ## Things to do
 
 * Create makefiles for build (used to build on DOS using gcc and nasm)
+* Rework the scheduler and task switching which are quite slow...
+* Add some file systems
+* Add some drivers
