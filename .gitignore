@@ -1,0 +1,6 @@
+*.o
+*.bin
+*.elf
+*.img
+
+boot-qemu/kernel_sectors.inc
