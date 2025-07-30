@@ -40,9 +40,9 @@ StartAbsolute :
 ;--------------------------------------
 
 ; Here we store some startup info for the kernel
-; It must start at stub + 16
+; It must start at stub + KERNEL_STARTUP_INFO_OFFSET
 
-times (16 - ($ - StartAbsolute)) db 0
+times (KERNEL_STARTUP_INFO_OFFSET - ($ - StartAbsolute)) db 0
 
 SI_Loader_SS      dd 0
 SI_Loader_SP      dd 0

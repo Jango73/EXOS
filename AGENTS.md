@@ -6,6 +6,9 @@ This is a 32 bit operating system for i386.
 ## Build
 make
 
+## Test
+- DON'T do any tests, there is no way you can test this OS for now.
+
 ## General Conventions
 - Always use 4 spaces for indentation in code.
 - Prefer array methods over manual loops.

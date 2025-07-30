@@ -731,7 +731,7 @@ void InitializeKernel ()
   MemoryCopy
   (
     &KernelStartup,
-    (LPVOID) (StubAddress + 16),
+    (LPVOID) (StubAddress + KERNEL_STARTUP_INFO_OFFSET),
     sizeof(KERNELSTARTUPINFO)
   );
 

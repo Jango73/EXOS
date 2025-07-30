@@ -137,6 +137,8 @@ LA_DIRECTORY equ 0xFF800000
 LA_IDT       equ LA_SYSTEM
 LA_GDT       equ (LA_IDT + IDT_SIZE)
 
+KERNEL_STARTUP_INFO_OFFSET	equ 32
+
 ;----------------------------------------------------------
 ; Values related to IDT, GDT, LDT
 

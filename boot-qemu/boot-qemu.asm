@@ -17,29 +17,35 @@ start:
     mov [boot_drive], dl     ; Save BIOS drive number
     sti
 
-    ; Clear screen & show step A
+    ; Clear screen
     call ClearScreen
+
+    ; Print drive
+    mov al, [boot_drive]
+    call ByteToASCII
+
+    ; Step A
     mov al, 'A'
     call PrintChar
 
-    ; Load SuperBlock (1 sector from LBA 2 into 0x0600)
+    ; Load SuperBlock (LBA 2 → 0x0600)
     mov bx, 0x0600
-    mov cx, 2
-    mov si, 1
-    call ReadSectors
+    mov cx, 2              ; LBA
+    mov si, 1              ; sector count
+    call ReadSectorsLBA
 
     ; Step B
     mov al, 'B'
     call PrintChar
 
     ; Read kernel binary starting at LBA 4 → into physical 0x00012000
-    ; es = 0x1200, bx = 0 (address 0x1200:0000)
+    ; Load Kernel (LBA 4 → 0x1200:0000)
     mov ax, 0x1200
     mov es, ax
     xor bx, bx
-    mov cx, 4                 ; LBA offset where kernel starts
-    mov si, NUM_SECTORS      ; sector count from Makefile
-    call ReadSectors
+    mov cx, 4              ; LBA
+    mov si, NUM_SECTORS
+    call ReadSectorsLBA
 
     ; Step C
     mov al, 'C'
@@ -49,62 +55,51 @@ start:
     jmp far [KernelEntry]
 
 .halt:
+    mov al, 'Z'
+    call PrintChar
     cli
     hlt
     jmp .halt
 
 ;-----------------------------------------------------------
-; Utilities
+; BIOS INT13 Extensions (AH=42h)
+; ReadSectorsLBA:
+; IN: es:bx = destination address
+;     cx = LBA
+;     si = sector count
 
-; ReadSectors:
-; IN: es:bx = dest addr, cx = LBA, si = count
-ReadSectors:
+ReadSectorsLBA:
     pusha
-.next:
-    push cx
-    call LBAtoCHS
-    pop cx
 
-    mov ah, 0x02
-    mov al, 1              ; read 1 sector
+    mov di, dap_packet
+    mov byte [di], 0x10         ; size of packet (16 bytes)
+    mov byte [di+1], 0          ; reserved
+    mov word [di+2], si         ; sector count
+    mov word [di+4], bx         ; offset
+    mov word [di+6], es         ; segment
+    xor eax, eax
+    mov ax, cx
+    mov dword [di+8], eax       ; LBA low  (32 bits)
+    mov dword [di+12], 0        ; LBA high (always 0 here)
+
+    mov si, di
     mov dl, [boot_drive]
+    mov ah, 0x42
     int 0x13
-    jc .halt               ; halt on error
+    jc .fail
 
-    add bx, 512
-    inc cx
-    dec si
-    jnz .next
     popa
     ret
+
+.fail:
+    jmp .halt
+
 .halt:
+    mov al, 'X'
+    call PrintChar
     cli
-.halt_loop:
     hlt
-    jmp .halt_loop
-
-;-----------------------------------------------------------
-
-; LBAtoCHS:
-; IN: cx = LBA
-; OUT: ch = cyl, cl = sect, dh = head
-LBAtoCHS:
-    ; assume 16 heads, 63 sectors per track
-    ; 1 cyl = 16 * 63 = 1008 sectors
-    mov dx, cx
-    xor ax, ax
-    mov bx, 1008
-    div bx                 ; ax = cyl, dx = remain
-    mov ch, al             ; cyl
-
-    mov ax, dx
-    mov bx, 63
-    div bx                 ; ax = head, dx = sect-1
-    mov dh, al             ; head
-    mov cl, dl
-    inc cl                 ; sector = dl + 1
-
-    ret
+    jmp .halt
 
 ;-----------------------------------------------------------
 
@@ -128,6 +123,31 @@ ClearScreen:
     ret
 
 ;-----------------------------------------------------------
+; ByteToASCII: convert AL (8 bits) en 2 caractères ASCII hex
+; Affiche directement le résultat (haut nibble, puis bas nibble)
+ByteToASCII:
+    pusha
+    mov ah, al
+    shr al, 4
+    call NibbleToChar
+    call PrintChar
+    mov al, ah
+    and al, 0x0F
+    call NibbleToChar
+    call PrintChar
+    popa
+    ret
+
+; Convertit nibble dans AL en caractère ASCII
+NibbleToChar:
+    add al, '0'
+    cmp al, '9'
+    jbe .ok
+    add al, 7
+.ok:
+    ret
+
+;-----------------------------------------------------------
 
 times 510-($-$$) db 0
 dw 0xAA55
@@ -138,3 +158,6 @@ boot_drive:
 KernelEntry:
     dw 0x0000          ; Offset
     dw 0x1200          ; Segment (0x00012000 >> 4)
+
+dap_packet:
+    times 16 db 0      ; Disk Address Packet (16 bytes)

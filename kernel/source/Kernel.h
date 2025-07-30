@@ -77,6 +77,8 @@ typedef struct tag_KERNELSTARTUPINFO
   U32 MemorySize;
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
+#define KERNEL_STARTUP_INFO_OFFSET  32
+
 /***************************************************************************/
 
 // Kernel selectors
