@@ -26,10 +26,7 @@ OBJS   = $(OBJ_S) $(OBJ_C)
 
 all: $(KERNEL_BIN)
 
-$(KERNEL_BIN): $(KERNEL_ELF)
-	$(OBJCOPY) -O binary $< $@
-
-$(KERNEL_ELF): $(OBJS) linker.ld
+$(KERNEL_BIN): $(OBJS) linker.ld
 	$(LD) $(LDFLAGS) -o $@ $(OBJS)
 
 bin/%.o: source/%.c

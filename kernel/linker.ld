@@ -1,34 +1,35 @@
-ENTRY(StartAbsolute)  /* ou kernel_main, selon ton point d’entrée */
+OUTPUT_FORMAT("binary")
+ENTRY(StartAbsolute)
 
-SECTIONS
-{
-    /* Kernel virtuel à partir de 0xC0000000 */
-    . = 0xC0000000;
+SECTIONS {
+    . = 0x00000000;
 
-    .text ALIGN(0x1000) : {
-        *(.text .text.*)
+    .stub : {
+        *(.text.stub)
     }
 
-    .rodata ALIGN(0x1000) : {
-        *(.rodata .rodata.*)
+    . = ALIGN(0x1000);
+    .text : {
+        *(.text)
     }
 
-    .data ALIGN(0x1000) : {
-        *(.data .data.*)
+    . = ALIGN(0x1000);
+    .rodata : {
+        *(.rodata)
     }
 
-    .bss ALIGN(0x1000) : {
-        *(.bss COMMON)
-        *(global)     /* si tu utilises ce segment explicitement */
+    . = ALIGN(0x1000);
+    .data : {
+        *(.data)
     }
 
-    /* Pile optionnelle – en général allouée à l’exécution */
-    .stack ALIGN(0x1000) : {
+    . = ALIGN(0x1000);
+    .stack : {
         *(.stack)
     }
 
-    /DISCARD/ : {
-        *(.comment)
-        *(.note)
+    . = ALIGN(0x1000);
+    .bss : {
+        *(.bss)
     }
 }

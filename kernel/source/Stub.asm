@@ -32,9 +32,6 @@ bits 16
 
 StartAbsolute :
 
-    mov     al, 'a'
-    call    PrintChar
-
     jmp     Start
 
 ;--------------------------------------
@@ -320,7 +317,7 @@ Delay :
 
     dw      0x00EB                     ; jmp $+2
     dw      0x00EB                     ; jmp $+2
-   ret
+    ret
 
 ;--------------------------------------
 
@@ -666,12 +663,5 @@ GetMemorySize_Out :
     ret
 
 _GetMemorySizeEnd :
-
-;----------------------------------------------------------------------------
-
-section .data align=16
-
-Text_JmpStart :
-    db 'jmp     Start', '$'
 
 ;----------------------------------------------------------------------------

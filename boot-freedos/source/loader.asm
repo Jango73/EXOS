@@ -1,7 +1,7 @@
+[bits 16]
+[org 0x100]
 
-; Loader.asm
-
-;---------------------------------------------------------------------------------------------------
+;
 ;  EXOS
 ;  Copyright (c) 1999 Exelsius
 ;  All rights reserved
@@ -24,7 +24,6 @@ PAGE_SIZE  equ 4096
 
 ;----------------------------------------------------------------------------
 
-section .text
 bits 16
 
 Main :
@@ -43,6 +42,12 @@ Main :
     add     ax, STACK_SIZE
     mov     sp, ax
     mov     bp, ax
+
+    ;--------------------------------------
+
+    mov     ah, DOS_PRINT
+    mov     dx, Text_Loader
+    int     DOS_CALL
 
     ;--------------------------------------
     ; Open file
@@ -92,6 +97,10 @@ GetFileSizeNext2 :
 
     ;--------------------------------------
     ; Read file
+
+    mov     ah, DOS_PRINT
+    mov     dx, Text_ReadingFile
+    int     DOS_CALL
 
     xor     eax, eax
     mov     ax, ds
@@ -151,6 +160,10 @@ DoRead :
 
     ;--------------------------------------
     ; Jump to loaded code
+
+    mov     ah, DOS_PRINT
+    mov     dx, Text_JumpingToStub
+    int     DOS_CALL
 
     xor     eax, eax
     mov     ax, cs
@@ -220,8 +233,6 @@ Exit :
 
 ;----------------------------------------------------------------------------
 
-section .data align=16
-
 Stack :
     dd 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     dd 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -233,8 +244,14 @@ Handle   : dw 0
 FileSize : dd 0
 FileName : db 'EXOS.BIN', 0
 
+Text_Loader :
+    db '<< EXOS Loader >>', 10, 13, '$'
+
 Text_LoadingFile :
-    db 'Loading file', '$'
+    db 'Loading file', 10, 13, '$'
+
+Text_ReadingFile :
+    db 'Reading file', '$'
 
 Text_Dot :
     db '.', '$'
@@ -251,12 +268,13 @@ Text_CouldNotSeekFile :
 Text_CouldNotReadFile :
     db 10, 13, 'Could not read file', 10, 13, '$'
 
+Text_JumpingToStub :
+    db 10, 13, 'Jumping to stub...', 10, 13, '$'
+
 Text_ExitDOS :
     db 'Exiting to DOS...', 10, 13, '$'
 
 ;----------------------------------------------------------------------------
-
-section .data align=16
 
 FreeData :
 

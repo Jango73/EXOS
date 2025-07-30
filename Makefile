@@ -1,6 +1,6 @@
-.PHONY: all kernel boot clean
+.PHONY: all kernel runtime boot-qemu boot-freedos clean
 
-all: kernel boot-qemu boot-freedos
+all: kernel runtime boot-qemu boot-freedos
 
 kernel:
 	@echo "==[ Building kernel ]=="
@@ -21,5 +21,6 @@ boot-freedos:
 clean:
 	@echo "==[ Cleaning all ]=="
 	@$(MAKE) -C kernel clean
+	@$(MAKE) -C runtime clean
 	@$(MAKE) -C boot-qemu clean
 	@$(MAKE) -C boot-freedos clean
