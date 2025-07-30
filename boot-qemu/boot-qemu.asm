@@ -5,10 +5,6 @@ bits 16
 
 %include "kernel_sectors.inc"
 
-%ifndef NUM_SECTORS
-%define NUM_SECTORS 187     ; fallback (sera écrasé par Makefile)
-%endif
-
 ;-----------------------------------------------------------
 
 start:
