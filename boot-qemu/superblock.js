@@ -43,6 +43,3 @@ fs.closeSync(fd);
 console.log(`✔ SuperBlock written at LBA ${superblockLBA}`);
 console.log(`  Kernel: ${kernelSectors} sectors at LBA ${kernelLBA}`);
 console.log(`  Entry : ${entrySegment.toString(16)}:${entryOffset.toString(16).padStart(4, '0')}`);
-
-// Create a file with number of kernel sectors
-fs.writeFileSync("kernel_sectors.inc", `NUM_SECTORS equ ${kernelSectors}\n`);
