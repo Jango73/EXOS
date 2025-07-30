@@ -24,7 +24,8 @@ PAGE_SIZE  equ 4096
 
 ;----------------------------------------------------------------------------
 
-segment text use16 "CODE"
+section .text
+bits 16
 
 Main :
 
@@ -255,7 +256,7 @@ Text_ExitDOS :
 
 ;----------------------------------------------------------------------------
 
-segment ram use16 "DATA"
+section .data align=16
 
 FreeData :
 

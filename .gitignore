@@ -1,6 +1,9 @@
 *.o
+*.com
 *.bin
 *.elf
 *.img
+*.iso
+*.vmdk
 
 boot-qemu/kernel_sectors.inc
