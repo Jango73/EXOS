@@ -6,6 +6,10 @@ kernel:
 	@echo "==[ Building kernel ]=="
 	@$(MAKE) -C kernel
 
+runtime:
+	@echo "==[ Building runtime ]=="
+	@$(MAKE) -C runtime
+
 boot-qemu:
 	@echo "==[ Building simple boot image ]=="
 	@$(MAKE) -C boot-qemu

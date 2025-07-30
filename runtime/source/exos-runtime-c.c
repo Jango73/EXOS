@@ -1,6 +1,3 @@
-
-// EXOSRT1.c
-
 /***************************************************************************\
 
   EXOS Run-Time Library
@@ -9,17 +6,8 @@
 
 \***************************************************************************/
 
-/*
-#define __WATCOMC__ 1000
-#define __386__ 1
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-*/
-
-#include "EXOSRT.h"
-#include "User.h"
+#include "exos-runtime.h"
+#include "../../kernel/source/User.h"
 
 /***************************************************************************/
 
