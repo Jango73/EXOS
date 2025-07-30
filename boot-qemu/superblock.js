@@ -7,7 +7,8 @@ const kernelPath = path.join(__dirname, '../kernel/bin/exos.bin');
 const imagePath  = path.join(__dirname, './bin/disk.img');
 
 const kernelLBA     = 4;
-const loadAddress   = 0x00120000;
+// Kernel will be loaded at physical address 0x00012000
+const loadAddress   = 0x00012000;
 const entryOffset   = 0x0000;
 const entrySegment  = loadAddress >> 4;
 

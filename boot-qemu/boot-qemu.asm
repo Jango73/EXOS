@@ -14,6 +14,7 @@ start:
     mov es, ax
     mov ss, ax
     mov sp, 0x7C00
+    mov [boot_drive], dl     ; Save BIOS drive number
     sti
 
     ; Clear screen & show step A
@@ -31,8 +32,8 @@ start:
     mov al, 'B'
     call PrintChar
 
-    ; Read kernel binary starting at LBA 4 → into 0x12000:0000
-    ; es = 0x1200, bx = 0
+    ; Read kernel binary starting at LBA 4 → into physical 0x00012000
+    ; es = 0x1200, bx = 0 (address 0x1200:0000)
     mov ax, 0x1200
     mov es, ax
     xor bx, bx
@@ -136,4 +137,4 @@ boot_drive:
 
 KernelEntry:
     dw 0x0000          ; Offset
-    dw 0x1200          ; Segment
+    dw 0x1200          ; Segment (0x00012000 >> 4)
