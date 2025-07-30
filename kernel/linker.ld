@@ -17,22 +17,22 @@ SECTIONS
         *(.text.unlikely)
         *(.rodata)
         *(.rodata.*)
-        __etext = .;
     }
 
     /* Data — aligned after .text */
-    .data : AT(ALIGN(LOADADDR(.text) + (__etext - ADDR(.text)), 0x10)) {
+    .data : AT(ALIGN(LOADADDR(.text) + SIZEOF(.text), 0x10)) {
         *(.data)
     }
 
     /* BSS */
-    .bss : {
+    .bss : AT(ALIGN(LOADADDR(.data) + SIZEOF(.data), 0x10)) {
+        *(global)
         *(.bss)
         *(COMMON)
     }
 
     /* Stack */
-    .stack : {
+    .stack : AT(ALIGN(LOADADDR(.bss) + SIZEOF(.bss), 0x1000)) {
         *(.stack)
     }
 }

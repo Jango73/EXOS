@@ -49,21 +49,26 @@ static void Die ()
   LPTASK            Task;
   INTEL386REGISTERS Regs;
 
-  LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
-  LockSemaphore(SEMAPHORE_MEMORY, INFINITY);
-  LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+  Task = GetCurrentTask();
 
-  FreezeScheduler();
+  if (Task != NULL && Task != &KernelTask)
+  {
+    LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
+    LockSemaphore(SEMAPHORE_MEMORY, INFINITY);
+    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
 
-  KillTask(GetCurrentTask());
+    FreezeScheduler();
 
-  UnlockSemaphore(SEMAPHORE_KERNEL);
-  UnlockSemaphore(SEMAPHORE_MEMORY);
-  UnlockSemaphore(SEMAPHORE_CONSOLE);
+    KillTask(GetCurrentTask());
 
-  UnfreezeScheduler();
+    UnlockSemaphore(SEMAPHORE_KERNEL);
+    UnlockSemaphore(SEMAPHORE_MEMORY);
+    UnlockSemaphore(SEMAPHORE_CONSOLE);
 
-  EnableInterrupts();
+    UnfreezeScheduler();
+
+    EnableInterrupts();
+  }
 
   while (1) {}
 }
@@ -196,10 +201,13 @@ void StackFaultHandler ()
 void GeneralProtectionHandler (U32 Code)
 {
   STR Num [16];
+  INTEL386REGISTERS Regs;
 
+/*
   KernelPrint("General protection fault !\n");
   PrintFaultDetails();
   Die();
+*/
 
 /*
   U32ToHexString(Code, Num);
@@ -211,17 +219,16 @@ void GeneralProtectionHandler (U32 Code)
   KernelPrint("Done\n");
 */
 
-/*
-  INTEL386REGISTERS Regs;
-
   KernelPrint(Text_NewLine);
   KernelPrint("General protection fault !\n");
+  PrintFaultDetails();
   KernelPrint(Text_Registers);
   KernelPrint(Text_NewLine);
 
   SaveRegisters(&Regs);
   DumpRegisters(&Regs);
-*/
+
+  Die();
 }
 
 /***************************************************************************/
@@ -229,17 +236,21 @@ void GeneralProtectionHandler (U32 Code)
 void PageFaultHandler (U32 ErrorCode, LINEAR Address)
 {
   STR Num [16];
+  INTEL386REGISTERS Regs;
 
-  ConsolePrint("Page fault !\n");
+  KernelPrint("Page fault !\n");
 
-  ConsolePrint("The current task did an unauthorized access\n");
-  ConsolePrint("at linear address : ");
+  KernelPrint("The current task did an unauthorized access\n");
+  KernelPrint("at linear address : ");
   U32ToHexString(Address, Num);
-  ConsolePrint(Num);
-  ConsolePrint(Text_NewLine);
-  ConsolePrint("Since this error is unrecoverable,\n");
-  ConsolePrint("the task will be shutdown now.\n");
-  ConsolePrint("Shutdown in progress...\n");
+  KernelPrint(Num);
+  KernelPrint(Text_NewLine);
+  KernelPrint("Since this error is unrecoverable,\n");
+  KernelPrint("the task will be shutdown now.\n");
+  KernelPrint("Shutdown in progress...\n");
+
+  SaveRegisters(&Regs);
+  DumpRegisters(&Regs);
 
   Die();
 }

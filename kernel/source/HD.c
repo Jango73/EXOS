@@ -136,7 +136,7 @@ BOOL WaitNotBusy (U32 Port, U32 TimeOut)
     TimeOut--;
   }
 
-  KernelLogText(LOG_WARNING, "Time-out in HD");
+  KernelLogText(LOG_WARNING, (LPSTR) "Time-out in HD");
 
   return FALSE;
 }
@@ -151,6 +151,8 @@ static U32 HardDiskInitialize ()
   U32           Port;
   U32           Drive;
   U32           Index;
+
+  DisableIRQ(HD_IRQ);
 
   //-------------------------------------
   // Identify the drives
@@ -191,13 +193,16 @@ static U32 HardDiskInitialize ()
         STR Message [64];
         STR PortStr [32];
         STR DriveStr [32];
+
         U32ToHexString(Port, PortStr);
         U32ToHexString(Drive, DriveStr);
+
         StringCopy(Message, "Initialize HD, Port : ");
         StringConcat(Message, PortStr);
         StringConcat(Message, " Drive : ");
         StringConcat(Message, DriveStr);
-        KernelLogText(LOG_WARNING, Message);
+
+        KernelLogText(LOG_WARNING, (LPSTR) Message);
 
         Disk = NewStdHardDisk();
         if (Disk == NULL) continue;
@@ -282,9 +287,9 @@ static BOOL IsControllerReady (U32 Port, U32 Drive, U32 Head)
 
 static void ResetController (U32 Port)
 {
+  /*
   U32 Index;
 
-/*
   OutPortByte(HD_ALTCOMMAND, 4);
   for (Index = 0; Index < 1000; Index++) barrier();
   OutPortByte(HD_ALTCOMMAND, hd_info[0].ctl);
@@ -298,7 +303,7 @@ static void ResetController (U32 Port)
   {
     KernelPrint("HD : Controller reset failed\n");
   }
-*/
+  */
 }
 
 /***************************************************************************/

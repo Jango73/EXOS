@@ -237,6 +237,7 @@ extern SEMAPHORE  ConsoleSemaphore;
 LINEAR GetProcessHeap (LPPROCESS);
 void   DumpProcess    (LPPROCESS);
 void   InitSecurity   (LPSECURITY);
+BOOL   CreateProcess  (LPPROCESSINFO);
 
 /***************************************************************************/
 // Functions in Task.c

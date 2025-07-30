@@ -468,11 +468,12 @@ Out :
 
 BOOL KillTask (LPTASK Task)
 {
+  if (Task == NULL) return FALSE;
+  if (Task == &KernelTask) return FALSE;
+
 #ifdef __DEBUG__
   KernelPrint("Entering KillTask\n");
 #endif
-
-  if (Task == &KernelTask) return FALSE;
 
   //-------------------------------------
   // Lock access to kernel data
@@ -522,6 +523,8 @@ U32 SetTaskPriority (LPTASK Task, U32 Priority)
 {
   U32 OldPriority = 0;
 
+  if (Task == NULL) return OldPriority;
+
   LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
 
   OldPriority    = Task->Priority;
@@ -544,6 +547,7 @@ void Sleep (U32 MilliSeconds)
 
   FreezeScheduler();
   Task = GetCurrentTask();
+  if (Task == NULL) return;
   Task->Status     = TASK_STATUS_SLEEPING;
   Task->WakeUpTime = GetSystemTime() + MilliSeconds;
   UnfreezeScheduler();
@@ -556,6 +560,8 @@ void Sleep (U32 MilliSeconds)
 U32 GetTaskStatus (LPTASK Task)
 {
   U32 Status = 0;
+
+  if (Task == NULL) return Status;
 
   LockSemaphore(&(Task->Semaphore), INFINITY);
 

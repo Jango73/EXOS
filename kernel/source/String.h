@@ -17,7 +17,6 @@
 #include "Base.h"
 
 /***************************************************************************/
-
 // Flags for format printing
 
 #define PF_ZEROPAD 1       /* pad with zero */

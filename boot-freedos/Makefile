@@ -18,8 +18,8 @@ all: check_mtools $(FINAL_IMG)
 $(FINAL_IMG): $(LOADER_COM) $(KERNEL_BIN)
 	@echo ">>> PART_OFFSET = $(PART_OFFSET)"
 
-	# @echo ">>> Création d'AUTOEXEC.BAT..."
-	# echo "loader.com" > $(AUTOEXEC)
+	@echo ">>> Création d'AUTOEXEC.BAT..."
+	echo "loader.com" > $(AUTOEXEC)
 
 	@echo ">>> Génération du fichier mtools temporaire..."
 	echo "drive z: file=\"$(FINAL_IMG)\" offset=$(PART_OFFSET)" > $(MTOOLS_CONF)
@@ -27,7 +27,7 @@ $(FINAL_IMG): $(LOADER_COM) $(KERNEL_BIN)
 	@echo ">>> Injection via mtools avec offset ($(PART_OFFSET))..."
 	MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(LOADER_COM) z:LOADER.COM
 	MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN)  z:EXOS.BIN
-	# MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(AUTOEXEC)    z:AUTOEXEC.BAT
+	MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(AUTOEXEC)    z:AUTOEXEC.BAT
 
 	@echo ">>> Image prête: $(FINAL_IMG)"
 

@@ -68,7 +68,7 @@ Interrupt_Default :
 Interrupt_DivideError :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call DivideErrorHandler
     hlt
     popa
@@ -82,7 +82,7 @@ Interrupt_DivideError :
 Interrupt_DebugException :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call DebugExceptionHandler
     hlt
     popa
@@ -96,7 +96,7 @@ Interrupt_DebugException :
 Interrupt_NMI :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call NMIHandler
     hlt
     popa
@@ -110,7 +110,7 @@ Interrupt_NMI :
 Interrupt_BreakPoint :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call BreakPointHandler
     hlt
     popa
@@ -124,7 +124,7 @@ Interrupt_BreakPoint :
 Interrupt_Overflow :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call OverflowHandler
     hlt
     popa
@@ -138,7 +138,7 @@ Interrupt_Overflow :
 Interrupt_BoundRange :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call BoundRangeHandler
     hlt
     popa
@@ -152,7 +152,7 @@ Interrupt_BoundRange :
 Interrupt_InvalidOpcode :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call InvalidOpcodeHandler
     hlt
     popa
@@ -166,7 +166,7 @@ Interrupt_InvalidOpcode :
 Interrupt_DeviceNotAvail :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call DeviceNotAvailHandler
     hlt
     popa
@@ -180,7 +180,7 @@ Interrupt_DeviceNotAvail :
 Interrupt_DoubleFault :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call DoubleFaultHandler
     hlt
     popa
@@ -195,7 +195,7 @@ Interrupt_DoubleFault :
 Interrupt_MathOverflow :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call MathOverflowHandler
     hlt
     popa
@@ -209,7 +209,7 @@ Interrupt_MathOverflow :
 Interrupt_InvalidTSS :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call InvalidTSSHandler
     hlt
     popa
@@ -224,7 +224,7 @@ Interrupt_InvalidTSS :
 Interrupt_SegmentFault :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call SegmentFaultHandler
     hlt
     popa
@@ -239,7 +239,7 @@ Interrupt_SegmentFault :
 Interrupt_StackFault :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call StackFaultHandler
     hlt
     popa
@@ -255,7 +255,7 @@ Interrupt_GeneralProtection :
 
     pusha
     cli
-;    call EnterKernel
+    call EnterKernel
     call GeneralProtectionHandler
     hlt
     sti
@@ -274,7 +274,7 @@ Interrupt_PageFault :
     mov     eax, [esp+4]
     pusha
 
-;    call EnterKernel
+    call EnterKernel
 
     mov     ebx, cr2
     push    ebx
@@ -301,7 +301,7 @@ Interrupt_PageFault :
 Interrupt_AlignmentCheck :
 
     pusha
-;    call EnterKernel
+    call EnterKernel
     call AlignmentCheckHandler
     hlt
     popa
@@ -524,6 +524,6 @@ Delay :
 
     dw      0x00EB                     ; jmp $+2
     dw      0x00EB                     ; jmp $+2
-   ret
+    ret
 
 ;----------------------------------------------------------------------------

@@ -216,7 +216,7 @@ extern PHYSICAL            StubAddress;
 #define LOG_WARNING  0x0004
 #define LOG_ERROR    0x0008
 
-void KernelLogText (U32, LPSTR);
+void KernelLogText (U32, LPCSTR);
 
 /***************************************************************************/
 

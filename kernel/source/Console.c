@@ -489,8 +489,6 @@ BOOL ConsoleInitialize ()
 
   SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
-  // ClearConsole();
-
   return TRUE;
 }
 

@@ -12,9 +12,11 @@
 #include "Kernel.h"
 #include "System.h"
 #include "Driver.h"
+#include "FileSys.h"
 #include "Keyboard.h"
 #include "Console.h"
 #include "Mouse.h"
+#include "Clock.h"
 #include "HD.h"
 
 /***************************************************************************/
@@ -111,6 +113,7 @@ KERNELDATA Kernel =
   &DiskList,
   &FileSystemList,
   &FileList,
+  { "", 0, 0, 0, 0, 0 }
 };
 
 /***************************************************************************/
@@ -170,6 +173,12 @@ VOIDFUNC InterruptTable [] =
 /***************************************************************************/
 
 PHYSICAL StubAddress = 0;
+
+/***************************************************************************/
+
+static void DebugPutChar(STR Char) {
+  SetConsoleCharacter(Char);
+}
 
 /***************************************************************************/
 
@@ -292,35 +301,35 @@ U32 SegmentInfoToString (LPSEGMENTINFO This, LPSTR Text)
 
     Text[0] = STR_NULL;
 
-    StringConcat(Text, "Segment");
+    StringConcat(Text, TEXT("Segment"));
     StringConcat(Text, Text_NewLine);
 
-    StringConcat(Text, "Base           : ");
+    StringConcat(Text, TEXT("Base           : "));
     U32ToHexString(This->Base, Temp);
     StringConcat(Text, Temp);
     StringConcat(Text, Text_NewLine);
 
-    StringConcat(Text, "Limit          : ");
+    StringConcat(Text, TEXT("Limit          : "));
     U32ToHexString(This->Limit, Temp);
     StringConcat(Text, Temp);
     StringConcat(Text, Text_NewLine);
 
-    StringConcat(Text, "Type           : ");
-    StringConcat(Text, This->Type ? "Code" : "Data");
+    StringConcat(Text, TEXT("Type           : "));
+    StringConcat(Text, This->Type ? TEXT("Code") : TEXT("Data"));
     StringConcat(Text, Text_NewLine);
 
-    StringConcat(Text, "Privilege      : ");
+    StringConcat(Text, TEXT("Privilege      : "));
     U32ToHexString(This->Privilege, Temp);
     StringConcat(Text, Temp);
     StringConcat(Text, Text_NewLine);
 
-    StringConcat(Text, "Granularity    : ");
+    StringConcat(Text, TEXT("Granularity    : "));
     U32ToHexString(This->Granularity, Temp);
     StringConcat(Text, Temp);
     StringConcat(Text, Text_NewLine);
 
-    StringConcat(Text, "Can write      : ");
-    StringConcat(Text, This->CanWrite ? "True" : "False");
+    StringConcat(Text, TEXT("Can write      : "));
+    StringConcat(Text, This->CanWrite ? TEXT("True") : TEXT("False"));
     StringConcat(Text, Text_NewLine);
 
 /*
@@ -373,134 +382,136 @@ void DumpRegisters (LPINTEL386REGISTERS Regs)
 {
   STR Temp [32];
 
-  KernelPrint("EAX : ");
+  KernelPrint(TEXT("EAX : "));
   U32ToHexString(Regs->EAX, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("EBX : ");
+  KernelPrint(TEXT("EBX : "));
   U32ToHexString(Regs->EBX, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("ECX : ");
+  KernelPrint(TEXT("ECX : "));
   U32ToHexString(Regs->ECX, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("EDX : ");
+  KernelPrint(TEXT("EDX : "));
   U32ToHexString(Regs->EDX, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_NewLine);
 
   //-------------------------------------
 
-  KernelPrint("ESI : ");
+  KernelPrint(TEXT("ESI : "));
   U32ToHexString(Regs->ESI, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("EDI : ");
+  KernelPrint(TEXT("EDI : "));
   U32ToHexString(Regs->EDI, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
+  /*
   KernelPrint("ESP : ");
   U32ToHexString(Regs->ESP, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
+  */
 
-  KernelPrint("EBP : ");
+  KernelPrint(TEXT("EBP : "));
   U32ToHexString(Regs->EBP, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_NewLine);
 
   //-------------------------------------
 
-  KernelPrint("CS : ");
+  KernelPrint(TEXT("CS : "));
   U32ToHexString(Regs->CS, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("DS : ");
+  KernelPrint(TEXT("DS : "));
   U32ToHexString(Regs->DS, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("SS : ");
+  KernelPrint(TEXT("SS : "));
   U32ToHexString(Regs->SS, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_NewLine);
 
   //-------------------------------------
 
-  KernelPrint("ES : ");
+  KernelPrint(TEXT("ES : "));
   U32ToHexString(Regs->ES, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("FS : ");
+  KernelPrint(TEXT("FS : "));
   U32ToHexString(Regs->FS, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("GS : ");
+  KernelPrint(TEXT("GS : "));
   U32ToHexString(Regs->GS, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_NewLine);
 
   //-------------------------------------
 
-  KernelPrint("E-flags : ");
+  KernelPrint(TEXT("E-flags : "));
   U32ToHexString(Regs->EFlags, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("EIP : ");
+  KernelPrint(TEXT("EIP : "));
   U32ToHexString(Regs->EIP, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_NewLine);
 
   //-------------------------------------
 
-  KernelPrint("CR0 : ");
+  KernelPrint(TEXT("CR0 : "));
   U32ToHexString(Regs->CR0, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("CR2 : ");
+  KernelPrint(TEXT("CR2 : "));
   U32ToHexString(Regs->CR2, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("CR3 : ");
+  KernelPrint(TEXT("CR3 : "));
   U32ToHexString(Regs->CR3, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("CR4 : ");
+  KernelPrint(TEXT("CR4 : "));
   U32ToHexString(Regs->CR4, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_NewLine);
 
   //-------------------------------------
 
-  KernelPrint("DR0 : ");
+  KernelPrint(TEXT("DR0 : "));
   U32ToHexString(Regs->DR0, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("DR1 : ");
+  KernelPrint(TEXT("DR1 : "));
   U32ToHexString(Regs->DR1, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("DR2 : ");
+  KernelPrint(TEXT("DR2 : "));
   U32ToHexString(Regs->DR2, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_Space);
 
-  KernelPrint("DR3 : ");
+  KernelPrint(TEXT("DR3 : "));
   U32ToHexString(Regs->DR3, Temp);
   KernelPrint(Temp);
   KernelPrint(Text_NewLine);
@@ -521,13 +532,10 @@ typedef struct tag_CPUIDREGISTERS
 BOOL GetCPUInformation (LPCPUINFORMATION Info)
 {
   CPUIDREGISTERS Regs [4];
-  U32 Max = 0;
 
   MemorySet(Info, 0, sizeof (CPUINFORMATION));
 
   GetCPUID(Regs);
-
-  Max = Regs[0].reg_EAX;
 
   //-------------------------------------
   // Fill name with register contents
@@ -554,7 +562,6 @@ BOOL GetCPUInformation (LPCPUINFORMATION Info)
 U32 ClockTask (LPVOID Param)
 {
   STR Text [64];
-  STR Num [16];
   U32 X       = ((U32) Param & 0xFFFF0000) >> 16;
   U32 Y       = ((U32) Param & 0x0000FFFF) >> 0;
   U32 OldX    = 0;
@@ -586,7 +593,7 @@ U32 ClockTask (LPVOID Param)
       Buttons = SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
       Console.CursorX = 0;
       Console.CursorY = 0;
-      KernelPrint("%d %d %d", MouseX, MouseY, Buttons);
+      KernelPrint(TEXT("%d %d %d"), MouseX, MouseY, Buttons);
 
       Console.CursorX = OldX;
       Console.CursorY = OldY;
@@ -637,14 +644,14 @@ void DumpSystemInformation ()
   //-------------------------------------
   // Print information on computer
 
-  KernelPrint("Computer ID : ");
+  KernelPrint(TEXT("Computer ID : "));
   KernelPrint(Kernel.CPU.Name);
   KernelPrint(Text_NewLine);
 
   //-------------------------------------
   // Print information on memory
 
-  KernelPrint("Physical memory : ");
+  KernelPrint(TEXT("Physical memory : "));
   U32ToString(Memory / 1024, Num);
   KernelPrint(Num);
   KernelPrint(Text_Space);
@@ -677,8 +684,6 @@ void InitializePhysicalPageBitmap ()
 void InitializeFileSystems ()
 {
   LPLISTNODE Node;
-
-  KernelPrint("Initializing file system...\n");
 
   MountSystemFS();
 
@@ -715,10 +720,10 @@ U32 GetPhysicalMemoryUsed ()
 
 void InitializeKernel ()
 {
-  PROCESSINFO ProcessInfo;
+  // PROCESSINFO ProcessInfo;
   TASKINFO TaskInfo;
-  LPTASK   Task;
-  STR FileName [MAX_PATH_NAME];
+
+  DebugPutChar('N');
 
   //-------------------------------------
   // No more interrupts
@@ -738,6 +743,8 @@ void InitializeKernel ()
   IRQMask_21_RM = KernelStartup.IRQMask_21_RM;
   IRQMask_A1_RM = KernelStartup.IRQMask_A1_RM;
 
+  DebugPutChar('O');
+
   //-------------------------------------
   // Initialize kernel data
 
@@ -748,15 +755,21 @@ void InitializeKernel ()
 
   *((U32*)KernelProcess.HeapBase) = ID_HEAP;
 
+  DebugPutChar('P');
+
   //-------------------------------------
   // Initialize the physical page bitmap
 
   InitializePhysicalPageBitmap();
 
+  DebugPutChar('Q');
+
   //-------------------------------------
   // Initialize the keyboard
 
   StdKeyboardDriver.Command(DF_LOAD, 0);
+
+  DebugPutChar('R');
 
   //-------------------------------------
   // Initialize the console
@@ -774,7 +787,7 @@ void InitializeKernel ()
   InitializeInterrupts();
   LoadInterruptDescriptorTable(LA_IDT, IDT_SIZE - 1);
 
-  KernelLogText(LOG_VERBOSE, "Interrupts initialized...");
+  KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized..."));
 
   //-------------------------------------
   // Setup the kernel's main task
@@ -782,63 +795,55 @@ void InitializeKernel ()
   InitKernelTask();
   LoadInitialTaskRegister(KernelTask.Selector);
 
-  KernelLogText(LOG_VERBOSE, "Kernel task setup...");
+  KernelLogText(LOG_VERBOSE, TEXT("Kernel task setup..."));
 
 //-------------------------------------
   // Initialize the clock
 
   InitializeClock();
-
-  KernelLogText(LOG_VERBOSE, "Clock initialized...");
+  KernelLogText(LOG_VERBOSE, TEXT("Clock initialized..."));
 
   //-------------------------------------
   // Enable interrupts
 
   EnableInterrupts();
-
-  KernelLogText(LOG_VERBOSE, "Interrupts enabled...");
+  KernelLogText(LOG_VERBOSE, TEXT("Interrupts enabled..."));
 
   //-------------------------------------
   // Get information on CPU
 
   GetCPUInformation(&(Kernel.CPU));
-
-  KernelLogText(LOG_VERBOSE, "Got CPU information...");
+  KernelLogText(LOG_VERBOSE, TEXT("Got CPU information..."));
 
   //-------------------------------------
   // Initialize RAM drives
 
   RAMDiskDriver.Command(DF_LOAD, 0);
-
-  KernelLogText(LOG_VERBOSE, "RAM drive initialized...");
+  KernelLogText(LOG_VERBOSE, TEXT("RAM drive initialized..."));
 
   //-------------------------------------
   // Initialize physical drives
 
-  StdHardDiskDriver.Command(DF_LOAD, 0);
-
-  KernelLogText(LOG_VERBOSE, "Physical drives initialized...");
+  // StdHardDiskDriver.Command(DF_LOAD, 0);
+  // KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized..."));
 
   //-------------------------------------
   // Initialize the file systems
 
   InitializeFileSystems();
-
-  KernelLogText(LOG_VERBOSE, "File systems initialized...");
+  KernelLogText(LOG_VERBOSE, TEXT("File systems initialized..."));
 
   //-------------------------------------
   // Initialize the graphics card
 
   VESADriver.Command(DF_LOAD, 0);
-
-  KernelLogText(LOG_VERBOSE, "VESA driver initialized...");
+  KernelLogText(LOG_VERBOSE, TEXT("VESA driver initialized..."));
 
   //-------------------------------------
   // Initialize the mouse
 
-  SerialMouseDriver.Command(DF_LOAD, 0);
-
-  KernelLogText(LOG_VERBOSE, "Mouse initialized...");
+  // SerialMouseDriver.Command(DF_LOAD, 0);
+  // KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
 
   //-------------------------------------
   // Print system infomation
@@ -855,7 +860,7 @@ void InitializeKernel ()
   TaskInfo.Flags     = 0;
 
   TaskInfo.Parameter = (LPVOID) (((U32) 70 << 16) | 0);
-  Task = CreateTask(&KernelProcess, &TaskInfo);
+  CreateTask(&KernelProcess, &TaskInfo);
 */
 
   //-------------------------------------
@@ -867,7 +872,7 @@ void InitializeKernel ()
   TaskInfo.Priority  = TASK_PRIORITY_MEDIUM;
   TaskInfo.Flags     = 0;
 
-  Task = CreateTask(&KernelProcess, &TaskInfo);
+  CreateTask(&KernelProcess, &TaskInfo);
 
   //-------------------------------------
   // Launch the explorer

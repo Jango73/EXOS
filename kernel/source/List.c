@@ -21,6 +21,7 @@ static void RecursiveSort
   I32 j = Rite;
 
   U8* x = (U8*) HeapAlloc(ItemSize);
+  if (x == NULL) return;
 
   MemoryCopy(x, Base + (((Left + Rite) / 2) * ItemSize), ItemSize);
 
@@ -117,6 +118,8 @@ U32 ListGetSize (LPLIST This)
 U32 ListAddItem (LPLIST This, LPVOID Item)
 {
   LPLISTNODE NewNode = (LPLISTNODE) Item;
+
+  if (This == NULL) return FALSE;
 
   if (NewNode)
   {

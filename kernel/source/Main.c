@@ -13,6 +13,12 @@
 
 /***************************************************************************/
 
+static void DebugPutChar(STR Char) {
+  SetConsoleCharacter(Char);
+}
+
+/***************************************************************************/
+
 static void KernelIdle ()
 {
   while (1)
@@ -26,6 +32,7 @@ static void KernelIdle ()
 
 void KernelMain ()
 {
+  DebugPutChar('M');
 
   //--------------------------------------
   // Main intialization routine

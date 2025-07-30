@@ -93,6 +93,11 @@ typedef U32 BOOL;
 #endif
 
 /***************************************************************************/
+// Unused marker
+
+#define UNUSED(x) (void)(x)
+
+/***************************************************************************/
 // NULL values
 
 #ifndef NULL
@@ -206,6 +211,8 @@ typedef U32 BOOL;
 typedef U8         STR;
 typedef STR*       LPSTR;
 typedef CONST STR* LPCSTR;
+
+#define TEXT(a)   ((LPCSTR)a)
 
 /***************************************************************************/
 // Unicode string types
