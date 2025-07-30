@@ -23,4 +23,5 @@ $(DISK_IMG): $(BOOT_BIN) superblock.js
 	dd if=/dev/zero bs=512 count=100 >> $(DISK_IMG) 2>/dev/null
 	$(NODE) superblock.js
 
-clean: rm -f $(DISK_IMG) $(BOOT_BIN) $(SECTOR_INFO)
+clean:
+	rm -f $(DISK_IMG) $(BOOT_BIN) $(SECTOR_INFO)
