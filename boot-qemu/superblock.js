@@ -36,11 +36,24 @@ buf.writeUInt32LE(entryOffset,   0x0C);           // Entry offset
 buf.writeUInt32LE(entrySegment,  0x10);           // Entry segment
 buf.writeUInt32LE(kernelSectors, 0x14);           // Sector count
 
-// --- Write to disk.img ---
+// --- Helper to write buffer at a given offset ---
+function writeBuffer(fd, buffer, offset) {
+    fs.writeSync(fd, buffer, 0, buffer.length, offset);
+}
+
+// --- Write superblock and kernel to disk.img ---
 const fd = fs.openSync(imagePath, 'r+');
-fs.writeSync(fd, buf, 0, buf.length, superblockLBA * 512);
+writeBuffer(fd, buf, superblockLBA * 512);
+
+const kernelData = fs.readFileSync(kernelPath);
+writeBuffer(fd, kernelData, kernelLBA * 512);
+
+const totalSectors = kernelLBA + kernelSectors;
+fs.ftruncateSync(fd, totalSectors * 512);
 fs.closeSync(fd);
 
 console.log(`✔ SuperBlock written at LBA ${superblockLBA}`);
 console.log(`  Kernel: ${kernelSectors} sectors at LBA ${kernelLBA}`);
-console.log(`  Entry : ${entrySegment.toString(16)}:${entryOffset.toString(16).padStart(4, '0')}`);
+console.log(
+    `  Entry : ${entrySegment.toString(16)}:${entryOffset.toString(16).padStart(4, '0')}`
+);

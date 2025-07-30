@@ -18,9 +18,8 @@ $(BOOT_BIN): boot-qemu.asm $(SECTOR_INFO)
 	$(NASM) $(ASMFLAGS) -o $(BOOT_BIN) boot-qemu.asm
 
 # Step 3: build the disk image and superblock
-$(DISK_IMG): $(BOOT_BIN) superblock.js
+$(DISK_IMG): $(BOOT_BIN) superblock.js $(KERNEL_BIN)
 	cp $(BOOT_BIN) $(DISK_IMG)
-	dd if=/dev/zero bs=512 count=100 >> $(DISK_IMG) 2>/dev/null
 	$(NODE) superblock.js
 
 clean:
