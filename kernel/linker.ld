@@ -1,35 +1,38 @@
 OUTPUT_FORMAT("binary")
 ENTRY(StartAbsolute)
 
-SECTIONS {
+SECTIONS
+{
+    /* Stub — low memory, start of file */
     . = 0x00000000;
-
-    .stub : {
+    .stub : AT(0x00000000) {
         *(.text.stub)
     }
 
-    . = ALIGN(0x1000);
-    .text : {
+    /* Kernel — high memory, physically after stub (0x1000 offset) */
+    . = 0xC0000000;
+    .text : AT(ALIGN(LOADADDR(.stub) + SIZEOF(.stub), 0x1000)) {
         *(.text)
-    }
-
-    . = ALIGN(0x1000);
-    .rodata : {
+        *(.text.*)
+        *(.text.unlikely)
         *(.rodata)
+        *(.rodata.*)
+        __etext = .;
     }
 
-    . = ALIGN(0x1000);
-    .data : {
+    /* Data — aligned after .text */
+    .data : AT(ALIGN(LOADADDR(.text) + (__etext - ADDR(.text)), 0x10)) {
         *(.data)
     }
 
-    . = ALIGN(0x1000);
-    .stack : {
-        *(.stack)
-    }
-
-    . = ALIGN(0x1000);
+    /* BSS */
     .bss : {
         *(.bss)
+        *(COMMON)
+    }
+
+    /* Stack */
+    .stack : {
+        *(.stack)
     }
 }
