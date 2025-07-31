@@ -290,7 +290,7 @@ static void VarKernelPrint(LPCSTR Format, VarArgList Args) {
 
                 Text = VarArg(Args, LPSTR);
 
-                if (Text == NULL) Text = "<NULL>";
+                if (Text == NULL) Text = TEXT("<NULL>");
 
                 // Length = strnlen(Text, Precision);
                 Length = StringLength(Text);

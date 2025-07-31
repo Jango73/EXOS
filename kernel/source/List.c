@@ -317,27 +317,6 @@ U32 ListEraseItem(LPLIST This, LPVOID Item) {
 
 /*************************************************************************************************/
 
-LPVOID ListRemoveItem(LPLIST This, LPVOID Item) {
-    /*
-      LPLISTNODE Node = NULL;
-
-      for (Node = This->First; Node; Node = Node->Next)
-      {
-    if (Node == (LPLISTNODE) Item)
-    {
-      ListRemove(This, Node);
-      return Item;
-    }
-      }
-
-      return NULL;
-    */
-
-    return ListRemove(This, Item);
-}
-
-/*************************************************************************************************/
-
 U32 ListReset(LPLIST This) {
     LPLISTNODE Node = This->First;
 

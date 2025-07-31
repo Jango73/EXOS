@@ -64,7 +64,8 @@ DESKTOP MainDesktop = {
     &VESADriver,         // This desktop's graphics driver
     &MainDesktopWindow,  // Window
     NULL,                // Capture
-    NULL                 // Focus
+    NULL,                // Focus
+    0                    // Order
 };
 
 /***************************************************************************/
@@ -329,7 +330,7 @@ void DeleteWindow(LPWINDOW This) {
 
     LockSemaphore(&(This->Parent->Semaphore), INFINITY);
 
-    ListRemoveItem(This->Parent->Children, This);
+    ListRemove(This->Parent->Children, This);
 
     UnlockSemaphore(&(This->Parent->Semaphore));
 

@@ -13,6 +13,7 @@
 
 #include "I386.h"
 #include "String.h"
+#include "System.h"
 #include "Text.h"
 
 /***************************************************************************/

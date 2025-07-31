@@ -68,6 +68,7 @@ U32 ListAddTail(LPLIST, LPVOID);
 LPVOID ListRemove(LPLIST, LPVOID);
 U32 ListErase(LPLIST, LPVOID);
 U32 ListEraseLast(LPLIST);
+U32 ListEraseItem(LPLIST, LPVOID);
 U32 ListReset(LPLIST);
 LPVOID ListGetItem(LPLIST, U32);
 U32 ListGetItemIndex(LPLIST, LPVOID);
