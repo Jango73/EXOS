@@ -13,36 +13,31 @@
 
 /***************************************************************************/
 
-static void DebugPutChar(STR Char) {
-  SetConsoleCharacter(Char);
-}
+static void DebugPutChar(STR Char) { SetConsoleCharacter(Char); }
 
 /***************************************************************************/
 
-static void KernelIdle ()
-{
-  while (1)
-  {
-  }
+static void KernelIdle() {
+    while (1) {
+    }
 }
 
 /***************************************************************************/
 
 // The entry point in protected mode
 
-void KernelMain ()
-{
-  DebugPutChar('M');
+void KernelMain() {
+    DebugPutChar('M');
 
-  //--------------------------------------
-  // Main intialization routine
+    //--------------------------------------
+    // Main intialization routine
 
-  InitializeKernel();
+    InitializeKernel();
 
-  //--------------------------------------
-  // Enter the idle task
+    //--------------------------------------
+    // Enter the idle task
 
-  KernelIdle();
+    KernelIdle();
 }
 
 /***************************************************************************/

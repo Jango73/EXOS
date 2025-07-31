@@ -21,10 +21,9 @@
 
 // VMM data
 
-typedef struct tag_VMMDATA
-{
-  U32 Memory;
-  U32 Pages;
+typedef struct tag_VMMDATA {
+    U32 Memory;
+    U32 Pages;
 } VMMDATA, *LPVMMDATA;
 
 /***************************************************************************/
@@ -34,13 +33,13 @@ extern U32 Pages;
 
 /***************************************************************************/
 
-void     InitPageTable           (LPPAGETABLE, PHYSICAL);
-void     SetPhysicalPageMark     (U32, U32);
-U32      GetPhysicalPageMark     (U32);
-PHYSICAL AllocPageDirectory      ();
-PHYSICAL AllocPhysicalPage       ();
-LINEAR   VirtualAlloc            (LINEAR, U32, U32);
-BOOL     VirtualFree             (LINEAR, U32);
+void InitPageTable(LPPAGETABLE, PHYSICAL);
+void SetPhysicalPageMark(U32, U32);
+U32 GetPhysicalPageMark(U32);
+PHYSICAL AllocPageDirectory();
+PHYSICAL AllocPhysicalPage();
+LINEAR VirtualAlloc(LINEAR, U32, U32);
+BOOL VirtualFree(LINEAR, U32);
 
 /***************************************************************************/
 

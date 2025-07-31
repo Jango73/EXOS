@@ -22,18 +22,18 @@
 // Static physical and linear addresses
 // All processes have the following address space layout
 
-#define LA_RAM       0x00000000        // Reserved for kernel
-#define LA_VIDEO     0x000A0000        // Reserved for kernel
-#define LA_CONSOLE   0x000B8000        // Reserved for kernel
-#define LA_USER      0x00400000        // Start of user address space
-#define LA_LIBRARY   0xA0000000        // Dynamic Libraries
-#define LA_KERNEL    0xC0000000        // Kernel
-#define LA_RAMDISK   0xF8000000        // RAM disk memory
-#define LA_SYSTEM    0xFF400000        // IDT, GDT, etc...
-#define LA_DIRECTORY 0xFF800000        // Page Directory of current process
-#define LA_SYSTABLE  0xFF801000        // Page that maps FF800000+ addresses
-#define LA_PAGETABLE 0xFF802000        // First page table of current process
-#define LA_TEMP      0xFFBFF000        // Temporary page used by VMM
+#define LA_RAM 0x00000000        // Reserved for kernel
+#define LA_VIDEO 0x000A0000      // Reserved for kernel
+#define LA_CONSOLE 0x000B8000    // Reserved for kernel
+#define LA_USER 0x00400000       // Start of user address space
+#define LA_LIBRARY 0xA0000000    // Dynamic Libraries
+#define LA_KERNEL 0xC0000000     // Kernel
+#define LA_RAMDISK 0xF8000000    // RAM disk memory
+#define LA_SYSTEM 0xFF400000     // IDT, GDT, etc...
+#define LA_DIRECTORY 0xFF800000  // Page Directory of current process
+#define LA_SYSTABLE 0xFF801000   // Page that maps FF800000+ addresses
+#define LA_PAGETABLE 0xFF802000  // First page table of current process
+#define LA_TEMP 0xFFBFF000       // Temporary page used by VMM
 
 /***************************************************************************\
 
@@ -73,17 +73,17 @@
 #define TSS_SIZE N_32KB
 #define PPB_SIZE N_64KB
 
-#define PA_LOW    0x00000000
-#define PA_HMA    (PA_LOW + LOW_SIZE)
-#define PA_IDT    (PA_HMA + HMA_SIZE)
-#define PA_GDT    (PA_IDT + IDT_SIZE)
-#define PA_PGD    (PA_GDT + GDT_SIZE)
-#define PA_PGS    (PA_PGD + PGD_SIZE)
-#define PA_PGK    (PA_PGS + PGS_SIZE)
-#define PA_PGL    (PA_PGK + PGK_SIZE)
-#define PA_PGH    (PA_PGL + PGL_SIZE)
-#define PA_TSS    (PA_PGH + PGH_SIZE)
-#define PA_PPB    (PA_TSS + TSS_SIZE)
+#define PA_LOW 0x00000000
+#define PA_HMA (PA_LOW + LOW_SIZE)
+#define PA_IDT (PA_HMA + HMA_SIZE)
+#define PA_GDT (PA_IDT + IDT_SIZE)
+#define PA_PGD (PA_GDT + GDT_SIZE)
+#define PA_PGS (PA_PGD + PGD_SIZE)
+#define PA_PGK (PA_PGS + PGS_SIZE)
+#define PA_PGL (PA_PGK + PGK_SIZE)
+#define PA_PGH (PA_PGL + PGL_SIZE)
+#define PA_TSS (PA_PGH + PGH_SIZE)
+#define PA_PPB (PA_TSS + TSS_SIZE)
 #define PA_KERNEL (PA_PPB + PPB_SIZE)
 
 #define PA_SYSTEM PA_IDT

@@ -9,141 +9,127 @@
 
 \***************************************************************************/
 
-#include "Kernel.h"
 #include "FileSys.h"
+#include "Kernel.h"
 
 /***************************************************************************/
 
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 SystemFSCommands (U32, U32);
+U32 SystemFSCommands(U32, U32);
 
-DRIVER SystemFSDriver =
-{
-  ID_DRIVER, 1,
-  NULL, NULL,
-  DRIVER_TYPE_FILESYSTEM,
-  VER_MAJOR, VER_MINOR,
-  "Exelsius",
-  "EXOS",
-  "Virtual Computer File System",
-  SystemFSCommands
-};
+DRIVER SystemFSDriver = {ID_DRIVER,
+                         1,
+                         NULL,
+                         NULL,
+                         DRIVER_TYPE_FILESYSTEM,
+                         VER_MAJOR,
+                         VER_MINOR,
+                         "Exelsius",
+                         "EXOS",
+                         "Virtual Computer File System",
+                         SystemFSCommands};
 
 /***************************************************************************/
 
-typedef struct tag_SYSTEMFILE
-{
-  LISTNODE_FIELDS
-  LPLIST Children;
+typedef struct tag_SYSTEMFILE {
+    LISTNODE_FIELDS
+    LPLIST Children;
 } SYSTEMFILE, *LPSYSTEMFILE;
 
 /***************************************************************************/
 // The file system object allocated when mounting
 
-typedef struct tag_SYSFSFILESYSTEM
-{
-  FILESYSTEM   Header;
-  LPSYSTEMFILE Root;
+typedef struct tag_SYSFSFILESYSTEM {
+    FILESYSTEM Header;
+    LPSYSTEMFILE Root;
 } SYSFSFILESYSTEM, *LPSYSFSFILESYSTEM;
 
 /***************************************************************************/
 // The file object created when opening a file
 
-typedef struct tag_SYSFSFILE
-{
-  FILE         Header;
-  LPSYSTEMFILE SystemFile;
-  LPSYSTEMFILE Parent;
+typedef struct tag_SYSFSFILE {
+    FILE Header;
+    LPSYSTEMFILE SystemFile;
+    LPSYSTEMFILE Parent;
 } SYSFSFILE, *LPSYSFSFILE;
 
 /***************************************************************************/
 
-static LPSYSTEMFILE NewSystemFileRoot ()
-{
+static LPSYSTEMFILE NewSystemFileRoot() { return NULL; }
 
-  return NULL;
+/***************************************************************************/
+
+static LPSYSFSFILESYSTEM NewSystemFSFileSystem() {
+    LPSYSFSFILESYSTEM This;
+
+    This = (LPSYSFSFILESYSTEM)KernelMemAlloc(sizeof(SYSFSFILESYSTEM));
+    if (This == NULL) return NULL;
+
+    MemorySet(This, 0, sizeof(SYSFSFILESYSTEM));
+
+    This->Header.ID = ID_FILESYSTEM;
+    This->Header.References = 1;
+    This->Header.Next = NULL;
+    This->Header.Prev = NULL;
+    This->Header.Driver = &SystemFSDriver;
+    This->Root = NewSystemFileRoot();
+
+    InitSemaphore(&(This->Header.Semaphore));
+
+    //-------------------------------------
+    // Assign a default name to the file system
+
+    StringCopy(This->Header.Name, "System");
+
+    return This;
 }
 
 /***************************************************************************/
 
-static LPSYSFSFILESYSTEM NewSystemFSFileSystem ()
-{
-  LPSYSFSFILESYSTEM This;
+static LPSYSFSFILE NewSysFSFile(LPSYSFSFILESYSTEM FileSystem,
+                                LPSYSTEMFILE SystemFile, LPSYSTEMFILE Parent) {
+    LPSYSFSFILE This;
 
-  This = (LPSYSFSFILESYSTEM) KernelMemAlloc(sizeof(SYSFSFILESYSTEM));
-  if (This == NULL) return NULL;
+    This = (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+    if (This == NULL) return NULL;
 
-  MemorySet(This, 0, sizeof(SYSFSFILESYSTEM));
+    MemorySet(This, 0, sizeof(SYSFSFILE));
 
-  This->Header.ID         = ID_FILESYSTEM;
-  This->Header.References = 1;
-  This->Header.Next       = NULL;
-  This->Header.Prev       = NULL;
-  This->Header.Driver     = &SystemFSDriver;
-  This->Root              = NewSystemFileRoot();
+    This->Header.ID = ID_FILE;
+    This->Header.References = 1;
+    This->Header.Next = NULL;
+    This->Header.Prev = NULL;
+    This->Header.FileSystem = (LPFILESYSTEM)FileSystem;
+    This->SystemFile = SystemFile;
+    This->Parent = Parent;
 
-  InitSemaphore(&(This->Header.Semaphore));
+    InitSemaphore(&(This->Header.Semaphore));
+    InitSecurity(&(This->Header.Security));
 
-  //-------------------------------------
-  // Assign a default name to the file system
-
-  StringCopy(This->Header.Name, "System");
-
-  return This;
+    return This;
 }
 
 /***************************************************************************/
 
-static LPSYSFSFILE NewSysFSFile
-(
-  LPSYSFSFILESYSTEM FileSystem,
-  LPSYSTEMFILE SystemFile,
-  LPSYSTEMFILE Parent
-)
-{
-  LPSYSFSFILE This;
+BOOL MountSystemFS() {
+    LPSYSFSFILESYSTEM FileSystem;
 
-  This = (LPSYSFSFILE) KernelMemAlloc(sizeof(SYSFSFILE));
-  if (This == NULL) return NULL;
+    KernelLogText(LOG_VERBOSE, "Mouting system FileSystem...");
 
-  MemorySet(This, 0, sizeof(SYSFSFILE));
+    //-------------------------------------
+    // Create the file system object
 
-  This->Header.ID                   = ID_FILE;
-  This->Header.References           = 1;
-  This->Header.Next                 = NULL;
-  This->Header.Prev                 = NULL;
-  This->Header.FileSystem           = (LPFILESYSTEM) FileSystem;
-  This->SystemFile                  = SystemFile;
-  This->Parent                      = Parent;
+    FileSystem = NewSystemFSFileSystem();
+    if (FileSystem == NULL) return FALSE;
 
-  InitSemaphore(&(This->Header.Semaphore));
-  InitSecurity(&(This->Header.Security));
+    //-------------------------------------
+    // Register the file system
 
-  return This;
-}
+    ListAddItem(Kernel.FileSystem, FileSystem);
 
-/***************************************************************************/
-
-BOOL MountSystemFS ()
-{
-  LPSYSFSFILESYSTEM FileSystem;
-
-  KernelLogText(LOG_VERBOSE, "Mouting system FileSystem...");
-
-  //-------------------------------------
-  // Create the file system object
-
-  FileSystem = NewSystemFSFileSystem();
-  if (FileSystem == NULL) return FALSE;
-
-  //-------------------------------------
-  // Register the file system
-
-  ListAddItem(Kernel.FileSystem, FileSystem);
-
-  return TRUE;
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -186,19 +172,19 @@ NextComponent :
     {
       if (Path[PathIndex] == '/')
       {
-        Component[CompIndex] = STR_NULL;
-        PathIndex++;
-        break;
+    Component[CompIndex] = STR_NULL;
+    PathIndex++;
+    break;
       }
       else
       if (Path[PathIndex] == STR_NULL)
       {
-        Component[CompIndex] = STR_NULL;
-        break;
+    Component[CompIndex] = STR_NULL;
+    break;
       }
       else
       {
-        Component[CompIndex++] = Path[PathIndex++];
+    Component[CompIndex++] = Path[PathIndex++];
       }
     }
 
@@ -207,64 +193,65 @@ NextComponent :
 
     while (1)
     {
-      DirEntry = (LPFATDIRENTRY_EXT) (FileSystem->IOBuffer + FileLoc->Offset);
+      DirEntry = (LPFATDIRENTRY_EXT) (FileSystem->IOBuffer +
+FileLoc->Offset);
 
       if
       (
-        (DirEntry->ClusterLow || DirEntry->ClusterHigh) &&
-        (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
-        (DirEntry->Name[0] != 0xE5)
+    (DirEntry->ClusterLow || DirEntry->ClusterHigh) &&
+    (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
+    (DirEntry->Name[0] != 0xE5)
       )
       {
-        DecodeFileName(DirEntry, Name);
+    DecodeFileName(DirEntry, Name);
 
-        if
+    if
+    (
+      StringCompareNC(Component, "*") == 0 ||
+      StringCompareNC(Component, Name) == 0
+    )
+    {
+      if (Path[PathIndex] == STR_NULL)
+      {
+        FileLoc->DataCluster =
         (
-          StringCompareNC(Component, "*") == 0 ||
-          StringCompareNC(Component, Name) == 0
-        )
+          ((U32) DirEntry->ClusterLow) |
+          (((U32) DirEntry->ClusterHigh) << 16)
+        );
+
+        return TRUE;
+      }
+      else
+      {
+        if (DirEntry->Attributes & FAT_ATTR_FOLDER)
         {
-          if (Path[PathIndex] == STR_NULL)
-          {
-            FileLoc->DataCluster =
-            (
-              ((U32) DirEntry->ClusterLow) |
-              (((U32) DirEntry->ClusterHigh) << 16)
-            );
+          U32 NextDir;
 
-            return TRUE;
-          }
-          else
-          {
-            if (DirEntry->Attributes & FAT_ATTR_FOLDER)
-            {
-              U32 NextDir;
+          NextDir = (U32) DirEntry->ClusterLow;
+          NextDir |= ((U32) DirEntry->ClusterHigh) << 16;
 
-              NextDir = (U32) DirEntry->ClusterLow;
-              NextDir |= ((U32) DirEntry->ClusterHigh) << 16;
+          FileLoc->FolderCluster = NextDir;
+          FileLoc->FileCluster   = FileLoc->FolderCluster;
+          FileLoc->Offset        = 0;
 
-              FileLoc->FolderCluster = NextDir;
-              FileLoc->FileCluster   = FileLoc->FolderCluster;
-              FileLoc->Offset        = 0;
+          if
+          (
+        ReadCluster
+        (
+          FileSystem,
+          FileLoc->FileCluster,
+          FileSystem->IOBuffer
+        ) == FALSE
+          ) return FALSE;
 
-              if
-              (
-                ReadCluster
-                (
-                  FileSystem,
-                  FileLoc->FileCluster,
-                  FileSystem->IOBuffer
-                ) == FALSE
-              ) return FALSE;
-
-              goto NextComponent;
-            }
-            else
-            {
-              return FALSE;
-            }
-          }
+          goto NextComponent;
         }
+        else
+        {
+          return FALSE;
+        }
+      }
+    }
       }
 
       //-------------------------------------
@@ -274,28 +261,28 @@ NextComponent :
 
       if (FileLoc->Offset >= FileSystem->BytesPerCluster)
       {
-        FileLoc->Offset = 0;
-        FileLoc->FileCluster = GetNextClusterInChain
-        (
-          FileSystem,
-          FileLoc->FileCluster
-        );
+    FileLoc->Offset = 0;
+    FileLoc->FileCluster = GetNextClusterInChain
+    (
+      FileSystem,
+      FileLoc->FileCluster
+    );
 
-        if
-        (
-          FileLoc->FileCluster == 0 ||
-          FileLoc->FileCluster >= FAT32_CLUSTER_RESERVED
-        ) return FALSE;
+    if
+    (
+      FileLoc->FileCluster == 0 ||
+      FileLoc->FileCluster >= FAT32_CLUSTER_RESERVED
+    ) return FALSE;
 
-        if
-        (
-          ReadCluster
-          (
-            FileSystem,
-            FileLoc->FileCluster,
-            FileSystem->IOBuffer
-          ) == FALSE
-        ) return FALSE;
+    if
+    (
+      ReadCluster
+      (
+        FileSystem,
+        FileLoc->FileCluster,
+        FileSystem->IOBuffer
+      ) == FALSE
+    ) return FALSE;
       }
     }
   }
@@ -304,10 +291,7 @@ NextComponent :
 
 /***************************************************************************/
 
-static U32 Initialize ()
-{
-  return DF_ERROR_SUCCESS;
-}
+static U32 Initialize() { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 
@@ -341,10 +325,7 @@ static LPSYSFSFILE OpenFile (LPFILEINFO Find)
 }
 */
 
-static LPSYSFSFILE OpenFile (LPFILEINFO Find)
-{
-  return NULL;
-}
+static LPSYSFSFILE OpenFile(LPFILEINFO Find) { return NULL; }
 
 /***************************************************************************/
 
@@ -391,22 +372,23 @@ static U32 OpenNext (LPSYSFSFILE File)
 
       if
       (
-        File->Location.FileCluster == 0 ||
-        File->Location.FileCluster >= FAT32_CLUSTER_RESERVED
+    File->Location.FileCluster == 0 ||
+    File->Location.FileCluster >= FAT32_CLUSTER_RESERVED
       ) return DF_ERROR_GENERIC;
 
       if
       (
-        ReadCluster
-        (
-          FileSystem,
-          File->Location.FileCluster,
-          FileSystem->IOBuffer
-        ) == FALSE
+    ReadCluster
+    (
+      FileSystem,
+      File->Location.FileCluster,
+      FileSystem->IOBuffer
+    ) == FALSE
       ) return DF_ERROR_GENERIC;
     }
 
-    DirEntry = (LPFATDIRENTRY_EXT) (FileSystem->IOBuffer + File->Location.Offset);
+    DirEntry = (LPFATDIRENTRY_EXT) (FileSystem->IOBuffer +
+File->Location.Offset);
 
     if
     (
@@ -417,8 +399,8 @@ static U32 OpenNext (LPSYSFSFILE File)
     {
       File->Location.DataCluster =
       (
-        ((U32) DirEntry->ClusterLow) |
-        (((U32) DirEntry->ClusterHigh) << 16)
+    ((U32) DirEntry->ClusterLow) |
+    (((U32) DirEntry->ClusterHigh) << 16)
       );
 
       DecodeFileName(DirEntry, File->Header.Name);
@@ -431,69 +413,64 @@ static U32 OpenNext (LPSYSFSFILE File)
 }
 */
 
-static U32 OpenNext (LPSYSFSFILE File)
-{
-  return DF_ERROR_GENERIC;
+static U32 OpenNext(LPSYSFSFILE File) { return DF_ERROR_GENERIC; }
+
+/***************************************************************************/
+
+static U32 CloseFile(LPSYSFSFILE File) {
+    if (File == NULL) return DF_ERROR_BADPARAM;
+
+    KernelMemFree(File);
+
+    return DF_ERROR_SUCCESS;
 }
 
 /***************************************************************************/
 
-static U32 CloseFile (LPSYSFSFILE File)
-{
-  if (File == NULL) return DF_ERROR_BADPARAM;
+static U32 ReadFile(LPSYSFSFILE File) {
+    LPSYSFSFILESYSTEM FileSystem;
 
-  KernelMemFree(File);
+    /*
+      CLUSTER RelativeCluster;
+      CLUSTER Cluster;
+      U32 OffsetInCluster;
+      U32 BytesRemaining;
+      U32 BytesToRead;
+      U32 Index;
 
-  return DF_ERROR_SUCCESS;
-}
+      //-------------------------------------
+      // Check validity of parameters
 
-/***************************************************************************/
+      if (File == NULL) return DF_ERROR_BADPARAM;
+      if (File->Header.ID != ID_FILE) return DF_ERROR_BADPARAM;
+      if (File->Header.Buffer == NULL) return DF_ERROR_BADPARAM;
 
-static U32 ReadFile (LPSYSFSFILE File)
-{
-  LPSYSFSFILESYSTEM FileSystem;
+      //-------------------------------------
+      // Get the associated file system
 
-/*
-  CLUSTER RelativeCluster;
-  CLUSTER Cluster;
-  U32 OffsetInCluster;
-  U32 BytesRemaining;
-  U32 BytesToRead;
-  U32 Index;
+      FileSystem = (LPFATFILESYSTEM) File->Header.FileSystem;
 
-  //-------------------------------------
-  // Check validity of parameters
+      //-------------------------------------
+      // Compute the starting cluster and the offset
 
-  if (File == NULL) return DF_ERROR_BADPARAM;
-  if (File->Header.ID != ID_FILE) return DF_ERROR_BADPARAM;
-  if (File->Header.Buffer == NULL) return DF_ERROR_BADPARAM;
+      RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
+      OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
+      BytesRemaining  = File->Header.BytesToRead;
+      File->Header.BytesRead = 0;
 
-  //-------------------------------------
-  // Get the associated file system
+      Cluster = File->Location.DataCluster;
 
-  FileSystem = (LPFATFILESYSTEM) File->Header.FileSystem;
-
-  //-------------------------------------
-  // Compute the starting cluster and the offset
-
-  RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
-  OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
-  BytesRemaining  = File->Header.BytesToRead;
-  File->Header.BytesRead = 0;
-
-  Cluster = File->Location.DataCluster;
-
-  for (Index = 0; Index < RelativeCluster; Index++)
-  {
+      for (Index = 0; Index < RelativeCluster; Index++)
+      {
     Cluster = GetNextClusterInChain(FileSystem, Cluster);
     if (Cluster == 0 || Cluster >= FAT32_CLUSTER_RESERVED)
     {
       return DF_ERROR_IO;
     }
-  }
+      }
 
-  while (1)
-  {
+      while (1)
+      {
     //-------------------------------------
     // Read the current data cluster
 
@@ -537,44 +514,55 @@ static U32 ReadFile (LPSYSFSFILE File)
     {
       break;
     }
-  }
-*/
+      }
+    */
 
-  return DF_ERROR_SUCCESS;
+    return DF_ERROR_SUCCESS;
 }
 
 /***************************************************************************/
 
-static U32 WriteFile (LPSYSFSFILE File)
-{
-  return DF_ERROR_NOTIMPL;
-}
+static U32 WriteFile(LPSYSFSFILE File) { return DF_ERROR_NOTIMPL; }
 
 /***************************************************************************/
 
-U32 SystemFSCommands (U32 Function, U32 Parameter)
-{
-  switch (Function)
-  {
-    case DF_LOAD             : return Initialize();
-    case DF_GETVERSION       : return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-    case DF_FS_GETVOLUMEINFO : return DF_ERROR_NOTIMPL;
-    case DF_FS_SETVOLUMEINFO : return DF_ERROR_NOTIMPL;
-    case DF_FS_CREATEFOLDER  : return DF_ERROR_NOTIMPL;
-    case DF_FS_DELETEFOLDER  : return DF_ERROR_NOTIMPL;
-    case DF_FS_OPENFILE      : return (U32) OpenFile((LPFILEINFO) Parameter);
-    case DF_FS_OPENNEXT      : return (U32) OpenNext((LPSYSFSFILE) Parameter);
-    case DF_FS_CLOSEFILE     : return (U32) CloseFile((LPSYSFSFILE) Parameter);
-    case DF_FS_DELETEFILE    : return DF_ERROR_NOTIMPL;
-    case DF_FS_READ          : return (U32) ReadFile((LPSYSFSFILE) Parameter);
-    case DF_FS_WRITE         : return (U32) WriteFile((LPSYSFSFILE) Parameter);
-    case DF_FS_GETPOSITION   : return DF_ERROR_NOTIMPL;
-    case DF_FS_SETPOSITION   : return DF_ERROR_NOTIMPL;
-    case DF_FS_GETATTRIBUTES : return DF_ERROR_NOTIMPL;
-    case DF_FS_SETATTRIBUTES : return DF_ERROR_NOTIMPL;
-  }
+U32 SystemFSCommands(U32 Function, U32 Parameter) {
+    switch (Function) {
+        case DF_LOAD:
+            return Initialize();
+        case DF_GETVERSION:
+            return MAKE_VERSION(VER_MAJOR, VER_MINOR);
+        case DF_FS_GETVOLUMEINFO:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_SETVOLUMEINFO:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_CREATEFOLDER:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_DELETEFOLDER:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_OPENFILE:
+            return (U32)OpenFile((LPFILEINFO)Parameter);
+        case DF_FS_OPENNEXT:
+            return (U32)OpenNext((LPSYSFSFILE)Parameter);
+        case DF_FS_CLOSEFILE:
+            return (U32)CloseFile((LPSYSFSFILE)Parameter);
+        case DF_FS_DELETEFILE:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_READ:
+            return (U32)ReadFile((LPSYSFSFILE)Parameter);
+        case DF_FS_WRITE:
+            return (U32)WriteFile((LPSYSFSFILE)Parameter);
+        case DF_FS_GETPOSITION:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_SETPOSITION:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_GETATTRIBUTES:
+            return DF_ERROR_NOTIMPL;
+        case DF_FS_SETATTRIBUTES:
+            return DF_ERROR_NOTIMPL;
+    }
 
-  return DF_ERROR_NOTIMPL;
+    return DF_ERROR_NOTIMPL;
 }
 
 /***************************************************************************/

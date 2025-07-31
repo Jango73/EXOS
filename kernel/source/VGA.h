@@ -18,14 +18,13 @@
 
 /***************************************************************************/
 
-typedef struct tag_VGAMODEREGS
-{
-  U8 Regs [64];
+typedef struct tag_VGAMODEREGS {
+    U8 Regs[64];
 } VGAMODEREGS, *LPVGAMODEREGS;
 
 /***************************************************************************/
 
-extern VGAMODEREGS VGAModeRegs [];
+extern VGAMODEREGS VGAModeRegs[];
 
 /***************************************************************************/
 

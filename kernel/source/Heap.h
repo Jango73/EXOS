@@ -20,12 +20,12 @@
 
 // Functions in Heap.c
 
-LPVOID HeapAlloc_HBHS (LINEAR, U32, U32);
-void   HeapFree_HBHS  (LINEAR, U32, LPVOID);
+LPVOID HeapAlloc_HBHS(LINEAR, U32, U32);
+void HeapFree_HBHS(LINEAR, U32, LPVOID);
 // LPVOID HeapAlloc_P    (LPPROCESS, U32);
 // void   HeapFree_P     (LPPROCESS, LPVOID);
-LPVOID HeapAlloc      (U32);
-void   HeapFree       (LPVOID);
+LPVOID HeapAlloc(U32);
+void HeapFree(LPVOID);
 
 /***************************************************************************/
 

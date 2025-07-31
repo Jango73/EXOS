@@ -18,15 +18,15 @@
 
 /***************************************************************************/
 
-#pragma pack (1)
+#pragma pack(1)
 
 /***************************************************************************/
 
 // Functions supplied by a mouse driver
 
-#define DF_MOUSE_RESET      (DF_FIRSTFUNC + 0)
-#define DF_MOUSE_GETDELTAX  (DF_FIRSTFUNC + 1)
-#define DF_MOUSE_GETDELTAY  (DF_FIRSTFUNC + 2)
+#define DF_MOUSE_RESET (DF_FIRSTFUNC + 0)
+#define DF_MOUSE_GETDELTAX (DF_FIRSTFUNC + 1)
+#define DF_MOUSE_GETDELTAY (DF_FIRSTFUNC + 2)
 #define DF_MOUSE_GETBUTTONS (DF_FIRSTFUNC + 3)
 
 /***************************************************************************/

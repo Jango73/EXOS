@@ -14,8 +14,8 @@
 
 /***************************************************************************/
 
-BOOL MakePassword (LPCSTR, LPSTR);
-BOOL CheckPassword (LPCSTR, LPCSTR);
+BOOL MakePassword(LPCSTR, LPSTR);
+BOOL CheckPassword(LPCSTR, LPCSTR);
 
 /***************************************************************************/
 

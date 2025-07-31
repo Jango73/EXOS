@@ -18,10 +18,10 @@
 
 /***************************************************************************/
 
-void InitializeClock   ();
-U32  GetSystemTime     ();
-void MilliSecondsToHMS (U32, LPSTR);
-BOOL GetLocalTime      (LPSYSTEMTIME);
+void InitializeClock();
+U32 GetSystemTime();
+void MilliSecondsToHMS(U32, LPSTR);
+BOOL GetLocalTime(LPSYSTEMTIME);
 
 /***************************************************************************/
 

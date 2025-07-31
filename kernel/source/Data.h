@@ -20,7 +20,7 @@
 
 extern U32 IRQMask_21;
 extern U32 IRQMask_A1;
-extern U8  Stack [32];
+extern U8 Stack[32];
 
 /***************************************************************************/
 
