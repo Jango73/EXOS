@@ -169,13 +169,13 @@ Out:
 
 /***************************************************************************/
 
-inline U32 GetDirectoryEntry(LINEAR Address) {
+static inline U32 GetDirectoryEntry(LINEAR Address) {
     return Address >> PAGE_TABLE_CAPACITY_MUL;
 }
 
 /***************************************************************************/
 
-inline U32 GetTableEntry(LINEAR Address) {
+static inline U32 GetTableEntry(LINEAR Address) {
     return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL;
 }
 

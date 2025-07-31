@@ -24,7 +24,7 @@
 
 STR Text_OSTitle[] =
     "EXOS - Exelsius Operating System - Version 1.00\n"
-    "Copyright (c) 1999-2010 Exelsius.\n"
+    "Copyright (c) 1999-2025 Exelsius.\n"
     "All rights reserved.\n";
 
 /***************************************************************************/
@@ -147,7 +147,10 @@ PHYSICAL StubAddress = 0;
 
 /***************************************************************************/
 
-static void DebugPutChar(STR Char) { SetConsoleCharacter(Char); }
+static void DebugPutChar(STR Char) {
+    volatile char* vram = (char*)0xB8000;
+    vram[0] = 'Char';
+}
 
 /***************************************************************************/
 
@@ -686,13 +689,6 @@ void InitializeKernel() {
     DebugPutChar('Q');
 
     //-------------------------------------
-    // Initialize the keyboard
-
-    StdKeyboardDriver.Command(DF_LOAD, 0);
-
-    DebugPutChar('R');
-
-    //-------------------------------------
     // Initialize the console
 
     ConsoleInitialize();
@@ -700,7 +696,14 @@ void InitializeKernel() {
     //-------------------------------------
     // Print the EXOS banner
 
-    ConsolePrint(Text_OSTitle);
+    KernelPrint(Text_OSTitle);
+
+    //-------------------------------------
+    // Initialize the keyboard
+
+    StdKeyboardDriver.Command(DF_LOAD, 0);
+
+    KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized..."));
 
     //-------------------------------------
     // Initialize interrupts

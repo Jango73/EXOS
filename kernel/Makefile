@@ -6,10 +6,10 @@ AS      = AS = i686-elf-as
 NASM	= nasm
 OBJCOPY = i686-elf-objcopy
 
-CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O2 -fno-pic -fno-stack-protector -fno-builtin
+CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin
 AFLAGS  = -f elf -I source/
 
-LDFLAGS = -T linker.ld -nostdlib
+LDFLAGS = -T linker.ld -nostdlib -Map=exos.map
 
 KERNEL_ELF = bin/exos.elf
 KERNEL_BIN = bin/exos.bin

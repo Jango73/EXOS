@@ -18,3 +18,14 @@ make
 ## Forbidden Actions
 - Never enable network during tests.
 - DON'T DELETE blank lines between functions, blocks of code, etc...
+
+## Boot sequence
+When launching the DOS loader, the sequence is
+
+- Loader.asm : Main (loads exos.bin and jumps to its base)
+- Stub.asm : StartAbsolute (does nothing, just a jump)
+- Stub.asm : Start (loads IDT & GDT and switches to PM)
+- Stub.asm : Start32 (gets RAM size, sets up page directory and tables, enables paging)
+- System.asm : ProtectedModeEntry (fixes segments, stores stub info, sets up stack)
+- Main.c : KernelMain()
+- Kernel.c : InitializeKernel()

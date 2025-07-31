@@ -784,7 +784,7 @@ SaveRegisters :
     mov     eax, [ebp]                 ; Store EBP
     mov     [edi], eax
     add     edi, 4
-    mov     eax, 0                     ; Store EIP
+    mov     eax, [ebp+4]               ; Store EIP
     mov     [edi], eax
     add     edi, 4
     mov     ax, cs                     ; Store CS
