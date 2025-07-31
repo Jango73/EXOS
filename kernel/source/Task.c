@@ -3,9 +3,9 @@
 
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -15,7 +15,6 @@
 
 /***************************************************************************/
 
-extern U8 Stack[32];
 
 LIST KernelTaskMessageList = {NULL,           NULL,          NULL, 0,
                               KernelMemAlloc, KernelMemFree, NULL};
@@ -33,10 +32,10 @@ TASK KernelTask = {ID_TASK,
                    0,
                    0,
                    SELECTOR_TSS_0,
-                   (LINEAR)&Stack,
-                   TASK_MINIMUM_STACK_SIZE,
-                   (LINEAR)&Stack,
-                   TASK_SYSTEM_STACK_SIZE * 4,
+                   (LINEAR) KernelStack,
+                   STK_SIZE,
+                   (LINEAR) KernelStack,
+                   STK_SIZE,
                    0,
                    0,
                    EMPTY_SEMAPHORE,

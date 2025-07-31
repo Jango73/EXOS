@@ -11,6 +11,7 @@
 
 #include "FileSys.h"
 
+#include "Console.h"
 #include "Kernel.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32);
@@ -103,23 +104,23 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
 
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
-                    KernelPrint("Mounting FAT16 partition\n");
+                    KernelLogText(LOG_VERBOSE, TEXT("Mounting FAT16 partition"));
                     MountPartition_FAT16(Disk, Partition + Index, Base);
                 } break;
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
-                    KernelPrint("Mounting FAT32 partition\n");
+                    KernelLogText(LOG_VERBOSE, TEXT("Mounting FAT32 partition"));
                     MountPartition_FAT32(Disk, Partition + Index, Base);
                 } break;
 
                 case FSID_EXOS: {
-                    KernelPrint("Mounting XFS partition\n");
+                    KernelLogText(LOG_VERBOSE, TEXT("Mounting XFS partition"));
                     MountPartition_XFS(Disk, Partition + Index, Base);
                 } break;
 
                 default: {
-                    KernelPrint("Partition type %02X not implemented\n",
+                    KernelPrint(TEXT("Partition type %02X not implemented\n"),
                                 Partition[Index].Type);
                 } break;
             }

@@ -31,8 +31,13 @@ SECTIONS
         *(COMMON)
     }
 
+    /* Heap */
+    .heap : AT(ALIGN(LOADADDR(.bss) + SIZEOF(.bss), 0x1000)) {
+        *(.heap)
+    }
+
     /* Stack */
-    .stack : AT(ALIGN(LOADADDR(.bss) + SIZEOF(.bss), 0x1000)) {
+    .stack : AT(ALIGN(LOADADDR(.heap) + SIZEOF(.heap), 0x1000)) {
         *(.stack)
     }
 }

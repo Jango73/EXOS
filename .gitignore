@@ -2,6 +2,7 @@
 *.a
 *.com
 *.bin
+*.map
 *.elf
 *.img
 *.iso

@@ -3,9 +3,9 @@
 
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -17,23 +17,21 @@
 
 /***************************************************************************/
 
-extern U8 Stack[32];
-
 PROCESS KernelProcess = {
-    ID_PROCESS,
-    1,  // ID, references
+    ID_PROCESS,             // ID
+    1,                      // References
     NULL,
-    NULL,                                        // Next, previous
-    EMPTY_SEMAPHORE,                             // Semaphore
-    EMPTY_SECURITY,                              // Security
-    NULL,                                        // Desktop
-    NULL,                                        // Parent
-    PRIVILEGE_KERNEL,                            // Privilege
-    PA_PGD,                                      // Page directory
-    ((LINEAR)&Stack) + TASK_MINIMUM_STACK_SIZE,  // Heap base
-    N_1MB,                                       // Heap size
-    "EXOS",                                      // File name
-    NULL                                         // Objects
+    NULL,                   // Next, previous
+    EMPTY_SEMAPHORE,        // Semaphore
+    EMPTY_SECURITY,         // Security
+    NULL,                   // Desktop
+    NULL,                   // Parent
+    PRIVILEGE_KERNEL,       // Privilege
+    PA_PGD,                 // Page directory
+    (LINEAR) KernelHeap,    // Heap base
+    HEP_SIZE,               // Heap size
+    "EXOS",                 // File name
+    NULL                    // Objects
 };
 
 /***************************************************************************/

@@ -9,7 +9,7 @@ OBJCOPY = i686-elf-objcopy
 CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin
 AFLAGS  = -f elf -I source/
 
-LDFLAGS = -T linker.ld -nostdlib -Map=exos.map
+LDFLAGS = -T linker.ld -nostdlib -Map=bin/exos.map
 
 KERNEL_ELF = bin/exos.elf
 KERNEL_BIN = bin/exos.bin

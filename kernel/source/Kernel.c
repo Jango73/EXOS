@@ -672,11 +672,6 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize kernel data
 
-    Memory = KernelStartup.MemorySize;
-    Pages = Memory >> PAGE_SIZE_MUL;
-
-    MemorySet((LPVOID)KernelProcess.HeapBase, 0, 16384);
-
     *((U32*)KernelProcess.HeapBase) = ID_HEAP;
 
     DebugPutChar('P');
@@ -702,7 +697,6 @@ void InitializeKernel() {
     // Initialize the keyboard
 
     StdKeyboardDriver.Command(DF_LOAD, 0);
-
     KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized..."));
 
     //-------------------------------------
@@ -710,7 +704,6 @@ void InitializeKernel() {
 
     InitializeInterrupts();
     LoadInterruptDescriptorTable(LA_IDT, IDT_SIZE - 1);
-
     KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized..."));
 
     //-------------------------------------

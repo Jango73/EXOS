@@ -121,7 +121,7 @@ ProtectedModeEntry :
     mov     ax,  SELECTOR_KERNEL_DATA
     mov     ss,  ax
 
-    mov     esp, Stack                 ; Start of kernel heap
+    mov     esp, KernelStack           ; Start of kernel stack
     add     esp, (N_32KB - 3072)       ; Minimum stack size
     mov     ebp, esp
 
@@ -898,12 +898,23 @@ DoSystemCall :
 ;----------------------------------------------------------------------------
 
 section .bss
-bits 32
 
     global Stack
 
-;--------------------------------------
+;----------------------------------------------------------------------------
 
-Stack: resd 8
+section .heap
+
+    global KernelHeap
+
+KernelHeap: resb HEP_SIZE
+
+;----------------------------------------------------------------------------
+
+section .stack
+
+    global KernelStack
+
+KernelStack: resb STK_SIZE
 
 ;----------------------------------------------------------------------------

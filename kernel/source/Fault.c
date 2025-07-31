@@ -65,8 +65,8 @@ static void Die() {
         EnableInterrupts();
     }
 
-    while (1) {
-    }
+    // Wait forever
+    while (1) {}
 }
 
 /***************************************************************************/

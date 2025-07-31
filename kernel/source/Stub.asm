@@ -446,7 +446,7 @@ Start32 :
     rep     stosb
 
     ;--------------------------------------
-    ; Copy GDT to RAM location of GDT
+    ; Copy GDT to physical address of GDT
 
     mov     eax, 0xB8000
     mov     byte [eax], 'B'
@@ -565,11 +565,11 @@ SetupPaging :
     call    MapPages
 
     ;--------------------------------------
-    ; Setup kernel memory pages (2 MB)
+    ; Setup kernel memory pages (KERNEL_SIZE bytes)
 
     mov     edi, PA_PGK
     mov     eax, PA_KERNEL
-    mov     ecx, N_2MB >> MUL_4KB
+    mov     ecx, KERNEL_SIZE >> MUL_4KB
     call    MapPages
 
     ;--------------------------------------
@@ -630,6 +630,7 @@ CopyKernel :
     add     esi, N_4KB
     mov     edi, PA_KERNEL
     mov     ecx, KERNEL_SIZE
+    sub     ecx, N_4KB
     cld
     rep     movsb
     ret

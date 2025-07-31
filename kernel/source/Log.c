@@ -17,14 +17,14 @@ void KernelLogText(U32 Type, LPCSTR Text) {
     switch (Type) {
         case LOG_DEBUG: {
 #ifdef __DEBUG__
-            KernelPrint("DEBUG: ");
+            KernelPrint("DBG> ");
             KernelPrint(Text);
             KernelPrint(Text_NewLine);
 #endif
         } break;
 
         case LOG_VERBOSE: {
-            KernelPrint("VERBOSE: ");
+            KernelPrint("> ");
             KernelPrint(Text);
             KernelPrint(Text_NewLine);
         } break;
