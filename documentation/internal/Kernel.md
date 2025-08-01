@@ -377,3 +377,74 @@ Interactive memory viewer used for debugging.
 - PrintMemory: Dumps a series of memory lines.
 - PrintMemoryPage: Shows a page of memory on the console.
 - MemEdit: Lets the user scroll through memory addresses.
+### Process.c
+
+Manages executable loading, process creation and heap setup.
+
+#### Functions in Process.c
+
+- InitializeKernelHeap: Sets up the kernel heap area.
+- GetExecutableInfo_EXOS: Retrieves information from an EXOS executable.
+- LoadExecutable_EXOS: Loads an executable into memory.
+- NewProcess: Allocates and initializes a process structure.
+- CreateProcess: Loads a program and creates its initial task.
+- GetProcessHeap: Returns the base address of a process heap.
+- DumpProcess: Prints process details for debugging.
+- InitSecurity: Initializes a security descriptor.
+
+### RAMDisk.c
+
+Driver for an in-memory disk used mainly for testing.
+
+#### Functions in RAMDisk.c
+
+- NewRAMDisk: Allocates a RAM disk structure.
+- CreateFATDirEntry: Builds a FAT directory entry.
+- FormatRAMDisk_FAT32: Creates a FAT32 layout on the disk.
+- RAMDiskInitialize: Allocates and sets up the RAM disk.
+- Read: Reads sectors from the RAM disk.
+- Write: Writes sectors to the RAM disk.
+- GetInfo: Returns information about the disk.
+- SetAccess: Changes disk access permissions.
+- RAMDiskCommands: Dispatches functions for the RAM disk driver.
+
+### Schedule.c
+
+Implements task scheduling and queue management.
+
+#### Functions in Schedule.c
+
+- UpdateScheduler: Recomputes time slices for tasks.
+- AddTaskToQueue: Inserts a new task in the scheduler queue.
+- RemoveTaskFromQueue: Removes a task from the scheduler queue.
+- RotateQueue: Moves to the next task in the round-robin list.
+- Scheduler: Chooses the next task to run.
+- GetCurrentProcess: Returns the process owning the current task.
+- GetCurrentTask: Returns the currently running task.
+- FreezeScheduler: Increments scheduler freeze counter.
+- UnfreezeScheduler: Decrements scheduler freeze counter.
+
+### Segment.c
+
+Helper functions to initialize GDT and TSS descriptors.
+
+#### Functions in Segment.c
+
+- InitSegmentDescriptor: Initializes a segment descriptor.
+- SetSegmentDescriptorBase: Sets the base address of a segment.
+- SetSegmentDescriptorLimit: Sets the limit of a segment.
+- SetTSSDescriptorBase: Sets the base of a TSS descriptor.
+- SetTSSDescriptorLimit: Sets the size of a TSS descriptor.
+
+### Sem.c
+
+Kernel semaphores providing mutual exclusion.
+
+#### Functions in Sem.c
+
+- InitSemaphore: Resets a semaphore object.
+- NewSemaphore: Allocates an unlinked semaphore.
+- CreateSemaphore: Allocates and registers a semaphore.
+- DeleteSemaphore: Removes a semaphore from the kernel list.
+- LockSemaphore: Acquires the semaphore for the current task.
+- UnlockSemaphore: Releases a previously acquired semaphore.
