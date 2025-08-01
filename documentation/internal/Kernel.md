@@ -156,3 +156,74 @@ Driver implementation for the FAT16 file system.
 - CloseFile: Closes a previously opened file.
 - ReadFile: Reads data from an open file.
 
+
+### FAT32.c
+
+Driver implementation for the FAT32 file system.
+
+#### Functions in FAT32.c
+
+- FAT32Commands: Handles all FAT32 driver operations.
+- NewFATFileSystem: Allocates a FAT32 file system object.
+- NewFATFile: Allocates a FAT32 file structure.
+- MountPartition_FAT32: Mounts a FAT32 partition on disk.
+- GetNameChecksum: Computes the checksum for short filenames.
+- ReadCluster: Reads a cluster from disk.
+- WriteCluster: Writes a cluster back to disk.
+- GetNextClusterInChain: Retrieves the next cluster in a file chain.
+- FindFreeCluster: Searches the FAT for a free cluster.
+- FindFreeFATEntry: Locates a free directory entry slot.
+- SetDirEntry: Fills a directory entry buffer.
+- CreateDirEntry: Creates a directory entry on disk.
+- ChainNewCluster: Links a new cluster to a file.
+- DecodeFileName: Converts directory entries to file names.
+- LocateFile: Finds a file by path.
+- TranslateFileInfo: Copies directory entry data to a file object.
+- Initialize: Initializes the FAT32 driver.
+- CreateFolder: Creates a new folder on the file system.
+- DeleteFolder: Removes a folder.
+- RenameFolder: Renames a folder.
+- OpenFile: Opens a file.
+- OpenNext: Gets the next file in a directory listing.
+- CloseFile: Closes an open file.
+- ReadFile: Reads file data.
+- WriteFile: Writes data to a file.
+- CreatePartition: Creates a FAT32 partition.
+
+### Fault.c
+
+Exception and fault handlers for the kernel.
+
+#### Functions in Fault.c
+
+- PrintFaultDetails: Displays process and register information.
+- Die: Terminates the current task and halts.
+- DefaultHandler: Generic handler for unknown interrupts.
+- DivideErrorHandler: Handles divide by zero faults.
+- DebugExceptionHandler: Handles debug exceptions.
+- NMIHandler: Handles non-maskable interrupts.
+- BreakPointHandler: Handles breakpoint exceptions.
+- OverflowHandler: Handles arithmetic overflow faults.
+- BoundRangeHandler: Handles bound range exceeded faults.
+- InvalidOpcodeHandler: Handles invalid opcode faults.
+- DeviceNotAvailHandler: Handles device-not-available exceptions.
+- DoubleFaultHandler: Handles double fault exceptions.
+- MathOverflowHandler: Handles math overflow faults.
+- InvalidTSSHandler: Handles invalid TSS faults.
+- SegmentFaultHandler: Handles segment faults.
+- StackFaultHandler: Handles stack faults.
+- GeneralProtectionHandler: Handles general protection faults.
+- PageFaultHandler: Handles page fault exceptions.
+- AlignmentCheckHandler: Handles alignment check faults.
+
+### File.c
+
+High level functions to access files through drivers.
+
+#### Functions in File.c
+
+- OpenFile: Opens a file using the registered file systems.
+- CloseFile: Closes an open file and releases its resources.
+- ReadFile: Reads bytes from a file.
+- WriteFile: Writes bytes to a file.
+- GetFileSize: Returns the size of a file.
