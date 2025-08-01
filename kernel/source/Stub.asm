@@ -745,14 +745,6 @@ _ProtectedModeEntry_Hang :
 
 ;----------------------------------------------------------------------------
 
-section .heap
-
-    global KernelHeap
-
-KernelHeap: resb HEP_SIZE
-
-;----------------------------------------------------------------------------
-
 section .stack
 
     global KernelStack

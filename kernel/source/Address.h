@@ -72,7 +72,6 @@
 #define PGH_SIZE PAGE_TABLE_SIZE
 #define TSS_SIZE N_32KB
 #define PPB_SIZE N_64KB
-#define HEP_SIZE N_32KB
 #define STK_SIZE N_32KB
 
 #define PA_LOW 0x00000000

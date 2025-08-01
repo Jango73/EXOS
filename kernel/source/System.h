@@ -26,7 +26,6 @@ extern U32 IRQMask_21;
 extern U32 IRQMask_A1;
 extern U32 IRQMask_21_RM;
 extern U32 IRQMask_A1_RM;
-extern U8 KernelHeap[HEP_SIZE];
 extern U8 KernelStack[STK_SIZE];
 
 /***************************************************************************/

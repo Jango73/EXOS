@@ -16,26 +16,6 @@
 
 /***************************************************************************/
 
-#define HEAP_NUM_ENTRIES 127
-
-/***************************************************************************/
-
-typedef struct tag_HEAPALLOCENTRY {
-    LINEAR Base;
-    U32 Size : 31;
-    U32 Used : 1;
-} HEAPALLOCENTRY, *LPHEAPALLOCENTRY;
-
-/***************************************************************************/
-
-typedef struct tag_HEAPCONTROLBLOCK {
-    U32 ID;
-    LPVOID Next;
-    HEAPALLOCENTRY Entries[HEAP_NUM_ENTRIES];
-} HEAPCONTROLBLOCK, *LPHEAPCONTROLBLOCK;
-
-/***************************************************************************/
-
 LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     LINEAR Pointer = NULL;
     LPHEAPCONTROLBLOCK Block = NULL;

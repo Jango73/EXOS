@@ -668,14 +668,14 @@ void InitializeKernel() {
     IRQMask_A1_RM = KernelStartup.IRQMask_A1_RM;
 
     //-------------------------------------
-    // Initialize kernel data
-
-    *((U32*)KernelProcess.HeapBase) = ID_HEAP;
-
-    //-------------------------------------
     // Initialize the physical page bitmap
 
     InitializePhysicalPageBitmap();
+
+    //-------------------------------------
+    // Initialize kernel heap
+
+    InitializeKernelHeap();
 
     //-------------------------------------
     // Initialize the console

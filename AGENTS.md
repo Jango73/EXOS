@@ -26,6 +26,6 @@ When launching the DOS loader, the sequence is
 - Stub.asm : StartAbsolute (does nothing, just a jump)
 - Stub.asm : Start (loads IDT & GDT and switches to PM)
 - Stub.asm : Start32 (gets RAM size, sets up page directory and tables, enables paging)
-- System.asm : ProtectedModeEntry (fixes segments, stores stub info, sets up stack)
-- Main.c : KernelMain()
-- Kernel.c : InitializeKernel()
+- Stub.asm : ProtectedModeEntry (fixes segments, stores stub info, sets up stack)
+- Main.c : KernelMain (calls InitializeKernel
+- Kernel.c : InitializeKernel (does C-level kernel init like phys memory bitmap, kernel heap, console, drivers, etc...)

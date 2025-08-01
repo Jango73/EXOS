@@ -12,6 +12,7 @@
 #include "Process.h"
 
 #include "Address.h"
+#include "Console.h"
 #include "File.h"
 #include "Kernel.h"
 
@@ -29,11 +30,30 @@ PROCESS KernelProcess = {
     NULL,                   // Parent
     PRIVILEGE_KERNEL,       // Privilege
     PA_PGD,                 // Page directory
-    (LINEAR) KernelHeap,    // Heap base
-    HEP_SIZE,               // Heap size
+    0,                      // Heap base
+    0,                      // Heap size
     "EXOS",                 // File name
+    "",                     // Command line
     NULL                    // Objects
 };
+
+/***************************************************************************/
+
+void InitializeKernelHeap() {
+    KernelProcess.HeapSize = N_1MB;
+
+    LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (!HeapBase) {
+        ClearConsole();
+        SLEEPING_BEAUTY;
+    }
+
+    KernelProcess.HeapBase = (LINEAR) HeapBase;
+    MemorySet((LPVOID) KernelProcess.HeapBase, 0, sizeof(HEAPCONTROLBLOCK));
+
+    ((LPHEAPCONTROLBLOCK) KernelProcess.HeapBase)->ID = ID_HEAP;
+}
 
 /***************************************************************************/
 
@@ -130,7 +150,6 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
     FILEOPERATION FileOperation;
     EXOSCHUNK Chunk;
     EXOSHEADER Header;
-    EXOSCHUNK_INIT Init;
     EXOSCHUNK_FIXUP Fixup;
     LINEAR ItemAddress;
     U32 BytesRead;
@@ -528,7 +547,6 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     EXECUTABLEINFO ExecutableInfo;
     TASKINFO TaskInfo;
     FILEOPENINFO FileOpenInfo;
-    FILEOPERATION FileOperation;
     LPPROCESS Process = NULL;
     LPTASK Task = NULL;
     LPFILE File = NULL;
@@ -542,7 +560,6 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     U32 HeapSize = 0;
     U32 StackSize = 0;
     U32 TotalSize = 0;
-    U32 BytesRead = 0;
     BOOL Result = FALSE;
 
 #ifdef __DEBUG__
@@ -785,20 +802,18 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
 /***************************************************************************/
 
 void DumpProcess(LPPROCESS Process) {
-    STR Temp[32];
-
     if (Process == NULL) return;
 
     LockSemaphore(&(Process->Semaphore), INFINITY);
 
-    KernelPrint("Address        : %p\n", Process);
-    KernelPrint("References     : %d\n", Process->References);
-    KernelPrint("Parent         : %p\n", Process->Parent);
-    KernelPrint("Privilege      : %d\n", Process->Privilege);
-    KernelPrint("Page directory : %p\n", Process->PageDirectory);
-    KernelPrint("File name      : %s\n", Process->FileName);
-    KernelPrint("Heap base      : %p\n", Process->HeapBase);
-    KernelPrint("Heap size      : %d\n", Process->HeapSize);
+    KernelPrint(TEXT("Address        : %p\n"), Process);
+    KernelPrint(TEXT("References     : %d\n"), Process->References);
+    KernelPrint(TEXT("Parent         : %p\n"), Process->Parent);
+    KernelPrint(TEXT("Privilege      : %d\n"), Process->Privilege);
+    KernelPrint(TEXT("Page directory : %p\n"), Process->PageDirectory);
+    KernelPrint(TEXT("File name      : %s\n"), Process->FileName);
+    KernelPrint(TEXT("Heap base      : %p\n"), Process->HeapBase);
+    KernelPrint(TEXT("Heap size      : %d\n"), Process->HeapSize);
 
     UnlockSemaphore(&(Process->Semaphore));
 }

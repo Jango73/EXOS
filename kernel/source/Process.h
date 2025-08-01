@@ -229,6 +229,7 @@ extern SEMAPHORE ConsoleSemaphore;
 /***************************************************************************/
 // Functions in Process.c
 
+void InitializeKernelHeap();
 LINEAR GetProcessHeap(LPPROCESS);
 void DumpProcess(LPPROCESS);
 void InitSecurity(LPSECURITY);
