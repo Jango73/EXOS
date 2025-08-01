@@ -227,3 +227,75 @@ High level functions to access files through drivers.
 - ReadFile: Reads bytes from a file.
 - WriteFile: Writes bytes to a file.
 - GetFileSize: Returns the size of a file.
+
+### FileSys.c
+
+Handles mounting of disk partitions and path manipulation.
+
+#### Functions in FileSys.c
+
+- GetNumFileSystems: Returns the number of available file systems.
+- GetDefaultFileSystemName: Builds a default name for new file systems.
+- MountPartition_Extended: Mounts an extended partition.
+- MountDiskPartitions: Scans a disk and mounts each partition.
+- DecompPath: Splits a path into its individual components.
+
+### HD.c
+
+Implements the standard hard disk driver and caching logic.
+
+#### Functions in HD.c
+
+- NewStdHardDisk: Creates a disk structure and sets defaults.
+- SectorToBlockParams: Translates sector numbers to CHS values.
+- WaitNotBusy: Waits until the controller is ready for commands.
+- HardDiskInitialize: Detects drives and prepares buffers.
+- ControllerBusy: Checks if the controller is busy.
+- IsStatusOk: Validates status bits from the controller.
+- IsControllerReady: Waits for a drive to be ready.
+- ResetController: Issues a controller reset sequence.
+- DriveOut: Performs a low-level read or write.
+- FindSectorInBuffers: Searches the cache for a sector.
+- GetEmptyBuffer: Selects a buffer slot for new data.
+- Read: Reads sectors through the cache.
+- Write: Writes sectors to disk.
+- GetInfo: Fills a structure with disk information.
+- SetAccess: Changes access permissions on the disk.
+- HardDriveHandler: Interrupt handler for disk operations.
+- StdHardDiskCommands: Dispatches driver requests.
+
+### Heap.c
+
+Kernel heap memory manager used by processes.
+
+#### Functions in Heap.c
+
+- HeapAlloc_HBHS: Allocates memory from a heap block.
+- HeapFree_HBHS: Releases a block from the heap.
+- HeapAlloc_P: Allocates memory in the context of a process.
+- HeapFree_P: Frees memory in the context of a process.
+- HeapAlloc: Allocates memory from the current process.
+- HeapFree: Frees memory from the current process.
+
+### Kernel.c
+
+Core initialization and debugging utilities for the kernel.
+
+#### Functions in Kernel.c
+
+- KernelMemAlloc: Allocates memory from the kernel heap.
+- KernelMemFree: Returns memory to the kernel heap.
+- SetGateDescriptorOffset: Writes an offset into an IDT entry.
+- InitializeInterrupts: Sets up the interrupt descriptor table.
+- GetSegmentInfo: Retrieves segment descriptor data.
+- SegmentInfoToString: Formats segment info as text.
+- DumpGlobalDescriptorTable: Prints all GDT entries.
+- DumpRegisters: Displays the CPU register state.
+- GetCPUInformation: Reads processor name and features.
+- ClockTask: Periodic task that updates the clock and mouse.
+- DumpSystemInformation: Logs CPU and memory information.
+- InitializePhysicalPageBitmap: Marks kernel pages as used.
+- InitializeFileSystems: Mounts all detected file systems.
+- GetPhysicalMemoryUsed: Returns the number of used bytes.
+- InitializeKernel: Performs global kernel initialization.
+
