@@ -4,6 +4,63 @@
 
 To be completed.
 
+## Startup sequence
+
+The DOS loader jumps to the kernel stub at `StartAbsolute` which only redirects
+execution to `Start`:
+
+```asm
+global StartAbsolute
+
+StartAbsolute :
+    jmp     Start
+```
+
+`Start` runs in 16‑bit real mode. It saves the loader stack, adjusts the segment
+registers, obtains the console cursor position and disables interrupts. The
+routine then loads a temporary IDT and GDT, enables the A20 line and programs
+the PIC for protected mode. Finally the protection bit in CR0 is set and control
+is transferred to `Start32`:
+
+```asm
+mov     eax, CR0_PROTECTEDMODE
+mov     cr0, eax
+
+jmp     Next
+Next :
+    jmp     far dword [Start32_Entry - StartAbsolute]
+```
+
+`Start32` executes in 32‑bit mode without paging. It sets up the segment
+registers, determines the available RAM with `GetMemorySize` and clears the
+system memory area. The stub then copies the GDT to its final location, creates
+page tables via `SetupPaging`, loads the page directory and copies the kernel to
+its high memory address. Paging is enabled and the final GDT is loaded before
+jumping to `ProtectedModeEntry`:
+
+```asm
+mov     eax, cr0
+or      eax, CR0_PAGING
+mov     cr0, eax
+
+mov     eax, ProtectedModeEntry
+jmp     eax
+```
+
+`ProtectedModeEntry` installs the kernel data selectors in all segment
+registers, stores the stub base address and builds the kernel stack. After
+clearing the general registers the code jumps to the C entry point:
+
+```asm
+mov     [StubAddress], ebp
+mov     esp, KernelStack
+add     esp, STK_SIZE
+jmp     KernelMain
+```
+
+`KernelMain` is defined in `Main.c` and immediately calls `InitializeKernel` to
+perform all C‑level initialization tasks.
+
 ## Modules and functions
 
 ### Clock.c
