@@ -44,9 +44,9 @@
 #define SYSCALL_PeekMessage 0x00000011
 #define SYSCALL_GetMessage 0x00000012
 #define SYSCALL_DispatchMessage 0x00000013
-#define SYSCALL_CreateSemaphore 0x00000014
-#define SYSCALL_LockSemaphore 0x00000015
-#define SYSCALL_UnlockSemaphore 0x00000016
+#define SYSCALL_CreateMutex 0x00000014
+#define SYSCALL_LockMutex 0x00000015
+#define SYSCALL_UnlockMutex 0x00000016
 #define SYSCALL_VirtualAlloc 0x00000017
 #define SYSCALL_VirtualFree 0x00000018
 #define SYSCALL_GetProcessHeap 0x00000019
@@ -196,7 +196,7 @@ typedef struct tag_MESSAGEINFO {
 
 typedef struct tag_SEMINFO {
     U32 Size;
-    HANDLE Semaphore;
+    HANDLE Mutex;
     U32 MilliSeconds;
 } SEMINFO, *LPSEMINFO;
 

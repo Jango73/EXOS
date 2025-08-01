@@ -1,11 +1,9 @@
 
-// Sem.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -14,74 +12,74 @@
 
 /***************************************************************************/
 
-SEMAPHORE KernelSemaphore = {
-    ID_SEMAPHORE, 1, (LPLISTNODE)&MemorySemaphore, NULL, NULL, NULL, 0};
+MUTEX KernelMutex = {
+    ID_MUTEX, 1, (LPLISTNODE)&MemoryMutex, NULL, NULL, NULL, 0};
 
-SEMAPHORE MemorySemaphore = {ID_SEMAPHORE,
+MUTEX MemoryMutex = {ID_MUTEX,
                              1,
-                             (LPLISTNODE)&ScheduleSemaphore,
-                             (LPLISTNODE)&KernelSemaphore,
+                             (LPLISTNODE)&ScheduleMutex,
+                             (LPLISTNODE)&KernelMutex,
                              NULL,
                              NULL,
                              0};
 
-SEMAPHORE ScheduleSemaphore = {ID_SEMAPHORE,
+MUTEX ScheduleMutex = {ID_MUTEX,
                                1,
-                               (LPLISTNODE)&DesktopSemaphore,
-                               (LPLISTNODE)&MemorySemaphore,
+                               (LPLISTNODE)&DesktopMutex,
+                               (LPLISTNODE)&MemoryMutex,
                                NULL,
                                NULL,
                                0};
 
-SEMAPHORE DesktopSemaphore = {ID_SEMAPHORE,
+MUTEX DesktopMutex = {ID_MUTEX,
                               1,
-                              (LPLISTNODE)&ProcessSemaphore,
-                              (LPLISTNODE)&ScheduleSemaphore,
+                              (LPLISTNODE)&ProcessMutex,
+                              (LPLISTNODE)&ScheduleMutex,
                               NULL,
                               NULL,
                               0};
 
-SEMAPHORE ProcessSemaphore = {ID_SEMAPHORE,
+MUTEX ProcessMutex = {ID_MUTEX,
                               1,
-                              (LPLISTNODE)&TaskSemaphore,
-                              (LPLISTNODE)&DesktopSemaphore,
+                              (LPLISTNODE)&TaskMutex,
+                              (LPLISTNODE)&DesktopMutex,
                               NULL,
                               NULL,
                               0};
 
-SEMAPHORE TaskSemaphore = {ID_SEMAPHORE,
+MUTEX TaskMutex = {ID_MUTEX,
                            1,
-                           (LPLISTNODE)&FileSystemSemaphore,
-                           (LPLISTNODE)&ProcessSemaphore,
+                           (LPLISTNODE)&FileSystemMutex,
+                           (LPLISTNODE)&ProcessMutex,
                            NULL,
                            NULL,
                            0};
 
-SEMAPHORE FileSystemSemaphore = {ID_SEMAPHORE,
+MUTEX FileSystemMutex = {ID_MUTEX,
                                  1,
-                                 (LPLISTNODE)&FileSemaphore,
-                                 (LPLISTNODE)&TaskSemaphore,
+                                 (LPLISTNODE)&FileMutex,
+                                 (LPLISTNODE)&TaskMutex,
                                  NULL,
                                  NULL,
                                  0};
 
-SEMAPHORE FileSemaphore = {ID_SEMAPHORE,
+MUTEX FileMutex = {ID_MUTEX,
                            1,
-                           (LPLISTNODE)&ConsoleSemaphore,
-                           (LPLISTNODE)&FileSystemSemaphore,
+                           (LPLISTNODE)&ConsoleMutex,
+                           (LPLISTNODE)&FileSystemMutex,
                            NULL,
                            NULL,
                            0};
 
-SEMAPHORE ConsoleSemaphore = {
-    ID_SEMAPHORE, 1, NULL, (LPLISTNODE)&FileSemaphore, NULL, NULL, 0};
+MUTEX ConsoleMutex = {
+    ID_MUTEX, 1, NULL, (LPLISTNODE)&FileMutex, NULL, NULL, 0};
 
 /***************************************************************************/
 
-void InitSemaphore(LPSEMAPHORE This) {
+void InitMutex(LPMUTEX This) {
     if (This == NULL) return;
 
-    This->ID = ID_SEMAPHORE;
+    This->ID = ID_MUTEX;
     This->References = 1;
     This->Next = NULL;
     This->Prev = NULL;
@@ -92,14 +90,14 @@ void InitSemaphore(LPSEMAPHORE This) {
 
 /***************************************************************************/
 
-LPSEMAPHORE NewSemaphore() {
-    LPSEMAPHORE This = (LPSEMAPHORE)KernelMemAlloc(sizeof(SEMAPHORE));
+LPMUTEX NewMutex() {
+    LPMUTEX This = (LPMUTEX)KernelMemAlloc(sizeof(MUTEX));
 
     if (This == NULL) return NULL;
 
-    MemorySet(This, 0, sizeof(SEMAPHORE));
+    MemorySet(This, 0, sizeof(MUTEX));
 
-    This->ID = ID_SEMAPHORE;
+    This->ID = ID_MUTEX;
     This->References = 1;
     This->Process = NULL;
     This->Task = NULL;
@@ -110,29 +108,29 @@ LPSEMAPHORE NewSemaphore() {
 
 /***************************************************************************/
 
-LPSEMAPHORE CreateSemaphore() {
-    LPSEMAPHORE Semaphore = NewSemaphore();
+LPMUTEX CreateMutex() {
+    LPMUTEX Mutex = NewMutex();
 
-    if (Semaphore == NULL) return NULL;
+    if (Mutex == NULL) return NULL;
 
-    ListAddItem(Kernel.Semaphore, Semaphore);
+    ListAddItem(Kernel.Mutex, Mutex);
 
-    return Semaphore;
+    return Mutex;
 }
 
 /***************************************************************************/
 
-BOOL DeleteSemaphore(LPSEMAPHORE Semaphore) {
+BOOL DeleteMutex(LPMUTEX Mutex) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Semaphore->ID != ID_SEMAPHORE) return 0;
+    if (Mutex->ID != ID_MUTEX) return 0;
 
-    if (Semaphore->References) Semaphore->References--;
+    if (Mutex->References) Mutex->References--;
 
-    if (Semaphore->References == 0) {
-        Semaphore->ID = ID_NONE;
-        ListEraseItem(Kernel.Semaphore, Semaphore);
+    if (Mutex->References == 0) {
+        Mutex->ID = ID_NONE;
+        ListEraseItem(Kernel.Mutex, Mutex);
     }
 
     return 1;
@@ -140,7 +138,7 @@ BOOL DeleteSemaphore(LPSEMAPHORE Semaphore) {
 
 /***************************************************************************/
 
-U32 LockSemaphore(LPSEMAPHORE Semaphore, U32 TimeOut) {
+U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     LPPROCESS Process;
     LPTASK Task;
     U32 Flags;
@@ -149,8 +147,8 @@ U32 LockSemaphore(LPSEMAPHORE Semaphore, U32 TimeOut) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Semaphore == NULL) return 0;
-    if (Semaphore->ID != ID_SEMAPHORE) return 0;
+    if (Mutex == NULL) return 0;
+    if (Mutex->ID != ID_MUTEX) return 0;
 
     SaveFlags(&Flags);
     DisableInterrupts();
@@ -158,9 +156,9 @@ U32 LockSemaphore(LPSEMAPHORE Semaphore, U32 TimeOut) {
     Task = GetCurrentTask();
     Process = Task->Process;
 
-    if (Semaphore->Task == Task) {
-        Semaphore->Lock++;
-        Ret = Semaphore->Lock;
+    if (Mutex->Task == Task) {
+        Mutex->Lock++;
+        Ret = Mutex->Lock;
         goto Out;
     }
 
@@ -173,7 +171,7 @@ U32 LockSemaphore(LPSEMAPHORE Semaphore, U32 TimeOut) {
         //-------------------------------------
         // Check if a process did not delete this semaphore
 
-        if (Semaphore->ID != ID_SEMAPHORE) {
+        if (Mutex->ID != ID_MUTEX) {
             Ret = 0;
             goto Out;
         }
@@ -181,7 +179,7 @@ U32 LockSemaphore(LPSEMAPHORE Semaphore, U32 TimeOut) {
         //-------------------------------------
         // Check if the semaphore is not locked anymore
 
-        if (Semaphore->Task == NULL) {
+        if (Mutex->Task == NULL) {
             break;
         }
 
@@ -199,11 +197,11 @@ U32 LockSemaphore(LPSEMAPHORE Semaphore, U32 TimeOut) {
 
     DisableInterrupts();
 
-    Semaphore->Process = Process;
-    Semaphore->Task = Task;
-    Semaphore->Lock = 1;
+    Mutex->Process = Process;
+    Mutex->Task = Task;
+    Mutex->Lock = 1;
 
-    Ret = Semaphore->Lock;
+    Ret = Mutex->Lock;
 
 Out:
 
@@ -214,28 +212,28 @@ Out:
 
 /***************************************************************************/
 
-BOOL UnlockSemaphore(LPSEMAPHORE Semaphore) {
+BOOL UnlockMutex(LPMUTEX Mutex) {
     LPTASK Task = NULL;
     U32 Flags;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Semaphore == NULL) return 0;
-    if (Semaphore->ID != ID_SEMAPHORE) return 0;
+    if (Mutex == NULL) return 0;
+    if (Mutex->ID != ID_MUTEX) return 0;
 
     SaveFlags(&Flags);
     DisableInterrupts();
 
     Task = GetCurrentTask();
 
-    if (Semaphore->Task != Task) goto Out_Error;
+    if (Mutex->Task != Task) goto Out_Error;
 
-    if (Semaphore->Lock != 0) Semaphore->Lock--;
+    if (Mutex->Lock != 0) Mutex->Lock--;
 
-    if (Semaphore->Lock == 0) {
-        Semaphore->Process = NULL;
-        Semaphore->Task = NULL;
+    if (Mutex->Lock == 0) {
+        Mutex->Process = NULL;
+        Mutex->Task = NULL;
     }
 
     RestoreFlags(&Flags);

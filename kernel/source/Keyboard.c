@@ -523,12 +523,12 @@ static void HandleScanCode(U32 ScanCode) {
 BOOL PeekChar() {
     U32 Result = FALSE;
 
-    LockSemaphore(&(Keyboard.Semaphore), INFINITY);
+    LockMutex(&(Keyboard.Mutex), INFINITY);
 
     if (Keyboard.Buffer[0].VirtualKey) Result = TRUE;
     if (Keyboard.Buffer[0].ASCIICode) Result = TRUE;
 
-    UnlockSemaphore(&(Keyboard.Semaphore));
+    UnlockMutex(&(Keyboard.Mutex));
 
     return Result;
 }
@@ -539,7 +539,7 @@ STR GetChar() {
     U32 Index;
     STR Char;
 
-    LockSemaphore(&(Keyboard.Semaphore), INFINITY);
+    LockMutex(&(Keyboard.Mutex), INFINITY);
 
     Char = Keyboard.Buffer[0].ASCIICode;
 
@@ -553,7 +553,7 @@ STR GetChar() {
     Keyboard.Buffer[MAXKEYBUFFER - 1].VirtualKey = 0;
     Keyboard.Buffer[MAXKEYBUFFER - 1].ASCIICode = 0;
 
-    UnlockSemaphore(&(Keyboard.Semaphore));
+    UnlockMutex(&(Keyboard.Mutex));
 
     return Char;
 }
@@ -563,7 +563,7 @@ STR GetChar() {
 BOOL GetKeyCode(LPKEYCODE KeyCode) {
     U32 Index;
 
-    LockSemaphore(&(Keyboard.Semaphore), INFINITY);
+    LockMutex(&(Keyboard.Mutex), INFINITY);
 
     KeyCode->VirtualKey = Keyboard.Buffer[0].VirtualKey;
     KeyCode->ASCIICode = Keyboard.Buffer[0].ASCIICode;
@@ -578,7 +578,7 @@ BOOL GetKeyCode(LPKEYCODE KeyCode) {
     Keyboard.Buffer[MAXKEYBUFFER - 1].VirtualKey = 0;
     Keyboard.Buffer[MAXKEYBUFFER - 1].ASCIICode = 0;
 
-    UnlockSemaphore(&(Keyboard.Semaphore));
+    UnlockMutex(&(Keyboard.Mutex));
 
     return TRUE;
 }
@@ -626,7 +626,7 @@ static U32 KeyboardInitialize() {
 
     MemorySet(&Keyboard, 0, sizeof(KEYBOARDSTRUCT));
 
-    InitSemaphore(&(Keyboard.Semaphore));
+    InitMutex(&(Keyboard.Mutex));
 
     Keyboard.NumLock = 1;
 

@@ -103,7 +103,7 @@ typedef struct tag_BOOTPARTITION {
 
 typedef struct tag_FILESYSTEM {
     LISTNODE_FIELDS
-    SEMAPHORE Semaphore;
+    MUTEX Mutex;
     LPDRIVER Driver;
     STR Name[MAX_FS_LOGICAL_NAME];
 } FILESYSTEM, *LPFILESYSTEM;
@@ -127,7 +127,7 @@ typedef struct tag_FILEINFO {
 
 typedef struct tag_FILE {
     LISTNODE_FIELDS
-    SEMAPHORE Semaphore;
+    MUTEX Mutex;
     LPFILESYSTEM FileSystem;
     SECURITY Security;
     LPTASK OwnerTask;

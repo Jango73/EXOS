@@ -1,6 +1,4 @@
 
-// Process.c
-
 /***************************************************************************\
 
     EXOS Kernel
@@ -23,8 +21,8 @@ PROCESS KernelProcess = {
     1,                      // References
     NULL,
     NULL,                   // Next, previous
-    EMPTY_SEMAPHORE,        // Semaphore
-    EMPTY_SEMAPHORE,        // Heap semaphore
+    EMPTY_MUTEX,        // Mutex
+    EMPTY_MUTEX,        // Heap semaphore
     EMPTY_SECURITY,         // Security
     NULL,                   // Desktop
     NULL,                   // Parent
@@ -327,8 +325,8 @@ LPPROCESS NewProcess() {
     //-------------------------------------
     // Initialize the process' semaphores
 
-    InitSemaphore(&(This->Semaphore));
-    InitSemaphore(&(This->HeapSemaphore));
+    InitMutex(&(This->Mutex));
+    InitMutex(&(This->HeapMutex));
 
     //-------------------------------------
     // Initialize the process' security
@@ -393,7 +391,7 @@ BOOL CreateProcess (LPPROCESSINFO Info)
   //-------------------------------------
   // Lock access to kernel data
 
-  LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
+  LockMutex(MUTEX_KERNEL, INFINITY);
 
   //-------------------------------------
   // Allocate a new process structure
@@ -531,7 +529,7 @@ Out :
   //-------------------------------------
   // Release access to kernel data
 
-  UnlockSemaphore(SEMAPHORE_KERNEL);
+  UnlockMutex(MUTEX_KERNEL);
 
 #ifdef __DEBUG__
   KernelPrint("Exiting CreateProcess : Result = %d\n", Result);
@@ -611,7 +609,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Lock access to kernel data
 
-    LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
+    LockMutex(MUTEX_KERNEL, INFINITY);
 
     //-------------------------------------
     // Allocate a new process structure
@@ -774,7 +772,7 @@ Out:
     //-------------------------------------
     // Release access to kernel data
 
-    UnlockSemaphore(SEMAPHORE_KERNEL);
+    UnlockMutex(MUTEX_KERNEL);
 
 #ifdef __DEBUG__
     KernelPrint("Exiting CreateProcess : Result = %d\n", Result);
@@ -790,11 +788,11 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
 
     if (Process == NULL) Process = GetCurrentProcess();
 
-    LockSemaphore(&(Process->Semaphore), INFINITY);
+    LockMutex(&(Process->Mutex), INFINITY);
 
     HeapBase = Process->HeapBase;
 
-    UnlockSemaphore(&(Process->Semaphore));
+    UnlockMutex(&(Process->Mutex));
 
     return HeapBase;
 }
@@ -804,7 +802,7 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
 void DumpProcess(LPPROCESS Process) {
     if (Process == NULL) return;
 
-    LockSemaphore(&(Process->Semaphore), INFINITY);
+    LockMutex(&(Process->Mutex), INFINITY);
 
     KernelPrint(TEXT("Address        : %p\n"), Process);
     KernelPrint(TEXT("References     : %d\n"), Process->References);
@@ -815,7 +813,7 @@ void DumpProcess(LPPROCESS Process) {
     KernelPrint(TEXT("Heap base      : %p\n"), Process->HeapBase);
     KernelPrint(TEXT("Heap size      : %d\n"), Process->HeapSize);
 
-    UnlockSemaphore(&(Process->Semaphore));
+    UnlockMutex(&(Process->Mutex));
 }
 
 /***************************************************************************/

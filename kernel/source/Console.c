@@ -33,14 +33,14 @@ ConsoleStruct Console = {80, 25, 0, 0, 0, 0, 0, 0x03D4, (LPVOID)0xB8000};
 void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     U32 Position = (CursorY * Console.Width) + CursorX;
 
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     OutPortByte(Console.Port + CGA_REGISTER, 14);
     OutPortByte(Console.Port + CGA_DATA, (Position >> 8) & 0xFF);
     OutPortByte(Console.Port + CGA_REGISTER, 15);
     OutPortByte(Console.Port + CGA_DATA, (Position >> 0) & 0xFF);
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -58,7 +58,7 @@ void ScrollConsole() {
     U32 CurX, CurY, Src, Dst;
     U32 Width, Height;
 
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     while (Keyboard.ScrollLock) {
     }
@@ -82,7 +82,7 @@ void ScrollConsole() {
         Console.Memory[(CurY * Width) + CurX] = CHARATTR;
     }
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -90,7 +90,7 @@ void ScrollConsole() {
 void ClearConsole() {
     U32 CurX, CurY, Offset;
 
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     for (CurY = 0; CurY < Console.Height; CurY++) {
         for (CurX = 0; CurX < Console.Width; CurX++) {
@@ -104,7 +104,7 @@ void ClearConsole() {
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -132,7 +132,7 @@ void ConsolePrintChar(STR Char) {
 /***************************************************************************/
 
 void ConsoleBackSpace() {
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Console.CursorX == 0 && Console.CursorY == 0) goto Out;
 
@@ -149,7 +149,7 @@ Out:
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -171,7 +171,7 @@ int SetConsoleForeColor(U32 Color) {
 BOOL ConsolePrint(LPCSTR Text) {
     U32 Index = 0;
 
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Text) {
         for (Index = 0; Index < 0x10000; Index++) {
@@ -180,7 +180,7 @@ BOOL ConsolePrint(LPCSTR Text) {
         }
     }
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 
     return 1;
 }
@@ -378,13 +378,13 @@ static void VarKernelPrint(LPCSTR Format, VarArgList Args) {
 void KernelPrint(LPCSTR Format, ...) {
     VarArgList Args;
 
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     VarArgStart(Args, Format);
     VarKernelPrint(Format, Args);
     VarArgEnd(Args);
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/

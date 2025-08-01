@@ -1,11 +1,9 @@
 
-// SysCall.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -193,28 +191,28 @@ U32 SysCall_DispatchMessage(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_CreateSemaphore(U32 Parameter) { return 0; }
+U32 SysCall_CreateMutex(U32 Parameter) { return 0; }
 
 /***************************************************************************/
 
-U32 SysCall_DeleteSemaphore(U32 Parameter) { return 0; }
+U32 SysCall_DeleteMutex(U32 Parameter) { return 0; }
 
 /***************************************************************************/
 
-U32 SysCall_LockSemaphore(U32 Parameter) {
+U32 SysCall_LockMutex(U32 Parameter) {
     LPSEMINFO Info = (LPSEMINFO)Parameter;
     if (Info == NULL) return MAX_U32;
 
-    return LockSemaphore((LPSEMAPHORE)Info->Semaphore, Info->MilliSeconds);
+    return LockMutex((LPMUTEX)Info->Mutex, Info->MilliSeconds);
 }
 
 /***************************************************************************/
 
-U32 SysCall_UnlockSemaphore(U32 Parameter) {
+U32 SysCall_UnlockMutex(U32 Parameter) {
     LPSEMINFO Info = (LPSEMINFO)Parameter;
     if (Info == NULL) return MAX_U32;
 
-    return UnlockSemaphore((LPSEMAPHORE)Info->Semaphore);
+    return UnlockMutex((LPMUTEX)Info->Mutex);
 }
 
 /***************************************************************************/
@@ -270,7 +268,7 @@ U32 SysCall_EnumVolumes(U32 Parameter) {
     if (Info == NULL) return 0;
     if (Info->Func == NULL) return 0;
 
-    LockSemaphore(SEMAPHORE_FILESYSTEM, INFINITY);
+    LockMutex(MUTEX_FILESYSTEM, INFINITY);
 
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         Result = Info->Func((HANDLE)Node, Info->Parameter);
@@ -279,7 +277,7 @@ U32 SysCall_EnumVolumes(U32 Parameter) {
 
 Out:
 
-    UnlockSemaphore(SEMAPHORE_FILESYSTEM);
+    UnlockMutex(MUTEX_FILESYSTEM);
     return 1;
 }
 
@@ -296,11 +294,11 @@ U32 SysCall_GetVolumeInfo(U32 Parameter) {
     if (FileSystem == NULL) return 0;
     if (FileSystem->ID != ID_FILESYSTEM) return 0;
 
-    LockSemaphore(&(FileSystem->Semaphore), INFINITY);
+    LockMutex(&(FileSystem->Mutex), INFINITY);
 
     StringCopy(Info->Name, FileSystem->Name);
 
-    UnlockSemaphore(&(FileSystem->Semaphore));
+    UnlockMutex(&(FileSystem->Mutex));
 
     return 1;
 }
@@ -390,11 +388,11 @@ U32 SysCall_GetDesktopWindow(U32 Parameter) {
     if (Desktop == NULL) return 0;
     if (Desktop->ID != ID_DESKTOP) return 0;
 
-    LockSemaphore(&(Desktop->Semaphore), INFINITY);
+    LockMutex(&(Desktop->Mutex), INFINITY);
 
     Window = Desktop->Window;
 
-    UnlockSemaphore(&(Desktop->Semaphore));
+    UnlockMutex(&(Desktop->Mutex));
 
     return (U32)Window;
 }
@@ -676,9 +674,9 @@ SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
     SysCall_PeekMessage,           // 0x00000011
     SysCall_GetMessage,            // 0x00000012
     SysCall_DispatchMessage,       // 0x00000013
-    SysCall_CreateSemaphore,       // 0x00000014
-    SysCall_LockSemaphore,         // 0x00000015
-    SysCall_UnlockSemaphore,       // 0x00000016
+    SysCall_CreateMutex,       // 0x00000014
+    SysCall_LockMutex,         // 0x00000015
+    SysCall_UnlockMutex,       // 0x00000016
     SysCall_VirtualAlloc,          // 0x00000017
     SysCall_VirtualFree,           // 0x00000018
     SysCall_GetProcessHeap,        // 0x00000019

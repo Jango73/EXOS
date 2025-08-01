@@ -1,11 +1,9 @@
 
-// SystemFS.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -76,7 +74,7 @@ static LPSYSFSFILESYSTEM NewSystemFSFileSystem() {
     This->Header.Driver = &SystemFSDriver;
     This->Root = NewSystemFileRoot();
 
-    InitSemaphore(&(This->Header.Semaphore));
+    InitMutex(&(This->Header.Mutex));
 
     //-------------------------------------
     // Assign a default name to the file system
@@ -105,7 +103,7 @@ static LPSYSFSFILE NewSysFSFile(LPSYSFSFILESYSTEM FileSystem,
     This->SystemFile = SystemFile;
     This->Parent = Parent;
 
-    InitSemaphore(&(This->Header.Semaphore));
+    InitMutex(&(This->Header.Mutex));
     InitSecurity(&(This->Header.Security));
 
     return This;

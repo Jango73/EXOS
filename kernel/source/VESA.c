@@ -1,11 +1,9 @@
 
-// Vesa.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -180,7 +178,7 @@ static U32 VESAInitialize() {
 
     MemorySet(&VESAContext, 0, sizeof(VESACONTEXT));
 
-    InitSemaphore(&(VESAContext.Header.Semaphore));
+    InitMutex(&(VESAContext.Header.Mutex));
 
     VESAContext.Header.ID = ID_GRAPHICSCONTEXT;
     VESAContext.Header.References = 1;
@@ -1319,12 +1317,12 @@ static U32 VESA_SetPixel(LPPIXELINFO Info) {
     if (Context == NULL) return 0;
     if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
 
-    LockSemaphore(&(Context->Header.Semaphore), INFINITY);
+    LockMutex(&(Context->Header.Mutex), INFINITY);
 
     Info->Color =
         Context->ModeSpecs.SetPixel(Context, Info->X, Info->Y, Info->Color);
 
-    UnlockSemaphore(&(Context->Header.Semaphore));
+    UnlockMutex(&(Context->Header.Mutex));
 
     return 1;
 }
@@ -1341,11 +1339,11 @@ static U32 VESA_GetPixel(LPPIXELINFO Info) {
     if (Context == NULL) return 0;
     if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
 
-    LockSemaphore(&(Context->Header.Semaphore), INFINITY);
+    LockMutex(&(Context->Header.Mutex), INFINITY);
 
     Info->Color = Context->ModeSpecs.GetPixel(Context, Info->X, Info->Y);
 
-    UnlockSemaphore(&(Context->Header.Semaphore));
+    UnlockMutex(&(Context->Header.Mutex));
 
     return 1;
 }
@@ -1363,11 +1361,11 @@ static U32 VESA_Line(LPLINEINFO Info) {
     if (Context == NULL) Context = &VESAContext;
     if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
 
-    // LockSemaphore(&(Context->Header.Semaphore), INFINITY);
+    // LockMutex(&(Context->Header.Mutex), INFINITY);
 
     Context->ModeSpecs.Line(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
 
-    // UnlockSemaphore(&(Context->Header.Semaphore));
+    // UnlockMutex(&(Context->Header.Mutex));
 
     return 1;
 }
@@ -1384,11 +1382,11 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
     if (Context == NULL) return 0;
     if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
 
-    LockSemaphore(&(Context->Header.Semaphore), INFINITY);
+    LockMutex(&(Context->Header.Mutex), INFINITY);
 
     Context->ModeSpecs.Rect(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
 
-    UnlockSemaphore(&(Context->Header.Semaphore));
+    UnlockMutex(&(Context->Header.Mutex));
 
     return 1;
 }

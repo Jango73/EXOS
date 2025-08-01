@@ -48,17 +48,17 @@ static void Die() {
     Task = GetCurrentTask();
 
     if (Task != NULL && Task != &KernelTask) {
-        LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
-        LockSemaphore(SEMAPHORE_MEMORY, INFINITY);
-        LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+        LockMutex(MUTEX_KERNEL, INFINITY);
+        LockMutex(MUTEX_MEMORY, INFINITY);
+        LockMutex(MUTEX_CONSOLE, INFINITY);
 
         FreezeScheduler();
 
         KillTask(GetCurrentTask());
 
-        UnlockSemaphore(SEMAPHORE_KERNEL);
-        UnlockSemaphore(SEMAPHORE_MEMORY);
-        UnlockSemaphore(SEMAPHORE_CONSOLE);
+        UnlockMutex(MUTEX_KERNEL);
+        UnlockMutex(MUTEX_MEMORY);
+        UnlockMutex(MUTEX_CONSOLE);
 
         UnfreezeScheduler();
 

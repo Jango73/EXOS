@@ -36,7 +36,7 @@ static WINDOW MainDesktopWindow = {
     1,  // ID, references
     NULL,
     NULL,                   // Next, previous
-    EMPTY_SEMAPHORE,        // Window semaphore
+    EMPTY_MUTEX,        // Window semaphore
     &KernelTask,            // Task
     &DesktopWindowFunc,     // Function
     NULL,                   // Parent
@@ -59,7 +59,7 @@ DESKTOP MainDesktop = {
     1,  // ID, references
     NULL,
     NULL,                // Next, previous
-    EMPTY_SEMAPHORE,     // Desktop semaphore
+    EMPTY_MUTEX,     // Desktop semaphore
     &KernelTask,         // This desktop's owner task
     &VESADriver,         // This desktop's graphics driver
     &MainDesktopWindow,  // Window
@@ -110,7 +110,7 @@ BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This) {
     //-------------------------------------
     // Lock access to the context
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     This->LoClip.X = 0;
     This->LoClip.Y = 0;
@@ -125,7 +125,7 @@ BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This) {
     //-------------------------------------
     // Unlock access to the context
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -163,7 +163,7 @@ LPDESKTOP CreateDesktop() {
 
     MemorySet(This, 0, sizeof(DESKTOP));
 
-    InitSemaphore(&(This->Semaphore));
+    InitMutex(&(This->Mutex));
 
     This->ID = ID_DESKTOP;
     This->References = ID_DESKTOP;
@@ -189,13 +189,13 @@ LPDESKTOP CreateDesktop() {
     //-------------------------------------
     // Add the desktop to the kernel's list
 
-    LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
+    LockMutex(MUTEX_KERNEL, INFINITY);
 
     ListAddHead(Kernel.Desktop, This);
 
     GetCurrentProcess()->Desktop = This;
 
-    UnlockSemaphore(SEMAPHORE_KERNEL);
+    UnlockMutex(MUTEX_KERNEL);
 
     return This;
 }
@@ -205,7 +205,7 @@ LPDESKTOP CreateDesktop() {
 void DeleteDesktop(LPDESKTOP This) {
     if (This == NULL) return;
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     if (This->Window != NULL) {
         DeleteWindow(This->Window);
@@ -231,8 +231,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(MUTEX_KERNEL, INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     //-------------------------------------
     // Sort the kernel's desktop list
@@ -258,8 +258,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
-    UnlockSemaphore(SEMAPHORE_KERNEL);
+    UnlockMutex(&(This->Mutex));
+    UnlockMutex(MUTEX_KERNEL);
 
     return TRUE;
 }
@@ -272,7 +272,7 @@ LPWINDOW NewWindow() {
 
     MemorySet(This, 0, sizeof(WINDOW));
 
-    InitSemaphore(&(This->Semaphore));
+    InitMutex(&(This->Mutex));
 
     This->ID = ID_WINDOW;
     This->References = 1;
@@ -306,17 +306,17 @@ void DeleteWindow(LPWINDOW This) {
     //-------------------------------------
     // Release desktop related resources
 
-    LockSemaphore(&(Desktop->Semaphore), INFINITY);
+    LockMutex(&(Desktop->Mutex), INFINITY);
 
     if (Desktop->Capture == This) Desktop->Capture = NULL;
     if (Desktop->Focus == This) Desktop->Focus = NULL;
 
-    UnlockSemaphore(&(Desktop->Semaphore));
+    UnlockMutex(&(Desktop->Mutex));
 
     //-------------------------------------
     // Lock access to the window
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     //-------------------------------------
     // Delete children first
@@ -328,11 +328,11 @@ void DeleteWindow(LPWINDOW This) {
     //-------------------------------------
     // Remove window from it's parent's list
 
-    LockSemaphore(&(This->Parent->Semaphore), INFINITY);
+    LockMutex(&(This->Parent->Mutex), INFINITY);
 
     ListRemove(This->Parent->Children, This);
 
-    UnlockSemaphore(&(This->Parent->Semaphore));
+    UnlockMutex(&(This->Parent->Mutex));
 
     //-------------------------------------
     // Invalidate it's ID
@@ -358,8 +358,8 @@ LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
 
     if (Start == Target) return Start;
 
-    LockSemaphore(&(Start->Semaphore), INFINITY);
-    LockSemaphore(&(Target->Semaphore), INFINITY);
+    LockMutex(&(Start->Mutex), INFINITY);
+    LockMutex(&(Target->Mutex), INFINITY);
 
     for (Node = Start->Children->First; Node; Node = Node->Next) {
         Child = (LPWINDOW)Node;
@@ -369,8 +369,8 @@ LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
 
 Out:
 
-    UnlockSemaphore(&(Target->Semaphore));
-    UnlockSemaphore(&(Start->Semaphore));
+    UnlockMutex(&(Target->Mutex));
+    UnlockMutex(&(Start->Mutex));
 
     return Current;
 }
@@ -424,7 +424,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     }
 
     if (This->Parent != NULL) {
-        LockSemaphore(&(This->Parent->Semaphore), INFINITY);
+        LockMutex(&(This->Parent->Mutex), INFINITY);
 
         This->ScreenRect.X1 = This->Parent->ScreenRect.X1 + This->Rect.X1;
         This->ScreenRect.Y1 = This->Parent->ScreenRect.Y1 + This->Rect.Y1;
@@ -443,7 +443,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
 
         for (Win = This->Parent; Win; Win = Win->Parent) This->Level++;
 
-        UnlockSemaphore(&(This->Parent->Semaphore));
+        UnlockMutex(&(This->Parent->Mutex));
     }
 
     //-------------------------------------
@@ -467,7 +467,7 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
     if (This == NULL) return FALSE;
     if (This->ID != ID_WINDOW) return FALSE;
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     Task = This->Task;
     if (Task != NULL && Task->ID == ID_TASK) {
@@ -480,7 +480,7 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
         }
     }
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return Desktop;
 }
@@ -493,7 +493,7 @@ BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     if (This == NULL) return NULL;
     if (This->ID != ID_WINDOW) return NULL;
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     PostMessage((HANDLE)This, Msg, Param1, Param2);
 
@@ -501,7 +501,7 @@ BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
         BroadCastMessage((LPWINDOW)Node, Msg, Param1, Param2);
     }
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -535,14 +535,14 @@ BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
     if (Src == NULL) return FALSE;
     if (Dst == NULL) return FALSE;
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     Dst->X1 = This->ScreenRect.X1 + Src->X1;
     Dst->Y1 = This->ScreenRect.Y1 + Src->Y1;
     Dst->X2 = This->ScreenRect.X1 + Src->X2;
     Dst->Y2 = This->ScreenRect.Y1 + Src->Y2;
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -558,14 +558,14 @@ BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
     if (Src == NULL) return FALSE;
     if (Dst == NULL) return FALSE;
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     Dst->X1 = Src->X1 - This->ScreenRect.X1;
     Dst->Y1 = Src->Y1 - This->ScreenRect.Y1;
     Dst->X2 = Src->X2 - This->ScreenRect.X1;
     Dst->Y2 = Src->Y2 - This->ScreenRect.Y1;
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -582,7 +582,7 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     if (Src != NULL) {
         WindowRectToScreenRect(Handle, Src, &Rect);
@@ -601,7 +601,7 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     PostMessage(Handle, EWM_DRAW, 0, 0);
 
@@ -626,7 +626,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     if (This->Parent == NULL) goto Out;
 
@@ -665,7 +665,7 @@ Out:
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -695,7 +695,7 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     for (Node = This->Children->First; Node; Node = Node->Next) {
         Child = (LPWINDOW)Node;
@@ -707,7 +707,7 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -728,7 +728,7 @@ BOOL GetWindowRect(HANDLE Handle, LPRECT Rect) {
     //-------------------------------------
     // Lock access to the window
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     Rect->X1 = 0;
     Rect->Y1 = 0;
@@ -738,7 +738,7 @@ BOOL GetWindowRect(HANDLE Handle, LPRECT Rect) {
     //-------------------------------------
     // Unlock access to the window
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -806,7 +806,7 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     for (Node = This->Properties->First; Node; Node = Node->Next) {
         Prop = (LPPROPERTY)Node;
@@ -833,7 +833,7 @@ Out:
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return OldValue;
 }
@@ -855,7 +855,7 @@ U32 GetWindowProp(HANDLE Handle, LPCSTR Name) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     //-------------------------------------
     // Search the list of properties
@@ -873,7 +873,7 @@ Out:
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return Value;
 }
@@ -897,7 +897,7 @@ HANDLE GetWindowGC(HANDLE Handle) {
     //-------------------------------------
     // Set the origin of the context
 
-    LockSemaphore(&(Context->Semaphore), INFINITY);
+    LockMutex(&(Context->Mutex), INFINITY);
 
     Context->Origin.X = This->ScreenRect.X1;
     Context->Origin.Y = This->ScreenRect.Y1;
@@ -909,7 +909,7 @@ HANDLE GetWindowGC(HANDLE Handle) {
       Context->HiClip.Y = This->ScreenRect.Y2;
     */
 
-    UnlockSemaphore(&(Context->Semaphore));
+    UnlockMutex(&(Context->Mutex));
 
     return (HANDLE)Context;
 }
@@ -943,14 +943,14 @@ HANDLE BeginWindowDraw(HANDLE Handle) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     GC = GetWindowGC(Handle);
 
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return GC;
 }
@@ -969,12 +969,12 @@ BOOL EndWindowDraw(HANDLE Handle) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return TRUE;
 }
@@ -1059,12 +1059,12 @@ HANDLE SelectBrush(HANDLE GC, HANDLE Brush) {
 
     if (Context->ID != ID_GRAPHICSCONTEXT) return NULL;
 
-    LockSemaphore(&(Context->Semaphore), INFINITY);
+    LockMutex(&(Context->Mutex), INFINITY);
 
     OldBrush = Context->Brush;
     Context->Brush = NewBrush;
 
-    UnlockSemaphore(&(Context->Semaphore));
+    UnlockMutex(&(Context->Mutex));
 
     return (HANDLE)OldBrush;
 }
@@ -1083,12 +1083,12 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
 
     if (Context->ID != ID_GRAPHICSCONTEXT) return NULL;
 
-    LockSemaphore(&(Context->Semaphore), INFINITY);
+    LockMutex(&(Context->Mutex), INFINITY);
 
     OldPen = Context->Pen;
     Context->Pen = NewPen;
 
-    UnlockSemaphore(&(Context->Semaphore));
+    UnlockMutex(&(Context->Mutex));
 
     return (HANDLE)OldPen;
 }
@@ -1246,7 +1246,7 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(&(This->Semaphore), INFINITY);
+    LockMutex(&(This->Mutex), INFINITY);
 
     //-------------------------------------
     // Test if one child window passes hit test
@@ -1275,7 +1275,7 @@ Out:
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(&(This->Semaphore));
+    UnlockMutex(&(This->Mutex));
 
     return (HANDLE)Target;
 }

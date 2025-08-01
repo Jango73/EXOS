@@ -1,11 +1,9 @@
 
-// MemEdit.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -78,14 +76,14 @@ void PrintMemory(U32 Base, U32 Size) {
 /***************************************************************************/
 
 static void PrintMemoryPage(U32 Base, U32 Size) {
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     Console.CursorX = 0;
     Console.CursorY = 0;
 
     PrintMemory(Base, Size);
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/

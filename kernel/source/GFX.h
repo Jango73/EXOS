@@ -89,7 +89,7 @@ typedef struct tag_BITMAP {
 
 typedef struct tag_GRAPHICSCONTEXT {
     LISTNODE_FIELDS
-    SEMAPHORE Semaphore;
+    MUTEX Mutex;
     LPDRIVER Driver;
     U32 Width;
     U32 Height;

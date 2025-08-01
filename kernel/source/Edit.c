@@ -193,7 +193,7 @@ void DrawText(LPEDITFILE File) {
         Index++;
     }
 
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     Console.CursorX = 0;
     Console.CursorY = 0;
@@ -226,7 +226,7 @@ void DrawText(LPEDITFILE File) {
     // ConsolePrintChar('_');
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/

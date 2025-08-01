@@ -1,11 +1,9 @@
 
-// SerMouse.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -133,7 +131,7 @@ DRIVER SerialMouseDriver = {ID_DRIVER,
 /***************************************************************************/
 
 typedef struct tag_MOUSEDATA {
-    SEMAPHORE Semaphore;
+    MUTEX Mutex;
     U32 Busy;
     I32 DeltaX;
     I32 DeltaY;
@@ -305,9 +303,9 @@ Out:
 
 static U32 GetDeltaX() {
     U32 Result = 0;
-    LockSemaphore(&(Mouse.Semaphore), INFINITY);
+    LockMutex(&(Mouse.Mutex), INFINITY);
     Result = UNSIGNED(Mouse.DeltaX);
-    UnlockSemaphore(&(Mouse.Semaphore));
+    UnlockMutex(&(Mouse.Mutex));
     return Result;
 }
 
@@ -315,9 +313,9 @@ static U32 GetDeltaX() {
 
 static U32 GetDeltaY() {
     U32 Result = 0;
-    LockSemaphore(&(Mouse.Semaphore), INFINITY);
+    LockMutex(&(Mouse.Mutex), INFINITY);
     Result = UNSIGNED(Mouse.DeltaY);
-    UnlockSemaphore(&(Mouse.Semaphore));
+    UnlockMutex(&(Mouse.Mutex));
     return Result;
 }
 
@@ -325,9 +323,9 @@ static U32 GetDeltaY() {
 
 static U32 GetButtons() {
     U32 Result;
-    LockSemaphore(&(Mouse.Semaphore), INFINITY);
+    LockMutex(&(Mouse.Mutex), INFINITY);
     Result = UNSIGNED(Mouse.Buttons);
-    UnlockSemaphore(&(Mouse.Semaphore));
+    UnlockMutex(&(Mouse.Mutex));
     return Result;
 }
 

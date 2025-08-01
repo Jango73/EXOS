@@ -63,9 +63,9 @@ static LIST TaskList = {(LPLISTNODE)&KernelTask,
 
 /***************************************************************************/
 
-static LIST SemaphoreList = {(LPLISTNODE)&KernelSemaphore,
-                             (LPLISTNODE)&ConsoleSemaphore,
-                             (LPLISTNODE)&KernelSemaphore,
+static LIST MutexList = {(LPLISTNODE)&KernelMutex,
+                             (LPLISTNODE)&ConsoleMutex,
+                             (LPLISTNODE)&KernelMutex,
                              9,
                              KernelMemAlloc,
                              KernelMemFree,
@@ -85,7 +85,7 @@ static LIST FileList = {NULL,           NULL,          NULL, 0,
 /***************************************************************************/
 
 KERNELDATA Kernel = {&DesktopList,   &ProcessList,       &TaskList,
-                     &SemaphoreList, &DiskList,          &FileSystemList,
+                     &MutexList, &DiskList,          &FileSystemList,
                      &FileList,      {"", 0, 0, 0, 0, 0}};
 
 /***************************************************************************/
@@ -516,7 +516,7 @@ U32 ClockTask(LPVOID Param) {
         if (Time - OldTime >= 1000) {
             OldTime = Time;
             MilliSecondsToHMS(Time, Text);
-            LockSemaphore(SEMAPHORE_CONSOLE, 0);
+            LockMutex(MUTEX_CONSOLE, 0);
             OldX = Console.CursorX;
             OldY = Console.CursorY;
 
@@ -533,7 +533,7 @@ U32 ClockTask(LPVOID Param) {
 
             Console.CursorX = OldX;
             Console.CursorY = OldY;
-            UnlockSemaphore(SEMAPHORE_CONSOLE);
+            UnlockMutex(MUTEX_CONSOLE);
         }
 
         // DoSystemCall(SYSCALL_Sleep, 200);
@@ -548,8 +548,8 @@ U32 ClockTask(LPVOID Param) {
       {
     DoSystemCall(SYSCALL_GetLocalTime, (U32) &Time);
 
-    LockSemaphore(SEMAPHORE_CONSOLE, INFINITY);
-    // DoSystemCall(SYSCALL_LockSemaphore, (U32) SEMAPHORE_CONSOLE);
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+    // DoSystemCall(SYSCALL_LockMutex, (U32) MUTEX_CONSOLE);
 
     OldX = Console.CursorX;
     OldY = Console.CursorY;
@@ -559,8 +559,8 @@ U32 ClockTask(LPVOID Param) {
     Console.CursorX = OldX;
     Console.CursorY = OldY;
 
-    UnlockSemaphore(SEMAPHORE_CONSOLE);
-    // DoSystemCall(SYSCALL_LockSemaphore, (U32) SEMAPHORE_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE);
+    // DoSystemCall(SYSCALL_LockMutex, (U32) MUTEX_CONSOLE);
 
     DoSystemCall(SYSCALL_Sleep, 3000);
       }
@@ -631,7 +631,7 @@ U32 GetPhysicalMemoryUsed() {
     U32 Byte = 0;
     U32 Mask = 0;
 
-    LockSemaphore(SEMAPHORE_MEMORY, INFINITY);
+    LockMutex(MUTEX_MEMORY, INFINITY);
 
     for (Index = 0; Index < Pages; Index++) {
         Byte = Index >> MUL_8;
@@ -639,7 +639,7 @@ U32 GetPhysicalMemoryUsed() {
         if (PPB[Byte] & Mask) NumPages++;
     }
 
-    UnlockSemaphore(SEMAPHORE_MEMORY);
+    UnlockMutex(MUTEX_MEMORY);
 
     return (NumPages << PAGE_SIZE_MUL);
 }

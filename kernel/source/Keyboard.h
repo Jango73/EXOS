@@ -49,7 +49,7 @@ typedef struct tag_KEYTRANS {
 /***************************************************************************/
 
 typedef struct tag_KEYBOARDSTRUCT {
-    SEMAPHORE Semaphore;
+    MUTEX Mutex;
 
     U32 Shift;
     U32 Control;

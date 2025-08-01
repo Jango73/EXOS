@@ -153,18 +153,18 @@ Out:
 
 LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size) {
     LPVOID Pointer = NULL;
-    LockSemaphore(&(Process->HeapSemaphore), INFINITY);
+    LockMutex(&(Process->HeapMutex), INFINITY);
     Pointer = HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Size);
-    UnlockSemaphore(&(Process->HeapSemaphore));
+    UnlockMutex(&(Process->HeapMutex));
     return Pointer;
 }
 
 /***************************************************************************/
 
 void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
-    LockSemaphore(&(Process->HeapSemaphore), INFINITY);
+    LockMutex(&(Process->HeapMutex), INFINITY);
     HeapFree_HBHS(Process->HeapBase, Process->HeapSize, Pointer);
-    UnlockSemaphore(&(Process->HeapSemaphore));
+    UnlockMutex(&(Process->HeapMutex));
 }
 
 /***************************************************************************/

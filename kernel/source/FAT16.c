@@ -78,7 +78,7 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
     This->BytesPerCluster = 0;
     This->IOBuffer = NULL;
 
-    InitSemaphore(&(This->Header.Semaphore));
+    InitMutex(&(This->Header.Mutex));
 
     //-------------------------------------
     // Assign a default name to the file system
@@ -110,7 +110,7 @@ static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem,
     This->Location.DataCluster = FileLoc->DataCluster;
     This->Location.Offset = FileLoc->Offset;
 
-    InitSemaphore(&(This->Header.Semaphore));
+    InitMutex(&(This->Header.Mutex));
     InitSecurity(&(This->Header.Security));
 
     return This;

@@ -1,11 +1,9 @@
 
-// XFS.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -68,7 +66,7 @@ static LPXFSFILESYSTEM NewXFSFileSystem(LPPHYSICALDISK Disk) {
     This->PageBuffer = NULL;
     This->IOBuffer = NULL;
 
-    InitSemaphore(&(This->Header.Semaphore));
+    InitMutex(&(This->Header.Mutex));
 
     //-------------------------------------
     // Assign a default name to the file system
@@ -99,7 +97,7 @@ static LPXFSFILE NewXFSFile(LPXFSFILESYSTEM FileSystem, LPXFSFILELOC FileLoc) {
     This->Location.FileOffset = FileLoc->FileOffset;
     This->Location.DataCluster = FileLoc->DataCluster;
 
-    InitSemaphore(&(This->Header.Semaphore));
+    InitMutex(&(This->Header.Mutex));
     InitSecurity(&(This->Header.Security));
 
     return This;

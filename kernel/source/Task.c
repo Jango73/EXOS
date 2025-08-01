@@ -1,6 +1,4 @@
 
-// Task.c
-
 /***************************************************************************\
 
     EXOS Kernel
@@ -23,7 +21,7 @@ TASK KernelTask = {ID_TASK,
                    1,
                    NULL,
                    NULL,
-                   EMPTY_SEMAPHORE,
+                   EMPTY_MUTEX,
                    &KernelProcess,
                    TASK_STATUS_RUNNING,
                    TASK_PRIORITY_LOWER,
@@ -38,7 +36,7 @@ TASK KernelTask = {ID_TASK,
                    STK_SIZE,
                    0,
                    0,
-                   EMPTY_SEMAPHORE,
+                   EMPTY_MUTEX,
                    &KernelTaskMessageList};
 
 /***************************************************************************/
@@ -105,8 +103,8 @@ LPTASK NewTask() {
     This->Time = 0;
     This->WakeUpTime = 0;
 
-    InitSemaphore(&(This->Semaphore));
-    InitSemaphore(&(This->MessageSemaphore));
+    InitMutex(&(This->Mutex));
+    InitMutex(&(This->MessageMutex));
 
     //-------------------------------------
     // Initialize the message queue
@@ -124,7 +122,7 @@ LPTASK NewTask() {
 
 void DeleteTask(LPTASK This) {
     LPLISTNODE Node = NULL;
-    LPSEMAPHORE Semaphore = NULL;
+    LPMUTEX Mutex = NULL;
 
 #ifdef __DEBUG__
     KernelPrint("Entering DeleteTask\n");
@@ -139,12 +137,12 @@ void DeleteTask(LPTASK This) {
     //-------------------------------------
     // Unlock all semaphores locked by this task
 
-    for (Node = Kernel.Semaphore->First; Node; Node = Node->Next) {
-        Semaphore = (LPSEMAPHORE)Node;
+    for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
+        Mutex = (LPMUTEX)Node;
 
-        if (Semaphore->ID == ID_SEMAPHORE && Semaphore->Task == This) {
-            Semaphore->Task = NULL;
-            Semaphore->Lock = 0;
+        if (Mutex->ID == ID_MUTEX && Mutex->Task == This) {
+            Mutex->Task = NULL;
+            Mutex->Lock = 0;
         }
     }
 
@@ -268,7 +266,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Lock access to kernel data
 
-    LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
+    LockMutex(MUTEX_KERNEL, INFINITY);
 
     //-------------------------------------
     // Find a free task
@@ -397,7 +395,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
 Out:
 
-    UnlockSemaphore(SEMAPHORE_KERNEL);
+    UnlockMutex(MUTEX_KERNEL);
 
 #ifdef __DEBUG__
     KernelPrint("Exiting CreateTask\n");
@@ -419,7 +417,7 @@ BOOL KillTask(LPTASK Task) {
     //-------------------------------------
     // Lock access to kernel data
 
-    LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
+    LockMutex(MUTEX_KERNEL, INFINITY);
     FreezeScheduler();
 
     //-------------------------------------
@@ -449,7 +447,7 @@ Out:
     // Unlock access to kernel data
 
     UnfreezeScheduler();
-    UnlockSemaphore(SEMAPHORE_KERNEL);
+    UnlockMutex(MUTEX_KERNEL);
 
 #ifdef __DEBUG__
     KernelPrint("Exiting KillTask\n");
@@ -465,7 +463,7 @@ U32 SetTaskPriority(LPTASK Task, U32 Priority) {
 
     if (Task == NULL) return OldPriority;
 
-    LockSemaphore(SEMAPHORE_KERNEL, INFINITY);
+    LockMutex(MUTEX_KERNEL, INFINITY);
 
     OldPriority = Task->Priority;
     Task->Priority = Priority;
@@ -474,7 +472,7 @@ U32 SetTaskPriority(LPTASK Task, U32 Priority) {
 
 Out:
 
-    UnlockSemaphore(SEMAPHORE_KERNEL);
+    UnlockMutex(MUTEX_KERNEL);
 
     return OldPriority;
 }
@@ -502,11 +500,11 @@ U32 GetTaskStatus(LPTASK Task) {
 
     if (Task == NULL) return Status;
 
-    LockSemaphore(&(Task->Semaphore), INFINITY);
+    LockMutex(&(Task->Mutex), INFINITY);
 
     Status = Task->Status;
 
-    UnlockSemaphore(&(Task->Semaphore));
+    UnlockMutex(&(Task->Mutex));
 
     return Status;
 }
@@ -514,25 +512,25 @@ U32 GetTaskStatus(LPTASK Task) {
 /***************************************************************************/
 
 void SetTaskStatus(LPTASK Task, U32 Status) {
-    LockSemaphore(&(Task->Semaphore), INFINITY);
+    LockMutex(&(Task->Mutex), INFINITY);
     FreezeScheduler();
 
     Task->Status = TASK_STATUS_RUNNING;
 
     UnfreezeScheduler();
-    UnlockSemaphore(&(Task->Semaphore));
+    UnlockMutex(&(Task->Mutex));
 }
 
 /***************************************************************************/
 
 void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
-    LockSemaphore(&(Task->Semaphore), INFINITY);
-    LockSemaphore(&(Task->MessageSemaphore), INFINITY);
+    LockMutex(&(Task->Mutex), INFINITY);
+    LockMutex(&(Task->MessageMutex), INFINITY);
 
     ListAddItem(Task->Message, Message);
 
-    UnlockSemaphore(&(Task->MessageSemaphore));
-    UnlockSemaphore(&(Task->Semaphore));
+    UnlockMutex(&(Task->MessageMutex));
+    UnlockMutex(&(Task->Mutex));
 }
 
 /***************************************************************************/
@@ -553,8 +551,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(SEMAPHORE_TASK, INFINITY);
-    LockSemaphore(SEMAPHORE_DESKTOP, INFINITY);
+    LockMutex(MUTEX_TASK, INFINITY);
+    LockMutex(MUTEX_DESKTOP, INFINITY);
 
     //-------------------------------------
     // Check if the target is a task
@@ -632,7 +630,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Lock access to the desktop
 
-    LockSemaphore(&(Desktop->Semaphore), INFINITY);
+    LockMutex(&(Desktop->Mutex), INFINITY);
 
     //-------------------------------------
     // Find the window in the desktop
@@ -642,7 +640,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Unlock access to the desktop
 
-    UnlockSemaphore(&(Desktop->Semaphore));
+    UnlockMutex(&(Desktop->Mutex));
 
     //-------------------------------------
     // Post message to window if found
@@ -654,8 +652,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
         // one at the end of the queue
 
         if (Msg == EWM_DRAW) {
-            LockSemaphore(&(Win->Task->Semaphore), INFINITY);
-            LockSemaphore(&(Win->Task->MessageSemaphore), INFINITY);
+            LockMutex(&(Win->Task->Mutex), INFINITY);
+            LockMutex(&(Win->Task->MessageMutex), INFINITY);
 
             for (Node = Win->Task->Message->First; Node; Node = Node->Next) {
                 Message = (LPMESSAGE)Node;
@@ -669,16 +667,16 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
                     ListAddItem(Win->Task->Message, Message);
 
-                    UnlockSemaphore(&(Win->Task->MessageSemaphore));
-                    UnlockSemaphore(&(Win->Task->Semaphore));
+                    UnlockMutex(&(Win->Task->MessageMutex));
+                    UnlockMutex(&(Win->Task->Mutex));
 
                     goto Out_Success;
                 }
             }
         }
 
-        UnlockSemaphore(&(Win->Task->MessageSemaphore));
-        UnlockSemaphore(&(Win->Task->Semaphore));
+        UnlockMutex(&(Win->Task->MessageMutex));
+        UnlockMutex(&(Win->Task->Mutex));
 
         //-------------------------------------
         // Add the message to the task's queue
@@ -707,14 +705,14 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
 Out_Error:
 
-    UnlockSemaphore(SEMAPHORE_DESKTOP);
-    UnlockSemaphore(SEMAPHORE_TASK);
+    UnlockMutex(MUTEX_DESKTOP);
+    UnlockMutex(MUTEX_TASK);
     return FALSE;
 
 Out_Success:
 
-    UnlockSemaphore(SEMAPHORE_DESKTOP);
-    UnlockSemaphore(SEMAPHORE_TASK);
+    UnlockMutex(MUTEX_DESKTOP);
+    UnlockMutex(MUTEX_TASK);
     return TRUE;
 }
 
@@ -736,7 +734,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Lock access to the desktop
 
-    LockSemaphore(&(Desktop->Semaphore), INFINITY);
+    LockMutex(&(Desktop->Mutex), INFINITY);
 
     //-------------------------------------
     // Find the window in the desktop
@@ -746,16 +744,16 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Unlock access to the desktop
 
-    UnlockSemaphore(&(Desktop->Semaphore));
+    UnlockMutex(&(Desktop->Mutex));
 
     //-------------------------------------
     // Send message to window if found
 
     if (Window != NULL && Window->ID == ID_WINDOW) {
         if (Window->Function != NULL) {
-            LockSemaphore(&(Window->Semaphore), INFINITY);
+            LockMutex(&(Window->Mutex), INFINITY);
             Result = Window->Function(Target, Msg, Param1, Param2);
-            UnlockSemaphore(&(Window->Semaphore));
+            UnlockMutex(&(Window->Mutex));
         }
     }
 
@@ -799,17 +797,17 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
 
     Task = GetCurrentTask();
 
-    LockSemaphore(&(Task->Semaphore), INFINITY);
-    LockSemaphore(&(Task->MessageSemaphore), INFINITY);
+    LockMutex(&(Task->Mutex), INFINITY);
+    LockMutex(&(Task->MessageMutex), INFINITY);
 
     if (Task->Message->NumItems == 0) {
-        UnlockSemaphore(&(Task->Semaphore));
-        UnlockSemaphore(&(Task->MessageSemaphore));
+        UnlockMutex(&(Task->Mutex));
+        UnlockMutex(&(Task->MessageMutex));
 
         WaitForMessage(Task);
 
-        LockSemaphore(&(Task->Semaphore), INFINITY);
-        LockSemaphore(&(Task->MessageSemaphore), INFINITY);
+        LockMutex(&(Task->Mutex), INFINITY);
+        LockMutex(&(Task->MessageMutex), INFINITY);
     }
 
     if (Message->Target == NULL) {
@@ -860,14 +858,14 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
 
 Out_Success:
 
-    UnlockSemaphore(&(Task->Semaphore));
-    UnlockSemaphore(&(Task->MessageSemaphore));
+    UnlockMutex(&(Task->Mutex));
+    UnlockMutex(&(Task->MessageMutex));
     return TRUE;
 
 Out_Error:
 
-    UnlockSemaphore(&(Task->Semaphore));
-    UnlockSemaphore(&(Task->MessageSemaphore));
+    UnlockMutex(&(Task->Mutex));
+    UnlockMutex(&(Task->MessageMutex));
     return FALSE;
 }
 
@@ -889,7 +887,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     //-------------------------------------
     // Lock access to the window
 
-    LockSemaphore(&(Window->Semaphore), INFINITY);
+    LockMutex(&(Window->Mutex), INFINITY);
 
     if (Message->Target == (HANDLE)Window) {
         if (Window->Function != NULL) {
@@ -911,7 +909,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     //-------------------------------------
     // Unlock access to the window
 
-    UnlockSemaphore(&(Window->Semaphore));
+    UnlockMutex(&(Window->Mutex));
 
     return Result;
 }
@@ -933,7 +931,7 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     //-------------------------------------
     // Lock access to resources
 
-    LockSemaphore(SEMAPHORE_TASK, INFINITY);
+    LockMutex(MUTEX_TASK, INFINITY);
 
     //-------------------------------------
     // Check if the target is a task
@@ -955,18 +953,18 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     if (Desktop == NULL) goto Out;
     if (Desktop->ID != ID_DESKTOP) goto Out;
 
-    LockSemaphore(&(Desktop->Semaphore), INFINITY);
+    LockMutex(&(Desktop->Mutex), INFINITY);
 
     Result = DispatchMessageToWindow(Message, Desktop->Window);
 
-    UnlockSemaphore(&(Desktop->Semaphore));
+    UnlockMutex(&(Desktop->Mutex));
 
 Out:
 
     //-------------------------------------
     // Unlock access to resources
 
-    UnlockSemaphore(SEMAPHORE_TASK);
+    UnlockMutex(MUTEX_TASK);
 
     return Result;
 }
@@ -976,7 +974,7 @@ Out:
 void DumpTask(LPTASK Task) {
     STR Temp[32];
 
-    LockSemaphore(&(Task->Semaphore), INFINITY);
+    LockMutex(&(Task->Mutex), INFINITY);
 
     KernelPrint("Address         : %08X\n", Task);
     KernelPrint("References      : %d\n", Task->References);
@@ -995,7 +993,7 @@ void DumpTask(LPTASK Task) {
     KernelPrint("WakeUpTime      : %d\n", Task->WakeUpTime);
     KernelPrint("Queued messages : %d\n", Task->Message->NumItems);
 
-    UnlockSemaphore(&(Task->Semaphore));
+    UnlockMutex(&(Task->Mutex));
 }
 
 /***************************************************************************/

@@ -35,15 +35,15 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     //-------------------------------------
     // Lock access to file systems
 
-    LockSemaphore(SEMAPHORE_FILESYSTEM, INFINITY);
+    LockMutex(MUTEX_FILESYSTEM, INFINITY);
 
     //-------------------------------------
     // Check if the file is already open
 
-    LockSemaphore(SEMAPHORE_FILE, INFINITY);
+    LockMutex(MUTEX_FILE, INFINITY);
 
     for (Node = Kernel.File->First; Node; Node = Node->Next) {
-        LockSemaphore(&(AlreadyOpen->Semaphore), INFINITY);  // ???????????????
+        LockMutex(&(AlreadyOpen->Mutex), INFINITY);  // ???????????????
 
         AlreadyOpen = (LPFILE)Node;
 
@@ -53,17 +53,17 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
                     File = AlreadyOpen;
                     File->References++;
 
-                    UnlockSemaphore(&(AlreadyOpen->Semaphore));
-                    UnlockSemaphore(SEMAPHORE_FILE);
+                    UnlockMutex(&(AlreadyOpen->Mutex));
+                    UnlockMutex(MUTEX_FILE);
                     goto Out;
                 }
             }
         }
 
-        UnlockSemaphore(&(AlreadyOpen->Semaphore));
+        UnlockMutex(&(AlreadyOpen->Mutex));
     }
 
-    UnlockSemaphore(SEMAPHORE_FILE);
+    UnlockMutex(MUTEX_FILE);
 
     //-------------------------------------
     // Get the name of the volume in which the file
@@ -116,19 +116,19 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
     if (File != NULL) {
-        LockSemaphore(SEMAPHORE_FILE, INFINITY);
+        LockMutex(MUTEX_FILE, INFINITY);
 
         File->OwnerTask = GetCurrentTask();
         File->OpenFlags = Info->Flags;
 
         ListAddItem(Kernel.File, File);
 
-        UnlockSemaphore(SEMAPHORE_FILE);
+        UnlockMutex(MUTEX_FILE);
     }
 
 Out:
 
-    UnlockSemaphore(SEMAPHORE_FILESYSTEM);
+    UnlockMutex(MUTEX_FILESYSTEM);
 
     return File;
 }
@@ -141,7 +141,7 @@ U32 CloseFile(LPFILE File) {
 
     if (File->ID != ID_FILE) return 0;
 
-    LockSemaphore(&(File->Semaphore), INFINITY);
+    LockMutex(&(File->Mutex), INFINITY);
 
     if (File->References) File->References--;
 
@@ -153,7 +153,7 @@ U32 CloseFile(LPFILE File) {
 
         ListRemove(Kernel.File, File);
     } else {
-        UnlockSemaphore(&(File->Semaphore));
+        UnlockMutex(&(File->Mutex));
     }
 
     return 1;
@@ -180,7 +180,7 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
     //-------------------------------------
     // Lock access to the file
 
-    LockSemaphore(&(File->Semaphore), INFINITY);
+    LockMutex(&(File->Mutex), INFINITY);
 
     File->BytesToRead = FileOp->NumBytes;
     File->Buffer = FileOp->Buffer;
@@ -194,7 +194,7 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
 
 Out:
 
-    UnlockSemaphore(&(File->Semaphore));
+    UnlockMutex(&(File->Mutex));
 
     return BytesRead;
 }
@@ -220,7 +220,7 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
     //-------------------------------------
     // Lock access to the file
 
-    LockSemaphore(&(File->Semaphore), INFINITY);
+    LockMutex(&(File->Mutex), INFINITY);
 
     File->BytesToRead = FileOp->NumBytes;
     File->Buffer = FileOp->Buffer;
@@ -234,7 +234,7 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
 
 Out:
 
-    UnlockSemaphore(&(File->Semaphore));
+    UnlockMutex(&(File->Mutex));
 
     return BytesWritten;
 }
@@ -250,11 +250,11 @@ U32 GetFileSize(LPFILE File) {
     if (File == NULL) return 0;
     if (File->ID != ID_FILE) return 0;
 
-    LockSemaphore(&(File->Semaphore), INFINITY);
+    LockMutex(&(File->Mutex), INFINITY);
 
     Size = File->SizeLow;
 
-    UnlockSemaphore(&(File->Semaphore));
+    UnlockMutex(&(File->Mutex));
 
     return Size;
 }

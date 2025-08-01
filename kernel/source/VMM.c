@@ -1,11 +1,9 @@
 
-// VMM.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
@@ -87,7 +85,7 @@ void SetPhysicalPageMark(U32 Page, U32 Used) {
 
     if (Page >= Pages) return;
 
-    LockSemaphore(SEMAPHORE_MEMORY, INFINITY);
+    LockMutex(MUTEX_MEMORY, INFINITY);
 
     Offset = Page >> MUL_8;
     Value = (U32)0x01 << (Page & 0x07);
@@ -98,7 +96,7 @@ void SetPhysicalPageMark(U32 Page, U32 Used) {
         PPB[Offset] &= (U8)(~Value);
     }
 
-    UnlockSemaphore(SEMAPHORE_MEMORY);
+    UnlockMutex(MUTEX_MEMORY);
 }
 
 /***************************************************************************/
@@ -110,14 +108,14 @@ U32 GetPhysicalPageMark(U32 Page) {
 
     if (Page >= Pages) return 0;
 
-    LockSemaphore(SEMAPHORE_MEMORY, INFINITY);
+    LockMutex(MUTEX_MEMORY, INFINITY);
 
     Offset = Page >> MUL_8;
     Value = (U32)0x01 << (Page & 0x07);
 
     if (PPB[Offset] & Value) RetVal = 1;
 
-    UnlockSemaphore(SEMAPHORE_MEMORY);
+    UnlockMutex(MUTEX_MEMORY);
 
     return RetVal;
 }
@@ -140,7 +138,7 @@ PHYSICAL AllocPhysicalPage() {
     #endif
     */
 
-    LockSemaphore(SEMAPHORE_MEMORY, INFINITY);
+    LockMutex(MUTEX_MEMORY, INFINITY);
 
     Start = ReservedPages >> MUL_8;
     Maximum = Pages >> MUL_8;
@@ -163,7 +161,7 @@ PHYSICAL AllocPhysicalPage() {
 
 Out:
 
-    UnlockSemaphore(SEMAPHORE_MEMORY);
+    UnlockMutex(MUTEX_MEMORY);
 
     /*
     #ifdef __DEBUG__

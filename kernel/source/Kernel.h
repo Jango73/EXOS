@@ -161,7 +161,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Desktop;
     LPLIST Process;
     LPLIST Task;
-    LPLIST Semaphore;
+    LPLIST Mutex;
     LPLIST Disk;
     LPLIST FileSystem;
     LPLIST File;

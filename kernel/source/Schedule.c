@@ -257,18 +257,18 @@ LPTASK GetCurrentTask() { return TaskList.Current; }
 /***************************************************************************/
 
 BOOL FreezeScheduler() {
-    LockSemaphore(SEMAPHORE_SCHEDULE, INFINITY);
+    LockMutex(MUTEX_SCHEDULE, INFINITY);
     TaskList.Freeze++;
-    UnlockSemaphore(SEMAPHORE_SCHEDULE);
+    UnlockMutex(MUTEX_SCHEDULE);
     return TRUE;
 }
 
 /***************************************************************************/
 
 BOOL UnfreezeScheduler() {
-    LockSemaphore(SEMAPHORE_SCHEDULE, INFINITY);
+    LockMutex(MUTEX_SCHEDULE, INFINITY);
     if (TaskList.Freeze) TaskList.Freeze--;
-    UnlockSemaphore(SEMAPHORE_SCHEDULE);
+    UnlockMutex(MUTEX_SCHEDULE);
     return TRUE;
 }
 

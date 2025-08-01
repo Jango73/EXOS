@@ -17,7 +17,7 @@
 #define ID_NONE 0x00000000
 #define ID_PROCESS 0x434F5250          // "PROC"
 #define ID_TASK 0x4B534154             // "TASK"
-#define ID_SEMAPHORE 0x48504D53        // "SMPH"
+#define ID_MUTEX 0x4D555458            // "MUTX"
 #define ID_SECURITY 0x55434553         // "SECU"
 #define ID_MESSAGE 0x4753534D          // "MSSG"
 #define ID_HEAP 0x50414548             // "HEAP"

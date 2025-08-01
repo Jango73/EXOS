@@ -29,7 +29,7 @@ typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_MESSAGE MESSAGE, *LPMESSAGE;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
-typedef struct tag_SEMAPHORE SEMAPHORE, *LPSEMAPHORE;
+typedef struct tag_MUTEX MUTEX, *LPMUTEX;
 
 /***************************************************************************/
 // The security structure
@@ -54,7 +54,7 @@ typedef struct tag_SECURITY {
 /***************************************************************************/
 // The semaphore structure
 
-struct tag_SEMAPHORE {
+struct tag_MUTEX {
     LISTNODE_FIELDS         // Standard EXOS object fields
         LPPROCESS Process;  // Process that has locked this sem.
     LPTASK Task;            // Task that has locked this sem.
@@ -63,8 +63,8 @@ struct tag_SEMAPHORE {
 
 // Macro to initialize a semaphore
 
-#define EMPTY_SEMAPHORE \
-    { ID_SEMAPHORE, 1, NULL, NULL, NULL, NULL, 0 }
+#define EMPTY_MUTEX \
+    { ID_MUTEX, 1, NULL, NULL, NULL, NULL, 0 }
 
 /***************************************************************************\
 
@@ -77,8 +77,8 @@ struct tag_SEMAPHORE {
 
 struct tag_PROCESS {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        SEMAPHORE Semaphore;  // This structure's semaphore
-    SEMAPHORE HeapSemaphore;  // This structure's semaphore for heap allocation
+        MUTEX Mutex;  // This structure's semaphore
+    MUTEX HeapMutex;  // This structure's semaphore for heap allocation
     SECURITY Security;        // This process' security attributes
     LPDESKTOP Desktop;        // This process' desktop
     LPPROCESS Parent;         // Parent process of this process
@@ -110,7 +110,7 @@ struct tag_MESSAGE {
 
 struct tag_TASK {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        SEMAPHORE Semaphore;  // This structure's semaphore
+        MUTEX Mutex;  // This structure's semaphore
     LPPROCESS Process;        // Process that owns this task
     U32 Status;               // Current status of this task
     U32 Priority;             // Current priority of this task
@@ -125,7 +125,7 @@ struct tag_TASK {
     U32 SysStackSize;
     U32 Time;  // Time allocated to this task
     U32 WakeUpTime;
-    SEMAPHORE MessageSemaphore;  // Semaphore to access message queue
+    MUTEX MessageMutex;  // Mutex to access message queue
     LPLIST Message;              // This task's message queue
 };
 
@@ -155,7 +155,7 @@ struct tag_TASK {
 
 struct tag_WINDOW {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        SEMAPHORE Semaphore;  // This window's semaphore
+        MUTEX Mutex;  // This window's semaphore
     LPTASK Task;              // The task that created this window
     WINDOWFUNC Function;      // The function that manages this window
     LPWINDOW Parent;          // The parent of this window
@@ -190,7 +190,7 @@ typedef struct tag_PROPERTY {
 
 struct tag_DESKTOP {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        SEMAPHORE Semaphore;  // This structure's semaphore
+        MUTEX Mutex;  // This structure's semaphore
     LPTASK Task;              // The task that created this desktop
     LPDRIVER Graphics;        // This desktop's graphics driver
     LPWINDOW Window;          // Window of the desktop
@@ -201,30 +201,30 @@ struct tag_DESKTOP {
 
 /***************************************************************************/
 
-#define SEMAPHORE_KERNEL (&KernelSemaphore)
-#define SEMAPHORE_MEMORY (&MemorySemaphore)
-#define SEMAPHORE_SCHEDULE (&ScheduleSemaphore)
-#define SEMAPHORE_DESKTOP (&DesktopSemaphore)
-#define SEMAPHORE_PROCESS (&ProcessSemaphore)
-#define SEMAPHORE_TASK (&TaskSemaphore)
-#define SEMAPHORE_FILESYSTEM (&FileSystemSemaphore)
-#define SEMAPHORE_FILE (&FileSemaphore)
-#define SEMAPHORE_CONSOLE (&ConsoleSemaphore)
+#define MUTEX_KERNEL (&KernelMutex)
+#define MUTEX_MEMORY (&MemoryMutex)
+#define MUTEX_SCHEDULE (&ScheduleMutex)
+#define MUTEX_DESKTOP (&DesktopMutex)
+#define MUTEX_PROCESS (&ProcessMutex)
+#define MUTEX_TASK (&TaskMutex)
+#define MUTEX_FILESYSTEM (&FileSystemMutex)
+#define MUTEX_FILE (&FileMutex)
+#define MUTEX_CONSOLE (&ConsoleMutex)
 
 /***************************************************************************/
 
 extern PROCESS KernelProcess;
 extern TASK KernelTask;
 extern DESKTOP MainDesktop;
-extern SEMAPHORE KernelSemaphore;
-extern SEMAPHORE MemorySemaphore;
-extern SEMAPHORE ScheduleSemaphore;
-extern SEMAPHORE DesktopSemaphore;
-extern SEMAPHORE ProcessSemaphore;
-extern SEMAPHORE TaskSemaphore;
-extern SEMAPHORE FileSystemSemaphore;
-extern SEMAPHORE FileSemaphore;
-extern SEMAPHORE ConsoleSemaphore;
+extern MUTEX KernelMutex;
+extern MUTEX MemoryMutex;
+extern MUTEX ScheduleMutex;
+extern MUTEX DesktopMutex;
+extern MUTEX ProcessMutex;
+extern MUTEX TaskMutex;
+extern MUTEX FileSystemMutex;
+extern MUTEX FileMutex;
+extern MUTEX ConsoleMutex;
 
 /***************************************************************************/
 // Functions in Process.c
@@ -250,13 +250,13 @@ BOOL DispatchMessage(LPMESSAGEINFO);
 void DumpTask(LPTASK);
 
 /***************************************************************************/
-// Functions in Semaphore.c
+// Functions in Mutex.c
 
-void InitSemaphore(LPSEMAPHORE);
-LPSEMAPHORE CreateSemaphore();
-BOOL DeleteSemaphore(LPSEMAPHORE);
-U32 LockSemaphore(LPSEMAPHORE, U32);
-BOOL UnlockSemaphore(LPSEMAPHORE);
+void InitMutex(LPMUTEX);
+LPMUTEX CreateMutex();
+BOOL DeleteMutex(LPMUTEX);
+U32 LockMutex(LPMUTEX, U32);
+BOOL UnlockMutex(LPMUTEX);
 
 /***************************************************************************/
 // Functions in Desktop.c
