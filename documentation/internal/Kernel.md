@@ -299,3 +299,81 @@ Core initialization and debugging utilities for the kernel.
 - GetPhysicalMemoryUsed: Returns the number of used bytes.
 - InitializeKernel: Performs global kernel initialization.
 
+### Keyboard.c
+
+Implements the PC keyboard driver and key buffering.
+
+#### Functions in Keyboard.c
+
+- KeyboardWait: Waits for the controller input buffer to clear.
+- KeyboardACK: Checks if the keyboard acknowledged a command.
+- SendKeyboardCommand: Sends a command and data byte to the keyboard.
+- ScanCodeToKeyCode: Converts hardware scan codes to key codes.
+- ScanCodeToKeyCode_E0: Handles extended scan code prefix E0.
+- ScanCodeToKeyCode_E1: Handles extended scan code prefix E1.
+- SendKeyCodeToBuffer: Stores a translated key code in the buffer.
+- UpdateKeyboardLEDs: Updates the state of the keyboard LEDs.
+- GetKeyboardLEDs: Returns the current LED status.
+- SetKeyboardLEDs: Changes LED states.
+- HandleScanCode: Processes a received scan code.
+- PeekChar: Checks if a character is available.
+- GetChar: Reads a character from the buffer.
+- GetKeyCode: Reads a full key code from the buffer.
+- WaitKey: Waits for a key press.
+- KeyboardHandler: Interrupt handler that reads scan codes.
+- KeyboardInitialize: Initializes keyboard structures and IRQ.
+- StdKeyboardCommands: Driver entry function.
+
+### List.c
+
+Provides a generic linked list container and sorting routine.
+
+#### Functions in List.c
+
+- QuickSort: Sorts an array of items using quicksort.
+- NewList: Allocates a new list object.
+- DeleteList: Releases all nodes and the list structure.
+- ListGetSize: Returns the number of items.
+- ListAddItem: Appends an item at the end.
+- ListAddBefore: Inserts an item before another item.
+- ListAddAfter: Inserts an item after another item.
+- ListAddHead: Inserts an item at the head.
+- ListAddTail: Inserts an item at the tail.
+- ListRemove: Removes a node without deleting it.
+- ListErase: Removes and frees a node.
+- ListEraseLast: Erases the last item.
+- ListEraseItem: Erases a specific item.
+- ListReset: Clears the list.
+- ListGetItem: Gets the item at a specified index.
+- ListGetItemIndex: Returns the index of an item.
+- ListMergeList: Appends another list and deletes it.
+- ListSort: Sorts the list using a comparison function.
+
+### Log.c
+
+Minimal logging utility for kernel messages.
+
+#### Functions in Log.c
+
+- KernelLogText: Prints a log message based on severity.
+
+### Main.c
+
+Kernel entry point after transitioning to protected mode.
+
+#### Functions in Main.c
+
+- DebugPutChar: Writes a character directly to video memory.
+- KernelIdle: Idle loop executed when no tasks run.
+- KernelMain: Initializes the kernel and enters idle loop.
+
+### Memedit.c
+
+Interactive memory viewer used for debugging.
+
+#### Functions in Memedit.c
+
+- PrintMemoryLine: Displays a single line of memory values.
+- PrintMemory: Dumps a series of memory lines.
+- PrintMemoryPage: Shows a page of memory on the console.
+- MemEdit: Lets the user scroll through memory addresses.
