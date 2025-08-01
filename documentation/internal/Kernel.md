@@ -50,3 +50,109 @@ Provides basic password handling functions.
 
 - MakePassword: Generates an encrypted password from plain text.
 - CheckPassword: Verifies a plain text password against an encrypted one.
+
+### Desktop.c
+
+Manages the graphical desktop and windows.
+
+#### Functions in Desktop.c
+
+- ResetGraphicsContext: Initializes a graphics context to default values.
+- SortDesktops_Order: Sorts desktops based on their order field.
+- SortWindows_Order: Sorts windows according to their order on screen.
+- CreateDesktop: Allocates and sets up a new desktop structure.
+- ShowDesktop: Displays a desktop using the graphics driver.
+- NewWindow: Creates an empty window structure.
+- FindWindow: Searches recursively for a child window.
+- CreateWindow: Builds a window and attaches it to the hierarchy.
+- GetWindowDesktop: Returns the desktop associated with a window.
+- BroadCastMessage: Sends a message to a window and its children.
+- RectInRect: Tests if two rectangles intersect.
+- WindowRectToScreenRect: Converts window-relative coordinates to screen coordinates.
+- ScreenRectToWindowRect: Converts screen coordinates to window-relative values.
+- InvalidateWindowRect: Marks a window region as needing redraw.
+- BringWindowToFront: Moves a window ahead of its siblings.
+- ShowWindow: Hides or shows a window.
+- GetWindowRect: Retrieves the window rectangle.
+- MoveWindow: Moves a window on the screen.
+- SizeWindow: Resizes a window.
+- GetWindowParent: Returns the parent of a window.
+- SetWindowProp: Stores a custom property in a window.
+- GetWindowProp: Retrieves a custom property from a window.
+- GetWindowGC: Provides a graphics context for drawing.
+- ReleaseWindowGC: Releases a graphics context obtained earlier.
+- BeginWindowDraw: Locks a window for drawing.
+- EndWindowDraw: Unlocks a window after drawing.
+- GetSystemBrush: Returns a system-defined brush handle.
+- GetSystemPen: Returns a system-defined pen handle.
+- SelectBrush: Selects a brush into a graphics context.
+- SelectPen: Selects a pen into a graphics context.
+- CreateBrush: Allocates a new brush object.
+- CreatePen: Allocates a new pen object.
+- SetPixel: Writes a single pixel at a position.
+- GetPixel: Reads a pixel value from a position.
+- Line: Draws a line using the current context settings.
+- Rectangle: Draws a filled rectangle.
+- WindowHitTest: Finds the top window at a screen position.
+- DefWindowFunc: Default window message procedure.
+- DesktopWindowFunc: Core desktop message handler.
+
+### DrvCall.c
+
+Handles user mode calls to drivers.
+
+#### Functions in DrvCall.c
+
+- DriverFunc: Placeholder function used in the driver call table.
+- DriverCallHandler: Dispatches a call to the appropriate driver function.
+
+### Edit.c
+
+Implements a simple text editor for the shell.
+
+#### Functions in Edit.c
+
+- NewEditLine: Allocates a line structure with a given size.
+- DeleteEditLine: Releases resources for a line.
+- EditLineDestructor: Helper used when deleting line lists.
+- NewEditFile: Creates a new editable file context.
+- DeleteEditFile: Destroys an editable file and its lines.
+- EditFileDestructor: Helper used when removing files from a list.
+- NewEditContext: Creates the top-level editor context.
+- DeleteEditContext: Releases the editor context.
+- CheckPositions: Adjusts viewport offsets according to cursor position.
+- DrawText: Renders the text buffer onto the console.
+- CheckLineSize: Grows a line buffer when needed.
+- FillToCursor: Inserts spaces until the cursor column is valid.
+- GetCurrentLine: Returns the line at the current cursor row.
+- AddCharacter: Inserts a character at the cursor position.
+- DeleteCharacter: Removes a character before or after the cursor.
+- AddLine: Inserts a new line in the file.
+- GotoEndOfLine: Moves the cursor to the end of the current line.
+- GotoStartOfLine: Moves the cursor to the start of the current line.
+- Loop: Main event loop of the text editor.
+- OpenTextFile: Loads a text file into the editor context.
+- Edit: Entry point used by the shell to invoke the editor.
+
+### FAT16.c
+
+Driver implementation for the FAT16 file system.
+
+#### Functions in FAT16.c
+
+- FAT16Commands: Driver entry point handling file system requests.
+- NewFAT16FileSystem: Allocates a FAT16 file system object.
+- NewFATFile: Allocates a FAT16 file structure.
+- MountPartition_FAT16: Mounts a FAT16 partition on a disk.
+- ReadCluster: Reads a cluster from disk into memory.
+- WriteCluster: Writes a cluster back to disk.
+- GetNextClusterInChain: Returns the next cluster in a file chain.
+- DecodeFileName: Converts directory entry names to strings.
+- TranslateFileInfo: Fills a file object from a directory entry.
+- LocateFile: Locates a file by path on the file system.
+- Initialize: Initializes the FAT16 driver.
+- OpenFile: Opens a file given search information.
+- OpenNext: Opens the next file in a directory iteration.
+- CloseFile: Closes a previously opened file.
+- ReadFile: Reads data from an open file.
+
