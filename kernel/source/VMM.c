@@ -74,6 +74,13 @@ U32 ReservedPages = ((N_1MB + N_128KB + N_2MB) >> PAGE_SIZE_MUL);
 
 \***************************************************************************/
 
+void InitializeVirtualMemoryManager() {
+    Memory = KernelStartup.MemorySize;
+    Pages  = Memory >> PAGE_SIZE_MUL;
+}
+
+/***************************************************************************/
+
 void SetPhysicalPageMark(U32 Page, U32 Used) {
     U32 Offset = 0;
     U32 Value = 0;

@@ -668,6 +668,11 @@ void InitializeKernel() {
     IRQMask_A1_RM = KernelStartup.IRQMask_A1_RM;
 
     //-------------------------------------
+    // Initialize the VMM
+
+    InitializeVirtualMemoryManager();
+
+    //-------------------------------------
     // Initialize the physical page bitmap
 
     InitializePhysicalPageBitmap();

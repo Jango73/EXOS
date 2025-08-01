@@ -88,7 +88,7 @@ struct tag_PROCESS {
     U32 HeapSize;
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
-    LPLIST Objects;  // Objects owned by this process
+    LPLIST Objects;           // Objects owned by this process
 };
 
 /***************************************************************************/

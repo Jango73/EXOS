@@ -33,6 +33,7 @@ extern U32 Pages;
 
 /***************************************************************************/
 
+void InitializeVirtualMemoryManager();
 void InitPageTable(LPPAGETABLE, PHYSICAL);
 void SetPhysicalPageMark(U32, U32);
 U32 GetPhysicalPageMark(U32);
