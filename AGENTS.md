@@ -3,6 +3,9 @@
 ## Project overview
 This is a 32 bit operating system for i386.
 
+## Documentation
+The documentation for kernel modules is in documentation/internal/Kernel.md
+
 ## Build
 make
 
@@ -18,14 +21,3 @@ make
 ## Forbidden Actions
 - Never enable network during tests.
 - DON'T DELETE blank lines between functions, blocks of code, etc...
-
-## Boot sequence
-When launching the DOS loader, the sequence is
-
-- Loader.asm : Main (loads exos.bin and jumps to its base)
-- Stub.asm : StartAbsolute (does nothing, just a jump)
-- Stub.asm : Start (loads IDT & GDT and switches to PM)
-- Stub.asm : Start32 (gets RAM size, sets up page directory and tables, enables paging)
-- Stub.asm : ProtectedModeEntry (fixes segments, stores stub info, sets up stack)
-- Main.c : KernelMain (calls InitializeKernel
-- Kernel.c : InitializeKernel (does C-level kernel init like phys memory bitmap, kernel heap, console, drivers, etc...)

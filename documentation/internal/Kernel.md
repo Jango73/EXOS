@@ -493,18 +493,18 @@ Helper functions to initialize GDT and TSS descriptors.
 - SetTSSDescriptorBase: Sets the base of a TSS descriptor.
 - SetTSSDescriptorLimit: Sets the size of a TSS descriptor.
 
-### Sem.c
+### Mutex.c
 
-Kernel semaphores providing mutual exclusion.
+A mutex providing mutual exclusion.
 
-#### Functions in Sem.c
+#### Functions in Mutex.c
 
-- InitSemaphore: Resets a semaphore object.
-- NewSemaphore: Allocates an unlinked semaphore.
-- CreateSemaphore: Allocates and registers a semaphore.
-- DeleteSemaphore: Removes a semaphore from the kernel list.
-- LockSemaphore: Acquires the semaphore for the current task.
-- UnlockSemaphore: Releases a previously acquired semaphore.
+- InitMutex: Resets a mutex object.
+- NewMutex: Allocates an unlinked mutex.
+- CreateMutex: Allocates and registers a mutex.
+- DeleteMutex: Removes a mutex from the kernel list.
+- LockMutex: Acquires the mutex for the current task.
+- UnlockMutex: Releases a previously acquired mutex.
 
 ### SerMouse.c
 
