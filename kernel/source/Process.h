@@ -52,7 +52,7 @@ typedef struct tag_SECURITY {
     { ID_SECURITY, 1, NULL, NULL, 0, 0, PERMISSION_NONE }
 
 /***************************************************************************/
-// The semaphore structure
+// The mutex structure
 
 struct tag_MUTEX {
     LISTNODE_FIELDS         // Standard EXOS object fields
@@ -61,7 +61,7 @@ struct tag_MUTEX {
     U32 Lock;               // Lock count of this sem.
 };
 
-// Macro to initialize a semaphore
+// Macro to initialize a mutex
 
 #define EMPTY_MUTEX \
     { ID_MUTEX, 1, NULL, NULL, NULL, NULL, 0 }
@@ -77,8 +77,8 @@ struct tag_MUTEX {
 
 struct tag_PROCESS {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This structure's semaphore
-    MUTEX HeapMutex;  // This structure's semaphore for heap allocation
+        MUTEX Mutex;  // This structure's mutex
+    MUTEX HeapMutex;  // This structure's mutex for heap allocation
     SECURITY Security;        // This process' security attributes
     LPDESKTOP Desktop;        // This process' desktop
     LPPROCESS Parent;         // Parent process of this process
@@ -110,7 +110,7 @@ struct tag_MESSAGE {
 
 struct tag_TASK {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This structure's semaphore
+        MUTEX Mutex;  // This structure's mutex
     LPPROCESS Process;        // Process that owns this task
     U32 Status;               // Current status of this task
     U32 Priority;             // Current priority of this task
@@ -155,7 +155,7 @@ struct tag_TASK {
 
 struct tag_WINDOW {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This window's semaphore
+        MUTEX Mutex;  // This window's mutex
     LPTASK Task;              // The task that created this window
     WINDOWFUNC Function;      // The function that manages this window
     LPWINDOW Parent;          // The parent of this window
@@ -190,7 +190,7 @@ typedef struct tag_PROPERTY {
 
 struct tag_DESKTOP {
     LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This structure's semaphore
+        MUTEX Mutex;  // This structure's mutex
     LPTASK Task;              // The task that created this desktop
     LPDRIVER Graphics;        // This desktop's graphics driver
     LPWINDOW Window;          // Window of the desktop

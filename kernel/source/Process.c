@@ -22,7 +22,7 @@ PROCESS KernelProcess = {
     NULL,
     NULL,                   // Next, previous
     EMPTY_MUTEX,        // Mutex
-    EMPTY_MUTEX,        // Heap semaphore
+    EMPTY_MUTEX,        // Heap mutex
     EMPTY_SECURITY,         // Security
     NULL,                   // Desktop
     NULL,                   // Parent
@@ -323,7 +323,7 @@ LPPROCESS NewProcess() {
     This->Privilege = PRIVILEGE_KERNEL;
 
     //-------------------------------------
-    // Initialize the process' semaphores
+    // Initialize the process' mutexs
 
     InitMutex(&(This->Mutex));
     InitMutex(&(This->HeapMutex));

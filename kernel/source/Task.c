@@ -135,7 +135,7 @@ void DeleteTask(LPTASK This) {
     if (This->ID != ID_TASK) return;
 
     //-------------------------------------
-    // Unlock all semaphores locked by this task
+    // Unlock all mutexs locked by this task
 
     for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
         Mutex = (LPMUTEX)Node;

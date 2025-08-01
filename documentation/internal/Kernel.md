@@ -616,10 +616,10 @@ System call handler dispatching user mode requests.
 - SysCall_PeekMessage: Checks if a message is pending.
 - SysCall_GetMessage: Waits for a message from the queue.
 - SysCall_DispatchMessage: Dispatches a message to a window.
-- SysCall_CreateSemaphore: Creates a new semaphore.
-- SysCall_DeleteSemaphore: Deletes a semaphore object.
-- SysCall_LockSemaphore: Locks a semaphore with timeout.
-- SysCall_UnlockSemaphore: Unlocks a semaphore.
+- SysCall_CreateSemaphore: Creates a new mutex.
+- SysCall_DeleteSemaphore: Deletes a mutex object.
+- SysCall_LockSemaphore: Locks a mutex with timeout.
+- SysCall_UnlockSemaphore: Unlocks a mutex.
 - SysCall_VirtualAlloc: Allocates virtual memory pages.
 - SysCall_VirtualFree: Frees virtual memory pages.
 - SysCall_GetProcessHeap: Returns the heap of a process.

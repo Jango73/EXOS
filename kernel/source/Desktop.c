@@ -36,7 +36,7 @@ static WINDOW MainDesktopWindow = {
     1,  // ID, references
     NULL,
     NULL,                   // Next, previous
-    EMPTY_MUTEX,        // Window semaphore
+    EMPTY_MUTEX,        // Window mutex
     &KernelTask,            // Task
     &DesktopWindowFunc,     // Function
     NULL,                   // Parent
@@ -59,7 +59,7 @@ DESKTOP MainDesktop = {
     1,  // ID, references
     NULL,
     NULL,                // Next, previous
-    EMPTY_MUTEX,     // Desktop semaphore
+    EMPTY_MUTEX,     // Desktop mutex
     &KernelTask,         // This desktop's owner task
     &VESADriver,         // This desktop's graphics driver
     &MainDesktopWindow,  // Window

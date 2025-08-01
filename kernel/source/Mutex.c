@@ -163,13 +163,13 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     }
 
     //-------------------------------------
-    // Wait for semaphore to be unlocked by its owner task
+    // Wait for mutex to be unlocked by its owner task
 
     while (1) {
         DisableInterrupts();
 
         //-------------------------------------
-        // Check if a process did not delete this semaphore
+        // Check if a process did not delete this mutex
 
         if (Mutex->ID != ID_MUTEX) {
             Ret = 0;
@@ -177,7 +177,7 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
         }
 
         //-------------------------------------
-        // Check if the semaphore is not locked anymore
+        // Check if the mutex is not locked anymore
 
         if (Mutex->Task == NULL) {
             break;
