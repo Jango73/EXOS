@@ -91,6 +91,13 @@ GDT_Real_Data :
     dd 0x0000FFFF
     dd 0x000F9200
 
+GDT_TSS_0 :
+
+    ; Placeholder for the first TSS descriptor. The kernel
+    ; will update this entry during initialization.
+    dd 0x00000000
+    dd 0x00000000
+
 ;--------------------------------------
 
 IDT_Label :
@@ -518,7 +525,7 @@ SetupGDT :
     mov     esi, ebp
     add     esi, GDT
     mov     edi, PA_GDT
-    mov     ecx, 8 * SEGMENT_DESCRIPTOR_SIZE
+    mov     ecx, NUM_DESCRIPTORS * SEGMENT_DESCRIPTOR_SIZE
     cld
     rep     movsb
     ret
