@@ -1,8 +1,11 @@
 *.o
 *.a
 *.com
+*.bat
+*.BAT
 *.bin
 *.map
+*.log
 *.elf
 *.img
 *.iso

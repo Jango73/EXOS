@@ -78,6 +78,7 @@ struct tag_SEMAPHORE {
 struct tag_PROCESS {
     LISTNODE_FIELDS           // Standard EXOS object fields
         SEMAPHORE Semaphore;  // This structure's semaphore
+    SEMAPHORE HeapSemaphore;  // This structure's semaphore for heap allocation
     SECURITY Security;        // This process' security attributes
     LPDESKTOP Desktop;        // This process' desktop
     LPPROCESS Parent;         // Parent process of this process
@@ -142,7 +143,7 @@ struct tag_TASK {
 // Miscellaneous task values
 
 #define TASK_MINIMUM_STACK_SIZE N_32KB
-#define TASK_SYSTEM_STACK_SIZE N_1KB
+#define TASK_SYSTEM_STACK_SIZE N_4KB
 
 // Task creation flags
 

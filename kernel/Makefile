@@ -6,10 +6,11 @@ AS      = AS = i686-elf-as
 NASM	= nasm
 OBJCOPY = i686-elf-objcopy
 
-CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin
+CFLAGS  = -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin
 AFLAGS  = -f elf -I source/
 
-LDFLAGS = -T linker.ld -nostdlib -Map=bin/exos.map
+LDFLAGS_BIN = -T linker-bin.ld -nostdlib -Map=bin/exos-bin.map
+LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map
 
 KERNEL_ELF = bin/exos.elf
 KERNEL_BIN = bin/exos.bin
@@ -24,10 +25,13 @@ OBJS   = $(OBJ_S) $(OBJ_C)
 
 # === Build rules ===
 
-all: $(KERNEL_BIN)
+all: $(KERNEL_BIN) $(KERNEL_ELF)
 
-$(KERNEL_BIN): $(OBJS) linker.ld
-	$(LD) $(LDFLAGS) -o $@ $(OBJS)
+$(KERNEL_BIN): $(OBJS) linker-bin.ld
+	$(LD) $(LDFLAGS_BIN) -o $@ $(OBJS)
+
+$(KERNEL_ELF): $(OBJS) linker-elf.ld
+	$(LD) $(LDFLAGS_ELF) -o $@ $(OBJS)
 
 bin/%.o: source/%.c
 	@mkdir -p $(dir $@)
@@ -38,4 +42,4 @@ bin/%.o: source/%.asm
 	$(NASM) $(AFLAGS) -o $@ $<
 
 clean:
-	rm -rf bin/*.o bin/*.elf bin/*.bin
+	rm -rf bin/*.o bin/*.elf bin/*.bin bin/*.map

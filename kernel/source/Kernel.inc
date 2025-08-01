@@ -132,6 +132,7 @@ PA_KERNEL    equ (PA_PPB + PPB_SIZE)
 PA_SYSTEM    equ PA_IDT
 
 LA_USER      equ 0x00400000
+LA_LIBRARY 	 equ 0xA0000000
 LA_KERNEL    equ 0xC0000000
 LA_SYSTEM    equ 0xFF400000
 LA_DIRECTORY equ 0xFF800000
@@ -264,7 +265,7 @@ KEYBOARD_STATUS_IN_ERROR     equ 0x40
 KEYBOARD_STATUS_PARITY_ERROR equ 0x80
 
 ;----------------------------------------------------------
-; Extern C functions
+; Extern C symbols
 
 extern KernelMain
 extern InitializeKernel
@@ -302,7 +303,6 @@ extern MouseHandler
 extern HardDriveHandler
 
 extern Kernel
-extern Text_Zob
 extern StubAddress
 
 ;----------------------------------------------------------

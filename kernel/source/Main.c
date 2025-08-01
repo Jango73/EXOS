@@ -15,7 +15,7 @@
 
 static void DebugPutChar(STR Char) {
     volatile char* vram = (char*)0xB8000;
-    vram[0] = 'Char';
+    vram[0] = Char;
 }
 
 /***************************************************************************/

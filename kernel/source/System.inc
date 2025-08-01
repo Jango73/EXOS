@@ -3,7 +3,6 @@
 
 ;----------------------------------------------------------
 
-extern ProtectedModeEntry           : near
 extern GetCPUID                     : near
 extern DisableInterrupts            : near
 extern EnableInterrupts             : near

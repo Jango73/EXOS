@@ -43,7 +43,6 @@ IRQMask_A1_RM dd 0x00000000
 section .text
 bits 32
 
-    global ProtectedModeEntry
     global GetCPUID
     global DisablePaging
     global EnablePaging
@@ -79,83 +78,6 @@ bits 32
     global MemoryCopy
     global DoSystemCall
     global Reboot
-
-;--------------------------------------
-
-ProtectedModeEntry :
-
-    cli
-
-    ;--------------------------------------
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'I'
-
-    ;--------------------------------------
-    ; DS, ES and GS are used to access the kernel's data
-
-    mov     ax,  SELECTOR_KERNEL_DATA
-    mov     ds,  ax
-    mov     es,  ax
-    mov     gs,  ax
-
-    ;--------------------------------------
-    ; FS is used to communicate with user
-
-    mov     ax,  SELECTOR_KERNEL_DATA
-    mov     fs,  ax
-
-    ;--------------------------------------
-    ; Save the base address of the stub
-
-    mov     [StubAddress], ebp
-
-    ;--------------------------------------
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'J'
-
-    ;--------------------------------------
-    ; Setup the kernel's stack
-
-    mov     ax,  SELECTOR_KERNEL_DATA
-    mov     ss,  ax
-
-    mov     esp, KernelStack           ; Start of kernel stack
-    add     esp, (N_32KB - 3072)       ; Minimum stack size
-    mov     ebp, esp
-
-    ;--------------------------------------
-    ; Setup local descriptor register
-
-    xor     ax, ax
-    lldt    ax
-
-    ;--------------------------------------
-    ; Clear registers
-
-    xor     eax, eax
-    xor     ebx, ebx
-    xor     ecx, ecx
-    xor     edx, edx
-    xor     esi, esi
-    xor     edi, edi
-
-    ;--------------------------------------
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'K'
-
-    ;--------------------------------------
-    ; Jump to main kernel routine
-
-    jmp     KernelMain
-
-    ;--------------------------------------
-
-_ProtectedModeEntry_Hang :
-
-    jmp     _ProtectedModeEntry_Hang
 
 ;--------------------------------------
 
@@ -900,21 +822,5 @@ DoSystemCall :
 section .bss
 
     global Stack
-
-;----------------------------------------------------------------------------
-
-section .heap
-
-    global KernelHeap
-
-KernelHeap: resb HEP_SIZE
-
-;----------------------------------------------------------------------------
-
-section .stack
-
-    global KernelStack
-
-KernelStack: resb STK_SIZE
 
 ;----------------------------------------------------------------------------

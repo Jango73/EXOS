@@ -23,6 +23,7 @@ PROCESS KernelProcess = {
     NULL,
     NULL,                   // Next, previous
     EMPTY_SEMAPHORE,        // Semaphore
+    EMPTY_SEMAPHORE,        // Heap semaphore
     EMPTY_SECURITY,         // Security
     NULL,                   // Desktop
     NULL,                   // Parent
@@ -305,9 +306,10 @@ LPPROCESS NewProcess() {
     This->Privilege = PRIVILEGE_KERNEL;
 
     //-------------------------------------
-    // Initialize the process' semaphore
+    // Initialize the process' semaphores
 
     InitSemaphore(&(This->Semaphore));
+    InitSemaphore(&(This->HeapSemaphore));
 
     //-------------------------------------
     // Initialize the process' security

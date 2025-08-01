@@ -149,7 +149,7 @@ PHYSICAL StubAddress = 0;
 
 static void DebugPutChar(STR Char) {
     volatile char* vram = (char*)0xB8000;
-    vram[0] = 'Char';
+    vram[0] = Char;
 }
 
 /***************************************************************************/
@@ -667,21 +667,15 @@ void InitializeKernel() {
     IRQMask_21_RM = KernelStartup.IRQMask_21_RM;
     IRQMask_A1_RM = KernelStartup.IRQMask_A1_RM;
 
-    DebugPutChar('O');
-
     //-------------------------------------
     // Initialize kernel data
 
     *((U32*)KernelProcess.HeapBase) = ID_HEAP;
 
-    DebugPutChar('P');
-
     //-------------------------------------
     // Initialize the physical page bitmap
 
     InitializePhysicalPageBitmap();
-
-    DebugPutChar('Q');
 
     //-------------------------------------
     // Initialize the console
@@ -711,7 +705,6 @@ void InitializeKernel() {
 
     InitKernelTask();
     LoadInitialTaskRegister(KernelTask.Selector);
-
     KernelLogText(LOG_VERBOSE, TEXT("Kernel task setup..."));
 
     //-------------------------------------

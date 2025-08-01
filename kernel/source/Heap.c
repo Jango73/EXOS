@@ -42,23 +42,8 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     LPHEAPALLOCENTRY Entry = NULL;
     LINEAR HighBlock = NULL;
     U32 Index = 0;
-    STR Text[16];
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Entering HeapAllocEx\n");
-      U32ToHexString(HeapBase, Text);
-      KernelPrint("Heap base : ");
-      KernelPrint(Text);
-      KernelPrint(Text_NewLine);
-      U32ToHexString(HeapSize, Text);
-      KernelPrint("Heap size : ");
-      KernelPrint(Text);
-      KernelPrint(Text_NewLine);
-    #endif
-    */
-
-    KernelLogText(LOG_DEBUG, "Entering HeapAllocEx");
+    KernelLogText(LOG_DEBUG, TEXT("Entering HeapAllocEx"));
 
     //-------------------------------------
     // Check validity of parameters
@@ -68,8 +53,6 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     if (Block == NULL) return NULL;
     if (Block->ID != ID_HEAP) return NULL;
     if (Size == 0) return NULL;
-
-    // LockSemaphore(Process->HeapSemaphore, INFINITY);
 
     HighBlock = HeapBase + sizeof(HEAPCONTROLBLOCK);
 
@@ -147,19 +130,7 @@ Out:
         MemorySet((LPVOID)Pointer, 0, Size);
     }
 
-    // UnlockSemaphore(KernelData->Process[Prc].HeapSemaphore);
-
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Exiting HeapAllocEx\n");
-      U32ToHexString(Pointer, Text);
-      KernelPrint("Return value : ");
-      KernelPrint(Text);
-      KernelPrint(Text_NewLine);
-    #endif
-    */
-
-    KernelLogText(LOG_DEBUG, "Exiting HeapAllocEx");
+    KernelLogText(LOG_DEBUG, TEXT("Exiting HeapAllocEx"));
 
     return (LPVOID)Pointer;
 }
@@ -167,21 +138,15 @@ Out:
 /***************************************************************************/
 
 void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer) {
+    UNUSED(HeapSize);
+
     LPHEAPCONTROLBLOCK Block = NULL;
     LPHEAPALLOCENTRY Entry = NULL;
     U32 Index = 0;
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Entering HeapFree_HBHS\n");
-    #endif
-    */
-
-    KernelLogText(LOG_DEBUG, "Entering HeapFree_HBHS");
+    KernelLogText(LOG_DEBUG, TEXT("Entering HeapFree_HBHS"));
 
     if (Pointer == NULL) return;
-
-    // LockSemaphore(Process->HeapSemaphore, INFINITY);
 
     Block = (LPHEAPCONTROLBLOCK)HeapBase;
 
@@ -201,27 +166,25 @@ void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer) {
 
 Out:
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Exiting HeapAlloc_HBHS\n");
-    #endif
-    */
-
-    KernelLogText(LOG_DEBUG, "Exiting HeapAlloc_HBHS");
-
-    // UnlockSemaphore(KernelData->Process[Prc].HeapSemaphore);
+    KernelLogText(LOG_DEBUG, TEXT("Exiting HeapAlloc_HBHS"));
 }
 
 /***************************************************************************/
 
 LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size) {
-    return HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Size);
+    LPVOID Pointer = NULL;
+    LockSemaphore(&(Process->HeapSemaphore), INFINITY);
+    Pointer = HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Size);
+    UnlockSemaphore(&(Process->HeapSemaphore));
+    return Pointer;
 }
 
 /***************************************************************************/
 
 void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
+    LockSemaphore(&(Process->HeapSemaphore), INFINITY);
     HeapFree_HBHS(Process->HeapBase, Process->HeapSize, Pointer);
+    UnlockSemaphore(&(Process->HeapSemaphore));
 }
 
 /***************************************************************************/
@@ -230,7 +193,7 @@ LPVOID HeapAlloc(U32 Size) {
     LPPROCESS Process = GetCurrentProcess();
     if (Process == NULL) return NULL;
 
-    return HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Size);
+    return HeapAlloc_P(Process, Size);
 }
 
 /***************************************************************************/
@@ -239,7 +202,7 @@ void HeapFree(LPVOID Pointer) {
     LPPROCESS Process = GetCurrentProcess();
     if (Process == NULL) return;
 
-    HeapFree_HBHS(Process->HeapBase, Process->HeapSize, Pointer);
+    HeapFree_P(Process, Pointer);
 }
 
 /***************************************************************************/

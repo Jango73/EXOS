@@ -11,10 +11,6 @@
 
 ;----------------------------------------------------------------------------
 
-extern ProtectedModeEntry
-
-;----------------------------------------------------------------------------
-
 DOS_CALL      equ 0x21
 DOS_PRINT     equ 0x09
 
@@ -665,4 +661,100 @@ GetMemorySize_Out :
 
 _GetMemorySizeEnd :
 
+;--------------------------------------
+
+section .text
+bits 32
+
+    global ProtectedModeEntry
+
+ProtectedModeEntry :
+
+    cli
+
+    ;--------------------------------------
+
+    mov     eax, 0xB8000
+    mov     byte [eax], 'I'
+
+    ;--------------------------------------
+    ; DS, ES and GS are used to access the kernel's data
+
+    mov     ax,  SELECTOR_KERNEL_DATA
+    mov     ds,  ax
+    mov     es,  ax
+    mov     gs,  ax
+
+    ;--------------------------------------
+    ; FS is used to communicate with user
+
+    mov     ax,  SELECTOR_KERNEL_DATA
+    mov     fs,  ax
+
+    ;--------------------------------------
+    ; Save the base address of the stub
+
+    mov     [StubAddress], ebp
+
+    ;--------------------------------------
+
+    mov     eax, 0xB8000
+    mov     byte [eax], 'J'
+
+    ;--------------------------------------
+    ; Setup the kernel's stack
+
+    mov     ax,  SELECTOR_KERNEL_DATA
+    mov     ss,  ax
+
+    mov     esp, KernelStack           ; Start of kernel stack
+    add     esp, STK_SIZE              ; Minimum stack size
+    mov     ebp, esp
+
+    ;--------------------------------------
+    ; Setup local descriptor register
+
+    xor     ax, ax
+    lldt    ax
+
+    ;--------------------------------------
+    ; Clear registers
+
+    xor     eax, eax
+    xor     ebx, ebx
+    xor     ecx, ecx
+    xor     edx, edx
+    xor     esi, esi
+    xor     edi, edi
+
+    ;--------------------------------------
+
+    mov     eax, 0xB8000
+    mov     byte [eax], 'K'
+
+    ;--------------------------------------
+    ; Jump to main kernel routine in C
+
+    jmp     KernelMain
+
+    ;--------------------------------------
+
+_ProtectedModeEntry_Hang :
+
+    jmp     _ProtectedModeEntry_Hang
+
 ;----------------------------------------------------------------------------
+
+section .heap
+
+    global KernelHeap
+
+KernelHeap: resb HEP_SIZE
+
+;----------------------------------------------------------------------------
+
+section .stack
+
+    global KernelStack
+
+KernelStack: resb STK_SIZE
