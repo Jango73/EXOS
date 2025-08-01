@@ -638,3 +638,128 @@ Basic virtual file system for system resources.
 - ReadFile: Reads data from a system file.
 - WriteFile: Writes data to a system file.
 - SystemFSCommands: Driver entry to handle requests.
+
+### Task.c
+
+Manages task creation, messaging and scheduling features.
+
+#### Functions in Task.c
+
+- NewMessage: Allocates a new message structure.
+- DeleteMessage: Releases a message structure.
+- MessageDestructor: Helper used to delete messages from lists.
+- NewTask: Creates an empty task object.
+- DeleteTask: Frees a task and its stacks.
+- InitKernelTask: Initializes the kernel task and TSS.
+- CreateTask: Builds a task from information in a process.
+- KillTask: Terminates a running task.
+- SetTaskPriority: Changes task priority and returns the previous value.
+- Sleep: Delays execution of the current task.
+- GetTaskStatus: Returns the status flags of a task.
+- SetTaskStatus: Updates the task status flags.
+- AddTaskMessage: Queues a message for a task.
+- PostMessage: Posts a message without waiting for completion.
+- SendMessage: Sends a message and waits until handled.
+- WaitForMessage: Blocks the caller until a message is present.
+- GetMessage: Retrieves the next message for a task.
+- DispatchMessage: Routes a message to its destination window.
+- DumpTask: Prints debugging information for a task.
+
+### Text.c
+
+Kernel text constants used for interface messages.
+
+#### Functions in Text.c
+
+- Text_NewLine: "\n" string constant.
+- Text_Space: Single space string constant.
+- Text_Colon: ":" string constant.
+- Text_0: "0" string constant.
+- Text_KB: "KB" string constant.
+- Text_EnablingIRQs: Message displayed when IRQs are enabled.
+- Text_Exit: "Exit" string constant.
+- Text_Registers: Prefix for register dumps.
+- Text_Image: "Image :" label string.
+- Text_Clk: "Clk" string constant.
+
+### VESA.c
+
+Driver for VESA compatible graphics hardware.
+
+#### Functions in VESA.c
+
+- VESAInitialize: Initializes the VESA video driver.
+- VESAUninitialize: Releases VESA resources.
+- SetVideoMode: Switches to a specific video mode.
+- SetVESABank: Selects the active memory bank.
+- SetClip: Defines the drawing clip rectangle.
+- SetPixel8: Writes an 8-bit pixel to video memory.
+- SetPixel16: Writes a 16-bit pixel to video memory.
+- SetPixel24: Writes a 24-bit pixel to video memory.
+- GetPixel8: Reads an 8-bit pixel from video memory.
+- GetPixel16: Reads a 16-bit pixel from video memory.
+- GetPixel24: Reads a 24-bit pixel from video memory.
+- Line8: Draws a line in 8-bit modes.
+- Line16: Draws a line in 16-bit modes.
+- Line24: Draws a line in 24-bit modes.
+- Rect8: Draws a filled rectangle in 8-bit modes.
+- Rect16: Draws a filled rectangle in 16-bit modes.
+- Rect24: Draws a filled rectangle in 24-bit modes.
+- VESA_CreateBrush: Creates a brush object for drawing.
+- VESA_CreatePen: Creates a pen object for drawing.
+- VESA_SetPixel: Generic set pixel operation.
+- VESA_GetPixel: Generic get pixel operation.
+- VESA_Line: Generic line drawing routine.
+- VESA_Rectangle: Generic rectangle drawing routine.
+- VESACommands: Entry point used by the driver manager.
+
+### VGA.c
+
+Low level routines for standard VGA mode programming.
+
+#### Functions in VGA.c
+
+- VGAIODelay: Short delay used when programming the VGA registers.
+- SendModeRegs: Loads a register set to configure video mode.
+- TestVGA: Simple routine that programs the first VGA mode.
+
+### VMM.c
+
+Kernel virtual memory manager for page allocation and mapping.
+
+#### Functions in VMM.c
+
+- InitializeVirtualMemoryManager: Detects memory size and page count.
+- SetPhysicalPageMark: Marks a physical page as used or free.
+- GetPhysicalPageMark: Returns the allocation state of a page.
+- AllocPhysicalPage: Reserves a free physical page.
+- GetDirectoryEntry: Returns the page directory entry index for an address.
+- GetTableEntry: Returns the page table entry index for an address.
+- AllocPageDirectory: Allocates a page directory for a process.
+- AllocPageTable: Creates a new page table if required.
+- IsRegionFree: Tests if a virtual memory region is unused.
+- FindFreeRegion: Searches for a free area of virtual memory.
+- FreeEmptyPageTables: Releases unused page tables.
+- VirtualAlloc: Maps a range of virtual memory with given flags.
+- VirtualFree: Unmaps a range of virtual memory pages.
+
+### XFS.c
+
+EXOS file system driver for the native XFS format.
+
+#### Functions in XFS.c
+
+- NewXFSFileSystem: Allocates an XFS file system structure.
+- NewXFSFile: Creates an XFS file object.
+- MountPartition_XFS: Mounts an XFS partition from disk.
+- ReadCluster: Reads a cluster from the disk into memory.
+- WriteCluster: Writes a cluster back to disk.
+- LocateFile: Finds a file entry given its path.
+- WriteSectors: Writes raw sectors to a disk device.
+- CreatePartition: Formats a new XFS partition.
+- TranslateFileInfo: Copies XFS directory info to a file object.
+- Initialize: Loads the driver and returns success.
+- OpenFile: Opens a file using XFS search logic.
+- OpenNext: Continues directory enumeration.
+- CloseFile: Closes an open XFS file.
+- XFSCommands: Dispatcher for driver functions.
