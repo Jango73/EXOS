@@ -448,3 +448,193 @@ Kernel semaphores providing mutual exclusion.
 - DeleteSemaphore: Removes a semaphore from the kernel list.
 - LockSemaphore: Acquires the semaphore for the current task.
 - UnlockSemaphore: Releases a previously acquired semaphore.
+
+### SerMouse.c
+
+Serial mouse driver using a COM port.
+
+#### Functions in SerMouse.c
+
+- SendBreak: Sends a break signal on the serial line.
+- Delay: Waits a short time for hardware operations.
+- WaitMouseData: Polls the UART for incoming mouse data.
+- MouseInitialize: Detects and initializes the mouse hardware.
+- GetDeltaX: Returns the accumulated X movement.
+- GetDeltaY: Returns the accumulated Y movement.
+- GetButtons: Gets the state of mouse buttons.
+- DrawMouseCursor: Draws a simple cross cursor on screen.
+- MouseHandler_Microsoft: Reads Microsoft protocol packets.
+- MouseHandler_MouseSystems: Reads Mouse Systems packets.
+- MouseHandler: Dispatches to the correct protocol handler.
+- SerialMouseCommands: Entry point for driver requests.
+
+### Shell.c
+
+Simple command interpreter for user interaction.
+
+#### Functions in Shell.c
+
+- InitShellContext: Initializes buffers and current path.
+- DeinitShellContext: Releases shell buffers.
+- RotateBuffers: Maintains the command history.
+- ShowPrompt: Prints the current prompt.
+- ParseNextComponent: Extracts the next token from input.
+- GetCurrentFileSystem: Finds the active file system object.
+- QualifyFileName: Builds a fully qualified file name.
+- ChangeFolder: Changes the current directory.
+- MakeFolder: Creates a new folder.
+- ListFile: Displays file information in a directory.
+- CMD_commands: Lists available shell commands.
+- CMD_cls: Clears the console output.
+- CMD_dir: Shows files in the current directory.
+- CMD_cd: Changes the current directory.
+- CMD_md: Creates a folder using MakeFolder.
+- CMD_run: Launches an executable file.
+- CMD_exit: Exits the shell loop.
+- CMD_sysinfo: Displays system information.
+- CMD_killtask: Terminates a task by index.
+- CMD_showprocess: Dumps process information.
+- CMD_showtask: Dumps task information.
+- CMD_memedit: Invokes the memory editor.
+- CMD_cat: Prints the contents of a file.
+- CMD_copy: Copies one file to another.
+- CMD_edit: Opens the text editor.
+- CMD_hd: Lists hard disk information.
+- CMD_filesystem: Lists installed file systems.
+- ParseCommand: Parses a command line and dispatches it.
+- Shell: Main entry that runs the shell loop.
+
+### String.c
+
+String manipulation helpers used across the kernel.
+
+#### Functions in String.c
+
+- IsAlpha: Checks if a character is alphabetic.
+- IsNumeric: Tests if a character is numeric.
+- IsAlphaNumeric: Tests if a character is alphanumeric.
+- CharToLower: Converts a character to lowercase.
+- CharToUpper: Converts a character to uppercase.
+- StringLength: Returns the length of a string.
+- StringCopy: Copies a string to a destination buffer.
+- StringCopyNum: Copies a fixed number of characters.
+- StringConcat: Appends one string to another.
+- StringCompare: Compares two strings case sensitively.
+- StringCompareNC: Compares two strings ignoring case.
+- StringToLower: Converts a string to lowercase in-place.
+- StringToUpper: Converts a string to uppercase in-place.
+- StringFindChar: Finds the first occurrence of a character.
+- StringFindCharR: Finds the last occurrence of a character.
+- StringInvert: Reverses a string in-place.
+- U32ToString: Converts an integer to a string.
+- U32ToHexString: Converts an integer to hexadecimal text.
+- HexStringToU32: Parses a hexadecimal number.
+- StringToI32: Converts a string to a signed integer.
+- StringToU32: Converts a string to an unsigned integer.
+- NumberToString: Formats a number according to flags.
+
+### SYSCall.c
+
+System call handler dispatching user mode requests.
+
+#### Functions in SYSCall.c
+
+- SysCall_GetVersion: Returns the kernel version.
+- SysCall_GetSystemInfo: Fills a SYSTEMINFO structure.
+- SysCall_GetLastError: Retrieves the last error code.
+- SysCall_SetLastError: Sets the last error code.
+- SysCall_GetSystemTime: Gets the tick count in milliseconds.
+- SysCall_GetLocalTime: Retrieves the current date and time.
+- SysCall_SetLocalTime: Sets the current date and time.
+- SysCall_DeleteObject: Closes an object handle.
+- SysCall_CreateProcess: Creates a new process.
+- SysCall_KillProcess: Terminates a process.
+- SysCall_CreateTask: Creates a new task in the current process.
+- SysCall_KillTask: Kills a task given its handle.
+- SysCall_SuspendTask: Suspends a task.
+- SysCall_ResumeTask: Resumes a suspended task.
+- SysCall_Sleep: Sleeps for a number of milliseconds.
+- SysCall_PostMessage: Posts a window message.
+- SysCall_SendMessage: Sends a window message synchronously.
+- SysCall_PeekMessage: Checks if a message is pending.
+- SysCall_GetMessage: Waits for a message from the queue.
+- SysCall_DispatchMessage: Dispatches a message to a window.
+- SysCall_CreateSemaphore: Creates a new semaphore.
+- SysCall_DeleteSemaphore: Deletes a semaphore object.
+- SysCall_LockSemaphore: Locks a semaphore with timeout.
+- SysCall_UnlockSemaphore: Unlocks a semaphore.
+- SysCall_VirtualAlloc: Allocates virtual memory pages.
+- SysCall_VirtualFree: Frees virtual memory pages.
+- SysCall_GetProcessHeap: Returns the heap of a process.
+- SysCall_HeapAlloc: Allocates memory from the heap.
+- SysCall_HeapFree: Releases heap memory.
+- SysCall_EnumVolumes: Enumerates mounted volumes.
+- SysCall_GetVolumeInfo: Retrieves volume information.
+- SysCall_OpenFile: Opens a file handle.
+- SysCall_ReadFile: Reads data from a file.
+- SysCall_WriteFile: Writes data to a file.
+- SysCall_GetFileSize: Returns the size of a file.
+- SysCall_GetFilePointer: Gets the current file offset.
+- SysCall_SetFilePointer: Sets the current file offset.
+- SysCall_ConsolePeekKey: Checks if a key is ready.
+- SysCall_ConsoleGetKey: Reads a key code.
+- SysCall_ConsolePrint: Prints text to the console.
+- SysCall_ConsoleGetString: Reads a line from the console.
+- SysCall_ConsoleGotoXY: Moves the console cursor.
+- SysCall_CreateDesktop: Creates a desktop object.
+- SysCall_ShowDesktop: Displays a desktop on screen.
+- SysCall_GetDesktopWindow: Gets the root window of a desktop.
+- SysCall_CreateWindow: Creates a window object.
+- SysCall_ShowWindow: Displays a window.
+- SysCall_HideWindow: Hides a window from view.
+- SysCall_MoveWindow: Moves a window on screen.
+- SysCall_SizeWindow: Resizes a window.
+- SysCall_SetWindowFunc: Sets the callback for a window.
+- SysCall_GetWindowFunc: Retrieves the window callback.
+- SysCall_SetWindowStyle: Changes the window style bits.
+- SysCall_GetWindowStyle: Reads the window style bits.
+- SysCall_SetWindowProp: Stores a custom property.
+- SysCall_GetWindowProp: Retrieves a custom property.
+- SysCall_GetWindowRect: Returns window position and size.
+- SysCall_InvalidateWindowRect: Marks a region dirty.
+- SysCall_GetWindowGC: Gets a graphics context for drawing.
+- SysCall_ReleaseWindowGC: Releases a graphics context.
+- SysCall_EnumWindows: Enumerates child windows.
+- SysCall_DefWindowFunc: Default procedure for windows.
+- SysCall_GetSystemBrush: Gets a stock brush handle.
+- SysCall_GetSystemPen: Gets a stock pen handle.
+- SysCall_CreateBrush: Creates a brush resource.
+- SysCall_CreatePen: Creates a pen resource.
+- SysCall_SelectBrush: Selects a brush into a GC.
+- SysCall_SelectPen: Selects a pen into a GC.
+- SysCall_SetPixel: Draws a pixel using the graphics driver.
+- SysCall_GetPixel: Reads a pixel from a position.
+- SysCall_Line: Draws a line primitive.
+- SysCall_Rectangle: Draws a filled rectangle.
+- SysCall_GetMousePos: Retrieves mouse coordinates.
+- SysCall_SetMousePos: Moves the mouse cursor.
+- SysCall_GetMouseButtons: Gets mouse button state.
+- SysCall_ShowMouse: Shows the mouse cursor.
+- SysCall_HideMouse: Hides the mouse cursor.
+- SysCall_ClipMouse: Sets the mouse clip region.
+- SysCall_CaptureMouse: Captures mouse input.
+- SysCall_ReleaseMouse: Releases the mouse capture.
+- SystemCallHandler: Dispatches a system call number.
+
+### SystemFS.c
+
+Basic virtual file system for system resources.
+
+#### Functions in SystemFS.c
+
+- NewSystemFileRoot: Creates the root system file entry.
+- NewSystemFSFileSystem: Allocates the file system object.
+- NewSysFSFile: Creates an in-memory file object.
+- MountSystemFS: Registers the system file system.
+- Initialize: Initializes the driver instance.
+- OpenFile: Opens a system file from its path.
+- OpenNext: Enumerates the next file in a directory.
+- CloseFile: Closes an open system file.
+- ReadFile: Reads data from a system file.
+- WriteFile: Writes data to a system file.
+- SystemFSCommands: Driver entry to handle requests.
