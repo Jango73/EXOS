@@ -65,8 +65,6 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     if (NewTask == NULL) goto Out_Error;
     if (NewTask->ID != ID_TASK) goto Out_Error;
 
-    if ((LINEAR)NewTask < LA_KERNEL) goto Out_Error;
-
     //-------------------------------------
     // Check if task queue is full
 
