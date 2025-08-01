@@ -1,6 +1,6 @@
-.PHONY: all kernel runtime boot-qemu boot-freedos clean
+.PHONY: all kernel runtime portal boot-qemu boot-freedos clean
 
-all: kernel runtime boot-qemu boot-freedos
+all: kernel runtime portal boot-qemu boot-freedos
 
 kernel:
 	@echo "==[ Building kernel ]=="
@@ -9,6 +9,10 @@ kernel:
 runtime:
 	@echo "==[ Building runtime ]=="
 	@$(MAKE) -C runtime
+
+portal:
+	@echo "==[ Building portal ]=="
+	@$(MAKE) -C portal
 
 boot-qemu:
 	@echo "==[ Building simple boot image ]=="
@@ -22,5 +26,6 @@ clean:
 	@echo "==[ Cleaning all ]=="
 	@$(MAKE) -C kernel clean
 	@$(MAKE) -C runtime clean
+	@$(MAKE) -C portal clean
 	@$(MAKE) -C boot-qemu clean
 	@$(MAKE) -C boot-freedos clean

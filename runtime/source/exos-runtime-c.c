@@ -1,8 +1,8 @@
 /***************************************************************************\
 
-  EXOS Run-Time Library
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Run-Time Library
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 

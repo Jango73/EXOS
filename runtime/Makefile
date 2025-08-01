@@ -1,4 +1,3 @@
-# === Compiler toolchain ===
 
 CC      = i686-elf-gcc
 LD      = i686-elf-ld
@@ -8,7 +7,7 @@ NASM    = nasm
 CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O2 -fno-pic -fno-stack-protector -fno-builtin
 AFLAGS  = -f elf -I source/
 
-LDFLAGS = -T linker.ld -nostdlib
+LDFLAGS = -T linker.ld -nostdlib -Map=bin/runtime.map
 
 RUNTIME_LIB = bin/libexos.a
 
@@ -37,4 +36,4 @@ bin/%.o: source/%.asm
 	$(NASM) $(AFLAGS) -o $@ $<
 
 clean:
-	rm -rf bin/*.o bin/*.elf bin/*.bin bin/*.a
+	rm -rf bin/*.o bin/*.elf bin/*.bin bin/*.a bin/*.map

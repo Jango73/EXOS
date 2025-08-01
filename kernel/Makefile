@@ -1,10 +1,8 @@
-# === Compiler toolchain ===
 
 CC      = i686-elf-gcc
 LD      = i686-elf-ld
 AS      = AS = i686-elf-as
 NASM	= nasm
-OBJCOPY = i686-elf-objcopy
 
 CFLAGS  = -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin
 AFLAGS  = -f elf -I source/

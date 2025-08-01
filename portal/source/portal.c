@@ -1,8 +1,8 @@
 /***************************************************************************\
 
-  EXOS Explorer
-  Copyright (c) 1999 Exelsius
-  All rights reserved
+    EXOS Portal
+    Copyright (c) 1999 Exelsius
+    All rights reserved
 
 \***************************************************************************/
 
