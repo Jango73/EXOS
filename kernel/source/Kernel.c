@@ -739,8 +739,8 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize physical drives
 
-    // StdHardDiskDriver.Command(DF_LOAD, 0);
-    // KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized..."));
+    StdHardDiskDriver.Command(DF_LOAD, 0);
+    KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized..."));
 
     //-------------------------------------
     // Initialize the file systems
@@ -757,8 +757,8 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize the mouse
 
-    // SerialMouseDriver.Command(DF_LOAD, 0);
-    // KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
+    SerialMouseDriver.Command(DF_LOAD, 0);
+    KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
 
     //-------------------------------------
     // Print system infomation
