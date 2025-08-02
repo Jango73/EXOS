@@ -36,6 +36,7 @@ struct tag_TASK {
     U32 SysStackSize;
     U32 Time;  // Time allocated to this task
     U32 WakeUpTime;
+    U32 Age;          // Aging counter for priority boost
     MUTEX MessageMutex;  // Mutex to access message queue
     LPLIST Message;      // This task's message queue
 };

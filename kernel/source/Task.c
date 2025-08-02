@@ -33,6 +33,7 @@ TASK KernelTask = {ID_TASK,
                    STK_SIZE - N_4KB,
                    (LINEAR)KernelStack,
                    N_4KB,
+                   20,
                    0,
                    0,
                    EMPTY_MUTEX,
@@ -101,6 +102,7 @@ LPTASK NewTask() {
     This->SysStackSize = 0;
     This->Time = 0;
     This->WakeUpTime = 0;
+    This->Age = 0;
 
     InitMutex(&(This->Mutex));
     InitMutex(&(This->MessageMutex));

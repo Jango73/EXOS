@@ -23,6 +23,7 @@ void UpdateScheduler();
 BOOL AddTaskToQueue(LPTASK);
 BOOL RemoveTaskFromQueue(LPTASK);
 void Scheduler();
+void WakeSleepingTasks();
 LPTASK GetCurrentTask();
 LPPROCESS GetCurrentProcess();
 BOOL FreezeScheduler();

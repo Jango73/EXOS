@@ -1,11 +1,10 @@
-
 // Schedule.c
 
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -13,6 +12,29 @@
 #include "../include/Kernel.h"
 #include "../include/Process.h"
 #include "../include/Task.h"
+#include "../include/List.h"
+
+/***************************************************************************/
+
+#define MAX_PRIORITY_LEVELS 5
+#define PRIORITY_STEP 0x04
+#define AGE_THRESHOLD 5
+#define MAX_PRIORITY TASK_PRIORITY_HIGHEST
+
+/***************************************************************************/
+
+static U32 PriorityToIndex(U32 Priority) {
+    if (Priority >= TASK_PRIORITY_CRITICAL) return MAX_PRIORITY_LEVELS - 1;
+    return Priority >> 2;
+}
+
+static void UpdateTaskTime(LPTASK Task) {
+    Task->Time = Task->Priority & 0xFF;
+    Task->Time *= 2;
+    if (Task->Time < 20) {
+        Task->Time = 20;
+    }
+}
 
 /***************************************************************************/
 
@@ -20,35 +42,88 @@ typedef struct tag_TASKLIST {
     U32 Freeze;
     U32 SchedulerTime;
     U32 TaskTime;
-    U32 NumTasks;
     LPTASK Current;
-    LPTASK Tasks[NUM_TASKS];
+    LPLIST RunQueues[MAX_PRIORITY_LEVELS];
+    LPLIST Sleeping;
 } TASKLIST, *LPTASKLIST;
 
 /***************************************************************************/
 
-// Temp
+static LIST RunQueueStorage[MAX_PRIORITY_LEVELS] = {
+    {NULL, NULL, NULL, 0, NULL, NULL, NULL},
+    {(LPLISTNODE)&KernelTask, (LPLISTNODE)&KernelTask, NULL, 1, NULL, NULL, NULL},
+    {NULL, NULL, NULL, 0, NULL, NULL, NULL},
+    {NULL, NULL, NULL, 0, NULL, NULL, NULL},
+    {NULL, NULL, NULL, 0, NULL, NULL, NULL}};
 
-static U32 CharSequence = 0;
+static LIST SleepingStorage = {NULL, NULL, NULL, 0, NULL, NULL, NULL};
+
+static TASKLIST TaskList = {0, 0, 20, &KernelTask,
+                            {&RunQueueStorage[0], &RunQueueStorage[1],
+                             &RunQueueStorage[2], &RunQueueStorage[3],
+                             &RunQueueStorage[4]},
+                            &SleepingStorage};
 
 /***************************************************************************/
 
-static TASKLIST TaskList = {0, 0, 20, 1, &KernelTask, {&KernelTask}};
+static void AddTaskToRunQueue(LPTASK Task) {
+    U32 Index = PriorityToIndex(Task->Priority);
+    ListAddTail(TaskList.RunQueues[Index], Task);
+    UpdateTaskTime(Task);
+    Task->Age = 0;
+}
+
+static void RemoveTaskFromRunQueue(LPTASK Task) {
+    U32 Index = PriorityToIndex(Task->Priority);
+    ListRemove(TaskList.RunQueues[Index], Task);
+}
+
+/***************************************************************************/
+
+void WakeSleepingTasks() {
+    LPLISTNODE Node = TaskList.Sleeping->First;
+
+    while (Node) {
+        LPTASK Task = (LPTASK)Node;
+        Node = Node->Next;
+
+        if (GetSystemTime() >= Task->WakeUpTime) {
+            ListRemove(TaskList.Sleeping, Task);
+            Task->Status = TASK_STATUS_RUNNING;
+            AddTaskToRunQueue(Task);
+        }
+    }
+}
+
+/***************************************************************************/
+
+static void AgeRunnableTasks(LPTASK Selected) {
+    for (U32 i = 0; i < MAX_PRIORITY_LEVELS; i++) {
+        LPLISTNODE Node = TaskList.RunQueues[i]->First;
+        while (Node) {
+            LPTASK Task = (LPTASK)Node;
+            Node = Node->Next;
+
+            if (Task == Selected) continue;
+
+            Task->Age++;
+            if (Task->Age >= AGE_THRESHOLD && Task->Priority < MAX_PRIORITY) {
+                ListRemove(TaskList.RunQueues[i], Task);
+                Task->Priority += PRIORITY_STEP;
+                Task->Age = 0;
+                AddTaskToRunQueue(Task);
+            }
+        }
+    }
+}
 
 /***************************************************************************/
 
 void UpdateScheduler() {
-    U32 Index = 0;
-
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        // TaskList.Tasks[Index]->Time = TaskList.Tasks[Index]->Priority & 0xFF;
-
-        TaskList.Tasks[Index]->Time = TaskList.Tasks[Index]->Priority;
-        TaskList.Tasks[Index]->Time &= 0xFF;
-        TaskList.Tasks[Index]->Time *= 2;
-
-        if (TaskList.Tasks[Index]->Time < 20) {
-            TaskList.Tasks[Index]->Time = 20;
+    for (U32 i = 0; i < MAX_PRIORITY_LEVELS; i++) {
+        for (LPLISTNODE Node = TaskList.RunQueues[i]->First; Node;
+             Node = Node->Next) {
+            UpdateTaskTime((LPTASK)Node);
         }
     }
 }
@@ -56,81 +131,38 @@ void UpdateScheduler() {
 /***************************************************************************/
 
 BOOL AddTaskToQueue(LPTASK NewTask) {
-    U32 Index = 0;
+    if (NewTask == NULL) return FALSE;
+    if (NewTask->ID != ID_TASK) return FALSE;
 
     FreezeScheduler();
 
-    //-------------------------------------
-    // Check validity of parameters
-
-    if (NewTask == NULL) goto Out_Error;
-    if (NewTask->ID != ID_TASK) goto Out_Error;
-
-    //-------------------------------------
-    // Check if task queue is full
-
-    if (TaskList.NumTasks == NUM_TASKS) goto Out_Error;
-
-    //-------------------------------------
-    // Check if task already in task queue
-
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        if (TaskList.Tasks[Index] == NewTask) goto Out_Error;
+    if (NewTask->Status == TASK_STATUS_SLEEPING) {
+        ListAddTail(TaskList.Sleeping, NewTask);
+    } else {
+        AddTaskToRunQueue(NewTask);
     }
-
-    //-------------------------------------
-    // Add task to queue
-
-    TaskList.Tasks[TaskList.NumTasks] = NewTask;
-    TaskList.NumTasks++;
-
-    UpdateScheduler();
 
     UnfreezeScheduler();
     return TRUE;
-
-Out_Error:
-
-    UnfreezeScheduler();
-    return FALSE;
 }
 
 /***************************************************************************/
 
 BOOL RemoveTaskFromQueue(LPTASK OldTask) {
-    U32 Index = 0;
+    if (OldTask == NULL) return FALSE;
 
     FreezeScheduler();
+    BOOL Result = FALSE;
 
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        if (TaskList.Tasks[Index] == OldTask) {
-            for (Index++; Index < TaskList.NumTasks; Index++) {
-                TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
-            }
-
-            TaskList.NumTasks--;
-
-            UnfreezeScheduler();
-            return TRUE;
-        }
+    if (OldTask->Status == TASK_STATUS_SLEEPING) {
+        if (ListRemove(TaskList.Sleeping, OldTask)) Result = TRUE;
+    } else {
+        U32 Index = PriorityToIndex(OldTask->Priority);
+        if (ListRemove(TaskList.RunQueues[Index], OldTask)) Result = TRUE;
     }
 
     UnfreezeScheduler();
-    return FALSE;
-}
-
-/***************************************************************************/
-
-static void RotateQueue() {
-    U32 Index = 0;
-
-    TaskList.Current = TaskList.Tasks[0];
-
-    for (Index = 1; Index < TaskList.NumTasks; Index++) {
-        TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
-    }
-
-    TaskList.Tasks[TaskList.NumTasks - 1] = TaskList.Current;
+    return Result;
 }
 
 /***************************************************************************/
@@ -140,108 +172,50 @@ void Scheduler() {
 
     if (TaskList.Freeze) return;
 
+    WakeSleepingTasks();
+
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
-        U32 Index = 0;
-
         DisableInterrupts();
-
         TaskList.SchedulerTime = 0;
 
         while (1) {
-            RotateQueue();
+            LPTASK Next = NULL;
+            U32 QueueIndex;
 
-            TaskList.TaskTime = TaskList.Current->Time;
+            for (QueueIndex = MAX_PRIORITY_LEVELS; QueueIndex > 0; QueueIndex--) {
+                U32 Index = QueueIndex - 1;
+                if (TaskList.RunQueues[Index]->First) {
+                    Next = (LPTASK)TaskList.RunQueues[Index]->First;
+                    ListRemove(TaskList.RunQueues[Index], Next);
+                    break;
+                }
+            }
 
-            switch (TaskList.Current->Status) {
-                case TASK_STATUS_RUNNING: {
-                    /*
-                          switch (CharSequence)
-                          {
-                        case 0 : *((LPSTR)0xB8000) = '/'; break;
-                        case 1 : *((LPSTR)0xB8000) = '\\'; break;
-                          }
-                          CharSequence = 1 - CharSequence;
-                    */
+            if (Next == NULL) {
+                EnableInterrupts();
+                return;
+            }
 
-                    /*
-                          if (TaskList.Current == &KernelTask)
-                          {
-                        STR Temp [8];
-                        LPLISTNODE Node;
+            if (Next->Status == TASK_STATUS_RUNNING) {
+                ListAddTail(TaskList.RunQueues[PriorityToIndex(Next->Priority)],
+                            Next);
 
-                        Index = 0;
-                        for (Node = Kernel.Task->First; Node; Node =
-                       Node->Next)
-                        {
-                          U32ToString(((LPTASK)Node)->Status, Temp);
-                          *((LPSTR) 0xB8000 + Index) = Temp[0];
-                          Index += 2;
-                        }
-                          }
-                    */
+                TaskList.Current = Next;
+                TaskList.TaskTime = Next->Time;
+                Next->Age = 0;
 
-                    /*
-                          if (TaskList.Current == &KernelTask)
-                          {
-                        LPLISTNODE Node;
-                        LPTASK Task;
-                        U32 Value;
-                        for (Node = Kernel.Task->First, Index = 0; Node;
-                       Node = Node->Next)
-                        {
-                          Task = (LPTASK) Node;
+                AgeRunnableTasks(Next);
 
-                          switch (Task->Status)
-                          {
-                            case TASK_STATUS_DEAD     : Value =
-                       0x00FFFFFF; break; case TASK_STATUS_RUNNING  : Value =
-                       0x0000FF00; break; case TASK_STATUS_SLEEPING : Value =
-                       0x000000FF; break; case TASK_STATUS_WAITING  : Value =
-                       0x00FF0000; break;
-                          }
+                TTD[TaskList.Current->Table].TSS.Type =
+                    GATE_TYPE_386_TSS_AVAIL;
+                SwitchToTask(TaskList.Current->Selector);
 
-                          *((U8*)0xA0000+Index+0) = Value >> 0;
-                          *((U8*)0xA0000+Index+1) = Value >> 8;
-                          *((U8*)0xA0000+Index+2) = Value >> 16;
-                          *((U8*)0xA0000+Index+3) = Value >> 0;
-                          *((U8*)0xA0000+Index+4) = Value >> 8;
-                          *((U8*)0xA0000+Index+5) = Value >> 16;
-                          Index += 9;
-                        }
-                          }
-                    */
-
-                    //-------------------------------------
-                    // Set the TSS descriptor "not busy" before jumping to it
-
-                    TTD[TaskList.Current->Table].TSS.Type =
-                        GATE_TYPE_386_TSS_AVAIL;
-
-                    //-------------------------------------
-                    // Switch to the new current task
-
-                    SwitchToTask(TaskList.Current->Selector);
-
-                    //-------------------------------------
-                    // Immediately return when scheduler comes back
-
-                    EnableInterrupts();
-                    return;
-                } break;
-
-                case TASK_STATUS_SLEEPING: {
-                    if (GetSystemTime() >= TaskList.Current->WakeUpTime) {
-                        //-------------------------------------
-                        // Wake-up the task
-
-                        TaskList.Current->Status = TASK_STATUS_RUNNING;
-                    }
-                } break;
+                EnableInterrupts();
+                return;
+            } else if (Next->Status == TASK_STATUS_SLEEPING) {
+                ListAddTail(TaskList.Sleeping, Next);
             }
         }
-
-        EnableInterrupts();
-        return;
     }
 }
 
@@ -272,3 +246,4 @@ BOOL UnfreezeScheduler() {
 }
 
 /***************************************************************************/
+

@@ -467,14 +467,14 @@ Driver for an in-memory disk used mainly for testing.
 
 ### Schedule.c
 
-Implements task scheduling and queue management.
+Implements task scheduling and queue management with separate runnable and sleeping lists. Runnable tasks are organized in priority queues with round-robin scheduling and aging.
 
 #### Functions in Schedule.c
 
 - UpdateScheduler: Recomputes time slices for tasks.
 - AddTaskToQueue: Inserts a new task in the scheduler queue.
 - RemoveTaskFromQueue: Removes a task from the scheduler queue.
-- RotateQueue: Moves to the next task in the round-robin list.
+- WakeSleepingTasks: Moves tasks from the sleeping list to the runnable queues when their wake time is reached.
 - Scheduler: Chooses the next task to run.
 - GetCurrentProcess: Returns the process owning the current task.
 - GetCurrentTask: Returns the currently running task.
