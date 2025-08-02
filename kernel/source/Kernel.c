@@ -536,35 +536,8 @@ U32 ClockTask(LPVOID Param) {
             UnlockMutex(MUTEX_CONSOLE);
         }
 
-        // DoSystemCall(SYSCALL_Sleep, 200);
         DoSystemCall(SYSCALL_Sleep, 40);
     }
-
-    /*
-      SYSTEMTIME Time;
-      SYSTEMTIME OldTime;
-
-      while (1)
-      {
-    DoSystemCall(SYSCALL_GetLocalTime, (U32) &Time);
-
-    LockMutex(MUTEX_CONSOLE, INFINITY);
-    // DoSystemCall(SYSCALL_LockMutex, (U32) MUTEX_CONSOLE);
-
-    OldX = Console.CursorX;
-    OldY = Console.CursorY;
-    Console.CursorX = X;
-    Console.CursorY = Y;
-    KernelPrint("%02d:%02d:%02d", Time.Hour, Time.Minute, Time.Second);
-    Console.CursorX = OldX;
-    Console.CursorY = OldY;
-
-    UnlockMutex(MUTEX_CONSOLE);
-    // DoSystemCall(SYSCALL_LockMutex, (U32) MUTEX_CONSOLE);
-
-    DoSystemCall(SYSCALL_Sleep, 3000);
-      }
-    */
 
     return 0;
 }
@@ -768,15 +741,13 @@ void InitializeKernel() {
     //-------------------------------------
     // Test tasks
 
-    /*
-      TaskInfo.Func      = ClockTask;
-      TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
-      TaskInfo.Priority  = TASK_PRIORITY_LOWEST;
-      TaskInfo.Flags     = 0;
+    TaskInfo.Func      = ClockTask;
+    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+    TaskInfo.Priority  = TASK_PRIORITY_LOWEST;
+    TaskInfo.Flags     = 0;
 
-      TaskInfo.Parameter = (LPVOID) (((U32) 70 << 16) | 0);
-      CreateTask(&KernelProcess, &TaskInfo);
-    */
+    TaskInfo.Parameter = (LPVOID) (((U32) 70 << 16) | 0);
+    CreateTask(&KernelProcess, &TaskInfo);
 
     //-------------------------------------
     // Shell task
