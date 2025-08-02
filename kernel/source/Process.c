@@ -17,22 +17,22 @@
 /***************************************************************************/
 
 PROCESS KernelProcess = {
-    ID_PROCESS,  // ID
-    1,           // References
-    NULL,
-    NULL,              // Next, previous
-    EMPTY_MUTEX,       // Mutex
-    EMPTY_MUTEX,       // Heap mutex
-    EMPTY_SECURITY,    // Security
-    NULL,              // Desktop
-    NULL,              // Parent
-    PRIVILEGE_KERNEL,  // Privilege
-    PA_PGD,            // Page directory
-    0,                 // Heap base
-    0,                 // Heap size
-    "EXOS",            // File name
-    "",                // Command line
-    NULL               // Objects
+    .ID = ID_PROCESS,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Mutex = EMPTY_MUTEX,
+    .HeapMutex = EMPTY_MUTEX,
+    .Security = EMPTY_SECURITY,
+    .Desktop = NULL,
+    .Parent = NULL,
+    .Privilege = PRIVILEGE_KERNEL,
+    .PageDirectory = PA_PGD,
+    .HeapBase = 0,
+    .HeapSize = 0,
+    .FileName = "EXOS",
+    .CommandLine = "",
+    .Objects = NULL
 };
 
 /***************************************************************************/

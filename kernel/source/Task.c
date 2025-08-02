@@ -16,28 +16,30 @@
 LIST KernelTaskMessageList = {NULL,           NULL,          NULL, 0,
                               KernelMemAlloc, KernelMemFree, NULL};
 
-TASK KernelTask = {ID_TASK,
-                   1,
-                   NULL,
-                   NULL,
-                   EMPTY_MUTEX,
-                   &KernelProcess,
-                   TASK_STATUS_RUNNING,
-                   TASK_PRIORITY_LOWER,
-                   NULL,
-                   NULL,
-                   0,
-                   0,
-                   SELECTOR_TSS_0,
-                   (LINEAR)KernelStack + N_4KB,
-                   STK_SIZE - N_4KB,
-                   (LINEAR)KernelStack,
-                   N_4KB,
-                   20,
-                   0,
-                   0,
-                   EMPTY_MUTEX,
-                   &KernelTaskMessageList};
+TASK KernelTask = {
+    .ID = ID_TASK,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Mutex = EMPTY_MUTEX,
+    .Process = &KernelProcess,
+    .Status = TASK_STATUS_RUNNING,
+    .Priority = TASK_PRIORITY_LOWER,
+    .Function = NULL,
+    .Parameter = NULL,
+    .ReturnValue = 0,
+    .Table = 0,
+    .Selector = SELECTOR_TSS_0,
+    .StackBase = (LINEAR)KernelStack + N_4KB,
+    .StackSize = STK_SIZE - N_4KB,
+    .SysStackBase = (LINEAR)KernelStack,
+    .SysStackSize = N_4KB,
+    .Time = 20,
+    .WakeUpTime = 0,
+    .Age = 0,
+    .MessageMutex = EMPTY_MUTEX,
+    .Message = &KernelTaskMessageList
+};
 
 /***************************************************************************/
 
