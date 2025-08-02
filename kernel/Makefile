@@ -5,7 +5,7 @@ AS      = AS = i686-elf-as
 NASM	= nasm
 
 CFLAGS  = -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin
-AFLAGS  = -f elf -I source/
+AFLAGS  = -f elf -I source/asm/
 
 LDFLAGS_BIN = -T linker-bin.ld -nostdlib -Map=bin/exos-bin.map
 LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map
@@ -14,10 +14,10 @@ KERNEL_ELF = bin/exos.elf
 KERNEL_BIN = bin/exos.bin
 
 SRC_C  = $(wildcard source/*.c)
-SRC_S  = $(wildcard source/*.asm)
+SRC_S  = $(wildcard source/asm/*.asm)
 
 OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))
-OBJ_S  = $(patsubst source/%.asm, bin/%.o, $(SRC_S))
+OBJ_S  = $(patsubst source/asm/%.asm, bin/%.o, $(SRC_S))
 
 OBJS   = $(OBJ_S) $(OBJ_C)
 
@@ -35,7 +35,7 @@ bin/%.o: source/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-bin/%.o: source/%.asm
+bin/%.o: source/asm/%.asm
 	@mkdir -p $(dir $@)
 	$(NASM) $(AFLAGS) -o $@ $<
 
