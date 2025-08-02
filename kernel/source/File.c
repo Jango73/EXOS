@@ -1,0 +1,262 @@
+
+// File.c
+
+/***************************************************************************\
+
+  EXOS Kernel
+  Copyright (c) 1999-2025 Jango73
+  All rights reserved
+
+\***************************************************************************/
+
+#include "../include/File.h"
+
+#include "../include/Kernel.h"
+#include "../include/Process.h"
+
+/***************************************************************************/
+
+LPFILE OpenFile(LPFILEOPENINFO Info) {
+    STR Volume[MAX_FS_LOGICAL_NAME];
+    FILEINFO Find;
+    LPFILESYSTEM FileSystem = NULL;
+    LPLISTNODE Node = NULL;
+    LPFILE File = NULL;
+    LPFILE AlreadyOpen = NULL;
+    LPCSTR Colon = NULL;
+    U32 FoundFileSystem;
+    U32 Index;
+
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (Info == NULL) return NULL;
+
+    //-------------------------------------
+    // Lock access to file systems
+
+    LockMutex(MUTEX_FILESYSTEM, INFINITY);
+
+    //-------------------------------------
+    // Check if the file is already open
+
+    LockMutex(MUTEX_FILE, INFINITY);
+
+    for (Node = Kernel.File->First; Node; Node = Node->Next) {
+        LockMutex(&(AlreadyOpen->Mutex), INFINITY);  // ???????????????
+
+        AlreadyOpen = (LPFILE)Node;
+
+        if (StringCompareNC(AlreadyOpen->Name, Info->Name) == 0) {
+            if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
+                if (AlreadyOpen->OpenFlags == Info->Flags) {
+                    File = AlreadyOpen;
+                    File->References++;
+
+                    UnlockMutex(&(AlreadyOpen->Mutex));
+                    UnlockMutex(MUTEX_FILE);
+                    goto Out;
+                }
+            }
+        }
+
+        UnlockMutex(&(AlreadyOpen->Mutex));
+    }
+
+    UnlockMutex(MUTEX_FILE);
+
+    //-------------------------------------
+    // Get the name of the volume in which the file
+    // is supposed to be located
+
+    Volume[0] = STR_NULL;
+
+    for (Index = 0; Index < MAX_FS_LOGICAL_NAME - 1; Index++) {
+        if (Info->Name[Index] == STR_NULL) break;
+        if (Info->Name[Index] == STR_COLON) {
+            Colon = Info->Name + Index;
+            break;
+        }
+        Volume[Index + 0] = Info->Name[Index];
+        Volume[Index + 1] = STR_NULL;
+    }
+
+    if (Colon == NULL) goto Out;
+
+    if (Colon[0] != ':') goto Out;
+    if (Colon[1] != '/') goto Out;
+
+    //-------------------------------------
+    // Find the volume in the registered file systems
+
+    FoundFileSystem = 0;
+
+    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+        FileSystem = (LPFILESYSTEM)Node;
+        if (StringCompareNC(FileSystem->Name, Volume) == 0) {
+            FoundFileSystem = 1;
+            break;
+        }
+    }
+
+    if (FoundFileSystem == 0) goto Out;
+
+    //-------------------------------------
+    // Fill the file system driver structure
+
+    Find.Size = sizeof Find;
+    Find.FileSystem = FileSystem;
+    Find.Attributes = MAX_U32;
+
+    StringCopy(Find.Name, Colon + 2);
+
+    //-------------------------------------
+    // Open the file
+
+    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+
+    if (File != NULL) {
+        LockMutex(MUTEX_FILE, INFINITY);
+
+        File->OwnerTask = GetCurrentTask();
+        File->OpenFlags = Info->Flags;
+
+        ListAddItem(Kernel.File, File);
+
+        UnlockMutex(MUTEX_FILE);
+    }
+
+Out:
+
+    UnlockMutex(MUTEX_FILESYSTEM);
+
+    return File;
+}
+
+/***************************************************************************/
+
+U32 CloseFile(LPFILE File) {
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (File->ID != ID_FILE) return 0;
+
+    LockMutex(&(File->Mutex), INFINITY);
+
+    if (File->References) File->References--;
+
+    if (File->References == 0) {
+        // File->ID = ID_NONE;
+        // ListEraseItem(Kernel.File, File);
+
+        File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+
+        ListRemove(Kernel.File, File);
+    } else {
+        UnlockMutex(&(File->Mutex));
+    }
+
+    return 1;
+}
+
+/***************************************************************************/
+
+U32 ReadFile(LPFILEOPERATION FileOp) {
+    LPFILE File = NULL;
+    U32 Result = 0;
+    U32 BytesRead = 0;
+
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (FileOp == NULL) return 0;
+    if (FileOp->File == NULL) return 0;
+
+    File = (LPFILE)FileOp->File;
+    if (File->ID != ID_FILE) return 0;
+
+    if ((File->OpenFlags & FILE_OPEN_READ) == 0) return 0;
+
+    //-------------------------------------
+    // Lock access to the file
+
+    LockMutex(&(File->Mutex), INFINITY);
+
+    File->BytesToRead = FileOp->NumBytes;
+    File->Buffer = FileOp->Buffer;
+
+    Result = File->FileSystem->Driver->Command(DF_FS_READ, (U32)File);
+
+    if (Result == DF_ERROR_SUCCESS) {
+        // File->Position += File->BytesRead;
+        BytesRead = File->BytesRead;
+    }
+
+Out:
+
+    UnlockMutex(&(File->Mutex));
+
+    return BytesRead;
+}
+
+/***************************************************************************/
+
+U32 WriteFile(LPFILEOPERATION FileOp) {
+    LPFILE File = NULL;
+    U32 Result = 0;
+    U32 BytesWritten = 0;
+
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (FileOp == NULL) return 0;
+    if (FileOp->File == NULL) return 0;
+
+    File = (LPFILE)FileOp->File;
+    if (File->ID != ID_FILE) return 0;
+
+    if ((File->OpenFlags & FILE_OPEN_WRITE) == 0) return 0;
+
+    //-------------------------------------
+    // Lock access to the file
+
+    LockMutex(&(File->Mutex), INFINITY);
+
+    File->BytesToRead = FileOp->NumBytes;
+    File->Buffer = FileOp->Buffer;
+
+    Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (U32)File);
+
+    if (Result == DF_ERROR_SUCCESS) {
+        // File->Position += File->BytesRead;
+        BytesWritten = File->BytesRead;
+    }
+
+Out:
+
+    UnlockMutex(&(File->Mutex));
+
+    return BytesWritten;
+}
+
+/***************************************************************************/
+
+U32 GetFileSize(LPFILE File) {
+    U32 Size = 0;
+
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (File == NULL) return 0;
+    if (File->ID != ID_FILE) return 0;
+
+    LockMutex(&(File->Mutex), INFINITY);
+
+    Size = File->SizeLow;
+
+    UnlockMutex(&(File->Mutex));
+
+    return Size;
+}
+
+/***************************************************************************/

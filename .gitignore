@@ -1,0 +1,14 @@
+*.o
+*.a
+*.com
+*.bat
+*.BAT
+*.bin
+*.map
+*.log
+*.elf
+*.img
+*.iso
+*.vmdk
+
+boot-qemu/kernel_sectors.inc

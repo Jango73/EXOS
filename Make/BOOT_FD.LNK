@@ -1,7 +1,0 @@
-
-all :
-
-  boot_fd.o
-
-CODE: 0
-  *

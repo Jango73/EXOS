@@ -1,0 +1,23 @@
+# Codex guidance
+
+## Project overview
+This is a 32 bit operating system for i386.
+
+## Documentation
+The documentation for kernel modules is in documentation/internal/Kernel.md
+
+## Build
+make
+
+## Test
+- DON'T do any tests, there is no way you can test this OS for now.
+
+## General Conventions
+- Always use 4 spaces for indentation in code.
+- Prefer array methods over manual loops.
+- Always write comments, console output and technical doc in english.
+- There should be no duplicate code. Create small functions to avoid it.
+
+## Forbidden Actions
+- Never enable network during tests.
+- DON'T DELETE blank lines between functions, blocks of code, etc...
