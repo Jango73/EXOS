@@ -1,11 +1,9 @@
 
-// Process.h
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -19,17 +17,18 @@
 #include "I386.h"
 #include "ID.h"
 #include "List.h"
+#include "Mutex.h"
+#include "Schedule.h"
 #include "System.h"
+#include "Task.h"
 #include "User.h"
 
 /***************************************************************************/
 
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
-typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_MESSAGE MESSAGE, *LPMESSAGE;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
-typedef struct tag_MUTEX MUTEX, *LPMUTEX;
 
 /***************************************************************************/
 // The security structure
@@ -50,21 +49,6 @@ typedef struct tag_SECURITY {
 
 #define EMPTY_SECURITY \
     { ID_SECURITY, 1, NULL, NULL, 0, 0, PERMISSION_NONE }
-
-/***************************************************************************/
-// The mutex structure
-
-struct tag_MUTEX {
-    LISTNODE_FIELDS         // Standard EXOS object fields
-        LPPROCESS Process;  // Process that has locked this sem.
-    LPTASK Task;            // Task that has locked this sem.
-    U32 Lock;               // Lock count of this sem.
-};
-
-// Macro to initialize a mutex
-
-#define EMPTY_MUTEX \
-    { ID_MUTEX, 1, NULL, NULL, NULL, NULL, 0 }
 
 /***************************************************************************\
 
@@ -102,31 +86,6 @@ struct tag_MESSAGE {
     SYSTEMTIME Time;
     U32 Param1;
     U32 Param2;
-};
-
-/***************************************************************************/
-
-// The Task structure
-
-struct tag_TASK {
-    LISTNODE_FIELDS     // Standard EXOS object fields
-        MUTEX Mutex;    // This structure's mutex
-    LPPROCESS Process;  // Process that owns this task
-    U32 Status;         // Current status of this task
-    U32 Priority;       // Current priority of this task
-    TASKFUNC Function;  // Start address of this task
-    LPVOID Parameter;   // Parameter passed to the function
-    U32 ReturnValue;
-    U32 Table;         // Index in the TSS tables
-    U32 Selector;      // GDT selector for this task
-    LINEAR StackBase;  // This task's stack in the heap
-    U32 StackSize;     // This task's stack size
-    LINEAR SysStackBase;
-    U32 SysStackSize;
-    U32 Time;  // Time allocated to this task
-    U32 WakeUpTime;
-    MUTEX MessageMutex;  // Mutex to access message queue
-    LPLIST Message;      // This task's message queue
 };
 
 /***************************************************************************/
@@ -290,18 +249,6 @@ BOOL GetPixel(LPPIXELINFO);
 BOOL Line(LPLINEINFO);
 BOOL Rectangle(LPRECTINFO);
 U32 DefWindowFunc(HANDLE, U32, U32, U32);
-
-/***************************************************************************/
-// Functions in Schedule.c
-
-void UpdateScheduler();
-BOOL AddTaskToQueue(LPTASK);
-BOOL RemoveTaskFromQueue(LPTASK);
-void Scheduler();
-LPTASK GetCurrentTask();
-LPPROCESS GetCurrentProcess();
-BOOL FreezeScheduler();
-BOOL UnfreezeScheduler();
 
 /***************************************************************************/
 // EXOS Executable chunk identifiers

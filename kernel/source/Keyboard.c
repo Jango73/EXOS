@@ -25,17 +25,19 @@
 
 U32 StdKeyboardCommands(U32, U32);
 
-DRIVER StdKeyboardDriver = {ID_DRIVER,
-                            1,
-                            NULL,
-                            NULL,
-                            DRIVER_TYPE_KEYBOARD,
-                            VER_MAJOR,
-                            VER_MINOR,
-                            "Jango73",
-                            "IBM PC and compatibles",
-                            "Standard IBM PC Keyboard - 102 keys",
-                            StdKeyboardCommands};
+DRIVER StdKeyboardDriver = {
+    .ID = ID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_KEYBOARD,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "IBM PC and compatibles",
+    .Product = "Standard IBM PC Keyboard - 102 keys",
+    .Command = StdKeyboardCommands
+};
 
 /***************************************************************************/
 
@@ -586,7 +588,7 @@ BOOL GetKeyCode(LPKEYCODE KeyCode) {
 /***************************************************************************/
 
 void WaitKey() {
-    KernelPrint("Press a key...\n");
+    KernelPrint(TEXT("Press a key...\n"));
     while (!PeekChar()) {
     }
     GetChar();

@@ -751,4 +751,6 @@ section .stack
 
     global KernelStack
 
-KernelStack: resb STK_SIZE
+KernelStack:
+
+    times STK_SIZE db 0

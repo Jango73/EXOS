@@ -12,6 +12,7 @@
 #include "Base.h"
 #include "Kernel.h"
 #include "Process.h"
+#include "Task.h"
 
 /***************************************************************************/
 
