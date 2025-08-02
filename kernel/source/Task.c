@@ -13,8 +13,15 @@
 
 /***************************************************************************/
 
-LIST KernelTaskMessageList = {NULL,           NULL,          NULL, 0,
-                              KernelMemAlloc, KernelMemFree, NULL};
+LIST KernelTaskMessageList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
 TASK KernelTask = {
     .ID = ID_TASK,

@@ -50,19 +50,73 @@ typedef struct tag_TASKLIST {
 /***************************************************************************/
 
 static LIST RunQueueStorage[MAX_PRIORITY_LEVELS] = {
-    {NULL, NULL, NULL, 0, NULL, NULL, NULL},
-    {(LPLISTNODE)&KernelTask, (LPLISTNODE)&KernelTask, NULL, 1, NULL, NULL, NULL},
-    {NULL, NULL, NULL, 0, NULL, NULL, NULL},
-    {NULL, NULL, NULL, 0, NULL, NULL, NULL},
-    {NULL, NULL, NULL, 0, NULL, NULL, NULL}};
+    [0] = {
+        .First = NULL,
+        .Last = NULL,
+        .Current = NULL,
+        .NumItems = 0,
+        .MemAllocFunc = KernelMemAlloc,
+        .MemFreeFunc = KernelMemFree,
+        .Destructor = NULL
+    },
+    [1] = {
+        .First = (LPLISTNODE)&KernelTask,
+        .Last = (LPLISTNODE)&KernelTask,
+        .Current = NULL,
+        .NumItems = 1,
+        .MemAllocFunc = KernelMemAlloc,
+        .MemFreeFunc = KernelMemFree,
+        .Destructor = NULL
+    },
+    [2] = {
+        .First = NULL,
+        .Last = NULL,
+        .Current = NULL,
+        .NumItems = 0,
+        .MemAllocFunc = KernelMemAlloc,
+        .MemFreeFunc = KernelMemFree,
+        .Destructor = NULL
+    },
+    [3] = {
+        .First = NULL,
+        .Last = NULL,
+        .Current = NULL,
+        .NumItems = 0,
+        .MemAllocFunc = KernelMemAlloc,
+        .MemFreeFunc = KernelMemFree,
+        .Destructor = NULL
+    },
+    [4] = {
+        .First = NULL,
+        .Last = NULL,
+        .Current = NULL,
+        .NumItems = 0,
+        .MemAllocFunc = KernelMemAlloc,
+        .MemFreeFunc = KernelMemFree,
+        .Destructor = NULL
+    }
+};
 
-static LIST SleepingStorage = {NULL, NULL, NULL, 0, NULL, NULL, NULL};
+static LIST SleepingStorage = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
-static TASKLIST TaskList = {0, 0, 20, &KernelTask,
-                            {&RunQueueStorage[0], &RunQueueStorage[1],
-                             &RunQueueStorage[2], &RunQueueStorage[3],
-                             &RunQueueStorage[4]},
-                            &SleepingStorage};
+static TASKLIST TaskList = {
+    .Freeze = 0,
+    .SchedulerTime = 0,
+    .TaskTime = 20,
+    .Current = &KernelTask,
+    .RunQueues = {&RunQueueStorage[0], &RunQueueStorage[1],
+                  &RunQueueStorage[2], &RunQueueStorage[3],
+                  &RunQueueStorage[4]},
+    .Sleeping = &SleepingStorage
+};
 
 /***************************************************************************/
 
