@@ -4,7 +4,7 @@
 /***************************************************************************\
 
   EXOS Kernel
-  Copyright (c) 1999 Exelsius
+  Copyright (c) 1999-2025 Jango73
   All rights reserved
 
 \***************************************************************************/
@@ -23,8 +23,8 @@
 /***************************************************************************/
 
 STR Text_OSTitle[] =
-    "EXOS - Exelsius Operating System - Version 1.00\n"
-    "Copyright (c) 1999-2025 Exelsius.\n"
+    "EXOS - Extensible Operating System - Version 1.00\n"
+    "Copyright (c) 1999-2025 Jango73.\n"
     "All rights reserved.\n";
 
 /***************************************************************************/

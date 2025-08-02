@@ -2,7 +2,7 @@
 /***************************************************************************\
 
     EXOS Kernel
-    Copyright (c) 1999 Exelsius
+    Copyright (c) 1999-2025 Jango73
     All rights reserved
 
 \***************************************************************************/
@@ -27,7 +27,7 @@ DRIVER SerialMouseDriver = {ID_DRIVER,
                             DRIVER_TYPE_MOUSE,
                             VER_MAJOR,
                             VER_MINOR,
-                            "Exelsius",
+                            "Jango73",
                             "Not applicable",
                             "Standard Serial Mouse",
                             SerialMouseCommands};

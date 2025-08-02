@@ -16,7 +16,7 @@ Notations used in this document
   U32     unsigned long
   I32     signed long
 
-  EXOS    Exelsius Operating System
+  EXOS    Extensible Operating System
   BIOS    Basic Input/Output System
   CHS     Cylinder-Head-Sector
   MBR     Master Boot Record

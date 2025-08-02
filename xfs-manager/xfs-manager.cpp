@@ -22,7 +22,7 @@ extern "C"
 
 char* TitleText =
   "EXOS File System Manager V1.0\n"
-  "Copyright (c) 1999 Exelsius, Inc.\n\n";
+  "Copyright (c) 1999-2025 Jango73\n\n";
 
 char* UsageText =
   "Usage :\n"

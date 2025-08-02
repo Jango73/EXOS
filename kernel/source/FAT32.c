@@ -4,7 +4,7 @@
 /***************************************************************************\
 
   EXOS Kernel
-  Copyright (c) 1999 Exelsius
+  Copyright (c) 1999-2025 Jango73
   All rights reserved
 
 \***************************************************************************/
@@ -27,7 +27,7 @@ DRIVER FAT32Driver = {ID_DRIVER,
                       DRIVER_TYPE_FILESYSTEM,
                       VER_MAJOR,
                       VER_MINOR,
-                      "Exelsius",
+                      "Jango73",
                       "Microsoft Corporation",
                       "Fat 32 File System",
                       FAT32Commands};

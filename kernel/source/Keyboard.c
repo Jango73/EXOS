@@ -4,7 +4,7 @@
 /***************************************************************************\
 
   EXOS Kernel
-  Copyright (c) 1999 Exelsius
+  Copyright (c) 1999-2025 Jango73
   All rights reserved
 
 \***************************************************************************/
@@ -32,7 +32,7 @@ DRIVER StdKeyboardDriver = {ID_DRIVER,
                             DRIVER_TYPE_KEYBOARD,
                             VER_MAJOR,
                             VER_MINOR,
-                            "Exelsius",
+                            "Jango73",
                             "IBM PC and compatibles",
                             "Standard IBM PC Keyboard - 102 keys",
                             StdKeyboardCommands};

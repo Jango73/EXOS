@@ -2,7 +2,7 @@
 /***************************************************************************\
 
     EXOS Kernel
-    Copyright (c) 1999 Exelsius
+    Copyright (c) 1999-2025 Jango73
     All rights reserved
 
 \***************************************************************************/
@@ -21,7 +21,7 @@ U32 XFSCommands(U32, U32);
 
 DRIVER XFSDriver = {
     ID_DRIVER,  1,         NULL,       NULL,       DRIVER_TYPE_FILESYSTEM,
-    VER_MAJOR,  VER_MINOR, "Exelsius", "Exelsius", "XFS File System",
+    VER_MAJOR,  VER_MINOR, "Jango73", "Jango73", "XFS File System",
     XFSCommands};
 
 /***************************************************************************/
