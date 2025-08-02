@@ -20,7 +20,7 @@
 U32 XFSCommands(U32, U32);
 
 DRIVER XFSDriver = {
-    ID_DRIVER,  1,         NULL,       NULL,       DRIVER_TYPE_FILESYSTEM,
+    ID_DRIVER,  1,         NULL,      NULL,      DRIVER_TYPE_FILESYSTEM,
     VER_MAJOR,  VER_MINOR, "Jango73", "Jango73", "XFS File System",
     XFSCommands};
 

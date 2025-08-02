@@ -76,19 +76,19 @@ struct tag_MUTEX {
 \***************************************************************************/
 
 struct tag_PROCESS {
-    LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This structure's mutex
-    MUTEX HeapMutex;  // This structure's mutex for heap allocation
-    SECURITY Security;        // This process' security attributes
-    LPDESKTOP Desktop;        // This process' desktop
-    LPPROCESS Parent;         // Parent process of this process
-    U32 Privilege;            // This process' privilege level
-    PHYSICAL PageDirectory;   // This process' page directory
+    LISTNODE_FIELDS          // Standard EXOS object fields
+        MUTEX Mutex;         // This structure's mutex
+    MUTEX HeapMutex;         // This structure's mutex for heap allocation
+    SECURITY Security;       // This process' security attributes
+    LPDESKTOP Desktop;       // This process' desktop
+    LPPROCESS Parent;        // Parent process of this process
+    U32 Privilege;           // This process' privilege level
+    PHYSICAL PageDirectory;  // This process' page directory
     LINEAR HeapBase;
     U32 HeapSize;
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
-    LPLIST Objects;           // Objects owned by this process
+    LPLIST Objects;  // Objects owned by this process
 };
 
 /***************************************************************************/
@@ -109,13 +109,13 @@ struct tag_MESSAGE {
 // The Task structure
 
 struct tag_TASK {
-    LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This structure's mutex
-    LPPROCESS Process;        // Process that owns this task
-    U32 Status;               // Current status of this task
-    U32 Priority;             // Current priority of this task
-    TASKFUNC Function;        // Start address of this task
-    LPVOID Parameter;         // Parameter passed to the function
+    LISTNODE_FIELDS     // Standard EXOS object fields
+        MUTEX Mutex;    // This structure's mutex
+    LPPROCESS Process;  // Process that owns this task
+    U32 Status;         // Current status of this task
+    U32 Priority;       // Current priority of this task
+    TASKFUNC Function;  // Start address of this task
+    LPVOID Parameter;   // Parameter passed to the function
     U32 ReturnValue;
     U32 Table;         // Index in the TSS tables
     U32 Selector;      // GDT selector for this task
@@ -126,7 +126,7 @@ struct tag_TASK {
     U32 Time;  // Time allocated to this task
     U32 WakeUpTime;
     MUTEX MessageMutex;  // Mutex to access message queue
-    LPLIST Message;              // This task's message queue
+    LPLIST Message;      // This task's message queue
 };
 
 /***************************************************************************/
@@ -154,14 +154,14 @@ struct tag_TASK {
 // The window structure
 
 struct tag_WINDOW {
-    LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This window's mutex
-    LPTASK Task;              // The task that created this window
-    WINDOWFUNC Function;      // The function that manages this window
-    LPWINDOW Parent;          // The parent of this window
-    LPLIST Children;          // The children of this window
-    LPLIST Properties;        // The user-defined properties of this window
-    RECT Rect;                // The rectangle of this window
+    LISTNODE_FIELDS       // Standard EXOS object fields
+        MUTEX Mutex;      // This window's mutex
+    LPTASK Task;          // The task that created this window
+    WINDOWFUNC Function;  // The function that manages this window
+    LPWINDOW Parent;      // The parent of this window
+    LPLIST Children;      // The children of this window
+    LPLIST Properties;    // The user-defined properties of this window
+    RECT Rect;            // The rectangle of this window
     RECT ScreenRect;
     RECT InvalidRect;
     U32 WindowID;
@@ -189,13 +189,13 @@ typedef struct tag_PROPERTY {
 // The desktop structure
 
 struct tag_DESKTOP {
-    LISTNODE_FIELDS           // Standard EXOS object fields
-        MUTEX Mutex;  // This structure's mutex
-    LPTASK Task;              // The task that created this desktop
-    LPDRIVER Graphics;        // This desktop's graphics driver
-    LPWINDOW Window;          // Window of the desktop
-    LPWINDOW Capture;         // Window that captured mouse
-    LPWINDOW Focus;           // Window that has focus
+    LISTNODE_FIELDS     // Standard EXOS object fields
+        MUTEX Mutex;    // This structure's mutex
+    LPTASK Task;        // The task that created this desktop
+    LPDRIVER Graphics;  // This desktop's graphics driver
+    LPWINDOW Window;    // Window of the desktop
+    LPWINDOW Capture;   // Window that captured mouse
+    LPWINDOW Focus;     // Window that has focus
     I32 Order;
 };
 

@@ -435,7 +435,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
 
     FileSystem = GetCurrentFileSystem(Context);
 
-    if (FileSystem == NULL) {
+    if (FileSystem == NULL || FileSystem->Driver == NULL) {
         KernelPrint(TEXT("No file system mounted !\n"));
         return;
     }

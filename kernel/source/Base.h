@@ -94,7 +94,9 @@ typedef U32 BOOL;
 // Utilities
 
 #define UNUSED(x) (void)(x)
-#define SLEEPING_BEAUTY while(1){}
+#define SLEEPING_BEAUTY \
+    while (1) {         \
+    }
 
 /***************************************************************************/
 // NULL values

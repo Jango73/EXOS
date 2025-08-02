@@ -74,7 +74,7 @@ U32 ReservedPages = ((N_1MB + N_128KB + N_2MB) >> PAGE_SIZE_MUL);
 
 void InitializeVirtualMemoryManager() {
     Memory = KernelStartup.MemorySize;
-    Pages  = Memory >> PAGE_SIZE_MUL;
+    Pages = Memory >> PAGE_SIZE_MUL;
 }
 
 /***************************************************************************/

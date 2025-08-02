@@ -64,12 +64,12 @@ static LIST TaskList = {(LPLISTNODE)&KernelTask,
 /***************************************************************************/
 
 static LIST MutexList = {(LPLISTNODE)&KernelMutex,
-                             (LPLISTNODE)&ConsoleMutex,
-                             (LPLISTNODE)&KernelMutex,
-                             9,
-                             KernelMemAlloc,
-                             KernelMemFree,
-                             NULL};
+                         (LPLISTNODE)&ConsoleMutex,
+                         (LPLISTNODE)&KernelMutex,
+                         9,
+                         KernelMemAlloc,
+                         KernelMemFree,
+                         NULL};
 
 /***************************************************************************/
 
@@ -84,9 +84,9 @@ static LIST FileList = {NULL,           NULL,          NULL, 0,
 
 /***************************************************************************/
 
-KERNELDATA Kernel = {&DesktopList,   &ProcessList,       &TaskList,
-                     &MutexList, &DiskList,          &FileSystemList,
-                     &FileList,      {"", 0, 0, 0, 0, 0}};
+KERNELDATA Kernel = {&DesktopList, &ProcessList,       &TaskList,
+                     &MutexList,   &DiskList,          &FileSystemList,
+                     &FileList,    {"", 0, 0, 0, 0, 0}};
 
 /***************************************************************************/
 

@@ -17,22 +17,22 @@
 /***************************************************************************/
 
 PROCESS KernelProcess = {
-    ID_PROCESS,             // ID
-    1,                      // References
+    ID_PROCESS,  // ID
+    1,           // References
     NULL,
-    NULL,                   // Next, previous
-    EMPTY_MUTEX,        // Mutex
-    EMPTY_MUTEX,        // Heap mutex
-    EMPTY_SECURITY,         // Security
-    NULL,                   // Desktop
-    NULL,                   // Parent
-    PRIVILEGE_KERNEL,       // Privilege
-    PA_PGD,                 // Page directory
-    0,                      // Heap base
-    0,                      // Heap size
-    "EXOS",                 // File name
-    "",                     // Command line
-    NULL                    // Objects
+    NULL,              // Next, previous
+    EMPTY_MUTEX,       // Mutex
+    EMPTY_MUTEX,       // Heap mutex
+    EMPTY_SECURITY,    // Security
+    NULL,              // Desktop
+    NULL,              // Parent
+    PRIVILEGE_KERNEL,  // Privilege
+    PA_PGD,            // Page directory
+    0,                 // Heap base
+    0,                 // Heap size
+    "EXOS",            // File name
+    "",                // Command line
+    NULL               // Objects
 };
 
 /***************************************************************************/
@@ -40,17 +40,18 @@ PROCESS KernelProcess = {
 void InitializeKernelHeap() {
     KernelProcess.HeapSize = N_1MB;
 
-    LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize,
+                                   ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (!HeapBase) {
         ClearConsole();
         SLEEPING_BEAUTY;
     }
 
-    KernelProcess.HeapBase = (LINEAR) HeapBase;
-    MemorySet((LPVOID) KernelProcess.HeapBase, 0, sizeof(HEAPCONTROLBLOCK));
+    KernelProcess.HeapBase = (LINEAR)HeapBase;
+    MemorySet((LPVOID)KernelProcess.HeapBase, 0, sizeof(HEAPCONTROLBLOCK));
 
-    ((LPHEAPCONTROLBLOCK) KernelProcess.HeapBase)->ID = ID_HEAP;
+    ((LPHEAPCONTROLBLOCK)KernelProcess.HeapBase)->ID = ID_HEAP;
 }
 
 /***************************************************************************/

@@ -674,9 +674,9 @@ SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
     SysCall_PeekMessage,           // 0x00000011
     SysCall_GetMessage,            // 0x00000012
     SysCall_DispatchMessage,       // 0x00000013
-    SysCall_CreateMutex,       // 0x00000014
-    SysCall_LockMutex,         // 0x00000015
-    SysCall_UnlockMutex,       // 0x00000016
+    SysCall_CreateMutex,           // 0x00000014
+    SysCall_LockMutex,             // 0x00000015
+    SysCall_UnlockMutex,           // 0x00000016
     SysCall_VirtualAlloc,          // 0x00000017
     SysCall_VirtualFree,           // 0x00000018
     SysCall_GetProcessHeap,        // 0x00000019
