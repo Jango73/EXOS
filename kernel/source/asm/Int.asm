@@ -66,8 +66,8 @@ Interrupt_Default :
 Interrupt_DivideError :
 
     pusha
-    call EnterKernel
-    call DivideErrorHandler
+    call    EnterKernel
+    call    DivideErrorHandler
     hlt
     popa
     iretd
@@ -80,8 +80,8 @@ Interrupt_DivideError :
 Interrupt_DebugException :
 
     pusha
-    call EnterKernel
-    call DebugExceptionHandler
+    call    EnterKernel
+    call    DebugExceptionHandler
     hlt
     popa
     iretd
@@ -94,8 +94,8 @@ Interrupt_DebugException :
 Interrupt_NMI :
 
     pusha
-    call EnterKernel
-    call NMIHandler
+    call    EnterKernel
+    call    NMIHandler
     hlt
     popa
     iretd
@@ -108,8 +108,8 @@ Interrupt_NMI :
 Interrupt_BreakPoint :
 
     pusha
-    call EnterKernel
-    call BreakPointHandler
+    call    EnterKernel
+    call    BreakPointHandler
     hlt
     popa
     iretd
@@ -122,8 +122,8 @@ Interrupt_BreakPoint :
 Interrupt_Overflow :
 
     pusha
-    call EnterKernel
-    call OverflowHandler
+    call    EnterKernel
+    call    OverflowHandler
     hlt
     popa
     iretd
@@ -136,8 +136,8 @@ Interrupt_Overflow :
 Interrupt_BoundRange :
 
     pusha
-    call EnterKernel
-    call BoundRangeHandler
+    call    EnterKernel
+    call    BoundRangeHandler
     hlt
     popa
     iretd
@@ -150,8 +150,8 @@ Interrupt_BoundRange :
 Interrupt_InvalidOpcode :
 
     pusha
-    call EnterKernel
-    call InvalidOpcodeHandler
+    call    EnterKernel
+    call    InvalidOpcodeHandler
     hlt
     popa
     iretd
@@ -164,8 +164,8 @@ Interrupt_InvalidOpcode :
 Interrupt_DeviceNotAvail :
 
     pusha
-    call EnterKernel
-    call DeviceNotAvailHandler
+    call    EnterKernel
+    call    DeviceNotAvailHandler
     hlt
     popa
     iretd
@@ -178,8 +178,8 @@ Interrupt_DeviceNotAvail :
 Interrupt_DoubleFault :
 
     pusha
-    call EnterKernel
-    call DoubleFaultHandler
+    call    EnterKernel
+    call    DoubleFaultHandler
     hlt
     popa
     add     esp, 4                        ; Remove error code
@@ -193,8 +193,8 @@ Interrupt_DoubleFault :
 Interrupt_MathOverflow :
 
     pusha
-    call EnterKernel
-    call MathOverflowHandler
+    call    EnterKernel
+    call    MathOverflowHandler
     hlt
     popa
     iretd
@@ -207,8 +207,8 @@ Interrupt_MathOverflow :
 Interrupt_InvalidTSS :
 
     pusha
-    call EnterKernel
-    call InvalidTSSHandler
+    call    EnterKernel
+    call    InvalidTSSHandler
     hlt
     popa
     add     esp, 4                        ; Remove error code
@@ -222,8 +222,8 @@ Interrupt_InvalidTSS :
 Interrupt_SegmentFault :
 
     pusha
-    call EnterKernel
-    call SegmentFaultHandler
+    call    EnterKernel
+    call    SegmentFaultHandler
     hlt
     popa
     add     esp, 4                        ; Remove error code
@@ -237,8 +237,8 @@ Interrupt_SegmentFault :
 Interrupt_StackFault :
 
     pusha
-    call EnterKernel
-    call StackFaultHandler
+    call    EnterKernel
+    call    StackFaultHandler
     hlt
     popa
     add     esp, 4                        ; Remove error code
@@ -253,8 +253,8 @@ Interrupt_GeneralProtection :
 
     pusha
     cli
-    call EnterKernel
-    call GeneralProtectionHandler
+    call    EnterKernel
+    call    GeneralProtectionHandler
     hlt
     sti
     popa
@@ -272,12 +272,12 @@ Interrupt_PageFault :
     mov     eax, [esp+4]
     pusha
 
-    call EnterKernel
+    call    EnterKernel
 
     mov     ebx, cr2
     push    ebx
     push    eax
-    call PageFaultHandler
+    call    PageFaultHandler
     add     esp, 8
 
     popa
@@ -299,8 +299,8 @@ Interrupt_PageFault :
 Interrupt_AlignmentCheck :
 
     pusha
-    call EnterKernel
-    call AlignmentCheckHandler
+    call    EnterKernel
+    call    AlignmentCheckHandler
     hlt
     popa
     add     esp, 4                        ; Remove error code
@@ -323,8 +323,8 @@ Interrupt_Clock :
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    call EnterKernel
-    call ClockHandler
+    call    EnterKernel
+    call    ClockHandler
 
     popa
     iretd
@@ -344,8 +344,8 @@ Interrupt_Keyboard :
     push    esi
     push    edi
 
-    call EnterKernel
-    call KeyboardHandler
+    call    EnterKernel
+    call    KeyboardHandler
 
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
@@ -380,18 +380,18 @@ Interrupt_Mouse :
 
     mov     eax, 4
     push    eax
-    call DisableIRQ
+    call    DisableIRQ
     add     esp, 4
 
-    call EnterKernel
-    call MouseHandler
+    call    EnterKernel
+    call    MouseHandler
 
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
     mov     eax, 4
     push    eax
-    call EnableIRQ
+    call    EnableIRQ
     add     esp, 4
 
     pop     edi
@@ -422,8 +422,8 @@ Interrupt_HardDrive :
     push    esi
     push    edi
 
-    call EnterKernel
-    call HardDriveHandler
+    call    EnterKernel
+    call    HardDriveHandler
 
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
@@ -454,11 +454,11 @@ Interrupt_SystemCall :
     push    esi
     push    edi
 
-    call EnterKernel
+    call    EnterKernel
 
     push    ebx
     push    eax
-    call SystemCallHandler
+    call    SystemCallHandler
     add     esp, 8
 
     pop     edi
@@ -485,11 +485,11 @@ Interrupt_DriverCall :
     push    esi
     push    edi
 
-;    call EnterKernel
+    call    EnterKernel
 
     push    ebx
     push    eax
-    call DriverCallHandler
+    call    DriverCallHandler
     add     esp, 8
 
     pop     edi
