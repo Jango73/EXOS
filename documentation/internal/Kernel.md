@@ -820,3 +820,120 @@ EXOS file system driver for the native XFS format.
 - OpenNext: Continues directory enumeration.
 - CloseFile: Closes an open XFS file.
 - XFSCommands: Dispatcher for driver functions.
+
+### Int.asm
+
+Provides interrupt and exception handlers for CPU and hardware devices.
+
+#### Functions in Int.asm
+
+- Interrupt_Default: Default handler for unassigned interrupts.
+- Interrupt_DivideError: Handles divide error exception (#DE).
+- Interrupt_DebugException: Handles debug exception (#DB).
+- Interrupt_NMI: Handles non-maskable interrupts.
+- Interrupt_BreakPoint: Handles breakpoint exception (#BP).
+- Interrupt_Overflow: Handles overflow exception (#OF).
+- Interrupt_BoundRange: Handles bound range exceeded (#BR).
+- Interrupt_InvalidOpcode: Handles invalid opcode exception (#UD).
+- Interrupt_DeviceNotAvail: Handles device-not-available exception (#NM).
+- Interrupt_DoubleFault: Handles double fault exception (#DF).
+- Interrupt_MathOverflow: Handles math coprocessor overflow (#MF).
+- Interrupt_InvalidTSS: Handles invalid task state segment (#TS).
+- Interrupt_SegmentFault: Handles segment not present faults (#NP).
+- Interrupt_StackFault: Handles stack fault exceptions (#SS).
+- Interrupt_GeneralProtection: Handles general protection faults (#GP).
+- Interrupt_PageFault: Handles page fault exception (#PF).
+- Interrupt_AlignmentCheck: Handles alignment check exception (#AC).
+- Interrupt_Clock: Handles system timer interrupts (IRQ 0).
+- Interrupt_Keyboard: Handles keyboard input interrupts (IRQ 1).
+- Interrupt_Mouse: Handles mouse controller interrupts.
+- Interrupt_HardDrive: Handles hard drive interrupts.
+- Interrupt_SystemCall: Entry point for system calls.
+- Interrupt_DriverCall: Entry point for driver calls.
+- EnterKernel: Sets up kernel segments for interrupt context.
+
+### RMC.asm
+
+Implements real mode call support and exit routines.
+
+#### Functions in RMC.asm
+
+- RealModeCall: Switches to real mode, executes a routine, then returns to protected mode.
+- Exit_EXOS: Leaves the kernel and returns control to the DOS loader.
+- RealModeCallTest: Test helper for verifying real mode calls.
+
+### Stub.asm
+
+Boot stub that transitions from the DOS loader to protected mode.
+
+#### Functions in Stub.asm
+
+- StartAbsolute: Absolute entry point invoked by the DOS loader.
+- ProtectedModeEntry: Sets up segments and stack before jumping to the C kernel.
+- KernelStack: Preallocated kernel stack space.
+
+### Sys.asm
+
+Defines DOS service constants used during early boot.
+
+#### Functions in Sys.asm
+
+- DOS_CALL: DOS interrupt number for API calls.
+- DOS_PRINT: Function to print a string via DOS.
+- DOS_OPENFILE: Function to open a file via DOS.
+- DOS_CLOSEFILE: Function to close a DOS file.
+- DOS_READFILE: Function to read from a DOS file.
+- DOS_WRITEFILE: Function to write to a DOS file.
+- DOS_FILESEEK: Function to seek within a DOS file.
+- DOS_SEEK_SET: Seek from start of file.
+- DOS_SEEK_CUR: Seek from current position.
+- DOS_SEEK_END: Seek from end of file.
+- STACK_SIZE: Size of internal stack used by routines.
+- PAGE_SIZE: Memory page size constant.
+
+### System.asm
+
+Provides low level hardware access and CPU control primitives.
+
+#### Functions in System.asm
+
+- IRQMask_21: Primary PIC mask in protected mode.
+- IRQMask_A1: Secondary PIC mask in protected mode.
+- IRQMask_21_RM: Primary PIC mask in real mode.
+- IRQMask_A1_RM: Secondary PIC mask in real mode.
+- GetCPUID: Retrieves processor identification information.
+- DisablePaging: Disables paging by clearing CR0.
+- EnablePaging: Enables paging by setting CR0.
+- DisableInterrupts: Disables hardware interrupts.
+- EnableInterrupts: Enables hardware interrupts.
+- SaveFlags: Saves the EFLAGS register.
+- RestoreFlags: Restores the EFLAGS register.
+- InPortByte: Reads a byte from an I/O port.
+- OutPortByte: Writes a byte to an I/O port.
+- InPortWord: Reads a word from an I/O port.
+- OutPortWord: Writes a word to an I/O port.
+- InPortStringWord: Reads a sequence of words from an I/O port.
+- MaskIRQ: Masks a specific IRQ line.
+- UnmaskIRQ: Unmasks a specific IRQ line.
+- DisableIRQ: Disables a specific IRQ line.
+- EnableIRQ: Enables a specific IRQ line.
+- LoadGlobalDescriptorTable: Loads the GDT register.
+- LoadLocalDescriptorTable: Loads the LDT register.
+- LoadInterruptDescriptorTable: Loads the IDT register.
+- LoadPageDirectory: Loads the page directory base into CR3.
+- LoadInitialTaskRegister: Loads the task register with the initial TSS.
+- GetTaskRegister: Retrieves the current task register value.
+- GetPageDirectory: Returns the current page directory address.
+- FlushTLB: Flushes the translation lookaside buffer.
+- SwitchToTask: Performs a hardware task switch.
+- TaskRunner: Entry stub executed when a new task starts.
+- SetTaskState: Sets bits in the task state.
+- ClearTaskState: Clears bits in the task state.
+- PeekConsoleWord: Reads a word from video memory.
+- PokeConsoleWord: Writes a word to video memory.
+- SaveRegisters: Saves general registers to a structure.
+- MemorySet: Fills memory with a byte value.
+- MemoryCopy: Copies a block of memory.
+- DoSystemCall: Invokes a system call from user mode.
+- Reboot: Restarts the computer via the keyboard controller.
+
