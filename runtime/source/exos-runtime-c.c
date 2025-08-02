@@ -6,8 +6,8 @@
 
 \***************************************************************************/
 
-#include "../../kernel/source/User.h"
-#include "exos-runtime.h"
+#include "../../kernel/include/User.h"
+#include "../include/exos-runtime.h"
 
 /***************************************************************************/
 

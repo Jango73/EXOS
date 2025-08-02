@@ -9,10 +9,10 @@
 
 \***************************************************************************/
 
-#include "File.h"
+#include "../include/File.h"
 
-#include "Kernel.h"
-#include "Process.h"
+#include "../include/Kernel.h"
+#include "../include/Process.h"
 
 /***************************************************************************/
 

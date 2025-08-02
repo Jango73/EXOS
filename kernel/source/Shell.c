@@ -7,18 +7,18 @@
 
 \***************************************************************************/
 
-#include "Base.h"
-#include "Console.h"
-#include "File.h"
-#include "FileSys.h"
-#include "GFX.h"
-#include "HD.h"
-#include "Heap.h"
-#include "Kernel.h"
-#include "Keyboard.h"
-#include "List.h"
-#include "String.h"
-#include "User.h"
+#include "../include/Base.h"
+#include "../include/Console.h"
+#include "../include/File.h"
+#include "../include/FileSys.h"
+#include "../include/GFX.h"
+#include "../include/HD.h"
+#include "../include/Heap.h"
+#include "../include/Kernel.h"
+#include "../include/Keyboard.h"
+#include "../include/List.h"
+#include "../include/String.h"
+#include "../include/User.h"
 
 /***************************************************************************/
 

@@ -7,9 +7,9 @@
 
 \***************************************************************************/
 
-#include "GFX.h"
-#include "I386.h"
-#include "Kernel.h"
+#include "../include/GFX.h"
+#include "../include/I386.h"
+#include "../include/Kernel.h"
 
 #define MKLINPTR(a) (((a & 0xFFFF0000) >> 12) + (a & 0x0000FFFF))
 

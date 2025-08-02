@@ -7,12 +7,12 @@
 
 \***************************************************************************/
 
-#include "Process.h"
+#include "../include/Process.h"
 
-#include "Address.h"
-#include "Console.h"
-#include "File.h"
-#include "Kernel.h"
+#include "../include/Address.h"
+#include "../include/Console.h"
+#include "../include/File.h"
+#include "../include/Kernel.h"
 
 /***************************************************************************/
 

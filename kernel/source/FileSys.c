@@ -9,10 +9,10 @@
 
 \***************************************************************************/
 
-#include "FileSys.h"
+#include "../include/FileSys.h"
 
-#include "Console.h"
-#include "Kernel.h"
+#include "../include/Console.h"
+#include "../include/Kernel.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32);

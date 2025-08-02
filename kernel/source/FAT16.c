@@ -9,9 +9,9 @@
 
 \***************************************************************************/
 
-#include "FAT.h"
-#include "FileSys.h"
-#include "Kernel.h"
+#include "../include/FAT.h"
+#include "../include/FileSys.h"
+#include "../include/Kernel.h"
 
 /***************************************************************************/
 

@@ -7,17 +7,17 @@
 
 \***************************************************************************/
 
-#include "Kernel.h"
+#include "../include/Kernel.h"
 
-#include "Clock.h"
-#include "Console.h"
-#include "Driver.h"
-#include "FileSys.h"
-#include "HD.h"
-#include "Interrupt.h"
-#include "Keyboard.h"
-#include "Mouse.h"
-#include "System.h"
+#include "../include/Clock.h"
+#include "../include/Console.h"
+#include "../include/Driver.h"
+#include "../include/FileSys.h"
+#include "../include/HD.h"
+#include "../include/Interrupt.h"
+#include "../include/Keyboard.h"
+#include "../include/Mouse.h"
+#include "../include/System.h"
 
 /***************************************************************************/
 

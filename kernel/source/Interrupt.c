@@ -7,8 +7,8 @@
 
 \***************************************************************************/
 
-#include "Base.h"
-#include "Kernel.h"
+#include "../include/Base.h"
+#include "../include/Kernel.h"
 
 // Functions in Interrupt-a.asm
 

@@ -7,18 +7,18 @@
 
 \***************************************************************************/
 
-#include "Address.h"
-#include "Base.h"
-#include "Console.h"
-#include "File.h"
-#include "Heap.h"
-#include "ID.h"
-#include "Kernel.h"
-#include "Keyboard.h"
-#include "Mouse.h"
-#include "Process.h"
-#include "User.h"
-#include "VMM.h"
+#include "../include/Address.h"
+#include "../include/Base.h"
+#include "../include/Console.h"
+#include "../include/File.h"
+#include "../include/Heap.h"
+#include "../include/ID.h"
+#include "../include/Kernel.h"
+#include "../include/Keyboard.h"
+#include "../include/Mouse.h"
+#include "../include/Process.h"
+#include "../include/User.h"
+#include "../include/VMM.h"
 
 /***************************************************************************/
 

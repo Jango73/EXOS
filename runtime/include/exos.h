@@ -14,8 +14,8 @@
 
 /***************************************************************************/
 
-#include "../../kernel/source/Base.h"
-#include "../../kernel/source/User.h"
+#include "../../kernel/include/Base.h"
+#include "../../kernel/include/User.h"
 
 /***************************************************************************/
 

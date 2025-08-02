@@ -7,12 +7,12 @@
 
 \***************************************************************************/
 
-#include "Clock.h"
+#include "../include/Clock.h"
 
-#include "I386.h"
-#include "String.h"
-#include "System.h"
-#include "Text.h"
+#include "../include/I386.h"
+#include "../include/String.h"
+#include "../include/System.h"
+#include "../include/Text.h"
 
 /***************************************************************************/
 

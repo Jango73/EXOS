@@ -7,9 +7,9 @@
 
 \***************************************************************************/
 
-#include "Address.h"
-#include "Kernel.h"
-#include "Process.h"
+#include "../include/Address.h"
+#include "../include/Kernel.h"
+#include "../include/Process.h"
 
 /***************************************************************************/
 

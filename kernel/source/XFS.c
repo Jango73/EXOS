@@ -7,10 +7,10 @@
 
 \***************************************************************************/
 
-#include "XFS.h"
+#include "../include/XFS.h"
 
-#include "FileSys.h"
-#include "Kernel.h"
+#include "../include/FileSys.h"
+#include "../include/Kernel.h"
 
 /***************************************************************************/
 

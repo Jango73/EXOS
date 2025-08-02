@@ -9,14 +9,14 @@
 
 \***************************************************************************/
 
-#include "Base.h"
-#include "Console.h"
-#include "Heap.h"
-#include "Kernel.h"
-#include "Keyboard.h"
-#include "List.h"
-#include "User.h"
-#include "VKey.h"
+#include "../include/Base.h"
+#include "../include/Console.h"
+#include "../include/Heap.h"
+#include "../include/Kernel.h"
+#include "../include/Keyboard.h"
+#include "../include/List.h"
+#include "../include/User.h"
+#include "../include/VKey.h"
 
 /***************************************************************************/
 

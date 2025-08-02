@@ -9,9 +9,9 @@
 
 \***************************************************************************/
 
-#include "Base.h"
-#include "Keyboard.h"
-#include "VKey.h"
+#include "../include/Base.h"
+#include "../include/Keyboard.h"
+#include "../include/VKey.h"
 
 /***************************************************************************/
 

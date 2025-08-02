@@ -7,12 +7,12 @@
 
 \***************************************************************************/
 
-#include "Console.h"
+#include "../include/Console.h"
 
-#include "Kernel.h"
-#include "Keyboard.h"
-#include "VKey.h"
-#include "VarArg.h"
+#include "../include/Kernel.h"
+#include "../include/Keyboard.h"
+#include "../include/VKey.h"
+#include "../include/VarArg.h"
 
 /***************************************************************************/
 

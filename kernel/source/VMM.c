@@ -7,11 +7,11 @@
 
 \***************************************************************************/
 
-#include "VMM.h"
+#include "../include/VMM.h"
 
-#include "Address.h"
-#include "Base.h"
-#include "Kernel.h"
+#include "../include/Address.h"
+#include "../include/Base.h"
+#include "../include/Kernel.h"
 
 /***************************************************************************/
 

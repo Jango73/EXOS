@@ -9,10 +9,10 @@
 
 \***************************************************************************/
 
-#include "GFX.h"
-#include "Kernel.h"
-#include "Mouse.h"
-#include "Process.h"
+#include "../include/GFX.h"
+#include "../include/Kernel.h"
+#include "../include/Mouse.h"
+#include "../include/Process.h"
 
 /***************************************************************************/
 

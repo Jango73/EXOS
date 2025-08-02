@@ -7,12 +7,12 @@
 
 \***************************************************************************/
 
-#include "Base.h"
-#include "Console.h"
-#include "Kernel.h"
-#include "Keyboard.h"
-#include "String.h"
-#include "VKey.h"
+#include "../include/Base.h"
+#include "../include/Console.h"
+#include "../include/Kernel.h"
+#include "../include/Keyboard.h"
+#include "../include/String.h"
+#include "../include/VKey.h"
 
 /***************************************************************************/
 

@@ -7,11 +7,11 @@
 
 \***************************************************************************/
 
-#include "Base.h"
-#include "GFX.h"
-#include "Mouse.h"
-#include "Process.h"
-#include "User.h"
+#include "../include/Base.h"
+#include "../include/GFX.h"
+#include "../include/Mouse.h"
+#include "../include/Process.h"
+#include "../include/User.h"
 
 /***************************************************************************/
 
