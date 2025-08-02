@@ -211,6 +211,7 @@ static U32 VESAInitialize() {
     if (VESAContext.VESAInfo.Signature[2] != 'S') return DF_ERROR_GENERIC;
     if (VESAContext.VESAInfo.Signature[3] != 'A') return DF_ERROR_GENERIC;
 
+    /*
     KernelPrint("\n");
     KernelPrint("VESA driver version %d.%d\n", VER_MAJOR, VER_MINOR);
     KernelPrint("Manufacturer : %s\n",
@@ -218,6 +219,7 @@ static U32 VESAInitialize() {
     KernelPrint("Version      : %d\n", VESAContext.VESAInfo.Version);
     KernelPrint("Total memory : %d KB\n",
                 (VESAContext.VESAInfo.Memory << MUL_64KB) >> MUL_1KB);
+                */
 
     return DF_ERROR_SUCCESS;
 }

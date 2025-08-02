@@ -1,11 +1,9 @@
 
-// Console.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -26,12 +24,25 @@
 
 /***************************************************************************/
 
-ConsoleStruct Console = {80, 25, 0, 0, 0, 0, 0, 0x03D4, (LPVOID)0xB8000};
+ConsoleStruct Console = {
+    .Width = 80,
+    .Height = 25,
+    .CursorX = 0,
+    .CursorY = 0,
+    .BackColor = 0,
+    .ForeColor = 0,
+    .Blink = 0,
+    .Port = 0x03D4,
+    .Memory = (LPVOID)0xB8000
+};
 
 /***************************************************************************/
 
 void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     U32 Position = (CursorY * Console.Width) + CursorX;
+
+    Console.CursorX = CursorX;
+    Console.CursorY = CursorY;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
@@ -154,20 +165,6 @@ Out:
 
 /***************************************************************************/
 
-int SetConsoleBackColor(U32 Color) {
-    Console.BackColor = Color;
-    return 1;
-}
-
-/***************************************************************************/
-
-int SetConsoleForeColor(U32 Color) {
-    Console.ForeColor = Color;
-    return 1;
-}
-
-/***************************************************************************/
-
 BOOL ConsolePrint(LPCSTR Text) {
     U32 Index = 0;
 
@@ -182,6 +179,20 @@ BOOL ConsolePrint(LPCSTR Text) {
 
     UnlockMutex(MUTEX_CONSOLE);
 
+    return 1;
+}
+
+/***************************************************************************/
+
+int SetConsoleBackColor(U32 Color) {
+    Console.BackColor = Color;
+    return 1;
+}
+
+/***************************************************************************/
+
+int SetConsoleForeColor(U32 Color) {
+    Console.ForeColor = Color;
     return 1;
 }
 
@@ -431,16 +442,20 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
 
 /***************************************************************************/
 
-BOOL ConsoleInitialize() {
+BOOL InitializeConsole() {
     Console.Width = 80;
     Console.Height = 25;
     Console.BackColor = 0;
     Console.ForeColor = 7;
 
+    /*
     Console.CursorX = KernelStartup.ConsoleCursorX;
     Console.CursorY = KernelStartup.ConsoleCursorY;
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+    */
+
+    ClearConsole();
 
     return TRUE;
 }

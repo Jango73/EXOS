@@ -97,7 +97,7 @@ Provides text console output and input features.
 - VarKernelPrint: Core printf-style formatter used by KernelPrint.
 - KernelPrint: Prints formatted text to the console.
 - ConsoleGetString: Reads a line of text from the console.
-- ConsoleInitialize: Initializes the console state.
+- InitializeConsole: Initializes the console state.
 
 ### Crypt.c
 

@@ -105,19 +105,19 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
                     KernelLogText(LOG_VERBOSE,
-                                  TEXT("Mounting FAT16 partition"));
+                                  TEXT("Mounting FAT16 partition..."));
                     MountPartition_FAT16(Disk, Partition + Index, Base);
                 } break;
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
                     KernelLogText(LOG_VERBOSE,
-                                  TEXT("Mounting FAT32 partition"));
+                                  TEXT("Mounting FAT32 partition..."));
                     MountPartition_FAT32(Disk, Partition + Index, Base);
                 } break;
 
                 case FSID_EXOS: {
-                    KernelLogText(LOG_VERBOSE, TEXT("Mounting XFS partition"));
+                    KernelLogText(LOG_VERBOSE, TEXT("Mounting XFS partition..."));
                     MountPartition_XFS(Disk, Partition + Index, Base);
                 } break;
 

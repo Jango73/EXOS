@@ -60,6 +60,11 @@ static void CMD_copy(LPSHELLCONTEXT);
 static void CMD_edit(LPSHELLCONTEXT);
 static void CMD_hd(LPSHELLCONTEXT);
 static void CMD_filesystem(LPSHELLCONTEXT);
+static void CMD_irq(LPSHELLCONTEXT);
+static void CMD_outp(LPSHELLCONTEXT);
+static void CMD_inp(LPSHELLCONTEXT);
+static void CMD_reboot(LPSHELLCONTEXT);
+static void CMD_dos(LPSHELLCONTEXT);
 
 static struct {
     STR Name[32];
@@ -70,7 +75,7 @@ static struct {
     {"commands", "help", "", CMD_commands},
     {"clear", "cls", "", CMD_cls},
     {"ls", "dir", "[Name] [/P]", CMD_dir},
-    {"cd", "", "Name", CMD_cd},
+    {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
     {"run", "launch", "", CMD_run},
     {"quit", "exit", "", CMD_exit},
@@ -84,6 +89,11 @@ static struct {
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
     {"fs", "filesystem", "", CMD_filesystem},
+    {"irq", "irq", "", CMD_irq},
+    {"outp", "outp", "", CMD_outp},
+    {"inp", "inp", "", CMD_inp},
+    {"reboot", "reboot", "", CMD_reboot},
+    {"dos", "dos", "", CMD_dos},
     {"", "", "", NULL},
 };
 
@@ -766,6 +776,52 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+static void CMD_irq(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
+    KernelPrint("8259-1 RM mask : %08b\n", IRQMask_21_RM);
+    KernelPrint("8259-2 RM mask : %08b\n", IRQMask_A1_RM);
+    KernelPrint("8259-1 PM mask : %08b\n", IRQMask_21);
+    KernelPrint("8259-2 PM mask : %08b\n", IRQMask_A1);
+}
+
+/***************************************************************************/
+
+static void CMD_outp(LPSHELLCONTEXT Context) {
+    U32 Port, Data;
+    ParseNextComponent(Context); Port = StringToU32(Context->Command);
+    ParseNextComponent(Context); Data = StringToU32(Context->Command);
+    OutPortByte(Port, Data);
+}
+
+/***************************************************************************/
+
+static void CMD_inp(LPSHELLCONTEXT Context) {
+    U32 Port, Data;
+    ParseNextComponent(Context); Port = StringToU32(Context->Command);
+    Data = InPortByte(Port);
+    KernelPrint("Port %04X = %02X\n", Port, Data);
+}
+
+/***************************************************************************/
+
+static void CMD_reboot(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
+    Reboot();
+}
+
+/***************************************************************************/
+
+static void CMD_dos(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
+    ClearConsole();
+    Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
+}
+
+/***************************************************************************/
+
 static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     U32 Length;
     U32 Index;
@@ -811,100 +867,20 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     //-------------------------------------
 
     for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-        if (StringCompareNC(Context->Command, COMMANDS[Index].Name) == 0 ||
-            StringCompareNC(Context->Command, COMMANDS[Index].AltName) == 0) {
-            COMMANDS[Index].Command(Context);
+        if (StringEmpty(Context->Command) == FALSE) {
+            if (StringCompareNC(Context->Command, COMMANDS[Index].Name) == 0 ||
+                StringCompareNC(Context->Command, COMMANDS[Index].AltName) == 0) {
+                COMMANDS[Index].Command(Context);
+            }
         }
     }
 
     return TRUE;
 
     /*
-      if (StringCompareNC(Context->Command, "run") == 0)
-      {
-    PROCESSINFO ProcessInfo;
-    STR FileName [MAX_PATH_NAME];
-
-    ParseNextComponent(Context);
-
-    if (StringLength(Context->Command))
-    {
-      if (QualifyFileName(Context, Context->Command, FileName))
-      {
-        ProcessInfo.Flags       = 0;
-        ProcessInfo.FileName    = FileName;
-        ProcessInfo.CommandLine = NULL;
-        ProcessInfo.StdOut      = NULL;
-        ProcessInfo.StdIn       = NULL;
-        ProcessInfo.StdErr      = NULL;
-
-        CreateProcess(&ProcessInfo);
-      }
-    }
-      }
-      else
       if (StringCompareNC(Context->Command, "rmc") == 0)
       {
     RealModeCallTest();
-      }
-      else
-      if (StringCompareNC(Context->Command, "reboot") == 0)
-      {
-    // Reboot();
-      }
-      else
-      if (StringCompareNC(Context->Command, "irq") == 0)
-      {
-    KernelPrint("8259-1 RM mask : %08b\n", IRQMask_21_RM);
-    KernelPrint("8259-2 RM mask : %08b\n", IRQMask_A1_RM);
-    KernelPrint("8259-1 PM mask : %08b\n", IRQMask_21);
-    KernelPrint("8259-2 PM mask : %08b\n", IRQMask_A1);
-      }
-      else
-      if (StringCompareNC(Context->Command, "outp") == 0)
-      {
-    U32 Port, Data;
-    ParseNextComponent(Context); Port = StringToU32(Context->Command);
-    ParseNextComponent(Context); Data = StringToU32(Context->Command);
-    OutPortByte(Port, Data);
-      }
-      else
-      if (StringCompareNC(Context->Command, "inp") == 0)
-      {
-    U32 Port, Data;
-    ParseNextComponent(Context); Port = StringToU32(Context->Command);
-    Data = InPortByte(Port);
-    KernelPrint("Port %04X = %02X\n", Port, Data);
-      }
-      else
-      if (StringCompareNC(Context->Command, "password") == 0)
-      {
-    STR Password [48];
-    STR Crypted [48];
-    STR Try1 [48];
-    STR Try2 [48];
-    U32 c, l;
-
-    StringCopy(Password, "Prout de prout");
-    StringCopy(Try1, "Zobbie la mouche");
-    StringCopy(Try2, "Prout de prout");
-
-    KernelPrint("Password : %s\n", Password);
-    if (MakePassword(Password, Crypted))
-    {
-      KernelPrint("Crypted : ");
-      l=StringLength(Crypted);
-      for (c=0; c<l; c++) KernelPrint("%02x", Crypted[c]);
-      KernelPrint("\n");
-      KernelPrint("Test with \"%s\" = %d\n", Try1, CheckPassword(Crypted,
-      Try1)); KernelPrint("Test with \"%s\" = %d\n", Try2,
-      CheckPassword(Crypted, Try2));
-    }
-      }
-      else
-      if (StringCompareNC(Context->Command, "dos") == 0)
-      {
-    Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
       }
     */
 }

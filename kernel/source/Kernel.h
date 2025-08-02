@@ -193,7 +193,6 @@ extern LPSEGMENTDESCRIPTOR GDT;
 extern LPTASKTSSDESCRIPTOR TTD;
 extern LPTASKSTATESEGMENT TSS;
 extern LPPAGEBITMAP PPB;
-extern VOIDFUNC InterruptTable[];
 extern KERNELDATA Kernel;
 extern PHYSICAL StubAddress;
 
@@ -224,34 +223,6 @@ void SetTSSDescriptorLimit(LPTSSDESCRIPTOR, U32);
 
 void PrintMemory(U32, U32);
 void MemEdit(U32);
-
-/***************************************************************************/
-
-// Functions in Int.asm
-
-extern void Interrupt_Default();
-extern void Interrupt_DivideError();
-extern void Interrupt_DebugException();
-extern void Interrupt_NMI();
-extern void Interrupt_BreakPoint();
-extern void Interrupt_Overflow();
-extern void Interrupt_BoundRange();
-extern void Interrupt_InvalidOpcode();
-extern void Interrupt_DeviceNotAvail();
-extern void Interrupt_DoubleFault();
-extern void Interrupt_MathOverflow();
-extern void Interrupt_InvalidTSS();
-extern void Interrupt_SegmentFault();
-extern void Interrupt_StackFault();
-extern void Interrupt_GeneralProtection();
-extern void Interrupt_PageFault();
-extern void Interrupt_AlignmentCheck();
-extern void Interrupt_Clock();
-extern void Interrupt_Keyboard();
-extern void Interrupt_Mouse();
-extern void Interrupt_HardDrive();
-extern void Interrupt_SystemCall();
-extern void Interrupt_DriverCall();
 
 /***************************************************************************/
 

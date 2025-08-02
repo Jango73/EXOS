@@ -1,11 +1,9 @@
 
-// Kernel.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -16,6 +14,7 @@
 #include "Driver.h"
 #include "FileSys.h"
 #include "HD.h"
+#include "Interrupt.h"
 #include "Keyboard.h"
 #include "Mouse.h"
 #include "System.h"
@@ -90,59 +89,6 @@ KERNELDATA Kernel = {&DesktopList, &ProcessList,       &TaskList,
 
 /***************************************************************************/
 
-VOIDFUNC InterruptTable[] = {
-    Interrupt_DivideError,        // 0
-    Interrupt_DebugException,     // 1
-    Interrupt_NMI,                // 2
-    Interrupt_BreakPoint,         // 3
-    Interrupt_Overflow,           // 4
-    Interrupt_BoundRange,         // 5
-    Interrupt_InvalidOpcode,      // 6
-    Interrupt_DeviceNotAvail,     // 7
-    Interrupt_DoubleFault,        // 8
-    Interrupt_MathOverflow,       // 9
-    Interrupt_InvalidTSS,         // 10
-    Interrupt_SegmentFault,       // 11
-    Interrupt_StackFault,         // 12
-    Interrupt_GeneralProtection,  // 13
-    Interrupt_PageFault,          // 14
-    Interrupt_Default,            // 15
-    Interrupt_Default,            // 16
-    Interrupt_AlignmentCheck,     // 17
-    Interrupt_Default,            // 18
-    Interrupt_Default,            // 19
-    Interrupt_Default,            // 20
-    Interrupt_Default,            // 21
-    Interrupt_Default,            // 22
-    Interrupt_Default,            // 23
-    Interrupt_Default,            // 24
-    Interrupt_Default,            // 25
-    Interrupt_Default,            // 26
-    Interrupt_Default,            // 27
-    Interrupt_Default,            // 28
-    Interrupt_Default,            // 29
-    Interrupt_Default,            // 30
-    Interrupt_Default,            // 31
-    Interrupt_Clock,              // 32
-    Interrupt_Keyboard,           // 33  0x01
-    Interrupt_Default,            // 34  0x02
-    Interrupt_Default,            // 35  0x03
-    Interrupt_Mouse,              // 36  0x04
-    Interrupt_Default,            // 37  0x05
-    Interrupt_Default,            // 38  0x06
-    Interrupt_Default,            // 39  0x07
-    Interrupt_Default,            // 40  0x08
-    Interrupt_Default,            // 41  0x09
-    Interrupt_Default,            // 42  0x0A
-    Interrupt_Default,            // 43  0x0B
-    Interrupt_Default,            // 44  0x0C
-    Interrupt_Default,            // 45  0x0D
-    Interrupt_HardDrive,          // 46  0x0E
-    Interrupt_Default,            // 47  0x0F
-};
-
-/***************************************************************************/
-
 PHYSICAL StubAddress = 0;
 
 /***************************************************************************/
@@ -172,51 +118,6 @@ void KernelMemFree(LPVOID Pointer) {
 void SetGateDescriptorOffset(LPGATEDESCRIPTOR This, U32 Offset) {
     This->Offset_00_15 = (Offset & (U32)0x0000FFFF) >> 0x00;
     This->Offset_16_31 = (Offset & (U32)0xFFFF0000) >> 0x10;
-}
-
-/***************************************************************************/
-
-static void InitializeInterrupts() {
-    U32 Index = 0;
-
-    //-------------------------------------
-    // Set all used interrupts
-
-    for (Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-        IDT[Index].Reserved = 0;
-        IDT[Index].Type = GATE_TYPE_386_INT;
-        IDT[Index].Privilege = PRIVILEGE_KERNEL;
-        IDT[Index].Present = 1;
-
-        SetGateDescriptorOffset(IDT + Index, (U32)InterruptTable[Index]);
-    }
-
-    //-------------------------------------
-    // Set system call interrupt
-
-    Index = EXOS_USER_CALL;
-
-    IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-    IDT[Index].Reserved = 0;
-    IDT[Index].Type = GATE_TYPE_386_TRAP;
-    IDT[Index].Privilege = PRIVILEGE_KERNEL;
-    IDT[Index].Present = 1;
-
-    SetGateDescriptorOffset(IDT + Index, (U32)Interrupt_SystemCall);
-
-    //-------------------------------------
-    // Set driver call interrupt
-
-    Index = EXOS_DRIVER_CALL;
-
-    IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-    IDT[Index].Reserved = 0;
-    IDT[Index].Type = GATE_TYPE_386_TRAP;
-    IDT[Index].Privilege = PRIVILEGE_KERNEL;
-    IDT[Index].Present = 1;
-
-    SetGateDescriptorOffset(IDT + Index, (U32)Interrupt_DriverCall);
 }
 
 /***************************************************************************/
@@ -559,12 +460,19 @@ void DumpSystemInformation() {
     //-------------------------------------
     // Print information on memory
 
-    KernelPrint(TEXT("Physical memory : "));
-    U32ToString(Memory / 1024, Num);
-    KernelPrint(Num);
+    KernelPrint(TEXT("Physical memory : %d"), Memory / 1024);
     KernelPrint(Text_Space);
     KernelPrint(Text_KB);
     KernelPrint(Text_NewLine);
+
+    KernelPrint(TEXT("GDT : %X -> %X"), LA_GDT, PA_GDT);
+    KernelPrint(TEXT("PGD : %X -> %X"), LA_PGD, PA_PGD);
+    KernelPrint(TEXT("PGS : %X -> %X"), LA_PGS, PA_PGS);
+    KernelPrint(TEXT("PGK : %X -> %X"), LA_PGK, PA_PGK);
+    KernelPrint(TEXT("PGL : %X -> %X"), LA_PGL, PA_PGL);
+    KernelPrint(TEXT("PGH : %X -> %X"), LA_PGH, PA_PGH);
+    KernelPrint(TEXT("TSS : %X -> %X"), LA_TSS, PA_TSS);
+    KernelPrint(TEXT("PPB : %X -> %X"), LA_PPB, PA_PPB);
 }
 
 /***************************************************************************/
@@ -619,6 +527,16 @@ U32 GetPhysicalMemoryUsed() {
 
 /***************************************************************************/
 
+void LoadDriver(LPDRIVER Driver) {
+    if (Driver->ID != ID_DRIVER) {
+        KernelPrint(TEXT("Kernel data corrupted. Aborting!"));
+        SLEEPING_BEAUTY
+    }
+    Driver->Command(DF_LOAD, 0);
+}
+
+/***************************************************************************/
+
 void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
@@ -658,7 +576,12 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize the console
 
-    ConsoleInitialize();
+    InitializeConsole();
+
+    //-------------------------------------
+    // Print system infomation
+
+    DumpSystemInformation();
 
     //-------------------------------------
     // Print the EXOS banner
@@ -668,14 +591,13 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize the keyboard
 
-    StdKeyboardDriver.Command(DF_LOAD, 0);
+    LoadDriver(&StdKeyboardDriver);
     KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized..."));
 
     //-------------------------------------
     // Initialize interrupts
 
     InitializeInterrupts();
-    LoadInterruptDescriptorTable(LA_IDT, IDT_SIZE - 1);
     KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized..."));
 
     //-------------------------------------
@@ -706,13 +628,13 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize RAM drives
 
-    RAMDiskDriver.Command(DF_LOAD, 0);
+    LoadDriver(&RAMDiskDriver);
     KernelLogText(LOG_VERBOSE, TEXT("RAM drive initialized..."));
 
     //-------------------------------------
     // Initialize physical drives
 
-    StdHardDiskDriver.Command(DF_LOAD, 0);
+    LoadDriver(&StdHardDiskDriver);
     KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized..."));
 
     //-------------------------------------
@@ -724,19 +646,14 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize the graphics card
 
-    VESADriver.Command(DF_LOAD, 0);
+    LoadDriver(&VESADriver);
     KernelLogText(LOG_VERBOSE, TEXT("VESA driver initialized..."));
 
     //-------------------------------------
     // Initialize the mouse
 
-    SerialMouseDriver.Command(DF_LOAD, 0);
+    LoadDriver(&SerialMouseDriver);
     KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
-
-    //-------------------------------------
-    // Print system infomation
-
-    DumpSystemInformation();
 
     //-------------------------------------
     // Test tasks

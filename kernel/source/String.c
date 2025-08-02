@@ -52,6 +52,16 @@ STR CharToUpper(STR Char) {
 
 /***************************************************************************/
 
+BOOL StringEmpty(LPCSTR Src) {
+    if (Src) {
+        return Src[0] == STR_NULL;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 U32 StringLength(LPCSTR Src) {
     U32 Index = 0;
     U32 Size = 0;

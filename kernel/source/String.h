@@ -34,6 +34,7 @@ BOOL IsNumeric(STR);
 BOOL IsAlphaNumeric(STR);
 STR CharToLower(STR);
 STR CharToUpper(STR);
+BOOL StringEmpty(LPCSTR);
 U32 StringLength(LPCSTR);
 void StringCopy(LPSTR, LPCSTR);
 void StringCopyNum(LPSTR, LPCSTR, U32);

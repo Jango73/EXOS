@@ -817,6 +817,27 @@ DoSystemCall :
     pop     ebp
     ret
 
+;--------------------------------------
+
+Reboot :
+
+    cli
+
+    ; Wait for keyboard controler ready
+.wait_input_clear:
+    in      al, 0x64
+    test    al, 0x02
+    jnz     .wait_input_clear
+
+    ; Send reset command
+    mov     al, 0xFE
+    out     0x64, al
+
+    ; Infinite loop
+.hang:
+    hlt
+    jmp     .hang
+
 ;----------------------------------------------------------------------------
 
 section .bss

@@ -401,6 +401,8 @@ SetupPIC :
     ret
 
 ;----------------------------------------------------------------------------
+;----------------------------------------------------------------------------
+;----------------------------------------------------------------------------
 
 ; This is the start of the PM code
 ; EBP contains the physical address of the stub
@@ -436,7 +438,7 @@ Start32 :
     mov     byte [eax], 'A'
 
     mov     edi, PA_SYSTEM
-    mov     ecx, N_128KB
+    mov     ecx, SYSTEM_SIZE
     xor     eax, eax
     cld
     rep     stosb
@@ -741,7 +743,7 @@ ProtectedModeEntry :
 
 _ProtectedModeEntry_Hang :
 
-    jmp     _ProtectedModeEntry_Hang
+    jmp     $
 
 ;----------------------------------------------------------------------------
 
