@@ -13,7 +13,7 @@ LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map
 KERNEL_ELF = bin/exos.elf
 KERNEL_BIN = bin/exos.bin
 
-SRC_C  = $(wildcard source/*.c)
+SRC_C  = $(wildcard source/*.c) $(wildcard source/binary/*.c)
 SRC_S  = $(wildcard source/asm/*.asm)
 
 OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))
