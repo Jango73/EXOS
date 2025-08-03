@@ -45,7 +45,6 @@ static void PrintFaultDetails() {
 
 static void Die() {
     LPTASK Task;
-    INTEL386REGISTERS Regs;
 
     Task = GetCurrentTask();
 
@@ -183,7 +182,8 @@ void StackFaultHandler() {
 /***************************************************************************/
 
 void GeneralProtectionHandler(U32 Code) {
-    STR Num[16];
+    UNUSED(Code);
+
     INTEL386REGISTERS Regs;
 
     KernelLogText(LOG_ERROR, Text_NewLine);
@@ -204,10 +204,10 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address) {
     LPTASK Task = GetCurrentTask();
     INTEL386REGISTERS Regs;
 
-    ConsolePrint("Page fault !\n");
+    ConsolePrint(TEXT("Page fault !\n"));
 
     ConsolePrint(TEXT("The current task (%X) did an unauthorized access"), Task ? Task : 0);
-    ConsolePrint(TEXT("at linear address : %X\n"), Address);
+    ConsolePrint(TEXT("at linear address : %X, error code : %X\n"), Address, ErrorCode);
     ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
     ConsolePrint(TEXT("Shutdown in progress..."));
 

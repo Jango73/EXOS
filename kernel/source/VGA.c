@@ -33,8 +33,8 @@
 
 void VGAIODelay() {
     U32 Index, Data;
-
     for (Index = 0; Index < 10; Index++) Data = Index;
+    UNUSED(Data);
 }
 
 /***************************************************************************/

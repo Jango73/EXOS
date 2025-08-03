@@ -175,6 +175,7 @@ static inline U32 GetTableEntry(LINEAR Address) {
 
 /***************************************************************************/
 
+/*
 static BOOL IsValidRegion(LINEAR Base, U32 Size) {
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE Table = NULL;
@@ -202,20 +203,12 @@ static BOOL IsValidRegion(LINEAR Base, U32 Size) {
 
     return TRUE;
 }
+*/
 
 /***************************************************************************/
 
 static BOOL SetTempPage(PHYSICAL Physical) {
-    LPPAGEDIRECTORY Directory = NULL;
-    LPPAGETABLE Table = NULL;
     LPPAGETABLE SysTable = NULL;
-    U32 DirEntry = 0;
-    U32 TabEntry = 0;
-
-    DirEntry = GetDirectoryEntry(LA_TEMP);
-    TabEntry = GetTableEntry(LA_TEMP);
-    Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
-    Table = (LPPAGETABLE)(LA_PAGETABLE + (DirEntry << PAGE_SIZE_MUL));
 
     SysTable = (LPPAGETABLE)LA_SYSTABLE;
 
@@ -528,7 +521,6 @@ static void FreeEmptyPageTables() {
     LPPAGETABLE Table = NULL;
     LINEAR Base = N_4MB;
     U32 DirEntry = 0;
-    U32 TabEntry = 0;
     U32 Index = 0;
     U32 DestroyIt = 0;
 

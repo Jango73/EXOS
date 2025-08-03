@@ -192,8 +192,6 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
         BytesRead = File->BytesRead;
     }
 
-Out:
-
     UnlockMutex(&(File->Mutex));
 
     return BytesRead;
@@ -231,8 +229,6 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
         // File->Position += File->BytesRead;
         BytesWritten = File->BytesRead;
     }
-
-Out:
 
     UnlockMutex(&(File->Mutex));
 

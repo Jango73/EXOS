@@ -107,7 +107,6 @@ void StringCopyNum(LPSTR Dst, LPCSTR Src, U32 Len) {
 void StringConcat(LPSTR Dst, LPCSTR Src) {
     LPSTR DstPtr = NULL;
     LPCSTR SrcPtr = NULL;
-    U32 Index = 0;
 
     if (Dst && Src) {
         SrcPtr = Src;
@@ -392,10 +391,10 @@ U32 StringToU32(LPCSTR Text) {
 LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision,
                      I32 Type) {
     STR c, Sign, Temp[66];
-    LPCSTR Digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+    LPCSTR Digits = TEXT("0123456789abcdefghijklmnopqrstuvwxyz");
     INT i;
 
-    if (Type & PF_LARGE) Digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    if (Type & PF_LARGE) Digits = TEXT("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
     if (Type & PF_LEFT) Type &= ~PF_ZEROPAD;
 

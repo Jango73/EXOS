@@ -1,6 +1,4 @@
 
-// LIST.C
-
 /***************************************************************************\
 
     EXOS Kernel
@@ -134,7 +132,6 @@ U32 ListAddItem(LPLIST This, LPVOID Item) {
 U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
     LPLISTNODE CurNode = NULL;
     LPLISTNODE PrevNode = NULL;
-    LPLISTNODE NextNode = NULL;
     LPLISTNODE NewNode = (LPLISTNODE)NewItem;
     LPLISTNODE RefNode = (LPLISTNODE)RefItem;
 
@@ -142,7 +139,6 @@ U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
 
     CurNode = This->First;
     PrevNode = This->First;
-    NextNode = CurNode->Next;
 
     while (CurNode) {
         if (CurNode == RefNode) {
@@ -168,7 +164,6 @@ U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
         }
         PrevNode = CurNode;
         CurNode = CurNode->Next;
-        NextNode = CurNode->Next;
     }
 
     return ListAddItem(This, NewItem);
@@ -344,7 +339,7 @@ U32 ListReset(LPLIST This) {
 
 LPVOID ListGetItem(LPLIST This, U32 Index) {
     LPLISTNODE Node = This->First;
-    long Counter = 0;
+    U32 Counter = 0;
 
     if (This->NumItems == 0) return NULL;
 
@@ -394,7 +389,6 @@ U32 ListSort(LPLIST This, COMPAREFUNC Func) {
     LPVOID* Data = NULL;
     U32 NumItems = 0;
     U32 Index = 0;
-    U32 Mode = 0;
 
     if (This->NumItems == 0) return TRUE;
 

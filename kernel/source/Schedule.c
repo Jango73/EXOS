@@ -1,11 +1,9 @@
 
-// Schedule.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -25,12 +23,6 @@ typedef struct tag_TASKLIST {
     LPTASK Current;
     LPTASK Tasks[NUM_TASKS];
 } TASKLIST, *LPTASKLIST;
-
-/***************************************************************************/
-
-// Temp
-
-static U32 CharSequence = 0;
 
 /***************************************************************************/
 
@@ -142,8 +134,6 @@ void Scheduler() {
     if (TaskList.Freeze) return;
 
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
-        U32 Index = 0;
-
         DisableInterrupts();
 
         TaskList.SchedulerTime = 0;

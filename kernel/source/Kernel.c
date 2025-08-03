@@ -92,13 +92,6 @@ KERNELDATA Kernel = {&DesktopList, &ProcessList,       &TaskList,
 
 /***************************************************************************/
 
-static void DebugPutChar(STR Char) {
-    volatile char* vram = (char*)0xB8000;
-    vram[0] = Char;
-}
-
-/***************************************************************************/
-
 LPVOID KernelMemAlloc(U32 Size) {
     return HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Size);
 }
@@ -316,8 +309,6 @@ U32 ClockTask(LPVOID Param) {
 /***************************************************************************/
 
 void DumpSystemInformation() {
-    static STR Num[16] = {0};
-
     ConsolePrint(Text_NewLine);
 
     //-------------------------------------
@@ -445,12 +436,12 @@ void InitializeKernel() {
 
     extern LINEAR __bss_start;
     extern LINEAR __bss_end;
-    LINEAR BSSStart = (&__bss_start);
-    LINEAR BSSEnd = (&__bss_end);
+    LINEAR BSSStart = (LINEAR)(&__bss_start);
+    LINEAR BSSEnd = (LINEAR)(&__bss_end);
     U32 BSSSize = BSSEnd - BSSStart;
 
     KernelLogText(LOG_DEBUG, TEXT("BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);
-    MemorySet(BSSStart, 0, BSSSize);
+    MemorySet((LPVOID) BSSStart, 0, BSSSize);
     KernelLogText(LOG_DEBUG, TEXT("BSS cleared"));
 
     MemoryCopy(&KernelStartup, &TempKernelStartup, sizeof(KERNELSTARTUPINFO));

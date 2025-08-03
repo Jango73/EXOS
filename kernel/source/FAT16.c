@@ -252,6 +252,7 @@ static BOOL ReadCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
 
 /***************************************************************************/
 
+/*
 static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
                          LPVOID Buffer) {
     IOCONTROL Control;
@@ -293,6 +294,7 @@ static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
 
     return TRUE;
 }
+*/
 
 /***************************************************************************/
 
@@ -332,7 +334,6 @@ static CLUSTER GetNextClusterInChain(LPFAT16FILESYSTEM FileSystem,
 /***************************************************************************/
 
 static void DecodeFileName(LPFATDIRENTRY DirEntry, LPSTR Name) {
-    LPFATDIRENTRY_LFN LFNEntry = NULL;
     U32 Index = 0;
 
     //-------------------------------------
@@ -457,8 +458,9 @@ static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path,
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, "*") == 0 ||
+                if (StringCompareNC(Component, TEXT("*")) == 0 ||
                     StringCompareNC(Component, Name) == 0) {
+
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = DirEntry->Cluster;
 
@@ -603,15 +605,15 @@ static U32 OpenNext(LPFATFILE File) {
 /***************************************************************************/
 
 static U32 CloseFile(LPFATFILE File) {
-    LPFAT16FILESYSTEM FileSystem;
-    LPFATDIRENTRY DirEntry;
+    // LPFAT16FILESYSTEM FileSystem;
+    // LPFATDIRENTRY DirEntry;
 
     if (File == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
     // Get the associated file system
 
-    FileSystem = (LPFAT16FILESYSTEM)File->Header.FileSystem;
+    // FileSystem = (LPFAT16FILESYSTEM)File->Header.FileSystem;
 
     //-------------------------------------
     // Update file information in directory entry

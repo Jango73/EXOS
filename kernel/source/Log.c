@@ -191,6 +191,8 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
                 break;
             case 'X':
                 Flags |= PF_LARGE;
+                Base = 16;
+                break;
             case 'x':
                 Base = 16;
                 break;
