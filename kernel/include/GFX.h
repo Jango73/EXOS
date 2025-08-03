@@ -1,11 +1,9 @@
 
-// GFX.h
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
