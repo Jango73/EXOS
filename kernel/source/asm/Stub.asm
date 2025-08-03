@@ -47,6 +47,11 @@ SI_Console_CX     dd 0
 SI_Console_CY     dd 0
 SI_Memory         dd 0
 
+; Kernel image information
+KernelInfo :
+    KernelStart dd __kernel_start
+    KernelSize  dd __kernel_size
+
 ;--------------------------------------
 
 GDT :
@@ -567,7 +572,7 @@ SetupPaging :
 
     mov     edi, PA_PGK
     mov     eax, PA_KERNEL
-    mov     ecx, __kernel_size
+    mov     ecx, [KernelSize - StartAbsolute]
     add     ecx, N_4KB - 1
     shr     ecx, MUL_4KB
     call    MapPages
@@ -627,9 +632,9 @@ CopyKernel :
     ; Copy the kernel code and data without the stub
 
     mov     esi, ebp
-    add     esi, __kernel_start
+    add     esi, [KernelStart - StartAbsolute]
     mov     edi, PA_KERNEL
-    mov     ecx, __kernel_size
+    mov     ecx, [KernelSize - StartAbsolute]
     cld
     rep     movsb
     ret
