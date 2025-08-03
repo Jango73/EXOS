@@ -1,3 +1,4 @@
+
 /***************************************************************************\
 
     EXOS Portal
@@ -21,7 +22,7 @@ U32 EXOSMain(U32, LPSTR[]);
 static STR Prop_Over[] = "OVER";
 static STR Prop_Down[] = "DOWN";
 
-static void* TestFuncPtr = (void*)EXOSMain;
+// static void* TestFuncPtr = (void*)EXOSMain;
 
 /***************************************************************************/
 
@@ -68,6 +69,9 @@ void DrawFrame3D(HANDLE GC, LPRECT Rect, BOOL Invert, BOOL Fill) {
 /***************************************************************************/
 
 U32 OnButtonCreate(HANDLE Window, U32 Param1, U32 Param2) {
+    UNUSED(Param1);
+    UNUSED(Param2);
+
     SetWindowProp(Window, Prop_Down, 0);
     SetWindowProp(Window, Prop_Over, 0);
 
@@ -77,14 +81,21 @@ U32 OnButtonCreate(HANDLE Window, U32 Param1, U32 Param2) {
 /***************************************************************************/
 
 U32 OnButtonLeftButtonDown(HANDLE Window, U32 Param1, U32 Param2) {
+    UNUSED(Param1);
+    UNUSED(Param2);
+
     SetWindowProp(Window, Prop_Down, 1);
     InvalidateWindowRect(Window, NULL);
+
     return 0;
 }
 
 /***************************************************************************/
 
 U32 OnButtonLeftButtonUp(HANDLE Window, U32 Param1, U32 Param2) {
+    UNUSED(Param1);
+    UNUSED(Param2);
+
     InvalidateWindowRect(Window, NULL);
     SetWindowProp(Window, Prop_Down, 0);
 
@@ -138,11 +149,15 @@ U32 OnButtonMouseMove(HANDLE Window, U32 Param1, U32 Param2) {
 /***************************************************************************/
 
 U32 OnButtonDraw(HANDLE Window, U32 Param1, U32 Param2) {
-    HANDLE GC;
+    UNUSED(Param1);
+    UNUSED(Param2);
+
     RECT Rect;
 
+    HANDLE GC = GetWindowGC(Window);
+
     // if (GC = BeginWindowDraw(Window))
-    if (GC = GetWindowGC(Window)) {
+    if (GC != NULL) {
         GetWindowRect(Window, &Rect);
 
         if (GetWindowProp(Window, Prop_Down)) {
@@ -154,6 +169,8 @@ U32 OnButtonDraw(HANDLE Window, U32 Param1, U32 Param2) {
         ReleaseWindowGC(Window);
         // EndWindowDraw(Window);
     }
+
+    return 0;
 }
 
 /***************************************************************************/
@@ -197,10 +214,10 @@ U32 MainWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         } break;
 
         case EWM_DRAW: {
-            HANDLE GC;
             RECT Rect;
+            HANDLE GC = GetWindowGC(Window);
 
-            if (GC = GetWindowGC(Window)) {
+            if (GC != NULL) {
                 GetWindowRect(Window, &Rect);
 
                 DrawFrame3D(GC, &Rect, 0, FALSE);
@@ -232,14 +249,14 @@ U32 MainWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 /***************************************************************************/
 
 U32 DesktopTask(LPVOID Param) {
+    UNUSED(Param);
+
     HANDLE Desktop;
     HANDLE Window;
-    HANDLE GC;
     POINT MousePos;
     POINT NewMousePos;
     U32 MouseButtons;
     U32 NewMouseButtons;
-    U32 Sequence = 0;
 
     Desktop = CreateDesktop();
     if (Desktop == NULL) return MAX_U32;
@@ -352,6 +369,9 @@ BOOL InitApplication() {
 /***************************************************************************/
 
 U32 EXOSMain(U32 NumArguments, LPSTR Arguments[]) {
+    UNUSED(NumArguments);
+    UNUSED(Arguments);
+
     MESSAGE Message;
 
     if (InitApplication() == FALSE) return MAX_U32;

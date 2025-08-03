@@ -44,6 +44,8 @@ section .text
     global strlen
     global strcpy
     global strcat
+    global strcmp
+    global strstr
 
 ;--------------------------------------
 ; Under EXOS, __start__ is the entry point of a task
@@ -189,8 +191,83 @@ strcmp :
 
     push    ebp
     mov     ebp, esp
-    xor     eax, eax
+
+    mov     esi, [ebp+(PBN+0)]  ; str1
+    mov     edi, [ebp+(PBN+4)]  ; str2
+
+.loop:
+    mov     al, [esi]        ; char1
+    mov     bl, [edi]        ; char2
+    cmp     al, bl
+    jne     .diff
+    test    al, al           ; end of string ?
+    je      .equal
+    inc     esi
+    inc     edi
+    jmp     .loop
+
+.diff:
+    movzx   eax, al
+    movzx   ebx, bl
+    sub     eax, ebx
+    jmp     .end
+
+.equal:
+    xor     eax, eax         ; return 0
+
+.end:
     pop     ebp
     ret
 
 ;----------------------------------------------------------------------------
+
+strstr:
+
+    push    ebp
+    mov     ebp, esp
+
+    mov     esi, [ebp+(PBN+0)] ; esi = haystack pointer
+    mov     edi, [ebp+(PBN+4)] ; edi = needle pointer
+
+    mov     al, [edi]        ; check if needle is empty
+    test    al, al
+    jz      .needle_empty    ; if needle == "", return haystack
+
+.loop_haystack:
+    mov     ebx, esi         ; ebx = current haystack position
+    mov     ecx, edi         ; ecx = current needle position
+
+.loop_compare:
+    mov     al, [ecx]        ; load current char of needle
+    test    al, al
+    jz      .found           ; end of needle: match found
+    mov     dl, [ebx]        ; load current char of haystack
+    test    dl, dl
+    jz      .not_found       ; end of haystack, no match
+    cmp     al, dl
+    jne     .no_match        ; mismatch, try next position
+    inc     ebx
+    inc     ecx
+    jmp     .loop_compare    ; continue comparing next chars
+
+.no_match:
+    inc     esi
+    mov     al, [esi]
+    test    al, al
+    jz      .not_found       ; haystack ended, not found
+    jmp     .loop_haystack   ; try next haystack position
+
+.needle_empty:
+    mov     eax, esi         ; needle is empty: return haystack
+    pop     ebp
+    ret
+
+.found:
+    mov     eax, esi         ; return pointer to match in haystack
+    pop     ebp
+    ret
+
+.not_found:
+    xor     eax, eax         ; not found: return 0
+    pop     ebp
+    ret

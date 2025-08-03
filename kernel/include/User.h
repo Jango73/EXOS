@@ -242,6 +242,8 @@ typedef struct tag_FILEOPENINFO {
 #define FILE_OPEN_APPEND 0x00000004
 #define FILE_OPEN_EXISTING 0x00000008
 #define FILE_OPEN_CREATE_ALWAYS 0x00000010
+#define FILE_OPEN_TRUNCATE 0x00000020
+#define FILE_OPEN_SEEK_END 0x00000040
 
 /***************************************************************************/
 
