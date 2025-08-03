@@ -24,6 +24,10 @@ SECTIONS
         *(.data)
     }
 
+    __kernel_start = LOADADDR(.text);
+    __kernel_end = LOADADDR(.data) + SIZEOF(.data);
+    __kernel_size = __kernel_end - __kernel_start;
+
     /* BSS */
     .bss : AT(ALIGN(LOADADDR(.data) + SIZEOF(.data), 0x1000)) {
         __bss_start = .;

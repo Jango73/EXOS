@@ -303,5 +303,8 @@ extern HardDriveHandler
 
 extern Kernel
 extern StubAddress
+extern __kernel_start
+extern __kernel_end
+extern __kernel_size
 
 ;----------------------------------------------------------

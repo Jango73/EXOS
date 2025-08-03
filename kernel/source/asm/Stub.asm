@@ -563,11 +563,13 @@ SetupPaging :
     call    MapPages
 
     ;--------------------------------------
-    ; Setup kernel memory pages (KERNEL_SIZE bytes)
+    ; Setup kernel memory pages (actual kernel size)
 
     mov     edi, PA_PGK
     mov     eax, PA_KERNEL
-    mov     ecx, KERNEL_SIZE >> MUL_4KB
+    mov     ecx, __kernel_size
+    add     ecx, N_4KB - 1
+    shr     ecx, MUL_4KB
     call    MapPages
 
     ;--------------------------------------
@@ -625,10 +627,9 @@ CopyKernel :
     ; Copy the kernel code and data without the stub
 
     mov     esi, ebp
-    add     esi, N_4KB
+    add     esi, __kernel_start
     mov     edi, PA_KERNEL
-    mov     ecx, KERNEL_SIZE
-    sub     ecx, N_4KB
+    mov     ecx, __kernel_size
     cld
     rep     movsb
     ret
