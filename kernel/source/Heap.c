@@ -24,8 +24,6 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     LINEAR HighBlock = NULL;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering HeapAllocEx"));
-
     //-------------------------------------
     // Check validity of parameters
 
@@ -111,8 +109,6 @@ Out:
         MemorySet((LPVOID)Pointer, 0, Size);
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting HeapAllocEx"));
-
     return (LPVOID)Pointer;
 }
 
@@ -124,8 +120,6 @@ void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer) {
     LPHEAPCONTROLBLOCK Block = NULL;
     LPHEAPALLOCENTRY Entry = NULL;
     U32 Index = 0;
-
-    KernelLogText(LOG_DEBUG, TEXT("Entering HeapFree_HBHS"));
 
     if (Pointer == NULL) return;
 
@@ -146,8 +140,6 @@ void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer) {
     }
 
 Out:
-
-    KernelLogText(LOG_DEBUG, TEXT("Exiting HeapAlloc_HBHS"));
 }
 
 /***************************************************************************/

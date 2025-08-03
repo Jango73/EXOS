@@ -76,11 +76,14 @@ void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 LPTASK NewTask() {
     LPTASK This = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering NewTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Enter"));
 
     This = (LPTASK)KernelMemAlloc(sizeof(TASK));
 
-    if (This == NULL) return NULL;
+    if (This == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[NewTask] Could not allocate memory for task"));
+        return NULL;
+    }
 
     MemorySet(This, 0, sizeof(TASK));
 
@@ -110,7 +113,7 @@ LPTASK NewTask() {
 
     This->Message = NewList(MessageDestructor, KernelMemAlloc, KernelMemFree);
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting NewTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Exit"));
 
     return This;
 }
@@ -121,7 +124,7 @@ void DeleteTask(LPTASK This) {
     LPLISTNODE Node = NULL;
     LPMUTEX Mutex = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering DeleteTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Enter"));
 
     //-------------------------------------
     // Check validity of parameters
@@ -144,14 +147,14 @@ void DeleteTask(LPTASK This) {
     //-------------------------------------
     // Delete the task's message queue
 
-    KernelLogText(LOG_DEBUG, TEXT("Deleting message queue...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting message queue..."));
 
     if (This->Message != NULL) DeleteList(This->Message);
 
         //-------------------------------------
         // Delete the task's stacks
 
-    KernelLogText(LOG_DEBUG, TEXT("Deleting stacks...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks..."));
 
     if (This->SysStackBase != NULL) {
         HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize,
@@ -170,7 +173,7 @@ void DeleteTask(LPTASK This) {
 
     KernelMemFree(This);
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting DeleteTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Exit"));
 }
 
 /***************************************************************************/
@@ -235,7 +238,15 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     U32 Table = MAX_U32;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering CreateTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Process : %X"), Process);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Info : %X"), Info);
+
+    if (Info != NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Func : %X"), Info->Func);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Parameter : %X"), Info->Parameter);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Flags : %X"), Info->Flags);
+    }
 
     //-------------------------------------
     // Check parameters
@@ -269,7 +280,12 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     Task = NewTask();
 
-    if (Task == NULL) goto Out;
+    if (Task == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[CreateTask] NewTask failed"));
+        goto Out;
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Task allocated at %X"), Task);
 
     //-------------------------------------
     // Setup the task
@@ -312,6 +328,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         DeleteTask(Task);
         Task = NULL;
 
+        KernelLogText(LOG_ERROR, TEXT("[CreateTask] Stack or system stack allocation failed"));
         goto Out;
     }
 
@@ -384,7 +401,7 @@ Out:
 
     UnlockMutex(MUTEX_KERNEL);
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting CreateTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Exit"));
 
     return Task;
 }
@@ -395,7 +412,10 @@ BOOL KillTask(LPTASK Task) {
     if (Task == NULL) return FALSE;
     if (Task == &KernelTask) return FALSE;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering KillTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("Process : %X"), Task->Process);
+    KernelLogText(LOG_DEBUG, TEXT("Task : %X"), Task);
+    KernelLogText(LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
 
     //-------------------------------------
     // Lock access to kernel data
@@ -432,7 +452,7 @@ Out:
     UnfreezeScheduler();
     UnlockMutex(MUTEX_KERNEL);
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting KillTask\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[KillTask] Exit"));
 
     return TRUE;
 }

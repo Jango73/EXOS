@@ -30,6 +30,7 @@ typedef struct tag_MUTEX MUTEX, *LPMUTEX;
 // Macro to initialize a mutex
 
 #define EMPTY_MUTEX \
-    { ID_MUTEX, 1, NULL, NULL, NULL, NULL, 0 }
+    { .ID = ID_MUTEX, .References = 1, .Next = NULL, .Prev = NULL, .Process = NULL, .Task = NULL, .Lock = 0 }
+
 
 #endif

@@ -15,31 +15,6 @@
 
 /***************************************************************************/
 
-typedef struct tag_InterruptFrame
-{
-    U32 EDI;
-    U32 ESI;
-    U32 EBP;
-    U32 ESP;
-    U32 EBX;
-    U32 EDX;
-    U32 ECX;
-    U32 EAX;
-
-    U32 Error;         // Always present (dummy 0 if no real error code)
-
-    U32 EIP;
-    U32 CS;
-    U32 EFlags;
-
-    // Only present if privilege level changed (user -> kernel)
-    U32 ESP_Fault;     // (optional)
-    U32 SS_Fault;      // (optional)
-    U32 FaultAddress;
-} InterruptFrame, *LPInterruptFrame;
-
-/***************************************************************************/
-
 static void PrintFaultDetails() {
     INTEL386REGISTERS Regs;
     LPPROCESS Process;
@@ -97,14 +72,14 @@ static void Die() {
 
 /***************************************************************************/
 
-void DefaultHandler(LPInterruptFrame) {
+void DefaultHandler() {
     KernelLogText(LOG_ERROR, TEXT("Unknown interrupt\n"));
     PrintFaultDetails();
 }
 
 /***************************************************************************/
 
-void DivideErrorHandler(LPInterruptFrame) {
+void DivideErrorHandler() {
     KernelLogText(LOG_ERROR, TEXT("Divide error !\n"));
     PrintFaultDetails();
     Die();
@@ -112,21 +87,21 @@ void DivideErrorHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void DebugExceptionHandler(LPInterruptFrame) {
+void DebugExceptionHandler() {
     KernelLogText(LOG_ERROR, TEXT("Debug exception !\n"));
     PrintFaultDetails();
 }
 
 /***************************************************************************/
 
-void NMIHandler(LPInterruptFrame) {
+void NMIHandler() {
     KernelLogText(LOG_ERROR, TEXT("Non-maskable interrupt !\n"));
     PrintFaultDetails();
 }
 
 /***************************************************************************/
 
-void BreakPointHandler(LPInterruptFrame) {
+void BreakPointHandler() {
     KernelLogText(LOG_ERROR, TEXT("Breakpoint !\n"));
     PrintFaultDetails();
     Die();
@@ -134,7 +109,7 @@ void BreakPointHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void OverflowHandler(LPInterruptFrame) {
+void OverflowHandler() {
     KernelLogText(LOG_ERROR, TEXT("Overflow !\n"));
     PrintFaultDetails();
     Die();
@@ -142,7 +117,7 @@ void OverflowHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void BoundRangeHandler(LPInterruptFrame) {
+void BoundRangeHandler() {
     KernelLogText(LOG_ERROR, TEXT("Bound range fault !\n"));
     PrintFaultDetails();
     Die();
@@ -150,7 +125,7 @@ void BoundRangeHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void InvalidOpcodeHandler(LPInterruptFrame) {
+void InvalidOpcodeHandler() {
     KernelLogText(LOG_ERROR, TEXT("Invalid opcode !\n"));
     PrintFaultDetails();
     Die();
@@ -158,7 +133,7 @@ void InvalidOpcodeHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void DeviceNotAvailHandler(LPInterruptFrame) {
+void DeviceNotAvailHandler() {
     KernelLogText(LOG_ERROR, TEXT("Device not available !\n"));
     PrintFaultDetails();
     Die();
@@ -166,7 +141,7 @@ void DeviceNotAvailHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void DoubleFaultHandler(LPInterruptFrame) {
+void DoubleFaultHandler() {
     KernelLogText(LOG_ERROR, TEXT("Double fault !\n"));
     PrintFaultDetails();
     Die();
@@ -174,7 +149,7 @@ void DoubleFaultHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void MathOverflowHandler(LPInterruptFrame) {
+void MathOverflowHandler() {
     KernelLogText(LOG_ERROR, TEXT("Math overflow !\n"));
     PrintFaultDetails();
     Die();
@@ -182,7 +157,7 @@ void MathOverflowHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void InvalidTSSHandler(LPInterruptFrame) {
+void InvalidTSSHandler() {
     KernelLogText(LOG_ERROR, TEXT("Invalid TSS !\n"));
     PrintFaultDetails();
     Die();
@@ -190,7 +165,7 @@ void InvalidTSSHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void SegmentFaultHandler(LPInterruptFrame) {
+void SegmentFaultHandler() {
     KernelLogText(LOG_ERROR, TEXT("Segment fault !\n"));
     PrintFaultDetails();
     Die();
@@ -198,7 +173,7 @@ void SegmentFaultHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void StackFaultHandler(LPInterruptFrame) {
+void StackFaultHandler() {
     KernelLogText(LOG_ERROR, TEXT("Stack fault !\n"));
     PrintFaultDetails();
     Die();
@@ -206,7 +181,7 @@ void StackFaultHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void GeneralProtectionHandler(LPInterruptFrame) {
+void GeneralProtectionHandler(U32 Code) {
     STR Num[16];
     INTEL386REGISTERS Regs;
 
@@ -224,17 +199,14 @@ void GeneralProtectionHandler(LPInterruptFrame) {
 
 /***************************************************************************/
 
-void PageFaultHandler(LPInterruptFrame Frame) {
-    STR Num[16];
+void PageFaultHandler(U32 ErrorCode, LINEAR Address) {
+    LPTASK Task = GetCurrentTask();
     INTEL386REGISTERS Regs;
 
     KernelLogText(LOG_ERROR, "Page fault !\n");
 
-    KernelLogText(LOG_ERROR, TEXT("The current task did an unauthorized access\n"));
-    KernelLogText(LOG_ERROR, TEXT("at linear address : "));
-    U32ToHexString(Frame->FaultAddress, Num);
-    KernelLogText(LOG_ERROR, Num);
-    KernelLogText(LOG_ERROR, Text_NewLine);
+    KernelLogText(LOG_ERROR, TEXT("The current task (%X) did an unauthorized access\n"), Task ? Task : 0);
+    KernelLogText(LOG_ERROR, TEXT("at linear address : %X\n"), Address);
     KernelLogText(LOG_ERROR, TEXT("Since this error is unrecoverable,\n"));
     KernelLogText(LOG_ERROR, TEXT("the task will be shutdown now.\n"));
     KernelLogText(LOG_ERROR, TEXT("Shutdown in progress...\n"));
