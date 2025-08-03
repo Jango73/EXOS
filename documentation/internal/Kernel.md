@@ -881,6 +881,25 @@ Boot stub that transitions from the DOS loader to protected mode.
 - ProtectedModeEntry: Sets up segments and stack before jumping to the C kernel.
 - KernelStack: Preallocated kernel stack space.
 
+### StubUtils.asm
+
+Utility routines used by the boot stub.
+
+#### Functions in StubUtils.asm
+
+- Set_A20_Line: Enables the A20 line.
+- Clear_A20_Line: Disables the A20 line.
+- Gate_A20: Sends commands to the keyboard controller to toggle A20.
+- Empty_8042: Flushes the keyboard controller buffer.
+- Delay: Small timing delay.
+- PrintChar: Writes a character directly to the screen.
+- SetupPIC: Reprograms the Programmable Interrupt Controller.
+- SetupGDT: Copies the Global Descriptor Table to its physical address.
+- SetupPaging: Prepares page tables for paging.
+- MapPages: Maps consecutive pages in a page table.
+- CopyKernel: Copies the kernel to high memory.
+- GetMemorySize: Determines available physical memory.
+
 ### Sys.asm
 
 Defines DOS service constants used during early boot.
