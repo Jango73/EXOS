@@ -89,8 +89,8 @@ typedef struct tag_GRAPHICSCONTEXT {
     LISTNODE_FIELDS
     MUTEX Mutex;
     LPDRIVER Driver;
-    U32 Width;
-    U32 Height;
+    I32 Width;
+    I32 Height;
     U32 BitsPerPixel;
     U32 BytesPerScanLine;
     U8* MemoryBase;

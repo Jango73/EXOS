@@ -98,10 +98,12 @@ static U32 ReadCMOS(U32 Address) {
 
 /***************************************************************************/
 
+/*
 static void WriteCMOS(U32 Address, U32 Value) {
     OutPortByte(CMOS_COMMAND, Address);
     OutPortByte(CMOS_DATA, Value);
 }
+*/
 
 /***************************************************************************/
 

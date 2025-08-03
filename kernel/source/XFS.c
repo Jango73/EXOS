@@ -238,6 +238,7 @@ static BOOL ReadCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster,
 
 /***************************************************************************/
 
+/*
 static BOOL WriteCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster,
                          LPVOID Buffer) {
     IOCONTROL Control;
@@ -266,6 +267,7 @@ static BOOL WriteCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster,
 
     return TRUE;
 }
+*/
 
 /***************************************************************************/
 
@@ -276,7 +278,6 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
                        LPXFSFILELOC FileLoc) {
     LPLIST List = NULL;
     LPPATHNODE Component = NULL;
-    STR Name[MAX_FILE_NAME];
     LPXFSFILEREC FileRec;
 
     FileLoc->PageCluster = FileSystem->Super.RootCluster;
@@ -326,7 +327,8 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
 
             if (FileRec->ClusterTable > 0 &&
                 FileRec->ClusterTable != XFS_CLUSTER_END) {
-                if (StringCompareNC(Component->Name, "*") == 0 ||
+
+                if (StringCompareNC(Component->Name, TEXT("*")) == 0 ||
                     StringCompareNC(Component->Name, FileRec->Name) == 0) {
                     if (Component->Next == NULL) {
                         FileLoc->DataCluster = FileRec->ClusterTable;
@@ -653,7 +655,8 @@ static LPXFSFILE OpenFile(LPFILEINFO Find) {
 
 /***************************************************************************/
 
-#undef GET_PAGE_ENTRY()
+#undef GET_PAGE_ENTRY
+
 #define GET_PAGE_ENTRY() \
     (*((U32*)(FileSystem->PageBuffer + File->Location.PageOffset)))
 
@@ -733,15 +736,15 @@ static U32 OpenNext(LPXFSFILE File) {
 /***************************************************************************/
 
 static U32 CloseFile(LPXFSFILE File) {
-    LPXFSFILESYSTEM FileSystem = NULL;
-    LPXFSFILEREC FileRec = NULL;
+    // LPXFSFILESYSTEM FileSystem = NULL;
+    // LPXFSFILEREC FileRec = NULL;
 
     if (File == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
     // Get the associated file system
 
-    FileSystem = (LPXFSFILESYSTEM)File->Header.FileSystem;
+    // FileSystem = (LPXFSFILESYSTEM)File->Header.FileSystem;
 
     //-------------------------------------
     // Update file information in directory entry

@@ -27,7 +27,10 @@ typedef U32 (*SYSCALLFUNC)(U32);
 
 /***************************************************************************/
 
-U32 SysCall_GetVersion(U32 Parameter) { return (((U32)1 << 16) | (U32)0); }
+U32 SysCall_GetVersion(U32 Parameter) {
+    UNUSED(Parameter);
+    return (((U32)1 << 16) | (U32)0);
+}
 
 /***************************************************************************/
 
@@ -50,8 +53,8 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
         Info->NumProcesses = Kernel.Process->NumItems;
         Info->NumTasks = Kernel.Task->NumItems;
 
-        StringCopy(Info->UserName, "Not implemented");
-        StringCopy(Info->CompanyName, "Not implemented");
+        StringCopy(Info->UserName, TEXT("Not implemented"));
+        StringCopy(Info->CompanyName, TEXT("Not implemented"));
 
         return TRUE;
     }
@@ -61,15 +64,24 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_GetLastError(U32 Parameter) { return 0; }
+U32 SysCall_GetLastError(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_SetLastError(U32 Parameter) { return 0; }
+U32 SysCall_SetLastError(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_GetSystemTime(U32 Parameter) { return GetSystemTime(); }
+U32 SysCall_GetSystemTime(U32 Parameter) {
+    UNUSED(Parameter);
+    return GetSystemTime();
+}
 
 /***************************************************************************/
 
@@ -82,7 +94,8 @@ U32 SysCall_GetLocalTime(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_SetLocalTime(U32 Parameter) {
-    LPSYSTEMTIME Time = (LPSYSTEMTIME)Parameter;
+    UNUSED(Parameter);
+    // LPSYSTEMTIME Time = (LPSYSTEMTIME)Parameter;
     // if (Time) return SetLocalTime(Time);
     return FALSE;
 }
@@ -109,11 +122,17 @@ U32 SysCall_DeleteObject(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_CreateProcess(U32 Parameter) { return 0; }
+U32 SysCall_CreateProcess(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_KillProcess(U32 Parameter) { return 0; }
+U32 SysCall_KillProcess(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -127,15 +146,23 @@ U32 SysCall_CreateTask(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_KillTask(U32 Parameter) { return (U32)KillTask((LPTASK)Parameter); }
+U32 SysCall_KillTask(U32 Parameter) {
+    return (U32)KillTask((LPTASK)Parameter);
+}
 
 /***************************************************************************/
 
-U32 SysCall_SuspendTask(U32 Parameter) { return 0; }
+U32 SysCall_SuspendTask(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_ResumeTask(U32 Parameter) { return 0; }
+U32 SysCall_ResumeTask(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -168,7 +195,10 @@ U32 SysCall_SendMessage(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_PeekMessage(U32 Parameter) { return 0; }
+U32 SysCall_PeekMessage(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -192,11 +222,17 @@ U32 SysCall_DispatchMessage(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_CreateMutex(U32 Parameter) { return 0; }
+U32 SysCall_CreateMutex(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_DeleteMutex(U32 Parameter) { return 0; }
+U32 SysCall_DeleteMutex(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -276,8 +312,6 @@ U32 SysCall_EnumVolumes(U32 Parameter) {
         if (Result == 0) break;
     }
 
-Out:
-
     UnlockMutex(MUTEX_FILESYSTEM);
     return 1;
 }
@@ -330,15 +364,24 @@ U32 SysCall_GetFileSize(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_GetFilePointer(U32 Parameter) { return 0; }
+U32 SysCall_GetFilePointer(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_SetFilePointer(U32 Parameter) { return 0; }
+U32 SysCall_SetFilePointer(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_ConsolePeekKey(U32 Parameter) { return (U32)PeekChar(); }
+U32 SysCall_ConsolePeekKey(U32 Parameter) {
+    UNUSED(Parameter);
+    return (U32)PeekChar();
+}
 
 /***************************************************************************/
 
@@ -348,7 +391,10 @@ U32 SysCall_ConsoleGetKey(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_ConsoleGetChar(U32 Parameter) { return 0; }
+U32 SysCall_ConsoleGetChar(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -359,15 +405,24 @@ U32 SysCall_ConsolePrint(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_ConsoleGetString(U32 Parameter) { return 0; }
+U32 SysCall_ConsoleGetString(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_ConsoleGotoXY(U32 Parameter) { return 0; }
+U32 SysCall_ConsoleGotoXY(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_CreateDesktop(U32 Parameter) { return (U32)CreateDesktop(); }
+U32 SysCall_CreateDesktop(U32 Parameter) {
+    UNUSED(Parameter);
+    return (U32)CreateDesktop();
+}
 
 /***************************************************************************/
 
@@ -450,19 +505,31 @@ U32 SysCall_SizeWindow(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_SetWindowFunc(U32 Parameter) { return 0; }
+U32 SysCall_SetWindowFunc(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_GetWindowFunc(U32 Parameter) { return 0; }
+U32 SysCall_GetWindowFunc(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_SetWindowStyle(U32 Parameter) { return 0; }
+U32 SysCall_SetWindowStyle(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_GetWindowStyle(U32 Parameter) { return 0; }
+U32 SysCall_GetWindowStyle(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -512,11 +579,17 @@ U32 SysCall_GetWindowGC(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_ReleaseWindowGC(U32 Parameter) { return 1; }
+U32 SysCall_ReleaseWindowGC(U32 Parameter) {
+    UNUSED(Parameter);
+    return 1;
+}
 
 /***************************************************************************/
 
-U32 SysCall_EnumWindows(U32 Parameter) { return 0; }
+U32 SysCall_EnumWindows(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -622,33 +695,52 @@ U32 SysCall_GetMousePos(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_SetMousePos(U32 Parameter) { return 0; }
+U32 SysCall_SetMousePos(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
 U32 SysCall_GetMouseButtons(U32 Parameter) {
+    UNUSED(Parameter);
     return SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
 }
 
 /***************************************************************************/
 
-U32 SysCall_ShowMouse(U32 Parameter) { return 0; }
+U32 SysCall_ShowMouse(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_HideMouse(U32 Parameter) { return 0; }
+U32 SysCall_HideMouse(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_ClipMouse(U32 Parameter) { return 0; }
+U32 SysCall_ClipMouse(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_CaptureMouse(U32 Parameter) { return 0; }
+U32 SysCall_CaptureMouse(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
-U32 SysCall_ReleaseMouse(U32 Parameter) { return 0; }
+U32 SysCall_ReleaseMouse(U32 Parameter) {
+    UNUSED(Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 

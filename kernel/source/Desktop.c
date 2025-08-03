@@ -1,11 +1,9 @@
 
-// Desktop.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -508,7 +506,13 @@ BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
 
 /***************************************************************************/
 
-static BOOL ComputeWindowRegions(LPWINDOW This) {}
+/*
+static BOOL ComputeWindowRegions(LPWINDOW This) {
+    UNUSED(This);
+
+    return FALSE;
+}
+*/
 
 /***************************************************************************/
 
@@ -1234,7 +1238,6 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
 HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPWINDOW Target = NULL;
-    LPWINDOW Child = NULL;
     LPLISTNODE Node = NULL;
 
     //-------------------------------------
@@ -1283,6 +1286,9 @@ Out:
 /***************************************************************************/
 
 U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    UNUSED(Param1);
+    UNUSED(Param2);
+
     switch (Message) {
         case EWM_CREATE: {
         } break;
@@ -1325,6 +1331,7 @@ static STR Prop_MouseY[] = "MOUSEY";
 
 /***************************************************************************/
 
+/*
 static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
     LINEINFO LineInfo;
 
@@ -1348,31 +1355,13 @@ static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
     LineInfo.Y2 = Y + 4;
     Line(&LineInfo);
 
-    /*
-      PIXELINFO PixelInfo;
-      COLOR Color;
-
-      if (OnOff)
-      {
-    Color = 0x00FFFFFF;
-      }
-      else
-      {
-    Color = 0x00000000;
-      }
-
-      PixelInfo.GC = GC;
-      PixelInfo.X = X;
-      PixelInfo.Y = Y;
-      PixelInfo.Y = Y;
-      SetPixel(&PixelInfo);
-    */
-
     return 0;
 }
+*/
 
 /***************************************************************************/
 
+/*
 static U32 DrawButtons(HANDLE GC) {
     LINEINFO LineInfo;
     U32 Buttons = SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
@@ -1409,6 +1398,7 @@ static U32 DrawButtons(HANDLE GC) {
 
     return 1;
 }
+*/
 
 /***************************************************************************/
 
@@ -1448,13 +1438,13 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_MOUSEMOVE: {
             // U32 OldMouseX = GetWindowProp(Window, Prop_MouseX);
             // U32 OldMouseY = GetWindowProp(Window, Prop_MouseY);
-            I32 MouseX = SIGNED(Param1);
-            I32 MouseY = SIGNED(Param2);
+            // I32 MouseX = SIGNED(Param1);
+            // I32 MouseY = SIGNED(Param2);
             // LPWINDOW Target;
             // POINT Position;
-            HANDLE GC;
+            HANDLE GC = GC = GetWindowGC(Window);
 
-            if (GC = GetWindowGC(Window)) {
+            if (GC != NULL) {
                 // DrawMouseCursor(GC, SIGNED(OldMouseX), SIGNED(OldMouseY),
                 // FALSE); DrawMouseCursor(GC, MouseX, MouseY, TRUE);
                 ReleaseWindowGC(GC);
@@ -1483,10 +1473,8 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         } break;
 
         case EWM_MOUSEDOWN: {
-            RECT Rect;
             POINT Position;
             LPWINDOW Target;
-            HANDLE GC;
             I32 X, Y;
 
             X = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);

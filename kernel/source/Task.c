@@ -444,8 +444,6 @@ BOOL KillTask(LPTASK Task) {
 
     TTD[Task->Table].TSS.Type = 0;
 
-Out:
-
     //-------------------------------------
     // Unlock access to kernel data
 
@@ -470,8 +468,6 @@ U32 SetTaskPriority(LPTASK Task, U32 Priority) {
     Task->Priority = Priority;
 
     UpdateScheduler();
-
-Out:
 
     UnlockMutex(MUTEX_KERNEL);
 
@@ -513,6 +509,8 @@ U32 GetTaskStatus(LPTASK Task) {
 /***************************************************************************/
 
 void SetTaskStatus(LPTASK Task, U32 Status) {
+    UNUSED(Status);
+
     LockMutex(&(Task->Mutex), INFINITY);
     FreezeScheduler();
 
@@ -539,7 +537,6 @@ void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
 BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     LPLISTNODE Node;
     LPMESSAGE Message;
-    LPPROCESS Process;
     LPTASK Task;
     LPDESKTOP Desktop;
     LPWINDOW Win;
@@ -920,7 +917,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
 BOOL DispatchMessage(LPMESSAGEINFO Message) {
     LPPROCESS Process = NULL;
     LPDESKTOP Desktop = NULL;
-    LPLISTNODE Node = NULL;
+    // LPLISTNODE Node = NULL;
     BOOL Result = FALSE;
 
     //-------------------------------------
@@ -973,8 +970,6 @@ Out:
 /***************************************************************************/
 
 void DumpTask(LPTASK Task) {
-    STR Temp[32];
-
     LockMutex(&(Task->Mutex), INFINITY);
 
     KernelLogText(LOG_VERBOSE, TEXT("Address         : %08X\n"), Task);

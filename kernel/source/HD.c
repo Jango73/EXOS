@@ -1,11 +1,9 @@
 
-// HD.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -183,9 +181,9 @@ static U32 HardDiskInitialize() {
                 U32ToHexString(Port, PortStr);
                 U32ToHexString(Drive, DriveStr);
 
-                StringCopy(Message, "Initialize HD, Port : ");
+                StringCopy(Message, TEXT("Initialize HD, Port : "));
                 StringConcat(Message, PortStr);
-                StringConcat(Message, " Drive : ");
+                StringConcat(Message, TEXT(" Drive : "));
                 StringConcat(Message, DriveStr);
 
                 KernelLogText(LOG_VERBOSE, (LPSTR)Message);
@@ -226,6 +224,7 @@ static U32 HardDiskInitialize() {
 
 /***************************************************************************/
 
+/*
 static U32 ControllerBusy(U32 Port) {
     U32 TimeOut = 100000;
     U32 Status;
@@ -236,9 +235,11 @@ static U32 ControllerBusy(U32 Port) {
 
     return Status;
 }
+*/
 
 /***************************************************************************/
 
+/*
 static BOOL IsStatusOk(U32 Port) {
     U32 Status = InPortByte(Port + HD_STATUS);
 
@@ -249,9 +250,11 @@ static BOOL IsStatusOk(U32 Port) {
 
     return TRUE;
 }
+*/
 
 /***************************************************************************/
 
+/*
 static BOOL IsControllerReady(U32 Port, U32 Drive, U32 Head) {
     U32 Retry = 100;
 
@@ -263,11 +266,14 @@ static BOOL IsControllerReady(U32 Port, U32 Drive, U32 Head) {
 
     return FALSE;
 }
+*/
 
 /***************************************************************************/
 
+/*
 static void ResetController(U32 Port) {
-    /*
+    UNUSED(Port);
+
     U32 Index;
 
     OutPortByte(HD_ALTCOMMAND, 4);
@@ -283,8 +289,8 @@ static void ResetController(U32 Port) {
     {
       KernelPrint("HD : Controller reset failed\n");
     }
-    */
 }
+*/
 
 /***************************************************************************/
 
@@ -318,6 +324,8 @@ Out:
 /***************************************************************************/
 
 U32 FindSectorInBuffers(LPSTDHARDDISK Disk, U32 SectorLow, U32 SectorHigh) {
+    UNUSED(SectorHigh);
+
     U32 Index = 0;
     U32 BufNum = MAX_U32;
 
@@ -531,7 +539,6 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 void HardDriveHandler() {
     static U32 Busy = 0;
-    U32 Status, Code;
 
     if (Busy) return;
     Busy = 1;

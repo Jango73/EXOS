@@ -80,13 +80,14 @@ static LPSYSFSFILESYSTEM NewSystemFSFileSystem() {
     //-------------------------------------
     // Assign a default name to the file system
 
-    StringCopy(This->Header.Name, "System");
+    StringCopy(This->Header.Name, TEXT("System"));
 
     return This;
 }
 
 /***************************************************************************/
 
+/*
 static LPSYSFSFILE NewSysFSFile(LPSYSFSFILESYSTEM FileSystem,
                                 LPSYSTEMFILE SystemFile, LPSYSTEMFILE Parent) {
     LPSYSFSFILE This;
@@ -109,13 +110,14 @@ static LPSYSFSFILE NewSysFSFile(LPSYSFSFILESYSTEM FileSystem,
 
     return This;
 }
+*/
 
 /***************************************************************************/
 
 BOOL MountSystemFS() {
     LPSYSFSFILESYSTEM FileSystem;
 
-    KernelLogText(LOG_VERBOSE, "Mouting system FileSystem...");
+    KernelLogText(LOG_VERBOSE, TEXT("Mouting system FileSystem..."));
 
     //-------------------------------------
     // Create the file system object
@@ -324,7 +326,10 @@ static LPSYSFSFILE OpenFile (LPFILEINFO Find)
 }
 */
 
-static LPSYSFSFILE OpenFile(LPFILEINFO Find) { return NULL; }
+static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
+    UNUSED(Find);
+    return NULL;
+}
 
 /***************************************************************************/
 
@@ -412,7 +417,12 @@ File->Location.Offset);
 }
 */
 
-static U32 OpenNext(LPSYSFSFILE File) { return DF_ERROR_GENERIC; }
+/***************************************************************************/
+
+static U32 OpenNext(LPSYSFSFILE File) {
+    UNUSED(File);
+    return DF_ERROR_GENERIC;
+}
 
 /***************************************************************************/
 
@@ -427,9 +437,11 @@ static U32 CloseFile(LPSYSFSFILE File) {
 /***************************************************************************/
 
 static U32 ReadFile(LPSYSFSFILE File) {
-    LPSYSFSFILESYSTEM FileSystem;
+    UNUSED(File);
 
     /*
+    LPSYSFSFILESYSTEM FileSystem;
+
       CLUSTER RelativeCluster;
       CLUSTER Cluster;
       U32 OffsetInCluster;
@@ -521,7 +533,10 @@ static U32 ReadFile(LPSYSFSFILE File) {
 
 /***************************************************************************/
 
-static U32 WriteFile(LPSYSFSFILE File) { return DF_ERROR_NOTIMPL; }
+static U32 WriteFile(LPSYSFSFILE File) {
+    UNUSED(File);
+    return DF_ERROR_NOTIMPL;
+}
 
 /***************************************************************************/
 

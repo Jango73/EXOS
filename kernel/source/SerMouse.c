@@ -162,7 +162,10 @@ static void SendBreak() {
 
 static void Delay() {
     U32 Index, Data;
-    for (Index = 0; Index < 100000; Index++) Data = Index;
+    for (Index = 0; Index < 100000; Index++) {
+        Data = Index;
+    }
+    UNUSED(Data);
 }
 
 /***************************************************************************/
@@ -291,8 +294,6 @@ static U32 MouseInitialize() {
 
     KernelLogText(LOG_VERBOSE, TEXT("Mouse found on COM1: %c%c"), Sig1, Sig2);
 
-Out:
-
     //-------------------------------------
     // Enable the mouse's IRQ
 
@@ -333,6 +334,7 @@ static U32 GetButtons() {
 
 /***************************************************************************/
 
+/*
 static void DrawMouseCursor(I32 X, I32 Y) {
     LINEINFO LineInfo;
 
@@ -350,13 +352,13 @@ static void DrawMouseCursor(I32 X, I32 Y) {
     LineInfo.Y2 = Y + 4;
     VESADriver.Command(DF_GFX_LINE, (U32)&LineInfo);
 }
+*/
 
 /***************************************************************************/
 
 void MouseHandler_Microsoft() {
     static U32 Buttons;
     static U32 DeltaX, DeltaY;
-    static U32 Byte;
 
     if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return;
 
@@ -418,10 +420,9 @@ void MouseHandler_Microsoft() {
 /***************************************************************************/
 
 void MouseHandler_MouseSystems() {
-    static U32 Status;
+    // static U32 Status;
     static U32 Buttons;
     static U32 DeltaX1, DeltaY1;
-    static U32 DeltaX2, DeltaY2;
 
     /*
       Status = InPortByte(MOUSE_PORT + SERIAL_IID);
@@ -439,10 +440,6 @@ void MouseHandler_MouseSystems() {
     DeltaX1 = InPortByte(MOUSE_PORT + SERIAL_DATA);
     if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) goto Out;
     DeltaY1 = InPortByte(MOUSE_PORT + SERIAL_DATA);
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) goto Out;
-    DeltaX2 = InPortByte(MOUSE_PORT + SERIAL_DATA);
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) goto Out;
-    DeltaY2 = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
     Buttons |= 0xFF;
 
@@ -455,7 +452,7 @@ Out:
 /***************************************************************************/
 
 void MouseHandler() {
-    static Sequence = 0;
+    // static U32 Sequence = 0;
 
     /*
       // For test
@@ -473,6 +470,8 @@ void MouseHandler() {
 /***************************************************************************/
 
 U32 SerialMouseCommands(U32 Function, U32 Parameter) {
+    UNUSED(Parameter);
+
     switch (Function) {
         case DF_LOAD:
             return (U32)MouseInitialize();

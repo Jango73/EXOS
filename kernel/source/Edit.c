@@ -59,7 +59,8 @@ typedef struct tag_EDITCONTEXT {
 LPEDITLINE NewEditLine(I32 Size) {
     LPEDITLINE This = (LPEDITLINE)HeapAlloc(sizeof(EDITLINE));
 
-    if (This == NULL) return;
+    if (This == NULL)
+        return NULL;
 
     This->Next = NULL;
     This->Prev = NULL;
@@ -181,7 +182,6 @@ void CheckPositions(LPEDITFILE File) {
 void DrawText(LPEDITFILE File) {
     LPLISTNODE Node;
     LPEDITLINE Line;
-    LPSTR Text;
     I32 Index;
 
     if (File == NULL) return;
@@ -321,7 +321,6 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
     LPEDITLINE Line;
     LPEDITLINE NextLine;
     LPEDITLINE PrevLine;
-    LPSTR Text;
     I32 LineX;
     I32 LineY;
     I32 NewLength;
@@ -535,7 +534,6 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
     U32 LineSize;
     U32 FinalLineSize;
     U32 Index;
-    U32 Tab;
 
     Info.Size = sizeof Info;
     Info.Name = Name;
@@ -622,7 +620,6 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
 U32 Edit(U32 NumArguments, LPCSTR* Arguments) {
     LPEDITCONTEXT Context;
     LPEDITFILE File;
-    LPEDITLINE Line;
     U32 Index;
 
     Context = NewEditContext();

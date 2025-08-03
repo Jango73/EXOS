@@ -389,6 +389,7 @@ static void SetVESABank(LPVESACONTEXT Context, U32 Bank) {
 
 /***************************************************************************/
 
+/*
 static U32 SetClip(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 Temp;
 
@@ -416,6 +417,7 @@ static U32 SetClip(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
     return 0;
 }
+*/
 
 /***************************************************************************/
 
@@ -427,10 +429,11 @@ static COLOR SetPixel8(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
         Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
-        return;
+        return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + X;
     Bank = Offset >> Context->GranularShift;
+    OldColor = GetPixel8(Context, X, Y);
 
     SetVESABank(Context, Bank);
 
@@ -438,29 +441,25 @@ static COLOR SetPixel8(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
         case ROP_SET: {
             *(U8*)(Context->Header.MemoryBase +
                    (Offset & Context->GranularModulo)) = Color;
-        }
-            return;
+        } break;
 
         case ROP_XOR: {
             Plane =
                 Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *Plane ^= Color;
-        }
-            return;
+        } break;
 
         case ROP_OR: {
             Plane =
                 Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *Plane |= Color;
-        }
-            return;
+        } break;
 
         case ROP_AND: {
             Plane =
                 Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *Plane &= Color;
-        }
-            return;
+        } break;
     }
 
     return OldColor;
@@ -476,10 +475,11 @@ static COLOR SetPixel16(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
         Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
-        return;
+        return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + (X << MUL_2);
     Bank = Offset >> Context->GranularShift;
+    OldColor = GetPixel16(Context, X, Y);
 
     SetVESABank(Context, Bank);
 
@@ -515,17 +515,16 @@ static COLOR SetPixel16(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
 /***************************************************************************/
 
 static COLOR SetPixel24(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
-    U32 Bank;
     U32 Offset;
     U8* Plane;
     U32 TOfs1, TOfs2, TOfs3;
     U32 Bank1, Bank2, Bank3;
-    U32 R, G, B, A;
+    U32 R, G, B;
     U32 OldColor;
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
         Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
-        return;
+        return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + (X * 3);
 
@@ -544,7 +543,6 @@ static COLOR SetPixel24(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
     R = ((OldColor >> 0) & 0xFF);
     G = ((OldColor >> 8) & 0xFF);
     B = ((OldColor >> 16) & 0xFF);
-    A = ((OldColor >> 24) & 0xFF);
 
     OldColor = 0;
 
@@ -654,7 +652,6 @@ static COLOR GetPixel8(LPVESACONTEXT Context, I32 X, I32 Y) {
     U32 Color;
     U32 Offset;
     U32 Bank;
-    U8* Plane;
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
         Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
@@ -682,7 +679,6 @@ static COLOR GetPixel16(LPVESACONTEXT Context, I32 X, I32 Y) {
     U32 Color;
     U32 Offset;
     U32 Bank;
-    U8* Plane;
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
         Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
@@ -708,7 +704,6 @@ static COLOR GetPixel16(LPVESACONTEXT Context, I32 X, I32 Y) {
 
 static COLOR GetPixel24(LPVESACONTEXT Context, I32 X, I32 Y) {
     U32 Color;
-    U32 Bank;
     U8* Plane;
     U32 TOfs1, TOfs2, TOfs3;
     U32 Bank1, Bank2, Bank3;
@@ -753,6 +748,11 @@ static COLOR GetPixel24(LPVESACONTEXT Context, I32 X, I32 Y) {
 /***************************************************************************/
 
 static U32 Line8(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
+    UNUSED(Context);
+    UNUSED(X1);
+    UNUSED(Y1);
+    UNUSED(X2);
+    UNUSED(Y2);
     /*
       word d, dx, dy, ai, bi, xi, yi;
       word line_bit = 0;
@@ -999,6 +999,11 @@ static U32 Line24(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 /***************************************************************************/
 
 static U32 Rect8(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
+    UNUSED(Context);
+    UNUSED(X1);
+    UNUSED(Y1);
+    UNUSED(X2);
+    UNUSED(Y2);
     /*
       long  offset;
       long  bank;
@@ -1084,14 +1089,15 @@ static U32 Rect8(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     }
       }
     */
+
+    return 0;
 }
 
 /***************************************************************************/
 
 static U32 Rect16(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    U32 X, Y;
+    I32 X, Y;
     U32 Temp;
-    U32 Pattern;
     U32 Color;
 
     if (X1 > X2) {
@@ -1108,7 +1114,6 @@ static U32 Rect16(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     if (Context->Header.Brush != NULL &&
         Context->Header.Brush->ID == ID_BRUSH) {
         Color = Context->Header.Brush->Color;
-        Pattern = Context->Header.Brush->Pattern;
 
         for (Y = Y1; Y <= Y2; Y++) {
             for (X = X1; X <= X2; X++) {
@@ -1134,14 +1139,12 @@ static U32 Rect24(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     U8* Pln1;
     U8* Pln2;
     U8* Pln3;
-    U32 Bank;
     U32 Offset;
     U32 Ofs1, Ofs2, Ofs3;
     U32 Bank1, Bank2, Bank3;
-    U32 R, G, B, A;
+    U32 R, G, B;
     I32 X, Y;
     U32 Temp;
-    U32 Pattern;
     U32 Color;
 
     if (X1 > X2) {
@@ -1158,7 +1161,6 @@ static U32 Rect24(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     if (Context->Header.Brush != NULL &&
         Context->Header.Brush->ID == ID_BRUSH) {
         Color = Context->Header.Brush->Color;
-        Pattern = Context->Header.Brush->Pattern;
 
         Color = 0;
         Color |= (((Context->Header.Brush->Color >> 0) & 0xFF) << 16);
@@ -1190,7 +1192,6 @@ static U32 Rect24(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         R = (Color >> 0) & 0xFF;
         G = (Color >> 8) & 0xFF;
         B = (Color >> 16) & 0xFF;
-        A = (Color >> 24) & 0xFF;
 
         for (Y = Y1; Y <= Y2; Y++) {
             for (X = X1; X <= X2; X++) {

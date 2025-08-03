@@ -63,7 +63,6 @@ static void PrintMemoryLine(U32 Base) {
 
 void PrintMemory(U32 Base, U32 Size) {
     U32 End = Base + Size;
-    U32 CurrentX = 0;
     U32 CurrentY = 0;
 
     for (CurrentY = 0; CurrentY < 24; CurrentY++) {

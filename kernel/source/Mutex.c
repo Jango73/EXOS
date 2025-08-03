@@ -74,6 +74,7 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
     //-------------------------------------
     // Check validity of parameters
 
+    if (Mutex == NULL) return 0;
     if (Mutex->ID != ID_MUTEX) return 0;
 
     if (Mutex->References) Mutex->References--;
@@ -89,6 +90,8 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
 /***************************************************************************/
 
 U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
+    UNUSED(TimeOut);
+
     LPPROCESS Process;
     LPTASK Task;
     U32 Flags;

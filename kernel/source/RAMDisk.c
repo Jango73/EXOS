@@ -68,12 +68,12 @@ static LPRAMDISK NewRAMDisk() {
 
 /***************************************************************************/
 
-static U32 CreateFATDirEntry(LINEAR Buffer, LPSTR Name, U32 Attributes,
+/*
+static U32 CreateFATDirEntry(LINEAR Buffer, LPCSTR Name, U32 Attributes,
                              U32 Cluster) {
     LPFATDIRENTRY_EXT DirEntry = NULL;
     LPFATDIRENTRY_LFN LFNEntry = NULL;
     STR ShortName[16];
-    U32 NameIndex = 0;
     U32 Checksum = 0;
     U32 Ordinal = 0;
     U32 Index = 0;
@@ -240,15 +240,16 @@ static U32 CreateFATDirEntry(LINEAR Buffer, LPSTR Name, U32 Attributes,
 
     return NumEntries * sizeof(FATDIRENTRY_EXT);
 }
+*/
 
 /***************************************************************************/
 
+/*
 static BOOL FormatRAMDisk_FAT32(LINEAR Base, U32 Size) {
     LPFAT32MBR Master = NULL;
 
     U32* FAT = NULL;
     U32 FATStart1 = 0;
-    U32 FATStart2 = 0;
     U32 DataStart = 0;
     U32 CurrentCluster = 0;
     U32 CurrentSector = 0;
@@ -307,7 +308,6 @@ static BOOL FormatRAMDisk_FAT32(LINEAR Base, U32 Size) {
     Master->BIOSMark = 0xAA55;
 
     FATStart1 = Master->ReservedSectors;
-    FATStart2 = FATStart1 + Master->NumSectorsPerFAT;
     DataStart = FATStart1 + (Master->NumFATs * Master->NumSectorsPerFAT);
 
     //-------------------------------------
@@ -337,16 +337,16 @@ static BOOL FormatRAMDisk_FAT32(LINEAR Base, U32 Size) {
     // Create some directories
 
     DirEntrySize =
-        CreateFATDirEntry(CurrentBase, "EXOS", FAT_ATTR_FOLDER, ClusterEntry1);
+        CreateFATDirEntry(CurrentBase, TEXT("EXOS"), FAT_ATTR_FOLDER, ClusterEntry1);
 
     CurrentBase += DirEntrySize;
 
-    DirEntrySize = CreateFATDirEntry(CurrentBase, "Program Files",
+    DirEntrySize = CreateFATDirEntry(CurrentBase, TEXT("Programs"),
                                      FAT_ATTR_FOLDER, ClusterEntry2);
 
     CurrentBase += DirEntrySize;
 
-    DirEntrySize = CreateFATDirEntry(CurrentBase, "Boot.log", FAT_ATTR_ARCHIVE,
+    DirEntrySize = CreateFATDirEntry(CurrentBase, TEXT("Boot.log"), FAT_ATTR_ARCHIVE,
                                      ClusterEntry3);
 
     //-------------------------------------
@@ -358,20 +358,21 @@ static BOOL FormatRAMDisk_FAT32(LINEAR Base, U32 Size) {
     CurrentBase = Base + (CurrentSector * SECTOR_SIZE);
 
     DirEntrySize =
-        CreateFATDirEntry(CurrentBase, "Users", FAT_ATTR_FOLDER, ClusterEntry4);
+        CreateFATDirEntry(CurrentBase, TEXT("Users"), FAT_ATTR_FOLDER, ClusterEntry4);
 
     CurrentBase += DirEntrySize;
 
-    DirEntrySize = CreateFATDirEntry(CurrentBase, "Libraries", FAT_ATTR_FOLDER,
+    DirEntrySize = CreateFATDirEntry(CurrentBase, TEXT("Libraries"), FAT_ATTR_FOLDER,
                                      ClusterEntry5);
 
     CurrentBase += DirEntrySize;
 
     DirEntrySize =
-        CreateFATDirEntry(CurrentBase, "Temp", FAT_ATTR_FOLDER, ClusterEntry6);
+        CreateFATDirEntry(CurrentBase, TEXT("Temp"), FAT_ATTR_FOLDER, ClusterEntry6);
 
     return TRUE;
 }
+*/
 
 /***************************************************************************/
 
@@ -451,7 +452,7 @@ static U32 RAMDiskInitialize() {
     Create.SectorsPerCluster = 8;
     Create.Flags = 0;
 
-    StringCopy(Create.VolumeName, "RamDisk");
+    StringCopy(Create.VolumeName, TEXT("RamDisk"));
 
     XFSDriver.Command(DF_FS_CREATEPARTITION, (U32)&Create);
 

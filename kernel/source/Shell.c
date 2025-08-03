@@ -144,6 +144,7 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
 
 /***************************************************************************/
 
+/*
 static void RotateBuffers(LPSHELLCONTEXT This) {
     U32 Index = 0;
 
@@ -156,6 +157,7 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
                    BUFFER_SIZE);
     }
 }
+*/
 
 /***************************************************************************/
 
@@ -792,10 +794,10 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
 static void CMD_irq(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    ConsolePrint("8259-1 RM mask : %08b\n", IRQMask_21_RM);
-    ConsolePrint("8259-2 RM mask : %08b\n", IRQMask_A1_RM);
-    ConsolePrint("8259-1 PM mask : %08b\n", IRQMask_21);
-    ConsolePrint("8259-2 PM mask : %08b\n", IRQMask_A1);
+    ConsolePrint(TEXT("8259-1 RM mask : %08b\n"), IRQMask_21_RM);
+    ConsolePrint(TEXT("8259-2 RM mask : %08b\n"), IRQMask_A1_RM);
+    ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), IRQMask_21);
+    ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), IRQMask_A1);
 }
 
 /***************************************************************************/
@@ -813,7 +815,7 @@ static void CMD_inp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
     ParseNextComponent(Context); Port = StringToU32(Context->Command);
     Data = InPortByte(Port);
-    ConsolePrint("Port %04X = %02X\n", Port, Data);
+    ConsolePrint(TEXT("Port %04X = %02X\n"), Port, Data);
 }
 
 /***************************************************************************/
