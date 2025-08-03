@@ -216,7 +216,7 @@ Start :
 
     mov     edi, GDT_Label - StartAbsolute
     add     edi, 2
-    add     [edi], ebp
+    add     dword [edi], ebp
 
     lgdt    [GDT_Label - StartAbsolute]
 
@@ -253,7 +253,7 @@ Start :
     mov     al, 'g'
     call    PrintChar
 
-    add     [Start32_Entry - StartAbsolute], ebp
+    add     dword [Start32_Entry - StartAbsolute], ebp
 
     ;--------------------------------------
     ; Switch to protected mode

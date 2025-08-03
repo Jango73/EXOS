@@ -1,6 +1,6 @@
 %include "./Kernel.inc"
 
-section .text
+section .text.stub
 bits 32
 
     global SerialInit
