@@ -403,22 +403,10 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
+    KERNELSTARTUPINFO TempKernelStartup;
 
     InitKernelLog();
     KernelLogText(LOG_DEBUG, TEXT("InitializeKernel()"));
-
-    //-------------------------------------
-    // Initialize BSS
-
-    extern LINEAR __bss_start;
-    extern LINEAR __bss_end;
-    LINEAR BSSStart = (&__bss_start);
-    LINEAR BSSEnd = (&__bss_end);
-    U32 BSSSize = BSSEnd - BSSStart;
-
-    KernelLogText(LOG_DEBUG, TEXT("BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);
-    MemorySet(BSSStart, 0, BSSSize);
-    KernelLogText(LOG_DEBUG, TEXT("BSS cleared"));
 
     //-------------------------------------
     // Dump critical information
@@ -435,7 +423,6 @@ void InitializeKernel() {
     KernelLogText(LOG_DEBUG, TEXT("PA_SYSTEM : %X"), PA_SYSTEM);
     KernelLogText(LOG_DEBUG, TEXT("PA_KERNEL : %X"), PA_KERNEL);
     KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
-    KernelLogText(LOG_DEBUG, TEXT("KernelStartup : %X"), &KernelStartup);
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
 
     //-------------------------------------
@@ -448,14 +435,32 @@ void InitializeKernel() {
     //-------------------------------------
     // Get system information gathered by the stub
 
-    MemoryCopy(&KernelStartup,
-               (LPVOID)(StubAddress + KERNEL_STARTUP_INFO_OFFSET),
-               sizeof(KERNELSTARTUPINFO));
+    MemoryCopy(&TempKernelStartup, (LPVOID)(StubAddress + KERNEL_STARTUP_INFO_OFFSET), sizeof(KERNELSTARTUPINFO));
 
-    KernelLogText(LOG_DEBUG, TEXT("Got system information from the stub"));
+    IRQMask_21_RM = TempKernelStartup.IRQMask_21_RM;
+    IRQMask_A1_RM = TempKernelStartup.IRQMask_A1_RM;
 
-    IRQMask_21_RM = KernelStartup.IRQMask_21_RM;
-    IRQMask_A1_RM = KernelStartup.IRQMask_A1_RM;
+    //-------------------------------------
+    // Initialize BSS after information collected
+
+    extern LINEAR __bss_start;
+    extern LINEAR __bss_end;
+    LINEAR BSSStart = (&__bss_start);
+    LINEAR BSSEnd = (&__bss_end);
+    U32 BSSSize = BSSEnd - BSSStart;
+
+    KernelLogText(LOG_DEBUG, TEXT("BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);
+    MemorySet(BSSStart, 0, BSSSize);
+    KernelLogText(LOG_DEBUG, TEXT("BSS cleared"));
+
+    MemoryCopy(&KernelStartup, &TempKernelStartup, sizeof(KERNELSTARTUPINFO));
+
+    KernelLogText(LOG_DEBUG, TEXT("Kernel startup info:"));
+    KernelLogText(LOG_DEBUG, TEXT("  Loader_SS : %X"), KernelStartup.Loader_SS);
+    KernelLogText(LOG_DEBUG, TEXT("  Loader_SP : %X"), KernelStartup.Loader_SP);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM : %X"), KernelStartup.IRQMask_21_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM : %X"), KernelStartup.IRQMask_A1_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  MemorySize : %X"), KernelStartup.MemorySize);
 
     //-------------------------------------
     // Initialize the VMM
@@ -485,6 +490,12 @@ void InitializeKernel() {
     KernelLogText(LOG_VERBOSE, TEXT("Console initialized"));
 
     //-------------------------------------
+    // Initialize the keyboard
+
+    LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
+    KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized"));
+
+    //-------------------------------------
     // Print system infomation
 
     DumpSystemInformation();
@@ -494,12 +505,6 @@ void InitializeKernel() {
 
     InitializeInterrupts();
     KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized"));
-
-    //-------------------------------------
-    // Initialize the keyboard
-
-    LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
-    KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized"));
 
     //-------------------------------------
     // Setup the kernel's main task
