@@ -1,11 +1,9 @@
 
-// Address.h
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -37,42 +35,48 @@
 
 /***************************************************************************\
 
-  Physical memory layout
+    Physical memory layout
 
-  Address       Size           Description
+    address         Size            Description
 
-  00000000      00001000       BIOS Ram
-  000A0000      00010000       VGA memory
-  000B0000      00010000       Text memory
-  000C0000      00010000       BIOS Extension
-  000D0000      00010000       BIOS Extension
-  000E0000      00010000       BIOS Extension
-  000F0000      00010000       BIOS ROM
-  00100000      00001000       Interrupt Descriptor Table
-  00101000      00002000       Global Descriptor Table
-  00103000      00001000       Kernel Page Directory
-  00104000      00001000       Kernel System Page Table
-  00105000      00001000       Kernel Page Table
-  00106000      00001000       Low Memory Page Table
-  00107000      00001000       High Memory Page Table
-  00108000      00008000       Task State Segment Area
-  00110000      00010000       Physical Page Bitmap
-  00120000      ?              Kernel Code and Data
+    00000000        00001000        BIOS Ram
+    000A0000        00010000        VGA memory
+    000B0000        00010000        Text memory
+    000C0000        00010000        BIOS Extension
+    000D0000        00010000        BIOS Extension
+    000E0000        00010000        BIOS Extension
+    000F0000        00010000        BIOS ROM
+    00100000        00001000        Interrupt Descriptor Table
+    00101000        00002000        Global Descriptor Table
+    00103000        00001000        Kernel Page Directory
+    00104000        00001000        Kernel System Page Table
+    00105000        00001000        Kernel Page Table
+    00106000        00001000        Low Memory Page Table
+    00107000        00001000        High Memory Page Table
+    00108000        00008000        Task State Segment Area
+    00110000        00020000        Physical Page Bitmap
+    00140000        ?               Kernel Code and Data
 
 \***************************************************************************/
 
-#define LOW_SIZE N_1MB
-#define HMA_SIZE N_128KB
-#define IDT_SIZE N_4KB
-#define GDT_SIZE N_8KB
-#define PGD_SIZE PAGE_TABLE_SIZE
-#define PGS_SIZE PAGE_TABLE_SIZE
-#define PGK_SIZE PAGE_TABLE_SIZE
-#define PGL_SIZE PAGE_TABLE_SIZE
-#define PGH_SIZE PAGE_TABLE_SIZE
-#define TSS_SIZE N_32KB
-#define PPB_SIZE N_64KB
-#define STK_SIZE N_32KB
+#define LOW_SIZE N_1MB // Low Memory Area Size
+#define HMA_SIZE N_128KB // High Memory Area Size
+#define IDT_SIZE N_4KB // Interrupt Descriptor Table Size
+#define GDT_SIZE N_8KB // Kernel Global Descriptor Size
+#define PGD_SIZE PAGE_TABLE_SIZE // Kernel Page Directory Size
+#define PGS_SIZE PAGE_TABLE_SIZE // System Page Table Size
+#define PGK_SIZE PAGE_TABLE_SIZE // Kernel Page Table Size
+#define PGL_SIZE PAGE_TABLE_SIZE // Low Memory Page Table size
+#define PGH_SIZE PAGE_TABLE_SIZE // High Memory Page Table size
+#define TSS_SIZE N_32KB // Task State Segment Size
+#define PPB_SIZE N_128KB // Physical Page Bitmap Size
+#define KER_SIZE (N_64KB * 4) // Kernel code and data size (estimated)
+#define BSS_SIZE N_1KB // Kernel BSS Size
+#define STK_SIZE N_32KB // Kernel Stack Size
+#define SYS_SIZE (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE + BSS_SIZE + STK_SIZE)
+#define SYS_SIZE_MINUS_STK (SYS_SIZE - STK_SIZE)
+
+#define SYS_SIZE_PAGES (SYS_SIZE >> PAGE_SIZE_MUL)
 
 #define PA_LOW 0x00000000
 #define PA_HMA (PA_LOW + LOW_SIZE)
@@ -85,9 +89,11 @@
 #define PA_PGH (PA_PGL + PGL_SIZE)
 #define PA_TSS (PA_PGH + PGH_SIZE)
 #define PA_PPB (PA_TSS + TSS_SIZE)
-#define PA_KERNEL (PA_PPB + PPB_SIZE)
+#define PA_KER (PA_PPB + PPB_SIZE)
+#define PA_BSS (PA_KER + KER_SIZE)
+#define PA_STK (PA_BSS + BSS_SIZE)
 
-#define PA_SYSTEM PA_IDT
+#define PA_SYS PA_IDT
 
 #define LA_IDT LA_SYSTEM
 #define LA_GDT (LA_IDT + IDT_SIZE)

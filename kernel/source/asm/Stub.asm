@@ -1,6 +1,4 @@
 
-; Stub.asm
-
 ;----------------------------------------------------------------------------
 ;  EXOS
 ;  Copyright (c) 1999-2025 Jango73
@@ -8,6 +6,7 @@
 ;----------------------------------------------------------------------------
 
 %include "./Kernel.inc"
+%include "./Serial.inc"
 
 ;----------------------------------------------------------------------------
 
@@ -23,6 +22,7 @@ section .text.stub
 bits 16
 
     global StartAbsolute
+    global Start32
 
 ;--------------------------------------
 
@@ -406,6 +406,8 @@ SetupPIC :
 
 ; This is the start of the PM code
 ; EBP contains the physical address of the stub
+; To address data in the stub, we now have to use ebp + (<address of var> - StartAbsolute)
+; (<address of var> - StartAbsolute) yields a relative address
 
 bits 32
 
@@ -414,7 +416,101 @@ Final_GDT :
     dw  (N_8KB - 1)
     dd LA_GDT
 
+Text_StubStart32 :
+    db '[STUB] Stub 32 bits starting up', 10, 13, 0
+
+Text_GetMemorySize :
+    db '[STUB] Checking memory size', 10, 13, 0
+
+Text_EBP :
+    db '[STUB] EBP : ', 0
+
+Text_Memory :
+    db '[STUB] Memory size : ', 0
+
+Text_FinalGDT :
+    db '[STUB] Final GDT : ', 0
+
+Text_PA_IDT :
+    db '[STUB] PA (Physical address) of Interrupt Descriptor Table : ', 0
+
+Text_PA_GDT :
+    db '[STUB] PA of Kernel Global Descriptor : ', 0
+
+Text_PA_PGD :
+    db '[STUB] PA of Kernel Page Directory : ', 0
+
+Text_PA_PGS :
+    db '[STUB] PA of System Page Table : ', 0
+
+Text_PA_PGK :
+    db '[STUB] PA of Kernel Page Table : ', 0
+
+Text_PA_PGL :
+    db '[STUB] PA of Low Memory Page Table : ', 0
+
+Text_PA_PGH :
+    db '[STUB] PA of High Memory Page Table : ', 0
+
+Text_PA_TSS :
+    db '[STUB] PA of Task State Segment : ', 0
+
+Text_PA_PPB :
+    db '[STUB] PA of Physical Page Bitmap : ', 0
+
+Text_PA_KER :
+    db '[STUB] PA of Kernel code and data : ', 0
+
+Text_PA_BSS :
+    db '[STUB] PA of Kernel bss : ', 0
+
+Text_PA_STK :
+    db '[STUB] PA of Kernel stack : ', 0
+
+Text_SetupGDT :
+    db '[STUB] Setting up GDT', 10, 13, 0
+
+Text_MappingLowMemory :
+    db '[STUB] Mapping low memory', 0
+
+Text_MappingKernel :
+    db '[STUB] Mapping kernel', 0
+
+Text_MappingSystem :
+    db '[STUB] Mapping system', 0
+
+Text_MappingDirectory :
+    db '[STUB] Mapping directory', 0
+
+Text_PageDirectoryEntry :
+    db ', writing Page Directory Entry (Address, Data) : ', 0
+
+Text_StartOfStack :
+    db '[STUB] Kernel stack (Address, Data) : ', 0
+
+Text_SetupPaging :
+    db '[STUB] Setting up paging', 10, 13, 0
+
+Text_MapPages :
+    db '[STUB] Mapping pages (Page address, Physical address, Size) : ', 0
+
+Text_CopyKernel :
+    db '[STUB] Copying kernel (without 4Kb stub) to high memory (From, To, Size) ', 0
+
+Text_EnablePaging :
+    db '[STUB] Enabling paging', 10, 13, 0
+
+Text_LoadFinalGDT :
+    db '[STUB] Loading final GDT', 10, 13, 0
+
+Text_JumpToKernel :
+    db '[STUB] Jumping to C kernel', 10, 13, 0
+
 Start32 :
+
+    call    SerialInit
+    mov     esi, Text_StubStart32
+    call    SerialWriteString
 
     ;--------------------------------------
     ; Adjust segment registers
@@ -422,23 +518,93 @@ Start32 :
     mov     ax, SELECTOR_KERNEL_DATA
     mov     ds, ax
     mov     es, ax
+    mov     fs, ax
+    mov     gs, ax
 
     ;--------------------------------------
-    ; Get physical memory size
+    ; Get physical memory size and store in
 
     call    GetMemorySize
     mov     esi, ebp
     add     esi, SI_Memory - StartAbsolute
     mov     [esi], eax
 
-    ;--------------------------------------
-    ; Clear system area
+    DbgOut  Text_EBP
+    ImmHx32Out ebp
+    call    SerialWriteNewLine
 
-    mov     eax, 0xB8000
-    mov     byte [eax], 'A'
+    DbgOut  Text_Memory
+    Hx32Out SI_Memory
+    call    SerialWriteNewLine
+
+    DbgOut  Text_FinalGDT
+    mov     esi, Final_GDT
+    Hx32Out (Final_GDT + 2)
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_IDT
+    ImmHx32Out PA_IDT
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_GDT
+    ImmHx32Out PA_GDT
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_PGD
+    ImmHx32Out PA_PGD
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_PGS
+    ImmHx32Out PA_PGS
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_PGK
+    ImmHx32Out PA_PGK
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_PGL
+    ImmHx32Out PA_PGL
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_PGH
+    ImmHx32Out PA_PGH
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_TSS
+    ImmHx32Out PA_TSS
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_PPB
+    ImmHx32Out PA_PPB
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_KER
+    ImmHx32Out PA_KER
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_BSS
+    ImmHx32Out PA_BSS
+    call    SerialWriteNewLine
+
+    DbgOut  Text_PA_STK
+    ImmHx32Out PA_STK
+    call    SerialWriteNewLine
+
+    ;--------------------------------------
+    ; Clear system area where reside :
+    ;   Kernel Global Descriptor
+    ;   Kernel Page Directory
+    ;   System Page Table
+    ;   Kernel Page Table
+    ;   Low Memory Page
+    ;   High Memory Page
+    ;   Task State Segment
+    ;   Physical Page Bitmap
+    ;   Kernel code and data
+    ;   Kernel bss and stack
 
     mov     edi, PA_SYSTEM
-    mov     ecx, SYSTEM_SIZE
+    mov     ecx, SYS_SIZE_MINUS_STK
     xor     eax, eax
     cld
     rep     stosb
@@ -446,16 +612,10 @@ Start32 :
     ;--------------------------------------
     ; Copy GDT to physical address of GDT
 
-    mov     eax, 0xB8000
-    mov     byte [eax], 'B'
-
     call    SetupGDT
 
     ;--------------------------------------
     ; Setup page directories and tables
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'C'
 
     call    SetupPaging
 
@@ -464,25 +624,26 @@ Start32 :
     ; Register cr3 holds the physical address of
     ; the page directory
 
-    mov     eax, 0xB8000
-    mov     byte [eax], 'D'
-
     mov     eax, PA_PGD
     mov     cr3, eax
 
     ;--------------------------------------
     ; Copy kernel to high memory
 
-    mov     eax, 0xB8000
-    mov     byte [eax], 'E'
-
     call    CopyKernel
+
+    DbgOut      Text_StartOfStack
+    ImmHx32Out  KernelStack
+    call        SerialWriteSpace
+    Hx32Out     KernelStack
+    call        SerialWriteSpace
+    Hx32Out     (KernelStack + 4)
+    call        SerialWriteNewLine
 
     ;--------------------------------------
     ; Enable paging
 
-    mov     eax, 0xB8000
-    mov     byte [eax], 'F'
+    DbgOut  Text_EnablePaging
 
     mov     eax, cr0
     or      eax, CR0_PAGING
@@ -491,18 +652,14 @@ Start32 :
     ;--------------------------------------
     ; Load the final Global Descriptor Table
 
-    mov     eax, 0xB8000
-    mov     byte [eax], 'G'
+    DbgOut  Text_LoadFinalGDT
 
     mov     eax, ebp
     add     eax, Final_GDT - StartAbsolute
     lgdt    [eax]
 
     ;--------------------------------------
-    ; Jump to kernel
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'H'
+    ; Jump to paged protected mode code
 
     mov     eax, ProtectedModeEntry
     jmp     eax
@@ -517,6 +674,8 @@ Hang_Loop :
 
 SetupGDT :
 
+    DbgOut  Text_SetupGDT
+
     mov     esi, ebp
     add     esi, GDT
     mov     edi, PA_GDT
@@ -529,8 +688,38 @@ SetupGDT :
 
 SetupPaging :
 
+    DbgOut  Text_SetupPaging
+
     ;--------------------------------------
     ; Setup page directory
+
+    DbgOut  Text_MappingLowMemory
+    DbgOut  Text_PageDirectoryEntry
+    ImmHx32Out PA_PGD
+    call    SerialWriteSpace
+    ImmHx32Out (PA_PGL & PAGE_MASK) | PAGE_BIT_SYSTEM
+    call    SerialWriteNewLine
+
+    DbgOut  Text_MappingKernel
+    DbgOut  Text_PageDirectoryEntry
+    ImmHx32Out PA_PGD + ((LA_KERNEL >> MUL_4MB) << MUL_4)
+    call    SerialWriteSpace
+    ImmHx32Out (PA_PGK & PAGE_MASK) | PAGE_BIT_SYSTEM
+    call    SerialWriteNewLine
+
+    DbgOut  Text_MappingSystem
+    DbgOut  Text_PageDirectoryEntry
+    ImmHx32Out PA_PGD + ((LA_SYSTEM >> MUL_4MB) << MUL_4)
+    call    SerialWriteSpace
+    ImmHx32Out (PA_PGH & PAGE_MASK) | PAGE_BIT_SYSTEM
+    call    SerialWriteNewLine
+
+    DbgOut  Text_MappingDirectory
+    DbgOut  Text_PageDirectoryEntry
+    ImmHx32Out PA_PGD + ((LA_DIRECTORY >> MUL_4MB) << MUL_4)
+    call    SerialWriteSpace
+    ImmHx32Out (PA_PGS & PAGE_MASK) | PAGE_BIT_SYSTEM
+    call    SerialWriteNewLine
 
     mov     edi, PA_PGD
 
@@ -549,6 +738,14 @@ SetupPaging :
     ;--------------------------------------
     ; Setup identity mapped low memory pages (1 MB)
 
+    DbgOut  Text_MapPages
+    ImmHx32Out PA_PGL
+    call    SerialWriteSpace
+    ImmHx32Out PA_LOW
+    call    SerialWriteSpace
+    ImmHx32Out N_1MB
+    call    SerialWriteNewLine
+
     mov     edi, PA_PGL
     mov     eax, PA_LOW
     mov     ecx, N_1MB >> MUL_4KB
@@ -557,17 +754,33 @@ SetupPaging :
     ;--------------------------------------
     ; Setup identity mapped system memory pages (128 KB)
 
+    DbgOut  Text_MapPages
+    ImmHx32Out PA_PGH
+    call    SerialWriteSpace
+    ImmHx32Out PA_SYSTEM
+    call    SerialWriteSpace
+    ImmHx32Out N_128KB
+    call    SerialWriteNewLine
+
     mov     edi, PA_PGH
     mov     eax, PA_SYSTEM
     mov     ecx, N_128KB >> MUL_4KB
     call    MapPages
 
     ;--------------------------------------
-    ; Setup kernel memory pages (KERNEL_SIZE bytes)
+    ; Setup kernel memory pages (KER_SIZE bytes)
+
+    DbgOut  Text_MapPages
+    ImmHx32Out PA_PGK
+    call    SerialWriteSpace
+    ImmHx32Out PA_KER
+    call    SerialWriteSpace
+    ImmHx32Out KER_SIZE
+    call    SerialWriteNewLine
 
     mov     edi, PA_PGK
-    mov     eax, PA_KERNEL
-    mov     ecx, KERNEL_SIZE >> MUL_4KB
+    mov     eax, PA_KER
+    mov     ecx, KER_SIZE >> MUL_4KB
     call    MapPages
 
     ;--------------------------------------
@@ -621,13 +834,23 @@ MapPages_Loop :
 
 CopyKernel :
 
+    DbgOut  Text_CopyKernel
+    mov     esi, ebp
+    add     esi, N_4KB
+    ImmHx32Out esi
+    call    SerialWriteSpace
+    ImmHx32Out PA_KER
+    call    SerialWriteSpace
+    ImmHx32Out KER_SIZE
+    call    SerialWriteNewLine
+
     ;--------------------------------------
     ; Copy the kernel code and data without the stub
 
     mov     esi, ebp
     add     esi, N_4KB
-    mov     edi, PA_KERNEL
-    mov     ecx, KERNEL_SIZE
+    mov     edi, PA_KER
+    mov     ecx, KER_SIZE
     sub     ecx, N_4KB
     cld
     rep     movsb
@@ -637,6 +860,8 @@ CopyKernel :
 
 GetMemorySize :
 
+    DbgOut  Text_GetMemorySize
+
     ;--------------------------------------
     ; Start counting at 4 mb
 
@@ -644,12 +869,13 @@ GetMemorySize :
 
 GetMemorySize_Loop :
 
+    mov     cl, 0xAA
     mov     al, [esi]                  ; Save value
-    mov     byte [esi], 0xAA           ; Write AA
+    mov     byte [esi], cl             ; Write AA
     mov     bl, [esi]                  ; Read value to see if cell exists
     mov     [esi], al                  ; Restore value
 
-    cmp     bl, 0xAA
+    cmp     bl, cl
     jne     GetMemorySize_Out
 
     add     esi, N_4KB
@@ -675,33 +901,18 @@ ProtectedModeEntry :
     cli
 
     ;--------------------------------------
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'I'
-
-    ;--------------------------------------
     ; DS, ES and GS are used to access the kernel's data
 
     mov     ax,  SELECTOR_KERNEL_DATA
     mov     ds,  ax
     mov     es,  ax
-    mov     gs,  ax
-
-    ;--------------------------------------
-    ; FS is used to communicate with user
-
-    mov     ax,  SELECTOR_KERNEL_DATA
     mov     fs,  ax
+    mov     gs,  ax
 
     ;--------------------------------------
     ; Save the base address of the stub
 
     mov     [StubAddress], ebp
-
-    ;--------------------------------------
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'J'
 
     ;--------------------------------------
     ; Setup the kernel's stack
@@ -730,11 +941,6 @@ ProtectedModeEntry :
     xor     edi, edi
 
     ;--------------------------------------
-
-    mov     eax, 0xB8000
-    mov     byte [eax], 'K'
-
-    ;--------------------------------------
     ; Jump to main kernel routine in C
 
     jmp     KernelMain
@@ -753,4 +959,5 @@ section .stack
 
 KernelStack:
 
-    times STK_SIZE db 0
+    db 'STAK'
+    times ((STK_SIZE - 4) >> MUL_4) dd 0xDEADBEEF

@@ -22,6 +22,11 @@
 
 /***************************************************************************/
 
+extern LINEAR __bss_start;
+extern LINEAR __bss_end;
+
+/***************************************************************************/
+
 STR Text_OSTitle[] =
     "EXOS - Extensible Operating System - Version 1.00\n"
     "Copyright (c) 1999-2025 Jango73.\n"
@@ -329,25 +334,6 @@ void DumpSystemInformation() {
 
 /***************************************************************************/
 
-void InitializePhysicalPageBitmap() {
-    U32 NumPagesUsed = 0;
-    U32 Index = 0;
-    U32 Byte = 0;
-    U32 Value = 0;
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializePhysicalPageBitmap] Enter"));
-
-    NumPagesUsed = (PA_KERNEL + N_2MB) >> PAGE_SIZE_MUL;
-
-    for (Index = 0; Index < NumPagesUsed; Index++) {
-        Byte = Index >> MUL_8;
-        Value = (U32)0x01 << (Index & 0x07);
-        PPB[Byte] |= (U8)Value;
-    }
-}
-
-/***************************************************************************/
-
 void InitializeFileSystems() {
     LPLISTNODE Node;
 
@@ -395,26 +381,27 @@ void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
     KERNELSTARTUPINFO TempKernelStartup;
+    U32* StackMagic = *((U32*)KernelStack);
 
-    InitKernelLog();
-    KernelLogText(LOG_DEBUG, TEXT("InitializeKernel()"));
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel]"));
+
+    //-------------------------------------
+    // Check stack
+
+    if (StackMagic != ID_STACK) {
+        KernelLogText(LOG_DEBUG, TEXT("INVALID stack ID : %X"), StackMagic);
+        KernelDump(KernelStack, 64);
+        SLEEPING_BEAUTY
+    }
 
     //-------------------------------------
     // Dump critical information
 
-    KernelLogText(LOG_DEBUG, TEXT("GDT : %X -> %X"), LA_GDT, PA_GDT);
-    KernelLogText(LOG_DEBUG, TEXT("PGD : %X -> %X"), LA_PGD, PA_PGD);
-    KernelLogText(LOG_DEBUG, TEXT("PGS : %X -> %X"), LA_PGS, PA_PGS);
-    KernelLogText(LOG_DEBUG, TEXT("PGK : %X -> %X"), LA_PGK, PA_PGK);
-    KernelLogText(LOG_DEBUG, TEXT("PGL : %X -> %X"), LA_PGL, PA_PGL);
-    KernelLogText(LOG_DEBUG, TEXT("PGH : %X -> %X"), LA_PGH, PA_PGH);
-    KernelLogText(LOG_DEBUG, TEXT("TSS : %X -> %X"), LA_TSS, PA_TSS);
-    KernelLogText(LOG_DEBUG, TEXT("PPB : %X -> %X"), LA_PPB, PA_PPB);
-
-    KernelLogText(LOG_DEBUG, TEXT("PA_SYSTEM : %X"), PA_SYSTEM);
-    KernelLogText(LOG_DEBUG, TEXT("PA_KERNEL : %X"), PA_KERNEL);
+    KernelLogText(LOG_DEBUG, TEXT("PA_SYS : %X"), PA_SYS);
+    KernelLogText(LOG_DEBUG, TEXT("PA_KER : %X"), PA_KER);
     KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
+    KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), KernelStack);
 
     //-------------------------------------
     // No more interrupts
@@ -434,8 +421,6 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize BSS after information collected
 
-    extern LINEAR __bss_start;
-    extern LINEAR __bss_end;
     LINEAR BSSStart = (LINEAR)(&__bss_start);
     LINEAR BSSEnd = (LINEAR)(&__bss_end);
     U32 BSSSize = BSSEnd - BSSStart;
@@ -458,12 +443,6 @@ void InitializeKernel() {
 
     InitializeVirtualMemoryManager();
     KernelLogText(LOG_DEBUG, TEXT("Vitual memory manager initialized"));
-
-    //-------------------------------------
-    // Initialize the physical page bitmap
-
-    InitializePhysicalPageBitmap();
-    KernelLogText(LOG_DEBUG, TEXT("Physical memory bitmap initialized"));
 
     // Provoke page fault
     // *((U32*)0x70000000) = 5;

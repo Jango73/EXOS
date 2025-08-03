@@ -283,3 +283,59 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 }
 
 /***************************************************************************/
+
+static void KernelDumpLine(U32 Address, const U8* Data, U32 Count) {
+    // Print address
+    KernelPrint(TEXT("VERBOSE > 0x%08X    "), Address);
+
+    // Print 16 bytes as hex (2 groups of 8)
+    for (U32 i = 0; i < 16; ++i) {
+        if (i == 8)
+            KernelPrint(TEXT(": "));
+        if (i < Count)
+            KernelPrint(TEXT("%02X"), Data[i]);
+        else
+            KernelPrint(TEXT("  ")); // pad missing bytes
+        if ((i & 1) == 1 && i != 7 && i != 15)
+            KernelPrint(TEXT(" "));
+    }
+
+    // Print 3 spaces before ASCII
+    KernelPrint(TEXT("   "));
+
+    // Print ASCII
+    for (U32 i = 0; i < 16; ++i) {
+        if (i < Count) {
+            U8 c = Data[i];
+            if (c >= 32 && c < 127)
+                KernelPrintChar((STR)c);
+            else
+                KernelPrintChar('.');
+        } else {
+            KernelPrintChar(' ');
+        }
+    }
+
+    KernelPrint(Text_NewLine);
+}
+
+/***************************************************************************/
+
+void KernelDump(LINEAR Address, U32 Size) {
+    const U8* ptr = (const U8*)Address;
+    U32 lines = Size / 16;
+    U32 remain = Size % 16;
+
+    for (U32 i = 0; i < lines; ++i) {
+        KernelDumpLine(Address + i * 16, ptr + i * 16, 16);
+    }
+
+    if (remain) {
+        U8 buffer[16] = {0};
+        for (U32 j = 0; j < remain; ++j)
+            buffer[j] = ptr[lines * 16 + j];
+        KernelDumpLine(Address + lines * 16, buffer, remain);
+    }
+}
+
+/***************************************************************************/
