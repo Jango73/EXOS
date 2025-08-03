@@ -4,7 +4,7 @@ LD      = i686-elf-ld
 AS      = AS = i686-elf-as
 NASM    = nasm
 
-CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O2 -fno-pic -fno-stack-protector -fno-builtin
+CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O2 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration
 AFLAGS  = -f elf -I source/
 
 LDFLAGS = -T linker.ld -nostdlib -Map=bin/runtime.map

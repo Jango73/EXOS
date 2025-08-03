@@ -1,3 +1,4 @@
+
 /***************************************************************************\
 
     EXOS Run-Time Library
@@ -13,18 +14,26 @@
 
 extern unsigned exoscall(unsigned, unsigned);
 extern void __exit__(int);
+extern unsigned strcmp(const char*, const char*);
+extern unsigned strstr(const char*, const char*);
 
 /***************************************************************************/
 
-void exit(int ErrorCode) { __exit__(ErrorCode); }
+void exit(int ErrorCode) {
+    __exit__(ErrorCode);
+}
 
 /***************************************************************************/
 
-void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, s); }
+void* malloc(size_t s) {
+    return (void*)exoscall(SYSCALL_HeapAlloc, s);
+}
 
 /***************************************************************************/
 
-void free(void* p) { exoscall(SYSCALL_HeapFree, (unsigned)p); }
+void free(void* p) {
+    exoscall(SYSCALL_HeapFree, (unsigned)p);
+}
 
 /***************************************************************************/
 
@@ -47,13 +56,12 @@ int printf(const char* fmt, ...) {
 
 /***************************************************************************/
 
-int _beginthread(void (*__start_address)(void*), void* __stack_bottom,
-                 unsigned __stack_size, void* __arglist) {
+int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
     TASKINFO TaskInfo;
 
-    TaskInfo.Func = (TASKFUNC)__start_address;
-    TaskInfo.Parameter = (LPVOID)__arglist;
-    TaskInfo.StackSize = (U32)__stack_size;
+    TaskInfo.Func = (TASKFUNC) start_address;
+    TaskInfo.Parameter = (LPVOID) arg_list;
+    TaskInfo.StackSize = (U32) stack_size;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = 0;
 
@@ -70,7 +78,7 @@ int system(const char* __cmd) {
     PROCESSINFO ProcessInfo;
 
     ProcessInfo.FileName = NULL;
-    ProcessInfo.CommandLine = __cmd;
+    ProcessInfo.CommandLine = (LPCSTR) __cmd;
     ProcessInfo.Flags = 0;
     ProcessInfo.StdOut = NULL;
     ProcessInfo.StdIn = NULL;
@@ -85,6 +93,27 @@ FILE* fopen(const char* __name, const char* __mode) {
     FILEOPENINFO info;
     FILE* __fp;
     HANDLE handle;
+
+    info.Size = sizeof(FILEOPENINFO);
+    info.Name = (LPCSTR) __name;
+    info.Flags = 0;
+
+    if (strstr(__mode, "r+")) {
+        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_EXISTING;
+    } else if (strstr(__mode, "r")) {
+        info.Flags |= FILE_OPEN_READ | FILE_OPEN_EXISTING;
+    } else if (strstr(__mode, "w+")) {
+        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+    } else if (strstr(__mode, "w")) {
+        info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+    } else if (strstr(__mode, "a+")) {
+        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
+    } else if (strstr(__mode, "a")) {
+        info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
+    } else {
+        // Mode inconnu
+        return NULL;
+    }
 
     handle = exoscall(SYSCALL_OpenFile, (unsigned)&info);
 
@@ -125,43 +154,64 @@ int fclose(FILE* __fp) {
 
 /***************************************************************************/
 
-size_t fread(void* __buf, size_t __elsize, size_t __num, FILE* __fp) {
+size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
     FILEOPERATION fileop;
 
-    if (!__fp) return 0;
+    if (!fp) return 0;
 
     fileop.Size = sizeof fileop;
-    fileop.File = (HANDLE)__fp->_handle;
-    fileop.NumBytes = __elsize * __num;
-    fileop.Buffer = __buf;
+    fileop.File = (HANDLE) fp->_handle;
+    fileop.NumBytes = elsize * num;
+    fileop.Buffer = buf;
 
     return (size_t)exoscall(SYSCALL_ReadFile, (unsigned)&fileop);
 }
 
 /***************************************************************************/
 
-size_t fwrite(const void* __buf, size_t __elsize, size_t __num, FILE* __fp) {
+size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
+    UNUSED(buf);
+    UNUSED(elsize);
+    UNUSED(num);
+    UNUSED(fp);
     return 0;
 }
 
 /***************************************************************************/
 
-int fseek(FILE* __fp, long int __pos, int __whence) { return 0; }
+int fseek(FILE* fp, long int pos, int whence) {
+    UNUSED(fp);
+    UNUSED(pos);
+    UNUSED(whence);
+    return 0;
+}
 
 /***************************************************************************/
 
-long int ftell(FILE* __fp) { return 0; }
+long int ftell(FILE* fp) {
+    UNUSED(fp);
+    return 0;
+}
 
 /***************************************************************************/
 
-int feof(FILE* __fp) { return 0; }
+int feof(FILE* fp) {
+    UNUSED(fp);
+    return 0;
+}
 
 /***************************************************************************/
 
-int fflush(FILE* __fp) { return 0; }
+int fflush(FILE* fp) {
+    UNUSED(fp);
+    return 0;
+}
 
 /***************************************************************************/
 
-int fgetc(FILE* __fp) { return 0; }
+int fgetc(FILE* fp) {
+    UNUSED(fp);
+    return 0;
+}
 
 /***************************************************************************/

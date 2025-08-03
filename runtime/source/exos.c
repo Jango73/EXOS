@@ -1,12 +1,17 @@
+
 /***************************************************************************\
 
-  EXOS
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
 #include "../include/exos.h"
+
+/***************************************************************************/
+
+extern unsigned exoscall(unsigned, unsigned);
 
 /***************************************************************************/
 
@@ -22,7 +27,9 @@ BOOL KillTask(HANDLE Task) {
 
 /***************************************************************************/
 
-void Sleep(U32 MilliSeconds) { exoscall(SYSCALL_Sleep, MilliSeconds); }
+void Sleep(U32 MilliSeconds) {
+    exoscall(SYSCALL_Sleep, MilliSeconds);
+}
 
 /***************************************************************************/
 
@@ -52,6 +59,12 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
 
 BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last,
                  U32 Flags) {
+    UNUSED(Target);
+    UNUSED(Message);
+    UNUSED(First);
+    UNUSED(Last);
+    UNUSED(Flags);
+
     return FALSE;
 }
 
@@ -73,6 +86,8 @@ BOOL DispatchMessage(LPMESSAGE Message) {
 /***************************************************************************/
 
 BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
+    UNUSED(Target);
+
     MESSAGEINFO MessageInfo;
 
     MessageInfo.Size = sizeof MessageInfo;
@@ -223,13 +238,17 @@ BOOL ReleaseWindowGC(HANDLE GC) {
 /***************************************************************************/
 
 HANDLE BeginWindowDraw(HANDLE Window) {
+    UNUSED(Window);
     // return (HANDLE) exoscall(SYSCALL_BeginWindowDraw, (U32) Window);
+    return NULL;
 }
 
 /***************************************************************************/
 
 BOOL EndWindowDraw(HANDLE Window) {
+    UNUSED(Window);
     // return (BOOL) exoscall(SYSCALL_EndWindowDraw, (U32) Window);
+    return NULL;
 }
 
 /***************************************************************************/
@@ -393,14 +412,21 @@ BOOL GetMousePos(LPPOINT Point) {
 
 /***************************************************************************/
 
-U32 GetMouseButtons() { return (U32)exoscall(SYSCALL_GetMouseButtons, 0); }
+U32 GetMouseButtons() {
+    return (U32)exoscall(SYSCALL_GetMouseButtons, 0);
+}
 
 /***************************************************************************/
 
-HANDLE CaptureMouse(HANDLE Window) { return NULL; }
+HANDLE CaptureMouse(HANDLE Window) {
+    UNUSED(Window);
+    return NULL;
+}
 
 /***************************************************************************/
 
-BOOL ReleaseMouse() { return FALSE; }
+BOOL ReleaseMouse() {
+    return FALSE;
+}
 
 /***************************************************************************/
