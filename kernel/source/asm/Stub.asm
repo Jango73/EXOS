@@ -126,6 +126,17 @@ CopyKernelMsgSrc  db 'CopyKernel src=',0
 CopyKernelMsgDst  db ' dst=',0
 CopyKernelMsgSize db ' size=',0
 CopyKernelMsgNL   db 0x0D,0x0A,0
+CopyKernelSrcTmp  dd 0
+CopyKernelDstTmp  dd 0
+CopyKernelSizeTmp dd 0
+
+TmpBX   dw 0
+TmpDI   dw 0
+TmpES   dw 0
+
+SetupPIC_EAX dd 0
+SetupPIC_EBX dd 0
+SetupPIC_ECX dd 0
 
 ;--------------------------------------
 
@@ -336,9 +347,9 @@ Delay :
 
 PrintChar :
 
-    push    bx
-    push    di
-    push    es
+    mov     [TmpBX - StartAbsolute], bx
+    mov     [TmpDI - StartAbsolute], di
+    mov     [TmpES - StartAbsolute], es
     mov     bx, 0xB800
     mov     es, bx
     mov     di, [Cursor - StartAbsolute]
@@ -346,9 +357,10 @@ PrintChar :
     inc     di
     inc     di
     mov     [Cursor - StartAbsolute], di
-    pop     es
-    pop     di
-    pop     bx
+    mov     bx, [TmpBX - StartAbsolute]
+    mov     di, [TmpDI - StartAbsolute]
+    mov     ax, [TmpES - StartAbsolute]
+    mov     es, ax
     ret
 
 ;--------------------------------------
@@ -360,61 +372,61 @@ SetupPIC :
 ; The bios puts IRQs at 0x08-0x0F, which is used for the internal
 ; hardware interrupts as well. We just have to reprogram the 8259s.
 
-    push ax
-    push bx
-    push cx
+    mov     [SetupPIC_EAX - StartAbsolute], eax
+    mov     [SetupPIC_EBX - StartAbsolute], ebx
+    mov     [SetupPIC_ECX - StartAbsolute], ecx
 
     xor     eax, eax
     in      al, PIC1_DATA
     mov     [SI_IRQMask_21_RM - StartAbsolute], eax
-    call Delay
+    call    Delay
     xor     eax, eax
     in      al, PIC2_DATA
     mov     [SI_IRQMask_A1_RM - StartAbsolute], eax
-    call Delay
+    call    Delay
 
     mov     al, ICW1_INIT + ICW1_ICW4
     out     PIC1_CMD, al
-    call Delay
+    call    Delay
     mov     al, ICW1_INIT + ICW1_ICW4
     out     PIC2_CMD, al
-    call Delay
+    call    Delay
 
     mov     al, PIC1_VECTOR               ; Start of hardware IRQs (0x20)
     out     PIC1_DATA, al
-    call Delay
+    call    Delay
     mov     al, PIC2_VECTOR               ; Start of hardware IRQs (0x28)
     out     PIC2_DATA, al
-    call Delay
+    call    Delay
 
     mov     al, 0x04                      ; 8259-1 is master
     out     PIC1_DATA, al
-    call Delay
+    call    Delay
     mov     al, 0x02                      ; 8259-2 is slave
     out     PIC2_DATA, al
-    call Delay
+    call    Delay
 
     mov     al, ICW4_8086                 ; 8086 mode for 8259-1
     out     PIC1_DATA, al
-    call Delay
+    call    Delay
     mov     al, ICW4_8086                 ; 8086 mode for 8259-2
     out     PIC2_DATA, al
-    call Delay
+    call    Delay
 
     mov     al, 0xFB                   ; Mask off all IRQs for now
     out     PIC1_DATA, al
-    call Delay
+    call    Delay
     mov     al, 0xFF
     out     PIC2_DATA, al
-    call Delay
+    call    Delay
 
     mov     al, 0x20
     out     0x20, al
     out     0xA0, al
 
-    pop  cx
-    pop  bx
-    pop  ax
+    mov     eax, [SetupPIC_EAX - StartAbsolute]
+    mov     ebx, [SetupPIC_EBX - StartAbsolute]
+    mov     ecx, [SetupPIC_ECX - StartAbsolute]
     ret
 
 ;----------------------------------------------------------------------------
@@ -650,55 +662,47 @@ CopyKernel :
 
     mov     esi, ebp
     add     esi, [KernelStart - StartAbsolute]
+    mov     [CopyKernelSrcTmp - StartAbsolute], esi
     mov     edi, PA_KERNEL
+    mov     [CopyKernelDstTmp - StartAbsolute], edi
     mov     ecx, [KernelSize - StartAbsolute]
+    mov     [CopyKernelSizeTmp - StartAbsolute], ecx
 
     ;--------------------------------------
     ; Serial trace of copy parameters
 
-    push    esi
-    push    edi
-    push    ecx
-
     mov     eax, ebp
     add     eax, CopyKernelMsgSrc - StartAbsolute
-    push    eax
+    mov     esi, eax
     call    SerialWriteString
-    add     esp, 4
 
-    push    dword [esp+4]
+    mov     eax, [CopyKernelSrcTmp - StartAbsolute]
     call    SerialWriteHex32
-    add     esp, 4
 
     mov     eax, ebp
     add     eax, CopyKernelMsgDst - StartAbsolute
-    push    eax
+    mov     esi, eax
     call    SerialWriteString
-    add     esp, 4
 
-    push    dword [esp+8]
+    mov     eax, [CopyKernelDstTmp - StartAbsolute]
     call    SerialWriteHex32
-    add     esp, 4
 
     mov     eax, ebp
     add     eax, CopyKernelMsgSize - StartAbsolute
-    push    eax
+    mov     esi, eax
     call    SerialWriteString
-    add     esp, 4
 
-    push    dword [esp]
+    mov     eax, [CopyKernelSizeTmp - StartAbsolute]
     call    SerialWriteHex32
-    add     esp, 4
 
     mov     eax, ebp
     add     eax, CopyKernelMsgNL - StartAbsolute
-    push    eax
+    mov     esi, eax
     call    SerialWriteString
-    add     esp, 4
 
-    pop     ecx
-    pop     edi
-    pop     esi
+    mov     esi, [CopyKernelSrcTmp - StartAbsolute]
+    mov     edi, [CopyKernelDstTmp - StartAbsolute]
+    mov     ecx, [CopyKernelSizeTmp - StartAbsolute]
 
     cld
     rep     movsb

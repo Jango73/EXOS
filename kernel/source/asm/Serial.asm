@@ -11,9 +11,6 @@ bits 32
 ;--------------------------------------
 ; Initialize COM1 for 38400 8N1
 SerialInit:
-    push    eax
-    push    edx
-
     mov     dx, 0x3F8 + 1
     mov     al, 0x00
     out     dx, al                ; Disable interrupts
@@ -41,19 +38,12 @@ SerialInit:
     mov     dx, 0x3F8 + 4
     mov     al, 0x0B
     out     dx, al                ; IRQs enabled, RTS/DSR set
-
-    pop     edx
-    pop     eax
     ret
 
 ;--------------------------------------
 ; Write a single character to COM1
-; Param: [ebp+8] - character
+; AL - character to send
 SerialWriteChar:
-    push    ebp
-    mov     ebp, esp
-    push    edx
-
 .wait:
     mov     dx, 0x3F8 + 5
     in      al, dx
@@ -61,46 +51,26 @@ SerialWriteChar:
     jz      .wait
 
     mov     dx, 0x3F8
-    mov     al, [ebp+8]
     out     dx, al
-
-    pop     edx
-    pop     ebp
     ret
 
 ;--------------------------------------
 ; Write a zero-terminated string to COM1
-; Param: [ebp+8] - pointer to string
+; ESI - pointer to string
 SerialWriteString:
-    push    ebp
-    mov     ebp, esp
-    push    esi
-
-    mov     esi, [ebp+8]
 .loop:
     lodsb
     test    al, al
     jz      .done
-    push    eax
     call    SerialWriteChar
-    add     esp, 4
     jmp     .loop
 .done:
-    pop     esi
-    pop     ebp
     ret
 
 ;--------------------------------------
 ; Write a 32-bit value in hexadecimal to COM1
-; Param: [ebp+8] - value
+; EAX - value
 SerialWriteHex32:
-    push    ebp
-    mov     ebp, esp
-    push    eax
-    push    ecx
-    push    edx
-
-    mov     eax, [ebp+8]
     mov     ecx, 8
 .hex_loop:
     mov     edx, eax
@@ -110,16 +80,10 @@ SerialWriteHex32:
     jbe     .digit
     add     dl, 7
 .digit:
-    push    edx
+    mov     al, dl
     call    SerialWriteChar
-    add     esp, 4
     shl     eax, 4
     loop    .hex_loop
-
-    pop     edx
-    pop     ecx
-    pop     eax
-    pop     ebp
     ret
 
 ;--------------------------------------
