@@ -23,6 +23,10 @@ section .text.stub
 bits 16
 
     global StartAbsolute
+    global Cursor
+    global SI_IRQMask_21_RM
+    global SI_IRQMask_A1_RM
+    global GDT
     extern Set_A20_Line
     extern PrintChar
     extern SetupPIC
