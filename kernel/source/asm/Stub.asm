@@ -26,7 +26,7 @@ bits 16
     global Cursor
     global SI_IRQMask_21_RM
     global SI_IRQMask_A1_RM
-    global GDT
+    global StubGDT
     extern Set_A20_Line
     extern PrintChar
     extern SetupPIC
@@ -61,7 +61,7 @@ SI_Memory         dd 0
 
 ;--------------------------------------
 
-GDT :
+StubGDT :
 
 GDT_Null :
 
@@ -113,7 +113,7 @@ IDT_Label :
 GDT_Label :
 
     dw  (N_8KB - 1)
-    dd  GDT
+    dd  StubGDT
 
 Start32_Entry :
 

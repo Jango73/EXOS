@@ -171,12 +171,12 @@ bits 32
     global CopyKernel
     global GetMemorySize
 
-    extern GDT
+    extern StubGDT
 
 SetupGDT:
 
     mov     esi, ebp
-    add     esi, GDT
+    add     esi, StubGDT
     mov     edi, PA_GDT
     mov     ecx, 8 * SEGMENT_DESCRIPTOR_SIZE
     cld
