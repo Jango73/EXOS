@@ -44,6 +44,7 @@ SerialInit:
 ; Write a single character to COM1
 ; AL - character to send
 SerialWriteChar:
+    mov     ah, al                ; Save character
 .wait:
     mov     dx, 0x3F8 + 5
     in      al, dx
@@ -51,6 +52,7 @@ SerialWriteChar:
     jz      .wait
 
     mov     dx, 0x3F8
+    mov     al, ah                ; Restore character
     out     dx, al
     ret
 
