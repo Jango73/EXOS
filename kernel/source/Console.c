@@ -11,6 +11,7 @@
 
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
+#include "../include/System.h"
 #include "../include/VKey.h"
 #include "../include/VarArg.h"
 
@@ -165,39 +166,6 @@ Out:
 
 /***************************************************************************/
 
-BOOL ConsolePrint(LPCSTR Text) {
-    U32 Index = 0;
-
-    LockMutex(MUTEX_CONSOLE, INFINITY);
-
-    if (Text) {
-        for (Index = 0; Index < 0x10000; Index++) {
-            if (Text[Index] == STR_NULL) break;
-            ConsolePrintChar(Text[Index]);
-        }
-    }
-
-    UnlockMutex(MUTEX_CONSOLE);
-
-    return 1;
-}
-
-/***************************************************************************/
-
-int SetConsoleBackColor(U32 Color) {
-    Console.BackColor = Color;
-    return 1;
-}
-
-/***************************************************************************/
-
-int SetConsoleForeColor(U32 Color) {
-    Console.ForeColor = Color;
-    return 1;
-}
-
-/***************************************************************************/
-
 static INT SkipAToI(LPCSTR* s) {
     INT i = 0;
     while (IsNumeric(**s)) i = i * 10 + *((*s)++) - '0';
@@ -206,16 +174,29 @@ static INT SkipAToI(LPCSTR* s) {
 
 /***************************************************************************/
 
-static void VarKernelPrintNumber(I32 Number, I32 Base, I32 FieldWidth,
-                                 I32 Precision, I32 Flags) {
-    STR Text[128];
-    NumberToString(Text, Number, Base, FieldWidth, Precision, Flags);
-    ConsolePrint(Text);
+static void ConsolePrintString(LPCSTR Text) {
+    U32 Index = 0;
+
+    if (Text) {
+        for (Index = 0; Index < 0x10000; Index++) {
+            if (Text[Index] == STR_NULL) break;
+            ConsolePrintChar(Text[Index]);
+        }
+    }
 }
 
 /***************************************************************************/
 
-static void VarKernelPrint(LPCSTR Format, VarArgList Args) {
+static void VarConsolePrintNumber(I32 Number, I32 Base, I32 FieldWidth,
+                                 I32 Precision, I32 Flags) {
+    STR Text[128];
+    NumberToString(Text, Number, Base, FieldWidth, Precision, Flags);
+    ConsolePrintString(Text);
+}
+
+/***************************************************************************/
+
+static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
     LPCSTR Text = NULL;
     I32 Flags, Number, i;
     I32 FieldWidth, Precision, Qualifier, Base, Length;
@@ -320,7 +301,7 @@ static void VarKernelPrint(LPCSTR Format, VarArgList Args) {
                     Flags |= PF_ZEROPAD;
                     Flags |= PF_LARGE;
                 }
-                VarKernelPrintNumber((U32)VarArg(Args, LPVOID), 16, FieldWidth,
+                VarConsolePrintNumber((U32)VarArg(Args, LPVOID), 16, FieldWidth,
                                      Precision, Flags);
                 continue;
 
@@ -380,22 +361,36 @@ static void VarKernelPrint(LPCSTR Format, VarArgList Args) {
                 Number = VarArg(Args, UINT);
         }
 
-        VarKernelPrintNumber(Number, Base, FieldWidth, Precision, Flags);
+        VarConsolePrintNumber(Number, Base, FieldWidth, Precision, Flags);
     }
 }
 
 /***************************************************************************/
 
-void KernelPrint(LPCSTR Format, ...) {
+BOOL ConsolePrint(LPCSTR Format, ...) {
     VarArgList Args;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
-    VarArgStart(Args, Format);
-    VarKernelPrint(Format, Args);
-    VarArgEnd(Args);
+    VarConsolePrint(Format, Args);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    return 1;
+}
+
+/***************************************************************************/
+
+int SetConsoleBackColor(U32 Color) {
+    Console.BackColor = Color;
+    return 1;
+}
+
+/***************************************************************************/
+
+int SetConsoleForeColor(U32 Color) {
+    Console.ForeColor = Color;
+    return 1;
 }
 
 /***************************************************************************/
@@ -448,14 +443,10 @@ BOOL InitializeConsole() {
     Console.BackColor = 0;
     Console.ForeColor = 7;
 
-    /*
     Console.CursorX = KernelStartup.ConsoleCursorX;
     Console.CursorY = KernelStartup.ConsoleCursorY;
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
-    */
-
-    ClearConsole();
 
     return TRUE;
 }

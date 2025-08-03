@@ -7,6 +7,7 @@
 
 \***************************************************************************/
 
+#include "../include/Clock.h"
 #include "../include/Kernel.h"
 
 // Temporary

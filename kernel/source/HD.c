@@ -12,6 +12,7 @@
 #include "../include/HD.h"
 
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 /***************************************************************************/
 

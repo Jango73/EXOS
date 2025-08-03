@@ -10,7 +10,9 @@
 #include "../include/Base.h"
 #include "../include/GFX.h"
 #include "../include/Mouse.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
+#include "../include/String.h"
 #include "../include/User.h"
 
 /***************************************************************************/
@@ -287,7 +289,7 @@ static U32 MouseInitialize() {
     //-------------------------------------
     //
 
-    KernelPrint("Mouse found on COM1: %c%c\n", Sig1, Sig2);
+    KernelLogText(LOG_VERBOSE, TEXT("Mouse found on COM1: %c%c\n"), Sig1, Sig2);
 
 Out:
 

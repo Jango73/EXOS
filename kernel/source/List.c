@@ -12,6 +12,7 @@
 #include "../include/List.h"
 
 #include "../include/Heap.h"
+#include "../include/String.h"
 
 /***************************************************************************/
 

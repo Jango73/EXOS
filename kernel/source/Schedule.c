@@ -10,6 +10,7 @@
 \***************************************************************************/
 
 #include "../include/Base.h"
+#include "../include/Clock.h"
 #include "../include/Kernel.h"
 #include "../include/Process.h"
 #include "../include/Task.h"

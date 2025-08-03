@@ -16,6 +16,7 @@
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
+#include "../include/Log.h"
 #include "../include/Mouse.h"
 #include "../include/System.h"
 
@@ -209,7 +210,7 @@ BOOL DumpGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
         for (Index = 0; Index < Size; Index++) {
             GetSegmentInfo(Table + Index, &Info);
             SegmentInfoToString(&Info, Text);
-            KernelPrint(Text);
+            KernelLogText(LOG_DEBUG, Text);
         }
     }
 
@@ -221,139 +222,139 @@ BOOL DumpGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
 void DumpRegisters(LPINTEL386REGISTERS Regs) {
     STR Temp[32];
 
-    KernelPrint(TEXT("EAX : "));
+    KernelLogText(LOG_VERBOSE, TEXT("EAX : "));
     U32ToHexString(Regs->EAX, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("EBX : "));
+    KernelLogText(LOG_VERBOSE, TEXT("EBX : "));
     U32ToHexString(Regs->EBX, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("ECX : "));
+    KernelLogText(LOG_VERBOSE, TEXT("ECX : "));
     U32ToHexString(Regs->ECX, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("EDX : "));
+    KernelLogText(LOG_VERBOSE, TEXT("EDX : "));
     U32ToHexString(Regs->EDX, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_NewLine);
 
     //-------------------------------------
 
-    KernelPrint(TEXT("ESI : "));
+    KernelLogText(LOG_VERBOSE, TEXT("ESI : "));
     U32ToHexString(Regs->ESI, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("EDI : "));
+    KernelLogText(LOG_VERBOSE, TEXT("EDI : "));
     U32ToHexString(Regs->EDI, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
     /*
-    KernelPrint("ESP : ");
+    KernelLogText(LOG_VERBOSE, "ESP : ");
     U32ToHexString(Regs->ESP, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
     */
 
-    KernelPrint(TEXT("EBP : "));
+    KernelLogText(LOG_VERBOSE, TEXT("EBP : "));
     U32ToHexString(Regs->EBP, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_NewLine);
 
     //-------------------------------------
 
-    KernelPrint(TEXT("CS : "));
+    KernelLogText(LOG_VERBOSE, TEXT("CS : "));
     U32ToHexString(Regs->CS, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("DS : "));
+    KernelLogText(LOG_VERBOSE, TEXT("DS : "));
     U32ToHexString(Regs->DS, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("SS : "));
+    KernelLogText(LOG_VERBOSE, TEXT("SS : "));
     U32ToHexString(Regs->SS, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_NewLine);
 
     //-------------------------------------
 
-    KernelPrint(TEXT("ES : "));
+    KernelLogText(LOG_VERBOSE, TEXT("ES : "));
     U32ToHexString(Regs->ES, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("FS : "));
+    KernelLogText(LOG_VERBOSE, TEXT("FS : "));
     U32ToHexString(Regs->FS, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("GS : "));
+    KernelLogText(LOG_VERBOSE, TEXT("GS : "));
     U32ToHexString(Regs->GS, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_NewLine);
 
     //-------------------------------------
 
-    KernelPrint(TEXT("E-flags : "));
+    KernelLogText(LOG_VERBOSE, TEXT("E-flags : "));
     U32ToHexString(Regs->EFlags, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("EIP : "));
+    KernelLogText(LOG_VERBOSE, TEXT("EIP : "));
     U32ToHexString(Regs->EIP, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_NewLine);
 
     //-------------------------------------
 
-    KernelPrint(TEXT("CR0 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("CR0 : "));
     U32ToHexString(Regs->CR0, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("CR2 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("CR2 : "));
     U32ToHexString(Regs->CR2, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("CR3 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("CR3 : "));
     U32ToHexString(Regs->CR3, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("CR4 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("CR4 : "));
     U32ToHexString(Regs->CR4, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_NewLine);
 
     //-------------------------------------
 
-    KernelPrint(TEXT("DR0 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("DR0 : "));
     U32ToHexString(Regs->DR0, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("DR1 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("DR1 : "));
     U32ToHexString(Regs->DR1, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("DR2 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("DR2 : "));
     U32ToHexString(Regs->DR2, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_Space);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_Space);
 
-    KernelPrint(TEXT("DR3 : "));
+    KernelLogText(LOG_VERBOSE, TEXT("DR3 : "));
     U32ToHexString(Regs->DR3, Temp);
-    KernelPrint(Temp);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, Temp);
+    KernelLogText(LOG_VERBOSE, Text_NewLine);
 }
 
 /***************************************************************************/
@@ -423,14 +424,14 @@ U32 ClockTask(LPVOID Param) {
 
             Console.CursorX = X;
             Console.CursorY = Y;
-            KernelPrint(Text);
+            ConsolePrint(Text);
 
             MouseX = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
             MouseY = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
             Buttons = SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
             Console.CursorX = 0;
             Console.CursorY = 0;
-            KernelPrint(TEXT("%d %d %d"), MouseX, MouseY, Buttons);
+            ConsolePrint(TEXT("%d %d %d"), MouseX, MouseY, Buttons);
 
             Console.CursorX = OldX;
             Console.CursorY = OldY;
@@ -448,31 +449,31 @@ U32 ClockTask(LPVOID Param) {
 void DumpSystemInformation() {
     static STR Num[16] = {0};
 
-    KernelPrint(Text_NewLine);
+    ConsolePrint(Text_NewLine);
 
     //-------------------------------------
     // Print information on computer
 
-    KernelPrint(TEXT("Computer ID : "));
-    KernelPrint(Kernel.CPU.Name);
-    KernelPrint(Text_NewLine);
+    ConsolePrint(TEXT("Computer ID : "));
+    ConsolePrint(Kernel.CPU.Name);
+    ConsolePrint(Text_NewLine);
 
     //-------------------------------------
     // Print information on memory
 
-    KernelPrint(TEXT("Physical memory : %d"), Memory / 1024);
-    KernelPrint(Text_Space);
-    KernelPrint(Text_KB);
-    KernelPrint(Text_NewLine);
+    ConsolePrint(TEXT("Physical memory : %d"), Memory / 1024);
+    ConsolePrint(Text_Space);
+    ConsolePrint(Text_KB);
+    ConsolePrint(Text_NewLine);
 
-    KernelPrint(TEXT("GDT : %X -> %X"), LA_GDT, PA_GDT);
-    KernelPrint(TEXT("PGD : %X -> %X"), LA_PGD, PA_PGD);
-    KernelPrint(TEXT("PGS : %X -> %X"), LA_PGS, PA_PGS);
-    KernelPrint(TEXT("PGK : %X -> %X"), LA_PGK, PA_PGK);
-    KernelPrint(TEXT("PGL : %X -> %X"), LA_PGL, PA_PGL);
-    KernelPrint(TEXT("PGH : %X -> %X"), LA_PGH, PA_PGH);
-    KernelPrint(TEXT("TSS : %X -> %X"), LA_TSS, PA_TSS);
-    KernelPrint(TEXT("PPB : %X -> %X"), LA_PPB, PA_PPB);
+    ConsolePrint(TEXT("GDT : %X -> %X"), LA_GDT, PA_GDT);
+    ConsolePrint(TEXT("PGD : %X -> %X"), LA_PGD, PA_PGD);
+    ConsolePrint(TEXT("PGS : %X -> %X"), LA_PGS, PA_PGS);
+    ConsolePrint(TEXT("PGK : %X -> %X"), LA_PGK, PA_PGK);
+    ConsolePrint(TEXT("PGL : %X -> %X"), LA_PGL, PA_PGL);
+    ConsolePrint(TEXT("PGH : %X -> %X"), LA_PGH, PA_PGH);
+    ConsolePrint(TEXT("TSS : %X -> %X"), LA_TSS, PA_TSS);
+    ConsolePrint(TEXT("PPB : %X -> %X"), LA_PPB, PA_PPB);
 }
 
 /***************************************************************************/
@@ -527,9 +528,9 @@ U32 GetPhysicalMemoryUsed() {
 
 /***************************************************************************/
 
-void LoadDriver(LPDRIVER Driver) {
+void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     if (Driver->ID != ID_DRIVER) {
-        KernelPrint(TEXT("Kernel data corrupted. Aborting!"));
+        KernelLogText(LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Aborting!"), Name, Driver, Driver->ID);
         SLEEPING_BEAUTY
     }
     Driver->Command(DF_LOAD, 0);
@@ -541,15 +542,24 @@ void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
 
-    DebugPutChar('N');
+    // extern U8 __bss_start, __bss_end;
+    // MemorySet(&__bss_start, 0, &__bss_end - &__bss_start);
+
+    InitKernelLog();
+
+    KernelLogText(LOG_DEBUG, TEXT("InitializeKernel()"));
 
     //-------------------------------------
     // No more interrupts
+
+    KernelLogText(LOG_DEBUG, TEXT("Disabling interrupts"));
 
     DisableInterrupts();
 
     //-------------------------------------
     // Get system information gathered by the stub
+
+    KernelLogText(LOG_DEBUG, TEXT("Getting system information from the stub"));
 
     MemoryCopy(&KernelStartup,
                (LPVOID)(StubAddress + KERNEL_STARTUP_INFO_OFFSET),
@@ -567,16 +577,19 @@ void InitializeKernel() {
     // Initialize the physical page bitmap
 
     InitializePhysicalPageBitmap();
+    KernelLogText(LOG_DEBUG, TEXT("Physical memory bitmap initialized"));
 
     //-------------------------------------
     // Initialize kernel heap
 
     InitializeKernelHeap();
+    KernelLogText(LOG_DEBUG, TEXT("Kernel heap initialized"));
 
     //-------------------------------------
     // Initialize the console
 
     InitializeConsole();
+    KernelLogText(LOG_VERBOSE, TEXT("Console initialized..."));
 
     //-------------------------------------
     // Print system infomation
@@ -586,12 +599,12 @@ void InitializeKernel() {
     //-------------------------------------
     // Print the EXOS banner
 
-    KernelPrint(Text_OSTitle);
+    KernelLogText(LOG_VERBOSE, Text_OSTitle);
 
     //-------------------------------------
     // Initialize the keyboard
 
-    LoadDriver(&StdKeyboardDriver);
+    LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
     KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized..."));
 
     //-------------------------------------
@@ -628,13 +641,13 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize RAM drives
 
-    LoadDriver(&RAMDiskDriver);
+    LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
     KernelLogText(LOG_VERBOSE, TEXT("RAM drive initialized..."));
 
     //-------------------------------------
     // Initialize physical drives
 
-    LoadDriver(&StdHardDiskDriver);
+    LoadDriver(&StdHardDiskDriver, TEXT("StdHardDisk"));
     KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized..."));
 
     //-------------------------------------
@@ -646,13 +659,13 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize the graphics card
 
-    LoadDriver(&VESADriver);
+    LoadDriver(&VESADriver, TEXT("VESA"));
     KernelLogText(LOG_VERBOSE, TEXT("VESA driver initialized..."));
 
     //-------------------------------------
     // Initialize the mouse
 
-    LoadDriver(&SerialMouseDriver);
+    LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
     KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
 
     //-------------------------------------

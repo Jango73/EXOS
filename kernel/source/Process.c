@@ -13,6 +13,7 @@
 #include "../include/Console.h"
 #include "../include/File.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 /***************************************************************************/
 
@@ -40,8 +41,13 @@ PROCESS KernelProcess = {
 void InitializeKernelHeap() {
     KernelProcess.HeapSize = N_1MB;
 
+    KernelLogText(LOG_DEBUG, TEXT("Memory : %X"), Memory);
+    KernelLogText(LOG_DEBUG, TEXT("Pages : %X"), Pages);
+
     LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize,
                                    ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    KernelLogText(LOG_DEBUG, TEXT("HeapBase : %X"), HeapBase);
 
     if (!HeapBase) {
         ClearConsole();
@@ -65,9 +71,7 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
     U32 Index;
     U32 Dummy;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering GetExecutableInfo_EXOS\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering GetExecutableInfo_EXOS\n"));
 
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
@@ -83,10 +87,8 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
     BytesRead = ReadFile(&FileOperation);
 
     if (Header.Signature != EXOS_SIGNATURE) {
-#ifdef __DEBUG__
-        KernelPrint("GetExecutableInfo_EXOS() : Bad signature (%08X)\n",
+        KernelLogText(LOG_DEBUG, TEXT("GetExecutableInfo_EXOS() : Bad signature (%08X)\n"),
                     Header.Signature);
-#endif
 
         goto Out_Error;
     }
@@ -127,17 +129,13 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
 
 Out_Success:
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting GetExecutableInfo_EXOS (Success)\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting GetExecutableInfo_EXOS (Success)\n"));
 
     return TRUE;
 
 Out_Error:
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting GetExecutableInfo_EXOS (Error)\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting GetExecutableInfo_EXOS (Error)\n"));
 
     return FALSE;
 }
@@ -161,9 +159,7 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
     U32 Dummy;
     U32 c;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering LoadExecutable_EXOS\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering LoadExecutable_EXOS\n"));
 
     if (File == NULL) return FALSE;
 
@@ -176,10 +172,8 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
     CodeOffset = CodeBase - Info->CodeBase;
     DataOffset = DataBase - Info->DataBase;
 
-#ifdef __DEBUG__
-    KernelPrint("LoadExecutable_EXOS() : CodeBase = %08X\n", CodeBase);
-    KernelPrint("LoadExecutable_EXOS() : DataBase = %08X\n", DataBase);
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : CodeBase = %08X\n"), CodeBase);
+    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : DataBase = %08X\n"), DataBase);
 
     //-------------------------------------
     // Read the header
@@ -207,9 +201,7 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
                 goto Out_Error;
             }
 
-#ifdef __DEBUG__
-            KernelPrint("LoadExecutable_EXOS() : Reading code\n");
-#endif
+            KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : Reading code\n"));
 
             FileOperation.NumBytes = Chunk.Size;
             FileOperation.Buffer = (LPVOID)CodeBase;
@@ -226,9 +218,7 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
                 goto Out_Error;
             }
 
-#ifdef __DEBUG__
-            KernelPrint("LoadExecutable_EXOS() : Reading data\n");
-#endif
+            KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : Reading data\n"));
 
             FileOperation.NumBytes = Chunk.Size;
             FileOperation.Buffer = (LPVOID)DataBase;
@@ -244,9 +234,7 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
 
             if (BytesRead != sizeof(U32)) goto Out_Error;
 
-#ifdef __DEBUG__
-            KernelPrint("LoadExecutable_EXOS() : Reading relocations\n");
-#endif
+            KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : Reading relocations\n"));
 
             for (c = 0; c < NumFixups; c++) {
                 FileOperation.NumBytes = sizeof(EXOSCHUNK_FIXUP);
@@ -286,17 +274,13 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
 
 Out_Success:
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting LoadExecutable_EXOS\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting LoadExecutable_EXOS\n"));
 
     return TRUE;
 
 Out_Error:
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting LoadExecutable_EXOS\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting LoadExecutable_EXOS\n"));
 
     return FALSE;
 }
@@ -306,9 +290,7 @@ Out_Error:
 LPPROCESS NewProcess() {
     LPPROCESS This = NULL;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering NewProcess\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering NewProcess\n"));
 
     This = (LPPROCESS)KernelMemAlloc(sizeof(PROCESS));
 
@@ -334,211 +316,10 @@ LPPROCESS NewProcess() {
 
     InitSecurity(&(This->Security));
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting NewProcess\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting NewProcess\n"));
 
     return This;
 }
-
-/***************************************************************************/
-
-/*
-BOOL CreateProcess (LPPROCESSINFO Info)
-{
-  TASKINFO      TaskInfo;
-  FILEOPENINFO  FileOpenInfo;
-  FILEOPERATION FileOperation;
-  LPPROCESS     Process       = NULL;
-  LPTASK        Task          = NULL;
-  LPFILE        File          = NULL;
-  PHYSICAL      PageDirectory = NULL;
-  U32           FileSize      = 0;
-  U32           CodeSize      = 0;
-  U32           DataSize      = 0;
-  U32           HeapSize      = 0;
-  U32           TotalSize     = 0;
-  U32           BytesRead     = 0;
-  BOOL          Result        = FALSE;
-
-#ifdef __DEBUG__
-  KernelPrint("Entering CreateProcess\n");
-#endif
-
-  if (Info == NULL) return FALSE;
-
-  //-------------------------------------
-  // Open the executable file
-
-#ifdef __DEBUG__
-  KernelPrint("CreateProcess() : Opening file %s\n", Info->FileName);
-#endif
-
-  FileOpenInfo.Size  = sizeof FileOpenInfo;
-  FileOpenInfo.Name  = Info->FileName;
-  FileOpenInfo.Flags = 0;
-
-  File = OpenFile(&FileOpenInfo);
-
-  if (File == NULL) return FALSE;
-
-  //-------------------------------------
-  // Read the size of the file
-
-  FileSize = GetFileSize(File);
-
-  if (FileSize == 0) return FALSE;
-
-  //-------------------------------------
-  // Lock access to kernel data
-
-  LockMutex(MUTEX_KERNEL, INFINITY);
-
-  //-------------------------------------
-  // Allocate a new process structure
-
-#ifdef __DEBUG__
-  KernelPrint("CreateProcess() : Allocating process...\n");
-#endif
-
-  Process = NewProcess();
-  if (Process == NULL) goto Out;
-
-  StringCopy(Process->FileName, Info->FileName);
-
-  CodeSize = FileSize;
-  DataSize = 0;
-  HeapSize = N_128KB;
-
-  TotalSize = CodeSize + DataSize + HeapSize;
-
-  //-------------------------------------
-  // Allocate and setup the page directory
-
-  Process->PageDirectory = AllocPageDirectory();
-
-  //-------------------------------------
-
-  FreezeScheduler();
-
-  //-------------------------------------
-  // We can use the new page directory from now on
-  // and switch back to the previous when done
-
-#ifdef __DEBUG__
-  KernelPrint("CreateProcess() : Switching page directory...\n");
-#endif
-
-  PageDirectory = GetCurrentProcess()->PageDirectory;
-
-  LoadPageDirectory(Process->PageDirectory);
-
-  //-------------------------------------
-  // Allocate enough memory for the code, data and heap
-
-#ifdef __DEBUG__
-  KernelPrint("CreateProcess() : VirtualAllocing process space...\n");
-#endif
-
-  VirtualAlloc(LA_USER, TotalSize, ALLOC_PAGES_COMMIT);
-
-  //-------------------------------------
-  // Load executable image
-  // For tests, image must be at LA_KERNEL
-
-#ifdef __DEBUG__
-  KernelPrint("CreateProcess() : Loading executable...\n");
-#endif
-
-  FileOperation.Size     = sizeof FileOperation;
-  FileOperation.File     = (HANDLE) File;
-  FileOperation.NumBytes = FileSize;
-  FileOperation.Buffer   = (LPVOID) LA_USER;
-
-  BytesRead = ReadFile(&FileOperation);
-
-  if (BytesRead != FileSize)
-  {
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : Load failed !\n");
-#endif
-
-    VirtualFree(LA_USER, TotalSize);
-    LoadPageDirectory(PageDirectory);
-    UnfreezeScheduler();
-    CloseFile(File);
-    goto Out;
-  }
-
-  CloseFile(File);
-
-  //-------------------------------------
-  // Initialize the heap
-
-  Process->HeapBase = LA_USER + CodeSize + DataSize;
-  Process->HeapSize = HeapSize;
-
-  MemorySet((LPVOID) Process->HeapBase, 0, Process->HeapSize);
-
-  *((U32*)Process->HeapBase) = ID_HEAP;
-
-  //-------------------------------------
-  // Create the initial task
-
-#ifdef __DEBUG__
-  KernelPrint("CreateProcess() : Creating initial task...\n");
-#endif
-
-  TaskInfo.Func      = (TASKFUNC) LA_USER;
-  TaskInfo.Parameter = NULL;
-  TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
-  TaskInfo.Priority  = TASK_PRIORITY_MEDIUM;
-  TaskInfo.Flags     = TASK_CREATE_SUSPENDED;
-
-  Task = CreateTask(Process, &TaskInfo);
-
-  //-------------------------------------
-  // Switch back to our page directory
-
-#ifdef __DEBUG__
-  KernelPrint("CreateProcess() : Switching page directory...\n");
-#endif
-
-  LoadPageDirectory(PageDirectory);
-
-  //-------------------------------------
-
-  UnfreezeScheduler();
-
-  //-------------------------------------
-  // Add the new process to the kernel's process list
-
-  ListAddItem(Kernel.Process, Process);
-
-  //-------------------------------------
-  // Add initial task to the scheduler's queue
-
-  AddTaskToQueue(Task);
-
-  Result = TRUE;
-
-Out :
-
-  Info->Process = (HANDLE) Process;
-  Info->Task    = (HANDLE) Task;
-
-  //-------------------------------------
-  // Release access to kernel data
-
-  UnlockMutex(MUTEX_KERNEL);
-
-#ifdef __DEBUG__
-  KernelPrint("Exiting CreateProcess : Result = %d\n", Result);
-#endif
-
-  return Result;
-}
-*/
 
 /***************************************************************************/
 
@@ -561,18 +342,14 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     U32 TotalSize = 0;
     BOOL Result = FALSE;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering CreateProcess\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering CreateProcess\n"));
 
     if (Info == NULL) return FALSE;
 
         //-------------------------------------
         // Open the executable file
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : Opening file %s\n", Info->FileName);
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Opening file %s\n"), Info->FileName);
 
     FileOpenInfo.Size = sizeof(FILEOPENINFO);
     FileOpenInfo.Name = Info->FileName;
@@ -589,9 +366,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     if (FileSize == 0) return FALSE;
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : File size %d\n", FileSize);
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : File size %d\n"), FileSize);
 
     //-------------------------------------
     // Get executable information
@@ -615,9 +390,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate a new process structure
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : Allocating process...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Allocating process...\n"));
 
     Process = NewProcess();
     if (Process == NULL) goto Out;
@@ -663,9 +436,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // We can use the new page directory from now on
     // and switch back to the previous when done
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : Switching page directory...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory...\n"));
 
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
@@ -674,9 +445,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate enough memory for the code, data and heap
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : VirtualAllocing process space...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : VirtualAllocing process space...\n"));
 
     VirtualAlloc(LA_USER, TotalSize, ALLOC_PAGES_COMMIT);
 
@@ -693,15 +462,11 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // Load executable image
     // For tests, image must be at LA_KERNEL
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : Loading executable...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable...\n"));
 
     if (LoadExecutable_EXOS(File, &ExecutableInfo, (LINEAR)CodeBase,
                             (LINEAR)DataBase) == FALSE) {
-#ifdef __DEBUG__
-        KernelPrint("CreateProcess() : Load failed !\n");
-#endif
+        KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Load failed !\n"));
 
         VirtualFree(LA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
@@ -725,9 +490,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Create the initial task
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : Creating initial task...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Creating initial task...\n"));
 
     // TaskInfo.Func      = (TASKFUNC) LA_USER;
     TaskInfo.Parameter = NULL;
@@ -743,9 +506,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Switch back to our page directory
 
-#ifdef __DEBUG__
-    KernelPrint("CreateProcess() : Switching page directory...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory...\n"));
 
     LoadPageDirectory(PageDirectory);
 
@@ -775,9 +536,7 @@ Out:
 
     UnlockMutex(MUTEX_KERNEL);
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting CreateProcess : Result = %d\n", Result);
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting CreateProcess : Result = %d\n"), Result);
 
     return Result;
 }
@@ -805,14 +564,14 @@ void DumpProcess(LPPROCESS Process) {
 
     LockMutex(&(Process->Mutex), INFINITY);
 
-    KernelPrint(TEXT("Address        : %p\n"), Process);
-    KernelPrint(TEXT("References     : %d\n"), Process->References);
-    KernelPrint(TEXT("Parent         : %p\n"), Process->Parent);
-    KernelPrint(TEXT("Privilege      : %d\n"), Process->Privilege);
-    KernelPrint(TEXT("Page directory : %p\n"), Process->PageDirectory);
-    KernelPrint(TEXT("File name      : %s\n"), Process->FileName);
-    KernelPrint(TEXT("Heap base      : %p\n"), Process->HeapBase);
-    KernelPrint(TEXT("Heap size      : %d\n"), Process->HeapSize);
+    KernelLogText(LOG_DEBUG, TEXT("Address        : %p\n"), Process);
+    KernelLogText(LOG_DEBUG, TEXT("References     : %d\n"), Process->References);
+    KernelLogText(LOG_DEBUG, TEXT("Parent         : %p\n"), Process->Parent);
+    KernelLogText(LOG_DEBUG, TEXT("Privilege      : %d\n"), Process->Privilege);
+    KernelLogText(LOG_DEBUG, TEXT("Page directory : %p\n"), Process->PageDirectory);
+    KernelLogText(LOG_DEBUG, TEXT("File name      : %s\n"), Process->FileName);
+    KernelLogText(LOG_DEBUG, TEXT("Heap base      : %p\n"), Process->HeapBase);
+    KernelLogText(LOG_DEBUG, TEXT("Heap size      : %d\n"), Process->HeapSize);
 
     UnlockMutex(&(Process->Mutex));
 }

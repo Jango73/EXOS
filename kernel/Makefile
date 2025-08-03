@@ -4,7 +4,7 @@ LD      = i686-elf-ld
 AS      = AS = i686-elf-as
 NASM	= nasm
 
-CFLAGS  = -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin
+CFLAGS  = -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration
 AFLAGS  = -f elf -I source/asm/
 
 LDFLAGS_BIN = -T linker-bin.ld -nostdlib -Map=bin/exos-bin.map
