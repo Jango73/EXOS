@@ -27,8 +27,8 @@ SECTIONS
     /* BSS */
     .bss : AT(ALIGN(LOADADDR(.data) + SIZEOF(.data), 0x1000)) {
         __bss_start = .;
-        *(global)
         *(.bss)
+        *(global)
         *(COMMON)
         __bss_end = .;
     }

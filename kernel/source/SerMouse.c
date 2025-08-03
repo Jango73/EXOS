@@ -36,6 +36,20 @@ DRIVER SerialMouseDriver = {ID_DRIVER,
 
 /***************************************************************************/
 
+typedef struct tag_MOUSEDATA {
+    MUTEX Mutex;
+    U32 Busy;
+    I32 DeltaX;
+    I32 DeltaY;
+    U32 Buttons;
+    I32 PosX;
+    I32 PosY;
+} MOUSEDATA, *LPMOUSEDATA;
+
+static MOUSEDATA Mouse = {0};
+
+/***************************************************************************/
+
 #define LOGIMOUSE_DATA 0x023C
 #define LOGIMOUSE_SIGNATURE 0x023D
 #define LOGIMOUSE_CONTROL 0x023E
@@ -129,28 +143,6 @@ DRIVER SerialMouseDriver = {ID_DRIVER,
 
 #define COM1_PORT 0x03F8
 #define COM2_PORT 0x02F8
-
-/***************************************************************************/
-
-typedef struct tag_MOUSEDATA {
-    MUTEX Mutex;
-    U32 Busy;
-    I32 DeltaX;
-    I32 DeltaY;
-    U32 Buttons;
-    I32 PosX;
-    I32 PosY;
-} MOUSEDATA, *LPMOUSEDATA;
-
-static MOUSEDATA Mouse = {
-    .Mutex = EMPTY_MUTEX,
-    .Busy = 0,
-    .DeltaX = 0,
-    .DeltaY = 0,
-    .Buttons = 0,
-    .PosX = 0,
-    .PosY = 0
-};
 
 /***************************************************************************/
 

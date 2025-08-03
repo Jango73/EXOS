@@ -11,6 +11,7 @@
 
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
+#include "../include/Log.h"
 #include "../include/System.h"
 #include "../include/VKey.h"
 #include "../include/VarArg.h"
@@ -370,11 +371,15 @@ static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
 BOOL ConsolePrint(LPCSTR Format, ...) {
     VarArgList Args;
 
+    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Enter"));
+
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     VarConsolePrint(Format, Args);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Exit"));
 
     return 1;
 }

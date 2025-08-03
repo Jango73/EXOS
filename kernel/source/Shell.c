@@ -17,6 +17,7 @@
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
 #include "../include/List.h"
+#include "../include/Log.h"
 #include "../include/String.h"
 #include "../include/System.h"
 #include "../include/User.h"
@@ -103,6 +104,8 @@ static struct {
 static void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
+    KernelLogText(LOG_DEBUG, TEXT("[InitShellContext] Enter"));
+
     This->Component = 0;
     This->CommandChar = 0;
 
@@ -121,6 +124,8 @@ static void InitShellContext(LPSHELLCONTEXT This) {
     }
 
     StringCopy(This->CurrentFolder, TEXT(""));
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitShellContext] Exit"));
 }
 
 /***************************************************************************/
@@ -128,9 +133,13 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 static void DeinitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
+    KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Enter"));
+
     for (Index = 0; Index < NUM_BUFFERS; Index++) {
         if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
     }
+
+    KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Exit"));
 }
 
 /***************************************************************************/
@@ -151,9 +160,12 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
 /***************************************************************************/
 
 static BOOL ShowPrompt(LPSHELLCONTEXT Context) {
+    KernelLogText(LOG_DEBUG, TEXT("[ShowPrompt] Enter"));
+
     ConsolePrint(TEXT("\n%s:/%s>"), Context->CurrentVolume,
                 Context->CurrentFolder);
 
+    KernelLogText(LOG_DEBUG, TEXT("[ShowPrompt] Prompt printed"));
     return TRUE;
 }
 
@@ -827,12 +839,16 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     U32 Length;
     U32 Index;
 
+    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Enter"));
+
     ShowPrompt(Context);
 
     Context->Component = 0;
     Context->CommandChar = 0;
 
     MemorySet(Context->CommandLine, 0, sizeof Context->CommandLine);
+
+    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Context->CommandLine cleared"));
 
     ConsoleGetString(Context->CommandLine, sizeof Context->CommandLine);
 
@@ -876,22 +892,18 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
         }
     }
 
-    return TRUE;
+    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Exit"));
 
-    /*
-      if (StringCompareNC(Context->Command, "rmc") == 0)
-      {
-    RealModeCallTest();
-      }
-    */
+    return TRUE;
 }
 
 /***************************************************************************/
 
 U32 Shell(LPVOID Param) {
     UNUSED(Param);
-
     SHELLCONTEXT Context;
+
+    KernelLogText(LOG_DEBUG, TEXT("[Shell] Enter"));
 
     InitShellContext(&Context);
 
@@ -903,6 +915,8 @@ U32 Shell(LPVOID Param) {
     ConsolePrint(TEXT("Exiting shell...\n"));
 
     DeinitShellContext(&Context);
+
+    KernelLogText(LOG_DEBUG, TEXT("[Shell] Exit"));
 
     return 1;
 }

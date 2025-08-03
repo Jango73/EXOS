@@ -7,6 +7,7 @@
 
 \***************************************************************************/
 
+#include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"
@@ -203,13 +204,14 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address) {
     LPTASK Task = GetCurrentTask();
     INTEL386REGISTERS Regs;
 
-    KernelLogText(LOG_ERROR, "Page fault !\n");
+    ConsolePrint("Page fault !\n");
 
-    KernelLogText(LOG_ERROR, TEXT("The current task (%X) did an unauthorized access\n"), Task ? Task : 0);
-    KernelLogText(LOG_ERROR, TEXT("at linear address : %X\n"), Address);
-    KernelLogText(LOG_ERROR, TEXT("Since this error is unrecoverable,\n"));
-    KernelLogText(LOG_ERROR, TEXT("the task will be shutdown now.\n"));
-    KernelLogText(LOG_ERROR, TEXT("Shutdown in progress...\n"));
+    ConsolePrint(TEXT("The current task (%X) did an unauthorized access"), Task ? Task : 0);
+    ConsolePrint(TEXT("at linear address : %X\n"), Address);
+    ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
+    ConsolePrint(TEXT("Shutdown in progress..."));
+
+    KernelLogText(LOG_ERROR, TEXT("Page fault at %X"), Address);
 
     SaveRegisters(&Regs);
     DumpRegisters(&Regs);

@@ -248,7 +248,7 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     switch (Type) {
         case LOG_DEBUG: {
-            KernelPrint(TEXT("DBG> "));
+            KernelPrint(TEXT("DEBUG > "));
             VarKernelPrint(Format, Args);
             KernelPrint(Text_NewLine);
         } break;
@@ -261,13 +261,13 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
         } break;
 
         case LOG_WARNING: {
-            KernelPrint(TEXT("WARNING: "));
+            KernelPrint(TEXT("WARNING > "));
             VarKernelPrint(Format, Args);
             KernelPrint(Text_NewLine);
         } break;
 
         case LOG_ERROR: {
-            KernelPrint(TEXT("ERROR: "));
+            KernelPrint(TEXT("ERROR > "));
             VarKernelPrint(Format, Args);
             KernelPrint(Text_NewLine);
         } break;
