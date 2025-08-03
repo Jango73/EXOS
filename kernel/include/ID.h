@@ -13,6 +13,7 @@
 /***************************************************************************/
 
 #define ID_NONE 0x00000000
+#define ID_STACK 0x4B414453            // "STAK"
 #define ID_PROCESS 0x434F5250          // "PROC"
 #define ID_TASK 0x4B534154             // "TASK"
 #define ID_MUTEX 0x4D555458            // "MUTX"

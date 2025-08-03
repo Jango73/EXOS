@@ -26,6 +26,7 @@
 void InitKernelLog();
 void KernelPrint(LPCSTR, ...);
 void KernelLogText(U32, LPCSTR, ...);
+void KernelDump(LINEAR Address, U32 Size);
 
 /***************************************************************************/
 

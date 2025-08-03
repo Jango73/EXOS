@@ -7,6 +7,7 @@ SECTIONS
     . = 0x00000000;
     .stub : AT(0x00000000) {
         *(.text.stub)
+        *(.text.stub2)
     }
 
     /* Kernel — high memory, physically after stub (0x1000 offset) */

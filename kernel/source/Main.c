@@ -8,13 +8,7 @@
 \***************************************************************************/
 
 #include "../include/Kernel.h"
-
-/***************************************************************************/
-
-static void DebugPutChar(STR Char) {
-    volatile char* vram = (char*)0xB8000;
-    vram[0] = Char;
-}
+#include "../include/Log.h"
 
 /***************************************************************************/
 
@@ -27,7 +21,8 @@ static void KernelIdle() {
 // The entry point in protected mode
 
 void KernelMain() {
-    DebugPutChar('M');
+    InitKernelLog();
+    KernelLogText(LOG_DEBUG, TEXT("[KernelMain] Calling InitializeKernel"));
 
     //--------------------------------------
     // Main intialization routine

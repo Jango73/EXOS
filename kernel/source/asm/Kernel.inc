@@ -98,35 +98,37 @@ PAGE_BIT_SYSTEM    equ (PAGE_BIT_PRESENT | PAGE_BIT_RDWR | PAGE_BIT_FIXED)
 ;----------------------------------------------------------
 ; Physical and virtual memory addresses
 
-LOW_SIZE     equ N_1MB
-HMA_SIZE     equ N_128KB
-IDT_SIZE     equ N_4KB
-GDT_SIZE     equ N_8KB
-PGD_SIZE     equ PAGE_TABLE_SIZE
-PGS_SIZE     equ PAGE_TABLE_SIZE
-PGK_SIZE     equ PAGE_TABLE_SIZE
-PGL_SIZE     equ PAGE_TABLE_SIZE
-PGH_SIZE     equ PAGE_TABLE_SIZE
-TSS_SIZE     equ N_32KB
-PPB_SIZE     equ N_64KB
+LOW_SIZE     equ N_1MB ; Low Memory Area Size
+HMA_SIZE     equ N_128KB ; High Memory Area Size
+IDT_SIZE     equ N_4KB ; Interrupt Descriptor Table Size
+GDT_SIZE     equ N_8KB ; Kernel Global Descriptor Table Size
+PGD_SIZE     equ PAGE_TABLE_SIZE ; Kernel Page Directory Size
+PGS_SIZE     equ PAGE_TABLE_SIZE ; System Page Table Size
+PGK_SIZE     equ PAGE_TABLE_SIZE ; Kernel Page Table Size
+PGL_SIZE     equ PAGE_TABLE_SIZE ; Low Memory Page Table size
+PGH_SIZE     equ PAGE_TABLE_SIZE ; High Memory Page Table size
+TSS_SIZE     equ N_32KB ; Task State Segment Size
+PPB_SIZE     equ N_128KB ; Physical Page Bitmap Size
+KER_SIZE     equ (N_64KB * 4) ; Kernel code and data size (estimated)
+BSS_SIZE 	 equ N_1KB ; Kernel BSS Size
 STK_SIZE 	 equ N_32KB ; Kernel Stack Size
-
-SYSTEM_SIZE  equ (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + STK_SIZE)
-
-KERNEL_SIZE  equ (N_64KB * 4)
+SYS_SIZE     equ (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE + BSS_SIZE + STK_SIZE)
+SYS_SIZE_MINUS_STK equ (SYS_SIZE - STK_SIZE)
 
 PA_LOW       equ 0x00000000
-PA_HMA       equ (PA_LOW + LOW_SIZE)
-PA_IDT       equ (PA_HMA + HMA_SIZE)
-PA_GDT       equ (PA_IDT + IDT_SIZE)
-PA_PGD       equ (PA_GDT + GDT_SIZE)
-PA_PGS       equ (PA_PGD + PGD_SIZE)
-PA_PGK       equ (PA_PGS + PGS_SIZE)
-PA_PGL       equ (PA_PGK + PGK_SIZE)
-PA_PGH       equ (PA_PGL + PGL_SIZE)
-PA_TSS       equ (PA_PGH + PGH_SIZE)
-PA_PPB       equ (PA_TSS + TSS_SIZE)
-PA_KERNEL    equ (PA_PPB + PPB_SIZE)
+PA_HMA       equ (PA_LOW + LOW_SIZE) ; Physical address of High Memory Area
+PA_IDT       equ (PA_HMA + HMA_SIZE) ; Physical address of Interrupt Descriptor Table
+PA_GDT       equ (PA_IDT + IDT_SIZE) ; Physical address of Kernel Global Descriptor Table
+PA_PGD       equ (PA_GDT + GDT_SIZE) ; Physical address of Kernel Page Directory
+PA_PGS       equ (PA_PGD + PGD_SIZE) ; Physical address of System Page Table
+PA_PGK       equ (PA_PGS + PGS_SIZE) ; Physical address of Kernel Page Table
+PA_PGL       equ (PA_PGK + PGK_SIZE) ; Physical address of Low Memory Page Table
+PA_PGH       equ (PA_PGL + PGL_SIZE) ; Physical address of High Memory Page Table
+PA_TSS       equ (PA_PGH + PGH_SIZE) ; Physical address of Task State Segment
+PA_PPB       equ (PA_TSS + TSS_SIZE) ; Physical address of Physical Page Bitmap
+PA_KER       equ (PA_PPB + PPB_SIZE) ; Physical address of Kernel code and data size (estimated)
+PA_BSS		 equ (PA_KER + KER_SIZE) ; Physical address of Kernel BSS
+PA_STK		 equ (PA_BSS + BSS_SIZE) ; Physical address of Kernel Stack
 
 PA_SYSTEM    equ PA_IDT
 

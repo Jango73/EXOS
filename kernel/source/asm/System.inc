@@ -1,8 +1,4 @@
 
-; System.inc
-
-;----------------------------------------------------------
-
 extern GetCPUID                     : near
 extern DisableInterrupts            : near
 extern EnableInterrupts             : near
@@ -15,5 +11,3 @@ extern PokeConsoleWord              : near
 extern SetConsoleCursorPosition     : near
 extern MemoryCopyFromRAM            : near
 extern MemoryCopyToRAM              : near
-
-;----------------------------------------------------------

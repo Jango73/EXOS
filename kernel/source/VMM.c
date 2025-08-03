@@ -18,7 +18,6 @@
 
 U32 Memory = 0;
 U32 Pages = 0;
-U32 ReservedPages = ((N_1MB + N_128KB + N_2MB) >> PAGE_SIZE_MUL);
 
 /***************************************************************************\
 
@@ -74,8 +73,25 @@ U32 ReservedPages = ((N_1MB + N_128KB + N_2MB) >> PAGE_SIZE_MUL);
 \***************************************************************************/
 
 void InitializeVirtualMemoryManager() {
+    U32 NumPagesUsed = 0;
+    U32 Index = 0;
+    U32 Byte = 0;
+    U32 Value = 0;
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeVirtualMemoryManager] Enter"));
+
     Memory = KernelStartup.MemorySize;
     Pages = Memory >> PAGE_SIZE_MUL;
+
+    NumPagesUsed = (PA_KER + N_2MB) >> PAGE_SIZE_MUL;
+
+    for (Index = 0; Index < NumPagesUsed; Index++) {
+        Byte = Index >> MUL_8;
+        Value = (U32)0x01 << (Index & 0x07);
+        PPB[Byte] |= (U8)Value;
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeVirtualMemoryManager] Exit"));
 }
 
 /***************************************************************************/
@@ -135,7 +151,9 @@ PHYSICAL AllocPhysicalPage() {
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
-    Start = ReservedPages >> MUL_8;
+    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Pages : %X"), Pages);
+
+    Start = SYS_SIZE_PAGES >> MUL_8;
     Maximum = Pages >> MUL_8;
 
     for (Index = Start; Index < Maximum; Index++) {
@@ -144,9 +162,10 @@ PHYSICAL AllocPhysicalPage() {
             Page = Index << MUL_8;
             for (Bit = 0; Bit < 8; Bit++) {
                 Mask = (U32)0x01 << Bit;
-                if ((Value & Mask) == 0) {
+                if ((Value & Mask) == 0 && Page < Pages) {
                     PPB[Index] |= Mask;
                     Pointer = Page << PAGE_SIZE_MUL;
+                    KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Found : %X"), Pointer);
                     goto Out;
                 }
                 Page++;
@@ -575,7 +594,7 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
 
     KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Enter"));
 
-    Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
+    Directory = (LPPAGEDIRECTORY) LA_DIRECTORY;
     NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
     Privilege = PAGE_PRIVILEGE_USER;
