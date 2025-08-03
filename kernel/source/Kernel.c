@@ -29,7 +29,9 @@ STR Text_OSTitle[] =
 
 /***************************************************************************/
 
+PHYSICAL StubAddress = 0;
 KERNELSTARTUPINFO KernelStartup = {0};
+
 LPGATEDESCRIPTOR IDT = (LPGATEDESCRIPTOR)LA_IDT;
 LPSEGMENTDESCRIPTOR GDT = (LPSEGMENTDESCRIPTOR)LA_GDT;
 LPTASKTSSDESCRIPTOR TTD = (LPTASKTSSDESCRIPTOR)LA_GDT_TASK;
@@ -87,10 +89,6 @@ static LIST FileList = {NULL,           NULL,          NULL, 0,
 KERNELDATA Kernel = {&DesktopList, &ProcessList,       &TaskList,
                      &MutexList,   &DiskList,          &FileSystemList,
                      &FileList,    {"", 0, 0, 0, 0, 0}};
-
-/***************************************************************************/
-
-PHYSICAL StubAddress = 0;
 
 /***************************************************************************/
 
@@ -218,141 +216,14 @@ BOOL DumpGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
 /***************************************************************************/
 
 void DumpRegisters(LPINTEL386REGISTERS Regs) {
-    STR Temp[32];
 
-    KernelLogText(LOG_VERBOSE, TEXT("EAX : "));
-    U32ToHexString(Regs->EAX, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("EBX : "));
-    U32ToHexString(Regs->EBX, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("ECX : "));
-    U32ToHexString(Regs->ECX, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("EDX : "));
-    U32ToHexString(Regs->EDX, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_NewLine);
-
-    //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("ESI : "));
-    U32ToHexString(Regs->ESI, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("EDI : "));
-    U32ToHexString(Regs->EDI, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    /*
-    KernelLogText(LOG_VERBOSE, "ESP : ");
-    U32ToHexString(Regs->ESP, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-    */
-
-    KernelLogText(LOG_VERBOSE, TEXT("EBP : "));
-    U32ToHexString(Regs->EBP, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_NewLine);
-
-    //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("CS : "));
-    U32ToHexString(Regs->CS, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("DS : "));
-    U32ToHexString(Regs->DS, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("SS : "));
-    U32ToHexString(Regs->SS, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_NewLine);
-
-    //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("ES : "));
-    U32ToHexString(Regs->ES, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("FS : "));
-    U32ToHexString(Regs->FS, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("GS : "));
-    U32ToHexString(Regs->GS, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_NewLine);
-
-    //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("E-flags : "));
-    U32ToHexString(Regs->EFlags, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("EIP : "));
-    U32ToHexString(Regs->EIP, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_NewLine);
-
-    //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("CR0 : "));
-    U32ToHexString(Regs->CR0, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("CR2 : "));
-    U32ToHexString(Regs->CR2, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("CR3 : "));
-    U32ToHexString(Regs->CR3, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("CR4 : "));
-    U32ToHexString(Regs->CR4, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_NewLine);
-
-    //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("DR0 : "));
-    U32ToHexString(Regs->DR0, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("DR1 : "));
-    U32ToHexString(Regs->DR1, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("DR2 : "));
-    U32ToHexString(Regs->DR2, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_Space);
-
-    KernelLogText(LOG_VERBOSE, TEXT("DR3 : "));
-    U32ToHexString(Regs->DR3, Temp);
-    KernelLogText(LOG_VERBOSE, Temp);
-    KernelLogText(LOG_VERBOSE, Text_NewLine);
+    KernelLogText(LOG_VERBOSE, TEXT("EAX : %X EBX : %X ECX : %X EDX : %X "), Regs->EAX, Regs->EBX, Regs->ECX, Regs->EDX);
+    KernelLogText(LOG_VERBOSE, TEXT("ESI : %X EDI : %X EBP : %X "), Regs->ESI, Regs->EDI, Regs->EBP);
+    KernelLogText(LOG_VERBOSE, TEXT("CS : %X DS : %X SS : %X "), Regs->CS, Regs->DS, Regs->SS);
+    KernelLogText(LOG_VERBOSE, TEXT("ES : %X FS : %X GS : %X "), Regs->ES, Regs->FS, Regs->GS);
+    KernelLogText(LOG_VERBOSE, TEXT("E-flags : %X EIP : %X "), Regs->EFlags, Regs->EIP);
+    KernelLogText(LOG_VERBOSE, TEXT("CR0 : %X CR2 : %X CR3 : %X CR4 : %X "), Regs->CR0, Regs->CR2, Regs->CR3, Regs->CR4);
+    KernelLogText(LOG_VERBOSE, TEXT("DR0 : %X DR1 : %X DR2 : %X DR3 : %X "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
 }
 
 /***************************************************************************/
@@ -531,11 +402,15 @@ void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
 
-    // extern U8 __bss_start, __bss_end;
-    // MemorySet(&__bss_start, 0, &__bss_end - &__bss_start);
-
     InitKernelLog();
     KernelLogText(LOG_DEBUG, TEXT("InitializeKernel()"));
+
+    extern LINEAR __bss_start;
+    extern LINEAR __bss_end;
+
+    KernelLogText(LOG_DEBUG, TEXT("__bss_start : %X, __bss_end : %X"), __bss_start, __bss_end);
+
+    MemorySet(__bss_start, 0, __bss_end - __bss_start);
 
     //-------------------------------------
     // Dump critical information

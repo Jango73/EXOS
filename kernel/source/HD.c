@@ -188,7 +188,7 @@ static U32 HardDiskInitialize() {
                 StringConcat(Message, " Drive : ");
                 StringConcat(Message, DriveStr);
 
-                KernelLogText(LOG_WARNING, (LPSTR)Message);
+                KernelLogText(LOG_VERBOSE, (LPSTR)Message);
 
                 Disk = NewStdHardDisk();
                 if (Disk == NULL) continue;
