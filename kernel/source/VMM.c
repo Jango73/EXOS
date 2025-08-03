@@ -255,6 +255,8 @@ PHYSICAL AllocPageDirectory() {
     if (PA_Directory == NULL || PA_SysTable == NULL) {
         SetPhysicalPageMark(PA_Directory >> PAGE_SIZE_MUL, 0);
         SetPhysicalPageMark(PA_SysTable >> PAGE_SIZE_MUL, 0);
+
+        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] PA_Directory is null or PA_SysTable is null"));
         goto Out;
     }
 
@@ -397,14 +399,20 @@ static LINEAR AllocPageTable(LINEAR Base) {
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
     DirEntry = GetDirectoryEntry(Base);
 
-    if (Directory[DirEntry].Address != NULL) return NULL;
+    if (Directory[DirEntry].Address != NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[AllocPageTable] Directory[DirEntry].Address is not null"));
+        return NULL;
+    }
 
     //-------------------------------------
     // Allocate a physical page to store the new table
 
     PA_Table = AllocPhysicalPage();
 
-    if (PA_Table == NULL) return NULL;
+    if (PA_Table == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[AllocPageTable] AllocPhysicalPage failed"));
+        return NULL;
+    }
 
     //-------------------------------------
     // Fill the directory entry that describes the new table
@@ -573,7 +581,7 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
     U32 Privilege = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering VirtualAlloc\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Enter"));
 
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
     NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
@@ -585,7 +593,10 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
     // see if the region is not already allocated.
 
     if (Base != MAX_U32) {
-        if (IsRegionFree(Base, Size) == FALSE) goto Out;
+        if (IsRegionFree(Base, Size) == FALSE) {
+            KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] No free region found with specified base"));
+            goto Out;
+        }
     }
 
     //-------------------------------------
@@ -595,7 +606,10 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
 
     if (Base == MAX_U32) {
         Base = FindFreeRegion(Size);
-        if (Base == NULL) goto Out;
+        if (Base == NULL) {
+            KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] No free region found with unspecified base"));
+            goto Out;
+        }
     }
 
     //-------------------------------------
@@ -614,6 +628,7 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
             if (AllocPageTable(Base) == NULL) {
                 VirtualFree(Pointer, Size);
                 Pointer = NULL;
+                KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] AllocPageTable failed "));
                 goto Out;
             }
         }
@@ -656,7 +671,7 @@ Out:
 
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting VirtualAlloc\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Exit"));
 
     return Pointer;
 }
@@ -671,7 +686,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
     U32 NumPages = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering VirtualFree\n"));
+    KernelLogText(LOG_DEBUG, TEXT("Entering VirtualFree"));
 
     Directory = (LPPAGETABLE)LA_DIRECTORY;
     NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
@@ -704,7 +719,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
 
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting VirtualFree\n"));
+    KernelLogText(LOG_DEBUG, TEXT("Exiting VirtualFree"));
 
     return TRUE;
 }

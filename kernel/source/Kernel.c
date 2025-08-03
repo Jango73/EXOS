@@ -102,14 +102,12 @@ static void DebugPutChar(STR Char) {
 /***************************************************************************/
 
 LPVOID KernelMemAlloc(U32 Size) {
-    // return HeapAlloc_P(&KernelProcess, Size);
     return HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Size);
 }
 
 /***************************************************************************/
 
 void KernelMemFree(LPVOID Pointer) {
-    // HeapFree_P(&KernelProcess, Pointer);
     return HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize,
                          Pointer);
 }
@@ -465,15 +463,6 @@ void DumpSystemInformation() {
     ConsolePrint(Text_Space);
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
-
-    ConsolePrint(TEXT("GDT : %X -> %X"), LA_GDT, PA_GDT);
-    ConsolePrint(TEXT("PGD : %X -> %X"), LA_PGD, PA_PGD);
-    ConsolePrint(TEXT("PGS : %X -> %X"), LA_PGS, PA_PGS);
-    ConsolePrint(TEXT("PGK : %X -> %X"), LA_PGK, PA_PGK);
-    ConsolePrint(TEXT("PGL : %X -> %X"), LA_PGL, PA_PGL);
-    ConsolePrint(TEXT("PGH : %X -> %X"), LA_PGH, PA_PGH);
-    ConsolePrint(TEXT("TSS : %X -> %X"), LA_TSS, PA_TSS);
-    ConsolePrint(TEXT("PPB : %X -> %X"), LA_PPB, PA_PPB);
 }
 
 /***************************************************************************/
@@ -546,8 +535,25 @@ void InitializeKernel() {
     // MemorySet(&__bss_start, 0, &__bss_end - &__bss_start);
 
     InitKernelLog();
-
     KernelLogText(LOG_DEBUG, TEXT("InitializeKernel()"));
+
+    //-------------------------------------
+    // Dump critical information
+
+    KernelLogText(LOG_DEBUG, TEXT("GDT : %X -> %X"), LA_GDT, PA_GDT);
+    KernelLogText(LOG_DEBUG, TEXT("PGD : %X -> %X"), LA_PGD, PA_PGD);
+    KernelLogText(LOG_DEBUG, TEXT("PGS : %X -> %X"), LA_PGS, PA_PGS);
+    KernelLogText(LOG_DEBUG, TEXT("PGK : %X -> %X"), LA_PGK, PA_PGK);
+    KernelLogText(LOG_DEBUG, TEXT("PGL : %X -> %X"), LA_PGL, PA_PGL);
+    KernelLogText(LOG_DEBUG, TEXT("PGH : %X -> %X"), LA_PGH, PA_PGH);
+    KernelLogText(LOG_DEBUG, TEXT("TSS : %X -> %X"), LA_TSS, PA_TSS);
+    KernelLogText(LOG_DEBUG, TEXT("PPB : %X -> %X"), LA_PPB, PA_PPB);
+
+    KernelLogText(LOG_DEBUG, TEXT("PA_SYSTEM : %X"), PA_SYSTEM);
+    KernelLogText(LOG_DEBUG, TEXT("PA_KERNEL : %X"), PA_KERNEL);
+    KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
+    KernelLogText(LOG_DEBUG, TEXT("KernelStartup : %X"), &KernelStartup);
+    KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
 
     //-------------------------------------
     // No more interrupts
@@ -559,11 +565,11 @@ void InitializeKernel() {
     //-------------------------------------
     // Get system information gathered by the stub
 
-    KernelLogText(LOG_DEBUG, TEXT("Getting system information from the stub"));
-
     MemoryCopy(&KernelStartup,
                (LPVOID)(StubAddress + KERNEL_STARTUP_INFO_OFFSET),
                sizeof(KERNELSTARTUPINFO));
+
+    KernelLogText(LOG_DEBUG, TEXT("Got system information from the stub"));
 
     IRQMask_21_RM = KernelStartup.IRQMask_21_RM;
     IRQMask_A1_RM = KernelStartup.IRQMask_A1_RM;
@@ -572,12 +578,16 @@ void InitializeKernel() {
     // Initialize the VMM
 
     InitializeVirtualMemoryManager();
+    KernelLogText(LOG_DEBUG, TEXT("Vitual memory manager initialized"));
 
     //-------------------------------------
     // Initialize the physical page bitmap
 
     InitializePhysicalPageBitmap();
     KernelLogText(LOG_DEBUG, TEXT("Physical memory bitmap initialized"));
+
+    // Provoke page fault
+    // *((U32*)0x70000000) = 5;
 
     //-------------------------------------
     // Initialize kernel heap
@@ -589,7 +599,7 @@ void InitializeKernel() {
     // Initialize the console
 
     InitializeConsole();
-    KernelLogText(LOG_VERBOSE, TEXT("Console initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Console initialized"));
 
     //-------------------------------------
     // Print system infomation
@@ -597,52 +607,47 @@ void InitializeKernel() {
     DumpSystemInformation();
 
     //-------------------------------------
-    // Print the EXOS banner
+    // Initialize interrupts
 
-    KernelLogText(LOG_VERBOSE, Text_OSTitle);
+    InitializeInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized"));
 
     //-------------------------------------
     // Initialize the keyboard
 
     LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
-    KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized..."));
-
-    //-------------------------------------
-    // Initialize interrupts
-
-    InitializeInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized"));
 
     //-------------------------------------
     // Setup the kernel's main task
 
     InitKernelTask();
     LoadInitialTaskRegister(KernelTask.Selector);
-    KernelLogText(LOG_VERBOSE, TEXT("Kernel task setup..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Kernel task setup"));
 
     //-------------------------------------
     // Initialize the clock
 
     InitializeClock();
-    KernelLogText(LOG_VERBOSE, TEXT("Clock initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Clock initialized"));
 
     //-------------------------------------
     // Enable interrupts
 
     EnableInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("Interrupts enabled..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Interrupts enabled"));
 
     //-------------------------------------
     // Get information on CPU
 
     GetCPUInformation(&(Kernel.CPU));
-    KernelLogText(LOG_VERBOSE, TEXT("Got CPU information..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Got CPU information"));
 
     //-------------------------------------
     // Initialize RAM drives
 
     LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
-    KernelLogText(LOG_VERBOSE, TEXT("RAM drive initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("RAM drive initialized"));
 
     //-------------------------------------
     // Initialize physical drives
@@ -669,6 +674,11 @@ void InitializeKernel() {
     KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
 
     //-------------------------------------
+    // Print the EXOS banner
+
+    ConsolePrint(Text_OSTitle);
+
+    //-------------------------------------
     // Test tasks
 
     TaskInfo.Func      = ClockTask;
@@ -691,7 +701,7 @@ void InitializeKernel() {
     CreateTask(&KernelProcess, &TaskInfo);
 
     //-------------------------------------
-    // Launch the explorer
+    // Launch Portal
 
     /*
       StringCopy(FileName, "C:/EXOS/SYSTEM/EXPLORER.PRG");

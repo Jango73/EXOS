@@ -142,7 +142,15 @@ typedef struct tag_MOUSEDATA {
     I32 PosY;
 } MOUSEDATA, *LPMOUSEDATA;
 
-static MOUSEDATA Mouse;
+static MOUSEDATA Mouse = {
+    .Mutex = EMPTY_MUTEX,
+    .Busy = 0,
+    .DeltaX = 0,
+    .DeltaY = 0,
+    .Buttons = 0,
+    .PosX = 0,
+    .PosY = 0
+};
 
 /***************************************************************************/
 
@@ -195,7 +203,7 @@ static U32 MouseInitialize() {
 
     OutPortByte(LOGIMOUSE_CONFIG, 0);
 
-    MemorySet(&Mouse, 0, sizeof(MOUSEDATA));
+    InitMutex(&(Mouse.Mutex));
 
     for (Index = 0; Index < 8; Index++) {
         OutPortByte(MOUSE_PORT + Index, 0);
@@ -289,7 +297,7 @@ static U32 MouseInitialize() {
     //-------------------------------------
     //
 
-    KernelLogText(LOG_VERBOSE, TEXT("Mouse found on COM1: %c%c\n"), Sig1, Sig2);
+    KernelLogText(LOG_VERBOSE, TEXT("Mouse found on COM1: %c%c"), Sig1, Sig2);
 
 Out:
 

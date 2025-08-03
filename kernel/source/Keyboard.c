@@ -115,7 +115,7 @@ DRIVER StdKeyboardDriver = {
 
 /***************************************************************************/
 
-KEYBOARDSTRUCT Keyboard;
+KEYBOARDSTRUCT Keyboard = {0};
 
 /***************************************************************************/
 
@@ -625,8 +625,6 @@ void KeyboardHandler() {
 static U32 KeyboardInitialize() {
     //-------------------------------------
     // Initialize the keyboard structure
-
-    MemorySet(&Keyboard, 0, sizeof(KEYBOARDSTRUCT));
 
     InitMutex(&(Keyboard.Mutex));
 

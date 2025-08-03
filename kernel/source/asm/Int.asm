@@ -1,3 +1,4 @@
+
 BITS 32
 
 ;----------------------------------------------------------------------------
@@ -12,77 +13,9 @@ extern EnableIRQ
 ;----------------------------------------------------------------------------
 
 ; Helper values to access function parameters
+
 PBN equ 0x08
 PBF equ 0x0A
-
-;----------------------------------------------------------------------------
-
-; Macros for interrupt handling
-%macro SAVE_REGISTERS 0
-    push edi
-    push esi
-    push ebp
-    push esp
-    push ebx
-    push edx
-    push ecx
-    push eax
-%endmacro
-
-%macro RESTORE_REGISTERS 0
-    pop eax
-    pop ecx
-    pop edx
-    pop ebx
-    pop esp
-    pop ebp
-    pop esi
-    pop edi
-%endmacro
-
-%macro PUSH_DUMMY_ERROR 0
-    push dword 0        ; Push dummy error code
-%endmacro
-
-%macro HANDLE_INTERRUPT 2
-    SAVE_REGISTERS
-    ; Check if privilege level changed (Ring 3 -> Ring 0)
-    mov eax, [esp + 32]     ; Get CS from stack (after registers)
-    and eax, 3              ; Extract DPL (bits 0-1)
-    cmp eax, 3              ; Is it Ring 3?
-    je %%ring3
-    ; Ring 0: Push dummy ESP_Fault and SS
-    push dword 0            ; Dummy SS
-    push dword 0            ; Dummy ESP_Fault
-    jmp %%continue
-%%ring3:
-    ; Ring 3: Copy SS and ESP_Fault from stack
-    mov eax, [esp + 44]     ; Get SS
-    push eax
-    mov eax, [esp + 44]     ; Get ESP_Fault
-    push eax
-%%continue:
-    push dword [esp + 48]   ; Push EFlags
-    push dword [esp + 48]   ; Push CS
-    push dword [esp + 48]   ; Push EIP
-    %if %2
-        push dword [esp + 48]   ; Push error code from stack
-    %else
-        PUSH_DUMMY_ERROR        ; Push dummy error code
-    %endif
-    push dword 0            ; Push dummy FaultAddress
-    push esp                ; Push pointer to InterruptFrame
-    call EnterKernel
-    call %1
-    add esp, 12             ; Remove InterruptFrame pointer, FaultAddress, error code
-    add esp, 12             ; Remove EIP, CS, EFlags
-    add esp, 8              ; Remove ESP_Fault, SS
-    RESTORE_REGISTERS
-    %if %2
-        add esp, 4          ; Remove error code from stack
-    %endif
-    iretd
-%endmacro
 
 ;----------------------------------------------------------------------------
 
@@ -116,182 +49,285 @@ section .text
 ;--------------------------------------
 ; Error code : No
 
-Interrupt_Default:
-    HANDLE_INTERRUPT DefaultHandler, 0
+Interrupt_Default :
+
+    pusha
+    call EnterKernel
+    call DefaultHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 0      : Divide error (#DE)
 ; Class      : fault
 ; Error code : No
 
-Interrupt_DivideError:
-    HANDLE_INTERRUPT DivideErrorHandler, 0
+Interrupt_DivideError :
+
+    pusha
+    call    EnterKernel
+    call    DivideErrorHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 1      : Debug exception (#DB)
 ; Class      : Trap or fault
 ; Error code : No
 
-Interrupt_DebugException:
-    HANDLE_INTERRUPT DebugExceptionHandler, 0
+Interrupt_DebugException :
+
+    pusha
+    call    EnterKernel
+    call    DebugExceptionHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 2      : Non-maskable interrupt
 ; Class      : Not applicable
 ; Error code : Not applicable
 
-Interrupt_NMI:
-    HANDLE_INTERRUPT NMIHandler, 0
+Interrupt_NMI :
+
+    pusha
+    call    EnterKernel
+    call    NMIHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 3      : Breakpoint exception (#BP)
 ; Class      : Trap
 ; Error code : No
 
-Interrupt_BreakPoint:
-    HANDLE_INTERRUPT BreakPointHandler, 0
+Interrupt_BreakPoint :
+
+    pusha
+    call    EnterKernel
+    call    BreakPointHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 4      : Overflow exception (#OF)
 ; Class      : Trap
 ; Error code : No
 
-Interrupt_Overflow:
-    HANDLE_INTERRUPT OverflowHandler, 0
+Interrupt_Overflow :
+
+    pusha
+    call    EnterKernel
+    call    OverflowHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 5      : Bound range exceeded exception (#BR)
 ; Class      : Fault
 ; Error code : No
 
-Interrupt_BoundRange:
-    HANDLE_INTERRUPT BoundRangeHandler, 0
+Interrupt_BoundRange :
+
+    pusha
+    call    EnterKernel
+    call    BoundRangeHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 6      : Invalid opcode exception (#UD)
 ; Class      : Fault
 ; Error code : No
 
-Interrupt_InvalidOpcode:
-    HANDLE_INTERRUPT InvalidOpcodeHandler, 0
+Interrupt_InvalidOpcode :
+
+    pusha
+    call    EnterKernel
+    call    InvalidOpcodeHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 7      : Device not available exception (#NM)
 ; Class      : Fault
 ; Error code : No
 
-Interrupt_DeviceNotAvail:
-    HANDLE_INTERRUPT DeviceNotAvailHandler, 0
+Interrupt_DeviceNotAvail :
+
+    pusha
+    call    EnterKernel
+    call    DeviceNotAvailHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 8      : Double fault exception (#DF)
 ; Class      : Abort
 ; Error code : Yes, always 0
 
-Interrupt_DoubleFault:
-    HANDLE_INTERRUPT DoubleFaultHandler, 1
+Interrupt_DoubleFault :
+
+    pusha
+    call    EnterKernel
+    call    DoubleFaultHandler
+    hlt
+    popa
+    add     esp, 4                        ; Remove error code
+    iretd
 
 ;--------------------------------------
 ; Int 9      : Coprocessor Segment Overrun
 ; Class      : Abort
 ; Error code : No
 
-Interrupt_MathOverflow:
-    HANDLE_INTERRUPT MathOverflowHandler, 0
+Interrupt_MathOverflow :
+
+    pusha
+    call    EnterKernel
+    call    MathOverflowHandler
+    hlt
+    popa
+    iretd
 
 ;--------------------------------------
 ; Int 10     : Invalid TSS Exception (#TS)
 ; Class      : Fault
 ; Error code : Yes
 
-Interrupt_InvalidTSS:
-    HANDLE_INTERRUPT InvalidTSSHandler, 1
+Interrupt_InvalidTSS :
+
+    pusha
+    call    EnterKernel
+    call    InvalidTSSHandler
+    hlt
+    popa
+    add     esp, 4                        ; Remove error code
+    iretd
 
 ;--------------------------------------
 ; Int 11     : Segment Not Present (#NP)
 ; Class      : Fault
 ; Error code : Yes
 
-Interrupt_SegmentFault:
-    HANDLE_INTERRUPT SegmentFaultHandler, 1
+Interrupt_SegmentFault :
+
+    pusha
+    call    EnterKernel
+    call    SegmentFaultHandler
+    hlt
+    popa
+    add     esp, 4                        ; Remove error code
+    iretd
 
 ;--------------------------------------
 ; Int 12     : Stack Fault Exception (#SS)
 ; Class      : Fault
 ; Error code : Yes
 
-Interrupt_StackFault:
-    HANDLE_INTERRUPT StackFaultHandler, 1
+Interrupt_StackFault :
+
+    pusha
+    call    EnterKernel
+    call    StackFaultHandler
+    hlt
+    popa
+    add     esp, 4                        ; Remove error code
+    iretd
 
 ;--------------------------------------
 ; Int 13     : General Protection Exception (#GP)
 ; Class      : Fault
 ; Error code : Yes
 
-Interrupt_GeneralProtection:
+Interrupt_GeneralProtection :
+
+    pusha
     cli
-    HANDLE_INTERRUPT GeneralProtectionHandler, 1
+    call    EnterKernel
+    call    GeneralProtectionHandler
+    hlt
     sti
+    popa
+    add     esp, 4                     ; Remove error code
+    iretd
 
 ;--------------------------------------
 ; Int 14     : Page Fault Exception (#PF)
 ; Class      : Fault
 ; Error code : Yes
 
-Interrupt_PageFault:
-    push eax
-    mov eax, [esp + 4]      ; Get error code
-    SAVE_REGISTERS
-    ; Check if privilege level changed (Ring 3 -> Ring 0)
-    mov ebx, [esp + 32]     ; Get CS from stack
-    and ebx, 3              ; Extract DPL
-    cmp ebx, 3
-    je .ring3
-    ; Ring 0: Push dummy ESP_Fault and SS
-    push dword 0
-    push dword 0
-    jmp .continue
-.ring3:
-    ; Ring 3: Copy SS and ESP_Fault
-    mov ebx, [esp + 44]     ; Get SS
-    push ebx
-    mov ebx, [esp + 44]     ; Get ESP_Fault
-    push ebx
-.continue:
-    push dword [esp + 48]   ; Push EFlags
-    push dword [esp + 48]   ; Push CS
-    push dword [esp + 48]   ; Push EIP
-    push eax                ; Push error code as Error
-    mov ebx, cr2
-    push ebx                ; Push CR2 as FaultAddress
-    push esp                ; Push pointer to InterruptFrame
-    call EnterKernel
-    call PageFaultHandler
-    add esp, 12             ; Remove InterruptFrame pointer, FaultAddress, Error
-    add esp, 12             ; Remove EIP, CS, EFlags
-    add esp, 8              ; Remove ESP_Fault, SS
-    RESTORE_REGISTERS
-    pop eax
-    add esp, 4              ; Remove error code from stack
+Interrupt_PageFault :
+
+    push    eax
+    mov     eax, [esp+4]
+    pusha
+
+    call    EnterKernel
+
+    mov     ebx, cr2
+    push    ebx
+    push    eax
+    call    PageFaultHandler
+    add     esp, 8
+
+    popa
+    pop     eax
+
+    add     esp, 4                     ; Remove error code
     iretd
+
+;--------------------------------------
+; Int 16     : Floating-Point Error Exception (#MF)
+; Class      : Fault
+; Error code : No
 
 ;--------------------------------------
 ; Int 17     : Alignment Check Exception (#AC)
 ; Class      : Fault
 ; Error code : Yes, always 0
 
-Interrupt_AlignmentCheck:
-    HANDLE_INTERRUPT AlignmentCheckHandler, 1
+Interrupt_AlignmentCheck :
+
+    pusha
+    call    EnterKernel
+    call    AlignmentCheckHandler
+    hlt
+    popa
+    add     esp, 4                        ; Remove error code
+    iretd
+
+;--------------------------------------
+; Int 18     : Machine-Check Exception (#MC)
+; Class      : Abort
+; Error code : No
 
 ;--------------------------------------
 ; Int 32     : Clock
 ; Class      : Trap
 ; Error code : No
 
-Interrupt_Clock:
-    mov al, INTERRUPT_DONE
-    out INTERRUPT_CONTROL, al
-    HANDLE_INTERRUPT ClockHandler, 0
+Interrupt_Clock :
+
+    pusha
+
+    mov     al, INTERRUPT_DONE
+    out     INTERRUPT_CONTROL, al
+
+    call    EnterKernel
+    call    ClockHandler
+
+    popa
+    iretd
 
 ;--------------------------------------
 
@@ -301,7 +337,12 @@ Interrupt_Keyboard :
     push    es
     push    fs
     push    gs
-    pusha
+    push    eax
+    push    ebx
+    push    ecx
+    push    edx
+    push    esi
+    push    edi
 
     call    EnterKernel
     call    KeyboardHandler
@@ -309,7 +350,12 @@ Interrupt_Keyboard :
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    popa
+    pop     edi
+    pop     esi
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     eax
     pop     gs
     pop     fs
     pop     es
@@ -325,7 +371,12 @@ Interrupt_Mouse :
     push    es
     push    fs
     push    gs
-    pusha
+    push    eax
+    push    ebx
+    push    ecx
+    push    edx
+    push    esi
+    push    edi
 
     mov     eax, 4
     push    eax
@@ -343,7 +394,12 @@ Interrupt_Mouse :
     call    EnableIRQ
     add     esp, 4
 
-    popa
+    pop     edi
+    pop     esi
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     eax
     pop     gs
     pop     fs
     pop     es
@@ -359,7 +415,12 @@ Interrupt_HardDrive :
     push    es
     push    fs
     push    gs
-    pusha
+    push    eax
+    push    ebx
+    push    ecx
+    push    edx
+    push    esi
+    push    edi
 
     call    EnterKernel
     call    HardDriveHandler
@@ -367,7 +428,12 @@ Interrupt_HardDrive :
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    popa
+    pop     edi
+    pop     esi
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     eax
     pop     gs
     pop     fs
     pop     es
