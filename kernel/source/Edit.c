@@ -15,6 +15,7 @@
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
 #include "../include/List.h"
+#include "../include/Log.h"
 #include "../include/User.h"
 #include "../include/VKey.h"
 
@@ -610,7 +611,7 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
         }
         DoSystemCall(SYSCALL_DeleteObject, Handle);
     } else {
-        KernelPrint("Could not open file '%s'\n", Name);
+        KernelLogText(LOG_VERBOSE, TEXT("Could not open file '%s'\n"), Name);
     }
 
     return TRUE;

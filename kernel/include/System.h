@@ -65,6 +65,7 @@ extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32, U32);
 extern U32 SaveRegisters(LPINTEL386REGISTERS);
 extern U32 DoSystemCall(U32, U32);
+extern void Reboot();
 
 /***************************************************************************/
 

@@ -13,6 +13,7 @@
 
 #include "../include/Console.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32);
@@ -122,7 +123,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
                 } break;
 
                 default: {
-                    KernelPrint(TEXT("Partition type %02X not implemented\n"),
+                    KernelLogText(LOG_VERBOSE, TEXT("Partition type %02X not implemented\n"),
                                 Partition[Index].Type);
                 } break;
             }

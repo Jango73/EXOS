@@ -9,6 +9,7 @@
 
 #include "../include/Address.h"
 #include "../include/Base.h"
+#include "../include/Clock.h"
 #include "../include/Console.h"
 #include "../include/File.h"
 #include "../include/Heap.h"

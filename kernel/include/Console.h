@@ -39,11 +39,10 @@ void ScrollConsole();
 void ClearConsole();
 void ConsolePrintChar(STR);
 void ConsoleBackSpace();
-BOOL ConsolePrint(LPCSTR);
+BOOL ConsolePrint(LPCSTR, ...);
 BOOL ConsoleGetString(LPSTR, U32);
 BOOL InitializeConsole();
 U32 Shell(LPVOID);
-void KernelPrint(LPCSTR, ...);
 
 /***************************************************************************/
 

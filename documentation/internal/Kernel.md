@@ -506,6 +506,15 @@ A mutex providing mutual exclusion.
 - LockMutex: Acquires the mutex for the current task.
 - UnlockMutex: Releases a previously acquired mutex.
 
+### SerialPort.c
+
+COM port driver.
+
+#### Functions in SerialPort.c
+
+- SerialReset: Resets COM 1.
+- SerialOut: Sends a character to COM 1.
+
 ### SerMouse.c
 
 Serial mouse driver using a COM port.

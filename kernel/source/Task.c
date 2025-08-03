@@ -8,7 +8,9 @@
 \***************************************************************************/
 
 #include "../include/Address.h"
+#include "../include/Clock.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
 
 /***************************************************************************/
@@ -74,9 +76,7 @@ void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 LPTASK NewTask() {
     LPTASK This = NULL;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering NewTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering NewTask\n"));
 
     This = (LPTASK)KernelMemAlloc(sizeof(TASK));
 
@@ -110,9 +110,7 @@ LPTASK NewTask() {
 
     This->Message = NewList(MessageDestructor, KernelMemAlloc, KernelMemFree);
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting NewTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting NewTask\n"));
 
     return This;
 }
@@ -123,9 +121,7 @@ void DeleteTask(LPTASK This) {
     LPLISTNODE Node = NULL;
     LPMUTEX Mutex = NULL;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering DeleteTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering DeleteTask\n"));
 
     //-------------------------------------
     // Check validity of parameters
@@ -148,18 +144,14 @@ void DeleteTask(LPTASK This) {
     //-------------------------------------
     // Delete the task's message queue
 
-#ifdef __DEBUG__
-    KernelPrint("Deleting message queue...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Deleting message queue...\n"));
 
     if (This->Message != NULL) DeleteList(This->Message);
 
         //-------------------------------------
         // Delete the task's stacks
 
-#ifdef __DEBUG__
-    KernelPrint("Deleting stacks...\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Deleting stacks...\n"));
 
     if (This->SysStackBase != NULL) {
         HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize,
@@ -178,9 +170,7 @@ void DeleteTask(LPTASK This) {
 
     KernelMemFree(This);
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting DeleteTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting DeleteTask\n"));
 }
 
 /***************************************************************************/
@@ -245,9 +235,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     U32 Table = MAX_U32;
     U32 Index = 0;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering CreateTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering CreateTask\n"));
 
     //-------------------------------------
     // Check parameters
@@ -396,9 +384,7 @@ Out:
 
     UnlockMutex(MUTEX_KERNEL);
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting CreateTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting CreateTask\n"));
 
     return Task;
 }
@@ -409,9 +395,7 @@ BOOL KillTask(LPTASK Task) {
     if (Task == NULL) return FALSE;
     if (Task == &KernelTask) return FALSE;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering KillTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering KillTask\n"));
 
     //-------------------------------------
     // Lock access to kernel data
@@ -448,9 +432,7 @@ Out:
     UnfreezeScheduler();
     UnlockMutex(MUTEX_KERNEL);
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting KillTask\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting KillTask\n"));
 
     return TRUE;
 }
@@ -975,22 +957,22 @@ void DumpTask(LPTASK Task) {
 
     LockMutex(&(Task->Mutex), INFINITY);
 
-    KernelPrint("Address         : %08X\n", Task);
-    KernelPrint("References      : %d\n", Task->References);
-    KernelPrint("Process         : %08X\n", Task->Process);
-    KernelPrint("Status          : %X\n", Task->Status);
-    KernelPrint("Priority        : %X\n", Task->Priority);
-    KernelPrint("Function        : %08X\n", Task->Function);
-    KernelPrint("Parameter       : %08X\n", Task->Parameter);
-    KernelPrint("ReturnValue     : %08X\n", Task->ReturnValue);
-    KernelPrint("Selector        : %04X\n", Task->Selector);
-    KernelPrint("StackBase       : %08X\n", Task->StackBase);
-    KernelPrint("StackSize       : %08X\n", Task->StackSize);
-    KernelPrint("SysStackBase    : %08X\n", Task->SysStackBase);
-    KernelPrint("SysStackSize    : %08X\n", Task->SysStackSize);
-    KernelPrint("Time            : %d\n", Task->Time);
-    KernelPrint("WakeUpTime      : %d\n", Task->WakeUpTime);
-    KernelPrint("Queued messages : %d\n", Task->Message->NumItems);
+    KernelLogText(LOG_VERBOSE, TEXT("Address         : %08X\n"), Task);
+    KernelLogText(LOG_VERBOSE, TEXT("References      : %d\n"), Task->References);
+    KernelLogText(LOG_VERBOSE, TEXT("Process         : %08X\n"), Task->Process);
+    KernelLogText(LOG_VERBOSE, TEXT("Status          : %X\n"), Task->Status);
+    KernelLogText(LOG_VERBOSE, TEXT("Priority        : %X\n"), Task->Priority);
+    KernelLogText(LOG_VERBOSE, TEXT("Function        : %08X\n"), Task->Function);
+    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %08X\n"), Task->Parameter);
+    KernelLogText(LOG_VERBOSE, TEXT("ReturnValue     : %08X\n"), Task->ReturnValue);
+    KernelLogText(LOG_VERBOSE, TEXT("Selector        : %04X\n"), Task->Selector);
+    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %08X\n"), Task->StackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %08X\n"), Task->StackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %08X\n"), Task->SysStackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %08X\n"), Task->SysStackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("Time            : %d\n"), Task->Time);
+    KernelLogText(LOG_VERBOSE, TEXT("WakeUpTime      : %d\n"), Task->WakeUpTime);
+    KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d\n"), Task->Message->NumItems);
 
     UnlockMutex(&(Task->Mutex));
 }

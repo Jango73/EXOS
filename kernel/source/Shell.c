@@ -18,6 +18,7 @@
 #include "../include/Keyboard.h"
 #include "../include/List.h"
 #include "../include/String.h"
+#include "../include/System.h"
 #include "../include/User.h"
 
 /***************************************************************************/
@@ -150,7 +151,7 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
 /***************************************************************************/
 
 static BOOL ShowPrompt(LPSHELLCONTEXT Context) {
-    KernelPrint(TEXT("\n%s:/%s>"), Context->CurrentVolume,
+    ConsolePrint(TEXT("\n%s:/%s>"), Context->CurrentVolume,
                 Context->CurrentFolder);
 
     return TRUE;
@@ -254,7 +255,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
     ParseNextComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
-        KernelPrint(TEXT("Missing argument\n"));
+        ConsolePrint(TEXT("Missing argument\n"));
         return;
     }
 
@@ -297,7 +298,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
 
         FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
     } else {
-        KernelPrint(TEXT("Unknown folder : %s\n"), Find.Name);
+        ConsolePrint(TEXT("Unknown folder : %s\n"), Find.Name);
     }
 }
 
@@ -312,7 +313,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
     ParseNextComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
-        KernelPrint(TEXT("Missing argument\n"));
+        ConsolePrint(TEXT("Missing argument\n"));
         return;
     }
 
@@ -364,37 +365,37 @@ static void ListFile(LPFILE File) {
 
     // Print name
 
-    KernelPrint(Name);
-    for (Index = 0; Index < Length; Index++) KernelPrint(TEXT(" "));
+    ConsolePrint(Name);
+    for (Index = 0; Index < Length; Index++) ConsolePrint(TEXT(" "));
 
     // Print size
 
     if (File->Attributes & FS_ATTR_FOLDER) {
-        KernelPrint(TEXT("%12s"), TEXT("<Folder>"));
+        ConsolePrint(TEXT("%12s"), TEXT("<Folder>"));
     } else {
-        KernelPrint(TEXT("%12d"), File->SizeLow);
+        ConsolePrint(TEXT("%12d"), File->SizeLow);
     }
 
-    KernelPrint(TEXT(" %02d-%02d-%04d %02d:%02d "), File->Creation.Day,
+    ConsolePrint(TEXT(" %02d-%02d-%04d %02d:%02d "), File->Creation.Day,
                 File->Creation.Month, File->Creation.Year, File->Creation.Hour,
                 File->Creation.Minute);
 
     // Print attributes
 
     if (File->Attributes & FS_ATTR_READONLY)
-        KernelPrint(TEXT("R"));
+        ConsolePrint(TEXT("R"));
     else
-        KernelPrint(TEXT("-"));
+        ConsolePrint(TEXT("-"));
     if (File->Attributes & FS_ATTR_HIDDEN)
-        KernelPrint(TEXT("H"));
+        ConsolePrint(TEXT("H"));
     else
-        KernelPrint(TEXT("-"));
+        ConsolePrint(TEXT("-"));
     if (File->Attributes & FS_ATTR_SYSTEM)
-        KernelPrint(TEXT("S"));
+        ConsolePrint(TEXT("S"));
     else
-        KernelPrint(TEXT("-"));
+        ConsolePrint(TEXT("-"));
 
-    KernelPrint(Text_NewLine);
+    ConsolePrint(Text_NewLine);
 }
 
 /***************************************************************************/
@@ -405,7 +406,7 @@ static void CMD_commands(LPSHELLCONTEXT Context) {
     U32 Index;
 
     for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-        KernelPrint(TEXT("%s %s\n"), COMMANDS[Index].Name,
+        ConsolePrint(TEXT("%s %s\n"), COMMANDS[Index].Name,
                     COMMANDS[Index].Usage);
     }
 }
@@ -446,7 +447,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     FileSystem = GetCurrentFileSystem(Context);
 
     if (FileSystem == NULL || FileSystem->Driver == NULL) {
-        KernelPrint(TEXT("No file system mounted !\n"));
+        ConsolePrint(TEXT("No file system mounted !\n"));
         return;
     }
 
@@ -532,36 +533,36 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Size = sizeof Info;
     DoSystemCall(SYSCALL_GetSystemInfo, (U32)&Info);
 
-    KernelPrint((LPCSTR) "Total physical memory     : %d KB\n",
+    ConsolePrint((LPCSTR) "Total physical memory     : %d KB\n",
                 Info.TotalPhysicalMemory / 1024);
-    KernelPrint((LPCSTR) "Physical memory used      : %d KB\n",
+    ConsolePrint((LPCSTR) "Physical memory used      : %d KB\n",
                 Info.PhysicalMemoryUsed / 1024);
-    KernelPrint((LPCSTR) "Physical memory available : %d KB\n",
+    ConsolePrint((LPCSTR) "Physical memory available : %d KB\n",
                 Info.PhysicalMemoryAvail / 1024);
-    KernelPrint((LPCSTR) "Total swap memory         : %d KB\n",
+    ConsolePrint((LPCSTR) "Total swap memory         : %d KB\n",
                 Info.TotalSwapMemory / 1024);
-    KernelPrint((LPCSTR) "Swap memory used          : %d KB\n",
+    ConsolePrint((LPCSTR) "Swap memory used          : %d KB\n",
                 Info.SwapMemoryUsed / 1024);
-    KernelPrint((LPCSTR) "Swap memory available     : %d KB\n",
+    ConsolePrint((LPCSTR) "Swap memory available     : %d KB\n",
                 Info.SwapMemoryAvail / 1024);
-    KernelPrint((LPCSTR) "Total memory available    : %d KB\n",
+    ConsolePrint((LPCSTR) "Total memory available    : %d KB\n",
                 Info.TotalMemoryAvail / 1024);
-    KernelPrint((LPCSTR) "Processor page size       : %d Bytes\n",
+    ConsolePrint((LPCSTR) "Processor page size       : %d Bytes\n",
                 Info.PageSize);
-    KernelPrint((LPCSTR) "Total physical pages      : %d Pages\n",
+    ConsolePrint((LPCSTR) "Total physical pages      : %d Pages\n",
                 Info.TotalPhysicalPages);
-    KernelPrint((LPCSTR) "Minimum linear address    : %08X\n",
+    ConsolePrint((LPCSTR) "Minimum linear address    : %08X\n",
                 Info.MinimumLinearAddress);
-    KernelPrint((LPCSTR) "Maximum linear address    : %08X\n",
+    ConsolePrint((LPCSTR) "Maximum linear address    : %08X\n",
                 Info.MaximumLinearAddress);
-    KernelPrint((LPCSTR) "User name                 : %s\n", Info.UserName);
-    KernelPrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
-    KernelPrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
-    KernelPrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
-    KernelPrint((LPCSTR) "Stub address              : %p\n", StubAddress);
-    KernelPrint((LPCSTR) "Loader SS                 : %04X\n",
+    ConsolePrint((LPCSTR) "User name                 : %s\n", Info.UserName);
+    ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
+    ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
+    ConsolePrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
+    ConsolePrint((LPCSTR) "Stub address              : %p\n", StubAddress);
+    ConsolePrint((LPCSTR) "Loader SS                 : %04X\n",
                 KernelStartup.Loader_SS);
-    KernelPrint((LPCSTR) "Loader SP                 : %04X\n",
+    ConsolePrint((LPCSTR) "Loader SP                 : %04X\n",
                 KernelStartup.Loader_SP);
 }
 
@@ -635,7 +636,7 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
                         if (DoSystemCall(SYSCALL_ReadFile,
                                          (U32)&FileOperation)) {
                             Buffer[FileSize] = STR_NULL;
-                            KernelPrint((LPSTR)Buffer);
+                            ConsolePrint((LPSTR)Buffer);
                         }
 
                         HeapFree(Buffer);
@@ -667,7 +668,7 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
     ParseNextComponent(Context);
     if (QualifyFileName(Context, Context->Command, DstName) == 0) return;
 
-    KernelPrint(TEXT("%s %s\n"), SrcName, DstName);
+    ConsolePrint(TEXT("%s %s\n"), SrcName, DstName);
 
     FileOpenInfo.Size = sizeof(FILEOPENINFO);
     FileOpenInfo.Name = SrcName;
@@ -746,11 +747,11 @@ static void CMD_hd(LPSHELLCONTEXT Context) {
         DiskInfo.Disk = Disk;
         Disk->Driver->Command(DF_DISK_GETINFO, (U32)&DiskInfo);
 
-        KernelPrint(TEXT("Designer     : %s\n"), Disk->Driver->Designer);
-        KernelPrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
-        KernelPrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
-        KernelPrint(TEXT("Sectors      : %d\n"), DiskInfo.NumSectors);
-        KernelPrint(TEXT("\n"));
+        ConsolePrint(TEXT("Designer     : %s\n"), Disk->Driver->Designer);
+        ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
+        ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
+        ConsolePrint(TEXT("Sectors      : %d\n"), DiskInfo.NumSectors);
+        ConsolePrint(TEXT("\n"));
     }
 }
 
@@ -765,12 +766,12 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
 
-        KernelPrint(TEXT("Name         : %s\n"), FileSystem->Name);
-        KernelPrint(TEXT("Designer     : %s\n"), FileSystem->Driver->Designer);
-        KernelPrint(TEXT("Manufacturer : %s\n"),
+        ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
+        ConsolePrint(TEXT("Designer     : %s\n"), FileSystem->Driver->Designer);
+        ConsolePrint(TEXT("Manufacturer : %s\n"),
                     FileSystem->Driver->Manufacturer);
-        KernelPrint(TEXT("Product      : %s\n"), FileSystem->Driver->Product);
-        KernelPrint(TEXT("\n"));
+        ConsolePrint(TEXT("Product      : %s\n"), FileSystem->Driver->Product);
+        ConsolePrint(TEXT("\n"));
     }
 }
 
@@ -779,10 +780,10 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
 static void CMD_irq(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    KernelPrint("8259-1 RM mask : %08b\n", IRQMask_21_RM);
-    KernelPrint("8259-2 RM mask : %08b\n", IRQMask_A1_RM);
-    KernelPrint("8259-1 PM mask : %08b\n", IRQMask_21);
-    KernelPrint("8259-2 PM mask : %08b\n", IRQMask_A1);
+    ConsolePrint("8259-1 RM mask : %08b\n", IRQMask_21_RM);
+    ConsolePrint("8259-2 RM mask : %08b\n", IRQMask_A1_RM);
+    ConsolePrint("8259-1 PM mask : %08b\n", IRQMask_21);
+    ConsolePrint("8259-2 PM mask : %08b\n", IRQMask_A1);
 }
 
 /***************************************************************************/
@@ -800,7 +801,7 @@ static void CMD_inp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
     ParseNextComponent(Context); Port = StringToU32(Context->Command);
     Data = InPortByte(Port);
-    KernelPrint("Port %04X = %02X\n", Port, Data);
+    ConsolePrint("Port %04X = %02X\n", Port, Data);
 }
 
 /***************************************************************************/

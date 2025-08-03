@@ -12,7 +12,7 @@
 #ifndef KERNEL_H_INCLUDED
 #define KERNEL_H_INCLUDED
 
-// #define __DEBUG__
+#define __DEBUG__
 
 /***************************************************************************/
 
@@ -195,17 +195,6 @@ extern LPTASKSTATESEGMENT TSS;
 extern LPPAGEBITMAP PPB;
 extern KERNELDATA Kernel;
 extern PHYSICAL StubAddress;
-
-/***************************************************************************/
-
-// Functions in Log.c
-
-#define LOG_DEBUG 0x0001
-#define LOG_VERBOSE 0x0002
-#define LOG_WARNING 0x0004
-#define LOG_ERROR 0x0008
-
-void KernelLogText(U32, LPCSTR);
 
 /***************************************************************************/
 

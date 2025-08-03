@@ -1,16 +1,42 @@
 
-// Fault.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
+#include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
+#include "../include/String.h"
 #include "../include/Text.h"
+
+/***************************************************************************/
+
+typedef struct tag_InterruptFrame
+{
+    U32 EDI;
+    U32 ESI;
+    U32 EBP;
+    U32 ESP;
+    U32 EBX;
+    U32 EDX;
+    U32 ECX;
+    U32 EAX;
+
+    U32 Error;         // Always present (dummy 0 if no real error code)
+
+    U32 EIP;
+    U32 CS;
+    U32 EFlags;
+
+    // Only present if privilege level changed (user -> kernel)
+    U32 ESP_Fault;     // (optional)
+    U32 SS_Fault;      // (optional)
+    U32 FaultAddress;
+} InterruptFrame, *LPInterruptFrame;
 
 /***************************************************************************/
 
@@ -25,13 +51,13 @@ static void PrintFaultDetails() {
         Process = Task->Process;
 
         if (Process != NULL) {
-            KernelPrint(Text_Image);
-            KernelPrint(Text_Space);
-            KernelPrint(Process->FileName);
-            KernelPrint(Text_NewLine);
+            KernelLogText(LOG_VERBOSE, Text_Image);
+            KernelLogText(LOG_VERBOSE, Text_Space);
+            KernelLogText(LOG_VERBOSE, Process->FileName);
+            KernelLogText(LOG_VERBOSE, Text_NewLine);
 
-            KernelPrint(Text_Registers);
-            KernelPrint(Text_NewLine);
+            KernelLogText(LOG_VERBOSE, Text_Registers);
+            KernelLogText(LOG_VERBOSE, Text_NewLine);
 
             SaveRegisters(&Regs);
             DumpRegisters(&Regs);
@@ -71,140 +97,124 @@ static void Die() {
 
 /***************************************************************************/
 
-void DefaultHandler() {
-    KernelPrint("Unknown interrupt\n");
+void DefaultHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Unknown interrupt\n"));
     PrintFaultDetails();
 }
 
 /***************************************************************************/
 
-void DivideErrorHandler() {
-    KernelPrint("Divide error !\n");
-    PrintFaultDetails();
-    Die();
-}
-
-/***************************************************************************/
-
-void DebugExceptionHandler() {
-    KernelPrint("Debug exception !\n");
-    PrintFaultDetails();
-}
-
-/***************************************************************************/
-
-void NMIHandler() {
-    KernelPrint("Non-maskable interrupt !\n");
-    PrintFaultDetails();
-}
-
-/***************************************************************************/
-
-void BreakPointHandler() {
-    KernelPrint("Breakpoint !\n");
+void DivideErrorHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Divide error !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void OverflowHandler() {
-    KernelPrint("Overflow !\n");
+void DebugExceptionHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Debug exception !\n"));
+    PrintFaultDetails();
+}
+
+/***************************************************************************/
+
+void NMIHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Non-maskable interrupt !\n"));
+    PrintFaultDetails();
+}
+
+/***************************************************************************/
+
+void BreakPointHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Breakpoint !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void BoundRangeHandler() {
-    KernelPrint("Bound range fault !\n");
+void OverflowHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Overflow !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void InvalidOpcodeHandler() {
-    KernelPrint("Invalid opcode !\n");
+void BoundRangeHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Bound range fault !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void DeviceNotAvailHandler() {
-    KernelPrint("Device not available !\n");
+void InvalidOpcodeHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Invalid opcode !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void DoubleFaultHandler() {
-    KernelPrint("Double fault !\n");
+void DeviceNotAvailHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Device not available !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void MathOverflowHandler() {
-    KernelPrint("Math overflow !\n");
+void DoubleFaultHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Double fault !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void InvalidTSSHandler() {
-    KernelPrint("Invalid TSS !\n");
+void MathOverflowHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Math overflow !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void SegmentFaultHandler() {
-    KernelPrint("Segment fault !\n");
+void InvalidTSSHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Invalid TSS !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void StackFaultHandler() {
-    KernelPrint("Stack fault !\n");
+void SegmentFaultHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Segment fault !\n"));
     PrintFaultDetails();
     Die();
 }
 
 /***************************************************************************/
 
-void GeneralProtectionHandler(U32 Code) {
+void StackFaultHandler(LPInterruptFrame) {
+    KernelLogText(LOG_ERROR, TEXT("Stack fault !\n"));
+    PrintFaultDetails();
+    Die();
+}
+
+/***************************************************************************/
+
+void GeneralProtectionHandler(LPInterruptFrame) {
     STR Num[16];
     INTEL386REGISTERS Regs;
 
-    /*
-      KernelPrint("General protection fault !\n");
-      PrintFaultDetails();
-      Die();
-    */
-
-    /*
-      U32ToHexString(Code, Num);
-      KernelPrint(Num);
-      KernelPrint(Text_NewLine);
-
-      KernelPrint("Killing task...\n");
-      KillTask(GetCurrentTask());
-      KernelPrint("Done\n");
-    */
-
-    KernelPrint(Text_NewLine);
-    KernelPrint("General protection fault !\n");
+    KernelLogText(LOG_ERROR, Text_NewLine);
+    KernelLogText(LOG_ERROR, TEXT("General protection fault !\n"));
     PrintFaultDetails();
-    KernelPrint(Text_Registers);
-    KernelPrint(Text_NewLine);
+    KernelLogText(LOG_ERROR, Text_Registers);
+    KernelLogText(LOG_ERROR, Text_NewLine);
 
     SaveRegisters(&Regs);
     DumpRegisters(&Regs);
@@ -214,20 +224,20 @@ void GeneralProtectionHandler(U32 Code) {
 
 /***************************************************************************/
 
-void PageFaultHandler(U32 ErrorCode, LINEAR Address) {
+void PageFaultHandler(LPInterruptFrame Frame) {
     STR Num[16];
     INTEL386REGISTERS Regs;
 
-    KernelPrint("Page fault !\n");
+    KernelLogText(LOG_ERROR, "Page fault !\n");
 
-    KernelPrint("The current task did an unauthorized access\n");
-    KernelPrint("at linear address : ");
-    U32ToHexString(Address, Num);
-    KernelPrint(Num);
-    KernelPrint(Text_NewLine);
-    KernelPrint("Since this error is unrecoverable,\n");
-    KernelPrint("the task will be shutdown now.\n");
-    KernelPrint("Shutdown in progress...\n");
+    KernelLogText(LOG_ERROR, TEXT("The current task did an unauthorized access\n"));
+    KernelLogText(LOG_ERROR, TEXT("at linear address : "));
+    U32ToHexString(Frame->FaultAddress, Num);
+    KernelLogText(LOG_ERROR, Num);
+    KernelLogText(LOG_ERROR, Text_NewLine);
+    KernelLogText(LOG_ERROR, TEXT("Since this error is unrecoverable,\n"));
+    KernelLogText(LOG_ERROR, TEXT("the task will be shutdown now.\n"));
+    KernelLogText(LOG_ERROR, TEXT("Shutdown in progress...\n"));
 
     SaveRegisters(&Regs);
     DumpRegisters(&Regs);
@@ -238,7 +248,7 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address) {
 /***************************************************************************/
 
 void AlignmentCheckHandler() {
-    KernelPrint("Alignment check fault !\n");
+    KernelLogText(LOG_ERROR, TEXT("Alignment check fault !\n"));
     PrintFaultDetails();
     Die();
 }

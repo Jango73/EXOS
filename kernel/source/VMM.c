@@ -12,6 +12,7 @@
 #include "../include/Address.h"
 #include "../include/Base.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 /***************************************************************************/
 
@@ -132,12 +133,6 @@ PHYSICAL AllocPhysicalPage() {
     U32 Mask = 0;
     PHYSICAL Pointer = 0;
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Entering AllocPhysicalPage\n");
-    #endif
-    */
-
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     Start = ReservedPages >> MUL_8;
@@ -163,12 +158,6 @@ Out:
 
     UnlockMutex(MUTEX_MEMORY);
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Exiting AllocPhysicalPage\n");
-    #endif
-    */
-
     return Pointer;
 }
 
@@ -193,12 +182,6 @@ static BOOL IsValidRegion(LINEAR Base, U32 Size) {
     U32 TabEntry = 0;
     U32 NumPages = 0;
     U32 Index = 0;
-
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Entering IsValidRegion()\n");
-    #endif
-    */
 
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
     NumPages = Size >> PAGE_SIZE_MUL;
@@ -229,12 +212,6 @@ static BOOL SetTempPage(PHYSICAL Physical) {
     U32 DirEntry = 0;
     U32 TabEntry = 0;
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Entering SetTempPage\n");
-    #endif
-    */
-
     DirEntry = GetDirectoryEntry(LA_TEMP);
     TabEntry = GetTableEntry(LA_TEMP);
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
@@ -257,12 +234,6 @@ static BOOL SetTempPage(PHYSICAL Physical) {
 
     FlushTLB();
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Exiting SetTempPage\n");
-    #endif
-    */
-
     return TRUE;
 }
 
@@ -274,12 +245,6 @@ PHYSICAL AllocPageDirectory() {
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE SysTable = NULL;
     U32 DirEntry = 0;
-
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Entering AllocPageDirectory\n");
-    #endif
-    */
 
     //-------------------------------------
     // Allocate physical pages
@@ -409,12 +374,6 @@ PHYSICAL AllocPageDirectory() {
     SysTable[1].Fixed = 1;
     SysTable[1].Address = PA_SysTable >> PAGE_SIZE_MUL;
 
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Exiting AllocPageDirectory\n");
-    #endif
-    */
-
 Out:
 
     return PA_Directory;
@@ -434,12 +393,6 @@ static LINEAR AllocPageTable(LINEAR Base) {
     LINEAR LA_Table = NULL;
     U32 DirEntry = 0;
     U32 SysEntry = 0;
-
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Entering AllocPageTable\n");
-    #endif
-    */
 
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
     DirEntry = GetDirectoryEntry(Base);
@@ -508,12 +461,6 @@ static LINEAR AllocPageTable(LINEAR Base) {
     // Flush the Translation Look-up Buffer of the CPU
 
     FlushTLB();
-
-    /*
-    #ifdef __DEBUG__
-      KernelPrint("Exiting AllocPageTable\n");
-    #endif
-    */
 
     return LA_Table;
 }
@@ -626,9 +573,7 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
     U32 Privilege = 0;
     U32 Index = 0;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering VirtualAlloc\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering VirtualAlloc\n"));
 
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
     NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
@@ -711,9 +656,7 @@ Out:
 
     FlushTLB();
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting VirtualAlloc\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting VirtualAlloc\n"));
 
     return Pointer;
 }
@@ -728,9 +671,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
     U32 NumPages = 0;
     U32 Index = 0;
 
-#ifdef __DEBUG__
-    KernelPrint("Entering VirtualFree\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Entering VirtualFree\n"));
 
     Directory = (LPPAGETABLE)LA_DIRECTORY;
     NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
@@ -763,9 +704,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
 
     FlushTLB();
 
-#ifdef __DEBUG__
-    KernelPrint("Exiting VirtualFree\n");
-#endif
+    KernelLogText(LOG_DEBUG, TEXT("Exiting VirtualFree\n"));
 
     return TRUE;
 }

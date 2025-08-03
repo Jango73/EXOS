@@ -588,7 +588,7 @@ BOOL GetKeyCode(LPKEYCODE KeyCode) {
 /***************************************************************************/
 
 void WaitKey() {
-    KernelPrint(TEXT("Press a key...\n"));
+    ConsolePrint(TEXT("Press a key...\n"));
     while (!PeekChar()) {
     }
     GetChar();

@@ -11,6 +11,7 @@
 
 #include "../include/I386.h"
 #include "../include/String.h"
+#include "../include/Schedule.h"
 #include "../include/System.h"
 #include "../include/Text.h"
 
