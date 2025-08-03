@@ -161,6 +161,7 @@ struct tag_DESKTOP {
 /***************************************************************************/
 
 #define MUTEX_KERNEL (&KernelMutex)
+#define MUTEX_LOG (&LogMutex)
 #define MUTEX_MEMORY (&MemoryMutex)
 #define MUTEX_SCHEDULE (&ScheduleMutex)
 #define MUTEX_DESKTOP (&DesktopMutex)
@@ -176,6 +177,7 @@ extern PROCESS KernelProcess;
 extern TASK KernelTask;
 extern DESKTOP MainDesktop;
 extern MUTEX KernelMutex;
+extern MUTEX LogMutex;
 extern MUTEX MemoryMutex;
 extern MUTEX ScheduleMutex;
 extern MUTEX DesktopMutex;
