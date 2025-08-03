@@ -244,6 +244,8 @@ void KernelPrint(LPCSTR Format, ...) {
 void KernelLogText(U32 Type, LPCSTR Format, ...) {
     VarArgList Args;
 
+    LockMutex(MUTEX_LOG, INFINITY);
+
     VarArgStart(Args, Format);
 
     switch (Type) {
@@ -272,6 +274,8 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
             KernelPrint(Text_NewLine);
         } break;
     }
+
+    UnlockMutex(MUTEX_LOG);
 
     VarArgEnd(Args);
 }

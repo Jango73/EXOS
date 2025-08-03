@@ -344,6 +344,8 @@ void InitializePhysicalPageBitmap() {
     U32 Byte = 0;
     U32 Value = 0;
 
+    KernelLogText(LOG_DEBUG, TEXT("[InitializePhysicalPageBitmap] Enter"));
+
     NumPagesUsed = (PA_KERNEL + N_2MB) >> PAGE_SIZE_MUL;
 
     for (Index = 0; Index < NumPagesUsed; Index++) {
@@ -405,12 +407,18 @@ void InitializeKernel() {
     InitKernelLog();
     KernelLogText(LOG_DEBUG, TEXT("InitializeKernel()"));
 
+    //-------------------------------------
+    // Initialize BSS
+
     extern LINEAR __bss_start;
     extern LINEAR __bss_end;
+    LINEAR BSSStart = (&__bss_start);
+    LINEAR BSSEnd = (&__bss_end);
+    U32 BSSSize = BSSEnd - BSSStart;
 
-    KernelLogText(LOG_DEBUG, TEXT("__bss_start : %X, __bss_end : %X"), __bss_start, __bss_end);
-
-    MemorySet(__bss_start, 0, __bss_end - __bss_start);
+    KernelLogText(LOG_DEBUG, TEXT("BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);
+    MemorySet(BSSStart, 0, BSSSize);
+    KernelLogText(LOG_DEBUG, TEXT("BSS cleared"));
 
     //-------------------------------------
     // Dump critical information

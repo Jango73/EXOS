@@ -371,7 +371,7 @@ static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
 BOOL ConsolePrint(LPCSTR Format, ...) {
     VarArgList Args;
 
-    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Enter"));
+    // KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Enter"));
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
@@ -379,7 +379,7 @@ BOOL ConsolePrint(LPCSTR Format, ...) {
 
     UnlockMutex(MUTEX_CONSOLE);
 
-    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Exit"));
+    // KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Exit"));
 
     return 1;
 }

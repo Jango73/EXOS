@@ -13,36 +13,15 @@
 
 /***************************************************************************/
 
-MUTEX KernelMutex = {ID_MUTEX, 1, (LPLISTNODE)&MemoryMutex, NULL, NULL,
-                     NULL,     0};
-
-MUTEX MemoryMutex = {
-    ID_MUTEX, 1, (LPLISTNODE)&ScheduleMutex, (LPLISTNODE)&KernelMutex, NULL,
-    NULL,     0};
-
-MUTEX ScheduleMutex = {
-    ID_MUTEX, 1, (LPLISTNODE)&DesktopMutex, (LPLISTNODE)&MemoryMutex, NULL,
-    NULL,     0};
-
-MUTEX DesktopMutex = {
-    ID_MUTEX, 1, (LPLISTNODE)&ProcessMutex, (LPLISTNODE)&ScheduleMutex, NULL,
-    NULL,     0};
-
-MUTEX ProcessMutex = {
-    ID_MUTEX, 1, (LPLISTNODE)&TaskMutex, (LPLISTNODE)&DesktopMutex, NULL,
-    NULL,     0};
-
-MUTEX TaskMutex = {
-    ID_MUTEX, 1, (LPLISTNODE)&FileSystemMutex, (LPLISTNODE)&ProcessMutex, NULL,
-    NULL,     0};
-
-MUTEX FileSystemMutex = {
-    ID_MUTEX, 1, (LPLISTNODE)&FileMutex, (LPLISTNODE)&TaskMutex, NULL, NULL, 0};
-
-MUTEX FileMutex = {
-    ID_MUTEX, 1, (LPLISTNODE)&ConsoleMutex, (LPLISTNODE)&FileSystemMutex, NULL,
-    NULL,     0};
-
+MUTEX KernelMutex = {ID_MUTEX, 1, (LPLISTNODE)&LogMutex, NULL, NULL,                     NULL,     0};
+MUTEX LogMutex = {ID_MUTEX, 1, (LPLISTNODE)&MemoryMutex, (LPLISTNODE)&KernelMutex, NULL,                     NULL,     0};
+MUTEX MemoryMutex = {ID_MUTEX, 1, (LPLISTNODE)&ScheduleMutex, (LPLISTNODE)&LogMutex, NULL,    NULL,     0};
+MUTEX ScheduleMutex = {ID_MUTEX, 1, (LPLISTNODE)&DesktopMutex, (LPLISTNODE)&MemoryMutex, NULL,    NULL,     0};
+MUTEX DesktopMutex = {ID_MUTEX, 1, (LPLISTNODE)&ProcessMutex, (LPLISTNODE)&ScheduleMutex, NULL,    NULL,     0};
+MUTEX ProcessMutex = {ID_MUTEX, 1, (LPLISTNODE)&TaskMutex, (LPLISTNODE)&DesktopMutex, NULL,    NULL,     0};
+MUTEX TaskMutex = {ID_MUTEX, 1, (LPLISTNODE)&FileSystemMutex, (LPLISTNODE)&ProcessMutex, NULL,    NULL,     0};
+MUTEX FileSystemMutex = {ID_MUTEX, 1, (LPLISTNODE)&FileMutex, (LPLISTNODE)&TaskMutex, NULL, NULL, 0};
+MUTEX FileMutex = {ID_MUTEX, 1, (LPLISTNODE)&ConsoleMutex, (LPLISTNODE)&FileSystemMutex, NULL,    NULL,     0};
 MUTEX ConsoleMutex = {ID_MUTEX, 1, NULL, (LPLISTNODE)&FileMutex, NULL, NULL, 0};
 
 /***************************************************************************/
