@@ -11,6 +11,12 @@
 
 ;----------------------------------------------------------------------------
 
+    extern SerialInit
+    extern SerialWriteString
+    extern SerialWriteHex32
+
+;----------------------------------------------------------------------------
+
 DOS_CALL      equ 0x21
 DOS_PRINT     equ 0x09
 
@@ -114,6 +120,12 @@ Start32_Entry :
     dw SELECTOR_KERNEL_CODE
 
 Cursor dw 0
+
+; Debug strings for serial output
+CopyKernelMsgSrc  db 'CopyKernel src=',0
+CopyKernelMsgDst  db ' dst=',0
+CopyKernelMsgSize db ' size=',0
+CopyKernelMsgNL   db 0x0D,0x0A,0
 
 ;--------------------------------------
 
@@ -429,6 +441,11 @@ Start32 :
     mov     es, ax
 
     ;--------------------------------------
+    ; Initialize serial port for debug
+
+    call    SerialInit
+
+    ;--------------------------------------
     ; Get physical memory size
 
     call    GetMemorySize
@@ -635,6 +652,54 @@ CopyKernel :
     add     esi, [KernelStart - StartAbsolute]
     mov     edi, PA_KERNEL
     mov     ecx, [KernelSize - StartAbsolute]
+
+    ;--------------------------------------
+    ; Serial trace of copy parameters
+
+    push    esi
+    push    edi
+    push    ecx
+
+    mov     eax, ebp
+    add     eax, CopyKernelMsgSrc - StartAbsolute
+    push    eax
+    call    SerialWriteString
+    add     esp, 4
+
+    push    dword [esp+4]
+    call    SerialWriteHex32
+    add     esp, 4
+
+    mov     eax, ebp
+    add     eax, CopyKernelMsgDst - StartAbsolute
+    push    eax
+    call    SerialWriteString
+    add     esp, 4
+
+    push    dword [esp+8]
+    call    SerialWriteHex32
+    add     esp, 4
+
+    mov     eax, ebp
+    add     eax, CopyKernelMsgSize - StartAbsolute
+    push    eax
+    call    SerialWriteString
+    add     esp, 4
+
+    push    dword [esp]
+    call    SerialWriteHex32
+    add     esp, 4
+
+    mov     eax, ebp
+    add     eax, CopyKernelMsgNL - StartAbsolute
+    push    eax
+    call    SerialWriteString
+    add     esp, 4
+
+    pop     ecx
+    pop     edi
+    pop     esi
+
     cld
     rep     movsb
     ret
