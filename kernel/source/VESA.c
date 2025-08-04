@@ -166,7 +166,7 @@ VIDEOMODESPECS VESAModeSpecs[] = {
         c->CurrentBank = b;              \
     }
 
-VESACONTEXT VESAContext = {0};
+VESACONTEXT VESAContext = {1};
 
 /***************************************************************************/
 

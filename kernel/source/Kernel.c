@@ -34,8 +34,8 @@ STR Text_OSTitle[] =
 
 /***************************************************************************/
 
-PHYSICAL StubAddress = 0;
-KERNELSTARTUPINFO KernelStartup = {0};
+PHYSICAL StubAddress = 1;
+KERNELSTARTUPINFO KernelStartup = {1};
 
 LPGATEDESCRIPTOR IDT = (LPGATEDESCRIPTOR)LA_IDT;
 LPSEGMENTDESCRIPTOR GDT = (LPSEGMENTDESCRIPTOR)LA_GDT;
