@@ -22,17 +22,19 @@
 
 U32 SerialMouseCommands(U32, U32);
 
-DRIVER SerialMouseDriver = {ID_DRIVER,
-                            1,
-                            NULL,
-                            NULL,
-                            DRIVER_TYPE_MOUSE,
-                            VER_MAJOR,
-                            VER_MINOR,
-                            "Jango73",
-                            "Not applicable",
-                            "Standard Serial Mouse",
-                            SerialMouseCommands};
+DRIVER SerialMouseDriver = {
+    .ID = ID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_MOUSE,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "Not applicable",
+    .Product = "Standard Serial Mouse",
+    .Command = SerialMouseCommands
+};
 
 /***************************************************************************/
 
@@ -46,7 +48,15 @@ typedef struct tag_MOUSEDATA {
     I32 PosY;
 } MOUSEDATA, *LPMOUSEDATA;
 
-static MOUSEDATA Mouse = {0};
+static MOUSEDATA Mouse = {
+    .Mutex = EMPTY_MUTEX,
+    .Busy = 0,
+    .DeltaX = 0,
+    .DeltaY = 0,
+    .Buttons = 0,
+    .PosX = 0,
+    .PosY = 0
+};
 
 /***************************************************************************/
 

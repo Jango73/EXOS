@@ -15,30 +15,39 @@
 
 /***************************************************************************/
 
-LIST KernelTaskMessageList = {NULL,           NULL,          NULL, 0,
-                              KernelMemAlloc, KernelMemFree, NULL};
+LIST KernelTaskMessageList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
-TASK KernelTask = {ID_TASK,
-                   1,
-                   NULL,
-                   NULL,
-                   EMPTY_MUTEX,
-                   &KernelProcess,
-                   TASK_STATUS_RUNNING,
-                   TASK_PRIORITY_LOWER,
-                   NULL,
-                   NULL,
-                   0,
-                   0,
-                   SELECTOR_TSS_0,
-                   (LINEAR) LA_KERNEL_STACK + N_4KB,
-                   STK_SIZE - N_4KB,
-                   (LINEAR) LA_KERNEL_STACK,
-                   N_4KB,
-                   0,
-                   0,
-                   EMPTY_MUTEX,
-                   &KernelTaskMessageList};
+TASK KernelTask = {
+    .ID = ID_TASK,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Mutex = EMPTY_MUTEX,
+    .Process = &KernelProcess,
+    .Status = TASK_STATUS_RUNNING,
+    .Priority = TASK_PRIORITY_LOWER,
+    .Function = NULL,
+    .Parameter = NULL,
+    .ReturnValue = 0,
+    .Table = 0,
+    .Selector = SELECTOR_TSS_0,
+    .StackBase = (LINEAR)LA_KERNEL_STACK + N_4KB,
+    .StackSize = STK_SIZE - N_4KB,
+    .SysStackBase = (LINEAR)LA_KERNEL_STACK,
+    .SysStackSize = N_4KB,
+    .Time = 0,
+    .WakeUpTime = 0,
+    .MessageMutex = EMPTY_MUTEX,
+    .Message = &KernelTaskMessageList
+};
 
 /***************************************************************************/
 
@@ -49,10 +58,10 @@ static LPMESSAGE NewMessage() {
 
     if (This == NULL) return NULL;
 
-    MemorySet(This, 0, sizeof(MESSAGE));
-
-    This->ID = ID_MESSAGE;
-    This->References = 1;
+    *This = (MESSAGE){
+        .ID = ID_MESSAGE,
+        .References = 1
+    };
 
     return This;
 }
@@ -85,25 +94,12 @@ LPTASK NewTask() {
         return NULL;
     }
 
-    MemorySet(This, 0, sizeof(TASK));
-
-    This->ID = ID_TASK;
-    This->References = 1;
-    This->Next = NULL;
-    This->Prev = NULL;
-    This->Process = NULL;
-    This->Status = 0;
-    This->Priority = 0;
-    This->Function = NULL;
-    This->Parameter = 0;
-    This->ReturnValue = 0;
-    This->Selector = 0;
-    This->StackBase = NULL;
-    This->StackSize = 0;
-    This->SysStackBase = NULL;
-    This->SysStackSize = 0;
-    This->Time = 0;
-    This->WakeUpTime = 0;
+    *This = (TASK){
+        .ID = ID_TASK,
+        .References = 1,
+        .Mutex = EMPTY_MUTEX,
+        .MessageMutex = EMPTY_MUTEX
+    };
 
     InitMutex(&(This->Mutex));
     InitMutex(&(This->MessageMutex));

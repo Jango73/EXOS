@@ -28,17 +28,19 @@
 
 U32 VESACommands(U32, U32);
 
-DRIVER VESADriver = {ID_DRIVER,
-                     1,
-                     NULL,
-                     NULL,
-                     DRIVER_TYPE_GRAPHICS,
-                     VER_MAJOR,
-                     VER_MINOR,
-                     "Jango73",
-                     "Video Electronics Standard Association",
-                     "VESA Compatible Graphics Card",
-                     VESACommands};
+DRIVER VESADriver = {
+    .ID = ID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_GRAPHICS,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "Video Electronics Standard Association",
+    .Product = "VESA Compatible Graphics Card",
+    .Command = VESACommands
+};
 
 /***************************************************************************/
 
@@ -166,7 +168,14 @@ VIDEOMODESPECS VESAModeSpecs[] = {
         c->CurrentBank = b;              \
     }
 
-VESACONTEXT VESAContext = {1};
+VESACONTEXT VESAContext = {
+    .Header = {
+        .ID = ID_GRAPHICSCONTEXT,
+        .References = 1,
+        .Mutex = EMPTY_MUTEX,
+        .Driver = &VESADriver
+    }
+};
 
 /***************************************************************************/
 
@@ -176,23 +185,23 @@ static U32 VESAInitialize() {
     //-------------------------------------
     // Initialize the context
 
-    MemorySet(&VESAContext, 0, sizeof(VESACONTEXT));
-
-    InitMutex(&(VESAContext.Header.Mutex));
-
-    VESAContext.Header.ID = ID_GRAPHICSCONTEXT;
-    VESAContext.Header.References = 1;
-    VESAContext.Header.Driver = &VESADriver;
-    VESAContext.Header.LoClip.X = 0;
-    VESAContext.Header.LoClip.Y = 0;
-    VESAContext.Header.HiClip.X = 100;
-    VESAContext.Header.HiClip.Y = 100;
-    VESAContext.Header.RasterOperation = ROP_SET;
-
-    VESAContext.ModeSpecs.SetPixel = SetPixel8;
-    VESAContext.ModeSpecs.GetPixel = GetPixel8;
-    VESAContext.ModeSpecs.Line = Line8;
-    VESAContext.ModeSpecs.Rect = Rect8;
+    VESAContext = (VESACONTEXT){
+        .Header = {
+            .ID = ID_GRAPHICSCONTEXT,
+            .References = 1,
+            .Mutex = EMPTY_MUTEX,
+            .Driver = &VESADriver,
+            .LoClip = { .X = 0, .Y = 0 },
+            .HiClip = { .X = 100, .Y = 100 },
+            .RasterOperation = ROP_SET
+        },
+        .ModeSpecs = {
+            .SetPixel = SetPixel8,
+            .GetPixel = GetPixel8,
+            .Line = Line8,
+            .Rect = Rect8
+        }
+    };
 
     //-------------------------------------
     // Get VESA general information
