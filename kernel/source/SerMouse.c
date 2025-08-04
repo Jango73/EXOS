@@ -54,8 +54,8 @@ static MOUSEDATA Mouse = {
     .DeltaX = 0,
     .DeltaY = 0,
     .Buttons = 0,
-    .PosX = 0,
-    .PosY = 0
+    .PosX = 1,
+    .PosY = 1
 };
 
 /***************************************************************************/

@@ -113,7 +113,18 @@ DRIVER StdKeyboardDriver = {
 
 /***************************************************************************/
 
-KEYBOARDSTRUCT Keyboard = {1};
+KEYBOARDSTRUCT Keyboard = {
+    .Mutex = EMPTY_MUTEX,
+    .Shift = 1,
+    .Control = 0,
+    .Alt = 0,
+    .CapsLock = 0,
+    .NumLock = 0,
+    .ScrollLock = 0,
+    .Pause = 0,
+    .Buffer = { 0 },
+    .Status = { 0 }
+};
 
 /***************************************************************************/
 

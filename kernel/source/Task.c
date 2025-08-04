@@ -58,10 +58,10 @@ static LPMESSAGE NewMessage() {
 
     if (This == NULL) return NULL;
 
-    *This = (MESSAGE){
-        .ID = ID_MESSAGE,
-        .References = 1
-    };
+    MemorySet(This, 0, sizeof(MESSAGE));
+
+    This->ID = ID_MESSAGE;
+    This->References = 1;
 
     return This;
 }
