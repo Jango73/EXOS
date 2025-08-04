@@ -22,7 +22,6 @@ SECTIONS
     /* Data — aligned after .text */
     .data : AT(ALIGN(LOADADDR(.text) + SIZEOF(.text), 0x1000)) {
         *(.data)
-        *(.stack)
     }
 
     /* BSS */

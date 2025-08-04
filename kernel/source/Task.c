@@ -31,9 +31,9 @@ TASK KernelTask = {ID_TASK,
                    0,
                    0,
                    SELECTOR_TSS_0,
-                   (LINEAR)KernelStack + N_4KB,
+                   (LINEAR) LA_KERNEL_STACK + N_4KB,
                    STK_SIZE - N_4KB,
-                   (LINEAR)KernelStack,
+                   (LINEAR) LA_KERNEL_STACK,
                    N_4KB,
                    0,
                    0,
@@ -181,10 +181,14 @@ void DeleteTask(LPTASK This) {
 BOOL InitKernelTask() {
     LINEAR StackPointer = NULL;
 
+    KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask]"));
+
     StackPointer = KernelTask.StackBase + KernelTask.StackSize;
 
     //-------------------------------------
     // Setup the TSS
+
+    KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask] Clearing TSS"));
 
     MemorySet(TSS, 0, sizeof(TASKSTATESEGMENT));
 
@@ -221,6 +225,8 @@ BOOL InitKernelTask() {
     SetTSSDescriptorLimit(&(TTD[0].TSS), sizeof(TASKSTATESEGMENT) - 1);
 
     //-------------------------------------
+
+    KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask] Calling UpdateScheduler"));
 
     UpdateScheduler();
 

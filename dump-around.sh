@@ -2,9 +2,9 @@
 
 if [ $# -lt 2 ]; then
     echo "Usage: $0 <string> <file> [context]"
-    echo "  <string> : chaîne à chercher (ex: STAK)"
-    echo "  <file>   : fichier binaire à inspecter"
-    echo "  [context]: octets de contexte avant/après (défaut 32)"
+    echo "  <string> : string to search for (e.g. STAK)"
+    echo "  <file>   : binary file to inspect"
+    echo "  [context]: bytes of context before/after (default 32)"
     exit 1
 fi
 
