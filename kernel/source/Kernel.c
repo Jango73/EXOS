@@ -35,7 +35,9 @@ STR Text_OSTitle[] =
 /***************************************************************************/
 
 PHYSICAL StubAddress = 1;
-KERNELSTARTUPINFO KernelStartup = {1};
+KERNELSTARTUPINFO KernelStartup = {
+    .Loader_SS = 1,
+};
 
 LPGATEDESCRIPTOR IDT = (LPGATEDESCRIPTOR)LA_IDT;
 LPSEGMENTDESCRIPTOR GDT = (LPSEGMENTDESCRIPTOR)LA_GDT;
@@ -45,55 +47,103 @@ LPPAGEBITMAP PPB = (LPPAGEBITMAP)LA_PPB;
 
 /***************************************************************************/
 
-static LIST DesktopList = {NULL,           NULL,          NULL, 0,
-                           KernelMemAlloc, KernelMemFree, NULL};
+static LIST DesktopList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
 /***************************************************************************/
 
-static LIST ProcessList = {(LPLISTNODE)&KernelProcess,
-                           (LPLISTNODE)&KernelProcess,
-                           (LPLISTNODE)&KernelProcess,
-                           1,
-                           KernelMemAlloc,
-                           KernelMemFree,
-                           NULL};
+static LIST ProcessList = {
+    .First = (LPLISTNODE)&KernelProcess,
+    .Last = (LPLISTNODE)&KernelProcess,
+    .Current = (LPLISTNODE)&KernelProcess,
+    .NumItems = 1,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
 /***************************************************************************/
 
-static LIST TaskList = {(LPLISTNODE)&KernelTask,
-                        (LPLISTNODE)&KernelTask,
-                        (LPLISTNODE)&KernelTask,
-                        1,
-                        KernelMemAlloc,
-                        KernelMemFree,
-                        NULL};
+static LIST TaskList = {
+    .First = (LPLISTNODE)&KernelTask,
+    .Last = (LPLISTNODE)&KernelTask,
+    .Current = (LPLISTNODE)&KernelTask,
+    .NumItems = 1,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
 /***************************************************************************/
 
-static LIST MutexList = {(LPLISTNODE)&KernelMutex,
-                         (LPLISTNODE)&ConsoleMutex,
-                         (LPLISTNODE)&KernelMutex,
-                         9,
-                         KernelMemAlloc,
-                         KernelMemFree,
-                         NULL};
+static LIST MutexList = {
+    .First = (LPLISTNODE)&KernelMutex,
+    .Last = (LPLISTNODE)&ConsoleMutex,
+    .Current = (LPLISTNODE)&KernelMutex,
+    .NumItems = 9,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
 /***************************************************************************/
 
-static LIST DiskList = {NULL,           NULL,          NULL, 0,
-                        KernelMemAlloc, KernelMemFree, NULL};
+static LIST DiskList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
-static LIST FileSystemList = {NULL,           NULL,          NULL, 0,
-                              KernelMemAlloc, KernelMemFree, NULL};
+static LIST FileSystemList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
-static LIST FileList = {NULL,           NULL,          NULL, 0,
-                        KernelMemAlloc, KernelMemFree, NULL};
+static LIST FileList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL
+};
 
 /***************************************************************************/
 
-KERNELDATA Kernel = {&DesktopList, &ProcessList,       &TaskList,
-                     &MutexList,   &DiskList,          &FileSystemList,
-                     &FileList,    {"", 0, 0, 0, 0, 0}};
+KERNELDATA Kernel = {
+    .Desktop = &DesktopList,
+    .Process = &ProcessList,
+    .Task = &TaskList,
+    .Mutex = &MutexList,
+    .Disk = &DiskList,
+    .FileSystem = &FileSystemList,
+    .File = &FileList,
+    .CPU = {
+        .Name = "",
+        .Type = 0,
+        .Family = 0,
+        .Model = 0,
+        .Stepping = 0,
+        .Features = 0
+    }
+};
 
 /***************************************************************************/
 

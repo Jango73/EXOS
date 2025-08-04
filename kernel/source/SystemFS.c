@@ -18,17 +18,19 @@
 
 U32 SystemFSCommands(U32, U32);
 
-DRIVER SystemFSDriver = {ID_DRIVER,
-                         1,
-                         NULL,
-                         NULL,
-                         DRIVER_TYPE_FILESYSTEM,
-                         VER_MAJOR,
-                         VER_MINOR,
-                         "Jango73",
-                         "EXOS",
-                         "Virtual Computer File System",
-                         SystemFSCommands};
+DRIVER SystemFSDriver = {
+    .ID = ID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_FILESYSTEM,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Virtual Computer File System",
+    .Command = SystemFSCommands
+};
 
 /***************************************************************************/
 
@@ -66,21 +68,20 @@ static LPSYSFSFILESYSTEM NewSystemFSFileSystem() {
     This = (LPSYSFSFILESYSTEM)KernelMemAlloc(sizeof(SYSFSFILESYSTEM));
     if (This == NULL) return NULL;
 
-    MemorySet(This, 0, sizeof(SYSFSFILESYSTEM));
-
-    This->Header.ID = ID_FILESYSTEM;
-    This->Header.References = 1;
-    This->Header.Next = NULL;
-    This->Header.Prev = NULL;
-    This->Header.Driver = &SystemFSDriver;
-    This->Root = NewSystemFileRoot();
+    *This = (SYSFSFILESYSTEM){
+        .Header = {
+            .ID = ID_FILESYSTEM,
+            .References = 1,
+            .Next = NULL,
+            .Prev = NULL,
+            .Mutex = EMPTY_MUTEX,
+            .Driver = &SystemFSDriver,
+            .Name = "System"
+        },
+        .Root = NewSystemFileRoot()
+    };
 
     InitMutex(&(This->Header.Mutex));
-
-    //-------------------------------------
-    // Assign a default name to the file system
-
-    StringCopy(This->Header.Name, TEXT("System"));
 
     return This;
 }
