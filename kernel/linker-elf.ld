@@ -14,7 +14,6 @@ SECTIONS
     .text : AT(ALIGN(LOADADDR(.stub) + SIZEOF(.stub), 0x1000)) {
         *(.text)
         *(.text.*)
-        *(.text.unlikely)
         *(.rodata)
         *(.rodata.*)
     }
@@ -22,24 +21,13 @@ SECTIONS
     /* Data — aligned after .text */
     .data : AT(ALIGN(LOADADDR(.text) + SIZEOF(.text), 0x1000)) {
         *(.data)
+        *(.stack)
     }
 
     /* BSS */
     .bss : AT(ALIGN(LOADADDR(.data) + SIZEOF(.data), 0x1000)) {
         __bss_start = .;
         *(.bss)
-        *(global)
-        *(COMMON)
         __bss_end = .;
-    }
-
-    /* Heap */
-    .heap : AT(ALIGN(LOADADDR(.bss) + SIZEOF(.bss), 0x1000)) {
-        *(.heap)
-    }
-
-    /* Stack */
-    .stack : AT(ALIGN(LOADADDR(.heap) + SIZEOF(.heap), 0x1000)) {
-        *(.stack)
     }
 }
