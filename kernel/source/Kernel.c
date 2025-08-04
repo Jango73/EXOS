@@ -381,7 +381,7 @@ void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
     KERNELSTARTUPINFO TempKernelStartup;
-    U32* StackMagic = *((U32*)KernelStack);
+    LINEAR StackMagic = *((U32*)KernelStack);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel]"));
 
@@ -390,7 +390,7 @@ void InitializeKernel() {
 
     if (StackMagic != ID_STACK) {
         KernelLogText(LOG_DEBUG, TEXT("INVALID stack ID : %X"), StackMagic);
-        KernelDump(KernelStack, 64);
+        KernelDump((LINEAR) KernelStack, 64);
         SLEEPING_BEAUTY
     }
 
