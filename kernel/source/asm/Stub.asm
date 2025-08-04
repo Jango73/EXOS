@@ -13,6 +13,8 @@
 DOS_CALL      equ 0x21
 DOS_PRINT     equ 0x09
 
+LA_STACK        equ (LA_KERNEL + (PA_STK - PA_KER))
+
 ;----------------------------------------------------------------------------
 
 ; Segment virtual base   : 0
@@ -604,7 +606,7 @@ Start32 :
     ;   Kernel bss and stack
 
     mov     edi, PA_SYSTEM
-    mov     ecx, SYS_SIZE_MINUS_STK
+    mov     ecx, SYS_SIZE
     xor     eax, eax
     cld
     rep     stosb
@@ -633,11 +635,11 @@ Start32 :
     call    CopyKernel
 
     DbgOut      Text_StartOfStack
-    ImmHx32Out  KernelStack
+    ImmHx32Out  LA_STACK
     call        SerialWriteSpace
-    Hx32Out     KernelStack
+    Hx32Out     LA_STACK
     call        SerialWriteSpace
-    Hx32Out     (KernelStack + 4)
+    Hx32Out     (LA_STACK + 4)
     call        SerialWriteNewLine
 
     ;--------------------------------------
@@ -768,19 +770,20 @@ SetupPaging :
     call    MapPages
 
     ;--------------------------------------
-    ; Setup kernel memory pages (KER_SIZE bytes)
+    ; Setup kernel memory pages (KER_SIZE + BSS_SIZE + STK_SIZE + N_4KB bytes)
 
     DbgOut  Text_MapPages
     ImmHx32Out PA_PGK
     call    SerialWriteSpace
     ImmHx32Out PA_KER
     call    SerialWriteSpace
-    ImmHx32Out KER_SIZE
+    ImmHx32Out (KER_SIZE + BSS_SIZE + STK_SIZE + N_4KB)
     call    SerialWriteNewLine
 
     mov     edi, PA_PGK
     mov     eax, PA_KER
-    mov     ecx, KER_SIZE >> MUL_4KB
+    mov     ecx, (KER_SIZE + BSS_SIZE + STK_SIZE + N_4KB) >> MUL_4KB
+    ; mov     ecx, N_4MB >> MUL_4KB
     call    MapPages
 
     ;--------------------------------------
@@ -920,7 +923,7 @@ ProtectedModeEntry :
     mov     ax,  SELECTOR_KERNEL_DATA
     mov     ss,  ax
 
-    mov     esp, KernelStack           ; Start of kernel stack
+    mov     esp, LA_STACK              ; Start of kernel stack
     add     esp, STK_SIZE              ; Minimum stack size
     mov     ebp, esp
 
@@ -952,12 +955,3 @@ _ProtectedModeEntry_Hang :
     jmp     $
 
 ;----------------------------------------------------------------------------
-
-section .stack
-
-    global KernelStack
-
-KernelStack:
-
-    db 'STAK'
-    times ((STK_SIZE - 4) >> MUL_4) dd 0xDEADBEEF

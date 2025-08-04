@@ -314,7 +314,7 @@ U32 ClockTask(LPVOID Param) {
 /***************************************************************************/
 
 void DumpSystemInformation() {
-    ConsolePrint(Text_NewLine);
+    KernelLogText(LOG_VERBOSE, TEXT("DumpSystemInformation"));
 
     //-------------------------------------
     // Print information on computer
@@ -381,18 +381,8 @@ void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
     KERNELSTARTUPINFO TempKernelStartup;
-    LINEAR StackMagic = *((U32*)KernelStack);
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel]"));
-
-    //-------------------------------------
-    // Check stack
-
-    if (StackMagic != ID_STACK) {
-        KernelLogText(LOG_DEBUG, TEXT("INVALID stack ID : %X"), StackMagic);
-        KernelDump((LINEAR) KernelStack, 64);
-        SLEEPING_BEAUTY
-    }
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Sarting up..."));
 
     //-------------------------------------
     // Dump critical information
@@ -401,7 +391,7 @@ void InitializeKernel() {
     KernelLogText(LOG_DEBUG, TEXT("PA_KER : %X"), PA_KER);
     KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
-    KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), KernelStack);
+    KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
 
     //-------------------------------------
     // No more interrupts

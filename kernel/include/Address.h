@@ -70,11 +70,10 @@
 #define PGH_SIZE PAGE_TABLE_SIZE // High Memory Page Table size
 #define TSS_SIZE N_32KB // Task State Segment Size
 #define PPB_SIZE N_128KB // Physical Page Bitmap Size
-#define KER_SIZE (N_64KB * 4) // Kernel code and data size (estimated)
+#define KER_SIZE N_128KB // Kernel code and data size
+#define BSS_SIZE N_4KB // Kernel BSS Size
 #define STK_SIZE N_32KB // Kernel Stack Size
-#define BSS_SIZE N_1KB // Kernel BSS Size
-#define SYS_SIZE (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE + STK_SIZE + BSS_SIZE)
-#define SYS_SIZE_MINUS_STK (SYS_SIZE - (STK_SIZE + BSS_SIZE))
+#define SYS_SIZE (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE)
 
 #define SYS_SIZE_PAGES (SYS_SIZE >> PAGE_SIZE_MUL)
 
@@ -90,8 +89,8 @@
 #define PA_TSS (PA_PGH + PGH_SIZE)
 #define PA_PPB (PA_TSS + TSS_SIZE)
 #define PA_KER (PA_PPB + PPB_SIZE)
-#define PA_STK (PA_KER + KER_SIZE)
-#define PA_BSS (PA_STK + STK_SIZE)
+#define PA_BSS (PA_KER + KER_SIZE)
+#define PA_STK (PA_BSS + BSS_SIZE)
 
 #define PA_SYS PA_IDT
 
@@ -104,6 +103,8 @@
 #define LA_PGH (LA_PGL + PGL_SIZE)
 #define LA_TSS (LA_PGH + PGH_SIZE)
 #define LA_PPB (LA_TSS + TSS_SIZE)
+
+#define LA_KERNEL_STACK (LA_KERNEL + (PA_STK - PA_KER))
 
 /***************************************************************************/
 
