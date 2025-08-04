@@ -1,5 +1,9 @@
 # EXOS
 
+## TL;DR
+
+Old operating system for i386, trying to make it boot in FreeDOS on Linux.
+
 ## What it is
 
 This was an attempt, around 1997, to create an operating system.
