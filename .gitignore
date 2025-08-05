@@ -5,6 +5,7 @@
 *.BAT
 *.bin
 *.map
+*.lst
 *.log
 *.elf
 *.img

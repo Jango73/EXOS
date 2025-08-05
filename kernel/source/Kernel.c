@@ -437,15 +437,6 @@ void InitializeKernel() {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Sarting up..."));
 
     //-------------------------------------
-    // Check data integrity
-
-    if (DeadBeef != 0xDEADBEEF) {
-        KernelLogText(LOG_DEBUG, TEXT("Data corrupt, aborting !"));
-        KernelDump(&DeadBeef, 64);
-        SLEEPING_BEAUTY
-    }
-
-    //-------------------------------------
     // Dump critical information
 
     KernelLogText(LOG_DEBUG, TEXT("PA_SYS : %X"), PA_SYS);
@@ -465,6 +456,28 @@ void InitializeKernel() {
 
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
     KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
+
+    //-------------------------------------
+    // Check data integrity
+
+    if (DeadBeef != 0xDEADBEEF) {
+        KernelLogText(LOG_DEBUG, TEXT("Expected a dead beef at %X"), (&DeadBeef));
+        KernelLogText(LOG_DEBUG, TEXT("Data corrupt, aborting !"));
+        KernelDump((LINEAR)(&DeadBeef), 32);
+
+        for (LINEAR Pointer = StubAddress; Pointer < N_2MB; Pointer++) {
+            if (*((U32*) Pointer) == 0xDEADBEEF) {
+                KernelLogText(LOG_DEBUG, TEXT("Found dead beef at %X"), Pointer);
+                KernelLogText(LOG_DEBUG, TEXT("Meaning at stub + %X"), Pointer - StubAddress);
+                break;
+            }
+        }
+
+        SLEEPING_BEAUTY
+    }
+
+    //-------------------------------------
+    // Log page tables
 
     LogAllPageTables(LOG_DEBUG, (const PAGEDIRECTORY*) LA_DIRECTORY);
 

@@ -866,7 +866,7 @@ GetMemorySize :
     DbgOut  Text_GetMemorySize
 
     ;--------------------------------------
-    ; Start counting at 4 mb
+    ; Start checking at 4 mb
 
     mov     esi, N_4MB
 
