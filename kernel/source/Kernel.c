@@ -22,8 +22,8 @@
 
 /***************************************************************************/
 
-extern LINEAR __bss_start;
-extern LINEAR __bss_end;
+extern LINEAR __bss_init_start;
+extern LINEAR __bss_init_end;
 
 /***************************************************************************/
 
@@ -427,6 +427,8 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /***************************************************************************/
 
+extern U32* DeadBeef;
+
 void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
@@ -435,13 +437,36 @@ void InitializeKernel() {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Sarting up..."));
 
     //-------------------------------------
+    // Check data integrity
+
+    if (*DeadBeef != 0xDEADBEEF) {
+        KernelLogText(LOG_DEBUG, TEXT("Data corrupt, aborting !"));
+        KernelDump(DeadBeef, 64);
+        SLEEPING_BEAUTY
+    }
+
+    //-------------------------------------
     // Dump critical information
 
     KernelLogText(LOG_DEBUG, TEXT("PA_SYS : %X"), PA_SYS);
     KernelLogText(LOG_DEBUG, TEXT("PA_KER : %X"), PA_KER);
+
+    KernelLogText(LOG_DEBUG, TEXT("LA_RAM : %X"), LA_RAM);
+    KernelLogText(LOG_DEBUG, TEXT("LA_VIDEO : %X"), LA_VIDEO);
+    KernelLogText(LOG_DEBUG, TEXT("LA_CONSOLE : %X"), LA_CONSOLE);
+    KernelLogText(LOG_DEBUG, TEXT("LA_USER : %X"), LA_USER);
+    KernelLogText(LOG_DEBUG, TEXT("LA_LIBRARY : %X"), LA_LIBRARY);
     KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
+    KernelLogText(LOG_DEBUG, TEXT("LA_RAMDISK : %X"), LA_RAMDISK);
+    KernelLogText(LOG_DEBUG, TEXT("LA_SYSTEM : %X"), LA_SYSTEM);
+    KernelLogText(LOG_DEBUG, TEXT("LA_DIRECTORY : %X"), LA_DIRECTORY);
+    KernelLogText(LOG_DEBUG, TEXT("LA_SYSTABLE : %X"), LA_SYSTABLE);
+    KernelLogText(LOG_DEBUG, TEXT("LA_PAGETABLE : %X"), LA_PAGETABLE);
+
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
     KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
+
+    LogAllPageTables(LOG_DEBUG, (const PAGEDIRECTORY*) LA_DIRECTORY);
 
     //-------------------------------------
     // No more interrupts
@@ -461,8 +486,8 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize BSS after information collected
 
-    LINEAR BSSStart = (LINEAR)(&__bss_start);
-    LINEAR BSSEnd = (LINEAR)(&__bss_end);
+    LINEAR BSSStart = (LINEAR)(&__bss_init_start);
+    LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
     U32 BSSSize = BSSEnd - BSSStart;
 
     KernelLogText(LOG_DEBUG, TEXT("BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);

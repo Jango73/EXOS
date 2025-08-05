@@ -26,6 +26,7 @@ RMC_STACK     equ 0x00000400
 section .data
 bits 32
 
+    global DeadBeef
     global IRQMask_21
     global IRQMask_A1
     global IRQMask_21_RM
@@ -33,6 +34,7 @@ bits 32
 
 ;--------------------------------------
 
+DeadBeef      dd 0xDEADBEEF
 IRQMask_21    dd 0x000000FB
 IRQMask_A1    dd 0x000000FF
 IRQMask_21_RM dd 0x00000000

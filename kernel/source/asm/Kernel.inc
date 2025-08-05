@@ -109,7 +109,7 @@ PGL_SIZE     equ PAGE_TABLE_SIZE ; Low Memory Page Table size
 PGH_SIZE     equ PAGE_TABLE_SIZE ; High Memory Page Table size
 TSS_SIZE     equ N_32KB ; Task State Segment Size
 PPB_SIZE     equ N_128KB ; Physical Page Bitmap Size
-KER_SIZE     equ N_128KB ; Kernel code and data size
+KER_SIZE     equ 135168 ; Kernel code and data size
 BSS_SIZE 	 equ N_4KB ; Kernel BSS Size
 STK_SIZE 	 equ N_32KB ; Kernel Stack Size
 

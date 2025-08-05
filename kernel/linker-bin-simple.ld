@@ -1,3 +1,4 @@
+OUTPUT_FORMAT("binary")
 ENTRY(StartAbsolute)
 
 SECTIONS
@@ -13,7 +14,9 @@ SECTIONS
     . = 0xC0000000;
     .text : AT(ALIGN(LOADADDR(.stub) + SIZEOF(.stub), 0x1000)) {
         *(.text)
+        *(.text.*)
         *(.rodata)
+        *(.rodata.*)
     }
 
     /* Data — aligned after .text */
@@ -24,9 +27,7 @@ SECTIONS
     /* BSS */
     .bss : AT(ALIGN(LOADADDR(.data) + SIZEOF(.data), 0x1000)) {
         __bss_init_start = .;
-        *(global)
         *(.bss)
-        *(COMMON)
         __bss_init_end = .;
     }
 }

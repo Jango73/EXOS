@@ -35,6 +35,7 @@ void InitializeVirtualMemoryManager();
 void InitPageTable(LPPAGETABLE, PHYSICAL);
 void SetPhysicalPageMark(U32, U32);
 U32 GetPhysicalPageMark(U32);
+LINEAR MapPhysicalPage(PHYSICAL Physical);
 PHYSICAL AllocPageDirectory();
 PHYSICAL AllocPhysicalPage();
 LINEAR VirtualAlloc(LINEAR, U32, U32);

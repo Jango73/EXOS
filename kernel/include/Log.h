@@ -13,6 +13,7 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "I386.h"
 
 /***************************************************************************/
 
@@ -27,6 +28,12 @@ void InitKernelLog();
 void KernelPrint(LPCSTR, ...);
 void KernelLogText(U32, LPCSTR, ...);
 void KernelDump(LINEAR Address, U32 Size);
+
+void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory);
+void LogPageTable(U32 LogType, const PAGETABLE* PageTable);
+void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescriptor);
+void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEntry);
+void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory);
 
 /***************************************************************************/
 

@@ -251,6 +251,13 @@ static BOOL SetTempPage(PHYSICAL Physical) {
 
 /***************************************************************************/
 
+LINEAR MapPhysicalPage(PHYSICAL Physical) {
+    SetTempPage(Physical);
+    return LA_TEMP;
+}
+
+/***************************************************************************/
+
 PHYSICAL AllocPageDirectory() {
     PHYSICAL PA_Directory = NULL;
     PHYSICAL PA_SysTable = NULL;

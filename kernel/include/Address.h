@@ -70,7 +70,7 @@
 #define PGH_SIZE PAGE_TABLE_SIZE // High Memory Page Table size
 #define TSS_SIZE N_32KB // Task State Segment Size
 #define PPB_SIZE N_128KB // Physical Page Bitmap Size
-#define KER_SIZE N_128KB // Kernel code and data size
+#define KER_SIZE 135168 // Kernel code and data size
 #define BSS_SIZE N_4KB // Kernel BSS Size
 #define STK_SIZE N_32KB // Kernel Stack Size
 #define SYS_SIZE (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE)
