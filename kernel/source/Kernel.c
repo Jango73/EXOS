@@ -427,7 +427,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /***************************************************************************/
 
-extern U32* DeadBeef;
+extern U32 DeadBeef;
 
 void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
@@ -439,9 +439,9 @@ void InitializeKernel() {
     //-------------------------------------
     // Check data integrity
 
-    if (*DeadBeef != 0xDEADBEEF) {
+    if (DeadBeef != 0xDEADBEEF) {
         KernelLogText(LOG_DEBUG, TEXT("Data corrupt, aborting !"));
-        KernelDump(DeadBeef, 64);
+        KernelDump(&DeadBeef, 64);
         SLEEPING_BEAUTY
     }
 
