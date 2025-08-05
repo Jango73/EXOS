@@ -32,6 +32,12 @@ StartAbsolute :
 
     jmp     Start
 
+times (4 - ($ - StartAbsolute)) db 0
+
+Magic :
+
+    db 'EXOS'
+
 ;--------------------------------------
 
 ; Here we store some startup info for the kernel

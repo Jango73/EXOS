@@ -14,10 +14,6 @@ portal:
 	@echo "[ Building portal ]"
 	@$(MAKE) -C portal
 
-boot-qemu:
-	@echo "[ Building simple boot image ]"
-	@$(MAKE) -C boot-qemu
-
 boot-freedos:
 	@echo "[ Building freedos image ]"
 	@$(MAKE) -C boot-freedos

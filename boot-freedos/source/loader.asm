@@ -152,6 +152,24 @@ DoRead :
     int     DOS_CALL
 
     ;--------------------------------------
+    ; Check 2nd and last uint32 for EXOS magic
+    ; DS = current segment (base), FreeData = offset to loaded file
+    push    ds
+    mov     ax, [ReadSeg]
+    mov     ds, ax
+    ; Check 2nd uint32 (offset +4)
+    mov     eax, [FreeData + 4]
+    cmp     eax, 0x534F5845
+    jne     MagicError
+    ; Check last uint32 (offset = filesize - 4)
+    mov     edx, [FileSize]
+    sub     edx, 4
+    mov     eax, [FreeData + edx]
+    cmp     eax, 0x534F5845
+    jne     MagicError
+    pop     ds
+
+    ;--------------------------------------
     ; Close file
 
     mov     ah, DOS_CLOSEFILE
@@ -226,6 +244,15 @@ ErrorOpen :
     mov     dx, Text_CouldNotOpenFile
     int     DOS_CALL
 
+    jmp     Exit
+
+MagicError:
+    pop     ds
+    mov     ah, DOS_PRINT
+    mov     dx, Text_MagicFail
+    int     DOS_CALL
+    jmp     Exit
+
 Exit :
 
     mov     ah, 0x4C
@@ -273,6 +300,9 @@ Text_JumpingToStub :
 
 Text_ExitDOS :
     db 'Exiting to DOS...', 10, 13, '$'
+
+Text_MagicFail:
+    db 10, 13, 'ERROR: invalid EXOS signature (magic number mismatch)', 10, 13, '$'
 
 ;----------------------------------------------------------------------------
 
