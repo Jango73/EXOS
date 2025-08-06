@@ -13,3 +13,4 @@
 *.vmdk
 
 boot-qemu/kernel_sectors.inc
+boot-limine/limine

@@ -4,6 +4,7 @@ set -e
 cd boot-freedos
 
 EXTRA_IMG="bin/exos_extra.img"
+
 if [ ! -f "$EXTRA_IMG" ]; then
 	echo "[Creating EXOS extra image (10M, FAT32)]"
 	qemu-img create -f raw "$EXTRA_IMG" 10M
