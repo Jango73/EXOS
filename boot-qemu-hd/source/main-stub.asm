@@ -43,6 +43,7 @@ Start:
     xor         eax, eax
     mov         al, dl
     push        eax
+    push        word 0
     call        BootMain
     add         esp, 8
 

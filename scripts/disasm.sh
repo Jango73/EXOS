@@ -16,4 +16,4 @@ OFFSET="$3"
 ORIGIN_DEC=$((ORIGIN))
 OFFSET_DEC=$((OFFSET))
 
-dd if="$FILE" bs=1 skip=$OFFSET_DEC count=64 2>/dev/null | ndisasm -b 16 -o $((ORIGIN_DEC + OFFSET_DEC)) -
+dd if="$FILE" bs=1 skip=$OFFSET_DEC count=160 2>/dev/null | ndisasm -b 16 -o $((ORIGIN_DEC + OFFSET_DEC)) -

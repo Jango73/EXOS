@@ -23,6 +23,7 @@ void PrintString(const char *s) {
     );
 }
 
+/*
 __attribute__((always_inline))
 static inline void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
     struct {
@@ -53,6 +54,89 @@ static inline void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
         :
         : [dap]"r"(&Dap), [drv]"r"(Drive), [seg]"r"(Dap.BufferSegment)
         : "ah", "dl", "esi"
+    );
+}
+*/
+
+/*
+void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
+    struct {
+        U8  Size;
+        U8  Reserved;
+        U16 Count;
+        U16 BufferOffset;
+        U16 BufferSegment;
+        U32 LbaLow;
+        U32 LbaHigh;
+    } __attribute__((packed)) Dap = {
+        .Size = 0x10,
+        .Reserved = 0,
+        .Count = Count,
+        .BufferOffset = ((U32)Dest) & 0xF,
+        .BufferSegment = ((U32)Dest) >> 4,
+        .LbaLow = Lba,
+        .LbaHigh = 0,
+    };
+
+    U16 DapOffset = (U16) ( ((U32) &Dap) & 0xFFFF);
+    U16 DapSegment = (U16) ( ((U32) &Dap) >> 4);
+    U8 Status = 0;
+
+    asm volatile (
+        "pushw %%ds\n"
+        "movw %2, %%ax\n"
+        "movw %%ax, %%ds\n"
+        "movw %1, %%si\n"
+        "movb $0x42, %%ah\n"
+        "movb %0, %%dl\n"
+        "int $0x13\n"
+        "setc %%al\n"
+        "popw %%ds\n"
+        : "=a"(Status)
+        : "m"(Drive), "m"(DapOffset), "m"(DapSegment)
+        : "si", "memory"
+    );
+
+    if (Status) {
+        PrintString("[VBR] BIOS read failed\r\n");
+    }
+}
+*/
+
+void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
+    struct {
+        U8  Size;
+        U8  Reserved;
+        U16 Count;
+        U16 BufferOffset;
+        U16 BufferSegment;
+        U32 LbaLow;
+        U32 LbaHigh;
+    } __attribute__((packed)) Dap = {
+        .Size = 0x10,
+        .Reserved = 0,
+        .Count = Count,
+        .BufferOffset = ((U32)Dest) & 0xF,
+        .BufferSegment = ((U32)Dest) >> 4,
+        .LbaLow = Lba,
+        .LbaHigh = 0,
+    };
+
+    U16 DapOffset = (U16)(U16*)(&Dap);
+    U16 DapSegment = ((U16)(U16*)(&Dap)) >> 4;
+
+    asm volatile (
+        "push %%ds\n"
+        "mov %2, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %1, %%si\n"
+        "mov $0x42, %%ah\n"
+        "mov %0, %%dl\n"
+        "int $0x13\n"
+        "pop %%ds\n"
+        :
+        : "r"(Drive), "r"(DapOffset), "r"(DapSegment)
+        : "ax", "si", "memory"
     );
 }
 
@@ -100,10 +184,10 @@ static int MemCmp(const void* A, const void* B, int Len) {
 }
 
 void BootMain(U32 BootDrive, U32 FAT32LBA) {
-    struct Fat32BootSector Bs;
+    struct Fat32BootSector BootSector;
     char TempString[32];
 
-    PrintString("[VBR] Loading and running binary at ");
+    PrintString("[VBR] Loading and running binary OS at ");
     NumberToString(TempString, LoadAddress, 16, 0, 0, 0);
     PrintString(TempString);
     PrintString("\r\n");
@@ -119,13 +203,23 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     PrintString("\r\n");
 
     PrintString("[VBR] Reading FAT32 VBR\r\n");
-    BiosReadSectors(BootDrive, FAT32LBA, 1, &Bs);
+    BiosReadSectors(BootDrive, FAT32LBA, 1, &BootSector);
 
-    U32 FatStartSector    = FAT32LBA + Bs.ReservedSectorCount;
-    U32 FatSize           = Bs.FatSize32;
-    U32 RootCluster       = Bs.RootCluster;
-    U32 SectorsPerCluster = Bs.SectorsPerCluster;
-    U32 FirstDataSector   = Bs.ReservedSectorCount + (Bs.NumberOfFats * FatSize);
+    PrintString("[VBR] Fat size ");
+    NumberToString(TempString, BootSector.FatSize32, 16, 0, 0, 0);
+    PrintString(TempString);
+    PrintString("\r\n");
+
+    PrintString("[VBR] RootCluster ");
+    NumberToString(TempString, BootSector.RootCluster, 16, 0, 0, 0);
+    PrintString(TempString);
+    PrintString("\r\n");
+
+    U32 FatStartSector    = FAT32LBA + BootSector.ReservedSectorCount;
+    U32 FatSize           = BootSector.FatSize32;
+    U32 RootCluster       = BootSector.RootCluster;
+    U32 SectorsPerCluster = BootSector.SectorsPerCluster;
+    U32 FirstDataSector   = BootSector.ReservedSectorCount + (BootSector.NumberOfFats * FatSize);
     U32 Cluster           = RootCluster;
 
     PrintString("[VBR] FAT start LBA : ");
