@@ -61,5 +61,5 @@ DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
 
 Text_Loading: db "Loading payload...",13,10,0
-Text_Jumping: db "Jumping to C code...",13,10,0
+Text_Jumping: db "Jumping to VBR-2 code...",13,10,0
 Text_Failed: db "Payload boot failed.",13,10,0

@@ -5,20 +5,35 @@ global _start
 
 extern BootMain
 
+ORIGIN equ 0x8000
+
 _start:
-    ; mov         si, Text_Jumping
-    ; call        PrintString
-    ; jmp $
+    cli
 
-    mov ax, 0xB800
-    mov es, ax
-    mov byte [es:0], 'C'
+    mov         ax, cs
+    mov         ds, ax
+    mov         ss, ax
+
+    ; Setup a 32-bit stack for C
+    xor         eax, eax
+    mov         ax, ds
+    shl         eax, 4
+    add         eax, ORIGIN
+    mov         esp, eax
+    mov         ebp, eax
+
+    sti
+
+    mov         si, Text_Jumping
+    call        PrintString
+
+    xor         ax, ax
+    mov         al, dl
+    push        ax
+    call        BootMain
+
     hlt
-    jmp $
-
-    mov al, dl
-    push ax
-    call BootMain
+    jmp         $
 
 PrintString:
     lodsb

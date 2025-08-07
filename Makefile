@@ -23,6 +23,5 @@ clean:
 	@$(MAKE) -C kernel clean
 	@$(MAKE) -C runtime clean
 	@$(MAKE) -C portal clean
-	@$(MAKE) -C boot-qemu clean
 	@$(MAKE) -C boot-freedos clean
 	@$(MAKE) -C boot-qemu-hd clean

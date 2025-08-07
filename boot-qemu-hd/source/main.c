@@ -1,4 +1,4 @@
-// payload_fat32_loader.c - Minimal FAT32 loader to load exos.bin from root with COM1 debug logs.
+// Minimal FAT32 loader to load exos.bin from root with COM1 debug logs.
 
 #define SectorSize         512
 #define FileToLoad         "EXOS    BIN"   // 8+3, no dot, padded
@@ -8,6 +8,17 @@
 typedef unsigned char  U8;
 typedef unsigned short U16;
 typedef unsigned int   U32;
+
+void Com1Reset() {
+    volatile U16 Port = 0x3F8;
+    *(volatile U8*)(Port + 1) = 0x00;   // Deactivate interrupts
+    *(volatile U8*)(Port + 3) = 0x80;   // Activate DLAB
+    *(volatile U8*)(Port + 0) = 0x03;   // Baud rate 38400
+    *(volatile U8*)(Port + 1) = 0x00;   // High divisor
+    *(volatile U8*)(Port + 3) = 0x03;   // 8 bits, no parity, 1 stop bit
+    *(volatile U8*)(Port + 2) = 0xC7;   // Activate FIFO
+    *(volatile U8*)(Port + 4) = 0x0B;   // Activate interrupts, RTS/DSR
+}
 
 // Output a string to COM1 (0x3F8), polling LSR.
 static void Com1Print(const char* String) {
@@ -102,9 +113,12 @@ static int MemCmp(const void* A, const void* B, int Len) {
 }
 
 void BootMain(U8 BootDrive) {
-    Com1PrintLn("[VBR] BootMain()");
     struct Fat32BootSector Bs;
+
+    Com1Reset();
+    Com1PrintLn("[VBR] BootMain()");
     Com1PrintLn("[VBR] Reading BootSector");
+
     BiosReadSectors(BootDrive, 0, 1, &Bs);
 
     U32 FatStartSector    = Bs.ReservedSectorCount;

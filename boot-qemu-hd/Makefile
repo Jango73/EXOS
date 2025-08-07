@@ -16,8 +16,11 @@ PAYLOAD_STUB    = source/main-stub.asm
 PAYLOAD_STUB_O  = bin/main-stub.o
 PAYLOAD_C       = source/main.c
 PAYLOAD_C_O     = bin/main.o
-PAYLOAD_LD      = source/main.ld
+PAYLOAD_BIN_LD  = main-bin.ld
+PAYLOAD_ELF_LD  = main-elf.ld
 PAYLOAD_BIN     = bin/payload.bin
+PAYLOAD_ELF     = bin/payload.elf
+PAYLOAD_MAP     = bin/payload.map
 
 # Compute offset (in bytes) of the first partition, dynamically
 PART_OFFSET = $(shell parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }')
@@ -59,7 +62,7 @@ install-mbr: $(CUSTOM_MBR_BIN)
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
-install-vbr-payload: $(VBR_BIN) $(PAYLOAD_BIN)
+install-vbr-payload: $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
 	@echo "Injecting VBR code at offset 0x5A in VBR sector, et payload au secteur suivant..."
 	PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 	VBR_SIZE=$$(stat -c %s $(VBR_BIN)); \
@@ -84,9 +87,13 @@ $(PAYLOAD_C_O): $(PAYLOAD_C)
 	@echo "Compiling payload C..."
 	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
 
-$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_LD)
+$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
-	i686-elf-ld -T $(PAYLOAD_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
+	i686-elf-ld -T $(PAYLOAD_BIN_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
+
+$(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_ELF_LD)
+	@echo "Linking payload stub + C into elf binary..."
+	i686-elf-ld -T $(PAYLOAD_ELF_LD) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
 
 check_tools:
 	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -128,4 +135,4 @@ hexdump-check:
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
 
 clean:
-	rm -f $(MTOOLS_CONF) $(CUSTOM_MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
+	rm -f $(MTOOLS_CONF) $(CUSTOM_MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
