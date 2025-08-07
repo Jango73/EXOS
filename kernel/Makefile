@@ -68,7 +68,7 @@ bin/%.o: source/asm/%.asm
 	$(NASM) $(AFLAGS) -o $@ $<
 
 check_magic: $(FINAL_IMG)
-	@node check-exos-magic.js $(FINAL_IMG)
+	@./check-exos-magic.sh $(FINAL_IMG)
 
 clean:
 	rm -rf bin/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img

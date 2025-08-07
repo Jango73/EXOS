@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cd boot-freedos
+cd ../boot-freedos
 
 # Makefile variables (not all used, but kept for context)
 LOADER_SRC="source/loader.asm"

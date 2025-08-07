@@ -21,8 +21,6 @@ sudo apt install -y \
     sed \
     grep \
     gzip \
-    nodejs \
-    npm \
     mtools \
     dosfstools \
     qemu-system-x86

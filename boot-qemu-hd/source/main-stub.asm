@@ -6,8 +6,9 @@ global _start
 extern BootMain
 
 _start:
-    mov         si, Text_Jumping
-    call        PrintString
+    ; mov         si, Text_Jumping
+    ; call        PrintString
+    ; jmp $
 
     mov ax, 0xB800
     mov es, ax

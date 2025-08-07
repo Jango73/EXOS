@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-cd boot-limine
+cd boot-qemu-hd
 
 IMG_PATH="bin/exos.img"
 

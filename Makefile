@@ -1,6 +1,6 @@
-.PHONY: all kernel runtime portal boot-qemu boot-limine clean
+.PHONY: all kernel runtime portal boot-qemu boot-qemu-hd clean
 
-all: kernel runtime portal boot-qemu boot-limine
+all: kernel runtime portal boot-qemu-hd
 
 kernel:
 	@echo "[ Building kernel ]"
@@ -14,9 +14,9 @@ portal:
 	@echo "[ Building portal ]"
 	@$(MAKE) -C portal
 
-boot-limine:
-	@echo "[ Building limine image ]"
-	@$(MAKE) -C boot-limine
+boot-qemu-hd:
+	@echo "[ Building Qemu HD image ]"
+	@$(MAKE) -C boot-qemu-hd
 
 clean:
 	@echo "[ Cleaning all ]"
@@ -25,4 +25,4 @@ clean:
 	@$(MAKE) -C portal clean
 	@$(MAKE) -C boot-qemu clean
 	@$(MAKE) -C boot-freedos clean
-	@$(MAKE) -C boot-limine clean
+	@$(MAKE) -C boot-qemu-hd clean

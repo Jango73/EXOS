@@ -1,12 +1,9 @@
-# Makefile for EXOS Limine BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
+# Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
 FINAL_IMG       = bin/exos.img
 IMG_SIZE_MB     = 64
 KERNEL_BIN      = ../kernel/bin/exos.bin
-LIMINE_CFG      = limine.cfg
-LIMINE_DIR      = limine
-LIMINE_SYS      = $(LIMINE_DIR)/bin/limine-bios.sys
-MTOOLS_CONF     = .mtoolsrc.limine.tmp
+MTOOLS_CONF     = .mtoolsrc.tmp
 CUSTOM_MBR      = source/mbr.asm
 CUSTOM_MBR_BIN  = bin/mbr.bin
 
@@ -52,9 +49,7 @@ update:
 	@echo "drive z: file=\"$(FINAL_IMG)\" offset=$(PART_OFFSET)" > $(MTOOLS_CONF)
 	@echo "Injecting files using mtools at offset $(PART_OFFSET)"
 	@MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin
-	@MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(LIMINE_CFG) z:/limine.cfg
-	@MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/limine || true
-	@MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(LIMINE_SYS) z:/limine/limine.sys
+	@MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true
 	@rm -f $(MTOOLS_CONF)
 	@echo "All files injected into image."
 

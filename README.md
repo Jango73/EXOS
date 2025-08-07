@@ -11,6 +11,18 @@ It is work in progress.
 
 Because it is a very long work, it will probably never be finished.
 
+## Setup dependencies
+
+./scripts/1-setup-deps.sh
+
+## Build
+
+./scripts/4-2-build-exos.sh
+
+## Run
+
+./scripts/5-1-start-qemu-hd.sh
+
 ## Historical background
 
 In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  

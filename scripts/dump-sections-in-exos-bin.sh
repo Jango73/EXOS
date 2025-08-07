@@ -1,7 +1,7 @@
 #!/bin/bash
 
-MAP="kernel/bin/exos-bin.map"
-BIN="kernel/bin/exos.bin"
+MAP="../kernel/bin/exos-bin.map"
+BIN="../kernel/bin/exos.bin"
 
 # Trouve chaque section et son load address
 grep 'load address' "$MAP" | while read -r line; do
