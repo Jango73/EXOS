@@ -1,19 +1,27 @@
 ; FAT32 VBR loader, loads some sectors @0x8000 and jumps
+; Registers at start
+; DL : Boot drive
+; EAX : Partition Start LBA
 
 BITS 16
 ORG (0x7E00 + 0x005A)
 
 PAYLOAD_OFFSET equ 0x8000
-SECTORS_TO_LOAD equ 8
 
-; Clear interrupts
-    cli
+    jmp         Start
+    db          'VBR1'
+
+Start:
+    mov         [DAP_Start_LBA_Low], eax    ; Save Partition Start LBA
+    add         dword [DAP_Start_LBA_Low], 1
+
+    cli                                     ; Disable interrupts
     xor         ax, ax
     mov         ss, ax
     mov         sp, PAYLOAD_OFFSET          ; Place stack juste below PAYLOAD
     mov         ax, 0xB800
     mov         es, ax
-    sti
+    sti                                     ; Enable interrupts
 
     mov         si, Text_Loading
     call        PrintString
@@ -21,7 +29,6 @@ SECTORS_TO_LOAD equ 8
     ; DL already has the drive
     mov         ax, ds
     mov         [DAP_Buffer_Segment], ax
-    mov         word [DAP_NumSectors], SECTORS_TO_LOAD
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
     int         0x13
@@ -31,6 +38,8 @@ SECTORS_TO_LOAD equ 8
     call        PrintString
 
     ; Jump to loaded sector at PAYLOAD_OFFSET
+    mov         eax, [DAP_Start_LBA_Low]
+    sub         eax, 1                      ; We added a 1 sector offset before
     jmp         PAYLOAD_OFFSET
 
 BootFailed:
@@ -39,7 +48,7 @@ BootFailed:
 
     ; Hang
     hlt
-    jmp         BootFailed
+    jmp         $
 
 PrintString:
     lodsb
@@ -54,7 +63,7 @@ PrintString:
 DAP :
 DAP_Size : db 16
 DAP_Reserved : db 0
-DAP_NumSectors : dw 0
+DAP_NumSectors : dw 16
 DAP_Buffer_Offset : dw PAYLOAD_OFFSET
 DAP_Buffer_Segment : dw 0x0000
 DAP_Start_LBA_Low : dd 0

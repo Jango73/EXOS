@@ -16,6 +16,8 @@ PAYLOAD_STUB    = source/main-stub.asm
 PAYLOAD_STUB_O  = bin/main-stub.o
 PAYLOAD_C       = source/main.c
 PAYLOAD_C_O     = bin/main.o
+PAYLOAD_STR_C   = ../kernel/source/String.c
+PAYLOAD_STR_O   = bin/String.o
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 PAYLOAD_BIN     = bin/payload.bin
@@ -87,13 +89,17 @@ $(PAYLOAD_C_O): $(PAYLOAD_C)
 	@echo "Compiling payload C..."
 	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
 
-$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_BIN_LD)
-	@echo "Linking payload stub + C into flat binary..."
-	i686-elf-ld -T $(PAYLOAD_BIN_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
+$(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
+	@echo "Compiling String..."
+	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
 
-$(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_ELF_LD)
+$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
+	@echo "Linking payload stub + C into flat binary..."
+	i686-elf-ld -T $(PAYLOAD_BIN_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) 
+
+$(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
 	@echo "Linking payload stub + C into elf binary..."
-	i686-elf-ld -T $(PAYLOAD_ELF_LD) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
+	i686-elf-ld -T $(PAYLOAD_ELF_LD) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) 
 
 check_tools:
 	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }

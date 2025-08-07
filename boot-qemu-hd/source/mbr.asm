@@ -1,18 +1,23 @@
 ; Minimal MBR that boots the active partition
+; Registers at start
+; DL : Boot drive
 
 BITS 16
 ORG 0x7C00
 
 VBR_OFFSET equ 0x7E00
 
-; Clear interrupts
-    cli
+    jmp         Start
+    db          'MBR'
+
+Start:
+    cli                                     ; Disable interrupts
     xor         ax, ax
     mov         ss, ax
     mov         sp, 0x7C00
     mov         ax, 0xB800
     mov         es, ax
-    sti
+    sti                                     ; Enable interrupts
 
 ; BIOS parameter block offset: skip table entries
 ; Partition table starts at offset 0x1BE; BIOS vector at 0x1FE
@@ -38,13 +43,12 @@ ActivePartitionFound:
     sub         si, 1
     mov         [ActivePartition], si
 
-    mov         ax, [si + (Partition_Start_LBA - Partition)]
-    mov         [DAP_Start_LBA_Low], ax
+    mov         eax, [si + (Partition_Start_LBA - Partition)]
+    mov         [DAP_Start_LBA_Low], eax
 
     ; DL already has the drive
     mov         ax, ds
     mov         [DAP_Buffer_Segment], ax
-    mov         word [DAP_NumSectors], 1    ; Sectors to read
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
     int         0x13
@@ -52,6 +56,10 @@ ActivePartitionFound:
 
     mov         si, Text_Jumping
     call        PrintString
+
+    ; Transfer Partition Start LBA to VBR
+    mov         si, [ActivePartition]
+    mov         eax, [si + (Partition_Start_LBA - Partition)]
 
     ; Jump to loaded sector at VBR_OFFSET
     jmp         VBR_OFFSET
@@ -77,7 +85,7 @@ PrintString:
 DAP :
 DAP_Size : db 16
 DAP_Reserved : db 0
-DAP_NumSectors : dw 0
+DAP_NumSectors : dw 1
 DAP_Buffer_Offset : dw VBR_OFFSET
 DAP_Buffer_Segment : dw 0x0000
 DAP_Start_LBA_Low : dd 0
