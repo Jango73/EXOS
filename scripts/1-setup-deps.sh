@@ -7,20 +7,21 @@ sudo apt update
 echo "Installing EXOS development dependencies..."
 
 sudo apt install -y \
-    clang \
-    make \
-    nasm \
-    binutils \
     automake \
+    binutils \
+    clang \
     coreutils \
+    dosfstools \
     findutils \
-    gawk \
-    sed \
     grep \
     gzip \
+    gawk \
+    make \
     mtools \
-    dosfstools \
+    nasm \
     qemu-system-x86 \
+    sed \
+    unzip \
     wget
 
 echo "All required dependencies for EXOS installed."
@@ -45,37 +46,37 @@ fi
 sudo rm -rf "$INSTALL_DIR"
 sudo mkdir -p "$INSTALL_DIR"
 
-EXT="${ARCHIVE_PATH##*.}"
-
-case "$EXT" in
-    gz)
-        echo "Extracting tar.gz archive..."
-        sudo tar -xzf "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
-        ;;
-    xz)
-        echo "Extracting tar.xz archive..."
-        sudo tar -xJf "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
-        ;;
-    zip)
-        echo "Extracting zip archive..."
-        sudo unzip -o "$ARCHIVE_PATH" -d "$INSTALL_DIR"
-        ;;
-    *)
-        echo "Unknown archive extension: $EXT"
-        exit 1
-        ;;
-esac
-
-echo "Extracting archive..."
-sudo tar -$TAR_OPT "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
-
-echo "i686-elf toolchain installed to $INSTALL_DIR."
-
-if ! grep -q "$INSTALL_DIR/bin" ~/.bashrc; then
-    echo "export PATH=\"\$PATH:$INSTALL_DIR/bin\"" >> ~/.bashrc
-    echo "Added $INSTALL_DIR/bin to PATH in ~/.bashrc."
+# Detect archive type and extract accordingly
+if [[ "$ARCHIVE_PATH" =~ \.tar\.gz$ ]]; then
+    echo "Extracting tar.gz archive..."
+    sudo tar -xzf "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
+elif [[ "$ARCHIVE_PATH" =~ \.tar\.xz$ ]]; then
+    echo "Extracting tar.xz archive..."
+    sudo tar -xJf "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
+elif [[ "$ARCHIVE_PATH" =~ \.zip$ ]]; then
+    echo "Extracting zip archive..."
+    sudo unzip -o "$ARCHIVE_PATH" -d "$INSTALL_DIR"
 else
-    echo "$INSTALL_DIR/bin already in PATH."
+    echo "Unknown archive extension for $ARCHIVE_PATH"
+    exit 1
 fi
 
+# Fix PATH for lordmilko toolchain
+if [ -d "$INSTALL_DIR/i686-elf-tools-linux/bin" ]; then
+    TOOLCHAIN_PATH="$INSTALL_DIR/i686-elf-tools-linux/bin"
+elif [ -d "$INSTALL_DIR/bin" ]; then
+    TOOLCHAIN_PATH="$INSTALL_DIR/bin"
+else
+    echo "Cannot find toolchain bin directory."
+    exit 1
+fi
+
+if ! grep -q "$TOOLCHAIN_PATH" ~/.bashrc; then
+    echo "export PATH=\"\$PATH:$TOOLCHAIN_PATH\"" >> ~/.bashrc
+    echo "Added $TOOLCHAIN_PATH to PATH in ~/.bashrc."
+else
+    echo "$TOOLCHAIN_PATH already in PATH."
+fi
+
+echo "i686-elf toolchain installed to $TOOLCHAIN_PATH."
 echo "Done. You may need to restart your shell for PATH changes to take effect."
