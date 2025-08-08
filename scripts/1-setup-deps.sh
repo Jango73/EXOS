@@ -19,6 +19,7 @@ sudo apt install -y \
     make \
     mtools \
     nasm \
+    parted \
     qemu-system-x86 \
     sed \
     unzip \
