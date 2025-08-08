@@ -47,14 +47,24 @@ sudo mkdir -p "$INSTALL_DIR"
 
 EXT="${ARCHIVE_PATH##*.}"
 
-if [[ "$EXT" == "gz" ]]; then
-    TAR_OPT="xzf"
-elif [[ "$EXT" == "xz" ]]; then
-    TAR_OPT="xJf"
-else
-    echo "Unknown archive extension: $EXT"
-    exit 1
-fi
+case "$EXT" in
+    gz)
+        echo "Extracting tar.gz archive..."
+        sudo tar -xzf "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
+        ;;
+    xz)
+        echo "Extracting tar.xz archive..."
+        sudo tar -xJf "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
+        ;;
+    zip)
+        echo "Extracting zip archive..."
+        sudo unzip -o "$ARCHIVE_PATH" -d "$INSTALL_DIR"
+        ;;
+    *)
+        echo "Unknown archive extension: $EXT"
+        exit 1
+        ;;
+esac
 
 echo "Extracting archive..."
 sudo tar -$TAR_OPT "$ARCHIVE_PATH" -C "$INSTALL_DIR" --strip-components=1
