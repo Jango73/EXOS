@@ -28,10 +28,9 @@ Start:
     ; Setup a 32-bit stack
     ; Just below 0x8000, don't care about this data
     ; We won't be returning to MBR and VBR
+    mov         sp, ORIGIN
     xor         eax, eax
-    mov         ax, ds
-    shl         eax, 4
-    add         eax, ORIGIN
+    mov         ax, sp
     mov         esp, eax
     mov         ebp, eax
 
@@ -89,28 +88,33 @@ BiosReadSectors:
     push        ebx
     push        ecx
     push        esi
+    push        edi
 
     mov         si, Text_ReadBiosSectors
     call        PrintString
 
-;    mov         eax, [ebp+8]
-;    call        PrintHex32
-;    mov         al, ' '
-;    call        PrintChar
-;    mov         eax, [ebp+12]
-;    call        PrintHex32
-;    mov         al, ' '
-;    call        PrintChar
-;    mov         eax, [ebp+16]
-;    call        PrintHex32
-;    mov         al, ' '
-;    call        PrintChar
-;    mov         eax, [ebp+20]
-;    call        PrintHex32
+    mov         si, Text_Params
+    call        PrintString
+
+    mov         eax, [ebp+8]
+    call        PrintHex32
+    mov         al, ' '
+    call        PrintChar
+    mov         eax, [ebp+12]
+    call        PrintHex32
+    mov         al, ' '
+    call        PrintChar
+    mov         eax, [ebp+16]
+    call        PrintHex32
+    mov         al, ' '
+    call        PrintChar
+    mov         eax, [ebp+20]
+    call        PrintHex32
+
+    mov         si, Text_NewLine
+    call        PrintString
 
 ; Setup DAP
-    push        ebp
-
     mov         eax, [ebp+8]
     mov         dl, al
     mov         eax, [ebp+12]
@@ -121,11 +125,8 @@ BiosReadSectors:
     mov         [DAP_Buffer_Offset], ax
     shr         eax, 16
     mov         [DAP_Buffer_Segment], ax
-    mov         ah, 0x42                    ; Extended Read (LBA)
-    mov         si, DAP                     ; DAP address
-    int         0x13                        ; BIOS disk operation
 
-    pop         ebp
+    call        BiosReadSectors_16
 
     mov         si, Text_BiosReadSectorsDone
     call        PrintString
@@ -141,11 +142,36 @@ BiosReadSectors:
     mov         eax, 1
 
 .return
+    pop         edi
     pop         esi
     pop         ecx
     pop         ebx
     pop         eax
     pop         ebp
+    ret
+
+BiosReadSectors_16:
+    push        ax
+    push        bx
+    push        cx
+    push        dx
+    push        si
+    push        di
+
+    mov         eax, esp
+    mov         sp, ax
+
+    xor         eax, eax
+    mov         ah, 0x42                    ; Extended Read (LBA)
+    mov         si, DAP                     ; DAP address
+    int         0x13                        ; BIOS disk operation
+
+    pop         di
+    pop         si
+    pop         dx
+    pop         cx
+    pop         bx
+    pop         ax
     ret
 
 ;----------------------------------------
@@ -216,6 +242,8 @@ align 16
 Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
 Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
 Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
+Text_Params: db "[VBR C Stub] Params : ",0
+Text_NewLine: db 10,13,0
 
 ;----------------------------------------
 ; Data
