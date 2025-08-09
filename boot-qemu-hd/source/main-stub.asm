@@ -52,29 +52,6 @@ Start:
     jmp         $
 
 ;----------------------------------------
-; PrintChar
-; In : AL = character to write
-
-PrintChar:
-    push        ebx
-    mov         bx, 0
-    mov         ah, 0x0E
-    int         0x10
-    pop         ebx
-    ret
-
-;----------------------------------------
-PrintString:
-    lodsb
-    or          al, al
-    jz          .done
-    mov         ah, 0x0E
-    int         0x10
-    jmp         PrintString
-.done:
-    ret
-
-;----------------------------------------
 ; BiosReadSectors cdecl
 ; In : EBP+8 = Drive number
 ;      EBP+12 = Start LBA
@@ -158,10 +135,7 @@ BiosReadSectors_16:
     push        si
     push        di
 
-    mov         eax, esp
-    mov         sp, ax
-
-    xor         eax, eax
+    xor         ax, ax
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
     int         0x13                        ; BIOS disk operation
@@ -172,6 +146,30 @@ BiosReadSectors_16:
     pop         cx
     pop         bx
     pop         ax
+    ret
+
+
+;----------------------------------------
+; PrintChar
+; In : AL = character to write
+
+PrintChar:
+    push        bx
+    mov         bx, 0
+    mov         ah, 0x0E
+    int         0x10
+    pop         bx
+    ret
+
+;----------------------------------------
+PrintString:
+    lodsb
+    or          al, al
+    jz          .done
+    mov         ah, 0x0E
+    int         0x10
+    jmp         PrintString
+.done:
     ret
 
 ;----------------------------------------
