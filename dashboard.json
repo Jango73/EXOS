@@ -14,5 +14,13 @@
         "enableCommandHistory": true,
         "persistLogs": true,
         "notifyOnExit": true
+    },
+    "beforeStartProcess": {
+        "5-1-start-qemu-hd.sh": [
+            {
+                "action": "killProcess",
+                "parameters": [ "qemu-system-x86_64" ]
+            }
+        ]
     }
 }

@@ -1,9 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 import blessed from 'blessed';
 import { Tail } from 'tail';
 import kill from 'kill-port';
+import psList from 'ps-list';
 
 /*
 setTimeout(() => {
@@ -12,11 +13,6 @@ setTimeout(() => {
     process.exit(1);
 }, 60000);
 */
-
-// NOTE: TypeScript interfaces removed for .mjs runtime
-// interface Scripts { [key: string]: string; }
-// interface ActionDescriptor { action: string; parameters?: string[]; }
-// interface Config { ... }
 
 const defaultSettings = {
     enableCommandHistory: true,
@@ -499,6 +495,144 @@ async function closePorts(method, ports) {
     }
 }
 
+function shQuote(s) {
+    return `'${String(s).replace(/'/g, `'\\''`)}'`;
+}
+
+function execShell(cmd) {
+    return new Promise((resolve) => {
+        exec(cmd, { windowsHide: true }, (err, stdout, stderr) => {
+            resolve({
+                code: err ? (err.code || 1) : 0,
+                stdout: stdout || '',
+                stderr: stderr || (err ? err.message : '')
+            });
+        });
+    });
+}
+
+async function getPidsByName(name) {
+    const currentPid = process.pid;
+    const results = new Set();
+
+    if (process.platform === 'win32') {
+        // PowerShell returns IDs line by line; Name expects base name (no .exe)
+        const base = name.toLowerCase().endsWith('.exe') ? name.slice(0, -4) : name;
+        const ps = `powershell -NoProfile -Command "$ErrorActionPreference='SilentlyContinue'; Get-Process -Name '${base.replace(/'/g, "''")}' | ForEach-Object { $_.Id }"`;
+        const { stdout } = await execShell(ps);
+        stdout.split(/\r?\n/).forEach(line => {
+            const pid = parseInt(line.trim(), 10);
+            if (!isNaN(pid) && pid !== currentPid) results.add(pid);
+        });
+    } else {
+        // Use pgrep -f to match full cmdline; filter out self
+        const { stdout } = await execShell(`pgrep -f ${shQuote(name)}`);
+        stdout.split(/\r?\n/).forEach(line => {
+            const pid = parseInt(line.trim(), 10);
+            if (!isNaN(pid) && pid !== currentPid) results.add(pid);
+        });
+    }
+
+    return Array.from(results);
+}
+
+async function killPid(pid) {
+    // Try a graceful kill first
+    try {
+        process.kill(pid);
+        return { ok: true, method: 'process.kill' };
+    } catch (_) { /* fallthrough */ }
+
+    // Force kill fallback per-OS
+    if (process.platform === 'win32') {
+        const { code, stderr } = await execShell(`taskkill /PID ${pid} /T /F`);
+        return { ok: code === 0, method: 'taskkill', error: code !== 0 ? stderr : undefined };
+    } else {
+        const { code, stderr } = await execShell(`kill -9 ${pid}`);
+        return { ok: code === 0, method: 'kill -9', error: code !== 0 ? stderr : undefined };
+    }
+}
+
+async function killProcesses(params) {
+    const currentPid = process.pid;
+
+    for (const target of params) {
+        // Numeric PID
+        if (/^\d+$/.test(String(target))) {
+            const pid = parseInt(String(target), 10);
+            if (pid === currentPid) {
+                output.log(`Skipped killing current process (PID ${pid})`);
+                continue;
+            }
+            const res = await killPid(pid);
+            if (res.ok) {
+                output.log(`Killed PID ${pid} via ${res.method}`);
+            } else {
+                output.log(`Failed to kill PID ${pid} via ${res.method}: ${res.error || 'unknown error'}`);
+            }
+            screen.render();
+            continue;
+        }
+
+        // Name-based kill
+        const name = String(target).trim();
+        const pids = await getPidsByName(name);
+        if (pids.length === 0) {
+            output.log(`No process found with name "${name}"`);
+            screen.render();
+            continue;
+        }
+
+        for (const pid of pids) {
+            if (pid === currentPid) {
+                output.log(`Skipped killing current process (PID ${pid}) for name "${name}"`);
+                continue;
+            }
+            const res = await killPid(pid);
+            if (res.ok) {
+                output.log(`Killed "${name}" (PID ${pid}) via ${res.method}`);
+            } else {
+                output.log(`Failed to kill "${name}" (PID ${pid}) via ${res.method}: ${res.error || 'unknown error'}`);
+            }
+            screen.render();
+        }
+    }
+}
+
+async function killProcesses(params) {
+    const procs = await psList();
+
+    for (const target of params) {
+        const pid = parseInt(target, 10);
+
+        if (!isNaN(pid)) {
+            try {
+                process.kill(pid);
+                output.log(`Killed process with PID ${pid}`);
+            } catch (err) {
+                output.log(`Error killing PID ${pid}: ${err.message}`);
+            }
+            continue;
+        }
+
+        // Match by process name (case-insensitive)
+        const matches = procs.filter(p => p.name.toLowerCase() === target.toLowerCase());
+        if (matches.length === 0) {
+            output.log(`No process found with name "${target}"`);
+            continue;
+        }
+        for (const m of matches) {
+            try {
+                process.kill(m.pid);
+                output.log(`Killed process "${m.name}" (PID ${m.pid})`);
+            } catch (err) {
+                output.log(`Error killing process "${m.name}" (PID ${m.pid}): ${err.message}`);
+            }
+        }
+    }
+    screen.render();
+}
+
 async function executeBeforeActions(name) {
     const actions = config.beforeStartProcess?.[name];
     if (!actions) return;
@@ -513,6 +647,9 @@ async function executeBeforeActions(name) {
         } else if (act.action === 'closeUDPPorts') {
             output.log(`Closing processes on UDP ports ${params}`);
             await closePorts('udp', params);
+        } else if (act.action === 'killProcess') {
+            output.log(`Killing processes: ${params}`);
+            await killProcesses(params);
         }
     }
 }
@@ -548,7 +685,6 @@ async function runScript(name) {
     });
 }
 
-// NEW: Run script file directly from scriptsDir
 async function runScriptFile(scriptFile) {
     if (current) {
         current.kill();
