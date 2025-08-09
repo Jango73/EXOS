@@ -599,40 +599,6 @@ async function killProcesses(params) {
     }
 }
 
-async function killProcesses(params) {
-    const procs = await psList();
-
-    for (const target of params) {
-        const pid = parseInt(target, 10);
-
-        if (!isNaN(pid)) {
-            try {
-                process.kill(pid);
-                output.log(`Killed process with PID ${pid}`);
-            } catch (err) {
-                output.log(`Error killing PID ${pid}: ${err.message}`);
-            }
-            continue;
-        }
-
-        // Match by process name (case-insensitive)
-        const matches = procs.filter(p => p.name.toLowerCase() === target.toLowerCase());
-        if (matches.length === 0) {
-            output.log(`No process found with name "${target}"`);
-            continue;
-        }
-        for (const m of matches) {
-            try {
-                process.kill(m.pid);
-                output.log(`Killed process "${m.name}" (PID ${m.pid})`);
-            } catch (err) {
-                output.log(`Error killing process "${m.name}" (PID ${m.pid}): ${err.message}`);
-            }
-        }
-    }
-    screen.render();
-}
-
 async function executeBeforeActions(name) {
     const actions = config.beforeStartProcess?.[name];
     if (!actions) return;
