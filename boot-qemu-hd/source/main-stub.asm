@@ -57,7 +57,7 @@ Start:
 ; In : EBP+8 = Drive number
 ;      EBP+12 = Start LBA
 ;      EBP+16 = Sector count
-;      EBP+20 = Buffer address
+;      EBP+20 = Buffer address (far pointer SEG:OFS)
 
 BiosReadSectors:
     push        ebp
@@ -65,6 +65,7 @@ BiosReadSectors:
     push        eax
     push        ebx
     push        ecx
+    push        edx
     push        esi
     push        edi
 
@@ -117,6 +118,7 @@ BiosReadSectors:
 .return
     pop         edi
     pop         esi
+    pop         edx
     pop         ecx
     pop         ebx
     pop         eax
