@@ -25,125 +25,6 @@ void PrintString(const char *s) {
     );
 }
 
-/*
-__attribute__((always_inline))
-static inline void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
-    struct {
-        U8  Size;
-        U8  Reserved;
-        U16 Count;
-        U16 BufferOffset;
-        U16 BufferSegment;
-        U32 LbaLow;
-        U32 LbaHigh;
-    } __attribute__((packed)) Dap = {
-        .Size = 0x10,
-        .Reserved = 0,
-        .Count = Count,
-        .BufferOffset = ((U32)Dest) & 0xF,
-        .BufferSegment = ((U32)Dest) >> 4,
-        .LbaLow = Lba,
-        .LbaHigh = 0,
-    };
-    asm volatile (
-        "push %%es;"
-        "movw %[seg], %%es;"
-        "movb $0x42, %%ah;"
-        "movb %[drv], %%dl;"
-        "movl %[dap], %%esi;"
-        "int $0x13;"
-        "pop %%es;"
-        :
-        : [dap]"r"(&Dap), [drv]"r"(Drive), [seg]"r"(Dap.BufferSegment)
-        : "ah", "dl", "esi"
-    );
-}
-*/
-
-/*
-void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
-    struct {
-        U8  Size;
-        U8  Reserved;
-        U16 Count;
-        U16 BufferOffset;
-        U16 BufferSegment;
-        U32 LbaLow;
-        U32 LbaHigh;
-    } __attribute__((packed)) Dap = {
-        .Size = 0x10,
-        .Reserved = 0,
-        .Count = Count,
-        .BufferOffset = ((U32)Dest) & 0xF,
-        .BufferSegment = ((U32)Dest) >> 4,
-        .LbaLow = Lba,
-        .LbaHigh = 0,
-    };
-
-    U16 DapOffset = (U16) ( ((U32) &Dap) & 0xFFFF);
-    U16 DapSegment = (U16) ( ((U32) &Dap) >> 4);
-    U8 Status = 0;
-
-    asm volatile (
-        "pushw %%ds\n"
-        "movw %2, %%ax\n"
-        "movw %%ax, %%ds\n"
-        "movw %1, %%si\n"
-        "movb $0x42, %%ah\n"
-        "movb %0, %%dl\n"
-        "int $0x13\n"
-        "setc %%al\n"
-        "popw %%ds\n"
-        : "=a"(Status)
-        : "m"(Drive), "m"(DapOffset), "m"(DapSegment)
-        : "si", "memory"
-    );
-
-    if (Status) {
-        PrintString("[VBR] BIOS read failed\r\n");
-    }
-}
-*/
-
-/*
-void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
-    struct {
-        U8  Size;
-        U8  Reserved;
-        U16 Count;
-        U16 BufferOffset;
-        U16 BufferSegment;
-        U32 LbaLow;
-        U32 LbaHigh;
-    } __attribute__((packed)) Dap = {
-        .Size = 0x10,
-        .Reserved = 0,
-        .Count = Count,
-        .BufferOffset = ((U32)Dest) & 0xF,
-        .BufferSegment = ((U32)Dest) >> 4,
-        .LbaLow = Lba,
-        .LbaHigh = 0,
-    };
-
-    U16 DapOffset = (U16)(U16*)(&Dap);
-    U16 DapSegment = ((U16)(U16*)(&Dap)) >> 4;
-
-    asm volatile (
-        "push %%ds\n"
-        "mov %2, %%ax\n"
-        "mov %%ax, %%ds\n"
-        "mov %1, %%si\n"
-        "mov $0x42, %%ah\n"
-        "mov %0, %%dl\n"
-        "int $0x13\n"
-        "pop %%ds\n"
-        :
-        : "r"(Drive), "r"(DapOffset), "r"(DapSegment)
-        : "ax", "si", "memory"
-    );
-}
-*/
-
 struct __attribute__((packed)) Fat32BootSector {
     U8  Jump[3];
     U8  Oem[8];
@@ -151,19 +32,29 @@ struct __attribute__((packed)) Fat32BootSector {
     U8  SectorsPerCluster;
     U16 ReservedSectorCount;
     U8  NumberOfFats;
-    U16 RootEntryCount;
-    U16 TotalSectors16;
+    U16 RootEntryCount_NA;
+    U16 TotalSectors16_NA;
     U8  Media;
-    U16 FatSize16;
+    U16 SectorsPerFat16_NA;
     U16 SectorsPerTrack;
     U16 NumberOfHeads;
     U32 HiddenSectors;
-    U32 TotalSectors32;
-    U32 FatSize32;
+    U32 NumSectors;
+    U32 NumSectorsPerFat;
     U16 ExtFlags;
     U16 FsVersion;
     U32 RootCluster;
-    // Rest ignored
+    U16 InfoSector;
+    U16 BackupBootSector;
+    U8  Reserved1[12];
+    U8  LogicalDriveNumber;
+    U8  Reserved2;
+    U8  ExtendedSignature;
+    U32 SerialNumber;
+    U8  VolumeName[11];
+    U8  FatName[8];
+    U8  Code[420];
+    U16 BIOSMark;
 };
 
 struct __attribute__((packed)) FatDirEntry {
@@ -181,6 +72,9 @@ struct __attribute__((packed)) FatDirEntry {
     U32 FileSize;
 };
 
+struct Fat32BootSector BootSector;
+U8 ClusterBuffer[SectorSize * 8];
+
 static int MemCmp(const void* A, const void* B, int Len) {
     const U8* X = A; const U8* Y = B;
     for (int I = 0; I < Len; ++I) if (X[I] != Y[I]) return 1;
@@ -188,7 +82,6 @@ static int MemCmp(const void* A, const void* B, int Len) {
 }
 
 void BootMain(U32 BootDrive, U32 FAT32LBA) {
-    struct Fat32BootSector BootSector;
     char TempString[32];
 
     PrintString("[VBR] Loading and running binary OS at ");
@@ -214,8 +107,13 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     PrintString("[VBR] Reading FAT32 VBR\r\n");
     BiosReadSectors(BootDrive, FAT32LBA, 1, &BootSector);
 
-    PrintString("[VBR] Fat size ");
-    NumberToString(TempString, BootSector.FatSize32, 16, 0, 0, 0);
+    PrintString("[VBR] BIOS mark ");
+    NumberToString(TempString, BootSector.BIOSMark, 16, 0, 0, 0);
+    PrintString(TempString);
+    PrintString("\r\n");
+
+    PrintString("[VBR] Num sectors per FAT ");
+    NumberToString(TempString, BootSector.NumSectorsPerFat, 16, 0, 0, 0);
     PrintString(TempString);
     PrintString("\r\n");
 
@@ -224,11 +122,16 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     PrintString(TempString);
     PrintString("\r\n");
 
+    if (BootSector.BIOSMark != 0xAA55) {
+        PrintString("[VBR] BIOS mark not valid, aborting\r\n");
+        while (1) {}
+    }
+
     U32 FatStartSector    = FAT32LBA + BootSector.ReservedSectorCount;
-    U32 FatSize           = BootSector.FatSize32;
+    U32 FatSize           = BootSector.NumSectorsPerFat;
     U32 RootCluster       = BootSector.RootCluster;
     U32 SectorsPerCluster = BootSector.SectorsPerCluster;
-    U32 FirstDataSector   = BootSector.ReservedSectorCount + (BootSector.NumberOfFats * FatSize);
+    U32 FirstDataSector   = FAT32LBA + BootSector.ReservedSectorCount + (BootSector.NumberOfFats * FatSize);
     U32 Cluster           = RootCluster;
 
     PrintString("[VBR] FAT start LBA : ");
@@ -236,7 +139,6 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     PrintString(TempString);
     PrintString("\r\n");
 
-    U8 ClusterBuffer[SectorSize * 8];
     U8 Found = 0;
     U32 FileCluster = 0, FileSize = 0;
 
@@ -252,13 +154,13 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
 
         BiosReadSectors(BootDrive, Sector, SectorsPerCluster, ClusterBuffer);
 
-        for (U8* P = ClusterBuffer; P < ClusterBuffer + SectorsPerCluster*SectorSize; P += 32) {
+        for (U8* P = ClusterBuffer; P < ClusterBuffer + SectorsPerCluster * SectorSize; P += 32) {
             struct FatDirEntry* D = (struct FatDirEntry*)P;
             if (D->Name[0] == 0x00) break;
             if ((D->Attr & 0x0F) == 0x0F) continue; // LFN
 
             if (!(MemCmp(D->Name, FileToLoad, 11))) {
-                PrintString("[EXOS] exos.bin found!\r\n");
+                PrintString("[VBR] exos.bin found!\r\n");
                 FileCluster = ((U32)D->FstClusHi << 16) | D->FstClusLo;
                 FileSize = D->FileSize;
                 Found = 1; break;
@@ -281,7 +183,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     int ClusterCount = 0;
 
     while (Remaining > 0 && Cluster >= 2 && Cluster < 0x0FFFFFF8) {
-        PrintString("[VBR] Reading cluster #\r\n");
+        PrintString("[VBR] Reading cluster ");
         char Num[4] = "000";
         int Tmp = Cluster;
         Num[2] = '0' + (Tmp % 10); Tmp /= 10;

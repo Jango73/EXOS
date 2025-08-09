@@ -23,6 +23,7 @@ Start:
     cli                                     ; Disable interrupts
     mov         ax, cs
     mov         ds, ax
+    mov         es, ax
     mov         ss, ax
 
     ; Setup a 32-bit stack
@@ -98,6 +99,7 @@ BiosReadSectors:
     mov         [DAP_Start_LBA_Low], eax
     mov         eax, [ebp+16]
     mov         [DAP_NumSectors], ax
+
     mov         eax, [ebp+20]
     mov         [DAP_Buffer_Offset], ax
     shr         eax, 16
@@ -107,12 +109,6 @@ BiosReadSectors:
 
     mov         si, Text_BiosReadSectorsDone
     call        PrintString
-
-; Print the BIOS mark
-    mov         si, [ebp+20]
-    add         si, 510
-    mov         ax, [si]
-    call        PrintHex32
 
     xor         eax, eax
     jnc         .return
