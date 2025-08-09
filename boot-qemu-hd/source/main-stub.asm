@@ -7,6 +7,7 @@ BITS 16
 
 section .start
 global _start
+global BiosReadSectors
 
 extern BootMain
 
@@ -24,8 +25,9 @@ Start:
     mov         ds, ax
     mov         ss, ax
 
-    ; Setup a 32-bit stack for C
+    ; Setup a 32-bit stack
     ; Just below 0x8000, don't care about this data
+    ; We won't be returning to MBR and VBR
     xor         eax, eax
     mov         ax, ds
     shl         eax, 4
@@ -39,17 +41,30 @@ Start:
     call        PrintString
 
     mov         eax, [DAP_Start_LBA_Low]
-    push        eax
+    push        eax                         ; Param 2 : Partition LBA
     xor         eax, eax
     mov         al, dl
-    push        eax
-    push        word 0
+    push        eax                         ; Param 1 : Drive
+    push        word 0                      ; Add 16 bits bacause of 32 bits call
     call        BootMain
     add         esp, 8
 
     hlt
     jmp         $
 
+;----------------------------------------
+; PrintChar
+; In : AL = character to write
+
+PrintChar:
+    push        ebx
+    mov         bx, 0
+    mov         ah, 0x0E
+    int         0x10
+    pop         ebx
+    ret
+
+;----------------------------------------
 PrintString:
     lodsb
     or          al, al
@@ -60,6 +75,159 @@ PrintString:
 .done:
     ret
 
-DAP_Start_LBA_Low : dd 0
+;----------------------------------------
+; BiosReadSectors cdecl
+; In : EBP+8 = Drive number
+;      EBP+12 = Start LBA
+;      EBP+16 = Sector count
+;      EBP+20 = Buffer address
 
-Text_Jumping: db "Jumping to BootMain...",13,10,0
+BiosReadSectors:
+    push        ebp
+    mov         ebp, esp
+    push        eax
+    push        ebx
+    push        ecx
+    push        esi
+
+    mov         si, Text_ReadBiosSectors
+    call        PrintString
+
+;    mov         eax, [ebp+8]
+;    call        PrintHex32
+;    mov         al, ' '
+;    call        PrintChar
+;    mov         eax, [ebp+12]
+;    call        PrintHex32
+;    mov         al, ' '
+;    call        PrintChar
+;    mov         eax, [ebp+16]
+;    call        PrintHex32
+;    mov         al, ' '
+;    call        PrintChar
+;    mov         eax, [ebp+20]
+;    call        PrintHex32
+
+; Setup DAP
+    push        ebp
+
+    mov         eax, [ebp+8]
+    mov         dl, al
+    mov         eax, [ebp+12]
+    mov         [DAP_Start_LBA_Low], eax
+    mov         eax, [ebp+16]
+    mov         [DAP_NumSectors], ax
+    mov         eax, [ebp+20]
+    mov         [DAP_Buffer_Offset], ax
+    shr         eax, 16
+    mov         [DAP_Buffer_Segment], ax
+    mov         ah, 0x42                    ; Extended Read (LBA)
+    mov         si, DAP                     ; DAP address
+    int         0x13                        ; BIOS disk operation
+
+    pop         ebp
+
+    mov         si, Text_BiosReadSectorsDone
+    call        PrintString
+
+; Print the BIOS mark
+    mov         si, [ebp+20]
+    add         si, 510
+    mov         ax, [si]
+    call        PrintHex32
+
+    xor         eax, eax
+    jnc         .return
+    mov         eax, 1
+
+.return
+    pop         esi
+    pop         ecx
+    pop         ebx
+    pop         eax
+    pop         ebp
+    ret
+
+;----------------------------------------
+; PrintHex32
+; In : EAX = value to write
+; Uses : EAX, EBX, ECX
+
+PrintHex32:
+    mov     ecx, eax
+
+    mov     ebx, ecx
+    shr     ebx, 28
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    mov     ebx, ecx
+    shr     ebx, 24
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    mov     ebx, ecx
+    shr     ebx, 20
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    mov     ebx, ecx
+    shr     ebx, 16
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    mov     ebx, ecx
+    shr     ebx, 12
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    mov     ebx, ecx
+    shr     ebx, 8
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    mov     ebx, ecx
+    shr     ebx, 4
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    mov     ebx, ecx
+    and     bl, 0xF
+    call    PrintHex32Nibble
+
+    ret
+
+PrintHex32Nibble:
+    cmp     bl, 9
+    jbe     .digit
+    add     bl, 7
+.digit:
+    add     bl, '0'
+    mov     al, bl
+    call    PrintChar
+    ret
+
+;----------------------------------------
+; Read-only data
+
+section .rodata
+align 16
+
+Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
+Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
+Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
+
+;----------------------------------------
+; Data
+
+section .data
+align 16
+
+DAP :
+DAP_Size : db 16
+DAP_Reserved : db 0
+DAP_NumSectors : dw 0
+DAP_Buffer_Offset : dw 0
+DAP_Buffer_Segment : dw 0
+DAP_Start_LBA_Low : dd 0
+DAP_Start_LBA_High : dd 0

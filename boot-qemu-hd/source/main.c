@@ -7,6 +7,8 @@
 #define LoadAddress        0x10000         // Kernel load address
 #define MaxSectorsPerRead  8               // For INT13h
 
+void BiosReadSectors(U32 Drive, U32 Lba, U32 Count, void* Dest);
+
 void PrintString(const char *s) {
     __asm__ __volatile__ (
         "1:\n\t"
@@ -103,6 +105,7 @@ void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
 }
 */
 
+/*
 void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
     struct {
         U8  Size;
@@ -139,6 +142,7 @@ void BiosReadSectors(U8 Drive, U32 Lba, U8 Count, void* Dest) {
         : "ax", "si", "memory"
     );
 }
+*/
 
 struct __attribute__((packed)) Fat32BootSector {
     U8  Jump[3];
@@ -189,6 +193,11 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
 
     PrintString("[VBR] Loading and running binary OS at ");
     NumberToString(TempString, LoadAddress, 16, 0, 0, 0);
+    PrintString(TempString);
+    PrintString("\r\n");
+
+    PrintString("[VBR] BootSector address ");
+    NumberToString(TempString, (U32)(&BootSector), 16, 0, 0, 0);
     PrintString(TempString);
     PrintString("\r\n");
 
