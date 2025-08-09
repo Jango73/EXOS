@@ -4,7 +4,6 @@ import { spawn, exec } from 'child_process';
 import blessed from 'blessed';
 import { Tail } from 'tail';
 import kill from 'kill-port';
-import psList from 'ps-list';
 
 /*
 setTimeout(() => {
