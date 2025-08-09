@@ -62,7 +62,6 @@ Start:
 BiosReadSectors:
     push        ebp
     mov         ebp, esp
-    push        eax
     push        ebx
     push        ecx
     push        edx
@@ -72,26 +71,26 @@ BiosReadSectors:
     mov         si, Text_ReadBiosSectors
     call        PrintString
 
-    mov         si, Text_Params
-    call        PrintString
+;    mov         si, Text_Params
+;    call        PrintString
 
-    mov         eax, [ebp+8]
-    call        PrintHex32
-    mov         al, ' '
-    call        PrintChar
-    mov         eax, [ebp+12]
-    call        PrintHex32
-    mov         al, ' '
-    call        PrintChar
-    mov         eax, [ebp+16]
-    call        PrintHex32
-    mov         al, ' '
-    call        PrintChar
-    mov         eax, [ebp+20]
-    call        PrintHex32
+;    mov         eax, [ebp+8]
+;    call        PrintHex32
+;    mov         al, ' '
+;    call        PrintChar
+;    mov         eax, [ebp+12]
+;    call        PrintHex32
+;    mov         al, ' '
+;    call        PrintChar
+;    mov         eax, [ebp+16]
+;    call        PrintHex32
+;    mov         al, ' '
+;    call        PrintChar
+;    mov         eax, [ebp+20]
+;    call        PrintHex32
 
-    mov         si, Text_NewLine
-    call        PrintString
+;    mov         si, Text_NewLine
+;    call        PrintString
 
 ; Setup DAP
     mov         eax, [ebp+8]
@@ -121,7 +120,6 @@ BiosReadSectors:
     pop         edx
     pop         ecx
     pop         ebx
-    pop         eax
     pop         ebp
     ret
 
