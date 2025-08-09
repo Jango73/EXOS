@@ -132,12 +132,16 @@ BiosReadSectors_16:
     push        dx
     push        si
     push        di
+    push        ds
+    push        es
 
     xor         ax, ax
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
     int         0x13                        ; BIOS disk operation
 
+    pop         es
+    pop         ds
     pop         di
     pop         si
     pop         dx
