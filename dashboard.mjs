@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { spawn } from 'child_process';
 import blessed from 'blessed';
 import { Tail } from 'tail';
 import kill from 'kill-port';
@@ -13,30 +13,10 @@ setTimeout(() => {
 }, 60000);
 */
 
-interface Scripts {
-    [key: string]: string;
-}
-
-interface ActionDescriptor {
-    action: string;
-    parameters?: string[];
-}
-
-interface Config {
-    logs?: string[];
-    beforeStartProcess?: {
-        [key: string]: ActionDescriptor[];
-    };
-    settings?: {
-        enableCommandHistory?: boolean;
-        persistLogs?: boolean;
-        notifyOnExit?: boolean;
-    };
-    scriptsDir?: string; // NEW: directory for scripts
-    keyBindings?: {      // NEW: key -> script file mapping
-        [key: string]: string;
-    };
-}
+// NOTE: TypeScript interfaces removed for .mjs runtime
+// interface Scripts { [key: string]: string; }
+// interface ActionDescriptor { action: string; parameters?: string[]; }
+// interface Config { ... }
 
 const defaultSettings = {
     enableCommandHistory: true,
@@ -44,14 +24,10 @@ const defaultSettings = {
     notifyOnExit: true
 };
 
-let logStream: fs.WriteStream | null = null;
+let logStream = null;
 
-interface LastCommand {
-    kind: 'script' | 'custom';
-    value: string;
-}
-
-let lastCommand: LastCommand | null = null;
+// interface LastCommand { kind: 'script' | 'custom'; value: string; }
+let lastCommand = null;
 
 function initLogFile() {
     if (config.settings?.persistLogs !== true || logStream) return;
@@ -68,11 +44,11 @@ function stopLogFile() {
     logStream = null;
 }
 
-function loadConfig(): Config {
+function loadConfig() {
     try {
-        const cfgPath = path.join(process.cwd(), 'dash.json');
+        const cfgPath = path.join(process.cwd(), 'dashboard.json');
         const raw = fs.readFileSync(cfgPath, 'utf-8');
-        const cfg = JSON.parse(raw) as Config;
+        const cfg = JSON.parse(raw);
         return {
             ...cfg,
             settings: {
@@ -85,16 +61,16 @@ function loadConfig(): Config {
     }
 }
 
-function escapeRegex(s: string): string {
+function escapeRegex(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function parseLogDate(s: string): number {
+function parseLogDate(s) {
     const iso = s.replace(/T(\d{2})-(\d{2})-(\d{2})/, 'T$1:$2:$3');
     return new Date(iso).getTime();
 }
 
-function resolveLatest(p: string): string {
+function resolveLatest(p) {
     if (!p.includes('{{latest}}')) return p;
 
     const [before, after] = p.split('{{latest}}');
@@ -110,7 +86,7 @@ function resolveLatest(p: string): string {
                 if (!match) return null;
                 return { dateStr: match[1], timestamp: parseLogDate(match[1]) };
             })
-            .filter((v): v is { dateStr: string; timestamp: number } => v !== null)
+            .filter((v) => v !== null)
             .sort((a, b) => b.timestamp - a.timestamp);
 
         if (entries.length === 0) return path.join(dir, `${prefix}latest${after}`);
@@ -121,38 +97,37 @@ function resolveLatest(p: string): string {
     }
 }
 
-// Load scripts from keyBindings in config (instead of package.json)
-function loadScripts(): string[] {
-    if (config.keyBindings) {
-        return Object.entries(config.keyBindings).map(([key, script]) => `${key.toUpperCase()} - ${script}`);
+// Load package.json scripts from current working directory
+// CHANGED: now load from config.keyBindings instead of package.json
+function loadScripts() {
+    try {
+        if (config.keyBindings) {
+            return Object.entries(config.keyBindings).map(([key, file]) => `${key.toUpperCase()} - ${file}`);
+        }
+        return [];
+    } catch {
+        return [];
     }
-    return [];
 }
 
-function setOutputLabel(label: string) {
+function setOutputLabel(label) {
     output.setLabel(` ${label} `);
     screen.render();
 }
 
-interface LogWatcher {
-    configPath: string;
-    currentPath: string;
-    box: blessed.Widgets.Log;
-    tail: Tail;
-}
-
-function startTail(file: string, box: blessed.Widgets.Log): Tail {
+// interface LogWatcher { configPath: string; currentPath: string; box: blessed.Widgets.Log; tail: Tail; }
+function startTail(file, box) {
     if (!fs.existsSync(file)) fs.writeFileSync(file, '');
     const tail = new Tail(file, {
         follow: true,
         useWatchFile: true,
         fsWatchOptions: { interval: 500 }
     });
-    tail.on('line', (line: string) => {
+    tail.on('line', (line) => {
         box.log(line);
         screen.render();
     });
-    tail.on('error', (err: Error) => {
+    tail.on('error', (err) => {
         box.log(`Tail error: ${err.message}`);
         screen.render();
     });
@@ -262,12 +237,12 @@ const output = blessed.log({
 });
 
 const originalOutputLog = output.log.bind(output);
-output.log = ((msg: string) => {
+output.log = ((msg) => {
     originalOutputLog(msg);
     if (logStream) {
         logStream.write(`[${new Date().toISOString()}] ${msg}\n`);
     }
-}) as typeof output.log;
+});
 
 initLogFile();
 
@@ -289,8 +264,8 @@ const list = blessed.list({
 screen.append(sidebar);
 screen.append(rightContainer);
 
-const logBoxes: blessed.Widgets.Log[] = [];
-const logWatchers: LogWatcher[] = [];
+const logBoxes = [];
+const logWatchers = [];
 (config.logs ?? []).forEach((cfgPath, idx) => {
     const width = Math.floor(100 / ((config.logs ?? []).length || 1));
     const resolved = resolveLatest(cfgPath);
@@ -321,7 +296,7 @@ const logWatchers: LogWatcher[] = [];
         const tail = startTail(resolved, box);
         logWatchers.push({ configPath: cfgPath, currentPath: resolved, box, tail });
     } catch (err) {
-        box.log(`Cannot watch ${resolved}: ${(err as Error).message}`);
+        box.log(`Cannot watch ${resolved}: ${err.message}`);
     }
 });
 
@@ -342,7 +317,7 @@ setInterval(() => {
 
 list.focus();
 
-const focusables: blessed.Widgets.BlessedElement[] = [list, ...logBoxes, stopButton, inputBox, output];
+const focusables = [list, ...logBoxes, stopButton, inputBox, output];
 let focusIndex = 0;
 
 screen.key('tab', () => {
@@ -351,7 +326,7 @@ screen.key('tab', () => {
     screen.render();
 });
 
-// Bind keys from config.keyBindings
+// Bind keys from config.keyBindings (NEW)
 if (config.keyBindings) {
     for (const [keyName, scriptFile] of Object.entries(config.keyBindings)) {
         screen.key(keyName, () => {
@@ -379,7 +354,7 @@ screen.key('C-r', () => {
 
     if (lastCommand.kind === 'script') {
         runScript(lastCommand.value).catch(err => {
-            output.log(`Error: ${(err as Error).message}`);
+            output.log(`Error: ${err.message}`);
             screen.render();
         });
     } else {
@@ -393,8 +368,8 @@ screen.key('C-s', () => {
 });
 
 focusables.forEach(el => {
-    el.key('up', () => { (el as any).scroll(-1); screen.render(); });
-    el.key('down', () => { (el as any).scroll(1); screen.render(); });
+    el.key('up', () => { el.scroll(-1); screen.render(); });
+    el.key('down', () => { el.scroll(1); screen.render(); });
 });
 
 list.on('select', (_, index) => {
@@ -408,7 +383,7 @@ stopButton.on('press', () => {
 });
 
 inputBox.on('submit', (value) => {
-    const trimmed = value.trim();
+    const trimmed = (value || '').trim();
     if (!trimmed) return;
 
     // add to command history
@@ -426,7 +401,7 @@ inputBox.on('keypress', (_, key) => {
     if (key.name === 'up') {
         if (historyIndex > 0) historyIndex--;
         inputBox.setValue(commandHistory[historyIndex] ?? '');
-        (inputBox as any).cursor = inputBox.getValue().length;
+        inputBox.cursor = inputBox.getValue().length;
         screen.render();
     }
 
@@ -438,7 +413,7 @@ inputBox.on('keypress', (_, key) => {
             historyIndex = commandHistory.length;
             inputBox.clearValue();
         }
-        (inputBox as any).cursor = inputBox.getValue().length;
+        inputBox.cursor = inputBox.getValue().length;
         screen.render();
     }
 });
@@ -454,8 +429,9 @@ inputBox.key(['escape'], () => {
     inputBox.cancel();
 });
 
-let current: ChildProcessWithoutNullStreams | null = null;
-const commandHistory: string[] = [];
+// NOTE: moved here exactly like your original file layout
+let current = null;
+const commandHistory = [];
 let historyIndex = -1;
 
 function stopCurrentProcess() {
@@ -467,8 +443,8 @@ function stopCurrentProcess() {
     }
 }
 
-function runCustomCommand(command: string) {
-    const trimmed = command.trim();
+function runCustomCommand(command) {
+    const trimmed = (command || '').trim();
     if (!trimmed) return;
 
     if (current) {
@@ -480,7 +456,7 @@ function runCustomCommand(command: string) {
     output.log(`[dash] Executing custom command: ${trimmed}`);
 
     const args = trimmed.split(' ');
-    const cmd = args.shift()!;
+    const cmd = args.shift();
 
     current = spawn(cmd, args, { shell: true });
     setOutputLabel(trimmed);
@@ -509,7 +485,7 @@ function runCustomCommand(command: string) {
     });
 }
 
-async function closePorts(method: 'tcp' | 'udp', ports: string[]) {
+async function closePorts(method, ports) {
     for (const p of ports) {
         const port = parseInt(p, 10);
         if (isNaN(port)) continue;
@@ -517,13 +493,13 @@ async function closePorts(method: 'tcp' | 'udp', ports: string[]) {
             await kill(port, method);
             output.log(`Closed ${method.toUpperCase()} port ${port}`);
         } catch (err) {
-            output.log(`Error closing ${method.toUpperCase()} port ${port}: ${(err as Error).message}`);
+            output.log(`Error closing ${method.toUpperCase()} port ${port}: ${err.message}`);
         }
         screen.render();
     }
 }
 
-async function executeBeforeActions(name: string) {
+async function executeBeforeActions(name) {
     const actions = config.beforeStartProcess?.[name];
     if (!actions) return;
 
@@ -541,7 +517,7 @@ async function executeBeforeActions(name: string) {
     }
 }
 
-async function runScript(name: string) {
+async function runScript(name) {
     if (current) {
         current.kill();
         current = null;
@@ -573,7 +549,7 @@ async function runScript(name: string) {
 }
 
 // NEW: Run script file directly from scriptsDir
-async function runScriptFile(scriptFile: string) {
+async function runScriptFile(scriptFile) {
     if (current) {
         current.kill();
         current = null;
