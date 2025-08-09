@@ -265,7 +265,7 @@ PrintString16:
     jz          .done
     mov         ah, 0x0E
     int         0x10
-    jmp         PrintString
+    jmp         PrintString16
 .done:
     ret
 

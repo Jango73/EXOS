@@ -282,9 +282,24 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     }
     PrintString("[VBR] Done, jumping to kernel.\r\n");
 
-    void (*KernelEntry)(void) = (void*) ((Dest_Seg << 16 | Dest_Ofs));
+    // void (*KernelEntry)(void) = (void*) ((Dest_Seg << 16 | Dest_Ofs));
+    // KernelEntry();
 
-    KernelEntry();
+/*
+    __asm__ __volatile__ (
+        "pushw %[ofs]\n\t"
+        "pushw %[seg]\n\t"
+        "retf\n\t"
+        :
+        : [seg]"i"(LoadAddress_Seg), [ofs]"i"(LoadAddress_Ofs)
+    );
+*/
+
+    struct { unsigned short ofs; unsigned short seg; } __attribute__((packed)) jumpfar = {
+        LoadAddress_Ofs, LoadAddress_Seg
+    };
+
+    __asm__ __volatile__("ljmp *%0" : : "m"(jumpfar));
 
     while(1){}; // Hang
 }
