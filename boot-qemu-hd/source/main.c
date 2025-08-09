@@ -205,21 +205,25 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         U32* PointerToDest = (U32*) (Dest_Seg << 16 | Dest_Ofs);
         PrintString("[VBR] Cluster data ");
         NumberToString(TempString, PointerToDest[0], 16, 0, 0, 0);
+        PrintString(" ");
         NumberToString(TempString, PointerToDest[1], 16, 0, 0, 0);
         PrintString(TempString);
         PrintString("\r\n");
 
         Dest_Seg += (SectorsPerCluster * SectorSize) >> 4;
-        Remaining -= SectorsPerCluster * SectorSize;
+
+        U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SectorSize;
+        if (Remaining <= ClusterBytes) Remaining = 0; else Remaining -= ClusterBytes;
 
         // Get next cluster
+        U32 FatSector = FatStartSector + ((Cluster * 4) / SectorSize);
+        U32 EntryOffset = (Cluster * 4) % SectorSize;
+
         PrintString("[VBR] Reading FAT sector ");
-        NumberToString(TempString, Cluster, 16, 0, 0, 0);
+        NumberToString(TempString, FatSector, 16, 0, 0, 0);
         PrintString(TempString);
         PrintString("\r\n");
 
-        U32 FatSector = FatStartSector + ((Cluster * 4) / SectorSize);
-        U32 EntryOffset = (Cluster * 4) % SectorSize;
         BiosReadSectors(BootDrive, FatSector, 1, (void*) FatBuffer);
         Cluster = *(U32*)&FatBuffer[EntryOffset] & 0x0FFFFFFF;
 
