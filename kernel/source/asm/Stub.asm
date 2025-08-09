@@ -1,4 +1,3 @@
-
 ;----------------------------------------------------------------------------
 ;  EXOS
 ;  Copyright (c) 1999-2025 Jango73
@@ -118,9 +117,14 @@ Start32_Entry :
 
 Cursor dw 0
 
+Text_StubStart : db 'EXOS 16 bit stub starting...', 10, 13, 0
+
 ;--------------------------------------
 
 Start :
+
+    mov     si, Text_StubStart
+    call    PrintString16
 
     ;--------------------------------------
     ; Save loader's stack
@@ -252,6 +256,18 @@ Start :
 Next :
 
     jmp     far dword [Start32_Entry - StartAbsolute]
+
+;--------------------------------------
+
+PrintString16:
+    lodsb
+    or          al, al
+    jz          .done
+    mov         ah, 0x0E
+    int         0x10
+    jmp         PrintString
+.done:
+    ret
 
 ;--------------------------------------
 
