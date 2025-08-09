@@ -1,14 +1,14 @@
 import curses, subprocess, threading
 
-LOG_FILE = "../boot-qemu/debug.log"
+LOG_FILE = "./boot-qemu-hd/debug.log"
 COMMANDS = {
-    curses.KEY_F1: ["./1-setup-deps.sh"],
-    curses.KEY_F2: ["./2-setup-qemu-freedos.sh"],
-    curses.KEY_F3: ["./3-format-all-code.sh"]
-    curses.KEY_F4: ["./4-1-clean-build-exos.sh"]
-    curses.KEY_F5: ["./4-2-build-exos.sh"]
-    curses.KEY_F6: ["./5-1-start-qemu-hd.sh"]
-    curses.KEY_F7: ["./5-2-debug-qemu-hd.sh"]
+    curses.KEY_F1: ["./scripts/1-setup-deps.sh"],
+    curses.KEY_F2: ["./scripts/2-setup-qemu-freedos.sh"],
+    curses.KEY_F3: ["./scripts/3-format-all-code.sh"],
+    curses.KEY_F4: ["./scripts/4-1-clean-build-exos.sh"],
+    curses.KEY_F5: ["./scripts/4-2-build-exos.sh"],
+    curses.KEY_F6: ["./scripts/5-1-start-qemu-hd.sh"],
+    curses.KEY_F7: ["./scripts/5-2-debug-qemu-hd.sh"]
 }
 
 def tail_log(win):
