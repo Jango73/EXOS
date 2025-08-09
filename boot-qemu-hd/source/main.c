@@ -151,6 +151,10 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     PrintString(TempString);
     PrintString("\r\n");
 
+    if (SectorsPerCluster < 4) {
+        PrintString("[VBR] WARNING: 1 sector per cluster — expect many BIOS calls\r\n");
+    }
+
     U8 Found = 0;
     U32 FileCluster = 0, FileSize = 0;
 
@@ -248,8 +252,13 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         BiosReadSectors(BootDrive, FatSector, 1, (void*) FatBuffer);
         Cluster = *(U32*)&FatBuffer[EntryOffset] & 0x0FFFFFFF;
 
+        U32 MaxClusters = (FileSize + (ClusterBytes - 1)) / ClusterBytes;
+
         ClusterCount++;
-        if (ClusterCount > 128) { PrintString("[VBR] Cluster chain too long, aborting.\r\n"); break; }
+        if (ClusterCount > MaxClusters) {
+            PrintString("[VBR] Cluster chain too long, aborting.\r\n");
+            while(1){}; // Hang
+        }
     }
     PrintString("[VBR] Done, jumping to kernel.\r\n");
 
