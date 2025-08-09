@@ -494,7 +494,6 @@ async function closePorts(method, ports) {
     }
 }
 
-/** Run a shell command and capture stdout/stderr */
 function execShell(cmd) {
     return new Promise((resolve) => {
         exec(cmd, { windowsHide: true }, (err, stdout, stderr) => {
@@ -507,24 +506,13 @@ function execShell(cmd) {
     });
 }
 
-/** Sleep helper */
-function sleep(ms) {
-    return new Promise(res => setTimeout(res, ms));
-}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-/** Check if a PID is still alive */
 function isAlive(pid) {
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch (e) {
-        // EPERM means "exists but no permission", treat as alive
-        if (e && e.code === 'EPERM') return true;
-        return false;
-    }
+    try { process.kill(pid, 0); return true; }
+    catch (e) { return e && e.code === 'EPERM' ? true : false; }
 }
 
-/** Wait until PID exits or timeout */
 async function waitForExit(pid, timeoutMs) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -534,7 +522,18 @@ async function waitForExit(pid, timeoutMs) {
     return !isAlive(pid);
 }
 
-/** Collect PIDs by name (Linux: full cmdline match; Windows: tasklist) */
+// Linux: lecture /proc/*/cmdline (robuste, no ps/pgrep)
+// Windows: tasklist CSV
+function readCmdline(pid) {
+    try {
+        const raw = fs.readFileSync(`/proc/${pid}/cmdline`);
+        // cmdline is \0-separated
+        return raw.toString('utf8').split('\0').filter(Boolean).join(' ');
+    } catch {
+        return '';
+    }
+}
+
 async function getPidsByName(name) {
     const needle = String(name).toLowerCase();
     const selfPid = process.pid;
@@ -554,98 +553,78 @@ async function getPidsByName(name) {
         return Array.from(results);
     }
 
-    // Linux/macOS: parse full command line so "node server.js" is matched
-    const { stdout } = await execShell(`ps -eo pid=,args= --no-header`);
-    stdout.split(/\r?\n/).forEach(line => {
-        const trimmed = line.trim();
-        if (!trimmed) return;
-        const sp = trimmed.indexOf(' ');
-        if (sp <= 0) return;
-        const pid = parseInt(trimmed.slice(0, sp), 10);
-        const args = trimmed.slice(sp + 1).toLowerCase();
-        if (!isNaN(pid) && pid !== selfPid && args.includes(needle)) {
-            results.add(pid);
-        }
-    });
+    // Linux /proc scan
+    let pids;
+    try {
+        pids = fs.readdirSync('/proc').filter(d => /^\d+$/.test(d));
+    } catch {
+        pids = [];
+    }
+
+    for (const d of pids) {
+        const pid = parseInt(d, 10);
+        if (pid === selfPid) continue;
+        const cmd = readCmdline(pid).toLowerCase();
+        // Si cmdline vide, certains démons: on peut fallback sur exe
+        if (!cmd) continue;
+        if (cmd.includes(needle)) results.add(pid);
+    }
     return Array.from(results);
 }
 
-/** Kill a single PID: SIGTERM then fallback to SIGKILL */
 async function killPid(pid) {
-    // Try graceful term
-    try {
-        process.kill(pid, 'SIGTERM');
-    } catch (e) {
-        // If EPERM, we cannot signal; report failure
-        if (e && e.code === 'EPERM') {
-            return { ok: false, method: 'SIGTERM', error: 'EPERM (permission denied)' };
-        }
-        // If ESRCH, already dead
-        if (e && e.code === 'ESRCH') {
-            return { ok: true, method: 'already-dead' };
-        }
-        // Other errors fall through to hard kill
+    // SIGTERM
+    try { process.kill(pid, 'SIGTERM'); } catch (e) {
+        if (e && e.code === 'ESRCH') return { ok: true, method: 'already-dead' };
+        if (e && e.code === 'EPERM') return { ok: false, method: 'SIGTERM', error: 'EPERM' };
+        // autre erreur -> on forcera quand même
     }
-
-    // Wait a bit for graceful shutdown
     const graceful = await waitForExit(pid, 1500);
     if (graceful) return { ok: true, method: 'SIGTERM' };
 
-    // Force kill
+    // FORCE
     if (process.platform === 'win32') {
         const { code, stderr } = await execShell(`taskkill /PID ${pid} /T /F`);
         return { ok: code === 0, method: 'taskkill', error: code !== 0 ? stderr : undefined };
     } else {
-        try {
-            process.kill(pid, 'SIGKILL');
-        } catch (e) {
-            if (e && e.code === 'EPERM') {
-                return { ok: false, method: 'SIGKILL', error: 'EPERM (permission denied)' };
-            }
-            if (e && e.code === 'ESRCH') {
-                return { ok: true, method: 'SIGKILL' };
-            }
-            return { ok: false, method: 'SIGKILL', error: e.message || 'unknown error' };
+        try { process.kill(pid, 'SIGKILL'); }
+        catch (e) {
+            if (e && e.code === 'ESRCH') return { ok: true, method: 'SIGKILL' };
+            if (e && e.code === 'EPERM') return { ok: false, method: 'SIGKILL', error: 'EPERM' };
+            return { ok: false, method: 'SIGKILL', error: e.message || 'unknown' };
         }
         const hard = await waitForExit(pid, 1000);
-        return { ok: hard, method: 'SIGKILL', error: hard ? undefined : 'process still alive' };
+        return { ok: hard, method: 'SIGKILL', error: hard ? undefined : 'still alive' };
     }
 }
 
-/** Main killProcess action */
 async function killProcesses(params) {
     const selfPid = process.pid;
 
     for (const target of params) {
-        // Numeric PID
+        // PID direct
         if (/^\d+$/.test(String(target))) {
             const pid = parseInt(String(target), 10);
-            if (pid === selfPid) {
-                output.log(`[killProcess] Skipped current process PID ${pid}`);
-                continue;
-            }
-            output.log(`[killProcess] Target PID: ${pid}`);
+            if (pid === selfPid) { output.log(`[killProcess] skip self PID ${pid}`); continue; }
+            output.log(`[killProcess] target PID ${pid}`);
             const res = await killPid(pid);
-            if (res.ok) output.log(`[killProcess] Killed PID ${pid} via ${res.method}`);
-            else output.log(`[killProcess] Failed to kill PID ${pid} via ${res.method}: ${res.error || 'unknown error'}`);
+            if (res.ok) output.log(`[killProcess] killed PID ${pid} via ${res.method}`);
+            else output.log(`[killProcess] failed PID ${pid} via ${res.method}: ${res.error || 'unknown'}`);
             screen.render();
             continue;
         }
 
-        // Name-based
+        // Nom / motif substring (cmdline)
         const name = String(target).trim();
-        output.log(`[killProcess] Searching by name: "${name}"`);
+        output.log(`[killProcess] find by name "${name}"`);
         const pids = await getPidsByName(name);
-        output.log(`[killProcess] Found PIDs: ${pids.length ? pids.join(', ') : '(none)'}`);
+        output.log(`[killProcess] PIDs: ${pids.length ? pids.join(', ') : '(none)'}`);
 
         for (const pid of pids) {
-            if (pid === selfPid) {
-                output.log(`[killProcess] Skipped current process PID ${pid} for "${name}"`);
-                continue;
-            }
+            if (pid === selfPid) { output.log(`[killProcess] skip self PID ${pid}`); continue; }
             const res = await killPid(pid);
-            if (res.ok) output.log(`[killProcess] Killed "${name}" (PID ${pid}) via ${res.method}`);
-            else output.log(`[killProcess] Failed to kill "${name}" (PID ${pid}) via ${res.method}: ${res.error || 'unknown error'}`);
+            if (res.ok) output.log(`[killProcess] killed "${name}" (PID ${pid}) via ${res.method}`);
+            else output.log(`[killProcess] failed "${name}" (PID ${pid}) via ${res.method}: ${res.error || 'unknown'}`);
         }
         screen.render();
     }
