@@ -93,6 +93,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     PrintString(TempString);
     PrintString("\r\n");
 
+/*
     PrintString("[VBR] BootSector address ");
     NumberToString(TempString, (U32)(&BootSector), 16, 0, 0, 0);
     PrintString(TempString);
@@ -107,6 +108,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     NumberToString(TempString, FAT32LBA, 16, 0, 0, 0);
     PrintString(TempString);
     PrintString("\r\n");
+*/
 
     PrintString("[VBR] Reading FAT32 VBR\r\n");
     if (BiosReadSectors(BootDrive, FAT32LBA, 1, &BootSector)) {
@@ -114,6 +116,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         while(1){}; // Hang
     }
 
+/*
     PrintString("[VBR] BIOS mark ");
     NumberToString(TempString, BootSector.BIOSMark, 16, 0, 0, 0);
     PrintString(TempString);
@@ -128,6 +131,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     NumberToString(TempString, BootSector.RootCluster, 16, 0, 0, 0);
     PrintString(TempString);
     PrintString("\r\n");
+*/
 
     if (BootSector.BIOSMark != 0xAA55) {
         PrintString("[VBR] BIOS mark not valid, aborting\r\n");
@@ -141,6 +145,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     U32 FirstDataSector   = FAT32LBA + BootSector.ReservedSectorCount + (BootSector.NumberOfFats * FatSize);
     U32 Cluster           = RootCluster;
 
+/*
     PrintString("[VBR] FAT start LBA : ");
     NumberToString(TempString, FatStartSector, 16, 0, 0, 0);
     PrintString(TempString);
@@ -150,9 +155,10 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     NumberToString(TempString, SectorsPerCluster, 16, 0, 0, 0);
     PrintString(TempString);
     PrintString("\r\n");
+*/
 
     if (SectorsPerCluster < 4) {
-        PrintString("[VBR] WARNING: 1 sector per cluster — expect many BIOS calls\r\n");
+        PrintString("[VBR] WARNING: 1 sector per cluster : expect many BIOS calls\r\n");
     }
 
     U8 Found = 0;
@@ -160,7 +166,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
 
     // Search root for FileToLoad
     PrintString("[VBR] Scanning root directory...\r\n");
-    for (;;) {
+    while (1) {
         U32 Sector = FirstDataSector + (Cluster - 2) * SectorsPerCluster;
 
         PrintString("[VBR] Reading FAT sector : ");
@@ -209,24 +215,32 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     U16 Dest_Ofs = LoadAddress_Ofs;
     Cluster = FileCluster;
     int ClusterCount = 0;
+    int TimeToDump = 0;
 
     while (Remaining > 0 && Cluster >= 2 && Cluster < 0x0FFFFFF8) {
-        PrintString("[VBR] Remaining data to read ");
-        NumberToString(TempString, Remaining, 16, 0, 0, 0);
-        PrintString(TempString);
-        PrintString("\r\n");
+        if (TimeToDump == 0) {
+            PrintString("[VBR] Remaining data to read ");
+            NumberToString(TempString, Remaining, 16, 0, 0, 0);
+            PrintString(TempString);
+            PrintString("\r\n");
 
-        PrintString("[VBR] Reading data cluster ");
-        NumberToString(TempString, Cluster, 16, 0, 0, 0);
-        PrintString(TempString);
-        PrintString("\r\n");
+            PrintString("[VBR] Reading data cluster ");
+            NumberToString(TempString, Cluster, 16, 0, 0, 0);
+            PrintString(TempString);
+            PrintString("\r\n");
+        }
 
         U32 Sector = FirstDataSector + (Cluster - 2) * SectorsPerCluster;
         if (BiosReadSectors(BootDrive, Sector, SectorsPerCluster, (void*) (Dest_Seg << 16 | Dest_Ofs))) {
-            PrintString("[VBR] Cluster read failed\r\n");
+            PrintString("[VBR] Cluster read failed ");
+            NumberToString(TempString, Cluster, 16, 0, 0, 0);
+            PrintString(TempString);
+            PrintString("\r\n");
+
             while(1){}; // Hang
         }
 
+        if (TimeToDump == 0)
         {
             U32* P32 = (U32*) (Dest_Seg << 4);
             PrintString("[VBR] Cluster data (first 16 bytes) : ");
@@ -244,10 +258,12 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         U32 FatSector = FatStartSector + ((Cluster * 4) / SectorSize);
         U32 EntryOffset = (Cluster * 4) % SectorSize;
 
-        PrintString("[VBR] Reading FAT sector ");
-        NumberToString(TempString, FatSector, 16, 0, 0, 0);
-        PrintString(TempString);
-        PrintString("\r\n");
+        if (TimeToDump == 0) {
+            PrintString("[VBR] Reading FAT sector ");
+            NumberToString(TempString, FatSector, 16, 0, 0, 0);
+            PrintString(TempString);
+            PrintString("\r\n");
+        }
 
         BiosReadSectors(BootDrive, FatSector, 1, (void*) FatBuffer);
         Cluster = *(U32*)&FatBuffer[EntryOffset] & 0x0FFFFFFF;
@@ -255,14 +271,20 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         U32 MaxClusters = (FileSize + (ClusterBytes - 1)) / ClusterBytes;
 
         ClusterCount++;
+
         if (ClusterCount > MaxClusters) {
             PrintString("[VBR] Cluster chain too long, aborting.\r\n");
             while(1){}; // Hang
         }
+
+        TimeToDump++;
+        TimeToDump &= 0x3;
     }
     PrintString("[VBR] Done, jumping to kernel.\r\n");
 
-    void (*KernelEntry)(void) = (void*) (LoadAddress_Seg << 16 | Dest_Ofs);
-    // KernelEntry();
+    void (*KernelEntry)(void) = (void*) ((Dest_Seg << 16 | Dest_Ofs));
+
+    KernelEntry();
+
     while(1){}; // Hang
 }

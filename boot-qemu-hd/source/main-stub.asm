@@ -68,8 +68,8 @@ BiosReadSectors:
     push        esi
     push        edi
 
-    mov         si, Text_ReadBiosSectors
-    call        PrintString
+;    mov         si, Text_ReadBiosSectors
+;    call        PrintString
 
 ;    mov         si, Text_Params
 ;    call        PrintString
@@ -107,8 +107,8 @@ BiosReadSectors:
 
     call        BiosReadSectors_16
 
-    mov         si, Text_BiosReadSectorsDone
-    call        PrintString
+;    mov         si, Text_BiosReadSectorsDone
+;    call        PrintString
 
     xor         eax, eax
     jnc         .return
@@ -155,7 +155,7 @@ BiosReadSectors_16:
 
 PrintChar:
     push        bx
-    mov         bx, 0
+    mov         bx, 1
     mov         ah, 0x0E
     int         0x10
     pop         bx
@@ -238,8 +238,8 @@ section .rodata
 align 16
 
 Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
-Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
-Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
+; Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
+; Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
 Text_NewLine: db 10,13,0
 
