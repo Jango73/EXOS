@@ -1,5 +1,5 @@
 {
-    "logs": ["logs/app-{{latest}}.log"],
+    "logs": ["boot-qemu-hd/debug.log"],
     "scriptsDir": "./scripts",
     "keyBindings": {
         "f1": "1-setup-deps.sh",
