@@ -26,7 +26,8 @@ read_u32le() {
 		xargs printf "%u\n"
 }
 
-MAGIC=1163415379 # 0x534F5845
+MAGIC_HEX = 0x534F5845
+MAGIC     = $((MAGIC_HEX))
 
 magic_2nd=$(read_u32le "$file" 4)
 magic_last=$(read_u32le "$file" $((size-8)))

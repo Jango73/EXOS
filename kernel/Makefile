@@ -26,6 +26,8 @@ DATA_BIN   = bin/data.bin
 BSS_BIN    = bin/bss.bin
 FINAL_IMG  = bin/exos.bin
 
+ALIGN      = 4096
+
 .PHONY: all check_magic clean
 
 all: check_magic
@@ -52,16 +54,32 @@ $(BSS_BIN): $(KERNEL_ELF)
 
 # Build final padded image
 $(FINAL_IMG): $(STUB_BIN) $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
-	@echo "Building padded disk image: $@"
+	@echo "Building paged disk image: $@ (ALIGN=$(ALIGN))"
+
+	# Write stub
 	cat $(STUB_BIN) > $@
-	# Pad to 0x1000 for .text (change if your layout differs)
-	dd if=/dev/zero bs=1 count=$$(expr 4096 - $$(stat -c %s $(STUB_BIN))) >> $@ 2>/dev/null
+
+	# Align current image to next ALIGN boundary (before .text)
+	sz=$$(stat -c %s $@); \
+	pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+	echo "Padding before .text: $$pad bytes"; \
+	if [ $$pad -gt 0 ]; then dd if=/dev/zero bs=1 count=$$pad >> $@ 2>/dev/null; fi
+
+	# Append .text
 	cat $(TEXT_BIN) >> $@
-	# Pad to next 0x1000 for .data (edit as needed)
-	dd if=/dev/zero bs=1 count=$$(expr 4096 - $$(stat -c %s $(STUB_BIN))) >> $@ 2>/dev/null
+
+	# Align current image to next ALIGN boundary (before .data)
+	sz=$$(stat -c %s $@); \
+	pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+	echo "Padding before .data: $$pad bytes"; \
+	if [ $$pad -gt 0 ]; then dd if=/dev/zero bs=1 count=$$pad >> $@ 2>/dev/null; fi
+
+	# Append .data
 	cat $(DATA_BIN) >> $@
-	# .bss is typically not written to disk (allocated as zero at runtime)
-	@true
+
+	# .bss is typically not written to disk (zero-initialized at runtime)
+
+	# Append checksum
 	@echo "Appending checksum to $(FINAL_IMG)"
 	@cs=$$(od -An -t u1 $(FINAL_IMG) | awk '{for(i=1;i<=NF;i++)s+=$$i} END {print s % 4294967296}'); \
 		hex=$$(printf '%08x' $$cs); \
