@@ -1,3 +1,3 @@
 #!/bin/bash
 make clean
-make
+make > make.log 2>&1
