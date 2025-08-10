@@ -21,9 +21,7 @@ fi
 
 # Little-endian uint32 at offset
 read_u32le() {
-	dd if="$1" bs=1 skip="$2" count=4 2>/dev/null | od -An -v -t x1 | tr -d ' \n' | \
-		awk '{print "0x" toupper($0)}' | \
-		xargs printf "%u\n"
+	od -An -t u4 --endian=little -N 4 -j "$2" "$1" | tr -d ' '
 }
 
 MAGIC_HEX = 0x534F5845
