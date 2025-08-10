@@ -82,7 +82,7 @@ add_checksum: check_magic
 	 b2=$${hex:2:2}; \
 	 b3=$${hex:4:2}; \
 	 b4=$${hex:6:2}; \
-	 printf '\x$$b4\x$$b3\x$$b2\x$$b1' >> $(FINAL_IMG); \
+	printf "\x$$b4\x$$b3\x$$b2\x$$b1" >> $(FINAL_IMG); \
 	 printf 'Checksum 0x%08X appended\n' $$cs
 
 clean:
