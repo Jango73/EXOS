@@ -1,0 +1,536 @@
+
+# Aliases
+alias ll="ls -lh"
+alias kill_tunnels="kill $(ps aux | grep -E "ssh -fNML [0-9]+:.+$" | awk '{print $2'})"
+alias list-aliases="_list_aliases"
+alias qmake="qtchooser -run-tool=qmake -qt=5"
+alias whereismore="_whereismore"
+alias untabify="_untabify"
+alias xcp="_xcopy"
+alias touchDir="_touchDir"
+
+# GIT
+alias commit="_git_commit"
+alias status="_git_repo_status"
+alias gerrit-hook="_git_gerrit_hook"
+alias branches="git branch -a"
+alias tree="git log --all --graph --decorate --oneline"
+alias tree-more="git log --all --graph --decorate --oneline > git-tree.txt"
+alias clean="git clean -f -d"
+alias clean-sudo="sudo git clean -f -d"
+alias revert="_git_revert"
+alias switch="_git_switch"
+alias stage="_git_stage"
+alias stage-all="_git_stage_all"
+alias staged="git diff --staged"
+alias unstaged="git diff"
+alias push="git push"
+alias pull="git pull"
+alias push-gerrit-ready="_git_push_to_gerrit_branch_ready"
+alias push-gerrit-wip="_git_push_to_gerrit_branch_wip"
+alias rebase-branch="_git_rebase_branch"
+alias integrate="_git_integrate"
+alias rewind-one-commit="git reset HEAD~"
+alias rewind-two-commits="git reset HEAD~2"
+alias diff-staged="git diff --cached"
+alias diff-last="_git_diff_last"
+alias discard-all="_git_discard_all"
+alias graph="git log --graph --pretty=format:'%s (%an, %ai, %h)'"
+alias log-line-range="_git_log_line_range"
+alias list-versioned="git ls-tree -r --name-only HEAD | less"
+alias list-versioned-filtered="_git_list_versioned_filtered"
+alias merge-squashed="_merge_squashed"
+
+_list_aliases() {
+	echo "Available commands"
+	echo ""
+	echo "'whereismore' <file>.................................Like the whereis command but in all the file system"
+	echo "'untabify' <spec>....................................Transforms tabs into 4 spaces in all files matching <spec>"
+	echo "'xcp' <spec> <target>................................Recursively copies all files matching <spec> in <target>"
+	echo "'touchDir' <dir>.....................................Creates <dir> if it does not exist"
+	echo "'repos-status'.......................................Shows branch and latest commits of all repos found from ./"
+	echo "'gerrit-hook' <user name>............................Fetches the gerrit commit hook in "some.gerrit.url" and places it in .git/hooks"
+	echo "'branches'...........................................Shows all branches in the current repo"
+	echo "'clean'..............................................Removes all files that are not tracked by GIT"
+	echo "'clean-sudo'.........................................Same as git-clean with superuser rights"
+	echo "'commit'.............................................Shows all branches in the current repo"
+	echo "'diff-staged'........................................Shows diff for all staged files"
+	echo "'diff-last'..........................................Shows diff between last commit and local files"
+	echo "'integrate <branch to merge> <ticket number>'........Merges a branch to the current one and commits"
+	echo "'list-versioned'.....................................List all versioned files"
+	echo "'list-versioned-filtered'.<word>.....................List all versioned files which contain a word"
+	echo "'log-line-range <file> <start line> <end line>'......Shows changes for a range of lines in a file"
+	echo "'merge-squashed'.....................................Merges a branch onto another, all commits into one"
+	echo "'push-gerrit-ready...................................Pushes to HEAD:refs/for/current_branch_name%ready"
+	echo "'push-gerrit-wip.....................................Pushes to HEAD:refs/for/current_branch_name%wip"
+	echo "'rewind-one-commit'..................................Moves HEAD back one commit"
+	echo "'rewind-two-commits'.................................Moves HEAD back two commits"
+	echo "'revert'.............................................Reverts a file"
+	echo "'stage'..............................................Stages a file for commit"
+	echo "'stage-all'..........................................Stages all files for next commit"
+	echo "'tree'...............................................Shows the commit tree of the current repo"
+	echo "'tree-more'..........................................Places output of git-tree in git-tree.txt"
+	echo ""
+	echo "DANGER ZONE"
+	echo "'discard-all'........................................Discard all changes"
+}
+
+_whereismore() {
+	local file
+	file=$1
+	if [[ -n "$file" ]]; then
+		# find / -iname "$file" | xargs grep --invert-match "Permission non accordée|Permission denied"
+		sudo find / -iname "$file" 2>/dev/null
+	else
+		echo "Please specify something to look for"
+	fi
+}
+
+_untabify() {
+	local spec
+	spec=$1
+	if [[ -n "$spec" ]]; then
+		# files=($(find . -type f -regex "^.*$"))
+		files=($(find . -iname "*.$spec"))
+		for item in ${files[*]}
+		do
+			echo "Processing $item..."
+			expand -t 4 "$item" | sponge "$item"
+		done
+	else
+		echo "Please specify a file spec (like cpp)"
+	fi
+}
+
+_xcopy() {
+	local spec
+	local where
+	spec=$1
+	where=$2
+	if [[ -n "$spec" ]] && [[ -n "$where" ]]
+	then
+		files=($(find . -iname "*.$spec"))
+		for item in ${files[*]}
+		do
+			echo "Copying $item..."
+			# expand -t 4 "$item" | sponge "$item"
+			cp "$item" "$where$item"
+		done
+	else
+		echo "Please specify a file spec (like cpp) and a target directory"
+	fi
+}
+
+_touchDir() {
+	if [ -d "$1" ]; then
+		echo "$1 exists, nothing done...."
+	else
+		echo "Creating $1..."
+		mkdir "$1"
+	fi
+}
+
+_git_commit() {
+	git commit -m "$*"
+}
+
+_git_stage() {
+	git stage $1
+}
+
+_git_stage_all() {
+	git add -u
+}
+
+_git_revert() {
+	git restore $1
+}
+
+_git_switch() {
+	git switch $1
+}
+
+_git_repo_status() {
+	for folder in */ ; do
+		echo "-- $folder ----------------------------------------"
+		cd $folder
+		git symbolic-ref HEAD
+		git --no-pager log --pretty=format:"%h %an %s" --max-count=5
+		echo ""
+		cd ..
+	done
+}
+
+_git_list_versioned_filtered() {
+	local value
+	value=$1
+	if [[ -n "$value" ]]; then
+		git ls-tree -r --name-only HEAD | grep "$value"
+	else
+		echo "Please specify a word"
+	fi
+}
+
+_git_log_line_range() {
+	local file start end
+	file=$1
+	start=$2
+	end=$3
+	if [[ -n "$file" ]] && [[ -n "$start" ]] && [[ -n "$end" ]]
+	then
+		git log -L $start,$end:$file
+	else
+		echo "Please specify a file, a start line number, an end line number"
+	fi
+}
+
+_git_gerrit_hook() {
+	local username
+	username=$1
+	if [[ -n "$username" ]]; then
+		scp -p -P 29418 $username@some.gerrit.url:hooks/commit-msg .git/hooks/
+	else
+		echo "Please specify a user name for the gerrit server"
+	fi
+}
+
+_git_push_to_gerrit_branch_ready() {
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+	if [[ -n "$branch" ]]; then
+		#echo $branch
+		git push origin HEAD:refs/for/$branch%ready
+	else
+		echo "Could not determine current branch name..."
+	fi
+	return 0
+}
+
+_git_push_to_gerrit_branch_wip() {
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+	if [[ -n "$branch" ]]; then
+		#echo $branch
+		git push origin HEAD:refs/for/$branch%wip
+	else
+		echo "Could not determine current branch name..."
+	fi
+	return 0
+}
+
+_git_rebase_branch() {
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+	if [[ -n "$branch" ]]; then
+		#echo $branch
+		git rebase -i origin/$branch
+	else
+		echo "Could not determine current branch name..."
+	fi
+	return 0
+}
+
+_git_integrate() {
+	local ticketbranch ticketno message
+	ticketbranch=$1
+	ticketno=$2
+	message=$3
+	if [[ -n "$ticketbranch" ]] && [[ -n "$ticketno" ]] && [[ -n "$message" ]]
+	then
+		echo Integrating commits on $ticketbranch ...
+		git merge --no-ff $ticketbranch -m "[#$ticketno] Integration: $3 $4 $5 $6 $7 $8 $9"
+		git commit --amend --no-edit
+	else
+		echo "Please specifty a branch, a ticket number and a message"
+	fi
+	return 0
+}
+
+_git_discard_all() {
+	local result
+	result=$(_confirm)
+	if [[ $result -eq 1 ]]
+	then
+		echo "Removing all changes..."
+		git reset .
+		git co .
+	else
+		echo "Aborting..."
+	fi
+	return 0
+}
+
+_git_diff_last() {
+	num=$1
+	if [[ -n "${num}" ]]
+	then
+		start=$((num + 1))
+		end=$((num))
+		git diff HEAD~${start} HEAD~${end}
+	else
+		git diff HEAD~1 HEAD
+	fi
+}
+
+_confirm() {
+	local result
+	result=0
+	# call with a prompt string or use a default
+	read -r -p "${1:-Are you sure? [y/N]} " response
+	case "$response" in
+		[yY][eE][sS]|[yY]) 
+			result=1
+			;;
+		*)
+			result=0
+			;;
+	esac
+	echo $result
+	return $result
+}
+
+_show_git_status() {
+	# Get the current git branch and colorize to indicate branch state
+	# branch_name+ indicates there are stash(es)
+	# branch_name? indicates there are untracked files
+	# branch_name! indicates your branches have diverged
+	local unknown untracked stash clean ahead behind staged notstaged dirty diverged
+	unknown='7;34'	  # blue
+	untracked='7;32'	# green
+	stash='7;32'		# green
+	clean='7;32'		# green
+	ahead='7;33'		# yellow
+	behind='7;33'	   # yellow
+	staged='7;96'	   # cyan
+	notstaged='7;31'	# red
+	dirty='7;31'		# red
+	diverged='7;31'	 # red
+
+	if [[ $TERM = *256color ]]; then
+		unknown='38;5;20'	 # dark blue
+		untracked='38;5;76'   # mid lime-green
+		stash='38;5;76'	   # mid lime-green
+		clean='38;5;82'	   # brighter green
+		ahead='38;5;226'	  # bright yellow
+		behind='38;5;142'	 # darker yellow-orange
+		staged='38;5;214'	 # orangey yellow
+		notstaged='38;5;202'  # orange
+		dirty='38;5;202'	  # orange
+		diverged='38;5;196'   # red
+	fi
+
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+  if [[ -n "$branch" ]]; then
+	git_status=$(git status 2> /dev/null)
+	# If nothing changes the color, we can spot unhandled cases.
+	color=$unknown
+	if [[ $git_status =~ 'Untracked files' ]]; then
+	  color=$untracked
+	  branch="${branch}?"
+	fi
+	if git stash show &>/dev/null; then
+	  color=$stash
+	  branch="${branch}+"
+	fi
+	if [[ $git_status =~ 'working directory clean' ]] || [[ $git_status =~ 'copie de travail est propre' ]]
+	then
+	  color=$clean
+	fi
+	if [[ $git_status =~ 'Your branch is ahead' ]] || [[ $git_status =~ 'Votre branche est en avance' ]]
+	then
+	  # Following line does not work when branch name contains digits
+	  # commits=$(echo $git_status | sed 's/[^0-9]*//g') # grep "([0-9])\s+commit")
+	  color=$ahead
+	  # branch="${branch} ($commits)>"
+	  branch="${branch} >"
+	fi
+	if [[ $git_status =~ 'Your branch is behind' ]] || [[ $git_status =~ 'Votre branche est derrière' ]]
+	then
+	  # Following line does not work when branch name contains digits
+	  #commits=$(echo $git_status | sed 's/[^0-9]*//g')
+	  color=$behind
+	  # branch="${branch} ($commits)<"
+	  branch="${branch} <"
+	fi
+	if [[ $git_status =~ 'Changes to be committed' ]] || [[ $git_status =~ 'Modifications qui seront validées' ]]
+	then
+	  color=$staged
+	fi
+	if [[ $git_status =~ 'Changes that won''t be committed' ]] || [[ $git_status =~ 'Modifications qui ne seront pas validées' ]]
+	then
+	  color=$notstaged
+	fi
+	if [[ $git_status =~ 'Changed but not updated' ||
+		  $git_status =~ 'Changes not staged'	  ||
+		  $git_status =~ 'Unmerged paths' ]]
+		  then
+	  color=$dirty
+	fi
+	if [[ $git_status =~ 'Your branch'.+diverged ]]; then
+	  color=$diverged
+	  branch="${branch}!"
+	fi
+	echo -n "\[\033[${color}m\]${branch}\[\033[0m\]"
+  fi
+  return 0
+}
+
+_show_last_exit_status() {
+	# Display the exit status of the last run command
+	exit_status=$?
+	if [[ "$exit_status" -ne 0 ]]; then
+		echo "Exit $exit_status"
+	fi
+}
+
+_build_prompt() {
+	local username git_status prompt_dir
+	username="\[\033[1;32m\]\u@\h\[\033[0m\]"
+	prompt_dir="\[\033[1;34m\]${PWD}\[\033[0m\]"
+	git_status=$(_show_git_status)
+	if [[ -n "$git_status" ]]; then
+		git_status=":${git_status}"
+	fi
+	# prompt_dir="${PWD}"
+	# Set xterm title
+	echo -ne "\033]0;${HOSTNAME}\007"
+	# Check to see if inside screen
+	if [[ -n "$STY" ]]; then
+		# Set xterm title, from within screen
+		echo -ne "\033_${HOSTNAME}\033\0134"
+		# Set screen window name
+		echo -ne "\033k\033\0134"
+	fi
+	PS1="${username} [${prompt_dir}${git_status}] \n# "
+	return 0
+}
+
+multiselect() {
+	# little helpers for terminal print control and key input
+	ESC=$( printf "\033")
+	cursor_blink_on()   { printf "$ESC[?25h"; }
+	cursor_blink_off()  { printf "$ESC[?25l"; }
+	cursor_to()		 { printf "$ESC[$1;${2:-1}H"; }
+	print_inactive()	{ printf "$2   $1 "; }
+	print_active()	  { printf "$2  $ESC[7m $1 $ESC[27m"; }
+	get_cursor_row()	{ IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
+
+	key_input()		 {
+	  local key
+	  IFS= read -rsn1 key 2>/dev/null >&2
+	  if [[ $key = ""	  ]]; then echo enter; fi;
+	  if [[ $key = $'\x20' ]]; then echo space; fi;
+	  if [[ $key = $'\x1b' ]]; then
+		read -rsn2 key
+		if [[ $key = [A ]]; then echo up;	fi;
+		if [[ $key = [B ]]; then echo down;  fi;
+	  fi 
+	}
+
+	toggle_option()	{
+	  local arr_name=$1
+	  eval "local arr=(\"\${${arr_name}[@]}\")"
+	  local option=$2
+	  if [[ ${arr[option]} == true ]]; then
+		arr[option]=
+	  else
+		arr[option]=true
+	  fi
+	  eval $arr_name='("${arr[@]}")'
+	}
+
+	local retval=$1
+	local options
+	local defaults
+
+	IFS=';' read -r -a options <<< "$2"
+	if [[ -z $3 ]]; then
+	  defaults=()
+	else
+	  IFS=';' read -r -a defaults <<< "$3"
+	fi
+	local selected=()
+
+	for ((i=0; i<${#options[@]}; i++)); do
+	  selected+=("${defaults[i]}")
+	  printf "\n"
+	done
+
+	# determine current screen position for overwriting the options
+	local lastrow=`get_cursor_row`
+	local startrow=$(($lastrow - ${#options[@]}))
+
+	# ensure cursor and input echoing back on upon a ctrl+c during read -s
+	trap "cursor_blink_on; stty echo; printf '\n'; exit" 2
+	cursor_blink_off
+
+	local active=0
+	while true; do
+		# print options by overwriting the last lines
+		local idx=0
+		for option in "${options[@]}"; do
+			local prefix="[ ]"
+			if [[ ${selected[idx]} == true ]]; then
+			  prefix="[x]"
+			fi
+
+			cursor_to $(($startrow + $idx))
+			if [ $idx -eq $active ]; then
+				print_active "$option" "$prefix"
+			else
+				print_inactive "$option" "$prefix"
+			fi
+			((idx++))
+		done
+
+		# user key control
+		case `key_input` in
+			space)  toggle_option selected $active;;
+			enter)  break;;
+			up)	 ((active--));
+					if [ $active -lt 0 ]; then active=$((${#options[@]} - 1)); fi;;
+			down)   ((active++));
+					if [ $active -ge ${#options[@]} ]; then active=0; fi;;
+		esac
+	done
+
+	# cursor position back to normal
+	cursor_to $lastrow
+	printf "\n"
+	cursor_blink_on
+
+	eval $retval='("${selected[@]}")'
+}
+
+_merge_squashed() {
+	set -euo pipefail
+
+	if [ "$#" -ne 2 ]; then
+	    echo "Usage: $0 <base-branch> <feature-branch>"
+	    echo "Example: $0 main fix"
+	    exit 1
+	fi
+
+	BASE="$1"
+	BR="$2"
+
+	# Récupération et mise à jour des branches
+	git fetch origin
+
+	git checkout "$BASE"
+	git pull --ff-only origin "$BASE"
+
+	git checkout "$BR"
+	git pull --ff-only origin "$BR"
+	git rebase "$BASE"   # optionnel mais garde un historique propre
+
+	# Squash merge sur la branche de base
+	git checkout "$BASE"
+	git merge --squash "$BR"
+	git commit -m "[$BR] squash merge" -m "$(git log --reverse --format='- %s' ${BASE}..${BR})"
+
+	# Push vers le dépôt distant
+	git push origin "$BASE"
+}
+
+PROMPT_COMMAND="_show_last_exit_status; _build_prompt;"
