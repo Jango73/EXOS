@@ -7,7 +7,7 @@
 #define LoadAddress_Seg    0x2000
 #define LoadAddress_Ofs    0x0000
 
-U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, void* Dest);
+U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 
 void PrintString(const char *s) {
     __asm__ __volatile__ (
@@ -231,7 +231,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         }
 
         U32 Sector = FirstDataSector + (Cluster - 2) * SectorsPerCluster;
-        if (BiosReadSectors(BootDrive, Sector, SectorsPerCluster, (void*) (Dest_Seg << 16 | Dest_Ofs))) {
+        if (BiosReadSectors(BootDrive, Sector, SectorsPerCluster, ((U32) Dest_Seg << 16 | (U32) Dest_Ofs))) {
             PrintString("[VBR] Cluster read failed ");
             NumberToString(TempString, Cluster, 16, 0, 0, 0);
             PrintString(TempString);

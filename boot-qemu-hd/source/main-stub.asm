@@ -133,6 +133,9 @@ BiosReadSectors_16:
     push        ds
     push        es
 
+    push        cs
+    pop         ds
+
     xor         ax, ax
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
