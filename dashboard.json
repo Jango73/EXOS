@@ -11,7 +11,13 @@
         "f4": "4-1-clean-build-exos.sh",
         "f5": "4-2-build-exos.sh",
         "f6": "5-1-start-qemu-hd.sh",
-        "f7": "5-2-debug-qemu-hd.sh"
+        "f7": "5-2-debug-qemu-hd.sh",
+        "p": "git pull",
+        "C-p": "git push",
+        "s": "git status",
+        "C-s": "git diff --staged",
+        "C-o": "nano -l boot-qemu-hd/source/main-stub.asm",
+        "C-p": "nano -l boot-qemu-hd/source/main.c"
     },
     "settings": {
         "enableCommandHistory": true,
