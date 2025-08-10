@@ -506,19 +506,20 @@ multiselect() {
 	eval $retval='("${selected[@]}")'
 }
 
-_merge_squashed() {
+# Put this in your .bashrc or a sourced file
+_merge_squashed() (
+	# Run in a subshell so set -e doesn't kill your login shell
 	set -euo pipefail
 
 	if [ "$#" -ne 2 ]; then
-	    echo "Usage: $0 <base-branch> <feature-branch>"
-	    echo "Example: $0 main fix"
-	    exit 1
+		echo "Usage: ${FUNCNAME[0]} <base-branch> <feature-branch>" >&2
+		echo "Example: ${FUNCNAME[0]} main fix" >&2
+		exit 2
 	fi
 
 	BASE="$1"
 	BR="$2"
 
-	# Récupération et mise à jour des branches
 	git fetch origin
 
 	git checkout "$BASE"
@@ -526,15 +527,25 @@ _merge_squashed() {
 
 	git checkout "$BR"
 	git pull --ff-only origin "$BR"
-	git rebase "$BASE"   # optionnel mais garde un historique propre
 
-	# Squash merge sur la branche de base
+	# Optional: keep history neat. If it conflicts, print a message and stop
+	if ! git rebase "$BASE"; then
+		echo "[abort] Rebase conflicted. Resolve (git status), then 'git rebase --continue' and rerun." >&2
+		exit 1
+	fi
+
 	git checkout "$BASE"
-	git merge --squash "$BR"
+
+	# Squash merge. If there's nothing to merge or conflicts, don't kill the shell; just exit subshell.
+	if ! git merge --squash "$BR"; then
+		echo "[abort] Squash merge failed (conflicts or nothing to merge)." >&2
+		exit 1
+	fi
+
+	# Build a concise commit message from the feature range (may be empty if identical)
 	git commit -m "[$BR] squash merge" -m "$(git log --reverse --format='- %s' ${BASE}..${BR})"
 
-	# Push vers le dépôt distant
 	git push origin "$BASE"
-}
+)
 
 PROMPT_COMMAND="_show_last_exit_status; _build_prompt;"
