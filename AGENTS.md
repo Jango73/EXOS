@@ -20,3 +20,4 @@ make
 ## Forbidden Actions
 - Never enable network during tests.
 - DON'T DELETE blank lines between functions, comments, etc...
+- DON'T write python code
