@@ -1,10 +1,10 @@
 # Codex guidance
 
 ## Project overview
-This is a 32 bit operating system for i386.
+This is a 32 bit operating system for i386-i686.
 
 ## Documentation
-The documentation for kernel modules is in documentation/internal/Kernel.md
+The documentation for boot sequence and kernel modules is in documentation/internal/Kernel.md
 
 ## Build
 make
@@ -14,10 +14,9 @@ make
 
 ## General Conventions
 - Always use 4 spaces for indentation in code.
-- Prefer array methods over manual loops.
 - Always write comments, console output and technical doc in english.
-- There should be no duplicate code. Create small functions to avoid it.
+- There should be no duplicate code. Create intermediate functions to avoid it.
 
 ## Forbidden Actions
 - Never enable network during tests.
-- DON'T DELETE blank lines between functions, blocks of code, etc...
+- DON'T DELETE blank lines between functions, comments, etc...
