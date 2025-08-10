@@ -29,10 +29,12 @@ read_u32le() {
 MAGIC=1163415379 # 0x534F5845
 
 magic_2nd=$(read_u32le "$file" 4)
-magic_last=$(read_u32le "$file" $((size-4)))
+magic_last=$(read_u32le "$file" $((size-8)))
+checksum=$(read_u32le "$file" $((size-4)))
 
 printf "[info] 2nd u32:  0x%08X\n" "$magic_2nd"
-printf "[info] last u32: 0x%08X\n" "$magic_last"
+printf "[info] 2nd to last u32: 0x%08X\n" "$magic_last"
+printf "[info] checksum:  0x%08X\n" "$checksum"
 
 if [ "$magic_2nd" -eq "$MAGIC" ] && [ "$magic_last" -eq "$MAGIC" ]; then
 	echo "EXOS magic signature present at both positions."

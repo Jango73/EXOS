@@ -1,2 +1,2 @@
 #!/bin/bash
-make > make.log 2>&1
+make > log/make.log 2>&1

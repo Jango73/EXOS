@@ -1,7 +1,7 @@
 {
     "logs": [
-        "boot-qemu-hd/debug.log",
-        "make.log"
+        "log/debug.log",
+        "log/make.log"
     ],
     "scriptsDir": "./scripts",
     "keyBindings": {

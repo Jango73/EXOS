@@ -288,8 +288,19 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     }
     U32 Stored = *(U32*)(Loaded + FileSize - 4);
     if (Computed != Stored) {
-        PrintString("[VBR] Checksum mismatch, hanging.\r\n");
-        while(1){};
+        PrintString("[VBR] Checksum mismatch, aborting.\r\n");
+
+        PrintString("[VBR] Excpecting ");
+        NumberToString(TempString, Computed, 16, 0, 0, 0);
+        PrintString(TempString);
+        PrintString("\r\n");
+
+        PrintString("[VBR] Read ");
+        NumberToString(TempString, Stored, 16, 0, 0, 0);
+        PrintString(TempString);
+        PrintString("\r\n");
+
+        while(1){}; // Hang
     }
     PrintString("[VBR] Done, jumping to kernel.\r\n");
 
