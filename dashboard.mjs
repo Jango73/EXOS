@@ -68,7 +68,7 @@ let lastCommand = null;
 
 function initLogFile() {
     if (config.settings?.persistLogs !== true || logStream) return;
-    const logDir = path.resolve(process.cwd(), 'logs');
+    const logDir = path.resolve(process.cwd(), 'log');
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
     const timestamp = new Date().toISOString().replace(/[:]/g, '-');
     const filePath = path.join(logDir, `dash-${timestamp}.log`);
