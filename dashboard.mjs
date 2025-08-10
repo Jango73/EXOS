@@ -5,6 +5,16 @@ import blessed from 'blessed';
 import { Tail } from 'tail';
 import kill from 'kill-port';
 
+// Added: spawn fallback when script file is missing in scriptsDir
+function spawnWithScriptsDirFallback(scriptsDir, scriptFile, spawnImpl) {
+    const candidate = require('path').join(scriptsDir ?? './scripts', scriptFile);
+    const exists = require('fs').existsSync(candidate);
+    if (exists) {
+        return { cmd: candidate, usedFallback: false };
+    }
+    // Fallback: run the provided value as-is via shell
+    return { cmd: scriptFile, usedFallback: true };
+}
 /**
  * dashboard.json format:
  * {
@@ -768,10 +778,17 @@ async function runScriptFile(scriptFile) {
 
     await executeBeforeActions(path.basename(scriptFile, path.extname(scriptFile)));
 
-    current = spawn(scriptPath, { shell: true });
-    lastCommand = { kind: 'custom', value: scriptPath };
-
-    setOutputLabel(path.basename(scriptPath));
+    // If the script file doesn't exist in scriptsDir, treat it as a shell command
+    if (!fs.existsSync(scriptPath)) {
+        output.log(`[dash] Not found in scriptsDir. Executing as shell command: ${scriptFile}`);
+        current = spawn(scriptFile, { shell: true });
+        lastCommand = { kind: 'custom', value: scriptFile };
+        setOutputLabel(scriptFile);
+    } else {
+        current = spawn(scriptPath, { shell: true });
+        lastCommand = { kind: 'custom', value: scriptPath };
+        setOutputLabel(path.basename(scriptPath));
+    }
 
     current.stdout.on('data', data => {
         output.log(data.toString());
