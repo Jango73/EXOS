@@ -1,3 +1,5 @@
+SHELL   = /bin/bash
+
 CC      = i686-elf-gcc
 LD      = i686-elf-ld
 NASM    = nasm
@@ -24,7 +26,9 @@ DATA_BIN   = bin/data.bin
 BSS_BIN    = bin/bss.bin
 FINAL_IMG  = bin/exos.bin
 
-all: $(FINAL_IMG) check_magic
+.PHONY: all add_checksum check_magic clean
+
+all: add_checksum
 
 $(KERNEL_ELF): $(OBJS) linker-elf.ld
 	$(LD) $(LDFLAGS_ELF) -o $@ $(OBJS)
@@ -69,6 +73,17 @@ bin/%.o: source/asm/%.asm
 
 check_magic: $(FINAL_IMG)
 	@./check-exos-magic.sh $(FINAL_IMG)
+
+add_checksum: check_magic
+	@echo "Appending checksum to $(FINAL_IMG)"
+	@cs=$$(od -An -t u1 $(FINAL_IMG) | awk '{for(i=1;i<=NF;i++)s+=$$i} END {print s % 4294967296}'); \
+	 hex=$$(printf '%08x' $$cs); \
+	 b1=$${hex:0:2}; \
+	 b2=$${hex:2:2}; \
+	 b3=$${hex:4:2}; \
+	 b4=$${hex:6:2}; \
+	 printf '\x$$b4\x$$b3\x$$b2\x$$b1' >> $(FINAL_IMG); \
+	 printf 'Checksum 0x%08X appended\n' $$cs
 
 clean:
 	rm -rf bin/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img

@@ -280,6 +280,17 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         TimeToDump++;
         TimeToDump &= 0x3;
     }
+
+    U8* Loaded = (U8*)((U32)LoadAddress_Seg << 4);
+    U32 Computed = 0;
+    for (U32 I = 0; I < FileSize - 4; ++I) {
+        Computed += Loaded[I];
+    }
+    U32 Stored = *(U32*)(Loaded + FileSize - 4);
+    if (Computed != Stored) {
+        PrintString("[VBR] Checksum mismatch, hanging.\r\n");
+        while(1){};
+    }
     PrintString("[VBR] Done, jumping to kernel.\r\n");
 
     // void (*KernelEntry)(void) = (void*) ((Dest_Seg << 16 | Dest_Ofs));
