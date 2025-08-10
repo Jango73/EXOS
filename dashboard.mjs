@@ -5,6 +5,38 @@ import blessed from 'blessed';
 import { Tail } from 'tail';
 import kill from 'kill-port';
 
+/**
+ * dashboard.json format:
+ * {
+ *   "logs": [ "<path>", ... ],
+ *   "scriptsDir": "<relative path to scripts>",
+ *   "keyBindings": { "<key>": "<script file>", ... },
+ *   "settings": { ... },
+ *   "events": {
+ *     "onDashboardStart": [
+ *       { "action": "killProcess" | "closeTCPPorts" | "closeUDPPorts", "parameters": [ ... ] },
+ *       ...
+ *     ],
+ *     "beforeStartProcess": [
+ *       {
+ *         "script": "<script file name, including extension>",
+ *         "actions": [
+ *           { "action": "killProcess" | "closeTCPPorts" | "closeUDPPorts", "parameters": [ ... ] },
+ *           ...
+ *         ]
+ *       },
+ *       ...
+ *     ]
+ *   }
+ * }
+ *
+ * Notes:
+ * - Script matching uses the full file name (with extension).
+ * - Actions available in both places: killProcess, closeTCPPorts, closeUDPPorts.
+ * - For backward compatibility, legacy top-level keys `onDashboardStart` and
+ *   `beforeStartProcess` (object map) are accepted and normalized into `events`.
+ */
+
 /*
 setTimeout(() => {
     output.log('[dash] Timeout reached, exiting.');
@@ -44,17 +76,40 @@ function loadConfig() {
         const cfgPath = path.join(process.cwd(), 'dashboard.json');
         const raw = fs.readFileSync(cfgPath, 'utf-8');
         const cfg = JSON.parse(raw);
+        // Normalize legacy keys into events
+        const legacyODS = cfg.onDashboardStart || [];
+        const legacyBSP = cfg.beforeStartProcess || {};
+        const inEvents = cfg.events || {};
+        // Convert legacy object map { "scriptName": [actions] } -> array of { script, actions }
+        const normalizeMapToArray = (m) => {
+            if (!m || Array.isArray(m)) return Array.isArray(m) ? m : [];
+            if (typeof m !== 'object') return [];
+            return Object.entries(m).map(([script, actions]) => ({
+                script,
+                actions: Array.isArray(actions) ? actions : []
+            }));
+        };
+        // Determine final events
+        const events = {
+            onDashboardStart: Array.isArray(inEvents.onDashboardStart) ? inEvents.onDashboardStart
+                                : Array.isArray(legacyODS) ? legacyODS : [],
+            beforeStartProcess: Array.isArray(inEvents.beforeStartProcess)
+                                ? inEvents.beforeStartProcess
+                                : normalizeMapToArray(legacyBSP)
+        };
         return {
             ...cfg,
+            events,
             settings: {
                 ...defaultSettings,
                 ...cfg.settings
             }
         };
     } catch {
-        return { settings: { ...defaultSettings } };
+        return { settings: { ...defaultSettings }, events: { onDashboardStart: [], beforeStartProcess: [] } };
     }
 }
+
 
 function escapeRegex(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -630,27 +685,45 @@ async function killProcesses(params) {
     }
 }
 
-async function executeBeforeActions(name) {
-    const actions = config.beforeStartProcess?.[name];
-    if (!actions) return;
 
-    output.log(`Executing pre-launch actions...`);
+// Execute a list of actions with shared handlers
+async function executeActions(actions, label = 'actions') {
+    // Normalize and no-op
+    if (!actions || actions.length === 0) return;
 
+    output.log(`Executing ${label}...`);
     for (const act of actions) {
-        const params = act.parameters ?? [];
+        const params = Array.isArray(act.parameters)
+            ? act.parameters
+            : (act.parameters != null ? [act.parameters] : []);
+
         if (act.action === 'closeTCPPorts') {
-            output.log(`Closing processes on TCP ports ${params}`);
+            output.log(`Closing TCP ports ${params}`);
             await closePorts('tcp', params);
         } else if (act.action === 'closeUDPPorts') {
-            output.log(`Closing processes on UDP ports ${params}`);
+            output.log(`Closing UDP ports ${params}`);
             await closePorts('udp', params);
         } else if (act.action === 'killProcess') {
             output.log(`Killing processes: ${params}`);
             await killProcesses(params);
+        } else {
+            output.log(`[${label}] unknown action "${act.action}"`);
         }
     }
+    screen.render();
 }
 
+
+async function executeBeforeActions(name) {
+    const entries = (config.events?.beforeStartProcess || []).filter(e => e && e.script === name);
+    const actions = entries.flatMap(e => Array.isArray(e.actions) ? e.actions : []);
+    await executeActions(actions, 'pre-launch actions');
+}
+// Execute actions once when the dashboard starts
+async function executeStartupActions() {
+    const actions = config.events?.onDashboardStart;
+    await executeActions(actions, 'startup actions');
+}
 async function runScript(name) {
     if (current) {
         current.kill();
@@ -716,6 +789,16 @@ async function runScriptFile(scriptFile) {
         screen.render();
     });
 }
+
+// Kick off one-shot startup actions
+(async () => {
+    try {
+        await executeStartupActions();
+    } catch (err) {
+        output.log(`[startup] error: ${err?.message || err}`);
+        screen.render();
+    }
+})();
 
 screen.render();
 

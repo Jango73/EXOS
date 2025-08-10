@@ -1,5 +1,7 @@
 {
-    "logs": ["boot-qemu-hd/debug.log"],
+    "logs": [
+        "boot-qemu-hd/debug.log"
+    ],
     "scriptsDir": "./scripts",
     "keyBindings": {
         "f1": "1-setup-deps.sh",
@@ -15,12 +17,15 @@
         "persistLogs": true,
         "notifyOnExit": true
     },
-    "beforeStartProcess": {
-        "5-1-start-qemu-hd.sh": [
+    "events": {
+        "onDashboardStart": [
             {
                 "action": "killProcess",
-                "parameters": [ "qemu-system-x86_64" ]
+                "parameters": [
+                    "qemu-system-x86_64"
+                ]
             }
-        ]
+        ],
+        "beforeStartProcess": []
     }
 }
