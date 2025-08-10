@@ -398,16 +398,13 @@ if (config.keyBindings) {
 screen.key(['q', 'C-c'], () => {
     if (current) {
         current.kill();
-        output.log('[dash] Process killed before exit.');
     }
-    output.log('[dash] Exiting.');
     screen.render();
     process.exit(0);
 });
 
 screen.key('C-r', () => {
     if (!lastCommand) {
-        output.log('[dash] No previous process to run.');
         screen.render();
         return;
     }
@@ -498,7 +495,7 @@ function stopCurrentProcess() {
     if (current) {
         current.kill();
         current = null;
-        output.log('[dash] Current process killed.');
+        output.log('Current process killed.');
         screen.render();
     }
 }
@@ -509,11 +506,8 @@ function runCustomCommand(command) {
 
     if (current) {
         current.kill();
-        output.log('[dash] Previous process killed.');
+        output.log('Previous process killed.');
     }
-
-    output.log('--------------------------------------------------');
-    output.log(`[dash] Executing custom command: ${trimmed}`);
 
     const args = trimmed.split(' ');
     const cmd = args.shift();
@@ -533,12 +527,11 @@ function runCustomCommand(command) {
     });
 
     current.on('close', code => {
-        output.log(`[dash] Process exited with code ${code}`);
+        output.log(`Process exited with code ${code}`);
         current = null;
 
         if (config.settings?.notifyOnExit) {
             screen.program.bell();
-            output.log('[✓] Done.');
         }
 
         screen.render();
@@ -670,26 +663,23 @@ async function killProcesses(params) {
         // PID direct
         if (/^\d+$/.test(String(target))) {
             const pid = parseInt(String(target), 10);
-            if (pid === selfPid) { output.log(`[killProcess] skip self PID ${pid}`); continue; }
-            output.log(`[killProcess] target PID ${pid}`);
+            if (pid === selfPid) { continue; }
             const res = await killPid(pid);
-            if (res.ok) output.log(`[killProcess] killed PID ${pid} via ${res.method}`);
-            else output.log(`[killProcess] failed PID ${pid} via ${res.method}: ${res.error || 'unknown'}`);
+            if (res.ok) output.log(`Killed PID ${pid} via ${res.method}`);
+            else output.log(`Failed to kill PID ${pid} via ${res.method}: ${res.error || 'unknown'}`);
             screen.render();
             continue;
         }
 
         // Nom / motif substring (cmdline)
         const name = String(target).trim();
-        output.log(`[killProcess] find by name "${name}"`);
         const pids = await getPidsByName(name);
-        output.log(`[killProcess] PIDs: ${pids.length ? pids.join(', ') : '(none)'}`);
 
         for (const pid of pids) {
-            if (pid === selfPid) { output.log(`[killProcess] skip self PID ${pid}`); continue; }
+            if (pid === selfPid) { continue; }
             const res = await killPid(pid);
-            if (res.ok) output.log(`[killProcess] killed "${name}" (PID ${pid}) via ${res.method}`);
-            else output.log(`[killProcess] failed "${name}" (PID ${pid}) via ${res.method}: ${res.error || 'unknown'}`);
+            if (res.ok) output.log(`Killed "${name}" (PID ${pid}) via ${res.method}`);
+            else output.log(`Failed to kill "${name}" (PID ${pid}) via ${res.method}: ${res.error || 'unknown'}`);
         }
         screen.render();
     }
@@ -701,7 +691,6 @@ async function executeActions(actions, label = 'actions') {
     // Normalize and no-op
     if (!actions || actions.length === 0) return;
 
-    output.log(`Executing ${label}...`);
     for (const act of actions) {
         const params = Array.isArray(act.parameters)
             ? act.parameters
@@ -780,7 +769,6 @@ async function runScriptFile(scriptFile) {
 
     // If the script file doesn't exist in scriptsDir, treat it as a shell command
     if (!fs.existsSync(scriptPath)) {
-        output.log(`[dash] Not found in scriptsDir. Executing as shell command: ${scriptFile}`);
         current = spawn(scriptFile, { shell: true });
         lastCommand = { kind: 'custom', value: scriptFile };
         setOutputLabel(scriptFile);
