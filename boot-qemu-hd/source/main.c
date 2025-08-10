@@ -290,12 +290,12 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     if (Computed != Stored) {
         PrintString("[VBR] Checksum mismatch, aborting.\r\n");
 
-        PrintString("[VBR] Excpecting ");
+        PrintString("[VBR] Computed ");
         NumberToString(TempString, Computed, 16, 0, 0, 0);
         PrintString(TempString);
         PrintString("\r\n");
 
-        PrintString("[VBR] Read ");
+        PrintString("[VBR] Read from file ");
         NumberToString(TempString, Stored, 16, 0, 0, 0);
         PrintString(TempString);
         PrintString("\r\n");

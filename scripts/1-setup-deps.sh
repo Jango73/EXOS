@@ -23,7 +23,8 @@ sudo apt install -y \
     qemu-system-x86 \
     sed \
     unzip \
-    wget
+    wget \
+    xxd
 
 echo "All required dependencies for EXOS installed."
 

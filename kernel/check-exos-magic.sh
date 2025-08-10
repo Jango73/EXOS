@@ -24,13 +24,14 @@ read_u32le() {
 	od -An -t u4 --endian=little -N 4 -j "$2" "$1" | tr -d ' '
 }
 
-MAGIC_HEX = 0x534F5845
-MAGIC     = $((MAGIC_HEX))
+MAGIC_HEX=0x534F5845
+MAGIC=$((MAGIC_HEX))
 
 magic_2nd=$(read_u32le "$file" 4)
 magic_last=$(read_u32le "$file" $((size-8)))
 checksum=$(read_u32le "$file" $((size-4)))
 
+printf "[info] magic:  0x%08X\n" "$MAGIC"
 printf "[info] 2nd u32:  0x%08X\n" "$magic_2nd"
 printf "[info] 2nd to last u32: 0x%08X\n" "$magic_last"
 printf "[info] checksum:  0x%08X\n" "$checksum"
