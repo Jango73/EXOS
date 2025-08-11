@@ -266,24 +266,33 @@ Interrupt_GeneralProtection :
 ; Class      : Fault
 ; Error code : Yes
 
-Interrupt_PageFault :
+Interrupt_PageFault:
+    ; Stack on entry (top -> bottom):
+    ; [esp+0]=error, [esp+4]=EIP, [esp+8]=CS, [esp+12]=EFLAGS, (and possibly [old ESP], [old SS])
 
-    push    eax
-    mov     eax, [esp+4]
-    pusha
+    push    eax                    ; save original EAX
+    push    ecx                    ; save original ECX
 
-    call    EnterKernel
+    mov     ecx, [esp+8]           ; ECX = error code (after 2 pushes)
+    mov     eax, [esp+12]          ; EAX = faulting EIP (after 2 pushes)
+    mov     ebx, cr2               ; EBX = faulting linear address (read ASAP)
 
-    mov     ebx, cr2
-    push    ebx
-    push    eax
+    pusha                          ; save all GPRs (incl. our EAX/ECX/EBX copies)
+
+    call    EnterKernel            ; enter kernel context (segments, etc.)
+
+    ; Args: (cdecl) push in reverse order of prototype if needed
+    push    eax                    ; EIP
+    push    ebx                    ; linear addr (CR2)
+    push    ecx                    ; error code
     call    PageFaultHandler
-    add     esp, 8
+    add     esp, 12
 
     popa
-    pop     eax
+    pop     ecx                    ; restore original ECX
+    pop     eax                    ; restore original EAX
 
-    add     esp, 4                     ; Remove error code
+    add     esp, 4                 ; drop CPU-pushed error code
     iretd
 
 ;--------------------------------------

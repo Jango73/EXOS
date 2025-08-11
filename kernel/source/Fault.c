@@ -200,20 +200,21 @@ void GeneralProtectionHandler(U32 Code) {
 
 /***************************************************************************/
 
-void PageFaultHandler(U32 ErrorCode, LINEAR Address) {
+void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
     LPTASK Task = GetCurrentTask();
     INTEL386REGISTERS Regs;
 
     ConsolePrint(TEXT("Page fault !\n"));
 
     ConsolePrint(TEXT("The current task (%X) did an unauthorized access"), Task ? Task : 0);
-    ConsolePrint(TEXT("at linear address : %X, error code : %X\n"), Address, ErrorCode);
+    ConsolePrint(TEXT("at linear address : %X, error code : %X, EIP : %X\n"), Address, ErrorCode, Eip);
     ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
     ConsolePrint(TEXT("Shutdown in progress..."));
 
-    KernelLogText(LOG_ERROR, TEXT("Page fault at %X"), Address);
+    KernelLogText(LOG_ERROR, TEXT("Page fault at %X (EIP %X)"), Address, Eip);
 
     SaveRegisters(&Regs);
+    Regs.EIP = Eip;
     DumpRegisters(&Regs);
 
     Die();
