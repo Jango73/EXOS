@@ -4,10 +4,25 @@
 
 To be completed.
 
-## Startup sequence
+## Startup sequence on HD (in qemu-system-x86_64)
 
-The DOS loader jumps to the kernel stub at `StartAbsolute` which only redirects
-execution to `Start`:
+Everything in this sequence runs in 16 bits real mode on i386+ processors.
+However, the code uses 32 bit registers when appropriate.
+
+1. BIOS loads disk MBR at 0x7C00.
+2. Code in mbr.asm is executed.
+3. MBR code looks for the active partition and loads its VBR at 0x7E00.
+4. Code in vbr.asm is executed.
+5. VBR code loads the reserved FAT32 sectors which contain VBR part2 (payload) at 0x8000.
+6. Code in main-stub.asm is exectued.
+7. Main stub code calls BootMain in main.c.
+8. BootMain finds the FAT32 entry for the specified kernel binary.
+9. BootMain reads all the clusters of the binary at 0x20000 and jumps to it.
+10. That's all folks. But it was a real pain to code.
+
+## Startup sequence in the kernel binary
+
+The loader (whatever it is) jumps to the kernel stub at `StartAbsolute` which redirects execution to `Start`:
 
 ```asm
 global StartAbsolute
@@ -16,11 +31,7 @@ StartAbsolute :
     jmp     Start
 ```
 
-`Start` runs in 16‑bit real mode. It saves the loader stack, adjusts the segment
-registers, obtains the console cursor position and disables interrupts. The
-routine then loads a temporary IDT and GDT, enables the A20 line and programs
-the PIC for protected mode. Finally the protection bit in CR0 is set and control
-is transferred to `Start32`:
+`Start` runs in 16‑bit real mode. It saves the loader stack, adjusts the segment registers, obtains the console cursor position and disables nterrupts. The routine then loads a temporary IDT and GDT, enables the A20 line and programs the PIC for protected mode. Finally the protection bit in CR0 is set and control is transferred to `Start32`:
 
 ```asm
 mov     eax, CR0_PROTECTEDMODE
@@ -31,12 +42,7 @@ Next :
     jmp     far dword [Start32_Entry - StartAbsolute]
 ```
 
-`Start32` executes in 32‑bit mode without paging. It sets up the segment
-registers, determines the available RAM with `GetMemorySize` and clears the
-system memory area. The stub then copies the GDT to its final location, creates
-page tables via `SetupPaging`, loads the page directory and copies the kernel to
-its high memory address. Paging is enabled and the final GDT is loaded before
-jumping to `ProtectedModeEntry`:
+`Start32` executes in 32‑bit mode without paging. It sets up the segment registers, determines the available RAM with `GetMemorySize` and clears the system memory area. The stub then copies the GDT to its final location, creates page tables via `SetupPaging`, loads the page directory and copies the kernel to its high memory address. Paging is enabled and the final GDT is loaded before jumping to `ProtectedModeEntry`:
 
 ```asm
 mov     eax, cr0
@@ -47,9 +53,7 @@ mov     eax, ProtectedModeEntry
 jmp     eax
 ```
 
-`ProtectedModeEntry` installs the kernel data selectors in all segment
-registers, stores the stub base address and builds the kernel stack. After
-clearing the general registers the code jumps to the C entry point:
+`ProtectedModeEntry` installs the kernel data selectors in all segment registers, stores the stub base address and builds the kernel stack. After clearing the general registers the code jumps to the C entry point:
 
 ```asm
 mov     [StubAddress], ebp
@@ -58,8 +62,7 @@ add     esp, STK_SIZE
 jmp     KernelMain
 ```
 
-`KernelMain` is defined in `Main.c` and immediately calls `InitializeKernel` to
-perform all C‑level initialization tasks.
+`KernelMain` is defined in `Main.c` and immediately calls `InitializeKernel` to perform all C‑level initialization tasks.
 
 ## Modules and functions
 

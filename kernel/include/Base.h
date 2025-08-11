@@ -1,11 +1,9 @@
 
-// Base.h
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -94,9 +92,16 @@ typedef U32 BOOL;
 // Utilities
 
 #define UNUSED(x) (void)(x)
+// Put CPU to sleep forever: disable IRQs, halt, and loop.
+// Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory clobber.
 #define SLEEPING_BEAUTY \
-    while (1) {         \
-    }
+    do { \
+        __asm__ __volatile__ ( \
+            "1:\n\t" \
+            "hlt\n\t" \
+            "jmp 1b\n\t" \
+            : : : "memory"); \
+    } while (0)
 
 /***************************************************************************/
 // NULL values

@@ -1,0 +1,38 @@
+{
+    "logs": [
+        "log/debug.log",
+        "log/make.log"
+    ],
+    "scriptsDir": "./scripts",
+    "keyBindings": {
+        "f1": "1-setup-deps.sh",
+        "f2": "2-setup-qemu-freedos.sh",
+        "f3": "3-format-all-code.sh",
+        "f4": "4-1-clean-build.sh",
+        "f5": "4-2-build.sh",
+        "f6": "5-1-start-qemu-hd.sh",
+        "f7": "5-2-debug-qemu-hd.sh",
+        "p": "git pull",
+        "C-p": "git push",
+        "s": "git status",
+        "C-s": "git diff --staged",
+        "C-o": "nano -l boot-qemu-hd/source/main-stub.asm",
+        "C-p": "nano -l boot-qemu-hd/source/main.c"
+    },
+    "settings": {
+        "enableCommandHistory": true,
+        "persistLogs": true,
+        "notifyOnExit": true
+    },
+    "events": {
+        "onDashboardStart": [
+            {
+                "action": "killProcess",
+                "parameters": [
+                    "qemu-system-x86_64"
+                ]
+            }
+        ],
+        "beforeStartProcess": []
+    }
+}

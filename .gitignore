@@ -1,3 +1,4 @@
+*.c~
 *.o
 *.a
 *.com
@@ -12,5 +13,9 @@
 *.iso
 *.vmdk
 
+temp
 boot-qemu/kernel_sectors.inc
 boot-limine/limine
+node_modules
+package.json
+package-lock.json

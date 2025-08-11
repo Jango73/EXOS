@@ -7,8 +7,16 @@
 
 \***************************************************************************/
 
-#include "../include/Base.h"
+#include "../include/Crypt.h"
+
 #include "../include/String.h"
+
+/***************************************************************************/
+
+/* Reflected polynomial for CRC-32 (IEEE 802.3) */
+#define CRC32_POLY      ((U32)0xEDB88320u)
+#define CRC32_INIT      ((U32)0xFFFFFFFFu)
+#define CRC32_FINAL_XOR ((U32)0xFFFFFFFFu)
 
 /***************************************************************************/
 
@@ -163,6 +171,53 @@ BOOL CheckPassword(LPCSTR lpszCrypted, LPCSTR lpszPassword) {
     MemorySet(szTemp, 0, sizeof szTemp);
 
     return Result;
+}
+
+/***************************************************************************/
+
+/* Process one byte with bitwise algorithm (LSB-first). */
+static inline U32 CRC32_ProcessByte(U32 Crc, U8 Byte) {
+    U32 c = Crc ^ (U32)Byte;
+    for (UINT i = 0; i < 8; ++i) {
+        U32 mask = (c & 1u) ? CRC32_POLY : 0u;
+        c = (c >> 1) ^ mask;
+    }
+    return c;
+}
+
+/***************************************************************************/
+
+/* Streaming API */
+void CRC32Begin(LPCRC32_CTX Ctx) {
+    /* State holds the "internal" CRC value (before final XOR). */
+    Ctx->State = CRC32_INIT;
+}
+
+void CRC32Update(LPCRC32_CTX Ctx, const void *Data, U32 Length) {
+    const U8 *p = (const U8 *)Data;
+    U32 c = Ctx->State;
+
+    while (Length--) {
+        c = CRC32_ProcessByte(c, *p++);
+    }
+
+    Ctx->State = c;
+}
+
+U32 CRC32Final(LPCRC32_CTX Ctx) {
+    /* Apply final XOR and return; also store finalized value in context. */
+    Ctx->State ^= CRC32_FINAL_XOR;
+    return Ctx->State;
+}
+
+/***************************************************************************/
+
+/* One-shot API */
+U32 CRC32(const void *Data, U32 Length) {
+    CRC32_CTX ctx;
+    CRC32Begin(&ctx);
+    CRC32Update(&ctx, Data, Length);
+    return CRC32Final(&ctx);
 }
 
 /***************************************************************************/

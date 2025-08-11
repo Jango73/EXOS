@@ -165,7 +165,7 @@ PHYSICAL AllocPhysicalPage() {
                 if ((Value & Mask) == 0 && Page < Pages) {
                     PPB[Index] |= Mask;
                     Pointer = Page << PAGE_SIZE_MUL;
-                    KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Found : %X"), Pointer);
+                    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Found : %X"), Pointer);
                     goto Out;
                 }
                 Page++;

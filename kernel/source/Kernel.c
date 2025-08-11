@@ -420,7 +420,7 @@ U32 GetPhysicalMemoryUsed() {
 void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     if (Driver->ID != ID_DRIVER) {
         KernelLogText(LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Aborting!"), Name, Driver, Driver->ID);
-        SLEEPING_BEAUTY
+        SLEEPING_BEAUTY;
     }
     Driver->Command(DF_LOAD, 0);
 }
@@ -473,7 +473,7 @@ void InitializeKernel() {
             }
         }
 
-        SLEEPING_BEAUTY
+        SLEEPING_BEAUTY;
     }
 
     //-------------------------------------

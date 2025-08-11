@@ -22,7 +22,7 @@
 #define PF_PLUS 4     /* show plus */
 #define PF_SPACE 8    /* space if plus */
 #define PF_LEFT 16    /* left justified */
-#define PF_SPECIAL 32 /* 0x */
+#define PF_SPECIAL 32 /* 0x for hex, 0 for octal*/
 #define PF_LARGE 64   /* use 'ABCDEF' instead of 'abcdef' */
 
 /***************************************************************************/
@@ -57,7 +57,8 @@ U32 StringToU32(LPCSTR);
 
 /***************************************************************************/
 
-LPSTR NumberToString(LPSTR, I32, I32, I32, I32, I32);
+LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision,
+                     I32 Type);
 
 /***************************************************************************/
 
