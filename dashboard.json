@@ -12,6 +12,7 @@
         "f5": "4-2-build.sh",
         "f6": "5-1-start-qemu-hd.sh",
         "f7": "5-2-debug-qemu-hd.sh",
+        "f8": "6-1-start-qemu-hd-nogfx.sh",
         "p": "git pull",
         "C-p": "git push",
         "s": "git status",
