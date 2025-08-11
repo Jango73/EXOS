@@ -446,7 +446,7 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision,
             *Text++ = '0';
         else if (Base == 16) {
             *Text++ = '0';
-            *Text++ = Digits[33];
+            *Text++ = 'x';
         }
     }
 
