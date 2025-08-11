@@ -9,8 +9,8 @@
 
 #include "../include/Base.h"
 #include "../include/GFX.h"
-#include "../include/Mouse.h"
 #include "../include/Log.h"
+#include "../include/Mouse.h"
 #include "../include/Process.h"
 #include "../include/String.h"
 #include "../include/User.h"
@@ -33,8 +33,7 @@ DRIVER SerialMouseDriver = {
     .Designer = "Jango73",
     .Manufacturer = "Not applicable",
     .Product = "Standard Serial Mouse",
-    .Command = SerialMouseCommands
-};
+    .Command = SerialMouseCommands};
 
 /***************************************************************************/
 
@@ -49,14 +48,7 @@ typedef struct tag_MOUSEDATA {
 } MOUSEDATA, *LPMOUSEDATA;
 
 static MOUSEDATA Mouse = {
-    .Mutex = EMPTY_MUTEX,
-    .Busy = 0,
-    .DeltaX = 0,
-    .DeltaY = 0,
-    .Buttons = 0,
-    .PosX = 1,
-    .PosY = 1
-};
+    .Mutex = EMPTY_MUTEX, .Busy = 0, .DeltaX = 0, .DeltaY = 0, .Buttons = 0, .PosX = 1, .PosY = 1};
 
 /***************************************************************************/
 
@@ -186,8 +178,8 @@ static BOOL WaitMouseData(U32 TimeOut) {
     while (TimeOut) {
         Status = InPortByte(MOUSE_PORT + SERIAL_LSR);
 
-        if ((Status & SERIAL_LSR_OE) || (Status & SERIAL_LSR_PE) ||
-            (Status & SERIAL_LSR_FE) || (Status & SERIAL_LSR_RE)) {
+        if ((Status & SERIAL_LSR_OE) || (Status & SERIAL_LSR_PE) || (Status & SERIAL_LSR_FE) ||
+            (Status & SERIAL_LSR_RE)) {
             SendBreak();
             return FALSE;
         }

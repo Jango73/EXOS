@@ -34,8 +34,7 @@ DRIVER StdKeyboardDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "Standard IBM PC Keyboard - 102 keys",
-    .Command = StdKeyboardCommands
-};
+    .Command = StdKeyboardCommands};
 
 /***************************************************************************/
 
@@ -122,9 +121,8 @@ KEYBOARDSTRUCT Keyboard = {
     .NumLock = 0,
     .ScrollLock = 0,
     .Pause = 0,
-    .Buffer = { 0 },
-    .Status = { 0 }
-};
+    .Buffer = {0},
+    .Status = {0}};
 
 /***************************************************************************/
 
@@ -263,8 +261,7 @@ static void ScanCodeToKeyCode(U32 ScanCode, LPKEYCODE KeyCode) {
                     break;
             }
         }
-    } else if (Keyboard.Status[SCAN_LEFT_SHIFT] ||
-               Keyboard.Status[SCAN_RIGHT_SHIFT] || Keyboard.CapsLock) {
+    } else if (Keyboard.Status[SCAN_LEFT_SHIFT] || Keyboard.Status[SCAN_RIGHT_SHIFT] || Keyboard.CapsLock) {
         *KeyCode = ScanCodeToKeyCode_fr[ScanCode].Shift;
     } else if (Keyboard.Status[SCAN_ALT] || Keyboard.Status[SCAN_RIGHT_ALT]) {
         *KeyCode = ScanCodeToKeyCode_fr[ScanCode].Alt;
@@ -373,8 +370,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     // Put the key in the buffer
 
     for (Index = 0; Index < MAXKEYBUFFER; Index++) {
-        if (Keyboard.Buffer[Index].VirtualKey == 0 &&
-            Keyboard.Buffer[Index].ASCIICode == 0) {
+        if (Keyboard.Buffer[Index].VirtualKey == 0 && Keyboard.Buffer[Index].ASCIICode == 0) {
             Keyboard.Buffer[Index] = *KeyCode;
             break;
         }
@@ -520,8 +516,7 @@ static void HandleScanCode(U32 ScanCode) {
                             CreateTask(&KernelProcess, &TaskInfo);
                         }
                     } else if (KeyCode.VirtualKey == VK_F10) {
-                        Exit_EXOS(KernelStartup.Loader_SS,
-                                  KernelStartup.Loader_SP);
+                        Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
                     }
                 } break;
             }

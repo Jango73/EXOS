@@ -19,21 +19,15 @@ extern unsigned strstr(const char*, const char*);
 
 /***************************************************************************/
 
-void exit(int ErrorCode) {
-    __exit__(ErrorCode);
-}
+void exit(int ErrorCode) { __exit__(ErrorCode); }
 
 /***************************************************************************/
 
-void* malloc(size_t s) {
-    return (void*)exoscall(SYSCALL_HeapAlloc, s);
-}
+void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, s); }
 
 /***************************************************************************/
 
-void free(void* p) {
-    exoscall(SYSCALL_HeapFree, (unsigned)p);
-}
+void free(void* p) { exoscall(SYSCALL_HeapFree, (unsigned)p); }
 
 /***************************************************************************/
 
@@ -50,18 +44,16 @@ int getch() {
 
 /***************************************************************************/
 
-int printf(const char* fmt, ...) {
-    return (int)exoscall(SYSCALL_ConsolePrint, (unsigned)fmt);
-}
+int printf(const char* fmt, ...) { return (int)exoscall(SYSCALL_ConsolePrint, (unsigned)fmt); }
 
 /***************************************************************************/
 
 int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
     TASKINFO TaskInfo;
 
-    TaskInfo.Func = (TASKFUNC) start_address;
-    TaskInfo.Parameter = (LPVOID) arg_list;
-    TaskInfo.StackSize = (U32) stack_size;
+    TaskInfo.Func = (TASKFUNC)start_address;
+    TaskInfo.Parameter = (LPVOID)arg_list;
+    TaskInfo.StackSize = (U32)stack_size;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = 0;
 
@@ -78,7 +70,7 @@ int system(const char* __cmd) {
     PROCESSINFO ProcessInfo;
 
     ProcessInfo.FileName = NULL;
-    ProcessInfo.CommandLine = (LPCSTR) __cmd;
+    ProcessInfo.CommandLine = (LPCSTR)__cmd;
     ProcessInfo.Flags = 0;
     ProcessInfo.StdOut = NULL;
     ProcessInfo.StdIn = NULL;
@@ -95,7 +87,7 @@ FILE* fopen(const char* __name, const char* __mode) {
     HANDLE handle;
 
     info.Size = sizeof(FILEOPENINFO);
-    info.Name = (LPCSTR) __name;
+    info.Name = (LPCSTR)__name;
     info.Flags = 0;
 
     if (strstr(__mode, "r+")) {
@@ -160,7 +152,7 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
     if (!fp) return 0;
 
     fileop.Size = sizeof fileop;
-    fileop.File = (HANDLE) fp->_handle;
+    fileop.File = (HANDLE)fp->_handle;
     fileop.NumBytes = elsize * num;
     fileop.Buffer = buf;
 

@@ -14,8 +14,7 @@
 
 /***************************************************************************/
 
-static void RecursiveSort(U8* Base, I32 Left, I32 Rite, U32 ItemSize,
-                          COMPAREFUNC Func, U8* Buffer) {
+static void RecursiveSort(U8* Base, I32 Left, I32 Rite, U32 ItemSize, COMPAREFUNC Func, U8* Buffer) {
     I32 i = Left;
     I32 j = Rite;
 
@@ -32,8 +31,7 @@ static void RecursiveSort(U8* Base, I32 Left, I32 Rite, U32 ItemSize,
         if (i <= j) {
             if (i != j) {
                 MemoryCopy(Buffer, Base + (i * ItemSize), ItemSize);
-                MemoryCopy(Base + (i * ItemSize), Base + (j * ItemSize),
-                           ItemSize);
+                MemoryCopy(Base + (i * ItemSize), Base + (j * ItemSize), ItemSize);
                 MemoryCopy(Base + (j * ItemSize), Buffer, ItemSize);
             }
             i++;
@@ -66,8 +64,7 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 
 /***************************************************************************/
 
-LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc,
-               MEMFREEFUNC MemFree) {
+LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
     LPLIST This = NULL;
 
     if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)HeapAlloc;
@@ -206,15 +203,11 @@ U32 ListAddAfter(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
 
 /*************************************************************************************************/
 
-U32 ListAddHead(LPLIST This, LPVOID Item) {
-    return ListAddBefore(This, This->First, Item);
-}
+U32 ListAddHead(LPLIST This, LPVOID Item) { return ListAddBefore(This, This->First, Item); }
 
 /*************************************************************************************************/
 
-U32 ListAddTail(LPLIST This, LPVOID Item) {
-    return ListAddAfter(This, This->Last, Item);
-}
+U32 ListAddTail(LPLIST This, LPVOID Item) { return ListAddAfter(This, This->Last, Item); }
 
 /*************************************************************************************************/
 

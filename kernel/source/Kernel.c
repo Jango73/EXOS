@@ -54,8 +54,7 @@ static LIST DesktopList = {
     .NumItems = 0,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 /***************************************************************************/
 
@@ -66,8 +65,7 @@ static LIST ProcessList = {
     .NumItems = 1,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 /***************************************************************************/
 
@@ -78,8 +76,7 @@ static LIST TaskList = {
     .NumItems = 1,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 /***************************************************************************/
 
@@ -90,8 +87,7 @@ static LIST MutexList = {
     .NumItems = 9,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 /***************************************************************************/
 
@@ -102,8 +98,7 @@ static LIST DiskList = {
     .NumItems = 0,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 static LIST FileSystemList = {
     .First = NULL,
@@ -112,8 +107,7 @@ static LIST FileSystemList = {
     .NumItems = 0,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 static LIST FileList = {
     .First = NULL,
@@ -122,8 +116,7 @@ static LIST FileList = {
     .NumItems = 0,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 /***************************************************************************/
 
@@ -135,28 +128,15 @@ KERNELDATA Kernel = {
     .Disk = &DiskList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
-    .CPU = {
-        .Name = "",
-        .Type = 0,
-        .Family = 0,
-        .Model = 0,
-        .Stepping = 0,
-        .Features = 0
-    }
-};
+    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
 
-LPVOID KernelMemAlloc(U32 Size) {
-    return HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Size);
-}
+LPVOID KernelMemAlloc(U32 Size) { return HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Size); }
 
 /***************************************************************************/
 
-void KernelMemFree(LPVOID Pointer) {
-    return HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize,
-                         Pointer);
-}
+void KernelMemFree(LPVOID Pointer) { return HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Pointer); }
 
 /***************************************************************************/
 
@@ -264,14 +244,16 @@ BOOL DumpGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
 /***************************************************************************/
 
 void DumpRegisters(LPINTEL386REGISTERS Regs) {
-
-    KernelLogText(LOG_VERBOSE, TEXT("EAX : %X EBX : %X ECX : %X EDX : %X "), Regs->EAX, Regs->EBX, Regs->ECX, Regs->EDX);
+    KernelLogText(
+        LOG_VERBOSE, TEXT("EAX : %X EBX : %X ECX : %X EDX : %X "), Regs->EAX, Regs->EBX, Regs->ECX, Regs->EDX);
     KernelLogText(LOG_VERBOSE, TEXT("ESI : %X EDI : %X EBP : %X "), Regs->ESI, Regs->EDI, Regs->EBP);
     KernelLogText(LOG_VERBOSE, TEXT("CS : %X DS : %X SS : %X "), Regs->CS, Regs->DS, Regs->SS);
     KernelLogText(LOG_VERBOSE, TEXT("ES : %X FS : %X GS : %X "), Regs->ES, Regs->FS, Regs->GS);
     KernelLogText(LOG_VERBOSE, TEXT("E-flags : %X EIP : %X "), Regs->EFlags, Regs->EIP);
-    KernelLogText(LOG_VERBOSE, TEXT("CR0 : %X CR2 : %X CR3 : %X CR4 : %X "), Regs->CR0, Regs->CR2, Regs->CR3, Regs->CR4);
-    KernelLogText(LOG_VERBOSE, TEXT("DR0 : %X DR1 : %X DR2 : %X DR3 : %X "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
+    KernelLogText(
+        LOG_VERBOSE, TEXT("CR0 : %X CR2 : %X CR3 : %X CR4 : %X "), Regs->CR0, Regs->CR2, Regs->CR3, Regs->CR4);
+    KernelLogText(
+        LOG_VERBOSE, TEXT("DR0 : %X DR1 : %X DR2 : %X DR3 : %X "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
 }
 
 /***************************************************************************/
@@ -304,12 +286,9 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
     // Get model information if available
 
     Info->Type = (Regs[1].reg_EAX & INTEL_CPU_MASK_TYPE) >> INTEL_CPU_SHFT_TYPE;
-    Info->Family =
-        (Regs[1].reg_EAX & INTEL_CPU_MASK_FAMILY) >> INTEL_CPU_SHFT_FAMILY;
-    Info->Model =
-        (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
-    Info->Stepping =
-        (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
+    Info->Family = (Regs[1].reg_EAX & INTEL_CPU_MASK_FAMILY) >> INTEL_CPU_SHFT_FAMILY;
+    Info->Model = (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
+    Info->Stepping = (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
     Info->Features = Regs[1].reg_EDX;
 
     return TRUE;
@@ -418,11 +397,16 @@ U32 GetPhysicalMemoryUsed() {
 /***************************************************************************/
 
 void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
-    if (Driver->ID != ID_DRIVER) {
-        KernelLogText(LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Aborting!"), Name, Driver, Driver->ID);
-        SLEEPING_BEAUTY;
+    if (Driver != NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("[LoadDriver] : %s"), Name);
+
+        if (Driver->ID != ID_DRIVER) {
+            KernelLogText(
+                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Aborting!"), Name, Driver, Driver->ID);
+            SLEEPING_BEAUTY;
+        }
+        Driver->Command(DF_LOAD, 0);
     }
-    Driver->Command(DF_LOAD, 0);
 }
 
 /***************************************************************************/
@@ -466,7 +450,7 @@ void InitializeKernel() {
         KernelDump((LINEAR)(&DeadBeef), 32);
 
         for (LINEAR Pointer = StubAddress; Pointer < N_2MB; Pointer++) {
-            if (*((U32*) Pointer) == 0xDEADBEEF) {
+            if (*((U32*)Pointer) == 0xDEADBEEF) {
                 KernelLogText(LOG_DEBUG, TEXT("Found dead beef at %X"), Pointer);
                 KernelLogText(LOG_DEBUG, TEXT("Meaning at stub + %X"), Pointer - StubAddress);
                 break;
@@ -479,7 +463,7 @@ void InitializeKernel() {
     //-------------------------------------
     // Log page tables
 
-    LogAllPageTables(LOG_DEBUG, (const PAGEDIRECTORY*) LA_DIRECTORY);
+    LogAllPageTables(LOG_DEBUG, (const PAGEDIRECTORY*)LA_DIRECTORY);
 
     //-------------------------------------
     // No more interrupts
@@ -504,7 +488,7 @@ void InitializeKernel() {
     U32 BSSSize = BSSEnd - BSSStart;
 
     KernelLogText(LOG_DEBUG, TEXT("BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);
-    MemorySet((LPVOID) BSSStart, 0, BSSSize);
+    MemorySet((LPVOID)BSSStart, 0, BSSSize);
     KernelLogText(LOG_DEBUG, TEXT("BSS cleared"));
 
     MemoryCopy(&KernelStartup, &TempKernelStartup, sizeof(KERNELSTARTUPINFO));
@@ -617,12 +601,12 @@ void InitializeKernel() {
     //-------------------------------------
     // Test tasks
 
-    TaskInfo.Func      = ClockTask;
+    TaskInfo.Func = ClockTask;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
-    TaskInfo.Priority  = TASK_PRIORITY_LOWEST;
-    TaskInfo.Flags     = 0;
+    TaskInfo.Priority = TASK_PRIORITY_LOWEST;
+    TaskInfo.Flags = 0;
 
-    TaskInfo.Parameter = (LPVOID) (((U32) 70 << 16) | 0);
+    TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
 
     //-------------------------------------

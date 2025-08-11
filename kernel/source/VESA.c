@@ -39,8 +39,7 @@ DRIVER VESADriver = {
     .Designer = "Jango73",
     .Manufacturer = "Video Electronics Standard Association",
     .Product = "VESA Compatible Graphics Card",
-    .Command = VESACommands
-};
+    .Command = VESACommands};
 
 /***************************************************************************/
 
@@ -169,13 +168,7 @@ VIDEOMODESPECS VESAModeSpecs[] = {
     }
 
 VESACONTEXT VESAContext = {
-    .Header = {
-        .ID = ID_GRAPHICSCONTEXT,
-        .References = 1,
-        .Mutex = EMPTY_MUTEX,
-        .Driver = &VESADriver
-    }
-};
+    .Header = {.ID = ID_GRAPHICSCONTEXT, .References = 1, .Mutex = EMPTY_MUTEX, .Driver = &VESADriver}};
 
 /***************************************************************************/
 
@@ -186,22 +179,15 @@ static U32 VESAInitialize() {
     // Initialize the context
 
     VESAContext = (VESACONTEXT){
-        .Header = {
-            .ID = ID_GRAPHICSCONTEXT,
-            .References = 1,
-            .Mutex = EMPTY_MUTEX,
-            .Driver = &VESADriver,
-            .LoClip = { .X = 0, .Y = 0 },
-            .HiClip = { .X = 100, .Y = 100 },
-            .RasterOperation = ROP_SET
-        },
-        .ModeSpecs = {
-            .SetPixel = SetPixel8,
-            .GetPixel = GetPixel8,
-            .Line = Line8,
-            .Rect = Rect8
-        }
-    };
+        .Header =
+            {.ID = ID_GRAPHICSCONTEXT,
+             .References = 1,
+             .Mutex = EMPTY_MUTEX,
+             .Driver = &VESADriver,
+             .LoClip = {.X = 0, .Y = 0},
+             .HiClip = {.X = 100, .Y = 100},
+             .RasterOperation = ROP_SET},
+        .ModeSpecs = {.SetPixel = SetPixel8, .GetPixel = GetPixel8, .Line = Line8, .Rect = Rect8}};
 
     //-------------------------------------
     // Get VESA general information
@@ -212,8 +198,7 @@ static U32 VESAInitialize() {
 
     RealModeCall(VIDEO_CALL, &Regs);
 
-    MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(StubAddress + N_4KB),
-               sizeof(VESAINFOBLOCK));
+    MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(StubAddress + N_4KB), sizeof(VESAINFOBLOCK));
 
     if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_ERROR_GENERIC;
     if (VESAContext.VESAInfo.Signature[1] != 'E') return DF_ERROR_GENERIC;
@@ -260,8 +245,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     for (Index = 0;; Index++) {
         if (VESAModeSpecs[Index].Mode == 0) return DF_ERROR_GENERIC;
 
-        if (VESAModeSpecs[Index].Width == Info->Width &&
-            VESAModeSpecs[Index].Height == Info->Height &&
+        if (VESAModeSpecs[Index].Width == Info->Width && VESAModeSpecs[Index].Height == Info->Height &&
             VESAModeSpecs[Index].BitsPerPixel == Info->BitsPerPixel) {
             ModePtr = (U16*)MKLINPTR(VESAContext.VESAInfo.ModePointer);
 
@@ -271,8 +255,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
                 if (ModePtr[Mode] == 0xFFFF) break;
 
                 if (ModePtr[Mode] == VESAModeSpecs[Index].Mode) {
-                    MemoryCopy(&(VESAContext.ModeSpecs), VESAModeSpecs + Index,
-                               sizeof(VIDEOMODESPECS));
+                    MemoryCopy(&(VESAContext.ModeSpecs), VESAModeSpecs + Index, sizeof(VIDEOMODESPECS));
                     Found = 1;
                     break;
                 }
@@ -295,11 +278,9 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
     if (Regs.H.AL != 0x4F) return DF_ERROR_GENERIC;
 
-    MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(StubAddress + N_4KB),
-               sizeof(MODEINFOBLOCK));
+    MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(StubAddress + N_4KB), sizeof(MODEINFOBLOCK));
 
-    VESAContext.Header.MemoryBase =
-        (U8*)(VESAContext.ModeInfo.WindowAStartSegment << MUL_16);
+    VESAContext.Header.MemoryBase = (U8*)(VESAContext.ModeInfo.WindowAStartSegment << MUL_16);
     VESAContext.Header.BytesPerScanLine = VESAContext.ModeInfo.BytesPerScanLine;
     VESAContext.Granularity = VESAContext.ModeInfo.WindowGranularity;
 
@@ -436,8 +417,8 @@ static COLOR SetPixel8(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U8* Plane;
     U32 OldColor;
 
-    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
-        Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
+    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
+        Y > Context->Header.HiClip.Y)
         return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + X;
@@ -448,25 +429,21 @@ static COLOR SetPixel8(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
     switch (Context->Header.RasterOperation) {
         case ROP_SET: {
-            *(U8*)(Context->Header.MemoryBase +
-                   (Offset & Context->GranularModulo)) = Color;
+            *(U8*)(Context->Header.MemoryBase + (Offset & Context->GranularModulo)) = Color;
         } break;
 
         case ROP_XOR: {
-            Plane =
-                Context->Header.MemoryBase + (Offset & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *Plane ^= Color;
         } break;
 
         case ROP_OR: {
-            Plane =
-                Context->Header.MemoryBase + (Offset & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *Plane |= Color;
         } break;
 
         case ROP_AND: {
-            Plane =
-                Context->Header.MemoryBase + (Offset & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *Plane &= Color;
         } break;
     }
@@ -482,8 +459,8 @@ static COLOR SetPixel16(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U8* Plane;
     U32 OldColor;
 
-    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
-        Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
+    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
+        Y > Context->Header.HiClip.Y)
         return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + (X << MUL_2);
@@ -494,26 +471,22 @@ static COLOR SetPixel16(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
     switch (Context->Header.RasterOperation) {
         case ROP_SET: {
-            Plane =
-                Context->Header.MemoryBase + (Offset & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *((U16*)Plane) = Color;
         } break;
 
         case ROP_XOR: {
-            Plane =
-                Context->Header.MemoryBase + (Offset & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *((U16*)Plane) ^= Color;
         } break;
 
         case ROP_OR: {
-            Plane =
-                Context->Header.MemoryBase + (Offset & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *((U16*)Plane) |= Color;
         } break;
 
         case ROP_AND: {
-            Plane =
-                Context->Header.MemoryBase + (Offset & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
             *((U16*)Plane) &= Color;
         } break;
     }
@@ -531,8 +504,8 @@ static COLOR SetPixel24(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 R, G, B;
     U32 OldColor;
 
-    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
-        Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
+    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
+        Y > Context->Header.HiClip.Y)
         return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + (X * 3);
@@ -559,22 +532,19 @@ static COLOR SetPixel24(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
         case ROP_SET: {
             // Red component
             SetVESABank(Context, Bank1);
-            Plane =
-                Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 0;
             *Plane = R;
 
             // Green component
             SetVESABank(Context, Bank2);
-            Plane =
-                Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 8;
             *Plane = G;
 
             // Blue component
             SetVESABank(Context, Bank3);
-            Plane =
-                Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 16;
             *Plane = B;
         } break;
@@ -583,24 +553,21 @@ static COLOR SetPixel24(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
             // Red component
 
             SetVESABank(Context, Bank1);
-            Plane =
-                Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 0;
             *Plane ^= R;
 
             // Green component
 
             SetVESABank(Context, Bank2);
-            Plane =
-                Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 8;
             *Plane ^= G;
 
             // Blue component
 
             SetVESABank(Context, Bank3);
-            Plane =
-                Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 16;
             *Plane ^= B;
         } break;
@@ -608,22 +575,19 @@ static COLOR SetPixel24(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
         case ROP_OR: {
             // Red component
             SetVESABank(Context, Bank1);
-            Plane =
-                Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 0;
             *Plane |= R;
 
             // Green component
             SetVESABank(Context, Bank2);
-            Plane =
-                Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 8;
             *Plane |= G;
 
             // Blue component
             SetVESABank(Context, Bank3);
-            Plane =
-                Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 16;
             *Plane |= B;
         } break;
@@ -631,22 +595,19 @@ static COLOR SetPixel24(LPVESACONTEXT Context, I32 X, I32 Y, COLOR Color) {
         case ROP_AND: {
             // Red component
             SetVESABank(Context, Bank1);
-            Plane =
-                Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 0;
             *Plane &= R;
 
             // Green component
             SetVESABank(Context, Bank2);
-            Plane =
-                Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 8;
             *Plane &= G;
 
             // Blue component
             SetVESABank(Context, Bank3);
-            Plane =
-                Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
+            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
             OldColor |= (U32)(*Plane) << 16;
             *Plane &= B;
         } break;
@@ -662,8 +623,8 @@ static COLOR GetPixel8(LPVESACONTEXT Context, I32 X, I32 Y) {
     U32 Offset;
     U32 Bank;
 
-    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
-        Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
+    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
+        Y > Context->Header.HiClip.Y)
         return 0;
 
     /*
@@ -676,8 +637,7 @@ static COLOR GetPixel8(LPVESACONTEXT Context, I32 X, I32 Y) {
 
     SetVESABank(Context, Bank);
 
-    Color = *(
-        (U8*)(Context->Header.MemoryBase + (Offset & Context->GranularModulo)));
+    Color = *((U8*)(Context->Header.MemoryBase + (Offset & Context->GranularModulo)));
 
     return Color;
 }
@@ -689,8 +649,8 @@ static COLOR GetPixel16(LPVESACONTEXT Context, I32 X, I32 Y) {
     U32 Offset;
     U32 Bank;
 
-    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
-        Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
+    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
+        Y > Context->Header.HiClip.Y)
         return 0;
 
     /*
@@ -703,8 +663,7 @@ static COLOR GetPixel16(LPVESACONTEXT Context, I32 X, I32 Y) {
 
     SetVESABank(Context, Bank);
 
-    Color = *((U16*)(Context->Header.MemoryBase +
-                     (Offset & Context->GranularModulo)));
+    Color = *((U16*)(Context->Header.MemoryBase + (Offset & Context->GranularModulo)));
 
     return Color;
 }
@@ -717,8 +676,8 @@ static COLOR GetPixel24(LPVESACONTEXT Context, I32 X, I32 Y) {
     U32 TOfs1, TOfs2, TOfs3;
     U32 Bank1, Bank2, Bank3;
 
-    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X ||
-        Y < Context->Header.LoClip.Y || Y > Context->Header.HiClip.Y)
+    if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
+        Y > Context->Header.HiClip.Y)
         return 0;
 
     /*
@@ -1120,8 +1079,7 @@ static U32 Rect16(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         Y2 = Temp;
     }
 
-    if (Context->Header.Brush != NULL &&
-        Context->Header.Brush->ID == ID_BRUSH) {
+    if (Context->Header.Brush != NULL && Context->Header.Brush->ID == ID_BRUSH) {
         Color = Context->Header.Brush->Color;
 
         for (Y = Y1; Y <= Y2; Y++) {
@@ -1167,8 +1125,7 @@ static U32 Rect24(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         Y2 = Temp;
     }
 
-    if (Context->Header.Brush != NULL &&
-        Context->Header.Brush->ID == ID_BRUSH) {
+    if (Context->Header.Brush != NULL && Context->Header.Brush->ID == ID_BRUSH) {
         Color = Context->Header.Brush->Color;
 
         Color = 0;
@@ -1256,12 +1213,9 @@ static U32 Rect24(LPVESACONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
             Ofs3 = Offset + 2;
             Bank3 = Ofs3 >> Context->GranularShift;
 
-            Pln1 =
-                Context->Header.MemoryBase + (Ofs1 & Context->GranularModulo);
-            Pln2 =
-                Context->Header.MemoryBase + (Ofs2 & Context->GranularModulo);
-            Pln3 =
-                Context->Header.MemoryBase + (Ofs3 & Context->GranularModulo);
+            Pln1 = Context->Header.MemoryBase + (Ofs1 & Context->GranularModulo);
+            Pln2 = Context->Header.MemoryBase + (Ofs2 & Context->GranularModulo);
+            Pln3 = Context->Header.MemoryBase + (Ofs3 & Context->GranularModulo);
         }
     }
 
@@ -1331,8 +1285,7 @@ static U32 VESA_SetPixel(LPPIXELINFO Info) {
 
     LockMutex(&(Context->Header.Mutex), INFINITY);
 
-    Info->Color =
-        Context->ModeSpecs.SetPixel(Context, Info->X, Info->Y, Info->Color);
+    Info->Color = Context->ModeSpecs.SetPixel(Context, Info->X, Info->Y, Info->Color);
 
     UnlockMutex(&(Context->Header.Mutex));
 

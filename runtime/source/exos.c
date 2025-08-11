@@ -15,21 +15,15 @@ extern unsigned exoscall(unsigned, unsigned);
 
 /***************************************************************************/
 
-HANDLE CreateTask(LPTASKINFO TaskInfo) {
-    return (HANDLE)exoscall(SYSCALL_CreateTask, (U32)TaskInfo);
-}
+HANDLE CreateTask(LPTASKINFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateTask, (U32)TaskInfo); }
 
 /***************************************************************************/
 
-BOOL KillTask(HANDLE Task) {
-    return (BOOL)exoscall(SYSCALL_KillTask, (U32)Task);
-}
+BOOL KillTask(HANDLE Task) { return (BOOL)exoscall(SYSCALL_KillTask, (U32)Task); }
 
 /***************************************************************************/
 
-void Sleep(U32 MilliSeconds) {
-    exoscall(SYSCALL_Sleep, MilliSeconds);
-}
+void Sleep(U32 MilliSeconds) { exoscall(SYSCALL_Sleep, MilliSeconds); }
 
 /***************************************************************************/
 
@@ -57,8 +51,7 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
 
 /***************************************************************************/
 
-BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last,
-                 U32 Flags) {
+BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last, U32 Flags) {
     UNUSED(Target);
     UNUSED(Message);
     UNUSED(First);
@@ -118,20 +111,15 @@ HANDLE CreateDesktop() { return (HANDLE)exoscall(SYSCALL_CreateDesktop, 0); }
 
 /***************************************************************************/
 
-BOOL ShowDesktop(HANDLE Desktop) {
-    return (BOOL)exoscall(SYSCALL_ShowDesktop, (U32)Desktop);
-}
+BOOL ShowDesktop(HANDLE Desktop) { return (BOOL)exoscall(SYSCALL_ShowDesktop, (U32)Desktop); }
 
 /***************************************************************************/
 
-HANDLE GetDesktopWindow(HANDLE Desktop) {
-    return (HANDLE)exoscall(SYSCALL_GetDesktopWindow, (U32)Desktop);
-}
+HANDLE GetDesktopWindow(HANDLE Desktop) { return (HANDLE)exoscall(SYSCALL_GetDesktopWindow, (U32)Desktop); }
 
 /***************************************************************************/
 
-HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX,
-                    I32 PosY, I32 SizeX, I32 SizeY) {
+HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX, I32 PosY, I32 SizeX, I32 SizeY) {
     WINDOWINFO WindowInfo;
 
     WindowInfo.Size = sizeof WindowInfo;
@@ -149,9 +137,7 @@ HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX,
 
 /***************************************************************************/
 
-BOOL DestroyWindow(HANDLE Window) {
-    return (BOOL)exoscall(SYSCALL_DeleteObject, (U32)Window);
-}
+BOOL DestroyWindow(HANDLE Window) { return (BOOL)exoscall(SYSCALL_DeleteObject, (U32)Window); }
 
 /***************************************************************************/
 
@@ -225,15 +211,11 @@ U32 GetWindowProp(HANDLE Window, LPCSTR Name) {
 
 /***************************************************************************/
 
-HANDLE GetWindowGC(HANDLE Window) {
-    return (HANDLE)exoscall(SYSCALL_GetWindowGC, (U32)Window);
-}
+HANDLE GetWindowGC(HANDLE Window) { return (HANDLE)exoscall(SYSCALL_GetWindowGC, (U32)Window); }
 
 /***************************************************************************/
 
-BOOL ReleaseWindowGC(HANDLE GC) {
-    return (BOOL)exoscall(SYSCALL_ReleaseWindowGC, (U32)GC);
-}
+BOOL ReleaseWindowGC(HANDLE GC) { return (BOOL)exoscall(SYSCALL_ReleaseWindowGC, (U32)GC); }
 
 /***************************************************************************/
 
@@ -278,9 +260,7 @@ BOOL GetWindowRect(HANDLE Window, LPRECT Rect) {
 
 /***************************************************************************/
 
-HANDLE GetSystemBrush(U32 Index) {
-    return exoscall(SYSCALL_GetSystemBrush, Index);
-}
+HANDLE GetSystemBrush(U32 Index) { return exoscall(SYSCALL_GetSystemBrush, Index); }
 
 /***************************************************************************/
 
@@ -406,15 +386,11 @@ void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
 
 /***************************************************************************/
 
-BOOL GetMousePos(LPPOINT Point) {
-    return (BOOL)exoscall(SYSCALL_GetMousePos, (U32)Point);
-}
+BOOL GetMousePos(LPPOINT Point) { return (BOOL)exoscall(SYSCALL_GetMousePos, (U32)Point); }
 
 /***************************************************************************/
 
-U32 GetMouseButtons() {
-    return (U32)exoscall(SYSCALL_GetMouseButtons, 0);
-}
+U32 GetMouseButtons() { return (U32)exoscall(SYSCALL_GetMouseButtons, 0); }
 
 /***************************************************************************/
 
@@ -425,8 +401,6 @@ HANDLE CaptureMouse(HANDLE Window) {
 
 /***************************************************************************/
 
-BOOL ReleaseMouse() {
-    return FALSE;
-}
+BOOL ReleaseMouse() { return FALSE; }
 
 /***************************************************************************/

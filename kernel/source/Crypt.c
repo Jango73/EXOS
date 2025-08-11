@@ -14,8 +14,8 @@
 /***************************************************************************/
 
 /* Reflected polynomial for CRC-32 (IEEE 802.3) */
-#define CRC32_POLY      ((U32)0xEDB88320u)
-#define CRC32_INIT      ((U32)0xFFFFFFFFu)
+#define CRC32_POLY ((U32)0xEDB88320u)
+#define CRC32_INIT ((U32)0xFFFFFFFFu)
 #define CRC32_FINAL_XOR ((U32)0xFFFFFFFFu)
 
 /***************************************************************************/

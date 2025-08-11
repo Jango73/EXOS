@@ -59,8 +59,7 @@ typedef struct tag_EDITCONTEXT {
 LPEDITLINE NewEditLine(I32 Size) {
     LPEDITLINE This = (LPEDITLINE)HeapAlloc(sizeof(EDITLINE));
 
-    if (This == NULL)
-        return NULL;
+    if (This == NULL) return NULL;
 
     This->Next = NULL;
     This->Prev = NULL;
@@ -361,9 +360,7 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
                 NextLine = ListGetItem(File->Lines, LineY + 1);
                 if (NextLine == NULL) return;
                 FillToCursor(File, Line);
-                if (CheckLineSize(Line, Line->NumChars + NextLine->NumChars) ==
-                    FALSE)
-                    return;
+                if (CheckLineSize(Line, Line->NumChars + NextLine->NumChars) == FALSE) return;
                 for (Index = 0; Index < NextLine->NumChars; Index++) {
                     Line->Chars[Line->NumChars++] = NextLine->Chars[Index];
                 }
@@ -570,17 +567,12 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                                 if (Line) {
                                     for (Index = 0; Index < LineSize; Index++) {
                                         if (LineStart[Index] == STR_TAB) {
-                                            Line->Chars[Line->NumChars++] =
-                                                STR_SPACE;
-                                            Line->Chars[Line->NumChars++] =
-                                                STR_SPACE;
-                                            Line->Chars[Line->NumChars++] =
-                                                STR_SPACE;
-                                            Line->Chars[Line->NumChars++] =
-                                                STR_SPACE;
+                                            Line->Chars[Line->NumChars++] = STR_SPACE;
+                                            Line->Chars[Line->NumChars++] = STR_SPACE;
+                                            Line->Chars[Line->NumChars++] = STR_SPACE;
+                                            Line->Chars[Line->NumChars++] = STR_SPACE;
                                         } else {
-                                            Line->Chars[Line->NumChars++] =
-                                                LineStart[Index];
+                                            Line->Chars[Line->NumChars++] = LineStart[Index];
                                         }
                                     }
                                     ListAddItem(File->Lines, Line);

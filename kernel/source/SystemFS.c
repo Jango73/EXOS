@@ -29,8 +29,7 @@ DRIVER SystemFSDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Virtual Computer File System",
-    .Command = SystemFSCommands
-};
+    .Command = SystemFSCommands};
 
 /***************************************************************************/
 
@@ -69,17 +68,15 @@ static LPSYSFSFILESYSTEM NewSystemFSFileSystem() {
     if (This == NULL) return NULL;
 
     *This = (SYSFSFILESYSTEM){
-        .Header = {
-            .ID = ID_FILESYSTEM,
-            .References = 1,
-            .Next = NULL,
-            .Prev = NULL,
-            .Mutex = EMPTY_MUTEX,
-            .Driver = &SystemFSDriver,
-            .Name = "System"
-        },
-        .Root = NewSystemFileRoot()
-    };
+        .Header =
+            {.ID = ID_FILESYSTEM,
+             .References = 1,
+             .Next = NULL,
+             .Prev = NULL,
+             .Mutex = EMPTY_MUTEX,
+             .Driver = &SystemFSDriver,
+             .Name = "System"},
+        .Root = NewSystemFileRoot()};
 
     InitMutex(&(This->Header.Mutex));
 

@@ -18,8 +18,7 @@
 
 /***************************************************************************/
 
-#define CHARATTR \
-    (Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07))
+#define CHARATTR (Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07))
 
 #define CGA_REGISTER 0x00
 #define CGA_DATA 0x01
@@ -35,8 +34,7 @@ ConsoleStruct Console = {
     .ForeColor = 0,
     .Blink = 0,
     .Port = 0x03D4,
-    .Memory = (LPVOID)0xB8000
-};
+    .Memory = (LPVOID)0xB8000};
 
 /***************************************************************************/
 
@@ -188,8 +186,7 @@ static void ConsolePrintString(LPCSTR Text) {
 
 /***************************************************************************/
 
-static void VarConsolePrintNumber(I32 Number, I32 Base, I32 FieldWidth,
-                                 I32 Precision, I32 Flags) {
+static void VarConsolePrintNumber(I32 Number, I32 Base, I32 FieldWidth, I32 Precision, I32 Flags) {
     STR Text[128];
     NumberToString(Text, Number, Base, FieldWidth, Precision, Flags);
     ConsolePrintString(Text);
@@ -302,8 +299,7 @@ static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
                     Flags |= PF_ZEROPAD;
                     Flags |= PF_LARGE;
                 }
-                VarConsolePrintNumber((U32)VarArg(Args, LPVOID), 16, FieldWidth,
-                                     Precision, Flags);
+                VarConsolePrintNumber((U32)VarArg(Args, LPVOID), 16, FieldWidth, Precision, Flags);
                 continue;
 
                 /*
@@ -380,7 +376,9 @@ BOOL ConsolePrint(LPCSTR Format, ...) {
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
+    VarArgStart(Args, Format);
     VarConsolePrint(Format, Args);
+    VarArgEnd(Args);
 
     UnlockMutex(MUTEX_CONSOLE);
 

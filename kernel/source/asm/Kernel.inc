@@ -109,9 +109,9 @@ PGL_SIZE     equ PAGE_TABLE_SIZE ; Low Memory Page Table size
 PGH_SIZE     equ PAGE_TABLE_SIZE ; High Memory Page Table size
 TSS_SIZE     equ N_32KB ; Task State Segment Size
 PPB_SIZE     equ N_128KB ; Physical Page Bitmap Size
-KER_SIZE     equ (N_4KB * 33) ; Kernel image size (padded)
-BSS_SIZE 	 equ N_4KB ; Kernel BSS Size
-STK_SIZE 	 equ N_32KB ; Kernel Stack Size
+KER_SIZE     equ (N_4KB * 34) ; Kernel image size (padded)
+BSS_SIZE     equ N_4KB ; Kernel BSS Size
+STK_SIZE     equ N_32KB ; Kernel Stack Size
 
 SYS_SIZE     equ (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE)
 
@@ -127,13 +127,13 @@ PA_PGH       equ (PA_PGL + PGL_SIZE) ; Physical address of High Memory Page Tabl
 PA_TSS       equ (PA_PGH + PGH_SIZE) ; Physical address of Task State Segment
 PA_PPB       equ (PA_TSS + TSS_SIZE) ; Physical address of Physical Page Bitmap
 PA_KER       equ (PA_PPB + PPB_SIZE) ; Physical address of Kernel code and data size (estimated)
-PA_BSS		 equ (PA_KER + KER_SIZE) ; Physical address of Kernel Stack
-PA_STK		 equ (PA_BSS + BSS_SIZE) ; Physical address of Kernel BSS
+PA_BSS       equ (PA_KER + KER_SIZE) ; Physical address of Kernel Stack
+PA_STK       equ (PA_BSS + BSS_SIZE) ; Physical address of Kernel BSS
 
 PA_SYSTEM    equ PA_IDT
 
 LA_USER      equ 0x00400000
-LA_LIBRARY 	 equ 0xA0000000
+LA_LIBRARY   equ 0xA0000000
 LA_KERNEL    equ 0xC0000000
 LA_SYSTEM    equ 0xFF400000
 LA_DIRECTORY equ 0xFF800000

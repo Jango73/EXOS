@@ -128,8 +128,7 @@ U32 OnButtonMouseMove(HANDLE Window, U32 Param1, U32 Param2) {
     Mouse.X = SIGNED(Param1);
     Mouse.Y = SIGNED(Param2);
 
-    if (Mouse.X >= 0 && Mouse.Y >= 0 && Mouse.X <= Size.X &&
-        Mouse.Y <= Size.Y) {
+    if (Mouse.X >= 0 && Mouse.Y >= 0 && Mouse.X <= Size.X && Mouse.Y <= Size.Y) {
         if (!GetWindowProp(Window, Prop_Over)) {
             InvalidateWindowRect(Window, NULL);
             SetWindowProp(Window, Prop_Over, 1);
@@ -276,8 +275,7 @@ U32 DesktopTask(LPVOID Param) {
             MousePos.X = NewMousePos.X;
             MousePos.Y = NewMousePos.Y;
 
-            SendMessage(Window, EWM_MOUSEMOVE, UNSIGNED(MousePos.X),
-                        UNSIGNED(MousePos.Y));
+            SendMessage(Window, EWM_MOUSEMOVE, UNSIGNED(MousePos.X), UNSIGNED(MousePos.Y));
         }
 
         NewMouseButtons = GetMouseButtons();
@@ -356,10 +354,8 @@ BOOL InitApplication() {
 
     if (MainWindow == NULL) return FALSE;
 
-    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 60, 80,
-                 20);
-    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 30, 80,
-                 20);
+    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 60, 80, 20);
+    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 30, 80, 20);
 
     ShowWindow(MainWindow);
 

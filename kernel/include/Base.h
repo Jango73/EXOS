@@ -93,14 +93,17 @@ typedef U32 BOOL;
 
 #define UNUSED(x) (void)(x)
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
-// Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory clobber.
-#define SLEEPING_BEAUTY \
-    do { \
-        __asm__ __volatile__ ( \
-            "1:\n\t" \
-            "hlt\n\t" \
-            "jmp 1b\n\t" \
-            : : : "memory"); \
+// Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
+// clobber.
+#define SLEEPING_BEAUTY       \
+    do {                      \
+        __asm__ __volatile__( \
+            "1:\n\t"          \
+            "hlt\n\t"         \
+            "jmp 1b\n\t"      \
+            :                 \
+            :                 \
+            : "memory");      \
     } while (0)
 
 /***************************************************************************/
@@ -299,8 +302,7 @@ typedef U32 HANDLE;
 
 /***************************************************************************/
 
-#define MAKE_VERSION(maj, min) \
-    ((U32)(((((U32)maj) & 0xFFFF) << 16) | (((U32)min) & 0xFFFF)))
+#define MAKE_VERSION(maj, min) ((U32)(((((U32)maj) & 0xFFFF) << 16) | (((U32)min) & 0xFFFF)))
 
 #define UNSIGNED(val) *((U32*)(&(val)))
 #define SIGNED(val) *((I32*)(&(val)))
@@ -310,13 +312,11 @@ typedef U32 HANDLE;
 
 typedef U32 COLOR;
 
-#define MAKERGB(r, g, b)                                         \
-    ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | \
-     (((COLOR)b & 0xFF) << 0x10))
+#define MAKERGB(r, g, b) ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | (((COLOR)b & 0xFF) << 0x10))
 
-#define MAKERGBA(r, g, b, a)                                     \
-    ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | \
-     (((COLOR)b & 0xFF) << 0x10) | (((COLOR)a & 0xFF) << 0x18))
+#define MAKERGBA(r, g, b, a)                                                                   \
+    ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | (((COLOR)b & 0xFF) << 0x10) | \
+     (((COLOR)a & 0xFF) << 0x18))
 
 #define SETRED(c, r) (((COLOR)c & 0xFFFFFF00) | ((COLOR)r << 0x00))
 #define SETGREEN(c, g) (((COLOR)c & 0xFFFF00FF) | ((COLOR)g << 0x08))

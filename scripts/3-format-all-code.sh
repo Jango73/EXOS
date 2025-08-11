@@ -1,1 +1,1 @@
-fdfind -e c -e h -E VGAModes.c -x clang-format -i
+find . -type f \( -name "*.c" -o -name "*.h" \) ! -name "VGAModes.c" -exec clang-format -i {} +

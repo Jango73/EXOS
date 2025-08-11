@@ -162,12 +162,7 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
 /***************************************************************************/
 
 static BOOL ShowPrompt(LPSHELLCONTEXT Context) {
-    KernelLogText(LOG_DEBUG, TEXT("[ShowPrompt] Enter"));
-
-    ConsolePrint(TEXT("\n%s:/%s>"), Context->CurrentVolume,
-                Context->CurrentFolder);
-
-    KernelLogText(LOG_DEBUG, TEXT("[ShowPrompt] Prompt printed"));
+    ConsolePrint(TEXT("\n%s:/%s>"), Context->CurrentVolume, Context->CurrentFolder);
     return TRUE;
 }
 
@@ -390,9 +385,9 @@ static void ListFile(LPFILE File) {
         ConsolePrint(TEXT("%12d"), File->SizeLow);
     }
 
-    ConsolePrint(TEXT(" %02d-%02d-%04d %02d:%02d "), File->Creation.Day,
-                File->Creation.Month, File->Creation.Year, File->Creation.Hour,
-                File->Creation.Minute);
+    ConsolePrint(
+        TEXT(" %02d-%02d-%04d %02d:%02d "), File->Creation.Day, File->Creation.Month, File->Creation.Year,
+        File->Creation.Hour, File->Creation.Minute);
 
     // Print attributes
 
@@ -420,8 +415,7 @@ static void CMD_commands(LPSHELLCONTEXT Context) {
     U32 Index;
 
     for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-        ConsolePrint(TEXT("%s %s\n"), COMMANDS[Index].Name,
-                    COMMANDS[Index].Usage);
+        ConsolePrint(TEXT("%s %s\n"), COMMANDS[Index].Name, COMMANDS[Index].Usage);
     }
 }
 
@@ -447,8 +441,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
 
         if (StringLength(Context->Command) == 0) break;
 
-        if (Context->Command[0] == STR_SLASH ||
-            Context->Command[0] == STR_MINUS) {
+        if (Context->Command[0] == STR_SLASH || Context->Command[0] == STR_MINUS) {
             switch (Context->Command[1]) {
                 case 'p':
                 case 'P':
@@ -487,8 +480,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
 
     if (File) {
         ListFile(File);
-        while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) ==
-               DF_ERROR_SUCCESS) {
+        while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS) {
             ListFile(File);
             if (Pause) {
                 NumListed++;
@@ -547,37 +539,24 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Size = sizeof Info;
     DoSystemCall(SYSCALL_GetSystemInfo, (U32)&Info);
 
-    ConsolePrint((LPCSTR) "Total physical memory     : %d KB\n",
-                Info.TotalPhysicalMemory / 1024);
-    ConsolePrint((LPCSTR) "Physical memory used      : %d KB\n",
-                Info.PhysicalMemoryUsed / 1024);
-    ConsolePrint((LPCSTR) "Physical memory available : %d KB\n",
-                Info.PhysicalMemoryAvail / 1024);
-    ConsolePrint((LPCSTR) "Total swap memory         : %d KB\n",
-                Info.TotalSwapMemory / 1024);
-    ConsolePrint((LPCSTR) "Swap memory used          : %d KB\n",
-                Info.SwapMemoryUsed / 1024);
-    ConsolePrint((LPCSTR) "Swap memory available     : %d KB\n",
-                Info.SwapMemoryAvail / 1024);
-    ConsolePrint((LPCSTR) "Total memory available    : %d KB\n",
-                Info.TotalMemoryAvail / 1024);
-    ConsolePrint((LPCSTR) "Processor page size       : %d Bytes\n",
-                Info.PageSize);
-    ConsolePrint((LPCSTR) "Total physical pages      : %d Pages\n",
-                Info.TotalPhysicalPages);
-    ConsolePrint((LPCSTR) "Minimum linear address    : %08X\n",
-                Info.MinimumLinearAddress);
-    ConsolePrint((LPCSTR) "Maximum linear address    : %08X\n",
-                Info.MaximumLinearAddress);
+    ConsolePrint((LPCSTR) "Total physical memory     : %d KB\n", Info.TotalPhysicalMemory / 1024);
+    ConsolePrint((LPCSTR) "Physical memory used      : %d KB\n", Info.PhysicalMemoryUsed / 1024);
+    ConsolePrint((LPCSTR) "Physical memory available : %d KB\n", Info.PhysicalMemoryAvail / 1024);
+    ConsolePrint((LPCSTR) "Total swap memory         : %d KB\n", Info.TotalSwapMemory / 1024);
+    ConsolePrint((LPCSTR) "Swap memory used          : %d KB\n", Info.SwapMemoryUsed / 1024);
+    ConsolePrint((LPCSTR) "Swap memory available     : %d KB\n", Info.SwapMemoryAvail / 1024);
+    ConsolePrint((LPCSTR) "Total memory available    : %d KB\n", Info.TotalMemoryAvail / 1024);
+    ConsolePrint((LPCSTR) "Processor page size       : %d Bytes\n", Info.PageSize);
+    ConsolePrint((LPCSTR) "Total physical pages      : %d Pages\n", Info.TotalPhysicalPages);
+    ConsolePrint((LPCSTR) "Minimum linear address    : %08X\n", Info.MinimumLinearAddress);
+    ConsolePrint((LPCSTR) "Maximum linear address    : %08X\n", Info.MaximumLinearAddress);
     ConsolePrint((LPCSTR) "User name                 : %s\n", Info.UserName);
     ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
     ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
     ConsolePrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
     ConsolePrint((LPCSTR) "Stub address              : %p\n", StubAddress);
-    ConsolePrint((LPCSTR) "Loader SS                 : %04X\n",
-                KernelStartup.Loader_SS);
-    ConsolePrint((LPCSTR) "Loader SP                 : %04X\n",
-                KernelStartup.Loader_SP);
+    ConsolePrint((LPCSTR) "Loader SS                 : %04X\n", KernelStartup.Loader_SS);
+    ConsolePrint((LPCSTR) "Loader SP                 : %04X\n", KernelStartup.Loader_SP);
 }
 
 /***************************************************************************/
@@ -647,8 +626,7 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
                         FileOperation.NumBytes = FileSize;
                         FileOperation.Buffer = Buffer;
 
-                        if (DoSystemCall(SYSCALL_ReadFile,
-                                         (U32)&FileOperation)) {
+                        if (DoSystemCall(SYSCALL_ReadFile, (U32)&FileOperation)) {
                             Buffer[FileSize] = STR_NULL;
                             ConsolePrint((LPSTR)Buffer);
                         }
@@ -782,8 +760,7 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
 
         ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
         ConsolePrint(TEXT("Designer     : %s\n"), FileSystem->Driver->Designer);
-        ConsolePrint(TEXT("Manufacturer : %s\n"),
-                    FileSystem->Driver->Manufacturer);
+        ConsolePrint(TEXT("Manufacturer : %s\n"), FileSystem->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), FileSystem->Driver->Product);
         ConsolePrint(TEXT("\n"));
     }
@@ -804,8 +781,10 @@ static void CMD_irq(LPSHELLCONTEXT Context) {
 
 static void CMD_outp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
-    ParseNextComponent(Context); Port = StringToU32(Context->Command);
-    ParseNextComponent(Context); Data = StringToU32(Context->Command);
+    ParseNextComponent(Context);
+    Port = StringToU32(Context->Command);
+    ParseNextComponent(Context);
+    Data = StringToU32(Context->Command);
     OutPortByte(Port, Data);
 }
 
@@ -813,7 +792,8 @@ static void CMD_outp(LPSHELLCONTEXT Context) {
 
 static void CMD_inp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
-    ParseNextComponent(Context); Port = StringToU32(Context->Command);
+    ParseNextComponent(Context);
+    Port = StringToU32(Context->Command);
     Data = InPortByte(Port);
     ConsolePrint(TEXT("Port %04X = %02X\n"), Port, Data);
 }
@@ -853,6 +833,8 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Context->CommandLine cleared"));
 
     ConsoleGetString(Context->CommandLine, sizeof Context->CommandLine);
+
+    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Got a string"));
 
     // RotateBuffers(Context);
 

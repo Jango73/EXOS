@@ -52,9 +52,7 @@ void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR This, U32 Limit) {
 
 /***************************************************************************/
 
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) {
-    SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base);
-}
+void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) { SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base); }
 
 /***************************************************************************/
 

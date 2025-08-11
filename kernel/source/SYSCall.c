@@ -44,8 +44,7 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
         Info->TotalSwapMemory = 0;
         Info->SwapMemoryUsed = 0;
         Info->SwapMemoryAvail = 0;
-        Info->TotalMemoryAvail =
-            Info->TotalPhysicalMemory + Info->TotalSwapMemory;
+        Info->TotalMemoryAvail = Info->TotalPhysicalMemory + Info->TotalSwapMemory;
         Info->PageSize = PAGE_SIZE;
         Info->TotalPhysicalPages = Pages;
         Info->MinimumLinearAddress = LA_USER;
@@ -146,9 +145,7 @@ U32 SysCall_CreateTask(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_KillTask(U32 Parameter) {
-    return (U32)KillTask((LPTASK)Parameter);
-}
+U32 SysCall_KillTask(U32 Parameter) { return (U32)KillTask((LPTASK)Parameter); }
 
 /***************************************************************************/
 
@@ -178,8 +175,7 @@ U32 SysCall_PostMessage(U32 Parameter) {
 
     if (Message == NULL) return 0;
 
-    return (U32)PostMessage(Message->Target, Message->Message, Message->Param1,
-                            Message->Param2);
+    return (U32)PostMessage(Message->Target, Message->Message, Message->Param1, Message->Param2);
 }
 
 /***************************************************************************/
@@ -189,8 +185,7 @@ U32 SysCall_SendMessage(U32 Parameter) {
 
     if (Message == NULL) return 0;
 
-    return (U32)SendMessage(Message->Target, Message->Message, Message->Param1,
-                            Message->Param2);
+    return (U32)SendMessage(Message->Target, Message->Message, Message->Param1, Message->Param2);
 }
 
 /***************************************************************************/
@@ -278,9 +273,7 @@ U32 SysCall_VirtualFree(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_GetProcessHeap(U32 Parameter) {
-    return (U32)GetProcessHeap((LPPROCESS)Parameter);
-}
+U32 SysCall_GetProcessHeap(U32 Parameter) { return (U32)GetProcessHeap((LPPROCESS)Parameter); }
 
 /***************************************************************************/
 
@@ -340,27 +333,19 @@ U32 SysCall_GetVolumeInfo(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_OpenFile(U32 Parameter) {
-    return (U32)OpenFile((LPFILEOPENINFO)Parameter);
-}
+U32 SysCall_OpenFile(U32 Parameter) { return (U32)OpenFile((LPFILEOPENINFO)Parameter); }
 
 /***************************************************************************/
 
-U32 SysCall_ReadFile(U32 Parameter) {
-    return ReadFile((LPFILEOPERATION)Parameter);
-}
+U32 SysCall_ReadFile(U32 Parameter) { return ReadFile((LPFILEOPERATION)Parameter); }
 
 /***************************************************************************/
 
-U32 SysCall_WriteFile(U32 Parameter) {
-    return WriteFile((LPFILEOPERATION)Parameter);
-}
+U32 SysCall_WriteFile(U32 Parameter) { return WriteFile((LPFILEOPERATION)Parameter); }
 
 /***************************************************************************/
 
-U32 SysCall_GetFileSize(U32 Parameter) {
-    return GetFileSize((LPFILE)Parameter);
-}
+U32 SysCall_GetFileSize(U32 Parameter) { return GetFileSize((LPFILE)Parameter); }
 
 /***************************************************************************/
 
@@ -385,9 +370,7 @@ U32 SysCall_ConsolePeekKey(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_ConsoleGetKey(U32 Parameter) {
-    return (U32)GetKeyCode((LPKEYCODE)Parameter);
-}
+U32 SysCall_ConsoleGetKey(U32 Parameter) { return (U32)GetKeyCode((LPKEYCODE)Parameter); }
 
 /***************************************************************************/
 
@@ -573,9 +556,7 @@ U32 SysCall_InvalidateWindowRect(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_GetWindowGC(U32 Parameter) {
-    return (U32)GetWindowGC((HANDLE)Parameter);
-}
+U32 SysCall_GetWindowGC(U32 Parameter) { return (U32)GetWindowGC((HANDLE)Parameter); }
 
 /***************************************************************************/
 
@@ -598,15 +579,12 @@ U32 SysCall_DefWindowFunc(U32 Parameter) {
 
     if (Message == NULL) return 0;
 
-    return (U32)DefWindowFunc(Message->Target, Message->Message,
-                              Message->Param1, Message->Param2);
+    return (U32)DefWindowFunc(Message->Target, Message->Message, Message->Param1, Message->Param2);
 }
 
 /***************************************************************************/
 
-U32 SysCall_GetSystemBrush(U32 Parameter) {
-    return (U32)GetSystemBrush(Parameter);
-}
+U32 SysCall_GetSystemBrush(U32 Parameter) { return (U32)GetSystemBrush(Parameter); }
 
 /***************************************************************************/
 

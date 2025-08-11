@@ -57,8 +57,7 @@ U32 StringToU32(LPCSTR);
 
 /***************************************************************************/
 
-LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision,
-                     I32 Type);
+LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, I32 Type);
 
 /***************************************************************************/
 

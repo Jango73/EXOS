@@ -165,7 +165,8 @@ PHYSICAL AllocPhysicalPage() {
                 if ((Value & Mask) == 0 && Page < Pages) {
                     PPB[Index] |= Mask;
                     Pointer = Page << PAGE_SIZE_MUL;
-                    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Found : %X"), Pointer);
+                    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Found
+                    // : %X"), Pointer);
                     goto Out;
                 }
                 Page++;
@@ -182,15 +183,11 @@ Out:
 
 /***************************************************************************/
 
-static inline U32 GetDirectoryEntry(LINEAR Address) {
-    return Address >> PAGE_TABLE_CAPACITY_MUL;
-}
+static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TABLE_CAPACITY_MUL; }
 
 /***************************************************************************/
 
-static inline U32 GetTableEntry(LINEAR Address) {
-    return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL;
-}
+static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
 
 /***************************************************************************/
 
@@ -275,7 +272,9 @@ PHYSICAL AllocPageDirectory() {
         SetPhysicalPageMark(PA_Directory >> PAGE_SIZE_MUL, 0);
         SetPhysicalPageMark(PA_SysTable >> PAGE_SIZE_MUL, 0);
 
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] PA_Directory is null or PA_SysTable is null"));
+        KernelLogText(
+            LOG_ERROR, TEXT("[AllocPageDirectory] PA_Directory is "
+                            "null or PA_SysTable is null"));
         goto Out;
     }
 
@@ -601,7 +600,7 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
 
     KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Enter"));
 
-    Directory = (LPPAGEDIRECTORY) LA_DIRECTORY;
+    Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
     NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
     Privilege = PAGE_PRIVILEGE_USER;
@@ -625,7 +624,9 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
     if (Base == MAX_U32) {
         Base = FindFreeRegion(Size);
         if (Base == NULL) {
-            KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] No free region found with unspecified base"));
+            KernelLogText(
+                LOG_DEBUG, TEXT("[VirtualAlloc] No free region found "
+                                "with unspecified base"));
             goto Out;
         }
     }

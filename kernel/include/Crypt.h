@@ -26,7 +26,7 @@ BOOL CheckPassword(LPCSTR, LPCSTR);
 /***************************************************************************/
 
 typedef struct _CRC32_CTX {
-  U32 State;  /* running CRC (already includes init/final-xor handling) */
+    U32 State; /* running CRC (already includes init/final-xor handling) */
 } CRC32_CTX, *LPCRC32_CTX;
 
 /* Streaming API */

@@ -9,6 +9,7 @@
 
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 // Temporary
 
@@ -32,8 +33,7 @@ DRIVER RAMDiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "RAM Disk Controller",
-    .Command = RAMDiskCommands
-};
+    .Command = RAMDiskCommands};
 
 /***************************************************************************/
 // RAM physical disk, derives from PHYSICALDISK
@@ -339,7 +339,8 @@ static BOOL FormatRAMDisk_FAT32(LINEAR Base, U32 Size) {
     // Create some directories
 
     DirEntrySize =
-        CreateFATDirEntry(CurrentBase, TEXT("EXOS"), FAT_ATTR_FOLDER, ClusterEntry1);
+        CreateFATDirEntry(CurrentBase, TEXT("EXOS"), FAT_ATTR_FOLDER,
+ClusterEntry1);
 
     CurrentBase += DirEntrySize;
 
@@ -348,8 +349,8 @@ static BOOL FormatRAMDisk_FAT32(LINEAR Base, U32 Size) {
 
     CurrentBase += DirEntrySize;
 
-    DirEntrySize = CreateFATDirEntry(CurrentBase, TEXT("Boot.log"), FAT_ATTR_ARCHIVE,
-                                     ClusterEntry3);
+    DirEntrySize = CreateFATDirEntry(CurrentBase, TEXT("Boot.log"),
+FAT_ATTR_ARCHIVE, ClusterEntry3);
 
     //-------------------------------------
     // Create some subdirectories
@@ -360,17 +361,19 @@ static BOOL FormatRAMDisk_FAT32(LINEAR Base, U32 Size) {
     CurrentBase = Base + (CurrentSector * SECTOR_SIZE);
 
     DirEntrySize =
-        CreateFATDirEntry(CurrentBase, TEXT("Users"), FAT_ATTR_FOLDER, ClusterEntry4);
+        CreateFATDirEntry(CurrentBase, TEXT("Users"), FAT_ATTR_FOLDER,
+ClusterEntry4);
 
     CurrentBase += DirEntrySize;
 
-    DirEntrySize = CreateFATDirEntry(CurrentBase, TEXT("Libraries"), FAT_ATTR_FOLDER,
-                                     ClusterEntry5);
+    DirEntrySize = CreateFATDirEntry(CurrentBase, TEXT("Libraries"),
+FAT_ATTR_FOLDER, ClusterEntry5);
 
     CurrentBase += DirEntrySize;
 
     DirEntrySize =
-        CreateFATDirEntry(CurrentBase, TEXT("Temp"), FAT_ATTR_FOLDER, ClusterEntry6);
+        CreateFATDirEntry(CurrentBase, TEXT("Temp"), FAT_ATTR_FOLDER,
+ClusterEntry6);
 
     return TRUE;
 }
@@ -383,6 +386,8 @@ static U32 RAMDiskInitialize() {
     LPBOOTPARTITION Partition;
     LPRAMDISK Disk;
 
+    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Enter"));
+
     Disk = NewRAMDisk();
     if (Disk == NULL) return DF_ERROR_NOMEMORY;
 
@@ -394,10 +399,14 @@ static U32 RAMDiskInitialize() {
         return DF_ERROR_NOMEMORY;
     }
 
+    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Memory allocated"));
+
     //-------------------------------------
     // Purge the disk
 
     MemorySet((LPVOID)Disk->Base, 0, Disk->Size);
+
+    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Disk purged"));
 
     /*
       //-------------------------------------
@@ -441,8 +450,9 @@ static U32 RAMDiskInitialize() {
     Partition->EndCHS.Cylinder = 0;
     Partition->EndCHS.Sector = 0;
     Partition->LBA = 2;
-    Partition->Size =
-        (Disk->Size - (Partition->LBA * SECTOR_SIZE)) / SECTOR_SIZE;
+    Partition->Size = (Disk->Size - (Partition->LBA * SECTOR_SIZE)) / SECTOR_SIZE;
+
+    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Partition created"));
 
     //-------------------------------------
     // Create an XFS partition
@@ -457,6 +467,8 @@ static U32 RAMDiskInitialize() {
     StringCopy(Create.VolumeName, TEXT("RamDisk"));
 
     XFSDriver.Command(DF_FS_CREATEPARTITION, (U32)&Create);
+
+    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Partition formated in XFS"));
 
     //-------------------------------------
 
@@ -493,9 +505,8 @@ static U32 Read(LPIOCONTROL Control) {
     //-------------------------------------
     // Copy the sectors to the user's buffer
 
-    MemoryCopy(Control->Buffer,
-               (LPVOID)(Disk->Base + (Control->SectorLow * SECTOR_SIZE)),
-               Control->NumSectors * SECTOR_SIZE);
+    MemoryCopy(
+        Control->Buffer, (LPVOID)(Disk->Base + (Control->SectorLow * SECTOR_SIZE)), Control->NumSectors * SECTOR_SIZE);
 
     return DF_ERROR_SUCCESS;
 }
@@ -528,16 +539,15 @@ static U32 Write(LPIOCONTROL Control) {
     //-------------------------------------
     // Check if we are in the limits of the disk
 
-    if (((Control->SectorLow * SECTOR_SIZE) +
-         (Control->NumSectors * SECTOR_SIZE)) >= Disk->Size) {
+    if (((Control->SectorLow * SECTOR_SIZE) + (Control->NumSectors * SECTOR_SIZE)) >= Disk->Size) {
         return DF_ERROR_BADPARAM;
     }
 
     //-------------------------------------
     // Copy the user's buffer to the disk
 
-    MemoryCopy((LPVOID)(Disk->Base + (Control->SectorLow * SECTOR_SIZE)),
-               Control->Buffer, Control->NumSectors * SECTOR_SIZE);
+    MemoryCopy(
+        (LPVOID)(Disk->Base + (Control->SectorLow * SECTOR_SIZE)), Control->Buffer, Control->NumSectors * SECTOR_SIZE);
 
     return DF_ERROR_SUCCESS;
 }

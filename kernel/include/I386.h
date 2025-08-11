@@ -130,12 +130,12 @@ typedef struct tag_PAGETABLE {
 // The segment descriptor
 
 typedef struct tag_SEGMENTDESCRIPTOR {
-    U32 Limit_00_15 : 16;  // Bits 0-15 of segment limit
-    U32 Base_00_15 : 16;   // Bits 0-15 of segment base
-    U32 Base_16_23 : 8;    // Bits 16-23 of segment base
-    U32 Accessed : 1;  // Segment has been accessed since OS cleared this flag
-    U32 CanWrite : 1;  // Read-only for data segments, Exec-Only for code
-                       // segments
+    U32 Limit_00_15 : 16;   // Bits 0-15 of segment limit
+    U32 Base_00_15 : 16;    // Bits 0-15 of segment base
+    U32 Base_16_23 : 8;     // Bits 16-23 of segment base
+    U32 Accessed : 1;       // Segment has been accessed since OS cleared this flag
+    U32 CanWrite : 1;       // Read-only for data segments, Exec-Only for code
+                            // segments
     U32 ConformExpand : 1;  // Conforming for code segments, expand-down for
                             // data segments
     U32 Type : 1;           // Data = 0, code = 1
@@ -280,16 +280,14 @@ typedef struct tag_TASKSTATESEGMENT {
 
 /***************************************************************************/
 
-#define SEGMENTBASE(PSD)                                      \
-    (NULL32 | ((((U32)(PSD)->Base_00_15) & 0xFFFF) << 0x00) | \
-     ((((U32)(PSD)->Base_16_23) & 0x00FF) << 0x10) |          \
+#define SEGMENTBASE(PSD)                                                                                      \
+    (NULL32 | ((((U32)(PSD)->Base_00_15) & 0xFFFF) << 0x00) | ((((U32)(PSD)->Base_16_23) & 0x00FF) << 0x10) | \
      ((((U32)(PSD)->Base_24_31) & 0x00FF) << 0x18))
 
 #define SEGMENTGRANULAR(PSD) (((PSD)->Granularity == 0x00) ? N_1B : N_4KB)
 
-#define SEGMENTLIMIT(PSD)                                      \
-    (NULL32 | ((((U32)(PSD)->Limit_00_15) & 0xFFFF) << 0x00) | \
-     ((((U32)(PSD)->Limit_16_19) & 0x000F) << 0x10))
+#define SEGMENTLIMIT(PSD) \
+    (NULL32 | ((((U32)(PSD)->Limit_00_15) & 0xFFFF) << 0x00) | ((((U32)(PSD)->Limit_16_19) & 0x000F) << 0x10))
 
 /***************************************************************************/
 
@@ -350,24 +348,22 @@ typedef struct tag_FARPOINTER {
 
 // Processor features
 
-#define INTEL_CPU_FEAT_FPU 0x00000001  // Floating-Point Unit on Chip
-#define INTEL_CPU_FEAT_VME 0x00000002  // Virtual-8086 Mode Enhancements
-#define INTEL_CPU_FEAT_DE 0x00000004   // Debugging Extensions
-#define INTEL_CPU_FEAT_PSE 0x00000008  // Page Size Extensions
-#define INTEL_CPU_FEAT_TSC 0x00000010  // Time Stamp Counter
-#define INTEL_CPU_FEAT_MSR 0x00000020  // Model Specific Registers
-#define INTEL_CPU_FEAT_PAE 0x00000040  // Physical Address Extension
-#define INTEL_CPU_FEAT_MCE 0x00000080  // Machine Check Exception
-#define INTEL_CPU_FEAT_CX8 0x00000100  // CMPXCHG8B Instruction
-#define INTEL_CPU_FEAT_APIC \
-    0x00000200  // Advanced Programmable Interrupt Controller
+#define INTEL_CPU_FEAT_FPU 0x00000001   // Floating-Point Unit on Chip
+#define INTEL_CPU_FEAT_VME 0x00000002   // Virtual-8086 Mode Enhancements
+#define INTEL_CPU_FEAT_DE 0x00000004    // Debugging Extensions
+#define INTEL_CPU_FEAT_PSE 0x00000008   // Page Size Extensions
+#define INTEL_CPU_FEAT_TSC 0x00000010   // Time Stamp Counter
+#define INTEL_CPU_FEAT_MSR 0x00000020   // Model Specific Registers
+#define INTEL_CPU_FEAT_PAE 0x00000040   // Physical Address Extension
+#define INTEL_CPU_FEAT_MCE 0x00000080   // Machine Check Exception
+#define INTEL_CPU_FEAT_CX8 0x00000100   // CMPXCHG8B Instruction
+#define INTEL_CPU_FEAT_APIC 0x00000200  // Advanced Programmable Interrupt Controller
 #define INTEL_CPU_FEAT_RES1 0x00000400  // Reserved
 #define INTEL_CPU_FEAT_RES2 0x00000800  // Reserved
 #define INTEL_CPU_FEAT_MTRR 0x00001000  // Memory Type Range Registers
 #define INTEL_CPU_FEAT_PGE 0x00002000   //
 #define INTEL_CPU_FEAT_MCA 0x00004000   // Machine Check Architecture
-#define INTEL_CPU_FEAT_CMOV \
-    0x00008000  // Conditional Move and Compare Instructions
+#define INTEL_CPU_FEAT_CMOV 0x00008000  // Conditional Move and Compare Instructions
 #define INTEL_CPU_FEAT_RES3 0x00010000  // Reserved
 #define INTEL_CPU_FEAT_RES4 0x00020000  // Reserved
 #define INTEL_CPU_FEAT_RES5 0x00040000  // Reserved

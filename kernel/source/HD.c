@@ -19,17 +19,18 @@
 
 U32 StdHardDiskCommands(U32, U32);
 
-DRIVER StdHardDiskDriver = {ID_DRIVER,
-                            1,
-                            NULL,
-                            NULL,
-                            DRIVER_TYPE_HARDDISK,
-                            VER_MAJOR,
-                            VER_MINOR,
-                            "Jango73",
-                            "IBM PC and compatibles",
-                            "Standard Hard Disk Controller",
-                            StdHardDiskCommands};
+DRIVER StdHardDiskDriver = {
+    ID_DRIVER,
+    1,
+    NULL,
+    NULL,
+    DRIVER_TYPE_HARDDISK,
+    VER_MAJOR,
+    VER_MINOR,
+    "Jango73",
+    "IBM PC and compatibles",
+    "Standard Hard Disk Controller",
+    StdHardDiskCommands};
 
 /***************************************************************************/
 
@@ -93,8 +94,7 @@ static LPSTDHARDDISK NewStdHardDisk() {
 
 /***************************************************************************/
 
-void SectorToBlockParams(LPDISKGEOMETRY Geometry, U32 Sector,
-                         LPBLOCKPARAMS Block) {
+void SectorToBlockParams(LPDISKGEOMETRY Geometry, U32 Sector, LPBLOCKPARAMS Block) {
     U32 Temp1, Temp2;
 
     Block->Cylinder = 0;
@@ -199,8 +199,7 @@ static U32 HardDiskInitialize() {
                 Disk->IRQ = HD_IRQ;
                 Disk->Drive = Drive;
                 Disk->NumBuffers = NUM_BUFFERS;
-                Disk->Buffer =
-                    KernelMemAlloc(NUM_BUFFERS * sizeof(SECTORBUFFER));
+                Disk->Buffer = KernelMemAlloc(NUM_BUFFERS * sizeof(SECTORBUFFER));
 
                 //-------------------------------------
                 // Clear the buffers
@@ -294,8 +293,7 @@ static void ResetController(U32 Port) {
 
 /***************************************************************************/
 
-void DriveOut(U32 Port, U32 Drive, U32 Command, U8* Buffer, U32 Cylinder,
-              U32 Head, U32 Sector, U32 Count) {
+void DriveOut(U32 Port, U32 Drive, U32 Command, U8* Buffer, U32 Cylinder, U32 Head, U32 Sector, U32 Count) {
     U32 Flags;
 
     SaveFlags(&Flags);
@@ -406,8 +404,7 @@ static U32 Read(LPIOCONTROL Control) {
         Index = FindSectorInBuffers(Disk, Control->SectorLow + Current, 0);
 
         if (Index != MAX_U32) {
-            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE),
-                       Disk->Buffer[Index].Data, SECTOR_SIZE);
+            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Disk->Buffer[Index].Data, SECTOR_SIZE);
         } else {
             //-------------------------------------
             // Get a new buffer in which to read the sector
@@ -421,12 +418,11 @@ static U32 Read(LPIOCONTROL Control) {
 
             DisableIRQ(Disk->IRQ);
 
-            SectorToBlockParams(&(Disk->Geometry), Control->SectorLow + Current,
-                                &Params);
+            SectorToBlockParams(&(Disk->Geometry), Control->SectorLow + Current, &Params);
 
-            DriveOut(Disk->IOPort, Disk->Drive, HD_COMMAND_READ,
-                     Disk->Buffer[Index].Data, Params.Cylinder, Params.Head,
-                     Params.Sector, 1);
+            DriveOut(
+                Disk->IOPort, Disk->Drive, HD_COMMAND_READ, Disk->Buffer[Index].Data, Params.Cylinder, Params.Head,
+                Params.Sector, 1);
 
             EnableIRQ(Disk->IRQ);
 
@@ -440,8 +436,7 @@ static U32 Read(LPIOCONTROL Control) {
             //-------------------------------------
             // Copy the buffer to the user's buffer
 
-            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE),
-                       Disk->Buffer[Index].Data, SECTOR_SIZE);
+            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Disk->Buffer[Index].Data, SECTOR_SIZE);
         }
     }
 
@@ -503,8 +498,7 @@ static U32 GetInfo(LPDISKINFO Info) {
 
     Info->Type = DRIVER_TYPE_HARDDISK;
     Info->Removable = 0;
-    Info->NumSectors = Disk->Geometry.Cylinders * Disk->Geometry.Heads *
-                       Disk->Geometry.SectorsPerTrack;
+    Info->NumSectors = Disk->Geometry.Cylinders * Disk->Geometry.Heads * Disk->Geometry.SectorsPerTrack;
     Info->Access = Disk->Access;
 
     return DF_ERROR_SUCCESS;

@@ -59,21 +59,22 @@
 
 \***************************************************************************/
 
-#define LOW_SIZE N_1MB // Low Memory Area Size
-#define HMA_SIZE N_128KB // High Memory Area Size
-#define IDT_SIZE N_4KB // Interrupt Descriptor Table Size
-#define GDT_SIZE N_8KB // Kernel Global Descriptor Size
-#define PGD_SIZE PAGE_TABLE_SIZE // Kernel Page Directory Size
-#define PGS_SIZE PAGE_TABLE_SIZE // System Page Table Size
-#define PGK_SIZE PAGE_TABLE_SIZE // Kernel Page Table Size
-#define PGL_SIZE PAGE_TABLE_SIZE // Low Memory Page Table size
-#define PGH_SIZE PAGE_TABLE_SIZE // High Memory Page Table size
-#define TSS_SIZE N_32KB // Task State Segment Size
-#define PPB_SIZE N_128KB // Physical Page Bitmap Size
-#define KER_SIZE (N_4KB * 33) // Kernel image size (padded)
-#define BSS_SIZE N_4KB // Kernel BSS Size
-#define STK_SIZE N_32KB // Kernel Stack Size
-#define SYS_SIZE (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE)
+#define LOW_SIZE N_1MB            // Low Memory Area Size
+#define HMA_SIZE N_128KB          // High Memory Area Size
+#define IDT_SIZE N_4KB            // Interrupt Descriptor Table Size
+#define GDT_SIZE N_8KB            // Kernel Global Descriptor Size
+#define PGD_SIZE PAGE_TABLE_SIZE  // Kernel Page Directory Size
+#define PGS_SIZE PAGE_TABLE_SIZE  // System Page Table Size
+#define PGK_SIZE PAGE_TABLE_SIZE  // Kernel Page Table Size
+#define PGL_SIZE PAGE_TABLE_SIZE  // Low Memory Page Table size
+#define PGH_SIZE PAGE_TABLE_SIZE  // High Memory Page Table size
+#define TSS_SIZE N_32KB           // Task State Segment Size
+#define PPB_SIZE N_128KB          // Physical Page Bitmap Size
+#define KER_SIZE (N_4KB * 34)     // Kernel image size (padded)
+#define BSS_SIZE N_4KB            // Kernel BSS Size
+#define STK_SIZE N_32KB           // Kernel Stack Size
+#define SYS_SIZE \
+    (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE)
 
 #define SYS_SIZE_PAGES (SYS_SIZE >> PAGE_SIZE_MUL)
 

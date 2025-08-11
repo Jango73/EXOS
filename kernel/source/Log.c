@@ -7,8 +7,9 @@
 
 \***************************************************************************/
 
-#include "../include/Console.h"
 #include "../include/Log.h"
+
+#include "../include/Console.h"
 #include "../include/Process.h"
 #include "../include/SerialPort.h"
 #include "../include/String.h"
@@ -32,9 +33,7 @@ static INT SkipAToI(LPCSTR* s) {
 
 /***************************************************************************/
 
-static void KernelPrintChar(STR Char) {
-    SerialOut(Char);
-}
+static void KernelPrintChar(STR Char) { SerialOut(Char); }
 
 /***************************************************************************/
 
@@ -51,8 +50,7 @@ static void KernelPrintString(LPCSTR Text) {
 
 /***************************************************************************/
 
-static void VarKernelPrintNumber(I32 Number, I32 Base, I32 FieldWidth,
-                                 I32 Precision, I32 Flags) {
+static void VarKernelPrintNumber(I32 Number, I32 Base, I32 FieldWidth, I32 Precision, I32 Flags) {
     STR Text[128];
     NumberToString(Text, Number, Base, FieldWidth, Precision, Flags);
     KernelPrintString(Text);
@@ -165,8 +163,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
                     Flags |= PF_ZEROPAD;
                     Flags |= PF_LARGE;
                 }
-                VarKernelPrintNumber((U32)VarArg(Args, LPVOID), 16, FieldWidth,
-                                     Precision, Flags);
+                VarKernelPrintNumber((U32)VarArg(Args, LPVOID), 16, FieldWidth, Precision, Flags);
                 continue;
 
                 /*
@@ -293,14 +290,12 @@ static void KernelDumpLine(U32 Address, const U8* Data, U32 Count) {
 
     // Print 16 bytes as hex (2 groups of 8)
     for (U32 i = 0; i < 16; ++i) {
-        if (i == 8)
-            KernelPrint(TEXT(": "));
+        if (i == 8) KernelPrint(TEXT(": "));
         if (i < Count)
             KernelPrint(TEXT("%02X"), Data[i]);
         else
-            KernelPrint(TEXT("  ")); // pad missing bytes
-        if ((i & 1) == 1 && i != 7 && i != 15)
-            KernelPrint(TEXT(" "));
+            KernelPrint(TEXT("  "));  // pad missing bytes
+        if ((i & 1) == 1 && i != 7 && i != 15) KernelPrint(TEXT(" "));
     }
 
     // Print 3 spaces before ASCII
@@ -335,8 +330,7 @@ void KernelDump(LINEAR Address, U32 Size) {
 
     if (remain) {
         U8 buffer[16] = {0};
-        for (U32 j = 0; j < remain; ++j)
-            buffer[j] = ptr[lines * 16 + j];
+        for (U32 j = 0; j < remain; ++j) buffer[j] = ptr[lines * 16 + j];
         KernelDumpLine(Address + lines * 16, buffer, remain);
     }
 }

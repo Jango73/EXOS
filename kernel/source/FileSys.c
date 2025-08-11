@@ -39,8 +39,7 @@ BOOL GetDefaultFileSystemName(LPSTR Name) {
 
 /***************************************************************************/
 
-BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
-                             U32 Base) {
+BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
@@ -66,8 +65,7 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
 
 /***************************************************************************/
 
-BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
-                         U32 Base) {
+BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
@@ -103,15 +101,13 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
 
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
-                    KernelLogText(LOG_VERBOSE,
-                                  TEXT("Mounting FAT16 partition..."));
+                    KernelLogText(LOG_VERBOSE, TEXT("Mounting FAT16 partition..."));
                     MountPartition_FAT16(Disk, Partition + Index, Base);
                 } break;
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
-                    KernelLogText(LOG_VERBOSE,
-                                  TEXT("Mounting FAT32 partition..."));
+                    KernelLogText(LOG_VERBOSE, TEXT("Mounting FAT32 partition..."));
                     MountPartition_FAT32(Disk, Partition + Index, Base);
                 } break;
 
@@ -121,8 +117,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
                 } break;
 
                 default: {
-                    KernelLogText(LOG_VERBOSE, TEXT("Partition type %02X not implemented\n"),
-                                Partition[Index].Type);
+                    KernelLogText(LOG_VERBOSE, TEXT("Partition type %02X not implemented\n"), Partition[Index].Type);
                 } break;
             }
         }

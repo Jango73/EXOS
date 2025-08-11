@@ -11,6 +11,7 @@
 
 #include "../include/FileSys.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 /***************************************************************************/
 
@@ -19,10 +20,12 @@
 
 U32 XFSCommands(U32, U32);
 
-DRIVER XFSDriver = {
-    ID_DRIVER,  1,         NULL,      NULL,      DRIVER_TYPE_FILESYSTEM,
-    VER_MAJOR,  VER_MINOR, "Jango73", "Jango73", "XFS File System",
-    XFSCommands};
+DRIVER XFSDriver = {ID_DRIVER,  1,         NULL,      NULL,      DRIVER_TYPE_FILESYSTEM,
+                    VER_MAJOR,  VER_MINOR, "Jango73", "Jango73", "XFS File System",
+                    XFSCommands};
+
+
+U8 Dummy [128] = { 1, 1 };
 
 /***************************************************************************/
 // The file system object allocated when mounting
@@ -105,8 +108,7 @@ static LPXFSFILE NewXFSFile(LPXFSFILESYSTEM FileSystem, LPXFSFILELOC FileLoc) {
 
 /***************************************************************************/
 
-BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
-                        U32 Base) {
+BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
     IOCONTROL Control;
@@ -183,14 +185,11 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
 
     FileSystem->PartitionStart = Base + Partition->LBA;
     FileSystem->PartitionSize = Partition->Size;
-    FileSystem->BytesPerCluster =
-        FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
+    FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->PageBuffer =
-        (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->PageBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
-    FileSystem->IOBuffer =
-        (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the data
@@ -207,17 +206,14 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
 
 /***************************************************************************/
 
-static BOOL ReadCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster,
-                        LPVOID Buffer) {
+static BOOL ReadCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
     U32 Result;
 
-    Sector = FileSystem->DataStart +
-             (Cluster * FileSystem->Master.SectorsPerCluster);
+    Sector = FileSystem->DataStart + (Cluster * FileSystem->Master.SectorsPerCluster);
 
-    if (Sector < FileSystem->PartitionStart ||
-        Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
+    if (Sector < FileSystem->PartitionStart || Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
         return FALSE;
     }
 
@@ -271,11 +267,9 @@ static BOOL WriteCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster,
 
 /***************************************************************************/
 
-#define GET_PAGE_ENTRY() \
-    (*((U32*)(FileSystem->PageBuffer + FileLoc->PageOffset)))
+#define GET_PAGE_ENTRY() (*((U32*)(FileSystem->PageBuffer + FileLoc->PageOffset)))
 
-static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
-                       LPXFSFILELOC FileLoc) {
+static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC FileLoc) {
     LPLIST List = NULL;
     LPPATHNODE Component = NULL;
     LPXFSFILEREC FileRec;
@@ -289,8 +283,7 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
     //-------------------------------------
     // Read the root page
 
-    if (!ReadCluster(FileSystem, FileLoc->PageCluster,
-                     FileSystem->PageBuffer)) {
+    if (!ReadCluster(FileSystem, FileLoc->PageCluster, FileSystem->PageBuffer)) {
         return FALSE;
     }
 
@@ -312,22 +305,18 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
     //-------------------------------------
     // Loop through all components
 
-    for (Component = (LPPATHNODE)List->First; Component != NULL;
-         Component = (LPPATHNODE)Component->Next) {
+    for (Component = (LPPATHNODE)List->First; Component != NULL; Component = (LPPATHNODE)Component->Next) {
         //-------------------------------------
         // Loop through all directory entries
 
         while (1) {
-            FileRec =
-                (LPXFSFILEREC)(FileSystem->IOBuffer + FileLoc->FileOffset);
+            FileRec = (LPXFSFILEREC)(FileSystem->IOBuffer + FileLoc->FileOffset);
 
             if (FileRec->ClusterTable == XFS_CLUSTER_END) {
                 goto Out_Error;
             }
 
-            if (FileRec->ClusterTable > 0 &&
-                FileRec->ClusterTable != XFS_CLUSTER_END) {
-
+            if (FileRec->ClusterTable > 0 && FileRec->ClusterTable != XFS_CLUSTER_END) {
                 if (StringCompareNC(Component->Name, TEXT("*")) == 0 ||
                     StringCompareNC(Component->Name, FileRec->Name) == 0) {
                     if (Component->Next == NULL) {
@@ -340,17 +329,14 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
                             FileLoc->FileCluster = 0;
                             FileLoc->FileOffset = 0;
 
-                            if (ReadCluster(FileSystem, FileLoc->PageCluster,
-                                            FileSystem->PageBuffer) == FALSE)
+                            if (ReadCluster(FileSystem, FileLoc->PageCluster, FileSystem->PageBuffer) == FALSE)
                                 goto Out_Error;
 
                             FileLoc->FileCluster = GET_PAGE_ENTRY();
 
-                            if (FileLoc->FileCluster == XFS_CLUSTER_END)
-                                goto Out_Error;
+                            if (FileLoc->FileCluster == XFS_CLUSTER_END) goto Out_Error;
 
-                            if (ReadCluster(FileSystem, FileLoc->FileCluster,
-                                            FileSystem->IOBuffer) == FALSE)
+                            if (ReadCluster(FileSystem, FileLoc->FileCluster, FileSystem->IOBuffer) == FALSE)
                                 goto Out_Error;
 
                             goto NextComponent;
@@ -373,15 +359,13 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
                 // If we are at the last page entry, check if there is
                 // another page
 
-                if (FileLoc->PageOffset ==
-                    (FileSystem->BytesPerCluster - sizeof(U32))) {
+                if (FileLoc->PageOffset == (FileSystem->BytesPerCluster - sizeof(U32))) {
                     FileLoc->PageCluster = GET_PAGE_ENTRY();
                     FileLoc->PageOffset = 0;
 
                     if (FileLoc->PageCluster == XFS_CLUSTER_END) goto Out_Error;
 
-                    if (!ReadCluster(FileSystem, FileLoc->PageCluster,
-                                     FileSystem->PageBuffer)) {
+                    if (!ReadCluster(FileSystem, FileLoc->PageCluster, FileSystem->PageBuffer)) {
                         return FALSE;
                     }
                 }
@@ -390,8 +374,7 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path,
 
                 if (FileLoc->FileCluster == XFS_CLUSTER_END) goto Out_Error;
 
-                if (!ReadCluster(FileSystem, FileLoc->FileCluster,
-                                 FileSystem->IOBuffer)) {
+                if (!ReadCluster(FileSystem, FileLoc->FileCluster, FileSystem->IOBuffer)) {
                     return FALSE;
                 }
             }
@@ -413,8 +396,7 @@ Out_Error:
 
 /***************************************************************************/
 
-static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors,
-                         LPVOID Buffer) {
+static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPVOID Buffer) {
     IOCONTROL Control;
     U32 Result;
 
@@ -451,10 +433,13 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     U32 RootCluster = 0;
     U32 CurrentSector = Create->PartitionStartSector;
 
+    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Enter");
+
     //-------------------------------------
     // Check validity of parameters
 
     if (Create == NULL) return DF_ERROR_BADPARAM;
+    if (Create->Size != sizeof(PARTITION_CREATION)) return DF_ERROR_BADPARAM;
     if (Create->Disk == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
@@ -462,6 +447,8 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     MemorySet(Buffer1, 0, SECTOR_SIZE * 2);
     MemorySet(Buffer2, 0, SECTOR_SIZE * 2);
     MemorySet(Buffer3, 0, SECTOR_SIZE * 2);
+
+    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Buffers cleared");
 
     //-------------------------------------
     // Compute size in clusters of bitmap
@@ -471,8 +458,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     }
 
     BytesPerCluster = Create->SectorsPerCluster * SECTOR_SIZE;
-    PartitionNumClusters =
-        Create->PartitionNumSectors / Create->SectorsPerCluster;
+    PartitionNumClusters = Create->PartitionNumSectors / Create->SectorsPerCluster;
     BitmapEntriesPerCluster = BytesPerCluster * 8;
     BitmapNumClusters = (PartitionNumClusters / BitmapEntriesPerCluster) + 1;
     BitmapCluster = 1;
@@ -504,6 +490,8 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
+    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] MBR written");
+
     //-------------------------------------
     // Fill the superblock
 
@@ -533,6 +521,8 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
+    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Superblock written");
+
     //-------------------------------------
     // Cluster 0 is empty because 0 is not a valid
     // cluster index (like NULL)
@@ -556,6 +546,8 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += Create->SectorsPerCluster;
 
+    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Root cluster page written");
+
     //-------------------------------------
     // Write the first file record
 
@@ -566,6 +558,8 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     if (WriteSectors(Create->Disk, CurrentSector, 1, Buffer3) == FALSE) {
         return DF_ERROR_FS_CANT_WRITE_SECTOR;
     }
+
+    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] First file record written");
 
     //-------------------------------------
 
@@ -637,9 +631,7 @@ static LPXFSFILE OpenFile(LPFILEINFO Find) {
     FileSystem = (LPXFSFILESYSTEM)Find->FileSystem;
 
     if (LocateFile(FileSystem, Find->Name, &FileLoc) == TRUE) {
-        if (ReadCluster(FileSystem, FileLoc.FileCluster,
-                        FileSystem->IOBuffer) == FALSE)
-            return FALSE;
+        if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) return FALSE;
 
         FileRec = (LPXFSFILEREC)(FileSystem->IOBuffer + FileLoc.FileOffset);
 
@@ -657,8 +649,7 @@ static LPXFSFILE OpenFile(LPFILEINFO Find) {
 
 #undef GET_PAGE_ENTRY
 
-#define GET_PAGE_ENTRY() \
-    (*((U32*)(FileSystem->PageBuffer + File->Location.PageOffset)))
+#define GET_PAGE_ENTRY() (*((U32*)(FileSystem->PageBuffer + File->Location.PageOffset)))
 
 static U32 OpenNext(LPXFSFILE File) {
     LPXFSFILESYSTEM FileSystem = NULL;
@@ -678,9 +669,7 @@ static U32 OpenNext(LPXFSFILE File) {
     //-------------------------------------
     // Read the cluster containing the file
 
-    if (ReadCluster(FileSystem, File->Location.FileCluster,
-                    FileSystem->IOBuffer) == FALSE)
-        return FALSE;
+    if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return FALSE;
 
     while (1) {
         File->Location.FileOffset += sizeof(XFSFILEREC);
@@ -692,33 +681,27 @@ static U32 OpenNext(LPXFSFILE File) {
             // If we are at the last page entry, check if there is
             // another page
 
-            if (File->Location.PageOffset ==
-                (FileSystem->BytesPerCluster - sizeof(U32))) {
+            if (File->Location.PageOffset == (FileSystem->BytesPerCluster - sizeof(U32))) {
                 File->Location.PageCluster = GET_PAGE_ENTRY();
                 File->Location.PageOffset = 0;
 
-                if (File->Location.PageCluster == XFS_CLUSTER_END)
-                    return DF_ERROR_GENERIC;
+                if (File->Location.PageCluster == XFS_CLUSTER_END) return DF_ERROR_GENERIC;
 
-                if (!ReadCluster(FileSystem, File->Location.PageCluster,
-                                 FileSystem->PageBuffer)) {
+                if (!ReadCluster(FileSystem, File->Location.PageCluster, FileSystem->PageBuffer)) {
                     return DF_ERROR_GENERIC;
                 }
             }
 
             File->Location.FileCluster = GET_PAGE_ENTRY();
 
-            if (File->Location.FileCluster == XFS_CLUSTER_END)
-                return DF_ERROR_GENERIC;
+            if (File->Location.FileCluster == XFS_CLUSTER_END) return DF_ERROR_GENERIC;
 
-            if (!ReadCluster(FileSystem, File->Location.FileCluster,
-                             FileSystem->IOBuffer)) {
+            if (!ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer)) {
                 return DF_ERROR_GENERIC;
             }
         }
 
-        FileRec =
-            (LPXFSFILEREC)(FileSystem->IOBuffer + File->Location.FileOffset);
+        FileRec = (LPXFSFILEREC)(FileSystem->IOBuffer + File->Location.FileOffset);
 
         if (FileRec->ClusterTable == XFS_CLUSTER_END) return DF_ERROR_GENERIC;
 

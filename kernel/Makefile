@@ -4,7 +4,7 @@ CC      = i686-elf-gcc
 LD      = i686-elf-ld
 NASM    = nasm
 
-CFLAGS  = -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration
+CFLAGS  = -DNAME=\"__KERNEL__\" -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration
 AFLAGS  = -f elf -g -F dwarf -I source/asm/
 
 LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map

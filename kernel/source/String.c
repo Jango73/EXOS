@@ -10,12 +10,12 @@
 #include "../include/String.h"
 
 #include "../include/Base.h"
+#include "../include/Log.h"
 
 /***************************************************************************/
 
 BOOL IsAlpha(STR Char) {
-    if ((Char >= 'a' && Char <= 'z') || (Char >= 'A' && Char <= 'Z'))
-        return TRUE;
+    if ((Char >= 'a' && Char <= 'z') || (Char >= 'A' && Char <= 'Z')) return TRUE;
 
     return FALSE;
 }
@@ -53,7 +53,7 @@ STR CharToUpper(STR Char) {
 /***************************************************************************/
 
 BOOL StringEmpty(LPCSTR Src) {
-    if (Src) {
+    if (Src != NULL) {
         return Src[0] == STR_NULL;
     }
 
@@ -66,13 +66,31 @@ U32 StringLength(LPCSTR Src) {
     U32 Index = 0;
     U32 Size = 0;
 
-    if (Src) {
-        for (Index = 0; Index < MAX_U32; Index++) {
+#ifdef __KERNEL__
+        if (Index >= 8192) {
+            KernelLogText(LOG_WARNING, "[StringLength] Enter");
+        }
+#endif
+
+    if (Src != NULL) {
+        for (Index = 0; Index < 8192; Index++) {
             if (*Src == STR_NULL) break;
             Src++;
             Size++;
         }
+
+#ifdef __KERNEL__
+        if (Index >= 8192) {
+            KernelLogText(LOG_WARNING, "[StringLength] Exceeded max string length");
+        }
+#endif
     }
+
+#ifdef __KERNEL__
+        if (Index >= 8192) {
+            KernelLogText(LOG_WARNING, "[StringLength] Exit");
+        }
+#endif
 
     return Size;
 }
@@ -388,8 +406,7 @@ U32 StringToU32(LPCSTR Text) {
         __res;                        \
     })
 
-LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision,
-                     I32 Type) {
+LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, I32 Type) {
     STR c, Sign, Temp[66];
     LPCSTR Digits = TEXT("0123456789abcdefghijklmnopqrstuvwxyz");
     INT i;

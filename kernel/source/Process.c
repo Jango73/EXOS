@@ -44,8 +44,7 @@ void InitializeKernelHeap() {
     KernelLogText(LOG_DEBUG, TEXT("Memory : %X"), Memory);
     KernelLogText(LOG_DEBUG, TEXT("Pages : %X"), Pages);
 
-    LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize,
-                                   ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     KernelLogText(LOG_DEBUG, TEXT("HeapBase : %X"), HeapBase);
 
@@ -87,8 +86,7 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
     BytesRead = ReadFile(&FileOperation);
 
     if (Header.Signature != EXOS_SIGNATURE) {
-        KernelLogText(LOG_DEBUG, TEXT("GetExecutableInfo_EXOS() : Bad signature (%08X)\n"),
-                    Header.Signature);
+        KernelLogText(LOG_DEBUG, TEXT("GetExecutableInfo_EXOS() : Bad signature (%08X)\n"), Header.Signature);
 
         goto Out_Error;
     }
@@ -142,8 +140,7 @@ Out_Error:
 
 /***************************************************************************/
 
-BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase,
-                         LINEAR DataBase) {
+BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase) {
     FILEOPERATION FileOperation;
     EXOSCHUNK Chunk;
     EXOSHEADER Header;
@@ -346,8 +343,8 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     if (Info == NULL) return FALSE;
 
-        //-------------------------------------
-        // Open the executable file
+    //-------------------------------------
+    // Open the executable file
 
     KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Opening file %s\n"), Info->FileName);
 
@@ -464,8 +461,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable...\n"));
 
-    if (LoadExecutable_EXOS(File, &ExecutableInfo, (LINEAR)CodeBase,
-                            (LINEAR)DataBase) == FALSE) {
+    if (LoadExecutable_EXOS(File, &ExecutableInfo, (LINEAR)CodeBase, (LINEAR)DataBase) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Load failed !\n"));
 
         VirtualFree(LA_USER, TotalSize);
@@ -498,8 +494,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = TASK_CREATE_SUSPENDED;
 
-    TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint -
-                                           ExecutableInfo.CodeBase));
+    TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint - ExecutableInfo.CodeBase));
 
     Task = CreateTask(Process, &TaskInfo);
 

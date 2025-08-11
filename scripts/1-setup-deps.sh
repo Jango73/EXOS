@@ -9,7 +9,9 @@ echo "Installing EXOS development dependencies..."
 sudo apt install -y \
     automake \
     binutils \
+    cgdb-multiarch \
     clang \
+    clang-format \
     coreutils \
     dosfstools \
     findutils \
@@ -28,11 +30,16 @@ sudo apt install -y \
 
 echo "All required dependencies for EXOS installed."
 
-echo "Downloading i686-elf toolchain (lordmilko)..."
-
 TOOLCHAIN_URL=$(wget -qO- "https://api.github.com/repos/lordmilko/i686-elf-tools/releases/latest" | grep "browser_download_url" | grep linux | cut -d '"' -f 4 | head -1)
 INSTALL_DIR="/opt/i686-elf-toolchain"
 ARCHIVE_PATH="/tmp/$(basename "$TOOLCHAIN_URL")"
+
+if [ -d "$INSTALL_DIR" ]; then
+    echo "i686-elf-toolchain already present: $INSTALL_DIR"
+    exit 0
+fi
+
+echo "Downloading i686-elf toolchain (lordmilko)..."
 
 echo "Download URL: $TOOLCHAIN_URL"
 echo "Install dir: $INSTALL_DIR"
@@ -45,7 +52,6 @@ else
     wget -O "$ARCHIVE_PATH" "$TOOLCHAIN_URL"
 fi
 
-sudo rm -rf "$INSTALL_DIR"
 sudo mkdir -p "$INSTALL_DIR"
 
 # Detect archive type and extract accordingly

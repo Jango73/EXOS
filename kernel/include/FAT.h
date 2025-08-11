@@ -144,8 +144,7 @@ typedef struct tag_FATDIRENTRY_LFN {
 #define FAT_ATTR_FOLDER 0x10
 #define FAT_ATTR_ARCHIVE 0x20
 
-#define FAT_ATTR_LFN \
-    (FAT_ATTR_READONLY | FAT_ATTR_HIDDEN | FAT_ATTR_SYSTEM | FAT_ATTR_VOLUME)
+#define FAT_ATTR_LFN (FAT_ATTR_READONLY | FAT_ATTR_HIDDEN | FAT_ATTR_SYSTEM | FAT_ATTR_VOLUME)
 
 /***************************************************************************/
 
@@ -167,8 +166,7 @@ typedef struct tag_FATDIRENTRY_LFN {
 #define FAT_DATE_MONTH_MASK (BIT_5 | BIT_6 | BIT_7 | BIT_8)
 #define FAT_DATE_MONTH_SHFT 5
 
-#define FAT_DATE_YEAR_MASK \
-    (BIT_9 | BIT_10 | BIT_11 | BIT_12 | BIT_13 | BIT_14 | BIT_15)
+#define FAT_DATE_YEAR_MASK (BIT_9 | BIT_10 | BIT_11 | BIT_12 | BIT_13 | BIT_14 | BIT_15)
 #define FAT_DATE_YEAR_SHFT 9
 
 #define FAT_TIME_SECOND_MASK (BIT_0 | BIT_1 | BIT_2 | BIT_3 | BIT_4)

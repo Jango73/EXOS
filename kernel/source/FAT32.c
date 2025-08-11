@@ -20,17 +20,18 @@
 
 U32 FAT32Commands(U32, U32);
 
-DRIVER FAT32Driver = {ID_DRIVER,
-                      1,
-                      NULL,
-                      NULL,
-                      DRIVER_TYPE_FILESYSTEM,
-                      VER_MAJOR,
-                      VER_MINOR,
-                      "Jango73",
-                      "Microsoft Corporation",
-                      "Fat 32 File System",
-                      FAT32Commands};
+DRIVER FAT32Driver = {
+    ID_DRIVER,
+    1,
+    NULL,
+    NULL,
+    DRIVER_TYPE_FILESYSTEM,
+    VER_MAJOR,
+    VER_MINOR,
+    "Jango73",
+    "Microsoft Corporation",
+    "Fat 32 File System",
+    FAT32Commands};
 
 /***************************************************************************/
 // The file system object allocated when mounting
@@ -89,8 +90,7 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
 
 /***************************************************************************/
 
-static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem,
-                            LPFATFILELOC FileLoc) {
+static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
     LPFATFILE This;
 
     This = (LPFATFILE)KernelMemAlloc(sizeof(FATFILE));
@@ -117,8 +117,7 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem,
 
 /***************************************************************************/
 
-BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
-                          U32 Base) {
+BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     LPFAT32MBR Master;
@@ -169,29 +168,23 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
 
     FileSystem->PartitionStart = Base + Partition->LBA;
     FileSystem->PartitionSize = Partition->Size;
-    FileSystem->BytesPerCluster =
-        FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
+    FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->IOBuffer =
-        (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the FAT
 
-    FileSystem->FATStart =
-        FileSystem->PartitionStart + FileSystem->Master.ReservedSectors;
+    FileSystem->FATStart = FileSystem->PartitionStart + FileSystem->Master.ReservedSectors;
 
     if (FileSystem->Master.NumFATs > 1) {
-        FileSystem->FATStart2 =
-            FileSystem->FATStart + FileSystem->Master.NumSectorsPerFAT;
+        FileSystem->FATStart2 = FileSystem->FATStart + FileSystem->Master.NumSectorsPerFAT;
     }
 
     //-------------------------------------
     // Compute the start of the data
 
-    FileSystem->DataStart =
-        FileSystem->FATStart +
-        (FileSystem->Master.NumFATs * FileSystem->Master.NumSectorsPerFAT);
+    FileSystem->DataStart = FileSystem->FATStart + (FileSystem->Master.NumFATs * FileSystem->Master.NumSectorsPerFAT);
 
     //-------------------------------------
     // Register the file system
@@ -208,8 +201,7 @@ static U32 GetNameChecksum(LPSTR Name) {
     U32 Index = 0;
 
     for (Index = 0; Index < 11; Index++) {
-        Checksum =
-            (((Checksum & 0x01) << 7) | ((Checksum & 0xFE) >> 1)) + Name[Index];
+        Checksum = (((Checksum & 0x01) << 7) | ((Checksum & 0xFE) >> 1)) + Name[Index];
     }
 
     Checksum &= 0xFF;
@@ -219,18 +211,15 @@ static U32 GetNameChecksum(LPSTR Name) {
 
 /***************************************************************************/
 
-static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster,
-                        LPVOID Buffer) {
+static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
     U32 Result;
 
     Sector =
-        FileSystem->DataStart + ((Cluster - FileSystem->Master.RootCluster) *
-                                 FileSystem->Master.SectorsPerCluster);
+        FileSystem->DataStart + ((Cluster - FileSystem->Master.RootCluster) * FileSystem->Master.SectorsPerCluster);
 
-    if (Sector < FileSystem->PartitionStart ||
-        Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
+    if (Sector < FileSystem->PartitionStart || Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
         return FALSE;
     }
 
@@ -251,18 +240,15 @@ static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster,
 
 /***************************************************************************/
 
-static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster,
-                         LPVOID Buffer) {
+static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
     U32 Result;
 
     Sector =
-        FileSystem->DataStart + ((Cluster - FileSystem->Master.RootCluster) *
-                                 FileSystem->Master.SectorsPerCluster);
+        FileSystem->DataStart + ((Cluster - FileSystem->Master.RootCluster) * FileSystem->Master.SectorsPerCluster);
 
-    if (Sector < FileSystem->PartitionStart ||
-        Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
+    if (Sector < FileSystem->PartitionStart || Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
         return FALSE;
     }
 
@@ -283,8 +269,7 @@ static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster,
 
 /***************************************************************************/
 
-static CLUSTER GetNextClusterInChain(LPFAT32FILESYSTEM FileSystem,
-                                     CLUSTER Cluster) {
+static CLUSTER GetNextClusterInChain(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
     U32 Buffer[SECTOR_SIZE / sizeof(U32)];
     IOCONTROL Control;
     CLUSTER NextCluster;
@@ -358,8 +343,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                 Control.SectorLow = FileSystem->FATStart + CurrentSector;
                 Control.SectorHigh = 0;
                 Control.NumSectors = 1;
-                Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE,
-                                                           (U32)&Control);
+                Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
                 if (Result != DF_ERROR_SUCCESS) goto Out;
 
                 NewCluster = (CurrentSector * NumEntriesPerSector) + Index;
@@ -371,8 +355,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorLow = FileSystem->FATStart2 + CurrentSector;
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
-                    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ,
-                                                               (U32)&Control);
+                    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
                     if (Result != DF_ERROR_SUCCESS) goto Out;
 
                     //-------------------------------------
@@ -386,8 +369,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorLow = FileSystem->FATStart2 + CurrentSector;
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
-                    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE,
-                                                               (U32)&Control);
+                    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
                     if (Result != DF_ERROR_SUCCESS) goto Out;
                 }
 
@@ -456,8 +438,7 @@ static BOOL FindFreeFATEntry(LPFAT32FILESYSTEM FileSystem, U32* Sector,
 
 /***************************************************************************/
 
-static BOOL SetDirEntry(LPVOID Buffer, LPSTR Name, CLUSTER Cluster,
-                        U32 Attributes) {
+static BOOL SetDirEntry(LPVOID Buffer, LPSTR Name, CLUSTER Cluster, U32 Attributes) {
     LPFATDIRENTRY_EXT DirEntry = NULL;
     LPFATDIRENTRY_LFN LFNEntry = NULL;
     STR ShortName[16];
@@ -499,8 +480,7 @@ static BOOL SetDirEntry(LPVOID Buffer, LPSTR Name, CLUSTER Cluster,
     //-------------------------------------
     // Fill the directory entry
 
-    DirEntry = (LPFATDIRENTRY_EXT)(Buffer + ((NumEntries - 1) *
-                                             sizeof(FATDIRENTRY_EXT)));
+    DirEntry = (LPFATDIRENTRY_EXT)(Buffer + ((NumEntries - 1) * sizeof(FATDIRENTRY_EXT)));
 
     DirEntry->Name[0] = ShortName[0];
     DirEntry->Name[1] = ShortName[1];
@@ -629,8 +609,7 @@ static BOOL SetDirEntry(LPVOID Buffer, LPSTR Name, CLUSTER Cluster,
 
 /***************************************************************************/
 
-static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster,
-                           LPSTR Name, U32 Attributes) {
+static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, LPSTR Name, U32 Attributes) {
     LPFATDIRENTRY_EXT DirEntry;
     LPFATDIRENTRY_EXT BaseEntry;
     CLUSTER CurrentCluster;
@@ -665,8 +644,7 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster,
         CurrentOffset = 0;
 
         while (1) {
-            DirEntry =
-                (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + CurrentOffset);
+            DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + CurrentOffset);
 
             if (DirEntry->Name[0] == 0 && DirEntry->Name[1] == 0) {
                 if (BaseEntry == NULL) BaseEntry = DirEntry;
@@ -683,8 +661,7 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster,
 
                 SetDirEntry(BaseEntry, Name, NewCluster, Attributes);
 
-                if (!WriteCluster(FileSystem, CurrentCluster,
-                                  FileSystem->IOBuffer)) {
+                if (!WriteCluster(FileSystem, CurrentCluster, FileSystem->IOBuffer)) {
                     return FALSE;
                 }
 
@@ -697,8 +674,7 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster,
                 BaseEntry = NULL;
                 FreeEntries = 0;
                 CurrentOffset = 0;
-                CurrentCluster =
-                    GetNextClusterInChain(FileSystem, CurrentCluster);
+                CurrentCluster = GetNextClusterInChain(FileSystem, CurrentCluster);
                 break;
             }
         }
@@ -745,8 +721,7 @@ static CLUSTER ChainNewCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
             return NewCluster;
         }
 
-        for (CurrentOffset = 0; CurrentOffset < NumEntriesPerSector;
-             CurrentOffset++) {
+        for (CurrentOffset = 0; CurrentOffset < NumEntriesPerSector; CurrentOffset++) {
             if (Buffer[CurrentOffset] == 0) goto Next;
         }
 
@@ -765,8 +740,7 @@ Next:
 
     FATStart = FileSystem->FATStart;
 
-    for (CurrentFAT = 0; CurrentFAT < FileSystem->Master.NumFATs;
-         CurrentFAT++) {
+    for (CurrentFAT = 0; CurrentFAT < FileSystem->Master.NumFATs; CurrentFAT++) {
         Control.SectorLow = FATStart + CurrentSector;
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
@@ -851,8 +825,7 @@ static void DecodeFileName(LPFATDIRENTRY_EXT DirEntry, LPSTR Name) {
 
 /***************************************************************************/
 
-static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path,
-                       LPFATFILELOC FileLoc) {
+static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC FileLoc) {
     STR Component[MAX_FILE_NAME];
     STR Name[MAX_FILE_NAME];
     LPFATDIRENTRY_EXT DirEntry;
@@ -897,20 +870,15 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path,
         // Loop through all directory entries
 
         while (1) {
-            DirEntry =
-                (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc->Offset);
+            DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc->Offset);
 
-            if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) &&
-                (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
+            if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 ||
-                    StringCompareNC(Component, Name) == 0) {
+                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
                     if (Path[PathIndex] == STR_NULL) {
-                        FileLoc->DataCluster =
-                            (((U32)DirEntry->ClusterLow) |
-                             (((U32)DirEntry->ClusterHigh) << 16));
+                        FileLoc->DataCluster = (((U32)DirEntry->ClusterLow) | (((U32)DirEntry->ClusterHigh) << 16));
 
                         return TRUE;
                     } else {
@@ -924,8 +892,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path,
                             FileLoc->FileCluster = FileLoc->FolderCluster;
                             FileLoc->Offset = 0;
 
-                            if (ReadCluster(FileSystem, FileLoc->FileCluster,
-                                            FileSystem->IOBuffer) == FALSE)
+                            if (ReadCluster(FileSystem, FileLoc->FileCluster, FileSystem->IOBuffer) == FALSE)
                                 return FALSE;
 
                             goto NextComponent;
@@ -943,16 +910,11 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path,
 
             if (FileLoc->Offset >= FileSystem->BytesPerCluster) {
                 FileLoc->Offset = 0;
-                FileLoc->FileCluster =
-                    GetNextClusterInChain(FileSystem, FileLoc->FileCluster);
+                FileLoc->FileCluster = GetNextClusterInChain(FileSystem, FileLoc->FileCluster);
 
-                if (FileLoc->FileCluster == 0 ||
-                    FileLoc->FileCluster >= FAT32_CLUSTER_RESERVED)
-                    return FALSE;
+                if (FileLoc->FileCluster == 0 || FileLoc->FileCluster >= FAT32_CLUSTER_RESERVED) return FALSE;
 
-                if (ReadCluster(FileSystem, FileLoc->FileCluster,
-                                FileSystem->IOBuffer) == FALSE)
-                    return FALSE;
+                if (ReadCluster(FileSystem, FileLoc->FileCluster, FileSystem->IOBuffer) == FALSE) return FALSE;
             }
         }
     }
@@ -1066,16 +1028,13 @@ static U32 CreateFolder(LPFILEINFO File) {
         // Loop through all directory entries
 
         while (1) {
-            DirEntry =
-                (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc.Offset);
+            DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc.Offset);
 
-            if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) &&
-                (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
+            if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 ||
-                    StringCompareNC(Component, Name) == 0) {
+                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
                     if (File->Name[PathIndex] == STR_NULL) {
                         if (DirEntry->Attributes & FAT_ATTR_FOLDER) {
                             return DF_ERROR_SUCCESS;
@@ -1093,8 +1052,7 @@ static U32 CreateFolder(LPFILEINFO File) {
                             FileLoc.FileCluster = FileLoc.FolderCluster;
                             FileLoc.Offset = 0;
 
-                            if (ReadCluster(FileSystem, FileLoc.FileCluster,
-                                            FileSystem->IOBuffer) == FALSE)
+                            if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE)
                                 return DF_ERROR_IO;
 
                             goto NextComponent;
@@ -1112,23 +1070,18 @@ static U32 CreateFolder(LPFILEINFO File) {
 
             if (FileLoc.Offset >= FileSystem->BytesPerCluster) {
                 FileLoc.Offset = 0;
-                FileLoc.FileCluster =
-                    GetNextClusterInChain(FileSystem, FileLoc.FileCluster);
+                FileLoc.FileCluster = GetNextClusterInChain(FileSystem, FileLoc.FileCluster);
 
-                if (FileLoc.FileCluster == 0 ||
-                    FileLoc.FileCluster >= FAT32_CLUSTER_RESERVED) {
+                if (FileLoc.FileCluster == 0 || FileLoc.FileCluster >= FAT32_CLUSTER_RESERVED) {
                     //-------------------------------------
                     // We are at the end of this directory
                     // and we did not find the current component
                     // so we create it
 
-                    return CreateDirEntry(FileSystem, FileLoc.FolderCluster,
-                                          Component, FAT_ATTR_FOLDER);
+                    return CreateDirEntry(FileSystem, FileLoc.FolderCluster, Component, FAT_ATTR_FOLDER);
                 }
 
-                if (ReadCluster(FileSystem, FileLoc.FileCluster,
-                                FileSystem->IOBuffer) == FALSE)
-                    return DF_ERROR_IO;
+                if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_ERROR_IO;
             }
         }
     }
@@ -1171,9 +1124,7 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
     FileSystem = (LPFAT32FILESYSTEM)Find->FileSystem;
 
     if (LocateFile(FileSystem, Find->Name, &FileLoc) == TRUE) {
-        if (ReadCluster(FileSystem, FileLoc.FileCluster,
-                        FileSystem->IOBuffer) == FALSE)
-            return FALSE;
+        if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) return FALSE;
 
         DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc.Offset);
 
@@ -1207,9 +1158,7 @@ static U32 OpenNext(LPFATFILE File) {
     //-------------------------------------
     // Read the cluster containing the file
 
-    if (ReadCluster(FileSystem, File->Location.FileCluster,
-                    FileSystem->IOBuffer) == FALSE)
-        return DF_ERROR_IO;
+    if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_ERROR_IO;
 
     while (1) {
         File->Location.Offset += sizeof(FATDIRENTRY_EXT);
@@ -1217,26 +1166,19 @@ static U32 OpenNext(LPFATFILE File) {
         if (File->Location.Offset >= FileSystem->BytesPerCluster) {
             File->Location.Offset = 0;
 
-            File->Location.FileCluster =
-                GetNextClusterInChain(FileSystem, File->Location.FileCluster);
+            File->Location.FileCluster = GetNextClusterInChain(FileSystem, File->Location.FileCluster);
 
-            if (File->Location.FileCluster == 0 ||
-                File->Location.FileCluster >= FAT32_CLUSTER_RESERVED)
+            if (File->Location.FileCluster == 0 || File->Location.FileCluster >= FAT32_CLUSTER_RESERVED)
                 return DF_ERROR_GENERIC;
 
-            if (ReadCluster(FileSystem, File->Location.FileCluster,
-                            FileSystem->IOBuffer) == FALSE)
-                return DF_ERROR_IO;
+            if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_ERROR_IO;
         }
 
-        DirEntry =
-            (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + File->Location.Offset);
+        DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + File->Location.Offset);
 
-        if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) &&
-            (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
+        if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
             (DirEntry->Name[0] != 0xE5)) {
-            File->Location.DataCluster = (((U32)DirEntry->ClusterLow) |
-                                          (((U32)DirEntry->ClusterHigh) << 16));
+            File->Location.DataCluster = (((U32)DirEntry->ClusterLow) | (((U32)DirEntry->ClusterHigh) << 16));
 
             DecodeFileName(DirEntry, File->Header.Name);
             TranslateFileInfo(DirEntry, File);
@@ -1263,19 +1205,16 @@ static U32 CloseFile(LPFATFILE File) {
     //-------------------------------------
     // Update file information in directory entry
 
-    if (ReadCluster(FileSystem, File->Location.FileCluster,
-                    FileSystem->IOBuffer) == FALSE) {
+    if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) {
         return DF_ERROR_IO;
     }
 
-    DirEntry =
-        (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + File->Location.Offset);
+    DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + File->Location.Offset);
 
     if (File->Header.SizeLow > DirEntry->Size) {
         DirEntry->Size = File->Header.SizeLow;
 
-        if (WriteCluster(FileSystem, File->Location.FileCluster,
-                         FileSystem->IOBuffer) == FALSE) {
+        if (WriteCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) {
             return DF_ERROR_IO;
         }
     }
@@ -1341,8 +1280,8 @@ static U32 ReadFile(LPFATFILE File) {
         //-------------------------------------
         // Copy the data to the user buffer
 
-        MemoryCopy(((U8*)File->Header.Buffer) + File->Header.BytesRead,
-                   FileSystem->IOBuffer + OffsetInCluster, BytesToRead);
+        MemoryCopy(
+            ((U8*)File->Header.Buffer) + File->Header.BytesRead, FileSystem->IOBuffer + OffsetInCluster, BytesToRead);
 
         //-------------------------------------
         // Update counters
@@ -1430,9 +1369,8 @@ static U32 WriteFile(LPFATFILE File) {
         //-------------------------------------
         // Copy the user buffer
 
-        MemoryCopy(FileSystem->IOBuffer + OffsetInCluster,
-                   ((U8*)File->Header.Buffer) + File->Header.BytesRead,
-                   BytesToRead);
+        MemoryCopy(
+            FileSystem->IOBuffer + OffsetInCluster, ((U8*)File->Header.Buffer) + File->Header.BytesRead, BytesToRead);
 
         //-------------------------------------
         // Write the current data cluster

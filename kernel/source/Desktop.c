@@ -24,8 +24,7 @@ U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 
 /***************************************************************************/
 
-static LIST MainDesktopChildren = {NULL,           NULL,          NULL, 0,
-                                   KernelMemAlloc, KernelMemFree, NULL};
+static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelMemAlloc, KernelMemFree, NULL};
 
 /***************************************************************************/
 
@@ -648,8 +647,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     //-------------------------------------
     // Reorder the windows
 
-    for (Node = This->Parent->Children->First, Order = 1; Node;
-         Node = Node->Next) {
+    for (Node = This->Parent->Children->First, Order = 1; Node; Node = Node->Next) {
         That = (LPWINDOW)Node;
         if (That == This)
             That->Order = 0;
@@ -1266,10 +1264,8 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
 
     if ((This->Status & WINDOW_STATUS_VISIBLE) == 0) goto Out;
 
-    if (Position->X >= This->ScreenRect.X1 &&
-        Position->X <= This->ScreenRect.X2 &&
-        Position->Y >= This->ScreenRect.Y1 &&
-        Position->Y <= This->ScreenRect.Y2) {
+    if (Position->X >= This->ScreenRect.X1 && Position->X <= This->ScreenRect.X2 &&
+        Position->Y >= This->ScreenRect.Y1 && Position->Y <= This->ScreenRect.Y2) {
         Target = This;
     }
 

@@ -22,8 +22,7 @@ LIST KernelTaskMessageList = {
     .NumItems = 0,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL
-};
+    .Destructor = NULL};
 
 TASK KernelTask = {
     .ID = ID_TASK,
@@ -46,8 +45,7 @@ TASK KernelTask = {
     .Time = 0,
     .WakeUpTime = 0,
     .MessageMutex = EMPTY_MUTEX,
-    .Message = &KernelTaskMessageList
-};
+    .Message = &KernelTaskMessageList};
 
 /***************************************************************************/
 
@@ -94,12 +92,7 @@ LPTASK NewTask() {
         return NULL;
     }
 
-    *This = (TASK){
-        .ID = ID_TASK,
-        .References = 1,
-        .Mutex = EMPTY_MUTEX,
-        .MessageMutex = EMPTY_MUTEX
-    };
+    *This = (TASK){.ID = ID_TASK, .References = 1, .Mutex = EMPTY_MUTEX, .MessageMutex = EMPTY_MUTEX};
 
     InitMutex(&(This->Mutex));
     InitMutex(&(This->MessageMutex));
@@ -147,20 +140,18 @@ void DeleteTask(LPTASK This) {
 
     if (This->Message != NULL) DeleteList(This->Message);
 
-        //-------------------------------------
-        // Delete the task's stacks
+    //-------------------------------------
+    // Delete the task's stacks
 
     KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks..."));
 
     if (This->SysStackBase != NULL) {
-        HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize,
-                      (LPVOID)This->SysStackBase);
+        HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, (LPVOID)This->SysStackBase);
     }
 
     if (This->Process != NULL) {
         if (This->StackBase != NULL) {
-            HeapFree_HBHS(This->Process->HeapBase, This->Process->HeapSize,
-                          (LPVOID)This->StackBase);
+            HeapFree_HBHS(This->Process->HeapBase, This->Process->HeapSize, (LPVOID)This->StackBase);
         }
     }
 
@@ -298,33 +289,28 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Parameter = Info->Parameter;
     Task->Table = Table;
 
-    Task->Selector = ((GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE) +
-                      (Table * GDT_TASK_DESCRIPTORS_SIZE)) |
+    Task->Selector = ((GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE) + (Table * GDT_TASK_DESCRIPTORS_SIZE)) |
                      SELECTOR_GLOBAL | Process->Privilege;
 
     //-------------------------------------
     // Allocate the system stack
 
     Task->StackSize = Info->StackSize;
-    Task->StackBase = (LINEAR)HeapAlloc_HBHS(
-        Process->HeapBase, Process->HeapSize, Task->StackSize);
+    Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);
 
     //-------------------------------------
     // Allocate the task stack
 
     Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
-    Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(
-        KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);
+    Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
         if (Task->StackBase != NULL) {
-            HeapFree_HBHS(Process->HeapBase, Process->HeapSize,
-                          (LPVOID)Task->StackBase);
+            HeapFree_HBHS(Process->HeapBase, Process->HeapSize, (LPVOID)Task->StackBase);
         }
 
         if (Task->SysStackBase != NULL) {
-            HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize,
-                          (LPVOID)Task->SysStackBase);
+            HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, (LPVOID)Task->SysStackBase);
         }
 
         DeleteTask(Task);
@@ -417,7 +403,8 @@ BOOL KillTask(LPTASK Task) {
     KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
     KernelLogText(LOG_DEBUG, TEXT("Process : %X"), Task->Process);
     KernelLogText(LOG_DEBUG, TEXT("Task : %X"), Task);
-    KernelLogText(LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
+    KernelLogText(
+        LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
 
     //-------------------------------------
     // Lock access to kernel data
@@ -893,8 +880,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
         if (Window->Function != NULL) {
             // Call the window function with the parameters
 
-            Window->Function(Message->Target, Message->Message, Message->Param1,
-                             Message->Param2);
+            Window->Function(Message->Target, Message->Message, Message->Param1, Message->Param2);
 
             Result = TRUE;
         }
