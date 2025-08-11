@@ -167,6 +167,9 @@ LPDESKTOP CreateDesktop() {
     This->Task = GetCurrentTask();
     This->Graphics = &VESADriver;
 
+    WindowInfo.Hdr.Size = sizeof(WINDOWINFO);
+    WindowInfo.Hdr.Version = EXOS_ABI_VERSION;
+    WindowInfo.Hdr.Flags = 0;
     WindowInfo.Parent = NULL;
     WindowInfo.Function = DesktopWindowFunc;
     WindowInfo.Style = 0;

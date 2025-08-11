@@ -601,6 +601,9 @@ void InitializeKernel() {
     //-------------------------------------
     // Test tasks
 
+    TaskInfo.Hdr.Size = sizeof(TASKINFO);
+    TaskInfo.Hdr.Version = EXOS_ABI_VERSION;
+    TaskInfo.Hdr.Flags = 0;
     TaskInfo.Func = ClockTask;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;

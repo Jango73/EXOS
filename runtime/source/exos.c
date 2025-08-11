@@ -33,7 +33,9 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
 
     Result = FALSE;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Version = EXOS_ABI_VERSION;
+    MessageInfo.Hdr.Flags = 0;
     MessageInfo.Target = Target;
     MessageInfo.First = First;
     MessageInfo.Last = Last;
@@ -66,7 +68,9 @@ BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last, U32 Flag
 BOOL DispatchMessage(LPMESSAGE Message) {
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Version = EXOS_ABI_VERSION;
+    MessageInfo.Hdr.Flags = 0;
     MessageInfo.Time = Message->Time;
     MessageInfo.Target = Message->Target;
     MessageInfo.Message = Message->Message;
@@ -83,7 +87,9 @@ BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
 
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Version = EXOS_ABI_VERSION;
+    MessageInfo.Hdr.Flags = 0;
     MessageInfo.Message = Message;
     MessageInfo.Param1 = Param1;
     MessageInfo.Param2 = Param2;
@@ -96,7 +102,9 @@ BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
 U32 SendMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Version = EXOS_ABI_VERSION;
+    MessageInfo.Hdr.Flags = 0;
     MessageInfo.Target = Target;
     MessageInfo.Message = Message;
     MessageInfo.Param1 = Param1;
@@ -122,7 +130,9 @@ HANDLE GetDesktopWindow(HANDLE Desktop) { return (HANDLE)exoscall(SYSCALL_GetDes
 HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX, I32 PosY, I32 SizeX, I32 SizeY) {
     WINDOWINFO WindowInfo;
 
-    WindowInfo.Size = sizeof WindowInfo;
+    WindowInfo.Hdr.Size = sizeof WindowInfo;
+    WindowInfo.Hdr.Version = EXOS_ABI_VERSION;
+    WindowInfo.Hdr.Flags = 0;
     WindowInfo.Parent = Parent;
     WindowInfo.Function = Func;
     WindowInfo.Style = Style;
@@ -144,7 +154,9 @@ BOOL DestroyWindow(HANDLE Window) { return (BOOL)exoscall(SYSCALL_DeleteObject, 
 BOOL ShowWindow(HANDLE Window) {
     WINDOWINFO WindowInfo;
 
-    WindowInfo.Size = sizeof WindowInfo;
+    WindowInfo.Hdr.Size = sizeof WindowInfo;
+    WindowInfo.Hdr.Version = EXOS_ABI_VERSION;
+    WindowInfo.Hdr.Flags = 0;
     WindowInfo.Window = Window;
 
     return (BOOL)exoscall(SYSCALL_ShowWindow, (U32)&WindowInfo);
@@ -155,7 +167,9 @@ BOOL ShowWindow(HANDLE Window) {
 BOOL HideWindow(HANDLE Window) {
     WINDOWINFO WindowInfo;
 
-    WindowInfo.Size = sizeof WindowInfo;
+    WindowInfo.Hdr.Size = sizeof WindowInfo;
+    WindowInfo.Hdr.Version = EXOS_ABI_VERSION;
+    WindowInfo.Hdr.Flags = 0;
     WindowInfo.Window = Window;
 
     return (BOOL)exoscall(SYSCALL_HideWindow, (U32)&WindowInfo);
@@ -189,7 +203,9 @@ BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
 U32 SetWindowProp(HANDLE Window, LPCSTR Name, U32 Value) {
     PROPINFO PropInfo;
 
-    PropInfo.Size = sizeof PropInfo;
+    PropInfo.Hdr.Size = sizeof PropInfo;
+    PropInfo.Hdr.Version = EXOS_ABI_VERSION;
+    PropInfo.Hdr.Flags = 0;
     PropInfo.Window = Window;
     PropInfo.Name = Name;
     PropInfo.Value = Value;
@@ -202,7 +218,9 @@ U32 SetWindowProp(HANDLE Window, LPCSTR Name, U32 Value) {
 U32 GetWindowProp(HANDLE Window, LPCSTR Name) {
     PROPINFO PropInfo;
 
-    PropInfo.Size = sizeof PropInfo;
+    PropInfo.Hdr.Size = sizeof PropInfo;
+    PropInfo.Hdr.Version = EXOS_ABI_VERSION;
+    PropInfo.Hdr.Flags = 0;
     PropInfo.Window = Window;
     PropInfo.Name = Name;
 
@@ -319,7 +337,9 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
 U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Size = sizeof MessageInfo;
+    MessageInfo.Hdr.Version = EXOS_ABI_VERSION;
+    MessageInfo.Hdr.Flags = 0;
     MessageInfo.Target = Window;
     MessageInfo.Message = Message;
     MessageInfo.Param1 = Param1;

@@ -38,6 +38,9 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
     LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
 
     if (Info) {
+        Info->Hdr.Size = sizeof(SYSTEMINFO);
+        Info->Hdr.Version = EXOS_ABI_VERSION;
+        Info->Hdr.Flags = 0;
         Info->TotalPhysicalMemory = Memory;
         Info->PhysicalMemoryUsed = GetPhysicalMemoryUsed();
         Info->PhysicalMemoryAvail = Memory - Info->PhysicalMemoryUsed;

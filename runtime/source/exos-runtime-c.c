@@ -51,6 +51,9 @@ int printf(const char* fmt, ...) { return (int)exoscall(SYSCALL_ConsolePrint, (u
 int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
     TASKINFO TaskInfo;
 
+    TaskInfo.Hdr.Size = sizeof(TASKINFO);
+    TaskInfo.Hdr.Version = EXOS_ABI_VERSION;
+    TaskInfo.Hdr.Flags = 0;
     TaskInfo.Func = (TASKFUNC)start_address;
     TaskInfo.Parameter = (LPVOID)arg_list;
     TaskInfo.StackSize = (U32)stack_size;
@@ -69,6 +72,9 @@ void _endthread() {}
 int system(const char* __cmd) {
     PROCESSINFO ProcessInfo;
 
+    ProcessInfo.Hdr.Size = sizeof(PROCESSINFO);
+    ProcessInfo.Hdr.Version = EXOS_ABI_VERSION;
+    ProcessInfo.Hdr.Flags = 0;
     ProcessInfo.FileName = NULL;
     ProcessInfo.CommandLine = (LPCSTR)__cmd;
     ProcessInfo.Flags = 0;
@@ -86,7 +92,9 @@ FILE* fopen(const char* __name, const char* __mode) {
     FILE* __fp;
     HANDLE handle;
 
-    info.Size = sizeof(FILEOPENINFO);
+    info.Hdr.Size = sizeof(FILEOPENINFO);
+    info.Hdr.Version = EXOS_ABI_VERSION;
+    info.Hdr.Flags = 0;
     info.Name = (LPCSTR)__name;
     info.Flags = 0;
 
@@ -151,7 +159,9 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
 
     if (!fp) return 0;
 
-    fileop.Size = sizeof fileop;
+    fileop.Hdr.Size = sizeof fileop;
+    fileop.Hdr.Version = EXOS_ABI_VERSION;
+    fileop.Hdr.Flags = 0;
     fileop.File = (HANDLE)fp->_handle;
     fileop.NumBytes = elsize * num;
     fileop.Buffer = buf;
