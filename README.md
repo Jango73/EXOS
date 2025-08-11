@@ -2,7 +2,8 @@
 
 ## TL;DR
 
-Old operating system for i386, trying to make it boot in Qemu on Linux.
+Old operating system for i386.
+Currently booting in qemu, but have to fix a page fault issue.
 
 ## What it is
 
