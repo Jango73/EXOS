@@ -7,10 +7,11 @@ This is a 32 bit operating system for i386-i686.
 The documentation for boot sequence and kernel modules is in documentation/internal/Kernel.md
 
 ## Build
-make
+- run "make"
 
 ## Test
-- DON'T do any tests, there is no way you can test this OS for now.
+- run "./scripts/6-1-start-qemu-hd-nogfx.sh".
+- check "log/debug.log" for page fualts, exceptions, etc...
 
 ## General Conventions
 - Always use 4 spaces for indentation in code.
