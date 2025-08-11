@@ -3,7 +3,7 @@
 ## TL;DR
 
 Old operating system for i386.
-Currently booting in qemu, but have to fix a page fault issue.
+Currently booting in qemu.
 
 ## What it is
 
