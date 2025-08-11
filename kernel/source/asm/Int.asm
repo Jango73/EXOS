@@ -268,20 +268,24 @@ Interrupt_GeneralProtection :
 
 Interrupt_PageFault :
 
-    push    eax
-    mov     eax, [esp+4]
+    push    eax                        ; Preserve original EAX
+    push    ecx                        ; Preserve original ECX
+    mov     eax, [esp+12]              ; EAX holds faulting EIP
+    mov     ecx, [esp+8]               ; ECX holds error code
     pusha
 
     call    EnterKernel
 
-    mov     ebx, cr2
-    push    ebx
-    push    eax
+    mov     ebx, cr2                   ; EBX = faulting linear address
+    push    eax                        ; Push EIP
+    push    ebx                        ; Push linear address
+    push    ecx                        ; Push error code
     call    PageFaultHandler
-    add     esp, 8
+    add     esp, 12
 
     popa
-    pop     eax
+    pop     ecx                        ; Restore original ECX
+    pop     eax                        ; Restore original EAX
 
     add     esp, 4                     ; Remove error code
     iretd
