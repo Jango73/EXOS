@@ -21,17 +21,19 @@
 
 U32 RAMDiskCommands(U32, U32);
 
-DRIVER RAMDiskDriver = {ID_DRIVER,
-                        1,
-                        NULL,
-                        NULL,
-                        DRIVER_TYPE_RAMDISK,
-                        VER_MAJOR,
-                        VER_MINOR,
-                        "Jango73",
-                        "IBM PC and compatibles",
-                        "RAM Disk Controller",
-                        RAMDiskCommands};
+DRIVER RAMDiskDriver = {
+    .ID = ID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_RAMDISK,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "IBM PC and compatibles",
+    .Product = "RAM Disk Controller",
+    .Command = RAMDiskCommands
+};
 
 /***************************************************************************/
 // RAM physical disk, derives from PHYSICALDISK
