@@ -324,13 +324,16 @@ static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
                 // Integer number formats - set up the flags and "break"
 
             case 'o':
+                Flags |= PF_SPECIAL;
                 Base = 8;
                 break;
             case 'X':
+                Flags |= PF_SPECIAL;
                 Flags |= PF_LARGE;
                 Base = 16;
                 break;
             case 'x':
+                Flags |= PF_SPECIAL;
                 Base = 16;
                 break;
             case 'b':
