@@ -17,6 +17,7 @@
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
 #include "../include/Log.h"
+#include "../include/PCI.h"
 #include "../include/Mouse.h"
 #include "../include/System.h"
 
@@ -592,6 +593,14 @@ void InitializeKernel() {
 
     LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
     KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
+
+    //-------------------------------------
+    // Initialize the PCI drivers
+
+    E1000Driver.Base.Command(DF_LOAD, 0);
+    PCI_RegisterDriver(&E1000Driver);
+
+    PCI_ScanBus();
 
     //-------------------------------------
     // Print the EXOS banner

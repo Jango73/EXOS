@@ -72,15 +72,18 @@ typedef U32 (*DRVFUNC)(U32 Function, U32 Parameter);
 
 /***************************************************************************/
 
+#define DRIVER_FIELDS           \
+    U32 Type;                   \
+    U32 VersionMajor;           \
+    U32 VersionMinor;           \
+    STR Designer[MAX_NAME];     \
+    STR Manufacturer[MAX_NAME]; \
+    STR Product[MAX_NAME];      \
+    DRVFUNC Command;
+
 typedef struct tag_DRIVER {
     LISTNODE_FIELDS
-    U32 Type;
-    U32 VersionMajor;
-    U32 VersionMinor;
-    STR Designer[MAX_NAME];
-    STR Manufacturer[MAX_NAME];
-    STR Product[MAX_NAME];
-    DRVFUNC Command;
+    DRIVER_FIELDS
 } DRIVER, *LPDRIVER;
 
 /***************************************************************************/
@@ -117,6 +120,7 @@ extern DRIVER StdHardDiskDriver;
 extern DRIVER RAMDiskDriver;
 extern DRIVER VESADriver;
 extern DRIVER XFSDriver;
+extern DRIVER E1000Driver;
 
 /***************************************************************************/
 

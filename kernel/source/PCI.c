@@ -13,7 +13,7 @@
 #include "../include/Base.h"
 
 /***************************************************************************/
-/* PCI config mechanism #1 (0xCF8/0xCFC)                                    */
+// PCI config mechanism #1 (0xCF8/0xCFC)
 
 #define PCI_CONFIG_ADDRESS_PORT	0x0CF8
 #define PCI_CONFIG_DATA_PORT	0x0CFC
@@ -23,14 +23,14 @@
 	(0x80000000U | (((U32)(Bus) & 0xFFU) << 16) | (((U32)(Device) & 0x1FU) << 11) | (((U32)(Function) & 0x07U) << 8) | ((U32)(Offset) & 0xFCU))
 
 /***************************************************************************/
-/* Forward declarations                                                     */
+// Forward declarations
 
 static int PciInternalMatch(const DRIVER_MATCH* DriverMatch, const PCI_INFO* PciInfo);
 static void PciFillFunctionInfo(U8 Bus, U8 Device, U8 Function, PCI_INFO* PciInfo);
 static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice);
 
 /***************************************************************************/
-/* Registered PCI drivers                                                   */
+// Registered PCI drivers
 
 #define PCI_MAX_REGISTERED_DRIVERS	32
 
@@ -38,7 +38,7 @@ static LPPCI_DRIVER PciDriverTable[PCI_MAX_REGISTERED_DRIVERS];
 static U32 PciDriverCount = 0;
 
 /***************************************************************************/
-/* Low-level config space access (assumes port I/O helpers exist)          */
+// Low-level config space access (assumes port I/O helpers exist)
 
 U32 PCI_Read32(U8 Bus, U8 Device, U8 Function, U16 Offset) {
 	U32 Address = PCI_CONFIG_ADDRESS(Bus, Device, Function, Offset);
