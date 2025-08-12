@@ -52,14 +52,14 @@ int printf(const char* fmt, ...) { return (int)exoscall(SYSCALL_ConsolePrint, (u
 
 /***************************************************************************/
 
-int _beginthread(TASKFUNC start_address, unsigned stack_size, void* arg_list) {
+int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
     TASKINFO TaskInfo;
 
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
-    TaskInfo.Func = start_address;
-    TaskInfo.Parameter = arg_list;
+    TaskInfo.Func = (TASKFUNC)start_address;
+    TaskInfo.Parameter = (LPVOID)arg_list;
     TaskInfo.StackSize = (U32)stack_size;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = 0;
