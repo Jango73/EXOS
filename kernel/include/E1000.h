@@ -164,14 +164,11 @@ typedef struct tag_E1000_TXDESC {
    sizeof(E1000_TXDESC) == 16
 */
 
-/***************************************************************************/
-/* Driver declaration                                                       */
-
-extern PCI_DRIVER E1000Driver;
-
 /* Optional: convenience helper to compose the default match table entry.
    (You peux l’ignorer et déclarer E1000Driver directement dans E1000.c) */
 #define E1000_MATCH_DEFAULT \
 	{ E1000_VENDOR_INTEL, E1000_DEVICE_82540EM, PCI_CLASS_NETWORK, PCI_SUBCLASS_ETHERNET, PCI_ANY_CLASS }
+
+extern PCI_DRIVER E1000Driver;
 
 #endif /* E1000_H_INCLUDED */

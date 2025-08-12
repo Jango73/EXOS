@@ -272,6 +272,15 @@ typedef struct tag_FILEOPERATION {
     LPVOID  Buffer;
 } FILEOPERATION, *LPFILEOPERATION;
 
+typedef struct tag_NETWORKINFO {
+    ABI_HEADER Header;
+    U8  MAC[6];         // MAC address
+    U32 LinkUp;         // 1 = link up, 0 = link down
+    U32 SpeedMbps;      // Link speed in Mbps
+    U32 DuplexFull;     // 1 = full duplex, 0 = half duplex
+    U32 MTU;            // Maximum Transmission Unit
+} NETWORKINFO, *LPNETWORKINFO;
+
 typedef struct tag_KEYCODE {
     U8   VirtualKey;
     STR  ASCIICode;

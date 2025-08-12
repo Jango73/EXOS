@@ -27,7 +27,7 @@
 /* All network drivers must implement these IDs                            */
 
 #define DF_NT_RESET          (DF_FIRSTFUNC + 0x00) /* Reset the adapter */
-#define DF_NT_GETMAC         (DF_FIRSTFUNC + 0x01) /* Get MAC address (out: U8[6]) */
+#define DF_NT_GETINFO        (DF_FIRSTFUNC + 0x01) /* Get device information */
 #define DF_NT_SEND           (DF_FIRSTFUNC + 0x02) /* Send frame (param=ptr, param2=len) */
 #define DF_NT_POLL           (DF_FIRSTFUNC + 0x03) /* Poll RX ring */
 #define DF_NT_SETRXCB        (DF_FIRSTFUNC + 0x04) /* Set RX callback */
