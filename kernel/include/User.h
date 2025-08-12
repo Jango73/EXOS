@@ -145,6 +145,15 @@ typedef struct tag_ABI_HEADER {
  * ABI Data Structures
  ***************************************************************************/
 
+// A function for a thread entry
+typedef U32 (*TASKFUNC)(U32);
+
+// A function for window messaging
+typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
+
+// A function for volume enumeration
+typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, UPTR);
+
 typedef struct tag_SYSTEMINFO {
     U32 Size;
     U32 TotalPhysicalMemory;
@@ -181,8 +190,6 @@ typedef struct tag_PROCESSINFO {
     SECURITYATTRIBUTES Security;
     U32     Reserved[4];
 } PROCESSINFO, *LPPROCESSINFO;
-
-typedef U32 (*TASKFUNC)(UPTR);
 
 typedef struct tag_TASKINFO {
     ABI_HEADER Header;
@@ -233,8 +240,6 @@ typedef struct tag_VIRTUALINFO {
 #define ALLOC_PAGES_COMMIT  0x00000001
 #define ALLOC_PAGES_READONLY    0x00000000
 #define ALLOC_PAGES_READWRITE   0x00000002
-
-typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, UPTR);
 
 typedef struct tag_ENUMVOLUMESINFO {
     ABI_HEADER Header;
@@ -294,8 +299,6 @@ typedef struct tag_RECT {
     I32 X1, Y1;
     I32 X2, Y2;
 } RECT, *LPRECT;
-
-typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
 
 typedef struct tag_WINDOWINFO {
     ABI_HEADER Header;
