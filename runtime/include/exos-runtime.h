@@ -48,7 +48,8 @@ extern void* malloc(size_t);
 extern void free(void*);
 extern int getch();
 extern int printf(const char*, ...);
-extern int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list);
+
+extern int _beginthread(unsigned long (*start_address)(void*), unsigned stack_size, void* arg_list);
 extern void _endthread();
 extern int system(const char*);
 

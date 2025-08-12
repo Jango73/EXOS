@@ -137,7 +137,7 @@ typedef struct tag_ABI_HEADER {
  ***************************************************************************/
 
 // A function for a thread entry
-typedef U32 (*TASKFUNC)(U32);
+typedef U32 (*TASKFUNC)(LPVOID);
 
 // A function for window messaging
 typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
@@ -186,7 +186,7 @@ typedef struct tag_PROCESSINFO {
 typedef struct tag_TASKINFO {
     ABI_HEADER Header;
     TASKFUNC Func;
-    U32     Parameter;
+    LPVOID  Parameter;
     U32     StackSize;
     U32     Priority;
     U32     Flags;

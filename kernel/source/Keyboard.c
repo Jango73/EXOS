@@ -121,7 +121,7 @@ KEYBOARDSTRUCT Keyboard = {
     .NumLock = 0,
     .ScrollLock = 0,
     .Pause = 0,
-    .Buffer = {0},
+    .Buffer = {{0}},
     .Status = {0}};
 
 /***************************************************************************/
@@ -511,7 +511,7 @@ static void HandleScanCode(U32 ScanCode) {
                             TaskInfo.Header.Size = sizeof(TASKINFO);
                             TaskInfo.Header.Version = EXOS_ABI_VERSION;
                             TaskInfo.Header.Flags = 0;
-                            TaskInfo.Func = (TASKFUNC)Shell;
+                            TaskInfo.Func = Shell;
                             TaskInfo.Parameter = NULL;
                             TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
                             TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
