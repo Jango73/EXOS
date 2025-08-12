@@ -21,15 +21,6 @@
 /* Global ABI version for user/kernel boundary */
 #define EXOS_ABI_VERSION 0x0001
 
-/* Pointer-size abstraction exposed in the ABI.
-   - Keep 32-bit for current EXOS; switch to 64-bit later by defining EXOS_ABI_PTR64.
-*/
-#if defined(EXOS_ABI_PTR64)
-typedef U64 UPTR;
-#else
-typedef U32 UPTR;
-#endif
-
 /* Common header prefix for syscall payload structures.
    - Size: sizeof(struct) at compile-time of the caller
    - Version: per-struct or global EXOS_ABI_VERSION
@@ -152,7 +143,7 @@ typedef U32 (*TASKFUNC)(U32);
 typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
 
 // A function for volume enumeration
-typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, UPTR);
+typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, LPVOID);
 
 typedef struct tag_SYSTEMINFO {
     U32 Size;
@@ -180,8 +171,8 @@ typedef struct tag_SECURITYATTRIBUTES {
 
 typedef struct tag_PROCESSINFO {
     ABI_HEADER Header;
-    UPTR    FileName;
-    UPTR    CommandLine;
+    LPCSTR  FileName;
+    LPCSTR  CommandLine;
     HANDLE  StdOut;
     HANDLE  StdIn;
     HANDLE  StdErr;
@@ -193,8 +184,8 @@ typedef struct tag_PROCESSINFO {
 
 typedef struct tag_TASKINFO {
     ABI_HEADER Header;
-    UPTR    Func;
-    UPTR    Parameter;
+    TASKFUNC Func;
+    LPVOID  Parameter;
     U32     StackSize;
     U32     Priority;
     U32     Flags;
@@ -243,8 +234,8 @@ typedef struct tag_VIRTUALINFO {
 
 typedef struct tag_ENUMVOLUMESINFO {
     ABI_HEADER Header;
-    UPTR    Func;
-    UPTR    Parameter;
+    ENUMVOLUMESFUNC Func;
+    LPVOID  Parameter;
     U32     Reserved[4];
 } ENUMVOLUMESINFO, *LPENUMVOLUMESINFO;
 
@@ -256,7 +247,7 @@ typedef struct tag_VOLUMEINFO {
 
 typedef struct tag_FILEOPENINFO {
     ABI_HEADER Header;
-    UPTR    Name;
+    LPCSTR  Name;
     U32     Flags;
     U32     Reserved[3];
 } FILEOPENINFO, *LPFILEOPENINFO;
@@ -271,8 +262,8 @@ typedef struct tag_FILEOPENINFO {
 
 typedef struct tag_FILECOPYINFO {
     ABI_HEADER Header;
-    UPTR    Source;
-    UPTR    Destination;
+    LPCSTR  Source;
+    LPCSTR  Destination;
     U32     Flags;
     U32     Reserved[3];
 } FILECOPYINFO, *LPFILECOPYINFO;
@@ -281,7 +272,7 @@ typedef struct tag_FILEOPERATION {
     ABI_HEADER Header;
     HANDLE  File;
     U32     NumBytes;
-    UPTR    Buffer;
+    LPVOID  Buffer;
     U32     Reserved[3];
 } FILEOPERATION, *LPFILEOPERATION;
 
@@ -304,7 +295,7 @@ typedef struct tag_WINDOWINFO {
     ABI_HEADER Header;
     HANDLE  Window;
     HANDLE  Parent;
-    UPTR    Function;
+    WINDOWFUNC Function;
     U32     Style;
     U32     ID;
     POINT   WindowPosition;
@@ -316,7 +307,7 @@ typedef struct tag_WINDOWINFO {
 typedef struct tag_PROPINFO {
     ABI_HEADER Header;
     HANDLE  Window;
-    UPTR    Name;
+    LPCSTR  Name;
     U32     Value;
     U32     Reserved[3];
 } PROPINFO, *LPPROPINFO;
