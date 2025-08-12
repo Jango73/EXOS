@@ -121,7 +121,7 @@ KEYBOARDSTRUCT Keyboard = {
     .NumLock = 0,
     .ScrollLock = 0,
     .Pause = 0,
-    .Buffer = {0},
+    .Buffer = {{0}},
     .Status = {0}};
 
 /***************************************************************************/

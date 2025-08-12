@@ -433,7 +433,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     U32 RootCluster = 0;
     U32 CurrentSector = Create->PartitionStartSector;
 
-    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Enter");
+    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Enter"));
 
     //-------------------------------------
     // Check validity of parameters
@@ -448,7 +448,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     MemorySet(Buffer2, 0, SECTOR_SIZE * 2);
     MemorySet(Buffer3, 0, SECTOR_SIZE * 2);
 
-    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Buffers cleared");
+    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Buffers cleared"));
 
     //-------------------------------------
     // Compute size in clusters of bitmap
@@ -490,7 +490,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] MBR written");
+    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] MBR written"));
 
     //-------------------------------------
     // Fill the superblock
@@ -521,7 +521,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Superblock written");
+    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Superblock written"));
 
     //-------------------------------------
     // Cluster 0 is empty because 0 is not a valid
@@ -546,7 +546,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += Create->SectorsPerCluster;
 
-    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] Root cluster page written");
+    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Root cluster page written"));
 
     //-------------------------------------
     // Write the first file record
@@ -559,7 +559,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
         return DF_ERROR_FS_CANT_WRITE_SECTOR;
     }
 
-    KernelLogText(LOG_DEBUG, "[XFS.CreatePartition] First file record written");
+    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] First file record written"));
 
     //-------------------------------------
 

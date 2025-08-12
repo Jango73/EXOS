@@ -73,7 +73,7 @@ typedef const void* LPCVOID;
 /***************************************************************************/
 
 typedef void (*VOIDFUNC)(void);
-typedef U32 (*TASKFUNC)(U32 Param);
+typedef U32 (*TASKFUNC)(LPVOID Param);
 
 /***************************************************************************/
 // Boolean type
