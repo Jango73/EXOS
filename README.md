@@ -21,14 +21,16 @@ Because it is a very long work, it will probably never be finished.
 ### Build
 
 ./scripts/4-2-build.sh
-(Output in log/make.log)
 
 ( or ./scripts/4-1-clean-build-exos.sh to later build from a clean repo )
+
+(Output is in log/make.log)
 
 ### Run
 
 ./scripts/5-1-start-qemu-hd.sh
-( or 5-2-debug-qemu-hd.sh to debug )
+
+( or 5-2-debug-qemu-hd.sh to debug )  
 ( or 6-1-start-qemu-hd-nogfx.sh on a pure TTY Debian)
 
 ## Historical background
