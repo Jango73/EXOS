@@ -21,54 +21,54 @@ U32 Pages = 1;
 
 /***************************************************************************\
 
-  Organization of page tables
+    Organization of page tables
 
-  For every process, a linear address of FF800000 maps to it's
-  page directory, FF801000 points to the system page table,
-  FF802000 points to the first page table, and so on...
-  An access to those addresses in user privilege will emit
-  a page fault because the pages have a kernel privilege level.
-  Also note that they are marked as fixed, i.e. they do not go
-  to the swap file.
+    For every process, a linear address of FF800000 maps to it's
+    page directory, FF801000 points to the system page table,
+    FF802000 points to the first page table, and so on...
+    An access to those addresses in user privilege will emit
+    a page fault because the pages have a kernel privilege level.
+    Also note that they are marked as fixed, i.e. they do not go
+    to the swap file.
 
-      Page directory - 4096 bytes
-      --------------------------------
- |--------| Entry 1 (00000000)           |<-|
- |  |-----| Entry 2 (00400000)           |  |
- |  |     | ...                          |  |
- |  |  |--| Entry 1022 (FF800000)        |  |
- |  |  |  --------------------------------  |
- |  |  |                                    |
- |  |  |  System page table - 4096 bytes    |
- |  |  |  Maps linear addresses             |
- |  |  |  FF800000 to FFBFFFFF              |
- |  |  |  Used to modify the pages          |
- |  |  |  --------------------------------  |
- |  |  |->| Entry 1                      |--|<--|
- |  |     | Entry 2                      |------|
- |  |     | Entry 3                      |--|
- |  |     | ...                          |--|--|
- |  |     --------------------------------  |  |
- |  |                                       |  |
- |  |     Page 0 - 4096 bytes               |  |
- |  |     Maps linear addresses             |  |
- |  |     00000000 to 003FFFFF              |  |
- |  |     --------------------------------  |  |
- |--|---->| Entry 1                      |<-|  |
-    |     | Entry 2                      |     |
-    |     | Entry 3                      |     |
-    |     | ...                          |     |
-    |     --------------------------------     |
-    |                                          |
-    |     Page 1 - 4096 bytes                  |
-    |     Maps linear addresses                |
-    |     00400000 to 007FFFFF                 |
-    |     --------------------------------     |
-    |---->| Entry 1                      |<----|
-      | Entry 2                      |
-      | Entry 3                      |
-      | ...                          |
-      --------------------------------
+             Page directory - 4096 bytes
+             --------------------------------
+    |--------| Entry 1 (00000000)           |<-|
+    |  |-----| Entry 2 (00400000)           |  |
+    |  |     | ...                          |  |
+    |  |  |--| Entry 1022 (FF800000)        |  |
+    |  |  |  --------------------------------  |
+    |  |  |                                    |
+    |  |  |  System page table - 4096 bytes    |
+    |  |  |  Maps linear addresses             |
+    |  |  |  FF800000 to FFBFFFFF              |
+    |  |  |  Used to modify the pages          |
+    |  |  |  --------------------------------  |
+    |  |  |->| Entry 1                      |--|<--|
+    |  |     | Entry 2                      |------|
+    |  |     | Entry 3                      |--|
+    |  |     | ...                          |--|--|
+    |  |     --------------------------------  |  |
+    |  |                                       |  |
+    |  |     Page 0 - 4096 bytes               |  |
+    |  |     Maps linear addresses             |  |
+    |  |     00000000 to 003FFFFF              |  |
+    |  |     --------------------------------  |  |
+    |--|---->| Entry 1                      |<-|  |
+       |     | Entry 2                      |     |
+       |     | Entry 3                      |     |
+       |     | ...                          |     |
+       |     --------------------------------     |
+       |                                          |
+       |     Page 1 - 4096 bytes                  |
+       |     Maps linear addresses                |
+       |     00400000 to 007FFFFF                 |
+       |     --------------------------------     |
+       |---->| Entry 1                      |<----|
+             | Entry 2                      |
+             | Entry 3                      |
+             | ...                          |
+             --------------------------------
 
 \***************************************************************************/
 
@@ -631,7 +631,7 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
     Privilege = PAGE_PRIVILEGE_USER;
 
-    // Derive cache policy from flags
+    // Derive cache policy flags for PTE
     U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
     U32 PteWriteThrough  = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
 
@@ -639,7 +639,7 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     if (PteCacheDisabled) PteWriteThrough = 0;
 
     // If an exact physical mapping is requested, validate inputs
-    if (Target != 0) {
+    if (Target != 0 && (Flags & ALLOC_PAGES_IO) == 0) {
         if ((Target & (PAGE_SIZE - 1)) != 0) {
             KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Target not page-aligned (%X)"), Target);
             goto Out;
@@ -708,14 +708,19 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
         if (Flags & ALLOC_PAGES_COMMIT) {
             if (Target != 0) {
-                // Exact PMA path: map the requested physical page
                 Physical = Target + (Index << PAGE_SIZE_MUL);
 
-                // Mark the physical page as used before publishing the PTE
-                SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
-
-                Table[TabEntry].Present = 1;
-                Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                if (Flags & ALLOC_PAGES_IO) {
+                    // IO mapping (BAR) -> no bitmap mark, Fixed=1
+                    Table[TabEntry].Fixed = 1;
+                    Table[TabEntry].Present = 1;
+                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                } else {
+                    // RAM mapping
+                    SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
+                    Table[TabEntry].Present = 1;
+                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                }
             } else {
                 // Legacy path: allocate any free physical page
                 Physical = AllocPhysicalPage();
@@ -773,10 +778,14 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
             Table = (LPPAGETABLE)(LA_PAGETABLE + (DirEntry << PAGE_SIZE_MUL));
 
             if (Table[TabEntry].Address != NULL) {
-                SetPhysicalPageMark(Table[TabEntry].Address, 0);
+                // Skip bitmap mark if it was an IO mapping (BAR)
+                if (Table[TabEntry].Fixed == 0) {
+                    SetPhysicalPageMark(Table[TabEntry].Address, 0);
+                }
 
                 Table[TabEntry].Present = 0;
                 Table[TabEntry].Address = NULL;
+                Table[TabEntry].Fixed = 0;
             }
         }
 
@@ -793,6 +802,91 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
     KernelLogText(LOG_DEBUG, TEXT("Exiting VirtualFree"));
 
     return TRUE;
+}
+
+/***************************************************************************\
+
+  PCI BAR mapping process (example: Intel E1000 NIC)
+
+  ┌───────────────────────────┐
+  │  PCI Configuration Space  │
+  │  (accessed via PCI config │
+  │   reads/writes)           │
+  └─────────────┬─────────────┘
+                │
+                │ Read BAR0 (Base Address Register #0)
+                ▼
+       ┌────────────────────────────────┐
+       │ BAR0 value = Physical address  │
+       │ of device registers (MMIO)     │
+       │ + resource size                │
+       └─────────────┬──────────────────┘
+                     │
+                     │ Map physical MMIO region into
+                     │ kernel virtual space
+                     │ (uncached for DMA safety)
+                     │
+                     ▼
+         ┌───────────────────────────┐
+         │ VirtualAlloc(Base=0,      │
+         │   Target=BAR0,            │
+         │   Size=MMIO size,         │
+         │   Flags=ALLOC_PAGES_COMMIT│
+         │         | ALLOC_PAGES_UC) │
+         └─────────┬─────────────────┘
+                   │
+                   │ Returns Linear (VMA) address
+                   │ where the driver can access MMIO
+                   ▼
+       ┌───────────────────────────────┐
+       │ Driver reads/writes registers │
+       │ via *(volatile U32*)(VMA+ofs) │
+       │ Example: E1000_CTRL register  │
+       └───────────────────────────────┘
+
+  NOTES:
+   - MMIO (Memory-Mapped I/O) must be UNCACHED (UC) to avoid
+     stale data and incorrect ordering.
+   - BARs can also point to I/O port ranges instead of MMIO.
+   - PCI devices can have multiple BARs for different resources.
+
+\***************************************************************************/
+
+LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
+    // Basic parameter checks
+    if (PhysicalBase == 0 || Size == 0) {
+        KernelLogText(LOG_ERROR, TEXT("[MmMapIo] Invalid parameters (PA=%X Size=%X)"), PhysicalBase, Size);
+        return NULL;
+    }
+
+    if ((PhysicalBase & (PAGE_SIZE - 1)) != 0) {
+        KernelLogText(LOG_ERROR, TEXT("[MmMapIo] Physical base not page-aligned (%X)"), PhysicalBase);
+        return NULL;
+    }
+
+    // Map as Uncached, Read/Write, exact PMA mapping, IO semantics
+    return VirtualAlloc(
+        0,                                  // Let VMM choose virtual address
+        PhysicalBase,                       // Exact PMA (BAR)
+        Size,
+        ALLOC_PAGES_COMMIT |
+        ALLOC_PAGES_READWRITE |
+        ALLOC_PAGES_UC |                    // MMIO must be UC
+        ALLOC_PAGES_IO                      // Do not touch RAM bitmap; mark PTE.Fixed
+    );
+}
+
+/***************************************************************************/
+
+BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
+    // Basic parameter checks
+    if (LinearBase == 0 || Size == 0) {
+        KernelLogText(LOG_ERROR, TEXT("[MmUnmapIo] Invalid parameters (LA=%X Size=%X)"), LinearBase, Size);
+        return FALSE;
+    }
+
+    // Just unmap; VirtualFree will skip RAM bitmap if PTE.Fixed was set
+    return VirtualFree(LinearBase, Size);
 }
 
 /***************************************************************************/

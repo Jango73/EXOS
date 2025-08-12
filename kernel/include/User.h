@@ -230,6 +230,7 @@ typedef struct tag_VIRTUALINFO {
 #define ALLOC_PAGES_READWRITE   0x00000002
 #define ALLOC_PAGES_UC        0x00000004  // Uncached (for MMIO/BAR mappings)
 #define ALLOC_PAGES_WC        0x00000008  // Write-combining (rare; mostly for framebuffers)
+#define ALLOC_PAGES_IO        0x00000010  // Exact PMA mapping for IO (BAR) -> do not touch RAM bitmap
 
 typedef struct tag_ENUMVOLUMESINFO {
     ABI_HEADER Header;
