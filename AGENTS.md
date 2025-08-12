@@ -23,5 +23,6 @@ The documentation for boot sequence and kernel modules is in documentation/inter
 
 ## Forbidden Actions
 - Never enable network during tests.
-- DON'T DELETE blank lines between functions, comments, etc...
+- DON'T delete blank lines between functions, comments, etc...
 - DON'T write python code, use JS (Node)
+- DON'T use any stdlib, stdio in the kernel, it does not exist.
