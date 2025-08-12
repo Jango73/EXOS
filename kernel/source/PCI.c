@@ -11,6 +11,7 @@
 #include "../include/Kernel.h"
 #include "../include/String.h"
 #include "../include/Base.h"
+#include "../include/Log.h"
 
 /***************************************************************************/
 // PCI config mechanism #1 (0xCF8/0xCFC)
@@ -188,76 +189,87 @@ U8 PCI_FindCapability(U8 Bus, U8 Device, U8 Function, U8 CapabilityId) {
 /* Driver registration                                                      */
 
 void PCI_RegisterDriver(LPPCI_DRIVER Driver) {
-	if (Driver == NULL) return;
-	if (PciDriverCount >= PCI_MAX_REGISTERED_DRIVERS) return;
-	PciDriverTable[PciDriverCount++] = Driver;
+    if (Driver == NULL) return;
+    if (PciDriverCount >= PCI_MAX_REGISTERED_DRIVERS) return;
+    PciDriverTable[PciDriverCount++] = Driver;
+    KernelLogText(LOG_DEBUG, TEXT("[PCI] Registered driver %s"), Driver->Product);
 }
 
 /***************************************************************************/
 /* Scan & bind                                                              */
 
 void PCI_ScanBus(void) {
-	U8 Bus, Device, Function;
+    U8 Bus, Device, Function;
 
-	for (Bus = 0; Bus < PCI_MAX_BUS; Bus++) {
-		for (Device = 0; Device < PCI_MAX_DEV; Device++) {
+    KernelLogText(LOG_DEBUG, TEXT("[PCI] Scanning bus"));
 
-			/* Check presence on function 0 */
-			U16 VendorFunction0 = PCI_Read16(Bus, Device, 0, PCI_CFG_VENDOR_ID);
-			if (VendorFunction0 == 0xFFFFU) continue;
+    for (Bus = 0; Bus < PCI_MAX_BUS; Bus++) {
+        for (Device = 0; Device < PCI_MAX_DEV; Device++) {
 
-			U8 HeaderType = PCI_Read8(Bus, Device, 0, PCI_CFG_HEADER_TYPE);
-			U8 IsMultiFunction = (HeaderType & PCI_HEADER_MULTI_FN) ? 1 : 0;
-			U8 MaxFunction = IsMultiFunction ? (PCI_MAX_FUNC - 1) : 0;
+            /* Check presence on function 0 */
+            U16 VendorFunction0 = PCI_Read16(Bus, Device, 0, PCI_CFG_VENDOR_ID);
+            if (VendorFunction0 == 0xFFFFU) continue;
 
-			for (Function = 0; Function <= MaxFunction; Function++) {
+            U8 HeaderType = PCI_Read8(Bus, Device, 0, PCI_CFG_HEADER_TYPE);
+            U8 IsMultiFunction = (HeaderType & PCI_HEADER_MULTI_FN) ? 1 : 0;
+            U8 MaxFunction = IsMultiFunction ? (PCI_MAX_FUNC - 1) : 0;
 
-				U16 VendorId = PCI_Read16(Bus, Device, Function, PCI_CFG_VENDOR_ID);
-				if (VendorId == 0xFFFFU) continue;
+            for (Function = 0; Function <= MaxFunction; Function++) {
 
-                                PCI_INFO PciInfo;
-                                PCI_DEVICE PciDevice;
-                                U32 DriverIndex;
+                U16 VendorId = PCI_Read16(Bus, Device, Function, PCI_CFG_VENDOR_ID);
+                if (VendorId == 0xFFFFU) continue;
 
-                                PciFillFunctionInfo(Bus, Device, Function, &PciInfo);
-                                MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
-                                PciDevice.ID = ID_PCIDEVICE;
-                                PciDevice.References = 1;
-                                PciDevice.Driver = NULL;
-                                PciDevice.Info = PciInfo;
-                                PciDecodeBARs(&PciInfo, &PciDevice);
+                PCI_INFO PciInfo;
+                PCI_DEVICE PciDevice;
+                U32 DriverIndex;
 
-                                /* Try all registered PCI drivers */
-                                for (DriverIndex = 0; DriverIndex < PciDriverCount; DriverIndex++) {
-                                        LPPCI_DRIVER PciDriver = PciDriverTable[DriverIndex];
+                PciFillFunctionInfo(Bus, Device, Function, &PciInfo);
+                KernelLogText(LOG_DEBUG, TEXT("[PCI] Found %02X:%02X.%u VID=%04X DID=%04X"),
+                        Bus, Device, Function, PciInfo.VendorID, PciInfo.DeviceID);
+                MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
+                PciDevice.ID = ID_PCIDEVICE;
+                PciDevice.References = 1;
+                PciDevice.Driver = NULL;
+                PciDevice.Info = PciInfo;
+                PciDecodeBARs(&PciInfo, &PciDevice);
 
-                                        for (U32 MatchIndex = 0; MatchIndex < PciDriver->MatchCount; MatchIndex++) {
-                                                const DRIVER_MATCH* DriverMatch = &PciDriver->Matches[MatchIndex];
+                /* Try all registered PCI drivers */
+                for (DriverIndex = 0; DriverIndex < PciDriverCount; DriverIndex++) {
+                    LPPCI_DRIVER PciDriver = PciDriverTable[DriverIndex];
 
-                                                if (PciInternalMatch(DriverMatch, &PciInfo)) {
-                                                        if (PciDriver->Command) {
-                                                                U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
-                                                                if (Result == DF_ERROR_SUCCESS) {
-                                                                        PciDevice.Driver = (LPDRIVER)PciDriver;
-                                                                        PciDriver->Command(DF_LOAD, 0);
-                                                                        if (PciDriver->Attach) {
-                                                                                LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
-                                                                                if (NewDev) {
-                                                                                        ListAddItem(Kernel.PCIDevice, NewDev);
-                                                                                        goto NextFunction;
-                                                                                }
-                                                                        }
-                                                                }
-                                                        }
-                                                }
+                    for (U32 MatchIndex = 0; MatchIndex < PciDriver->MatchCount; MatchIndex++) {
+                        const DRIVER_MATCH* DriverMatch = &PciDriver->Matches[MatchIndex];
+
+                        if (PciInternalMatch(DriverMatch, &PciInfo)) {
+                            if (PciDriver->Command) {
+                                KernelLogText(LOG_DEBUG, TEXT("[PCI] %s matches %02X:%02X.%u"),
+                                        PciDriver->Product, Bus, Device, Function);
+                                U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
+                                if (Result == DF_ERROR_SUCCESS) {
+                                    PciDevice.Driver = (LPDRIVER)PciDriver;
+                                    PciDriver->Command(DF_LOAD, 0);
+                                    if (PciDriver->Attach) {
+                                        LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
+                                        if (NewDev) {
+                                            ListAddItem(Kernel.PCIDevice, NewDev);
+                                            KernelLogText(LOG_DEBUG, TEXT("[PCI] Attached %s to %02X:%02X.%u"),
+                                                    PciDriver->Product, Bus, Device, Function);
+                                            goto NextFunction;
                                         }
+                                    }
                                 }
+                            }
+                        }
+                    }
+                }
 
-			NextFunction:
-				(void)0;
-			}
-		}
-	}
+            NextFunction:
+                (void)0;
+            }
+        }
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[PCI] Bus scan complete"));
 }
 
 /***************************************************************************/

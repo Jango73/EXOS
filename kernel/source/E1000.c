@@ -181,6 +181,8 @@ PCI_DRIVER E1000Driver = {
 };
 
 static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] New device %02X:%02X.%u"),
+        PciDevice->Info.Bus, PciDevice->Info.Dev, PciDevice->Info.Func);
     LPE1000DEVICE Device = (LPE1000DEVICE)KernelMemAlloc(sizeof(E1000DEVICE));
     if (Device == NULL) return NULL;
 
@@ -206,6 +208,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
         KernelMemFree(Device);
         return NULL;
     }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] MMIO mapped at %X size %X"), Device->MmioBase, Device->MmioSize);
 
     PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 1);
 
@@ -214,6 +217,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
         KernelMemFree(Device);
         return NULL;
     }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] Reset complete"));
     E1000_ReadMac(Device);
 
     if (!E1000_SetupRx(Device)) {
@@ -221,11 +225,13 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
         KernelMemFree(Device);
         return NULL;
     }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] RX setup complete"));
     if (!E1000_SetupTx(Device)) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] TX setup failed"));
         KernelMemFree(Device);
         return NULL;
     }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));
 
     KernelLogText(LOG_VERBOSE, TEXT("[E1000] Attached %02X:%02X.%u MMIO=%X size=%X MAC=%02X:%02X:%02X:%02X:%02X:%02X"),
         Device->Info.Bus, Device->Info.Dev, Device->Info.Func,
@@ -295,6 +301,7 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
 // Core HW ops
 
 static BOOL E1000_Reset(LPE1000DEVICE Device) {
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_Reset] Begin"));
     U32 Ctrl = E1000_ReadReg32(Device->MmioBase, E1000_REG_CTRL);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_CTRL, Ctrl | E1000_CTRL_RST);
 
@@ -312,6 +319,7 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
     // Disable interrupts for polling path
     E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
 
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_Reset] Done"));
     return TRUE;
 }
 
@@ -319,6 +327,7 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
 // RX/TX rings setup
 
 static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupRx] Begin"));
     U32 Index;
 
     Device->RxRingCount = E1000_RX_DESC_COUNT;
@@ -375,10 +384,12 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
         E1000_WriteReg32(Device->MmioBase, E1000_REG_RCTL, Rctl);
     }
 
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupRx] Done"));
     return TRUE;
 }
 
 static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupTx] Begin"));
     U32 Index;
 
     Device->TxRingCount = E1000_TX_DESC_COUNT;
@@ -438,6 +449,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
         E1000_WriteReg32(Device->MmioBase, E1000_REG_TIPG, 0x0060200A);
     }
 
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupTx] Done"));
     return TRUE;
 }
 
@@ -445,6 +457,8 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
 // RX/TX operations
 static U32 E1000_TxSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
     if (Length == 0 || Length > E1000_RX_BUF_SIZE) return DF_ERROR_BADPARAM;
+
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_TxSend] len=%u"), Length);
 
     U32 Index = Device->TxTail;
     LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;
@@ -465,10 +479,12 @@ static U32 E1000_TxSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
     U32 Wait = 0;
     while (((Ring[Index].STA & E1000_TX_STA_DD) == 0) && (Wait++ < 100000)) { }
 
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_TxSend] sent index=%u"), Index);
     return DF_ERROR_SUCCESS;
 }
 
 static U32 E1000_RxPoll(LPE1000DEVICE Device) {
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_RxPoll] Begin"));
     LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
     U32 Count = 0;
 
@@ -497,6 +513,7 @@ static U32 E1000_RxPoll(LPE1000DEVICE Device) {
         if (Count > Device->RxRingCount) break;
     }
 
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_RxPoll] processed=%u"), Count);
     return DF_ERROR_SUCCESS;
 }
 
