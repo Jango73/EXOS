@@ -392,7 +392,7 @@ static U32 RAMDiskInitialize() {
     if (Disk == NULL) return DF_ERROR_NOMEMORY;
 
     Disk->Size = N_512KB;
-    Disk->Base = VirtualAlloc(LA_RAMDISK, Disk->Size, ALLOC_PAGES_COMMIT);
+    Disk->Base = VirtualAlloc(LA_RAMDISK, 0, Disk->Size, ALLOC_PAGES_COMMIT);
 
     if (Disk->Base == NULL) {
         VirtualFree(LA_RAMDISK, Disk->Size);

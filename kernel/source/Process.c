@@ -44,7 +44,7 @@ void InitializeKernelHeap() {
     KernelLogText(LOG_DEBUG, TEXT("Memory : %X"), Memory);
     KernelLogText(LOG_DEBUG, TEXT("Pages : %X"), Pages);
 
-    LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    LINEAR HeapBase = VirtualAlloc(0, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     KernelLogText(LOG_DEBUG, TEXT("HeapBase : %X"), HeapBase);
 
@@ -454,7 +454,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : VirtualAllocing process space...\n"));
 
-    VirtualAlloc(LA_USER, TotalSize, ALLOC_PAGES_COMMIT);
+    VirtualAlloc(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT);
 
     //-------------------------------------
     // Open the executable file

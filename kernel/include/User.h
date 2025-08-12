@@ -180,7 +180,6 @@ typedef struct tag_PROCESSINFO {
     HANDLE  Process;
     HANDLE  Task;
     SECURITYATTRIBUTES Security;
-    U32     Reserved[4];
 } PROCESSINFO, *LPPROCESSINFO;
 
 typedef struct tag_TASKINFO {
@@ -191,7 +190,6 @@ typedef struct tag_TASKINFO {
     U32     Priority;
     U32     Flags;
     SECURITYATTRIBUTES Security;
-    U32     Reserved[4];
 } TASKINFO, *LPTASKINFO;
 
 #define TASK_PRIORITY_LOWEST    0x00
@@ -210,34 +208,33 @@ typedef struct tag_MESSAGEINFO {
     U32 Message;
     U32 Param1;
     U32 Param2;
-    U32 Reserved[2];
 } MESSAGEINFO, *LPMESSAGEINFO;
 
 typedef struct tag_SEMINFO {
     ABI_HEADER Header;
     HANDLE  Mutex;
     U32     MilliSeconds;
-    U32     Reserved[4];
 } SEMINFO, *LPSEMINFO;
 
 typedef struct tag_VIRTUALINFO {
     ABI_HEADER Header;
-    U32     Base;
-    U32     Size;
-    U32     Flags;
-    U32     Reserved[3];
+    U32     Base;           // The base virtual address (0 = don't care)
+    U32     Target;         // The physical address to map to (0 = don't care)
+    U32     Size;           // The size in bytes to allocate
+    U32     Flags;          // See ALLOC_PAGES_xxx
 } VIRTUALINFO, *LPVIRTUALINFO;
 
 #define ALLOC_PAGES_RESERVE 0x00000000
 #define ALLOC_PAGES_COMMIT  0x00000001
 #define ALLOC_PAGES_READONLY    0x00000000
 #define ALLOC_PAGES_READWRITE   0x00000002
+#define ALLOC_PAGES_UC        0x00000004  // Uncached (for MMIO/BAR mappings)
+#define ALLOC_PAGES_WC        0x00000008  // Write-combining (rare; mostly for framebuffers)
 
 typedef struct tag_ENUMVOLUMESINFO {
     ABI_HEADER Header;
-    ENUMVOLUMESFUNC Func;
-    LPVOID  Parameter;
-    U32     Reserved[4];
+    ENUMVOLUMESFUNC Func;       // The callback for enumeration
+    LPVOID  Parameter;          //
 } ENUMVOLUMESINFO, *LPENUMVOLUMESINFO;
 
 typedef struct tag_VOLUMEINFO {
@@ -250,7 +247,6 @@ typedef struct tag_FILEOPENINFO {
     ABI_HEADER Header;
     LPCSTR  Name;
     U32     Flags;
-    U32     Reserved[3];
 } FILEOPENINFO, *LPFILEOPENINFO;
 
 #define FILE_OPEN_READ      0x00000001
@@ -266,7 +262,6 @@ typedef struct tag_FILECOPYINFO {
     LPCSTR  Source;
     LPCSTR  Destination;
     U32     Flags;
-    U32     Reserved[3];
 } FILECOPYINFO, *LPFILECOPYINFO;
 
 typedef struct tag_FILEOPERATION {
@@ -274,7 +269,6 @@ typedef struct tag_FILEOPERATION {
     HANDLE  File;
     U32     NumBytes;
     LPVOID  Buffer;
-    U32     Reserved[3];
 } FILEOPERATION, *LPFILEOPERATION;
 
 typedef struct tag_KEYCODE {
@@ -302,7 +296,6 @@ typedef struct tag_WINDOWINFO {
     POINT   WindowPosition;
     POINT   WindowSize;
     BOOL    ShowHide;
-    U32     Reserved[3];
 } WINDOWINFO, *LPWINDOWINFO;
 
 typedef struct tag_PROPINFO {
@@ -310,7 +303,6 @@ typedef struct tag_PROPINFO {
     HANDLE  Window;
     LPCSTR  Name;
     U32     Value;
-    U32     Reserved[3];
 } PROPINFO, *LPPROPINFO;
 
 typedef struct tag_WINDOWRECT {

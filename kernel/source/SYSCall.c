@@ -253,7 +253,7 @@ U32 SysCall_VirtualAlloc(U32 Parameter) {
     LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
 
     if (Info && Info->Header.Size >= sizeof(VIRTUALINFO)) {
-        return VirtualAlloc(Info->Base, Info->Size, Info->Flags);
+        return VirtualAlloc(Info->Base, Info->Target, Info->Size, Info->Flags);
     }
 
     return 0;

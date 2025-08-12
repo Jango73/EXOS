@@ -539,6 +539,23 @@ static LINEAR FindFreeRegion(U32 Size) {
     return NULL;
 }
 
+/***************************************************************************\
+
+    Checks if a physical memory range is free
+
+\***************************************************************************/
+
+static BOOL IsPhysicalRangeFree(PHYSICAL Target, U32 NumPages) {
+    U32 PageIndex = 0;
+
+    if ((Target & (PAGE_SIZE - 1)) != 0) return FALSE;
+    for (PageIndex = 0; PageIndex < NumPages; PageIndex++) {
+        U32 Page = (Target >> PAGE_SIZE_MUL) + PageIndex;
+        if (GetPhysicalPageMark(Page)) return FALSE;
+    }
+    return TRUE;
+}
+
 /***************************************************************************/
 
 static void FreeEmptyPageTables() {
@@ -578,15 +595,20 @@ static void FreeEmptyPageTables() {
   VirtualAlloc is the most important memory management function.
   It allocates a linear address region to the calling process
   and sets up the page tables.
+
   If the user supplies a linear address as a base for the region,
   VirtualAlloc returns NULL if the region is already allocated.
+
+  If the user supplies a physical target address, VirtualAlloc returns
+  NULL if the physical regions are not free.
+
   The pages can be physically allocated if the flags include
   ALLOC_PAGES_COMMIT or can be reserved (not present in physical
   memory) with the ALLOC_PAGES_RESERVE flag.
 
 \***************************************************************************/
 
-LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
+LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE Table = NULL;
     LINEAR Pointer = NULL;
@@ -601,44 +623,61 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
     KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Enter"));
 
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
+
+    // Rounding behavior for page count
     NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
+    if (NumPages == 0) NumPages = 1;
+
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
     Privilege = PAGE_PRIVILEGE_USER;
 
-    //-------------------------------------
+    // Derive cache policy from flags
+    U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
+    U32 PteWriteThrough  = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
+
+    // If UC is set, it dominates; WT must be 0 in that case.
+    if (PteCacheDisabled) PteWriteThrough = 0;
+
+    // If an exact physical mapping is requested, validate inputs
+    if (Target != 0) {
+        if ((Target & (PAGE_SIZE - 1)) != 0) {
+            KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Target not page-aligned (%X)"), Target);
+            goto Out;
+        }
+        if ((Flags & ALLOC_PAGES_COMMIT) == 0) {
+            KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Exact PMA mapping requires COMMIT"));
+            goto Out;
+        }
+        if (!IsPhysicalRangeFree(Target, NumPages)) {
+            KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Target physical range not free (%X, pages=%d)"), Target, NumPages);
+            goto Out;
+        }
+    }
+
     // If the calling process requests that a linear address be mapped,
     // see if the region is not already allocated.
-
-    if (Base != MAX_U32) {
+    if (Base != 0) {
         if (IsRegionFree(Base, Size) == FALSE) {
             KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] No free region found with specified base"));
             goto Out;
         }
     }
 
-    //-------------------------------------
     // If the calling process does not care about the base address of
     // the region, try to find a region which is at least as large as
     // the "Size" parameter.
-
-    if (Base == MAX_U32) {
+    if (Base == 0) {
         Base = FindFreeRegion(Size);
         if (Base == NULL) {
-            KernelLogText(
-                LOG_DEBUG, TEXT("[VirtualAlloc] No free region found "
-                                "with unspecified base"));
+            KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] No free region found with unspecified base"));
             goto Out;
         }
     }
 
-    //-------------------------------------
     // Set the return value to "Base".
-
     Pointer = Base;
 
-    //-------------------------------------
     // Allocate each page in turn.
-
     for (Index = 0; Index < NumPages; Index++) {
         DirEntry = GetDirectoryEntry(Base);
         TabEntry = GetTableEntry(Base);
@@ -657,8 +696,8 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
         Table[TabEntry].Present = 0;
         Table[TabEntry].ReadWrite = ReadWrite;
         Table[TabEntry].Privilege = Privilege;
-        Table[TabEntry].WriteThrough = 0;
-        Table[TabEntry].CacheDisabled = 0;
+        Table[TabEntry].WriteThrough = PteWriteThrough;
+        Table[TabEntry].CacheDisabled = PteCacheDisabled;
         Table[TabEntry].Accessed = 0;
         Table[TabEntry].Dirty = 0;
         Table[TabEntry].Reserved = 0;
@@ -668,26 +707,39 @@ LINEAR VirtualAlloc(LINEAR Base, U32 Size, U32 Flags) {
         Table[TabEntry].Address = MAX_U32 >> PAGE_SIZE_MUL;
 
         if (Flags & ALLOC_PAGES_COMMIT) {
-            //-------------------------------------
-            // Get a free physical page
+            if (Target != 0) {
+                // Exact PMA path: map the requested physical page
+                Physical = Target + (Index << PAGE_SIZE_MUL);
 
-            Physical = AllocPhysicalPage();
+                // Mark the physical page as used before publishing the PTE
+                SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
 
-            Table[TabEntry].Present = 1;
-            Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                Table[TabEntry].Present = 1;
+                Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+            } else {
+                // Legacy path: allocate any free physical page
+                Physical = AllocPhysicalPage();
+
+                if (Physical == NULL) {
+                    KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] AllocPhysicalPage failed"));
+                    // Roll back pages mapped so far
+                    VirtualFree(Pointer, (Index << PAGE_SIZE_MUL));
+                    Pointer = NULL;
+                    goto Out;
+                }
+
+                Table[TabEntry].Present = 1;
+                Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+            }
         }
 
-        //-------------------------------------
         // Advance to next page
-
         Base += PAGE_SIZE;
     }
 
 Out:
 
-    //-------------------------------------
     // Flush the Translation Look-up Buffer of the CPU
-
     FlushTLB();
 
     KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Exit"));

@@ -38,8 +38,8 @@ U32 GetPhysicalPageMark(U32);
 LINEAR MapPhysicalPage(PHYSICAL Physical);
 PHYSICAL AllocPageDirectory();
 PHYSICAL AllocPhysicalPage();
-LINEAR VirtualAlloc(LINEAR, U32, U32);
-BOOL VirtualFree(LINEAR, U32);
+LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags);
+BOOL VirtualFree(LINEAR Base, U32 Size);
 
 /***************************************************************************/
 
