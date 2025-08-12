@@ -186,7 +186,7 @@ typedef struct tag_PROCESSINFO {
 typedef struct tag_TASKINFO {
     ABI_HEADER Header;
     TASKFUNC Func;
-    LPVOID  Parameter;
+    U32     Parameter;
     U32     StackSize;
     U32     Priority;
     U32     Flags;

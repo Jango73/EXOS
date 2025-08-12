@@ -604,7 +604,7 @@ void InitializeKernel() {
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
-    TaskInfo.Func = ClockTask;
+    TaskInfo.Func = (TASKFUNC)ClockTask;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = 0;
@@ -615,7 +615,7 @@ void InitializeKernel() {
     //-------------------------------------
     // Shell task
 
-    TaskInfo.Func = Shell;
+    TaskInfo.Func = (TASKFUNC)Shell;
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
