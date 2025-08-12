@@ -513,6 +513,9 @@ static void CMD_run(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
+            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+            ProcessInfo.Header.Flags = 0;
             ProcessInfo.Flags = 0;
             ProcessInfo.FileName = FileName;
             ProcessInfo.CommandLine = NULL;
@@ -536,7 +539,9 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
 
     SYSTEMINFO Info;
 
-    Info.Size = sizeof Info;
+    Info.Header.Size = sizeof Info;
+    Info.Header.Version = EXOS_ABI_VERSION;
+    Info.Header.Flags = 0;
     DoSystemCall(SYSCALL_GetSystemInfo, (U32)&Info);
 
     ConsolePrint((LPCSTR) "Total physical memory     : %d KB\n", Info.TotalPhysicalMemory / 1024);
@@ -609,6 +614,9 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
+            FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+            FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+            FileOpenInfo.Header.Flags = 0;
             FileOpenInfo.Name = FileName;
             FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
@@ -621,7 +629,9 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
                     Buffer = (U8*)HeapAlloc(FileSize + 1);
 
                     if (Buffer) {
-                        FileOperation.Size = sizeof(FILEOPERATION);
+                        FileOperation.Header.Size = sizeof(FILEOPERATION);
+                        FileOperation.Header.Version = EXOS_ABI_VERSION;
+                        FileOperation.Header.Flags = 0;
                         FileOperation.File = Handle;
                         FileOperation.NumBytes = FileSize;
                         FileOperation.Buffer = Buffer;
@@ -662,13 +672,17 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
 
     ConsolePrint(TEXT("%s %s\n"), SrcName, DstName);
 
-    FileOpenInfo.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+    FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = SrcName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
     SrcFile = DoSystemCall(SYSCALL_OpenFile, (U32)&FileOpenInfo);
     if (SrcFile == NULL) return;
 
-    FileOpenInfo.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+    FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = DstName;
     FileOpenInfo.Flags = FILE_OPEN_WRITE;
     DstFile = DoSystemCall(SYSCALL_OpenFile, (U32)&FileOpenInfo);
@@ -684,14 +698,18 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
             BytesToRead = 1024;
             if (Index + 1024 > FileSize) BytesToRead = FileSize - Index;
 
-            FileOperation.Size = sizeof(FILEOPERATION);
+            FileOperation.Header.Size = sizeof(FILEOPERATION);
+            FileOperation.Header.Version = EXOS_ABI_VERSION;
+            FileOperation.Header.Flags = 0;
             FileOperation.File = SrcFile;
             FileOperation.NumBytes = BytesToRead;
             FileOperation.Buffer = Buffer;
 
             if (ReadFile(&FileOperation) != BytesToRead) break;
 
-            FileOperation.Size = sizeof(FILEOPERATION);
+            FileOperation.Header.Size = sizeof(FILEOPERATION);
+            FileOperation.Header.Version = EXOS_ABI_VERSION;
+            FileOperation.Header.Flags = 0;
             FileOperation.File = DstFile;
             FileOperation.NumBytes = BytesToRead;
             FileOperation.Buffer = Buffer;
@@ -830,11 +848,11 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     MemorySet(Context->CommandLine, 0, sizeof Context->CommandLine);
 
-    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Context->CommandLine cleared"));
+    // KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Context->CommandLine cleared"));
 
     ConsoleGetString(Context->CommandLine, sizeof Context->CommandLine);
 
-    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Got a string"));
+    // KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Got a string"));
 
     // RotateBuffers(Context);
 

@@ -40,6 +40,7 @@
 #define DRIVER_TYPE_OTHER 0xFFFFFFFF
 
 /***************************************************************************/
+// Generic functions
 
 #define DF_LOAD 0x0000
 #define DF_UNLOAD 0x0001
@@ -47,6 +48,10 @@
 #define DF_GETCAPS 0x0003
 #define DF_GETLASTFUNC 0x0004
 #define DF_FIRSTFUNC 0x1000
+
+#define DF_PROBE     0x0008  /* in: DEVICE_DESC* ; out: DF_ERROR_SUCCESS if supported */
+#define DF_ATTACH    0x0009
+#define DF_DETACH    0x000A
 
 /***************************************************************************/
 // Error codes common to all drivers
@@ -63,7 +68,7 @@
 
 /***************************************************************************/
 
-typedef U32 (*DRVFUNC)(U32, U32);
+typedef U32 (*DRVFUNC)(U32 Function, U32 Parameter);
 
 /***************************************************************************/
 

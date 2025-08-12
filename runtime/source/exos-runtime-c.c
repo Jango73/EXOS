@@ -19,6 +19,10 @@ extern unsigned strstr(const char*, const char*);
 
 /***************************************************************************/
 
+// User-facing structures now start with an ABI_HDR instead of a simple size
+// field. Always populate Hdr.Size with sizeof(struct), set Hdr.Version to
+// EXOS_ABI_VERSION, and clear Hdr.Flags before invoking system calls.
+
 void exit(int ErrorCode) { __exit__(ErrorCode); }
 
 /***************************************************************************/
@@ -51,6 +55,9 @@ int printf(const char* fmt, ...) { return (int)exoscall(SYSCALL_ConsolePrint, (u
 int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
     TASKINFO TaskInfo;
 
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
     TaskInfo.Func = (TASKFUNC)start_address;
     TaskInfo.Parameter = (LPVOID)arg_list;
     TaskInfo.StackSize = (U32)stack_size;
@@ -69,6 +76,9 @@ void _endthread() {}
 int system(const char* __cmd) {
     PROCESSINFO ProcessInfo;
 
+    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+    ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+    ProcessInfo.Header.Flags = 0;
     ProcessInfo.FileName = NULL;
     ProcessInfo.CommandLine = (LPCSTR)__cmd;
     ProcessInfo.Flags = 0;
@@ -86,7 +96,10 @@ FILE* fopen(const char* __name, const char* __mode) {
     FILE* __fp;
     HANDLE handle;
 
-    info.Size = sizeof(FILEOPENINFO);
+    info.Header.Size = sizeof(FILEOPENINFO);
+    info.Header.Version = EXOS_ABI_VERSION;
+    info.Header.Flags = 0;
+    info.Flags = 0;
     info.Name = (LPCSTR)__name;
     info.Flags = 0;
 
@@ -103,7 +116,7 @@ FILE* fopen(const char* __name, const char* __mode) {
     } else if (strstr(__mode, "a")) {
         info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
     } else {
-        // Mode inconnu
+        // Unknown mode
         return NULL;
     }
 
@@ -151,7 +164,9 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
 
     if (!fp) return 0;
 
-    fileop.Size = sizeof fileop;
+    fileop.Header.Size = sizeof fileop;
+    fileop.Header.Version = EXOS_ABI_VERSION;
+    fileop.Header.Flags = 0;
     fileop.File = (HANDLE)fp->_handle;
     fileop.NumBytes = elsize * num;
     fileop.Buffer = buf;

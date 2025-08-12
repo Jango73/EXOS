@@ -37,7 +37,7 @@ U32 SysCall_GetVersion(U32 Parameter) {
 U32 SysCall_GetSystemInfo(U32 Parameter) {
     LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
 
-    if (Info) {
+    if (Info && Info->Header.Size >= sizeof(SYSTEMINFO)) {
         Info->TotalPhysicalMemory = Memory;
         Info->PhysicalMemoryUsed = GetPhysicalMemoryUsed();
         Info->PhysicalMemoryAvail = Memory - Info->PhysicalMemoryUsed;
@@ -252,7 +252,7 @@ U32 SysCall_UnlockMutex(U32 Parameter) {
 U32 SysCall_VirtualAlloc(U32 Parameter) {
     LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
 
-    if (Info) {
+    if (Info && Info->Header.Size >= sizeof(VIRTUALINFO)) {
         return VirtualAlloc(Info->Base, Info->Size, Info->Flags);
     }
 
@@ -264,7 +264,7 @@ U32 SysCall_VirtualAlloc(U32 Parameter) {
 U32 SysCall_VirtualFree(U32 Parameter) {
     LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
 
-    if (Info) {
+    if (Info && Info->Header.Size >= sizeof(VIRTUALINFO)) {
         return VirtualFree(Info->Base, Info->Size);
     }
 

@@ -167,6 +167,9 @@ LPDESKTOP CreateDesktop() {
     This->Task = GetCurrentTask();
     This->Graphics = &VESADriver;
 
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
     WindowInfo.Parent = NULL;
     WindowInfo.Function = DesktopWindowFunc;
     WindowInfo.Style = 0;
@@ -1190,6 +1193,7 @@ BOOL Line(LPLINEINFO LineInfo) {
     // Check validity of parameters
 
     if (LineInfo == NULL) return FALSE;
+    if (LineInfo->Header.Size < sizeof(LINEINFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)LineInfo->GC;
 
@@ -1215,6 +1219,7 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
     // Check validity of parameters
 
     if (RectInfo == NULL) return FALSE;
+    if (RectInfo->Header.Size < sizeof(RECTINFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)RectInfo->GC;
 
@@ -1302,7 +1307,9 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (GC) {
                 GetWindowRect(Window, &Rect);
 
-                RectInfo.Size = sizeof(RectInfo);
+                RectInfo.Header.Size = sizeof(RectInfo);
+                RectInfo.Header.Version = EXOS_ABI_VERSION;
+                RectInfo.Header.Flags = 0;
                 RectInfo.GC = GC;
                 RectInfo.X1 = Rect.X1;
                 RectInfo.Y1 = Rect.Y1;
@@ -1415,7 +1422,9 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (GC) {
                 GetWindowRect(Window, &Rect);
 
-                RectInfo.Size = sizeof(RectInfo);
+                RectInfo.Header.Size = sizeof(RectInfo);
+                RectInfo.Header.Version = EXOS_ABI_VERSION;
+                RectInfo.Header.Flags = 0;
                 RectInfo.GC = GC;
                 RectInfo.X1 = Rect.X1;
                 RectInfo.Y1 = Rect.Y1;

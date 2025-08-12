@@ -75,7 +75,9 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
 
-    FileOperation.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Version = EXOS_ABI_VERSION;
+    FileOperation.Header.Flags = 0;
     FileOperation.File = (HANDLE)File;
 
     //-------------------------------------
@@ -160,7 +162,9 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LI
 
     if (File == NULL) return FALSE;
 
-    FileOperation.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Version = EXOS_ABI_VERSION;
+    FileOperation.Header.Flags = 0;
     FileOperation.File = (HANDLE)File;
 
     CodeRead = 0;
@@ -343,12 +347,18 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     if (Info == NULL) return FALSE;
 
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
+
     //-------------------------------------
     // Open the executable file
 
     KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Opening file %s\n"), Info->FileName);
 
-    FileOpenInfo.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+    FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = Info->FileName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
@@ -449,7 +459,9 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Open the executable file
 
-    FileOpenInfo.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+    FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = Info->FileName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 

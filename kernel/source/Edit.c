@@ -532,7 +532,9 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
     U32 FinalLineSize;
     U32 Index;
 
-    Info.Size = sizeof Info;
+    Info.Header.Size = sizeof Info;
+    Info.Header.Version = EXOS_ABI_VERSION;
+    Info.Header.Flags = 0;
     Info.Name = Name;
     Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
@@ -545,7 +547,9 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
             if (Buffer) {
                 Buffer[FileSize] = STR_NULL;
 
-                FileOperation.Size = sizeof FileOperation;
+                FileOperation.Header.Size = sizeof FileOperation;
+                FileOperation.Header.Version = EXOS_ABI_VERSION;
+                FileOperation.Header.Flags = 0;
                 FileOperation.File = Handle;
                 FileOperation.NumBytes = FileSize;
                 FileOperation.Buffer = Buffer;

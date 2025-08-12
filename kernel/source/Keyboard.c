@@ -508,6 +508,9 @@ static void HandleScanCode(U32 ScanCode) {
                             VESADriver.Command(DF_UNLOAD, 0);
                         } else {
                             TASKINFO TaskInfo;
+                            TaskInfo.Header.Size = sizeof(TASKINFO);
+                            TaskInfo.Header.Version = EXOS_ABI_VERSION;
+                            TaskInfo.Header.Flags = 0;
                             TaskInfo.Func = Shell;
                             TaskInfo.Parameter = NULL;
                             TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;

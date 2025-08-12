@@ -334,6 +334,9 @@ U32 DesktopTask(LPVOID Param) {
 BOOL InitApplication() {
     TASKINFO TaskInfo;
 
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
     TaskInfo.Func = DesktopTask;
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = 65536;

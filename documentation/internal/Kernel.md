@@ -4,7 +4,7 @@
 
 To be completed.
 
-## Startup sequence on HD (in qemu-system-x86_64)
+## Startup sequence on HD (in qemu-system-i386)
 
 Everything in this sequence runs in 16 bits real mode on i386+ processors.
 However, the code uses 32 bit registers when appropriate.

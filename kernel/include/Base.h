@@ -73,7 +73,7 @@ typedef const void* LPCVOID;
 /***************************************************************************/
 
 typedef void (*VOIDFUNC)(void);
-typedef U32 (*TASKFUNC)(LPVOID Param);
+typedef U32 (*TASKFUNC)(U32 Param);
 
 /***************************************************************************/
 // Boolean type
@@ -211,6 +211,7 @@ typedef U32 BOOL;
 #define BIT_15 0x8000
 
 /***************************************************************************/
+// This macro gives the offset of a structure member
 
 #define MEMBER_OFFSET(s, m) ((U32)(&(((s*)NULL)->m)))
 
@@ -284,8 +285,10 @@ typedef struct tag_SYSTEMTIME {
     U32 Unused : 4;
 } SYSTEMTIME, *LPSYSTEMTIME;
 
-/***************************************************************************/
-// Handles
+/***************************************************************************
+ * Handles - They are a pointer in reality, but called handles so that they
+ * are not used in userland, otherwise you get a nice page fault, at best.
+ ***************************************************************************/
 
 typedef U32 HANDLE;
 

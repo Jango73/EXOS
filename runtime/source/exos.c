@@ -15,6 +15,10 @@ extern unsigned exoscall(unsigned, unsigned);
 
 /***************************************************************************/
 
+// Every user structure passed to the kernel begins with an ABI_HDR. Populate
+// Header.Size with sizeof(struct), set Header.Version to EXOS_ABI_VERSION, and clear
+// Header.Flags before invoking system calls.
+
 HANDLE CreateTask(LPTASKINFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateTask, (U32)TaskInfo); }
 
 /***************************************************************************/
@@ -33,7 +37,9 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
 
     Result = FALSE;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Header.Size = sizeof MessageInfo;
+    MessageInfo.Header.Version = EXOS_ABI_VERSION;
+    MessageInfo.Header.Flags = 0;
     MessageInfo.Target = Target;
     MessageInfo.First = First;
     MessageInfo.Last = Last;
@@ -66,7 +72,9 @@ BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last, U32 Flag
 BOOL DispatchMessage(LPMESSAGE Message) {
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Header.Size = sizeof MessageInfo;
+    MessageInfo.Header.Version = EXOS_ABI_VERSION;
+    MessageInfo.Header.Flags = 0;
     MessageInfo.Time = Message->Time;
     MessageInfo.Target = Message->Target;
     MessageInfo.Message = Message->Message;
@@ -83,7 +91,9 @@ BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
 
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Header.Size = sizeof MessageInfo;
+    MessageInfo.Header.Version = EXOS_ABI_VERSION;
+    MessageInfo.Header.Flags = 0;
     MessageInfo.Message = Message;
     MessageInfo.Param1 = Param1;
     MessageInfo.Param2 = Param2;
@@ -96,7 +106,9 @@ BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
 U32 SendMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Header.Size = sizeof MessageInfo;
+    MessageInfo.Header.Version = EXOS_ABI_VERSION;
+    MessageInfo.Header.Flags = 0;
     MessageInfo.Target = Target;
     MessageInfo.Message = Message;
     MessageInfo.Param1 = Param1;
@@ -122,7 +134,9 @@ HANDLE GetDesktopWindow(HANDLE Desktop) { return (HANDLE)exoscall(SYSCALL_GetDes
 HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX, I32 PosY, I32 SizeX, I32 SizeY) {
     WINDOWINFO WindowInfo;
 
-    WindowInfo.Size = sizeof WindowInfo;
+    WindowInfo.Header.Size = sizeof WindowInfo;
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
     WindowInfo.Parent = Parent;
     WindowInfo.Function = Func;
     WindowInfo.Style = Style;
@@ -144,7 +158,9 @@ BOOL DestroyWindow(HANDLE Window) { return (BOOL)exoscall(SYSCALL_DeleteObject, 
 BOOL ShowWindow(HANDLE Window) {
     WINDOWINFO WindowInfo;
 
-    WindowInfo.Size = sizeof WindowInfo;
+    WindowInfo.Header.Size = sizeof WindowInfo;
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
     WindowInfo.Window = Window;
 
     return (BOOL)exoscall(SYSCALL_ShowWindow, (U32)&WindowInfo);
@@ -155,7 +171,9 @@ BOOL ShowWindow(HANDLE Window) {
 BOOL HideWindow(HANDLE Window) {
     WINDOWINFO WindowInfo;
 
-    WindowInfo.Size = sizeof WindowInfo;
+    WindowInfo.Header.Size = sizeof WindowInfo;
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
     WindowInfo.Window = Window;
 
     return (BOOL)exoscall(SYSCALL_HideWindow, (U32)&WindowInfo);
@@ -166,7 +184,9 @@ BOOL HideWindow(HANDLE Window) {
 BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
     WINDOWRECT WindowRect;
 
-    WindowRect.Size = sizeof WindowRect;
+    WindowRect.Header.Size = sizeof WindowRect;
+    WindowRect.Header.Version = EXOS_ABI_VERSION;
+    WindowRect.Header.Flags = 0;
     WindowRect.Window = Window;
 
     if (Rect != NULL) {
@@ -189,7 +209,9 @@ BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
 U32 SetWindowProp(HANDLE Window, LPCSTR Name, U32 Value) {
     PROPINFO PropInfo;
 
-    PropInfo.Size = sizeof PropInfo;
+    PropInfo.Header.Size = sizeof PropInfo;
+    PropInfo.Header.Version = EXOS_ABI_VERSION;
+    PropInfo.Header.Flags = 0;
     PropInfo.Window = Window;
     PropInfo.Name = Name;
     PropInfo.Value = Value;
@@ -202,7 +224,9 @@ U32 SetWindowProp(HANDLE Window, LPCSTR Name, U32 Value) {
 U32 GetWindowProp(HANDLE Window, LPCSTR Name) {
     PROPINFO PropInfo;
 
-    PropInfo.Size = sizeof PropInfo;
+    PropInfo.Header.Size = sizeof PropInfo;
+    PropInfo.Header.Version = EXOS_ABI_VERSION;
+    PropInfo.Header.Flags = 0;
     PropInfo.Window = Window;
     PropInfo.Name = Name;
 
@@ -241,7 +265,9 @@ BOOL GetWindowRect(HANDLE Window, LPRECT Rect) {
     if (Window == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
 
-    WindowRect.Size = sizeof WindowRect;
+    WindowRect.Header.Size = sizeof WindowRect;
+    WindowRect.Header.Version = EXOS_ABI_VERSION;
+    WindowRect.Header.Flags = 0;
     WindowRect.Window = Window;
     WindowRect.Rect.X1 = 0;
     WindowRect.Rect.Y1 = 0;
@@ -271,7 +297,9 @@ HANDLE GetSystemPen(U32 Index) { return exoscall(SYSCALL_GetSystemPen, Index); }
 HANDLE CreateBrush(COLOR Color, U32 Pattern) {
     BRUSHINFO BrushInfo;
 
-    BrushInfo.Size = sizeof BrushInfo;
+    BrushInfo.Header.Size = sizeof BrushInfo;
+    BrushInfo.Header.Version = EXOS_ABI_VERSION;
+    BrushInfo.Header.Flags = 0;
     BrushInfo.Color = Color;
     BrushInfo.Pattern = Pattern;
 
@@ -283,7 +311,9 @@ HANDLE CreateBrush(COLOR Color, U32 Pattern) {
 HANDLE CreatePen(COLOR Color, U32 Pattern) {
     PENINFO PenInfo;
 
-    PenInfo.Size = sizeof PenInfo;
+    PenInfo.Header.Size = sizeof PenInfo;
+    PenInfo.Header.Version = EXOS_ABI_VERSION;
+    PenInfo.Header.Flags = 0;
     PenInfo.Color = Color;
     PenInfo.Pattern = Pattern;
 
@@ -295,7 +325,9 @@ HANDLE CreatePen(COLOR Color, U32 Pattern) {
 HANDLE SelectBrush(HANDLE GC, HANDLE Brush) {
     GCSELECT Select;
 
-    Select.Size = sizeof Select;
+    Select.Header.Size = sizeof Select;
+    Select.Header.Version = EXOS_ABI_VERSION;
+    Select.Header.Flags = 0;
     Select.GC = GC;
     Select.Object = Brush;
 
@@ -307,7 +339,9 @@ HANDLE SelectBrush(HANDLE GC, HANDLE Brush) {
 HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
     GCSELECT Select;
 
-    Select.Size = sizeof Select;
+    Select.Header.Size = sizeof Select;
+    Select.Header.Version = EXOS_ABI_VERSION;
+    Select.Header.Flags = 0;
     Select.GC = GC;
     Select.Object = Pen;
 
@@ -319,7 +353,9 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
 U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     MESSAGEINFO MessageInfo;
 
-    MessageInfo.Size = sizeof MessageInfo;
+    MessageInfo.Header.Size = sizeof MessageInfo;
+    MessageInfo.Header.Version = EXOS_ABI_VERSION;
+    MessageInfo.Header.Flags = 0;
     MessageInfo.Target = Window;
     MessageInfo.Message = Message;
     MessageInfo.Param1 = Param1;
@@ -333,7 +369,9 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 U32 SetPixel(HANDLE GC, U32 X, U32 Y) {
     PIXELINFO PixelInfo;
 
-    PixelInfo.Size = sizeof PixelInfo;
+    PixelInfo.Header.Size = sizeof PixelInfo;
+    PixelInfo.Header.Version = EXOS_ABI_VERSION;
+    PixelInfo.Header.Flags = 0;
     PixelInfo.GC = GC;
     PixelInfo.X = X;
     PixelInfo.Y = Y;
@@ -346,7 +384,9 @@ U32 SetPixel(HANDLE GC, U32 X, U32 Y) {
 U32 GetPixel(HANDLE GC, U32 X, U32 Y) {
     PIXELINFO PixelInfo;
 
-    PixelInfo.Size = sizeof PixelInfo;
+    PixelInfo.Header.Size = sizeof PixelInfo;
+    PixelInfo.Header.Version = EXOS_ABI_VERSION;
+    PixelInfo.Header.Flags = 0;
     PixelInfo.GC = GC;
     PixelInfo.X = X;
     PixelInfo.Y = Y;
@@ -359,7 +399,9 @@ U32 GetPixel(HANDLE GC, U32 X, U32 Y) {
 void Line(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
     LINEINFO LineInfo;
 
-    LineInfo.Size = sizeof LineInfo;
+    LineInfo.Header.Size = sizeof LineInfo;
+    LineInfo.Header.Version = EXOS_ABI_VERSION;
+    LineInfo.Header.Flags = 0;
     LineInfo.GC = GC;
     LineInfo.X1 = X1;
     LineInfo.Y1 = Y1;
@@ -374,7 +416,9 @@ void Line(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
 void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
     RECTINFO RectInfo;
 
-    RectInfo.Size = sizeof RectInfo;
+    RectInfo.Header.Size = sizeof RectInfo;
+    RectInfo.Header.Version = EXOS_ABI_VERSION;
+    RectInfo.Header.Flags = 0;
     RectInfo.GC = GC;
     RectInfo.X1 = X1;
     RectInfo.Y1 = Y1;

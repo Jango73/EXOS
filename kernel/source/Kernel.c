@@ -601,6 +601,9 @@ void InitializeKernel() {
     //-------------------------------------
     // Test tasks
 
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
     TaskInfo.Func = ClockTask;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
@@ -621,7 +624,7 @@ void InitializeKernel() {
     CreateTask(&KernelProcess, &TaskInfo);
 
     //-------------------------------------
-    // Launch Portal
+    // Launch Portal (windowing system)
 
     /*
       StringCopy(FileName, "C:/EXOS/SYSTEM/EXPLORER.PRG");
