@@ -171,7 +171,6 @@ typedef struct tag_PATHNODE {
 BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems();
 BOOL GetDefaultFileSystemName(LPSTR);
-BOOL MountSystemFS();
 LPLIST DecompPath(LPCSTR);
 
 /***************************************************************************/

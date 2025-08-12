@@ -16,7 +16,8 @@
     - Mouse and keyboard derive from `CHARDEVICE` and appear in the VFS.
 
 ## Path Interpreter
-- Implement kernel-level functions (e.g. in `Kernel.c` or a helper module) to resolve paths.
+- Implement dedicated functions in `VFS.c` to resolve paths.
+- Core routines include `LocateObject`, `QualifyFileName`, `MountObject` and `UnmountObject`.
 - `LocateObject(path)` splits the path and traverses mounted objects:
     - The first component selects an object registered at the root (e.g. `disk`).
     - The next component matches a child object (e.g. `ata0` within the `PHYSICALDISK` list).
@@ -37,6 +38,8 @@
 - Shell tracks only the current directory string (e.g. `/disk/ata0/work`).
 - For operations (open, list, etc.), the shell builds a path and invokes the interpreter.
 - `GetCurrentFileSystem` is removed; path resolution is centralized.
+- A global `QualifyFileName` is provided by the VFS for shell usage.
+- `InitShellContext` starts at the VFS root and no longer searches for a default volume.
 
 ## Steps to Implement
 1. Define `OBJECT`, `BLOCKDEVICE` and `CHARDEVICE` structures inheriting from `LISTNODE_FIELDS`.
@@ -46,4 +49,5 @@
 5. Modify `Shell.c` to rely solely on path strings.
 6. Add mouse and keyboard as `CHARDEVICE` instances visible in the VFS.
 7. Document behaviors and edge cases (permissions, error codes) for future extension.
+8. Remove the legacy `SystemFS` module used as an earlier VFS prototype.
 

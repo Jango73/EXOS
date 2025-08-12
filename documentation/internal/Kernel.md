@@ -690,24 +690,6 @@ System call handler dispatching user mode requests.
 - SysCall_ReleaseMouse: Releases the mouse capture.
 - SystemCallHandler: Dispatches a system call number.
 
-### SystemFS.c
-
-Basic virtual file system for system resources.
-
-#### Functions in SystemFS.c
-
-- NewSystemFileRoot: Creates the root system file entry.
-- NewSystemFSFileSystem: Allocates the file system object.
-- NewSysFSFile: Creates an in-memory file object.
-- MountSystemFS: Registers the system file system.
-- Initialize: Initializes the driver instance.
-- OpenFile: Opens a system file from its path.
-- OpenNext: Enumerates the next file in a directory.
-- CloseFile: Closes an open system file.
-- ReadFile: Reads data from a system file.
-- WriteFile: Writes data to a system file.
-- SystemFSCommands: Driver entry to handle requests.
-
 ### Task.c
 
 Manages task creation, messaging and scheduling features.
