@@ -43,7 +43,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size);
 
 // Map/unmap a physical MMIO region (BAR or Base Address Register) as Uncached Read/Write
 LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size);
-BOOL   MmUnmapIo(LINEAR LinearBase, U32 Size);
+BOOL MmUnmapIo(LINEAR LinearBase, U32 Size);
 
 /***************************************************************************/
 

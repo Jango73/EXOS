@@ -24,8 +24,7 @@ DRIVER XFSDriver = {ID_DRIVER,  1,         NULL,      NULL,      DRIVER_TYPE_FIL
                     VER_MAJOR,  VER_MINOR, "Jango73", "Jango73", "XFS File System",
                     XFSCommands};
 
-
-U8 Dummy [128] = { 1, 1 };
+U8 Dummy[128] = {1, 1};
 
 /***************************************************************************/
 // The file system object allocated when mounting

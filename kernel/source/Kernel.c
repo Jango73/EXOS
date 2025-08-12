@@ -17,8 +17,8 @@
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
 #include "../include/Log.h"
-#include "../include/PCI.h"
 #include "../include/Mouse.h"
+#include "../include/PCI.h"
 #include "../include/System.h"
 
 /***************************************************************************/

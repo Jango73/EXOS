@@ -67,9 +67,9 @@ U32 StringLength(LPCSTR Src) {
     U32 Size = 0;
 
 #ifdef __KERNEL__
-        if (Index >= 8192) {
-            KernelLogText(LOG_WARNING, "[StringLength] Enter");
-        }
+    if (Index >= 8192) {
+        KernelLogText(LOG_WARNING, "[StringLength] Enter");
+    }
 #endif
 
     if (Src != NULL) {
@@ -87,9 +87,9 @@ U32 StringLength(LPCSTR Src) {
     }
 
 #ifdef __KERNEL__
-        if (Index >= 8192) {
-            KernelLogText(LOG_WARNING, "[StringLength] Exit");
-        }
+    if (Index >= 8192) {
+        KernelLogText(LOG_WARNING, "[StringLength] Exit");
+    }
 #endif
 
     return Size;

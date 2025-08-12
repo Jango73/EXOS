@@ -633,7 +633,7 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
     // Derive cache policy flags for PTE
     U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
-    U32 PteWriteThrough  = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
+    U32 PteWriteThrough = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
 
     // If UC is set, it dominates; WT must be 0 in that case.
     if (PteCacheDisabled) PteWriteThrough = 0;
@@ -649,7 +649,8 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
             goto Out;
         }
         if (!IsPhysicalRangeFree(Target, NumPages)) {
-            KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Target physical range not free (%X, pages=%d)"), Target, NumPages);
+            KernelLogText(
+                LOG_ERROR, TEXT("[VirtualAlloc] Target physical range not free (%X, pages=%d)"), Target, NumPages);
             goto Out;
         }
     }
@@ -866,13 +867,11 @@ LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
 
     // Map as Uncached, Read/Write, exact PMA mapping, IO semantics
     return VirtualAlloc(
-        0,                                  // Let VMM choose virtual address
-        PhysicalBase,                       // Exact PMA (BAR)
+        0,             // Let VMM choose virtual address
+        PhysicalBase,  // Exact PMA (BAR)
         Size,
-        ALLOC_PAGES_COMMIT |
-        ALLOC_PAGES_READWRITE |
-        ALLOC_PAGES_UC |                    // MMIO must be UC
-        ALLOC_PAGES_IO                      // Do not touch RAM bitmap; mark PTE.Fixed
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
+            ALLOC_PAGES_IO                                             // Do not touch RAM bitmap; mark PTE.Fixed
     );
 }
 

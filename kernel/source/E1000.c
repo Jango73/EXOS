@@ -10,9 +10,10 @@
 
 \***************************************************************************/
 
+#include "../include/E1000.h"
+
 #include "../include/Base.h"
 #include "../include/Driver.h"
-#include "../include/E1000.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Network.h"
@@ -102,21 +103,23 @@ static U32 E1000Commands(U32 Function, U32 Param);
 /****************************************************************/
 // MMIO helpers
 
-#define E1000_ReadReg32(Base, Off)        (*(volatile U32 *)((U8 *)(Base) + (Off)))
-#define E1000_WriteReg32(Base, Off, Val)  (*(volatile U32 *)((U8 *)(Base) + (Off)) = (U32)(Val))
+#define E1000_ReadReg32(Base, Off) (*(volatile U32 *)((U8 *)(Base) + (Off)))
+#define E1000_WriteReg32(Base, Off, Val) (*(volatile U32 *)((U8 *)(Base) + (Off)) = (U32)(Val))
 
 /****************************************************************/
 // RX status bits (legacy)
 
-#define E1000_RX_STA_DD   0x01
-#define E1000_RX_STA_EOP  0x02
+#define E1000_RX_STA_DD 0x01
+#define E1000_RX_STA_EOP 0x02
 
 /****************************************************************/
 // Small busy wait
 
 static void E1000_Delay(U32 Iterations) {
     volatile U32 Index;
-    for (Index = 0; Index < Iterations; Index++) { asm volatile ("nop"); }
+    for (Index = 0; Index < Iterations; Index++) {
+        asm volatile("nop");
+    }
 }
 
 /****************************************************************/
@@ -127,32 +130,32 @@ typedef struct tag_E1000DEVICE {
 
     // MMIO mapping
     LINEAR MmioBase;
-    U32    MmioSize;
+    U32 MmioSize;
 
     // MAC address
-    U8  Mac[6];
+    U8 Mac[6];
 
     // RX ring
     PHYSICAL RxRingPhysical;
-    LINEAR   RxRingLinear;
-    U32      RxRingCount;
-    U32      RxHead;
-    U32      RxTail;
+    LINEAR RxRingLinear;
+    U32 RxRingCount;
+    U32 RxHead;
+    U32 RxTail;
 
     // TX ring
     PHYSICAL TxRingPhysical;
-    LINEAR   TxRingLinear;
-    U32      TxRingCount;
-    U32      TxHead;
-    U32      TxTail;
+    LINEAR TxRingLinear;
+    U32 TxRingCount;
+    U32 TxHead;
+    U32 TxTail;
 
     // RX buffers
     PHYSICAL RxBufPhysical[E1000_RX_DESC_COUNT];
-    LINEAR   RxBufLinear[E1000_RX_DESC_COUNT];
+    LINEAR RxBufLinear[E1000_RX_DESC_COUNT];
 
     // TX buffers
     PHYSICAL TxBufPhysical[E1000_TX_DESC_COUNT];
-    LINEAR   TxBufLinear[E1000_TX_DESC_COUNT];
+    LINEAR TxBufLinear[E1000_TX_DESC_COUNT];
 
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
@@ -161,9 +164,7 @@ typedef struct tag_E1000DEVICE {
 /****************************************************************/
 // Globals and PCI match table
 
-static DRIVER_MATCH E1000_MatchTable[] = {
-    E1000_MATCH_DEFAULT
-};
+static DRIVER_MATCH E1000_MatchTable[] = {E1000_MATCH_DEFAULT};
 
 static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev);
 
@@ -177,12 +178,12 @@ PCI_DRIVER E1000Driver = {
     .Command = E1000Commands,
     .Matches = E1000_MatchTable,
     .MatchCount = sizeof(E1000_MatchTable) / sizeof(E1000_MatchTable[0]),
-    .Attach = E1000_Attach
-};
+    .Attach = E1000_Attach};
 
 static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
-    KernelLogText(LOG_DEBUG, TEXT("[E1000] New device %02X:%02X.%u"),
-        PciDevice->Info.Bus, PciDevice->Info.Dev, PciDevice->Info.Func);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[E1000] New device %02X:%02X.%u"), PciDevice->Info.Bus, PciDevice->Info.Dev,
+        PciDevice->Info.Func);
     LPE1000DEVICE Device = (LPE1000DEVICE)KernelMemAlloc(sizeof(E1000DEVICE));
     if (Device == NULL) return NULL;
 
@@ -233,17 +234,15 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));
 
-    KernelLogText(LOG_VERBOSE, TEXT("[E1000] Attached %02X:%02X.%u MMIO=%X size=%X MAC=%02X:%02X:%02X:%02X:%02X:%02X"),
-        Device->Info.Bus, Device->Info.Dev, Device->Info.Func,
-        Device->MmioBase, Device->MmioSize,
-        Device->Mac[0], Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
+    KernelLogText(
+        LOG_VERBOSE, TEXT("[E1000] Attached %02X:%02X.%u MMIO=%X size=%X MAC=%02X:%02X:%02X:%02X:%02X:%02X"),
+        Device->Info.Bus, Device->Info.Dev, Device->Info.Func, Device->MmioBase, Device->MmioSize, Device->Mac[0],
+        Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
 
     return Device;
 }
 
-static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev) {
-    return (LPPCI_DEVICE)NewE1000Device(PciDev);
-}
+static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev) { return (LPPCI_DEVICE)NewE1000Device(PciDev); }
 
 /****************************************************************/
 // EEPROM read and MAC
@@ -252,8 +251,7 @@ static U16 E1000_EepromReadWord(LPE1000DEVICE Device, U32 Address) {
     U32 Value = 0;
     U32 Count = 0;
 
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_EERD,
-        ((Address & 0xFF) << E1000_EERD_ADDR_SHIFT) | E1000_EERD_START);
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_EERD, ((Address & 0xFF) << E1000_EERD_ADDR_SHIFT) | E1000_EERD_START);
 
     while (Count < 100000) {
         Value = E1000_ReadReg32(Device->MmioBase, E1000_REG_EERD);
@@ -265,13 +263,13 @@ static U16 E1000_EepromReadWord(LPE1000DEVICE Device, U32 Address) {
 }
 
 static void E1000_ReadMac(LPE1000DEVICE Device) {
-    U32 low  = E1000_ReadReg32(Device->MmioBase, E1000_REG_RAL0);
+    U32 low = E1000_ReadReg32(Device->MmioBase, E1000_REG_RAL0);
     U32 high = E1000_ReadReg32(Device->MmioBase, E1000_REG_RAH0);
 
     if (high & (1u << 31)) {
         // RAL/RAH déjà valides
-        Device->Mac[0] = (low >> 0)  & 0xFF;
-        Device->Mac[1] = (low >> 8)  & 0xFF;
+        Device->Mac[0] = (low >> 0) & 0xFF;
+        Device->Mac[1] = (low >> 8) & 0xFF;
         Device->Mac[2] = (low >> 16) & 0xFF;
         Device->Mac[3] = (low >> 24) & 0xFF;
         Device->Mac[4] = (high >> 0) & 0xFF;
@@ -291,8 +289,8 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
     Device->Mac[4] = (U8)(w2 & 0xFF);
     Device->Mac[5] = (U8)(w2 >> 8);
 
-    low  = (Device->Mac[0] << 0) | (Device->Mac[1] << 8) | (Device->Mac[2] << 16) | (Device->Mac[3] << 24);
-    high = (Device->Mac[4] << 0) | (Device->Mac[5] << 8) | (1u << 31); // AV=1
+    low = (Device->Mac[0] << 0) | (Device->Mac[1] << 8) | (Device->Mac[2] << 16) | (Device->Mac[3] << 24);
+    high = (Device->Mac[4] << 0) | (Device->Mac[5] << 8) | (1u << 31);  // AV=1
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAL0, low);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAH0, high);
 }
@@ -337,8 +335,8 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx ring phys alloc failed"));
         return FALSE;
     }
-    Device->RxRingLinear = VirtualAlloc(0, Device->RxRingPhysical, PAGE_SIZE,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Device->RxRingLinear =
+        VirtualAlloc(0, Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->RxRingLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx ring map failed"));
         return FALSE;
@@ -352,8 +350,8 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx buf phys alloc failed"));
             return FALSE;
         }
-        Device->RxBufLinear[Index] = VirtualAlloc(0, Device->RxBufPhysical[Index], E1000_RX_BUF_SIZE,
-            ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        Device->RxBufLinear[Index] = VirtualAlloc(
+            0, Device->RxBufPhysical[Index], E1000_RX_BUF_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
         if (Device->RxBufLinear[Index] == 0) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx buf map failed"));
             return FALSE;
@@ -364,7 +362,7 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
         LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
 
         for (Index = 0; Index < Device->RxRingCount; Index++) {
-            Ring[Index].BufferAddrLow  = (U32)(Device->RxBufPhysical[Index] & 0xFFFFFFFF);
+            Ring[Index].BufferAddrLow = (U32)(Device->RxBufPhysical[Index] & 0xFFFFFFFF);
             Ring[Index].BufferAddrHigh = 0;
             Ring[Index].Status = 0;
             Ring[Index].Length = 0;
@@ -399,8 +397,8 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx ring phys alloc failed"));
         return FALSE;
     }
-    Device->TxRingLinear = VirtualAlloc(0, Device->TxRingPhysical, PAGE_SIZE,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Device->TxRingLinear =
+        VirtualAlloc(0, Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->TxRingLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx ring map failed"));
         return FALSE;
@@ -414,8 +412,8 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx buf phys alloc failed"));
             return FALSE;
         }
-        Device->TxBufLinear[Index] = VirtualAlloc(0, Device->TxBufPhysical[Index], E1000_RX_BUF_SIZE,
-            ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        Device->TxBufLinear[Index] = VirtualAlloc(
+            0, Device->TxBufPhysical[Index], E1000_RX_BUF_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
         if (Device->TxBufLinear[Index] == 0) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx buf map failed"));
             return FALSE;
@@ -426,7 +424,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
         LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;
 
         for (Index = 0; Index < Device->TxRingCount; Index++) {
-            Ring[Index].BufferAddrLow  = (U32)(Device->TxBufPhysical[Index] & 0xFFFFFFFF);
+            Ring[Index].BufferAddrLow = (U32)(Device->TxBufPhysical[Index] & 0xFFFFFFFF);
             Ring[Index].BufferAddrHigh = 0;
             Ring[Index].Length = 0;
             Ring[Index].CSO = 0;
@@ -477,7 +475,8 @@ static U32 E1000_TxSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
 
     // Simple spin for DD
     U32 Wait = 0;
-    while (((Ring[Index].STA & E1000_TX_STA_DD) == 0) && (Wait++ < 100000)) { }
+    while (((Ring[Index].STA & E1000_TX_STA_DD) == 0) && (Wait++ < 100000)) {
+    }
 
     KernelLogText(LOG_DEBUG, TEXT("[E1000_TxSend] sent index=%u"), Index);
     return DF_ERROR_SUCCESS;
@@ -530,12 +529,12 @@ static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
 
 // Network DF_* helpers (per-function)
 
-static U32 E1000_OnReset(const NETWORKRESET* Reset) {
+static U32 E1000_OnReset(const NETWORKRESET *Reset) {
     if (Reset == NULL || Reset->Device == NULL) return DF_ERROR_BADPARAM;
     return E1000_Reset((LPE1000DEVICE)Reset->Device) ? DF_ERROR_SUCCESS : DF_ERROR_UNEXPECT;
 }
 
-static U32 E1000_OnGetInfo(const NETWORKGETINFO* Get) {
+static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
     if (Get == NULL || Get->Device == NULL || Get->Info == NULL) return DF_ERROR_BADPARAM;
     LPE1000DEVICE Device = (LPE1000DEVICE)Get->Device;
     U32 Status = E1000_ReadReg32(Device->MmioBase, E1000_REG_STATUS);
@@ -555,19 +554,19 @@ static U32 E1000_OnGetInfo(const NETWORKGETINFO* Get) {
     return DF_ERROR_SUCCESS;
 }
 
-static U32 E1000_OnSetRxCb(const NETWORKSETRXCB* Set) {
+static U32 E1000_OnSetRxCb(const NETWORKSETRXCB *Set) {
     if (Set == NULL || Set->Device == NULL) return DF_ERROR_BADPARAM;
     LPE1000DEVICE Device = (LPE1000DEVICE)Set->Device;
     Device->RxCallback = Set->Callback;
     return DF_ERROR_SUCCESS;
 }
 
-static U32 E1000_OnSend(const NETWORKSEND* Send) {
+static U32 E1000_OnSend(const NETWORKSEND *Send) {
     if (Send == NULL || Send->Device == NULL || Send->Data == NULL || Send->Length == 0) return DF_ERROR_BADPARAM;
     return E1000_TxSend((LPE1000DEVICE)Send->Device, Send->Data, Send->Length);
 }
 
-static U32 E1000_OnPoll(const NETWORKPOLL* Poll) {
+static U32 E1000_OnPoll(const NETWORKPOLL *Poll) {
     if (Poll == NULL || Poll->Device == NULL) return DF_ERROR_BADPARAM;
     return E1000_RxPoll((LPE1000DEVICE)Poll->Device);
 }
@@ -575,45 +574,47 @@ static U32 E1000_OnPoll(const NETWORKPOLL* Poll) {
 /****************************************************************/
 // Driver meta helpers
 
-static U32 E1000_OnLoad(void) {
-    return DF_ERROR_SUCCESS;
-}
+static U32 E1000_OnLoad(void) { return DF_ERROR_SUCCESS; }
 
-static U32 E1000_OnUnload(void) {
-    return DF_ERROR_SUCCESS;
-}
+static U32 E1000_OnUnload(void) { return DF_ERROR_SUCCESS; }
 
-static U32 E1000_OnGetVersion(void) {
-    return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-}
+static U32 E1000_OnGetVersion(void) { return MAKE_VERSION(VER_MAJOR, VER_MINOR); }
 
-static U32 E1000_OnGetCaps(void) {
-    return 0;
-}
+static U32 E1000_OnGetCaps(void) { return 0; }
 
-static U32 E1000_OnGetLastFunc(void) {
-    return DF_NT_POLL;
-}
+static U32 E1000_OnGetLastFunc(void) { return DF_NT_POLL; }
 
 /****************************************************************/
 // Driver entry
 
-static U32 E1000Commands(U32 Function, U32 Param) { switch (Function) {
-        case DF_LOAD:        return E1000_OnLoad();
-        case DF_UNLOAD:      return E1000_OnUnload();
-        case DF_GETVERSION:  return E1000_OnGetVersion();
-        case DF_GETCAPS:     return E1000_OnGetCaps();
-        case DF_GETLASTFUNC: return E1000_OnGetLastFunc();
+static U32 E1000Commands(U32 Function, U32 Param) {
+    switch (Function) {
+        case DF_LOAD:
+            return E1000_OnLoad();
+        case DF_UNLOAD:
+            return E1000_OnUnload();
+        case DF_GETVERSION:
+            return E1000_OnGetVersion();
+        case DF_GETCAPS:
+            return E1000_OnGetCaps();
+        case DF_GETLASTFUNC:
+            return E1000_OnGetLastFunc();
 
         // PCI binding
-        case DF_PROBE:       return E1000_OnProbe((const PCI_INFO *)(LPVOID)Param);
+        case DF_PROBE:
+            return E1000_OnProbe((const PCI_INFO *)(LPVOID)Param);
 
         // Network DF_* API
-        case DF_NT_RESET:    return E1000_OnReset((const NETWORKRESET *)(LPVOID)Param);
-        case DF_NT_GETINFO:  return E1000_OnGetInfo((const NETWORKGETINFO *)(LPVOID)Param);
-        case DF_NT_SETRXCB:  return E1000_OnSetRxCb((const NETWORKSETRXCB *)(LPVOID)Param);
-        case DF_NT_SEND:     return E1000_OnSend((const NETWORKSEND *)(LPVOID)Param);
-        case DF_NT_POLL:     return E1000_OnPoll((const NETWORKPOLL *)(LPVOID)Param);
+        case DF_NT_RESET:
+            return E1000_OnReset((const NETWORKRESET *)(LPVOID)Param);
+        case DF_NT_GETINFO:
+            return E1000_OnGetInfo((const NETWORKGETINFO *)(LPVOID)Param);
+        case DF_NT_SETRXCB:
+            return E1000_OnSetRxCb((const NETWORKSETRXCB *)(LPVOID)Param);
+        case DF_NT_SEND:
+            return E1000_OnSend((const NETWORKSEND *)(LPVOID)Param);
+        case DF_NT_POLL:
+            return E1000_OnPoll((const NETWORKPOLL *)(LPVOID)Param);
     }
 
     return DF_ERROR_NOTIMPL;
