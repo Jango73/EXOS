@@ -180,70 +180,6 @@ PCI_DRIVER E1000Driver = {
     .MatchCount = sizeof(E1000_MatchTable) / sizeof(E1000_MatchTable[0]),
     .Attach = E1000_Attach};
 
-static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
-    KernelLogText(
-        LOG_DEBUG, TEXT("[E1000] New device %02X:%02X.%u"), PciDevice->Info.Bus, PciDevice->Info.Dev,
-        PciDevice->Info.Func);
-    LPE1000DEVICE Device = (LPE1000DEVICE)KernelMemAlloc(sizeof(E1000DEVICE));
-    if (Device == NULL) return NULL;
-
-    MemorySet(Device, 0, sizeof(E1000DEVICE));
-    MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
-    Device->Next = NULL;
-    Device->Prev = NULL;
-    Device->References = 1;
-    Device->Driver = PciDevice->Driver;
-
-    U32 Bar0Phys = Device->BARPhys[0];
-    U32 Bar0Size = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
-    if (Bar0Phys == 0 || Bar0Size == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[E1000] Invalid BAR0"));
-        KernelMemFree(Device);
-        return NULL;
-    }
-
-    Device->MmioBase = MmMapIo(Bar0Phys, Bar0Size);
-    Device->MmioSize = Bar0Size;
-    if (Device->MmioBase == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[E1000] MmMapIo failed"));
-        KernelMemFree(Device);
-        return NULL;
-    }
-    KernelLogText(LOG_DEBUG, TEXT("[E1000] MMIO mapped at %X size %X"), Device->MmioBase, Device->MmioSize);
-
-    PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 1);
-
-    if (!E1000_Reset(Device)) {
-        KernelLogText(LOG_ERROR, TEXT("[E1000] Reset failed"));
-        KernelMemFree(Device);
-        return NULL;
-    }
-    KernelLogText(LOG_DEBUG, TEXT("[E1000] Reset complete"));
-    E1000_ReadMac(Device);
-
-    if (!E1000_SetupRx(Device)) {
-        KernelLogText(LOG_ERROR, TEXT("[E1000] RX setup failed"));
-        KernelMemFree(Device);
-        return NULL;
-    }
-    KernelLogText(LOG_DEBUG, TEXT("[E1000] RX setup complete"));
-    if (!E1000_SetupTx(Device)) {
-        KernelLogText(LOG_ERROR, TEXT("[E1000] TX setup failed"));
-        KernelMemFree(Device);
-        return NULL;
-    }
-    KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));
-
-    KernelLogText(
-        LOG_VERBOSE, TEXT("[E1000] Attached %02X:%02X.%u MMIO=%X size=%X MAC=%02X:%02X:%02X:%02X:%02X:%02X"),
-        Device->Info.Bus, Device->Info.Dev, Device->Info.Func, Device->MmioBase, Device->MmioSize, Device->Mac[0],
-        Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
-
-    return Device;
-}
-
-static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev) { return (LPPCI_DEVICE)NewE1000Device(PciDev); }
-
 /****************************************************************/
 // EEPROM read and MAC
 
@@ -267,7 +203,7 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
     U32 high = E1000_ReadReg32(Device->MmioBase, E1000_REG_RAH0);
 
     if (high & (1u << 31)) {
-        // RAL/RAH déjà valides
+        // RAL/RAH already contain a valid MAC address
         Device->Mac[0] = (low >> 0) & 0xFF;
         Device->Mac[1] = (low >> 8) & 0xFF;
         Device->Mac[2] = (low >> 16) & 0xFF;
@@ -277,7 +213,7 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
         return;
     }
 
-    // Fallback: EEPROM (permanent MAC), puis on programme RAL/RAH
+    // Fallback: read permanent MAC from EEPROM then program RAL/RAH
     U16 w0 = E1000_EepromReadWord(Device, 0);
     U16 w1 = E1000_EepromReadWord(Device, 1);
     U16 w2 = E1000_EepromReadWord(Device, 2);
@@ -290,14 +226,13 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
     Device->Mac[5] = (U8)(w2 >> 8);
 
     low = (Device->Mac[0] << 0) | (Device->Mac[1] << 8) | (Device->Mac[2] << 16) | (Device->Mac[3] << 24);
-    high = (Device->Mac[4] << 0) | (Device->Mac[5] << 8) | (1u << 31);  // AV=1
+    high = (Device->Mac[4] << 0) | (Device->Mac[5] << 8) | (1u << 31);  // Set AV (Address Valid) bit
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAL0, low);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAH0, high);
 }
 
 /****************************************************************/
 // Core HW ops
-
 static BOOL E1000_Reset(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_Reset] Begin"));
     U32 Ctrl = E1000_ReadReg32(Device->MmioBase, E1000_REG_CTRL);
@@ -313,7 +248,6 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
     Ctrl = E1000_ReadReg32(Device->MmioBase, E1000_REG_CTRL);
     Ctrl |= (E1000_CTRL_SLU | E1000_CTRL_FD);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_CTRL, Ctrl);
-
     // Disable interrupts for polling path
     E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
 
@@ -323,7 +257,6 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
 
 /****************************************************************/
 // RX/TX rings setup
-
 static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupRx] Begin"));
     U32 Index;
@@ -450,6 +383,71 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupTx] Done"));
     return TRUE;
 }
+
+static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
+    KernelLogText(
+        LOG_DEBUG, TEXT("[E1000] New device %02X:%02X.%u"), PciDevice->Info.Bus, PciDevice->Info.Dev,
+        PciDevice->Info.Func);
+    LPE1000DEVICE Device = (LPE1000DEVICE)KernelMemAlloc(sizeof(E1000DEVICE));
+    if (Device == NULL) return NULL;
+
+    MemorySet(Device, 0, sizeof(E1000DEVICE));
+    MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
+    Device->Next = NULL;
+    Device->Prev = NULL;
+    Device->References = 1;
+    Device->Driver = PciDevice->Driver;
+
+    U32 Bar0Phys = Device->BARPhys[0];
+    U32 Bar0Size = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
+    if (Bar0Phys == 0 || Bar0Size == 0) {
+        KernelLogText(LOG_ERROR, TEXT("[E1000] Invalid BAR0"));
+        KernelMemFree(Device);
+        return NULL;
+    }
+
+    Device->MmioBase = MmMapIo(Bar0Phys, Bar0Size);
+    Device->MmioSize = Bar0Size;
+    if (Device->MmioBase == 0) {
+        KernelLogText(LOG_ERROR, TEXT("[E1000] MmMapIo failed"));
+        KernelMemFree(Device);
+        return NULL;
+    }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] MMIO mapped at %X size %X"), Device->MmioBase, Device->MmioSize);
+
+    PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 1);
+
+    if (!E1000_Reset(Device)) {
+        KernelLogText(LOG_ERROR, TEXT("[E1000] Reset failed"));
+        KernelMemFree(Device);
+        return NULL;
+    }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] Reset complete"));
+    E1000_ReadMac(Device);
+
+    if (!E1000_SetupRx(Device)) {
+        KernelLogText(LOG_ERROR, TEXT("[E1000] RX setup failed"));
+        KernelMemFree(Device);
+        return NULL;
+    }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] RX setup complete"));
+    if (!E1000_SetupTx(Device)) {
+        KernelLogText(LOG_ERROR, TEXT("[E1000] TX setup failed"));
+        KernelMemFree(Device);
+        return NULL;
+    }
+    KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));
+
+    KernelLogText(
+        LOG_VERBOSE, TEXT("[E1000] Attached %02X:%02X.%u MMIO=%X size=%X MAC=%02X:%02X:%02X:%02X:%02X:%02X"),
+        Device->Info.Bus, Device->Info.Dev, Device->Info.Func, Device->MmioBase, Device->MmioSize, Device->Mac[0],
+        Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
+
+    return Device;
+}
+
+static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev) { return (LPPCI_DEVICE)NewE1000Device(PciDev); }
+
 
 /****************************************************************/
 // RX/TX operations
