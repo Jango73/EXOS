@@ -8,8 +8,8 @@
 \***************************************************************************/
 
 #include "../include/PCI.h"
-
-#include "../include/Driver.h"
+#include "../include/Kernel.h"
+#include "../include/String.h"
 #include "../include/Base.h"
 
 /***************************************************************************/
@@ -215,46 +215,43 @@ void PCI_ScanBus(void) {
 				U16 VendorId = PCI_Read16(Bus, Device, Function, PCI_CFG_VENDOR_ID);
 				if (VendorId == 0xFFFFU) continue;
 
-				PCI_INFO PciInfo;
-				PCI_DEVICE PciDevice;
-				U32 DriverIndex;
+                                PCI_INFO PciInfo;
+                                PCI_DEVICE PciDevice;
+                                U32 DriverIndex;
 
-				PciFillFunctionInfo(Bus, Device, Function, &PciInfo);
+                                PciFillFunctionInfo(Bus, Device, Function, &PciInfo);
+                                MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
+                                PciDevice.ID = ID_PCIDEVICE;
+                                PciDevice.References = 1;
+                                PciDevice.Driver = NULL;
+                                PciDevice.Info = PciInfo;
+                                PciDecodeBARs(&PciInfo, &PciDevice);
 
-				/* Prepare device descriptor handed to DF_ATTACH */
-				PciDevice.Info = PciInfo;
-				for (U32 BarIndex = 0; BarIndex < 6; BarIndex++) {
-					U32 BarValue = PciInfo.BAR[BarIndex];
-					if (PCI_BAR_IS_IO(BarValue)) {
-						PciDevice.BARPhys[BarIndex] = (BarValue & PCI_BAR_IO_MASK);
-					} else {
-						PciDevice.BARPhys[BarIndex] = (BarValue & PCI_BAR_MEM_MASK);
-					}
-					PciDevice.BARMapped[BarIndex] = NULL;
-				}
-				PciDevice.DriverContext = NULL;
+                                /* Try all registered PCI drivers */
+                                for (DriverIndex = 0; DriverIndex < PciDriverCount; DriverIndex++) {
+                                        LPPCI_DRIVER PciDriver = PciDriverTable[DriverIndex];
 
-				/* Try all registered PCI drivers */
-				for (DriverIndex = 0; DriverIndex < PciDriverCount; DriverIndex++) {
-					LPPCI_DRIVER PciDriver = PciDriverTable[DriverIndex];
+                                        for (U32 MatchIndex = 0; MatchIndex < PciDriver->MatchCount; MatchIndex++) {
+                                                const DRIVER_MATCH* DriverMatch = &PciDriver->Matches[MatchIndex];
 
-					for (U32 MatchIndex = 0; MatchIndex < PciDriver->MatchCount; MatchIndex++) {
-						const DRIVER_MATCH* DriverMatch = &PciDriver->Matches[MatchIndex];
-
-						if (PciInternalMatch(DriverMatch, &PciInfo)) {
-							/* DF_PROBE */
-							if (PciDriver->Base.Command) {
-								U32 Result = PciDriver->Base.Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
-								if (Result == DF_ERROR_SUCCESS) {
-									/* DF_ATTACH */
-									PciDriver->Base.Command(DF_ATTACH, (U32)(LPVOID)&PciDevice);
-									/* Bound: stop trying other drivers for this function */
-									goto NextFunction;
-								}
-							}
-						}
-					}
-				}
+                                                if (PciInternalMatch(DriverMatch, &PciInfo)) {
+                                                        if (PciDriver->Command) {
+                                                                U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
+                                                                if (Result == DF_ERROR_SUCCESS) {
+                                                                        PciDevice.Driver = (LPDRIVER)PciDriver;
+                                                                        PciDriver->Command(DF_LOAD, 0);
+                                                                        if (PciDriver->Attach) {
+                                                                                LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
+                                                                                if (NewDev) {
+                                                                                        ListAddItem(Kernel.PCIDevice, NewDev);
+                                                                                        goto NextFunction;
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
 
 			NextFunction:
 				(void)0;

@@ -157,6 +157,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Task;
     LPLIST Mutex;
     LPLIST Disk;
+    LPLIST PCIDevice;
     LPLIST FileSystem;
     LPLIST File;
     CPUINFORMATION CPU;

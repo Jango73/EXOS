@@ -117,15 +117,16 @@ typedef struct tag_PCI_INFO {
     U8  IRQLegacyPin; /* INTA=1..INTD=4 or 0 if none */
 } PCI_INFO, *LPPCI_INFO;
 
-// Runtime description handed to drivers at attach time if needed.
-typedef struct tag_PCI_DEVICE {
-    PCI_INFO Info;          // immutable identification
-    // Decoded BAR base physical addresses (masked)
-    U32 BARPhys[6];
-    // Optional CPU-mapped MMIO bases (NULL if not mapped by bus layer)
+// Runtime description of a PCI device
+#define PCI_DEVICE_FIELDS             \
+    LISTNODE_FIELDS                  \
+    LPDRIVER Driver;                 \
+    PCI_INFO Info;                   \
+    U32 BARPhys[6];                  \
     volatile void* BARMapped[6];
-    // Driver may store a context pointer here after DF_ATTACH
-    void *DriverContext;
+
+typedef struct tag_PCI_DEVICE {
+    PCI_DEVICE_FIELDS
 } PCI_DEVICE, *LPPCI_DEVICE;
 
 // A PCI-aware driver: extends the generic DRIVER with a match table.
@@ -134,6 +135,7 @@ typedef struct tag_PCI_DRIVER {
     DRIVER_FIELDS
     const DRIVER_MATCH* Matches;    // array of match entries
     U32 MatchCount;                 // number of entries
+    LPPCI_DEVICE (*Attach)(LPPCI_DEVICE PciDevice);
 } PCI_DRIVER, *LPPCI_DRIVER;
 
 /***************************************************************************/
@@ -146,7 +148,7 @@ void PCI_RegisterDriver(LPPCI_DRIVER drv);
 /* Scan the entire PCI hierarchy (bus/dev/func). For each device:
     - Build PCI_INFO / PCI_DEVICE
     - Try registered PCI_DRIVERs (Matches then DF_PROBE)
-    - Call DF_ATTACH on the first driver that accepts the device
+    - Call the driver's Attach callback on the first driver that accepts the device
 */
 void PCI_ScanBus(void);
 
@@ -173,16 +175,6 @@ U32  PCI_GetBARSize(U8 bus, U8 dev, U8 func, U8 barIndex);
 U8   PCI_FindCapability(U8 bus, U8 dev, U8 func, U8 capId);
 
 /***************************************************************************/
-/* Contract with drivers (how DF_PROBE/DF_ATTACH are called)               */
-/* NOTE: This section describes expectations; the IDs live in Driver.h.    */
-
-/*
-	- DF_PROBE: param = (U32)(LPPCI_INFO)   (read-only)
-		Return DF_ERROR_SUCCESS if the driver supports this device.
-	- DF_ATTACH: param = (U32)(LPPCI_DEVICE) (read/write)
-		Driver may map BARs, enable Bus Mastering, and store DriverContext.
-	- DF_DETACH: param = (U32)(LPPCI_DEVICE)
-*/
 
 /***************************************************************************/
 

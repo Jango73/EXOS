@@ -15,6 +15,12 @@
 
 /***************************************************************************/
 
+#include "PCI.h"
+
+typedef struct tag_NETWORKINFO NETWORKINFO, *LPNETWORKINFO;
+
+typedef void (*NT_RXCB)(const U8 *Frame, U32 Length);
+
 #define PROTOCOL_NONE    0x00000000
 #define PROTOCOL_EXOS    0x00000001
 #define PROTOCOL_TCP     0x00000002
@@ -44,6 +50,32 @@
 typedef struct tag_IPADDRESS {
     U8 Data[4];
 } IPADDRESS, *LPIPADDRESS;
+
+/***************************************************************************/
+
+typedef struct tag_NETWORKRESET {
+    LPPCI_DEVICE Device;
+} NETWORKRESET, *LPNETWORKRESET;
+
+typedef struct tag_NETWORKGETINFO {
+    LPPCI_DEVICE Device;
+    LPNETWORKINFO Info;
+} NETWORKGETINFO, *LPNETWORKGETINFO;
+
+typedef struct tag_NETWORKSETRXCB {
+    LPPCI_DEVICE Device;
+    NT_RXCB Callback;
+} NETWORKSETRXCB, *LPNETWORKSETRXCB;
+
+typedef struct tag_NETWORKSEND {
+    LPPCI_DEVICE Device;
+    const U8 *Data;
+    U32 Length;
+} NETWORKSEND, *LPNETWORKSEND;
+
+typedef struct tag_NETWORKPOLL {
+    LPPCI_DEVICE Device;
+} NETWORKPOLL, *LPNETWORKPOLL;
 
 /***************************************************************************/
 

@@ -14,6 +14,7 @@
 #include "Base.h"
 #include "Driver.h"
 #include "PCI.h"
+#include "Network.h"
 #include "Mutex.h"	/* Optional: if the driver uses MUTEX internally */
 
 /***************************************************************************/
@@ -24,9 +25,6 @@
 #define DF_NET_SEND        (DF_FIRSTFUNC + 0x01) /* in: ptr (frame), param2 = len */
 #define DF_NET_POLL        (DF_FIRSTFUNC + 0x02) /* RX polling */
 #define DF_NET_SETRXCB     (DF_FIRSTFUNC + 0x03) /* in: function pointer to RX callback */
-
-/* RX callback signature used by DF_NET_SETRXCB */
-typedef void (*E1000_RXCB)(const U8 *frame, U32 len);
 
 /***************************************************************************/
 /* Known PCI IDs (QEMU emulates 82540EM with 0x8086:0x100E)                */

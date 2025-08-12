@@ -101,6 +101,15 @@ static LIST DiskList = {
     .MemFreeFunc = KernelMemFree,
     .Destructor = NULL};
 
+static LIST PciDeviceList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL};
+
 static LIST FileSystemList = {
     .First = NULL,
     .Last = NULL,
@@ -127,6 +136,7 @@ KERNELDATA Kernel = {
     .Task = &TaskList,
     .Mutex = &MutexList,
     .Disk = &DiskList,
+    .PCIDevice = &PciDeviceList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
@@ -597,7 +607,6 @@ void InitializeKernel() {
     //-------------------------------------
     // Initialize the PCI drivers
 
-    E1000Driver.Base.Command(DF_LOAD, 0);
     PCI_RegisterDriver(&E1000Driver);
 
     PCI_ScanBus();
