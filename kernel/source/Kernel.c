@@ -624,7 +624,7 @@ void InitializeKernel() {
     CreateTask(&KernelProcess, &TaskInfo);
 
     //-------------------------------------
-    // Launch Portal
+    // Launch Portal (windowing system)
 
     /*
       StringCopy(FileName, "C:/EXOS/SYSTEM/EXPLORER.PRG");
