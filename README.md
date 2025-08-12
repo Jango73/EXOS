@@ -12,17 +12,19 @@ It is work in progress.
 
 Because it is a very long work, it will probably never be finished.
 
-## Setup dependencies
+## Debian compile & run
+
+### Setup dependencies
 
 ./scripts/1-setup-deps.sh
 
-## Build
+### Build
 
 ./scripts/4-2-build.sh
 
 ( or ./scripts/4-1-clean-build-exos.sh to later build from a clean repo )
 
-## Run
+### Run
 
 ./scripts/5-1-start-qemu-hd.sh
 
