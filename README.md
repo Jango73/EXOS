@@ -72,7 +72,7 @@ The original routines (disk access, FAT32 handling, task/process logic) booted a
 
 ## Things to do
 
-* Create makefiles for build (used to build on DOS using gcc and nasm)
+* Add buffers for filesystem drivers
 * Rework the scheduler and task switching...
 * Add some file systems
 * Add some drivers
