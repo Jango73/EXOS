@@ -56,6 +56,8 @@ bits 32
     global OutPortByte
     global InPortWord
     global OutPortWord
+    global InPortLong
+    global OutPortLong
     global InPortStringWord
     global MaskIRQ
     global UnmaskIRQ
@@ -257,6 +259,32 @@ OutPortWord :
     pop     ebp
     ret
 
+;--------------------------------------
+
+InPortLong :
+
+    push    ebp
+    mov     ebp, esp
+    push    edx
+    mov     edx, [ebp+(PBN+0)]
+    in      eax, dx
+    pop     edx
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+OutPortLong :
+
+    push    ebp
+    mov     ebp, esp
+    push    edx
+    mov     edx, [ebp+(PBN+0)]
+    mov     eax, [ebp+(PBN+4)]
+    out     dx, eax
+    pop     edx
+    pop     ebp
+    ret
 ;--------------------------------------
 
 InPortStringWord :

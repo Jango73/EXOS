@@ -924,6 +924,8 @@ Provides low level hardware access and CPU control primitives.
 - OutPortByte: Writes a byte to an I/O port.
 - InPortWord: Reads a word from an I/O port.
 - OutPortWord: Writes a word to an I/O port.
+- InPortLong: Reads a long from an I/O port.
+- OutPortLong: Writes a long to an I/O port.
 - InPortStringWord: Reads a sequence of words from an I/O port.
 - MaskIRQ: Masks a specific IRQ line.
 - UnmaskIRQ: Unmasks a specific IRQ line.

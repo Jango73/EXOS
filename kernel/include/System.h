@@ -40,6 +40,8 @@ extern U32 InPortByte(U32);
 extern U32 OutPortByte(U32, U32);
 extern U32 InPortWord(U32);
 extern U32 OutPortWord(U32, U32);
+extern U32 InPortLong(U32);
+extern U32 OutPortLong(U32, U32);
 extern U32 InPortStringWord(U32, LPVOID, U32);
 extern U32 OutPortStringWord(U32, LPVOID, U32);
 extern U32 MaskIRQ(U32);
