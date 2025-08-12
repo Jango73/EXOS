@@ -180,7 +180,9 @@ BOOL HideWindow(HANDLE Window) {
 BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
     WINDOWRECT WindowRect;
 
-    WindowRect.Size = sizeof WindowRect;
+    WindowRect.Hdr.Size = sizeof WindowRect;
+    WindowRect.Hdr.Version = EXOS_ABI_VERSION;
+    WindowRect.Hdr.Flags = 0;
     WindowRect.Window = Window;
 
     if (Rect != NULL) {
