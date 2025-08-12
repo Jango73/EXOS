@@ -146,7 +146,7 @@ typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
 typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, LPVOID);
 
 typedef struct tag_SYSTEMINFO {
-    U32 Size;
+    ABI_HEADER Header;
     U32 TotalPhysicalMemory;
     U32 PhysicalMemoryUsed;
     U32 PhysicalMemoryAvail;

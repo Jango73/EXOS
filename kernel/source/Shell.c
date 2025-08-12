@@ -516,7 +516,6 @@ static void CMD_run(LPSHELLCONTEXT Context) {
             ProcessInfo.Header.Size = sizeof(PROCESSINFO);
             ProcessInfo.Header.Version = EXOS_ABI_VERSION;
             ProcessInfo.Header.Flags = 0;
-            ProcessInfo.Flags = 0;
             ProcessInfo.FileName = FileName;
             ProcessInfo.CommandLine = NULL;
             ProcessInfo.StdOut = NULL;

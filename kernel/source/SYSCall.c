@@ -38,9 +38,9 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
     LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
 
     if (Info) {
-        Info->Hdr.Size = sizeof(SYSTEMINFO);
-        Info->Hdr.Version = EXOS_ABI_VERSION;
-        Info->Hdr.Flags = 0;
+        Info->Header.Size = sizeof(SYSTEMINFO);
+        Info->Header.Version = EXOS_ABI_VERSION;
+        Info->Header.Flags = 0;
         Info->TotalPhysicalMemory = Memory;
         Info->PhysicalMemoryUsed = GetPhysicalMemoryUsed();
         Info->PhysicalMemoryAvail = Memory - Info->PhysicalMemoryUsed;
@@ -256,7 +256,7 @@ U32 SysCall_VirtualAlloc(U32 Parameter) {
     LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
 
     if (Info) {
-        return VirtualAlloc(Info->Base, Info->Size, Info->Flags);
+        return VirtualAlloc(Info->Base, Info->SizeBytes, Info->Flags);
     }
 
     return 0;
@@ -268,7 +268,7 @@ U32 SysCall_VirtualFree(U32 Parameter) {
     LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
 
     if (Info) {
-        return VirtualFree(Info->Base, Info->Size);
+        return VirtualFree(Info->Base, Info->SizeBytes);
     }
 
     return 0;
