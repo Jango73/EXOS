@@ -19,6 +19,10 @@ extern unsigned strstr(const char*, const char*);
 
 /***************************************************************************/
 
+// User-facing structures now start with an ABI_HDR instead of a simple size
+// field. Always populate Hdr.Size with sizeof(struct), set Hdr.Version to
+// EXOS_ABI_VERSION, and clear Hdr.Flags before invoking system calls.
+
 void exit(int ErrorCode) { __exit__(ErrorCode); }
 
 /***************************************************************************/
@@ -111,7 +115,7 @@ FILE* fopen(const char* __name, const char* __mode) {
     } else if (strstr(__mode, "a")) {
         info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
     } else {
-        // Mode inconnu
+        // Unknown mode
         return NULL;
     }
 

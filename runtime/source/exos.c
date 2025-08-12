@@ -15,6 +15,10 @@ extern unsigned exoscall(unsigned, unsigned);
 
 /***************************************************************************/
 
+// Every user structure passed to the kernel begins with an ABI_HDR. Populate
+// Hdr.Size with sizeof(struct), set Hdr.Version to EXOS_ABI_VERSION, and clear
+// Hdr.Flags before invoking system calls.
+
 HANDLE CreateTask(LPTASKINFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateTask, (U32)TaskInfo); }
 
 /***************************************************************************/
