@@ -513,9 +513,9 @@ static void CMD_run(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
-            ProcessInfo.Hdr.Size = sizeof(PROCESSINFO);
-            ProcessInfo.Hdr.Version = EXOS_ABI_VERSION;
-            ProcessInfo.Hdr.Flags = 0;
+            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+            ProcessInfo.Header.Flags = 0;
             ProcessInfo.Flags = 0;
             ProcessInfo.FileName = FileName;
             ProcessInfo.CommandLine = NULL;
@@ -539,9 +539,9 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
 
     SYSTEMINFO Info;
 
-    Info.Hdr.Size = sizeof Info;
-    Info.Hdr.Version = EXOS_ABI_VERSION;
-    Info.Hdr.Flags = 0;
+    Info.Header.Size = sizeof Info;
+    Info.Header.Version = EXOS_ABI_VERSION;
+    Info.Header.Flags = 0;
     DoSystemCall(SYSCALL_GetSystemInfo, (U32)&Info);
 
     ConsolePrint((LPCSTR) "Total physical memory     : %d KB\n", Info.TotalPhysicalMemory / 1024);
@@ -614,9 +614,9 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
-            FileOpenInfo.Hdr.Size = sizeof(FILEOPENINFO);
-            FileOpenInfo.Hdr.Version = EXOS_ABI_VERSION;
-            FileOpenInfo.Hdr.Flags = 0;
+            FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+            FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+            FileOpenInfo.Header.Flags = 0;
             FileOpenInfo.Name = FileName;
             FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
@@ -629,9 +629,9 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
                     Buffer = (U8*)HeapAlloc(FileSize + 1);
 
                     if (Buffer) {
-                        FileOperation.Hdr.Size = sizeof(FILEOPERATION);
-                        FileOperation.Hdr.Version = EXOS_ABI_VERSION;
-                        FileOperation.Hdr.Flags = 0;
+                        FileOperation.Header.Size = sizeof(FILEOPERATION);
+                        FileOperation.Header.Version = EXOS_ABI_VERSION;
+                        FileOperation.Header.Flags = 0;
                         FileOperation.File = Handle;
                         FileOperation.NumBytes = FileSize;
                         FileOperation.Buffer = Buffer;
@@ -672,17 +672,17 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
 
     ConsolePrint(TEXT("%s %s\n"), SrcName, DstName);
 
-    FileOpenInfo.Hdr.Size = sizeof(FILEOPENINFO);
-    FileOpenInfo.Hdr.Version = EXOS_ABI_VERSION;
-    FileOpenInfo.Hdr.Flags = 0;
+    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+    FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = SrcName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
     SrcFile = DoSystemCall(SYSCALL_OpenFile, (U32)&FileOpenInfo);
     if (SrcFile == NULL) return;
 
-    FileOpenInfo.Hdr.Size = sizeof(FILEOPENINFO);
-    FileOpenInfo.Hdr.Version = EXOS_ABI_VERSION;
-    FileOpenInfo.Hdr.Flags = 0;
+    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+    FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = DstName;
     FileOpenInfo.Flags = FILE_OPEN_WRITE;
     DstFile = DoSystemCall(SYSCALL_OpenFile, (U32)&FileOpenInfo);
@@ -698,18 +698,18 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
             BytesToRead = 1024;
             if (Index + 1024 > FileSize) BytesToRead = FileSize - Index;
 
-            FileOperation.Hdr.Size = sizeof(FILEOPERATION);
-            FileOperation.Hdr.Version = EXOS_ABI_VERSION;
-            FileOperation.Hdr.Flags = 0;
+            FileOperation.Header.Size = sizeof(FILEOPERATION);
+            FileOperation.Header.Version = EXOS_ABI_VERSION;
+            FileOperation.Header.Flags = 0;
             FileOperation.File = SrcFile;
             FileOperation.NumBytes = BytesToRead;
             FileOperation.Buffer = Buffer;
 
             if (ReadFile(&FileOperation) != BytesToRead) break;
 
-            FileOperation.Hdr.Size = sizeof(FILEOPERATION);
-            FileOperation.Hdr.Version = EXOS_ABI_VERSION;
-            FileOperation.Hdr.Flags = 0;
+            FileOperation.Header.Size = sizeof(FILEOPERATION);
+            FileOperation.Header.Version = EXOS_ABI_VERSION;
+            FileOperation.Header.Flags = 0;
             FileOperation.File = DstFile;
             FileOperation.NumBytes = BytesToRead;
             FileOperation.Buffer = Buffer;

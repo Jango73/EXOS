@@ -35,11 +35,11 @@ typedef U32 UPTR;
    - Version: per-struct or global EXOS_ABI_VERSION
    - Flags: reserved for extensions
 */
-typedef struct tag_ABI_HDR {
+typedef struct tag_ABI_HEADER {
     U32 Size;
     U16 Version;
     U16 Flags;
-} ABI_HDR;
+} ABI_HEADER;
 
 /* C11 static assert helper (replace if your toolchain lacks _Static_assert) */
 #define ABI_STATIC_ASSERT(cond, name) typedef char static_assert_##name[(cond)?1:-1]
@@ -170,7 +170,7 @@ typedef struct tag_SECURITYATTRIBUTES {
 } SECURITYATTRIBUTES, *LPSECURITYATTRIBUTES;
 
 typedef struct tag_PROCESSINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     UPTR    FileName;
     UPTR    CommandLine;
     HANDLE  StdOut;
@@ -185,7 +185,7 @@ typedef struct tag_PROCESSINFO {
 typedef U32 (*TASKFUNC)(UPTR);
 
 typedef struct tag_TASKINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     UPTR    Func;
     UPTR    Parameter;
     U32     StackSize;
@@ -203,7 +203,7 @@ typedef struct tag_TASKINFO {
 #define TASK_PRIORITY_CRITICAL  0xFF
 
 typedef struct tag_MESSAGEINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     SYSTEMTIME Time;
     U32 First;
     U32 Last;
@@ -215,14 +215,14 @@ typedef struct tag_MESSAGEINFO {
 } MESSAGEINFO, *LPMESSAGEINFO;
 
 typedef struct tag_SEMINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     HANDLE  Mutex;
     U32     MilliSeconds;
     U32     Reserved[4];
 } SEMINFO, *LPSEMINFO;
 
 typedef struct tag_VIRTUALINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     U32     Base;
     U32     SizeBytes;
     U32     Flags;
@@ -237,7 +237,7 @@ typedef struct tag_VIRTUALINFO {
 typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, UPTR);
 
 typedef struct tag_ENUMVOLUMESINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     UPTR    Func;
     UPTR    Parameter;
     U32     Reserved[4];
@@ -250,7 +250,7 @@ typedef struct tag_VOLUMEINFO {
 } VOLUMEINFO, *LPVOLUMEINFO;
 
 typedef struct tag_FILEOPENINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     UPTR    Name;
     U32     Flags;
     U32     Reserved[3];
@@ -265,7 +265,7 @@ typedef struct tag_FILEOPENINFO {
 #define FILE_OPEN_SEEK_END      0x00000040
 
 typedef struct tag_FILECOPYINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     UPTR    Source;
     UPTR    Destination;
     U32     Flags;
@@ -273,7 +273,7 @@ typedef struct tag_FILECOPYINFO {
 } FILECOPYINFO, *LPFILECOPYINFO;
 
 typedef struct tag_FILEOPERATION {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     HANDLE  File;
     U32     NumBytes;
     UPTR    Buffer;
@@ -298,7 +298,7 @@ typedef struct tag_RECT {
 typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
 
 typedef struct tag_WINDOWINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     HANDLE  Window;
     HANDLE  Parent;
     UPTR    Function;
@@ -311,7 +311,7 @@ typedef struct tag_WINDOWINFO {
 } WINDOWINFO, *LPWINDOWINFO;
 
 typedef struct tag_PROPINFO {
-    ABI_HDR Hdr;
+    ABI_HEADER Header;
     HANDLE  Window;
     UPTR    Name;
     U32     Value;
