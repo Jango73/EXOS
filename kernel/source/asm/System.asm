@@ -81,6 +81,7 @@ bits 32
     global MemorySet
     global MemoryCopy
     global DoSystemCall
+    global IdleCPU
     global Reboot
 
 ;--------------------------------------
