@@ -15,7 +15,9 @@
 
 static void KernelIdle() {
     // For now, kernel task sleeps
-    IdleCPU();
+    while(1) {
+        IdleCPU();
+    }
 }
 
 /***************************************************************************/

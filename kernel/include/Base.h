@@ -95,7 +95,7 @@ typedef U32 BOOL;
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
 // Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
 // clobber.
-#define SLEEPING_BEAUTY       \
+#define DO_THE_SLEEPING_BEAUTY       \
     do {                      \
         __asm__ __volatile__( \
             "1:\n\t"          \

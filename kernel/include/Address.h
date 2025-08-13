@@ -59,53 +59,74 @@
 
 \***************************************************************************/
 
-#define LOW_SIZE N_1MB            // Low Memory Area Size
-#define HMA_SIZE N_128KB          // High Memory Area Size
-#define IDT_SIZE N_4KB            // Interrupt Descriptor Table Size
-#define GDT_SIZE N_8KB            // Kernel Global Descriptor Size
-#define PGD_SIZE PAGE_TABLE_SIZE  // Kernel Page Directory Size
-#define PGS_SIZE PAGE_TABLE_SIZE  // System Page Table Size
-#define PGK_SIZE PAGE_TABLE_SIZE  // Kernel Page Table Size
-#define PGL_SIZE PAGE_TABLE_SIZE  // Low Memory Page Table size
-#define PGH_SIZE PAGE_TABLE_SIZE  // High Memory Page Table size
-#define TSS_SIZE N_32KB           // Task State Segment Size
-#define PPB_SIZE N_128KB          // Physical Page Bitmap Size
-#define KER_SIZE (N_4KB * 34)     // Kernel image size (padded)
-#define BSS_SIZE N_4KB            // Kernel BSS Size
 #define STK_SIZE N_32KB           // Kernel Stack Size
-#define SYS_SIZE \
-    (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE)
 
-#define SYS_SIZE_PAGES (SYS_SIZE >> PAGE_SIZE_MUL)
+// This structure resides at startup in Stub.asm, and is later copied to kernel area.
 
-#define PA_LOW 0x00000000
-#define PA_HMA (PA_LOW + LOW_SIZE)
-#define PA_IDT (PA_HMA + HMA_SIZE)
-#define PA_GDT (PA_IDT + IDT_SIZE)
-#define PA_PGD (PA_GDT + GDT_SIZE)
-#define PA_PGS (PA_PGD + PGD_SIZE)
-#define PA_PGK (PA_PGS + PGS_SIZE)
-#define PA_PGL (PA_PGK + PGK_SIZE)
-#define PA_PGH (PA_PGL + PGL_SIZE)
-#define PA_TSS (PA_PGH + PGH_SIZE)
-#define PA_PPB (PA_TSS + TSS_SIZE)
-#define PA_KER (PA_PPB + PPB_SIZE)
-#define PA_BSS (PA_KER + KER_SIZE)
-#define PA_STK (PA_BSS + BSS_SIZE)
+typedef struct __attribute__((packed)) tag_KERNELSTARTUPINFO {
+    U32 Loader_SS;
+    U32 Loader_SP;
+    U32 IRQMask_21_RM;
+    U32 IRQMask_A1_RM;
+    U32 ConsoleWidth;
+    U32 ConsoleHeight;
+    U32 ConsoleCursorX;
+    U32 ConsoleCursorY;
+    U32 MemorySize;
+    U32 PageCount;
+    U32 SI_Size_LOW; // Low Memory Area Size
+    U32 SI_Size_HMA; // High Memory Area Size
+    U32 SI_Size_IDT; // Interrupt Descriptor Table Size
+    U32 SI_Size_GDT; // Kernel Global Descriptor Table Size
+    U32 SI_Size_PGD; // Kernel Page Directory Size
+    U32 SI_Size_PGS; // System Page Table Size
+    U32 SI_Size_PGK; // Kernel Page Table Size
+    U32 SI_Size_PGL; // Low Memory Page Table size
+    U32 SI_Size_PGH; // High Memory Page Table size
+    U32 SI_Size_TSS; // Task State Segment Size
+    U32 SI_Size_PPB; // Physical Page Bitmap Size
+    U32 SI_Size_KER; // Kernel image size (padded)
+    U32 SI_Size_BSS; // Kernel BSS Size
+    U32 SI_Size_STK; // Kernel Stack Size
+    U32 SI_Size_SYS; // Total system size (IDT -> STK)
+    U32 SI_Phys_LOW; // Memory start
+    U32 SI_Phys_HMA; // Physical address of High Memory Area
+    U32 SI_Phys_IDT; // Physical address of Interrupt Descriptor Table
+    U32 SI_Phys_GDT; // Physical address of Kernel Global Descriptor Table
+    U32 SI_Phys_PGD; // Physical address of Kernel Page Directory
+    U32 SI_Phys_PGS; // Physical address of System Page Table
+    U32 SI_Phys_PGK; // Physical address of Kernel Page Table
+    U32 SI_Phys_PGL; // Physical address of Low Memory Page Table
+    U32 SI_Phys_PGH; // Physical address of High Memory Page Table
+    U32 SI_Phys_TSS; // Physical address of Task State Segment
+    U32 SI_Phys_PPB; // Physical address of Physical Page Bitmap
+    U32 SI_Phys_KER; // Physical address of Kernel
+    U32 SI_Phys_BSS; // Kernel BSS Size
+    U32 SI_Phys_STK; // Kernel Stack Size
+    U32 SI_Phys_SYS; // Physical address of system (IDT)
+} KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
-#define PA_SYS PA_IDT
+extern KERNELSTARTUPINFO KernelStartup;
+
+#define KERNEL_STARTUP_INFO_OFFSET 32
+
+/***************************************************************************/
+// Virtual addresses
+
+#define IDT_SIZE N_4KB
+#define GDT_SIZE N_8KB
 
 #define LA_IDT LA_SYSTEM
-#define LA_GDT (LA_IDT + IDT_SIZE)
-#define LA_PGD (LA_GDT + GDT_SIZE)
-#define LA_PGS (LA_PGD + PGD_SIZE)
-#define LA_PGK (LA_PGS + PGS_SIZE)
-#define LA_PGL (LA_PGK + PGK_SIZE)
-#define LA_PGH (LA_PGL + PGL_SIZE)
-#define LA_TSS (LA_PGH + PGH_SIZE)
-#define LA_PPB (LA_TSS + TSS_SIZE)
+#define LA_GDT (LA_IDT + KernelStartup.SI_Size_IDT)
+#define LA_PGD (LA_GDT + KernelStartup.SI_Size_GDT)
+#define LA_PGS (LA_PGD + KernelStartup.SI_Size_PGD)
+#define LA_PGK (LA_PGS + KernelStartup.SI_Size_PGS)
+#define LA_PGL (LA_PGK + KernelStartup.SI_Size_PGK)
+#define LA_PGH (LA_PGL + KernelStartup.SI_Size_PGL)
+#define LA_TSS (LA_PGH + KernelStartup.SI_Size_PGH)
+#define LA_PPB (LA_TSS + KernelStartup.SI_Size_TSS)
 
-#define LA_KERNEL_STACK (LA_KERNEL + (PA_STK - PA_KER))
+#define LA_KERNEL_STACK (LA_KERNEL + (KernelStartup.SI_Phys_STK - KernelStartup.SI_Phys_KER))
 
 /***************************************************************************/
 

@@ -38,10 +38,10 @@ TASK KernelTask = {
     .ReturnValue = 0,
     .Table = 0,
     .Selector = SELECTOR_TSS_0,
-    .StackBase = (LINEAR)LA_KERNEL_STACK + N_4KB,
-    .StackSize = STK_SIZE - N_4KB,
-    .SysStackBase = (LINEAR)LA_KERNEL_STACK,
-    .SysStackSize = N_4KB,
+    .StackBase = 0,
+    .StackSize = 0,
+    .SysStackBase = 0,
+    .SysStackSize = 0,
     .Time = 0,
     .WakeUpTime = 0,
     .MessageMutex = EMPTY_MUTEX,
@@ -170,6 +170,11 @@ BOOL InitKernelTask() {
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask]"));
 
+    KernelTask.StackBase = (LINEAR)LA_KERNEL_STACK + N_4KB;
+    KernelTask.StackSize = STK_SIZE - N_4KB;
+    KernelTask.SysStackBase = (LINEAR)LA_KERNEL_STACK;
+    KernelTask.SysStackSize = N_4KB;
+
     StackPointer = KernelTask.StackBase + KernelTask.StackSize;
 
     //-------------------------------------
@@ -177,39 +182,39 @@ BOOL InitKernelTask() {
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask] Clearing TSS"));
 
-    MemorySet(TSS, 0, sizeof(TASKSTATESEGMENT));
+    MemorySet(Kernel_i386.TSS, 0, sizeof(TASKSTATESEGMENT));
 
-    TSS[0].SS0 = SELECTOR_KERNEL_DATA;
-    TSS[0].ESP0 = StackPointer - (0 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].SS1 = SELECTOR_KERNEL_DATA;
-    TSS[0].ESP1 = StackPointer - (1 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].SS2 = SELECTOR_KERNEL_DATA;
-    TSS[0].ESP2 = StackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].CR3 = PA_PGD;
-    TSS[0].EIP = (U32)TaskRunner;
-    TSS[0].EFlags = EFLAGS_A1 | EFLAGS_IF;
-    TSS[0].EAX = 0;
-    TSS[0].EBX = 0;
-    TSS[0].ESP = StackPointer - (3 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].EBP = StackPointer - (3 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].CS = SELECTOR_KERNEL_CODE;
-    TSS[0].DS = SELECTOR_KERNEL_DATA;
-    TSS[0].SS = SELECTOR_KERNEL_DATA;
-    TSS[0].ES = SELECTOR_KERNEL_DATA;
-    TSS[0].FS = SELECTOR_KERNEL_DATA;
-    TSS[0].GS = SELECTOR_KERNEL_DATA;
-    TSS[0].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
+    Kernel_i386.TSS[0].SS0 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].ESP0 = StackPointer - (0 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[0].SS1 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].ESP1 = StackPointer - (1 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[0].SS2 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].ESP2 = StackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[0].CR3 = KernelStartup.SI_Phys_PGD;
+    Kernel_i386.TSS[0].EIP = (U32)TaskRunner;
+    Kernel_i386.TSS[0].EFlags = EFLAGS_A1 | EFLAGS_IF;
+    Kernel_i386.TSS[0].EAX = 0;
+    Kernel_i386.TSS[0].EBX = 0;
+    Kernel_i386.TSS[0].ESP = StackPointer - (3 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[0].EBP = StackPointer - (3 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[0].CS = SELECTOR_KERNEL_CODE;
+    Kernel_i386.TSS[0].DS = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].SS = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].ES = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].FS = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].GS = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[0].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
 
     //-------------------------------------
     // Setup the TSS descriptor
 
-    TTD[0].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
-    TTD[0].TSS.Privilege = PRIVILEGE_KERNEL;
-    TTD[0].TSS.Present = 0x01;
-    TTD[0].TSS.Granularity = GDT_GRANULAR_1B;
+    Kernel_i386.TTD[0].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
+    Kernel_i386.TTD[0].TSS.Privilege = PRIVILEGE_KERNEL;
+    Kernel_i386.TTD[0].TSS.Present = 0x01;
+    Kernel_i386.TTD[0].TSS.Granularity = GDT_GRANULAR_1B;
 
-    SetTSSDescriptorBase(&(TTD[0].TSS), (U32)(TSS + 0));
-    SetTSSDescriptorLimit(&(TTD[0].TSS), sizeof(TASKSTATESEGMENT) - 1);
+    SetTSSDescriptorBase(&(Kernel_i386.TTD[0].TSS), (U32)(Kernel_i386.TSS + 0));
+    SetTSSDescriptorLimit(&(Kernel_i386.TTD[0].TSS), sizeof(TASKSTATESEGMENT) - 1);
 
     //-------------------------------------
 
@@ -263,7 +268,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     // Find a free task
 
     for (Index = 0; Index < NUM_TASKS; Index++) {
-        if (TTD[Index].TSS.Type == 0) {
+        if (Kernel_i386.TTD[Index].TSS.Type == 0) {
             Table = Index;
             break;
         }
@@ -334,42 +339,42 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Setup the TSS
 
-    MemorySet(TSS + Table, 0, sizeof(TASKSTATESEGMENT));
+    MemorySet(Kernel_i386.TSS + Table, 0, sizeof(TASKSTATESEGMENT));
 
     StackPointer = Task->StackBase + Task->StackSize;
     SysStackPointer = Task->SysStackBase + Task->SysStackSize;
 
-    TSS[Table].SS0 = SELECTOR_KERNEL_DATA;
-    TSS[Table].ESP0 = SysStackPointer - (0 * TASK_SYSTEM_STACK_SIZE);
-    TSS[Table].SS1 = SELECTOR_KERNEL_DATA;
-    TSS[Table].ESP1 = SysStackPointer - (1 * TASK_SYSTEM_STACK_SIZE);
-    TSS[Table].SS2 = SELECTOR_KERNEL_DATA;
-    TSS[Table].ESP2 = SysStackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
-    TSS[Table].CR3 = Process->PageDirectory;
-    TSS[Table].EIP = (U32)TaskRunner;
-    TSS[Table].EFlags = EFLAGS_A1 | EFLAGS_IF;
-    TSS[Table].EAX = (U32)Task->Parameter;
-    TSS[Table].EBX = (U32)Task->Function;
-    TSS[Table].ESP = StackPointer;
-    TSS[Table].EBP = StackPointer;
-    TSS[Table].CS = CodeSelector;
-    TSS[Table].DS = DataSelector;
-    TSS[Table].SS = DataSelector;
-    TSS[Table].ES = DataSelector;
-    TSS[Table].FS = DataSelector;
-    TSS[Table].GS = DataSelector;
-    TSS[Table].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
+    Kernel_i386.TSS[Table].SS0 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[Table].ESP0 = SysStackPointer - (0 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[Table].SS1 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[Table].ESP1 = SysStackPointer - (1 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[Table].SS2 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS[Table].ESP2 = SysStackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
+    Kernel_i386.TSS[Table].CR3 = Process->PageDirectory;
+    Kernel_i386.TSS[Table].EIP = (U32)TaskRunner;
+    Kernel_i386.TSS[Table].EFlags = EFLAGS_A1 | EFLAGS_IF;
+    Kernel_i386.TSS[Table].EAX = (U32)Task->Parameter;
+    Kernel_i386.TSS[Table].EBX = (U32)Task->Function;
+    Kernel_i386.TSS[Table].ESP = StackPointer;
+    Kernel_i386.TSS[Table].EBP = StackPointer;
+    Kernel_i386.TSS[Table].CS = CodeSelector;
+    Kernel_i386.TSS[Table].DS = DataSelector;
+    Kernel_i386.TSS[Table].SS = DataSelector;
+    Kernel_i386.TSS[Table].ES = DataSelector;
+    Kernel_i386.TSS[Table].FS = DataSelector;
+    Kernel_i386.TSS[Table].GS = DataSelector;
+    Kernel_i386.TSS[Table].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
 
     //-------------------------------------
     // Setup the TSS descriptor
 
-    TTD[Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
-    TTD[Table].TSS.Privilege = Process->Privilege;
-    TTD[Table].TSS.Present = 0x01;
-    TTD[Table].TSS.Granularity = GDT_GRANULAR_1B;
+    Kernel_i386.TTD[Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
+    Kernel_i386.TTD[Table].TSS.Privilege = Process->Privilege;
+    Kernel_i386.TTD[Table].TSS.Present = 0x01;
+    Kernel_i386.TTD[Table].TSS.Granularity = GDT_GRANULAR_1B;
 
-    SetTSSDescriptorBase(&(TTD[Table].TSS), (U32)(TSS + Table));
-    SetTSSDescriptorLimit(&(TTD[Table].TSS), sizeof(TASKSTATESEGMENT) - 1);
+    SetTSSDescriptorBase(&(Kernel_i386.TTD[Table].TSS), (U32)(Kernel_i386.TSS + Table));
+    SetTSSDescriptorLimit(&(Kernel_i386.TTD[Table].TSS), sizeof(TASKSTATESEGMENT) - 1);
 
     //-------------------------------------
     // Set the task's status as running
@@ -431,7 +436,7 @@ BOOL KillTask(LPTASK Task) {
     // Free the associated Task State Segment
     // by setting it's type to 0
 
-    TTD[Task->Table].TSS.Type = 0;
+    Kernel_i386.TTD[Task->Table].TSS.Type = 0;
 
     //-------------------------------------
     // Unlock access to kernel data

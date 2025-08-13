@@ -21,6 +21,7 @@ PBF equ 0x0A
 
 section .text
 
+    global EXOS_Start
     global Interrupt_Default
     global Interrupt_DivideError
     global Interrupt_DebugException
@@ -45,6 +46,8 @@ section .text
     global Interrupt_SystemCall
     global Interrupt_DriverCall
     global EnterKernel
+
+EXOS_Start :
 
 ;--------------------------------------
 ; Error code : No

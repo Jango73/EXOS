@@ -38,15 +38,15 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
     LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
 
     if (Info && Info->Header.Size >= sizeof(SYSTEMINFO)) {
-        Info->TotalPhysicalMemory = Memory;
+        Info->TotalPhysicalMemory = KernelStartup.MemorySize;
         Info->PhysicalMemoryUsed = GetPhysicalMemoryUsed();
-        Info->PhysicalMemoryAvail = Memory - Info->PhysicalMemoryUsed;
+        Info->PhysicalMemoryAvail = KernelStartup.MemorySize - Info->PhysicalMemoryUsed;
         Info->TotalSwapMemory = 0;
         Info->SwapMemoryUsed = 0;
         Info->SwapMemoryAvail = 0;
         Info->TotalMemoryAvail = Info->TotalPhysicalMemory + Info->TotalSwapMemory;
         Info->PageSize = PAGE_SIZE;
-        Info->TotalPhysicalPages = Pages;
+        Info->TotalPhysicalPages = KernelStartup.PageCount;
         Info->MinimumLinearAddress = LA_USER;
         Info->MaximumLinearAddress = LA_DIRECTORY - 1;
         Info->NumProcesses = Kernel.Process->NumItems;

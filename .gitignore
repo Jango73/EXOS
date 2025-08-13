@@ -12,6 +12,7 @@
 *.img
 *.iso
 *.vmdk
+*.swp
 
 temp
 boot-qemu/kernel_sectors.inc

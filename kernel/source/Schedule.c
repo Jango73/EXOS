@@ -205,7 +205,7 @@ void Scheduler() {
                     //-------------------------------------
                     // Set the TSS descriptor "not busy" before jumping to it
 
-                    TTD[TaskList.Current->Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
+                    Kernel_i386.TTD[TaskList.Current->Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
 
                     //-------------------------------------
                     // Switch to the new current task

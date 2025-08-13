@@ -14,11 +14,6 @@
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 
-/***************************************************************************/
-
-U32 Memory = 1;
-U32 Pages = 1;
-
 /***************************************************************************\
 
     Organization of page tables
@@ -80,15 +75,12 @@ void InitializeVirtualMemoryManager() {
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeVirtualMemoryManager] Enter"));
 
-    Memory = KernelStartup.MemorySize;
-    Pages = Memory >> PAGE_SIZE_MUL;
-
-    NumPagesUsed = (PA_KER + N_2MB) >> PAGE_SIZE_MUL;
+    NumPagesUsed = (KernelStartup.SI_Phys_KER + N_2MB) >> PAGE_SIZE_MUL;
 
     for (Index = 0; Index < NumPagesUsed; Index++) {
         Byte = Index >> MUL_8;
         Value = (U32)0x01 << (Index & 0x07);
-        PPB[Byte] |= (U8)Value;
+        Kernel_i386.PPB[Byte] |= (U8)Value;
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeVirtualMemoryManager] Exit"));
@@ -100,7 +92,7 @@ void SetPhysicalPageMark(U32 Page, U32 Used) {
     U32 Offset = 0;
     U32 Value = 0;
 
-    if (Page >= Pages) return;
+    if (Page >= KernelStartup.PageCount) return;
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
@@ -108,9 +100,9 @@ void SetPhysicalPageMark(U32 Page, U32 Used) {
     Value = (U32)0x01 << (Page & 0x07);
 
     if (Used) {
-        PPB[Offset] |= (U8)Value;
+        Kernel_i386.PPB[Offset] |= (U8)Value;
     } else {
-        PPB[Offset] &= (U8)(~Value);
+        Kernel_i386.PPB[Offset] &= (U8)(~Value);
     }
 
     UnlockMutex(MUTEX_MEMORY);
@@ -123,14 +115,14 @@ U32 GetPhysicalPageMark(U32 Page) {
     U32 Value = 0;
     U32 RetVal = 0;
 
-    if (Page >= Pages) return 0;
+    if (Page >= KernelStartup.PageCount) return 0;
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     Offset = Page >> MUL_8;
     Value = (U32)0x01 << (Page & 0x07);
 
-    if (PPB[Offset] & Value) RetVal = 1;
+    if (Kernel_i386.PPB[Offset] & Value) RetVal = 1;
 
     UnlockMutex(MUTEX_MEMORY);
 
@@ -139,46 +131,45 @@ U32 GetPhysicalPageMark(U32 Page) {
 
 /***************************************************************************/
 
-PHYSICAL AllocPhysicalPage() {
-    U32 Index = 0;
-    U32 Start = 0;
-    U32 Maximum = 0;
-    U32 Value = 0;
-    U32 Bit = 0;
-    U32 Page = 0;
-    U32 Mask = 0;
-    PHYSICAL Pointer = 0;
+// Allocate one free physical page and mark it used in PPB.
+// Returns the physical address (page-aligned) or 0 on failure.
+PHYSICAL AllocPhysicalPage(void) {
+    U32 i, v, bit, page, mask;
+    U32 StartPage, StartByte, MaxByte;
+    PHYSICAL result = 0;
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
-    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Pages : %X"), Pages);
+    // Start from end of kernel region (KER + BSS + STK), in pages
+    StartPage =
+        (KernelStartup.SI_Phys_KER +
+         KernelStartup.SI_Size_KER +
+         KernelStartup.SI_Size_BSS +
+         KernelStartup.SI_Size_STK) >> PAGE_SIZE_MUL;
 
-    Start = SYS_SIZE_PAGES >> MUL_8;
-    Maximum = Pages >> MUL_8;
+    // Convert to PPB byte index
+    StartByte = StartPage >> MUL_8;                 // == ((... >> 12) >> 3)
+    MaxByte   = (KernelStartup.PageCount + 7) >> MUL_8;
 
-    for (Index = Start; Index < Maximum; Index++) {
-        Value = PPB[Index];
-        if (Value != 0xFF) {
-            Page = Index << MUL_8;
-            for (Bit = 0; Bit < 8; Bit++) {
-                Mask = (U32)0x01 << Bit;
-                if ((Value & Mask) == 0 && Page < Pages) {
-                    PPB[Index] |= Mask;
-                    Pointer = Page << PAGE_SIZE_MUL;
-                    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Found
-                    // : %X"), Pointer);
+    // Scan from StartByte upward
+    for (i = StartByte; i < MaxByte; i++) {
+        v = Kernel_i386.PPB[i];
+        if (v != 0xFF) {
+            page = (i << MUL_8);                    // first page covered by this byte
+            for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
+                mask = 1u << bit;
+                if ((v & mask) == 0) {
+                    Kernel_i386.PPB[i] = (U8)(v | mask);
+                    result = (PHYSICAL)page << PAGE_SIZE_MUL;  // page * 4096
                     goto Out;
                 }
-                Page++;
             }
         }
     }
 
 Out:
-
     UnlockMutex(MUTEX_MEMORY);
-
-    return Pointer;
+    return result;
 }
 
 /***************************************************************************/
@@ -321,7 +312,7 @@ PHYSICAL AllocPageDirectory() {
     Directory[DirEntry].Global = 0;
     Directory[DirEntry].User = 0;
     Directory[DirEntry].Fixed = 1;
-    Directory[DirEntry].Address = PA_PGL >> PAGE_SIZE_MUL;
+    Directory[DirEntry].Address = KernelStartup.SI_Phys_PGL >> PAGE_SIZE_MUL;
 
     //-------------------------------------
     // Map the system
@@ -339,7 +330,7 @@ PHYSICAL AllocPageDirectory() {
     Directory[DirEntry].Global = 0;
     Directory[DirEntry].User = 0;
     Directory[DirEntry].Fixed = 1;
-    Directory[DirEntry].Address = PA_PGH >> PAGE_SIZE_MUL;
+    Directory[DirEntry].Address = KernelStartup.SI_Phys_PGH >> PAGE_SIZE_MUL;
 
     //-------------------------------------
     // Map the kernel
@@ -357,7 +348,7 @@ PHYSICAL AllocPageDirectory() {
     Directory[DirEntry].Global = 0;
     Directory[DirEntry].User = 0;
     Directory[DirEntry].Fixed = 1;
-    Directory[DirEntry].Address = PA_PGK >> PAGE_SIZE_MUL;
+    Directory[DirEntry].Address = KernelStartup.SI_Phys_PGK >> PAGE_SIZE_MUL;
 
     //-------------------------------------
     // Fill the system page
@@ -502,7 +493,8 @@ static BOOL IsRegionFree(LINEAR Base, U32 Size) {
     U32 Index = 0;
 
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
-    NumPages = Size >> PAGE_SIZE_MUL;
+
+    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;   // ceil(Size / 4096)
     if (NumPages == 0) NumPages = 1;
 
     for (Index = 0; Index < NumPages; Index++) {
@@ -625,7 +617,7 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
 
     // Rounding behavior for page count
-    NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
+    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;   // ceil(Size / 4096)
     if (NumPages == 0) NumPages = 1;
 
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
@@ -648,11 +640,9 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
             KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Exact PMA mapping requires COMMIT"));
             goto Out;
         }
-        if (!IsPhysicalRangeFree(Target, NumPages)) {
-            KernelLogText(
-                LOG_ERROR, TEXT("[VirtualAlloc] Target physical range not free (%X, pages=%d)"), Target, NumPages);
-            goto Out;
-        }
+        // NOTE: Do not reject pages already marked used here.
+        // Target may come from AllocPhysicalPage(), which marks the page in the bitmap.
+        // We will just map it and keep the mark consistent.
     }
 
     // If the calling process requests that a linear address be mapped,
@@ -766,7 +756,9 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
     KernelLogText(LOG_DEBUG, TEXT("Entering VirtualFree"));
 
     Directory = (LPPAGETABLE)LA_DIRECTORY;
-    NumPages = (((Size / 4096) + 1) * 4096) >> PAGE_SIZE_MUL;
+
+    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;   // ceil(Size / 4096)
+    if (NumPages == 0) NumPages = 1;
 
     //-------------------------------------
     // Free each page in turn.

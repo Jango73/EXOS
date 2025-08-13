@@ -201,32 +201,34 @@ void PCI_RegisterDriver(LPPCI_DRIVER Driver) {
 /* Scan & bind                                                              */
 
 void PCI_ScanBus(void) {
-    U8 Bus, Device, Function;
+    /* Use 32-bit counters to avoid wrap when PCI_MAX_* == 256 */
+    U32 Bus, Device, Function;
 
     KernelLogText(LOG_DEBUG, TEXT("[PCI] Scanning bus"));
 
     for (Bus = 0; Bus < PCI_MAX_BUS; Bus++) {
         for (Device = 0; Device < PCI_MAX_DEV; Device++) {
             /* Check presence on function 0 */
-            U16 VendorFunction0 = PCI_Read16(Bus, Device, 0, PCI_CFG_VENDOR_ID);
+            U16 VendorFunction0 = PCI_Read16((U8)Bus, (U8)Device, 0, PCI_CFG_VENDOR_ID);
             if (VendorFunction0 == 0xFFFFU) continue;
 
-            U8 HeaderType = PCI_Read8(Bus, Device, 0, PCI_CFG_HEADER_TYPE);
+            U8 HeaderType = PCI_Read8((U8)Bus, (U8)Device, 0, PCI_CFG_HEADER_TYPE);
             U8 IsMultiFunction = (HeaderType & PCI_HEADER_MULTI_FN) ? 1 : 0;
             U8 MaxFunction = IsMultiFunction ? (PCI_MAX_FUNC - 1) : 0;
 
-            for (Function = 0; Function <= MaxFunction; Function++) {
-                U16 VendorId = PCI_Read16(Bus, Device, Function, PCI_CFG_VENDOR_ID);
+            for (Function = 0; Function <= (U32)MaxFunction; Function++) {
+                U16 VendorId = PCI_Read16((U8)Bus, (U8)Device, (U8)Function, PCI_CFG_VENDOR_ID);
                 if (VendorId == 0xFFFFU) continue;
 
                 PCI_INFO PciInfo;
                 PCI_DEVICE PciDevice;
                 U32 DriverIndex;
 
-                PciFillFunctionInfo(Bus, Device, Function, &PciInfo);
+                PciFillFunctionInfo((U8)Bus, (U8)Device, (U8)Function, &PciInfo);
                 KernelLogText(
-                    LOG_DEBUG, TEXT("[PCI] Found %02X:%02X.%u VID=%04X DID=%04X"), Bus, Device, Function,
-                    PciInfo.VendorID, PciInfo.DeviceID);
+                    LOG_DEBUG, TEXT("[PCI] Found %02X:%02X.%u VID=%04X DID=%04X"),
+                    (U8)Bus, (U8)Device, (U8)Function, PciInfo.VendorID, PciInfo.DeviceID);
+
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
                 PciDevice.ID = ID_PCIDEVICE;
                 PciDevice.References = 1;
@@ -234,7 +236,6 @@ void PCI_ScanBus(void) {
                 PciDevice.Info = PciInfo;
                 PciDecodeBARs(&PciInfo, &PciDevice);
 
-                /* Try all registered PCI drivers */
                 for (DriverIndex = 0; DriverIndex < PciDriverCount; DriverIndex++) {
                     LPPCI_DRIVER PciDriver = PciDriverTable[DriverIndex];
 
@@ -244,8 +245,9 @@ void PCI_ScanBus(void) {
                         if (PciInternalMatch(DriverMatch, &PciInfo)) {
                             if (PciDriver->Command) {
                                 KernelLogText(
-                                    LOG_DEBUG, TEXT("[PCI] %s matches %02X:%02X.%u"), PciDriver->Product, Bus, Device,
-                                    Function);
+                                    LOG_DEBUG, TEXT("[PCI] %s matches %02X:%02X.%u"),
+                                    PciDriver->Product, (U8)Bus, (U8)Device, (U8)Function);
+
                                 U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
                                 if (Result == DF_ERROR_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
@@ -256,7 +258,7 @@ void PCI_ScanBus(void) {
                                             ListAddItem(Kernel.PCIDevice, NewDev);
                                             KernelLogText(
                                                 LOG_DEBUG, TEXT("[PCI] Attached %s to %02X:%02X.%u"),
-                                                PciDriver->Product, Bus, Device, Function);
+                                                PciDriver->Product, (U8)Bus, (U8)Device, (U8)Function);
                                             goto NextFunction;
                                         }
                                     }
@@ -265,7 +267,6 @@ void PCI_ScanBus(void) {
                         }
                     }
                 }
-
             NextFunction:
                 (void)0;
             }

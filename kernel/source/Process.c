@@ -18,31 +18,32 @@
 /***************************************************************************/
 
 PROCESS KernelProcess = {
-    ID_PROCESS,  // ID
-    1,           // References
-    NULL,
-    NULL,              // Next, previous
-    EMPTY_MUTEX,       // Mutex
-    EMPTY_MUTEX,       // Heap mutex
-    EMPTY_SECURITY,    // Security
-    NULL,              // Desktop
-    NULL,              // Parent
-    PRIVILEGE_KERNEL,  // Privilege
-    PA_PGD,            // Page directory
-    0,                 // Heap base
-    0,                 // Heap size
-    "EXOS",            // File name
-    "",                // Command line
-    NULL               // Objects
+    .ID = ID_PROCESS,  // ID
+    .References = 1,           // References
+    .Next = NULL,
+    .Prev = NULL,              // Next, previous
+    .Mutex = EMPTY_MUTEX,       // Mutex
+    .HeapMutex = EMPTY_MUTEX,       // Heap mutex
+    .Security = EMPTY_SECURITY,    // Security
+    .Desktop = NULL,              // Desktop
+    .Parent = NULL,              // Parent
+    .Privilege = PRIVILEGE_KERNEL,  // Privilege
+    .PageDirectory = 0,            // Page directory
+    .HeapBase = 0,                 // Heap base
+    .HeapSize = 0,                 // Heap size
+    .FileName = "EXOS",            // File name
+    .CommandLine = "",                // Command line
+    .Objects = NULL               // Objects
 };
 
 /***************************************************************************/
 
-void InitializeKernelHeap() {
+void InitializeKernelProcess() {
+    KernelProcess.PageDirectory = KernelStartup.SI_Phys_PGD;
     KernelProcess.HeapSize = N_1MB;
 
-    KernelLogText(LOG_DEBUG, TEXT("Memory : %X"), Memory);
-    KernelLogText(LOG_DEBUG, TEXT("Pages : %X"), Pages);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Memory : %X"), KernelStartup.MemorySize);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Pages : %X"), KernelStartup.PageCount);
 
     LINEAR HeapBase = VirtualAlloc(0, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
@@ -50,13 +51,20 @@ void InitializeKernelHeap() {
 
     if (!HeapBase) {
         ClearConsole();
-        SLEEPING_BEAUTY;
+
+        // Wait forever
+        DO_THE_SLEEPING_BEAUTY;
     }
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
     MemorySet((LPVOID)KernelProcess.HeapBase, 0, sizeof(HEAPCONTROLBLOCK));
 
     ((LPHEAPCONTROLBLOCK)KernelProcess.HeapBase)->ID = ID_HEAP;
+}
+
+/***************************************************************************/
+
+void InitializeKernelHeap() {
 }
 
 /***************************************************************************/

@@ -60,22 +60,6 @@ typedef struct tag_CPUINFORMATION {
 
 /***************************************************************************/
 
-typedef struct tag_KERNELSTARTUPINFO {
-    U32 Loader_SS;
-    U32 Loader_SP;
-    U32 IRQMask_21_RM;
-    U32 IRQMask_A1_RM;
-    U32 ConsoleWidth;
-    U32 ConsoleHeight;
-    U32 ConsoleCursorX;
-    U32 ConsoleCursorY;
-    U32 MemorySize;
-} KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
-
-#define KERNEL_STARTUP_INFO_OFFSET 32
-
-/***************************************************************************/
-
 // Kernel selectors
 
 #define SELECTOR_GLOBAL 0x00
@@ -151,6 +135,14 @@ typedef struct tag_KERNELSTARTUPINFO {
 
 // Global Kernel Data
 
+typedef struct tag_KERNELDATA_I386 {
+    LPGATEDESCRIPTOR IDT;
+    LPSEGMENTDESCRIPTOR GDT;
+    LPTASKTSSDESCRIPTOR TTD;
+    LPTASKSTATESEGMENT TSS;
+    LPPAGEBITMAP PPB;
+} KERNELDATA_I386, *LPKERNELDATA_I386;
+
 typedef struct tag_KERNELDATA {
     LPLIST Desktop;
     LPLIST Process;
@@ -182,12 +174,7 @@ void InitializeKernel();
 
 // Variables in Kernel.c
 
-extern KERNELSTARTUPINFO KernelStartup;
-extern LPGATEDESCRIPTOR IDT;
-extern LPSEGMENTDESCRIPTOR GDT;
-extern LPTASKTSSDESCRIPTOR TTD;
-extern LPTASKSTATESEGMENT TSS;
-extern LPPAGEBITMAP PPB;
+extern KERNELDATA_I386 Kernel_i386;
 extern KERNELDATA Kernel;
 extern PHYSICAL StubAddress;
 

@@ -17,20 +17,6 @@
 
 /***************************************************************************/
 
-// VMM data
-
-typedef struct tag_VMMDATA {
-    U32 Memory;
-    U32 Pages;
-} VMMDATA, *LPVMMDATA;
-
-/***************************************************************************/
-
-extern U32 Memory;
-extern U32 Pages;
-
-/***************************************************************************/
-
 void InitializeVirtualMemoryManager();
 void InitPageTable(LPPAGETABLE, PHYSICAL);
 void SetPhysicalPageMark(U32, U32);

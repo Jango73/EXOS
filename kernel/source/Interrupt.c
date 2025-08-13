@@ -98,13 +98,13 @@ void InitializeInterrupts() {
     // Set all used interrupts
 
     for (Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-        IDT[Index].Reserved = 0;
-        IDT[Index].Type = GATE_TYPE_386_INT;
-        IDT[Index].Privilege = PRIVILEGE_KERNEL;
-        IDT[Index].Present = 1;
+        Kernel_i386.IDT[Index].Selector = SELECTOR_KERNEL_CODE;
+        Kernel_i386.IDT[Index].Reserved = 0;
+        Kernel_i386.IDT[Index].Type = GATE_TYPE_386_INT;
+        Kernel_i386.IDT[Index].Privilege = PRIVILEGE_KERNEL;
+        Kernel_i386.IDT[Index].Present = 1;
 
-        SetGateDescriptorOffset(IDT + Index, (U32)InterruptTable[Index]);
+        SetGateDescriptorOffset(Kernel_i386.IDT + Index, (U32)InterruptTable[Index]);
     }
 
     //-------------------------------------
@@ -112,26 +112,26 @@ void InitializeInterrupts() {
 
     Index = EXOS_USER_CALL;
 
-    IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-    IDT[Index].Reserved = 0;
-    IDT[Index].Type = GATE_TYPE_386_TRAP;
-    IDT[Index].Privilege = PRIVILEGE_KERNEL;
-    IDT[Index].Present = 1;
+    Kernel_i386.IDT[Index].Selector = SELECTOR_KERNEL_CODE;
+    Kernel_i386.IDT[Index].Reserved = 0;
+    Kernel_i386.IDT[Index].Type = GATE_TYPE_386_TRAP;
+    Kernel_i386.IDT[Index].Privilege = PRIVILEGE_KERNEL;
+    Kernel_i386.IDT[Index].Present = 1;
 
-    SetGateDescriptorOffset(IDT + Index, (U32)Interrupt_SystemCall);
+    SetGateDescriptorOffset(Kernel_i386.IDT + Index, (U32)Interrupt_SystemCall);
 
     //-------------------------------------
     // Set driver call interrupt
 
     Index = EXOS_DRIVER_CALL;
 
-    IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-    IDT[Index].Reserved = 0;
-    IDT[Index].Type = GATE_TYPE_386_TRAP;
-    IDT[Index].Privilege = PRIVILEGE_KERNEL;
-    IDT[Index].Present = 1;
+    Kernel_i386.IDT[Index].Selector = SELECTOR_KERNEL_CODE;
+    Kernel_i386.IDT[Index].Reserved = 0;
+    Kernel_i386.IDT[Index].Type = GATE_TYPE_386_TRAP;
+    Kernel_i386.IDT[Index].Privilege = PRIVILEGE_KERNEL;
+    Kernel_i386.IDT[Index].Present = 1;
 
-    SetGateDescriptorOffset(IDT + Index, (U32)Interrupt_DriverCall);
+    SetGateDescriptorOffset(Kernel_i386.IDT + Index, (U32)Interrupt_DriverCall);
 
     //-------------------------------------
 

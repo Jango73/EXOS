@@ -67,7 +67,7 @@ static void Die() {
     }
 
     // Wait forever
-    SLEEPING_BEAUTY;
+    DO_THE_SLEEPING_BEAUTY;
 }
 
 /***************************************************************************/

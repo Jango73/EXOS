@@ -190,7 +190,7 @@ extern MUTEX ConsoleMutex;
 /***************************************************************************/
 // Functions in Process.c
 
-void InitializeKernelHeap();
+void InitializeKernelProcess();
 LINEAR GetProcessHeap(LPPROCESS);
 void DumpProcess(LPPROCESS);
 void InitSecurity(LPSECURITY);
