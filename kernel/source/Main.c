@@ -9,6 +9,7 @@
 
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/System.h"
 
 /***************************************************************************/
 
