@@ -323,16 +323,18 @@ U32 ClockTask(LPVOID Param) {
 
     while (1) {
         Time = DoSystemCall(SYSCALL_GetSystemTime, 0);
+
         if (Time - OldTime >= 1000) {
             OldTime = Time;
             MilliSecondsToHMS(Time, Text);
-            LockMutex(MUTEX_CONSOLE, 0);
             OldX = Console.CursorX;
             OldY = Console.CursorY;
 
             Console.CursorX = X;
             Console.CursorY = Y;
             ConsolePrint(Text);
+
+            KernelLogText(LOG_DEBUG, Text);
 
             MouseX = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
             MouseY = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
@@ -343,7 +345,6 @@ U32 ClockTask(LPVOID Param) {
 
             Console.CursorX = OldX;
             Console.CursorY = OldY;
-            UnlockMutex(MUTEX_CONSOLE);
         }
 
         DoSystemCall(SYSCALL_Sleep, 40);

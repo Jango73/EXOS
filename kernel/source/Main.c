@@ -12,7 +12,10 @@
 
 /***************************************************************************/
 
-static void KernelIdle() { SLEEPING_BEAUTY; }
+static void KernelIdle() {
+    // For now, kernel task sleeps
+    IdleCPU();
+}
 
 /***************************************************************************/
 
