@@ -12,6 +12,7 @@
 #include "../include/Clock.h"
 #include "../include/Console.h"
 #include "../include/Driver.h"
+#include "../include/E1000.h"
 #include "../include/FileSys.h"
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
@@ -374,6 +375,13 @@ void DumpSystemInformation() {
 
 /***************************************************************************/
 
+void InitializePCI() {
+    PCI_RegisterDriver(&E1000Driver);
+    PCI_ScanBus();
+}
+
+/***************************************************************************/
+
 void InitializeFileSystems() {
     LPLISTNODE Node;
 
@@ -584,32 +592,31 @@ void InitializeKernel() {
     // Initialize physical drives
 
     LoadDriver(&StdHardDiskDriver, TEXT("StdHardDisk"));
-    KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized"));
 
     //-------------------------------------
     // Initialize the file systems
 
     InitializeFileSystems();
-    KernelLogText(LOG_VERBOSE, TEXT("File systems initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("File systems initialized"));
 
     //-------------------------------------
     // Initialize the graphics card
 
     LoadDriver(&VESADriver, TEXT("VESA"));
-    KernelLogText(LOG_VERBOSE, TEXT("VESA driver initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("VESA driver initialized"));
 
     //-------------------------------------
     // Initialize the mouse
 
     LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
-    KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized"));
 
     //-------------------------------------
     // Initialize the PCI drivers
 
-    PCI_RegisterDriver(&E1000Driver);
-
-    PCI_ScanBus();
+    InitializePCI();
+    KernelLogText(LOG_VERBOSE, TEXT("PCI initialized"));
 
     //-------------------------------------
     // Print the EXOS banner

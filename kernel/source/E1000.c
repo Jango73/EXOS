@@ -115,12 +115,14 @@ static U32 E1000Commands(U32 Function, U32 Param);
 /****************************************************************/
 // Small busy wait
 
+/*
 static void E1000_Delay(U32 Iterations) {
     volatile U32 Index;
     for (Index = 0; Index < Iterations; Index++) {
         asm volatile("nop");
     }
 }
+*/
 
 /****************************************************************/
 // Device structure
