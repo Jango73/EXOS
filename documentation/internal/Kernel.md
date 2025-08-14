@@ -34,7 +34,7 @@ StartAbsolute :
 `Start` runs in 16‑bit real mode. It saves the loader stack, adjusts the segment registers, obtains the console cursor position and disables nterrupts. The routine then loads a temporary IDT and GDT, enables the A20 line and programs the PIC for protected mode. Finally the protection bit in CR0 is set and control is transferred to `Start32`:
 
 ```asm
-mov     eax, CR0_PROTECTEDMODE
+mov     eax, CR0_PROTECTED_MODE
 mov     cr0, eax
 
 jmp     Next
@@ -194,6 +194,14 @@ Implements a simple text editor for the shell.
 - OpenTextFile: Loads a text file into the editor context.
 - Edit: Entry point used by the shell to invoke the editor.
 
+### E1000.c
+
+Implements a e1000 network driver.
+
+#### Functions in E1000.c
+
+- TODO
+
 ### FAT16.c
 
 Driver implementation for the FAT16 file system.
@@ -215,7 +223,6 @@ Driver implementation for the FAT16 file system.
 - OpenNext: Opens the next file in a directory iteration.
 - CloseFile: Closes a previously opened file.
 - ReadFile: Reads data from an open file.
-
 
 ### FAT32.c
 
@@ -437,6 +444,27 @@ Interactive memory viewer used for debugging.
 - PrintMemory: Dumps a series of memory lines.
 - PrintMemoryPage: Shows a page of memory on the console.
 - MemEdit: Lets the user scroll through memory addresses.
+
+### Memory.c
+
+Memory manager for page allocation and mapping.
+
+#### Functions in Memory.c
+
+- InitializeMemoryManager: Detects memory size and page count.
+- SetPhysicalPageMark: Marks a physical page as used or free.
+- GetPhysicalPageMark: Returns the allocation state of a page.
+- AllocPhysicalPage: Reserves a free physical page.
+- GetDirectoryEntry: Returns the page directory entry index for an address.
+- GetTableEntry: Returns the page table entry index for an address.
+- AllocPageDirectory: Allocates a page directory for a process.
+- AllocPageTable: Creates a new page table if required.
+- IsRegionFree: Tests if a virtual memory region is unused.
+- FindFreeRegion: Searches for a free area of virtual memory.
+- FreeEmptyPageTables: Releases unused page tables.
+- AllocRegion: Maps a range of virtual memory with given flags.
+- FreeRegion: Unmaps a range of virtual memory pages.
+
 ### Process.c
 
 Manages executable loading, process creation and heap setup.
@@ -451,6 +479,14 @@ Manages executable loading, process creation and heap setup.
 - GetProcessHeap: Returns the base address of a process heap.
 - DumpProcess: Prints process details for debugging.
 - InitSecurity: Initializes a security descriptor.
+
+### PCI.c
+
+Handles scanning of PCI buses.
+
+#### Functions in PCI.c
+
+- TODO
 
 ### RAMDisk.c
 
@@ -632,8 +668,8 @@ System call handler dispatching user mode requests.
 - SysCall_DeleteSemaphore: Deletes a mutex object.
 - SysCall_LockSemaphore: Locks a mutex with timeout.
 - SysCall_UnlockSemaphore: Unlocks a mutex.
-- SysCall_VirtualAlloc: Allocates virtual memory pages.
-- SysCall_VirtualFree: Frees virtual memory pages.
+- SysCall_AllocRegion: Allocates virtual memory pages.
+- SysCall_FreeRegion: Frees virtual memory pages.
 - SysCall_GetProcessHeap: Returns the heap of a process.
 - SysCall_HeapAlloc: Allocates memory from the heap.
 - SysCall_HeapFree: Releases heap memory.
@@ -791,26 +827,6 @@ Low level routines for standard VGA mode programming.
 - VGAIODelay: Short delay used when programming the VGA registers.
 - SendModeRegs: Loads a register set to configure video mode.
 - TestVGA: Simple routine that programs the first VGA mode.
-
-### VMM.c
-
-Kernel virtual memory manager for page allocation and mapping.
-
-#### Functions in VMM.c
-
-- InitializeVirtualMemoryManager: Detects memory size and page count.
-- SetPhysicalPageMark: Marks a physical page as used or free.
-- GetPhysicalPageMark: Returns the allocation state of a page.
-- AllocPhysicalPage: Reserves a free physical page.
-- GetDirectoryEntry: Returns the page directory entry index for an address.
-- GetTableEntry: Returns the page table entry index for an address.
-- AllocPageDirectory: Allocates a page directory for a process.
-- AllocPageTable: Creates a new page table if required.
-- IsRegionFree: Tests if a virtual memory region is unused.
-- FindFreeRegion: Searches for a free area of virtual memory.
-- FreeEmptyPageTables: Releases unused page tables.
-- VirtualAlloc: Maps a range of virtual memory with given flags.
-- VirtualFree: Unmaps a range of virtual memory pages.
 
 ### XFS.c
 

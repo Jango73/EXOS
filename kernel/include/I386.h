@@ -473,14 +473,17 @@ typedef struct tag_FARPOINTER {
 
 /***************************************************************************/
 
-// Bit layout of CR0
+// Bit layout of CR0 (Control register 0)
 
-#define CR0_PROTECTEDMODE 0x00000001
-#define CR0_COPROCESSOR 0x00000002
-#define CR0_MONITORCOPRO 0x00000004
-#define CR0_TASKSWITCH 0x00000008
-#define CR0_80387 0x00000010
-#define CR0_PAGING 0x80000000
+#define CR0_PROTECTED_MODE 0x00000001           // Protected mode on/off
+#define CR0_COPROCESSOR 0x00000002              // Math present
+#define CR0_MONITOR_COPROCESSOR 0x00000004      // Emulate co-processor
+#define CR0_TASKSWITCH 0x00000008               // Set on task switch
+#define CR0_80387 0x00000010                    // Type of co-processor
+#define CR0_PAGING 0x80000000                   // Paging on/off
+
+// CR2 = Faulty linear address in case of page fault
+// CR3 = Physical address of page directory
 
 /***************************************************************************/
 

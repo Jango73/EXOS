@@ -31,7 +31,7 @@
 #define LA_DIRECTORY 0xFF800000  // Page Directory of current process
 #define LA_SYSTABLE 0xFF801000   // Page that maps FF800000+ addresses
 #define LA_PAGETABLE 0xFF802000  // First page table of current process
-#define LA_TEMP 0xFFBFF000       // Temporary page used by VMM
+#define LA_TEMP 0xFFBFF000       // Temporary page used by Memory.c
 
 /***************************************************************************\
 

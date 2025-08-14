@@ -609,7 +609,7 @@ ReturnFromCall :
     ; Paging would produce effective addresses
     ; out of the 16-bit range
 
-    mov     eax, CR0_PROTECTEDMODE
+    mov     eax, CR0_PROTECTED_MODE
     mov     cr0, eax
 
     ;--------------------------------------

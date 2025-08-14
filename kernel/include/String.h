@@ -17,13 +17,13 @@
 /***************************************************************************/
 // Flags for format printing
 
-#define PF_ZEROPAD 1  /* pad with zero */
-#define PF_SIGN 2     /* unsigned/signed long */
-#define PF_PLUS 4     /* show plus */
-#define PF_SPACE 8    /* space if plus */
-#define PF_LEFT 16    /* left justified */
-#define PF_SPECIAL 32 /* 0x for hex, 0 for octal*/
-#define PF_LARGE 64   /* use 'ABCDEF' instead of 'abcdef' */
+#define PF_ZEROPAD 1  // pad with zero
+#define PF_SIGN 2     // unsigned/signed long
+#define PF_PLUS 4     // show plus
+#define PF_SPACE 8    // space if plus
+#define PF_LEFT 16    // left justified
+#define PF_SPECIAL 32 // 0x for hex, 0 for octal
+#define PF_LARGE 64   // use 'ABCDEF' instead of 'abcdef'
 
 /***************************************************************************/
 

@@ -114,4 +114,4 @@ typedef struct tag_GRAPHICSMODEINFO {
 
 /***************************************************************************/
 
-#endif
+#endif  // GFX_H_INCLUDED

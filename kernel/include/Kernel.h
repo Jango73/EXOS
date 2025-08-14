@@ -19,11 +19,11 @@
 #include "Heap.h"
 #include "ID.h"
 #include "List.h"
+#include "Memory.h"
 #include "Process.h"
 #include "String.h"
 #include "Text.h"
 #include "User.h"
-#include "VMM.h"
 
 /***************************************************************************/
 

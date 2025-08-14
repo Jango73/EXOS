@@ -20,8 +20,7 @@
 #pragma pack(1)
 
 /***************************************************************************/
-
-// The XFS Master Boot Record
+// XFS Master Boot Record
 
 typedef struct tag_XFSMBR {
     U8 Jump[4];          // Jump to code and 2 NOPs
@@ -38,8 +37,7 @@ typedef struct tag_XFSMBR {
 } XFSMBR, *LPXFSMBR;
 
 /***************************************************************************/
-
-// The XFS Super Block
+// XFS Super Block
 
 typedef struct tag_XFSSUPER {
     U8 Magic[4];  // "EXOS"
@@ -64,7 +62,6 @@ typedef struct tag_XFSSUPER {
 } XFSSUPER, *LPXFSSUPER;
 
 /***************************************************************************/
-
 // File time, 64 bytes
 
 typedef struct tag_XFSTIME {
@@ -79,7 +76,6 @@ typedef struct tag_XFSTIME {
 } XFSTIME, *LPXFSTIME;
 
 /***************************************************************************/
-
 // XFS File Record, 256 bytes
 
 typedef struct tag_XFSFILEREC {
@@ -110,6 +106,7 @@ typedef struct tag_XFSFILEREC {
 #define XFS_CLUSTER_END ((U32)0xFFFFFFFF)
 
 /***************************************************************************/
+// XFS File location
 
 typedef struct tag_XFSFILELOC {
     U32 PageCluster;

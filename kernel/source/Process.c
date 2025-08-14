@@ -45,7 +45,7 @@ void InitializeKernelProcess() {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Memory : %X"), KernelStartup.MemorySize);
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Pages : %X"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = VirtualAlloc(0, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    LINEAR HeapBase = AllocRegion(0, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     KernelLogText(LOG_DEBUG, TEXT("HeapBase : %X"), HeapBase);
 
@@ -460,9 +460,9 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate enough memory for the code, data and heap
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : VirtualAllocing process space...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : AllocRegioning process space...\n"));
 
-    VirtualAlloc(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT);
+    AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT);
 
     //-------------------------------------
     // Open the executable file
@@ -484,7 +484,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     if (LoadExecutable_EXOS(File, &ExecutableInfo, (LINEAR)CodeBase, (LINEAR)DataBase) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Load failed !\n"));
 
-        VirtualFree(LA_USER, TotalSize);
+        FreeRegion(LA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
         CloseFile(File);

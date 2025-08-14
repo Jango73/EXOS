@@ -315,7 +315,7 @@ Start :
     mov     al, 'h'
     call    PrintChar
 
-    mov     eax, CR0_PROTECTEDMODE
+    mov     eax, CR0_PROTECTED_MODE
     mov     cr0, eax
 
     ;--------------------------------------

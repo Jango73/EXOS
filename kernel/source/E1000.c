@@ -16,11 +16,11 @@
 #include "../include/Driver.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/Memory.h"
 #include "../include/Network.h"
 #include "../include/PCI.h"
 #include "../include/String.h"
 #include "../include/User.h"
-#include "../include/VMM.h"
 
 /*
     RX & TX Descriptor Rings (E1000) - Example with 128 entries each
@@ -271,7 +271,7 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
         return FALSE;
     }
     Device->RxRingLinear =
-        VirtualAlloc(0, Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocRegion(0, Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->RxRingLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx ring map failed"));
         return FALSE;
@@ -285,7 +285,7 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx buf phys alloc failed"));
             return FALSE;
         }
-        Device->RxBufLinear[Index] = VirtualAlloc(
+        Device->RxBufLinear[Index] = AllocRegion(
             0, Device->RxBufPhysical[Index], E1000_RX_BUF_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
         if (Device->RxBufLinear[Index] == 0) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx buf map failed"));
@@ -333,7 +333,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
         return FALSE;
     }
     Device->TxRingLinear =
-        VirtualAlloc(0, Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocRegion(0, Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->TxRingLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx ring map failed"));
         return FALSE;
@@ -347,7 +347,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx buf phys alloc failed"));
             return FALSE;
         }
-        Device->TxBufLinear[Index] = VirtualAlloc(
+        Device->TxBufLinear[Index] = AllocRegion(
             0, Device->TxBufPhysical[Index], E1000_RX_BUF_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
         if (Device->TxBufLinear[Index] == 0) {
             KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx buf map failed"));

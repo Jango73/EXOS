@@ -541,10 +541,10 @@ void InitializeKernel() {
     KernelLogText(LOG_DEBUG, TEXT("  PageCount : %X"), KernelStartup.PageCount);
 
     //-------------------------------------
-    // Initialize the VMM
+    // Initialize the memory manager
 
-    InitializeVirtualMemoryManager();
-    KernelLogText(LOG_DEBUG, TEXT("Vitual memory manager initialized"));
+    InitializeMemoryManager();
+    KernelLogText(LOG_DEBUG, TEXT("Memory manager initialized"));
 
     // Provoke page fault
     // *((U32*)0x70000000) = 5;

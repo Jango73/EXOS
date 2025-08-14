@@ -62,8 +62,8 @@ typedef struct tag_ABI_HEADER {
 #define SYSCALL_CreateMutex 0x00000014
 #define SYSCALL_LockMutex 0x00000015
 #define SYSCALL_UnlockMutex 0x00000016
-#define SYSCALL_VirtualAlloc 0x00000017
-#define SYSCALL_VirtualFree 0x00000018
+#define SYSCALL_AllocRegion 0x00000017
+#define SYSCALL_FreeRegion 0x00000018
 #define SYSCALL_GetProcessHeap 0x00000019
 #define SYSCALL_HeapAlloc 0x0000001A
 #define SYSCALL_HeapFree 0x0000001B
@@ -210,11 +210,12 @@ typedef struct tag_MESSAGEINFO {
     U32 Param2;
 } MESSAGEINFO, *LPMESSAGEINFO;
 
-typedef struct tag_SEMINFO {
+// Describes a mutex and some delay
+typedef struct tag_MUTEXINFO {
     ABI_HEADER Header;
     HANDLE Mutex;
     U32 MilliSeconds;
-} SEMINFO, *LPSEMINFO;
+} MUTEXINFO, *LPMUTEXINFO;
 
 typedef struct tag_VIRTUALINFO {
     ABI_HEADER Header;

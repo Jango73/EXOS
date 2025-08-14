@@ -7,7 +7,7 @@
 
 \***************************************************************************/
 
-#include "../include/VMM.h"
+#include "../include/Memory.h"
 
 #include "../include/Address.h"
 #include "../include/Base.h"
@@ -67,13 +67,13 @@
 
 \***************************************************************************/
 
-void InitializeVirtualMemoryManager() {
+void InitializeMemoryManager() {
     U32 NumPagesUsed = 0;
     U32 Index = 0;
     U32 Byte = 0;
     U32 Value = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeVirtualMemoryManager] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
 
     NumPagesUsed = (KernelStartup.SI_Phys_KER + N_2MB) >> PAGE_SIZE_MUL;
 
@@ -83,12 +83,12 @@ void InitializeVirtualMemoryManager() {
         Kernel_i386.PPB[Byte] |= (U8)Value;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeVirtualMemoryManager] Exit"));
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));
 }
 
 /***************************************************************************/
 
-void SetPhysicalPageMark(U32 Page, U32 Used) {
+static void SetPhysicalPageMark(U32 Page, U32 Used) {
     U32 Offset = 0;
     U32 Value = 0;
 
@@ -110,7 +110,7 @@ void SetPhysicalPageMark(U32 Page, U32 Used) {
 
 /***************************************************************************/
 
-U32 GetPhysicalPageMark(U32 Page) {
+static U32 GetPhysicalPageMark(U32 Page) {
     U32 Offset = 0;
     U32 Value = 0;
     U32 RetVal = 0;
@@ -166,6 +166,21 @@ PHYSICAL AllocPhysicalPage(void) {
             }
         }
     }
+
+Out:
+    UnlockMutex(MUTEX_MEMORY);
+    return result;
+}
+
+/***************************************************************************/
+
+// Frees one physical page and mark it free in PPB.
+// Returns the physical address (page-aligned) or 0 on failure.
+void FreePhysicalPage(PHYSICAL Page) {
+
+    LockMutex(MUTEX_MEMORY, INFINITY);
+
+    // TODO
 
 Out:
     UnlockMutex(MUTEX_MEMORY);
@@ -584,15 +599,15 @@ static void FreeEmptyPageTables() {
 
 /***************************************************************************\
 
-  VirtualAlloc is the most important memory management function.
-  It allocates a linear address region to the calling process
+  AllocRegion is the most important memory management function.
+  It allocates a linear address memory region to the calling process
   and sets up the page tables.
 
   If the user supplies a linear address as a base for the region,
-  VirtualAlloc returns NULL if the region is already allocated.
+  AllocRegion returns NULL if the region is already allocated.
 
-  If the user supplies a physical target address, VirtualAlloc returns
-  NULL if the physical regions are not free.
+  If the user supplies a physical target address, AllocRegion returns
+  NULL if the physical region is not free.
 
   The pages can be physically allocated if the flags include
   ALLOC_PAGES_COMMIT or can be reserved (not present in physical
@@ -600,7 +615,7 @@ static void FreeEmptyPageTables() {
 
 \***************************************************************************/
 
-LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE Table = NULL;
     LINEAR Pointer = NULL;
@@ -612,7 +627,13 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     U32 Privilege = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Enter"));
+
+    // Can't allocate more than 25% of total memory at once
+    if (Size > KernelStartup.MemorySize) {
+        Pointer = NULL;
+        goto Out;
+    }
 
     Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
 
@@ -633,11 +654,11 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     // If an exact physical mapping is requested, validate inputs
     if (Target != 0 && (Flags & ALLOC_PAGES_IO) == 0) {
         if ((Target & (PAGE_SIZE - 1)) != 0) {
-            KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Target not page-aligned (%X)"), Target);
+            KernelLogText(LOG_ERROR, TEXT("[AllocRegion] Target not page-aligned (%X)"), Target);
             goto Out;
         }
         if ((Flags & ALLOC_PAGES_COMMIT) == 0) {
-            KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] Exact PMA mapping requires COMMIT"));
+            KernelLogText(LOG_ERROR, TEXT("[AllocRegion] Exact PMA mapping requires COMMIT"));
             goto Out;
         }
         // NOTE: Do not reject pages already marked used here.
@@ -649,7 +670,7 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     // see if the region is not already allocated.
     if (Base != 0) {
         if (IsRegionFree(Base, Size) == FALSE) {
-            KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] No free region found with specified base"));
+            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with specified base"));
             goto Out;
         }
     }
@@ -660,7 +681,7 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     if (Base == 0) {
         Base = FindFreeRegion(Size);
         if (Base == NULL) {
-            KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] No free region found with unspecified base"));
+            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with unspecified base"));
             goto Out;
         }
     }
@@ -675,9 +696,9 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
         if (Directory[DirEntry].Address == NULL) {
             if (AllocPageTable(Base) == NULL) {
-                VirtualFree(Pointer, Size);
+                FreeRegion(Pointer, Size);
                 Pointer = NULL;
-                KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] AllocPageTable failed "));
+                KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] AllocPageTable failed "));
                 goto Out;
             }
         }
@@ -717,9 +738,9 @@ LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
                 Physical = AllocPhysicalPage();
 
                 if (Physical == NULL) {
-                    KernelLogText(LOG_ERROR, TEXT("[VirtualAlloc] AllocPhysicalPage failed"));
+                    KernelLogText(LOG_ERROR, TEXT("[AllocRegion] AllocPhysicalPage failed"));
                     // Roll back pages mapped so far
-                    VirtualFree(Pointer, (Index << PAGE_SIZE_MUL));
+                    FreeRegion(Pointer, (Index << PAGE_SIZE_MUL));
                     Pointer = NULL;
                     goto Out;
                 }
@@ -738,14 +759,14 @@ Out:
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("[VirtualAlloc] Exit"));
+    KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Exit"));
 
     return Pointer;
 }
 
 /***************************************************************************/
 
-BOOL VirtualFree(LINEAR Base, U32 Size) {
+BOOL FreeRegion(LINEAR Base, U32 Size) {
     LPPAGETABLE Directory = NULL;
     LPPAGETABLE Table = NULL;
     U32 DirEntry = 0;
@@ -753,7 +774,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
     U32 NumPages = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering VirtualFree"));
+    KernelLogText(LOG_DEBUG, TEXT("Entering FreeRegion"));
 
     Directory = (LPPAGETABLE)LA_DIRECTORY;
 
@@ -792,7 +813,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
 
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting VirtualFree"));
+    KernelLogText(LOG_DEBUG, TEXT("Exiting FreeRegion"));
 
     return TRUE;
 }
@@ -821,7 +842,7 @@ BOOL VirtualFree(LINEAR Base, U32 Size) {
                      │
                      ▼
          ┌───────────────────────────┐
-         │ VirtualAlloc(Base=0,      │
+         │ AllocRegion(Base=0,      │
          │   Target=BAR0,            │
          │   Size=MMIO size,         │
          │   Flags=ALLOC_PAGES_COMMIT│
@@ -858,8 +879,8 @@ LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
     }
 
     // Map as Uncached, Read/Write, exact PMA mapping, IO semantics
-    return VirtualAlloc(
-        0,             // Let VMM choose virtual address
+    return AllocRegion(
+        0,             // Let AllocRegion choose virtual address
         PhysicalBase,  // Exact PMA (BAR)
         Size,
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
@@ -876,8 +897,8 @@ BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
         return FALSE;
     }
 
-    // Just unmap; VirtualFree will skip RAM bitmap if PTE.Fixed was set
-    return VirtualFree(LinearBase, Size);
+    // Just unmap; FreeRegion will skip RAM bitmap if PTE.Fixed was set
+    return FreeRegion(LinearBase, Size);
 }
 
 /***************************************************************************/

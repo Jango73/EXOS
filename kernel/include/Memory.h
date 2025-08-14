@@ -7,8 +7,8 @@
 
 \***************************************************************************/
 
-#ifndef VMM_H_INCLUDED
-#define VMM_H_INCLUDED
+#ifndef MEMORY_H_INCLUDED
+#define MEMORY_H_INCLUDED
 
 /***************************************************************************/
 
@@ -17,15 +17,26 @@
 
 /***************************************************************************/
 
-void InitializeVirtualMemoryManager();
-void InitPageTable(LPPAGETABLE, PHYSICAL);
-void SetPhysicalPageMark(U32, U32);
-U32 GetPhysicalPageMark(U32);
+// Initializes the memory manager
+void InitializeMemoryManager();
+
+// Uses a temp page table to get access to a random physical page
 LINEAR MapPhysicalPage(PHYSICAL Physical);
+
+// Allocates physical space for a new page directory
 PHYSICAL AllocPageDirectory();
+
+// Allocates a physical page
 PHYSICAL AllocPhysicalPage();
-LINEAR VirtualAlloc(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags);
-BOOL VirtualFree(LINEAR Base, U32 Size);
+
+// Frees a physical page
+void FreePhysicalPage(PHYSICAL Page);
+
+// Allocates physical space for a new region of virtual memory
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags);
+
+// Frees physical space of a region of virtual memory
+BOOL FreeRegion(LINEAR Base, U32 Size);
 
 // Map/unmap a physical MMIO region (BAR or Base Address Register) as Uncached Read/Write
 LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size);
@@ -33,4 +44,4 @@ BOOL MmUnmapIo(LINEAR LinearBase, U32 Size);
 
 /***************************************************************************/
 
-#endif
+#endif  // MEMORY_H_INCLUDED
