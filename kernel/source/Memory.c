@@ -184,7 +184,7 @@ void FreePhysicalPage(PHYSICAL Page) {
 
 Out:
     UnlockMutex(MUTEX_MEMORY);
-    return result;
+    return;
 }
 
 /***************************************************************************/
