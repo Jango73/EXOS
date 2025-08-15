@@ -104,7 +104,7 @@ SI_Size_PGH         dd PAGE_TABLE_SIZE ; High Memory Page Table size
 SI_Size_TSS         dd N_32KB ; Task State Segment Size
 SI_Size_PPB         dd N_128KB ; Physical Page Bitmap Size
 SI_Size_KER         dd 0 ; Kernel image size aligned 4K (EXCLUDING stub)
-SI_Size_BSS         dd N_4KB ; Kernel BSS Size
+SI_Size_BSS         dd 0 ; Kernel BSS Size
 SI_Size_STK         dd N_32KB ; Kernel Stack Size
 SI_Size_SYS         dd 0; Sum of IDT to STK
 
@@ -340,6 +340,13 @@ ComputeAddresses:
 
     ; --- Compute kernel size EXCLUDING the 16-bit stub ---
     ; File layout is [stub][kernel]. We want SI_Size_KER = kernel-only, 4K aligned.
+
+    mov         eax, __bss_init_end
+    sub         eax, __bss_init_start
+    add         eax, 0xFFF                   ; 4K align
+    and         eax, 0xFFFFF000
+    mov         [SI_Size_BSS], eax
+
     mov         eax, EXOS_End
     sub         eax, EXOS_Start              ; file size = stub + kernel
     mov         ebx, [SI_Size_Stub]

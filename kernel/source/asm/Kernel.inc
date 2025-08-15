@@ -277,5 +277,7 @@ extern HardDriveHandler
 
 extern Kernel
 extern StubAddress
+extern __bss_init_end
+extern __bss_init_start
 
 ;----------------------------------------------------------

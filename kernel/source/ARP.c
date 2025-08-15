@@ -9,8 +9,9 @@
 
 \***************************************************************************/
 
-#include "ARP.h"
+#include "../include/ARP.h"
 #include "../include/Log.h"
+#include "../include/Network.h"
 
 /************************************************************************/
 // Cache Configuration

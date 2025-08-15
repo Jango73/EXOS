@@ -488,7 +488,7 @@ U32 GetPhysicalMemoryUsed() {
 
 void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     if (Driver != NULL) {
-        KernelLogText(LOG_DEBUG, TEXT("[LoadDriver] : %s"), Name);
+        KernelLogText(LOG_DEBUG, TEXT("[LoadDriver] : %s at %X"), Name, Driver);
 
         if (Driver->ID != ID_DRIVER) {
             KernelLogText(
@@ -590,6 +590,12 @@ void InitializeKernel() {
     KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized"));
 
     //-------------------------------------
+    // Initialize the mouse
+
+    LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
+    KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized"));
+
+    //-------------------------------------
     // Print system infomation
 
     DumpSystemInformation();
@@ -648,12 +654,6 @@ void InitializeKernel() {
 
     LoadDriver(&VESADriver, TEXT("VESA"));
     KernelLogText(LOG_VERBOSE, TEXT("VESA driver initialized"));
-
-    //-------------------------------------
-    // Initialize the mouse
-
-    LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
-    KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized"));
 
     //-------------------------------------
     // Initialize the PCI drivers

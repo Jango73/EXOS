@@ -16,8 +16,9 @@
 /***************************************************************************/
 
 #include "PCI.h"
+#include "User.h"
 
-typedef struct tag_NETWORKINFO NETWORKINFO, *LPNETWORKINFO;
+/***************************************************************************/
 
 typedef void (*NT_RXCB)(const U8 *Frame, U32 Length);
 
