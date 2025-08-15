@@ -1,4 +1,4 @@
-// Minimal FAT32 loader to load an OS image from FAT32 root directory with COM1 debug logs.
+// Minimal FAT32 loader to load exos.bin from root with COM1 debug logs.
 
 #include "../../kernel/include/String.h"
 
@@ -10,20 +10,18 @@
 U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 
 void PrintString(const char* s) {
-#if DEBUG_LOGS
     __asm__ __volatile__(
         "1:\n\t"
         "lodsb\n\t"             // AL = [ESI], ESI++
-        "or    %%al, %%al\n\t"  // Test end of string
+        "or    %%al, %%al\n\t"  // test fin de chaîne
         "jz    2f\n\t"
-        "mov   $0x0E, %%ah\n\t" // AH = 0Eh (BIOS teletype)
+        "mov   $0x0E, %%ah\n\t"  // AH = 0Eh (BIOS teletype)
         "int   $0x10\n\t"
         "jmp   1b\n\t"
         "2:\n\t"
         :
         : "S"(s)  // ESI = s
         : "al", "ah");
-#endif
 }
 
 struct __attribute__((packed)) Fat32BootSector {
@@ -96,20 +94,22 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     PrintString(TempString);
     PrintString("\r\n");
 
-    PrintString("[VBR] BootSector address ");
-    NumberToString(TempString, (U32)(&BootSector), 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString("\r\n");
+    /*
+        PrintString("[VBR] BootSector address ");
+        NumberToString(TempString, (U32)(&BootSector), 16, 0, 0, PF_SPECIAL);
+        PrintString(TempString);
+        PrintString("\r\n");
 
-    PrintString("[VBR] Transmitted BootDrive ");
-    NumberToString(TempString, BootDrive, 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString("\r\n");
+        PrintString("[VBR] Transmitted BootDrive ");
+        NumberToString(TempString, BootDrive, 16, 0, 0, PF_SPECIAL);
+        PrintString(TempString);
+        PrintString("\r\n");
 
-    PrintString("[VBR] Transmitted FAT Start LBA ");
-    NumberToString(TempString, FAT32LBA, 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString("\r\n");
+        PrintString("[VBR] Transmitted FAT Start LBA ");
+        NumberToString(TempString, FAT32LBA, 16, 0, 0, PF_SPECIAL);
+        PrintString(TempString);
+        PrintString("\r\n");
+    */
 
     PrintString("[VBR] Reading FAT32 VBR\r\n");
     if (BiosReadSectors(BootDrive, FAT32LBA, 1, &BootSector)) {
@@ -146,15 +146,17 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     U32 FirstDataSector = FAT32LBA + BootSector.ReservedSectorCount + (BootSector.NumberOfFats * FatSize);
     U32 Cluster = RootCluster;
 
-    PrintString("[VBR] FAT start LBA : ");
-    NumberToString(TempString, FatStartSector, 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString("\r\n");
+    /*
+        PrintString("[VBR] FAT start LBA : ");
+        NumberToString(TempString, FatStartSector, 16, 0, 0, PF_SPECIAL);
+        PrintString(TempString);
+        PrintString("\r\n");
 
-    PrintString("[VBR] SectorsPerCluster : ");
-    NumberToString(TempString, SectorsPerCluster, 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString("\r\n");
+        PrintString("[VBR] SectorsPerCluster : ");
+        NumberToString(TempString, SectorsPerCluster, 16, 0, 0, PF_SPECIAL);
+        PrintString(TempString);
+        PrintString("\r\n");
+    */
 
     if (SectorsPerCluster < 4) {
         PrintString("[VBR] WARNING: 1 sector per cluster : expect many BIOS calls\r\n");
@@ -316,9 +318,20 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         };  // Hang
     }
 
-    // Jump to the loaded image
+    PrintString("[VBR] Done, jumping to kernel.\r\n");
 
-    PrintString("[VBR] Done, jumping to loaded image.\r\n");
+    // void (*KernelEntry)(void) = (void*) ((Dest_Seg << 16 | Dest_Ofs));
+    // KernelEntry();
+
+    /*
+        __asm__ __volatile__ (
+            "pushw %[ofs]\n\t"
+            "pushw %[seg]\n\t"
+            "retf\n\t"
+            :
+            : [seg]"i"(LoadAddress_Seg), [ofs]"i"(LoadAddress_Ofs)
+        );
+    */
 
     struct {
         unsigned short ofs;

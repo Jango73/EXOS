@@ -1,28 +1,5 @@
 # Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
-# -----------------------------
-# Debug logs switch (use: make LOG=1)
-LOG ?= 0
-export LOG
-
-# -----------------------------
-# Tools
-NASM  = nasm
-CC    = i686-elf-gcc
-LD    = i686-elf-ld
-
-# -----------------------------
-# Flags (isolated for C / ASM)
-DEFS           = -DDEBUG_LOGS=$(LOG)
-
-# NASM
-ASMFLAGS_BIN   = -f bin   $(DEFS)
-ASMFLAGS_ELF   = -f elf32 $(DEFS)
-
-# GCC
-CFLAGS         = -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin $(DEFS)
-
-# -----------------------------
 FINAL_IMG       = bin/exos.img
 IMG_SIZE_MB     = 64
 KERNEL_BIN      = ../kernel/bin/exos.bin
@@ -32,7 +9,8 @@ CUSTOM_MBR_BIN  = bin/mbr.bin
 
 VBR_SRC         = source/vbr.asm
 VBR_BIN         = bin/vbr.bin
-VBR_CODE_OFFSET = 0x5A      		# Offset of code in VBR sector
+SECTORS_TO_LOAD = 8         # Number of sectors loaded by VBR (including sector 0)
+VBR_CODE_OFFSET = 0x5A      # Offset of code in VBR sector
 
 PAYLOAD_STUB    = source/main-stub.asm
 PAYLOAD_STUB_O  = bin/main-stub.o
@@ -49,12 +27,12 @@ PAYLOAD_MAP     = bin/payload.map
 # Compute offset (in bytes) of the first partition, dynamically
 PART_OFFSET = $(shell parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }')
 
-.PHONY: all create-image update install-mbr install-vbr-payload clean check_tools hexdump-check
+.PHONY: all create-image update install-mbr install-vbr-payload clean check_tools
 
 all: check_tools create-image update install-mbr install-vbr-payload hexdump-check
 
 create-image:
-	@rm -f $(FINAL_IMG)
+	rm -f $(FINAL_IMG)
 	@echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
 	dd if=/dev/zero of=$(FINAL_IMG) bs=1M count=$(IMG_SIZE_MB)
 	parted -s $(FINAL_IMG) mklabel msdos
@@ -88,7 +66,7 @@ install-mbr: $(CUSTOM_MBR_BIN)
 
 install-vbr-payload: $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
 	@echo "Injecting VBR code at offset 0x5A in VBR sector, et payload au secteur suivant..."
-	@PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+	PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 	VBR_SIZE=$$(stat -c %s $(VBR_BIN)); \
 	dd if=$(VBR_BIN) of=$(FINAL_IMG) bs=1 seek=$$((PART_OFFSET + $(VBR_CODE_OFFSET))) count=$$VBR_SIZE conv=notrunc; \
 	SECTOR_NUM=$$((PART_OFFSET / 512 + 1)); \
@@ -97,31 +75,31 @@ install-vbr-payload: $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
 
 $(CUSTOM_MBR_BIN): $(CUSTOM_MBR)
 	@echo "Assembling custom MBR (NASM)..."
-	$(NASM) $(ASMFLAGS_BIN) $(CUSTOM_MBR) -o $(CUSTOM_MBR_BIN)
+	nasm -f bin $(CUSTOM_MBR) -o $(CUSTOM_MBR_BIN)
 
 $(VBR_BIN): $(VBR_SRC)
 	@echo "Assembling VBR (NASM)..."
-	$(NASM) $(ASMFLAGS_BIN) $(VBR_SRC) -o $(VBR_BIN)
+	nasm -f bin $(VBR_SRC) -o $(VBR_BIN)
 
 $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@echo "Assembling payload stub (NASM)..."
-	$(NASM) $(ASMFLAGS_ELF) $< -o $@
+	nasm -f elf32 $< -o $@
 
 $(PAYLOAD_C_O): $(PAYLOAD_C)
 	@echo "Compiling payload C..."
-	$(CC) $(CFLAGS) -c $< -o $@
+	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 	@echo "Compiling String..."
-	$(CC) $(CFLAGS) -c $< -o $@
+	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
 
 $(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
-	$(LD) -T $(PAYLOAD_BIN_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+	i686-elf-ld -T $(PAYLOAD_BIN_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) 
 
 $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
 	@echo "Linking payload stub + C into elf binary..."
-	$(LD) -T $(PAYLOAD_ELF_LD) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+	i686-elf-ld -T $(PAYLOAD_ELF_LD) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) 
 
 check_tools:
 	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -163,4 +141,4 @@ hexdump-check:
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
 
 clean:
-	@rm -f $(MTOOLS_CONF) $(CUSTOM_MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
+	rm -f $(MTOOLS_CONF) $(CUSTOM_MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
