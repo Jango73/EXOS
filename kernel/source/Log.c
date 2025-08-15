@@ -19,7 +19,7 @@
 /***************************************************************************/
 
 void InitKernelLog() {
-    SerialReset();
+    SerialReset(LOG_COM_INDEX);
     KernelLogText(LOG_VERBOSE, TEXT("COM1 initialized"));
 }
 
@@ -33,7 +33,7 @@ static INT SkipAToI(LPCSTR* s) {
 
 /***************************************************************************/
 
-static void KernelPrintChar(STR Char) { SerialOut(Char); }
+static void KernelPrintChar(STR Char) { SerialOut(LOG_COM_INDEX, Char); }
 
 /***************************************************************************/
 

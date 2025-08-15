@@ -10,6 +10,6 @@ if [ ! -f "$IMG_PATH" ]; then
 fi
 
 echo "Starting QEMU with image: $IMG_PATH"
-qemu-system-i386 -drive format=raw,file="$IMG_PATH" -boot d -serial file:../log/debug.log -s -S &
+qemu-system-i386 -drive format=raw,file="$IMG_PATH" -boot d -serial none -serial file:../log/debug.log -s -S &
 sleep 1
 cgdb ../kernel/bin/exos.elf -ex "set architecture i386" -ex "show architecture" -ex "target remote localhost:1234" -ex "break *0x8116"

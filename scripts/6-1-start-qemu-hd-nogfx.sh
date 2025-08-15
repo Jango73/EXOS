@@ -10,4 +10,4 @@ if [ ! -f "$IMG_PATH" ]; then
 fi
 
 echo "Starting QEMU with image: $IMG_PATH"
-qemu-system-i386 -drive format=raw,file="$IMG_PATH" -serial file:"../log/debug.log" -nographic -boot d
+qemu-system-i386 -drive format=raw,file="$IMG_PATH" -serial none -serial file:"../log/debug.log" -nographic -boot d

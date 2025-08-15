@@ -16,8 +16,8 @@
 
 /***************************************************************************/
 
-void SerialReset();
-void SerialOut(STR Char);
+void SerialReset(U8 Which);             // 0 = COM1, 1 = COM2, ...
+void SerialOut(U8 Which, STR Char);
 
 /***************************************************************************/
 

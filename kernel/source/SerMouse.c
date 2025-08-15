@@ -143,9 +143,6 @@ static MOUSEDATA Mouse = {
 #define MOUSE_PORT 0x03F8
 #define MOUSE_TIMEOUT 0x4000
 
-#define COM1_PORT 0x03F8
-#define COM2_PORT 0x02F8
-
 /***************************************************************************/
 
 static void SendBreak() {

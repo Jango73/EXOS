@@ -17,6 +17,8 @@
 
 /***************************************************************************/
 
+#define LOG_COM_INDEX 1
+
 #define LOG_DEBUG 0x0001
 #define LOG_VERBOSE 0x0002
 #define LOG_WARNING 0x0004
