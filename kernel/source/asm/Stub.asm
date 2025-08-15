@@ -90,7 +90,7 @@ SI_Console_CY       dd 0
 
 SI_Memory_Size      dd 0 ; Total memory size
 SI_Page_Count       dd 0 ; Total number of pages
-SI_Size_Stub        dd N_8KB ; Size of the stub
+SI_Size_Stub        dd 0 ; Size of the stub
 
 SI_Size_LOW         dd N_1MB ; Low Memory Area Size
 SI_Size_HMA         dd N_64KB ; High Memory Area Size
@@ -340,6 +340,12 @@ ComputeAddresses:
 
     ; --- Compute kernel size EXCLUDING the 16-bit stub ---
     ; File layout is [stub][kernel]. We want SI_Size_KER = kernel-only, 4K aligned.
+
+    mov         eax, __stub_init_end
+    sub         eax, __stub_init_start
+    add         eax, 0xFFF                   ; 4K align
+    and         eax, 0xFFFFF000
+    mov         [SI_Size_Stub], eax
 
     mov         eax, __bss_init_end
     sub         eax, __bss_init_start

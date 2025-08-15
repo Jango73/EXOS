@@ -6,8 +6,10 @@ SECTIONS
     /* Stub — low memory, start of file */
     . = 0x00000000;
     .stub : AT(0x00000000) {
+        __stub_init_start = .;
         *(.text.stub)
         *(.text.stub2)
+        __stub_init_end = .;
     }
 
     /* Kernel — high memory, physically after stub (0x1000 offset) */
