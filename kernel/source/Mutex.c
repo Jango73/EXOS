@@ -107,7 +107,18 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     DisableInterrupts();
 
     Task = GetCurrentTask();
+
+    if (Task == NULL) {
+        Ret = 1;
+        goto Out;
+    }
+
     Process = Task->Process;
+
+    if (Process == NULL) {
+        Ret = 1;
+        goto Out;
+    }
 
     if (Mutex->Task == Task) {
         Mutex->Lock++;
