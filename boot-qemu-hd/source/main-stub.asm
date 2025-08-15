@@ -52,7 +52,7 @@ Start:
     hlt
     jmp         $
 
-;----------------------------------------
+;--------------------------------------------------------------------------
 ; BiosReadSectors cdecl
 ; In : EBP+8 = Drive number
 ;      EBP+12 = Start LBA
@@ -152,7 +152,7 @@ BiosReadSectors_16:
     ret
 
 
-;----------------------------------------
+;--------------------------------------------------------------------------
 ; PrintChar
 ; In : AL = character to write
 
@@ -164,7 +164,7 @@ PrintChar:
     pop         bx
     ret
 
-;----------------------------------------
+;--------------------------------------------------------------------------
 PrintString:
     lodsb
     or          al, al
@@ -175,7 +175,7 @@ PrintString:
 .done:
     ret
 
-;----------------------------------------
+;--------------------------------------------------------------------------
 ; PrintHex32
 ; In : EAX = value to write
 ; Uses : EAX, EBX, ECX
@@ -234,7 +234,7 @@ PrintHex32Nibble:
     call    PrintChar
     ret
 
-;----------------------------------------
+;--------------------------------------------------------------------------
 ; Read-only data
 
 section .rodata
@@ -246,7 +246,7 @@ Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
 Text_NewLine: db 10,13,0
 
-;----------------------------------------
+;--------------------------------------------------------------------------
 ; Data
 
 section .data
@@ -260,3 +260,4 @@ DAP_Buffer_Offset : dw 0
 DAP_Buffer_Segment : dw 0
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
+

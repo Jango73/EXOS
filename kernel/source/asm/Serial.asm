@@ -1,9 +1,9 @@
 
-;----------------------------------------------------------------------------
+;--------------------------------------------------------------------------
 ;  EXOS
 ;  Copyright (c) 1999-2025 Jango73
 ;  All rights reserved
-;----------------------------------------------------------------------------
+;--------------------------------------------------------------------------
 
 %include "./Kernel.inc"
 
@@ -17,7 +17,7 @@ bits 32
     global SerialWriteString
     global SerialWriteHex32
 
-;--------------------------------------
+;--------------------------------------------------------------------------
 ; Initialize COM1 for 38400 8N1
 SerialInit:
     mov     dx, 0x3F8 + 1
@@ -49,7 +49,7 @@ SerialInit:
     out     dx, al                ; IRQs enabled, RTS/DSR set
     ret
 
-;--------------------------------------
+;--------------------------------------------------------------------------
 ; Write a single character to COM1
 ; AL - character to send
 SerialWriteChar:
@@ -65,21 +65,21 @@ SerialWriteChar:
     out     dx, al
     ret
 
-;--------------------------------------
+;--------------------------------------------------------------------------
 ; Write a space to COM1
 SerialWriteSpace:
     mov     al, ' '
     call    SerialWriteChar
     ret
 
-;--------------------------------------
+;--------------------------------------------------------------------------
 ; Write a new line to COM1
 SerialWriteNewLine:
     mov     al, 10
     call    SerialWriteChar
     ret
 
-;--------------------------------------
+;--------------------------------------------------------------------------
 ; Write a zero-terminated string to COM1
 ; ESI - pointer to string
 SerialWriteString:
@@ -92,7 +92,7 @@ SerialWriteString:
 .done:
     ret
 
-;--------------------------------------
+;--------------------------------------------------------------------------
 SerialWriteHex32:
     ; Entrée : EAX contient la valeur 32 bits à écrire en hexadécimal
     ; Utilise : ECX, EBX, EAX (modifié)
@@ -152,4 +152,5 @@ PrintHexNibble:
     call    SerialWriteChar
     ret
 
-;--------------------------------------
+;--------------------------------------------------------------------------
+
