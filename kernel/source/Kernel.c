@@ -385,9 +385,14 @@ void DumpCriticalInformation() {
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
     KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
 
-    KernelLogText(LOG_DEBUG, TEXT("Physical kernel IDT : %X"), KernelStartup.SI_Phys_IDT);
-    KernelLogText(LOG_DEBUG, TEXT("Physical kernel GDT : %X"), KernelStartup.SI_Phys_GDT);
-    KernelLogText(LOG_DEBUG, TEXT("Physical kernel TSS : %X"), KernelStartup.SI_Phys_TSS);
+    KernelLogText(LOG_DEBUG, TEXT("Physical IDT : %X"), KernelStartup.SI_Phys_IDT);
+    KernelLogText(LOG_DEBUG, TEXT("Physical GDT : %X"), KernelStartup.SI_Phys_GDT);
+    KernelLogText(LOG_DEBUG, TEXT("Physical PGD : %X"), KernelStartup.SI_Phys_PGD);
+    KernelLogText(LOG_DEBUG, TEXT("Physical PGS : %X"), KernelStartup.SI_Phys_PGS);
+    KernelLogText(LOG_DEBUG, TEXT("Physical PGK : %X"), KernelStartup.SI_Phys_PGK);
+    KernelLogText(LOG_DEBUG, TEXT("Physical PGL : %X"), KernelStartup.SI_Phys_PGL);
+    KernelLogText(LOG_DEBUG, TEXT("Physical PGH : %X"), KernelStartup.SI_Phys_PGH);
+    KernelLogText(LOG_DEBUG, TEXT("Physical TSS : %X"), KernelStartup.SI_Phys_TSS);
     KernelLogText(LOG_DEBUG, TEXT("Physical PPB : %X"), KernelStartup.SI_Phys_PPB);
     KernelLogText(LOG_DEBUG, TEXT("Physical kernel code & data : %X"), KernelStartup.SI_Phys_KER);
     KernelLogText(LOG_DEBUG, TEXT("Physical kernel bss : %X"), KernelStartup.SI_Phys_BSS);
