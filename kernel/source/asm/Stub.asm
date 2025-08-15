@@ -689,7 +689,13 @@ Text_PA_STK :
     db '[STUB] PA of Kernel stack : ', 0
 
 Text_Size_KER :
-    db '[STUB] Kernel size : ', 0
+    db '[STUB] Kernel size (Code & data) : ', 0
+
+Text_Size_BSS :
+    db '[STUB] BSS size : ', 0
+
+Text_Size_STK :
+    db '[STUB] Stack size : ', 0
 
 Text_Size_SYS :
     db '[STUB] System size : ', 0
@@ -824,6 +830,14 @@ Start32 :
 
     DbgOut  Text_Size_KER
     Hx32Out SI_Size_KER
+    call    SerialWriteNewLine
+
+    DbgOut  Text_Size_BSS
+    Hx32Out SI_Size_BSS
+    call    SerialWriteNewLine
+
+    DbgOut  Text_Size_STK
+    Hx32Out SI_Size_STK
     call    SerialWriteNewLine
 
     DbgOut  Text_Size_SYS
