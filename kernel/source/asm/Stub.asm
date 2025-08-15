@@ -1,3 +1,4 @@
+;
 ;-------------------------------------------------------------------------
 ;  EXOS
 ;  Copyright (c) 1999-2025 Jango73
@@ -102,7 +103,7 @@ SI_Size_PGL         dd PAGE_TABLE_SIZE ; Low Memory Page Table size
 SI_Size_PGH         dd PAGE_TABLE_SIZE ; High Memory Page Table size
 SI_Size_TSS         dd N_32KB ; Task State Segment Size
 SI_Size_PPB         dd N_128KB ; Physical Page Bitmap Size
-SI_Size_KER         dd 0 ; Kernel image size aligned 4K
+SI_Size_KER         dd 0 ; Kernel image size aligned 4K (EXCLUDING stub)
 SI_Size_BSS         dd N_4KB ; Kernel BSS Size
 SI_Size_STK         dd N_32KB ; Kernel Stack Size
 SI_Size_SYS         dd 0; Sum of IDT to STK
@@ -337,58 +338,60 @@ Next :
 
 ComputeAddresses:
 
+    ; --- Compute kernel size EXCLUDING the 16-bit stub ---
+    ; File layout is [stub][kernel]. We want SI_Size_KER = kernel-only, 4K aligned.
     mov         eax, EXOS_End
-    sub         eax, EXOS_Start
+    sub         eax, EXOS_Start              ; file size = stub + kernel
     mov         ebx, [SI_Size_Stub]
-    add         eax, ebx                        ; Add stub size
-    add         eax, 0xFFF                      ; Align to 4K
+    sub         eax, ebx                     ; kernel only (no stub)
+    add         eax, 0xFFF                   ; 4K align
     and         eax, 0xFFFFF000
     mov         [SI_Size_KER], eax
 
-    mov         eax, [SI_Phys_LOW]              ; Start at physical address 0
+    mov         eax, [SI_Phys_LOW]           ; Start at physical address 0
 
-    add         eax, [SI_Size_LOW]              ; HMA
+    add         eax, [SI_Size_LOW]           ; HMA
     mov         [SI_Phys_HMA], eax
 
-    add         eax, [SI_Size_HMA]              ; Interrupt Descriptor Table
+    add         eax, [SI_Size_HMA]           ; Interrupt Descriptor Table
     mov         [SI_Phys_IDT], eax
-    mov         [SI_Phys_SYS], eax              ; System starts here
+    mov         [SI_Phys_SYS], eax           ; System starts here
 
-    add         eax, [SI_Size_IDT]              ; Kernel Global Descriptor Table
+    add         eax, [SI_Size_IDT]           ; Kernel Global Descriptor Table
     mov         [SI_Phys_GDT], eax
 
-    add         eax, [SI_Size_GDT]              ; Kernel Page Directory
+    add         eax, [SI_Size_GDT]           ; Kernel Page Directory
     mov         [SI_Phys_PGD], eax
 
-    add         eax, [SI_Size_PGD]              ; System Page Table
+    add         eax, [SI_Size_PGD]           ; System Page Table
     mov         [SI_Phys_PGS], eax
 
-    add         eax, [SI_Size_PGS]              ; Kernel Page Table
+    add         eax, [SI_Size_PGS]           ; Kernel Page Table
     mov         [SI_Phys_PGK], eax
 
-    add         eax, [SI_Size_PGK]              ; "Conventional" Memory Page Table
+    add         eax, [SI_Size_PGK]           ; "Conventional" Memory Page Table
     mov         [SI_Phys_PGL], eax
 
-    add         eax, [SI_Size_PGL]              ; HMA Table
+    add         eax, [SI_Size_PGL]           ; HMA Table
     mov         [SI_Phys_PGH], eax
 
-    add         eax, [SI_Size_PGH]              ; Task State Segment
+    add         eax, [SI_Size_PGH]           ; Task State Segment
     mov         [SI_Phys_TSS], eax
 
-    add         eax, [SI_Size_TSS]              ; Physical Page Bitmap (track allocated pages)
+    add         eax, [SI_Size_TSS]           ; Physical Page Bitmap (track allocated pages)
     mov         [SI_Phys_PPB], eax
 
-    add         eax, [SI_Size_PPB]              ; Kernel code and data
+    add         eax, [SI_Size_PPB]           ; Kernel code and data
     mov         [SI_Phys_KER], eax
 
-    add         eax, [SI_Size_KER]              ; Kernel bss
+    add         eax, [SI_Size_KER]           ; Kernel bss
     mov         [SI_Phys_BSS], eax
 
-    add         eax, [SI_Size_BSS]              ; Kernel stack
+    add         eax, [SI_Size_BSS]           ; Kernel stack
     mov         [SI_Phys_STK], eax
 
-    add         eax, [SI_Size_STK]              ; Add stack size and remove "Conventional" mem
-    sub         eax, [SI_Size_LOW]              ; + HMA to get "system" size
+    add         eax, [SI_Size_STK]           ; Add stack size and remove "Conventional" mem
+    sub         eax, [SI_Size_LOW]           ; + HMA to get "system" size
     sub         eax, [SI_Size_HMA]
     mov         [SI_Size_SYS], eax
 
@@ -706,7 +709,7 @@ Text_MapPages :
     db '[STUB] Mapping pages (Page address, Physical address, Size) : ', 0
 
 Text_CopyKernel :
-    db '[STUB] Copying kernel (without 4Kb stub) to high memory (From, To, Size) ', 0
+    db '[STUB] Copying kernel (excluding stub) to high memory (From, To, Size) ', 0
 
 Text_EnablePaging :
     db '[STUB] Enabling paging', 10, 13, 0
@@ -1111,7 +1114,7 @@ CopyKernel :
     call        SerialWriteNewLine
 
     ;--------------------------------------
-    ; Copy the kernel code and data without the 4K stub
+    ; Copy the kernel code and data excluding the 4K stub
 
     mov         esi, ebp
     LoadEAX     SI_Size_Stub
@@ -1120,7 +1123,6 @@ CopyKernel :
     mov         edi, [edi]
     LoadECX     SI_Size_KER
     mov         ecx, [ecx]
-    sub         ecx, N_4KB
     cld
     rep         movsb
     ret
