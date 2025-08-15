@@ -91,6 +91,13 @@ VOIDFUNC InterruptTable[] = {
 
 /***************************************************************************/
 
+static void SetGateDescriptorOffset(LPGATEDESCRIPTOR This, U32 Offset) {
+    This->Offset_00_15 = (Offset & (U32)0x0000FFFF) >> 0x00;
+    This->Offset_16_31 = (Offset & (U32)0xFFFF0000) >> 0x10;
+}
+
+/***************************************************************************/
+
 void InitializeInterrupts() {
     U32 Index = 0;
 

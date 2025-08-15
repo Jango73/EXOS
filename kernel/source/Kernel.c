@@ -178,13 +178,6 @@ void CheckDataIntegrity() {
 
 /***************************************************************************/
 
-void SetGateDescriptorOffset(LPGATEDESCRIPTOR This, U32 Offset) {
-    This->Offset_00_15 = (Offset & (U32)0x0000FFFF) >> 0x00;
-    This->Offset_16_31 = (Offset & (U32)0xFFFF0000) >> 0x10;
-}
-
-/***************************************************************************/
-
 BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info) {
     if (Info) {
         Info->Base = SEGMENTBASE(This);
@@ -563,6 +556,12 @@ void InitializeKernel() {
     Kernel_i386.PPB = (LPPAGEBITMAP)LA_PPB;
 
     //-------------------------------------
+    // Initialize interrupts
+
+    InitializeInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized"));
+
+    //-------------------------------------
     // Dump critical information
 
     DumpCriticalInformation();
@@ -604,12 +603,6 @@ void InitializeKernel() {
     // Print system infomation
 
     DumpSystemInformation();
-
-    //-------------------------------------
-    // Initialize interrupts
-
-    InitializeInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized"));
 
     //-------------------------------------
     // Setup the kernel's main task
