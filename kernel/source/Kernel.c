@@ -28,6 +28,8 @@ extern LINEAR __bss_init_start;
 extern LINEAR __bss_init_end;
 extern U32 DeadBeef;
 
+extern void StartTestNetworkTask();
+
 /***************************************************************************/
 
 STR Text_OSTitle[] =
@@ -677,6 +679,8 @@ void InitializeKernel() {
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
+
+    StartTestNetworkTask();
 
     //-------------------------------------
     // Shell task

@@ -11,7 +11,8 @@ LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map
 
 KERNEL_ELF = bin/exos.elf
 
-SRC_C  = $(wildcard source/*.c)
+SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/test/*.c)
 SRC_S  = $(wildcard source/asm/*.asm)
 
 OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))
@@ -102,4 +103,4 @@ check_magic: $(FINAL_IMG)
 	@./check-exos-magic.sh $(FINAL_IMG)
 
 clean:
-	rm -rf bin/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img
+	rm -rf bin/*.o bin/*/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img

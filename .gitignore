@@ -2,8 +2,6 @@
 *.o
 *.a
 *.com
-*.bat
-*.BAT
 *.bin
 *.map
 *.lst
