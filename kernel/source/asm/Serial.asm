@@ -20,6 +20,9 @@ bits 32
 ;--------------------------------------
 ; Initialize COM1 for 38400 8N1
 SerialInit:
+
+%if DEBUG_LOGS = 1
+
     mov     dx, 0x3F8 + 1
     mov     al, 0x00
     out     dx, al                ; Disable interrupts
@@ -47,12 +50,18 @@ SerialInit:
     mov     dx, 0x3F8 + 4
     mov     al, 0x0B
     out     dx, al                ; IRQs enabled, RTS/DSR set
+
+%endif
+
     ret
 
 ;--------------------------------------
 ; Write a single character to COM1
 ; AL - character to send
 SerialWriteChar:
+
+%if DEBUG_LOGS = 1
+
     mov     ah, al                ; Save character
 .wait:
     mov     dx, 0x3F8 + 5
@@ -63,26 +72,44 @@ SerialWriteChar:
     mov     dx, 0x3F8
     mov     al, ah                ; Restore character
     out     dx, al
+
+%endif
+
     ret
 
 ;--------------------------------------
 ; Write a space to COM1
 SerialWriteSpace:
+
+%if DEBUG_LOGS = 1
+
     mov     al, ' '
     call    SerialWriteChar
+
+%endif
+
     ret
 
 ;--------------------------------------
 ; Write a new line to COM1
 SerialWriteNewLine:
+
+%if DEBUG_LOGS = 1
+
     mov     al, 10
     call    SerialWriteChar
+
+%endif
+
     ret
 
 ;--------------------------------------
 ; Write a zero-terminated string to COM1
 ; ESI - pointer to string
 SerialWriteString:
+
+%if DEBUG_LOGS = 1
+
 .loop:
     lodsb
     test    al, al
@@ -90,6 +117,9 @@ SerialWriteString:
     call    SerialWriteChar
     jmp     .loop
 .done:
+
+%endif
+
     ret
 
 ;--------------------------------------

@@ -252,9 +252,12 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     switch (Type) {
         case LOG_DEBUG: {
+#if DEBUG_LOGS
             KernelPrint(TEXT("DEBUG > "));
             VarKernelPrint(Format, Args);
             KernelPrint(Text_NewLine);
+#else
+#endif
         } break;
 
         default:

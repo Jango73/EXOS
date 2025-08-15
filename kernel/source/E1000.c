@@ -159,6 +159,10 @@ typedef struct tag_E1000DEVICE {
     PHYSICAL TxBufPhysical[E1000_TX_DESC_COUNT];
     LINEAR TxBufLinear[E1000_TX_DESC_COUNT];
 
+    // Pooled linear areas (one big allocation each)
+    LINEAR RxPoolLinear;
+    LINEAR TxPoolLinear;
+
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
 } E1000DEVICE, *LPE1000DEVICE;
@@ -259,12 +263,14 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
 
 /****************************************************************/
 // RX/TX rings setup
+
 static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupRx] Begin"));
     U32 Index;
 
     Device->RxRingCount = E1000_RX_DESC_COUNT;
 
+    // Ring: one physical page, mapped once (unchanged semantics)
     Device->RxRingPhysical = AllocPhysicalPage();
     if (Device->RxRingPhysical == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx ring phys alloc failed"));
@@ -276,43 +282,51 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx ring map failed"));
         return FALSE;
     }
-
     MemorySet((LPVOID)Device->RxRingLinear, 0, PAGE_SIZE);
 
+    // RX buffer pool: allocate N pages in one shot (no target; VMM picks pages)
+    Device->RxPoolLinear =
+        AllocRegion(0, 0, E1000_RX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    if (Device->RxPoolLinear == 0) {
+        KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx pool alloc failed"));
+        return FALSE;
+    }
+
+    // Slice the pool per descriptor (1 page per buffer, as before)
     for (Index = 0; Index < Device->RxRingCount; Index++) {
-        Device->RxBufPhysical[Index] = AllocPhysicalPage();
-        if (Device->RxBufPhysical[Index] == 0) {
-            KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx buf phys alloc failed"));
+        LINEAR la = Device->RxPoolLinear + (Index << PAGE_SIZE_MUL);
+        PHYSICAL pa = MapLinearToPhysical(la);
+        if (pa == 0) {
+            KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx pool phys lookup failed at %u"), Index);
             return FALSE;
         }
-        Device->RxBufLinear[Index] = AllocRegion(
-            0, Device->RxBufPhysical[Index], E1000_RX_BUF_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-        if (Device->RxBufLinear[Index] == 0) {
-            KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx buf map failed"));
-            return FALSE;
+        Device->RxBufLinear[Index] = la;
+        Device->RxBufPhysical[Index] = pa;
+    }
+
+    // Program NIC registers (unchanged)
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAL, (U32)(Device->RxRingPhysical & 0xFFFFFFFF));
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAH, 0);
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDLEN, Device->RxRingCount * sizeof(E1000_RXDESC));
+    Device->RxHead = 0;
+    Device->RxTail = Device->RxRingCount - 1;
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDH, Device->RxHead);
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDT, Device->RxTail);
+
+    {
+        LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
+        for (Index = 0; Index < Device->RxRingCount; Index++) {
+            Ring[Index].BufferAddrLow  = (U32)(Device->RxBufPhysical[Index] & 0xFFFFFFFF);
+            Ring[Index].BufferAddrHigh = 0;
+            Ring[Index].Length = 0;
+            Ring[Index].Checksum = 0;
+            Ring[Index].Status = 0;
+            Ring[Index].Errors = 0;
+            Ring[Index].Special = 0;
         }
     }
 
     {
-        LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
-
-        for (Index = 0; Index < Device->RxRingCount; Index++) {
-            Ring[Index].BufferAddrLow = (U32)(Device->RxBufPhysical[Index] & 0xFFFFFFFF);
-            Ring[Index].BufferAddrHigh = 0;
-            Ring[Index].Status = 0;
-            Ring[Index].Length = 0;
-            Ring[Index].Errors = 0;
-            Ring[Index].Special = 0;
-        }
-
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAL, (U32)(Device->RxRingPhysical & 0xFFFFFFFF));
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAH, 0);
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_RDLEN, Device->RxRingCount * sizeof(E1000_RXDESC));
-        Device->RxHead = 0;
-        Device->RxTail = Device->RxRingCount - 1;
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_RDH, Device->RxHead);
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_RDT, Device->RxTail);
-
         U32 Rctl = E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_BSIZE_2048 | E1000_RCTL_SECRC;
         E1000_WriteReg32(Device->MmioBase, E1000_REG_RCTL, Rctl);
     }
@@ -327,6 +341,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
 
     Device->TxRingCount = E1000_TX_DESC_COUNT;
 
+    // Ring: one physical page, mapped once (unchanged semantics)
     Device->TxRingPhysical = AllocPhysicalPage();
     if (Device->TxRingPhysical == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx ring phys alloc failed"));
@@ -338,28 +353,39 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx ring map failed"));
         return FALSE;
     }
-
     MemorySet((LPVOID)Device->TxRingLinear, 0, PAGE_SIZE);
 
-    for (Index = 0; Index < Device->TxRingCount; Index++) {
-        Device->TxBufPhysical[Index] = AllocPhysicalPage();
-        if (Device->TxBufPhysical[Index] == 0) {
-            KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx buf phys alloc failed"));
-            return FALSE;
-        }
-        Device->TxBufLinear[Index] = AllocRegion(
-            0, Device->TxBufPhysical[Index], E1000_RX_BUF_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-        if (Device->TxBufLinear[Index] == 0) {
-            KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx buf map failed"));
-            return FALSE;
-        }
+    // TX buffer pool: allocate N pages in one shot
+    Device->TxPoolLinear =
+        AllocRegion(0, 0, E1000_TX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    if (Device->TxPoolLinear == 0) {
+        KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx pool alloc failed"));
+        return FALSE;
     }
+
+    for (Index = 0; Index < Device->TxRingCount; Index++) {
+        LINEAR la = Device->TxPoolLinear + (Index << PAGE_SIZE_MUL);
+        PHYSICAL pa = MapLinearToPhysical(la);
+        if (pa == 0) {
+            KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx pool phys lookup failed at %u"), Index);
+            return FALSE;
+        }
+        Device->TxBufLinear[Index] = la;
+        Device->TxBufPhysical[Index] = pa;
+    }
+
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAL, (U32)(Device->TxRingPhysical & 0xFFFFFFFF));
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAH, 0);
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDLEN, Device->TxRingCount * sizeof(E1000_TXDESC));
+    Device->TxHead = 0;
+    Device->TxTail = 0;
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDH, Device->TxHead);
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDT, Device->TxTail);
 
     {
         LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;
-
         for (Index = 0; Index < Device->TxRingCount; Index++) {
-            Ring[Index].BufferAddrLow = (U32)(Device->TxBufPhysical[Index] & 0xFFFFFFFF);
+            Ring[Index].BufferAddrLow  = (U32)(Device->TxBufPhysical[Index] & 0xFFFFFFFF);
             Ring[Index].BufferAddrHigh = 0;
             Ring[Index].Length = 0;
             Ring[Index].CSO = 0;
@@ -368,18 +394,13 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
             Ring[Index].CSS = 0;
             Ring[Index].Special = 0;
         }
+    }
 
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAL, (U32)(Device->TxRingPhysical & 0xFFFFFFFF));
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAH, 0);
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_TDLEN, Device->TxRingCount * sizeof(E1000_TXDESC));
-        Device->TxHead = 0;
-        Device->TxTail = 0;
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_TDH, Device->TxHead);
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_TDT, Device->TxTail);
-
-        U32 Tctl = E1000_TCTL_EN | E1000_TCTL_PSP | (0x0F << E1000_TCTL_CT_SHIFT) | (0x40 << E1000_TCTL_COLD_SHIFT);
+    // Enable TX
+    {
+        U32 Tctl = E1000_TCTL_EN | E1000_TCTL_PSP | (E1000_TCTL_CT_DEFAULT << E1000_TCTL_CT_SHIFT) |
+                   (E1000_TCTL_COLD_DEFAULT << E1000_TCTL_COLD_SHIFT);
         E1000_WriteReg32(Device->MmioBase, E1000_REG_TCTL, Tctl);
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_TIPG, 0x0060200A);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupTx] Done"));

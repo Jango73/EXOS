@@ -30,7 +30,7 @@
             {
                 "action": "killProcess",
                 "parameters": [
-                    "qemu-system-x86_64"
+                    "qemu-system-i386"
                 ]
             }
         ],

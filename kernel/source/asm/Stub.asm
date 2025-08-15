@@ -87,8 +87,9 @@ SI_Console_Height   dd 0
 SI_Console_CX       dd 0
 SI_Console_CY       dd 0
 
-SI_Memory           dd 0 ; Total memory size
-SI_PageCount        dd 0 ; Total number of pages
+SI_Memory_Size      dd 0 ; Total memory size
+SI_Page_Count       dd 0 ; Total number of pages
+SI_Size_Stub        dd N_8KB ; Size of the stub
 
 SI_Size_LOW         dd N_1MB ; Low Memory Area Size
 SI_Size_HMA         dd N_64KB ; High Memory Area Size
@@ -121,6 +122,9 @@ SI_Phys_KER         dd 0 ; Physical address of Kernel
 SI_Phys_BSS         dd 0 ; Physical address of BSS
 SI_Phys_STK         dd 0 ; Physical address of Kernel Stack
 SI_Phys_SYS         dd 0 ; -> IDT
+
+SI_E820_Count       dd 0 ; Number of E820 entries
+SI_E820_Buffer      times N_4KB db 0
 
 ;--------------------------------------
 
@@ -211,18 +215,19 @@ Start :
     mov         ds, ax
     mov         ss, ax
     mov         es, ax
-    sti
 
-    mov         ax, N_4KB - 16
+    xor         ax, ax
     mov         sp, ax
+    sti
 
     ;--------------------------------------
     ; Store loader's stack
 
-    mov         [Offset(SI_Loader_SS)], esi
-    mov         [Offset(SI_Loader_SP)], edi
+    mov         [SI_Loader_SS], esi
+    mov         [SI_Loader_SP], edi
 
     call        ComputeAddresses
+    call        GetE820
 
     ;--------------------------------------
     ; Get 32-bit address of code
@@ -241,11 +246,11 @@ Start :
 
     xor         eax, eax
     mov         al, dl
-    mov         [Offset(SI_Console_CX)], eax
+    mov         [SI_Console_CX], eax
 
     xor         eax, eax
     mov         al, dh
-    mov         [Offset(SI_Console_CY)], eax
+    mov         [SI_Console_CY], eax
 
     ;--------------------------------------
     ; Disable interrupts
@@ -260,7 +265,7 @@ Start :
     mov     al, 'b'
     call    PrintChar
 
-    lidt    [Offset(IDT_Label)]
+    lidt    [IDT_Label]
 
     ;--------------------------------------
     ; Load Global Descriptor Table
@@ -268,11 +273,11 @@ Start :
     mov     al, 'c'
     call    PrintChar
 
-    mov     edi, Offset(GDT_Label)
+    mov     edi, GDT_Label
     add     edi, 2
     add     [edi], ebp
 
-    lgdt    [Offset(GDT_Label)]
+    lgdt    [GDT_Label]
 
     ;--------------------------------------
     ; Set A-20 line
@@ -307,7 +312,7 @@ Start :
     mov     al, 'g'
     call    PrintChar
 
-    add     [Offset(Start32_Entry)], ebp
+    add     [Start32_Entry], ebp
 
     ;--------------------------------------
     ; Switch to protected mode
@@ -327,66 +332,106 @@ Next :
 
     jmp     far dword [Offset(Start32_Entry)]
 
-;--------------------------------------
+;-------------------------------------------------------------------------
+; Computes size and address of all system memory blocks
 
 ComputeAddresses:
 
     mov         eax, EXOS_End
     sub         eax, EXOS_Start
-    add         eax, N_4KB                      ; Add stub size
+    mov         ebx, [SI_Size_Stub]
+    add         eax, ebx                        ; Add stub size
     add         eax, 0xFFF                      ; Align to 4K
     and         eax, 0xFFFFF000
-    mov         [Offset(SI_Size_KER)], eax
+    mov         [SI_Size_KER], eax
 
-    mov         eax, [Offset(SI_Phys_LOW)]      ; Start at physical address 0
+    mov         eax, [SI_Phys_LOW]              ; Start at physical address 0
 
-    add         eax, [Offset(SI_Size_LOW)]      ; HMA
-    mov         [Offset(SI_Phys_HMA)], eax
+    add         eax, [SI_Size_LOW]              ; HMA
+    mov         [SI_Phys_HMA], eax
 
-    add         eax, [Offset(SI_Size_HMA)]      ; Interrupt Descriptor Table
-    mov         [Offset(SI_Phys_IDT)], eax
-    mov         [Offset(SI_Phys_SYS)], eax      ; System starts here
+    add         eax, [SI_Size_HMA]              ; Interrupt Descriptor Table
+    mov         [SI_Phys_IDT], eax
+    mov         [SI_Phys_SYS], eax              ; System starts here
 
-    add         eax, [Offset(SI_Size_IDT)]      ; Kernel Global Descriptor Table
-    mov         [Offset(SI_Phys_GDT)], eax
+    add         eax, [SI_Size_IDT]              ; Kernel Global Descriptor Table
+    mov         [SI_Phys_GDT], eax
 
-    add         eax, [Offset(SI_Size_GDT)]      ; Kernel Page Directory
-    mov         [Offset(SI_Phys_PGD)], eax
+    add         eax, [SI_Size_GDT]              ; Kernel Page Directory
+    mov         [SI_Phys_PGD], eax
 
-    add         eax, [Offset(SI_Size_PGD)]      ; System Page Table
-    mov         [Offset(SI_Phys_PGS)], eax
+    add         eax, [SI_Size_PGD]              ; System Page Table
+    mov         [SI_Phys_PGS], eax
 
-    add         eax, [Offset(SI_Size_PGS)]      ; Kernel Page Table
-    mov         [Offset(SI_Phys_PGK)], eax
+    add         eax, [SI_Size_PGS]              ; Kernel Page Table
+    mov         [SI_Phys_PGK], eax
 
-    add         eax, [Offset(SI_Size_PGK)]      ; "Conventional" Memory Page Table
-    mov         [Offset(SI_Phys_PGL)], eax
+    add         eax, [SI_Size_PGK]              ; "Conventional" Memory Page Table
+    mov         [SI_Phys_PGL], eax
 
-    add         eax, [Offset(SI_Size_PGL)]      ; HMA Table
-    mov         [Offset(SI_Phys_PGH)], eax
+    add         eax, [SI_Size_PGL]              ; HMA Table
+    mov         [SI_Phys_PGH], eax
 
-    add         eax, [Offset(SI_Size_PGH)]      ; Task State Segment
-    mov         [Offset(SI_Phys_TSS)], eax
+    add         eax, [SI_Size_PGH]              ; Task State Segment
+    mov         [SI_Phys_TSS], eax
 
-    add         eax, [Offset(SI_Size_TSS)]      ; Physical Page Bitmap (track allocated pages)
-    mov         [Offset(SI_Phys_PPB)], eax
+    add         eax, [SI_Size_TSS]              ; Physical Page Bitmap (track allocated pages)
+    mov         [SI_Phys_PPB], eax
 
-    add         eax, [Offset(SI_Size_PPB)]      ; Kernel code and data
-    mov         [Offset(SI_Phys_KER)], eax
+    add         eax, [SI_Size_PPB]              ; Kernel code and data
+    mov         [SI_Phys_KER], eax
 
-    add         eax, [Offset(SI_Size_KER)]      ; Kernel bss
-    mov         [Offset(SI_Phys_BSS)], eax
+    add         eax, [SI_Size_KER]              ; Kernel bss
+    mov         [SI_Phys_BSS], eax
 
-    add         eax, [Offset(SI_Size_BSS)]      ; Kernel stack
-    mov         [Offset(SI_Phys_STK)], eax
+    add         eax, [SI_Size_BSS]              ; Kernel stack
+    mov         [SI_Phys_STK], eax
 
-    sub         eax, [Offset(SI_Size_LOW)]
-    sub         eax, [Offset(SI_Size_HMA)]
-    mov         [Offset(SI_Size_SYS)], eax
+    add         eax, [SI_Size_STK]              ; Add stack size and remove "Conventional" mem
+    sub         eax, [SI_Size_LOW]              ; + HMA to get "system" size
+    sub         eax, [SI_Size_HMA]
+    mov         [SI_Size_SYS], eax
 
     ret
 
-;--------------------------------------
+;-------------------------------------------------------------------------
+; Calls Int 0x15 function 0xE820 to get a map of
+; memory zones that are reserved for devices
+
+GetE820:
+
+    pushad
+
+    xor         ebx, ebx                        ; continuation value
+    push        cs
+    pop         es
+    mov         di, SI_E820_Buffer
+
+.next:
+    mov         eax, 0xE820
+    mov         edx, 0x534D4150          ; 'SMAP'
+    mov         ecx, 24
+    int         0x15
+
+    jc          .done
+    cmp         eax, 0x534D4150          ; 'SMAP'
+    jne         .done
+
+    cmp         ecx, 20
+    jb          .done
+
+    add         di, 24
+    inc         dword [SI_E820_Count]
+
+    test        ebx, ebx
+    jnz         .next
+
+.done:
+    popad
+    ret
+
+;-------------------------------------------------------------------------
+; Prints a string
 
 PrintString16:
     lodsb
@@ -398,7 +443,8 @@ PrintString16:
 .done:
     ret
 
-;--------------------------------------
+;-------------------------------------------------------------------------
+; Turns on the A20 line
 
 Set_A20_Line :
 
@@ -406,7 +452,8 @@ Set_A20_Line :
     call    Gate_A20
     ret
 
-;--------------------------------------
+;-------------------------------------------------------------------------
+; Turns off the A20 line
 
 Clear_A20_Line :
 
@@ -414,7 +461,7 @@ Clear_A20_Line :
     call    Gate_A20
     ret
 
-;--------------------------------------
+;-------------------------------------------------------------------------
 
 Gate_A20 :
 
@@ -439,7 +486,8 @@ Gate_A20_Loop :
 
     ret
 
-;--------------------------------------
+;-------------------------------------------------------------------------
+; Clears the 8042 chip
 
 Empty_8042 :
 
@@ -469,6 +517,7 @@ Delay :
     ret
 
 ;-------------------------------------------------------------------------
+; Prints a character
 
 PrintChar :
 
@@ -578,8 +627,11 @@ Text_GetMemorySize :
 Text_EBP :
     db '[STUB] EBP : ', 0
 
-Text_Memory :
+Text_Memory_Size :
     db '[STUB] Memory size : ', 0
+
+Text_Stub_Size :
+    db '[STUB] Stub size : ', 0
 
 Text_FinalGDT :
     db '[STUB] Final GDT : ', 0
@@ -685,20 +737,20 @@ Start32 :
 
     call    GetMemorySize
 
-    LoadESI SI_Memory
+    LoadESI SI_Memory_Size
     mov     [esi], eax
 
     shr     eax, PAGE_SIZE_MUL
 
-    LoadESI SI_PageCount
+    LoadESI SI_Page_Count
     mov     [esi], eax
 
     DbgOut  Text_EBP
     ImmHx32Out ebp
     call    SerialWriteNewLine
 
-    DbgOut  Text_Memory
-    Hx32Out SI_Memory
+    DbgOut  Text_Memory_Size
+    Hx32Out SI_Memory_Size
     call    SerialWriteNewLine
 
     DbgOut  Text_FinalGDT
@@ -760,6 +812,10 @@ Start32 :
 
     DbgOut  Text_Size_SYS
     Hx32Out SI_Size_SYS
+    call    SerialWriteNewLine
+
+    DbgOut  Text_Stub_Size
+    Hx32Out SI_Size_Stub
     call    SerialWriteNewLine
 
     ;--------------------------------------
@@ -920,18 +976,20 @@ SetupPaging :
     call    SerialWriteSpace
     Hx32Out SI_Phys_SYS
     call    SerialWriteSpace
-    ImmHx32Out N_128KB
+    Hx32Out SI_Size_SYS
     call    SerialWriteNewLine
 
     LoadEDI     SI_Phys_PGH
     mov         edi, [edi]
     LoadEAX     SI_Phys_SYS
     mov         eax, [eax]
-    mov         ecx, N_128KB >> MUL_4KB     ; Number of pages
+    LoadECX     SI_Size_SYS                 ; Number of pages
+    mov         ecx, [ecx]
+    shr         ecx, MUL_4KB
     call        MapPages
 
     ;--------------------------------------
-    ; Setup kernel memory pages (SI_Size_KER + SI_Size_BSS + SI_Size_STK + N_4KB bytes)
+    ; Setup kernel memory pages (SI_Size_KER + SI_Size_BSS + SI_Size_STK)
 
     DbgOut      Text_MapPages
     Hx32Out     SI_Phys_PGK
@@ -1041,7 +1099,8 @@ CopyKernel :
 
     DbgOut      Text_CopyKernel
     mov         esi, ebp
-    add         esi, N_4KB
+    LoadEAX     SI_Size_Stub
+    add         esi, [eax]
     ImmHx32Out  esi
     call        SerialWriteSpace
     LoadEAX     SI_Phys_KER
@@ -1055,7 +1114,8 @@ CopyKernel :
     ; Copy the kernel code and data without the 4K stub
 
     mov         esi, ebp
-    add         esi, N_4KB
+    LoadEAX     SI_Size_Stub
+    add         esi, [eax]
     LoadEDI     SI_Phys_KER
     mov         edi, [edi]
     LoadECX     SI_Size_KER
@@ -1137,7 +1197,7 @@ ProtectedModeEntry :
     add         eax, [edx]
 
     mov         esp, eax                    ; Start of kernel stack
-    add         esp, STK_SIZE               ; Minimum stack size
+    add         esp, STK_SIZE               ; Minimum Kernel stack size
     mov         ebp, esp
 
     ;--------------------------------------

@@ -53,14 +53,14 @@ typedef U8* LPPAGEBITMAP;
 
 /***************************************************************************/
 
-typedef struct tag_U64 {
+typedef struct __attribute__((packed)) tag_U64 {
     U32 LO;
     U32 HI;
 } U64;
 
 /***************************************************************************/
 
-typedef struct tag_U128 {
+typedef struct __attribute__((packed)) tag_U128 {
     U64 LO;
     U64 HI;
 } U128;

@@ -1,11 +1,11 @@
 
-/***************************************************************************\
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
     All rights reserved
 
-\***************************************************************************/
+\************************************************************************/
 
 #include "../include/Memory.h"
 
@@ -14,7 +14,7 @@
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 
-/***************************************************************************\
+/************************************************************************\
 
     Organization of page tables
 
@@ -65,28 +65,10 @@
              | ...                          |
              --------------------------------
 
-\***************************************************************************/
+\************************************************************************/
 
-void InitializeMemoryManager() {
-    U32 NumPagesUsed = 0;
-    U32 Index = 0;
-    U32 Byte = 0;
-    U32 Value = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
-
-    NumPagesUsed = (KernelStartup.SI_Phys_KER + N_2MB) >> PAGE_SIZE_MUL;
-
-    for (Index = 0; Index < NumPagesUsed; Index++) {
-        Byte = Index >> MUL_8;
-        Value = (U32)0x01 << (Index & 0x07);
-        Kernel_i386.PPB[Byte] |= (U8)Value;
-    }
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));
-}
-
-/***************************************************************************/
+/************************************************************************/
 
 static void SetPhysicalPageMark(U32 Page, U32 Used) {
     U32 Offset = 0;
@@ -127,6 +109,98 @@ static U32 GetPhysicalPageMark(U32 Page) {
     UnlockMutex(MUTEX_MEMORY);
 
     return RetVal;
+}
+
+/***************************************************************************/
+
+// Marks a contiguous range of pages in the PPB (1 = used, 0 = free)
+static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
+
+    KernelLogText(LOG_DEBUG, TEXT("[SetPhysicalPageRangeMark] Enter"));
+
+    U32 End = FirstPage + PageCount;
+    if (FirstPage >= KernelStartup.PageCount) return;
+    if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
+
+    KernelLogText(LOG_DEBUG, TEXT("[SetPhysicalPageRangeMark] Start, End : %X, %X"), FirstPage, End);
+
+    for (U32 Page = FirstPage; Page < End; Page++) {
+        U32 Byte = Page >> MUL_8;
+        U8  Mask = (U8)(1u << (Page & 0x07));    // bit within byte
+        if (Used) {
+            Kernel_i386.PPB[Byte] |= Mask;
+        } else {
+            Kernel_i386.PPB[Byte] &= (U8)~Mask;
+        }
+    }
+}
+
+/************************************************************************/
+
+void InitializeMemoryManager() {
+    // KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] PPB : %X, %X"), Kernel_i386.PPB, KernelStartup.SI_Size_PPB);
+
+    // 1) Clear PPB: start from "all free"
+    //    PPB covers PageCount pages -> SI_Size_PPB bytes
+    MemorySet(Kernel_i386.PPB, 0, KernelStartup.SI_Size_PPB);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Bitmap cleared"));
+
+    // 2) Apply E820 map:
+    //    - Mark non-USABLE ranges as used in PPB
+    //    - Leave USABLE as free
+    for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
+        U32 Base = KernelStartup.E820[i].Base.LO;
+        U32 Size = KernelStartup.E820[i].Size.LO;
+        U32 Type = KernelStartup.E820[i].Type;
+
+        if (Size == 0) continue;
+
+        // clip to our addressable page space
+        U32 FirstPage = Base >> PAGE_SIZE_MUL;                          // floor(base/4K)
+        U32 LastPage  = (Base + Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL; // ceil((base+size)/4K)
+
+        if (FirstPage >= KernelStartup.PageCount) continue;
+        if (LastPage > KernelStartup.PageCount) LastPage = KernelStartup.PageCount;
+        if (LastPage <= FirstPage) continue;
+
+        U32 PageCount = (LastPage - FirstPage);
+
+        // Everything that is NOT "usable" must be reserved
+        if (Type != BIOS_E820_TYPE_USABLE) {
+            SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+        }
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] E820 reserved memory marked"));
+
+    // 3) Force-reserve the whole kernel/system block (IDT..STK),
+    //    regardless of E820 (it includes PPB, kernel, BSS, stack, etc.)
+    //    Layout fields: SI_Phys_SYS (base), SI_Size_SYS (size). :contentReference[oaicite:2]{index=2}
+    {
+        U32 SysFirst = KernelStartup.SI_Phys_SYS >> PAGE_SIZE_MUL;
+        U32 SysCount = (KernelStartup.SI_Size_SYS + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
+        SetPhysicalPageRangeMark(SysFirst, SysCount, 1);
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] System memory marked"));
+
+    // 4) Keep pages up to (KER + 2MB) reserved,
+    //    (prevents early allocator from dipping near the kernel image before drivers are up).
+    /*
+    {
+        U32 GuardLastByte = (KernelStartup.SI_Phys_KER + N_2MB);
+        U32 GuardPages    = GuardLastByte >> PAGE_SIZE_MUL;
+        SetPhysicalPageRangeMark(0, GuardPages, 1);
+    }
+    */
+
+    // 5) Make sure page 0 is never handed out.
+    SetPhysicalPageRangeMark(0, 1, 1);
+
+    // KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));
 }
 
 /***************************************************************************/
@@ -227,7 +301,7 @@ static BOOL IsValidRegion(LINEAR Base, U32 Size) {
 }
 */
 
-/***************************************************************************/
+/*************************************************************************/
 
 static BOOL SetTempPage(PHYSICAL Physical) {
     LPPAGETABLE SysTable = NULL;
@@ -252,14 +326,14 @@ static BOOL SetTempPage(PHYSICAL Physical) {
     return TRUE;
 }
 
-/***************************************************************************/
+/*************************************************************************/
 
 LINEAR MapPhysicalPage(PHYSICAL Physical) {
     SetTempPage(Physical);
     return LA_TEMP;
 }
 
-/***************************************************************************/
+/*************************************************************************/
 
 PHYSICAL AllocPageDirectory() {
     PHYSICAL PA_Directory = NULL;
@@ -405,12 +479,9 @@ Out:
     return PA_Directory;
 }
 
-/***************************************************************************\
-
-  AllocPageTable expands the page tables of the calling process by
-  allocating a page table to map the "Base" linear address.
-
-\***************************************************************************/
+/*************************************************************************/
+// AllocPageTable expands the page tables of the calling process by
+// allocating a page table to map the "Base" linear address.
 
 static LINEAR AllocPageTable(LINEAR Base) {
     LPPAGEDIRECTORY Directory = NULL;
@@ -497,7 +568,7 @@ static LINEAR AllocPageTable(LINEAR Base) {
     return LA_Table;
 }
 
-/***************************************************************************/
+/*************************************************************************/
 
 static BOOL IsRegionFree(LINEAR Base, U32 Size) {
     LPPAGEDIRECTORY Directory = NULL;
@@ -527,12 +598,9 @@ static BOOL IsRegionFree(LINEAR Base, U32 Size) {
     return TRUE;
 }
 
-/***************************************************************************\
-
-  FindFreeRegion tries to find a linear address region of "Size" bytes
-  which is not mapped in the page tables
-
-\***************************************************************************/
+/*************************************************************************/
+// Tries to find a linear address region of "Size" bytes
+// which is not mapped in the page tables
 
 static LINEAR FindFreeRegion(U32 Size) {
     U32 Base = N_4MB;
@@ -546,11 +614,8 @@ static LINEAR FindFreeRegion(U32 Size) {
     return NULL;
 }
 
-/***************************************************************************\
-
-    Checks if a physical memory range is free
-
-\***************************************************************************/
+/*************************************************************************/
+// Checks if a physical memory range is free
 
 static BOOL IsPhysicalRangeFree(PHYSICAL Target, U32 NumPages) {
     U32 PageIndex = 0;
@@ -563,7 +628,7 @@ static BOOL IsPhysicalRangeFree(PHYSICAL Target, U32 NumPages) {
     return TRUE;
 }
 
-/***************************************************************************/
+/*************************************************************************/
 
 static void FreeEmptyPageTables() {
     LPPAGEDIRECTORY Directory = NULL;
@@ -597,6 +662,25 @@ static void FreeEmptyPageTables() {
     }
 }
 
+/*************************************************************************/
+// Maps a linear address to its physical address (page-level granularity).
+// Returns 0 on failure.
+
+PHYSICAL MapLinearToPhysical(LINEAR Address) {
+    LPPAGEDIRECTORY Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
+    LPPAGETABLE Table;
+    U32 DirEntry = GetDirectoryEntry(Address);
+    U32 TabEntry = GetTableEntry(Address);
+
+    if (Directory[DirEntry].Address == 0) return 0;
+
+    Table = (LPPAGETABLE)(LA_PAGETABLE + (DirEntry << PAGE_SIZE_MUL));
+    if (Table[TabEntry].Address == 0) return 0;
+
+    // Compose physical: page frame << 12 | offset-in-page
+    return (PHYSICAL)((Table[TabEntry].Address << PAGE_SIZE_MUL) | (Address & (PAGE_SIZE - 1)));
+}
+
 /***************************************************************************\
 
   AllocRegion is the most important memory management function.
@@ -627,7 +711,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     U32 Privilege = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Enter"));
+    // KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Enter"));
 
     // Can't allocate more than 25% of total memory at once
     if (Size > KernelStartup.MemorySize) {
@@ -759,7 +843,7 @@ Out:
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Exit"));
+    // KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Exit"));
 
     return Pointer;
 }
@@ -774,7 +858,7 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
     U32 NumPages = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering FreeRegion"));
+    // KernelLogText(LOG_DEBUG, TEXT("Entering FreeRegion"));
 
     Directory = (LPPAGETABLE)LA_DIRECTORY;
 
@@ -813,7 +897,7 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
 
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting FreeRegion"));
+    // KernelLogText(LOG_DEBUG, TEXT("Exiting FreeRegion"));
 
     return TRUE;
 }

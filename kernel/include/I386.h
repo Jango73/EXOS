@@ -514,6 +514,16 @@ typedef struct tag_FARPOINTER {
 
 /***************************************************************************/
 
+// BIOS
+
+#define BIOS_E820_TYPE_USABLE       1
+#define BIOS_E820_TYPE_RESERVED     2
+#define BIOS_E820_TYPE_ACPI         3
+#define BIOS_E820_TYPE_ACPI_NVS     4
+#define BIOS_E820_TYPE_BAD_MEM      5
+
+/***************************************************************************/
+
 // Clock ports
 // 8253 chip
 

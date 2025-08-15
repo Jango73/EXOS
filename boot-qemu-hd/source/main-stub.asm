@@ -68,6 +68,7 @@ BiosReadSectors:
     push        esi
     push        edi
 
+; Heavy debug logs
 ;    mov         si, Text_ReadBiosSectors
 ;    call        PrintString
 
@@ -157,21 +158,33 @@ BiosReadSectors_16:
 ; In : AL = character to write
 
 PrintChar:
+
+%if DEBUG_LOGS = 1
+
     push        bx
     mov         bx, 1
     mov         ah, 0x0E
     int         0x10
     pop         bx
+
+%endif
+
     ret
 
 ;----------------------------------------
 PrintString:
+
+%if DEBUG_LOGS = 1
+
     lodsb
     or          al, al
     jz          .done
     mov         ah, 0x0E
     int         0x10
     jmp         PrintString
+
+%endif
+
 .done:
     ret
 
@@ -181,8 +194,10 @@ PrintString:
 ; Uses : EAX, EBX, ECX
 
 PrintHex32:
-    mov     ecx, eax
 
+%if DEBUG_LOGS = 1
+
+    mov     ecx, eax
     mov     ebx, ecx
     shr     ebx, 28
     and     bl, 0xF
@@ -222,6 +237,8 @@ PrintHex32:
     and     bl, 0xF
     call    PrintHex32Nibble
 
+%endif
+
     ret
 
 PrintHex32Nibble:
@@ -241,8 +258,8 @@ section .rodata
 align 16
 
 Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
-; Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
-; Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
+Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
+Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
 Text_NewLine: db 10,13,0
 

@@ -88,24 +88,24 @@ bits 32
 
 GetCPUID :
 
-   push ebp
-   mov  ebp, esp
+    push ebp
+    mov  ebp, esp
 
     push eax
-   push ebx
-   push ecx
-   push edx
-   push edi
+    push ebx
+    push ecx
+    push edx
+    push edi
 
     mov  edi, [ebp+PBN]
 
-   mov  eax, 0
-   cpuid
+    mov  eax, 0
+    cpuid
 
-   mov  [edi + 0x0000], eax
-   mov  [edi + 0x0004], ebx
-   mov  [edi + 0x0008], ecx
-   mov  [edi + 0x000C], edx
+    mov  [edi + 0x0000], eax
+    mov  [edi + 0x0004], ebx
+    mov  [edi + 0x0008], ecx
+    mov  [edi + 0x000C], edx
 
     ;mov  eax, 1
     ;cpuid
@@ -123,15 +123,15 @@ GetCPUID :
     ;mov  [edi + 0x0028], ecx
     ;mov  [edi + 0x002C], edx
 
-   pop  edi
-   pop  edx
-   pop  ecx
-   pop  ebx
+    pop  edi
+    pop  edx
+    pop  ecx
+    pop  ebx
     pop  eax
 
-   mov  eax, 1
+    mov  eax, 1
 
-   pop  ebp
+    pop  ebp
     ret
 
 ;--------------------------------------
@@ -799,15 +799,24 @@ MemorySet :
 
     push    ebp
     mov     ebp, esp
+
     push    ecx
     push    edi
+    push    es
+
+    push    ds
+    pop     es
+
     mov     edi, [ebp+(PBN+0)]
     mov     eax, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
     rep     stosb
+
+    pop     es
     pop     edi
     pop     ecx
+
     pop     ebp
     ret
 
@@ -817,17 +826,26 @@ MemoryCopy :
 
     push    ebp
     mov     ebp, esp
+
     push    ecx
     push    esi
     push    edi
+    push    es
+
+    push    ds
+    pop     es
+
     mov     edi, [ebp+(PBN+0)]
     mov     esi, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
     rep     movsb
+
+    pop     es
     pop     edi
     pop     esi
     pop     ecx
+
     pop     ebp
     ret
 

@@ -63,6 +63,13 @@
 
 // This structure resides at startup in Stub.asm, and is later copied to kernel area.
 
+typedef struct __attribute__((packed)) tag_E820ENTRY {
+    U64 Base;
+    U64 Size;
+    U32 Type;
+    U32 Attributes;
+} E820ENTRY, *LPE820ENTRY;
+
 typedef struct __attribute__((packed)) tag_KERNELSTARTUPINFO {
     U32 Loader_SS;
     U32 Loader_SP;
@@ -72,38 +79,41 @@ typedef struct __attribute__((packed)) tag_KERNELSTARTUPINFO {
     U32 ConsoleHeight;
     U32 ConsoleCursorX;
     U32 ConsoleCursorY;
-    U32 MemorySize;
-    U32 PageCount;
-    U32 SI_Size_LOW; // Low Memory Area Size
-    U32 SI_Size_HMA; // High Memory Area Size
-    U32 SI_Size_IDT; // Interrupt Descriptor Table Size
-    U32 SI_Size_GDT; // Kernel Global Descriptor Table Size
-    U32 SI_Size_PGD; // Kernel Page Directory Size
-    U32 SI_Size_PGS; // System Page Table Size
-    U32 SI_Size_PGK; // Kernel Page Table Size
-    U32 SI_Size_PGL; // Low Memory Page Table size
-    U32 SI_Size_PGH; // High Memory Page Table size
-    U32 SI_Size_TSS; // Task State Segment Size
-    U32 SI_Size_PPB; // Physical Page Bitmap Size
-    U32 SI_Size_KER; // Kernel image size (padded)
-    U32 SI_Size_BSS; // Kernel BSS Size
-    U32 SI_Size_STK; // Kernel Stack Size
-    U32 SI_Size_SYS; // Total system size (IDT -> STK)
-    U32 SI_Phys_LOW; // Memory start
-    U32 SI_Phys_HMA; // Physical address of High Memory Area
-    U32 SI_Phys_IDT; // Physical address of Interrupt Descriptor Table
-    U32 SI_Phys_GDT; // Physical address of Kernel Global Descriptor Table
-    U32 SI_Phys_PGD; // Physical address of Kernel Page Directory
-    U32 SI_Phys_PGS; // Physical address of System Page Table
-    U32 SI_Phys_PGK; // Physical address of Kernel Page Table
-    U32 SI_Phys_PGL; // Physical address of Low Memory Page Table
-    U32 SI_Phys_PGH; // Physical address of High Memory Page Table
-    U32 SI_Phys_TSS; // Physical address of Task State Segment
-    U32 SI_Phys_PPB; // Physical address of Physical Page Bitmap
-    U32 SI_Phys_KER; // Physical address of Kernel
-    U32 SI_Phys_BSS; // Kernel BSS Size
-    U32 SI_Phys_STK; // Kernel Stack Size
-    U32 SI_Phys_SYS; // Physical address of system (IDT)
+    U32 MemorySize;         // Total memory size in bytes
+    U32 PageCount;          // Total memory size in pages (4K)
+    U32 StubSize;           // Size in bytes of the stub
+    U32 SI_Size_LOW;        // Low Memory Area Size
+    U32 SI_Size_HMA;        // High Memory Area Size
+    U32 SI_Size_IDT;        // Interrupt Descriptor Table Size
+    U32 SI_Size_GDT;        // Kernel Global Descriptor Table Size
+    U32 SI_Size_PGD;        // Kernel Page Directory Size
+    U32 SI_Size_PGS;        // System Page Table Size
+    U32 SI_Size_PGK;        // Kernel Page Table Size
+    U32 SI_Size_PGL;        // Low Memory Page Table size
+    U32 SI_Size_PGH;        // High Memory Page Table size
+    U32 SI_Size_TSS;        // Task State Segment Size
+    U32 SI_Size_PPB;        // Physical Page Bitmap Size
+    U32 SI_Size_KER;        // Kernel image size (padded)
+    U32 SI_Size_BSS;        // Kernel BSS Size
+    U32 SI_Size_STK;        // Kernel Stack Size
+    U32 SI_Size_SYS;        // Total system size (IDT -> STK)
+    U32 SI_Phys_LOW;        // Memory start
+    U32 SI_Phys_HMA;        // Physical address of High Memory Area
+    U32 SI_Phys_IDT;        // Physical address of Interrupt Descriptor Table
+    U32 SI_Phys_GDT;        // Physical address of Kernel Global Descriptor Table
+    U32 SI_Phys_PGD;        // Physical address of Kernel Page Directory
+    U32 SI_Phys_PGS;        // Physical address of System Page Table
+    U32 SI_Phys_PGK;        // Physical address of Kernel Page Table
+    U32 SI_Phys_PGL;        // Physical address of Low Memory Page Table
+    U32 SI_Phys_PGH;        // Physical address of High Memory Page Table
+    U32 SI_Phys_TSS;        // Physical address of Task State Segment
+    U32 SI_Phys_PPB;        // Physical address of Physical Page Bitmap
+    U32 SI_Phys_KER;        // Physical address of Kernel
+    U32 SI_Phys_BSS;        // Kernel BSS Size
+    U32 SI_Phys_STK;        // Kernel Stack Size
+    U32 SI_Phys_SYS;        // Physical address of system (IDT)
+    U32 E820_Count;         // BIOS E820 function entries
+    E820ENTRY E820 [N_4KB / sizeof(E820ENTRY)];
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
 extern KERNELSTARTUPINFO KernelStartup;

@@ -108,6 +108,14 @@
 #define E1000_TCTL_COLD_SHIFT 12 /* Collision Distance */
 #define E1000_TCTL_RTLC 0x01000000
 
+/* Recommended defaults (8254x, full-duplex):
+   CT (Collision Threshold) = 0x10
+   COLD (Collision Distance) = 0x40
+   These are written as raw values to be shifted by *_SHIFT. */
+
+#define E1000_TCTL_CT_DEFAULT   0x10
+#define E1000_TCTL_COLD_DEFAULT 0x40
+
 /***************************************************************************/
 /* TX descriptor command/status bits                                       */
 

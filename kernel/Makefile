@@ -1,32 +1,39 @@
-SHELL   = /bin/bash
+# Makefile for EXOS Kernel
 
-CC      = i686-elf-gcc
-LD      = i686-elf-ld
-NASM    = nasm
+# -----------------------------
+# Debug logs switch (use: make LOG=1)
+LOG ?= 0
+export LOG
 
-CFLAGS  = -DNAME=\"__KERNEL__\" -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration
-AFLAGS  = -f elf -g -F dwarf -I source/asm/
+SHELL   	= /bin/bash
+
+CC      	= i686-elf-gcc
+LD      	= i686-elf-ld
+NASM    	= nasm
+
+DEFS		= -DDEBUG_LOGS=$(LOG)
+CFLAGS  	= -DNAME=\"__KERNEL__\" -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration $(DEFS)
+AFLAGS  	= -f elf -g -F dwarf -I source/asm/ $(DEFS)
 
 LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map
 
-KERNEL_ELF = bin/exos.elf
+ALIGN      	= 4096
 
-SRC_C  = $(wildcard source/*.c)
-SRC_S  = $(wildcard source/asm/*.asm)
+SRC_C  		= $(wildcard source/*.c)
+SRC_S  		= $(wildcard source/asm/*.asm)
 
-OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))
-OBJ_S  = $(patsubst source/asm/%.asm, bin/%.o, $(SRC_S))
+OBJ_C  		= $(patsubst source/%.c, bin/%.o, $(SRC_C))
+OBJ_S  		= $(patsubst source/asm/%.asm, bin/%.o, $(SRC_S))
 
-OBJS   = $(OBJ_S) $(OBJ_C)
+OBJS   		= $(OBJ_S) $(OBJ_C)
 
 # Sections to extract (edit as needed)
-STUB_BIN   = bin/stub.bin
-TEXT_BIN   = bin/text.bin
-DATA_BIN   = bin/data.bin
-BSS_BIN    = bin/bss.bin
-FINAL_IMG  = bin/exos.bin
-
-ALIGN      = 4096
+STUB_BIN   	= bin/stub.bin
+TEXT_BIN   	= bin/text.bin
+DATA_BIN   	= bin/data.bin
+BSS_BIN    	= bin/bss.bin
+FINAL_IMG  	= bin/exos.bin
+KERNEL_ELF 	= bin/exos.elf
 
 .PHONY: all check_magic clean
 

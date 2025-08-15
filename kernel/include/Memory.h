@@ -1,21 +1,21 @@
 
-/***************************************************************************\
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
     All rights reserved
 
-\***************************************************************************/
+\************************************************************************/
 
 #ifndef MEMORY_H_INCLUDED
 #define MEMORY_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
 #include "Base.h"
 #include "I386.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 // Initializes the memory manager
 void InitializeMemoryManager();
@@ -32,6 +32,9 @@ PHYSICAL AllocPhysicalPage();
 // Frees a physical page
 void FreePhysicalPage(PHYSICAL Page);
 
+// Returns the physical address for a given virtual address
+PHYSICAL MapLinearToPhysical(LINEAR Address);
+
 // Allocates physical space for a new region of virtual memory
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags);
 
@@ -42,6 +45,6 @@ BOOL FreeRegion(LINEAR Base, U32 Size);
 LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size);
 BOOL MmUnmapIo(LINEAR LinearBase, U32 Size);
 
-/***************************************************************************/
+/************************************************************************/
 
 #endif  // MEMORY_H_INCLUDED
