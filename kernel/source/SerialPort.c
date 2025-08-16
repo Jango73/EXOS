@@ -32,7 +32,14 @@ void SerialReset(U8 Which) {
 void SerialOut(U8 Which, STR Char) {
     if (Which > 3) return;
 
-    while (!(InPortByte(COMPorts[Which] + 5) & 0x20))
-        ;
+    const U32 MaxSpin = 100000;
+    U32 count = 0;
+
+    while (!(InPortByte(COMPorts[Which] + 5) & 0x20)) {
+        if (++count >= MaxSpin) {
+            return;
+        }
+    }
+
     OutPortByte(COMPorts[Which], Char);
 }

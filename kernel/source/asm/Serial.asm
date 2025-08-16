@@ -52,7 +52,7 @@ SerialInit:
     ret
 
 ;--------------------------------------
-; Write a single character to COM1
+; Write a single character to COM
 ; AL - character to send
 SerialWriteChar:
     mov     ah, al                ; Save character
@@ -69,21 +69,21 @@ SerialWriteChar:
     ret
 
 ;--------------------------------------
-; Write a space to COM1
+; Write a space to COM
 SerialWriteSpace:
     mov     al, ' '
     call    SerialWriteChar
     ret
 
 ;--------------------------------------
-; Write a new line to COM1
+; Write a new line to COM
 SerialWriteNewLine:
     mov     al, 10
     call    SerialWriteChar
     ret
 
 ;--------------------------------------
-; Write a zero-terminated string to COM1
+; Write a zero-terminated string to COM
 ; ESI - pointer to string
 SerialWriteString:
 .loop:

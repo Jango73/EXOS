@@ -318,7 +318,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         };  // Hang
     }
 
-    PrintString("[VBR] Done, jumping to kernel.\r\n");
+    PrintString("[VBR] Done, jumping to loaded image.\r\n");
 
     // void (*KernelEntry)(void) = (void*) ((Dest_Seg << 16 | Dest_Ofs));
     // KernelEntry();

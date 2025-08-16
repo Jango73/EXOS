@@ -737,6 +737,12 @@ Text_EnablePaging :
 Text_LoadFinalGDT :
     db '[STUB] Loading final GDT', 10, 13, 0
 
+Text_Good_Code :
+    db '[STUB] Code ok at ProtectedModeEntry', 10, 13, 0
+
+Text_Bad_Code :
+    db '[STUB] Bad code at ProtectedModeEntry (address, data): ', 0
+
 Text_JumpToKernel :
     db '[STUB] Jumping to C kernel', 10, 13, 0
 
@@ -829,6 +835,10 @@ Start32 :
     Hx32Out SI_Phys_STK
     call    SerialWriteNewLine
 
+    DbgOut  Text_Stub_Size
+    Hx32Out SI_Size_Stub
+    call    SerialWriteNewLine
+
     DbgOut  Text_Size_KER
     Hx32Out SI_Size_KER
     call    SerialWriteNewLine
@@ -843,10 +853,6 @@ Start32 :
 
     DbgOut  Text_Size_SYS
     Hx32Out SI_Size_SYS
-    call    SerialWriteNewLine
-
-    DbgOut  Text_Stub_Size
-    Hx32Out SI_Size_Stub
     call    SerialWriteNewLine
 
     ;--------------------------------------
@@ -882,8 +888,6 @@ Start32 :
 
     ;--------------------------------------
     ; Load the page directory
-    ; Register cr3 holds the physical address of
-    ; the page directory
 
     LoadEAX     SI_Phys_PGD
     mov         eax, [eax]
@@ -903,6 +907,14 @@ Start32 :
     or      eax, CR0_PAGING
     mov     cr0, eax
 
+    ; Check protected mode entry
+
+    mov     eax, [ProtectedModeEntry + (ProtectedModeEntryMark - ProtectedModeEntry)]
+    cmp     eax, 0xC0DEC0DE
+    jnz     .badcode
+
+    DbgOut  Text_Good_Code
+
     ;--------------------------------------
     ; Load the final Global Descriptor Table
 
@@ -918,13 +930,25 @@ Start32 :
     mov     eax, ProtectedModeEntry
     jmp     eax
 
+    jmp     .hang
+
 ;-------------------------------------------------------------------------
 
-Hang_Loop :
+.badcode :
+
+    DbgOut  Text_Bad_Code
+    mov     eax, ProtectedModeEntry + (ProtectedModeEntryMark - ProtectedModeEntry)
+    ImmHx32Out eax
+    call    SerialWriteSpace
+    mov     eax, [ProtectedModeEntry + (ProtectedModeEntryMark - ProtectedModeEntry)]
+    ImmHx32Out eax
+    call    SerialWriteNewLine
+
+.hang :
 
     cli
     hlt
-    jmp     Hang_Loop
+    jmp     .hang
 
 ;-------------------------------------------------------------------------
 
@@ -1196,6 +1220,14 @@ bits 32
     global ProtectedModeEntry
 
 ProtectedModeEntry :
+
+    jmp         ProtectedModeEntryMark.afterMark
+
+ProtectedModeEntryMark :
+
+    dd          0xC0DEC0DE
+
+.afterMark :
 
     cli
 
