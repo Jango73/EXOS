@@ -10,12 +10,12 @@ if [ ! -f "$EXTRA_IMG" ]; then
 	qemu-img create -f raw "$EXTRA_IMG" 10M
 	mkfs.fat -F32 "$EXTRA_IMG"
 else
-	echo "→ exos_extra.img déjà présent."
+	echo "→ exos_extra.img already present."
 fi
 
 DOS_IMG="bin/exos_dos.img"
 if [ -f "$DOS_IMG" ]; then
-	echo "→ exos_dos.img déjà présent, rien à faire pour FreeDOS."
+	echo "-> exos_dos.img already present, nothing to do for FreeDOS."
 	exit 0
 fi
 

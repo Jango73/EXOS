@@ -31,22 +31,6 @@
 
 /***************************************************************************/
 
-// Structure to receive information about a segment in a more friendly way
-
-typedef struct tag_SEGMENTINFO {
-    U32 Base;
-    U32 Limit;
-    U32 Type;
-    U32 Privilege;
-    U32 Granularity;
-    U32 CanWrite;
-    U32 OperandSize;
-    U32 Conforming;
-    U32 Present;
-} SEGMENTINFO, *LPSEGMENTINFO;
-
-/***************************************************************************/
-
 // Structure to receive CPU information
 
 typedef struct tag_CPUINFORMATION {

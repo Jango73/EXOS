@@ -568,4 +568,27 @@ typedef struct tag_FARPOINTER {
 
 /***************************************************************************/
 
+// Structure to receive information about a segment in a more friendly way
+
+typedef struct tag_SEGMENTINFO {
+    U32 Base;
+    U32 Limit;
+    U32 Type;
+    U32 Privilege;
+    U32 Granularity;
+    U32 CanWrite;
+    U32 OperandSize;
+    U32 Conforming;
+    U32 Present;
+} SEGMENTINFO, *LPSEGMENTINFO;
+
+/************************************************************************/
+
+BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info);
+BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text);
+BOOL DumpGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size);
+void DumpRegisters(LPINTEL386REGISTERS Regs);
+
+/************************************************************************/
+
 #endif

@@ -115,7 +115,7 @@ static LPSYSFSFILE NewSysFSFile(LPSYSFSFILESYSTEM FileSystem,
 BOOL MountSystemFS() {
     LPSYSFSFILESYSTEM FileSystem;
 
-    KernelLogText(LOG_VERBOSE, TEXT("Mouting system FileSystem..."));
+    KernelLogText(LOG_VERBOSE, TEXT("[MountSystemFS] Mouting system FileSystem"));
 
     //-------------------------------------
     // Create the file system object

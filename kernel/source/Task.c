@@ -136,14 +136,14 @@ void DeleteTask(LPTASK This) {
     //-------------------------------------
     // Delete the task's message queue
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting message queue..."));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting message queue"));
 
     if (This->Message != NULL) DeleteList(This->Message);
 
     //-------------------------------------
     // Delete the task's stacks
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks..."));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks"));
 
     if (This->SysStackBase != NULL) {
         HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, (LPVOID)This->SysStackBase);

@@ -914,7 +914,7 @@ U32 Shell(LPVOID Param) {
     while (ParseCommand(&Context)) {
     }
 
-    ConsolePrint(TEXT("Exiting shell...\n"));
+    ConsolePrint(TEXT("Exiting shell\n"));
 
     DeinitShellContext(&Context);
 

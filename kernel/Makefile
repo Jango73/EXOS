@@ -57,23 +57,34 @@ $(BSS_BIN): $(KERNEL_ELF)
 $(FINAL_IMG): $(STUB_BIN) $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 	@echo "Building paged disk image: $@ (ALIGN=$(ALIGN))"
 
+	# Clear binary file
+	rm -f -- $(FINAL_IMG)
+
 	# Write stub
 	cat $(STUB_BIN) > $@
 
 	# Align current image to next ALIGN boundary (before .text)
-	sz=$$(stat -c %s $@); \
-	pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
-	echo "Padding before .text: $$pad bytes"; \
-	if [ $$pad -gt 0 ]; then dd if=/dev/zero bs=1 count=$$pad >> $@ 2>/dev/null; fi
+	@{ \
+		sz=$$(stat -c %s bin/exos.bin); \
+		pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+		echo "Padding before .text: $$pad bytes"; \
+		if [ $$pad -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$pad >> bin/exos.bin 2>/dev/null; \
+		fi; \
+	}
 
 	# Append .text
 	cat $(TEXT_BIN) >> $@
 
 	# Align current image to next ALIGN boundary (before .data)
-	sz=$$(stat -c %s $@); \
-	pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
-	echo "Padding before .data: $$pad bytes"; \
-	if [ $$pad -gt 0 ]; then dd if=/dev/zero bs=1 count=$$pad >> $@ 2>/dev/null; fi
+	@{ \
+		sz=$$(stat -c %s bin/exos.bin); \
+		pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+		echo "Padding before .data: $$pad bytes"; \
+		if [ $$pad -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$pad >> bin/exos.bin 2>/dev/null; \
+		fi; \
+	}
 
 	# Append .data
 	cat $(DATA_BIN) >> $@

@@ -134,7 +134,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     */
 
     if (BootSector.BIOSMark != 0xAA55) {
-        PrintString("[VBR] BIOS mark not valid, aborting\r\n");
+        PrintString("[VBR] BIOS mark not valid. Halting\r\n");
         while (1) {
         }
     }
@@ -283,7 +283,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         ClusterCount++;
 
         if (ClusterCount > MaxClusters) {
-            PrintString("[VBR] Cluster chain too long, aborting.\r\n");
+            PrintString("[VBR] Cluster chain too long. Halting.\r\n");
             while (1) {
             };  // Hang
         }

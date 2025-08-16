@@ -20,7 +20,7 @@
 
 void InitKernelLog() {
     SerialReset(LOG_COM_INDEX);
-    KernelLogText(LOG_VERBOSE, TEXT("COM1 initialized"));
+    KernelLogText(LOG_VERBOSE, TEXT("COM for debug output initialized"));
 }
 
 /***************************************************************************/
@@ -233,7 +233,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
 
 /***************************************************************************/
 
-void KernelPrint(LPCSTR Format, ...) {
+void ABI_REGPARM0 KernelPrint(LPCSTR Format, ...){
     VarArgList Args;
 
     VarArgStart(Args, Format);
@@ -243,7 +243,7 @@ void KernelPrint(LPCSTR Format, ...) {
 
 /***************************************************************************/
 
-void KernelLogText(U32 Type, LPCSTR Format, ...) {
+void ABI_REGPARM0 KernelLogText(U32 Type, LPCSTR Format, ...) {
     VarArgList Args;
 
     LockMutex(MUTEX_LOG, INFINITY);
@@ -277,9 +277,9 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
         } break;
     }
 
-    UnlockMutex(MUTEX_LOG);
-
     VarArgEnd(Args);
+
+    UnlockMutex(MUTEX_LOG);
 }
 
 /***************************************************************************/

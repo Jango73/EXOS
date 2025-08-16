@@ -27,13 +27,8 @@ static void PrintFaultDetails() {
         Process = Task->Process;
 
         if (Process != NULL) {
-            KernelLogText(LOG_VERBOSE, Text_Image);
-            KernelLogText(LOG_VERBOSE, Text_Space);
-            KernelLogText(LOG_VERBOSE, Process->FileName);
-            KernelLogText(LOG_VERBOSE, Text_NewLine);
-
+            KernelLogText(LOG_VERBOSE, TEXT("Image : %s"), Process->FileName);
             KernelLogText(LOG_VERBOSE, Text_Registers);
-            KernelLogText(LOG_VERBOSE, Text_NewLine);
 
             SaveRegisters(&Regs);
             DumpRegisters(&Regs);
@@ -212,7 +207,7 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
     ConsolePrint(TEXT("The current task (%X) did an unauthorized access "), Task ? Task : 0);
     ConsolePrint(TEXT("at linear address : %X, error code : %X, EIP : %X\n"), Address, ErrorCode, Eip);
     ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
-    ConsolePrint(TEXT("Shutdown in progress..."));
+    ConsolePrint(TEXT("Halting"));
 
     KernelLogText(LOG_ERROR, TEXT("Page fault at %X (EIP %X)"), Address, Eip);
 

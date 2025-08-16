@@ -17,6 +17,7 @@
 
 /***************************************************************************/
 
+// Debug out on COM2
 #define LOG_COM_INDEX 1
 
 #define LOG_DEBUG 0x0001
@@ -27,8 +28,8 @@
 /***************************************************************************/
 
 void InitKernelLog();
-void KernelPrint(LPCSTR, ...);
-void KernelLogText(U32, LPCSTR, ...);
+void KernelPrint(LPCSTR, ...) ABI_REGPARM0;
+void KernelLogText(U32, LPCSTR, ...) ABI_REGPARM0;
 void KernelDump(LINEAR Address, U32 Size);
 
 void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory);

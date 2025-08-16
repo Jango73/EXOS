@@ -369,7 +369,7 @@ static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
 
 /***************************************************************************/
 
-BOOL ConsolePrint(LPCSTR Format, ...) {
+BOOL ABI_REGPARM0 ConsolePrint(LPCSTR Format, ...) {
     VarArgList Args;
 
     // KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Enter"));

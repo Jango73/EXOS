@@ -12,6 +12,7 @@ SECTIONS
     }
 
     /* Kernel — high memory, physically after stub (0x1000 offset) */
+    . = ALIGN(0x1000);
     . = 0xC0000000;
     .text : AT(ALIGN(LOADADDR(.stub) + SIZEOF(.stub), 0x1000)) {
         *(.text)

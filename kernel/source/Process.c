@@ -405,7 +405,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate a new process structure
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Allocating process...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Allocating process\n"));
 
     Process = NewProcess();
     if (Process == NULL) goto Out;
@@ -451,7 +451,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // We can use the new page directory from now on
     // and switch back to the previous when done
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
 
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
@@ -460,7 +460,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate enough memory for the code, data and heap
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : AllocRegioning process space...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : AllocRegioning process space\n"));
 
     AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT);
 
@@ -479,7 +479,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // Load executable image
     // For tests, image must be at LA_KERNEL
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable\n"));
 
     if (LoadExecutable_EXOS(File, &ExecutableInfo, (LINEAR)CodeBase, (LINEAR)DataBase) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Load failed !\n"));
@@ -506,7 +506,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Create the initial task
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Creating initial task...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Creating initial task\n"));
 
     // TaskInfo.Func      = (TASKFUNC) LA_USER;
     TaskInfo.Parameter = NULL;
@@ -521,7 +521,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Switch back to our page directory
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
 
     LoadPageDirectory(PageDirectory);
 

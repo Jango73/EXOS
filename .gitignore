@@ -12,6 +12,7 @@
 *.vmdk
 *.swp
 *.save
+*.user
 
 temp
 boot-qemu/kernel_sectors.inc

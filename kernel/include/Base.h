@@ -92,6 +92,7 @@ typedef U32 BOOL;
 // Utilities
 
 #define UNUSED(x) (void)(x)
+
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
 // Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
 // clobber.
@@ -215,6 +216,15 @@ typedef U32 BOOL;
 // This macro gives the offset of a structure member
 
 #define MEMBER_OFFSET(s, m) ((U32)(&(((s*)NULL)->m)))
+
+/***************************************************************************/
+/* Force stack-based calling for variadic functions */
+
+#if defined(__GNUC__)
+    #define ABI_REGPARM0 __attribute__((regparm(0)))
+#else
+    #define ABI_REGPARM0
+#endif
 
 /***************************************************************************/
 // ASCII string types
