@@ -4,10 +4,14 @@ CC      = i686-elf-gcc
 LD      = i686-elf-ld
 NASM    = nasm
 
-CFLAGS  = -DNAME=\"__KERNEL__\" -g -ffreestanding -m32 -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration
+# NOTE: avoid GOT/PLT by forcing non-PIE codegen and link
+CFLAGS  = -DNAME=\"__KERNEL__\" -g -ffreestanding -m32 -Wall -Wextra -O0 \
+          -fno-pic -fno-pie -fno-plt -fno-stack-protector -fno-builtin \
+          -Werror-implicit-function-declaration
 AFLAGS  = -f elf -g -F dwarf -I source/asm/
 
-LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map
+# Add -no-pie to ensure absolute relocations; keep your existing map and script
+LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map -no-pie
 
 KERNEL_ELF = bin/exos.elf
 
@@ -29,7 +33,7 @@ FINAL_IMG  = bin/exos.bin
 
 ALIGN      = 4096
 
-.PHONY: all check_magic clean
+.PHONY: all check_magic clean check-nogot
 
 all: check_magic
 
@@ -112,6 +116,13 @@ bin/%.o: source/asm/%.asm
 
 check_magic: $(FINAL_IMG)
 	@./check-exos-magic.sh $(FINAL_IMG)
+
+# Optional sanity check to ensure the ELF has no GOT/PLT/DYNAMIC/INTERP sections
+check-nogot: $(KERNEL_ELF)
+	@echo "[check] scanning ELF for GOT/PLT/DYNAMIC/INTERP"
+	@! readelf -S $(KERNEL_ELF) 2>/dev/null | egrep -qi "(\\.(got|plt|dynamic)|interp)" || \
+	( echo "ERROR: unexpected GOT/PLT/DYNAMIC/INTERP sections in $(KERNEL_ELF)"; \
+	  readelf -S $(KERNEL_ELF) | egrep -i "(\\.(got|plt|dynamic)|interp)"; exit 1 )
 
 clean:
 	rm -rf bin/*.o bin/*/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img

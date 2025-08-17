@@ -261,7 +261,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
             PrintString("\r\n");
         }
 
-        BiosReadSectors(BootDrive, FatSector, 1, (void*)FatBuffer);
+        BiosReadSectors(BootDrive, FatSector, 1, (U32)FatBuffer);
         Cluster = *(U32*)&FatBuffer[EntryOffset] & 0x0FFFFFFF;
 
         U32 MaxClusters = (FileSize + (ClusterBytes - 1)) / ClusterBytes;
@@ -283,7 +283,6 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     for (U32 I = 0; I < FileSize - 4; ++I) {
         Computed += Loaded[I];
     }
-    Computed &= MAX_U32;
     U32 Stored = *(U32*)(Loaded + FileSize - 4);
 
     PrintString("[VBR] Stored checksum in image : ");
