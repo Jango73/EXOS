@@ -32,6 +32,8 @@ void KernelPrint(LPCSTR, ...) ABI_REGPARM0;
 void KernelLogText(U32, LPCSTR, ...) ABI_REGPARM0;
 void KernelDump(LINEAR Address, U32 Size);
 
+void LogRegisters(LPINTEL386REGISTERS Regs);
+void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size);
 void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory);
 void LogPageTable(U32 LogType, const PAGETABLE* PageTable);
 void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescriptor);

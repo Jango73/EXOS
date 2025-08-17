@@ -20,7 +20,7 @@
 
 void InitKernelLog() {
     SerialReset(LOG_COM_INDEX);
-    KernelLogText(LOG_VERBOSE, TEXT("COM for debug output initialized"));
+    // KernelLogText(LOG_VERBOSE, TEXT("COM for debug output initialized"));
 }
 
 /***************************************************************************/
@@ -217,9 +217,9 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
             Number = VarArg(Args, U32);
         } else if (Qualifier == 'h') {
             if (Flags & PF_SIGN)
-                Number = VarArg(Args, I16);
+                Number = VarArg(Args, I32);
             else
-                Number = VarArg(Args, U16);
+                Number = VarArg(Args, U32);
         } else {
             if (Flags & PF_SIGN)
                 Number = VarArg(Args, INT);
@@ -246,7 +246,7 @@ void ABI_REGPARM0 KernelPrint(LPCSTR Format, ...){
 void ABI_REGPARM0 KernelLogText(U32 Type, LPCSTR Format, ...) {
     VarArgList Args;
 
-    LockMutex(MUTEX_LOG, INFINITY);
+    // LockMutex(MUTEX_LOG, INFINITY);
 
     VarArgStart(Args, Format);
 
@@ -279,7 +279,7 @@ void ABI_REGPARM0 KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     VarArgEnd(Args);
 
-    UnlockMutex(MUTEX_LOG);
+    // UnlockMutex(MUTEX_LOG);
 }
 
 /***************************************************************************/

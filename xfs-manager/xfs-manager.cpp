@@ -157,7 +157,7 @@ U64 DivU64 (U64 Left, U64 Right)
 
 /*************************************************************************************************/
 
-int DumpRegisters (DEVIOCTL_REGISTERS* IORegs)
+int LogRegisters (DEVIOCTL_REGISTERS* IORegs)
 {
   char szTemp [16];
   sprintf(szTemp, "%08X", (unsigned) IORegs->reg_EAX);   OutStream << "EAX   : " << szTemp << EndL;
@@ -250,7 +250,7 @@ int WriteBootSector (pBlockDevice Device, pVoid Buffer)
 
     OutStream << EndL;
     OutStream << "Registers : " << EndL;
-    DumpRegisters(&IORegs);
+    LogRegisters(&IORegs);
 
     return 0;
   }

@@ -356,8 +356,8 @@ Core initialization and debugging utilities for the kernel.
 - InitializeInterrupts: Sets up the interrupt descriptor table.
 - GetSegmentInfo: Retrieves segment descriptor data.
 - SegmentInfoToString: Formats segment info as text.
-- DumpGlobalDescriptorTable: Prints all GDT entries.
-- DumpRegisters: Displays the CPU register state.
+- LogGlobalDescriptorTable: Prints all GDT entries.
+- LogRegisters: Displays the CPU register state.
 - GetCPUInformation: Reads processor name and features.
 - ClockTask: Periodic task that updates the clock and mouse.
 - DumpSystemInformation: Logs CPU and memory information.

@@ -1,3 +1,4 @@
+
 /***************************************************************************\
 
     EXOS Kernel - Intel E1000 (8254x / 82540EM) Driver - Header
@@ -16,6 +17,10 @@
 #include "Mutex.h" /* Optional: if the driver uses MUTEX internally */
 #include "Network.h"
 #include "PCI.h"
+
+/***************************************************************************/
+
+#pragma pack(1)
 
 /***************************************************************************/
 /* Driver-specific command IDs (>= DF_FIRSTFUNC)                           */
@@ -138,8 +143,6 @@
 /***************************************************************************/
 /* Descriptors                                                             */
 
-#pragma pack(push, 1)
-
 /* Receive Descriptor (legacy) */
 typedef struct tag_E1000_RXDESC {
     U32 BufferAddrLow;  /* low 32 bits of buffer phys addr */
@@ -162,8 +165,6 @@ typedef struct tag_E1000_TXDESC {
     U8 CSS;
     U16 Special;
 } E1000_TXDESC, *LPE1000_TXDESC;
-
-#pragma pack(pop)
 
 /* Sanity sizes (comment only):
    sizeof(E1000_RXDESC) == 16

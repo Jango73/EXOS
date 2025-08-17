@@ -18,8 +18,8 @@
 #include "Driver.h"
 
 /***************************************************************************/
-// Packing is not forced here; config reads are done via accessors.
-// Use #pragma pack if you map raw config structs directly.
+
+#pragma pack(1)
 
 /***************************************************************************/
 // Common PCI constants and helpers

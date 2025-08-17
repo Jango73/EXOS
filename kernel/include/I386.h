@@ -586,8 +586,6 @@ typedef struct tag_SEGMENTINFO {
 
 BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info);
 BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text);
-BOOL DumpGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size);
-void DumpRegisters(LPINTEL386REGISTERS Regs);
 
 /************************************************************************/
 

@@ -26,7 +26,6 @@ static void KernelIdle() {
 
 void KernelMain() {
     InitKernelLog();
-    KernelLogText(LOG_DEBUG, TEXT("[KernelMain] Calling InitializeKernel"));
 
     //--------------------------------------
     // Main intialization routine

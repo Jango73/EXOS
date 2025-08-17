@@ -394,8 +394,14 @@ void InitializeKernel() {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
     KERNELSTARTUPINFO TempKernelStartup;
+    // LINEAR BSSStart = (LINEAR)(&__bss_init_start);
+    // LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
+    // U32 BSSSize = BSSEnd - BSSStart;
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Starting up"));
+    //-------------------------------------
+    // No more interrupts
+
+    DisableInterrupts();
 
     //-------------------------------------
     // Check data integrity
@@ -403,36 +409,15 @@ void InitializeKernel() {
     CheckDataIntegrity();
 
     //-------------------------------------
-    // Log page tables
-
-    // LogAllPageTables(LOG_DEBUG, (const PAGEDIRECTORY*)LA_DIRECTORY);
-
-    //-------------------------------------
-    // No more interrupts
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Disabling interrupts"));
-
-    DisableInterrupts();
-
-    //-------------------------------------
     // Get system information gathered by the stub
+    // Initialize BSS after informationkernel startup info collected
 
     MemoryCopy(&TempKernelStartup, (LPVOID)(StubAddress + KERNEL_STARTUP_INFO_OFFSET), sizeof(KERNELSTARTUPINFO));
 
     IRQMask_21_RM = TempKernelStartup.IRQMask_21_RM;
     IRQMask_A1_RM = TempKernelStartup.IRQMask_A1_RM;
 
-    //-------------------------------------
-    // Initialize BSS after informationkernel startup info collected
-
-    LINEAR BSSStart = (LINEAR)(&__bss_init_start);
-    LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
-    U32 BSSSize = BSSEnd - BSSStart;
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);
-    MemorySet((LPVOID)BSSStart, 0, BSSSize);
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] BSS cleared"));
-
+    // MemorySet((LPVOID)BSSStart, 0, BSSSize);
     MemoryCopy(&KernelStartup, &TempKernelStartup, sizeof(KERNELSTARTUPINFO));
 
     //-------------------------------------

@@ -10,6 +10,7 @@
 #include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/Memory.h"
 #include "../include/Process.h"
 #include "../include/String.h"
 #include "../include/Text.h"
@@ -31,9 +32,12 @@ static void PrintFaultDetails() {
             KernelLogText(LOG_VERBOSE, Text_Registers);
 
             SaveRegisters(&Regs);
-            DumpRegisters(&Regs);
+            LogRegisters(&Regs);
         }
     }
+
+    // LINEAR Table = MapPhysicalPage(Process->PageDirectory);
+    // LogPageDirectory(LOG_DEBUG, Table);
 }
 
 /***************************************************************************/
@@ -191,7 +195,7 @@ void GeneralProtectionHandler(U32 Code) {
     KernelLogText(LOG_ERROR, Text_NewLine);
 
     SaveRegisters(&Regs);
-    DumpRegisters(&Regs);
+    LogRegisters(&Regs);
 
     Die();
 }
@@ -213,7 +217,7 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
 
     SaveRegisters(&Regs);
     Regs.EIP = Eip;
-    DumpRegisters(&Regs);
+    LogRegisters(&Regs);
 
     Die();
 }
