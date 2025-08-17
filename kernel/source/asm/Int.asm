@@ -4,6 +4,7 @@ BITS 32
 ;----------------------------------------------------------------------------
 
 %include "./Kernel.inc"
+%include "./Int.inc"
 
 ;----------------------------------------------------------------------------
 
@@ -54,12 +55,8 @@ EXOS_Start :
 
 Interrupt_Default :
 
-    pusha
-    call EnterKernel
-    call DefaultHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 0xFFFF, DefaultHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 0      : Divide error (#DE)
@@ -68,12 +65,8 @@ Interrupt_Default :
 
 Interrupt_DivideError :
 
-    pusha
-    call    EnterKernel
-    call    DivideErrorHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 0, DivideErrorHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 1      : Debug exception (#DB)
@@ -82,12 +75,8 @@ Interrupt_DivideError :
 
 Interrupt_DebugException :
 
-    pusha
-    call    EnterKernel
-    call    DebugExceptionHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 1, DebugExceptionHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 2      : Non-maskable interrupt
@@ -96,12 +85,8 @@ Interrupt_DebugException :
 
 Interrupt_NMI :
 
-    pusha
-    call    EnterKernel
-    call    NMIHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 2, NMIHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 3      : Breakpoint exception (#BP)
@@ -110,12 +95,8 @@ Interrupt_NMI :
 
 Interrupt_BreakPoint :
 
-    pusha
-    call    EnterKernel
-    call    BreakPointHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 3, BreakPointHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 4      : Overflow exception (#OF)
@@ -124,12 +105,8 @@ Interrupt_BreakPoint :
 
 Interrupt_Overflow :
 
-    pusha
-    call    EnterKernel
-    call    OverflowHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 4, OverflowHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 5      : Bound range exceeded exception (#BR)
@@ -138,26 +115,18 @@ Interrupt_Overflow :
 
 Interrupt_BoundRange :
 
-    pusha
-    call    EnterKernel
-    call    BoundRangeHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 5, BoundRangeHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 6      : Invalid opcode exception (#UD)
 ; Class      : Fault
 ; Error code : No
 
-Interrupt_InvalidOpcode :
+Interrupt_InvalidOpcode:
 
-    pusha
-    call    EnterKernel
-    call    InvalidOpcodeHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 6, InvalidOpcodeHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 7      : Device not available exception (#NM)
@@ -166,12 +135,8 @@ Interrupt_InvalidOpcode :
 
 Interrupt_DeviceNotAvail :
 
-    pusha
-    call    EnterKernel
-    call    DeviceNotAvailHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 7, DeviceNotAvailHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 8      : Double fault exception (#DF)
@@ -180,13 +145,8 @@ Interrupt_DeviceNotAvail :
 
 Interrupt_DoubleFault :
 
-    pusha
-    call    EnterKernel
-    call    DoubleFaultHandler
-    hlt
-    popa
-    add     esp, 4                        ; Remove error code
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 8, DoubleFaultHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 9      : Coprocessor Segment Overrun
@@ -195,12 +155,8 @@ Interrupt_DoubleFault :
 
 Interrupt_MathOverflow :
 
-    pusha
-    call    EnterKernel
-    call    MathOverflowHandler
-    hlt
-    popa
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 9, MathOverflowHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 10     : Invalid TSS Exception (#TS)
@@ -209,13 +165,8 @@ Interrupt_MathOverflow :
 
 Interrupt_InvalidTSS :
 
-    pusha
-    call    EnterKernel
-    call    InvalidTSSHandler
-    hlt
-    popa
-    add     esp, 4                        ; Remove error code
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 10, InvalidTSSHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 11     : Segment Not Present (#NP)
@@ -224,13 +175,8 @@ Interrupt_InvalidTSS :
 
 Interrupt_SegmentFault :
 
-    pusha
-    call    EnterKernel
-    call    SegmentFaultHandler
-    hlt
-    popa
-    add     esp, 4                        ; Remove error code
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 11, SegmentFaultHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 12     : Stack Fault Exception (#SS)
@@ -239,13 +185,8 @@ Interrupt_SegmentFault :
 
 Interrupt_StackFault :
 
-    pusha
-    call    EnterKernel
-    call    StackFaultHandler
-    hlt
-    popa
-    add     esp, 4                        ; Remove error code
-    iretd
+    ISR_BUILD_FRAME_NOERR_AND_CALL 12, StackFaultHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 13     : General Protection Exception (#GP)

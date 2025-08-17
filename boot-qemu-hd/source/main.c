@@ -97,6 +97,7 @@ U8 ClusterBuffer[SectorSize * 8];
 /************************************************************************/
 
 static void PrintString(const char* Str) {
+    return;
     __asm__ __volatile__(
         "1:\n\t"
         "lodsb\n\t"             // AL = [ESI], ESI++
