@@ -1,4 +1,7 @@
-// Minimal FAT32 loader to load exos.bin from root with COM1 debug logs.
+// I386 32 bits real mode
+// Minimal FAT32 loader to load a binary image from FAT32 root directory.
+// It won't load large files, you'll get critical errors if you try to.
+// It is meant for small kernels, up to 500KB in size.
 
 #include "../../kernel/include/String.h"
 
@@ -80,6 +83,10 @@ struct __attribute__((packed)) FatDirEntry {
     U32 FileSize;
 };
 
+/************************************************************************/
+
+STR TempString[128];
+
 struct Fat32BootSector BootSector;
 U8 FatBuffer[SectorSize];
 
@@ -103,6 +110,8 @@ static void PrintString(const char* Str) {
         : "S"(Str)  // ESI = s
         : "al", "ah");
 }
+
+/************************************************************************/
 
 static int MemCmp(const void* A, const void* B, int Len) {
     const U8* X = (const U8*)A;
@@ -135,6 +144,7 @@ void Hang() {
 // Returns:
 //   next cluster value (masked to 28 bits). Will Hang() on fatal errors.
 //   Caller must test for EOC/BAD/FREE.
+
 static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* CurrentFatSector) {
     U32 FatSector = FatStartSector + ((Cluster * 4) / SectorSize);
     U32 EntryOffset = (Cluster * 4) % SectorSize;
@@ -155,8 +165,6 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 /************************************************************************/
 
 void BootMain(U32 BootDrive, U32 Fat32Lba) {
-    char TempString[32];
-
     PrintString("[VBR] Loading and running binary OS at ");
     NumberToString(TempString, LoadAddress_Seg, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
@@ -167,7 +175,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
 
     PrintString("[VBR] Reading FAT32 VBR\r\n");
     if (BiosReadSectors(BootDrive, Fat32Lba, 1, MakeSegOfs(&BootSector))) {
-        PrintString("[VBR] VBR read failed\r\n");
+        PrintString("[VBR] VBR read failed. Halting.\r\n");
         Hang();
     }
 
@@ -185,6 +193,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         NumberToString(TempString, BootSector.RootCluster, 16, 0, 0,
        PF_SPECIAL); PrintString(TempString); PrintString("\r\n");
     */
+
     if (BootSector.BiosMark != 0xAA55) {
         PrintString("[VBR] BIOS mark not valid. Halting\r\n");
         Hang();
@@ -197,11 +206,12 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     U32 FirstDataSector   = Fat32Lba + BootSector.ReservedSectorCount + ((U32)BootSector.NumberOfFats * FatSizeSectors);
 
     if (SectorsPerCluster == 0) {
-        PrintString("[VBR] Invalid SectorsPerCluster = 0\r\n");
+        PrintString("[VBR] Invalid SectorsPerCluster = 0. Halting.\r\n");
         Hang();
     }
+
     if (RootCluster < 2) {
-        PrintString("[VBR] Invalid RootCluster < 2\r\n");
+        PrintString("[VBR] Invalid RootCluster < 2. Halting.\r\n");
         Hang();
     }
 
@@ -229,7 +239,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         PrintString("\r\n");
 
         if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
-            PrintString("[VBR] DIR cluster read failed\r\n");
+            PrintString("[VBR] DIR cluster read failed. Halting.\r\n");
             Hang();
         }
 
@@ -258,11 +268,12 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         U32 Next = ReadFatEntry(BootDrive, FatStartSector, DirCluster, &CurrentFatSector);
 
         if (Next == FAT32_BAD_CLUSTER) {
-            PrintString("[VBR] Root chain hit BAD cluster\r\n");
+            PrintString("[VBR] Root chain hit BAD cluster. Halting.\r\n");
             Hang();
         }
+
         if (Next == 0x00000000) {
-            PrintString("[VBR] Root chain broken (FREE in FAT)\r\n");
+            PrintString("[VBR] Root chain broken (FREE in FAT). Halting.\r\n");
             Hang();
         }
 
@@ -270,7 +281,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     }
 
     if (!Found) {
-        PrintString("[VBR] ERROR: EXOS.BIN not found in root directory\r\n");
+        PrintString("[VBR] ERROR: EXOS.BIN not found in root directory. Halting.\r\n");
         Hang();
     }
 
@@ -296,8 +307,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         PrintString("[VBR] Remaining bytes ");
         NumberToString(TempString, Remaining, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
-        PrintString(" | Reading data cluster #");
-        NumberToString(TempString, ClusterCount, 16, 0, 0, PF_SPECIAL);
+        PrintString(" | Reading data cluster ");
+        NumberToString(TempString, Cluster, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
         PrintString("\r\n");
 
@@ -307,7 +318,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
             PrintString("[VBR] Cluster read failed ");
             NumberToString(TempString, Cluster, 16, 0, 0, PF_SPECIAL);
             PrintString(TempString);
-            PrintString("\r\n");
+            PrintString(". Halting.\r\n");
             Hang();
         }
 
@@ -336,11 +347,12 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         U32 Next = ReadFatEntry(BootDrive, FatStartSector, Cluster, &CurrentFatSector);
 
         if (Next == FAT32_BAD_CLUSTER) {
-            PrintString("[VBR] BAD cluster in file chain\r\n");
+            PrintString("[VBR] BAD cluster in file chain. Halting.\r\n");
             Hang();
         }
+
         if (Next == 0x00000000) {
-            PrintString("[VBR] FREE cluster in file chain (corruption)\r\n");
+            PrintString("[VBR] FREE cluster in file chain (corruption). Halting.\r\n");
             Hang();
         }
 
@@ -354,14 +366,24 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     }
 
     /********************************************************************/
-    /* Verify checksum and jump                                          */
+    /* Verify checksum                                                  */
     /********************************************************************/
     U8* Loaded = (U8*)(((U32)LoadAddress_Seg << 4) + (U32)LoadAddress_Ofs);
+
+    PrintString("[VBR] Last 8 bytes of file: ");
+    NumberToString(TempString, *(U32*)(Loaded + (FileSize - 8)), 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(" ");
+    NumberToString(TempString, *(U32*)(Loaded + (FileSize - 4)), 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString("\r\n");
+
     U32 Computed = 0;
-    for (U32 I = 0; I < FileSize - 4; ++I) {
-        Computed += Loaded[I];
+    for (U32 Index = 0; Index < FileSize - sizeof(U32); Index++) {
+        Computed += Loaded[Index];
     }
-    U32 Stored = *(U32*)(Loaded + FileSize - 4);
+
+    U32 Stored = *(U32*)(Loaded + (FileSize - sizeof(U32)));
 
     PrintString("[VBR] Stored checksum in image : ");
     NumberToString(TempString, Stored, 16, 0, 0, PF_SPECIAL);
@@ -369,12 +391,16 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     PrintString("\r\n");
 
     if (Computed != Stored) {
-        PrintString("[VBR] Checksum mismatch, halting : ");
+        PrintString("[VBR] Checksum mismatch. Halting. Computed : ");
         NumberToString(TempString, Computed, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
         PrintString("\r\n");
         Hang();
     }
+
+    /********************************************************************/
+    /* Jump                                                             */
+    /********************************************************************/
 
     PrintString("[VBR] Done, jumping to loaded image.\r\n");
 

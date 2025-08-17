@@ -97,13 +97,12 @@ $(FINAL_IMG): $(STUB_BIN) $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 
 	# Append checksum
 	@echo "Appending checksum to $(FINAL_IMG)"
-	@cs=$$(od -An -t u1 $(FINAL_IMG) | awk '{for(i=1;i<=NF;i++)s+=$$i} END {print s % 4294967296}'); \
+	@cs=$$(head -c -0 -- "$(FINAL_IMG)" \
+		| od -An -v -t u1 \
+		| awk '{for(i=1;i<=NF;i++){s+=$$i; if(s>=4294967296)s-=4294967296}} END{printf "%u", s}'); \
 		hex=$$(printf '%08x' $$cs); \
-		b1=$${hex:0:2}; \
-		b2=$${hex:2:2}; \
-		b3=$${hex:4:2}; \
-		b4=$${hex:6:2}; \
-		printf "\x$$b4\x$$b3\x$$b2\x$$b1" >> $(FINAL_IMG); \
+		b1=$${hex:0:2}; b2=$${hex:2:2}; b3=$${hex:4:2}; b4=$${hex:6:2}; \
+		printf "\x$$b4\x$$b3\x$$b2\x$$b1" >> "$(FINAL_IMG)"; \
 		printf 'Checksum 0x%08X appended\n' $$cs
 
 bin/%.o: source/%.c

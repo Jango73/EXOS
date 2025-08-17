@@ -24,6 +24,9 @@ PAYLOAD_BIN     = bin/payload.bin
 PAYLOAD_ELF     = bin/payload.elf
 PAYLOAD_MAP     = bin/payload.map
 
+LD      		= i686-elf-ld
+LDFLAGS 		= -nostdlib -no-pie
+
 .PHONY: all update install-mbr install-vbr-payload clean check_tools hexdump-check rebuild-image
 
 # Default: build tools, ensure image exists (create once), then update contents
@@ -104,11 +107,11 @@ $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 
 $(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
-	i686-elf-ld -T $(PAYLOAD_BIN_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+	$(LD) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
 
 $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
 	@echo "Linking payload stub + C into elf binary..."
-	i686-elf-ld -T $(PAYLOAD_ELF_LD) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
 
 check_tools:
 	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
