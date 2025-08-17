@@ -46,6 +46,7 @@ Start:
     mov         al, dl
     push        eax                         ; Param 1 : Drive
     push        word 0                      ; Add 16 bits bacause of 32 bits call
+                                            ; MANDATORY to jump to 32 bit C code
     call        BootMain
     add         esp, 8
 

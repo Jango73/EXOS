@@ -12,7 +12,6 @@
 #include "../../include/List.h"
 #include "../../include/String.h"
 
-#pragma pack(1)
 /* Local view matching what E1000_OnGetInfo writes */
 typedef struct NETINFO_LOCAL {
     U8  MAC[6];
@@ -21,7 +20,6 @@ typedef struct NETINFO_LOCAL {
     U8  DuplexFull;
     U16 MTU;
 } NETINFO_LOCAL;
-#pragma pack()
 
 // --- Config ---
 #define TEST_TX_INTERVAL_MS   1000U    /* send every 1s */

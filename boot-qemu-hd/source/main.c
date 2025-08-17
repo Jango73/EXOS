@@ -9,7 +9,7 @@
 
 U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 
-void PrintString(const char* s) {
+static void PrintString(const char* s) {
     __asm__ __volatile__(
         "1:\n\t"
         "lodsb\n\t"             // AL = [ESI], ESI++
@@ -22,6 +22,14 @@ void PrintString(const char* s) {
         :
         : "S"(s)  // ESI = s
         : "al", "ah");
+}
+
+static int MemCmp(const void* A, const void* B, int Len) {
+    const U8* X = A;
+    const U8* Y = B;
+    for (int I = 0; I < Len; ++I)
+        if (X[I] != Y[I]) return 1;
+    return 0;
 }
 
 struct __attribute__((packed)) Fat32BootSector {
@@ -72,16 +80,11 @@ struct __attribute__((packed)) FatDirEntry {
 };
 
 struct Fat32BootSector BootSector;
-U8 ClusterBuffer[SectorSize * 8];
 U8 FatBuffer[SectorSize];
 
-static int MemCmp(const void* A, const void* B, int Len) {
-    const U8* X = A;
-    const U8* Y = B;
-    for (int I = 0; I < Len; ++I)
-        if (X[I] != Y[I]) return 1;
-    return 0;
-}
+// TODO : This should be higher because very large disks
+// can have much more than 8 sectors per cluster
+U8 ClusterBuffer[SectorSize * 8];
 
 void BootMain(U32 BootDrive, U32 FAT32LBA) {
     char TempString[32];
@@ -93,23 +96,6 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     NumberToString(TempString, LoadAddress_Ofs, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
     PrintString("\r\n");
-
-    /*
-        PrintString("[VBR] BootSector address ");
-        NumberToString(TempString, (U32)(&BootSector), 16, 0, 0, PF_SPECIAL);
-        PrintString(TempString);
-        PrintString("\r\n");
-
-        PrintString("[VBR] Transmitted BootDrive ");
-        NumberToString(TempString, BootDrive, 16, 0, 0, PF_SPECIAL);
-        PrintString(TempString);
-        PrintString("\r\n");
-
-        PrintString("[VBR] Transmitted FAT Start LBA ");
-        NumberToString(TempString, FAT32LBA, 16, 0, 0, PF_SPECIAL);
-        PrintString(TempString);
-        PrintString("\r\n");
-    */
 
     PrintString("[VBR] Reading FAT32 VBR\r\n");
     if (BiosReadSectors(BootDrive, FAT32LBA, 1, &BootSector)) {
@@ -292,8 +278,7 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
         TimeToDump &= 0x3;
     }
 
-    // U8* Loaded = (U8*)((U32)LoadAddress_Seg << 4);
-    U8* Loaded = (U8*)((U32)LoadAddress_Seg << 16);
+    U8* Loaded = (U8*)(((U32)LoadAddress_Seg << 4) + (U32)LoadAddress_Ofs);
     U32 Computed = 0;
     for (U32 I = 0; I < FileSize - 4; ++I) {
         Computed += Loaded[I];
@@ -301,16 +286,14 @@ void BootMain(U32 BootDrive, U32 FAT32LBA) {
     Computed &= MAX_U32;
     U32 Stored = *(U32*)(Loaded + FileSize - 4);
 
+    PrintString("[VBR] Stored checksum in image : ");
+    NumberToString(TempString, Stored, 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString("\r\n");
+
     if (Computed != Stored) {
-        PrintString("[VBR] Checksum mismatch, aborting.\r\n");
-
-        PrintString("[VBR] Computed ");
+        PrintString("[VBR] Checksum mismatch, halting : ");
         NumberToString(TempString, Computed, 16, 0, 0, PF_SPECIAL);
-        PrintString(TempString);
-        PrintString("\r\n");
-
-        PrintString("[VBR] Read from file ");
-        NumberToString(TempString, Stored, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
         PrintString("\r\n");
 
