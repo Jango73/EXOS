@@ -28,6 +28,7 @@
 /***************************************************************************/
 
 void InitKernelLog();
+void KernelPrintString(LPCSTR Text);
 void KernelPrint(LPCSTR, ...) ABI_REGPARM0;
 void KernelLogText(U32, LPCSTR, ...) ABI_REGPARM0;
 void KernelDump(LINEAR Address, U32 Size);

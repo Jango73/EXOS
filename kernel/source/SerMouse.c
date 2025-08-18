@@ -451,14 +451,7 @@ Out:
 /***************************************************************************/
 
 void MouseHandler() {
-    // static U32 Sequence = 0;
-
-    /*
-      // For test
-      Sequence = 1 - Sequence;
-      if (Sequence) *((U8*)(0xB8000 + 80)) = '.';
-      else  *((U8*)(0xB8000 + 80)) = '-';
-    */
+    KernelLogText(LOG_DEBUG, "MouseHandler");
 
     DisableInterrupts();
 

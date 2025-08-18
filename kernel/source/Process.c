@@ -47,7 +47,7 @@ void InitializeKernelProcess() {
 
     LINEAR HeapBase = AllocRegion(0, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
-    KernelLogText(LOG_DEBUG, TEXT("HeapBase : %X"), HeapBase);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] HeapBase : %X"), HeapBase);
 
     if (!HeapBase) {
         ClearConsole();

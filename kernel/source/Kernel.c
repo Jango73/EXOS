@@ -153,7 +153,7 @@ LPVOID KernelMemAlloc(U32 Size) { return HeapAlloc_HBHS(KernelProcess.HeapBase, 
 
 /***************************************************************************/
 
-void KernelMemFree(LPVOID Pointer) { return HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Pointer); }
+void KernelMemFree(LPVOID Pointer) { HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Pointer); }
 
 /***************************************************************************/
 
@@ -486,18 +486,6 @@ void InitializeKernel() {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel task setup"));
 
     //-------------------------------------
-    // Initialize the clock
-
-    InitializeClock();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
-
-    //-------------------------------------
-    // Enable interrupts
-
-    EnableInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
-
-    //-------------------------------------
     // Get information on CPU
 
     GetCPUInformation(&(Kernel.CPU));
@@ -534,6 +522,18 @@ void InitializeKernel() {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] PCI manager initialized"));
 
     //-------------------------------------
+    // Initialize the clock
+
+    InitializeClock();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
+
+    //-------------------------------------
+    // Enable interrupts
+
+    EnableInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
+
+    //-------------------------------------
     // Print the EXOS banner
 
     ConsolePrint(Text_OSTitle);
@@ -541,6 +541,7 @@ void InitializeKernel() {
     //-------------------------------------
     // Test tasks
 
+/*
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
@@ -551,8 +552,8 @@ void InitializeKernel() {
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
-
-    StartTestNetworkTask();
+*/
+    // StartTestNetworkTask();
 
     //-------------------------------------
     // Shell task

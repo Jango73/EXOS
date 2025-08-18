@@ -10,6 +10,7 @@
 #include "../include/Clock.h"
 
 #include "../include/I386.h"
+#include "../include/Log.h"
 #include "../include/Schedule.h"
 #include "../include/String.h"
 #include "../include/System.h"
@@ -34,7 +35,6 @@ void InitializeClock() {
     U32 Flags;
 
     SaveFlags(&Flags);
-    DisableInterrupts();
 
     OutPortByte(CLOCK_COMMAND, 0x36);
     OutPortByte(CLOCK_DATA, (U8)(11932 >> 0));

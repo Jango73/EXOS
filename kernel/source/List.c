@@ -10,6 +10,8 @@
 #include "../include/List.h"
 
 #include "../include/Heap.h"
+#include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/String.h"
 
 /***************************************************************************/
@@ -67,10 +69,20 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
     LPLIST This = NULL;
 
+    KernelLogText(LOG_ERROR, TEXT("[NewList] Enter"));
+    KernelLogText(LOG_ERROR, TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
+    KernelLogText(LOG_ERROR, TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
+    KernelLogText(LOG_ERROR, TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
+    KernelLogText(LOG_ERROR, TEXT("[NewList] EBP = %X"), (LINEAR)GetEBP());
+    KernelLogText(LOG_ERROR, TEXT("[NewList] KernelMemAlloc = %X"), (LINEAR)KernelMemAlloc);
+    KernelLogText(LOG_ERROR, TEXT("[NewList] KernelMemFree = %X"), (LINEAR)KernelMemFree);
+
     if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)HeapAlloc;
     if (MemFree == NULL) MemFree = (MEMFREEFUNC)HeapFree;
 
     This = (LPLIST)MemAlloc(sizeof(LIST));
+
+    KernelLogText(LOG_ERROR, TEXT("[NewList] List pointer = %X"), (LINEAR)This);
 
     if (This == NULL) return NULL;
 

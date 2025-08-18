@@ -92,6 +92,8 @@ LPTASK NewTask() {
         return NULL;
     }
 
+    KernelLogText(LOG_ERROR, TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
+
     *This = (TASK){.ID = ID_TASK, .References = 1, .Mutex = EMPTY_MUTEX, .MessageMutex = EMPTY_MUTEX};
 
     InitMutex(&(This->Mutex));
@@ -99,6 +101,12 @@ LPTASK NewTask() {
 
     //-------------------------------------
     // Initialize the message queue
+
+    KernelLogText(LOG_ERROR, TEXT("[NewTask] Initialize task message queue"));
+    KernelLogText(LOG_ERROR, TEXT("[NewTask] MessageDestructor = %X"), (LINEAR)MessageDestructor);
+    KernelLogText(LOG_ERROR, TEXT("[NewTask] KernelMemAlloc = %X"), (LINEAR)KernelMemAlloc);
+    KernelLogText(LOG_ERROR, TEXT("[NewTask] KernelMemFree = %X"), (LINEAR)KernelMemFree);
+    KernelLogText(LOG_ERROR, TEXT("[NewTask] EBP = %X"), (LINEAR)GetEBP());
 
     This->Message = NewList(MessageDestructor, KernelMemAlloc, KernelMemFree);
 
@@ -365,6 +373,10 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Kernel_i386.TSS[Table].GS = DataSelector;
     Kernel_i386.TSS[Table].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
 
+    if (Process->Privilege == PRIVILEGE_USER) {
+        Kernel_i386.TSS[Table].CS = SELECTOR_KERNEL_CODE;
+    }
+
     //-------------------------------------
     // Setup the TSS descriptor
 
@@ -411,36 +423,28 @@ BOOL KillTask(LPTASK Task) {
     KernelLogText(
         LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
 
-    //-------------------------------------
     // Lock access to kernel data
-
     LockMutex(MUTEX_KERNEL, INFINITY);
     FreezeScheduler();
 
-    //-------------------------------------
-    // Remove task from scheduler queue
+    U32 table = Task->Table;
 
+    // Remove task from scheduler queue
     RemoveTaskFromQueue(Task);
 
-    Task->References--;
+    Task->References = 0;
     Task->Status = TASK_STATUS_DEAD;
 
-    //-------------------------------------
-    // Free all resources owned by the task
-
-    DeleteTask(Task);
-
+    // Remove from global kernel task list BEFORE freeing
     ListRemove(Kernel.Task, Task);
 
-    //-------------------------------------
-    // Free the associated Task State Segment
-    // by setting it's type to 0
+    // Free the associated Task State Segment by setting its type to 0
+    Kernel_i386.TTD[table].TSS.Type = 0;
 
-    Kernel_i386.TTD[Task->Table].TSS.Type = 0;
+    // Finally, free all resources owned by the task
+    DeleteTask(Task);
 
-    //-------------------------------------
     // Unlock access to kernel data
-
     UnfreezeScheduler();
     UnlockMutex(MUTEX_KERNEL);
 

@@ -29,6 +29,7 @@ extern U32 IRQMask_A1_RM;
 
 // Functions in System.asm
 
+extern U32 GetEBP();
 extern void GetCPUID(LPVOID);
 extern U32 DisablePaging();
 extern U32 EnablePaging();

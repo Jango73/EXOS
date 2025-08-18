@@ -37,7 +37,7 @@ static void KernelPrintChar(STR Char) { SerialOut(LOG_COM_INDEX, Char); }
 
 /***************************************************************************/
 
-static void KernelPrintString(LPCSTR Text) {
+void KernelPrintString(LPCSTR Text) {
     U32 Index = 0;
 
     if (Text) {

@@ -145,63 +145,6 @@ void Scheduler() {
 
             switch (TaskList.Current->Status) {
                 case TASK_STATUS_RUNNING: {
-                    /*
-                          switch (CharSequence)
-                          {
-                        case 0 : *((LPSTR)0xB8000) = '/'; break;
-                        case 1 : *((LPSTR)0xB8000) = '\\'; break;
-                          }
-                          CharSequence = 1 - CharSequence;
-                    */
-
-                    /*
-                          if (TaskList.Current == &KernelTask)
-                          {
-                        STR Temp [8];
-                        LPLISTNODE Node;
-
-                        Index = 0;
-                        for (Node = Kernel.Task->First; Node; Node =
-                       Node->Next)
-                        {
-                          U32ToString(((LPTASK)Node)->Status, Temp);
-                          *((LPSTR) 0xB8000 + Index) = Temp[0];
-                          Index += 2;
-                        }
-                          }
-                    */
-
-                    /*
-                          if (TaskList.Current == &KernelTask)
-                          {
-                        LPLISTNODE Node;
-                        LPTASK Task;
-                        U32 Value;
-                        for (Node = Kernel.Task->First, Index = 0; Node;
-                       Node = Node->Next)
-                        {
-                          Task = (LPTASK) Node;
-
-                          switch (Task->Status)
-                          {
-                            case TASK_STATUS_DEAD     : Value =
-                       0x00FFFFFF; break; case TASK_STATUS_RUNNING  : Value =
-                       0x0000FF00; break; case TASK_STATUS_SLEEPING : Value =
-                       0x000000FF; break; case TASK_STATUS_WAITING  : Value =
-                       0x00FF0000; break;
-                          }
-
-                          *((U8*)0xA0000+Index+0) = Value >> 0;
-                          *((U8*)0xA0000+Index+1) = Value >> 8;
-                          *((U8*)0xA0000+Index+2) = Value >> 16;
-                          *((U8*)0xA0000+Index+3) = Value >> 0;
-                          *((U8*)0xA0000+Index+4) = Value >> 8;
-                          *((U8*)0xA0000+Index+5) = Value >> 16;
-                          Index += 9;
-                        }
-                          }
-                    */
-
                     //-------------------------------------
                     // Set the TSS descriptor "not busy" before jumping to it
 

@@ -45,6 +45,7 @@ IRQMask_A1_RM dd 0x00000000
 section .text
 bits 32
 
+    global GetEBP
     global GetCPUID
     global DisablePaging
     global EnablePaging
@@ -83,6 +84,13 @@ bits 32
     global DoSystemCall
     global IdleCPU
     global Reboot
+
+;--------------------------------------
+
+GetEBP :
+
+    mov         eax, ebp
+    ret
 
 ;--------------------------------------
 

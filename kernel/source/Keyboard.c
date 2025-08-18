@@ -13,6 +13,7 @@
 #include "../include/Console.h"
 #include "../include/I386.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
 #include "../include/VKey.h"
 
@@ -606,6 +607,8 @@ void WaitKey() {
 void KeyboardHandler() {
     static U32 Busy = 0;
     U32 Status, Code;
+
+    KernelLogText(LOG_DEBUG, "KeyboardHandler");
 
     if (Busy) return;
     Busy = 1;

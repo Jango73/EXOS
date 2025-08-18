@@ -58,7 +58,7 @@ len=$((size + len_adj))
 
 # Sum bytes modulo 2^32 (do modulo in-loop for huge files)
 cs=$(
-    head -c -4 "$FILE" \
+    head -c "$len" "$FILE" \
     | od -An -v -tu1 \
     | awk '{for(i=1;i<=NF;i++){s+=$i; if(s>=4294967296)s-=4294967296}} END{printf "%u", s+0}'
 )
