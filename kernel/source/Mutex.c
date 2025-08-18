@@ -103,6 +103,10 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     if (Mutex == NULL) return 0;
     if (Mutex->ID != ID_MUTEX) return 0;
 
+    // If no task registered or only one, no need to lock anything
+    if (Kernel.Task->First == NULL) return 1;
+    if (Kernel.Task->First->Next == NULL) return 1;
+
     SaveFlags(&Flags);
     DisableInterrupts();
 
@@ -156,6 +160,7 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
         EnableInterrupts();
 
         while (Task->Status == TASK_STATUS_SLEEPING) {
+            Scheduler();
         }
     }
 
