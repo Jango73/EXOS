@@ -433,8 +433,9 @@ EnableIRQ :
 
 LoadGlobalDescriptorTable :
 
-   push ebp
-   mov  ebp, esp
+    cli
+    push ebp
+    mov  ebp, esp
 
     push ebx
     push esi
@@ -459,15 +460,17 @@ _LGDT_Out :
     pop  esi
     pop  ebx
 
-   pop  ebp
+    pop  ebp
+    sti
     ret
 
 ;--------------------------------------
 
 LoadLocalDescriptorTable :
 
-   push ebp
-   mov  ebp, esp
+    cli
+    push ebp
+    mov  ebp, esp
 
     ; Put parameters in correct order
 
@@ -481,7 +484,8 @@ LoadLocalDescriptorTable :
 
     lldt [ebp+PBN]
 
-   pop  ebp
+    pop  ebp
+    sti
     ret
 
 ;--------------------------------------
