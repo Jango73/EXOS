@@ -531,22 +531,22 @@ LoadPageDirectory :
 
 LoadInitialTaskRegister :
 
-    push    ebp
-    mov     ebp, esp
-    push ebx
+    push        ebp
+    mov         ebp, esp
+    push        ebx
 
-    mov     eax, [ebp+PBN]
-    ltr     ax
+    mov         eax, [ebp+PBN]
+    ltr         ax
 
     ;--------------------------------------
     ; Clear the nested task bit in eflags
 
     pushfd
-    pop     eax
-    mov     ebx, EFLAGS_NT
-    not     ebx
-    and     eax, ebx
-    push eax
+    pop         eax
+    mov         ebx, EFLAGS_NT
+    not         ebx
+    and         eax, ebx
+    push        eax
     popfd
 
     ;--------------------------------------
@@ -561,16 +561,16 @@ LoadInitialTaskRegister :
 
     clts
 
-   pop      ebx
-    pop     ebp
+    pop         ebx
+    pop         ebp
     ret
 
 ;--------------------------------------
 
 GetTaskRegister :
 
-    xor     eax, eax
-    str     ax
+    xor         eax, eax
+    str         ax
     ret
 
 ;--------------------------------------
