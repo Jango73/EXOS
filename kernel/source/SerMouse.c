@@ -453,8 +453,6 @@ Out:
 void MouseHandler() {
     KernelLogText(LOG_DEBUG, "MouseHandler");
 
-    DisableInterrupts();
-
     MouseHandler_Microsoft();
     // MouseHandler_MouseSystems();
 }

@@ -168,6 +168,7 @@ static void SendKeyboardCommand(U32 Command, U32 Data) {
 
 Out:
 
+    EnableInterrupts();
     RestoreFlags(&Flags);
 }
 
@@ -632,7 +633,7 @@ void KeyboardHandler() {
 
 /***************************************************************************/
 
-static U32 KeyboardInitialize() {
+static U32 InitializeKeyboard() {
     //-------------------------------------
     // Initialize the keyboard structure
 
@@ -673,7 +674,7 @@ static U32 KeyboardInitialize() {
 U32 StdKeyboardCommands(U32 Function, U32 Parameter) {
     switch (Function) {
         case DF_LOAD:
-            return KeyboardInitialize();
+            return InitializeKeyboard();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GETLASTFUNC:

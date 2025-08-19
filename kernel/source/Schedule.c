@@ -10,7 +10,9 @@
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
+#include "../include/System.h"
 #include "../include/Task.h"
 
 /***************************************************************************/
@@ -68,7 +70,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     // Check if task already in task queue
 
     for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        if (TaskList.Tasks[Index] == NewTask) goto Out_Error;
+        if (TaskList.Tasks[Index] == NewTask) goto Out_Success;
     }
 
     //-------------------------------------
@@ -78,6 +80,8 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     TaskList.NumTasks++;
 
     UpdateScheduler();
+
+Out_Success:
 
     UnfreezeScheduler();
     return TRUE;
@@ -129,14 +133,17 @@ static void RotateQueue() {
 /***************************************************************************/
 
 void Scheduler() {
+    // We're in a interrupt gate
+    // No CLI or STI, it is managed by the processor (iretd)
+
     TaskList.SchedulerTime += 10;
 
     if (TaskList.Freeze) return;
 
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
-        DisableInterrupts();
-
         TaskList.SchedulerTime = 0;
+
+        LPTASK StartTask = TaskList.Current;
 
         while (1) {
             RotateQueue();
@@ -153,12 +160,13 @@ void Scheduler() {
                     //-------------------------------------
                     // Switch to the new current task
 
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switch to task %X"), TaskList.Current);
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP = %X"), GetEBP());
+
                     SwitchToTask(TaskList.Current->Selector);
 
                     //-------------------------------------
                     // Immediately return when scheduler comes back
-
-                    EnableInterrupts();
                     return;
                 } break;
 
@@ -171,9 +179,12 @@ void Scheduler() {
                     }
                 } break;
             }
+
+            if (TaskList.Current == StartTask) {
+                return;
+            }
         }
 
-        EnableInterrupts();
         return;
     }
 }

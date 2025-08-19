@@ -586,17 +586,19 @@ FlushTLB :
 
 ;--------------------------------------
 
-SwitchToTask :
-
+SwitchToTask:
     push    ebp
     mov     ebp, esp
-    sub     esp, 6
+    sub     esp, 6                     ; reserve 6 bytes for far pointer: [offset(4)][selector(2)]
 
-    mov     eax, [ebp+(PBN+0)]
-    mov     dword [ebp-(LBN+6)], 0
-    mov     word [ebp-(LBN+2)], ax
-    jmp     far dword [ebp-(LBN+6)]
+    ; Build 48-bit far pointer at [ebp-6]
+    movzx   eax, word [ebp+PBN]        ; EAX = selector (zero-extended)
+    mov     dword [ebp-6], 0           ; offset = 0 (ignored for TSS far jump, must be zero)
+    mov     word  [ebp-2], ax          ; selector = TSS descriptor
 
+    jmp     far dword [ebp-6]          ; hardware task switch via TSS
+
+    ; Execution resumes here when this task is scheduled again
     add     esp, 6
     pop     ebp
     ret

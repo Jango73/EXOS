@@ -78,13 +78,7 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
 /***************************************************************************/
 
 void ClockHandler() {
-    static BOOL Busy = FALSE;
-
-    if (Busy == FALSE) {
-        Busy = TRUE;
-        RawSystemTime += 10;
-        Busy = FALSE;
-    }
+    RawSystemTime += 10;
 
     Scheduler();
 }

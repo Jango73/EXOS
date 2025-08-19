@@ -43,6 +43,10 @@
 %macro ISR_BUILD_FRAME_NOERR_AND_CALL 2
     cli
     pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
 
     ; Capture original segment selectors BEFORE EnterKernel (no stack net effect)
     ; DS/ES via MOV, FS/GS via PUSH/POP (works in 32-bit mode)
@@ -128,7 +132,13 @@
 %endmacro
 
 %macro ISR_RETURN 0
-    add         esp, SIZE_FRAME    ; free the reserved INTERRUPTFRAME
+    add         esp, SIZE_FRAME     ; free the reserved INTERRUPTFRAME
+
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+
     popad
     iretd
 %endmacro

@@ -276,7 +276,6 @@ Interrupt_Clock :
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    call    EnterKernel
     call    ClockHandler
 
     popa
@@ -297,7 +296,6 @@ Interrupt_Keyboard :
     push    esi
     push    edi
 
-    call    EnterKernel
     call    KeyboardHandler
 
     mov     al, INTERRUPT_DONE
@@ -336,7 +334,6 @@ Interrupt_Mouse :
     call    DisableIRQ
     add     esp, 4
 
-    call    EnterKernel
     call    MouseHandler
 
     mov     al, INTERRUPT_DONE
@@ -375,7 +372,6 @@ Interrupt_HardDrive :
     push    esi
     push    edi
 
-    call    EnterKernel
     call    HardDriveHandler
 
     mov     al, INTERRUPT_DONE
@@ -407,8 +403,6 @@ Interrupt_SystemCall :
     push    esi
     push    edi
 
-    call    EnterKernel
-
     push    ebx
     push    eax
     call    SystemCallHandler
@@ -438,8 +432,6 @@ Interrupt_DriverCall :
     push    esi
     push    edi
 
-    call    EnterKernel
-
     push    ebx
     push    eax
     call    DriverCallHandler
@@ -460,13 +452,23 @@ Interrupt_DriverCall :
 
 EnterKernel :
 
-    push    eax
-    mov     ax,  SELECTOR_KERNEL_DATA
-    mov     ds,  ax
-    mov     es,  ax
-    mov     fs,  ax
-    mov     gs,  ax
-    pop     eax
+    push        eax
+    mov         ax,  SELECTOR_KERNEL_DATA
+    mov         ds,  ax
+    mov         es,  ax
+    mov         fs,  ax
+    mov         gs,  ax
+    pop         eax
+    ret
+
+;--------------------------------------
+
+ExitKernel :
+
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
     ret
 
 ;--------------------------------------

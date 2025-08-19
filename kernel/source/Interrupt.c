@@ -122,7 +122,7 @@ void InitializeInterrupts() {
     Kernel_i386.IDT[Index].Selector = SELECTOR_KERNEL_CODE;
     Kernel_i386.IDT[Index].Reserved = 0;
     Kernel_i386.IDT[Index].Type = GATE_TYPE_386_TRAP;
-    Kernel_i386.IDT[Index].Privilege = PRIVILEGE_KERNEL;
+    Kernel_i386.IDT[Index].Privilege = PRIVILEGE_USER;
     Kernel_i386.IDT[Index].Present = 1;
 
     SetGateDescriptorOffset(Kernel_i386.IDT + Index, (U32)Interrupt_SystemCall);
@@ -135,7 +135,7 @@ void InitializeInterrupts() {
     Kernel_i386.IDT[Index].Selector = SELECTOR_KERNEL_CODE;
     Kernel_i386.IDT[Index].Reserved = 0;
     Kernel_i386.IDT[Index].Type = GATE_TYPE_386_TRAP;
-    Kernel_i386.IDT[Index].Privilege = PRIVILEGE_KERNEL;
+    Kernel_i386.IDT[Index].Privilege = PRIVILEGE_USER;
     Kernel_i386.IDT[Index].Present = 1;
 
     SetGateDescriptorOffset(Kernel_i386.IDT + Index, (U32)Interrupt_DriverCall);

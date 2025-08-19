@@ -107,8 +107,8 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     if (Kernel.Task->First == NULL) return 1;
     if (Kernel.Task->First->Next == NULL) return 1;
 
-    SaveFlags(&Flags);
     DisableInterrupts();
+    SaveFlags(&Flags);
 
     Task = GetCurrentTask();
 
@@ -160,7 +160,6 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
         EnableInterrupts();
 
         while (Task->Status == TASK_STATUS_SLEEPING) {
-            Scheduler();
         }
     }
 
