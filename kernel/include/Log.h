@@ -27,7 +27,7 @@
 
 /***************************************************************************/
 
-void InitKernelLog();
+void InitKernelLog(void);
 void KernelPrintString(LPCSTR Text);
 void KernelPrint(LPCSTR, ...) ABI_REGPARM0;
 void KernelLogText(U32, LPCSTR, ...) ABI_REGPARM0;

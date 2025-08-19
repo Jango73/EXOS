@@ -137,7 +137,7 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
 
 /************************************************************************/
 
-void InitializeMemoryManager() {
+void InitializeMemoryManager(void) {
     // KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] PPB : %X, %X"), Kernel_i386.PPB, KernelStartup.SI_Size_PPB);
@@ -251,12 +251,12 @@ Out:
 // Frees one physical page and mark it free in PPB.
 // Returns the physical address (page-aligned) or 0 on failure.
 void FreePhysicalPage(PHYSICAL Page) {
+    UNUSED(Page);
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     // TODO
 
-Out:
     UnlockMutex(MUTEX_MEMORY);
     return;
 }
@@ -335,7 +335,7 @@ LINEAR MapPhysicalPage(PHYSICAL Physical) {
 
 /*************************************************************************/
 
-PHYSICAL AllocPageDirectory() {
+PHYSICAL AllocPageDirectory(void) {
     PHYSICAL PA_Directory = NULL;
     PHYSICAL PA_SysTable = NULL;
     LPPAGEDIRECTORY Directory = NULL;
@@ -630,7 +630,7 @@ static BOOL IsPhysicalRangeFree(PHYSICAL Target, U32 NumPages) {
 
 /*************************************************************************/
 
-static void FreeEmptyPageTables() {
+static void FreeEmptyPageTables(void) {
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE Table = NULL;
     LINEAR Base = N_4MB;

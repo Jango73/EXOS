@@ -127,7 +127,7 @@ KEYBOARDSTRUCT Keyboard = {
 
 /***************************************************************************/
 
-static void KeyboardWait() {
+static void KeyboardWait(void) {
     U32 Index;
 
     for (Index = 0; Index < 0x100000; Index++) {
@@ -139,7 +139,7 @@ static void KeyboardWait() {
 
 /***************************************************************************/
 
-static BOOL KeyboardACK() {
+static BOOL KeyboardACK(void) {
     U32 Loop;
 
     for (Loop = 0; Loop < 0x100000; Loop++) {
@@ -381,7 +381,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
-static void UpdateKeyboardLEDs() {
+static void UpdateKeyboardLEDs(void) {
     U32 LED = 0;
 
     if (Keyboard.CapsLock) LED |= KSL_CAPS;
@@ -393,7 +393,7 @@ static void UpdateKeyboardLEDs() {
 
 /***************************************************************************/
 
-static U32 GetKeyboardLEDs() {
+static U32 GetKeyboardLEDs(void) {
     U32 LED = 0;
 
     if (Keyboard.CapsLock) LED |= KSL_CAPS;
@@ -531,7 +531,7 @@ static void HandleScanCode(U32 ScanCode) {
 
 /***************************************************************************/
 
-BOOL PeekChar() {
+BOOL PeekChar(void) {
     U32 Result = FALSE;
 
     LockMutex(&(Keyboard.Mutex), INFINITY);
@@ -546,7 +546,7 @@ BOOL PeekChar() {
 
 /***************************************************************************/
 
-STR GetChar() {
+STR GetChar(void) {
     U32 Index;
     STR Char;
 
@@ -596,7 +596,7 @@ BOOL GetKeyCode(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
-void WaitKey() {
+void WaitKey(void) {
     ConsolePrint(TEXT("Press a key\n"));
     while (!PeekChar()) {
     }
@@ -605,11 +605,11 @@ void WaitKey() {
 
 /***************************************************************************/
 
-void KeyboardHandler() {
+void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-    KernelLogText(LOG_DEBUG, "KeyboardHandler");
+    KernelLogText(LOG_DEBUG, TEXT("KeyboardHandler"));
 
     if (Busy) return;
     Busy = 1;
@@ -633,7 +633,7 @@ void KeyboardHandler() {
 
 /***************************************************************************/
 
-static U32 InitializeKeyboard() {
+static U32 InitializeKeyboard(void) {
     //-------------------------------------
     // Initialize the keyboard structure
 

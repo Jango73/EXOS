@@ -47,7 +47,7 @@ typedef struct tag_RAMDISK {
 
 /***************************************************************************/
 
-static LPRAMDISK NewRAMDisk() {
+static LPRAMDISK NewRAMDisk(void) {
     LPRAMDISK This;
 
     This = (LPRAMDISK)KernelMemAlloc(sizeof(RAMDISK));
@@ -381,7 +381,7 @@ ClusterEntry6);
 
 /***************************************************************************/
 
-static U32 RAMDiskInitialize() {
+static U32 RAMDiskInitialize(void) {
     PARTITION_CREATION Create;
     LPBOOTPARTITION Partition;
     LPRAMDISK Disk;

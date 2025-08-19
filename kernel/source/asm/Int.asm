@@ -463,16 +463,6 @@ EnterKernel :
 
 ;--------------------------------------
 
-ExitKernel :
-
-    pop         gs
-    pop         fs
-    pop         es
-    pop         ds
-    ret
-
-;--------------------------------------
-
 Delay :
 
     dw      0x00EB                     ; jmp $+2

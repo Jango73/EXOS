@@ -190,7 +190,7 @@ extern MUTEX ConsoleMutex;
 /***************************************************************************/
 // Functions in Process.c
 
-void InitializeKernelProcess();
+void InitializeKernelProcess(void);
 LINEAR GetProcessHeap(LPPROCESS);
 void DumpProcess(LPPROCESS);
 void InitSecurity(LPSECURITY);
@@ -199,7 +199,7 @@ BOOL CreateProcess(LPPROCESSINFO);
 /***************************************************************************/
 // Functions in Task.c
 
-BOOL InitKernelTask();
+BOOL InitKernelTask(void);
 LPTASK CreateTask(LPPROCESS, LPTASKINFO);
 BOOL KillTask(LPTASK);
 U32 SetTaskPriority(LPTASK, U32);
@@ -214,7 +214,7 @@ void DumpTask(LPTASK);
 // Functions in Mutex.c
 
 void InitMutex(LPMUTEX);
-LPMUTEX CreateMutex();
+LPMUTEX CreateMutex(void);
 BOOL DeleteMutex(LPMUTEX);
 U32 LockMutex(LPMUTEX, U32);
 BOOL UnlockMutex(LPMUTEX);
@@ -222,7 +222,7 @@ BOOL UnlockMutex(LPMUTEX);
 /***************************************************************************/
 // Functions in Desktop.c
 
-LPDESKTOP CreateDesktop();
+LPDESKTOP CreateDesktop(void);
 void DeleteDesktop(LPDESKTOP);
 BOOL ShowDesktop(LPDESKTOP);
 LPWINDOW CreateWindow(LPWINDOWINFO);

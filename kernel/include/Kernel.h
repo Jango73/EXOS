@@ -149,9 +149,9 @@ BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR, LPSEGMENTINFO);
 void LogRegisters(LPINTEL386REGISTERS);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);
-U32 GetPhysicalMemoryUsed();
-void TestProcess();
-void InitializeKernel();
+U32 GetPhysicalMemoryUsed(void);
+void TestProcess(void);
+void InitializeKernel(void);
 
 /***************************************************************************/
 

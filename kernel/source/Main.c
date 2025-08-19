@@ -13,7 +13,7 @@
 
 /***************************************************************************/
 
-static void KernelIdle() {
+static void KernelIdle(void) {
     // For now, kernel task sleeps
     while(1) {
         IdleCPU();
@@ -24,7 +24,7 @@ static void KernelIdle() {
 
 // The entry point in protected mode
 
-void KernelMain() {
+void KernelMain(void) {
     InitKernelLog();
 
     //--------------------------------------

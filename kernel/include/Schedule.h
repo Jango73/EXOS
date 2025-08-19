@@ -20,7 +20,7 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 /***************************************************************************/
 
 // Updates the scheduler
-void UpdateScheduler();
+void UpdateScheduler(void);
 
 // Adds a task to the scheduler's queue
 BOOL AddTaskToQueue(LPTASK NewTask);
@@ -29,19 +29,19 @@ BOOL AddTaskToQueue(LPTASK NewTask);
 BOOL RemoveTaskFromQueue(LPTASK);
 
 // Runs the scheduler to activate the next task (collborative)
-void Scheduler();
+void Scheduler(void);
 
 // Returns the currently running task
-LPTASK GetCurrentTask();
+LPTASK GetCurrentTask(void);
 
 // Returns the currently running process
-LPPROCESS GetCurrentProcess();
+LPPROCESS GetCurrentProcess(void);
 
 // Freezes the scheduler
-BOOL FreezeScheduler();
+BOOL FreezeScheduler(void);
 
 // Unfreezes the scheduler
-BOOL UnfreezeScheduler();
+BOOL UnfreezeScheduler(void);
 
 /***************************************************************************/
 

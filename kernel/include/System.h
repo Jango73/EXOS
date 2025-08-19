@@ -29,12 +29,12 @@ extern U32 IRQMask_A1_RM;
 
 // Functions in System.asm
 
-extern U32 GetEBP();
+extern U32 GetEBP(void);
 extern void GetCPUID(LPVOID);
-extern U32 DisablePaging();
-extern U32 EnablePaging();
-extern void DisableInterrupts();
-extern void EnableInterrupts();
+extern U32 DisablePaging(void);
+extern U32 EnablePaging(void);
+extern void DisableInterrupts(void);
+extern void EnableInterrupts(void);
 extern void SaveFlags(U32*);
 extern void RestoreFlags(U32*);
 extern U32 InPortByte(U32);
@@ -54,19 +54,19 @@ extern U32 LoadLocalDescriptorTable(U32, U32);
 extern U32 LoadInterruptDescriptorTable(U32, U32);
 extern U32 LoadPageDirectory(U32);
 extern U32 LoadInitialTaskRegister(U32);
-extern U32 GetTaskRegister();
-extern U32 GetPageDirectory();
-extern U32 FlushTLB();
+extern U32 GetTaskRegister(void);
+extern U32 GetPageDirectory(void);
+extern U32 FlushTLB(void);
 extern U32 SwitchToTask(U32);
-extern U32 TaskRunner();
-extern U32 ClearTaskState();
+extern U32 TaskRunner(void);
+extern U32 ClearTaskState(void);
 extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32, U32);
 extern U32 SaveRegisters(LPINTEL386REGISTERS);
 extern U32 DoSystemCall(U32, U32);
-extern void IdleCPU();
-extern void Reboot();
+extern void IdleCPU(void);
+extern void Reboot(void);
 
 /***************************************************************************/
 
@@ -74,7 +74,7 @@ extern void Reboot();
 
 extern void RealModeCall(U32, LPX86REGS);
 extern void Exit_EXOS(U32 SS, U32 SP);
-extern void RealModeCallTest();
+extern void RealModeCallTest(void);
 
 /***************************************************************************/
 

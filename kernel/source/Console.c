@@ -65,7 +65,7 @@ void SetConsoleCharacter(STR Char) {
 
 /***************************************************************************/
 
-void ScrollConsole() {
+void ScrollConsole(void) {
     U32 CurX, CurY, Src, Dst;
     U32 Width, Height;
 
@@ -98,7 +98,7 @@ void ScrollConsole() {
 
 /***************************************************************************/
 
-void ClearConsole() {
+void ClearConsole(void) {
     U32 CurX, CurY, Offset;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
@@ -142,7 +142,7 @@ void ConsolePrintChar(STR Char) {
 
 /***************************************************************************/
 
-void ConsoleBackSpace() {
+void ConsoleBackSpace(void) {
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Console.CursorX == 0 && Console.CursorY == 0) goto Out;
@@ -445,7 +445,7 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
 
 /***************************************************************************/
 
-BOOL InitializeConsole() {
+BOOL InitializeConsole(void) {
     Console.Width = 80;
     Console.Height = 25;
     Console.BackColor = 0;

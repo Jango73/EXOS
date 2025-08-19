@@ -618,7 +618,7 @@ static void TranslateFileInfo(LPXFSFILEREC FileRec, LPXFSFILE File) {
 
 /***************************************************************************/
 
-static U32 Initialize() { return DF_ERROR_SUCCESS; }
+static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 

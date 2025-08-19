@@ -125,7 +125,7 @@ static int MemCmp(const void* A, const void* B, int Len) {
 
 /************************************************************************/
 
-void Hang() {
+void Hang(void) {
     do {
         __asm__ __volatile__(
             "1:\n\t"

@@ -12,29 +12,29 @@
 
 // Functions in Interrupt-a.asm
 
-extern void Interrupt_Default();
-extern void Interrupt_DivideError();
-extern void Interrupt_DebugException();
-extern void Interrupt_NMI();
-extern void Interrupt_BreakPoint();
-extern void Interrupt_Overflow();
-extern void Interrupt_BoundRange();
-extern void Interrupt_InvalidOpcode();
-extern void Interrupt_DeviceNotAvail();
-extern void Interrupt_DoubleFault();
-extern void Interrupt_MathOverflow();
-extern void Interrupt_InvalidTSS();
-extern void Interrupt_SegmentFault();
-extern void Interrupt_StackFault();
-extern void Interrupt_GeneralProtection();
-extern void Interrupt_PageFault();
-extern void Interrupt_AlignmentCheck();
-extern void Interrupt_Clock();
-extern void Interrupt_Keyboard();
-extern void Interrupt_Mouse();
-extern void Interrupt_HardDrive();
-extern void Interrupt_SystemCall();
-extern void Interrupt_DriverCall();
+extern void Interrupt_Default(void);
+extern void Interrupt_DivideError(void);
+extern void Interrupt_DebugException(void);
+extern void Interrupt_NMI(void);
+extern void Interrupt_BreakPoint(void);
+extern void Interrupt_Overflow(void);
+extern void Interrupt_BoundRange(void);
+extern void Interrupt_InvalidOpcode(void);
+extern void Interrupt_DeviceNotAvail(void);
+extern void Interrupt_DoubleFault(void);
+extern void Interrupt_MathOverflow(void);
+extern void Interrupt_InvalidTSS(void);
+extern void Interrupt_SegmentFault(void);
+extern void Interrupt_StackFault(void);
+extern void Interrupt_GeneralProtection(void);
+extern void Interrupt_PageFault(void);
+extern void Interrupt_AlignmentCheck(void);
+extern void Interrupt_Clock(void);
+extern void Interrupt_Keyboard(void);
+extern void Interrupt_Mouse(void);
+extern void Interrupt_HardDrive(void);
+extern void Interrupt_SystemCall(void);
+extern void Interrupt_DriverCall(void);
 
 /***************************************************************************/
 
@@ -98,7 +98,7 @@ static void SetGateDescriptorOffset(LPGATEDESCRIPTOR This, U32 Offset) {
 
 /***************************************************************************/
 
-void InitializeInterrupts() {
+void InitializeInterrupts(void) {
     U32 Index = 0;
 
     //-------------------------------------

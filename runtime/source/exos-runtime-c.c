@@ -35,7 +35,7 @@ void free(void* p) { exoscall(SYSCALL_HeapFree, (unsigned)p); }
 
 /***************************************************************************/
 
-int getch() {
+int getch(void) {
     KEYCODE KeyCode;
 
     while (exoscall(SYSCALL_ConsolePeekKey, 0) == 0) {
@@ -69,7 +69,7 @@ int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_li
 
 /***************************************************************************/
 
-void _endthread() {}
+void _endthread(void) {}
 
 /***************************************************************************/
 

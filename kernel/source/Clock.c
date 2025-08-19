@@ -26,7 +26,7 @@ static U32 RawSystemTime = 0;
 
 /***************************************************************************/
 
-void InitializeClock() {
+void InitializeClock(void) {
     // The 8254 Timer Chip receives 1,193,180 signals from
     // the system, so to increment a 10 millisecond counter,
     // our interrupt handler must be called every 11,932 signal
@@ -47,7 +47,7 @@ void InitializeClock() {
 
 /***************************************************************************/
 
-U32 GetSystemTime() { return RawSystemTime; }
+U32 GetSystemTime(void) { return RawSystemTime; }
 
 /***************************************************************************/
 
@@ -77,7 +77,7 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
 
 /***************************************************************************/
 
-void ClockHandler() {
+void ClockHandler(void) {
     RawSystemTime += 10;
 
     Scheduler();

@@ -151,7 +151,7 @@ I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
 
 /***************************************************************************/
 
-LPDESKTOP CreateDesktop() {
+LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
     WINDOWINFO WindowInfo;
 
@@ -266,7 +266,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
 /***************************************************************************/
 
-LPWINDOW NewWindow() {
+LPWINDOW NewWindow(void) {
     LPWINDOW This = (LPWINDOW)KernelMemAlloc(sizeof(WINDOW));
     if (This == NULL) return NULL;
 

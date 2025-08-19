@@ -964,7 +964,7 @@ static void TranslateFileInfo(LPFATDIRENTRY_EXT DirEntry, LPFATFILE File) {
 
 /***************************************************************************/
 
-static U32 Initialize() { return DF_ERROR_SUCCESS; }
+static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 

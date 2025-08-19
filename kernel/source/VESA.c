@@ -172,7 +172,7 @@ VESACONTEXT VESAContext = {
 
 /***************************************************************************/
 
-static U32 VESAInitialize() {
+static U32 VESAInitialize(void) {
     X86REGS Regs;
 
     //-------------------------------------
@@ -220,7 +220,7 @@ static U32 VESAInitialize() {
 
 /***************************************************************************/
 
-static U32 VESAUninitialize() {
+static U32 VESAUninitialize(void) {
     X86REGS Regs;
 
     //-------------------------------------

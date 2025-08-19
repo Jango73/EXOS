@@ -49,7 +49,7 @@ TASK KernelTask = {
 
 /***************************************************************************/
 
-static LPMESSAGE NewMessage() {
+static LPMESSAGE NewMessage(void) {
     LPMESSAGE This;
 
     This = (LPMESSAGE)KernelMemAlloc(sizeof(MESSAGE));
@@ -80,7 +80,7 @@ void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 
 /***************************************************************************/
 
-LPTASK NewTask() {
+LPTASK NewTask(void) {
     LPTASK This = NULL;
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Enter"));
@@ -173,7 +173,7 @@ void DeleteTask(LPTASK This) {
 
 /***************************************************************************/
 
-BOOL InitKernelTask() {
+BOOL InitKernelTask(void) {
     LINEAR StackPointer = NULL;
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask]"));

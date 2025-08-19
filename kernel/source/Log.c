@@ -18,7 +18,7 @@
 
 /***************************************************************************/
 
-void InitKernelLog() {
+void InitKernelLog(void) {
     SerialReset(LOG_COM_INDEX);
 }
 

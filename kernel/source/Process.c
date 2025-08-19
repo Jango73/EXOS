@@ -38,7 +38,7 @@ PROCESS KernelProcess = {
 
 /***************************************************************************/
 
-void InitializeKernelProcess() {
+void InitializeKernelProcess(void) {
     KernelProcess.PageDirectory = KernelStartup.SI_Phys_PGD;
     KernelProcess.HeapSize = N_1MB;
 
@@ -64,7 +64,7 @@ void InitializeKernelProcess() {
 
 /***************************************************************************/
 
-void InitializeKernelHeap() {
+void InitializeKernelHeap(void) {
 }
 
 /***************************************************************************/
@@ -296,7 +296,7 @@ Out_Error:
 
 /***************************************************************************/
 
-LPPROCESS NewProcess() {
+LPPROCESS NewProcess(void) {
     LPPROCESS This = NULL;
 
     KernelLogText(LOG_DEBUG, TEXT("Entering NewProcess\n"));

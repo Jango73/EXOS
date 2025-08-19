@@ -18,7 +18,6 @@
 /***************************************************************************/
 
 static void DumpFrame(LPINTERRUPTFRAME Frame) {
-    INTEL386REGISTERS Regs;
     LPPROCESS Process;
     LPTASK Task;
 
@@ -38,7 +37,7 @@ static void DumpFrame(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
-static void PrintFaultDetails() {
+static void PrintFaultDetails(void) {
     INTEL386REGISTERS Regs;
     LPPROCESS Process;
     LPTASK Task;
@@ -63,7 +62,7 @@ static void PrintFaultDetails() {
 
 /***************************************************************************/
 
-static void Die() {
+static void Die(void) {
     LPTASK Task;
 
     Task = GetCurrentTask();
@@ -245,7 +244,7 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
 
 /***************************************************************************/
 
-void AlignmentCheckHandler() {
+void AlignmentCheckHandler(void) {
     KernelLogText(LOG_ERROR, TEXT("Alignment check fault !\n"));
     PrintFaultDetails();
     Die();

@@ -35,13 +35,13 @@ typedef struct tag_ConsoleStruct {
 /***************************************************************************/
 
 void SetConsoleCharacter(STR);
-void ScrollConsole();
-void ClearConsole();
+void ScrollConsole(void);
+void ClearConsole(void);
 void ConsolePrintChar(STR);
-void ConsoleBackSpace();
+void ConsoleBackSpace(void);
 BOOL ConsolePrint(LPCSTR, ...) ABI_REGPARM0;
 BOOL ConsoleGetString(LPSTR, U32);
-BOOL InitializeConsole();
+BOOL InitializeConsole(void);
 U32 Shell(LPVOID);
 
 /***************************************************************************/

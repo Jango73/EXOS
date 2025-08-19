@@ -76,7 +76,7 @@ typedef struct tag_BLOCKPARAMS {
 
 /***************************************************************************/
 
-static LPSTDHARDDISK NewStdHardDisk() {
+static LPSTDHARDDISK NewStdHardDisk(void) {
     LPSTDHARDDISK This;
 
     This = (LPSTDHARDDISK)KernelMemAlloc(sizeof(STDHARDDISK));
@@ -133,7 +133,7 @@ BOOL WaitNotBusy(U32 Port, U32 TimeOut) {
 
 /***************************************************************************/
 
-static U32 HardDiskInitialize() {
+static U32 HardDiskInitialize(void) {
     LPSTDHARDDISK Disk;
     LPATADRIVEID ATAID;
     U8 Buffer[SECTOR_SIZE];
@@ -534,7 +534,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 /***************************************************************************/
 
-void HardDriveHandler() {
+void HardDriveHandler(void) {
     static U32 Busy = 0;
 
     if (Busy) return;

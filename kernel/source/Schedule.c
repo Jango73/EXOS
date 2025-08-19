@@ -32,7 +32,7 @@ static TASKLIST TaskList = {0, 0, 20, 1, &KernelTask, {&KernelTask}};
 
 /***************************************************************************/
 
-void UpdateScheduler() {
+void UpdateScheduler(void) {
     U32 Index = 0;
 
     for (Index = 0; Index < TaskList.NumTasks; Index++) {
@@ -118,7 +118,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
 
 /***************************************************************************/
 
-static void RotateQueue() {
+static void RotateQueue(void) {
     U32 Index = 0;
 
     TaskList.Current = TaskList.Tasks[0];
@@ -132,7 +132,7 @@ static void RotateQueue() {
 
 /***************************************************************************/
 
-void Scheduler() {
+void Scheduler(void) {
     // We're in a interrupt gate
     // No CLI or STI, it is managed by the processor (iretd)
 
@@ -191,15 +191,15 @@ void Scheduler() {
 
 /***************************************************************************/
 
-LPPROCESS GetCurrentProcess() { return GetCurrentTask()->Process; }
+LPPROCESS GetCurrentProcess(void) { return GetCurrentTask()->Process; }
 
 /***************************************************************************/
 
-LPTASK GetCurrentTask() { return TaskList.Current; }
+LPTASK GetCurrentTask(void) { return TaskList.Current; }
 
 /***************************************************************************/
 
-BOOL FreezeScheduler() {
+BOOL FreezeScheduler(void) {
     LockMutex(MUTEX_SCHEDULE, INFINITY);
     TaskList.Freeze++;
     UnlockMutex(MUTEX_SCHEDULE);
@@ -208,7 +208,7 @@ BOOL FreezeScheduler() {
 
 /***************************************************************************/
 
-BOOL UnfreezeScheduler() {
+BOOL UnfreezeScheduler(void) {
     LockMutex(MUTEX_SCHEDULE, INFINITY);
     if (TaskList.Freeze) TaskList.Freeze--;
     UnlockMutex(MUTEX_SCHEDULE);

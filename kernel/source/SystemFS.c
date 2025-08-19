@@ -57,11 +57,11 @@ typedef struct tag_SYSFSFILE {
 
 /***************************************************************************/
 
-static LPSYSTEMFILE NewSystemFileRoot() { return NULL; }
+static LPSYSTEMFILE NewSystemFileRoot(void) { return NULL; }
 
 /***************************************************************************/
 
-static LPSYSFSFILESYSTEM NewSystemFSFileSystem() {
+static LPSYSFSFILESYSTEM NewSystemFSFileSystem(void) {
     LPSYSFSFILESYSTEM This;
 
     This = (LPSYSFSFILESYSTEM)KernelMemAlloc(sizeof(SYSFSFILESYSTEM));
@@ -112,7 +112,7 @@ static LPSYSFSFILE NewSysFSFile(LPSYSFSFILESYSTEM FileSystem,
 
 /***************************************************************************/
 
-BOOL MountSystemFS() {
+BOOL MountSystemFS(void) {
     LPSYSFSFILESYSTEM FileSystem;
 
     KernelLogText(LOG_VERBOSE, TEXT("[MountSystemFS] Mouting system FileSystem"));
@@ -290,7 +290,7 @@ FileLoc->Offset);
 
 /***************************************************************************/
 
-static U32 Initialize() { return DF_ERROR_SUCCESS; }
+static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 

@@ -20,7 +20,7 @@ extern BOOL MountPartition_XFS(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 
 /***************************************************************************/
 
-U32 GetNumFileSystems() { return Kernel.FileSystem->NumItems; }
+U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
 
 /***************************************************************************/
 

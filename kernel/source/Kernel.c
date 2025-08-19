@@ -28,7 +28,7 @@ extern LINEAR __bss_init_start;
 extern LINEAR __bss_init_end;
 extern U32 DeadBeef;
 
-extern void StartTestNetworkTask();
+extern void StartTestNetworkTask(void);
 
 /***************************************************************************/
 
@@ -157,7 +157,7 @@ void KernelMemFree(LPVOID Pointer) { HeapFree_HBHS(KernelProcess.HeapBase, Kerne
 
 /***************************************************************************/
 
-void CheckDataIntegrity() {
+void CheckDataIntegrity(void) {
     if (DeadBeef != 0xDEADBEEF) {
         KernelLogText(LOG_DEBUG, TEXT("Expected a dead beef at %X"), (&DeadBeef));
         KernelLogText(LOG_DEBUG, TEXT("Data corrupt, halting"));
@@ -263,7 +263,7 @@ U32 ClockTask(LPVOID Param) {
 
 /***************************************************************************/
 
-void DumpCriticalInformation() {
+void DumpCriticalInformation(void) {
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
     KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
 
@@ -312,7 +312,7 @@ void DumpCriticalInformation() {
 
 /***************************************************************************/
 
-void DumpSystemInformation() {
+void DumpSystemInformation(void) {
     KernelLogText(LOG_VERBOSE, TEXT("DumpSystemInformation"));
 
     //-------------------------------------
@@ -333,14 +333,14 @@ void DumpSystemInformation() {
 
 /***************************************************************************/
 
-void InitializePCI() {
+void InitializePCI(void) {
     PCI_RegisterDriver(&E1000Driver);
     PCI_ScanBus();
 }
 
 /***************************************************************************/
 
-void InitializeFileSystems() {
+void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
     MountSystemFS();
@@ -352,7 +352,7 @@ void InitializeFileSystems() {
 
 /***************************************************************************/
 
-U32 GetPhysicalMemoryUsed() {
+U32 GetPhysicalMemoryUsed(void) {
     U32 NumPages = 0;
     U32 Index = 0;
     U32 Byte = 0;
@@ -390,7 +390,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /***************************************************************************/
 
-void InitializeKernel() {
+void InitializeKernel(void) {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
     KERNELSTARTUPINFO TempKernelStartup;
