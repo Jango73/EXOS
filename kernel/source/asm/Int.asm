@@ -165,7 +165,7 @@ Interrupt_MathOverflow :
 
 Interrupt_InvalidTSS :
 
-    ISR_BUILD_FRAME_NOERR_AND_CALL 10, InvalidTSSHandler
+    ISR_BUILD_FRAME_ERR_AND_CALL 10, InvalidTSSHandler
     ISR_RETURN
 
 ;--------------------------------------
@@ -175,7 +175,7 @@ Interrupt_InvalidTSS :
 
 Interrupt_SegmentFault :
 
-    ISR_BUILD_FRAME_NOERR_AND_CALL 11, SegmentFaultHandler
+    ISR_BUILD_FRAME_ERR_AND_CALL 11, SegmentFaultHandler
     ISR_RETURN
 
 ;--------------------------------------
@@ -185,7 +185,7 @@ Interrupt_SegmentFault :
 
 Interrupt_StackFault :
 
-    ISR_BUILD_FRAME_NOERR_AND_CALL 12, StackFaultHandler
+    ISR_BUILD_FRAME_ERR_AND_CALL 12, StackFaultHandler
     ISR_RETURN
 
 ;--------------------------------------
@@ -195,15 +195,8 @@ Interrupt_StackFault :
 
 Interrupt_GeneralProtection :
 
-    pusha
-    cli
-    call    EnterKernel
-    call    GeneralProtectionHandler
-    hlt
-    sti
-    popa
-    add     esp, 4                     ; Remove error code
-    iretd
+    ISR_BUILD_FRAME_ERR_AND_CALL 13, GeneralProtectionHandler
+    ISR_RETURN
 
 ;--------------------------------------
 ; Int 14     : Page Fault Exception (#PF)

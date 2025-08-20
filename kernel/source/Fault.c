@@ -1,11 +1,11 @@
 
-/***************************************************************************\
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
     All rights reserved
 
-\***************************************************************************/
+\************************************************************************/
 
 #include "../include/Console.h"
 #include "../include/Kernel.h"
@@ -14,8 +14,51 @@
 #include "../include/Process.h"
 #include "../include/String.h"
 #include "../include/Text.h"
+#include "../include/I386.h"
+#include "../include/System.h"
 
-/***************************************************************************/
+/************************************************************************/
+// Fault logging helpers (selector-aware)
+
+static void LogSelectorFromErrorCode(const char* Prefix, U32 Err) {
+    U16 sel = (U16)(Err & 0xFFFFu);
+    U16 idx = SELECTOR_INDEX(sel);
+    U16 ti  = SELECTOR_TI(sel);
+    U16 rpl = SELECTOR_RPL(sel);
+    KernelLogText(LOG_ERROR, TEXT("%s error code=%08X  selector=%04X  index=%u  TI=%u  RPL=%u"),
+                  Prefix, Err, (U32)sel, (U32)idx, (U32)ti, (U32)rpl);
+}
+
+/************************************************************************/
+
+static void LogDescriptorAndTSSFromSelector(const char* Prefix, U16 Sel) {
+    U16 ti  = SELECTOR_TI(Sel);
+    U16 idx = SELECTOR_INDEX(Sel);
+
+    if (ti != 0) {
+        KernelLogText(LOG_ERROR, TEXT("%s selector points to LDT (TI=1); no dump available"), Prefix);
+        return;
+    }
+
+    if (idx < GDT_NUM_BASE_DESCRIPTORS) {
+        KernelLogText(LOG_ERROR, TEXT("%s selector index %u is below base descriptors"), Prefix, (U32)idx);
+        return;
+    }
+
+    U32 table = idx - GDT_NUM_BASE_DESCRIPTORS;
+    LogTSSDescriptor(LOG_ERROR, (const TSSDESCRIPTOR*)&Kernel_i386.TTD[table]);
+    LogTaskStateSegment(LOG_ERROR, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + table));
+}
+
+/************************************************************************/
+
+static void LogTR(void) {
+    SELECTOR tr = GetTaskRegister();
+    KernelLogText(LOG_ERROR, TEXT("[Fault] TR=%04X (index=%u TI=%u RPL=%u)"),
+                  (U32)tr, (U32)SELECTOR_INDEX(tr), (U32)SELECTOR_TI(tr), (U32)SELECTOR_RPL(tr));
+}
+
+/************************************************************************/
 
 static void DumpFrame(LPINTERRUPTFRAME Frame) {
     LPPROCESS Process;
@@ -35,7 +78,7 @@ static void DumpFrame(LPINTERRUPTFRAME Frame) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void PrintFaultDetails(void) {
     INTEL386REGISTERS Regs;
@@ -60,7 +103,7 @@ static void PrintFaultDetails(void) {
     // LogPageDirectory(LOG_DEBUG, Table);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void Die(void) {
     LPTASK Task;
@@ -89,7 +132,7 @@ static void Die(void) {
     DO_THE_SLEEPING_BEAUTY;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DefaultHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Unknown interrupt\n"));
@@ -97,7 +140,7 @@ void DefaultHandler(LPINTERRUPTFRAME Frame) {
     Die();
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Divide error !\n"));
@@ -105,14 +148,16 @@ void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
     Die();
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
+    LogTR();
+
     KernelLogText(LOG_ERROR, TEXT("Debug exception !\n"));
     DumpFrame(Frame);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void NMIHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Non-maskable interrupt !\n"));
@@ -177,6 +222,10 @@ void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
+    LogTR();
+    LogSelectorFromErrorCode("[#TS]", Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#TS]", (U16)(Frame->ErrCode & 0xFFFFu)); }
+
     KernelLogText(LOG_ERROR, TEXT("Invalid TSS !\n"));
     DumpFrame(Frame);
     Die();
@@ -185,6 +234,10 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
+    LogTR();
+    LogSelectorFromErrorCode("[#NP]", Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#NP]", (U16)(Frame->ErrCode & 0xFFFFu)); }
+
     KernelLogText(LOG_ERROR, TEXT("Segment fault !\n"));
     DumpFrame(Frame);
     Die();
@@ -193,6 +246,10 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void StackFaultHandler(LPINTERRUPTFRAME Frame) {
+    LogTR();
+    LogSelectorFromErrorCode("[#SS]", Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#SS]", (U16)(Frame->ErrCode & 0xFFFFu)); }
+
     KernelLogText(LOG_ERROR, TEXT("Stack fault !\n"));
     DumpFrame(Frame);
     Die();
@@ -200,8 +257,10 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
-void GeneralProtectionHandler(U32 Code) {
-    UNUSED(Code);
+void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
+    LogTR();
+    LogSelectorFromErrorCode("[#GP]", Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#GP]", (U16)(Frame->ErrCode & 0xFFFFu)); }
 
     ConsolePrint(Text_NewLine);
     ConsolePrint(TEXT("General protection fault !\n"));
@@ -244,5 +303,3 @@ void AlignmentCheckHandler(void) {
     PrintFaultDetails();
     Die();
 }
-
-/***************************************************************************/

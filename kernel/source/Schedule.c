@@ -16,6 +16,17 @@
 #include "../include/Task.h"
 
 /***************************************************************************/
+// Internal helper for concise selector logging
+
+static void LogSelectorDetails(const char* Prefix, SELECTOR Sel) {
+    U16 idx = SELECTOR_INDEX(Sel);
+    U16 ti  = SELECTOR_TI(Sel);
+    U16 rpl = SELECTOR_RPL(Sel);
+    KernelLogText(LOG_DEBUG, TEXT("%s selector=%04X  index=%u  TI=%u  RPL=%u"),
+                  Prefix, (U32)Sel, (U32)idx, (U32)ti, (U32)rpl);
+}
+
+/***************************************************************************/
 
 typedef struct tag_TASKLIST {
     U32 Freeze;
@@ -152,26 +163,24 @@ void Scheduler(void) {
 
             switch (TaskList.Current->Status) {
                 case TASK_STATUS_RUNNING: {
+                    //-------------------------------------
+                    // Set the TSS descriptor "not busy" before jumping to it
 
-                    SELECTOR target = TaskList.Current->Selector;
-                    SELECTOR current = GetTaskRegister();
-
-                    if (SELECTOR_INDEX(target) == SELECTOR_INDEX(current) && SELECTOR_TI(target) == SELECTOR_TI(current)) {
-                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Skip switch: same TSS %X. Returning."), target);
-                        return;
-                    }
+                    Kernel_i386.TTD[TaskList.Current->Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
 
                     //-------------------------------------
                     // Switch to the new current task
 
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switch to task %X"), TaskList.Current);
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TSS selector = %X"), TaskList.Current->Selector);
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP = %X"), GetEBP());
 
-                    // LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*) &Kernel_i386.TTD[TaskList.Current->Table]);
-                    // TASKSTATESEGMENT* PTSS = (TASKSTATESEGMENT*)SEGMENTBASE((TSSDESCRIPTOR*)&Kernel_i386.TTD[TaskList.Current->Table]);
-                    // LogTaskStateSegment(LOG_DEBUG, PTSS);
-                    LogTaskStateSegment(LOG_DEBUG, (TASKSTATESEGMENT*)Kernel_i386.TSS + TaskList.Current->Table);
+                    SELECTOR target = TaskList.Current->Selector;
+                    SELECTOR current = GetTaskRegister();
+
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP=%X  TR=%04X"), GetEBP(), (U32)current);
+                    LogSelectorDetails("[Scheduler] Target", target);
+                    LogSelectorDetails("[Scheduler]   Curr", current);
+                    LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*)&Kernel_i386.TTD[TaskList.Current->Table]);
+                    LogTaskStateSegment(LOG_DEBUG, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + TaskList.Current->Table));
 
                     SwitchToTask(TaskList.Current->Selector);
 
