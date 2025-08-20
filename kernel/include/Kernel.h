@@ -43,7 +43,6 @@ typedef struct tag_CPUINFORMATION {
 } CPUINFORMATION, *LPCPUINFORMATION;
 
 /***************************************************************************/
-
 // Kernel selectors
 
 #define SELECTOR_GLOBAL 0x00
@@ -57,11 +56,8 @@ typedef struct tag_CPUINFORMATION {
 #define SELECTOR_USER_DATA (0x28 | SELECTOR_GLOBAL | PRIVILEGE_USER)
 #define SELECTOR_REAL_CODE (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 #define SELECTOR_REAL_DATA (0x38 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_TSS_0 (0x40 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_TSS_1 (0x50 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
 /***************************************************************************/
-
 // Task selectors
 
 #define TASK_SELECTOR_NULL 0x0000
@@ -106,7 +102,6 @@ typedef struct tag_CPUINFORMATION {
 #define NUM_TASKS 64
 
 /***************************************************************************/
-
 // The EXOS interrupt for user functions
 
 #define EXOS_USER_CALL 0x80

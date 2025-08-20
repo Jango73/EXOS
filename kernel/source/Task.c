@@ -9,6 +9,7 @@
 
 #include "../include/Address.h"
 #include "../include/Clock.h"
+#include "../include/I386.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"
@@ -37,7 +38,7 @@ TASK KernelTask = {
     .Parameter = NULL,
     .ReturnValue = 0,
     .Table = 0,
-    .Selector = SELECTOR_TSS_0,
+    .Selector = 0,
     .StackBase = 0,
     .StackSize = 0,
     .SysStackBase = 0,
@@ -224,11 +225,13 @@ BOOL InitKernelTask(void) {
     SetTSSDescriptorBase(&(Kernel_i386.TTD[0].TSS), (U32)(Kernel_i386.TSS + 0));
     SetTSSDescriptorLimit(&(Kernel_i386.TTD[0].TSS), sizeof(TASKSTATESEGMENT) - 1);
 
+    KernelTask.Table = 0;
+    KernelTask.Selector =
+    ( (GDT_NUM_BASE_DESCRIPTORS + (KernelTask.Table * GDT_TASK_DESCRIPTOR_ENTRIES)) << 3 )
+    | SELECTOR_GLOBAL
+    | PRIVILEGE_KERNEL;
+
     //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask] Calling UpdateScheduler"));
-
-    UpdateScheduler();
 
     return TRUE;
 }
@@ -302,8 +305,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Parameter = Info->Parameter;
     Task->Table = Table;
 
-    Task->Selector = ((GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE) + (Table * GDT_TASK_DESCRIPTORS_SIZE)) |
-                     SELECTOR_GLOBAL | Process->Privilege;
+    U16 TaskIndex = GDT_NUM_BASE_DESCRIPTORS + Table * GDT_TASK_DESCRIPTOR_ENTRIES;
+    Task->Selector = (TaskIndex << 3) | SELECTOR_GLOBAL | Process->Privilege;
 
     //-------------------------------------
     // Allocate the system stack
@@ -372,10 +375,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Kernel_i386.TSS[Table].FS = DataSelector;
     Kernel_i386.TSS[Table].GS = DataSelector;
     Kernel_i386.TSS[Table].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
-
-    if (Process->Privilege == PRIVILEGE_USER) {
-        Kernel_i386.TSS[Table].CS = SELECTOR_KERNEL_CODE;
-    }
 
     //-------------------------------------
     // Setup the TSS descriptor

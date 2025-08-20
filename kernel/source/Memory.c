@@ -248,17 +248,57 @@ Out:
 
 /***************************************************************************/
 
-// Frees one physical page and mark it free in PPB.
-// Returns the physical address (page-aligned) or 0 on failure.
+// Frees one physical page and marks it free in the PPB (bitmap).
 void FreePhysicalPage(PHYSICAL Page) {
-    UNUSED(Page);
+    U32 StartPage, PageIndex;
+
+    if ((Page & (PAGE_SIZE - 1)) != 0) {
+        KernelLogText(LOG_ERROR, TEXT("[FreePhysicalPage] Physical address not page-aligned (%X)"), Page);
+        return;
+    }
+
+    // Start from end of kernel region (KER + BSS + STK), in pages
+    StartPage =
+        (KernelStartup.SI_Phys_KER +
+         KernelStartup.SI_Size_KER +
+         KernelStartup.SI_Size_BSS +
+         KernelStartup.SI_Size_STK) >> PAGE_SIZE_MUL;
+
+    // Translate PA -> page index
+    PageIndex = (U32)(Page >> PAGE_SIZE_MUL);
+
+    // Guard: null and alignment
+    if (PageIndex < StartPage) return;
+
+    // Guard: never free page 0 (kept reserved on purpose)
+    if (PageIndex == 0) {
+        KernelLogText(LOG_ERROR, TEXT("[FreePhysicalPage] Attempt to free page 0"));
+        return;
+    }
+
+    // Bounds check
+    if (PageIndex >= KernelStartup.PageCount) {
+        KernelLogText(LOG_ERROR, TEXT("[FreePhysicalPage] Page index out of range (%X)"), PageIndex);
+        return;
+    }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
-    // TODO
+    // Bitmap math: 8 pages per byte
+    U32 ByteIndex = PageIndex >> MUL_8;             // == PageIndex / 8
+    U8  mask      = (U8)(1u << (PageIndex & 0x07)); // bit within the byte
+
+    // If already free, nothing to do
+    if ((Kernel_i386.PPB[ByteIndex] & mask) == 0) {
+        UnlockMutex(MUTEX_MEMORY);
+        KernelLogText(LOG_DEBUG, TEXT("[FreePhysicalPage] Page already free (PA=%X)"), Page);
+        return;
+    }
+
+    // Mark page as free
+    Kernel_i386.PPB[ByteIndex] = (U8)(Kernel_i386.PPB[ByteIndex] & (U8)~mask);
 
     UnlockMutex(MUTEX_MEMORY);
-    return;
 }
 
 /***************************************************************************/
@@ -300,6 +340,28 @@ static BOOL IsValidRegion(LINEAR Base, U32 Size) {
     return TRUE;
 }
 */
+
+/***************************************************************************/
+
+BOOL IsValidMemory(LINEAR Pointer) {
+    LPPAGEDIRECTORY Directory = (LPPAGEDIRECTORY)LA_DIRECTORY;
+
+    U32 dir = GetDirectoryEntry(Pointer);
+    U32 tab = GetTableEntry(Pointer);
+
+    // Bounds check (defensive)
+    if (dir >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+    if (tab >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+
+    // Page directory present?
+    if (Directory[dir].Present == 0) return FALSE;
+
+    // Page table present?
+    LPPAGETABLE Table = (LPPAGETABLE)(LA_PAGETABLE + (dir << PAGE_SIZE_MUL));
+    if (Table[tab].Present == 0) return FALSE;
+
+    return TRUE;
+}
 
 /*************************************************************************/
 

@@ -152,3 +152,114 @@ void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
         }
     }
 }
+
+/***************************************************************************/
+
+void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
+    /* Compute base, raw/effective limit */
+    const U32 Base =
+        ((U32)TssDescriptor->Base_00_15) |
+        (((U32)TssDescriptor->Base_16_23) << 16) |
+        (((U32)TssDescriptor->Base_24_31) << 24);
+
+    const U32 RawLimit =
+        ((U32)TssDescriptor->Limit_00_15) |
+        (((U32)TssDescriptor->Limit_16_19 & 0x0F) << 16);
+
+    const U32 EffectiveLimit = (TssDescriptor->Granularity ? ((RawLimit << 12) | 0xFFF) : RawLimit);
+    const U32 SizeBytes = EffectiveLimit + 1;
+
+    /* Raw fields */
+    KernelLogText(
+        LogType,
+        TEXT("TSSDESCRIPTOR:\n"
+             "  Limit_00_15   = %X\n"
+             "  Base_00_15    = %X\n"
+             "  Base_16_23    = %X\n"
+             "  Type          = %u\n"
+             "  Privilege     = %u\n"
+             "  Present       = %u\n"
+             "  Limit_16_19   = %X\n"
+             "  Available     = %u\n"
+             "  Granularity   = %u\n"
+             "  Base_24_31    = %X\n"),
+        (U16)TssDescriptor->Limit_00_15,
+        (U16)TssDescriptor->Base_00_15,
+        (U8)TssDescriptor->Base_16_23,
+        (U32)TssDescriptor->Type,
+        (U32)TssDescriptor->Privilege,
+        (U32)TssDescriptor->Present,
+        (U8)TssDescriptor->Limit_16_19,
+        (U32)TssDescriptor->Available,
+        (U32)TssDescriptor->Granularity,
+        (U8)TssDescriptor->Base_24_31
+    );
+
+    /* Decoded view */
+    KernelLogText(
+        LogType,
+        TEXT("TSSDESCRIPTOR (decoded):\n"
+             "  Base          = 0x%08lX\n"
+             "  RawLimit      = 0x%05lX\n"
+             "  EffLimit      = 0x%08lX (%u bytes)\n"),
+        (U32)Base, (U32)RawLimit, (U32)EffectiveLimit, (U32)SizeBytes
+    );
+}
+
+/***************************************************************************/
+
+void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
+    KernelLogText(
+        LogType,
+        TEXT("TASKSTATESEGMENT @ %p (sizeof=%u):\n"
+             "  BackLink  = 0x%04X\n"
+             "  ESP0/SS0  = 0x%08lX / 0x%04X\n"
+             "  ESP1/SS1  = 0x%08lX / 0x%04X\n"
+             "  ESP2/SS2  = 0x%08lX / 0x%04X\n"
+             "  CR3       = 0x%08lX\n"
+             "  EIP       = 0x%08lX\n"
+             "  EFlags    = 0x%08lX\n"
+             "  EAX/ECX   = 0x%08lX / 0x%08lX\n"
+             "  EDX/EBX   = 0x%08lX / 0x%08lX\n"
+             "  ESP/EBP   = 0x%08lX / 0x%08lX\n"
+             "  ESI/EDI   = 0x%08lX / 0x%08lX\n"
+             "  ES/CS     = 0x%04X / 0x%04X\n"
+             "  SS/DS     = 0x%04X / 0x%04X\n"
+             "  FS/GS     = 0x%04X / 0x%04X\n"
+             "  LDT       = 0x%04X\n"
+             "  Trap      = %u\n"
+             "  IOMap     = 0x%04X (linear @ %p)\n"),
+        (void*)Tss, (U32)sizeof(TASKSTATESEGMENT),
+        (U16)Tss->BackLink,
+        (U32)Tss->ESP0, (U16)Tss->SS0,
+        (U32)Tss->ESP1, (U16)Tss->SS1,
+        (U32)Tss->ESP2, (U16)Tss->SS2,
+        (U32)Tss->CR3,
+        (U32)Tss->EIP,
+        (U32)Tss->EFlags,
+        (U32)Tss->EAX, (U32)Tss->ECX,
+        (U32)Tss->EDX, (U32)Tss->EBX,
+        (U32)Tss->ESP, (U32)Tss->EBP,
+        (U32)Tss->ESI, (U32)Tss->EDI,
+        (U16)Tss->ES, (U16)Tss->CS,
+        (U16)Tss->SS, (U16)Tss->DS,
+        (U16)Tss->FS, (U16)Tss->GS,
+        (U16)Tss->LDT,
+        (U32)(Tss->Trap ? 1u : 0u),
+        (U16)Tss->IOMap,
+        (const void*)((const U8*)Tss + (U32)Tss->IOMap)
+    );
+
+    /* Optional – dump first 16 bytes of I/O bitmap for quick sanity */
+    /*
+    {
+        U32 Index = 0;
+        STR Line[128];
+        KernelLogText(LogType, TEXT("  IOMap[0..15]:"));
+        for (Index = 0; Index < 16; ++Index) {
+            KernelLogText(LogType, TEXT(" %02X"), (U32)Tss->IOMapBits[Index]);
+        }
+        KernelLogText(LogType, TEXT("\n"));
+    }
+    */
+}

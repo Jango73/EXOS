@@ -203,8 +203,6 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 void GeneralProtectionHandler(U32 Code) {
     UNUSED(Code);
 
-    INTEL386REGISTERS Regs;
-
     ConsolePrint(Text_NewLine);
     ConsolePrint(TEXT("General protection fault !\n"));
 
@@ -213,9 +211,6 @@ void GeneralProtectionHandler(U32 Code) {
     PrintFaultDetails();
     KernelLogText(LOG_ERROR, Text_Registers);
     KernelLogText(LOG_ERROR, Text_NewLine);
-
-    SaveRegisters(&Regs);
-    LogRegisters(&Regs);
 
     Die();
 }

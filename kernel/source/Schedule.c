@@ -152,16 +152,26 @@ void Scheduler(void) {
 
             switch (TaskList.Current->Status) {
                 case TASK_STATUS_RUNNING: {
-                    //-------------------------------------
-                    // Set the TSS descriptor "not busy" before jumping to it
 
-                    Kernel_i386.TTD[TaskList.Current->Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
+                    SELECTOR target = TaskList.Current->Selector;
+                    SELECTOR current = GetTaskRegister();
+
+                    if (SELECTOR_INDEX(target) == SELECTOR_INDEX(current) && SELECTOR_TI(target) == SELECTOR_TI(current)) {
+                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Skip switch: same TSS %X. Returning."), target);
+                        return;
+                    }
 
                     //-------------------------------------
                     // Switch to the new current task
 
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switch to task %X"), TaskList.Current);
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TSS selector = %X"), TaskList.Current->Selector);
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP = %X"), GetEBP());
+
+                    // LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*) &Kernel_i386.TTD[TaskList.Current->Table]);
+                    // TASKSTATESEGMENT* PTSS = (TASKSTATESEGMENT*)SEGMENTBASE((TSSDESCRIPTOR*)&Kernel_i386.TTD[TaskList.Current->Table]);
+                    // LogTaskStateSegment(LOG_DEBUG, PTSS);
+                    LogTaskStateSegment(LOG_DEBUG, (TASKSTATESEGMENT*)Kernel_i386.TSS + TaskList.Current->Table);
 
                     SwitchToTask(TaskList.Current->Selector);
 

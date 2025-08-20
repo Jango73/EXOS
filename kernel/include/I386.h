@@ -308,6 +308,55 @@ typedef struct tag_INTERRUPTFRAME {
 
 /***************************************************************************/
 
+#define GDT_TASK_DESCRIPTOR_ENTRIES 1
+
+/***************************************************************************/
+
+// ----- Selector bitfield layout (x86) -----
+// [15:3] Index | [2] TI (0=GDT,1=LDT) | [1:0] RPL
+// Constants below remove all magic numbers.
+
+// Number of low bits used by RPL (Requested Privilege Level)
+#define SELECTOR_RPL_BITS          2u
+#define SELECTOR_RPL_MASK          0x0003u
+#define SELECTOR_RPL_SHIFT         0u
+
+// Table Indicator (0=GDT, 1=LDT)
+#define SELECTOR_TI_MASK           0x0001u
+#define SELECTOR_TI_SHIFT          2u
+#define SELECTOR_TABLE_GDT         0u
+#define SELECTOR_TABLE_LDT         1u
+
+// Index starts at bit 3
+#define SELECTOR_INDEX_SHIFT       3u
+
+// ----- Accessors -----
+
+// Extract index from selector (ignores RPL and TI)
+#define SELECTOR_INDEX(sel)        ((U16)(sel) >> SELECTOR_INDEX_SHIFT)
+
+// Extract RPL (requested privilege level)
+#define SELECTOR_RPL(sel)          ((U16)(sel) & SELECTOR_RPL_MASK)
+
+// Extract TI (table indicator: 0=GDT, 1=LDT)
+#define SELECTOR_TI(sel)           ((((U16)(sel)) >> SELECTOR_TI_SHIFT) & SELECTOR_TI_MASK)
+
+// ----- Builders -----
+
+// Make a selector from index, TI (0=GDT/1=LDT) and RPL (0..3)
+#define MAKE_SELECTOR(index, ti, rpl) \
+    ( (SELECTOR)( (((U16)(index)) << SELECTOR_INDEX_SHIFT) \
+                | ((((U16)(ti))  & SELECTOR_TI_MASK)  << SELECTOR_TI_SHIFT) \
+                | (((U16)(rpl)) & SELECTOR_RPL_MASK)) )
+
+// Convenience: selector into GDT with given index and RPL
+#define MAKE_GDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_GDT, (rpl))
+
+// Convenience: selector into LDT with given index and RPL
+#define MAKE_LDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_LDT, (rpl))
+
+/***************************************************************************/
+
 typedef U16 SELECTOR;
 typedef U32 OFFSET;
 
@@ -317,6 +366,7 @@ typedef struct tag_FARPOINTER {
 } FARPOINTER, *LPFARPOINTER;
 
 /***************************************************************************/
+// Privilege levels (rings)
 
 #define PRIVILEGE_KERNEL 0x00
 #define PRIVILEGE_DRIVERS 0x01

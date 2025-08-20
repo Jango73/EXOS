@@ -40,6 +40,8 @@ void LogPageTable(U32 LogType, const PAGETABLE* PageTable);
 void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescriptor);
 void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEntry);
 void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory);
+void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor);
+void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss);
 
 /***************************************************************************/
 

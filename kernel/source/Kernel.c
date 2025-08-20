@@ -455,6 +455,18 @@ void InitializeKernel(void) {
     InitializeKernelProcess();
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Kernel process initialized"));
 
+    KernelLogText(LOG_VERBOSE, TEXT(""));
+    KernelLogText(LOG_VERBOSE, TEXT(""));
+
+    //-------------------------------------
+    // Setup the kernel's main task
+
+    InitKernelTask();
+    LoadInitialTaskRegister(KernelTask.Selector);
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel task setup"));
+
+    LogTaskStateSegment(LOG_DEBUG, (TASKSTATESEGMENT*)Kernel_i386.TSS);
+
     //-------------------------------------
     // Initialize the console
 
@@ -477,13 +489,6 @@ void InitializeKernel(void) {
     // Print system infomation
 
     DumpSystemInformation();
-
-    //-------------------------------------
-    // Setup the kernel's main task
-
-    InitKernelTask();
-    LoadInitialTaskRegister(KernelTask.Selector);
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel task setup"));
 
     //-------------------------------------
     // Get information on CPU
@@ -584,6 +589,13 @@ void InitializeKernel(void) {
 
       CreateProcess(&ProcessInfo);
     */
+
+
+    //-------------------------------------
+    // Enable interrupts
+
+    EnableInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
 }
 
 /***************************************************************************/
