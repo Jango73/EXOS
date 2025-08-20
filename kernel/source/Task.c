@@ -93,7 +93,7 @@ LPTASK NewTask(void) {
         return NULL;
     }
 
-    KernelLogText(LOG_ERROR, TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
 
     *This = (TASK){.ID = ID_TASK, .References = 1, .Mutex = EMPTY_MUTEX, .MessageMutex = EMPTY_MUTEX};
 
@@ -103,11 +103,11 @@ LPTASK NewTask(void) {
     //-------------------------------------
     // Initialize the message queue
 
-    KernelLogText(LOG_ERROR, TEXT("[NewTask] Initialize task message queue"));
-    KernelLogText(LOG_ERROR, TEXT("[NewTask] MessageDestructor = %X"), (LINEAR)MessageDestructor);
-    KernelLogText(LOG_ERROR, TEXT("[NewTask] KernelMemAlloc = %X"), (LINEAR)KernelMemAlloc);
-    KernelLogText(LOG_ERROR, TEXT("[NewTask] KernelMemFree = %X"), (LINEAR)KernelMemFree);
-    KernelLogText(LOG_ERROR, TEXT("[NewTask] EBP = %X"), (LINEAR)GetEBP());
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Initialize task message queue"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] MessageDestructor = %X"), (LINEAR)MessageDestructor);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] KernelMemAlloc = %X"), (LINEAR)KernelMemAlloc);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] KernelMemFree = %X"), (LINEAR)KernelMemFree);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] EBP = %X"), (LINEAR)GetEBP());
 
     This->Message = NewList(MessageDestructor, KernelMemAlloc, KernelMemFree);
 

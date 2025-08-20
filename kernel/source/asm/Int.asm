@@ -166,7 +166,7 @@ Interrupt_MathOverflow :
 Interrupt_InvalidTSS :
 
     ISR_BUILD_FRAME_ERR_AND_CALL 10, InvalidTSSHandler
-    ISR_RETURN
+    ISR_RETURN_ERR
 
 ;--------------------------------------
 ; Int 11     : Segment Not Present (#NP)
@@ -176,7 +176,7 @@ Interrupt_InvalidTSS :
 Interrupt_SegmentFault :
 
     ISR_BUILD_FRAME_ERR_AND_CALL 11, SegmentFaultHandler
-    ISR_RETURN
+    ISR_RETURN_ERR
 
 ;--------------------------------------
 ; Int 12     : Stack Fault Exception (#SS)
@@ -186,7 +186,7 @@ Interrupt_SegmentFault :
 Interrupt_StackFault :
 
     ISR_BUILD_FRAME_ERR_AND_CALL 12, StackFaultHandler
-    ISR_RETURN
+    ISR_RETURN_ERR
 
 ;--------------------------------------
 ; Int 13     : General Protection Exception (#GP)
@@ -196,7 +196,7 @@ Interrupt_StackFault :
 Interrupt_GeneralProtection :
 
     ISR_BUILD_FRAME_ERR_AND_CALL 13, GeneralProtectionHandler
-    ISR_RETURN
+    ISR_RETURN_ERR
 
 ;--------------------------------------
 ; Int 14     : Page Fault Exception (#PF)

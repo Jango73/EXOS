@@ -268,8 +268,6 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, Text_NewLine);
     KernelLogText(LOG_ERROR, TEXT("General protection fault\n"));
     PrintFaultDetails();
-    KernelLogText(LOG_ERROR, Text_Registers);
-    KernelLogText(LOG_ERROR, Text_NewLine);
 
     Die();
 }

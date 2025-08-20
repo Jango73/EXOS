@@ -191,9 +191,9 @@
     test        eax, 3
     jz          %%no_user
 
-    mov         eax, [esp + OFF_HW_ERR + 12]       ; User ESP
+    mov         eax, [esp + OFF_HW_ERR + 16]       ; User ESP (shifted by error code)
     mov         [edi + R_ESP], eax
-    movzx       eax, word [esp + OFF_HW_ERR + 16]  ; User SS
+    movzx       eax, word [esp + OFF_HW_ERR + 20]  ; User SS (shifted by error code)
     mov         word [edi + R_SS], ax
 
 %%no_user:
@@ -226,7 +226,6 @@
     add         esp, 4
 %endmacro
 
-
 %macro ISR_RETURN 0
     add         esp, SIZE_FRAME     ; free the reserved INTERRUPTFRAME
 
@@ -236,6 +235,17 @@
     pop         ds
 
     popad
+    iretd
+%endmacro
+
+%macro ISR_RETURN_ERR 0
+    add         esp, SIZE_FRAME     ; free the reserved INTERRUPTFRAME
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
+    add         esp, 4              ; discard error code pushed by CPU
     iretd
 %endmacro
 
