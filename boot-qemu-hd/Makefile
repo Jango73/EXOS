@@ -24,6 +24,12 @@ PAYLOAD_BIN     = bin/payload.bin
 PAYLOAD_ELF     = bin/payload.elf
 PAYLOAD_MAP     = bin/payload.map
 
+CFLAGS  = -m16 -g -Wall -Wextra -O2 \
+	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+	-fvisibility=hidden -mno-red-zone \
+	-Werror-implicit-function-declaration -Wstrict-prototypes
+
 LD      		= i686-elf-ld
 LDFLAGS 		= -nostdlib -no-pie
 
@@ -99,7 +105,7 @@ $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 
 $(PAYLOAD_C_O): $(PAYLOAD_C)
 	@echo "Compiling payload C..."
-	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
+	i686-elf-gcc $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 	@echo "Compiling String..."

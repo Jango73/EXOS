@@ -6,13 +6,15 @@ NASM    = nasm
 OBJCOPY = i686-elf-objcopy
 READELF = i686-elf-readelf
 
-# NOTE: avoid GOT/PLT by forcing non-PIE codegen and link
-CFLAGS  = -DNAME="__KERNEL__" -g -ffreestanding -m32 -Wall -Wextra -O0 \
-          -fno-pic -fno-pie -fno-plt -fno-stack-protector -fno-builtin \
-          -Werror-implicit-function-declaration -Wstrict-prototypes
+CFLAGS  = -DNAME="__KERNEL__" -g -Wall -Wextra -O2 \
+	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+	-fvisibility=hidden -mno-red-zone \
+	-Werror-implicit-function-declaration -Wstrict-prototypes
+
 AFLAGS  = -f elf -g -F dwarf -I source/asm/
 
-LDFLAGS_ELF = -T linker-elf.ld -nostdlib -Map=bin/exos-elf.map
+LDFLAGS_ELF = -T linker-elf.ld -static -nostdlib -no-pie --no-dynamic-linker --verbose -Map=bin/exos-elf.map
 
 KERNEL_ELF = bin/exos.elf
 
