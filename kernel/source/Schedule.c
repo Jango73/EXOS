@@ -163,22 +163,26 @@ void Scheduler(void) {
 
             switch (TaskList.Current->Status) {
                 case TASK_STATUS_RUNNING: {
-                    //-------------------------------------
-                    // Set the TSS descriptor "not busy" before jumping to it
 
-                    Kernel_i386.TTD[TaskList.Current->Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
+                    SELECTOR target = TaskList.Current->Selector;
+                    SELECTOR current = GetTaskRegister();
+
+                    if (SELECTOR_INDEX(target) == SELECTOR_INDEX(current) && SELECTOR_TI(target) == SELECTOR_TI(current)) {
+                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Skip switch: same TSS %X. Returning."), target);
+                        return;
+                    }
 
                     //-------------------------------------
                     // Switch to the new current task
 
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switch to task %X"), TaskList.Current);
 
-                    SELECTOR target = TaskList.Current->Selector;
-                    SELECTOR current = GetTaskRegister();
+                    SELECTOR CurrentSelector = GetTaskRegister();
+                    SELECTOR TargetSelector = TaskList.Current->Selector;
 
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP=%X  TR=%04X"), GetEBP(), (U32)current);
-                    LogSelectorDetails("[Scheduler] Target", target);
-                    LogSelectorDetails("[Scheduler]   Curr", current);
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP=%X  TR=%04X"), GetEBP(), (U32)CurrentSelector);
+                    LogSelectorDetails("[Scheduler] Target", TargetSelector);
+                    LogSelectorDetails("[Scheduler]   Curr", CurrentSelector);
                     LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*)&Kernel_i386.TTD[TaskList.Current->Table]);
                     LogTaskStateSegment(LOG_DEBUG, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + TaskList.Current->Table));
 
