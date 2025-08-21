@@ -122,9 +122,6 @@ SEGMENT_DESCRIPTOR_SIZE equ 8
 GATE_DESCRIPTOR_SIZE    equ 8
 
 NUM_INTS                equ 256
-NUM_DESCRIPTORS         equ 8
-NUM_TASKS               equ 128
-NUM_LOCAL_DESCRIPTORS   equ 4
 
 ;----------------------------------------------------------
 ; Privilege levels
@@ -244,6 +241,7 @@ extern ConsolePrintChar
 extern ClockTask
 extern KillTask
 extern GetCurrentTask
+extern ValidateEIPOrDie
 
 extern SystemCallHandler
 extern DriverCallHandler

@@ -1,11 +1,11 @@
 
-/***************************************************************************\
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
     All rights reserved
 
-\***************************************************************************/
+\************************************************************************/
 
 #include "../include/Log.h"
 #include "../include/Memory.h"
@@ -43,7 +43,7 @@ void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
     KernelLogText(
@@ -182,7 +182,7 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
              "  Limit_16_19   = %X\n"
              "  Available     = %u\n"
              "  Granularity   = %u\n"
-             "  Base_24_31    = %X\n"),
+             "  Base_24_31    = %X"),
         (U16)TssDescriptor->Limit_00_15,
         (U16)TssDescriptor->Base_00_15,
         (U8)TssDescriptor->Base_16_23,
@@ -201,7 +201,7 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
         TEXT("TSSDESCRIPTOR (decoded):\n"
              "  Base          = 0x%08lX\n"
              "  RawLimit      = 0x%05lX\n"
-             "  EffLimit      = 0x%08lX (%u bytes)\n"),
+             "  EffLimit      = 0x%08lX (%u bytes)"),
         (U32)Base, (U32)RawLimit, (U32)EffectiveLimit, (U32)SizeBytes
     );
 }
@@ -228,7 +228,7 @@ void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
              "  FS/GS     = 0x%04X / 0x%04X\n"
              "  LDT       = 0x%04X\n"
              "  Trap      = %u\n"
-             "  IOMap     = 0x%04X (linear @ %p)\n"),
+             "  IOMap     = 0x%04X (linear @ %p)"),
         (void*)Tss, (U32)sizeof(TASKSTATESEGMENT),
         (U16)Tss->BackLink,
         (U32)Tss->ESP0, (U16)Tss->SS0,

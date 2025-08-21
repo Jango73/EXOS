@@ -1,11 +1,11 @@
 
-/***************************************************************************\
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
     All rights reserved
 
-\***************************************************************************/
+\************************************************************************/
 
 #include "../include/Address.h"
 #include "../include/Clock.h"
@@ -14,7 +14,66 @@
 #include "../include/Log.h"
 #include "../include/Process.h"
 
-/***************************************************************************/
+/************************************************************************\
+
+    GDTR (6 bytes)
+    ┌───────────────────────────────────────────────────────────────┐
+    │ base = LA_GDT = 0xFF401000   •   limit ≈ 0x1FFF (8 KiB - 1)   │
+    └───────────────────────────────────────────────────────────────┘
+                    │
+                    ▼
+    GDT @ LA_GDT = 0xFF401000   (each entry = 8 bytes)
+    ┌──────┬───────────┬──────────────┬─────────────────────────────┐
+    │Idx   │ Selector  │ VA (LA_GDT + │ Role / Notes                │
+    │      │ (hex)     │   idx*8)     │                             │
+    ├──────┼───────────┼──────────────┼─────────────────────────────┤
+    │0     │ 0x00      │ +0x00        │ NULL                        │
+    │1     │ 0x08      │ +0x08        │ Kernel Code                 │
+    │2     │ 0x10      │ +0x10        │ Kernel Data                 │
+    │3     │ 0x18      │ +0x18        │ User   Code                 │
+    │4     │ 0x20      │ +0x20        │ User   Data                 │
+    │5     │ 0x28      │ +0x28        │ (free / system)             │
+    │6     │ 0x30      │ +0x30        │ (free / system)             │
+    │7     │ 0x38      │ +0x38        │ (free / system)             │
+    │------┴───────────┴──────────────┴─────────────────────────────│
+    │  Per-task region starts at:                                   │
+    │    LA_GDT_TASK = LA_GDT + GDT_NUM_BASE_DESCRIPTORS*8          │
+    │               = 0xFF401000 + 8*8 = 0xFF401040                 │
+    ├──────┬───────────┬──────────────┬─────────────────────────────┤
+    │8     │ 0x40      │ +0x40        │ Task 0 • TSS descriptor     │
+    │9     │ 0x48      │ +0x48        │ Task 0 • LDT descriptor (*) │
+    │10    │ 0x50      │ +0x50        │ Task 1 • TSS descriptor     │
+    │11    │ 0x58      │ +0x58        │ Task 1 • LDT descriptor (*) │
+    │12    │ 0x60      │ +0x60        │ Task 2 • TSS descriptor     │
+    │13    │ 0x68      │ +0x68        │ Task 2 • LDT descriptor (*) │
+    │…     │ …         │ …            │ …                           │
+    └──────┴───────────┴──────────────┴─────────────────────────────┘
+    (*) LDT slot reserved (P=0).
+    Per-task slot size in the GDT = 2 entries = 16 bytes (TSS then LDT).
+
+    TTD (per-task descriptor array in C)
+    LA_GDT_TASK = 0xFF401040  →  points inside the GDT
+    ┌───────────────────────────────────────────────────────────────┐
+    │ TTD[0] @ LA_GDT_TASK + 0x00 : { TSS desc, LDT desc }          │
+    │ TTD[1] @ LA_GDT_TASK + 0x10 : { TSS desc, LDT desc }          │
+    │ TTD[2] @ LA_GDT_TASK + 0x20 : { TSS desc, LDT desc }          │
+    │ …                                                             │
+    └───────────────────────────────────────────────────────────────┘
+    (Each TTD slot = sizeof(TASKTSSDESCRIPTOR) = 16 bytes = 2 GDT entries.)
+
+    TSS memory (system area)
+    LA_SYSTEM = 0xFF400000
+    ┌───────────────────────────────────────────────────────────────┐
+    │ TSS[0] @ LA_SYSTEM + 0x8000 = 0xFF408000  (256 bytes)         │
+    │ TSS[1] @ LA_SYSTEM + 0x8100 = 0xFF408100  (256 bytes)         │
+    │ TSS[2] @ LA_SYSTEM + 0x8200 = 0xFF408200  (256 bytes)         │
+    │ …                                                             │
+    └───────────────────────────────────────────────────────────────┘
+    (TSS[i] = 0xFF408000 + i*0x100 ; limit = 0xFF (byte granularity).)
+
+\************************************************************************/
+
+/************************************************************************/
 
 LIST KernelTaskMessageList = {
     .First = NULL,
@@ -48,7 +107,7 @@ TASK KernelTask = {
     .MessageMutex = EMPTY_MUTEX,
     .Message = &KernelTaskMessageList};
 
-/***************************************************************************/
+/************************************************************************/
 
 static LPMESSAGE NewMessage(void) {
     LPMESSAGE This;
@@ -65,7 +124,7 @@ static LPMESSAGE NewMessage(void) {
     return This;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DeleteMessage(LPMESSAGE This) {
     if (This == NULL) return;
@@ -75,11 +134,11 @@ void DeleteMessage(LPMESSAGE This) {
     KernelMemFree(This);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 
-/***************************************************************************/
+/************************************************************************/
 
 LPTASK NewTask(void) {
     LPTASK This = NULL;
@@ -186,6 +245,11 @@ BOOL InitKernelTask(void) {
 
     StackPointer = KernelTask.StackBase + KernelTask.StackSize;
 
+    KernelTask.Selector =
+    ( (GDT_NUM_BASE_DESCRIPTORS + (KernelTask.Table * GDT_TASK_DESCRIPTOR_ENTRIES)) << 3 )
+    | SELECTOR_GLOBAL
+    | PRIVILEGE_KERNEL;
+
     //-------------------------------------
     // Setup the TSS
 
@@ -201,7 +265,7 @@ BOOL InitKernelTask(void) {
     Kernel_i386.TSS[0].ESP2 = StackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
     Kernel_i386.TSS[0].CR3 = KernelStartup.SI_Phys_PGD;
     Kernel_i386.TSS[0].EIP = (U32)TaskRunner;
-    Kernel_i386.TSS[0].EFlags = EFLAGS_A1 | EFLAGS_IF;
+    Kernel_i386.TSS[0].EFlags = EFLAGS_A1;
     Kernel_i386.TSS[0].EAX = 0;
     Kernel_i386.TSS[0].EBX = 0;
     Kernel_i386.TSS[0].ESP = StackPointer - (3 * TASK_SYSTEM_STACK_SIZE);
@@ -224,12 +288,6 @@ BOOL InitKernelTask(void) {
 
     SetTSSDescriptorBase(&(Kernel_i386.TTD[0].TSS), (U32)(Kernel_i386.TSS + 0));
     SetTSSDescriptorLimit(&(Kernel_i386.TTD[0].TSS), sizeof(TASKSTATESEGMENT) - 1);
-
-    KernelTask.Table = 0;
-    KernelTask.Selector =
-    ( (GDT_NUM_BASE_DESCRIPTORS + (KernelTask.Table * GDT_TASK_DESCRIPTOR_ENTRIES)) << 3 )
-    | SELECTOR_GLOBAL
-    | PRIVILEGE_KERNEL;
 
     //-------------------------------------
 
@@ -268,6 +326,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     if (Info->Priority > TASK_PRIORITY_CRITICAL) {
         Info->Priority = TASK_PRIORITY_CRITICAL;
+    }
+
+    if (IsValidMemory(Info->Func) == FALSE) {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
+        return NULL;
     }
 
     //-------------------------------------
@@ -363,7 +426,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Kernel_i386.TSS[Table].ESP2 = SysStackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
     Kernel_i386.TSS[Table].CR3 = Process->PageDirectory;
     Kernel_i386.TSS[Table].EIP = (U32)TaskRunner;
-    Kernel_i386.TSS[Table].EFlags = EFLAGS_A1 | EFLAGS_IF;
+    Kernel_i386.TSS[Table].EFlags = EFLAGS_A1;
     Kernel_i386.TSS[Table].EAX = (U32)Task->Parameter;
     Kernel_i386.TSS[Table].EBX = (U32)Task->Function;
     Kernel_i386.TSS[Table].ESP = StackPointer;

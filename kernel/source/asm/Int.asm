@@ -244,13 +244,8 @@ Interrupt_PageFault:
 
 Interrupt_AlignmentCheck :
 
-    pusha
-    call    EnterKernel
-    call    AlignmentCheckHandler
-    hlt
-    popa
-    add     esp, 4                        ; Remove error code
-    iretd
+    ISR_BUILD_FRAME_ERR_AND_CALL 17, AlignmentCheckHandler
+    ISR_RETURN_ERR
 
 ;--------------------------------------
 ; Int 18     : Machine-Check Exception (#MC)

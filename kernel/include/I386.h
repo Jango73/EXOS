@@ -308,10 +308,6 @@ typedef struct tag_INTERRUPTFRAME {
 
 /***************************************************************************/
 
-#define GDT_TASK_DESCRIPTOR_ENTRIES 1
-
-/***************************************************************************/
-
 // ----- Selector bitfield layout (x86) -----
 // [15:3] Index | [2] TI (0=GDT,1=LDT) | [1:0] RPL
 // Constants below remove all magic numbers.
@@ -493,7 +489,7 @@ typedef struct tag_FARPOINTER {
 #define EFLAGS_RES2 0x00000020
 #define EFLAGS_ZF 0x00000040  // Zero flag
 #define EFLAGS_SF 0x00000080  // Sign flag
-#define EFLAGS_TF 0x00000100
+#define EFLAGS_TF 0x00000100  // Trap flag
 #define EFLAGS_IF 0x00000200  // Interrupt flag
 #define EFLAGS_RES3 0x00000400
 #define EFLAGS_OF 0x00000800     // Overflow flag

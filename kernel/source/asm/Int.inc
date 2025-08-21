@@ -35,8 +35,8 @@
 %define SIZE_FRAME  (SIZE_REGS + 8)
 
 ; After pushad, saved GPRs sit 32 bytes below ESP; HW frame is above them.
-%define OFF_SAVED_GPRS   (SIZE_FRAME)          ; +0: EDI, +4: ESI, +8: EBP, +12: ESP(sv), +16: EBX, +20: EDX, +24: ECX, +28: EAX
-%define OFF_HW_NOERR     (SIZE_FRAME + 32)     ; +0: EIP, +4: CS, +8: EFLAGS, (+12: UESP, +16: USS if CPL3)
+%define OFF_SAVED_GPRS   (SIZE_FRAME + 16)          ; +0: EDI, +4: ESI, +8: EBP, +12: ESP(sv), +16: EBX, +20: EDX, +24: ECX, +28: EAX
+%define OFF_HW_NOERR     (SIZE_FRAME + 16 + 32)     ; +0:EIP, +4:CS, +8:EFLAGS, (+12:UserESP, +16:UserSS if CPL3)
 
 ; ------------------- Build frame (NO error code) and call C --------------------
 ; Usage: ISR_BUILD_FRAME_NOERR_AND_CALL IntNo, C_HandlerLabel
@@ -104,9 +104,8 @@
 %%no_user:
 
     ; Original segment regs captured before EnterKernel
-    mov         word [edi + R_DS], ax              ; WARNING: ax currently has SS(user) or CS; restore DS value:
-    mov         word [edi + R_DS], bx              ; DS
-    mov         word [edi + R_ES], bx              ; ES (bx had ES)
+    mov         word [edi + R_DS], ax              ; DS
+    mov         word [edi + R_ES], bx              ; ES
     mov         word [edi + R_FS], cx              ; FS (low16 of ECX)
     mov         word [edi + R_GS], dx              ; GS (low16 of EDX)
 
@@ -116,10 +115,16 @@
     mov         dword [edi + R_CR3], 0
     mov         dword [edi + R_CR4], 0
 
-    mov         dword [edi + R_DR0], 0
-    mov         dword [edi + R_DR1], 0
-    mov         dword [edi + R_DR2], 0
-    mov         dword [edi + R_DR3], 0
+    push        edx
+    mov         edx, dr0
+    mov         dword [edi + R_DR0], edx
+    mov         edx, dr1
+    mov         dword [edi + R_DR1], edx
+    mov         edx, dr2
+    mov         dword [edi + R_DR2], edx
+    mov         edx, dr3
+    mov         dword [edi + R_DR3], edx
+    pop         edx
 
     ; ---------------- Tail: IntNo / ErrCode -----------------
     mov     dword [edi + F_IntNo],  %1
@@ -133,8 +138,8 @@
 ; ------------------- Variant: with CPU error code on stack ------------------
 ; For exceptions that push an error code (#TS, #NP, #SS, #GP, #PF, #AC, etc.).
 ; Hardware layout at entry (top->bottom): [err][EIP][CS][EFLAGS][(UserESP,UserSS if CPL3)]
-%define OFF_HW_ERR     (SIZE_FRAME + 32 + 4)   ; +0:EIP, +4:CS, +8:EFLAGS, (+12:UserESP, +16:UserSS)
-%define OFF_ERR_WORD   (OFF_HW_ERR - 4)        ; location of error code dword
+%define OFF_HW_ERR       (SIZE_FRAME + 16 + 32)     ; base of EIP; error code at +12
+%define OFF_ERR_WORD     (OFF_HW_ERR + 12)          ; location of error code dword
 
 %macro ISR_BUILD_FRAME_ERR_AND_CALL 2
     cli
@@ -199,7 +204,7 @@
 %%no_user:
 
     ; Original segment regs captured before EnterKernel
-    mov         word [edi + R_DS], bx              ; DS
+    mov         word [edi + R_DS], ax              ; DS
     mov         word [edi + R_ES], bx              ; ES
     mov         word [edi + R_FS], cx              ; FS (low16 of ECX)
     mov         word [edi + R_GS], dx              ; GS (low16 of EDX)
@@ -210,10 +215,16 @@
     mov         dword [edi + R_CR3], 0
     mov         dword [edi + R_CR4], 0
 
-    mov         dword [edi + R_DR0], 0
-    mov         dword [edi + R_DR1], 0
-    mov         dword [edi + R_DR2], 0
-    mov         dword [edi + R_DR3], 0
+    push        edx
+    mov         edx, dr0
+    mov         dword [edi + R_DR0], edx
+    mov         edx, dr1
+    mov         dword [edi + R_DR1], edx
+    mov         edx, dr2
+    mov         dword [edi + R_DR2], edx
+    mov         edx, dr3
+    mov         dword [edi + R_DR3], edx
+    pop         edx
 
     ; ---------------- Tail: IntNo / ErrCode -----------------
     mov     dword [edi + F_IntNo],  %1
@@ -227,7 +238,7 @@
 %endmacro
 
 %macro ISR_RETURN 0
-    add         esp, SIZE_FRAME     ; free the reserved INTERRUPTFRAME
+    add         esp, SIZE_FRAME      ; free the reserved INTERRUPTFRAME
 
     pop         gs
     pop         fs
@@ -239,7 +250,7 @@
 %endmacro
 
 %macro ISR_RETURN_ERR 0
-    add         esp, SIZE_FRAME     ; free the reserved INTERRUPTFRAME
+    add         esp, SIZE_FRAME      ; free the reserved INTERRUPTFRAME
     pop         gs
     pop         fs
     pop         es

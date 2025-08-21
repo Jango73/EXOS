@@ -25,6 +25,7 @@ static void LogSelectorFromErrorCode(const char* Prefix, U32 Err) {
     U16 idx = SELECTOR_INDEX(sel);
     U16 ti  = SELECTOR_TI(sel);
     U16 rpl = SELECTOR_RPL(sel);
+
     KernelLogText(LOG_ERROR, TEXT("%s error code=%08X  selector=%04X  index=%u  TI=%u  RPL=%u"),
                   Prefix, Err, (U32)sel, (U32)idx, (U32)ti, (U32)rpl);
 }
@@ -54,7 +55,8 @@ static void LogDescriptorAndTSSFromSelector(const char* Prefix, U16 Sel) {
 
 static void LogTR(void) {
     SELECTOR tr = GetTaskRegister();
-    KernelLogText(LOG_ERROR, TEXT("[Fault] TR=%04X (index=%u TI=%u RPL=%u)"),
+
+    KernelLogText(LOG_ERROR, TEXT("TR=%04X (index=%u TI=%u RPL=%u)"),
                   (U32)tr, (U32)SELECTOR_INDEX(tr), (U32)SELECTOR_TI(tr), (U32)SELECTOR_RPL(tr));
 }
 
@@ -134,8 +136,16 @@ static void Die(void) {
 
 /************************************************************************/
 
+void ValidateEIPOrDie(LINEAR Address) {
+    if (IsValidMemory(Address) == FALSE) {
+        Die();
+    }
+}
+
+/************************************************************************/
+
 void DefaultHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Unknown interrupt\n"));
+    KernelLogText(LOG_ERROR, TEXT("Unknown interrupt"));
     DumpFrame(Frame);
     Die();
 }
@@ -143,7 +153,7 @@ void DefaultHandler(LPINTERRUPTFRAME Frame) {
 /************************************************************************/
 
 void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Divide error !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Divide error"));
     DumpFrame(Frame);
     Die();
 }
@@ -151,23 +161,23 @@ void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
 /************************************************************************/
 
 void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
+    KernelLogText(LOG_ERROR, TEXT("Debug exception"));
     LogTR();
-
-    KernelLogText(LOG_ERROR, TEXT("Debug exception !\n"));
     DumpFrame(Frame);
+    Die();
 }
 
 /************************************************************************/
 
 void NMIHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Non-maskable interrupt !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Non-maskable interrupt"));
     DumpFrame(Frame);
 }
 
 /***************************************************************************/
 
 void BreakPointHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Breakpoint !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Breakpoint"));
     DumpFrame(Frame);
     Die();
 }
@@ -175,7 +185,7 @@ void BreakPointHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void OverflowHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Overflow !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Overflow"));
     DumpFrame(Frame);
     Die();
 }
@@ -183,7 +193,7 @@ void OverflowHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Bound range fault !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Bound range fault"));
     DumpFrame(Frame);
     Die();
 }
@@ -191,7 +201,7 @@ void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Invalid opcode !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Invalid opcode"));
     DumpFrame(Frame);
     Die();
 }
@@ -199,14 +209,14 @@ void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void DeviceNotAvailHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Device not available !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Device not available"));
     DumpFrame(Frame);
 }
 
 /***************************************************************************/
 
 void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Double fault !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Double fault"));
     DumpFrame(Frame);
     Die();
 }
@@ -214,7 +224,7 @@ void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("Math overflow !\n"));
+    KernelLogText(LOG_ERROR, TEXT("Math overflow"));
     DumpFrame(Frame);
     Die();
 }
@@ -222,11 +232,12 @@ void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
+    KernelLogText(LOG_ERROR, TEXT("Invalid TSS"));
+
     LogTR();
     LogSelectorFromErrorCode("[#TS]", Frame ? Frame->ErrCode : 0);
     if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#TS]", (U16)(Frame->ErrCode & 0xFFFFu)); }
 
-    KernelLogText(LOG_ERROR, TEXT("Invalid TSS !\n"));
     DumpFrame(Frame);
     Die();
 }
@@ -234,11 +245,12 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
+    KernelLogText(LOG_ERROR, TEXT("Segment fault"));
+
     LogTR();
     LogSelectorFromErrorCode("[#NP]", Frame ? Frame->ErrCode : 0);
     if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#NP]", (U16)(Frame->ErrCode & 0xFFFFu)); }
 
-    KernelLogText(LOG_ERROR, TEXT("Segment fault !\n"));
     DumpFrame(Frame);
     Die();
 }
@@ -246,11 +258,12 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void StackFaultHandler(LPINTERRUPTFRAME Frame) {
+    KernelLogText(LOG_ERROR, TEXT("Stack fault"));
+
     LogTR();
     LogSelectorFromErrorCode("[#SS]", Frame ? Frame->ErrCode : 0);
     if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#SS]", (U16)(Frame->ErrCode & 0xFFFFu)); }
 
-    KernelLogText(LOG_ERROR, TEXT("Stack fault !\n"));
     DumpFrame(Frame);
     Die();
 }
@@ -258,17 +271,17 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
-    LogTR();
-    LogSelectorFromErrorCode("[#GP]", Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#GP]", (U16)(Frame->ErrCode & 0xFFFFu)); }
-
     ConsolePrint(Text_NewLine);
     ConsolePrint(TEXT("General protection fault !\n"));
 
     KernelLogText(LOG_ERROR, Text_NewLine);
-    KernelLogText(LOG_ERROR, TEXT("General protection fault\n"));
-    PrintFaultDetails();
+    KernelLogText(LOG_ERROR, TEXT("General protection fault"));
 
+    LogTR();
+    LogSelectorFromErrorCode("[#GP]", Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#GP]", (U16)(Frame->ErrCode & 0xFFFFu)); }
+
+    PrintFaultDetails();
     Die();
 }
 
@@ -296,8 +309,9 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
 
 /***************************************************************************/
 
-void AlignmentCheckHandler(void) {
-    KernelLogText(LOG_ERROR, TEXT("Alignment check fault !\n"));
+void AlignmentCheckHandler(LPINTERRUPTFRAME Frame) {
+    KernelLogText(LOG_ERROR, TEXT("Alignment check fault"));
+    if (Frame) { DumpFrame(Frame); }
     PrintFaultDetails();
     Die();
 }

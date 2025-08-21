@@ -5,7 +5,7 @@ cd boot-qemu-hd
 IMG_PATH="bin/exos.img"
 
 if [ ! -f "$IMG_PATH" ]; then
-    echo "❌ Image not found: $IMG_PATH"
+    echo "Image not found: $IMG_PATH"
     exit 1
 fi
 

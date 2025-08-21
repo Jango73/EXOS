@@ -592,17 +592,17 @@ FlushTLB :
 
 SwitchToTask :
 
-    push    ebp
-    mov     ebp, esp
-    sub     esp, 6                      ; reserve 6 bytes for far pointer: [offset(4)][selector(2)]
+    push        ebp
+    mov         ebp, esp
+    sub         esp, 6                      ; reserve 6 bytes for far pointer: [offset(4)][selector(2)]
 
-    mov     eax, [ebp+(PBN+0)]
-    mov     dword [ebp-(LBN+6)], 0
-    mov     word [ebp-(LBN+2)], ax
-    jmp     far dword [ebp-(LBN+6)]
+    mov         eax, [ebp+(PBN+0)]
+    mov         dword [ebp-(LBN+6)], 0
+    mov         word [ebp-(LBN+2)], ax
+    jmp         far dword [ebp-(LBN+6)]
 
-    add     esp, 6
-    pop     ebp
+    add         esp, 6
+    pop         ebp
     ret
 
 ;--------------------------------------
@@ -617,12 +617,27 @@ TaskRunner :
     ; EBX in the TSS contains the function
     ; EAX in the TSS contains the parameter
 
-    cmp     ebx, 0
-    je      _TaskRunner_KillTask
+    cmp         ebx, 0
+    je          _TaskRunner_KillTask
 
-    push    eax                        ; Argument for task function
-    call    ebx                        ; Call task function
-    add     esp, 4                     ; Adjust stack
+    push        eax                        ; Argument for task function
+    call        ValidateEIPOrDie
+    add         esp, 4                     ; Adjust stack
+
+    ; Clear debug registers
+    xor         edx, edx
+    mov         dr0, edx
+    mov         dr1, edx
+    mov         dr2, edx
+    mov         dr3, edx
+    mov         dr4, edx
+    mov         dr5, edx
+    mov         dr6, edx
+    mov         dr7, edx
+
+    push        eax                        ; Argument for task function
+    call        ebx                        ; Call task function
+    add         esp, 4                     ; Adjust stack
 
     ;--------------------------------------
     ; When we come back from the function,
@@ -637,9 +652,9 @@ _TaskRunner_KillTask :
 
     call GetCurrentTask
 
-    push    eax
-    call KillTask
-    add     esp, 4
+    push        eax
+    call        KillTask
+    add         esp, 4
 
     ;--------------------------------------
     ; Do an infinite loop, task will be removed by scheduler
@@ -650,7 +665,7 @@ _TaskRunner_L1 :
     nop
     nop
     nop
-    jmp     _TaskRunner_L1
+    jmp         _TaskRunner_L1
 
 ;--------------------------------------
 

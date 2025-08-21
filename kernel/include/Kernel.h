@@ -58,8 +58,9 @@ typedef struct tag_CPUINFORMATION {
 #define SELECTOR_REAL_DATA (0x38 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
 /***************************************************************************/
-// Task selectors
+// Task selectors - ???
 
+/*
 #define TASK_SELECTOR_NULL 0x0000
 #define TASK_SELECTOR_RAM 0x0008
 #define TASK_SELECTOR_CODE 0x0010
@@ -73,6 +74,7 @@ typedef struct tag_CPUINFORMATION {
 #define TASK_SELINDEX_DATA 3
 #define TASK_SELINDEX_HEAP 4
 #define TASK_SELINDEX_STAK 5
+*/
 
 /***************************************************************************/
 
@@ -82,8 +84,6 @@ typedef struct tag_CPUINFORMATION {
 #define GDT_NUM_BASE_DESCRIPTORS 8
 #define GDT_NUM_DESCRIPTORS_PER_TASK 2
 #define LDT_NUM_DESCRIPTORS 6
-
-#define TSK_NUM_TASKS (TSK_SIZE / TSS_SIZE)
 
 #define GDT_NUM_TASKS ((GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS) / GDT_NUM_DESCRIPTORS_PER_TASK)
 
@@ -95,17 +95,14 @@ typedef struct tag_CPUINFORMATION {
 
 #define NUM_INTERRUPTS 48
 
-#if 0
-#define NUM_TASKS (GDT_NUM_TASKS < TSK_NUM_TASKS ? GDT_NUM_TASKS : TSK_NUM_TASKS)
-#endif
-
-#define NUM_TASKS 64
+#define NUM_TASKS GDT_NUM_TASKS
 
 /***************************************************************************/
 // The EXOS interrupt for user functions
 
 #define EXOS_USER_CALL 0x80
 
+/***************************************************************************/
 // The EXOS interrupt for driver functions
 
 #define EXOS_DRIVER_CALL 0x81
