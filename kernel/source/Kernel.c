@@ -561,7 +561,15 @@ void InitializeKernel(void) {
     // StartTestNetworkTask();
 
     //-------------------------------------
+    // Enable interrupts
+
+    EnableInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
+
+    //-------------------------------------
     // Shell task
+
+    ConsolePrint(TEXT("Launching shell"));
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
 
@@ -589,13 +597,6 @@ void InitializeKernel(void) {
 
       CreateProcess(&ProcessInfo);
     */
-
-
-    //-------------------------------------
-    // Enable interrupts
-
-    EnableInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
 }
 
 /***************************************************************************/

@@ -147,6 +147,7 @@
     call        %2
     add         esp, 4
 %endmacro
+
 ; ------------------- Variant: with CPU error code on stack ------------------
 ; For exceptions that push an error code (#TS, #NP, #SS, #GP, #PF, #AC, etc.).
 ; Hardware layout at entry (top->bottom): [err][EIP][CS][EFLAGS][(UserESP,UserSS if CPL3)]

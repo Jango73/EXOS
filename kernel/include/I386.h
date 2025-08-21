@@ -226,8 +226,7 @@ typedef struct tag_TASKSTATESEGMENT {
     U16 Res10;     // Reserved
     U16 LDT;       // Local descriptor table segment selector
     U16 Res11;     // Reserved
-    U16 Trap : 1;
-    U16 Res12 : 15;
+    U16 TrapWord;
     U16 IOMap;          // I/O Map Base Address
     U8 IOMapBits[152];  // Map 1024 port adresses
 } TASKSTATESEGMENT, *LPTASKSTATESEGMENT;

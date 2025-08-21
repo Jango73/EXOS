@@ -620,9 +620,11 @@ TaskRunner :
     cmp         ebx, 0
     je          _TaskRunner_KillTask
 
+    PRE_CALL_C
     push        eax                        ; Argument for task function
     call        ValidateEIPOrDie
     add         esp, 4                     ; Adjust stack
+    POST_CALL_C
 
     ; Clear debug registers
     xor         edx, edx
@@ -635,9 +637,11 @@ TaskRunner :
     mov         dr6, edx
     mov         dr7, edx
 
+    PRE_CALL_C
     push        eax                        ; Argument for task function
     call        ebx                        ; Call task function
     add         esp, 4                     ; Adjust stack
+    POST_CALL_C
 
     ;--------------------------------------
     ; When we come back from the function,
@@ -650,7 +654,9 @@ _TaskRunner_KillTask :
     ;--------------------------------------
     ; Kill the task
 
-    call GetCurrentTask
+    PRE_CALL_C
+    call        GetCurrentTask
+    POST_CALL_C
 
     push        eax
     call        KillTask

@@ -39,7 +39,7 @@ void ScrollConsole(void);
 void ClearConsole(void);
 void ConsolePrintChar(STR);
 void ConsoleBackSpace(void);
-BOOL ConsolePrint(LPCSTR, ...) ABI_REGPARM0;
+BOOL ConsolePrint(LPCSTR, ...);
 BOOL ConsoleGetString(LPSTR, U32);
 BOOL InitializeConsole(void);
 U32 Shell(LPVOID);

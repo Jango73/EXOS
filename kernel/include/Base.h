@@ -218,15 +218,6 @@ typedef U32 BOOL;
 #define MEMBER_OFFSET(s, m) ((U32)(&(((s*)NULL)->m)))
 
 /***************************************************************************/
-/* Force stack-based calling for variadic functions */
-
-#if defined(__GNUC__)
-    #define ABI_REGPARM0 __attribute__((regparm(0)))
-#else
-    #define ABI_REGPARM0
-#endif
-
-/***************************************************************************/
 // ASCII string types
 
 typedef U8 STR;

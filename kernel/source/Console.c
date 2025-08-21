@@ -353,9 +353,9 @@ static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
             Number = VarArg(Args, U32);
         } else if (Qualifier == 'h') {
             if (Flags & PF_SIGN)
-                Number = VarArg(Args, I16);
+                Number = VarArg(Args, int);
             else
-                Number = VarArg(Args, U16);
+                Number = VarArg(Args, int);
         } else {
             if (Flags & PF_SIGN)
                 Number = VarArg(Args, INT);
@@ -369,7 +369,7 @@ static void VarConsolePrint(LPCSTR Format, VarArgList Args) {
 
 /***************************************************************************/
 
-BOOL ABI_REGPARM0 ConsolePrint(LPCSTR Format, ...) {
+BOOL ConsolePrint(LPCSTR Format, ...) {
     VarArgList Args;
 
     // KernelLogText(LOG_DEBUG, TEXT("[ConsolePrint] Enter"));

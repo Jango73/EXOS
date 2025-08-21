@@ -236,7 +236,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
 
 /***************************************************************************/
 
-void ABI_REGPARM0 KernelPrint(LPCSTR Format, ...){
+void KernelPrint(LPCSTR Format, ...){
     VarArgList Args;
 
     VarArgStart(Args, Format);
@@ -246,7 +246,11 @@ void ABI_REGPARM0 KernelPrint(LPCSTR Format, ...){
 
 /***************************************************************************/
 
-void ABI_REGPARM0 KernelLogText(U32 Type, LPCSTR Format, ...) {
+void KernelLogText(U32 Type, LPCSTR Format, ...) {
+    KernelPrintString(TEXT("<"));
+    VarKernelPrintNumber(GetEBP(), 16, 0, 0, 0);
+    KernelPrintString(TEXT(">"));
+
     VarArgList Args;
 
     VarArgStart(Args, Format);
@@ -278,6 +282,10 @@ void ABI_REGPARM0 KernelLogText(U32 Type, LPCSTR Format, ...) {
     }
 
     VarArgEnd(Args);
+
+    KernelPrintString(TEXT("<"));
+    VarKernelPrintNumber(GetEBP(), 16, 0, 0, 0);
+    KernelPrintString(TEXT(">"));
 }
 
 /***************************************************************************/

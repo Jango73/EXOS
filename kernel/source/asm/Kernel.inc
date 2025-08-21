@@ -231,6 +231,18 @@ KEYBOARD_STATUS_IN_ERROR     equ 0x40
 KEYBOARD_STATUS_PARITY_ERROR equ 0x80
 
 ;----------------------------------------------------------
+; C calling macro
+
+%macro PRE_CALL_C 0
+    sub esp, 12              ; reserve 12 bytes
+    and esp, 0xFFFFFFF0      ; now esp is 16-byte aligned
+%endmacro
+
+%macro POST_CALL_C 0
+	add esp, 12
+%endmacro
+
+;----------------------------------------------------------
 ; Extern C symbols
 
 extern KernelMain

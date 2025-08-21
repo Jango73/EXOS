@@ -1338,6 +1338,7 @@ static U32 WriteFile(LPFATFILE File) {
 
     RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
     OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
+    BytesToRead = FileSystem->BytesPerCluster - OffsetInCluster;
     BytesRemaining = File->Header.BytesToRead;
     File->Header.BytesRead = 0;
 

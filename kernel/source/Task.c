@@ -328,7 +328,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         Info->Priority = TASK_PRIORITY_CRITICAL;
     }
 
-    if (IsValidMemory(Info->Func) == FALSE) {
+    if (IsValidMemory((LINEAR) Info->Func) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
         return NULL;
     }
@@ -380,7 +380,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Allocate the task stack
 
-    Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
+    Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 3;
     Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
@@ -398,6 +398,9 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         KernelLogText(LOG_ERROR, TEXT("[CreateTask] Stack or system stack allocation failed"));
         goto Out;
     }
+
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Stack (%X bytes) allocated at %X"), Task->StackSize, Task->StackBase);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize, Task->SysStackBase);
 
     //-------------------------------------
     // Setup privilege data

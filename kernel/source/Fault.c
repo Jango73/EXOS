@@ -161,9 +161,16 @@ void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
 /************************************************************************/
 
 void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
+
     KernelLogText(LOG_ERROR, TEXT("Debug exception"));
     LogTR();
     DumpFrame(Frame);
+
+    ConsolePrint(Text_NewLine);
+    ConsolePrint(TEXT("Debug exception !\n"));
+    ConsolePrint(TEXT("The current task (%X) triggered a debug exception "), Task ? Task : 0);
+    ConsolePrint(TEXT("at EIP : %X\n"), Frame->Registers.EIP);
     Die();
 }
 
