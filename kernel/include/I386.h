@@ -29,6 +29,7 @@ typedef struct tag_INTEL386REGISTERS {
     U16 ES, FS, GS;
     U32 CR0, CR2, CR3, CR4;
     U32 DR0, DR1, DR2, DR3;
+    U32 DR4, DR5, DR6, DR7;
 } INTEL386REGISTERS, *LPINTEL386REGISTERS;
 
 /***************************************************************************/

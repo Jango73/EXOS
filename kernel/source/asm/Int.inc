@@ -26,8 +26,12 @@
 %define R_DR1       72
 %define R_DR2       76
 %define R_DR3       80
+%define R_DR4       84
+%define R_DR5       88
+%define R_DR6       92
+%define R_DR7       96
 
-%define SIZE_REGS   84
+%define SIZE_REGS   100
 
 ; Interrupt frame = { INTEL386REGISTERS Registers; U32 IntNo; U32 ErrCode; }
 %define F_IntNo     (SIZE_REGS + 0)
@@ -124,6 +128,14 @@
     mov         dword [edi + R_DR2], edx
     mov         edx, dr3
     mov         dword [edi + R_DR3], edx
+    mov         edx, dr4
+    mov         dword [edi + R_DR4], edx
+    mov         edx, dr5
+    mov         dword [edi + R_DR5], edx
+    mov         edx, dr6
+    mov         dword [edi + R_DR6], edx
+    mov         edx, dr7
+    mov         dword [edi + R_DR7], edx
     pop         edx
 
     ; ---------------- Tail: IntNo / ErrCode -----------------
@@ -224,6 +236,14 @@
     mov         dword [edi + R_DR2], edx
     mov         edx, dr3
     mov         dword [edi + R_DR3], edx
+    mov         edx, dr4
+    mov         dword [edi + R_DR4], edx
+    mov         edx, dr5
+    mov         dword [edi + R_DR5], edx
+    mov         edx, dr6
+    mov         dword [edi + R_DR6], edx
+    mov         edx, dr7
+    mov         dword [edi + R_DR7], edx
     pop         edx
 
     ; ---------------- Tail: IntNo / ErrCode -----------------

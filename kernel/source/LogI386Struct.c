@@ -10,7 +10,6 @@
 #include "../include/Log.h"
 #include "../include/Memory.h"
 
-
 /************************************************************************/
 
 void LogRegisters(LPINTEL386REGISTERS Regs) {
@@ -24,6 +23,8 @@ void LogRegisters(LPINTEL386REGISTERS Regs) {
         LOG_VERBOSE, TEXT("CR0 : %X CR2 : %X CR3 : %X CR4 : %X "), Regs->CR0, Regs->CR2, Regs->CR3, Regs->CR4);
     KernelLogText(
         LOG_VERBOSE, TEXT("DR0 : %X DR1 : %X DR2 : %X DR3 : %X "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
+    KernelLogText(
+        LOG_VERBOSE, TEXT("DR4 : %X DR5 : %X DR6 : %X DR7 : %X "), Regs->DR4, Regs->DR5, Regs->DR6, Regs->DR7);
 }
 
 /************************************************************************/

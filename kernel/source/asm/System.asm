@@ -751,6 +751,7 @@ SaveRegisters :
     mov     eax, [ebp-16]              ; Store EDX
     mov     [edi], eax
     add     edi, 4
+
     mov     eax, [ebp-20]              ; Store ESI
     mov     [edi], eax
     add     edi, 4
@@ -767,6 +768,7 @@ SaveRegisters :
     mov     eax, [ebp+4]               ; Store EIP
     mov     [edi], eax
     add     edi, 4
+
     mov     ax, cs                     ; Store CS
     mov     [edi], ax
     add     edi, 2
@@ -785,6 +787,7 @@ SaveRegisters :
     mov     ax, gs                     ; Store GS
     mov     [edi], ax
     add     edi, 2
+
     mov     eax, cr0                   ; Store CR0
     mov     [edi], eax
     add     edi, 4
@@ -797,6 +800,7 @@ SaveRegisters :
     mov     eax, cr4                   ; Store CR4
     mov     [edi], eax
     add     edi, 4
+
     mov     eax, dr0                   ; Store DR0
     mov     [edi], eax
     add     edi, 4
@@ -807,6 +811,19 @@ SaveRegisters :
     mov     [edi], eax
     add     edi, 4
     mov     eax, dr3                   ; Store DR3
+    mov     [edi], eax
+    add     edi, 4
+
+    mov     eax, dr4                   ; Store DR4
+    mov     [edi], eax
+    add     edi, 4
+    mov     eax, dr5                   ; Store DR5
+    mov     [edi], eax
+    add     edi, 4
+    mov     eax, dr6                   ; Store DR6
+    mov     [edi], eax
+    add     edi, 4
+    mov     eax, dr7                   ; Store DR7
     mov     [edi], eax
     add     edi, 4
 

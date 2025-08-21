@@ -138,7 +138,6 @@ typedef struct tag_KERNELDATA {
 LPVOID KernelMemAlloc(U32);
 void KernelMemFree(LPVOID);
 BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR, LPSEGMENTINFO);
-void LogRegisters(LPINTEL386REGISTERS);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
