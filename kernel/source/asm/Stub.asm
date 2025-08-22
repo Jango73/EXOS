@@ -718,7 +718,7 @@ Text_PageDirectoryEntry :
     db ', writing Page Directory Entry (Address, Data) : ', 0
 
 Text_StartOfStack :
-    db '[STUB] Kernel stack (Address, Data) : ', 0
+    db '[STUB] Kernel linear stack address : ', 0
 
 Text_SetupPaging :
     db '[STUB] Setting up paging', 10, 13, 0
@@ -825,33 +825,42 @@ Start32 :
     Hx32Out SI_Phys_KER
     call    SerialWriteNewLine
 
-    DbgOut  Text_PA_BSS
-    Hx32Out SI_Phys_BSS
-    call    SerialWriteNewLine
+    DbgOut      Text_PA_BSS
+    Hx32Out     SI_Phys_BSS
+    call        SerialWriteNewLine
 
-    DbgOut  Text_PA_STK
-    Hx32Out SI_Phys_STK
-    call    SerialWriteNewLine
+    DbgOut      Text_PA_STK
+    Hx32Out     SI_Phys_STK
+    call        SerialWriteNewLine
 
-    DbgOut  Text_Stub_Size
-    Hx32Out SI_Size_Stub
-    call    SerialWriteNewLine
+    DbgOut      Text_Stub_Size
+    Hx32Out     SI_Size_Stub
+    call        SerialWriteNewLine
 
-    DbgOut  Text_Size_KER
-    Hx32Out SI_Size_KER
-    call    SerialWriteNewLine
+    DbgOut      Text_Size_KER
+    Hx32Out     SI_Size_KER
+    call        SerialWriteNewLine
 
-    DbgOut  Text_Size_BSS
-    Hx32Out SI_Size_BSS
-    call    SerialWriteNewLine
+    DbgOut      Text_Size_BSS
+    Hx32Out     SI_Size_BSS
+    call        SerialWriteNewLine
 
-    DbgOut  Text_Size_STK
-    Hx32Out SI_Size_STK
-    call    SerialWriteNewLine
+    DbgOut      Text_Size_STK
+    Hx32Out     SI_Size_STK
+    call        SerialWriteNewLine
 
-    DbgOut  Text_Size_SYS
-    Hx32Out SI_Size_SYS
-    call    SerialWriteNewLine
+    DbgOut      Text_Size_SYS
+    Hx32Out     SI_Size_SYS
+    call        SerialWriteNewLine
+
+    DbgOut      Text_StartOfStack
+    mov         eax, LA_KERNEL
+    LoadEDX     SI_Phys_STK
+    add         eax, [edx]
+    LoadEDX     SI_Phys_KER
+    sub         eax, [edx]
+    ImmHx32Out  eax
+    call        SerialWriteNewLine
 
     ;--------------------------------------
     ; Clear system area where reside :

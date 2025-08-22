@@ -284,12 +284,12 @@ static void ResetController(U32 Port) {
     for (Index = 0; Index < 1000; Index++) barrier();
     if (IsDriveBusy())
     {
-      KernelPrint("HD : Controller still busy\n");
+      KernelPrintString("HD : Controller still busy\n");
     }
     else
     if ((HD_Error = InPortByte(Port + HD_ERROR)) != 1)
     {
-      KernelPrint("HD : Controller reset failed\n");
+      KernelPrintString("HD : Controller reset failed\n");
     }
 }
 */

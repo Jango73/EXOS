@@ -100,8 +100,8 @@ PAGE_SIZE_MUL      equ MUL_4KB
 ;----------------------------------------------------------
 ; Physical and virtual memory addresses
 
+IDT_SIZE     equ N_4KB
 GDT_SIZE 	 equ N_8KB
-IDT_SIZE 	 equ N_4KB
 STK_SIZE     equ N_32KB ; Kernel Stack Size
 
 LA_USER      equ 0x00400000

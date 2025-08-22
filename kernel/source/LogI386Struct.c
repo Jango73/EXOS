@@ -200,9 +200,9 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
     KernelLogText(
         LogType,
         TEXT("TSSDESCRIPTOR (decoded):\n"
-             "  Base          = %08lX\n"
-             "  RawLimit      = %05lX\n"
-             "  EffLimit      = %08lX (%u bytes)"),
+             "  Base          = %X\n"
+             "  RawLimit      = %X\n"
+             "  EffLimit      = %X (%u bytes)"),
         (U32)Base, (U32)RawLimit, (U32)EffectiveLimit, (U32)SizeBytes
     );
 }
@@ -213,28 +213,28 @@ void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
     KernelLogText(
         LogType,
         TEXT("TASKSTATESEGMENT @ %p (sizeof=%u):\n"
-             "  BackLink  = %04X\n"
-             "  ESP0/SS0  = %08lX / %04X\n"
-             "  ESP1/SS1  = %08lX / %04X\n"
-             "  ESP2/SS2  = %08lX / %04X\n"
-             "  CR3       = %08lX\n"
-             "  EIP       = %08lX\n"
-             "  EFlags    = %08lX\n"
-             "  EAX/ECX   = %08lX / %08lX\n"
-             "  EDX/EBX   = %08lX / %08lX\n"
-             "  ESP/EBP   = %08lX / %08lX\n"
-             "  ESI/EDI   = %08lX / %08lX\n"
-             "  ES/CS     = %04X / %04X\n"
-             "  SS/DS     = %04X / %04X\n"
-             "  FS/GS     = %04X / %04X\n"
-             "  LDT       = %04X\n"
+             "  BackLink  = %X\n"
+             "  ESP0/SS0  = %X / %X\n"
+             "  ESP1/SS1  = %X / %X\n"
+             "  ESP2/SS2  = %X / %X\n"
+             "  CR3       = %X\n"
+             "  EIP       = %X\n"
+             "  EFlags    = %X\n"
+             "  EAX/ECX   = %X / %X\n"
+             "  EDX/EBX   = %X / %X\n"
+             "  ESP/EBP   = %X / %X\n"
+             "  ESI/EDI   = %X / %X\n"
+             "  ES/CS     = %X / %X\n"
+             "  SS/DS     = %X / %X\n"
+             "  FS/GS     = %X / %X\n"
+             "  LDT       = %X\n"
              "  Trap      = %u\n"
-             "  IOMap     = %04X (linear @ %p)"),
+             "  IOMap     = %X (linear @ %p)"),
         (void*)Tss, (U32)sizeof(TASKSTATESEGMENT),
-        (U16)Tss->BackLink,
-        (U32)Tss->ESP0, (U16)Tss->SS0,
-        (U32)Tss->ESP1, (U16)Tss->SS1,
-        (U32)Tss->ESP2, (U16)Tss->SS2,
+        (U32)Tss->BackLink,
+        (U32)Tss->ESP0, (U32)Tss->SS0,
+        (U32)Tss->ESP1, (U32)Tss->SS1,
+        (U32)Tss->ESP2, (U32)Tss->SS2,
         (U32)Tss->CR3,
         (U32)Tss->EIP,
         (U32)Tss->EFlags,
@@ -242,12 +242,12 @@ void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
         (U32)Tss->EDX, (U32)Tss->EBX,
         (U32)Tss->ESP, (U32)Tss->EBP,
         (U32)Tss->ESI, (U32)Tss->EDI,
-        (U16)Tss->ES, (U16)Tss->CS,
-        (U16)Tss->SS, (U16)Tss->DS,
-        (U16)Tss->FS, (U16)Tss->GS,
-        (U16)Tss->LDT,
-        (U32)((Tss->TrapWord & 1) ? 1u : 0u),
-        (U16)Tss->IOMap,
+        (U32)Tss->ES, (U32)Tss->CS,
+        (U32)Tss->SS, (U32)Tss->DS,
+        (U32)Tss->FS, (U32)Tss->GS,
+        (U32)Tss->LDT,
+        (U32)((Tss->Trap & 1) ? 1u : 0u),
+        (U32)Tss->IOMap,
         (const void*)((const U8*)Tss + (U32)Tss->IOMap)
     );
 

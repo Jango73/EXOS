@@ -409,8 +409,8 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
 
 static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     KernelLogText(
-        LOG_DEBUG, TEXT("[E1000] New device %02X:%02X.%u"), PciDevice->Info.Bus, PciDevice->Info.Dev,
-        PciDevice->Info.Func);
+        LOG_DEBUG, TEXT("[E1000] New device %X:%X.%u"), (U32)PciDevice->Info.Bus, (U32)PciDevice->Info.Dev,
+        (U32)PciDevice->Info.Func);
     LPE1000DEVICE Device = (LPE1000DEVICE)KernelMemAlloc(sizeof(E1000DEVICE));
     if (Device == NULL) return NULL;
 
@@ -462,9 +462,10 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));
 
     KernelLogText(
-        LOG_VERBOSE, TEXT("[E1000] Attached %02X:%02X.%u MMIO=%X size=%X MAC=%02X:%02X:%02X:%02X:%02X:%02X"),
-        Device->Info.Bus, Device->Info.Dev, Device->Info.Func, Device->MmioBase, Device->MmioSize, Device->Mac[0],
-        Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
+        LOG_VERBOSE, TEXT("[E1000] Attached %X:%X.%u MMIO=%X size=%X MAC=%X:%X:%X:%X:%X:%X"),
+        (U32)Device->Info.Bus, (U32)Device->Info.Dev, (U32)Device->Info.Func, (U32)Device->MmioBase,
+        (U32)Device->MmioSize, (U32)Device->Mac[0],
+        (U32)Device->Mac[1], (U32)Device->Mac[2], (U32)Device->Mac[3], (U32)Device->Mac[4], (U32)Device->Mac[5]);
 
     return Device;
 }
@@ -477,7 +478,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev) { return (LPPCI_DEVICE)New
 static U32 E1000_TxSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
     if (Length == 0 || Length > E1000_RX_BUF_SIZE) return DF_ERROR_BADPARAM;
 
-    KernelLogText(LOG_DEBUG, TEXT("[E1000_TxSend] len=%u"), Length);
+    KernelLogText(LOG_DEBUG, TEXT("[E1000_TxSend] len=%u"), (U32)Length);
 
     U32 Index = Device->TxTail;
     LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;

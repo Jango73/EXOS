@@ -53,11 +53,8 @@ STR CharToUpper(STR Char) {
 /***************************************************************************/
 
 BOOL StringEmpty(LPCSTR Src) {
-    if (Src != NULL) {
-        return Src[0] == STR_NULL;
-    }
-
-    return TRUE;
+    if (Src == NULL) return TRUE;
+    return Src[0] == STR_NULL;
 }
 
 /***************************************************************************/

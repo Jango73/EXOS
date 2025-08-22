@@ -126,6 +126,7 @@ extern KERNELSTARTUPINFO KernelStartup;
 #define IDT_SIZE N_4KB
 #define GDT_SIZE N_8KB
 #define TSS_SIZE N_32KB
+#define STK_SIZE N_32KB
 
 #define LA_IDT LA_SYSTEM
 #define LA_GDT (LA_IDT + KernelStartup.SI_Size_IDT)

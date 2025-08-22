@@ -161,7 +161,6 @@ void CheckDataIntegrity(void) {
     if (DeadBeef != 0xDEADBEEF) {
         KernelLogText(LOG_DEBUG, TEXT("Expected a dead beef at %X"), (&DeadBeef));
         KernelLogText(LOG_DEBUG, TEXT("Data corrupt, halting"));
-        KernelDump((LINEAR)(&DeadBeef), 32);
 
         for (LINEAR Pointer = StubAddress; Pointer < N_2MB; Pointer++) {
             if (*((U32*)Pointer) == 0xDEADBEEF) {
@@ -264,6 +263,9 @@ U32 ClockTask(LPVOID Param) {
 /***************************************************************************/
 
 void DumpCriticalInformation(void) {
+    KernelPrintString(TEXT("[DumpCriticalInformation] LA_KERNEL_STACK = "));
+    VarKernelPrintNumber(LA_KERNEL_STACK, 16, 0, 0, 0);
+
     KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
     KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
 
@@ -284,7 +286,7 @@ void DumpCriticalInformation(void) {
 
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
         KernelLogText(LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"),
-        Index, KernelStartup.E820[Index].Base.LO, KernelStartup.E820[Index].Size.LO, KernelStartup.E820[Index].Type);
+        Index, (U32)KernelStartup.E820[Index].Base.LO, (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("Virtual addresses"));
@@ -392,7 +394,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 void InitializeKernel(void) {
     // PROCESSINFO ProcessInfo;
-    TASKINFO TaskInfo;
+    // TASKINFO TaskInfo;
     KERNELSTARTUPINFO TempKernelStartup;
     // LINEAR BSSStart = (LINEAR)(&__bss_init_start);
     // LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
@@ -444,19 +446,13 @@ void InitializeKernel(void) {
     // Initialize the memory manager
 
     InitializeMemoryManager();
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Memory manager initialized"));
-
-    // Provoke page fault
-    // *((U32*)0x70000000) = 5;
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Memory manager initialized"));
 
     //-------------------------------------
     // Initialize kernel process
 
     InitializeKernelProcess();
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Kernel process initialized"));
-
-    KernelLogText(LOG_VERBOSE, TEXT(""));
-    KernelLogText(LOG_VERBOSE, TEXT(""));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel process initialized"));
 
     //-------------------------------------
     // Setup the kernel's main task
@@ -533,12 +529,6 @@ void InitializeKernel(void) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
 
     //-------------------------------------
-    // Enable interrupts
-
-    EnableInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
-
-    //-------------------------------------
     // Print the EXOS banner
 
     ConsolePrint(Text_OSTitle);
@@ -569,6 +559,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Shell task
 
+    /*
     ConsolePrint(TEXT("Launching shell"));
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
@@ -580,6 +571,9 @@ void InitializeKernel(void) {
     TaskInfo.Flags = 0;
 
     CreateTask(&KernelProcess, &TaskInfo);
+    */
+
+    Shell(NULL);
 
     //-------------------------------------
     // Launch Portal (windowing system)

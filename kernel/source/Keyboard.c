@@ -157,7 +157,7 @@ static void SendKeyboardCommand(U32 Command, U32 Data) {
     U32 Flags;
 
     SaveFlags(&Flags);
-    DisableInterrupts();
+    // DisableInterrupts();
 
     KeyboardWait();
 
@@ -168,7 +168,7 @@ static void SendKeyboardCommand(U32 Command, U32 Data) {
 
 Out:
 
-    EnableInterrupts();
+    // EnableInterrupts();
     RestoreFlags(&Flags);
 }
 
@@ -425,18 +425,6 @@ static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
 
-    /*
-      static U32     OldX, OldY, CurX=0;
-      OldX = Console.CursorX;
-      OldY = Console.CursorY;
-      Console.CursorX = CurX;
-      Console.CursorY = 0;
-      KernelPrint("%02X", ScanCode);
-      Console.CursorX = OldX;
-      Console.CursorY = OldY;
-      CurX+=2; if (CurX >= 80) CurX=0;
-    */
-
     if (ScanCode == 0) {
         PreviousCode = 0;
         return;
@@ -609,8 +597,6 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-    KernelLogText(LOG_DEBUG, TEXT("KeyboardHandler"));
-
     if (Busy) return;
     Busy = 1;
 
@@ -644,7 +630,7 @@ static U32 InitializeKeyboard(void) {
     //-------------------------------------
     // Enable the keyboard
 
-    // SendKeyboardCommand(KSC_ENABLE, KSC_ENABLE);
+    SendKeyboardCommand(KSC_ENABLE, KSC_ENABLE);
 
     //-------------------------------------
     // Set the LED status

@@ -72,9 +72,9 @@ SetupPaging :
     mov         edi, [edi]
     LoadEAX     SI_Phys_SYS
     mov         eax, [eax]
-    LoadECX     SI_Size_SYS                 ; Number of pages
+    LoadECX     SI_Size_SYS
     mov         ecx, [ecx]
-    shr         ecx, MUL_4KB
+    shr         ecx, MUL_4KB                ; Number of pages
     call        MapPages
 
     ;--------------------------------------

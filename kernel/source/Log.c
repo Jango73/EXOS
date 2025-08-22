@@ -24,10 +24,14 @@ void InitKernelLog(void) {
 
 /***************************************************************************/
 
-static INT SkipAToI(LPCSTR* s) {
-    INT i = 0;
-    while (IsNumeric(**s)) i = i * 10 + *((*s)++) - '0';
-    return i;
+static int SkipAToI(LPCSTR* format) {
+    int result = 0;
+    while (IsNumeric(**format)) {
+        result = result * 10 + (**format - '0');
+        (*format)++;
+    }
+    (*format)--; // Come back for next character
+    return result;
 }
 
 /***************************************************************************/
@@ -53,7 +57,7 @@ void KernelPrintString(LPCSTR Text) {
 
 /***************************************************************************/
 
-static void VarKernelPrintNumber(I32 Number, I32 Base, I32 FieldWidth, I32 Precision, I32 Flags) {
+void VarKernelPrintNumber(I32 Number, I32 Base, I32 FieldWidth, I32 Precision, I32 Flags) {
     STR Text[128];
     NumberToString(Text, Number, Base, FieldWidth, Precision, Flags);
     KernelPrintString(Text);
@@ -63,8 +67,19 @@ static void VarKernelPrintNumber(I32 Number, I32 Base, I32 FieldWidth, I32 Preci
 
 void VarKernelPrint(LPCSTR Format, VarArgList Args) {
     LPCSTR Text = NULL;
-    I32 Flags, Number, i;
-    I32 FieldWidth, Precision, Qualifier, Base, Length;
+    long Number;
+    int Flags, FieldWidth, Precision, Qualifier, Base, Length, i;
+
+    // Vérification de la chaîne de format
+    if (Format == NULL) {
+        KernelPrintChar('<');
+        KernelPrintChar('N');
+        KernelPrintChar('U');
+        KernelPrintChar('L');
+        KernelPrintChar('L');
+        KernelPrintChar('>');
+        return;
+    }
 
     for (; *Format != STR_NULL; Format++) {
         if (*Format != '%') {
@@ -75,57 +90,44 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
         Flags = 0;
 
     Repeat:
-
         Format++;
-
         switch (*Format) {
-            case '-':
-                Flags |= PF_LEFT;
-                goto Repeat;
-            case '+':
-                Flags |= PF_PLUS;
-                goto Repeat;
-            case ' ':
-                Flags |= PF_SPACE;
-                goto Repeat;
-            case '#':
-                Flags |= PF_SPECIAL;
-                goto Repeat;
-            case '0':
-                Flags |= PF_ZEROPAD;
-                goto Repeat;
+            case '-': Flags |= PF_LEFT; goto Repeat;
+            case '+': Flags |= PF_PLUS; goto Repeat;
+            case ' ': Flags |= PF_SPACE; goto Repeat;
+            case '#': Flags |= PF_SPECIAL; goto Repeat;
+            case '0': Flags |= PF_ZEROPAD; goto Repeat;
+            case STR_NULL: return; // Fin prématurée de la chaîne
         }
 
+        // Récupérer la largeur de champ
         FieldWidth = -1;
-
-        if (IsNumeric(*Format))
+        if (IsNumeric(*Format)) {
             FieldWidth = SkipAToI(&Format);
-        else if (*Format == '*') {
+        } else if (*Format == '*') {
             Format++;
-            FieldWidth = VarArg(Args, INT);
+            FieldWidth = VarArg(Args, int);
             if (FieldWidth < 0) {
                 FieldWidth = -FieldWidth;
                 Flags |= PF_LEFT;
             }
         }
 
-        // Get the precision
+        // Récupérer la précision
         Precision = -1;
-
         if (*Format == '.') {
             Format++;
-            if (IsNumeric(*Format))
+            if (IsNumeric(*Format)) {
                 Precision = SkipAToI(&Format);
-            else if (*Format == '*') {
+            } else if (*Format == '*') {
                 Format++;
-                Precision = VarArg(Args, INT);
+                Precision = VarArg(Args, int);
             }
             if (Precision < 0) Precision = 0;
         }
 
-        // Get the conversion qualifier
+        // Récupérer le qualificateur
         Qualifier = -1;
-
         if (*Format == 'h' || *Format == 'l' || *Format == 'L') {
             Qualifier = *Format;
             Format++;
@@ -135,121 +137,121 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
 
         switch (*Format) {
             case 'c':
-
                 if (!(Flags & PF_LEFT)) {
                     while (--FieldWidth > 0) KernelPrintChar(STR_SPACE);
                 }
-                KernelPrintChar((STR)VarArg(Args, INT));
+                KernelPrintChar((STR)VarArg(Args, int));
                 while (--FieldWidth > 0) KernelPrintChar(STR_SPACE);
                 continue;
 
             case 's':
-
-                Text = VarArg(Args, LPSTR);
-
+                Text = VarArg(Args, LPCSTR);
                 if (Text == NULL) Text = TEXT("<NULL>");
 
-                // Length = strnlen(Text, Precision);
+                // Utiliser la précision si spécifiée
                 Length = StringLength(Text);
+                if (Precision >= 0 && Length > Precision) Length = Precision;
 
                 if (!(Flags & PF_LEFT)) {
                     while (Length < FieldWidth--) KernelPrintChar(STR_SPACE);
                 }
-                for (i = 0; i < Length; ++i) KernelPrintChar(*Text++);
+                for (i = 0; i < Length && Text[i] != STR_NULL; i++) {
+                    KernelPrintChar(Text[i]);
+                }
                 while (Length < FieldWidth--) KernelPrintChar(STR_SPACE);
                 continue;
 
             case 'p':
-
                 if (FieldWidth == -1) {
-                    FieldWidth = 2 * sizeof(LPVOID);
-                    Flags |= PF_ZEROPAD;
-                    Flags |= PF_LARGE;
+                    FieldWidth = 2 * sizeof(void*);
+                    Flags |= PF_ZEROPAD | PF_LARGE;
                 }
-                VarKernelPrintNumber((U32)VarArg(Args, LPVOID), 16, FieldWidth, Precision, Flags);
+                // Ajouter le préfixe 0x pour %p (toujours en minuscules pour les pointeurs)
+                if (Flags & PF_SPECIAL) {
+                    KernelPrintChar('0');
+                    KernelPrintChar('x');
+                }
+                VarKernelPrintNumber((unsigned long)VarArg(Args, void*), 16, FieldWidth, Precision, Flags);
                 continue;
-
-                /*
-                      case 'n':
-                    if (Qualifier == 'l')
-                    {
-                      I32* ip = VarArg(Args, U32*);
-                      *ip = (str - buf);
-                    }
-                    else
-                    {
-                      INT* ip = VarArg(args, INT*);
-                      *ip = (str - buf);
-                    }
-                    continue;
-                */
-
-                // Integer number formats - set up the flags and "break"
 
             case 'o':
                 Flags |= PF_SPECIAL;
                 Base = 8;
                 break;
+
             case 'X':
-                Flags |= PF_SPECIAL;
-                Flags |= PF_LARGE;
+                Flags |= PF_SPECIAL | PF_LARGE;
                 Base = 16;
                 break;
+
             case 'x':
                 Flags |= PF_SPECIAL;
                 Base = 16;
                 break;
+
             case 'b':
                 Base = 2;
                 break;
+
             case 'd':
             case 'i':
                 Flags |= PF_SIGN;
+                break;
+
             case 'u':
                 break;
+
             default:
                 if (*Format != '%') KernelPrintChar('%');
-                if (*Format)
+                if (*Format) {
                     KernelPrintChar(*Format);
-                else
+                } else {
                     Format--;
+                }
                 continue;
         }
 
+        // Gestion des nombres
         if (Qualifier == 'l') {
-            Number = VarArg(Args, U32);
+            Number = VarArg(Args, long);
         } else if (Qualifier == 'h') {
-            if (Flags & PF_SIGN)
-                Number = VarArg(Args, I32);
-            else
-                Number = VarArg(Args, U32);
+            Number = (Flags & PF_SIGN) ? (short)VarArg(Args, int) : (unsigned short)VarArg(Args, int);
         } else {
-            if (Flags & PF_SIGN)
-                Number = VarArg(Args, INT);
-            else
-                Number = VarArg(Args, UINT);
+            Number = (Flags & PF_SIGN) ? VarArg(Args, int) : (unsigned int)VarArg(Args, unsigned int);
+        }
+
+        // Ajouter le préfixe 0x ou 0X pour %x et %X si PF_SPECIAL est défini et le nombre n'est pas 0
+        if ((Flags & PF_SPECIAL) && (*Format == 'x' || *Format == 'X') && Number != 0) {
+            KernelPrintChar('0');
+            KernelPrintChar((Flags & PF_LARGE) ? 'X' : 'x');
         }
 
         VarKernelPrintNumber(Number, Base, FieldWidth, Precision, Flags);
     }
-}
 
-/***************************************************************************/
-
-void KernelPrint(LPCSTR Format, ...){
-    VarArgList Args;
-
-    VarArgStart(Args, Format);
-    VarKernelPrint(Format, Args);
     VarArgEnd(Args);
 }
 
 /***************************************************************************/
 
-void KernelLogText(U32 Type, LPCSTR Format, ...) {
+static void KernelLogRegistersCompact(void) {
+    KernelPrintString(Text_NewLine);
     KernelPrintString(TEXT("<"));
+    VarKernelPrintNumber(GetESP(), 16, 0, 0, 0);
+    KernelPrintString(TEXT(":"));
     VarKernelPrintNumber(GetEBP(), 16, 0, 0, 0);
     KernelPrintString(TEXT(">"));
+}
+
+/***************************************************************************/
+
+void KernelLogText(U32 Type, LPCSTR Format, ...) {
+
+    KernelLogRegistersCompact();
+    // KernelPrintString(Format);
+    // return;
+
+    if (StringEmpty(Format)) return;
 
     VarArgList Args;
 
@@ -257,88 +259,31 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     switch (Type) {
         case LOG_DEBUG: {
-            KernelPrint(TEXT("DEBUG > "));
+            KernelPrintString(TEXT("DEBUG > "));
             VarKernelPrint(Format, Args);
-            KernelPrint(Text_NewLine);
+            KernelPrintString(Text_NewLine);
         } break;
 
         default:
         case LOG_VERBOSE: {
             VarKernelPrint(Format, Args);
-            KernelPrint(Text_NewLine);
+            KernelPrintString(Text_NewLine);
         } break;
 
         case LOG_WARNING: {
-            KernelPrint(TEXT("WARNING > "));
+            KernelPrintString(TEXT("WARNING > "));
             VarKernelPrint(Format, Args);
-            KernelPrint(Text_NewLine);
+            KernelPrintString(Text_NewLine);
         } break;
 
         case LOG_ERROR: {
-            KernelPrint(TEXT("ERROR > "));
+            KernelPrintString(TEXT("ERROR > "));
             VarKernelPrint(Format, Args);
-            KernelPrint(Text_NewLine);
+            KernelPrintString(Text_NewLine);
         } break;
     }
 
     VarArgEnd(Args);
-
-    KernelPrintString(TEXT("<"));
-    VarKernelPrintNumber(GetEBP(), 16, 0, 0, 0);
-    KernelPrintString(TEXT(">"));
-}
-
-/***************************************************************************/
-
-static void KernelDumpLine(U32 Address, const U8* Data, U32 Count) {
-    // Print address
-    KernelPrint(TEXT("VERBOSE > 0x%08X    "), Address);
-
-    // Print 16 bytes as hex (2 groups of 8)
-    for (U32 i = 0; i < 16; ++i) {
-        if (i == 8) KernelPrint(TEXT(": "));
-        if (i < Count)
-            KernelPrint(TEXT("%02X"), Data[i]);
-        else
-            KernelPrint(TEXT("  "));  // pad missing bytes
-        if ((i & 1) == 1 && i != 7 && i != 15) KernelPrint(TEXT(" "));
-    }
-
-    // Print 3 spaces before ASCII
-    KernelPrint(TEXT("   "));
-
-    // Print ASCII
-    for (U32 i = 0; i < 16; ++i) {
-        if (i < Count) {
-            U8 c = Data[i];
-            if (c >= 32 && c < 127)
-                KernelPrintChar((STR)c);
-            else
-                KernelPrintChar('.');
-        } else {
-            KernelPrintChar(' ');
-        }
-    }
-
-    KernelPrint(Text_NewLine);
-}
-
-/***************************************************************************/
-
-void KernelDump(LINEAR Address, U32 Size) {
-    const U8* ptr = (const U8*)Address;
-    U32 lines = Size / 16;
-    U32 remain = Size % 16;
-
-    for (U32 i = 0; i < lines; ++i) {
-        KernelDumpLine(Address + i * 16, ptr + i * 16, 16);
-    }
-
-    if (remain) {
-        U8 buffer[16] = {0};
-        for (U32 j = 0; j < remain; ++j) buffer[j] = ptr[lines * 16 + j];
-        KernelDumpLine(Address + lines * 16, buffer, remain);
-    }
 }
 
 /***************************************************************************/

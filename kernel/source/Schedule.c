@@ -18,12 +18,13 @@
 /***************************************************************************/
 // Internal helper for concise selector logging
 
-static void LogSelectorDetails(const char* Prefix, SELECTOR Sel) {
-    U16 idx = SELECTOR_INDEX(Sel);
-    U16 ti  = SELECTOR_TI(Sel);
-    U16 rpl = SELECTOR_RPL(Sel);
-    KernelLogText(LOG_DEBUG, TEXT("%s selector=%04X  index=%u  TI=%u  RPL=%u"),
-                  Prefix, (U32)Sel, (U32)idx, (U32)ti, (U32)rpl);
+static void LogSelectorDetails(LPCSTR Prefix, SELECTOR Sel) {
+    U32 idx = SELECTOR_INDEX(Sel);
+    U32 ti  = SELECTOR_TI(Sel);
+    U32 rpl = SELECTOR_RPL(Sel);
+
+    KernelLogText(LOG_DEBUG, TEXT("%s selector=%X  index=%X  TI=%X  RPL=%X"),
+                  Prefix, (U32)Sel, idx, ti, rpl);
 }
 
 /***************************************************************************/
@@ -168,25 +169,39 @@ void Scheduler(void) {
                     SELECTOR current = GetTaskRegister();
 
                     if (SELECTOR_INDEX(target) == SELECTOR_INDEX(current) && SELECTOR_TI(target) == SELECTOR_TI(current)) {
-                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Skip switch: same TSS %X. Returning."), target);
+                        // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Skip switch: same TSS %X. Returning."), target);
                         return;
                     }
 
                     //-------------------------------------
                     // Switch to the new current task
 
+                    U32 TableIndex = TaskList.Current->Table;
+
+                    /*
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switch to task %X"), TaskList.Current);
 
                     SELECTOR CurrentSelector = GetTaskRegister();
                     SELECTOR TargetSelector = TaskList.Current->Selector;
 
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP=%X  TR=%04X"), GetEBP(), (U32)CurrentSelector);
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP=%X  TR=%X"), (U32)GetEBP(), (U32)CurrentSelector);
                     LogSelectorDetails("[Scheduler] Target", TargetSelector);
-                    LogSelectorDetails("[Scheduler]   Curr", CurrentSelector);
+                    LogSelectorDetails("[Scheduler] Current", CurrentSelector);
                     LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*)&Kernel_i386.TTD[TaskList.Current->Table]);
                     LogTaskStateSegment(LOG_DEBUG, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + TaskList.Current->Table));
+                    */
 
-                    SwitchToTask(TaskList.Current->Selector);
+                    KernelLogText(LOG_DEBUG, "[Scheduler] Target task table index = %X", TableIndex);
+
+                    Kernel_i386.TTD[TableIndex].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
+
+                    SELECTOR TargetSelector = TaskList.Current->Selector;
+                    LogSelectorDetails("[Scheduler] Target task selector", TargetSelector);
+
+                    KernelLogText(LOG_DEBUG, "[Scheduler] GDTR = %X", GetGDTR());
+                    KernelLogText(LOG_DEBUG, "[Scheduler] LDTR = %X", GetLDTR());
+
+                    SwitchToTask((U32)TaskList.Current->Selector);
 
                     //-------------------------------------
                     // Immediately return when scheduler comes back

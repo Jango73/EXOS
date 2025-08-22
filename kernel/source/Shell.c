@@ -67,6 +67,7 @@ static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_dos(LPSHELLCONTEXT);
+static void CMD_test(LPSHELLCONTEXT);
 
 static struct {
     STR Name[32];
@@ -79,13 +80,13 @@ static struct {
     {"ls", "dir", "[Name] [/P]", CMD_dir},
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
-    {"run", "launch", "", CMD_run},
+    {"run", "launch", "Name", CMD_run},
     {"quit", "exit", "", CMD_exit},
     {"sys", "sysinfo", "", CMD_sysinfo},
-    {"kill", "killtask", "", CMD_killtask},
-    {"process", "showprocess", "", CMD_showprocess},
-    {"task", "showtask", "", CMD_showtask},
-    {"mem", "memedit", "", CMD_memedit},
+    {"kill", "killtask", "Number", CMD_killtask},
+    {"process", "showprocess", "Number", CMD_showprocess},
+    {"task", "showtask", "Number", CMD_showtask},
+    {"mem", "memedit", "Address", CMD_memedit},
     {"cat", "type", "", CMD_cat},
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
@@ -96,6 +97,7 @@ static struct {
     {"inp", "inp", "", CMD_inp},
     {"reboot", "reboot", "", CMD_reboot},
     {"dos", "dos", "", CMD_dos},
+    {"test", "test", "", CMD_test},
     {"", "", "", NULL},
 };
 
@@ -831,6 +833,27 @@ static void CMD_dos(LPSHELLCONTEXT Context) {
 
     ClearConsole();
     Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
+}
+
+/***************************************************************************/
+
+static void CMD_test(LPSHELLCONTEXT Context) {
+    TASKINFO TaskInfo;
+
+    UNUSED(Context);
+
+    KernelLogText(LOG_DEBUG, TEXT("[Shell] Creating test task : ClockTask"));
+
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
+    TaskInfo.Func = ClockTask;
+    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+    TaskInfo.Priority = TASK_PRIORITY_LOWEST;
+    TaskInfo.Flags = 0;
+
+    TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
+    CreateTask(&KernelProcess, &TaskInfo);
 }
 
 /***************************************************************************/

@@ -22,6 +22,7 @@ extern STR Text_Exit[];
 extern STR Text_Registers[];
 extern STR Text_Image[];
 extern STR Text_Clk[];
+extern STR Text_Separator[];
 
 /***************************************************************************/
 

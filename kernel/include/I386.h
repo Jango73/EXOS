@@ -212,21 +212,31 @@ typedef struct tag_TASKSTATESEGMENT {
     U32 EBP;       // Alternate stack pointer
     U32 ESI;       // ESI general purpose register
     U32 EDI;       // EDI general purpose register
+
     U16 ES;        // ES segment register (Extra segment)
     U16 Res5;      // Reserved
+
     U16 CS;        // CS segment register (Code segment)
     U16 Res6;      // Reserved
+
     U16 SS;        // SS segment register (Stack segment)
     U16 Res7;      // Reserved
+
     U16 DS;        // DS segment register (Data segment)
     U16 Res8;      // Reserved
+
     U16 FS;        // FS segment register (Extra segment)
     U16 Res9;      // Reserved
+
     U16 GS;        // GS segment register (Extra segment)
     U16 Res10;     // Reserved
+
     U16 LDT;       // Local descriptor table segment selector
     U16 Res11;     // Reserved
-    U16 TrapWord;
+
+    U8 Trap;
+    U8 Res12;
+
     U16 IOMap;          // I/O Map Base Address
     U8 IOMapBits[152];  // Map 1024 port adresses
 } TASKSTATESEGMENT, *LPTASKSTATESEGMENT;

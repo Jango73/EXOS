@@ -15,5 +15,6 @@ const STR Text_Exit[] = "Exit";
 const STR Text_Registers[] = "Registers :";
 const STR Text_Image[] = "Image :";
 const STR Text_Clk[] = "Clk";
+const STR Text_Separator[] = "================\n";
 
 /***************************************************************************/

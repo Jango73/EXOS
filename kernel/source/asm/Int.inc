@@ -68,6 +68,12 @@
     mov         edi, esp               ; EDI = &frame
 
     ; ---------------- Fill INTEL386REGISTERS ----------------
+    ; Original segment regs captured before EnterKernel
+    mov         word [edi + R_DS], ax              ; DS
+    mov         word [edi + R_ES], bx              ; ES
+    mov         word [edi + R_FS], cx              ; FS (low16 of ECX)
+    mov         word [edi + R_GS], dx              ; GS (low16 of EDX)
+
     ; HW triplet
     mov         eax, [esp + OFF_HW_NOERR + 8]      ; EFLAGS
     mov         [edi + R_EFlags], eax
@@ -104,14 +110,7 @@
     mov         [edi + R_ESP], eax
     movzx       eax, word [esp + OFF_HW_NOERR + 16]; User SS
     mov         word [edi + R_SS], ax
-
 %%no_user:
-
-    ; Original segment regs captured before EnterKernel
-    mov         word [edi + R_DS], ax              ; DS
-    mov         word [edi + R_ES], bx              ; ES
-    mov         word [edi + R_FS], cx              ; FS (low16 of ECX)
-    mov         word [edi + R_GS], dx              ; GS (low16 of EDX)
 
     ; Control/Debug registers not captured here -> set to 0
     mov         dword [edi + R_CR0], 0
@@ -151,8 +150,8 @@
 ; ------------------- Variant: with CPU error code on stack ------------------
 ; For exceptions that push an error code (#TS, #NP, #SS, #GP, #PF, #AC, etc.).
 ; Hardware layout at entry (top->bottom): [err][EIP][CS][EFLAGS][(UserESP,UserSS if CPL3)]
-%define OFF_HW_ERR       (SIZE_FRAME + 16 + 32)     ; base of EIP; error code at +12
-%define OFF_ERR_WORD     (OFF_HW_ERR + 12)          ; location of error code dword
+%define OFF_HW_ERR       (SIZE_FRAME + 16 + 32 + 4) ; base at EIP (EIP @ +0, CS @ +4, EFLAGS @ +8)
+%define OFF_ERR_WORD     (OFF_HW_ERR - 4)           ; error code sits 4 bytes before EIP
 
 %macro ISR_BUILD_FRAME_ERR_AND_CALL 2
     cli
@@ -177,6 +176,12 @@
     mov         edi, esp               ; EDI = &frame
 
     ; ---------------- Fill INTEL386REGISTERS ----------------
+    ; Original segment regs captured before EnterKernel
+    mov         word [edi + R_DS], ax              ; DS
+    mov         word [edi + R_ES], bx              ; ES
+    mov         word [edi + R_FS], cx              ; FS (low16 of ECX)
+    mov         word [edi + R_GS], dx              ; GS (low16 of EDX)
+
     ; HW triplet
     mov         eax, [esp + OFF_HW_ERR + 8]      ; EFLAGS
     mov         [edi + R_EFlags], eax
@@ -209,18 +214,11 @@
     test        eax, 3
     jz          %%no_user
 
-    mov         eax, [esp + OFF_HW_ERR + 16]       ; User ESP (shifted by error code)
+    mov         eax, [esp + OFF_HW_ERR + 12]       ; User ESP (after EFLAGS)
     mov         [edi + R_ESP], eax
-    movzx       eax, word [esp + OFF_HW_ERR + 20]  ; User SS (shifted by error code)
+    movzx       eax, word [esp + OFF_HW_ERR + 16]  ; User SS
     mov         word [edi + R_SS], ax
-
 %%no_user:
-
-    ; Original segment regs captured before EnterKernel
-    mov         word [edi + R_DS], ax              ; DS
-    mov         word [edi + R_ES], bx              ; ES
-    mov         word [edi + R_FS], cx              ; FS (low16 of ECX)
-    mov         word [edi + R_GS], dx              ; GS (low16 of EDX)
 
     ; Control/Debug registers not captured here -> set to 0
     mov         dword [edi + R_CR0], 0

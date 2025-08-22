@@ -350,6 +350,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     if (Table == MAX_U32) goto Out;
 
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Task table index = %X"), Table);
+
     Task = NewTask();
 
     if (Task == NULL) {
@@ -368,8 +370,16 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Parameter = Info->Parameter;
     Task->Table = Table;
 
+    /*
     U16 TaskIndex = GDT_NUM_BASE_DESCRIPTORS + Table * GDT_TASK_DESCRIPTOR_ENTRIES;
     Task->Selector = (TaskIndex << 3) | SELECTOR_GLOBAL | Process->Privilege;
+    */
+
+    Task->Selector =
+    (
+        (GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE) +
+        (Table * GDT_TASK_DESCRIPTORS_SIZE)
+    ) | SELECTOR_GLOBAL | Process->Privilege;
 
     //-------------------------------------
     // Allocate the system stack
@@ -406,9 +416,13 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     // Setup privilege data
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Setting kernel privilege (ring 0)"));
+
         CodeSelector = SELECTOR_KERNEL_CODE;
         DataSelector = SELECTOR_KERNEL_DATA;
     } else {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Setting user privilege (ring 3)"));
+
         CodeSelector = SELECTOR_USER_CODE;
         DataSelector = SELECTOR_USER_DATA;
     }

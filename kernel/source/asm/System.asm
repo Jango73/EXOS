@@ -45,7 +45,13 @@ IRQMask_A1_RM dd 0x00000000
 section .text
 bits 32
 
+    global GetGDTR
+    global GetLDTR
+    global GetESP
     global GetEBP
+    global GetDR6
+    global GetDR7
+    global SetDR6
     global GetCPUID
     global DisablePaging
     global EnablePaging
@@ -87,9 +93,71 @@ bits 32
 
 ;--------------------------------------
 
+GetGDTR:
+    push        ebp
+    mov         ebp, esp
+    sub         esp, 6            ; need 6 bytes for sgdt
+
+    sgdt        [ebp-6]           ; stores limit(2) + base(4)
+    mov         eax, [ebp-4]      ; eax = base
+
+    add         esp, 6
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+GetLDTR:
+    push        ebp
+    mov         ebp, esp
+    sub         esp, 6            ; need 6 bytes for sgdt
+
+    sldt        [ebp-6]           ; stores limit(2) + base(4)
+    mov         eax, [ebp-4]      ; eax = base
+
+    add         esp, 6
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+GetESP :
+
+    mov         eax, esp
+    ret
+
+;--------------------------------------
+
 GetEBP :
 
     mov         eax, ebp
+    ret
+
+;--------------------------------------
+
+GetDR6 :
+
+    mov         eax, dr6
+    ret
+
+;--------------------------------------
+
+GetDR7 :
+
+    mov         eax, dr7
+    ret
+
+;--------------------------------------
+
+SetDR6 :
+
+    push        ebp
+    mov         ebp, esp
+
+    mov         eax, [ebp+PBN]
+    mov         dr6, eax
+
+    pop         ebp
     ret
 
 ;--------------------------------------
@@ -625,17 +693,6 @@ TaskRunner :
     call        ValidateEIPOrDie
     add         esp, 4                     ; Adjust stack
     POST_CALL_C
-
-    ; Clear debug registers
-    xor         edx, edx
-    mov         dr0, edx
-    mov         dr1, edx
-    mov         dr2, edx
-    mov         dr3, edx
-    mov         dr4, edx
-    mov         dr5, edx
-    mov         dr6, edx
-    mov         dr7, edx
 
     PRE_CALL_C
     push        eax                        ; Argument for task function
