@@ -550,6 +550,7 @@ void Sleep(U32 MilliSeconds) {
     UnfreezeScheduler();
 
     while (Task->Status == TASK_STATUS_SLEEPING) {
+        IdleCPU();
     }
 }
 
