@@ -247,7 +247,6 @@ static void KernelLogRegistersCompact(void) {
 
 void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
-    KernelLogRegistersCompact();
     // KernelPrintString(Format);
     // return;
 

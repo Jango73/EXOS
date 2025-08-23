@@ -111,14 +111,14 @@ static void Die(void) {
 
     Task = GetCurrentTask();
 
-    if (Task != NULL && Task != &KernelTask) {
+    if (Task != NULL) {
         LockMutex(MUTEX_KERNEL, INFINITY);
         LockMutex(MUTEX_MEMORY, INFINITY);
         LockMutex(MUTEX_CONSOLE, INFINITY);
 
         FreezeScheduler();
 
-        KillTask(GetCurrentTask());
+        KillTask(Task);
 
         UnlockMutex(MUTEX_KERNEL);
         UnlockMutex(MUTEX_MEMORY);
@@ -193,8 +193,8 @@ void DebugExceptionHandler_MinProbe(void){
     unsigned int  base = GdtBase(&de);
     unsigned char trap = *(volatile unsigned char*)(unsigned long)(base + 0x64);
 
-    KernelPrintString("[#DB] TSS base="); VarKernelPrintNumber(base, 16, 0, 0, 0);
-    KernelPrintString(" Trap@+0x64=");    VarKernelPrintNumber(trap, 16, 0, 0, 0);
+    KernelPrintString(TEXT("[#DB] TSS base=")); VarKernelPrintNumber(base, 16, 0, 0, 0);
+    KernelPrintString(TEXT(" Trap@+0x64="));    VarKernelPrintNumber(trap, 16, 0, 0, 0);
     KernelPrintString(Text_NewLine);
 }
 
@@ -246,10 +246,6 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     VarKernelPrintNumber(ldtr, 16, 0, 0, 0);
     KernelPrintString(Text_Space);
 
-    KernelPrintString(TEXT("LA_GDT : "));
-    VarKernelPrintNumber(LA_GDT, 16, 0, 0, 0);
-    KernelPrintString(Text_Space);
-
     SELECTOR tr = GetTaskRegister();
 
     KernelPrintString(TEXT("index : "));
@@ -269,13 +265,13 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     DebugExceptionHandler_MinProbe();
 
     // BS (bit14) = single-step (TF=1)
-    if (dr6 & (1u << 14)) KernelPrintString("[#DB] cause: single-step (TF=1)\n");
+    if (dr6 & (1u << 14)) KernelPrintString(TEXT("[#DB] cause: single-step (TF=1)\n"));
     // BT (bit15) = task-switch trap (TSS.T=1)
-    if (dr6 & (1u << 15)) KernelPrintString("[#DB] cause: task-switch trap (TSS.T=1)\n");
+    if (dr6 & (1u << 15)) KernelPrintString(TEXT("[#DB] cause: task-switch trap (TSS.T=1)\n"));
     // B0..B3 = hardware breakpoints
-    if (dr6 & 0xF)        KernelPrintString("[#DB] cause: hardware breakpoint (DR0-DR3)\n");
+    if (dr6 & 0xF)        KernelPrintString(TEXT("[#DB] cause: hardware breakpoint (DR0-DR3)\n"));
     // BD (bit13) = general detect
-    if (dr6 & (1u << 13)) KernelPrintString("[#DB] cause: general-detect (DR7.GD)\n");
+    if (dr6 & (1u << 13)) KernelPrintString(TEXT("[#DB] cause: general-detect (DR7.GD)\n"));
 
     LogTR();
     DumpFrame(Frame);
@@ -355,8 +351,8 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Invalid TSS"));
 
     LogTR();
-    LogSelectorFromErrorCode("[#TS]", Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#TS]", (U16)(Frame->ErrCode & 0xFFFFu)); }
+    LogSelectorFromErrorCode(TEXT("[#TS]"), Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector(TEXT("[#TS]"), (U16)(Frame->ErrCode & 0xFFFFu)); }
 
     DumpFrame(Frame);
     Die();
@@ -368,8 +364,8 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Segment fault"));
 
     LogTR();
-    LogSelectorFromErrorCode("[#NP]", Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#NP]", (U16)(Frame->ErrCode & 0xFFFFu)); }
+    LogSelectorFromErrorCode(TEXT("[#NP]"), Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector(TEXT("[#NP]"), (U16)(Frame->ErrCode & 0xFFFFu)); }
 
     DumpFrame(Frame);
     Die();
@@ -381,8 +377,8 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Stack fault"));
 
     LogTR();
-    LogSelectorFromErrorCode("[#SS]", Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#SS]", (U16)(Frame->ErrCode & 0xFFFFu)); }
+    LogSelectorFromErrorCode(TEXT("[#SS]"), Frame ? Frame->ErrCode : 0);
+    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector(TEXT("[#SS]"), (U16)(Frame->ErrCode & 0xFFFFu)); }
 
     DumpFrame(Frame);
     Die();
@@ -391,13 +387,13 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 /***************************************************************************/
 
 static void LogGPError(U32 err){
-    KernelPrintString("[#GP] err="); VarKernelPrintNumber(err,16,0,0,0);
-    KernelPrintString(" ext="); VarKernelPrintNumber(err&1,16,0,0,0);
-    KernelPrintString(" idt="); VarKernelPrintNumber((err>>1)&1,16,0,0,0);
-    KernelPrintString(" ti=");  VarKernelPrintNumber((err>>2)&1,16,0,0,0);
+    KernelPrintString(TEXT("[#GP] err=")); VarKernelPrintNumber(err,16,0,0,0);
+    KernelPrintString(TEXT(" ext=")); VarKernelPrintNumber(err&1,16,0,0,0);
+    KernelPrintString(TEXT(" idt=")); VarKernelPrintNumber((err>>1)&1,16,0,0,0);
+    KernelPrintString(TEXT(" ti="));  VarKernelPrintNumber((err>>2)&1,16,0,0,0);
     U32 sel = err & 0xFFFC;
-    KernelPrintString(" sel="); VarKernelPrintNumber(sel,16,0,0,0);
-    KernelPrintString("\n");
+    KernelPrintString(TEXT(" sel=")); VarKernelPrintNumber(sel,16,0,0,0);
+    KernelPrintString(Text_NewLine);
 }
 
 /***************************************************************************/

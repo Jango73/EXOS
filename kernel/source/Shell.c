@@ -66,7 +66,6 @@ static void CMD_irq(LPSHELLCONTEXT);
 static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
-static void CMD_dos(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
 
 static struct {
@@ -96,7 +95,6 @@ static struct {
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
     {"reboot", "reboot", "", CMD_reboot},
-    {"dos", "dos", "", CMD_dos},
     {"test", "test", "", CMD_test},
     {"", "", "", NULL},
 };
@@ -388,8 +386,8 @@ static void ListFile(LPFILE File) {
     }
 
     ConsolePrint(
-        TEXT(" %02d-%02d-%04d %02d:%02d "), File->Creation.Day, File->Creation.Month, File->Creation.Year,
-        File->Creation.Hour, File->Creation.Minute);
+        TEXT(" %d-%d-%d %d:%d "), (I32)File->Creation.Day, (I32)File->Creation.Month, (I32)File->Creation.Year,
+        (I32)File->Creation.Hour, (I32)File->Creation.Minute);
 
     // Print attributes
 
@@ -561,9 +559,7 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
     ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
     ConsolePrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
-    ConsolePrint((LPCSTR) "Stub address              : %p\n", StubAddress);
-    ConsolePrint((LPCSTR) "Loader SS                 : %04X\n", KernelStartup.Loader_SS);
-    ConsolePrint((LPCSTR) "Loader SP                 : %04X\n", KernelStartup.Loader_SP);
+    ConsolePrint((LPCSTR) "Stub address              : %p\n", KernelStartup.StubAddress);
 }
 
 /***************************************************************************/
@@ -791,10 +787,10 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
 static void CMD_irq(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    ConsolePrint(TEXT("8259-1 RM mask : %08b\n"), IRQMask_21_RM);
-    ConsolePrint(TEXT("8259-2 RM mask : %08b\n"), IRQMask_A1_RM);
-    ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), IRQMask_21);
-    ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), IRQMask_A1);
+    ConsolePrint(TEXT("8259-1 RM mask : %08b\n"), KernelStartup.IRQMask_21_RM);
+    ConsolePrint(TEXT("8259-2 RM mask : %08b\n"), KernelStartup.IRQMask_A1_RM);
+    ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), KernelStartup.IRQMask_21_PM);
+    ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), KernelStartup.IRQMask_A1_PM);
 }
 
 /***************************************************************************/
@@ -815,7 +811,7 @@ static void CMD_inp(LPSHELLCONTEXT Context) {
     ParseNextComponent(Context);
     Port = StringToU32(Context->Command);
     Data = InPortByte(Port);
-    ConsolePrint(TEXT("Port %04X = %02X\n"), Port, Data);
+    ConsolePrint(TEXT("Port %X = %X\n"), Port, Data);
 }
 
 /***************************************************************************/
@@ -824,15 +820,6 @@ static void CMD_reboot(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
     Reboot();
-}
-
-/***************************************************************************/
-
-static void CMD_dos(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-
-    ClearConsole();
-    Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
 }
 
 /***************************************************************************/

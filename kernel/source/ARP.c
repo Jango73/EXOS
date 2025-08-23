@@ -297,13 +297,13 @@ void ARP_DumpCache(void) {
 		if (!Entry->IsValid) continue;
 
 		U32 HostOrder = Ntohl(Entry->IPv4_Be);
-		KernelLogText(LOG_DEBUG, TEXT("[ARP] %u.%u.%u.%u -> %02X:%02X:%02X:%02X:%02X:%02X ttl=%u"),
+		KernelLogText(LOG_DEBUG, TEXT("[ARP] %u.%u.%u.%u -> %X:%X:%X:%X:%X:%X ttl=%u"),
 			(U32)((HostOrder >> 24) & 0xFF),
 			(U32)((HostOrder >> 16) & 0xFF),
 			(U32)((HostOrder >>  8) & 0xFF),
 			(U32)((HostOrder >>  0) & 0xFF),
-			Entry->MacAddress[0], Entry->MacAddress[1], Entry->MacAddress[2],
-			Entry->MacAddress[3], Entry->MacAddress[4], Entry->MacAddress[5],
-			Entry->TimeToLive);
+			(U32)Entry->MacAddress[0], (U32)Entry->MacAddress[1], (U32)Entry->MacAddress[2],
+			(U32)Entry->MacAddress[3], (U32)Entry->MacAddress[4], (U32)Entry->MacAddress[5],
+			(U32)Entry->TimeToLive);
 	}
 }

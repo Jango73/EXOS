@@ -39,13 +39,6 @@ STR Text_OSTitle[] =
 
 /***************************************************************************/
 
-PHYSICAL StubAddress = 1;
-KERNELSTARTUPINFO KernelStartup = {
-    .Loader_SS = 1,
-};
-
-/***************************************************************************/
-
 static LIST DesktopList = {
     .First = NULL,
     .Last = NULL,
@@ -69,9 +62,9 @@ static LIST ProcessList = {
 /***************************************************************************/
 
 static LIST TaskList = {
-    .First = (LPLISTNODE)&KernelTask,
-    .Last = (LPLISTNODE)&KernelTask,
-    .Current = (LPLISTNODE)&KernelTask,
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
     .NumItems = 1,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
@@ -129,7 +122,6 @@ static LIST FileList = {
 /***************************************************************************/
 
 KERNELDATA_I386 Kernel_i386 = {
-    .IDT = 0,
     .GDT = 0,
     .TTD = 0,
     .TSS = 0,
@@ -161,14 +153,6 @@ void CheckDataIntegrity(void) {
     if (DeadBeef != 0xDEADBEEF) {
         KernelLogText(LOG_DEBUG, TEXT("Expected a dead beef at %X"), (&DeadBeef));
         KernelLogText(LOG_DEBUG, TEXT("Data corrupt, halting"));
-
-        for (LINEAR Pointer = StubAddress; Pointer < N_2MB; Pointer++) {
-            if (*((U32*)Pointer) == 0xDEADBEEF) {
-                KernelLogText(LOG_DEBUG, TEXT("Found dead beef at %X"), Pointer);
-                KernelLogText(LOG_DEBUG, TEXT("Meaning at stub + %X"), Pointer - StubAddress);
-                break;
-            }
-        }
 
         // Wait forever
         DO_THE_SLEEPING_BEAUTY;
@@ -263,27 +247,6 @@ U32 ClockTask(LPVOID Param) {
 /***************************************************************************/
 
 void DumpCriticalInformation(void) {
-    KernelPrintString(TEXT("[DumpCriticalInformation] LA_KERNEL_STACK = "));
-    VarKernelPrintNumber(LA_KERNEL_STACK, 16, 0, 0, 0);
-
-    KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
-    KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
-
-    KernelLogText(LOG_DEBUG, TEXT("Physical IDT : %X"), KernelStartup.SI_Phys_IDT);
-    KernelLogText(LOG_DEBUG, TEXT("Physical GDT : %X"), KernelStartup.SI_Phys_GDT);
-    KernelLogText(LOG_DEBUG, TEXT("Physical PGD : %X"), KernelStartup.SI_Phys_PGD);
-    KernelLogText(LOG_DEBUG, TEXT("Physical PGS : %X"), KernelStartup.SI_Phys_PGS);
-    KernelLogText(LOG_DEBUG, TEXT("Physical PGK : %X"), KernelStartup.SI_Phys_PGK);
-    KernelLogText(LOG_DEBUG, TEXT("Physical PGL : %X"), KernelStartup.SI_Phys_PGL);
-    KernelLogText(LOG_DEBUG, TEXT("Physical PGH : %X"), KernelStartup.SI_Phys_PGH);
-    KernelLogText(LOG_DEBUG, TEXT("Physical TSS : %X"), KernelStartup.SI_Phys_TSS);
-    KernelLogText(LOG_DEBUG, TEXT("Physical PPB : %X"), KernelStartup.SI_Phys_PPB);
-    KernelLogText(LOG_DEBUG, TEXT("Physical kernel code & data : %X"), KernelStartup.SI_Phys_KER);
-    KernelLogText(LOG_DEBUG, TEXT("Physical kernel bss : %X"), KernelStartup.SI_Phys_BSS);
-    KernelLogText(LOG_DEBUG, TEXT("Physical kernel stack : %X"), KernelStartup.SI_Phys_STK);
-
-    KernelLogText(LOG_DEBUG, TEXT("E820 entry count : %X"), KernelStartup.E820_Count);
-
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
         KernelLogText(LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"),
         Index, (U32)KernelStartup.E820[Index].Base.LO, (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
@@ -296,20 +259,14 @@ void DumpCriticalInformation(void) {
     KernelLogText(LOG_DEBUG, TEXT("LA_USER : %X"), LA_USER);
     KernelLogText(LOG_DEBUG, TEXT("LA_LIBRARY : %X"), LA_LIBRARY);
     KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
-    KernelLogText(LOG_DEBUG, TEXT("LA_RAMDISK : %X"), LA_RAMDISK);
-    KernelLogText(LOG_DEBUG, TEXT("LA_SYSTEM : %X"), LA_SYSTEM);
-    KernelLogText(LOG_DEBUG, TEXT("LA_DIRECTORY : %X"), LA_DIRECTORY);
-    KernelLogText(LOG_DEBUG, TEXT("LA_SYSTABLE : %X"), LA_SYSTABLE);
-    KernelLogText(LOG_DEBUG, TEXT("LA_PAGETABLE : %X"), LA_PAGETABLE);
-    KernelLogText(LOG_DEBUG, TEXT("LA_PPB : %X"), LA_PPB);
 
     KernelLogText(LOG_DEBUG, TEXT("Kernel startup info:"));
-    KernelLogText(LOG_DEBUG, TEXT("  Loader_SS : %X"), KernelStartup.Loader_SS);
-    KernelLogText(LOG_DEBUG, TEXT("  Loader_SP : %X"), KernelStartup.Loader_SP);
+    KernelLogText(LOG_DEBUG, TEXT("  StubAddress : %X"), KernelStartup.StubAddress);
     KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM : %X"), KernelStartup.IRQMask_21_RM);
     KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM : %X"), KernelStartup.IRQMask_A1_RM);
     KernelLogText(LOG_DEBUG, TEXT("  MemorySize : %X"), KernelStartup.MemorySize);
     KernelLogText(LOG_DEBUG, TEXT("  PageCount : %X"), KernelStartup.PageCount);
+    KernelLogText(LOG_DEBUG, TEXT("  E820 entry count : %X"), KernelStartup.E820_Count);
 }
 
 /***************************************************************************/
@@ -395,41 +352,16 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 void InitializeKernel(void) {
     // PROCESSINFO ProcessInfo;
     // TASKINFO TaskInfo;
-    KERNELSTARTUPINFO TempKernelStartup;
-    // LINEAR BSSStart = (LINEAR)(&__bss_init_start);
-    // LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
-    // U32 BSSSize = BSSEnd - BSSStart;
 
-    //-------------------------------------
-    // No more interrupts
-
-    DisableInterrupts();
+    LINEAR BSSStart = (LINEAR)(&__bss_init_start);
+    LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
+    U32 BSSSize = BSSEnd - BSSStart;
+    MemorySet((LPVOID)BSSStart, 0, BSSSize);
 
     //-------------------------------------
     // Check data integrity
 
     CheckDataIntegrity();
-
-    //-------------------------------------
-    // Get system information gathered by the stub
-    // Initialize BSS after informationkernel startup info collected
-
-    MemoryCopy(&TempKernelStartup, (LPVOID)(StubAddress + KERNEL_STARTUP_INFO_OFFSET), sizeof(KERNELSTARTUPINFO));
-
-    IRQMask_21_RM = TempKernelStartup.IRQMask_21_RM;
-    IRQMask_A1_RM = TempKernelStartup.IRQMask_A1_RM;
-
-    // MemorySet((LPVOID)BSSStart, 0, BSSSize);
-    MemoryCopy(&KernelStartup, &TempKernelStartup, sizeof(KERNELSTARTUPINFO));
-
-    //-------------------------------------
-    // Initialize i386 structure pointers
-
-    Kernel_i386.IDT = (LPGATEDESCRIPTOR)LA_IDT;
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)LA_GDT;
-    Kernel_i386.TTD = (LPTASKTSSDESCRIPTOR)LA_GDT_TASK;
-    Kernel_i386.TSS = (LPTASKSTATESEGMENT)LA_TSS;
-    Kernel_i386.PPB = (LPPAGEBITMAP)LA_PPB;
 
     //-------------------------------------
     // Initialize interrupts
@@ -443,25 +375,10 @@ void InitializeKernel(void) {
     DumpCriticalInformation();
 
     //-------------------------------------
-    // Initialize the memory manager
-
-    InitializeMemoryManager();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Memory manager initialized"));
-
-    //-------------------------------------
     // Initialize kernel process
 
     InitializeKernelProcess();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel process initialized"));
-
-    //-------------------------------------
-    // Setup the kernel's main task
-
-    InitKernelTask();
-    LoadInitialTaskRegister(KernelTask.Selector);
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel task setup"));
-
-    LogTaskStateSegment(LOG_DEBUG, (TASKSTATESEGMENT*)Kernel_i386.TSS);
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel process and task initialized"));
 
     //-------------------------------------
     // Initialize the console

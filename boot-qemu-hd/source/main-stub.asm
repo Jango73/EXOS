@@ -8,10 +8,19 @@ BITS 16
 section .start
 global _start
 global BiosReadSectors
+global MemorySet
 
 extern BootMain
 
 ORIGIN equ 0x8000
+PBN equ 0x08                            ; Param base near
+PBF equ 0x0A                            ; Param base far
+CR0_PROTECTED_MODE equ 0x00000001       ; Protected mode on/off
+CR0_COPROCESSOR equ 0x00000002          ; Math present
+CR0_MONITOR_COPROCESSOR equ 0x00000004  ; Emulate co-processor
+CR0_TASKSWITCH equ 0x00000008           ; Set on task switch
+CR0_80387 equ 0x00000010                ; Type of co-processor
+CR0_PAGING equ 0x80000000               ; Paging on/off
 
 _start:
     jmp         Start
@@ -152,6 +161,32 @@ BiosReadSectors_16:
     pop         ax
     ret
 
+;----------------------------------------
+
+MemorySet :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    edi
+    push    es
+
+    push    ds
+    pop     es
+
+    mov     edi, [ebp+(PBN+0)]
+    mov     eax, [ebp+(PBN+4)]
+    mov     ecx, [ebp+(PBN+8)]
+    cld
+    rep     stosb
+
+    pop     es
+    pop     edi
+    pop     ecx
+
+    pop     ebp
+    ret
 
 ;----------------------------------------
 ; PrintChar
@@ -235,6 +270,61 @@ PrintHex32Nibble:
     call    PrintChar
     ret
 
+;-------------------------------------------------------------
+; EnterLongMode : bascule en mode protégé + active la pagination
+; et saute à l'entrée haute du kernel
+; Param 1 : GDTR
+; Param 2 : PageDirectory (phys)
+; Param 3 : KernelEntryVA (virtuelle)
+;-------------------------------------------------------------
+
+global EnterLongMode
+
+EnterLongMode:
+    push        ebp
+    mov         ebp, esp
+
+    cli
+
+    mov         si, Text_JumpingToPM
+    call        PrintString
+
+    mov         eax, [ebp + 8]      ; GDTR
+    lgdt        [eax]
+
+    mov         eax, [ebp + 12]     ; PageDirectory (cr3)
+    mov         cr3, eax
+
+    ; Activer PE
+    mov         eax, cr0
+    or          eax, CR0_PROTECTED_MODE
+    mov         cr0, eax
+
+    ; Jump far to 32 bits
+    jmp         0x08:ProtectedEntryPoint
+
+[BITS 32]
+ProtectedEntryPoint:
+    mov         ax, 0x10
+    mov         ds, ax
+    mov         es, ax
+    mov         ss, ax
+    mov         esp, 0x7000        ; Temp stack
+
+    ; Activate paging
+    mov         eax, cr0
+    or          eax, CR0_PAGING
+    mov         cr0, eax
+    jmp         $+2                ; Pipeline flush
+
+    ; Jump to loaded image
+    mov         eax, [ebp + 16]    ; KernelEntryVA
+    jmp         eax
+
+    hlt
+.hang:
+    jmp         .hang
+
 ;----------------------------------------
 ; Read-only data
 
@@ -242,9 +332,11 @@ section .rodata
 align 16
 
 Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
-; Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
-; Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
+Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
+Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
+Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",0
+Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
 Text_NewLine: db 10,13,0
 
 ;----------------------------------------

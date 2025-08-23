@@ -471,7 +471,6 @@ Manages executable loading, process creation and heap setup.
 
 #### Functions in Process.c
 
-- InitializeKernelHeap: Sets up the kernel heap area.
 - GetExecutableInfo_EXOS: Retrieves information from an EXOS executable.
 - LoadExecutable_EXOS: Loads an executable into memory.
 - NewProcess: Allocates and initializes a process structure.

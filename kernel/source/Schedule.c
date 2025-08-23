@@ -40,7 +40,7 @@ typedef struct tag_TASKLIST {
 
 /***************************************************************************/
 
-static TASKLIST TaskList = {0, 0, 20, 1, &KernelTask, {&KernelTask}};
+static TASKLIST TaskList = {0, 0, 20, 1, NULL, {NULL}};
 
 /***************************************************************************/
 
@@ -76,7 +76,10 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     //-------------------------------------
     // Check if task queue is full
 
-    if (TaskList.NumTasks == NUM_TASKS) goto Out_Error;
+    if (TaskList.NumTasks == NUM_TASKS) {
+        KernelLogText(LOG_ERROR, TEXT("[AddTaskToQueue] Cannot add %X, too much tasks"), NewTask);
+        goto Out_Error;
+    }
 
     //-------------------------------------
     // Check if task already in task queue
@@ -87,6 +90,8 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
 
     //-------------------------------------
     // Add task to queue
+
+    KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
 
     TaskList.Tasks[TaskList.NumTasks] = NewTask;
     TaskList.NumTasks++;

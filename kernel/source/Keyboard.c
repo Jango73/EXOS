@@ -508,8 +508,6 @@ static void HandleScanCode(U32 ScanCode) {
                             TaskInfo.Flags = 0;
                             CreateTask(&KernelProcess, &TaskInfo);
                         }
-                    } else if (KeyCode.VirtualKey == VK_F10) {
-                        Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
                     }
                 } break;
             }

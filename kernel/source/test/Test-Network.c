@@ -56,7 +56,7 @@ static void TestNet_Rx(const U8 *frame, U32 len) {
     if (!frame || len < 14U) return;
 
     U16 ethType = (U16)((frame[12] << 8) | frame[13]);
-    KernelLogText(LOG_VERBOSE, TEXT("[RX] Frame len=%u, ethType=0x%04X"), len, ethType);
+    KernelLogText(LOG_VERBOSE, TEXT("[RX] Frame len=%u, ethType=%X"), len, ethType);
     DumpHexShort(frame, len);
 }
 
@@ -135,8 +135,8 @@ static U32 NetworkTestTask(LPVOID param) {
     sNetDev->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&gi);
 
     KernelLogText(
-        LOG_VERBOSE, TEXT("[NETTEST] MAC=%02X:%02X:%02X:%02X:%02X:%02X Link=%s Speed=%u Duplex=%s MTU=%u"),
-        sInfo.MAC[0], sInfo.MAC[1], sInfo.MAC[2], sInfo.MAC[3], sInfo.MAC[4], sInfo.MAC[5],
+        LOG_VERBOSE, TEXT("[NETTEST] MAC=%X:%X:%X:%X:%X:%X Link=%s Speed=%u Duplex=%s MTU=%u"),
+        (U32)sInfo.MAC[0], (U32)sInfo.MAC[1], (U32)sInfo.MAC[2], (U32)sInfo.MAC[3], (U32)sInfo.MAC[4], (U32)sInfo.MAC[5],
         sInfo.LinkUp ? "UP" : "DOWN", (unsigned)sInfo.SpeedMbps, sInfo.DuplexFull ? "FULL" : "HALF", sInfo.MTU
     );
 

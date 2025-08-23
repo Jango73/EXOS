@@ -61,7 +61,7 @@ void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
              "  Global        = %u\n"
              "  User          = %u\n"
              "  Fixed         = %u\n"
-             "  Address       = 0x%05lX\n"),
+             "  Address       = %X\n"),
         (U32)PageDirectory->Present, (U32)PageDirectory->ReadWrite, (U32)PageDirectory->Privilege,
         (U32)PageDirectory->WriteThrough, (U32)PageDirectory->CacheDisabled, (U32)PageDirectory->Accessed,
         (U32)PageDirectory->Reserved, (U32)PageDirectory->PageSize, (U32)PageDirectory->Global,
@@ -85,7 +85,7 @@ void LogPageTable(U32 LogType, const PAGETABLE* PageTable) {
              "  Global        = %u\n"
              "  User          = %u\n"
              "  Fixed         = %u\n"
-             "  Address       = 0x%05lX\n"),
+             "  Address       = %X\n"),
         (U32)PageTable->Present, (U32)PageTable->ReadWrite, (U32)PageTable->Privilege, (U32)PageTable->WriteThrough,
         (U32)PageTable->CacheDisabled, (U32)PageTable->Accessed, (U32)PageTable->Dirty, (U32)PageTable->Reserved,
         (U32)PageTable->Global, (U32)PageTable->User, (U32)PageTable->Fixed, (U32)PageTable->Address);
@@ -97,9 +97,9 @@ void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescripto
     KernelLogText(
         LogType,
         TEXT("SEGMENTDESCRIPTOR:\n"
-             "  Limit_00_15   = 0x%04X\n"
-             "  Base_00_15    = 0x%04X\n"
-             "  Base_16_23    = 0x%02X\n"
+             "  Limit_00_15   = %X\n"
+             "  Base_00_15    = %X\n"
+             "  Base_16_23    = %X\n"
              "  Accessed      = %u\n"
              "  CanWrite      = %u\n"
              "  ConformExpand = %u\n"
@@ -107,13 +107,13 @@ void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescripto
              "  Segment       = %u\n"
              "  Privilege     = %u\n"
              "  Present       = %u\n"
-             "  Limit_16_19   = 0x%01X\n"
+             "  Limit_16_19   = %X\n"
              "  Available     = %u\n"
              "  Unused        = %u\n"
              "  OperandSize   = %u\n"
              "  Granularity   = %u\n"
-             "  Base_24_31    = 0x%02X\n"),
-        (U16)SegmentDescriptor->Limit_00_15, (U16)SegmentDescriptor->Base_00_15, (U8)SegmentDescriptor->Base_16_23,
+             "  Base_24_31    = %X\n"),
+        (U32)SegmentDescriptor->Limit_00_15, (U32)SegmentDescriptor->Base_00_15, (U8)SegmentDescriptor->Base_16_23,
         (U32)SegmentDescriptor->Accessed, (U32)SegmentDescriptor->CanWrite, (U32)SegmentDescriptor->ConformExpand,
         (U32)SegmentDescriptor->Type, (U32)SegmentDescriptor->Segment, (U32)SegmentDescriptor->Privilege,
         (U32)SegmentDescriptor->Present, (U8)SegmentDescriptor->Limit_16_19, (U32)SegmentDescriptor->Available,
@@ -184,16 +184,16 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
              "  Available     = %u\n"
              "  Granularity   = %u\n"
              "  Base_24_31    = %X"),
-        (U16)TssDescriptor->Limit_00_15,
-        (U16)TssDescriptor->Base_00_15,
-        (U8)TssDescriptor->Base_16_23,
+        (U32)TssDescriptor->Limit_00_15,
+        (U32)TssDescriptor->Base_00_15,
+        (U32)TssDescriptor->Base_16_23,
         (U32)TssDescriptor->Type,
         (U32)TssDescriptor->Privilege,
         (U32)TssDescriptor->Present,
-        (U8)TssDescriptor->Limit_16_19,
+        (U32)TssDescriptor->Limit_16_19,
         (U32)TssDescriptor->Available,
         (U32)TssDescriptor->Granularity,
-        (U8)TssDescriptor->Base_24_31
+        (U32)TssDescriptor->Base_24_31
     );
 
     /* Decoded view */

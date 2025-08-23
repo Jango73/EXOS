@@ -392,10 +392,9 @@ static U32 RAMDiskInitialize(void) {
     if (Disk == NULL) return DF_ERROR_NOMEMORY;
 
     Disk->Size = N_512KB;
-    Disk->Base = AllocRegion(LA_RAMDISK, 0, Disk->Size, ALLOC_PAGES_COMMIT);
+    Disk->Base = AllocRegion(0, 0, Disk->Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Disk->Base == NULL) {
-        FreeRegion(LA_RAMDISK, Disk->Size);
         return DF_ERROR_NOMEMORY;
     }
 

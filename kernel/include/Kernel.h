@@ -14,7 +14,7 @@
 
 /***************************************************************************/
 
-#include "Address.h"
+#include "I386.h"
 #include "Base.h"
 #include "Heap.h"
 #include "ID.h"
@@ -30,7 +30,6 @@
 #pragma pack(1)
 
 /***************************************************************************/
-
 // Structure to receive CPU information
 
 typedef struct tag_CPUINFORMATION {
@@ -58,44 +57,33 @@ typedef struct tag_CPUINFORMATION {
 #define SELECTOR_REAL_DATA (0x38 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
 /***************************************************************************/
-// Task selectors - ???
-
-/*
-#define TASK_SELECTOR_NULL 0x0000
-#define TASK_SELECTOR_RAM 0x0008
-#define TASK_SELECTOR_CODE 0x0010
-#define TASK_SELECTOR_DATA 0x0018
-#define TASK_SELECTOR_HEAP 0x0020
-#define TASK_SELECTOR_STAK 0x0028
-
-#define TASK_SELINDEX_NULL 0
-#define TASK_SELINDEX_RAM 1
-#define TASK_SELINDEX_CODE 2
-#define TASK_SELINDEX_DATA 3
-#define TASK_SELINDEX_HEAP 4
-#define TASK_SELINDEX_STAK 5
-*/
-
-/***************************************************************************/
 
 #define DESCRIPTOR_SIZE 8
-#define IDT_NUM_DESCRIPTORS (IDT_SIZE / DESCRIPTOR_SIZE)
 #define GDT_NUM_DESCRIPTORS (GDT_SIZE / DESCRIPTOR_SIZE)
 #define GDT_NUM_BASE_DESCRIPTORS 8
 #define GDT_NUM_DESCRIPTORS_PER_TASK 2
-#define LDT_NUM_DESCRIPTORS 6
 
 #define GDT_NUM_TASKS ((GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS) / GDT_NUM_DESCRIPTORS_PER_TASK)
-
-#define LA_GDT_TASK (LA_GDT + (GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE))
-
 #define GDT_TASK_DESCRIPTORS_SIZE (GDT_NUM_DESCRIPTORS_PER_TASK * DESCRIPTOR_SIZE)
+#define NUM_TASKS GDT_NUM_TASKS
+
+#define IDT_SIZE N_4KB
+#define GDT_SIZE N_8KB
+
+/***************************************************************************/
+// Static linear addresses (VMA)
+// All processes have the following address space layout
+
+#define LA_RAM 0x00000000        // Reserved for kernel
+#define LA_VIDEO 0x000A0000      // Reserved for kernel
+#define LA_CONSOLE 0x000B8000    // Reserved for kernel
+#define LA_USER 0x00400000       // Start of user address space
+#define LA_LIBRARY 0xA0000000    // Dynamic Libraries
+#define LA_KERNEL 0xC0000000     // Kernel
 
 /***************************************************************************/
 
 #define NUM_INTERRUPTS 48
-
-#define NUM_TASKS GDT_NUM_TASKS
 
 /***************************************************************************/
 // The EXOS interrupt for user functions
@@ -111,6 +99,34 @@ typedef struct tag_CPUINFORMATION {
 
 // Global Kernel Data
 
+#define KERNEL_PHYSICAL_ORIGIN 0x20000
+
+#define RESERVED_LOW_MEMORY N_4MB
+
+typedef struct tag_E820ENTRY {
+    U64 Base;
+    U64 Size;
+    U32 Type;
+    U32 Attributes;
+} E820ENTRY, *LPE820ENTRY;
+
+typedef struct tag_KERNELSTARTUPINFO {
+    PHYSICAL StubAddress;
+    PHYSICAL PageDirectory;
+    U32 IRQMask_21_PM;
+    U32 IRQMask_A1_PM;
+    U32 IRQMask_21_RM;
+    U32 IRQMask_A1_RM;
+    U32 MemorySize;         // Total memory size in bytes
+    U32 PageCount;          // Total memory size in pages (4K)
+    U32 E820_Count;         // BIOS E820 function entries
+    E820ENTRY E820 [N_4KB / sizeof(E820ENTRY)];
+} KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
+
+extern KERNELSTARTUPINFO KernelStartup;
+
+// These structures are allocated in Memory.c
+
 typedef struct tag_KERNELDATA_I386 {
     LPGATEDESCRIPTOR IDT;
     LPSEGMENTDESCRIPTOR GDT;
@@ -118,6 +134,8 @@ typedef struct tag_KERNELDATA_I386 {
     LPTASKSTATESEGMENT TSS;
     LPPAGEBITMAP PPB;
 } KERNELDATA_I386, *LPKERNELDATA_I386;
+
+extern KERNELDATA_I386 Kernel_i386;
 
 typedef struct tag_KERNELDATA {
     LPLIST Desktop;
@@ -131,6 +149,8 @@ typedef struct tag_KERNELDATA {
     CPUINFORMATION CPU;
 } KERNELDATA, *LPKERNELDATA;
 
+extern KERNELDATA Kernel;
+
 /***************************************************************************/
 
 // Functions in Kernel.c
@@ -143,14 +163,6 @@ U32 ClockTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
-
-/***************************************************************************/
-
-// Variables in Kernel.c
-
-extern KERNELDATA_I386 Kernel_i386;
-extern KERNELDATA Kernel;
-extern PHYSICAL StubAddress;
 
 /***************************************************************************/
 

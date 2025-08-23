@@ -15,6 +15,10 @@
 #include "Base.h"
 #include "Mutex.h"
 
+#define TASK_TYPE_KERNEL_MAIN       0
+#define TASK_TYPE_KERNEL_OTHER      1
+#define TASK_TYPE_USER              2
+
 /************************************************************************/
 // The Task structure
 
@@ -22,6 +26,7 @@ struct tag_TASK {
     LISTNODE_FIELDS     // Standard EXOS object fields
         MUTEX Mutex;    // This structure's mutex
     LPPROCESS Process;  // Process that owns this task
+    U32 Type;           // Type of task
     U32 Status;         // Current status of this task
     U32 Priority;       // Current priority of this task
     TASKFUNC Function;  // Start address of this task

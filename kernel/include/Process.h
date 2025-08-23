@@ -174,7 +174,7 @@ struct tag_DESKTOP {
 /***************************************************************************/
 
 extern PROCESS KernelProcess;
-extern TASK KernelTask;
+extern WINDOW MainDesktopWindow;
 extern DESKTOP MainDesktop;
 extern MUTEX KernelMutex;
 extern MUTEX LogMutex;

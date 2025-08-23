@@ -101,19 +101,13 @@ PAGE_SIZE_MUL      equ MUL_4KB
 ; Physical and virtual memory addresses
 
 IDT_SIZE     equ N_4KB
-GDT_SIZE 	 equ N_8KB
-STK_SIZE     equ N_32KB ; Kernel Stack Size
+GDT_SIZE     equ N_8KB
 
 LA_USER      equ 0x00400000
 LA_LIBRARY   equ 0xA0000000
 LA_KERNEL    equ 0xC0000000
-LA_SYSTEM    equ 0xFF400000
-LA_DIRECTORY equ 0xFF800000
 
-LA_IDT       equ LA_SYSTEM
-LA_GDT       equ (LA_IDT + IDT_SIZE)
-
-KERNEL_STARTUP_INFO_OFFSET	equ 32
+KERNEL_STARTUP_INFO_OFFSET  equ 32
 
 ;----------------------------------------------------------
 ; Values related to IDT, GDT, LDT
@@ -239,8 +233,36 @@ KEYBOARD_STATUS_PARITY_ERROR equ 0x80
 %endmacro
 
 %macro POST_CALL_C 0
-	add esp, 12
+    add esp, 12
 %endmacro
+
+;----------------------------------------------------------
+; KernelStartupInfo data layout (partial)
+
+STRUC KernelStartupInfo
+    .StubAddress        RESB 4
+    .PageDirectory      RESB 4
+    .IRQMask_21_PM      RESB 4
+    .IRQMask_A1_PM      RESB 4
+    .IRQMask_21_RM      RESB 4
+    .IRQMask_A1_RM      RESB 4
+    .MemorySize         RESB 4
+    .PageCount          RESB 4
+    .E820_Count         RESB 4
+ENDSTRUC
+
+;----------------------------------------------------------
+; Kernel i386 data layout - used to fetch GDT/IDT pointers from C
+; Minimal mapping: first fields must match C struct order.
+; Keep this in sync with the C definition of 'Kernel_i386'.
+
+STRUC KERNELDATA_I386
+    .IDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
+    .GDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
+    .TTD                RESB 4        ; LPTASKTSSDESCRIPTOR*
+    .TSS                RESB 4        ; LPTASKSTATESEGMENT*
+    .PPB                RESB 4        ; LPPAGEBITMAP*
+ENDSTRUC
 
 ;----------------------------------------------------------
 ; Extern C symbols
@@ -282,7 +304,7 @@ extern MouseHandler
 extern HardDriveHandler
 
 extern Kernel
-extern StubAddress
+extern KernelStartup
 extern __stub_init_end
 extern __stub_init_start
 extern __bss_init_end

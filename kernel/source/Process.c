@@ -9,7 +9,6 @@
 
 #include "../include/Process.h"
 
-#include "../include/Address.h"
 #include "../include/Console.h"
 #include "../include/File.h"
 #include "../include/Kernel.h"
@@ -39,7 +38,9 @@ PROCESS KernelProcess = {
 /***************************************************************************/
 
 void InitializeKernelProcess(void) {
-    KernelProcess.PageDirectory = KernelStartup.SI_Phys_PGD;
+    TASKINFO TaskInfo;
+
+    KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.HeapSize = N_1MB;
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Memory : %X"), KernelStartup.MemorySize);
@@ -60,11 +61,27 @@ void InitializeKernelProcess(void) {
     MemorySet((LPVOID)KernelProcess.HeapBase, 0, sizeof(HEAPCONTROLBLOCK));
 
     ((LPHEAPCONTROLBLOCK)KernelProcess.HeapBase)->ID = ID_HEAP;
-}
 
-/***************************************************************************/
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
+    TaskInfo.Func = InitializeKernel;
+    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+    TaskInfo.Priority = TASK_PRIORITY_LOWEST;
+    TaskInfo.Flags = 0;
 
-void InitializeKernelHeap(void) {
+    LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
+
+    if (KernelTask == NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("Could not create kernel task, halting."));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
+    MainDesktopWindow.Task = KernelTask;
+    MainDesktop.Task = KernelTask;
+
+    LoadInitialTaskRegister(KernelTask->Selector);
 }
 
 /***************************************************************************/
@@ -96,7 +113,7 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
     BytesRead = ReadFile(&FileOperation);
 
     if (Header.Signature != EXOS_SIGNATURE) {
-        KernelLogText(LOG_DEBUG, TEXT("GetExecutableInfo_EXOS() : Bad signature (%08X)\n"), Header.Signature);
+        KernelLogText(LOG_DEBUG, TEXT("GetExecutableInfo_EXOS() : Bad signature (%X)\n"), Header.Signature);
 
         goto Out_Error;
     }
@@ -181,8 +198,8 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LI
     CodeOffset = CodeBase - Info->CodeBase;
     DataOffset = DataBase - Info->DataBase;
 
-    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : CodeBase = %08X\n"), CodeBase);
-    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : DataBase = %08X\n"), DataBase);
+    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : CodeBase = %X\n"), CodeBase);
+    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : DataBase = %X\n"), DataBase);
 
     //-------------------------------------
     // Read the header
@@ -462,7 +479,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : AllocRegioning process space\n"));
 
-    AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT);
+    AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     //-------------------------------------
     // Open the executable file

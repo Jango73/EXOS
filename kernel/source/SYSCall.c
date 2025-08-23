@@ -7,7 +7,6 @@
 
 \***************************************************************************/
 
-#include "../include/Address.h"
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
@@ -48,7 +47,7 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
         Info->PageSize = PAGE_SIZE;
         Info->TotalPhysicalPages = KernelStartup.PageCount;
         Info->MinimumLinearAddress = LA_USER;
-        Info->MaximumLinearAddress = LA_DIRECTORY - 1;
+        Info->MaximumLinearAddress = LA_KERNEL - 1;
         Info->NumProcesses = Kernel.Process->NumItems;
         Info->NumTasks = Kernel.Task->NumItems;
 

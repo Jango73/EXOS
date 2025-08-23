@@ -27,7 +27,8 @@ PAYLOAD_MAP     = bin/payload.map
 CFLAGS  = -m16 -g -Wall -Wextra -O2 \
 	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
-	-fvisibility=hidden -mno-red-zone \
+	-fvisibility=hidden -mno-red-zone -fno-stack-protector \
+	-mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
 	-Werror-implicit-function-declaration -Wstrict-prototypes
 
 LD      		= i686-elf-ld

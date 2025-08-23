@@ -27,18 +27,10 @@ section .data
 bits 32
 
     global DeadBeef
-    global IRQMask_21
-    global IRQMask_A1
-    global IRQMask_21_RM
-    global IRQMask_A1_RM
 
 ;--------------------------------------
 
 DeadBeef      dd 0xDEADBEEF
-IRQMask_21    dd 0x000000FB
-IRQMask_A1    dd 0x000000FF
-IRQMask_21_RM dd 0x00000000
-IRQMask_A1_RM dd 0x00000000
 
 ;----------------------------------------------------------------------------
 
@@ -77,6 +69,8 @@ bits 32
     global LoadInitialTaskRegister
     global GetTaskRegister
     global GetPageDirectory
+    global SetPageDirectory
+    global InvalidatePage
     global FlushTLB
     global SwitchToTask
     global TaskRunner
@@ -400,18 +394,18 @@ MaskIRQ :
     cmp  ebx, 8
     jge  _MaskIRQ_High
 
-    mov  edx, [IRQMask_21]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]
     or   edx, eax
-    mov  [IRQMask_21], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_21_PM], edx
     mov  eax, edx
     out  PIC1_DATA, al
     jmp  _MaskIRQ_Out
 
 _MaskIRQ_High :
 
-    mov  edx, [IRQMask_A1]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]
     or   edx, eax
-    mov  [IRQMask_A1], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_A1_PM], edx
     mov  eax, edx
     out  PIC2_DATA, al
 
@@ -442,18 +436,18 @@ UnmaskIRQ :
     cmp  ebx, 8
     jge  _UnmaskIRQ_High
 
-    mov  edx, [IRQMask_21]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]
     and  edx, eax
-    mov  [IRQMask_21], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_21_PM], edx
     mov  eax, edx
     out  PIC1_DATA, al
     jmp  _UnmaskIRQ_Out
 
 _UnmaskIRQ_High :
 
-    mov  edx, [IRQMask_A1]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]
     and  edx, eax
-    mov  [IRQMask_A1], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_A1_PM], edx
     mov  eax, edx
     out  PIC2_DATA, al
 
@@ -646,6 +640,33 @@ GetTaskRegister :
 GetPageDirectory :
 
     mov     eax, cr3
+    ret
+
+;--------------------------------------
+
+SetPageDirectory :
+
+    push        ebp
+    mov         ebp, esp
+    push        ebx
+
+    mov         eax, [ebp+PBN+0]
+    mov         cr3, eax
+
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+InvalidatePage :
+
+    push        ebp
+    mov         ebp, esp
+
+    mov         eax, [ebp+(PBN+0)]
+    invlpg      [eax]
+
+    pop         ebp
     ret
 
 ;--------------------------------------

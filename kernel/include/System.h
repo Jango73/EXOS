@@ -12,7 +12,6 @@
 
 /***************************************************************************/
 
-#include "Address.h"
 #include "Base.h"
 #include "I386.h"
 
@@ -55,14 +54,16 @@ extern U32 MaskIRQ(U32);
 extern U32 UnmaskIRQ(U32);
 extern U32 DisableIRQ(U32);
 extern U32 EnableIRQ(U32);
-extern U32 LoadGlobalDescriptorTable(U32, U32);
-extern U32 LoadLocalDescriptorTable(U32, U32);
-extern U32 LoadInterruptDescriptorTable(U32, U32);
-extern U32 LoadPageDirectory(U32);
-extern U32 LoadInitialTaskRegister(U32);
+extern U32 LoadGlobalDescriptorTable(PHYSICAL Base, U32 Limit);
+extern U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit);
+extern U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit);
+extern U32 LoadPageDirectory(PHYSICAL Base);
+extern U32 LoadInitialTaskRegister(U32 TaskRegister);
 extern U32 GetTaskRegister(void);
 extern U32 GetPageDirectory(void);
-extern U32 FlushTLB(void);
+extern void SetPageDirectory(PHYSICAL Base);
+extern void InvalidatePage(U32 Address);
+extern void FlushTLB(void);
 extern U32 SwitchToTask(U32);
 extern U32 TaskRunner(void);
 extern U32 ClearTaskState(void);
