@@ -1052,14 +1052,30 @@ void InitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    // Allocate, initialize and load the GDT
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocPhysicalPage();
+    // Allocate a permanent linear region for the GDT
+    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocRegion(
+        0, 0, GDT_SIZE, ALLOC_PAGES_RESERVE | ALLOC_PAGES_READWRITE);
+    if (Kernel_i386.GDT == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    U32 GdtPages = (GDT_SIZE + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+    for (U32 Page = 0; Page < GdtPages; Page++) {
+        PHYSICAL Physical = AllocPhysicalPage();
+        if (Physical == NULL) {
+            KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocPhysicalPage failed for GDT"));
+            DO_THE_SLEEPING_BEAUTY;
+        }
+        MapOnePage((LINEAR)Kernel_i386.GDT + (Page << PAGE_SIZE_MUL), Physical,
+                   /*RW*/1, PAGE_PRIVILEGE_KERNEL, /*WT*/0, /*UC*/0, /*Global*/0, /*Fixed*/1);
+    }
 
     InitGlobalDescriptorTable(Kernel_i386.GDT);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Loading GDT"));
 
-    LoadGlobalDescriptorTable((PHYSICAL)(Kernel_i386.GDT), GDT_SIZE - 1);
+    LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
     // Log GDT contents
     for (U32 i = 0; i < 3; i++) {

@@ -42,33 +42,31 @@ void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR This, U32 Type) {
 void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table) {
     KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] Enter"));
 
-    LPSEGMENTDESCRIPTOR LinTable = (LPSEGMENTDESCRIPTOR) MapPhysicalPage(Table);
+    MemorySet(Table, 0, GDT_SIZE);
 
-    MemorySet(LinTable, 0, GDT_SIZE);
+    InitSegmentDescriptor(&Table[1], GDT_TYPE_CODE);
+    Table[1].Privilege = GDT_PRIVILEGE_KERNEL;
 
-    InitSegmentDescriptor(&LinTable[1], GDT_TYPE_CODE);
-    LinTable[1].Privilege = GDT_PRIVILEGE_KERNEL;
+    InitSegmentDescriptor(&Table[2], GDT_TYPE_DATA);
+    Table[2].Privilege = GDT_PRIVILEGE_KERNEL;
 
-    InitSegmentDescriptor(&LinTable[2], GDT_TYPE_DATA);
-    LinTable[2].Privilege = GDT_PRIVILEGE_KERNEL;
+    InitSegmentDescriptor(&Table[3], GDT_TYPE_CODE);
+    Table[3].Privilege = GDT_PRIVILEGE_USER;
 
-    InitSegmentDescriptor(&LinTable[3], GDT_TYPE_CODE);
-    LinTable[3].Privilege = GDT_PRIVILEGE_USER;
+    InitSegmentDescriptor(&Table[4], GDT_TYPE_DATA);
+    Table[4].Privilege = GDT_PRIVILEGE_USER;
 
-    InitSegmentDescriptor(&LinTable[4], GDT_TYPE_DATA);
-    LinTable[4].Privilege = GDT_PRIVILEGE_USER;
+    InitSegmentDescriptor(&Table[5], GDT_TYPE_CODE);
+    Table[5].Privilege = GDT_PRIVILEGE_KERNEL;
+    Table[5].OperandSize = GDT_OPERANDSIZE_16;
+    Table[5].Granularity = GDT_GRANULAR_1B;
+    SetSegmentDescriptorLimit(&Table[5], N_1MB_M1);
 
-    InitSegmentDescriptor(&LinTable[5], GDT_TYPE_CODE);
-    LinTable[5].Privilege = GDT_PRIVILEGE_KERNEL;
-    LinTable[5].OperandSize = GDT_OPERANDSIZE_16;
-    LinTable[5].Granularity = GDT_GRANULAR_1B;
-    SetSegmentDescriptorLimit(&LinTable[5], N_1MB_M1);
-
-    InitSegmentDescriptor(&LinTable[6], GDT_TYPE_DATA);
-    LinTable[6].Privilege = GDT_PRIVILEGE_KERNEL;
-    LinTable[6].OperandSize = GDT_OPERANDSIZE_16;
-    LinTable[6].Granularity = GDT_GRANULAR_1B;
-    SetSegmentDescriptorLimit(&LinTable[6], N_1MB_M1);
+    InitSegmentDescriptor(&Table[6], GDT_TYPE_DATA);
+    Table[6].Privilege = GDT_PRIVILEGE_KERNEL;
+    Table[6].OperandSize = GDT_OPERANDSIZE_16;
+    Table[6].Granularity = GDT_GRANULAR_1B;
+    SetSegmentDescriptorLimit(&Table[6], N_1MB_M1);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] Exit"));
 }
