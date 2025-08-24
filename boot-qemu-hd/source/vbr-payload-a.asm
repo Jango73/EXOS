@@ -295,7 +295,7 @@ EnterLongMode:
     mov         eax, [ebp + 12]     ; PageDirectory (cr3)
     mov         cr3, eax
 
-    ; Activer PE
+    ; Activate protected mode
     mov         eax, cr0
     or          eax, CR0_PROTECTED_MODE
     mov         cr0, eax

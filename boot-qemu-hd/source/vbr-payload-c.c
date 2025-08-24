@@ -489,19 +489,6 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         Hang();
     }
 
-    /********************************************************************/
-    /* Jump                                                             */
-    /********************************************************************/
-
-/*
-    struct {
-        unsigned short Ofs;
-        unsigned short Seg;
-    } __attribute__((packed)) JumpFar = {LoadAddress_Ofs, LoadAddress_Seg};
-
-    __asm__ __volatile__("ljmp *%0" : : "m"(JumpFar));
-*/
-
     EnterProtectedPagingAndJump(FileSize);
 
     Hang();
@@ -671,7 +658,7 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     // Pass kernel entry VA as a normal C value (we le-recharge dans l'asm)
     const U32 KernelEntryVA = 0xC0000000;
 
-    for (volatile int i = 0; i < 1000000; ++i) { __asm__ __volatile__("nop"); }
+    for (volatile int i = 0; i < 100000; ++i) { __asm__ __volatile__("nop"); }
 
     EnterLongMode((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA);
 

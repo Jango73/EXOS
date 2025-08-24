@@ -1053,9 +1053,12 @@ void InitializeMemoryManager(void) {
     }
 
     // Allocate, initialize and load the GDT
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocRegion(0, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocPhysicalPage();
 
     InitGlobalDescriptorTable(Kernel_i386.GDT);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Loading GDT"));
+
     LoadGlobalDescriptorTable((PHYSICAL)(Kernel_i386.GDT), GDT_SIZE - 1);
 
     // Log GDT contents

@@ -496,26 +496,37 @@ EnableIRQ :
 LoadGlobalDescriptorTable :
 
     cli
-    push ebp
-    mov  ebp, esp
+    push        ebp
+    mov         ebp, esp
 
-    push ebx
-    push esi
+    push        ebx
+    push        esi
 
     ;--------------------------------------
     ; Version 1
 
     ; Put parameters in correct order
 
-    mov  eax, [ebp+(PBN+0)]
-    mov  ebx, [ebp+(PBN+4)]
+    mov         eax, [ebp+(PBN+0)]
+    mov         ebx, [ebp+(PBN+4)]
 
-    mov  [ebp+(PBN+0)], bx
-    mov  [ebp+(PBN+2)], eax
+    mov         [ebp+(PBN+0)], bx
+    mov         [ebp+(PBN+2)], eax
 
     ; Load the Global Descriptor Table
 
-    lgdt [ebp+PBN]
+    lgdt        [ebp+PBN]
+
+    jmp         0x08:.flush
+
+.flush :
+
+    mov ax, 0x10    ; data selector
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
 
 _LGDT_Out :
 
