@@ -100,8 +100,8 @@ typedef struct tag_CPUINFORMATION {
 // Global Kernel Data
 
 #define KERNEL_PHYSICAL_ORIGIN 0x20000
-
 #define RESERVED_LOW_MEMORY N_4MB
+#define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
 
 typedef struct tag_E820ENTRY {
     U64 Base;

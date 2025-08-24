@@ -991,7 +991,7 @@ void InitializeMemoryManager(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
 
     // Put the physical page bitmap at 2mb/2 = 1mb
-    Kernel_i386.PPB = (LPPAGEBITMAP) (RESERVED_LOW_MEMORY / 2);
+    Kernel_i386.PPB = (LPPAGEBITMAP) LOW_MEMORY_HALF;
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
 
     // Mark low 4mb as used
@@ -1028,6 +1028,15 @@ void InitializeMemoryManager(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] New page directory: %X"), NewPageDirectory);
 
+    /*
+    U32 old_esp;
+    __asm__ __volatile__ ("mov %%esp, %0" : "=r" (old_esp));
+    if (old_esp < 0xC0000000) {
+        __asm__ __volatile__ ("mov %0, %%esp" : : "i"(LOW_MEMORY_HALF) : "memory");
+        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] ESP moved to %X"), (U32) LOW_MEMORY_HALF);
+    }
+    */
+
     // Switch to the new page directory first (it includes the recursive map).
     SetPageDirectory(NewPageDirectory);
 
@@ -1047,6 +1056,12 @@ void InitializeMemoryManager(void) {
     Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocRegion(0, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     LoadGlobalDescriptorTable((PHYSICAL)(Kernel_i386.GDT), GDT_SIZE - 1);
+
+    // Log GDT contents
+    for (U32 i = 0; i < 3; i++) {
+        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] GDT[%u]=0x%X%X"), i,
+            ((U32*)(Kernel_i386.GDT))[i*2+1], ((U32*)(Kernel_i386.GDT))[i*2]);
+    }
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));
 }

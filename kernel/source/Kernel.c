@@ -353,6 +353,43 @@ void InitializeKernel(void) {
     // PROCESSINFO ProcessInfo;
     // TASKINFO TaskInfo;
 
+    //-------------------------------------
+    // No more interrupts
+
+    DisableInterrupts();
+
+    //-------------------------------------
+    // Gather startup information
+
+    KernelStartup.StubAddress = 0x20000;
+    KernelStartup.PageDirectory = GetPageDirectory();
+    KernelStartup.IRQMask_21_RM = 0;
+    KernelStartup.IRQMask_A1_RM = 0;
+    KernelStartup.MemorySize = N_128MB;
+    KernelStartup.PageCount = KernelStartup.MemorySize >> MUL_4KB;
+    KernelStartup.E820_Count = 0;
+
+    //-------------------------------------
+    // Init the kernel logger
+
+    InitKernelLog();
+    KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Kernel logger initialized"));
+
+    //-------------------------------------
+    // Initialize interrupts
+
+    // InitializeInterrupts();
+    // KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts initialized"));
+
+    //-------------------------------------
+    // Initialize the memory manager
+    // Move stack to kernel space
+    // __asm__ __volatile__ ("mov %0, %%esp" : : "i"(0xC0200000) : "memory");
+    // KernelLogText(LOG_DEBUG, TEXT("[KernelMain] ESP moved to 0xC0200000"));
+
+    InitializeMemoryManager();
+    KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Memory manager initialized"));
+
     LINEAR BSSStart = (LINEAR)(&__bss_init_start);
     LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
     U32 BSSSize = BSSEnd - BSSStart;
@@ -362,12 +399,6 @@ void InitializeKernel(void) {
     // Check data integrity
 
     CheckDataIntegrity();
-
-    //-------------------------------------
-    // Initialize interrupts
-
-    InitializeInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts initialized"));
 
     //-------------------------------------
     // Dump critical information

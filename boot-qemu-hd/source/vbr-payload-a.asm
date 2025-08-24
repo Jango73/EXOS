@@ -309,7 +309,7 @@ ProtectedEntryPoint:
     mov         ds, ax
     mov         es, ax
     mov         ss, ax
-    mov         esp, 0x7000        ; Temp stack
+    mov         esp, 0x200000      ; Set stack halfway through low 4mb
 
     ; Activate paging
     mov         eax, cr0

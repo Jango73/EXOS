@@ -166,11 +166,6 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
                     FieldWidth = 2 * sizeof(void*);
                     Flags |= PF_ZEROPAD | PF_LARGE;
                 }
-                // Ajouter le préfixe 0x pour %p (toujours en minuscules pour les pointeurs)
-                if (Flags & PF_SPECIAL) {
-                    KernelPrintChar('0');
-                    KernelPrintChar('x');
-                }
                 VarKernelPrintNumber((unsigned long)VarArg(Args, void*), 16, FieldWidth, Precision, Flags);
                 continue;
 
@@ -218,12 +213,6 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
             Number = (Flags & PF_SIGN) ? (short)VarArg(Args, int) : (unsigned short)VarArg(Args, int);
         } else {
             Number = (Flags & PF_SIGN) ? VarArg(Args, int) : (unsigned int)VarArg(Args, unsigned int);
-        }
-
-        // Ajouter le préfixe 0x ou 0X pour %x et %X si PF_SPECIAL est défini et le nombre n'est pas 0
-        if ((Flags & PF_SPECIAL) && (*Format == 'x' || *Format == 'X') && Number != 0) {
-            KernelPrintChar('0');
-            KernelPrintChar((Flags & PF_LARGE) ? 'X' : 'x');
         }
 
         VarKernelPrintNumber(Number, Base, FieldWidth, Precision, Flags);

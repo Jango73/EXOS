@@ -12,10 +12,10 @@ VBR_BIN         = bin/vbr.bin
 SECTORS_TO_LOAD = 8         # Number of sectors loaded by VBR (including sector 0)
 VBR_CODE_OFFSET = 0x5A      # Offset of code in VBR sector
 
-PAYLOAD_STUB    = source/main-stub.asm
-PAYLOAD_STUB_O  = bin/main-stub.o
-PAYLOAD_C       = source/main.c
-PAYLOAD_C_O     = bin/main.o
+PAYLOAD_STUB    = source/vbr-payload-a.asm
+PAYLOAD_STUB_O  = bin/vbr-payload-a.o
+PAYLOAD_C       = source/vbr-payload-c.c
+PAYLOAD_C_O     = bin/vbr-payload-c.o
 PAYLOAD_STR_C   = ../kernel/source/String.c
 PAYLOAD_STR_O   = bin/String.o
 PAYLOAD_BIN_LD  = main-bin.ld
