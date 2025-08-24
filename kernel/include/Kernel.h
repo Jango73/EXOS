@@ -169,6 +169,7 @@ void InitializeKernel(void);
 // Functions in Segment.c
 
 void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR, U32);
+void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR);
 void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR, U32);
 void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR, U32);
 void SetTSSDescriptorBase(LPTSSDESCRIPTOR, U32);

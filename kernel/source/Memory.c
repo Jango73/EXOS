@@ -1052,9 +1052,10 @@ void InitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    // Allocate GDT storage in kernel VA (committed, RW) and load it.
+    // Allocate, initialize and load the GDT
     Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocRegion(0, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
+    InitGlobalDescriptorTable(Kernel_i386.GDT);
     LoadGlobalDescriptorTable((PHYSICAL)(Kernel_i386.GDT), GDT_SIZE - 1);
 
     // Log GDT contents
