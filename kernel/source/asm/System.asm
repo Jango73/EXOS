@@ -653,6 +653,7 @@ SetPageDirectory :
     mov         eax, [ebp+PBN+0]
     mov         cr3, eax
 
+    pop         ebx
     pop         ebp
     ret
 
