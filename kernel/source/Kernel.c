@@ -359,6 +359,14 @@ void InitializeKernel(void) {
     DisableInterrupts();
 
     //-------------------------------------
+    // Clear the BSS
+
+    LINEAR BSSStart = (LINEAR)(&__bss_init_start);
+    LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
+    U32 BSSSize = BSSEnd - BSSStart;
+    MemorySet((LPVOID)BSSStart, 0, BSSSize);
+
+    //-------------------------------------
     // Gather startup information
 
     KernelStartup.StubAddress = 0x20000;
@@ -383,17 +391,9 @@ void InitializeKernel(void) {
 
     //-------------------------------------
     // Initialize the memory manager
-    // Move stack to kernel space
-    // __asm__ __volatile__ ("mov %0, %%esp" : : "i"(0xC0200000) : "memory");
-    // KernelLogText(LOG_DEBUG, TEXT("[KernelMain] ESP moved to 0xC0200000"));
 
     InitializeMemoryManager();
     KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Memory manager initialized"));
-
-    LINEAR BSSStart = (LINEAR)(&__bss_init_start);
-    LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
-    U32 BSSSize = BSSEnd - BSSStart;
-    MemorySet((LPVOID)BSSStart, 0, BSSSize);
 
     //-------------------------------------
     // Check data integrity
