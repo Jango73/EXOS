@@ -12,5 +12,5 @@ if not exist "%IMG_PATH%" (
 )
 
 echo Starting QEMU with image: %IMG_PATH%
-rem "%QEMU%" -drive format=raw,file="%IMG_PATH%" -monitor telnet:127.0.0.1:4444,server,nowait -serial file:"../log/debug-com1.log" -serial file:"../log/debug-com2.log" -no-reboot -D "../log/qemu-trace.log" -d page -d cpu
 "%QEMU%" -drive format=raw,file="%IMG_PATH%" -monitor telnet:127.0.0.1:4444,server,nowait -serial file:"../log/debug-com1.log" -serial file:"../log/debug-com2.log" -no-reboot
+rem "%QEMU%" -drive format=raw,file="%IMG_PATH%" -monitor telnet:127.0.0.1:4444,server,nowait -serial file:"../log/debug-com1.log" -serial file:"../log/debug-com2.log" -no-reboot -D "../log/qemu-trace.log" -d page -d cpu

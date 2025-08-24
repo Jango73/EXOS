@@ -40,6 +40,8 @@ PROCESS KernelProcess = {
 void InitializeKernelProcess(void) {
     TASKINFO TaskInfo;
 
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Enter"));
+
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.HeapSize = N_1MB;
 
@@ -81,7 +83,11 @@ void InitializeKernelProcess(void) {
     MainDesktopWindow.Task = KernelTask;
     MainDesktop.Task = KernelTask;
 
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Loading TR"));
+
     LoadInitialTaskRegister(KernelTask->Selector);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Exit"));
 }
 
 /***************************************************************************/

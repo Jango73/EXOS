@@ -187,7 +187,7 @@ PHYSICAL AllocPhysicalPage(void) {
     U32 StartPage, StartByte, MaxByte;
     PHYSICAL result = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Enter"));
+    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Enter"));
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
@@ -215,7 +215,7 @@ PHYSICAL AllocPhysicalPage(void) {
     }
 
 Out:
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Exit"));
+    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Exit"));
 
     UnlockMutex(MUTEX_MEMORY);
     return result;
@@ -596,8 +596,6 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
         U32 tab = GetTableEntry(Current);
 
         if (Directory[dir].Present) {
-            KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Checking dir %X present %d"), dir, Directory[dir].Present);
-
             LPPAGETABLE Table = GetPageTableVAFor(Current);
             if (Table[tab].Present) return FALSE;
         }

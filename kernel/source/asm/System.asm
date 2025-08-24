@@ -495,7 +495,6 @@ EnableIRQ :
 
 LoadGlobalDescriptorTable :
 
-    cli
     push        ebp
     mov         ebp, esp
 
@@ -534,7 +533,6 @@ _LGDT_Out :
     pop  ebx
 
     pop  ebp
-    sti
     ret
 
 ;--------------------------------------
