@@ -4,6 +4,7 @@
 ; EAX : Partition Start LBA
 
 BITS 16
+ORIGIN equ 0x8000
 
 section .start
 global _start
@@ -12,15 +13,14 @@ global MemorySet
 
 extern BootMain
 
-ORIGIN equ 0x8000
-PBN equ 0x08                            ; Param base near
-PBF equ 0x0A                            ; Param base far
-CR0_PROTECTED_MODE equ 0x00000001       ; Protected mode on/off
-CR0_COPROCESSOR equ 0x00000002          ; Math present
-CR0_MONITOR_COPROCESSOR equ 0x00000004  ; Emulate co-processor
-CR0_TASKSWITCH equ 0x00000008           ; Set on task switch
-CR0_80387 equ 0x00000010                ; Type of co-processor
-CR0_PAGING equ 0x80000000               ; Paging on/off
+PBN                         equ 0x08        ; Param base near
+PBF                         equ 0x0A        ; Param base far
+CR0_PROTECTED_MODE          equ 0x00000001  ; Protected mode on/off
+CR0_COPROCESSOR             equ 0x00000002  ; Math present
+CR0_MONITOR_COPROCESSOR     equ 0x00000004  ; Emulate co-processor
+CR0_TASKSWITCH              equ 0x00000008  ; Set on task switch
+CR0_80387                   equ 0x00000010  ; Type of co-processor
+CR0_PAGING                  equ 0x80000000  ; Paging on/off
 
 _start:
     jmp         Start
@@ -62,12 +62,13 @@ Start:
     hlt
     jmp         $
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; BiosReadSectors cdecl
 ; In : EBP+8 = Drive number
 ;      EBP+12 = Start LBA
 ;      EBP+16 = Sector count
 ;      EBP+20 = Buffer address (far pointer SEG:OFS)
+;-------------------------------------------------------------------------
 
 BiosReadSectors:
     push        ebp
@@ -161,36 +162,37 @@ BiosReadSectors_16:
     pop         ax
     ret
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 
 MemorySet :
 
-    push    ebp
-    mov     ebp, esp
+    push        ebp
+    mov         ebp, esp
 
-    push    ecx
-    push    edi
-    push    es
+    push        ecx
+    push        edi
+    push        es
 
-    push    ds
-    pop     es
+    push        ds
+    pop         es
 
-    mov     edi, [ebp+(PBN+0)]
-    mov     eax, [ebp+(PBN+4)]
-    mov     ecx, [ebp+(PBN+8)]
+    mov         edi, [ebp+(PBN+0)]
+    mov         eax, [ebp+(PBN+4)]
+    mov         ecx, [ebp+(PBN+8)]
     cld
-    rep     stosb
+    rep         stosb
 
-    pop     es
-    pop     edi
-    pop     ecx
+    pop         es
+    pop         edi
+    pop         ecx
 
-    pop     ebp
+    pop         ebp
     ret
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; PrintChar
 ; In : AL = character to write
+;-------------------------------------------------------------------------
 
 PrintChar:
     push        bx
@@ -200,7 +202,10 @@ PrintChar:
     pop         bx
     ret
 
-;----------------------------------------
+;-------------------------------------------------------------------------
+; PrintString
+;-------------------------------------------------------------------------
+
 PrintString:
     lodsb
     or          al, al
@@ -211,10 +216,11 @@ PrintString:
 .done:
     ret
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; PrintHex32
 ; In : EAX = value to write
 ; Uses : EAX, EBX, ECX
+;-------------------------------------------------------------------------
 
 PrintHex32:
     mov     ecx, eax
@@ -261,22 +267,22 @@ PrintHex32:
     ret
 
 PrintHex32Nibble:
-    cmp     bl, 9
-    jbe     .digit
-    add     bl, 7
+    cmp         bl, 9
+    jbe         .digit
+    add         bl, 7
 .digit:
-    add     bl, '0'
-    mov     al, bl
-    call    PrintChar
+    add         bl, '0'
+    mov         al, bl
+    call        PrintChar
     ret
 
-;-------------------------------------------------------------
-; EnterLongMode : bascule en mode protégé + active la pagination
-; et saute à l'entrée haute du kernel
+;-------------------------------------------------------------------------
+; EnterLongMode : switches to protected mode, enables paging
+; and jumps into the kernel at 0xC0000000
 ; Param 1 : GDTR
-; Param 2 : PageDirectory (phys)
-; Param 3 : KernelEntryVA (virtuelle)
-;-------------------------------------------------------------
+; Param 2 : PageDirectory (physical)
+; Param 3 : KernelEntryVA (virtual)
+;-------------------------------------------------------------------------
 
 global EnterLongMode
 
@@ -325,8 +331,9 @@ ProtectedEntryPoint:
 .hang:
     jmp         .hang
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; Read-only data
+;-------------------------------------------------------------------------
 
 section .rodata
 align 16
@@ -339,8 +346,9 @@ Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",0
 Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
 Text_NewLine: db 10,13,0
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; Data
+;-------------------------------------------------------------------------
 
 section .data
 align 16
