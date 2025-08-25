@@ -386,8 +386,8 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize interrupts
 
-    // InitializeInterrupts();
-    // KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts initialized"));
+    InitializeInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts initialized"));
 
     //-------------------------------------
     // Initialize the memory manager
@@ -484,6 +484,8 @@ void InitializeKernel(void) {
 
     ConsolePrint(Text_OSTitle);
 
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] OS title printed"));
+
     //-------------------------------------
     // Test tasks
 
@@ -523,6 +525,8 @@ void InitializeKernel(void) {
 
     CreateTask(&KernelProcess, &TaskInfo);
     */
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
 
     Shell(NULL);
 

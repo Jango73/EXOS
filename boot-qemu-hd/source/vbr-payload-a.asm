@@ -11,6 +11,7 @@ global _start
 global BiosReadSectors
 global MemorySet
 global MemoryCopy
+global StubJumpToImage
 
 extern BootMain
 
@@ -314,9 +315,7 @@ PrintHex32Nibble:
 ; Param 3 : KernelEntryVA (virtual)
 ;-------------------------------------------------------------------------
 
-global EnterLongMode
-
-EnterLongMode:
+StubJumpToImage:
     push        ebp
     mov         ebp, esp
 

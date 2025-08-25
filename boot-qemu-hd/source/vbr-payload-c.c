@@ -39,7 +39,7 @@ __asm__(".code16gcc");
 extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 extern void MemorySet(LPVOID Base, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
-extern void __attribute__((noreturn)) EnterLongMode(U32 PageDirectoryPA, U32 KernelEntryVA, U32 GDTR);
+extern void __attribute__((noreturn)) StubJumpToImage(U32 PageDirectoryPA, U32 KernelEntryVA, U32 GDTR);
 
 /************************************************************************/
 // Functions in this module
@@ -645,7 +645,7 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
 
     for (volatile int i = 0; i < 100000; ++i) { __asm__ __volatile__("nop"); }
 
-    EnterLongMode((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA);
+    StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA);
 
     __builtin_unreachable();
 }
