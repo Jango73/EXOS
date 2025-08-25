@@ -96,7 +96,7 @@ typedef U32 BOOL;
 #define SAFE_USE_2(a,b)         if ((a) != NULL && (b) != NULL)
 #define SAFE_USE_VALID(a)       if ((a) != NULL && IsValidMemory(a))
 #define SAFE_USE_VALID_2(a,b)   if ((a) != NULL && IsValidMemory(a) && (b) != NULL && IsValidMemory(b))
-#define SAFE_USE_VALID_ID(a,i)  if ((a) != NULL && (a->ID == i) && IsValidMemory(a))
+#define SAFE_USE_VALID_ID(a,i)  if ((a) != NULL && IsValidMemory(a) && (a->ID == i))
 
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
 // Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory

@@ -349,7 +349,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     // PROCESSINFO ProcessInfo;
-    // TASKINFO TaskInfo;
+    TASKINFO TaskInfo;
 
     //-------------------------------------
     // No more interrupts
@@ -504,8 +504,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Shell task
 
-    /*
-    ConsolePrint(TEXT("Launching shell"));
+    ConsolePrint(TEXT("Launching shell\n"));
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
 
@@ -516,11 +515,10 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     TaskInfo.Flags = 0;
 
     CreateTask(&KernelProcess, &TaskInfo);
-    */
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
 
-    Shell(NULL);
+    // Shell(NULL);
 
     //-------------------------------------
     // Launch Portal (windowing system)

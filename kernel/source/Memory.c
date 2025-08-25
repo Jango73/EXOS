@@ -629,10 +629,14 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
 /* Tries to find a linear address region of "Size" bytes
    which is not mapped in the page tables */
 
-static LINEAR FindFreeRegion(U32 Size) {
+static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     U32 Base = N_4MB;
 
     KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Enter"));
+
+    if (StartBase >= N_4MB && StartBase < LA_KERNEL) {
+        Base = StartBase;
+    }
 
     while (1) {
         if (IsRegionFree(Base, Size) == TRUE) return Base;
@@ -777,7 +781,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
     /* If the calling process requests that a linear address be mapped,
        see if the region is not already allocated. */
-    if (Base != 0) {
+    if (Base != 0 && (Flags & ALLOC_PAGES_AT_OR_OVER) == 0) {
         if (IsRegionFree(Base, Size) == FALSE) {
             KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with specified base"));
             return NULL;
@@ -787,10 +791,11 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     /* If the calling process does not care about the base address of
        the region, try to find a region which is at least as large as
        the "Size" parameter. */
-    if (Base == 0) {
+    if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
         KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Calling FindFreeRegion"));
 
-        Base = FindFreeRegion(Size);
+        Base = FindFreeRegion(Base, Size);
+
         if (Base == NULL) {
             KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with unspecified base"));
             return NULL;
@@ -1068,7 +1073,8 @@ void InitializeMemoryManager(void) {
     }
 
     // Allocate a permanent linear region for the GDT
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocRegion(0, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocRegion(LA_KERNEL, 0, GDT_SIZE,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     if (Kernel_i386.GDT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));

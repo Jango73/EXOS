@@ -101,6 +101,11 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
 
     TaskList.Tasks[TaskList.NumTasks] = NewTask;
+
+    if (TaskList.NumTasks == 0) {
+        TaskList.Current = NewTask;
+    }
+
     TaskList.NumTasks++;
 
     UpdateScheduler();
@@ -241,7 +246,13 @@ void Scheduler(void) {
 
 /***************************************************************************/
 
-LPPROCESS GetCurrentProcess(void) { return GetCurrentTask()->Process; }
+LPPROCESS GetCurrentProcess(void) {
+    LPTASK Task = GetCurrentTask();
+    SAFE_USE(Task) {
+        return Task->Process;
+    }
+    return NULL;
+}
 
 /***************************************************************************/
 
