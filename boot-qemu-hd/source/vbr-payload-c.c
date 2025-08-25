@@ -180,7 +180,7 @@ void SerialOut(U8 Which, U8 Char) {
 
 /************************************************************************/
 
-static void PrintString(const char* Str) {
+static void PrintString(LPCSTR Str) {
     __asm__ __volatile__(
         "1:\n\t"
         "lodsb\n\t"             // AL = [ESI], ESI++
@@ -235,7 +235,7 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 
     if (*CurrentFatSector != FatSector) {
         if (BiosReadSectors(BootDrive, FatSector, 1, MakeSegOfs(FatBuffer))) {
-            PrintString("[VBR] FAT sector read failed\r\n");
+            PrintString(TEXT("[VBR] FAT sector read failed\r\n"));
             Hang();
         }
         *CurrentFatSector = FatSector;
@@ -249,37 +249,37 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 /************************************************************************/
 
 void BootMain(U32 BootDrive, U32 Fat32Lba) {
-    PrintString("[VBR] Loading and running binary OS at ");
+    PrintString(TEXT("[VBR] Loading and running binary OS at "));
     NumberToString(TempString, LoadAddress_Seg, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(":");
+    PrintString(TEXT(":"));
     NumberToString(TempString, LoadAddress_Ofs, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString("\r\n");
+    PrintString(TEXT("\r\n"));
 
-    PrintString("[VBR] Reading FAT32 VBR\r\n");
+    PrintString(TEXT("[VBR] Reading FAT32 VBR\r\n"));
     if (BiosReadSectors(BootDrive, Fat32Lba, 1, MakeSegOfs(&BootSector))) {
-        PrintString("[VBR] VBR read failed. Halting.\r\n");
+        PrintString(TEXT("[VBR] VBR read failed. Halting.\r\n"));
         Hang();
     }
 
     /*
-        PrintString("[VBR] BIOS mark ");
-        NumberToString(TempString, BootSector.BIOSMark, 16, 0, 0, PF_SPECIAL);
+        PrintString(TEXT("[VBR] BIOS mark "));
+        NumberToString(TempString, BootSector.BIOSMark, 16, 0, 0, PF_SPECIAL));
         PrintString(TempString);
-        PrintString("\r\n");
+        PrintString(TEXT("\r\n"));
 
-        PrintString("[VBR] Num sectors per FAT ");
+        PrintString(TEXT("[VBR] Num sectors per FAT ");
         NumberToString(TempString, BootSector.NumSectorsPerFat, 16, 0, 0,
-       PF_SPECIAL); PrintString(TempString); PrintString("\r\n");
+       PF_SPECIAL); PrintString(TempString); PrintString(TEXT("\r\n"));
 
-        PrintString("[VBR] RootCluster ");
+        PrintString(TEXT("[VBR] RootCluster ");
         NumberToString(TempString, BootSector.RootCluster, 16, 0, 0,
-       PF_SPECIAL); PrintString(TempString); PrintString("\r\n");
+       PF_SPECIAL); PrintString(TempString); PrintString(TEXT("\r\n"));
     */
 
     if (BootSector.BiosMark != 0xAA55) {
-        PrintString("[VBR] BIOS mark not valid. Halting\r\n");
+        PrintString(TEXT("[VBR] BIOS mark not valid. Halting\r\n"));
         Hang();
     }
 
@@ -290,17 +290,17 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     U32 FirstDataSector   = Fat32Lba + BootSector.ReservedSectorCount + ((U32)BootSector.NumberOfFats * FatSizeSectors);
 
     if (SectorsPerCluster == 0) {
-        PrintString("[VBR] Invalid SectorsPerCluster = 0. Halting.\r\n");
+        PrintString(TEXT("[VBR] Invalid SectorsPerCluster = 0. Halting.\r\n"));
         Hang();
     }
 
     if (RootCluster < 2) {
-        PrintString("[VBR] Invalid RootCluster < 2. Halting.\r\n");
+        PrintString(TEXT("[VBR] Invalid RootCluster < 2. Halting.\r\n"));
         Hang();
     }
 
     if (SectorsPerCluster < 4) {
-        PrintString("[VBR] WARNING: small cluster size; expect many BIOS calls\r\n");
+        PrintString(TEXT("[VBR] WARNING: small cluster size; expect many BIOS calls\r\n"));
     }
 
     /********************************************************************/
@@ -312,20 +312,20 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     U32 CurrentFatSector = 0xFFFFFFFF; 
     U8  DirEnd = 0;
 
-    PrintString("[VBR] Scanning root directory chain...\r\n");
+    PrintString(TEXT("[VBR] Scanning root directory chain...\r\n"));
 
     while (!DirEnd && DirCluster >= 2 && DirCluster < FAT32_EOC_MIN) {
         U32 Lba = FirstDataSector + (DirCluster - 2) * SectorsPerCluster;
 
         /*
-        PrintString("[VBR] Reading DIR data cluster at LBA ");
+        PrintString(TEXT("[VBR] Reading DIR data cluster at LBA ");
         NumberToString(TempString, Lba, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
-        PrintString("\r\n");
+        PrintString(TEXT("\r\n");
         */
 
         if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
-            PrintString("[VBR] DIR cluster read failed. Halting.\r\n");
+            PrintString(TEXT("[VBR] DIR cluster read failed. Halting.\r\n"));
             Hang();
         }
 
@@ -354,12 +354,12 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         U32 Next = ReadFatEntry(BootDrive, FatStartSector, DirCluster, &CurrentFatSector);
 
         if (Next == FAT32_BAD_CLUSTER) {
-            PrintString("[VBR] Root chain hit BAD cluster. Halting.\r\n");
+            PrintString(TEXT("[VBR] Root chain hit BAD cluster. Halting.\r\n"));
             Hang();
         }
 
         if (Next == 0x00000000) {
-            PrintString("[VBR] Root chain broken (FREE in FAT). Halting.\r\n");
+            PrintString(TEXT("[VBR] Root chain broken (FREE in FAT). Halting.\r\n"));
             Hang();
         }
 
@@ -367,14 +367,14 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     }
 
     if (!Found) {
-        PrintString("[VBR] ERROR: EXOS.BIN not found in root directory. Halting.\r\n");
+        PrintString(TEXT("[VBR] ERROR: EXOS.BIN not found in root directory. Halting.\r\n"));
         Hang();
     }
 
-    PrintString("[VBR] File size ");
+    PrintString(TEXT("[VBR] File size "));
     NumberToString(TempString, FileSize, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" bytes\r\n");
+    PrintString(TEXT(" bytes\r\n"));
 
     /********************************************************************/
     /* Load the file by following its FAT chain                         */
@@ -391,36 +391,35 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
 
     while (Remaining > 0 && Cluster >= 2 && Cluster < FAT32_EOC_MIN) {
         /*
-        PrintString("[VBR] Remaining bytes ");
+        PrintString(TEXT("[VBR] Remaining bytes ");
         NumberToString(TempString, Remaining, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
-        PrintString(" | Reading data cluster ");
+        PrintString(TEXT(" | Reading data cluster ");
         NumberToString(TempString, Cluster, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
-        PrintString("\r\n");
+        PrintString(TEXT("\r\n");
         */
 
         U32 Lba = FirstDataSector + (Cluster - 2) * SectorsPerCluster;
 
         if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, PackSegOfs(DestSeg, DestOfs))) {
-            PrintString("[VBR] Cluster read failed ");
+            PrintString(TEXT("[VBR] Cluster read failed "));
             NumberToString(TempString, Cluster, 16, 0, 0, PF_SPECIAL);
             PrintString(TempString);
-            PrintString(". Halting.\r\n");
+            PrintString(TEXT(". Halting.\r\n"));
             Hang();
         }
 
         // Simple visibility: dump first 8 bytes (2 dwords) from loaded cluster
-        U32* Ptr32 = (U32*)((U32)DestSeg << 4);
-
         /*
-        PrintString("[VBR] Cluster data (first 8 bytes): ");
+        U32* Ptr32 = (U32*)((U32)DestSeg << 4);
+        PrintString(TEXT("[VBR] Cluster data (first 8 bytes): ");
         NumberToString(TempString, Ptr32[0], 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
-        PrintString(" ");
+        PrintString(TEXT(" ");
         NumberToString(TempString, Ptr32[1], 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
-        PrintString("\r\n");
+        PrintString(TEXT("\r\n");
         */
 
         // Advance destination pointer by cluster size
@@ -438,12 +437,12 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         U32 Next = ReadFatEntry(BootDrive, FatStartSector, Cluster, &CurrentFatSector);
 
         if (Next == FAT32_BAD_CLUSTER) {
-            PrintString("[VBR] BAD cluster in file chain. Halting.\r\n");
+            PrintString(TEXT("[VBR] BAD cluster in file chain. Halting.\r\n"));
             Hang();
         }
 
         if (Next == 0x00000000) {
-            PrintString("[VBR] FREE cluster in file chain (corruption). Halting.\r\n");
+            PrintString(TEXT("[VBR] FREE cluster in file chain (corruption). Halting.\r\n"));
             Hang();
         }
 
@@ -451,7 +450,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         ClusterCount++;
 
         if (ClusterCount > (int)(MaxClusters + 8)) {
-            PrintString("[VBR] Cluster chain too long. Halting.\r\n");
+            PrintString(TEXT("[VBR] Cluster chain too long. Halting.\r\n"));
             Hang();
         }
     }
@@ -461,13 +460,13 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     /********************************************************************/
     U8* Loaded = (U8*)(((U32)LoadAddress_Seg << 4) + (U32)LoadAddress_Ofs);
 
-    PrintString("[VBR] Last 8 bytes of file: ");
+    PrintString(TEXT("[VBR] Last 8 bytes of file: "));
     NumberToString(TempString, *(U32*)(Loaded + (FileSize - 8)), 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, *(U32*)(Loaded + (FileSize - 4)), 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString("\r\n");
+    PrintString(TEXT("\r\n"));
 
     U32 Computed = 0;
     for (U32 Index = 0; Index < FileSize - sizeof(U32); Index++) {
@@ -476,16 +475,16 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
 
     U32 Stored = *(U32*)(Loaded + (FileSize - sizeof(U32)));
 
-    PrintString("[VBR] Stored checksum in image : ");
+    PrintString(TEXT("[VBR] Stored checksum in image : "));
     NumberToString(TempString, Stored, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString("\r\n");
+    PrintString(TEXT("\r\n"));
 
     if (Computed != Stored) {
-        PrintString("[VBR] Checksum mismatch. Halting. Computed : ");
+        PrintString(TEXT("[VBR] Checksum mismatch. Halting. Computed : "));
         NumberToString(TempString, Computed, 16, 0, 0, PF_SPECIAL);
         PrintString(TempString);
-        PrintString("\r\n");
+        PrintString(TEXT("\r\n"));
         Hang();
     }
 
@@ -524,7 +523,7 @@ static void SetSegmentDescriptor(LPSEGMENTDESCRIPTOR D,
 }
 
 static void BuildGdtFlat(void) {
-    PrintString("[VBR] BuildGdtFlat\r\n");
+    PrintString(TEXT("[VBR] BuildGdtFlat\r\n"));
 
     // Null
     MemorySet(Gdt + 0, 0, sizeof(SEGMENTDESCRIPTOR) * 3);
@@ -578,16 +577,16 @@ static void SetPte(LPPAGETABLE E, U32 Phys) {
 }
 
 static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
-    PrintString("[VBR] BuildPaging (KernelPhysBase, KernelVirtBase, MapSize : ");
+    PrintString(TEXT("[VBR] BuildPaging (KernelPhysBase, KernelVirtBase, MapSize : "));
     NumberToString(TempString, KernelPhysBase, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, KernelVirtBase, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, MapSize, 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString("\r\n");
+    PrintString(TEXT("\r\n"));
 
     ClearPdPt();
 
@@ -608,42 +607,42 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
 
     SetPde(PageDirectory + 1023, (U32)PageDirectory);
 
-    PrintString("[VBR] GDT : ");
+    PrintString(TEXT("[VBR] GDT : "));
     NumberToString(TempString, ((U32*)(Gdt))[0], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, ((U32*)(Gdt))[1], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, ((U32*)(Gdt))[2], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, ((U32*)(Gdt))[3], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, ((U32*)(Gdt))[4], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, ((U32*)(Gdt))[5], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, ((U32*)(Gdt))[6], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString(" ");
+    PrintString(TEXT(" "));
     NumberToString(TempString, ((U32*)(Gdt))[7], 16, 0, 0, PF_SPECIAL);
     PrintString(TempString);
-    PrintString("\r\n");
+    PrintString(TEXT("\r\n"));
 
-    PrintString("[VBR] PDE[0], PDE[1], PDE[2], PDE[3], PDE[4], PDE[768], PDE[769] : ");
-    NumberToString(TempString, ((U32*)PageDirectory)[0],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[1],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[2],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[3],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[4],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[768], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[769], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[770], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(" ");
-    NumberToString(TempString, ((U32*)PageDirectory)[1023], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString("\r\n");
+    PrintString(TEXT("[VBR] PDE[0], PDE[1], PDE[2], PDE[3], PDE[4], PDE[768], PDE[769] : "));
+    NumberToString(TempString, ((U32*)PageDirectory)[0],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[1],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[2],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[3],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[4],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[768], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[769], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[770], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[1023], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT("\r\n"));
 }
 
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {

@@ -382,14 +382,17 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
     return G_TempLinear2;
 }
 
-/*************************************************************************/
+/************************************************************************/
+/*
+ * AllocPageDirectory
+ * - Identity-map the first 4MB at 0x00000000..0x003FFFFF
+ * - Map the kernel at LA_KERNEL to KernelStartup.StubAddress (4MB window)
+ * - Install recursive mapping PDE[1023] = PD
+ *
+ * @return: The physical address of the page directory that goes in cr3
+ */
 
 PHYSICAL AllocPageDirectory(void) {
-    /* Goal:
-       1) Identity-map the first 4MB at 0x00000000..0x003FFFFF
-       2) Map the kernel at LA_KERNEL to KERNEL_PHYSICAL_ORIGIN (4MB window)
-       3) Install recursive mapping PDE[1023] = PD */
-
     PHYSICAL PA_Directory   = NULL;
     PHYSICAL PA_LowTable = NULL;
     PHYSICAL PA_KernelTable = NULL;
@@ -400,8 +403,8 @@ PHYSICAL AllocPageDirectory(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Enter"));
 
-    U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);   // 4MB directory slot for LA_KERNEL
-    U32 PhysBaseKernel = KERNEL_PHYSICAL_ORIGIN;              // Kernel physical base
+    U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL); // 4MB directory slot for LA_KERNEL
+    U32 PhysBaseKernel = KernelStartup.StubAddress;         // Kernel physical base
     U32 Index;
 
     // Allocate required physical pages (PD + 2 PTs)
@@ -541,8 +544,13 @@ Out_Error :
 }
 
 /************************************************************************/
-/* AllocPageTable expands the page tables of the calling process by
-   allocating a page table to map the "Base" linear address. */
+/*
+ * AllocPageTable
+ * AllocPageTable expands the page tables of the calling process by
+ * allocating a page table to map the "Base" linear address.
+ *
+ * @return: The virtual address of the new page
+ */
 
 LINEAR AllocPageTable(LINEAR Base) {
     PHYSICAL PA_Table = AllocPhysicalPage();
@@ -580,16 +588,25 @@ LINEAR AllocPageTable(LINEAR Base) {
     return (LINEAR)GetPageTableVAFor(Base);
 }
 
-/*************************************************************************/
+/************************************************************************/
+/*
+ * IsRegionFree
+ * Checks if a specified memory region is free
+ *
+ * @Base: The base of the region to check
+ * @Size: The size of the region to check
+ *
+ * @return: TRUE if the region is free, FALSE otherwise
+ */
 
 BOOL IsRegionFree(LINEAR Base, U32 Size) {
-    KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Enter"));
+    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Enter"));
 
     U32 NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     LINEAR Current = Base;
 
-    KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Traversing pages"));
+    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Traversing pages"));
 
     for (U32 i = 0; i < NumPages; i++) {
         U32 dir = GetDirectoryEntry(Current);
@@ -603,7 +620,7 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
         Current += PAGE_SIZE;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Exit"));
+    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Exit"));
 
     return TRUE;
 }
