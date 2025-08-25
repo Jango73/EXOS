@@ -707,14 +707,14 @@ SwitchToTask :
 
     push        ebp
     mov         ebp, esp
-    sub         esp, 6                      ; reserve 6 bytes for far pointer: [offset(4)][selector(2)]
+    sub         esp, 8                      ; reserve space for far pointer
 
-    mov         eax, [ebp+(PBN+0)]
-    mov         dword [ebp-(LBN+6)], 0
-    mov         word [ebp-(LBN+2)], ax
-    jmp         far dword [ebp-(LBN+6)]
+    mov         eax, [ebp+PBN]
+    mov         dword [esp], 0              ; offset
+    mov         word [esp+4], ax            ; selector
+    jmp         far dword [esp]
 
-    add         esp, 6
+    add         esp, 8
     pop         ebp
     ret
 
