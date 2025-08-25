@@ -14,28 +14,35 @@ __asm__(".code16gcc");
 #define LoadAddress_Seg 0x2000
 #define LoadAddress_Ofs 0x0000
 
+/************************************************************************/
 // FAT32 special values (masked to 28 bits)
+
 #define FAT32_MASK              0x0FFFFFFF
 #define FAT32_EOC_MIN           0x0FFFFFF8
 #define FAT32_BAD_CLUSTER       0x0FFFFFF7
 
+/************************************************************************/
+// I386 values
+
 #define GDT_SEL_CODE 0x08
 #define GDT_SEL_DATA 0x10
 
-/************************************************************************/
-
-// GDT
-typedef struct __attribute__((packed)) {
-    U16 Limit;
-    U32 Base;
-} GDTR;
+#define GDT_ADDRESS 0x500
+#define PAGE_DIRECTORY_ADDRESS 0x1000
+#define PAGE_TABLE_LOW_ADDRESS 0x2000
+#define PAGE_TABLE_KERNEL_ADDRESS 0x3000
 
 /************************************************************************/
+// Functions in vbr-payload-a.asm
 
 // BIOS sector read: Drive, LBA, Count, Dest (seg:ofs packed as 0xSSSSOOOO)
 extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 extern void MemorySet(LPVOID Base, U32 What, U32 Size);
+extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
 extern void __attribute__((noreturn)) EnterLongMode(U32 PageDirectoryPA, U32 KernelEntryVA, U32 GDTR);
+
+/************************************************************************/
+// Functions in this module
 
 static void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
@@ -493,11 +500,10 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     Hang();
 }
 
-static LPSEGMENTDESCRIPTOR Gdt = (LPSEGMENTDESCRIPTOR)0x500;
-static LPPAGEDIRECTORY PageDirectory = (LPPAGEDIRECTORY)0x1000;
-static LPPAGETABLE     PageTableLow = (LPPAGETABLE)0x2000;
-static LPPAGETABLE     PageTableKrn = (LPPAGETABLE)0x3000;
-static GDTR Gdtr;
+static LPPAGEDIRECTORY PageDirectory = (LPPAGEDIRECTORY) PAGE_DIRECTORY_ADDRESS;
+static LPPAGETABLE     PageTableLow = (LPPAGETABLE) PAGE_TABLE_LOW_ADDRESS;
+static LPPAGETABLE     PageTableKrn = (LPPAGETABLE) PAGE_TABLE_KERNEL_ADDRESS;
+static GDTREGISTER     Gdtr;
 
 static void SetSegmentDescriptor(LPSEGMENTDESCRIPTOR D,
                                  U32 Base, U32 Limit,
@@ -523,27 +529,33 @@ static void SetSegmentDescriptor(LPSEGMENTDESCRIPTOR D,
 }
 
 static void BuildGdtFlat(void) {
+    // Build in a real local array so the compiler knows the bounds.
+    SEGMENTDESCRIPTOR GdtBuffer[3];
+
     PrintString(TEXT("[VBR] BuildGdtFlat\r\n"));
 
-    // Null
-    MemorySet(Gdt + 0, 0, sizeof(SEGMENTDESCRIPTOR) * 3);
+    /* Safe: compiler knows GdtBuf has exactly 3 entries */
+    MemorySet(GdtBuffer, 0, sizeof(GdtBuffer));
 
-    // Code: base=0, limit=0xFFFFF with G=1 => 4GB, 32-bit
-    SetSegmentDescriptor(Gdt + 1, 0x00000000, 0x000FFFFF, /*Type=*/1, /*RW=*/1,
-                         /*Priv=*/0, /*32-bit=*/1, /*4K=*/1);
+    /* Code segment: base=0, limit=0xFFFFF, type=code, RW=1, gran=4K, 32-bit */
+    SetSegmentDescriptor(&GdtBuffer[1], 0x00000000, 0x000FFFFF, /*Type=*/1, /*RW=*/1,
+        /*Conforming=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
 
-    // Data: base=0, limit=0xFFFFF with G=1 => 4GB, 32-bit
-    SetSegmentDescriptor(Gdt + 2, 0x00000000, 0x000FFFFF, /*Type=*/0, /*RW=*/1,
-                         /*Priv=*/0, /*32-bit=*/1, /*4K=*/1);
+    /* Data segment: base=0, limit=0xFFFFF, type=data, RW=1, gran=4K, 32-bit */
+    SetSegmentDescriptor(&GdtBuffer[2], 0x00000000, 0x000FFFFF, /*Type=*/0, /*RW=*/1,
+        /*ExpandDown=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
 
-    Gdtr.Limit = (U16)(sizeof(SEGMENTDESCRIPTOR) * 3 - 1);
-    Gdtr.Base  = (U32)Gdt;
+    /* Now copy to the physical location expected by your early boot */
+    MemoryCopy((void*) GDT_ADDRESS, GdtBuffer, sizeof(GdtBuffer));
+
+    Gdtr.Limit = (U16)(sizeof(GdtBuffer) - 1);
+    Gdtr.Base  = (U32) GDT_ADDRESS;
 }
 
 static void ClearPdPt(void) {
-    MemorySet(PageDirectory, 0, 4096);
-    MemorySet(PageTableLow,  0, 4096);
-    MemorySet(PageTableKrn,  0, 4096);
+    MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageTableLow,  0, PAGE_TABLE_SIZE);
+    MemorySet(PageTableKrn,  0, PAGE_TABLE_SIZE);
 }
 
 static void SetPde(LPPAGEDIRECTORY E, U32 PtPhys) {
@@ -606,32 +618,6 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
     }
 
     SetPde(PageDirectory + 1023, (U32)PageDirectory);
-
-    PrintString(TEXT("[VBR] GDT : "));
-    NumberToString(TempString, ((U32*)(Gdt))[0], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)(Gdt))[1], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)(Gdt))[2], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)(Gdt))[3], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)(Gdt))[4], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)(Gdt))[5], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)(Gdt))[6], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)(Gdt))[7], 16, 0, 0, PF_SPECIAL);
-    PrintString(TempString);
-    PrintString(TEXT("\r\n"));
 
     PrintString(TEXT("[VBR] PDE[0], PDE[1], PDE[2], PDE[3], PDE[4], PDE[768], PDE[769] : "));
     NumberToString(TempString, ((U32*)PageDirectory)[0],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));

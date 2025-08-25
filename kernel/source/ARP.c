@@ -12,6 +12,7 @@
 #include "../include/ARP.h"
 #include "../include/Log.h"
 #include "../include/Network.h"
+#include "../include/System.h"
 
 /************************************************************************/
 // Cache Configuration

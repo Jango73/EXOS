@@ -71,6 +71,8 @@ extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32, U32);
 extern U32 SaveRegisters(LPINTEL386REGISTERS);
+extern void MemorySet(LPVOID Destination, U32 What, U32 Size);
+extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
 extern U32 DoSystemCall(U32, U32);
 extern void IdleCPU(void);
 extern void Reboot(void);

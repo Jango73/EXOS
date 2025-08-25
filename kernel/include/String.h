@@ -44,8 +44,6 @@ LPSTR StringToUpper(LPSTR);
 LPSTR StringFindChar(LPCSTR, STR);
 LPSTR StringFindCharR(LPCSTR, STR);
 void StringInvert(LPSTR);
-void MemorySet(LPVOID, U32, U32);
-void MemoryCopy(LPVOID, LPCVOID, U32);
 
 /***************************************************************************/
 

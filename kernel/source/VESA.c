@@ -10,6 +10,7 @@
 #include "../include/GFX.h"
 #include "../include/I386.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 #define MKLINPTR(a) (((a & 0xFFFF0000) >> 12) + (a & 0x0000FFFF))
 
@@ -175,6 +176,8 @@ VESACONTEXT VESAContext = {
 static U32 VESAInitialize(void) {
     X86REGS Regs;
 
+    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Enter"));
+
     //-------------------------------------
     // Initialize the context
 
@@ -198,6 +201,8 @@ static U32 VESAInitialize(void) {
 
     RealModeCall(VIDEO_CALL, &Regs);
 
+    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Real mode call done"));
+
     MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(KernelStartup.StubAddress + N_2KB), sizeof(VESAINFOBLOCK));
 
     if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_ERROR_GENERIC;
@@ -214,6 +219,8 @@ static U32 VESAInitialize(void) {
     KernelPrint("Total memory : %d KB\n",
                 (VESAContext.VESAInfo.Memory << MUL_64KB) >> MUL_1KB);
                 */
+
+    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Exit"));
 
     return DF_ERROR_SUCCESS;
 }

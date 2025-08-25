@@ -231,37 +231,6 @@ void StringInvert(LPSTR Text) {
 
 /***************************************************************************/
 
-/*
-void MemorySet (LPVOID Pointer, U8 Value, U32 Size)
-{
-  REGISTER U32 Index = 0;
-  REGISTER U8* Bytes = (U8*) Pointer;
-
-  for (Index = 0; Index < Size; Index++)
-  {
-    Bytes[Index] = Value;
-  }
-}
-*/
-
-/***************************************************************************/
-
-/*
-void MemoryCopy (LPVOID Dst, LPVOID Src, U32 Size)
-{
-  REGISTER U32 Index = 0;
-  REGISTER U8* DstPtr = (U8*) Dst;
-  REGISTER U8* SrcPtr = (U8*) Src;
-
-  for (Index = 0; Index < Size; Index++)
-  {
-    DstPtr[Index] = SrcPtr[Index];
-  }
-}
-*/
-
-/***************************************************************************/
-
 void U32ToString(U32 Number, LPSTR Text) {
     U32 Index = 0;
 

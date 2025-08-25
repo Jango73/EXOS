@@ -10,6 +10,7 @@ section .start
 global _start
 global BiosReadSectors
 global MemorySet
+global MemoryCopy
 
 extern BootMain
 
@@ -187,6 +188,35 @@ MemorySet :
     pop         ecx
 
     pop         ebp
+    ret
+
+;--------------------------------------
+
+MemoryCopy :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    esi
+    push    edi
+    push    es
+
+    push    ds
+    pop     es
+
+    mov     edi, [ebp+(PBN+0)]
+    mov     esi, [ebp+(PBN+4)]
+    mov     ecx, [ebp+(PBN+8)]
+    cld
+    rep     movsb
+
+    pop     es
+    pop     edi
+    pop     esi
+    pop     ecx
+
+    pop     ebp
     ret
 
 ;-------------------------------------------------------------------------

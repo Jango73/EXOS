@@ -90,6 +90,7 @@ typedef union tag_X86REGS {
 
 /***************************************************************************/
 // The page directory entry
+// Size : 4 bytes
 
 typedef struct tag_PAGEDIRECTORY {
     U32 Present : 1;    // Is page present in RAM ?
@@ -108,6 +109,7 @@ typedef struct tag_PAGEDIRECTORY {
 
 /***************************************************************************/
 // The page table entry
+// Size : 4 bytes
 
 typedef struct tag_PAGETABLE {
     U32 Present : 1;    // Is page present in RAM ?
@@ -126,6 +128,7 @@ typedef struct tag_PAGETABLE {
 
 /***************************************************************************/
 // The segment descriptor
+// Size : 8 bytes
 
 typedef struct tag_SEGMENTDESCRIPTOR {
     U32 Limit_00_15 : 16;   // Bits 0-15 of segment limit
@@ -241,16 +244,24 @@ typedef struct tag_TASKSTATESEGMENT {
     U8 IOMapBits[152];  // Map 1024 port adresses
 } TASKSTATESEGMENT, *LPTASKSTATESEGMENT;
 
-/***************************************************************************/
-
+/************************************************************************/
 // NOTE: fields not meaningful for a given trap are set to 0 by the stub.
+
 typedef struct tag_INTERRUPTFRAME {
     INTEL386REGISTERS Registers;    // Filled by the stub
     U32 IntNo;                      // Interrupt / exception vector
     U32 ErrCode;                    // CPU error code (0 for #UD)
 } INTERRUPTFRAME, *LPINTERRUPTFRAME;
 
-/***************************************************************************/
+/************************************************************************/
+// The GDT register
+
+typedef struct __attribute__((packed)) {
+    U16 Limit;
+    U32 Base;
+} GDTREGISTER;
+
+/************************************************************************/
 // Page directory and page table
 
 #define PAGE_SIZE N_4KB

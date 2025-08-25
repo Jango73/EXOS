@@ -38,7 +38,7 @@ DRIVER StdHardDiskDriver = {
 /***************************************************************************/
 
 #define MAX_HD 4
-#define TIMEOUT 100000
+#define TIMEOUT 10000
 #define NUM_BUFFERS 32
 
 /***************************************************************************/
@@ -141,6 +141,8 @@ static U32 HardDiskInitialize(void) {
     U32 Drive;
     U32 Index;
 
+    KernelLogText(LOG_DEBUG, TEXT("[HardDiskInitialize] Enter"));
+
     DisableIRQ(HD_IRQ);
 
     //-------------------------------------
@@ -168,28 +170,14 @@ static U32 HardDiskInitialize(void) {
 
             ATAID = (LPATADRIVEID)Buffer;
 
-            /*
             if
             (
               ATAID->PhysicalCylinders != 0 &&
               ATAID->PhysicalHeads     != 0 &&
               ATAID->PhysicalSectors   != 0
             )
-            */
             {
-                STR Message[64];
-                STR PortStr[32];
-                STR DriveStr[32];
-
-                U32ToHexString(Port, PortStr);
-                U32ToHexString(Drive, DriveStr);
-
-                StringCopy(Message, TEXT("Initialize HD, Port : "));
-                StringConcat(Message, PortStr);
-                StringConcat(Message, TEXT(" Drive : "));
-                StringConcat(Message, DriveStr);
-
-                KernelLogText(LOG_VERBOSE, (LPSTR)Message);
+                KernelLogText(LOG_VERBOSE, TEXT("[HardDiskInitialize] HD: %X, port: %X"), (U32) Port, (U32) Drive);
 
                 Disk = NewStdHardDisk();
                 if (Disk == NULL) continue;
@@ -220,6 +208,8 @@ static U32 HardDiskInitialize(void) {
     }
 
     EnableIRQ(HD_IRQ);
+
+    KernelLogText(LOG_DEBUG, TEXT("[HardDiskInitialize] Exit"));
 
     return DF_ERROR_SUCCESS;
 }
