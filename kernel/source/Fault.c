@@ -224,18 +224,6 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     ConsolePrint(TEXT("The current task (%X) triggered a debug exception "), Task ? Task : 0);
     ConsolePrint(TEXT("at EIP : %X\n"), Frame->Registers.EIP);
 
-    if (IsSpuriousTaskSwitchDB()){
-        SetDR6(0);
-        KernelPrintString(TEXT("IsSpuriousTaskSwitchDB returned TRUE\n"));
-        DumpFrame(Frame);
-        return;
-    }
-
-    U32 dr6 = GetDR6();
-    KernelPrintString(TEXT("DR6 : "));
-    VarKernelPrintNumber(dr6, 16, 0, 0, 0);
-    KernelPrintString(Text_Space);
-
     U32 gdtr = GetGDTR();
     KernelPrintString(TEXT("GDTR : "));
     VarKernelPrintNumber(gdtr, 16, 0, 0, 0);
@@ -248,7 +236,7 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
 
     SELECTOR tr = GetTaskRegister();
 
-    KernelPrintString(TEXT("index : "));
+    KernelPrintString(TEXT("Index : "));
     VarKernelPrintNumber((U32)SELECTOR_INDEX(tr), 16, 0, 0, 0);
     KernelPrintString(Text_Space);
 
@@ -262,7 +250,12 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
 
     KernelPrintString(Text_NewLine);
 
+    U32 Index = SELECTOR_INDEX(tr);
+    LogTaskStateSegment(LOG_DEBUG, (LPTASKSTATESEGMENT) Kernel_i386.TSS + Index);
+
     DebugExceptionHandler_MinProbe();
+
+    U32 dr6 = GetDR6();
 
     // BS (bit14) = single-step (TF=1)
     if (dr6 & (1u << 14)) KernelPrintString(TEXT("[#DB] cause: single-step (TF=1)\n"));
@@ -275,6 +268,13 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
 
     LogTR();
     DumpFrame(Frame);
+
+    if (IsSpuriousTaskSwitchDB()){
+        SetDR6(0);
+        SetDR7(0);
+        KernelPrintString(TEXT("IsSpuriousTaskSwitchDB returned TRUE\n"));
+        return;
+    }
 
     ConsolePrint(Text_NewLine);
     ConsolePrint(TEXT("Debug exception !\n"));
