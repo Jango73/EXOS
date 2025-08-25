@@ -1074,3 +1074,26 @@ void InitializeMemoryManager(void) {
 }
 
 /***************************************************************************/
+
+void InitializeTaskSegments(void) {
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Enter"));
+
+    Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
+        0,
+        0,
+        sizeof(TASKSTATESEGMENT) * NUM_TASKS,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (Kernel_i386.TSS == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    Kernel_i386.TTD = (LPTASKTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_NUM_BASE_DESCRIPTORS);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TTD = %X"), Kernel_i386.TTD);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Exit"));
+}
+
+/***************************************************************************/

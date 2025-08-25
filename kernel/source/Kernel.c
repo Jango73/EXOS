@@ -395,6 +395,9 @@ void InitializeKernel(void) {
     InitializeMemoryManager();
     KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Memory manager initialized"));
 
+    InitializeTaskSegments();
+    KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Task segments initialized"));
+
     //-------------------------------------
     // Check data integrity
 
