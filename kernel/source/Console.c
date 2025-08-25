@@ -453,8 +453,8 @@ BOOL InitializeConsole(void) {
     Console.BackColor = 0;
     Console.ForeColor = 7;
 
-    Console.CursorX = 0;
-    Console.CursorY = 0;
+    Console.CursorX = KernelStartup.ConsoleX;
+    Console.CursorY = KernelStartup.ConsoleY;
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 

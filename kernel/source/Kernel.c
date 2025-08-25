@@ -24,8 +24,6 @@
 
 /***************************************************************************/
 
-extern LINEAR __bss_init_start;
-extern LINEAR __bss_init_end;
 extern U32 DeadBeef;
 
 extern void StartTestNetworkTask(void);
@@ -349,14 +347,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /***************************************************************************/
 
-static U32 KernelImageAddress;
-static U8 KernelCursorX;
-static U8 KernelCursorY;
-
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
-    KernelImageAddress = ImageAddress;
-    KernelCursorX = CursorX;
-    KernelCursorY = CursorY;
     // PROCESSINFO ProcessInfo;
     // TASKINFO TaskInfo;
 
@@ -366,20 +357,14 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     DisableInterrupts();
 
     //-------------------------------------
-    // Clear the BSS
-
-    LINEAR BSSStart = (LINEAR)(&__bss_init_start);
-    LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
-    U32 BSSSize = BSSEnd - BSSStart;
-    MemorySet((LPVOID)BSSStart, 0, BSSSize);
-
-    //-------------------------------------
     // Gather startup information
 
-    KernelStartup.StubAddress = 0x20000;
+    KernelStartup.StubAddress = ImageAddress;
     KernelStartup.PageDirectory = GetPageDirectory();
     KernelStartup.IRQMask_21_RM = 0;
     KernelStartup.IRQMask_A1_RM = 0;
+    KernelStartup.ConsoleX = CursorX;
+    KernelStartup.ConsoleY = CursorY;
     KernelStartup.MemorySize = N_128MB;
     KernelStartup.PageCount = KernelStartup.MemorySize >> MUL_4KB;
     KernelStartup.E820_Count = 0;

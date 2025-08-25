@@ -252,6 +252,8 @@ STRUC KernelStartupInfo
     .IRQMask_A1_PM      RESB 4
     .IRQMask_21_RM      RESB 4
     .IRQMask_A1_RM      RESB 4
+    .ConsoleX           RESB 4
+    .ConsoleY           RESB 4
     .MemorySize         RESB 4
     .PageCount          RESB 4
     .E820_Count         RESB 4

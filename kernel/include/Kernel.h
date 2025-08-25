@@ -116,6 +116,8 @@ typedef struct tag_KERNELSTARTUPINFO {
     U32 IRQMask_A1_PM;
     U32 IRQMask_21_RM;
     U32 IRQMask_A1_RM;
+    U32 ConsoleX;
+    U32 ConsoleY;
     U32 MemorySize;         // Total memory size in bytes
     U32 PageCount;          // Total memory size in pages (4K)
     U32 E820_Count;         // BIOS E820 function entries
