@@ -78,16 +78,20 @@ void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table) {
 void InitializeTaskSegments(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Enter"));
 
+    U32 TSSSize = sizeof(TASKSTATESEGMENT) * NUM_TASKS;
+
     Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
         LA_KERNEL,
         0,
-        sizeof(TASKSTATESEGMENT) * NUM_TASKS,
+        TSSSize,
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     if (Kernel_i386.TSS == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
         DO_THE_SLEEPING_BEAUTY;
     }
+
+    MemorySet(Kernel_i386.TSS, 0, TSSSize);
 
     Kernel_i386.TTD = (LPTASKTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_NUM_BASE_DESCRIPTORS);
 
