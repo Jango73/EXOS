@@ -642,7 +642,6 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     while (1) {
         if (IsRegionFree(Base, Size) == TRUE) return Base;
         Base += PAGE_SIZE;
-        if (Base >= LA_KERNEL) return NULL;
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Exit"));

@@ -147,4 +147,8 @@ void InitializeInterrupts(void) {
     //-------------------------------------
 
     LoadInterruptDescriptorTable((PHYSICAL) IDT, sizeof(IDT) - 1);
+
+    // Reset debug registers
+
+    SetDR7(0);
 }

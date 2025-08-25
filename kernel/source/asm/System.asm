@@ -44,6 +44,7 @@ bits 32
     global GetDR6
     global GetDR7
     global SetDR6
+    global SetDR7
     global GetCPUID
     global DisablePaging
     global EnablePaging
@@ -150,6 +151,19 @@ SetDR6 :
 
     mov         eax, [ebp+PBN]
     mov         dr6, eax
+
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+SetDR7 :
+
+    push        ebp
+    mov         ebp, esp
+
+    mov         eax, [ebp+PBN]
+    mov         dr7, eax
 
     pop         ebp
     ret
