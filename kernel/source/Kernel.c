@@ -349,7 +349,14 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /***************************************************************************/
 
-void InitializeKernel(void) {
+static U32 KernelImageAddress;
+static U8 KernelCursorX;
+static U8 KernelCursorY;
+
+void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
+    KernelImageAddress = ImageAddress;
+    KernelCursorX = CursorX;
+    KernelCursorY = CursorY;
     // PROCESSINFO ProcessInfo;
     // TASKINFO TaskInfo;
 

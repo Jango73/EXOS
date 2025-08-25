@@ -23,11 +23,18 @@ KERNELSTARTUPINFO KernelStartup = {
 // The entry point in paged protected mode
 
 void KernelMain(void) {
+    U32 ImageAddress;
+    U8 CursorX;
+    U8 CursorY;
+
+    __asm__ __volatile__("movl %%eax, %0" : "=r"(ImageAddress));
+    __asm__ __volatile__("movb %%bl, %0" : "=r"(CursorX));
+    __asm__ __volatile__("movb %%bh, %0" : "=r"(CursorY));
 
     //--------------------------------------
-    // Main intialization routine
+    // Main initialization routine
 
-    InitializeKernel();
+    InitializeKernel(ImageAddress, CursorX, CursorY);
 
     //--------------------------------------
     // Enter the idle task

@@ -5,6 +5,7 @@
 
 BITS 16
 ORIGIN equ 0x8000
+KERNEL_LOAD_ADDRESS      equ 0x00020000
 
 section .start
 global _start
@@ -324,6 +325,11 @@ StubJumpToImage:
     mov         si, Text_JumpingToPM
     call        PrintString
 
+    xor         ebx, ebx               ; Prepare EBX and select page 0
+    mov         ah, 0x03               ; BIOS get cursor position
+    int         0x10
+    mov         bx, dx                 ; BL = X, BH = Y
+
     mov         eax, [ebp + 8]      ; GDTR
     lgdt        [eax]
 
@@ -352,9 +358,9 @@ ProtectedEntryPoint:
     mov         cr0, eax
     jmp         $+2                ; Pipeline flush
 
-    ; Jump to loaded image
-    mov         eax, [ebp + 16]    ; KernelEntryVA
-    jmp         eax
+    mov         ecx, [ebp + 16]    ; KernelEntryVA
+    mov         eax, KERNEL_LOAD_ADDRESS
+    jmp         ecx
 
     hlt
 .hang:

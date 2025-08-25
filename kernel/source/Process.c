@@ -67,7 +67,7 @@ void InitializeKernelProcess(void) {
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
-    TaskInfo.Func = InitializeKernel;
+    TaskInfo.Func = (TASKFUNC)InitializeKernel;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = 0;
