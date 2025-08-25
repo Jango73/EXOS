@@ -111,6 +111,7 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
 
     // If no task registered or only one, no need to lock anything
     if (Kernel.Task->First == NULL) { Ret = 1; goto Out; }
+    if (IsValidMemory((LINEAR) Kernel.Task->First) == FALSE) { Ret = 1; goto Out; }
     if (Kernel.Task->First->Next == NULL) { Ret = 1; goto Out; }
 
     Task = GetCurrentTask();
