@@ -79,7 +79,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
     long Number;
     int Flags, FieldWidth, Precision, Qualifier, Base, Length, i;
 
-    // Vérification de la chaîne de format
+    // Check format
     if (Format == NULL) {
         KernelPrintChar('<');
         KernelPrintChar('N');
@@ -106,7 +106,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
             case ' ': Flags |= PF_SPACE; goto Repeat;
             case '#': Flags |= PF_SPECIAL; goto Repeat;
             case '0': Flags |= PF_ZEROPAD; goto Repeat;
-            case STR_NULL: return; // Fin prématurée de la chaîne
+            case STR_NULL: return;
         }
 
         // Récupérer la largeur de champ
@@ -122,7 +122,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
             }
         }
 
-        // Récupérer la précision
+        // Get precision
         Precision = -1;
         if (*Format == '.') {
             Format++;
@@ -135,7 +135,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
             if (Precision < 0) Precision = 0;
         }
 
-        // Récupérer le qualificateur
+        // Get the qualifier
         Qualifier = -1;
         if (*Format == 'h' || *Format == 'l' || *Format == 'L') {
             Qualifier = *Format;
@@ -157,7 +157,6 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
                 Text = VarArg(Args, LPCSTR);
                 if (Text == NULL) Text = TEXT("<NULL>");
 
-                // Utiliser la précision si spécifiée
                 Length = StringLength(Text);
                 if (Precision >= 0 && Length > Precision) Length = Precision;
 
@@ -215,7 +214,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
                 continue;
         }
 
-        // Gestion des nombres
+        // Manage numbers
         if (Qualifier == 'l') {
             Number = VarArg(Args, long);
         } else if (Qualifier == 'h') {
