@@ -52,10 +52,8 @@ void InitializeKernelProcess(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] HeapBase : %X"), HeapBase);
 
-    if (!HeapBase) {
-        ClearConsole();
-
-        // Wait forever
+    if (HeapBase == NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Could not create kernel heap, halting."));
         DO_THE_SLEEPING_BEAUTY;
     }
 
@@ -334,8 +332,7 @@ LPPROCESS NewProcess(void) {
     This->References = 1;
     This->Desktop = (LPDESKTOP)Kernel.Desktop->First;
     This->Parent = GetCurrentProcess();
-    // This->Privilege     = PRIVILEGE_USER;
-    This->Privilege = PRIVILEGE_KERNEL;
+    This->Privilege = PRIVILEGE_USER;
 
     //-------------------------------------
     // Initialize the process' mutexs

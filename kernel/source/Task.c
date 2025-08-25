@@ -115,6 +115,11 @@ LPTASK NewTask(void) {
         return NULL;
     }
 
+    if (IsValidMemory(This) == FALSE) {
+        KernelLogText(LOG_ERROR, TEXT("[NewTask] Allocated task is not a valid pointer"));
+        return NULL;
+    }
+
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
 
     *This = (TASK){.ID = ID_TASK, .References = 1, .Mutex = EMPTY_MUTEX, .MessageMutex = EMPTY_MUTEX};
