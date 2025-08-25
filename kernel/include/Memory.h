@@ -20,9 +20,6 @@
 // Initializes the memory manager
 void InitializeMemoryManager(void);
 
-// Sets up task state segments and per-task descriptors
-void InitializeTaskSegments(void);
-
 // Uses a temp page table to get access to a random physical page
 LINEAR MapPhysicalPage(PHYSICAL Physical);
 

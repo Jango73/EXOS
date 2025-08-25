@@ -42,6 +42,8 @@ void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR This, U32 Type) {
 void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table) {
     KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] Enter"));
 
+    KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] GDT address = %X"), (U32) Table);
+
     MemorySet(Table, 0, GDT_SIZE);
 
     InitSegmentDescriptor(&Table[1], GDT_TYPE_CODE);
@@ -73,6 +75,29 @@ void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table) {
 
 /***************************************************************************/
 
+void InitializeTaskSegments(void) {
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Enter"));
+
+    Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
+        LA_KERNEL,
+        0,
+        sizeof(TASKSTATESEGMENT) * NUM_TASKS,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+
+    if (Kernel_i386.TSS == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    Kernel_i386.TTD = (LPTASKTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_NUM_BASE_DESCRIPTORS);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TTD = %X"), Kernel_i386.TTD);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Exit"));
+}
+
+/***************************************************************************/
+
 void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR This, U32 Base) {
     This->Base_00_15 = (Base & (U32)0x0000FFFF) >> 0x00;
     This->Base_16_23 = (Base & (U32)0x00FF0000) >> 0x10;
@@ -88,7 +113,9 @@ void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR This, U32 Limit) {
 
 /***************************************************************************/
 
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) { SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base); }
+void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) {
+    SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base);
+}
 
 /***************************************************************************/
 

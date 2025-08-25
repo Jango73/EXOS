@@ -634,7 +634,8 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
 
     KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Enter"));
 
-    if (StartBase >= N_4MB && StartBase < LA_KERNEL) {
+    if (StartBase >= N_4MB) {
+        KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Starting at %X"), StartBase);
         Base = StartBase;
     }
 
@@ -792,14 +793,16 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
        the region, try to find a region which is at least as large as
        the "Size" parameter. */
     if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
-        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Calling FindFreeRegion"));
+        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Calling FindFreeRegion with base = %X and size = %X"), Base, Size);
 
-        Base = FindFreeRegion(Base, Size);
+        LINEAR NewBase = FindFreeRegion(Base, Size);
 
-        if (Base == NULL) {
-            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with unspecified base"));
+        if (NewBase == NULL) {
+            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with unspecified base from %X"), Base);
             return NULL;
         }
+
+        Base = NewBase;
     }
 
     // Set the return value to "Base".
@@ -1048,15 +1051,6 @@ void InitializeMemoryManager(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] New page directory: %X"), NewPageDirectory);
 
-    /*
-    U32 old_esp;
-    __asm__ __volatile__ ("mov %%esp, %0" : "=r" (old_esp));
-    if (old_esp < 0xC0000000) {
-        __asm__ __volatile__ ("mov %0, %%esp" : : "i"(LOW_MEMORY_HALF) : "memory");
-        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] ESP moved to %X"), (U32) LOW_MEMORY_HALF);
-    }
-    */
-
     // Switch to the new page directory first (it includes the recursive map).
     SetPageDirectory(NewPageDirectory);
 
@@ -1094,29 +1088,6 @@ void InitializeMemoryManager(void) {
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));
-}
-
-/***************************************************************************/
-
-void InitializeTaskSegments(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Enter"));
-
-    Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
-        0,
-        0,
-        sizeof(TASKSTATESEGMENT) * NUM_TASKS,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-
-    if (Kernel_i386.TSS == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    Kernel_i386.TTD = (LPTASKTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_NUM_BASE_DESCRIPTORS);
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TTD = %X"), Kernel_i386.TTD);
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Exit"));
 }
 
 /***************************************************************************/

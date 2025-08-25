@@ -170,11 +170,12 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
 // Functions in Segment.c
 
 void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR, U32);
-void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR);
-void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR, U32);
-void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR, U32);
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR, U32);
-void SetTSSDescriptorLimit(LPTSSDESCRIPTOR, U32);
+void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table);
+void InitializeTaskSegments(void);
+void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR Desc, U32 Base);
+void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR Desc, U32 Limit);
+void SetTSSDescriptorBase(LPTSSDESCRIPTOR Desc, U32 Base);
+void SetTSSDescriptorLimit(LPTSSDESCRIPTOR Desc, U32 Limit);
 
 /***************************************************************************/
 
