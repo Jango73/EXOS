@@ -625,6 +625,18 @@ typedef struct tag_FARPOINTER {
 #define KSS_ACK 0xFA
 
 /***************************************************************************/
+// Static low memory pages
+
+#define LOW_MEMORY_PAGE_1   0x1000      // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_2   0x2000      // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_3   0x3000      // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_4   0x4000      //
+#define LOW_MEMORY_PAGE_5   0x5000      // RMC code base
+#define LOW_MEMORY_PAGE_6   0x6000      // RMC buffers
+#define LOW_MEMORY_PAGE_7   0x7000
+#define LOW_MEMORY_PAGE_8   0x8000
+
+/***************************************************************************/
 // Structure to receive information about a segment in a more friendly way
 
 typedef struct tag_SEGMENTINFO {

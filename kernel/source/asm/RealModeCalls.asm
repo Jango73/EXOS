@@ -21,10 +21,6 @@ LBF equ 0x04                           ; Local base far
 
 ;----------------------------------------------------------------------------
 
-RMC_STACK equ 0x1000
-
-;----------------------------------------------------------------------------
-
 section .text
 bits 32
 
@@ -79,7 +75,7 @@ RealModeCall :
     ;--------------------------------------
     ; Set the address of the RMC code
 
-    mov     ebx, [KernelStartup + KernelStartupInfo.StubAddress]
+    mov     ebx, LOW_MEMORY_PAGE_5
 
     ;--------------------------------------
     ; Copy the RMC code
@@ -414,16 +410,18 @@ bits 16
     ; Setup real-mode segment registers
 
     mov     ax, cs                     ; Get code segment
-    mov     ss, ax                     ; Stack segment
     mov     ds, ax                     ; Data segment
     mov     es, ax                     ; Extra segment 1
     mov     fs, ax                     ; Extra segment 2
     mov     gs, ax                     ; Extra segment 3
 
+    xor     ax, ax
+    mov     ss, ax                     ; Stack segment
+
     ;--------------------------------------
     ; Setup the stack
 
-    mov     sp, RMC_STACK
+    mov     sp, LOW_MEMORY_PAGE_5
 
     ;--------------------------------------
     ; Save our base address

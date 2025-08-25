@@ -223,6 +223,7 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
 
 /***************************************************************************/
 
+/*
 static void KernelLogRegistersCompact(void) {
     KernelPrintString(Text_NewLine);
     KernelPrintString(TEXT("<"));
@@ -231,6 +232,7 @@ static void KernelLogRegistersCompact(void) {
     VarKernelPrintNumber(GetEBP(), 16, 0, 0, 0);
     KernelPrintString(TEXT(">"));
 }
+*/
 
 /***************************************************************************/
 

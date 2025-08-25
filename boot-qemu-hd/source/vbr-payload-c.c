@@ -3,9 +3,9 @@
 // It won't load large files, you'll get critical errors if you try to.
 // It is meant for small kernels, up to 500KB in size.
 
-#include "../../kernel/include/String.h"
 #include "../../kernel/include/I386.h"
 #include "../../kernel/include/SerialPort.h"
+#include "../../kernel/include/String.h"
 
 __asm__(".code16gcc");
 
@@ -28,9 +28,9 @@ __asm__(".code16gcc");
 #define GDT_SEL_DATA 0x10
 
 #define GDT_ADDRESS 0x500
-#define PAGE_DIRECTORY_ADDRESS 0x1000
-#define PAGE_TABLE_LOW_ADDRESS 0x2000
-#define PAGE_TABLE_KERNEL_ADDRESS 0x3000
+#define PAGE_DIRECTORY_ADDRESS LOW_MEMORY_PAGE_1
+#define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_2
+#define PAGE_TABLE_KERNEL_ADDRESS LOW_MEMORY_PAGE_3
 
 /************************************************************************/
 // Functions in vbr-payload-a.asm

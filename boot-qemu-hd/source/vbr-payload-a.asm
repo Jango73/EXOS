@@ -126,7 +126,7 @@ BiosReadSectors:
     jnc         .return
     mov         eax, 1
 
-.return
+.return:
     pop         edi
     pop         esi
     pop         edx

@@ -196,14 +196,14 @@ static U32 VESAInitialize(void) {
     // Get VESA general information
 
     Regs.X.AX = 0x4F00;
-    Regs.X.ES = (KernelStartup.StubAddress + N_2KB) >> MUL_16;
+    Regs.X.ES = (LOW_MEMORY_PAGE_6) >> MUL_16;
     Regs.X.DI = 0;
 
     RealModeCall(VIDEO_CALL, &Regs);
 
     KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Real mode call done"));
 
-    MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(KernelStartup.StubAddress + N_2KB), sizeof(VESAINFOBLOCK));
+    MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(VESAINFOBLOCK));
 
     if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_ERROR_GENERIC;
     if (VESAContext.VESAInfo.Signature[1] != 'E') return DF_ERROR_GENERIC;
@@ -279,13 +279,13 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
     Regs.X.AX = 0x4F01;
     Regs.X.CX = VESAContext.ModeSpecs.Mode;
-    Regs.X.ES = (KernelStartup.StubAddress + N_2KB) >> MUL_16;
+    Regs.X.ES = (LOW_MEMORY_PAGE_6) >> MUL_16;
     Regs.X.DI = 0;
     RealModeCall(VIDEO_CALL, &Regs);
 
     if (Regs.H.AL != 0x4F) return DF_ERROR_GENERIC;
 
-    MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(KernelStartup.StubAddress + N_2KB), sizeof(MODEINFOBLOCK));
+    MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(MODEINFOBLOCK));
 
     VESAContext.Header.MemoryBase = (U8*)(VESAContext.ModeInfo.WindowAStartSegment << MUL_16);
     VESAContext.Header.BytesPerScanLine = VESAContext.ModeInfo.BytesPerScanLine;
