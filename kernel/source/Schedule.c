@@ -40,7 +40,14 @@ typedef struct tag_TASKLIST {
 
 /***************************************************************************/
 
-static TASKLIST TaskList = {0, 0, 20, 1, NULL, {NULL}};
+static TASKLIST TaskList = {
+    .Freeze = 0,
+    .SchedulerTime = 0,
+    .TaskTime = 20,
+    .NumTasks = 0,
+    .Current = NULL,
+    .Tasks = {NULL}
+};
 
 /***************************************************************************/
 
@@ -136,15 +143,15 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
 /***************************************************************************/
 
 static void RotateQueue(void) {
-    U32 Index = 0;
+    if (TaskList.NumTasks > 1) {
+        TaskList.Current = TaskList.Tasks[0];
 
-    TaskList.Current = TaskList.Tasks[0];
+        for (U32 Index = 1; Index < TaskList.NumTasks; Index++) {
+            TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
+        }
 
-    for (Index = 1; Index < TaskList.NumTasks; Index++) {
-        TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
+        TaskList.Tasks[TaskList.NumTasks - 1] = TaskList.Current;
     }
-
-    TaskList.Tasks[TaskList.NumTasks - 1] = TaskList.Current;
 }
 
 /***************************************************************************/
@@ -238,7 +245,9 @@ LPPROCESS GetCurrentProcess(void) { return GetCurrentTask()->Process; }
 
 /***************************************************************************/
 
-LPTASK GetCurrentTask(void) { return TaskList.Current; }
+LPTASK GetCurrentTask(void) {
+    return TaskList.Current;
+}
 
 /***************************************************************************/
 

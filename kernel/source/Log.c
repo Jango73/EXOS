@@ -43,16 +43,25 @@ static void KernelPrintChar(STR Char) { SerialOut(LOG_COM_INDEX, Char); }
 void KernelPrintString(LPCSTR Text) {
     LockMutex(MUTEX_LOG, INFINITY);
 
-    U32 Index = 0;
-
-    if (Text) {
-        for (Index = 0; Index < 0x1000; Index++) {
+    if (Text != NULL) {
+        for (U32 Index = 0; Index < 0x1000; Index++) {
             if (Text[Index] == STR_NULL) break;
             KernelPrintChar(Text[Index]);
         }
     }
 
     UnlockMutex(MUTEX_LOG);
+}
+
+/***************************************************************************/
+
+void KernelPrintStringNoMutex(LPCSTR Text) {
+    if (Text != NULL) {
+        for (U32 Index = 0; Index < 0x1000; Index++) {
+            if (Text[Index] == STR_NULL) break;
+            KernelPrintChar(Text[Index]);
+        }
+    }
 }
 
 /***************************************************************************/

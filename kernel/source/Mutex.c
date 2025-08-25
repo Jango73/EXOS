@@ -9,6 +9,7 @@
 
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
 
 /***************************************************************************/
@@ -91,26 +92,33 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
 
 U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     UNUSED(TimeOut);
-
     LPPROCESS Process;
     LPTASK Task;
     U32 Flags;
     U32 Ret = 0;
+    STR Number [32];
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    // KernelPrintStringNoMutex(TEXT("[LockMutex] Enter\n"));
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Mutex == NULL) return 0;
-    if (Mutex->ID != ID_MUTEX) return 0;
+    if (Mutex == NULL) { Ret = 0; goto Out; }
+    if (Mutex->ID != ID_MUTEX) { Ret = 0; goto Out; }
 
     // If no task registered or only one, no need to lock anything
-    if (Kernel.Task->First == NULL) return 1;
-    if (Kernel.Task->First->Next == NULL) return 1;
-
-    DisableInterrupts();
-    SaveFlags(&Flags);
+    if (Kernel.Task->First == NULL) { Ret = 1; goto Out; }
+    if (Kernel.Task->First->Next == NULL) { Ret = 1; goto Out; }
 
     Task = GetCurrentTask();
+
+    // KernelPrintStringNoMutex(TEXT("[LockMutex] Task = "));
+    // NumberToString(Number, (U32) Task, 16, 0, 0, 0);
+    // KernelPrintStringNoMutex(Number);
+    // KernelPrintStringNoMutex(Text_NewLine);
 
     if (Task == NULL) {
         Ret = 1;
@@ -174,6 +182,8 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
 Out:
 
     RestoreFlags(&Flags);
+
+    // KernelPrintStringNoMutex(TEXT("[LockMutex] Exit\n"));
 
     return Ret;
 }
