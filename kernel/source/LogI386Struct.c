@@ -24,7 +24,16 @@ void LogRegisters(LPINTEL386REGISTERS Regs) {
     KernelLogText(
         LOG_VERBOSE, TEXT("DR0 : %X DR1 : %X DR2 : %X DR3 : %X "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
     KernelLogText(
-        LOG_VERBOSE, TEXT("DR4 : %X DR5 : %X DR6 : %X DR7 : %X "), Regs->DR4, Regs->DR5, Regs->DR6, Regs->DR7);
+        LOG_VERBOSE, TEXT("DR6 : B0 : %X B1 : %X B2 : %X B3 : %X BD : %X BS : %X BT : %X"),
+        BIT_0_VALUE(Regs->DR6), BIT_1_VALUE(Regs->DR6), BIT_2_VALUE(Regs->DR6), BIT_3_VALUE(Regs->DR6),
+        BIT_13_VALUE(Regs->DR6), BIT_14_VALUE(Regs->DR6), BIT_15_VALUE(Regs->DR6)
+        );
+    KernelLogText(
+        LOG_VERBOSE, TEXT("DR7 : L0 : %X G1 : %X L1 : %X G1 : %X L2 : %X G2 : %X L3 : %X G3 : %X GD : %X"),
+        BIT_0_VALUE(Regs->DR7), BIT_1_VALUE(Regs->DR7), BIT_2_VALUE(Regs->DR7), BIT_3_VALUE(Regs->DR7),
+        BIT_4_VALUE(Regs->DR7), BIT_5_VALUE(Regs->DR7), BIT_6_VALUE(Regs->DR7), BIT_7_VALUE(Regs->DR7),
+        BIT_13_VALUE(Regs->DR7)
+        );
 }
 
 /************************************************************************/

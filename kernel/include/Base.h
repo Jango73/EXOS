@@ -224,6 +224,26 @@ typedef U32 BOOL;
 #define BIT_15 0x8000
 
 /***************************************************************************/
+
+#define BIT_0_VALUE(a) (((a) >> 0) & 1)
+#define BIT_1_VALUE(a) (((a) >> 1) & 1)
+#define BIT_2_VALUE(a) (((a) >> 2) & 1)
+#define BIT_3_VALUE(a) (((a) >> 3) & 1)
+#define BIT_4_VALUE(a) (((a) >> 4) & 1)
+#define BIT_5_VALUE(a) (((a) >> 5) & 1)
+#define BIT_6_VALUE(a) (((a) >> 6) & 1)
+#define BIT_7_VALUE(a) (((a) >> 7) & 1)
+
+#define BIT_8_VALUE(a) (((a) >> 8) & 1)
+#define BIT_9_VALUE(a) (((a) >> 9) & 1)
+#define BIT_10_VALUE(a) (((a) >> 10) & 1)
+#define BIT_11_VALUE(a) (((a) >> 11) & 1)
+#define BIT_12_VALUE(a) (((a) >> 12) & 1)
+#define BIT_13_VALUE(a) (((a) >> 13) & 1)
+#define BIT_14_VALUE(a) (((a) >> 14) & 1)
+#define BIT_15_VALUE(a) (((a) >> 15) & 1)
+
+/***************************************************************************/
 // This macro gives the offset of a structure member
 
 #define MEMBER_OFFSET(s, m) ((U32)(&(((s*)NULL)->m)))
