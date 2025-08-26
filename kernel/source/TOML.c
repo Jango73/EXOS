@@ -10,7 +10,7 @@
 
 #include "../include/TOML.h"
 
-#include "../include/Heap.h"
+#include "../include/Kernel.h"
 #include "../include/String.h"
 
 /***************************************************************************/
@@ -19,13 +19,16 @@ LPTOML TomlParse(LPCSTR Source) {
     LPTOML Toml = NULL;
     LPTOMLITEM Last = NULL;
     STR Section[0x80];
+    STR SectionBase[0x80];
+    U32 SectionIndex = 0;
     U32 Index = 0;
 
-    Toml = (LPTOML)HeapAlloc(sizeof(TOML));
+    Toml = (LPTOML)KernelMemAlloc(sizeof(TOML));
     if (Toml == NULL) return NULL;
     Toml->First = NULL;
 
     Section[0] = STR_NULL;
+    SectionBase[0] = STR_NULL;
     if (Source == NULL) return Toml;
 
     while (Source[Index]) {
@@ -58,10 +61,36 @@ LPTOML TomlParse(LPCSTR Source) {
         if (*Ptr == STR_NULL) continue;
 
         if (*Ptr == '[') {
+            BOOL Array = FALSE;
+
             Ptr++;
+            if (*Ptr == '[') {
+                Array = TRUE;
+                Ptr++;
+            }
             End = StringFindChar(Ptr, ']');
-            if (End) *End = STR_NULL;
-            StringCopy(Section, Ptr);
+            if (End) {
+                *End = STR_NULL;
+                if (Array && End[1] == ']') End++;
+            }
+
+            if (Array) {
+                if (StringCompare(SectionBase, Ptr) == 0) {
+                    SectionIndex++;
+                } else {
+                    StringCopy(SectionBase, Ptr);
+                    SectionIndex = 0;
+                }
+                STR IndexText[0x10];
+                U32ToString(SectionIndex, IndexText);
+                StringCopy(Section, SectionBase);
+                StringConcat(Section, ".");
+                StringConcat(Section, IndexText);
+            } else {
+                StringCopy(Section, Ptr);
+                SectionBase[0] = STR_NULL;
+                SectionIndex = 0;
+            }
             continue;
         }
 
@@ -97,15 +126,15 @@ LPTOML TomlParse(LPCSTR Source) {
         }
         StringConcat(FullKey, Key);
 
-        Item = (LPTOMLITEM)HeapAlloc(sizeof(TOMLITEM));
+        Item = (LPTOMLITEM)KernelMemAlloc(sizeof(TOMLITEM));
         if (Item == NULL) continue;
         Item->Next = NULL;
-        Item->Key = (LPSTR)HeapAlloc(StringLength(FullKey) + 1);
-        Item->Value = (LPSTR)HeapAlloc(StringLength(Value) + 1);
+        Item->Key = (LPSTR)KernelMemAlloc(StringLength(FullKey) + 1);
+        Item->Value = (LPSTR)KernelMemAlloc(StringLength(Value) + 1);
         if (Item->Key == NULL || Item->Value == NULL) {
-            if (Item->Key) HeapFree(Item->Key);
-            if (Item->Value) HeapFree(Item->Value);
-            HeapFree(Item);
+            if (Item->Key) KernelMemFree(Item->Key);
+            if (Item->Value) KernelMemFree(Item->Value);
+            KernelMemFree(Item);
             continue;
         }
         StringCopy(Item->Key, FullKey);
@@ -149,12 +178,12 @@ void TomlFree(LPTOML Toml) {
 
     for (Item = Toml->First; Item; Item = Next) {
         Next = Item->Next;
-        if (Item->Key) HeapFree(Item->Key);
-        if (Item->Value) HeapFree(Item->Value);
-        HeapFree(Item);
+        if (Item->Key) KernelMemFree(Item->Key);
+        if (Item->Value) KernelMemFree(Item->Value);
+        KernelMemFree(Item);
     }
 
-    HeapFree(Toml);
+    KernelMemFree(Toml);
 }
 
 /***************************************************************************/

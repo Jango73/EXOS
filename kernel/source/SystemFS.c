@@ -12,6 +12,7 @@
 #include "../include/List.h"
 #include "../include/Log.h"
 #include "../include/String.h"
+#include "../include/TOML.h"
 #include "../include/User.h"
 
 /***************************************************************************/
@@ -67,6 +68,7 @@ typedef struct tag_SYSFSFILE {
 /***************************************************************************/
 static LPSYSFSFILE OpenFile(LPFILEINFO Find);
 static U32 CloseFile(LPSYSFSFILE File);
+static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path);
 
 SYSTEMFSFILESYSTEM SystemFSFileSystem = {
     .Header = {.ID = ID_FILESYSTEM,
@@ -309,6 +311,27 @@ static U32 DeleteFolder(LPFILEINFO Info) {
 
 /***************************************************************************/
 
+static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path) {
+    LPLISTNODE Node;
+    LPFILESYSTEM FS;
+    FS_MOUNT_CONTROL Control;
+
+    if (FileSystem == NULL || Path == NULL) return;
+
+    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+        FS = (LPFILESYSTEM)Node;
+        if (FS == Kernel.SystemFS) continue;
+        if (StringCompare(FS->Name, FileSystem) == 0) {
+            StringCopy(Control.Path, Path);
+            Control.Node = (LPLISTNODE)FS;
+            MountObject(&Control);
+            break;
+        }
+    }
+}
+
+/***************************************************************************/
+
 BOOL MountSystemFS(void) {
     LPLISTNODE Node;
     LPFILESYSTEM FS;
@@ -356,6 +379,34 @@ BOOL MountSystemFS(void) {
         StringCopy(Control.Path, Path);
         Control.Node = (LPLISTNODE)FS;
         MountObject(&Control);
+    }
+
+    if (Kernel.Configuration) {
+        U32 ConfigIndex = 0;
+        while (1) {
+            STR Key[0x100];
+            STR IndexText[0x10];
+            LPCSTR FsName;
+            LPCSTR MountPath;
+
+            U32ToString(ConfigIndex, IndexText);
+
+            StringCopy(Key, TEXT("SystemFS.Mount."));
+            StringConcat(Key, IndexText);
+            StringConcat(Key, TEXT(".FileSystem"));
+            FsName = TomlGet(Kernel.Configuration, Key);
+            if (FsName == NULL) break;
+
+            StringCopy(Key, TEXT("SystemFS.Mount."));
+            StringConcat(Key, IndexText);
+            StringConcat(Key, TEXT(".Path"));
+            MountPath = TomlGet(Kernel.Configuration, Key);
+            if (MountPath) {
+                MountConfiguredFileSystem(FsName, MountPath);
+            }
+
+            ConfigIndex++;
+        }
     }
 
     ListAddItem(Kernel.FileSystem, Kernel.SystemFS);
