@@ -216,7 +216,9 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
 
 static BOOL PathExists(LPFS_PATHCHECK Control) {
     STR Temp[MAX_PATH_NAME];
-    LPSYSTEMFSFILE Node;
+    FILEINFO Find;
+    LPSYSFSFILE File;
+    BOOL Result;
 
     if (Control == NULL) return FALSE;
 
@@ -229,12 +231,18 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
         StringConcat(Temp, Control->SubFolder);
     }
 
-    Node = FindNode(Temp);
-    if (Node == NULL) return FALSE;
+    Find.Size = sizeof(FILEINFO);
+    Find.FileSystem = Kernel.SystemFS;
+    Find.Attributes = MAX_U32;
+    StringCopy(Find.Name, Temp);
 
-    if ((Node->Header.Attributes & FS_ATTR_FOLDER) == 0) return FALSE;
+    File = OpenFile(&Find);
+    if (File == NULL) return FALSE;
 
-    return TRUE;
+    Result = (File->Header.Attributes & FS_ATTR_FOLDER) != 0;
+    CloseFile(File);
+
+    return Result;
 }
 
 /***************************************************************************/
