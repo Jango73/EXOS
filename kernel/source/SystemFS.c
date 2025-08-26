@@ -9,7 +9,10 @@
 
 #include "../include/FileSys.h"
 #include "../include/Kernel.h"
+#include "../include/List.h"
 #include "../include/Log.h"
+#include "../include/String.h"
+#include "../include/User.h"
 
 /***************************************************************************/
 
@@ -33,9 +36,14 @@ DRIVER SystemFSDriver = {
 
 /***************************************************************************/
 
+static LPSYSFSFILESYSTEM g_SystemFS = NULL;
+
 typedef struct tag_SYSTEMFILE {
     LISTNODE_FIELDS
     LPLIST Children;
+    LPSYSTEMFILE Parent;
+    LPFILESYSTEM Mounted;
+    STR Name[MAX_FILE_NAME];
 } SYSTEMFILE, *LPSYSTEMFILE;
 
 /***************************************************************************/
@@ -57,7 +65,222 @@ typedef struct tag_SYSFSFILE {
 
 /***************************************************************************/
 
-static LPSYSTEMFILE NewSystemFileRoot(void) { return NULL; }
+static LPSYSTEMFILE NewSystemFile(LPCSTR Name, LPSYSTEMFILE Parent) {
+    LPSYSTEMFILE Node;
+
+    Node = (LPSYSTEMFILE)KernelMemAlloc(sizeof(SYSTEMFILE));
+    if (Node == NULL) return NULL;
+
+    *Node = (SYSTEMFILE){
+        .ID = ID_FILE,
+        .References = 1,
+        .Next = NULL,
+        .Prev = NULL,
+        .Children = NewList(NULL, KernelMemAlloc, KernelMemFree),
+        .Parent = Parent,
+        .Mounted = NULL};
+
+    if (Name) {
+        StringCopy(Node->Name, Name);
+    } else {
+        Node->Name[0] = STR_NULL;
+    }
+
+    return Node;
+}
+
+static LPSYSTEMFILE NewSystemFileRoot(void) { return NewSystemFile(TEXT(""), NULL); }
+
+/***************************************************************************/
+
+static LPSYSTEMFILE FindChild(LPSYSTEMFILE Parent, LPCSTR Name) {
+    LPLISTNODE Node;
+    LPSYSTEMFILE Child;
+
+    if (Parent == NULL || Parent->Children == NULL) return NULL;
+
+    for (Node = Parent->Children->First; Node; Node = Node->Next) {
+        Child = (LPSYSTEMFILE)Node;
+        if (StringCompareNC(Child->Name, Name) == 0) return Child;
+    }
+
+    return NULL;
+}
+
+static LPSYSTEMFILE FindNode(LPCSTR Path) {
+    LPLIST Parts;
+    LPLISTNODE Node;
+    LPPATHNODE Part;
+    LPSYSTEMFILE Current;
+
+    if (g_SystemFS == NULL) return NULL;
+
+    Parts = DecompPath(Path);
+    if (Parts == NULL) return NULL;
+
+    Current = g_SystemFS->Root;
+    for (Node = Parts->First; Node; Node = Node->Next) {
+        Part = (LPPATHNODE)Node;
+        if (Part->Name[0] == STR_NULL) continue;
+        Current = FindChild(Current, Part->Name);
+        if (Current == NULL) break;
+    }
+
+    DeleteList(Parts);
+    return Current;
+}
+
+/***************************************************************************/
+
+static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
+    LPLIST Parts;
+    LPLISTNODE Node;
+    LPPATHNODE Part;
+    LPSYSTEMFILE Parent;
+    LPSYSTEMFILE Child;
+
+    if (g_SystemFS == NULL || Control == NULL) return DF_ERROR_BADPARAM;
+
+    Parts = DecompPath(Control->Path);
+    if (Parts == NULL) return DF_ERROR_BADPARAM;
+
+    Parent = g_SystemFS->Root;
+    for (Node = Parts->First; Node; Node = Node->Next) {
+        Part = (LPPATHNODE)Node;
+        if (Part->Name[0] == STR_NULL) continue;
+        if (Node->Next == NULL) break;
+        Child = FindChild(Parent, Part->Name);
+        if (Child == NULL) {
+            Child = NewSystemFile(Part->Name, Parent);
+            if (Child == NULL) {
+                DeleteList(Parts);
+                return DF_ERROR_GENERIC;
+            }
+            ListAddTail(Parent->Children, Child);
+        }
+        Parent = Child;
+    }
+
+    if (Part == NULL || Control->Node == NULL) {
+        DeleteList(Parts);
+        return DF_ERROR_BADPARAM;
+    }
+
+    if (FindChild(Parent, Part->Name)) {
+        DeleteList(Parts);
+        return DF_ERROR_GENERIC;
+    }
+
+    Child = NewSystemFile(Part->Name, Parent);
+    if (Child == NULL) {
+        DeleteList(Parts);
+        return DF_ERROR_GENERIC;
+    }
+
+    Child->Mounted = (LPFILESYSTEM)Control->Node;
+    ListAddTail(Parent->Children, Child);
+
+    DeleteList(Parts);
+    return DF_ERROR_SUCCESS;
+}
+
+static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
+    LPSYSTEMFILE Node;
+
+    if (Control == NULL) return DF_ERROR_BADPARAM;
+
+    Node = FindNode(Control->Path);
+    if (Node == NULL || Node->Parent == NULL) return DF_ERROR_GENERIC;
+
+    ListErase(Node->Parent->Children, Node);
+    KernelMemFree(Node);
+    return DF_ERROR_SUCCESS;
+}
+
+static BOOL PathExists(LPFS_PATHCHECK Control) {
+    STR Temp[MAX_PATH_NAME];
+    LPSYSTEMFILE Node;
+
+    if (Control == NULL) return FALSE;
+
+    if (Control->SubFolder[0] == PATH_SEP) {
+        StringCopy(Temp, Control->SubFolder);
+    } else {
+        StringCopy(Temp, Control->CurrentFolder);
+        if (Temp[StringLength(Temp) - 1] != PATH_SEP)
+            StringConcat(Temp, TEXT("/"));
+        StringConcat(Temp, Control->SubFolder);
+    }
+
+    Node = FindNode(Temp);
+    return (Node != NULL);
+}
+
+/***************************************************************************/
+
+static U32 CreateFolderFS(LPFILEINFO Info) {
+    LPLIST Parts;
+    LPLISTNODE Node;
+    LPPATHNODE Part;
+    LPSYSTEMFILE Parent;
+    LPSYSTEMFILE Child;
+
+    if (Info == NULL) return DF_ERROR_BADPARAM;
+
+    Parts = DecompPath(Info->Name);
+    if (Parts == NULL) return DF_ERROR_BADPARAM;
+
+    Parent = g_SystemFS->Root;
+    for (Node = Parts->First; Node; Node = Node->Next) {
+        Part = (LPPATHNODE)Node;
+        if (Part->Name[0] == STR_NULL) continue;
+        if (Node->Next == NULL) break;
+        Child = FindChild(Parent, Part->Name);
+        if (Child == NULL) {
+            Child = NewSystemFile(Part->Name, Parent);
+            if (Child == NULL) {
+                DeleteList(Parts);
+                return DF_ERROR_GENERIC;
+            }
+            ListAddTail(Parent->Children, Child);
+        }
+        Parent = Child;
+    }
+
+    if (Part == NULL) {
+        DeleteList(Parts);
+        return DF_ERROR_BADPARAM;
+    }
+
+    if (FindChild(Parent, Part->Name)) {
+        DeleteList(Parts);
+        return DF_ERROR_GENERIC;
+    }
+
+    Child = NewSystemFile(Part->Name, Parent);
+    if (Child == NULL) {
+        DeleteList(Parts);
+        return DF_ERROR_GENERIC;
+    }
+
+    ListAddTail(Parent->Children, Child);
+    DeleteList(Parts);
+    return DF_ERROR_SUCCESS;
+}
+
+static U32 DeleteFolderFS(LPFILEINFO Info) {
+    LPSYSTEMFILE Node;
+
+    if (Info == NULL) return DF_ERROR_BADPARAM;
+
+    Node = FindNode(Info->Name);
+    if (Node == NULL || Node->Parent == NULL) return DF_ERROR_GENERIC;
+    if (Node->Children && Node->Children->NumItems) return DF_ERROR_GENERIC;
+
+    ListErase(Node->Parent->Children, Node);
+    KernelMemFree(Node);
+    return DF_ERROR_SUCCESS;
+}
 
 /***************************************************************************/
 
@@ -95,6 +318,8 @@ BOOL MountSystemFS(void) {
 
     FileSystem = NewSystemFSFileSystem();
     if (FileSystem == NULL) return FALSE;
+
+    g_SystemFS = FileSystem;
 
     //-------------------------------------
     // Register the file system
@@ -155,14 +380,26 @@ U32 SystemFSCommands(U32 Function, U32 Parameter) {
             return Initialize();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-        case DF_FS_GETVOLUMEINFO:
-            return DF_ERROR_NOTIMPL;
+        case DF_FS_GETVOLUMEINFO: {
+            LPVOLUMEINFO Info = (LPVOLUMEINFO)Parameter;
+            if (Info && Info->Size == sizeof(VOLUMEINFO)) {
+                StringCopy(Info->Name, TEXT("/"));
+                return DF_ERROR_SUCCESS;
+            }
+            return DF_ERROR_BADPARAM;
+        }
         case DF_FS_SETVOLUMEINFO:
             return DF_ERROR_NOTIMPL;
         case DF_FS_CREATEFOLDER:
-            return DF_ERROR_NOTIMPL;
+            return CreateFolderFS((LPFILEINFO)Parameter);
         case DF_FS_DELETEFOLDER:
-            return DF_ERROR_NOTIMPL;
+            return DeleteFolderFS((LPFILEINFO)Parameter);
+        case DF_FS_MOUNTOBJECT:
+            return MountObject((LPFS_MOUNT_CONTROL)Parameter);
+        case DF_FS_UNMOUNTOBJECT:
+            return UnmountObject((LPFS_UNMOUNT_CONTROL)Parameter);
+        case DF_FS_PATHEXISTS:
+            return (U32)PathExists((LPFS_PATHCHECK)Parameter);
         case DF_FS_OPENFILE:
             return (U32)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
