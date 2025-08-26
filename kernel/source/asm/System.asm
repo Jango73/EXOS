@@ -709,6 +709,10 @@ SwitchToTask :
     mov         ebp, esp
     sub         esp, 8                      ; reserve space for far pointer
 
+    xor         eax, eax
+    mov         dr6, eax
+    mov         dr7, eax
+
     mov         eax, [ebp+PBN]
     mov         dword [esp], 0              ; offset
     mov         word [esp+4], ax            ; selector

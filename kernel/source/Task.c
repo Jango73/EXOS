@@ -294,7 +294,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Kernel_i386.TSS[Table].ES = DataSelector;
     Kernel_i386.TSS[Table].FS = DataSelector;
     Kernel_i386.TSS[Table].GS = DataSelector;
-    Kernel_i386.TSS[Table].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
+    Kernel_i386.TSS[Table].IOMap = sizeof(TASKSTATESEGMENT);;
 
     //-------------------------------------
     // Setup the TSS descriptor
