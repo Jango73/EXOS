@@ -1,6 +1,7 @@
 # Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
 FINAL_IMG       = bin/exos.img
+SOURCE_IMG      = bin/src.img
 IMG_SIZE_MB     = 64
 KERNEL_BIN      = ../kernel/bin/exos.bin
 MTOOLS_CONF     = .mtoolsrc.tmp
@@ -33,29 +34,47 @@ CFLAGS  = -m16 -g -Wall -Wextra -O2 \
 
 LD      		= i686-elf-ld
 LDFLAGS 		= -nostdlib -no-pie
+define CREATE_FAT32_IMAGE
+        @echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
+        dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB)
+        parted -s $1 mklabel msdos
+        parted -s $1 mkpart primary fat32 2048s 100%
+        parted -s $1 set 1 boot on
+        @{ \
+                PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+                echo "Partition offset is: $$PART_OFFSET"; \
+                if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+                        echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+                        exit 1; \
+                fi; \
+                echo "Formatting partition using mformat..."; \
+                MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F ::; \
+        }
+endef
 
-.PHONY: all update install-mbr install-vbr-payload clean check_tools hexdump-check rebuild-image
+define MTOOLS_OPERATION
+        @rm -f $(MTOOLS_CONF)
+        @{ \
+                PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+                echo "drive z: file=\"$1\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
+                echo "$2 at offset $$PART_OFFSET"; \
+                $3 \
+                rm -f $(MTOOLS_CONF); \
+                echo "$4"; \
+        }
+endef
 
-# Default: build tools, ensure image exists (create once), then update contents
-all: check_tools $(FINAL_IMG) update install-mbr install-vbr-payload hexdump-check
+.PHONY: all update update-src install-mbr install-vbr-payload clean check_tools hexdump-check rebuild-image
+
+# Default: build tools, ensure images exist (create once), then update contents
+all: check_tools $(FINAL_IMG) update install-mbr install-vbr-payload $(SOURCE_IMG) update-src hexdump-check
 
 # Create image only if it does not exist
 $(FINAL_IMG):
-	@echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
-	dd if=/dev/zero of=$(FINAL_IMG) bs=1M count=$(IMG_SIZE_MB)
-	parted -s $(FINAL_IMG) mklabel msdos
-	parted -s $(FINAL_IMG) mkpart primary fat32 2048s 100%
-	parted -s $(FINAL_IMG) set 1 boot on
-	@{ \
-		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-		echo "Partition offset is: $$PART_OFFSET"; \
-		if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
-			echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
-			exit 1; \
-		fi; \
-		echo "Formatting partition using mformat..."; \
-		MTOOLS_SKIP_CHECK=1 mformat -i $(FINAL_IMG)@@$$PART_OFFSET -v EXOS -F ::; \
-	}
+	$(call CREATE_FAT32_IMAGE,$@)
+
+$(SOURCE_IMG):
+	$(call CREATE_FAT32_IMAGE,$@)
 
 # Force a full rebuild of the image (explicit call)
 rebuild-image:
@@ -64,16 +83,17 @@ rebuild-image:
 	$(MAKE) $(FINAL_IMG)
 
 update: $(FINAL_IMG)
-	@rm -f $(MTOOLS_CONF)
-	@{ \
-		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-		echo "drive z: file=\"$(FINAL_IMG)\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
-		echo "Injecting files using mtools at offset $$PART_OFFSET"; \
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
-		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
-		rm -f $(MTOOLS_CONF); \
-		echo "All files injected into image."; \
-	}
+	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
+                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
+                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true;,\
+                All files injected into image.)
+
+update-src: $(SOURCE_IMG)
+	$(call MTOOLS_OPERATION,$(SOURCE_IMG),Injecting sources using mtools,\
+                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
+                MTOOLSRC=$(MTOOLS_CONF) mcopy -o -s ../kernel/source z:/exos/; \
+                MTOOLSRC=$(MTOOLS_CONF) mcopy -o -s ../kernel/include z:/exos/;,\
+                All source files injected into image.)
 
 install-mbr: $(FINAL_IMG) $(CUSTOM_MBR_BIN)
 	@echo "Installing custom MBR into image (assembled from $(CUSTOM_MBR))..."
