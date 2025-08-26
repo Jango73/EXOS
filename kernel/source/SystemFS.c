@@ -65,6 +65,8 @@ typedef struct tag_SYSFSFILE {
 } SYSFSFILE, *LPSYSFSFILE;
 
 /***************************************************************************/
+static LPSYSFSFILE OpenFile(LPFILEINFO Find);
+static U32 CloseFile(LPSYSFSFILE File);
 
 SYSTEMFSFILESYSTEM SystemFSFileSystem = {
     .Header = {.ID = ID_FILESYSTEM,
@@ -212,7 +214,8 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
 
 static BOOL PathExists(LPFS_PATHCHECK Control) {
     STR Temp[MAX_PATH_NAME];
-    LPSYSTEMFSFILE Node;
+    FILEINFO Info;
+    LPSYSFSFILE File;
 
     if (Control == NULL) return FALSE;
 
@@ -225,8 +228,17 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
         StringConcat(Temp, Control->SubFolder);
     }
 
-    Node = FindNode(Temp);
-    return (Node != NULL);
+    Info.Size = sizeof(FILEINFO);
+    Info.FileSystem = Kernel.SystemFS;
+    Info.Attributes = 0;
+    Info.Flags = 0;
+    StringCopy(Info.Name, Temp);
+
+    File = OpenFile(&Info);
+    if (File == NULL) return FALSE;
+
+    CloseFile(File);
+    return TRUE;
 }
 
 /***************************************************************************/
