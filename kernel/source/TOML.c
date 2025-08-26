@@ -84,7 +84,7 @@ LPTOML TomlParse(LPCSTR Source) {
                 STR IndexText[0x10];
                 U32ToString(SectionIndex, IndexText);
                 StringCopy(Section, SectionBase);
-                StringConcat(Section, ".");
+                StringConcat(Section, (LPCSTR)".");
                 StringConcat(Section, IndexText);
             } else {
                 StringCopy(Section, Ptr);
@@ -122,7 +122,7 @@ LPTOML TomlParse(LPCSTR Source) {
         FullKey[0] = STR_NULL;
         if (!StringEmpty(Section)) {
             StringCopy(FullKey, Section);
-            StringConcat(FullKey, ".");
+            StringConcat(FullKey, (LPCSTR)".");
         }
         StringConcat(FullKey, Key);
 

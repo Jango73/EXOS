@@ -152,7 +152,7 @@ static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
 static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     LPLIST Parts;
     LPLISTNODE Node;
-    LPPATHNODE Part;
+    LPPATHNODE Part = NULL;
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
 
@@ -248,7 +248,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
 static U32 CreateFolder(LPFILEINFO Info) {
     LPLIST Parts;
     LPLISTNODE Node;
-    LPPATHNODE Part;
+    LPPATHNODE Part = NULL;
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
 
