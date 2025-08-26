@@ -7,40 +7,38 @@
 
 \***************************************************************************/
 
-#ifndef VMM_H_INCLUDED
-#define VMM_H_INCLUDED
+#ifndef EXT4_H_INCLUDED
+#define EXT4_H_INCLUDED
 
 /***************************************************************************/
 
-#include "Base.h"
-#include "I386.h"
+#include "FSID.h"
+#include "FileSys.h"
 
 /***************************************************************************/
 
-// VMM data
+#pragma pack(1)
 
-typedef struct tag_VMMDATA {
-    U32 Memory;
-    U32 Pages;
-} VMMDATA, *LPVMMDATA;
+/***************************************************************************/
+// EXT4 Super Block
+
+typedef struct tag_EXT4SUPER {
+    // TODO
+} EXT4SUPER, *LPEXT4SUPER;
+
+/***************************************************************************/
+// EXT4 File Record
+
+typedef struct tag_EXT4FILEREC {
+    // TODO
+} EXT4FILEREC, *LPEXT4FILEREC;
+
+/***************************************************************************/
+// EXT4 File location
+
+typedef struct tag_XFSFILELOC {
+} XFSFILELOC, *LPXFSFILELOC;
 
 /***************************************************************************/
 
-extern U32 Memory;
-extern U32 Pages;
-
-/***************************************************************************/
-
-void InitializeVirtualMemoryManager();
-void InitPageTable(LPPAGETABLE, PHYSICAL);
-void SetPhysicalPageMark(U32, U32);
-U32 GetPhysicalPageMark(U32);
-LINEAR MapPhysicalPage(PHYSICAL Physical);
-PHYSICAL AllocPageDirectory();
-PHYSICAL AllocPhysicalPage();
-LINEAR VirtualAlloc(LINEAR, U32, U32);
-BOOL VirtualFree(LINEAR, U32);
-
-/***************************************************************************/
-
-#endif
+#endif  // EXT4_H_INCLUDED

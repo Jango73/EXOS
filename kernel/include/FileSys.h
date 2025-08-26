@@ -1,11 +1,9 @@
 
-// FileSys.h
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -171,9 +169,9 @@ typedef struct tag_PATHNODE {
 /***************************************************************************/
 
 BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
-U32 GetNumFileSystems();
+U32 GetNumFileSystems(void);
 BOOL GetDefaultFileSystemName(LPSTR);
-BOOL MountSystemFS();
+BOOL MountSystemFS(void);
 LPLIST DecompPath(LPCSTR);
 
 /***************************************************************************/

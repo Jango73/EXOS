@@ -12,10 +12,10 @@ VBR_BIN         = bin/vbr.bin
 SECTORS_TO_LOAD = 8         # Number of sectors loaded by VBR (including sector 0)
 VBR_CODE_OFFSET = 0x5A      # Offset of code in VBR sector
 
-PAYLOAD_STUB    = source/main-stub.asm
-PAYLOAD_STUB_O  = bin/main-stub.o
-PAYLOAD_C       = source/main.c
-PAYLOAD_C_O     = bin/main.o
+PAYLOAD_STUB    = source/vbr-payload-a.asm
+PAYLOAD_STUB_O  = bin/vbr-payload-a.o
+PAYLOAD_C       = source/vbr-payload-c.c
+PAYLOAD_C_O     = bin/vbr-payload-c.o
 PAYLOAD_STR_C   = ../kernel/source/String.c
 PAYLOAD_STR_O   = bin/String.o
 PAYLOAD_BIN_LD  = main-bin.ld
@@ -24,15 +24,23 @@ PAYLOAD_BIN     = bin/payload.bin
 PAYLOAD_ELF     = bin/payload.elf
 PAYLOAD_MAP     = bin/payload.map
 
-# Compute offset (in bytes) of the first partition, dynamically
-PART_OFFSET = $(shell parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }')
+CFLAGS  = -m16 -g -Wall -Wextra -O2 \
+	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+	-fvisibility=hidden -mno-red-zone -fno-stack-protector \
+	-mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
+	-Werror-implicit-function-declaration -Wstrict-prototypes
 
-.PHONY: all create-image update install-mbr install-vbr-payload clean check_tools
+LD      		= i686-elf-ld
+LDFLAGS 		= -nostdlib -no-pie
 
-all: check_tools create-image update install-mbr install-vbr-payload hexdump-check
+.PHONY: all update install-mbr install-vbr-payload clean check_tools hexdump-check rebuild-image
 
-create-image:
-	rm -f $(FINAL_IMG)
+# Default: build tools, ensure image exists (create once), then update contents
+all: check_tools $(FINAL_IMG) update install-mbr install-vbr-payload hexdump-check
+
+# Create image only if it does not exist
+$(FINAL_IMG):
 	@echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
 	dd if=/dev/zero of=$(FINAL_IMG) bs=1M count=$(IMG_SIZE_MB)
 	parted -s $(FINAL_IMG) mklabel msdos
@@ -49,29 +57,40 @@ create-image:
 		MTOOLS_SKIP_CHECK=1 mformat -i $(FINAL_IMG)@@$$PART_OFFSET -v EXOS -F ::; \
 	}
 
-update:
-	@rm -f $(MTOOLS_CONF)
-	@echo "drive z: file=\"$(FINAL_IMG)\" offset=$(PART_OFFSET)" > $(MTOOLS_CONF)
-	@echo "Injecting files using mtools at offset $(PART_OFFSET)"
-	@MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin
-	@MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true
-	@rm -f $(MTOOLS_CONF)
-	@echo "All files injected into image."
+# Force a full rebuild of the image (explicit call)
+rebuild-image:
+	@echo "Forcing full image rebuild..."
+	@rm -f $(FINAL_IMG)
+	$(MAKE) $(FINAL_IMG)
 
-install-mbr: $(CUSTOM_MBR_BIN)
+update: $(FINAL_IMG)
+	@rm -f $(MTOOLS_CONF)
+	@{ \
+		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+		echo "drive z: file=\"$(FINAL_IMG)\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
+		echo "Injecting files using mtools at offset $$PART_OFFSET"; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
+		rm -f $(MTOOLS_CONF); \
+		echo "All files injected into image."; \
+	}
+
+install-mbr: $(FINAL_IMG) $(CUSTOM_MBR_BIN)
 	@echo "Installing custom MBR into image (assembled from $(CUSTOM_MBR))..."
 	dd if=$(CUSTOM_MBR_BIN) of=$(FINAL_IMG) bs=446 count=1 conv=notrunc
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
-install-vbr-payload: $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
-	@echo "Injecting VBR code at offset 0x5A in VBR sector, et payload au secteur suivant..."
-	PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-	VBR_SIZE=$$(stat -c %s $(VBR_BIN)); \
-	dd if=$(VBR_BIN) of=$(FINAL_IMG) bs=1 seek=$$((PART_OFFSET + $(VBR_CODE_OFFSET))) count=$$VBR_SIZE conv=notrunc; \
-	SECTOR_NUM=$$((PART_OFFSET / 512 + 1)); \
-	dd if=$(PAYLOAD_BIN) of=$(FINAL_IMG) bs=512 seek=$$SECTOR_NUM conv=notrunc; \
-	echo "VBR code and payload injected."
+install-vbr-payload: $(FINAL_IMG) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
+	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload at the next sector..."
+	@{ \
+		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+		VBR_SIZE=$$(stat -c %s $(VBR_BIN)); \
+		dd if=$(VBR_BIN) of=$(FINAL_IMG) bs=1 seek=$$((PART_OFFSET + $(VBR_CODE_OFFSET))) count=$$VBR_SIZE conv=notrunc; \
+		SECTOR_NUM=$$((PART_OFFSET / 512 + 1)); \
+		dd if=$(PAYLOAD_BIN) of=$(FINAL_IMG) bs=512 seek=$$SECTOR_NUM conv=notrunc; \
+		echo "VBR code and payload injected."; \
+	}
 
 $(CUSTOM_MBR_BIN): $(CUSTOM_MBR)
 	@echo "Assembling custom MBR (NASM)..."
@@ -87,7 +106,7 @@ $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 
 $(PAYLOAD_C_O): $(PAYLOAD_C)
 	@echo "Compiling payload C..."
-	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
+	i686-elf-gcc $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 	@echo "Compiling String..."
@@ -95,11 +114,11 @@ $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 
 $(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
-	i686-elf-ld -T $(PAYLOAD_BIN_LD) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) 
+	$(LD) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
 
 $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
 	@echo "Linking payload stub + C into elf binary..."
-	i686-elf-ld -T $(PAYLOAD_ELF_LD) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) 
+	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
 
 check_tools:
 	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }

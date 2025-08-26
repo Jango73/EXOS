@@ -53,11 +53,8 @@ STR CharToUpper(STR Char) {
 /***************************************************************************/
 
 BOOL StringEmpty(LPCSTR Src) {
-    if (Src != NULL) {
-        return Src[0] == STR_NULL;
-    }
-
-    return TRUE;
+    if (Src == NULL) return TRUE;
+    return Src[0] == STR_NULL;
 }
 
 /***************************************************************************/
@@ -67,9 +64,9 @@ U32 StringLength(LPCSTR Src) {
     U32 Size = 0;
 
 #ifdef __KERNEL__
-        if (Index >= 8192) {
-            KernelLogText(LOG_WARNING, "[StringLength] Enter");
-        }
+    if (Index >= 8192) {
+        KernelLogText(LOG_WARNING, "[StringLength] Enter");
+    }
 #endif
 
     if (Src != NULL) {
@@ -87,9 +84,9 @@ U32 StringLength(LPCSTR Src) {
     }
 
 #ifdef __KERNEL__
-        if (Index >= 8192) {
-            KernelLogText(LOG_WARNING, "[StringLength] Exit");
-        }
+    if (Index >= 8192) {
+        KernelLogText(LOG_WARNING, "[StringLength] Exit");
+    }
 #endif
 
     return Size;
@@ -231,37 +228,6 @@ void StringInvert(LPSTR Text) {
 
     StringCopy(Text, Temp);
 }
-
-/***************************************************************************/
-
-/*
-void MemorySet (LPVOID Pointer, U8 Value, U32 Size)
-{
-  REGISTER U32 Index = 0;
-  REGISTER U8* Bytes = (U8*) Pointer;
-
-  for (Index = 0; Index < Size; Index++)
-  {
-    Bytes[Index] = Value;
-  }
-}
-*/
-
-/***************************************************************************/
-
-/*
-void MemoryCopy (LPVOID Dst, LPVOID Src, U32 Size)
-{
-  REGISTER U32 Index = 0;
-  REGISTER U8* DstPtr = (U8*) Dst;
-  REGISTER U8* SrcPtr = (U8*) Src;
-
-  for (Index = 0; Index < Size; Index++)
-  {
-    DstPtr[Index] = SrcPtr[Index];
-  }
-}
-*/
 
 /***************************************************************************/
 

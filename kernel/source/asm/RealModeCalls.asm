@@ -1,6 +1,4 @@
 
-; RMC.asm
-
 ;----------------------------------------------------------------------------
 ;  EXOS Kernel
 ;  Copyright (c) 1999-2025 Jango73
@@ -9,11 +7,8 @@
 
 %include "./Kernel.inc"
 
-extern IRQMask_21
-extern IRQMask_A1
-extern IRQMask_21_RM
-extern IRQMask_A1_RM
-extern StubAddress
+extern KernelStartup
+extern Kernel_i386
 
 ;----------------------------------------------------------------------------
 
@@ -23,10 +18,6 @@ PBN equ 0x08                           ; Param base near
 PBF equ 0x0A                           ; Param base far
 LBN equ 0x04                           ; Local base near
 LBF equ 0x04                           ; Local base far
-
-;----------------------------------------------------------------------------
-
-RMC_STACK equ 0x1000
 
 ;----------------------------------------------------------------------------
 
@@ -84,7 +75,7 @@ RealModeCall :
     ;--------------------------------------
     ; Set the address of the RMC code
 
-    mov     ebx, [StubAddress]
+    mov     ebx, LOW_MEMORY_PAGE_5
 
     ;--------------------------------------
     ; Copy the RMC code
@@ -98,7 +89,7 @@ RealModeCall :
     ;--------------------------------------
     ; Copy the GDT at RMC code + 16
 
-    mov     esi, LA_GDT
+    mov     esi, [Kernel_i386 + KERNELDATA_I386.GDT]
     mov     edi, ebx
     add     edi, 0x10
     mov     ecx, 8 * SEGMENT_DESCRIPTOR_SIZE
@@ -121,6 +112,20 @@ RealModeCall :
     mov     esi, ebx
     add     esi, Rel2 - RMCSetup
     add     dword [esi], ebx
+
+    ; Patch Real_IDT_Label base with Kernel_i386.IDT
+    mov     esi, [Kernel_i386 + KERNELDATA_I386.IDT]
+    mov     edi, ebx
+    add     edi, Real_IDT_Label - RMCSetup
+    add     edi, 2                      ; skip 'limit' (dw), point to base (dd)
+    mov     [edi], esi
+
+    ; Patch Real_GDT_Label base with Kernel_i386.GDT
+    mov     esi, [Kernel_i386 + KERNELDATA_I386.GDT]
+    mov     edi, ebx
+    add     edi, Real_GDT_Label - RMCSetup
+    add     edi, 2
+    mov     [edi], esi
 
     ; 16-bit segment for jump to real mode code
     mov     esi, ebx
@@ -155,12 +160,12 @@ RealModeCall :
 
     xor     edx, edx
 
-    mov     eax, [IRQMask_21_RM]
+    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_21_RM]
 ;    or      eax, 0x01
     shl     eax, 16
     or      edx, eax
 
-    mov     eax, [IRQMask_A1_RM]
+    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_A1_RM]
     or      edx, eax
 
     ;--------------------------------------
@@ -192,11 +197,11 @@ RealModeCall_Back :
     ;--------------------------------------
     ; Restore protected mode IRQs
 
-    mov     eax, [IRQMask_21]         ; 8259-1
+    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]         ; 8259-1
     out     PIC1_DATA, al
     call    Delay
 
-    mov     eax, [IRQMask_A1]         ; 8259-2
+    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]         ; 8259-2
     out     PIC2_DATA, al
     call    Delay
 
@@ -259,11 +264,11 @@ Rel1 :
 
 Real_IDT_Label :
     dw  (IDT_SIZE - 1)
-    dd LA_IDT
+    dd 0
 
 Real_GDT_Label :
     dw  (GDT_SIZE - 1)
-    dd LA_GDT
+    dd 0
 
 Save_REG :
 Save_SEG : dw 0, 0, 0, 0, 0           ; ds, ss, es, fs, gs
@@ -405,16 +410,18 @@ bits 16
     ; Setup real-mode segment registers
 
     mov     ax, cs                     ; Get code segment
-    mov     ss, ax                     ; Stack segment
     mov     ds, ax                     ; Data segment
     mov     es, ax                     ; Extra segment 1
     mov     fs, ax                     ; Extra segment 2
     mov     gs, ax                     ; Extra segment 3
 
+    xor     ax, ax
+    mov     ss, ax                     ; Stack segment
+
     ;--------------------------------------
     ; Setup the stack
 
-    mov     sp, RMC_STACK
+    mov     sp, LOW_MEMORY_PAGE_5
 
     ;--------------------------------------
     ; Save our base address
@@ -609,7 +616,7 @@ ReturnFromCall :
     ; Paging would produce effective addresses
     ; out of the 16-bit range
 
-    mov     eax, CR0_PROTECTEDMODE
+    mov     eax, CR0_PROTECTED_MODE
     mov     cr0, eax
 
     ;--------------------------------------
@@ -941,103 +948,6 @@ bits 32
 Delay    : jmp Delay_L1
 Delay_L1 : jmp Delay_L2
 Delay_L2 : ret
-
-;----------------------------------------------------------------------------
-
-bits 32
-
-Exit_EXOS :
-
-    jmp     _Exit_EXOS_Start
-
-_Exit_EXOS_Data :
-
-    EED_DS  : dw 0
-    EED_ES  : dw 0
-    EED_FS  : dw 0
-    EED_GS  : dw 0
-    EED_EAX : dd 0
-    EED_EBX : dd 0
-    EED_ECX : dd 0
-    EED_EDX : dd 0
-    EED_ESI : dd 0
-    EED_EDI : dd 0
-    EED_EFL : dd 0
-
-_Exit_EXOS_Start :
-
-    push    ebp
-    mov     ebp, esp
-
-    push    ebx
-    push    ecx
-    push    esi
-    push    edi
-
-    ;--------------------------------------
-    ; Store loader stack in registers
-
-    mov     eax, [ebp+(PBN+0)]
-    mov     [EED_ESI], eax
-    mov     eax, [ebp+(PBN+4)]
-    mov     [EED_EDI], eax
-
-    ;--------------------------------------
-    ; We will put our real mode function at
-    ; StubAddress + 4096
-
-    mov     ebx, [StubAddress]
-    add     ebx, N_4KB
-
-    mov     esi, Exit_EXOS_16
-    mov     edi, ebx
-    mov     ecx, Exit_EXOS_16_End - Exit_EXOS_16
-    cld
-    rep     movsb
-
-    mov     eax, _Exit_EXOS_Data
-    push    eax
-
-    mov     ecx, ebx
-    and     ecx, 0x0000000F
-    mov     eax, ebx
-    and     eax, 0xFFFFFFF0
-    shr     eax, 4
-    shl     eax, 16
-    or      eax, ecx
-    push    eax
-
-    call RealModeCall
-
-    add     esp, 8
-
-    pop     edi
-    pop     esi
-    pop     ecx
-    pop     ebx
-
-    pop     ebp
-    ret
-
-;----------------------------------------------------------------------------
-
-bits 16
-
-Exit_EXOS_16 :
-
-    ;--------------------------------------
-    ; Here we are supposed to have the loader's
-    ; SS in SI and it's SP in DI
-    ; So all we do is setup the stack and make
-    ; a far return
-
-    cli
-    mov     ss, si
-    mov     sp, di
-    sti
-    retf
-
-Exit_EXOS_16_End :
 
 ;----------------------------------------------------------------------------
 

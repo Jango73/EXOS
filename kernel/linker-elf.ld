@@ -1,19 +1,13 @@
-ENTRY(StartAbsolute)
+ENTRY(start)
 
 SECTIONS
 {
-    /* Stub — low memory, start of file */
-    . = 0x00000000;
-    .stub : AT(0x00000000) {
-        *(.text.stub)
-        *(.text.stub2)
-    }
-
-    /* Kernel — high memory, physically after stub (0x1000 offset) */
+    /* Code */
     . = 0xC0000000;
-    .text : AT(ALIGN(LOADADDR(.stub) + SIZEOF(.stub), 0x1000)) {
-        *(.text)
-        *(.rodata)
+    .text : {
+        *(.text.stub)
+        *(.text .text.*)
+        *(.rodata .rodata.* .rdata .rdata.*)
     }
 
     /* Data — aligned after .text */

@@ -2,8 +2,6 @@
 *.o
 *.a
 *.com
-*.bat
-*.BAT
 *.bin
 *.map
 *.lst
@@ -12,6 +10,10 @@
 *.img
 *.iso
 *.vmdk
+*.swp
+*.save
+*.user
+*.gdbinit
 
 temp
 boot-qemu/kernel_sectors.inc

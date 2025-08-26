@@ -13,20 +13,36 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "I386.h"
 
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
 /***************************************************************************/
 
-void UpdateScheduler();
-BOOL AddTaskToQueue(LPTASK);
+// Updates the scheduler
+void UpdateScheduler(void);
+
+// Adds a task to the scheduler's queue
+BOOL AddTaskToQueue(LPTASK NewTask);
+
+// Removes a task from scheduler's queue
 BOOL RemoveTaskFromQueue(LPTASK);
-void Scheduler();
-LPTASK GetCurrentTask();
-LPPROCESS GetCurrentProcess();
-BOOL FreezeScheduler();
-BOOL UnfreezeScheduler();
+
+// Runs the scheduler to activate the next task (preemptive)
+void Scheduler(LPTRAPFRAME Frame);
+
+// Returns the currently running task
+LPTASK GetCurrentTask(void);
+
+// Returns the currently running process
+LPPROCESS GetCurrentProcess(void);
+
+// Freezes the scheduler
+BOOL FreezeScheduler(void);
+
+// Unfreezes the scheduler
+BOOL UnfreezeScheduler(void);
 
 /***************************************************************************/
 

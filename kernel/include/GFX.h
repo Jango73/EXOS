@@ -41,7 +41,7 @@
 
 /***************************************************************************/
 
-typedef U32 (*GFXENUMMODESFUNC)();
+typedef U32 (*GFXENUMMODESFUNC)(void);
 
 #define ROP_SET 0x0001
 #define ROP_AND 0x0002
@@ -114,4 +114,4 @@ typedef struct tag_GRAPHICSMODEINFO {
 
 /***************************************************************************/
 
-#endif
+#endif  // GFX_H_INCLUDED

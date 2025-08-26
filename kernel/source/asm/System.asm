@@ -27,24 +27,24 @@ section .data
 bits 32
 
     global DeadBeef
-    global IRQMask_21
-    global IRQMask_A1
-    global IRQMask_21_RM
-    global IRQMask_A1_RM
 
 ;--------------------------------------
 
 DeadBeef      dd 0xDEADBEEF
-IRQMask_21    dd 0x000000FB
-IRQMask_A1    dd 0x000000FF
-IRQMask_21_RM dd 0x00000000
-IRQMask_A1_RM dd 0x00000000
 
 ;----------------------------------------------------------------------------
 
 section .text
 bits 32
 
+    global GetGDTR
+    global GetLDTR
+    global GetESP
+    global GetEBP
+    global GetDR6
+    global GetDR7
+    global SetDR6
+    global SetDR7
     global GetCPUID
     global DisablePaging
     global EnablePaging
@@ -56,6 +56,8 @@ bits 32
     global OutPortByte
     global InPortWord
     global OutPortWord
+    global InPortLong
+    global OutPortLong
     global InPortStringWord
     global MaskIRQ
     global UnmaskIRQ
@@ -68,6 +70,8 @@ bits 32
     global LoadInitialTaskRegister
     global GetTaskRegister
     global GetPageDirectory
+    global SetPageDirectory
+    global InvalidatePage
     global FlushTLB
     global SwitchToTask
     global TaskRunner
@@ -79,30 +83,113 @@ bits 32
     global MemorySet
     global MemoryCopy
     global DoSystemCall
+    global IdleCPU
     global Reboot
+
+;--------------------------------------
+
+GetGDTR:
+    push        ebp
+    mov         ebp, esp
+    sub         esp, 6            ; need 6 bytes for sgdt
+
+    sgdt        [ebp-6]           ; stores limit(2) + base(4)
+    mov         eax, [ebp-4]      ; eax = base
+
+    add         esp, 6
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+GetLDTR:
+    push        ebp
+    mov         ebp, esp
+    sub         esp, 6            ; need 6 bytes for sgdt
+
+    sldt        [ebp-6]           ; stores limit(2) + base(4)
+    mov         eax, [ebp-4]      ; eax = base
+
+    add         esp, 6
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+GetESP :
+
+    mov         eax, esp
+    ret
+
+;--------------------------------------
+
+GetEBP :
+
+    mov         eax, ebp
+    ret
+
+;--------------------------------------
+
+GetDR6 :
+
+    mov         eax, dr6
+    ret
+
+;--------------------------------------
+
+GetDR7 :
+
+    mov         eax, dr7
+    ret
+
+;--------------------------------------
+
+SetDR6 :
+
+    push        ebp
+    mov         ebp, esp
+
+    mov         eax, [ebp+PBN]
+    mov         dr6, eax
+
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+SetDR7 :
+
+    push        ebp
+    mov         ebp, esp
+
+    mov         eax, [ebp+PBN]
+    mov         dr7, eax
+
+    pop         ebp
+    ret
 
 ;--------------------------------------
 
 GetCPUID :
 
-   push ebp
-   mov  ebp, esp
+    push ebp
+    mov  ebp, esp
 
     push eax
-   push ebx
-   push ecx
-   push edx
-   push edi
+    push ebx
+    push ecx
+    push edx
+    push edi
 
     mov  edi, [ebp+PBN]
 
-   mov  eax, 0
-   cpuid
+    mov  eax, 0
+    cpuid
 
-   mov  [edi + 0x0000], eax
-   mov  [edi + 0x0004], ebx
-   mov  [edi + 0x0008], ecx
-   mov  [edi + 0x000C], edx
+    mov  [edi + 0x0000], eax
+    mov  [edi + 0x0004], ebx
+    mov  [edi + 0x0008], ecx
+    mov  [edi + 0x000C], edx
 
     ;mov  eax, 1
     ;cpuid
@@ -120,15 +207,15 @@ GetCPUID :
     ;mov  [edi + 0x0028], ecx
     ;mov  [edi + 0x002C], edx
 
-   pop  edi
-   pop  edx
-   pop  ecx
-   pop  ebx
+    pop  edi
+    pop  edx
+    pop  ecx
+    pop  ebx
     pop  eax
 
-   mov  eax, 1
+    mov  eax, 1
 
-   pop  ebp
+    pop  ebp
     ret
 
 ;--------------------------------------
@@ -259,6 +346,32 @@ OutPortWord :
 
 ;--------------------------------------
 
+InPortLong :
+
+    push    ebp
+    mov     ebp, esp
+    push    edx
+    mov     edx, [ebp+(PBN+0)]
+    in      eax, dx
+    pop     edx
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+OutPortLong :
+
+    push    ebp
+    mov     ebp, esp
+    push    edx
+    mov     edx, [ebp+(PBN+0)]
+    mov     eax, [ebp+(PBN+4)]
+    out     dx, eax
+    pop     edx
+    pop     ebp
+    ret
+;--------------------------------------
+
 InPortStringWord :
 
     push    ebp
@@ -295,18 +408,18 @@ MaskIRQ :
     cmp  ebx, 8
     jge  _MaskIRQ_High
 
-    mov  edx, [IRQMask_21]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]
     or   edx, eax
-    mov  [IRQMask_21], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_21_PM], edx
     mov  eax, edx
     out  PIC1_DATA, al
     jmp  _MaskIRQ_Out
 
 _MaskIRQ_High :
 
-    mov  edx, [IRQMask_A1]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]
     or   edx, eax
-    mov  [IRQMask_A1], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_A1_PM], edx
     mov  eax, edx
     out  PIC2_DATA, al
 
@@ -337,18 +450,18 @@ UnmaskIRQ :
     cmp  ebx, 8
     jge  _UnmaskIRQ_High
 
-    mov  edx, [IRQMask_21]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]
     and  edx, eax
-    mov  [IRQMask_21], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_21_PM], edx
     mov  eax, edx
     out  PIC1_DATA, al
     jmp  _UnmaskIRQ_Out
 
 _UnmaskIRQ_High :
 
-    mov  edx, [IRQMask_A1]
+    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]
     and  edx, eax
-    mov  [IRQMask_A1], edx
+    mov  [KernelStartup + KernelStartupInfo.IRQMask_A1_PM], edx
     mov  eax, edx
     out  PIC2_DATA, al
 
@@ -396,41 +509,53 @@ EnableIRQ :
 
 LoadGlobalDescriptorTable :
 
-   push ebp
-   mov  ebp, esp
+    push        ebp
+    mov         ebp, esp
 
-    push ebx
-    push esi
+    push        ebx
+    push        esi
 
     ;--------------------------------------
     ; Version 1
 
     ; Put parameters in correct order
 
-    mov  eax, [ebp+(PBN+0)]
-    mov  ebx, [ebp+(PBN+4)]
+    mov         eax, [ebp+(PBN+0)]
+    mov         ebx, [ebp+(PBN+4)]
 
-    mov  [ebp+(PBN+0)], bx
-    mov  [ebp+(PBN+2)], eax
+    mov         [ebp+(PBN+0)], bx
+    mov         [ebp+(PBN+2)], eax
 
     ; Load the Global Descriptor Table
 
-    lgdt [ebp+PBN]
+    lgdt        [ebp+PBN]
+
+    jmp         0x08:.flush
+
+.flush :
+
+    mov ax, 0x10    ; data selector
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
 
 _LGDT_Out :
 
     pop  esi
     pop  ebx
 
-   pop  ebp
+    pop  ebp
     ret
 
 ;--------------------------------------
 
 LoadLocalDescriptorTable :
 
-   push ebp
-   mov  ebp, esp
+    cli
+    push ebp
+    mov  ebp, esp
 
     ; Put parameters in correct order
 
@@ -444,7 +569,8 @@ LoadLocalDescriptorTable :
 
     lldt [ebp+PBN]
 
-   pop  ebp
+    pop  ebp
+    sti
     ret
 
 ;--------------------------------------
@@ -490,22 +616,22 @@ LoadPageDirectory :
 
 LoadInitialTaskRegister :
 
-    push    ebp
-    mov     ebp, esp
-    push ebx
+    push        ebp
+    mov         ebp, esp
+    push        ebx
 
-    mov     eax, [ebp+PBN]
-    ltr     ax
+    mov         eax, [ebp+PBN]
+    ltr         ax
 
     ;--------------------------------------
     ; Clear the nested task bit in eflags
 
     pushfd
-    pop     eax
-    mov     ebx, EFLAGS_NT
-    not     ebx
-    and     eax, ebx
-    push eax
+    pop         eax
+    mov         ebx, EFLAGS_NT
+    not         ebx
+    and         eax, ebx
+    push        eax
     popfd
 
     ;--------------------------------------
@@ -520,16 +646,16 @@ LoadInitialTaskRegister :
 
     clts
 
-   pop      ebx
-    pop     ebp
+    pop         ebx
+    pop         ebp
     ret
 
 ;--------------------------------------
 
 GetTaskRegister :
 
-    xor     eax, eax
-    str     ax
+    xor         eax, eax
+    str         ax
     ret
 
 ;--------------------------------------
@@ -537,6 +663,34 @@ GetTaskRegister :
 GetPageDirectory :
 
     mov     eax, cr3
+    ret
+
+;--------------------------------------
+
+SetPageDirectory :
+
+    push        ebp
+    mov         ebp, esp
+    push        ebx
+
+    mov         eax, [ebp+PBN+0]
+    mov         cr3, eax
+
+    pop         ebx
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+InvalidatePage :
+
+    push        ebp
+    mov         ebp, esp
+
+    mov         eax, [ebp+(PBN+0)]
+    invlpg      [eax]
+
+    pop         ebp
     ret
 
 ;--------------------------------------
@@ -551,17 +705,21 @@ FlushTLB :
 
 SwitchToTask :
 
-    push    ebp
-    mov     ebp, esp
-    sub     esp, 6
+    push        ebp
+    mov         ebp, esp
+    sub         esp, 8                      ; reserve space for far pointer
 
-    mov     eax, [ebp+(PBN+0)]
-    mov     dword [ebp-(LBN+6)], 0
-    mov     word [ebp-(LBN+2)], ax
-    jmp     far dword [ebp-(LBN+6)]
+    xor         eax, eax
+    mov         dr6, eax
+    mov         dr7, eax
 
-    add     esp, 6
-    pop     ebp
+    mov         eax, [ebp+PBN]
+    mov         dword [esp], 0              ; offset
+    mov         word [esp+4], ax            ; selector
+    jmp         far dword [esp]
+
+    add         esp, 8
+    pop         ebp
     ret
 
 ;--------------------------------------
@@ -576,12 +734,20 @@ TaskRunner :
     ; EBX in the TSS contains the function
     ; EAX in the TSS contains the parameter
 
-    cmp     ebx, 0
-    je      _TaskRunner_KillTask
+    cmp         ebx, 0
+    je          _TaskRunner_KillTask
 
-    push    eax                        ; Argument for task function
-    call    ebx                        ; Call task function
-    add     esp, 4                     ; Adjust stack
+    PRE_CALL_C
+    push        eax                        ; Argument for task function
+    call        ValidateEIPOrDie
+    add         esp, 4                     ; Adjust stack
+    POST_CALL_C
+
+    PRE_CALL_C
+    push        eax                        ; Argument for task function
+    call        ebx                        ; Call task function
+    add         esp, 4                     ; Adjust stack
+    POST_CALL_C
 
     ;--------------------------------------
     ; When we come back from the function,
@@ -594,11 +760,13 @@ _TaskRunner_KillTask :
     ;--------------------------------------
     ; Kill the task
 
-    call GetCurrentTask
+    PRE_CALL_C
+    call        GetCurrentTask
+    POST_CALL_C
 
-    push    eax
-    call KillTask
-    add     esp, 4
+    push        eax
+    call        KillTask
+    add         esp, 4
 
     ;--------------------------------------
     ; Do an infinite loop, task will be removed by scheduler
@@ -609,7 +777,7 @@ _TaskRunner_L1 :
     nop
     nop
     nop
-    jmp     _TaskRunner_L1
+    jmp         _TaskRunner_L1
 
 ;--------------------------------------
 
@@ -695,6 +863,7 @@ SaveRegisters :
     mov     eax, [ebp-16]              ; Store EDX
     mov     [edi], eax
     add     edi, 4
+
     mov     eax, [ebp-20]              ; Store ESI
     mov     [edi], eax
     add     edi, 4
@@ -711,6 +880,7 @@ SaveRegisters :
     mov     eax, [ebp+4]               ; Store EIP
     mov     [edi], eax
     add     edi, 4
+
     mov     ax, cs                     ; Store CS
     mov     [edi], ax
     add     edi, 2
@@ -729,6 +899,7 @@ SaveRegisters :
     mov     ax, gs                     ; Store GS
     mov     [edi], ax
     add     edi, 2
+
     mov     eax, cr0                   ; Store CR0
     mov     [edi], eax
     add     edi, 4
@@ -741,6 +912,7 @@ SaveRegisters :
     mov     eax, cr4                   ; Store CR4
     mov     [edi], eax
     add     edi, 4
+
     mov     eax, dr0                   ; Store DR0
     mov     [edi], eax
     add     edi, 4
@@ -751,6 +923,19 @@ SaveRegisters :
     mov     [edi], eax
     add     edi, 4
     mov     eax, dr3                   ; Store DR3
+    mov     [edi], eax
+    add     edi, 4
+
+    mov     eax, dr4                   ; Store DR4
+    mov     [edi], eax
+    add     edi, 4
+    mov     eax, dr5                   ; Store DR5
+    mov     [edi], eax
+    add     edi, 4
+    mov     eax, dr6                   ; Store DR6
+    mov     [edi], eax
+    add     edi, 4
+    mov     eax, dr7                   ; Store DR7
     mov     [edi], eax
     add     edi, 4
 
@@ -770,15 +955,24 @@ MemorySet :
 
     push    ebp
     mov     ebp, esp
+
     push    ecx
     push    edi
+    push    es
+
+    push    ds
+    pop     es
+
     mov     edi, [ebp+(PBN+0)]
     mov     eax, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
     rep     stosb
+
+    pop     es
     pop     edi
     pop     ecx
+
     pop     ebp
     ret
 
@@ -788,17 +982,26 @@ MemoryCopy :
 
     push    ebp
     mov     ebp, esp
+
     push    ecx
     push    esi
     push    edi
+    push    es
+
+    push    ds
+    pop     es
+
     mov     edi, [ebp+(PBN+0)]
     mov     esi, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
     rep     movsb
+
+    pop     es
     pop     edi
     pop     esi
     pop     ecx
+
     pop     ebp
     ret
 
@@ -817,6 +1020,15 @@ DoSystemCall :
 
     pop     ebx
     pop     ebp
+    ret
+
+;--------------------------------------
+
+IdleCPU :
+
+    cli
+    sti
+    hlt
     ret
 
 ;--------------------------------------

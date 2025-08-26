@@ -13,9 +13,12 @@
 #include "../include/Log.h"
 
 /***************************************************************************/
+// Version
 
 #define VER_MAJOR 1
 #define VER_MINOR 0
+
+/***************************************************************************/
 
 U32 StdHardDiskCommands(U32, U32);
 
@@ -35,7 +38,7 @@ DRIVER StdHardDiskDriver = {
 /***************************************************************************/
 
 #define MAX_HD 4
-#define TIMEOUT 100000
+#define TIMEOUT 10000
 #define NUM_BUFFERS 32
 
 /***************************************************************************/
@@ -73,7 +76,7 @@ typedef struct tag_BLOCKPARAMS {
 
 /***************************************************************************/
 
-static LPSTDHARDDISK NewStdHardDisk() {
+static LPSTDHARDDISK NewStdHardDisk(void) {
     LPSTDHARDDISK This;
 
     This = (LPSTDHARDDISK)KernelMemAlloc(sizeof(STDHARDDISK));
@@ -130,13 +133,15 @@ BOOL WaitNotBusy(U32 Port, U32 TimeOut) {
 
 /***************************************************************************/
 
-static U32 HardDiskInitialize() {
+static U32 HardDiskInitialize(void) {
     LPSTDHARDDISK Disk;
     LPATADRIVEID ATAID;
     U8 Buffer[SECTOR_SIZE];
     U32 Port;
     U32 Drive;
     U32 Index;
+
+    KernelLogText(LOG_DEBUG, TEXT("[HardDiskInitialize] Enter"));
 
     DisableIRQ(HD_IRQ);
 
@@ -165,28 +170,14 @@ static U32 HardDiskInitialize() {
 
             ATAID = (LPATADRIVEID)Buffer;
 
-            /*
             if
             (
               ATAID->PhysicalCylinders != 0 &&
               ATAID->PhysicalHeads     != 0 &&
               ATAID->PhysicalSectors   != 0
             )
-            */
             {
-                STR Message[64];
-                STR PortStr[32];
-                STR DriveStr[32];
-
-                U32ToHexString(Port, PortStr);
-                U32ToHexString(Drive, DriveStr);
-
-                StringCopy(Message, TEXT("Initialize HD, Port : "));
-                StringConcat(Message, PortStr);
-                StringConcat(Message, TEXT(" Drive : "));
-                StringConcat(Message, DriveStr);
-
-                KernelLogText(LOG_VERBOSE, (LPSTR)Message);
+                KernelLogText(LOG_VERBOSE, TEXT("[HardDiskInitialize] HD: %X, port: %X"), (U32) Port, (U32) Drive);
 
                 Disk = NewStdHardDisk();
                 if (Disk == NULL) continue;
@@ -217,6 +208,8 @@ static U32 HardDiskInitialize() {
     }
 
     EnableIRQ(HD_IRQ);
+
+    KernelLogText(LOG_DEBUG, TEXT("[HardDiskInitialize] Exit"));
 
     return DF_ERROR_SUCCESS;
 }
@@ -281,12 +274,12 @@ static void ResetController(U32 Port) {
     for (Index = 0; Index < 1000; Index++) barrier();
     if (IsDriveBusy())
     {
-      KernelPrint("HD : Controller still busy\n");
+      KernelPrintString("HD : Controller still busy\n");
     }
     else
     if ((HD_Error = InPortByte(Port + HD_ERROR)) != 1)
     {
-      KernelPrint("HD : Controller reset failed\n");
+      KernelPrintString("HD : Controller reset failed\n");
     }
 }
 */
@@ -531,7 +524,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 /***************************************************************************/
 
-void HardDriveHandler() {
+void HardDriveHandler(void) {
     static U32 Busy = 0;
 
     if (Busy) return;

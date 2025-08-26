@@ -1,9 +1,11 @@
 
 /***************************************************************************\
 
-	EXOS Kernel - PCI Bus Layer (Header)
-	Copyright (c) 1999-2025 Jango73
-	All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
+
+    PCI Bus Layer (Header)
 
 \***************************************************************************/
 
@@ -16,170 +18,163 @@
 #include "Driver.h"
 
 /***************************************************************************/
-/* Packing is not forced here; config reads are done via accessors. */
-/* Use #pragma pack if you map raw config structs directly.          */
+
+#pragma pack(1)
 
 /***************************************************************************/
-/* Common PCI constants and helpers                                       */
+// Common PCI constants and helpers
 
-#define PCI_MAX_BUS            256
-#define PCI_MAX_DEV            32
-#define PCI_MAX_FUNC           8
+#define PCI_MAX_BUS 256
+#define PCI_MAX_DEV 32
+#define PCI_MAX_FUNC 8
 
-#define PCI_ANY_ID             0xFFFF
-#define PCI_ANY_CLASS          0xFF
+#define PCI_ANY_ID 0xFFFF
+#define PCI_ANY_CLASS 0xFF
 
-/* Config space offsets (Type 0 header) */
-#define PCI_CFG_VENDOR_ID      0x00 /* U16 */
-#define PCI_CFG_DEVICE_ID      0x02 /* U16 */
-#define PCI_CFG_COMMAND        0x04 /* U16 */
-#define PCI_CFG_STATUS         0x06 /* U16 */
-#define PCI_CFG_REVISION       0x08 /* U8  */
-#define PCI_CFG_PROG_IF        0x09 /* U8  */
-#define PCI_CFG_SUBCLASS       0x0A /* U8  */
-#define PCI_CFG_BASECLASS      0x0B /* U8  */
-#define PCI_CFG_CACHELINE      0x0C /* U8  */
-#define PCI_CFG_LAT_TIMER      0x0D /* U8  */
-#define PCI_CFG_HEADER_TYPE    0x0E /* U8  */
-#define PCI_CFG_BIST           0x0F /* U8  */
-#define PCI_CFG_BAR0           0x10 /* U32 */
-#define PCI_CFG_BAR1           0x14 /* U32 */
-#define PCI_CFG_BAR2           0x18 /* U32 */
-#define PCI_CFG_BAR3           0x1C /* U32 */
-#define PCI_CFG_BAR4           0x20 /* U32 */
-#define PCI_CFG_BAR5           0x24 /* U32 */
-#define PCI_CFG_CAP_PTR        0x34 /* U8  */
-#define PCI_CFG_IRQ_LINE       0x3C /* U8  */
-#define PCI_CFG_IRQ_PIN        0x3D /* U8  */
+// Config space offsets (Type 0 header)
+#define PCI_CFG_VENDOR_ID 0x00   /* U16 */
+#define PCI_CFG_DEVICE_ID 0x02   /* U16 */
+#define PCI_CFG_COMMAND 0x04     /* U16 */
+#define PCI_CFG_STATUS 0x06      /* U16 */
+#define PCI_CFG_REVISION 0x08    /* U8  */
+#define PCI_CFG_PROG_IF 0x09     /* U8  */
+#define PCI_CFG_SUBCLASS 0x0A    /* U8  */
+#define PCI_CFG_BASECLASS 0x0B   /* U8  */
+#define PCI_CFG_CACHELINE 0x0C   /* U8  */
+#define PCI_CFG_LAT_TIMER 0x0D   /* U8  */
+#define PCI_CFG_HEADER_TYPE 0x0E /* U8  */
+#define PCI_CFG_BIST 0x0F        /* U8  */
+#define PCI_CFG_BAR0 0x10        /* U32 */
+#define PCI_CFG_BAR1 0x14        /* U32 */
+#define PCI_CFG_BAR2 0x18        /* U32 */
+#define PCI_CFG_BAR3 0x1C        /* U32 */
+#define PCI_CFG_BAR4 0x20        /* U32 */
+#define PCI_CFG_BAR5 0x24        /* U32 */
+#define PCI_CFG_CAP_PTR 0x34     /* U8  */
+#define PCI_CFG_IRQ_LINE 0x3C    /* U8  */
+#define PCI_CFG_IRQ_PIN 0x3D     /* U8  */
 
 /* Command bits */
-#define PCI_CMD_IO             0x0001
-#define PCI_CMD_MEM            0x0002
-#define PCI_CMD_BUSMASTER      0x0004
-#define PCI_CMD_INT_DISABLE    0x0400
+#define PCI_CMD_IO 0x0001
+#define PCI_CMD_MEM 0x0002
+#define PCI_CMD_BUSMASTER 0x0004
+#define PCI_CMD_INT_DISABLE 0x0400
 
-/* BAR decoding */
-#define PCI_BAR_IO_MASK        0xFFFFFFFCU
-#define PCI_BAR_MEM_MASK       0xFFFFFFF0U
-#define PCI_BAR_IS_IO(bar)     (((bar) & 0x1U) != 0)
-#define PCI_BAR_IS_MEM(bar)    (!PCI_BAR_IS_IO(bar))
+/* BAR (Base Address Register) decoding */
+#define PCI_BAR_IO_MASK 0xFFFFFFFCU
+#define PCI_BAR_MEM_MASK 0xFFFFFFF0U
+#define PCI_BAR_IS_IO(bar) (((bar)&0x1U) != 0)
+#define PCI_BAR_IS_MEM(bar) (!PCI_BAR_IS_IO(bar))
 
 /* Header type */
-#define PCI_HEADER_TYPE_MASK   0x7F
-#define PCI_HEADER_MULTI_FN    0x80
+#define PCI_HEADER_TYPE_MASK 0x7F
+#define PCI_HEADER_MULTI_FN 0x80
 
 /* Capability list */
-#define PCI_CAP_ID_MSI         0x05
-#define PCI_CAP_ID_MSIX        0x11
-#define PCI_CAP_ID_PCIe        0x10
+#define PCI_CAP_ID_MSI 0x05
+#define PCI_CAP_ID_MSIX 0x11
+#define PCI_CAP_ID_PCIe 0x10
 
 /* Base classes (subset) */
-#define PCI_CLASS_NETWORK      0x02
-#define PCI_CLASS_STORAGE      0x01
-#define PCI_CLASS_DISPLAY      0x03
+#define PCI_CLASS_NETWORK 0x02
+#define PCI_CLASS_STORAGE 0x01
+#define PCI_CLASS_DISPLAY 0x03
 
 /* Network subclasses */
-#define PCI_SUBCLASS_ETHERNET  0x00
+#define PCI_SUBCLASS_ETHERNET 0x00
 
 /***************************************************************************/
 /* Matching and driver model (PCI layer)                                   */
 
 /* Matching rule for a PCI driver. Any field set to PCI_ANY_* is a wildcard. */
 typedef struct tag_DRIVER_MATCH {
-	U16 VendorID;   /* 0x8086, 0x10EC, ... or PCI_ANY_ID */
-	U16 DeviceID;   /* specific device id or PCI_ANY_ID   */
-	U8  BaseClass;  /* e.g., PCI_CLASS_NETWORK or PCI_ANY_CLASS */
-	U8  SubClass;   /* e.g., PCI_SUBCLASS_ETHERNET or PCI_ANY_CLASS */
-	U8  ProgIF;     /* usually PCI_ANY_CLASS unless needed */
+    U16 VendorID; /* 0x8086, 0x10EC, ... or PCI_ANY_ID */
+    U16 DeviceID; /* specific device id or PCI_ANY_ID   */
+    U8 BaseClass; /* e.g., PCI_CLASS_NETWORK or PCI_ANY_CLASS */
+    U8 SubClass;  /* e.g., PCI_SUBCLASS_ETHERNET or PCI_ANY_CLASS */
+    U8 ProgIF;    /* usually PCI_ANY_CLASS unless needed */
 } DRIVER_MATCH, *LPDRIVER_MATCH;
 
 /* Minimal snapshot of a PCI function for binding and init. */
 typedef struct tag_PCI_INFO {
-	U8  Bus;
-	U8  Dev;
-	U8  Func;
+    U8 Bus;
+    U8 Dev;
+    U8 Func;
 
-	U16 VendorID;
-	U16 DeviceID;
+    U16 VendorID;
+    U16 DeviceID;
 
-	U8  BaseClass;
-	U8  SubClass;
-	U8  ProgIF;
-	U8  Revision;
+    U8 BaseClass;
+    U8 SubClass;
+    U8 ProgIF;
+    U8 Revision;
 
-	/* Raw BAR values as read from config space (unmasked). */
-	U32 BAR[6];
+    /* Raw BAR values as read from config space (unmasked). */
+    U32 BAR[6];
 
-	/* Legacy INTx line (0xFF if none/unknown). MSI/MSI-X handled separately. */
-	U8  IRQLine;
-	U8  IRQLegacyPin; /* INTA=1..INTD=4 or 0 if none */
+    /* Legacy INTx line (0xFF if none/unknown). MSI/MSI-X handled separately. */
+    U8 IRQLine;
+    U8 IRQLegacyPin; /* INTA=1..INTD=4 or 0 if none */
 } PCI_INFO, *LPPCI_INFO;
 
-/* Runtime description handed to drivers at attach time if needed. */
+// Runtime description of a PCI device
+#define PCI_DEVICE_FIELDS \
+    LISTNODE_FIELDS       \
+    LPDRIVER Driver;      \
+    PCI_INFO Info;        \
+    U32 BARPhys[6];       \
+    volatile void* BARMapped[6];
+
 typedef struct tag_PCI_DEVICE {
-	PCI_INFO Info;          /* immutable identification */
-	/* Decoded BAR base physical addresses (masked) */
-	U32 BARPhys[6];
-	/* Optional CPU-mapped MMIO bases (NULL if not mapped by bus layer) */
-	volatile void *BARMapped[6];
-	/* Driver may store a context pointer here after DF_ATTACH */
-	void *DriverContext;
+    PCI_DEVICE_FIELDS
 } PCI_DEVICE, *LPPCI_DEVICE;
 
-/* A PCI-aware driver: extends the generic DRIVER with a match table. */
+// A PCI-aware driver: extends the generic DRIVER with a match table.
 typedef struct tag_PCI_DRIVER {
-	DRIVER Base;                    /* must be first for polymorphism */
-	const DRIVER_MATCH *Matches;    /* array of match entries */
-	U32 MatchCount;                 /* number of entries */
+    LISTNODE_FIELDS
+    DRIVER_FIELDS
+    const DRIVER_MATCH* Matches;  // array of match entries
+    U32 MatchCount;               // number of entries
+    LPPCI_DEVICE (*Attach)(LPPCI_DEVICE PciDevice);
 } PCI_DRIVER, *LPPCI_DRIVER;
 
 /***************************************************************************/
-/* Public API of the PCI bus manager                                       */
-/* (Implementation provided by the PCI subsystem; drivers do not implement)*/
+// Public API of the PCI bus manager
+// (Implementation provided by the PCI subsystem; drivers do not implement)
 
-/* Register a PCI-aware driver. The driver remains owned by caller (static). */
+// Register a PCI-aware driver. The driver remains owned by caller (static).
 void PCI_RegisterDriver(LPPCI_DRIVER drv);
 
 /* Scan the entire PCI hierarchy (bus/dev/func). For each device:
-   - Build PCI_INFO / PCI_DEVICE
-   - Try registered PCI_DRIVERs (Matches then DF_PROBE)
-   - Call DF_ATTACH on the first driver that accepts the device
+    - Build PCI_INFO / PCI_DEVICE
+    - Try registered PCI_DRIVERs (Matches then DF_PROBE)
+    - Call the driver's Attach callback on the first driver that accepts the device
 */
 void PCI_ScanBus(void);
 
 /* Basic config space accessors (Type 1 cycles via 0xCF8/0xCFC or equivalent). */
-U32  PCI_Read32(U8 bus, U8 dev, U8 func, U16 off);
+U32 PCI_Read32(U8 bus, U8 dev, U8 func, U16 off);
 void PCI_Write32(U8 bus, U8 dev, U8 func, U16 off, U32 value);
 
 /* Convenience helpers (optional; may be stubs if not needed). */
-U16  PCI_Read16(U8 bus, U8 dev, U8 func, U16 off);
-U8   PCI_Read8 (U8 bus, U8 dev, U8 func, U16 off);
+U16 PCI_Read16(U8 bus, U8 dev, U8 func, U16 off);
+U8 PCI_Read8(U8 bus, U8 dev, U8 func, U16 off);
 void PCI_Write16(U8 bus, U8 dev, U8 func, U16 off, U16 value);
-void PCI_Write8 (U8 bus, U8 dev, U8 func, U16 off, U8  value);
+void PCI_Write8(U8 bus, U8 dev, U8 func, U16 off, U8 value);
 
 /* Enable/disable Bus Mastering bit in COMMAND register. Returns previous COMMAND. */
-U16  PCI_EnableBusMaster(U8 bus, U8 dev, U8 func, int enable);
+U16 PCI_EnableBusMaster(U8 bus, U8 dev, U8 func, int enable);
 
 /* BAR utilities: returns decoded physical base and size. Size is computed by
-   writing 0xFFFFFFFF to the BAR then restoring, per PCI spec. */
-U32  PCI_GetBARBase(U8 bus, U8 dev, U8 func, U8 barIndex);
-U32  PCI_GetBARSize(U8 bus, U8 dev, U8 func, U8 barIndex);
+    writing 0xFFFFFFFF to the BAR then restoring, per PCI spec. */
+U32 PCI_GetBARBase(U8 bus, U8 dev, U8 func, U8 barIndex);
+U32 PCI_GetBARSize(U8 bus, U8 dev, U8 func, U8 barIndex);
 
 /* Capability traversal: returns offset of the first capability with given ID,
-   or 0 if not found (0 is not a valid cap pointer when capabilities are present). */
-U8   PCI_FindCapability(U8 bus, U8 dev, U8 func, U8 capId);
+    or 0 if not found (0 is not a valid cap pointer when capabilities are present). */
+U8 PCI_FindCapability(U8 bus, U8 dev, U8 func, U8 capId);
 
 /***************************************************************************/
-/* Contract with drivers (how DF_PROBE/DF_ATTACH are called)               */
-/* NOTE: This section describes expectations; the IDs live in Driver.h.    */
-
-/*
-	- DF_PROBE: param = (U32)(LPPCI_INFO)   (read-only)
-		Return DF_ERROR_SUCCESS if the driver supports this device.
-	- DF_ATTACH: param = (U32)(LPPCI_DEVICE) (read/write)
-		Driver may map BARs, enable Bus Mastering, and store DriverContext.
-	- DF_DETACH: param = (U32)(LPPCI_DEVICE)
-*/
 
 /***************************************************************************/
 

@@ -143,12 +143,9 @@ static MOUSEDATA Mouse = {
 #define MOUSE_PORT 0x03F8
 #define MOUSE_TIMEOUT 0x4000
 
-#define COM1_PORT 0x03F8
-#define COM2_PORT 0x02F8
-
 /***************************************************************************/
 
-static void SendBreak() {
+static void SendBreak(void) {
     U32 Byte;
 
     Byte = InPortByte(MOUSE_PORT + SERIAL_LCR);
@@ -162,7 +159,7 @@ static void SendBreak() {
 
 /***************************************************************************/
 
-static void Delay() {
+static void Delay(void) {
     U32 Index, Data;
     for (Index = 0; Index < 100000; Index++) {
         Data = Index;
@@ -194,7 +191,7 @@ static BOOL WaitMouseData(U32 TimeOut) {
 
 /***************************************************************************/
 
-static U32 MouseInitialize() {
+static U32 MouseInitialize(void) {
     U32 Sig1, Sig2;
     U32 Byte, Index;
 
@@ -306,7 +303,7 @@ static U32 MouseInitialize() {
 
 /***************************************************************************/
 
-static U32 GetDeltaX() {
+static U32 GetDeltaX(void) {
     U32 Result = 0;
     LockMutex(&(Mouse.Mutex), INFINITY);
     Result = UNSIGNED(Mouse.DeltaX);
@@ -316,7 +313,7 @@ static U32 GetDeltaX() {
 
 /***************************************************************************/
 
-static U32 GetDeltaY() {
+static U32 GetDeltaY(void) {
     U32 Result = 0;
     LockMutex(&(Mouse.Mutex), INFINITY);
     Result = UNSIGNED(Mouse.DeltaY);
@@ -326,7 +323,7 @@ static U32 GetDeltaY() {
 
 /***************************************************************************/
 
-static U32 GetButtons() {
+static U32 GetButtons(void) {
     U32 Result;
     LockMutex(&(Mouse.Mutex), INFINITY);
     Result = UNSIGNED(Mouse.Buttons);
@@ -358,7 +355,7 @@ static void DrawMouseCursor(I32 X, I32 Y) {
 
 /***************************************************************************/
 
-void MouseHandler_Microsoft() {
+static void MouseHandler_Microsoft(void) {
     static U32 Buttons;
     static U32 DeltaX, DeltaY;
 
@@ -421,16 +418,15 @@ void MouseHandler_Microsoft() {
 
 /***************************************************************************/
 
-void MouseHandler_MouseSystems() {
+/*
+static void MouseHandler_MouseSystems(void) {
     // static U32 Status;
     static U32 Buttons;
     static U32 DeltaX1, DeltaY1;
 
-    /*
-      Status = InPortByte(MOUSE_PORT + SERIAL_IID);
-      if ((Status & SERIAL_IID_I) == 0) goto Out;
-      if ((Status & SERIAL_IID_ID) != SERIAL_IID_RD) goto Out;
-    */
+    // Status = InPortByte(MOUSE_PORT + SERIAL_IID);
+    // if ((Status & SERIAL_IID_I) == 0) goto Out;
+    // if ((Status & SERIAL_IID_ID) != SERIAL_IID_RD) goto Out;
 
     if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) goto Out;
 
@@ -450,20 +446,12 @@ void MouseHandler_MouseSystems() {
 
 Out:
 }
+*/
 
 /***************************************************************************/
 
-void MouseHandler() {
-    // static U32 Sequence = 0;
-
-    /*
-      // For test
-      Sequence = 1 - Sequence;
-      if (Sequence) *((U8*)(0xB8000 + 80)) = '.';
-      else  *((U8*)(0xB8000 + 80)) = '-';
-    */
-
-    DisableInterrupts();
+void MouseHandler(void) {
+    KernelLogText(LOG_DEBUG, TEXT("MouseHandler"));
 
     MouseHandler_Microsoft();
     // MouseHandler_MouseSystems();

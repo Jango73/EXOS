@@ -4,14 +4,26 @@
 ; EAX : Partition Start LBA
 
 BITS 16
+ORIGIN equ 0x8000
+KERNEL_LOAD_ADDRESS      equ 0x00020000
 
 section .start
 global _start
 global BiosReadSectors
+global MemorySet
+global MemoryCopy
+global StubJumpToImage
 
 extern BootMain
 
-ORIGIN equ 0x8000
+PBN                         equ 0x08        ; Param base near
+PBF                         equ 0x0A        ; Param base far
+CR0_PROTECTED_MODE          equ 0x00000001  ; Protected mode on/off
+CR0_COPROCESSOR             equ 0x00000002  ; Math present
+CR0_MONITOR_COPROCESSOR     equ 0x00000004  ; Emulate co-processor
+CR0_TASKSWITCH              equ 0x00000008  ; Set on task switch
+CR0_80387                   equ 0x00000010  ; Type of co-processor
+CR0_PAGING                  equ 0x80000000  ; Paging on/off
 
 _start:
     jmp         Start
@@ -46,18 +58,20 @@ Start:
     mov         al, dl
     push        eax                         ; Param 1 : Drive
     push        word 0                      ; Add 16 bits bacause of 32 bits call
+                                            ; MANDATORY to jump to 32 bit C code
     call        BootMain
     add         esp, 8
 
     hlt
     jmp         $
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; BiosReadSectors cdecl
 ; In : EBP+8 = Drive number
 ;      EBP+12 = Start LBA
 ;      EBP+16 = Sector count
 ;      EBP+20 = Buffer address (far pointer SEG:OFS)
+;-------------------------------------------------------------------------
 
 BiosReadSectors:
     push        ebp
@@ -114,7 +128,7 @@ BiosReadSectors:
     jnc         .return
     mov         eax, 1
 
-.return
+.return:
     pop         edi
     pop         esi
     pop         edx
@@ -151,10 +165,66 @@ BiosReadSectors_16:
     pop         ax
     ret
 
+;-------------------------------------------------------------------------
 
-;----------------------------------------
+MemorySet :
+
+    push        ebp
+    mov         ebp, esp
+
+    push        ecx
+    push        edi
+    push        es
+
+    push        ds
+    pop         es
+
+    mov         edi, [ebp+(PBN+0)]
+    mov         eax, [ebp+(PBN+4)]
+    mov         ecx, [ebp+(PBN+8)]
+    cld
+    rep         stosb
+
+    pop         es
+    pop         edi
+    pop         ecx
+
+    pop         ebp
+    ret
+
+;--------------------------------------
+
+MemoryCopy :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    esi
+    push    edi
+    push    es
+
+    push    ds
+    pop     es
+
+    mov     edi, [ebp+(PBN+0)]
+    mov     esi, [ebp+(PBN+4)]
+    mov     ecx, [ebp+(PBN+8)]
+    cld
+    rep     movsb
+
+    pop     es
+    pop     edi
+    pop     esi
+    pop     ecx
+
+    pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
 ; PrintChar
 ; In : AL = character to write
+;-------------------------------------------------------------------------
 
 PrintChar:
     push        bx
@@ -164,7 +234,10 @@ PrintChar:
     pop         bx
     ret
 
-;----------------------------------------
+;-------------------------------------------------------------------------
+; PrintString
+;-------------------------------------------------------------------------
+
 PrintString:
     lodsb
     or          al, al
@@ -175,10 +248,11 @@ PrintString:
 .done:
     ret
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; PrintHex32
 ; In : EAX = value to write
 ; Uses : EAX, EBX, ECX
+;-------------------------------------------------------------------------
 
 PrintHex32:
     mov     ecx, eax
@@ -225,29 +299,91 @@ PrintHex32:
     ret
 
 PrintHex32Nibble:
-    cmp     bl, 9
-    jbe     .digit
-    add     bl, 7
+    cmp         bl, 9
+    jbe         .digit
+    add         bl, 7
 .digit:
-    add     bl, '0'
-    mov     al, bl
-    call    PrintChar
+    add         bl, '0'
+    mov         al, bl
+    call        PrintChar
     ret
 
-;----------------------------------------
+;-------------------------------------------------------------------------
+; EnterLongMode : switches to protected mode, enables paging
+; and jumps into the kernel at 0xC0000000
+; Param 1 : GDTR
+; Param 2 : PageDirectory (physical)
+; Param 3 : KernelEntryVA (virtual)
+;-------------------------------------------------------------------------
+
+StubJumpToImage:
+    push        ebp
+    mov         ebp, esp
+
+    cli
+
+    mov         si, Text_JumpingToPM
+    call        PrintString
+
+    xor         ebx, ebx               ; Prepare EBX and select page 0
+    mov         ah, 0x03               ; BIOS get cursor position
+    int         0x10
+    mov         bx, dx                 ; BL = X, BH = Y
+
+    mov         eax, [ebp + 8]      ; GDTR
+    lgdt        [eax]
+
+    mov         eax, [ebp + 12]     ; PageDirectory (cr3)
+    mov         cr3, eax
+
+    ; Activate protected mode
+    mov         eax, cr0
+    or          eax, CR0_PROTECTED_MODE
+    mov         cr0, eax
+
+    ; Jump far to 32 bits
+    jmp         0x08:ProtectedEntryPoint
+
+[BITS 32]
+ProtectedEntryPoint:
+    mov         ax, 0x10
+    mov         ds, ax
+    mov         es, ax
+    mov         ss, ax
+    mov         esp, 0x200000      ; Set stack halfway through low 4mb
+
+    ; Activate paging
+    mov         eax, cr0
+    or          eax, CR0_PAGING
+    mov         cr0, eax
+    jmp         $+2                ; Pipeline flush
+
+    mov         ecx, [ebp + 16]    ; KernelEntryVA
+    mov         eax, KERNEL_LOAD_ADDRESS
+    jmp         ecx
+
+    hlt
+.hang:
+    jmp         .hang
+
+;-------------------------------------------------------------------------
 ; Read-only data
+;-------------------------------------------------------------------------
 
 section .rodata
 align 16
 
 Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
-; Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
-; Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
+Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
+Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
+Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",0
+Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
 Text_NewLine: db 10,13,0
 
-;----------------------------------------
+;-------------------------------------------------------------------------
 ; Data
+;-------------------------------------------------------------------------
 
 section .data
 align 16

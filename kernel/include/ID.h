@@ -21,6 +21,7 @@
 #define ID_MESSAGE 0x4753534D          // "MSSG"
 #define ID_HEAP 0x50414548             // "HEAP"
 #define ID_DRIVER 0x52565244           // "DRVR"
+#define ID_PCIDEVICE 0x44494350        // "PCID"
 #define ID_DISK 0x4B534944             // "DISK"
 #define ID_IOCONTROL 0x54434F49        // "IOCT"
 #define ID_FILESYSTEM 0x53595346       // "FSYS"
@@ -35,4 +36,4 @@
 
 /***************************************************************************/
 
-#endif
+#endif  // ID_H_INCLUDED

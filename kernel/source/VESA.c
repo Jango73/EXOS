@@ -10,6 +10,7 @@
 #include "../include/GFX.h"
 #include "../include/I386.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 #define MKLINPTR(a) (((a & 0xFFFF0000) >> 12) + (a & 0x0000FFFF))
 
@@ -172,8 +173,10 @@ VESACONTEXT VESAContext = {
 
 /***************************************************************************/
 
-static U32 VESAInitialize() {
+static U32 VESAInitialize(void) {
     X86REGS Regs;
+
+    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Enter"));
 
     //-------------------------------------
     // Initialize the context
@@ -193,12 +196,14 @@ static U32 VESAInitialize() {
     // Get VESA general information
 
     Regs.X.AX = 0x4F00;
-    Regs.X.ES = (StubAddress + N_4KB) >> MUL_16;
+    Regs.X.ES = (LOW_MEMORY_PAGE_6) >> MUL_16;
     Regs.X.DI = 0;
 
     RealModeCall(VIDEO_CALL, &Regs);
 
-    MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(StubAddress + N_4KB), sizeof(VESAINFOBLOCK));
+    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Real mode call done"));
+
+    MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(VESAINFOBLOCK));
 
     if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_ERROR_GENERIC;
     if (VESAContext.VESAInfo.Signature[1] != 'E') return DF_ERROR_GENERIC;
@@ -215,12 +220,14 @@ static U32 VESAInitialize() {
                 (VESAContext.VESAInfo.Memory << MUL_64KB) >> MUL_1KB);
                 */
 
+    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Exit"));
+
     return DF_ERROR_SUCCESS;
 }
 
 /***************************************************************************/
 
-static U32 VESAUninitialize() {
+static U32 VESAUninitialize(void) {
     X86REGS Regs;
 
     //-------------------------------------
@@ -272,13 +279,13 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
     Regs.X.AX = 0x4F01;
     Regs.X.CX = VESAContext.ModeSpecs.Mode;
-    Regs.X.ES = (StubAddress + N_4KB) >> MUL_16;
+    Regs.X.ES = (LOW_MEMORY_PAGE_6) >> MUL_16;
     Regs.X.DI = 0;
     RealModeCall(VIDEO_CALL, &Regs);
 
     if (Regs.H.AL != 0x4F) return DF_ERROR_GENERIC;
 
-    MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(StubAddress + N_4KB), sizeof(MODEINFOBLOCK));
+    MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(MODEINFOBLOCK));
 
     VESAContext.Header.MemoryBase = (U8*)(VESAContext.ModeInfo.WindowAStartSegment << MUL_16);
     VESAContext.Header.BytesPerScanLine = VESAContext.ModeInfo.BytesPerScanLine;

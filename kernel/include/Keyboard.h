@@ -1,6 +1,4 @@
 
-// Keyboard.h
-
 /***************************************************************************\
 
   EXOS Kernel
@@ -71,11 +69,11 @@ extern KEYBOARDSTRUCT Keyboard;
 
 /***************************************************************************/
 
-BOOL PeekChar();
-STR GetChar();
+BOOL PeekChar(void);
+STR GetChar(void);
 BOOL GetKeyCode(LPKEYCODE);
-void WaitKey();
-void KeyboardHandler();
+void WaitKey(void);
+void KeyboardHandler(void);
 
 /***************************************************************************/
 

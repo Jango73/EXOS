@@ -36,14 +36,22 @@ typedef struct tag_HEAPCONTROLBLOCK {
 
 /***************************************************************************/
 
-// Functions in Heap.c
+// Allocates memory space in the calling process' heap
+// Must provide the heap's limits.
+LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size);
 
-LPVOID HeapAlloc_HBHS(LINEAR, U32, U32);
-void HeapFree_HBHS(LINEAR, U32, LPVOID);
+// Frees memory space in the calling process' heap
+// Must provide the heap's limits.
+void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer);
+
 // LPVOID HeapAlloc_P    (LPPROCESS, U32);
 // void   HeapFree_P     (LPPROCESS, LPVOID);
-LPVOID HeapAlloc(U32);
-void HeapFree(LPVOID);
+
+// Allocates memory space in the calling process' heap
+LPVOID HeapAlloc(U32 Size);
+
+// Frees memory space in the calling process' heap
+void HeapFree(LPVOID Pointer);
 
 /***************************************************************************/
 

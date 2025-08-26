@@ -9,6 +9,7 @@
 
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
 
 /***************************************************************************/
@@ -40,7 +41,7 @@ void InitMutex(LPMUTEX This) {
 
 /***************************************************************************/
 
-LPMUTEX NewMutex() {
+LPMUTEX NewMutex(void) {
     LPMUTEX This = (LPMUTEX)KernelMemAlloc(sizeof(MUTEX));
 
     if (This == NULL) return NULL;
@@ -58,7 +59,7 @@ LPMUTEX NewMutex() {
 
 /***************************************************************************/
 
-LPMUTEX CreateMutex() {
+LPMUTEX CreateMutex(void) {
     LPMUTEX Mutex = NewMutex();
 
     if (Mutex == NULL) return NULL;
@@ -91,75 +92,79 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
 
 U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     UNUSED(TimeOut);
-
     LPPROCESS Process;
     LPTASK Task;
     U32 Flags;
     U32 Ret = 0;
 
-    //-------------------------------------
-    // Check validity of parameters
-
-    if (Mutex == NULL) return 0;
-    if (Mutex->ID != ID_MUTEX) return 0;
-
     SaveFlags(&Flags);
     DisableInterrupts();
 
-    Task = GetCurrentTask();
-    Process = Task->Process;
-
-    if (Mutex->Task == Task) {
-        Mutex->Lock++;
-        Ret = Mutex->Lock;
-        goto Out;
-    }
-
     //-------------------------------------
-    // Wait for mutex to be unlocked by its owner task
+    // Check validity of parameters
 
-    while (1) {
-        DisableInterrupts();
+    SAFE_USE_VALID_ID(Mutex, ID_MUTEX) {
+        SAFE_USE_VALID_2(Kernel.Task->First, Kernel.Task->First->Next) {
+            Task = GetCurrentTask();
 
-        //-------------------------------------
-        // Check if a process did not delete this mutex
+            SAFE_USE_VALID_ID(Task, ID_TASK) {
+                Process = Task->Process;
 
-        if (Mutex->ID != ID_MUTEX) {
-            Ret = 0;
-            goto Out;
-        }
+                SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+                    if (Mutex->Task == Task) {
+                        Mutex->Lock++;
+                        Ret = Mutex->Lock;
+                    } else {
+                        //-------------------------------------
+                        // Wait for mutex to be unlocked by its owner task
 
-        //-------------------------------------
-        // Check if the mutex is not locked anymore
+                        while (1) {
+                            DisableInterrupts();
 
-        if (Mutex->Task == NULL) {
-            break;
-        }
+                            //-------------------------------------
+                            // Check if a process deleted this mutex
 
-        //-------------------------------------
-        // Sleep
+                            if (Mutex->ID != ID_MUTEX) {
+                                RestoreFlags(&Flags);
+                                return 0;
+                            }
 
-        Task->Status = TASK_STATUS_SLEEPING;
-        Task->WakeUpTime = GetSystemTime() + 20;
+                            //-------------------------------------
+                            // Check if the mutex is not locked anymore
 
-        EnableInterrupts();
+                            if (Mutex->Task == NULL) {
+                                break;
+                            }
 
-        while (Task->Status == TASK_STATUS_SLEEPING) {
+                            //-------------------------------------
+                            // Sleep
+
+                            Task->Status = TASK_STATUS_SLEEPING;
+                            Task->WakeUpTime = GetSystemTime() + 20;
+
+                            EnableInterrupts();
+
+                            while (Task->Status == TASK_STATUS_SLEEPING) {
+                            }
+                        }
+
+                        DisableInterrupts();
+
+                        Mutex->Process = Process;
+                        Mutex->Task = Task;
+                        Mutex->Lock = 1;
+
+                        Ret = Mutex->Lock;
+                    }
+                }
+            }
+        } else {
+            // Consider mutex free if no task valid
+            Ret = 1;
         }
     }
-
-    DisableInterrupts();
-
-    Mutex->Process = Process;
-    Mutex->Task = Task;
-    Mutex->Lock = 1;
-
-    Ret = Mutex->Lock;
-
-Out:
 
     RestoreFlags(&Flags);
-
     return Ret;
 }
 

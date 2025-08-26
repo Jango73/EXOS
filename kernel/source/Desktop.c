@@ -18,7 +18,7 @@ extern GRAPHICSCONTEXT VESAContext;
 
 /***************************************************************************/
 
-LPWINDOW NewWindow();
+LPWINDOW NewWindow(void);
 void DeleteWindow(LPWINDOW);
 U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 
@@ -28,13 +28,13 @@ static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelMemAlloc, KernelMe
 
 /***************************************************************************/
 
-static WINDOW MainDesktopWindow = {
+WINDOW MainDesktopWindow = {
     ID_WINDOW,
     1,  // ID, references
     NULL,
     NULL,                   // Next, previous
     EMPTY_MUTEX,            // Window mutex
-    &KernelTask,            // Task
+    NULL,                   // Task
     &DesktopWindowFunc,     // Function
     NULL,                   // Parent
     &MainDesktopChildren,   // Children
@@ -57,7 +57,7 @@ DESKTOP MainDesktop = {
     NULL,
     NULL,                // Next, previous
     EMPTY_MUTEX,         // Desktop mutex
-    &KernelTask,         // This desktop's owner task
+    NULL,                // This desktop's owner task
     &VESADriver,         // This desktop's graphics driver
     &MainDesktopWindow,  // Window
     NULL,                // Capture
@@ -151,7 +151,7 @@ I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
 
 /***************************************************************************/
 
-LPDESKTOP CreateDesktop() {
+LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
     WINDOWINFO WindowInfo;
 
@@ -266,7 +266,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
 /***************************************************************************/
 
-LPWINDOW NewWindow() {
+LPWINDOW NewWindow(void) {
     LPWINDOW This = (LPWINDOW)KernelMemAlloc(sizeof(WINDOW));
     if (This == NULL) return NULL;
 

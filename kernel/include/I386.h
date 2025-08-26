@@ -29,6 +29,7 @@ typedef struct tag_INTEL386REGISTERS {
     U16 ES, FS, GS;
     U32 CR0, CR2, CR3, CR4;
     U32 DR0, DR1, DR2, DR3;
+    U32 DR4, DR5, DR6, DR7;
 } INTEL386REGISTERS, *LPINTEL386REGISTERS;
 
 /***************************************************************************/
@@ -88,8 +89,8 @@ typedef union tag_X86REGS {
 } X86REGS, *LPX86REGS;
 
 /***************************************************************************/
-
 // The page directory entry
+// Size : 4 bytes
 
 typedef struct tag_PAGEDIRECTORY {
     U32 Present : 1;    // Is page present in RAM ?
@@ -107,8 +108,8 @@ typedef struct tag_PAGEDIRECTORY {
 } PAGEDIRECTORY, *LPPAGEDIRECTORY;
 
 /***************************************************************************/
-
 // The page table entry
+// Size : 4 bytes
 
 typedef struct tag_PAGETABLE {
     U32 Present : 1;    // Is page present in RAM ?
@@ -126,8 +127,8 @@ typedef struct tag_PAGETABLE {
 } PAGETABLE, *LPPAGETABLE;
 
 /***************************************************************************/
-
 // The segment descriptor
+// Size : 8 bytes
 
 typedef struct tag_SEGMENTDESCRIPTOR {
     U32 Limit_00_15 : 16;   // Bits 0-15 of segment limit
@@ -151,7 +152,6 @@ typedef struct tag_SEGMENTDESCRIPTOR {
 } SEGMENTDESCRIPTOR, *LPSEGMENTDESCRIPTOR;
 
 /***************************************************************************/
-
 // The Gate Descriptor
 
 typedef struct tag_GATEDESCRIPTOR {
@@ -165,7 +165,6 @@ typedef struct tag_GATEDESCRIPTOR {
 } GATEDESCRIPTOR, *LPGATEDESCRIPTOR;
 
 /***************************************************************************/
-
 // The TSS descriptor
 
 typedef struct tag_TSSDESCRIPTOR {
@@ -183,14 +182,6 @@ typedef struct tag_TSSDESCRIPTOR {
 } TSSDESCRIPTOR, *LPTSSDESCRIPTOR;
 
 /***************************************************************************/
-
-typedef struct tag_TASKTSSDESCRIPTOR {
-    TSSDESCRIPTOR TSS;
-    TSSDESCRIPTOR LDT;
-} TASKTSSDESCRIPTOR, *LPTASKTSSDESCRIPTOR;
-
-/***************************************************************************/
-
 // The Task State Segment
 // It must be 256 bytes long
 
@@ -217,28 +208,75 @@ typedef struct tag_TASKSTATESEGMENT {
     U32 EBP;       // Alternate stack pointer
     U32 ESI;       // ESI general purpose register
     U32 EDI;       // EDI general purpose register
+
     U16 ES;        // ES segment register (Extra segment)
     U16 Res5;      // Reserved
+
     U16 CS;        // CS segment register (Code segment)
     U16 Res6;      // Reserved
+
     U16 SS;        // SS segment register (Stack segment)
     U16 Res7;      // Reserved
+
     U16 DS;        // DS segment register (Data segment)
     U16 Res8;      // Reserved
+
     U16 FS;        // FS segment register (Extra segment)
     U16 Res9;      // Reserved
+
     U16 GS;        // GS segment register (Extra segment)
     U16 Res10;     // Reserved
+
     U16 LDT;       // Local descriptor table segment selector
     U16 Res11;     // Reserved
-    U16 Trap : 1;
-    U16 Res12 : 15;
+
+    U8 Trap;
+    U8 Res12;
+
     U16 IOMap;          // I/O Map Base Address
     U8 IOMapBits[152];  // Map 1024 port adresses
 } TASKSTATESEGMENT, *LPTASKSTATESEGMENT;
 
-/***************************************************************************/
+/************************************************************************/
 
+typedef struct tag_TRAPFRAME {
+    U32 EDI;
+    U32 ESI;
+    U32 EBP;
+    U32 ESP;
+    U32 EBX;
+    U32 EDX;
+    U32 ECX;
+    U32 EAX;
+    U32 GS;
+    U32 FS;
+    U32 ES;
+    U32 DS;
+    U32 EIP;
+    U32 CS;
+    U32 EFlags;
+    U32 UserESP;
+    U32 SS;
+} TRAPFRAME, *LPTRAPFRAME;
+
+/************************************************************************/
+// NOTE: fields not meaningful for a given trap are set to 0 by the stub.
+
+typedef struct tag_INTERRUPTFRAME {
+    INTEL386REGISTERS Registers;    // Filled by the stub
+    U32 IntNo;                      // Interrupt / exception vector
+    U32 ErrCode;                    // CPU error code (0 for #UD)
+} INTERRUPTFRAME, *LPINTERRUPTFRAME;
+
+/************************************************************************/
+// The GDT register
+
+typedef struct __attribute__((packed)) {
+    U16 Limit;
+    U32 Base;
+} GDTREGISTER;
+
+/************************************************************************/
 // Page directory and page table
 
 #define PAGE_SIZE N_4KB
@@ -264,7 +302,6 @@ typedef struct tag_TASKSTATESEGMENT {
 #define PAGE_ALIGN(a) (((a) + PAGE_SIZE - 1) & PAGE_MASK)
 
 /***************************************************************************/
-
 // Segment descriptor attributes
 
 #define GDT_TYPE_DATA 0x00
@@ -290,7 +327,6 @@ typedef struct tag_TASKSTATESEGMENT {
     (NULL32 | ((((U32)(PSD)->Limit_00_15) & 0xFFFF) << 0x00) | ((((U32)(PSD)->Limit_16_19) & 0x000F) << 0x10))
 
 /***************************************************************************/
-
 // Gate descriptor and TSS descriptor attributes
 
 #define GATE_TYPE_286_TSS_AVAIL 0x01
@@ -308,6 +344,51 @@ typedef struct tag_TASKSTATESEGMENT {
 
 /***************************************************************************/
 
+// ----- Selector bitfield layout (x86) -----
+// [15:3] Index | [2] TI (0=GDT,1=LDT) | [1:0] RPL
+// Constants below remove all magic numbers.
+
+// Number of low bits used by RPL (Requested Privilege Level)
+#define SELECTOR_RPL_BITS          2u
+#define SELECTOR_RPL_MASK          0x0003u
+#define SELECTOR_RPL_SHIFT         0u
+
+// Table Indicator (0=GDT, 1=LDT)
+#define SELECTOR_TI_MASK           0x0001u
+#define SELECTOR_TI_SHIFT          2u
+#define SELECTOR_TABLE_GDT         0u
+#define SELECTOR_TABLE_LDT         1u
+
+// Index starts at bit 3
+#define SELECTOR_INDEX_SHIFT       3u
+
+// ----- Accessors -----
+
+// Extract index from selector (ignores RPL and TI)
+#define SELECTOR_INDEX(sel)        ((U16)(sel) >> SELECTOR_INDEX_SHIFT)
+
+// Extract RPL (requested privilege level)
+#define SELECTOR_RPL(sel)          ((U16)(sel) & SELECTOR_RPL_MASK)
+
+// Extract TI (table indicator: 0=GDT, 1=LDT)
+#define SELECTOR_TI(sel)           ((((U16)(sel)) >> SELECTOR_TI_SHIFT) & SELECTOR_TI_MASK)
+
+// ----- Builders -----
+
+// Make a selector from index, TI (0=GDT/1=LDT) and RPL (0..3)
+#define MAKE_SELECTOR(index, ti, rpl) \
+    ( (SELECTOR)( (((U16)(index)) << SELECTOR_INDEX_SHIFT) \
+                | ((((U16)(ti))  & SELECTOR_TI_MASK)  << SELECTOR_TI_SHIFT) \
+                | (((U16)(rpl)) & SELECTOR_RPL_MASK)) )
+
+// Convenience: selector into GDT with given index and RPL
+#define MAKE_GDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_GDT, (rpl))
+
+// Convenience: selector into LDT with given index and RPL
+#define MAKE_LDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_LDT, (rpl))
+
+/***************************************************************************/
+
 typedef U16 SELECTOR;
 typedef U32 OFFSET;
 
@@ -317,6 +398,7 @@ typedef struct tag_FARPOINTER {
 } FARPOINTER, *LPFARPOINTER;
 
 /***************************************************************************/
+// Privilege levels (rings)
 
 #define PRIVILEGE_KERNEL 0x00
 #define PRIVILEGE_DRIVERS 0x01
@@ -324,7 +406,6 @@ typedef struct tag_FARPOINTER {
 #define PRIVILEGE_USER 0x03
 
 /***************************************************************************/
-
 // Values related to CPUID
 
 // Processor model masks and shifts
@@ -382,7 +463,6 @@ typedef struct tag_FARPOINTER {
 #define INTEL_CPU_FEAT_RESI 0x80000000  // Reserved
 
 /***************************************************************************/
-
 // Exception and interrupt numbers
 
 #define INT_DIVIDE 0
@@ -435,7 +515,6 @@ typedef struct tag_FARPOINTER {
 #define INT_UNUSED47 47
 
 /***************************************************************************/
-
 // Bit layout of the EFlags register
 
 #define EFLAGS_CF 0x00000001  // Carry flag
@@ -446,7 +525,7 @@ typedef struct tag_FARPOINTER {
 #define EFLAGS_RES2 0x00000020
 #define EFLAGS_ZF 0x00000040  // Zero flag
 #define EFLAGS_SF 0x00000080  // Sign flag
-#define EFLAGS_TF 0x00000100
+#define EFLAGS_TF 0x00000100  // Trap flag
 #define EFLAGS_IF 0x00000200  // Interrupt flag
 #define EFLAGS_RES3 0x00000400
 #define EFLAGS_OF 0x00000800     // Overflow flag
@@ -472,18 +551,19 @@ typedef struct tag_FARPOINTER {
 #define EFLAGS_RES18 0x80000000
 
 /***************************************************************************/
+// Bit layout of CR0 (Control register 0)
 
-// Bit layout of CR0
+#define CR0_PROTECTED_MODE 0x00000001           // Protected mode on/off
+#define CR0_COPROCESSOR 0x00000002              // Math present
+#define CR0_MONITOR_COPROCESSOR 0x00000004      // Emulate co-processor
+#define CR0_TASKSWITCH 0x00000008               // Set on task switch
+#define CR0_80387 0x00000010                    // Type of co-processor
+#define CR0_PAGING 0x80000000                   // Paging on/off
 
-#define CR0_PROTECTEDMODE 0x00000001
-#define CR0_COPROCESSOR 0x00000002
-#define CR0_MONITORCOPRO 0x00000004
-#define CR0_TASKSWITCH 0x00000008
-#define CR0_80387 0x00000010
-#define CR0_PAGING 0x80000000
+// CR2 = Faulty linear address in case of page fault
+// CR3 = Physical address of page directory
 
 /***************************************************************************/
-
 // Interrupt command port
 
 #define INTERRUPT_COMMAND 0x0020
@@ -491,7 +571,6 @@ typedef struct tag_FARPOINTER {
 #define MAX_IRQ 16
 
 /***************************************************************************/
-
 // CMOS
 
 #define CMOS_COMMAND 0x0070
@@ -510,7 +589,15 @@ typedef struct tag_FARPOINTER {
 #define CMOS_CENTURY 0x32
 
 /***************************************************************************/
+// BIOS
 
+#define BIOS_E820_TYPE_USABLE       1
+#define BIOS_E820_TYPE_RESERVED     2
+#define BIOS_E820_TYPE_ACPI         3
+#define BIOS_E820_TYPE_ACPI_NVS     4
+#define BIOS_E820_TYPE_BAD_MEM      5
+
+/***************************************************************************/
 // Clock ports
 // 8253 chip
 
@@ -518,7 +605,6 @@ typedef struct tag_FARPOINTER {
 #define CLOCK_COMMAND 0x0043
 
 /***************************************************************************/
-
 // Keyboard ports
 // 8042 chip
 
@@ -554,5 +640,37 @@ typedef struct tag_FARPOINTER {
 #define KSS_ACK 0xFA
 
 /***************************************************************************/
+// Static low memory pages
+
+#define LOW_MEMORY_PAGE_1   0x1000      // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_2   0x2000      // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_3   0x3000      // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_4   0x4000      //
+#define LOW_MEMORY_PAGE_5   0x5000      // RMC code base
+#define LOW_MEMORY_PAGE_6   0x6000      // RMC buffers
+#define LOW_MEMORY_PAGE_7   0x7000
+#define LOW_MEMORY_PAGE_8   0x8000
+
+/***************************************************************************/
+// Structure to receive information about a segment in a more friendly way
+
+typedef struct tag_SEGMENTINFO {
+    U32 Base;
+    U32 Limit;
+    U32 Type;
+    U32 Privilege;
+    U32 Granularity;
+    U32 CanWrite;
+    U32 OperandSize;
+    U32 Conforming;
+    U32 Present;
+} SEGMENTINFO, *LPSEGMENTINFO;
+
+/************************************************************************/
+
+BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info);
+BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text);
+
+/************************************************************************/
 
 #endif

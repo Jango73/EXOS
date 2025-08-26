@@ -964,7 +964,7 @@ static void TranslateFileInfo(LPFATDIRENTRY_EXT DirEntry, LPFATFILE File) {
 
 /***************************************************************************/
 
-static U32 Initialize() { return DF_ERROR_SUCCESS; }
+static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 
@@ -1338,6 +1338,7 @@ static U32 WriteFile(LPFATFILE File) {
 
     RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
     OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
+    BytesToRead = FileSystem->BytesPerCluster - OffsetInCluster;
     BytesRemaining = File->Header.BytesToRead;
     File->Header.BytesRead = 0;
 

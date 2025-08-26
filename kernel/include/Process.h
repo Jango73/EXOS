@@ -107,6 +107,7 @@ struct tag_MESSAGE {
 // Task creation flags
 
 #define TASK_CREATE_SUSPENDED 0x00000001
+#define TASK_CREATE_MAIN      0x00000002
 
 /***************************************************************************/
 
@@ -174,7 +175,7 @@ struct tag_DESKTOP {
 /***************************************************************************/
 
 extern PROCESS KernelProcess;
-extern TASK KernelTask;
+extern WINDOW MainDesktopWindow;
 extern DESKTOP MainDesktop;
 extern MUTEX KernelMutex;
 extern MUTEX LogMutex;
@@ -190,7 +191,7 @@ extern MUTEX ConsoleMutex;
 /***************************************************************************/
 // Functions in Process.c
 
-void InitializeKernelHeap();
+void InitializeKernelProcess(void);
 LINEAR GetProcessHeap(LPPROCESS);
 void DumpProcess(LPPROCESS);
 void InitSecurity(LPSECURITY);
@@ -199,7 +200,7 @@ BOOL CreateProcess(LPPROCESSINFO);
 /***************************************************************************/
 // Functions in Task.c
 
-BOOL InitKernelTask();
+BOOL InitKernelTask(void);
 LPTASK CreateTask(LPPROCESS, LPTASKINFO);
 BOOL KillTask(LPTASK);
 U32 SetTaskPriority(LPTASK, U32);
@@ -214,7 +215,7 @@ void DumpTask(LPTASK);
 // Functions in Mutex.c
 
 void InitMutex(LPMUTEX);
-LPMUTEX CreateMutex();
+LPMUTEX CreateMutex(void);
 BOOL DeleteMutex(LPMUTEX);
 U32 LockMutex(LPMUTEX, U32);
 BOOL UnlockMutex(LPMUTEX);
@@ -222,7 +223,7 @@ BOOL UnlockMutex(LPMUTEX);
 /***************************************************************************/
 // Functions in Desktop.c
 
-LPDESKTOP CreateDesktop();
+LPDESKTOP CreateDesktop(void);
 void DeleteDesktop(LPDESKTOP);
 BOOL ShowDesktop(LPDESKTOP);
 LPWINDOW CreateWindow(LPWINDOWINFO);

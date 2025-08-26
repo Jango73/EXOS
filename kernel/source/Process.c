@@ -9,7 +9,6 @@
 
 #include "../include/Process.h"
 
-#include "../include/Address.h"
 #include "../include/Console.h"
 #include "../include/File.h"
 #include "../include/Kernel.h"
@@ -18,45 +17,76 @@
 /***************************************************************************/
 
 PROCESS KernelProcess = {
-    ID_PROCESS,  // ID
-    1,           // References
-    NULL,
-    NULL,              // Next, previous
-    EMPTY_MUTEX,       // Mutex
-    EMPTY_MUTEX,       // Heap mutex
-    EMPTY_SECURITY,    // Security
-    NULL,              // Desktop
-    NULL,              // Parent
-    PRIVILEGE_KERNEL,  // Privilege
-    PA_PGD,            // Page directory
-    0,                 // Heap base
-    0,                 // Heap size
-    "EXOS",            // File name
-    "",                // Command line
-    NULL               // Objects
+    .ID = ID_PROCESS,  // ID
+    .References = 1,           // References
+    .Next = NULL,
+    .Prev = NULL,              // Next, previous
+    .Mutex = EMPTY_MUTEX,       // Mutex
+    .HeapMutex = EMPTY_MUTEX,       // Heap mutex
+    .Security = EMPTY_SECURITY,    // Security
+    .Desktop = NULL,              // Desktop
+    .Parent = NULL,              // Parent
+    .Privilege = PRIVILEGE_KERNEL,  // Privilege
+    .PageDirectory = 0,            // Page directory
+    .HeapBase = 0,                 // Heap base
+    .HeapSize = 0,                 // Heap size
+    .FileName = "EXOS",            // File name
+    .CommandLine = "",                // Command line
+    .Objects = NULL               // Objects
 };
 
 /***************************************************************************/
 
-void InitializeKernelHeap() {
+void InitializeKernelProcess(void) {
+    TASKINFO TaskInfo;
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Enter"));
+
+    KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.HeapSize = N_1MB;
 
-    KernelLogText(LOG_DEBUG, TEXT("Memory : %X"), Memory);
-    KernelLogText(LOG_DEBUG, TEXT("Pages : %X"), Pages);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Memory : %X"), KernelStartup.MemorySize);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Pages : %X"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = VirtualAlloc(MAX_U32, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    LINEAR HeapBase = AllocRegion(LA_KERNEL, 0, KernelProcess.HeapSize,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
-    KernelLogText(LOG_DEBUG, TEXT("HeapBase : %X"), HeapBase);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] HeapBase : %X"), HeapBase);
 
-    if (!HeapBase) {
-        ClearConsole();
-        SLEEPING_BEAUTY;
+    if (HeapBase == NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Could not create kernel heap, halting."));
+        DO_THE_SLEEPING_BEAUTY;
     }
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
     MemorySet((LPVOID)KernelProcess.HeapBase, 0, sizeof(HEAPCONTROLBLOCK));
 
     ((LPHEAPCONTROLBLOCK)KernelProcess.HeapBase)->ID = ID_HEAP;
+
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
+    TaskInfo.Func = (TASKFUNC)InitializeKernel;
+    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+    TaskInfo.Priority = TASK_PRIORITY_LOWEST;
+    TaskInfo.Flags = TASK_CREATE_MAIN;
+
+    LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
+
+    if (KernelTask == NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("Could not create kernel task, halting."));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
+    MainDesktopWindow.Task = KernelTask;
+    MainDesktop.Task = KernelTask;
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Loading TR"));
+
+    LoadInitialTaskRegister(SELECTOR_TSS);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Exit"));
 }
 
 /***************************************************************************/
@@ -88,7 +118,7 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
     BytesRead = ReadFile(&FileOperation);
 
     if (Header.Signature != EXOS_SIGNATURE) {
-        KernelLogText(LOG_DEBUG, TEXT("GetExecutableInfo_EXOS() : Bad signature (%08X)\n"), Header.Signature);
+        KernelLogText(LOG_DEBUG, TEXT("GetExecutableInfo_EXOS() : Bad signature (%X)\n"), Header.Signature);
 
         goto Out_Error;
     }
@@ -173,8 +203,8 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LI
     CodeOffset = CodeBase - Info->CodeBase;
     DataOffset = DataBase - Info->DataBase;
 
-    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : CodeBase = %08X\n"), CodeBase);
-    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : DataBase = %08X\n"), DataBase);
+    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : CodeBase = %X\n"), CodeBase);
+    KernelLogText(LOG_DEBUG, TEXT("LoadExecutable_EXOS() : DataBase = %X\n"), DataBase);
 
     //-------------------------------------
     // Read the header
@@ -288,7 +318,7 @@ Out_Error:
 
 /***************************************************************************/
 
-LPPROCESS NewProcess() {
+LPPROCESS NewProcess(void) {
     LPPROCESS This = NULL;
 
     KernelLogText(LOG_DEBUG, TEXT("Entering NewProcess\n"));
@@ -303,8 +333,7 @@ LPPROCESS NewProcess() {
     This->References = 1;
     This->Desktop = (LPDESKTOP)Kernel.Desktop->First;
     This->Parent = GetCurrentProcess();
-    // This->Privilege     = PRIVILEGE_USER;
-    This->Privilege = PRIVILEGE_KERNEL;
+    This->Privilege = PRIVILEGE_USER;
 
     //-------------------------------------
     // Initialize the process' mutexs
@@ -397,7 +426,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate a new process structure
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Allocating process...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Allocating process\n"));
 
     Process = NewProcess();
     if (Process == NULL) goto Out;
@@ -443,7 +472,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // We can use the new page directory from now on
     // and switch back to the previous when done
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
 
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
@@ -452,9 +481,9 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate enough memory for the code, data and heap
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : VirtualAllocing process space...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : AllocRegioning process space\n"));
 
-    VirtualAlloc(LA_USER, TotalSize, ALLOC_PAGES_COMMIT);
+    AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     //-------------------------------------
     // Open the executable file
@@ -471,12 +500,12 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // Load executable image
     // For tests, image must be at LA_KERNEL
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable\n"));
 
     if (LoadExecutable_EXOS(File, &ExecutableInfo, (LINEAR)CodeBase, (LINEAR)DataBase) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Load failed !\n"));
 
-        VirtualFree(LA_USER, TotalSize);
+        FreeRegion(LA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
         CloseFile(File);
@@ -498,7 +527,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Create the initial task
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Creating initial task...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Creating initial task\n"));
 
     // TaskInfo.Func      = (TASKFUNC) LA_USER;
     TaskInfo.Parameter = NULL;
@@ -513,7 +542,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Switch back to our page directory
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory...\n"));
+    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
 
     LoadPageDirectory(PageDirectory);
 

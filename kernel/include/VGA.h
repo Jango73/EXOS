@@ -26,4 +26,4 @@ extern VGAMODEREGS VGAModeRegs[];
 
 /***************************************************************************/
 
-#endif
+#endif  // VGA_H_INCLUDED

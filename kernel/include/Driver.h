@@ -49,9 +49,9 @@
 #define DF_GETLASTFUNC 0x0004
 #define DF_FIRSTFUNC 0x1000
 
-#define DF_PROBE     0x0008  /* in: DEVICE_DESC* ; out: DF_ERROR_SUCCESS if supported */
-#define DF_ATTACH    0x0009
-#define DF_DETACH    0x000A
+#define DF_PROBE 0x0008 /* in: DEVICE_DESC* ; out: DF_ERROR_SUCCESS if supported */
+#define DF_ATTACH 0x0009
+#define DF_DETACH 0x000A
 
 /***************************************************************************/
 // Error codes common to all drivers
@@ -72,15 +72,18 @@ typedef U32 (*DRVFUNC)(U32 Function, U32 Parameter);
 
 /***************************************************************************/
 
+#define DRIVER_FIELDS           \
+    U32 Type;                   \
+    U32 VersionMajor;           \
+    U32 VersionMinor;           \
+    STR Designer[MAX_NAME];     \
+    STR Manufacturer[MAX_NAME]; \
+    STR Product[MAX_NAME];      \
+    DRVFUNC Command;
+
 typedef struct tag_DRIVER {
     LISTNODE_FIELDS
-    U32 Type;
-    U32 VersionMajor;
-    U32 VersionMinor;
-    STR Designer[MAX_NAME];
-    STR Manufacturer[MAX_NAME];
-    STR Product[MAX_NAME];
-    DRVFUNC Command;
+    DRIVER_FIELDS
 } DRIVER, *LPDRIVER;
 
 /***************************************************************************/

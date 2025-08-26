@@ -157,15 +157,15 @@ U64 DivU64 (U64 Left, U64 Right)
 
 /*************************************************************************************************/
 
-int DumpRegisters (DEVIOCTL_REGISTERS* IORegs)
+int LogRegisters (DEVIOCTL_REGISTERS* IORegs)
 {
   char szTemp [16];
-  sprintf(szTemp, "%08X", (unsigned) IORegs->reg_EAX);   OutStream << "EAX   : " << szTemp << EndL;
-  sprintf(szTemp, "%08X", (unsigned) IORegs->reg_EBX);   OutStream << "EBX   : " << szTemp << EndL;
-  sprintf(szTemp, "%08X", (unsigned) IORegs->reg_ECX);   OutStream << "ECX   : " << szTemp << EndL;
-  sprintf(szTemp, "%08X", (unsigned) IORegs->reg_EDX);   OutStream << "EDX   : " << szTemp << EndL;
-  sprintf(szTemp, "%08X", (unsigned) IORegs->reg_ESI);   OutStream << "ESI   : " << szTemp << EndL;
-  sprintf(szTemp, "%08X", (unsigned) IORegs->reg_EDI);   OutStream << "EDI   : " << szTemp << EndL;
+  sprintf(szTemp, "%X", (U32) IORegs->reg_EAX);   OutStream << "EAX   : " << szTemp << EndL;
+  sprintf(szTemp, "%X", (U32) IORegs->reg_EBX);   OutStream << "EBX   : " << szTemp << EndL;
+  sprintf(szTemp, "%X", (U32) IORegs->reg_ECX);   OutStream << "ECX   : " << szTemp << EndL;
+  sprintf(szTemp, "%X", (U32) IORegs->reg_EDX);   OutStream << "EDX   : " << szTemp << EndL;
+  sprintf(szTemp, "%X", (U32) IORegs->reg_ESI);   OutStream << "ESI   : " << szTemp << EndL;
+  sprintf(szTemp, "%X", (U32) IORegs->reg_EDI);   OutStream << "EDI   : " << szTemp << EndL;
 
   OutStream << "Flags : CF PF AF ZF SF OF" << EndL;
   OutStream << "        ";
@@ -250,7 +250,7 @@ int WriteBootSector (pBlockDevice Device, pVoid Buffer)
 
     OutStream << EndL;
     OutStream << "Registers : " << EndL;
-    DumpRegisters(&IORegs);
+    LogRegisters(&IORegs);
 
     return 0;
   }

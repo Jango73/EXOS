@@ -4,8 +4,13 @@ LD      = i686-elf-ld
 AS      = AS = i686-elf-as
 NASM    = nasm
 
-CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O2 -fno-pic -fno-stack-protector -fno-builtin -Werror-implicit-function-declaration
-AFLAGS  = -f elf -I source/
+CFLAGS  = -g -Wall -Wextra -O2 \
+	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+	-fvisibility=hidden -mno-red-zone \
+	-Werror-implicit-function-declaration -Wstrict-prototypes
+
+AFLAGS  = -f elf -g -F dwarf -I source/
 
 LDFLAGS = -T linker.ld -nostdlib -Map=bin/runtime.map
 

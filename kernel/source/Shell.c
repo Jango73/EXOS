@@ -66,7 +66,7 @@ static void CMD_irq(LPSHELLCONTEXT);
 static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
-static void CMD_dos(LPSHELLCONTEXT);
+static void CMD_test(LPSHELLCONTEXT);
 
 static struct {
     STR Name[32];
@@ -79,13 +79,13 @@ static struct {
     {"ls", "dir", "[Name] [/P]", CMD_dir},
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
-    {"run", "launch", "", CMD_run},
+    {"run", "launch", "Name", CMD_run},
     {"quit", "exit", "", CMD_exit},
     {"sys", "sysinfo", "", CMD_sysinfo},
-    {"kill", "killtask", "", CMD_killtask},
-    {"process", "showprocess", "", CMD_showprocess},
-    {"task", "showtask", "", CMD_showtask},
-    {"mem", "memedit", "", CMD_memedit},
+    {"kill", "killtask", "Number", CMD_killtask},
+    {"process", "showprocess", "Number", CMD_showprocess},
+    {"task", "showtask", "Number", CMD_showtask},
+    {"mem", "memedit", "Address", CMD_memedit},
     {"cat", "type", "", CMD_cat},
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
@@ -95,7 +95,7 @@ static struct {
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
     {"reboot", "reboot", "", CMD_reboot},
-    {"dos", "dos", "", CMD_dos},
+    {"test", "test", "", CMD_test},
     {"", "", "", NULL},
 };
 
@@ -386,8 +386,8 @@ static void ListFile(LPFILE File) {
     }
 
     ConsolePrint(
-        TEXT(" %02d-%02d-%04d %02d:%02d "), File->Creation.Day, File->Creation.Month, File->Creation.Year,
-        File->Creation.Hour, File->Creation.Minute);
+        TEXT(" %d-%d-%d %d:%d "), (I32)File->Creation.Day, (I32)File->Creation.Month, (I32)File->Creation.Year,
+        (I32)File->Creation.Hour, (I32)File->Creation.Minute);
 
     // Print attributes
 
@@ -559,9 +559,7 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
     ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
     ConsolePrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
-    ConsolePrint((LPCSTR) "Stub address              : %p\n", StubAddress);
-    ConsolePrint((LPCSTR) "Loader SS                 : %04X\n", KernelStartup.Loader_SS);
-    ConsolePrint((LPCSTR) "Loader SP                 : %04X\n", KernelStartup.Loader_SP);
+    ConsolePrint((LPCSTR) "Stub address              : %p\n", KernelStartup.StubAddress);
 }
 
 /***************************************************************************/
@@ -789,10 +787,10 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
 static void CMD_irq(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    ConsolePrint(TEXT("8259-1 RM mask : %08b\n"), IRQMask_21_RM);
-    ConsolePrint(TEXT("8259-2 RM mask : %08b\n"), IRQMask_A1_RM);
-    ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), IRQMask_21);
-    ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), IRQMask_A1);
+    ConsolePrint(TEXT("8259-1 RM mask : %08b\n"), KernelStartup.IRQMask_21_RM);
+    ConsolePrint(TEXT("8259-2 RM mask : %08b\n"), KernelStartup.IRQMask_A1_RM);
+    ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), KernelStartup.IRQMask_21_PM);
+    ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), KernelStartup.IRQMask_A1_PM);
 }
 
 /***************************************************************************/
@@ -813,7 +811,7 @@ static void CMD_inp(LPSHELLCONTEXT Context) {
     ParseNextComponent(Context);
     Port = StringToU32(Context->Command);
     Data = InPortByte(Port);
-    ConsolePrint(TEXT("Port %04X = %02X\n"), Port, Data);
+    ConsolePrint(TEXT("Port %X = %X\n"), Port, Data);
 }
 
 /***************************************************************************/
@@ -826,11 +824,23 @@ static void CMD_reboot(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static void CMD_dos(LPSHELLCONTEXT Context) {
+static void CMD_test(LPSHELLCONTEXT Context) {
+    TASKINFO TaskInfo;
+
     UNUSED(Context);
 
-    ClearConsole();
-    Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
+    KernelLogText(LOG_DEBUG, TEXT("[Shell] Creating test task : ClockTask"));
+
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
+    TaskInfo.Func = ClockTask;
+    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+    TaskInfo.Priority = TASK_PRIORITY_LOWEST;
+    TaskInfo.Flags = 0;
+
+    TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
+    CreateTask(&KernelProcess, &TaskInfo);
 }
 
 /***************************************************************************/
@@ -914,7 +924,7 @@ U32 Shell(LPVOID Param) {
     while (ParseCommand(&Context)) {
     }
 
-    ConsolePrint(TEXT("Exiting shell...\n"));
+    ConsolePrint(TEXT("Exiting shell\n"));
 
     DeinitShellContext(&Context);
 

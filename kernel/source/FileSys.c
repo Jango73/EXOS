@@ -20,7 +20,7 @@ extern BOOL MountPartition_XFS(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 
 /***************************************************************************/
 
-U32 GetNumFileSystems() { return Kernel.FileSystem->NumItems; }
+U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
 
 /***************************************************************************/
 
@@ -101,23 +101,23 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
-                    KernelLogText(LOG_VERBOSE, TEXT("Mounting FAT16 partition..."));
+                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting FAT16 partition"));
                     MountPartition_FAT16(Disk, Partition + Index, Base);
                 } break;
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
-                    KernelLogText(LOG_VERBOSE, TEXT("Mounting FAT32 partition..."));
+                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting FAT32 partition"));
                     MountPartition_FAT32(Disk, Partition + Index, Base);
                 } break;
 
                 case FSID_EXOS: {
-                    KernelLogText(LOG_VERBOSE, TEXT("Mounting XFS partition..."));
+                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting XFS partition"));
                     MountPartition_XFS(Disk, Partition + Index, Base);
                 } break;
 
                 default: {
-                    KernelLogText(LOG_VERBOSE, TEXT("Partition type %02X not implemented\n"), Partition[Index].Type);
+                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Partition type %X not implemented\n"), (U32)Partition[Index].Type);
                 } break;
             }
         }

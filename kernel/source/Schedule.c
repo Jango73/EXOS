@@ -10,10 +10,10 @@
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
+#include "../include/System.h"
 #include "../include/Task.h"
-
-/***************************************************************************/
 
 typedef struct tag_TASKLIST {
     U32 Freeze;
@@ -26,11 +26,18 @@ typedef struct tag_TASKLIST {
 
 /***************************************************************************/
 
-static TASKLIST TaskList = {0, 0, 20, 1, &KernelTask, {&KernelTask}};
+static TASKLIST TaskList = {
+    .Freeze = 0,
+    .SchedulerTime = 0,
+    .TaskTime = 20,
+    .NumTasks = 0,
+    .Current = NULL,
+    .Tasks = {NULL}
+};
 
 /***************************************************************************/
 
-void UpdateScheduler() {
+void UpdateScheduler(void) {
     U32 Index = 0;
 
     for (Index = 0; Index < TaskList.NumTasks; Index++) {
@@ -62,22 +69,34 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     //-------------------------------------
     // Check if task queue is full
 
-    if (TaskList.NumTasks == NUM_TASKS) goto Out_Error;
+    if (TaskList.NumTasks == NUM_TASKS) {
+        KernelLogText(LOG_ERROR, TEXT("[AddTaskToQueue] Cannot add %X, too much tasks"), NewTask);
+        goto Out_Error;
+    }
 
     //-------------------------------------
     // Check if task already in task queue
 
     for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        if (TaskList.Tasks[Index] == NewTask) goto Out_Error;
+        if (TaskList.Tasks[Index] == NewTask) goto Out_Success;
     }
 
     //-------------------------------------
     // Add task to queue
 
+    KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
+
     TaskList.Tasks[TaskList.NumTasks] = NewTask;
+
+    if (TaskList.NumTasks == 0) {
+        TaskList.Current = NewTask;
+    }
+
     TaskList.NumTasks++;
 
     UpdateScheduler();
+
+Out_Success:
 
     UnfreezeScheduler();
     return TRUE;
@@ -114,138 +133,91 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
 
 /***************************************************************************/
 
-static void RotateQueue() {
-    U32 Index = 0;
+static void RotateQueue(void) {
+    if (TaskList.NumTasks > 1) {
+        TaskList.Current = TaskList.Tasks[0];
 
-    TaskList.Current = TaskList.Tasks[0];
+        for (U32 Index = 1; Index < TaskList.NumTasks; Index++) {
+            TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
+        }
 
-    for (Index = 1; Index < TaskList.NumTasks; Index++) {
-        TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
+        TaskList.Tasks[TaskList.NumTasks - 1] = TaskList.Current;
     }
-
-    TaskList.Tasks[TaskList.NumTasks - 1] = TaskList.Current;
 }
 
 /***************************************************************************/
 
-void Scheduler() {
+void Scheduler(LPTRAPFRAME Frame) {
     TaskList.SchedulerTime += 10;
+
+    if (TaskList.Current && Frame) {
+        TaskList.Current->Context = *Frame;
+    }
 
     if (TaskList.Freeze) return;
 
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
-        DisableInterrupts();
-
         TaskList.SchedulerTime = 0;
+
+        LPTASK Current = TaskList.Current;
 
         while (1) {
             RotateQueue();
 
-            TaskList.TaskTime = TaskList.Current->Time;
+            LPTASK Next = TaskList.Current;
+            TaskList.TaskTime = Next->Time;
 
-            switch (TaskList.Current->Status) {
+            switch (Next->Status) {
                 case TASK_STATUS_RUNNING: {
-                    /*
-                          switch (CharSequence)
-                          {
-                        case 0 : *((LPSTR)0xB8000) = '/'; break;
-                        case 1 : *((LPSTR)0xB8000) = '\\'; break;
-                          }
-                          CharSequence = 1 - CharSequence;
-                    */
-
-                    /*
-                          if (TaskList.Current == &KernelTask)
-                          {
-                        STR Temp [8];
-                        LPLISTNODE Node;
-
-                        Index = 0;
-                        for (Node = Kernel.Task->First; Node; Node =
-                       Node->Next)
-                        {
-                          U32ToString(((LPTASK)Node)->Status, Temp);
-                          *((LPSTR) 0xB8000 + Index) = Temp[0];
-                          Index += 2;
+                    if (Next != Current) {
+                        if (Next->Process && Current && Next->Process->PageDirectory != Current->Process->PageDirectory) {
+                            // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
+                            LoadPageDirectory(Next->Process->PageDirectory);
                         }
-                          }
-                    */
 
-                    /*
-                          if (TaskList.Current == &KernelTask)
-                          {
-                        LPLISTNODE Node;
-                        LPTASK Task;
-                        U32 Value;
-                        for (Node = Kernel.Task->First, Index = 0; Node;
-                       Node = Node->Next)
-                        {
-                          Task = (LPTASK) Node;
+                        // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), Next->SysStackTop);
+                        Kernel_i386.TSS->ESP0 = Next->SysStackTop;
 
-                          switch (Task->Status)
-                          {
-                            case TASK_STATUS_DEAD     : Value =
-                       0x00FFFFFF; break; case TASK_STATUS_RUNNING  : Value =
-                       0x0000FF00; break; case TASK_STATUS_SLEEPING : Value =
-                       0x000000FF; break; case TASK_STATUS_WAITING  : Value =
-                       0x00FF0000; break;
-                          }
+                        *Frame = Next->Context;
 
-                          *((U8*)0xA0000+Index+0) = Value >> 0;
-                          *((U8*)0xA0000+Index+1) = Value >> 8;
-                          *((U8*)0xA0000+Index+2) = Value >> 16;
-                          *((U8*)0xA0000+Index+3) = Value >> 0;
-                          *((U8*)0xA0000+Index+4) = Value >> 8;
-                          *((U8*)0xA0000+Index+5) = Value >> 16;
-                          Index += 9;
-                        }
-                          }
-                    */
-
-                    //-------------------------------------
-                    // Set the TSS descriptor "not busy" before jumping to it
-
-                    TTD[TaskList.Current->Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
-
-                    //-------------------------------------
-                    // Switch to the new current task
-
-                    SwitchToTask(TaskList.Current->Selector);
-
-                    //-------------------------------------
-                    // Immediately return when scheduler comes back
-
-                    EnableInterrupts();
+                        TaskList.Current = Next;
+                    }
                     return;
                 } break;
 
                 case TASK_STATUS_SLEEPING: {
-                    if (GetSystemTime() >= TaskList.Current->WakeUpTime) {
-                        //-------------------------------------
-                        // Wake-up the task
-
-                        TaskList.Current->Status = TASK_STATUS_RUNNING;
+                    if (GetSystemTime() >= Next->WakeUpTime) {
+                        Next->Status = TASK_STATUS_RUNNING;
                     }
                 } break;
             }
-        }
 
-        EnableInterrupts();
-        return;
+            if (Next == Current) {
+                return;
+            }
+        }
     }
 }
 
 /***************************************************************************/
 
-LPPROCESS GetCurrentProcess() { return GetCurrentTask()->Process; }
+LPPROCESS GetCurrentProcess(void) {
+    LPTASK Task = GetCurrentTask();
+    SAFE_USE(Task) {
+        return Task->Process;
+    }
+    return NULL;
+}
 
 /***************************************************************************/
 
-LPTASK GetCurrentTask() { return TaskList.Current; }
+LPTASK GetCurrentTask(void) {
+    return TaskList.Current;
+}
 
 /***************************************************************************/
 
-BOOL FreezeScheduler() {
+BOOL FreezeScheduler(void) {
     LockMutex(MUTEX_SCHEDULE, INFINITY);
     TaskList.Freeze++;
     UnlockMutex(MUTEX_SCHEDULE);
@@ -254,7 +226,7 @@ BOOL FreezeScheduler() {
 
 /***************************************************************************/
 
-BOOL UnfreezeScheduler() {
+BOOL UnfreezeScheduler(void) {
     LockMutex(MUTEX_SCHEDULE, INFINITY);
     if (TaskList.Freeze) TaskList.Freeze--;
     UnlockMutex(MUTEX_SCHEDULE);

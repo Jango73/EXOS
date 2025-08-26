@@ -10,7 +10,7 @@
 #include "../include/Clock.h"
 
 #include "../include/I386.h"
-#include "../include/Schedule.h"
+#include "../include/Log.h"
 #include "../include/String.h"
 #include "../include/System.h"
 #include "../include/Text.h"
@@ -21,11 +21,11 @@
 
 /***************************************************************************/
 
-static U32 RawSystemTime = 0;
+static U32 RawSystemTime = 10;
 
 /***************************************************************************/
 
-void InitializeClock() {
+void InitializeClock(void) {
     // The 8254 Timer Chip receives 1,193,180 signals from
     // the system, so to increment a 10 millisecond counter,
     // our interrupt handler must be called every 11,932 signal
@@ -34,7 +34,6 @@ void InitializeClock() {
     U32 Flags;
 
     SaveFlags(&Flags);
-    DisableInterrupts();
 
     OutPortByte(CLOCK_COMMAND, 0x36);
     OutPortByte(CLOCK_DATA, (U8)(11932 >> 0));
@@ -47,7 +46,7 @@ void InitializeClock() {
 
 /***************************************************************************/
 
-U32 GetSystemTime() { return RawSystemTime; }
+U32 GetSystemTime(void) { return RawSystemTime; }
 
 /***************************************************************************/
 
@@ -77,16 +76,8 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
 
 /***************************************************************************/
 
-void ClockHandler() {
-    static BOOL Busy = FALSE;
-
-    if (Busy == FALSE) {
-        Busy = TRUE;
-        RawSystemTime += 10;
-        Busy = FALSE;
-    }
-
-    Scheduler();
+void ClockHandler(void) {
+    RawSystemTime += 10;
 }
 
 /***************************************************************************/

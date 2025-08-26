@@ -5,4 +5,4 @@ if [ $# -lt 2 ]; then
     exit 1
 fi
 
-node dump-elf-around-address.js "$1" "$2" "${3:-64}" "$4"
+node scripts/dump-elf-around-address.js "$1" "$2" "${3:-64}" "$4"

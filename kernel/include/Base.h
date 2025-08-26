@@ -53,14 +53,14 @@ typedef U8* LPPAGEBITMAP;
 
 /***************************************************************************/
 
-typedef struct tag_U64 {
+typedef struct __attribute__((packed)) tag_U64 {
     U32 LO;
     U32 HI;
 } U64;
 
 /***************************************************************************/
 
-typedef struct tag_U128 {
+typedef struct __attribute__((packed)) tag_U128 {
     U64 LO;
     U64 HI;
 } U128;
@@ -91,14 +91,21 @@ typedef U32 BOOL;
 /***************************************************************************/
 // Utilities
 
-#define UNUSED(x) (void)(x)
+#define UNUSED(x)               (void)(x)
+#define SAFE_USE(a)             if ((a) != NULL)
+#define SAFE_USE_2(a,b)         if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_VALID(a)       if ((a) != NULL && IsValidMemory((LINEAR) a))
+#define SAFE_USE_VALID_2(a,b)   if ((a) != NULL && IsValidMemory((LINEAR) a) && (b) != NULL && IsValidMemory((LINEAR) b))
+#define SAFE_USE_VALID_ID(a,i)  if ((a) != NULL && IsValidMemory((LINEAR) a) && (a->ID == i))
+
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
 // Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
 // clobber.
-#define SLEEPING_BEAUTY       \
+#define DO_THE_SLEEPING_BEAUTY       \
     do {                      \
         __asm__ __volatile__( \
             "1:\n\t"          \
+            "cli\n\t"         \
             "hlt\n\t"         \
             "jmp 1b\n\t"      \
             :                 \
@@ -132,6 +139,7 @@ typedef U32 BOOL;
 #define N_4B ((U32)0x00000004)
 #define N_8B ((U32)0x00000008)
 #define N_1KB ((U32)0x00000400)
+#define N_2KB ((U32)0x00000800)
 #define N_4KB ((U32)0x00001000)
 #define N_8KB ((U32)0x00002000)
 #define N_16KB ((U32)0x00004000)
@@ -144,6 +152,11 @@ typedef U32 BOOL;
 #define N_2MB ((U32)0x00200000)
 #define N_3MB ((U32)0x00300000)
 #define N_4MB ((U32)0x00400000)
+#define N_8MB ((U32)0x00800000)
+#define N_16MB ((U32)0x01000000)
+#define N_32MB ((U32)0x02000000)
+#define N_64MB ((U32)0x04000000)
+#define N_128MB ((U32)0x08000000)
 #define N_1GB ((U32)0x40000000)
 #define N_2GB ((U32)0x80000000)
 #define N_4GB ((U32)0xFFFFFFFF)
@@ -209,6 +222,26 @@ typedef U32 BOOL;
 #define BIT_13 0x2000
 #define BIT_14 0x4000
 #define BIT_15 0x8000
+
+/***************************************************************************/
+
+#define BIT_0_VALUE(a) (((a) >> 0) & 1)
+#define BIT_1_VALUE(a) (((a) >> 1) & 1)
+#define BIT_2_VALUE(a) (((a) >> 2) & 1)
+#define BIT_3_VALUE(a) (((a) >> 3) & 1)
+#define BIT_4_VALUE(a) (((a) >> 4) & 1)
+#define BIT_5_VALUE(a) (((a) >> 5) & 1)
+#define BIT_6_VALUE(a) (((a) >> 6) & 1)
+#define BIT_7_VALUE(a) (((a) >> 7) & 1)
+
+#define BIT_8_VALUE(a) (((a) >> 8) & 1)
+#define BIT_9_VALUE(a) (((a) >> 9) & 1)
+#define BIT_10_VALUE(a) (((a) >> 10) & 1)
+#define BIT_11_VALUE(a) (((a) >> 11) & 1)
+#define BIT_12_VALUE(a) (((a) >> 12) & 1)
+#define BIT_13_VALUE(a) (((a) >> 13) & 1)
+#define BIT_14_VALUE(a) (((a) >> 14) & 1)
+#define BIT_15_VALUE(a) (((a) >> 15) & 1)
 
 /***************************************************************************/
 // This macro gives the offset of a structure member

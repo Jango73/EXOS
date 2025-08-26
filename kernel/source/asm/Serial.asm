@@ -7,6 +7,8 @@
 
 %include "./Kernel.inc"
 
+COMPort_Debug equ 0x2F8
+
 section .text.stub2
 bits 32
 
@@ -20,67 +22,68 @@ bits 32
 ;--------------------------------------
 ; Initialize COM1 for 38400 8N1
 SerialInit:
-    mov     dx, 0x3F8 + 1
+    mov     dx, COMPort_Debug + 1
     mov     al, 0x00
     out     dx, al                ; Disable interrupts
 
-    mov     dx, 0x3F8 + 3
+    mov     dx, COMPort_Debug + 3
     mov     al, 0x80
     out     dx, al                ; Enable DLAB
 
-    mov     dx, 0x3F8 + 0
+    mov     dx, COMPort_Debug + 0
     mov     al, 0x03
     out     dx, al                ; Set baud rate divisor (low byte)
 
-    mov     dx, 0x3F8 + 1
+    mov     dx, COMPort_Debug + 1
     mov     al, 0x00
     out     dx, al                ; High byte divisor
 
-    mov     dx, 0x3F8 + 3
+    mov     dx, COMPort_Debug + 3
     mov     al, 0x03
     out     dx, al                ; 8 bits, no parity, 1 stop bit
 
-    mov     dx, 0x3F8 + 2
+    mov     dx, COMPort_Debug + 2
     mov     al, 0xC7
     out     dx, al                ; Enable FIFO
 
-    mov     dx, 0x3F8 + 4
+    mov     dx, COMPort_Debug + 4
     mov     al, 0x0B
     out     dx, al                ; IRQs enabled, RTS/DSR set
     ret
 
 ;--------------------------------------
-; Write a single character to COM1
+; Write a single character to COM
 ; AL - character to send
 SerialWriteChar:
     mov     ah, al                ; Save character
+
 .wait:
-    mov     dx, 0x3F8 + 5
+    mov     dx, COMPort_Debug + 5
     in      al, dx
     test    al, 0x20
     jz      .wait
 
-    mov     dx, 0x3F8
+    mov     dx, COMPort_Debug
     mov     al, ah                ; Restore character
     out     dx, al
     ret
 
 ;--------------------------------------
-; Write a space to COM1
+; Write a space to COM
 SerialWriteSpace:
     mov     al, ' '
     call    SerialWriteChar
     ret
 
 ;--------------------------------------
-; Write a new line to COM1
+; Write a new line to COM
 SerialWriteNewLine:
     mov     al, 10
     call    SerialWriteChar
     ret
 
 ;--------------------------------------
-; Write a zero-terminated string to COM1
+; Write a zero-terminated string to COM
 ; ESI - pointer to string
 SerialWriteString:
 .loop:

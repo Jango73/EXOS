@@ -47,7 +47,7 @@ typedef struct tag_RAMDISK {
 
 /***************************************************************************/
 
-static LPRAMDISK NewRAMDisk() {
+static LPRAMDISK NewRAMDisk(void) {
     LPRAMDISK This;
 
     This = (LPRAMDISK)KernelMemAlloc(sizeof(RAMDISK));
@@ -381,7 +381,7 @@ ClusterEntry6);
 
 /***************************************************************************/
 
-static U32 RAMDiskInitialize() {
+static U32 RAMDiskInitialize(void) {
     PARTITION_CREATION Create;
     LPBOOTPARTITION Partition;
     LPRAMDISK Disk;
@@ -392,10 +392,9 @@ static U32 RAMDiskInitialize() {
     if (Disk == NULL) return DF_ERROR_NOMEMORY;
 
     Disk->Size = N_512KB;
-    Disk->Base = VirtualAlloc(LA_RAMDISK, Disk->Size, ALLOC_PAGES_COMMIT);
+    Disk->Base = AllocRegion(0, 0, Disk->Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Disk->Base == NULL) {
-        VirtualFree(LA_RAMDISK, Disk->Size);
         return DF_ERROR_NOMEMORY;
     }
 

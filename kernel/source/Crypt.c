@@ -10,6 +10,7 @@
 #include "../include/Crypt.h"
 
 #include "../include/String.h"
+#include "../include/System.h"
 
 /***************************************************************************/
 

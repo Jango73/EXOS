@@ -14,39 +14,22 @@
 
 /***************************************************************************/
 
-#include "Address.h"
+#include "I386.h"
 #include "Base.h"
 #include "Heap.h"
 #include "ID.h"
 #include "List.h"
+#include "Memory.h"
 #include "Process.h"
 #include "String.h"
 #include "Text.h"
 #include "User.h"
-#include "VMM.h"
 
 /***************************************************************************/
 
 #pragma pack(1)
 
 /***************************************************************************/
-
-// Structure to receive information about a segment in a more friendly way
-
-typedef struct tag_SEGMENTINFO {
-    U32 Base;
-    U32 Limit;
-    U32 Type;
-    U32 Privilege;
-    U32 Granularity;
-    U32 CanWrite;
-    U32 OperandSize;
-    U32 Conforming;
-    U32 Present;
-} SEGMENTINFO, *LPSEGMENTINFO;
-
-/***************************************************************************/
-
 // Structure to receive CPU information
 
 typedef struct tag_CPUINFORMATION {
@@ -59,90 +42,54 @@ typedef struct tag_CPUINFORMATION {
 } CPUINFORMATION, *LPCPUINFORMATION;
 
 /***************************************************************************/
-
-typedef struct tag_KERNELSTARTUPINFO {
-    U32 Loader_SS;
-    U32 Loader_SP;
-    U32 IRQMask_21_RM;
-    U32 IRQMask_A1_RM;
-    U32 ConsoleWidth;
-    U32 ConsoleHeight;
-    U32 ConsoleCursorX;
-    U32 ConsoleCursorY;
-    U32 MemorySize;
-} KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
-
-#define KERNEL_STARTUP_INFO_OFFSET 32
-
-/***************************************************************************/
-
-// Kernel selectors
+// Selectors
 
 #define SELECTOR_GLOBAL 0x00
 #define SELECTOR_LOCAL 0x04
 
 #define SELECTOR_NULL 0x00
-#define SELECTOR_UNUSED 0x08
-#define SELECTOR_KERNEL_CODE (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_KERNEL_DATA (0x18 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_USER_CODE (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_USER_DATA (0x28 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_REAL_CODE (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_REAL_DATA (0x38 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_TSS_0 (0x40 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_TSS_1 (0x50 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_KERNEL_CODE (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_KERNEL_DATA (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_USER_CODE (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+#define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+#define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
 /***************************************************************************/
 
-// Task selectors
-
-#define TASK_SELECTOR_NULL 0x0000
-#define TASK_SELECTOR_RAM 0x0008
-#define TASK_SELECTOR_CODE 0x0010
-#define TASK_SELECTOR_DATA 0x0018
-#define TASK_SELECTOR_HEAP 0x0020
-#define TASK_SELECTOR_STAK 0x0028
-
-#define TASK_SELINDEX_NULL 0
-#define TASK_SELINDEX_RAM 1
-#define TASK_SELINDEX_CODE 2
-#define TASK_SELINDEX_DATA 3
-#define TASK_SELINDEX_HEAP 4
-#define TASK_SELINDEX_STAK 5
-
-/***************************************************************************/
-
-#define DESCRIPTOR_SIZE 8
-#define IDT_NUM_DESCRIPTORS (IDT_SIZE / DESCRIPTOR_SIZE)
+#define DESCRIPTOR_SIZE 10
 #define GDT_NUM_DESCRIPTORS (GDT_SIZE / DESCRIPTOR_SIZE)
 #define GDT_NUM_BASE_DESCRIPTORS 8
-#define GDT_NUM_DESCRIPTORS_PER_TASK 2
-#define LDT_NUM_DESCRIPTORS 6
+#define GDT_TSS_INDEX      GDT_NUM_BASE_DESCRIPTORS
+#define SELECTOR_TSS       MAKE_GDT_SELECTOR(GDT_TSS_INDEX, 0)
 
-#define TSK_NUM_TASKS (TSK_SIZE / TSS_SIZE)
+#define GDT_NUM_TASKS (GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS)
+#define NUM_TASKS GDT_NUM_TASKS
 
-#define GDT_NUM_TASKS ((GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS) / GDT_NUM_DESCRIPTORS_PER_TASK)
+#define IDT_SIZE N_4KB
+#define GDT_SIZE N_8KB
 
-#define LA_GDT_TASK (LA_GDT + (GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE))
+/***************************************************************************/
+// Static linear addresses (VMA)
+// All processes have the following address space layout
 
-#define GDT_TASK_DESCRIPTORS_SIZE (GDT_NUM_DESCRIPTORS_PER_TASK * DESCRIPTOR_SIZE)
+#define LA_RAM 0x00000000        // Reserved for kernel
+#define LA_VIDEO 0x000A0000      // Reserved for kernel
+#define LA_CONSOLE 0x000B8000    // Reserved for kernel
+#define LA_USER 0x00400000       // Start of user address space
+#define LA_LIBRARY 0xA0000000    // Dynamic Libraries
+#define LA_KERNEL 0xC0000000     // Kernel
 
 /***************************************************************************/
 
 #define NUM_INTERRUPTS 48
 
-#if 0
-#define NUM_TASKS (GDT_NUM_TASKS < TSK_NUM_TASKS ? GDT_NUM_TASKS : TSK_NUM_TASKS)
-#endif
-
-#define NUM_TASKS 64
-
 /***************************************************************************/
-
 // The EXOS interrupt for user functions
 
 #define EXOS_USER_CALL 0x80
 
+/***************************************************************************/
 // The EXOS interrupt for driver functions
 
 #define EXOS_DRIVER_CALL 0x81
@@ -151,16 +98,58 @@ typedef struct tag_KERNELSTARTUPINFO {
 
 // Global Kernel Data
 
+#define KERNEL_PHYSICAL_ORIGIN 0x20000
+#define RESERVED_LOW_MEMORY N_4MB
+#define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
+
+typedef struct tag_E820ENTRY {
+    U64 Base;
+    U64 Size;
+    U32 Type;
+    U32 Attributes;
+} E820ENTRY, *LPE820ENTRY;
+
+typedef struct tag_KERNELSTARTUPINFO {
+    PHYSICAL StubAddress;
+    PHYSICAL PageDirectory;
+    U32 IRQMask_21_PM;
+    U32 IRQMask_A1_PM;
+    U32 IRQMask_21_RM;
+    U32 IRQMask_A1_RM;
+    U32 ConsoleX;
+    U32 ConsoleY;
+    U32 MemorySize;         // Total memory size in bytes
+    U32 PageCount;          // Total memory size in pages (4K)
+    U32 E820_Count;         // BIOS E820 function entries
+    E820ENTRY E820 [N_4KB / sizeof(E820ENTRY)];
+} KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
+
+extern KERNELSTARTUPINFO KernelStartup;
+
+// These structures are allocated in Memory.c
+
+typedef struct tag_KERNELDATA_I386 {
+    LPGATEDESCRIPTOR IDT;
+    LPSEGMENTDESCRIPTOR GDT;
+    LPTASKSTATESEGMENT TSS;
+    LPPAGEBITMAP PPB;
+} KERNELDATA_I386, *LPKERNELDATA_I386;
+
+extern KERNELDATA_I386 Kernel_i386;
+
 typedef struct tag_KERNELDATA {
     LPLIST Desktop;
     LPLIST Process;
     LPLIST Task;
     LPLIST Mutex;
     LPLIST Disk;
+    LPLIST PCIDevice;
     LPLIST FileSystem;
     LPLIST File;
     CPUINFORMATION CPU;
 } KERNELDATA, *LPKERNELDATA;
+
+extern KERNELDATA Kernel;
 
 /***************************************************************************/
 
@@ -168,37 +157,24 @@ typedef struct tag_KERNELDATA {
 
 LPVOID KernelMemAlloc(U32);
 void KernelMemFree(LPVOID);
-void SetGateDescriptorOffset(LPGATEDESCRIPTOR, U32);
 BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR, LPSEGMENTINFO);
-void DumpRegisters(LPINTEL386REGISTERS);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);
-U32 GetPhysicalMemoryUsed();
-void TestProcess();
-void InitializeKernel();
-
-/***************************************************************************/
-
-// Variables in Kernel.c
-
-extern KERNELSTARTUPINFO KernelStartup;
-extern LPGATEDESCRIPTOR IDT;
-extern LPSEGMENTDESCRIPTOR GDT;
-extern LPTASKTSSDESCRIPTOR TTD;
-extern LPTASKSTATESEGMENT TSS;
-extern LPPAGEBITMAP PPB;
-extern KERNELDATA Kernel;
-extern PHYSICAL StubAddress;
+U32 GetPhysicalMemoryUsed(void);
+void TestProcess(void);
+void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
 
 /***************************************************************************/
 
 // Functions in Segment.c
 
 void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR, U32);
-void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR, U32);
-void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR, U32);
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR, U32);
-void SetTSSDescriptorLimit(LPTSSDESCRIPTOR, U32);
+void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table);
+void InitializeTaskSegments(void);
+void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR Desc, U32 Base);
+void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR Desc, U32 Limit);
+void SetTSSDescriptorBase(LPTSSDESCRIPTOR Desc, U32 Base);
+void SetTSSDescriptorLimit(LPTSSDESCRIPTOR Desc, U32 Limit);
 
 /***************************************************************************/
 

@@ -57,8 +57,11 @@ len=$((size + len_adj))
 [ "$len" -le "$size" ] || len="$size"
 
 # Sum bytes modulo 2^32 (do modulo in-loop for huge files)
-cs=$(LC_ALL=C od -An -t u1 -N "$len" "$FILE" \
-	| awk '{for(i=1;i<=NF;i++){s+= $i; if (s>=4294967296) s%=4294967296}} END {printf "%u", s+0}')
+cs=$(
+    head -c "$len" "$FILE" \
+    | od -An -v -tu1 \
+    | awk '{for(i=1;i<=NF;i++){s+=$i; if(s>=4294967296)s-=4294967296}} END{printf "%u", s+0}'
+)
 
 # Log to stderr (informational)
 printf 'checksum (dec): %s\n' "$cs" >&2

@@ -68,9 +68,9 @@ EFLAGS_VM    equ 0x00020000
 ;----------------------------------------------------------
 ; Bit layout of CR0
 
-CR0_PROTECTEDMODE equ 0x00000001
+CR0_PROTECTED_MODE equ 0x00000001
 CR0_COPROCESSOR   equ 0x00000002
-CR0_MONITORCOPRO  equ 0x00000004
+CR0_MONITOR_COPROCESSOR  equ 0x00000004
 CR0_TASKSWITCH    equ 0x00000008
 CR0_80387         equ 0x00000010
 CR0_PAGING        equ 0x80000000
@@ -95,53 +95,26 @@ PAGE_BIT_FIXED     equ 0x00000800
 
 PAGE_BIT_SYSTEM    equ (PAGE_BIT_PRESENT | PAGE_BIT_RDWR | PAGE_BIT_FIXED)
 
+PAGE_SIZE_MUL      equ MUL_4KB
+
 ;----------------------------------------------------------
 ; Physical and virtual memory addresses
 
-LOW_SIZE     equ N_1MB ; Low Memory Area Size
-HMA_SIZE     equ N_128KB ; High Memory Area Size
-IDT_SIZE     equ N_4KB ; Interrupt Descriptor Table Size
-GDT_SIZE     equ N_8KB ; Kernel Global Descriptor Table Size
-PGD_SIZE     equ PAGE_TABLE_SIZE ; Kernel Page Directory Size
-PGS_SIZE     equ PAGE_TABLE_SIZE ; System Page Table Size
-PGK_SIZE     equ PAGE_TABLE_SIZE ; Kernel Page Table Size
-PGL_SIZE     equ PAGE_TABLE_SIZE ; Low Memory Page Table size
-PGH_SIZE     equ PAGE_TABLE_SIZE ; High Memory Page Table size
-TSS_SIZE     equ N_32KB ; Task State Segment Size
-PPB_SIZE     equ N_128KB ; Physical Page Bitmap Size
-KER_SIZE     equ (N_4KB * 34) ; Kernel image size (padded)
-BSS_SIZE     equ N_4KB ; Kernel BSS Size
-STK_SIZE     equ N_32KB ; Kernel Stack Size
-
-SYS_SIZE     equ (IDT_SIZE + GDT_SIZE + PGD_SIZE + PGS_SIZE + PGK_SIZE + PGL_SIZE + PGH_SIZE + TSS_SIZE + PPB_SIZE + KER_SIZE)
-
-PA_LOW       equ 0x00000000
-PA_HMA       equ (PA_LOW + LOW_SIZE) ; Physical address of High Memory Area
-PA_IDT       equ (PA_HMA + HMA_SIZE) ; Physical address of Interrupt Descriptor Table
-PA_GDT       equ (PA_IDT + IDT_SIZE) ; Physical address of Kernel Global Descriptor Table
-PA_PGD       equ (PA_GDT + GDT_SIZE) ; Physical address of Kernel Page Directory
-PA_PGS       equ (PA_PGD + PGD_SIZE) ; Physical address of System Page Table
-PA_PGK       equ (PA_PGS + PGS_SIZE) ; Physical address of Kernel Page Table
-PA_PGL       equ (PA_PGK + PGK_SIZE) ; Physical address of Low Memory Page Table
-PA_PGH       equ (PA_PGL + PGL_SIZE) ; Physical address of High Memory Page Table
-PA_TSS       equ (PA_PGH + PGH_SIZE) ; Physical address of Task State Segment
-PA_PPB       equ (PA_TSS + TSS_SIZE) ; Physical address of Physical Page Bitmap
-PA_KER       equ (PA_PPB + PPB_SIZE) ; Physical address of Kernel code and data size (estimated)
-PA_BSS       equ (PA_KER + KER_SIZE) ; Physical address of Kernel Stack
-PA_STK       equ (PA_BSS + BSS_SIZE) ; Physical address of Kernel BSS
-
-PA_SYSTEM    equ PA_IDT
+IDT_SIZE     equ N_4KB
+GDT_SIZE     equ N_8KB
 
 LA_USER      equ 0x00400000
 LA_LIBRARY   equ 0xA0000000
 LA_KERNEL    equ 0xC0000000
-LA_SYSTEM    equ 0xFF400000
-LA_DIRECTORY equ 0xFF800000
 
-LA_IDT       equ LA_SYSTEM
-LA_GDT       equ (LA_IDT + IDT_SIZE)
-
-KERNEL_STARTUP_INFO_OFFSET	equ 32
+LOW_MEMORY_PAGE_1   equ 0x1000  ; Reserved by VBR system structures
+LOW_MEMORY_PAGE_2   equ 0x2000  ; Reserved by VBR system structures
+LOW_MEMORY_PAGE_3   equ 0x3000  ; Reserved by VBR system structures
+LOW_MEMORY_PAGE_4   equ 0x4000
+LOW_MEMORY_PAGE_5   equ 0x5000  ; RMC code base
+LOW_MEMORY_PAGE_6   equ 0x6000  ; RMC buffers
+LOW_MEMORY_PAGE_7   equ 0x7000
+LOW_MEMORY_PAGE_8   equ 0x8000
 
 ;----------------------------------------------------------
 ; Values related to IDT, GDT, LDT
@@ -150,9 +123,6 @@ SEGMENT_DESCRIPTOR_SIZE equ 8
 GATE_DESCRIPTOR_SIZE    equ 8
 
 NUM_INTS                equ 256
-NUM_DESCRIPTORS         equ 8
-NUM_TASKS               equ 128
-NUM_LOCAL_DESCRIPTORS   equ 4
 
 ;----------------------------------------------------------
 ; Privilege levels
@@ -172,17 +142,12 @@ SELECTOR_LOCAL  equ 0x04
 ; Kernel selectors
 
 SELECTOR_NULL        equ 0x00
-SELECTOR_UNUSED      equ 0x08
-SELECTOR_KERNEL_CODE equ (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-SELECTOR_KERNEL_DATA equ (0x18 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-SELECTOR_USER_CODE   equ (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-SELECTOR_USER_DATA   equ (0x28 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-SELECTOR_REAL_CODE   equ (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-SELECTOR_REAL_DATA   equ (0x38 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-SELECTOR_TSS_0       equ (0x40 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-SELECTOR_LDT_0       equ (0x48 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-SELECTOR_TSS_1       equ (0x50 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-SELECTOR_LDT_1       equ (0x58 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+SELECTOR_KERNEL_CODE equ (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+SELECTOR_KERNEL_DATA equ (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+SELECTOR_USER_CODE   equ (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+SELECTOR_USER_DATA   equ (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+SELECTOR_REAL_CODE   equ (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+SELECTOR_REAL_DATA   equ (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
 ;----------------------------------------------------------
 
@@ -266,6 +231,47 @@ KEYBOARD_STATUS_IN_ERROR     equ 0x40
 KEYBOARD_STATUS_PARITY_ERROR equ 0x80
 
 ;----------------------------------------------------------
+; C calling macro
+
+%macro PRE_CALL_C 0
+    sub esp, 12              ; reserve 12 bytes
+    and esp, 0xFFFFFFF0      ; now esp is 16-byte aligned
+%endmacro
+
+%macro POST_CALL_C 0
+    add esp, 12
+%endmacro
+
+;----------------------------------------------------------
+; KernelStartupInfo data layout (partial)
+
+STRUC KernelStartupInfo
+    .StubAddress        RESB 4
+    .PageDirectory      RESB 4
+    .IRQMask_21_PM      RESB 4
+    .IRQMask_A1_PM      RESB 4
+    .IRQMask_21_RM      RESB 4
+    .IRQMask_A1_RM      RESB 4
+    .ConsoleX           RESB 4
+    .ConsoleY           RESB 4
+    .MemorySize         RESB 4
+    .PageCount          RESB 4
+    .E820_Count         RESB 4
+ENDSTRUC
+
+;----------------------------------------------------------
+; Kernel i386 data layout - used to fetch GDT/IDT pointers from C
+; Minimal mapping: first fields must match C struct order.
+; Keep this in sync with the C definition of 'Kernel_i386'.
+
+STRUC KERNELDATA_I386
+    .IDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
+    .GDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
+    .TSS                RESB 4        ; LPTASKSTATESEGMENT*
+    .PPB                RESB 4        ; LPPAGEBITMAP*
+ENDSTRUC
+
+;----------------------------------------------------------
 ; Extern C symbols
 
 extern KernelMain
@@ -276,6 +282,7 @@ extern ConsolePrintChar
 extern ClockTask
 extern KillTask
 extern GetCurrentTask
+extern ValidateEIPOrDie
 
 extern SystemCallHandler
 extern DriverCallHandler
@@ -302,8 +309,13 @@ extern ClockHandler
 extern KeyboardHandler
 extern MouseHandler
 extern HardDriveHandler
+extern Scheduler
 
 extern Kernel
-extern StubAddress
+extern KernelStartup
+extern __stub_init_end
+extern __stub_init_start
+extern __bss_init_end
+extern __bss_init_start
 
 ;----------------------------------------------------------

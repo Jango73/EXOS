@@ -166,7 +166,7 @@ int DumpDeviceInfo(pBlockDevice Device) {
 
 /*************************************************************************************************/
 
-int Initialize() {
+int Initialize(void) {
     union REGS Regs;
 
     Regs.w.ax = 0x0100;
@@ -187,7 +187,7 @@ int Initialize() {
 
 /*************************************************************************************************/
 
-int Deinitialize() {
+int Deinitialize(void) {
     union REGS Regs;
 
     Regs.w.ax = 0x0101;

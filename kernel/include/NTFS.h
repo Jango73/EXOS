@@ -125,4 +125,4 @@ typedef struct tag_NTFS_STDINFO {
 
 /***************************************************************************/
 
-#endif
+#endif  // NTFS_H_INCLUDED

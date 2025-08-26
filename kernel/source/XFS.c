@@ -20,12 +20,20 @@
 
 U32 XFSCommands(U32, U32);
 
-DRIVER XFSDriver = {ID_DRIVER,  1,         NULL,      NULL,      DRIVER_TYPE_FILESYSTEM,
-                    VER_MAJOR,  VER_MINOR, "Jango73", "Jango73", "XFS File System",
-                    XFSCommands};
+DRIVER XFSDriver = {
+    .ID = ID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_FILESYSTEM,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "Jango73",
+    .Product = "EXOS File System",
+    .Command = XFSCommands};
 
-
-U8 Dummy [128] = { 1, 1 };
+U8 Dummy[128] = {1, 1};
 
 /***************************************************************************/
 // The file system object allocated when mounting
@@ -610,7 +618,7 @@ static void TranslateFileInfo(LPXFSFILEREC FileRec, LPXFSFILE File) {
 
 /***************************************************************************/
 
-static U32 Initialize() { return DF_ERROR_SUCCESS; }
+static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 

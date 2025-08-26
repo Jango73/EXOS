@@ -13,6 +13,7 @@
 #include "../include/Console.h"
 #include "../include/I386.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
 #include "../include/VKey.h"
 
@@ -126,7 +127,7 @@ KEYBOARDSTRUCT Keyboard = {
 
 /***************************************************************************/
 
-static void KeyboardWait() {
+static void KeyboardWait(void) {
     U32 Index;
 
     for (Index = 0; Index < 0x100000; Index++) {
@@ -138,7 +139,7 @@ static void KeyboardWait() {
 
 /***************************************************************************/
 
-static BOOL KeyboardACK() {
+static BOOL KeyboardACK(void) {
     U32 Loop;
 
     for (Loop = 0; Loop < 0x100000; Loop++) {
@@ -379,7 +380,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
-static void UpdateKeyboardLEDs() {
+static void UpdateKeyboardLEDs(void) {
     U32 LED = 0;
 
     if (Keyboard.CapsLock) LED |= KSL_CAPS;
@@ -391,7 +392,7 @@ static void UpdateKeyboardLEDs() {
 
 /***************************************************************************/
 
-static U32 GetKeyboardLEDs() {
+static U32 GetKeyboardLEDs(void) {
     U32 LED = 0;
 
     if (Keyboard.CapsLock) LED |= KSL_CAPS;
@@ -422,18 +423,6 @@ static U32 SetKeyboardLEDs(U32 LED) {
 static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
-
-    /*
-      static U32     OldX, OldY, CurX=0;
-      OldX = Console.CursorX;
-      OldY = Console.CursorY;
-      Console.CursorX = CurX;
-      Console.CursorY = 0;
-      KernelPrint("%02X", ScanCode);
-      Console.CursorX = OldX;
-      Console.CursorY = OldY;
-      CurX+=2; if (CurX >= 80) CurX=0;
-    */
 
     if (ScanCode == 0) {
         PreviousCode = 0;
@@ -518,8 +507,6 @@ static void HandleScanCode(U32 ScanCode) {
                             TaskInfo.Flags = 0;
                             CreateTask(&KernelProcess, &TaskInfo);
                         }
-                    } else if (KeyCode.VirtualKey == VK_F10) {
-                        Exit_EXOS(KernelStartup.Loader_SS, KernelStartup.Loader_SP);
                     }
                 } break;
             }
@@ -529,7 +516,7 @@ static void HandleScanCode(U32 ScanCode) {
 
 /***************************************************************************/
 
-BOOL PeekChar() {
+BOOL PeekChar(void) {
     U32 Result = FALSE;
 
     LockMutex(&(Keyboard.Mutex), INFINITY);
@@ -544,7 +531,7 @@ BOOL PeekChar() {
 
 /***************************************************************************/
 
-STR GetChar() {
+STR GetChar(void) {
     U32 Index;
     STR Char;
 
@@ -594,8 +581,8 @@ BOOL GetKeyCode(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
-void WaitKey() {
-    ConsolePrint(TEXT("Press a key...\n"));
+void WaitKey(void) {
+    ConsolePrint(TEXT("Press a key\n"));
     while (!PeekChar()) {
     }
     GetChar();
@@ -603,7 +590,7 @@ void WaitKey() {
 
 /***************************************************************************/
 
-void KeyboardHandler() {
+void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
@@ -629,7 +616,7 @@ void KeyboardHandler() {
 
 /***************************************************************************/
 
-static U32 KeyboardInitialize() {
+static U32 InitializeKeyboard(void) {
     //-------------------------------------
     // Initialize the keyboard structure
 
@@ -640,7 +627,7 @@ static U32 KeyboardInitialize() {
     //-------------------------------------
     // Enable the keyboard
 
-    // SendKeyboardCommand(KSC_ENABLE, KSC_ENABLE);
+    SendKeyboardCommand(KSC_ENABLE, KSC_ENABLE);
 
     //-------------------------------------
     // Set the LED status
@@ -670,7 +657,7 @@ static U32 KeyboardInitialize() {
 U32 StdKeyboardCommands(U32 Function, U32 Parameter) {
     switch (Function) {
         case DF_LOAD:
-            return KeyboardInitialize();
+            return InitializeKeyboard();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GETLASTFUNC:

@@ -11,6 +11,8 @@
 
 #include "../include/Base.h"
 #include "../include/I386.h"
+#include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/String.h"
 
 /***************************************************************************/
@@ -37,6 +39,75 @@ void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR This, U32 Type) {
 
 /***************************************************************************/
 
+void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table) {
+    KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] Enter"));
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] GDT address = %X"), (U32) Table);
+
+    MemorySet(Table, 0, GDT_SIZE);
+
+    InitSegmentDescriptor(&Table[1], GDT_TYPE_CODE);
+    Table[1].Privilege = GDT_PRIVILEGE_KERNEL;
+
+    InitSegmentDescriptor(&Table[2], GDT_TYPE_DATA);
+    Table[2].Privilege = GDT_PRIVILEGE_KERNEL;
+
+    InitSegmentDescriptor(&Table[3], GDT_TYPE_CODE);
+    Table[3].Privilege = GDT_PRIVILEGE_USER;
+
+    InitSegmentDescriptor(&Table[4], GDT_TYPE_DATA);
+    Table[4].Privilege = GDT_PRIVILEGE_USER;
+
+    InitSegmentDescriptor(&Table[5], GDT_TYPE_CODE);
+    Table[5].Privilege = GDT_PRIVILEGE_KERNEL;
+    Table[5].OperandSize = GDT_OPERANDSIZE_16;
+    Table[5].Granularity = GDT_GRANULAR_1B;
+    SetSegmentDescriptorLimit(&Table[5], N_1MB_M1);
+
+    InitSegmentDescriptor(&Table[6], GDT_TYPE_DATA);
+    Table[6].Privilege = GDT_PRIVILEGE_KERNEL;
+    Table[6].OperandSize = GDT_OPERANDSIZE_16;
+    Table[6].Granularity = GDT_GRANULAR_1B;
+    SetSegmentDescriptorLimit(&Table[6], N_1MB_M1);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] Exit"));
+}
+
+/***************************************************************************/
+
+void InitializeTaskSegments(void) {
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Enter"));
+
+    U32 TssSize = sizeof(TASKSTATESEGMENT);
+
+    Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
+        LA_KERNEL,
+        0,
+        TssSize,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+
+    if (Kernel_i386.TSS == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    MemorySet(Kernel_i386.TSS, 0, TssSize);
+    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
+
+    LPTSSDESCRIPTOR Desc = (LPTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_TSS_INDEX);
+    Desc->Type = GATE_TYPE_386_TSS_AVAIL;
+    Desc->Privilege = GDT_PRIVILEGE_KERNEL;
+    Desc->Present = 1;
+    Desc->Granularity = GDT_GRANULAR_1B;
+    SetTSSDescriptorBase(Desc, (U32)Kernel_i386.TSS);
+    SetTSSDescriptorLimit(Desc, sizeof(TASKSTATESEGMENT) - 1);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Exit"));
+}
+
+/***************************************************************************/
+
 void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR This, U32 Base) {
     This->Base_00_15 = (Base & (U32)0x0000FFFF) >> 0x00;
     This->Base_16_23 = (Base & (U32)0x00FF0000) >> 0x10;
@@ -52,7 +123,9 @@ void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR This, U32 Limit) {
 
 /***************************************************************************/
 
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) { SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base); }
+void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) {
+    SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base);
+}
 
 /***************************************************************************/
 

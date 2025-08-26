@@ -12,38 +12,29 @@
 #include "../include/Clock.h"
 #include "../include/Console.h"
 #include "../include/Driver.h"
+#include "../include/E1000.h"
 #include "../include/FileSys.h"
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
 #include "../include/Log.h"
 #include "../include/Mouse.h"
+#include "../include/PCI.h"
 #include "../include/System.h"
 
 /***************************************************************************/
 
-extern LINEAR __bss_init_start;
-extern LINEAR __bss_init_end;
+extern U32 DeadBeef;
+
+extern void StartTestNetworkTask(void);
 
 /***************************************************************************/
 
 STR Text_OSTitle[] =
+    "\n"
     "EXOS - Extensible Operating System - Version 1.00\n"
     "Copyright (c) 1999-2025 Jango73.\n"
     "All rights reserved.\n";
-
-/***************************************************************************/
-
-PHYSICAL StubAddress = 1;
-KERNELSTARTUPINFO KernelStartup = {
-    .Loader_SS = 1,
-};
-
-LPGATEDESCRIPTOR IDT = (LPGATEDESCRIPTOR)LA_IDT;
-LPSEGMENTDESCRIPTOR GDT = (LPSEGMENTDESCRIPTOR)LA_GDT;
-LPTASKTSSDESCRIPTOR TTD = (LPTASKTSSDESCRIPTOR)LA_GDT_TASK;
-LPTASKSTATESEGMENT TSS = (LPTASKSTATESEGMENT)LA_TSS;
-LPPAGEBITMAP PPB = (LPPAGEBITMAP)LA_PPB;
 
 /***************************************************************************/
 
@@ -70,10 +61,10 @@ static LIST ProcessList = {
 /***************************************************************************/
 
 static LIST TaskList = {
-    .First = (LPLISTNODE)&KernelTask,
-    .Last = (LPLISTNODE)&KernelTask,
-    .Current = (LPLISTNODE)&KernelTask,
-    .NumItems = 1,
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
     .MemAllocFunc = KernelMemAlloc,
     .MemFreeFunc = KernelMemFree,
     .Destructor = NULL};
@@ -92,6 +83,15 @@ static LIST MutexList = {
 /***************************************************************************/
 
 static LIST DiskList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelMemAlloc,
+    .MemFreeFunc = KernelMemFree,
+    .Destructor = NULL};
+
+static LIST PciDeviceList = {
     .First = NULL,
     .Last = NULL,
     .Current = NULL,
@@ -120,12 +120,19 @@ static LIST FileList = {
 
 /***************************************************************************/
 
+KERNELDATA_I386 Kernel_i386 = {
+    .GDT = 0,
+    .TSS = 0,
+    .PPB = (U8*) 1                       // To force inclusion in .data
+};
+
 KERNELDATA Kernel = {
     .Desktop = &DesktopList,
     .Process = &ProcessList,
     .Task = &TaskList,
     .Mutex = &MutexList,
     .Disk = &DiskList,
+    .PCIDevice = &PciDeviceList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
@@ -136,124 +143,18 @@ LPVOID KernelMemAlloc(U32 Size) { return HeapAlloc_HBHS(KernelProcess.HeapBase, 
 
 /***************************************************************************/
 
-void KernelMemFree(LPVOID Pointer) { return HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Pointer); }
+void KernelMemFree(LPVOID Pointer) { HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Pointer); }
 
 /***************************************************************************/
 
-void SetGateDescriptorOffset(LPGATEDESCRIPTOR This, U32 Offset) {
-    This->Offset_00_15 = (Offset & (U32)0x0000FFFF) >> 0x00;
-    This->Offset_16_31 = (Offset & (U32)0xFFFF0000) >> 0x10;
-}
+void CheckDataIntegrity(void) {
+    if (DeadBeef != 0xDEADBEEF) {
+        KernelLogText(LOG_DEBUG, TEXT("Expected a dead beef at %X"), (&DeadBeef));
+        KernelLogText(LOG_DEBUG, TEXT("Data corrupt, halting"));
 
-/***************************************************************************/
-
-BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info) {
-    if (Info) {
-        Info->Base = SEGMENTBASE(This);
-        Info->Limit = SEGMENTLIMIT(This);
-        Info->Type = This->Type;
-        Info->Privilege = This->Privilege;
-        Info->Granularity = SEGMENTGRANULAR(This);
-        Info->CanWrite = This->CanWrite;
-        Info->OperandSize = This->OperandSize ? 32 : 16;
-        Info->Conforming = This->ConformExpand;
-        Info->Present = This->Present;
-
-        return TRUE;
+        // Wait forever
+        DO_THE_SLEEPING_BEAUTY;
     }
-
-    return FALSE;
-}
-
-/***************************************************************************/
-
-U32 SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text) {
-    if (This && Text) {
-        STR Temp[64];
-
-        Text[0] = STR_NULL;
-
-        StringConcat(Text, TEXT("Segment"));
-        StringConcat(Text, Text_NewLine);
-
-        StringConcat(Text, TEXT("Base           : "));
-        U32ToHexString(This->Base, Temp);
-        StringConcat(Text, Temp);
-        StringConcat(Text, Text_NewLine);
-
-        StringConcat(Text, TEXT("Limit          : "));
-        U32ToHexString(This->Limit, Temp);
-        StringConcat(Text, Temp);
-        StringConcat(Text, Text_NewLine);
-
-        StringConcat(Text, TEXT("Type           : "));
-        StringConcat(Text, This->Type ? TEXT("Code") : TEXT("Data"));
-        StringConcat(Text, Text_NewLine);
-
-        StringConcat(Text, TEXT("Privilege      : "));
-        U32ToHexString(This->Privilege, Temp);
-        StringConcat(Text, Temp);
-        StringConcat(Text, Text_NewLine);
-
-        StringConcat(Text, TEXT("Granularity    : "));
-        U32ToHexString(This->Granularity, Temp);
-        StringConcat(Text, Temp);
-        StringConcat(Text, Text_NewLine);
-
-        StringConcat(Text, TEXT("Can write      : "));
-        StringConcat(Text, This->CanWrite ? TEXT("True") : TEXT("False"));
-        StringConcat(Text, Text_NewLine);
-
-        /*
-            StringConcat(Text, "Operand Size   : ");
-            StringConcat(Text, This->OperandSize ? "32-bit" : "16-bit");
-            StringConcat(Text, Text_NewLine);
-
-            StringConcat(Text, "Conforming     : ");
-            StringConcat(Text, This->Conforming ? "True" : "False");
-            StringConcat(Text, Text_NewLine);
-
-            StringConcat(Text, "Present        : ");
-            StringConcat(Text, This->Present ? "True" : "False");
-            StringConcat(Text, Text_NewLine);
-        */
-    }
-
-    return 1;
-}
-
-/***************************************************************************/
-
-BOOL DumpGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
-    U32 Index = 0;
-
-    if (Table) {
-        SEGMENTINFO Info;
-        STR Text[256];
-
-        for (Index = 0; Index < Size; Index++) {
-            GetSegmentInfo(Table + Index, &Info);
-            SegmentInfoToString(&Info, Text);
-            KernelLogText(LOG_DEBUG, Text);
-        }
-    }
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-void DumpRegisters(LPINTEL386REGISTERS Regs) {
-    KernelLogText(
-        LOG_VERBOSE, TEXT("EAX : %X EBX : %X ECX : %X EDX : %X "), Regs->EAX, Regs->EBX, Regs->ECX, Regs->EDX);
-    KernelLogText(LOG_VERBOSE, TEXT("ESI : %X EDI : %X EBP : %X "), Regs->ESI, Regs->EDI, Regs->EBP);
-    KernelLogText(LOG_VERBOSE, TEXT("CS : %X DS : %X SS : %X "), Regs->CS, Regs->DS, Regs->SS);
-    KernelLogText(LOG_VERBOSE, TEXT("ES : %X FS : %X GS : %X "), Regs->ES, Regs->FS, Regs->GS);
-    KernelLogText(LOG_VERBOSE, TEXT("E-flags : %X EIP : %X "), Regs->EFlags, Regs->EIP);
-    KernelLogText(
-        LOG_VERBOSE, TEXT("CR0 : %X CR2 : %X CR3 : %X CR4 : %X "), Regs->CR0, Regs->CR2, Regs->CR3, Regs->CR4);
-    KernelLogText(
-        LOG_VERBOSE, TEXT("DR0 : %X DR1 : %X DR2 : %X DR3 : %X "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
 }
 
 /***************************************************************************/
@@ -311,16 +212,18 @@ U32 ClockTask(LPVOID Param) {
 
     while (1) {
         Time = DoSystemCall(SYSCALL_GetSystemTime, 0);
+
         if (Time - OldTime >= 1000) {
             OldTime = Time;
             MilliSecondsToHMS(Time, Text);
-            LockMutex(MUTEX_CONSOLE, 0);
             OldX = Console.CursorX;
             OldY = Console.CursorY;
 
             Console.CursorX = X;
             Console.CursorY = Y;
             ConsolePrint(Text);
+
+            // KernelLogText(LOG_VERBOSE, Text);
 
             MouseX = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
             MouseY = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
@@ -331,7 +234,6 @@ U32 ClockTask(LPVOID Param) {
 
             Console.CursorX = OldX;
             Console.CursorY = OldY;
-            UnlockMutex(MUTEX_CONSOLE);
         }
 
         DoSystemCall(SYSCALL_Sleep, 40);
@@ -342,7 +244,32 @@ U32 ClockTask(LPVOID Param) {
 
 /***************************************************************************/
 
-void DumpSystemInformation() {
+void DumpCriticalInformation(void) {
+    for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
+        KernelLogText(LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"),
+        Index, (U32)KernelStartup.E820[Index].Base.LO, (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("Virtual addresses"));
+    KernelLogText(LOG_DEBUG, TEXT("LA_RAM : %X"), LA_RAM);
+    KernelLogText(LOG_DEBUG, TEXT("LA_VIDEO : %X"), LA_VIDEO);
+    KernelLogText(LOG_DEBUG, TEXT("LA_CONSOLE : %X"), LA_CONSOLE);
+    KernelLogText(LOG_DEBUG, TEXT("LA_USER : %X"), LA_USER);
+    KernelLogText(LOG_DEBUG, TEXT("LA_LIBRARY : %X"), LA_LIBRARY);
+    KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
+
+    KernelLogText(LOG_DEBUG, TEXT("Kernel startup info:"));
+    KernelLogText(LOG_DEBUG, TEXT("  StubAddress : %X"), KernelStartup.StubAddress);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM : %X"), KernelStartup.IRQMask_21_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM : %X"), KernelStartup.IRQMask_A1_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  MemorySize : %X"), KernelStartup.MemorySize);
+    KernelLogText(LOG_DEBUG, TEXT("  PageCount : %X"), KernelStartup.PageCount);
+    KernelLogText(LOG_DEBUG, TEXT("  E820 entry count : %X"), KernelStartup.E820_Count);
+}
+
+/***************************************************************************/
+
+void DumpSystemInformation(void) {
     KernelLogText(LOG_VERBOSE, TEXT("DumpSystemInformation"));
 
     //-------------------------------------
@@ -355,7 +282,7 @@ void DumpSystemInformation() {
     //-------------------------------------
     // Print information on memory
 
-    ConsolePrint(TEXT("Physical memory : %d"), Memory / 1024);
+    ConsolePrint(TEXT("Physical memory : %d"), KernelStartup.MemorySize / 1024);
     ConsolePrint(Text_Space);
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
@@ -363,7 +290,14 @@ void DumpSystemInformation() {
 
 /***************************************************************************/
 
-void InitializeFileSystems() {
+void InitializePCI(void) {
+    PCI_RegisterDriver(&E1000Driver);
+    PCI_ScanBus();
+}
+
+/***************************************************************************/
+
+void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
     MountSystemFS();
@@ -375,7 +309,7 @@ void InitializeFileSystems() {
 
 /***************************************************************************/
 
-U32 GetPhysicalMemoryUsed() {
+U32 GetPhysicalMemoryUsed(void) {
     U32 NumPages = 0;
     U32 Index = 0;
     U32 Byte = 0;
@@ -383,10 +317,10 @@ U32 GetPhysicalMemoryUsed() {
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
-    for (Index = 0; Index < Pages; Index++) {
+    for (Index = 0; Index < KernelStartup.PageCount; Index++) {
         Byte = Index >> MUL_8;
         Mask = (U32)0x01 << (Index & 0x07);
-        if (PPB[Byte] & Mask) NumPages++;
+        if (Kernel_i386.PPB[Byte] & Mask) NumPages++;
     }
 
     UnlockMutex(MUTEX_MEMORY);
@@ -398,12 +332,14 @@ U32 GetPhysicalMemoryUsed() {
 
 void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     if (Driver != NULL) {
-        KernelLogText(LOG_DEBUG, TEXT("[LoadDriver] : %s"), Name);
+        KernelLogText(LOG_DEBUG, TEXT("[LoadDriver] : %s at %X"), Name, Driver);
 
         if (Driver->ID != ID_DRIVER) {
             KernelLogText(
-                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Aborting!"), Name, Driver, Driver->ID);
-            SLEEPING_BEAUTY;
+                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->ID);
+
+            // Wait forever
+            DO_THE_SLEEPING_BEAUTY;
         }
         Driver->Command(DF_LOAD, 0);
     }
@@ -411,121 +347,82 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /***************************************************************************/
 
-extern U32 DeadBeef;
-
-void InitializeKernel() {
+void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
-    KERNELSTARTUPINFO TempKernelStartup;
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Sarting up..."));
-
-    //-------------------------------------
-    // Dump critical information
-
-    KernelLogText(LOG_DEBUG, TEXT("PA_SYS : %X"), PA_SYS);
-    KernelLogText(LOG_DEBUG, TEXT("PA_KER : %X"), PA_KER);
-
-    KernelLogText(LOG_DEBUG, TEXT("LA_RAM : %X"), LA_RAM);
-    KernelLogText(LOG_DEBUG, TEXT("LA_VIDEO : %X"), LA_VIDEO);
-    KernelLogText(LOG_DEBUG, TEXT("LA_CONSOLE : %X"), LA_CONSOLE);
-    KernelLogText(LOG_DEBUG, TEXT("LA_USER : %X"), LA_USER);
-    KernelLogText(LOG_DEBUG, TEXT("LA_LIBRARY : %X"), LA_LIBRARY);
-    KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
-    KernelLogText(LOG_DEBUG, TEXT("LA_RAMDISK : %X"), LA_RAMDISK);
-    KernelLogText(LOG_DEBUG, TEXT("LA_SYSTEM : %X"), LA_SYSTEM);
-    KernelLogText(LOG_DEBUG, TEXT("LA_DIRECTORY : %X"), LA_DIRECTORY);
-    KernelLogText(LOG_DEBUG, TEXT("LA_SYSTABLE : %X"), LA_SYSTABLE);
-    KernelLogText(LOG_DEBUG, TEXT("LA_PAGETABLE : %X"), LA_PAGETABLE);
-
-    KernelLogText(LOG_DEBUG, TEXT("StubAddress : %X"), StubAddress);
-    KernelLogText(LOG_DEBUG, TEXT("Stack : %X"), LA_KERNEL_STACK);
-
-    //-------------------------------------
-    // Check data integrity
-
-    if (DeadBeef != 0xDEADBEEF) {
-        KernelLogText(LOG_DEBUG, TEXT("Expected a dead beef at %X"), (&DeadBeef));
-        KernelLogText(LOG_DEBUG, TEXT("Data corrupt, aborting !"));
-        KernelDump((LINEAR)(&DeadBeef), 32);
-
-        for (LINEAR Pointer = StubAddress; Pointer < N_2MB; Pointer++) {
-            if (*((U32*)Pointer) == 0xDEADBEEF) {
-                KernelLogText(LOG_DEBUG, TEXT("Found dead beef at %X"), Pointer);
-                KernelLogText(LOG_DEBUG, TEXT("Meaning at stub + %X"), Pointer - StubAddress);
-                break;
-            }
-        }
-
-        SLEEPING_BEAUTY;
-    }
-
-    //-------------------------------------
-    // Log page tables
-
-    LogAllPageTables(LOG_DEBUG, (const PAGEDIRECTORY*)LA_DIRECTORY);
 
     //-------------------------------------
     // No more interrupts
 
-    KernelLogText(LOG_DEBUG, TEXT("Disabling interrupts"));
-
     DisableInterrupts();
 
     //-------------------------------------
-    // Get system information gathered by the stub
+    // Gather startup information
 
-    MemoryCopy(&TempKernelStartup, (LPVOID)(StubAddress + KERNEL_STARTUP_INFO_OFFSET), sizeof(KERNELSTARTUPINFO));
-
-    IRQMask_21_RM = TempKernelStartup.IRQMask_21_RM;
-    IRQMask_A1_RM = TempKernelStartup.IRQMask_A1_RM;
-
-    //-------------------------------------
-    // Initialize BSS after information collected
-
-    LINEAR BSSStart = (LINEAR)(&__bss_init_start);
-    LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
-    U32 BSSSize = BSSEnd - BSSStart;
-
-    KernelLogText(LOG_DEBUG, TEXT("BSS start : %X, end : %X, size %X"), BSSStart, BSSEnd, BSSSize);
-    MemorySet((LPVOID)BSSStart, 0, BSSSize);
-    KernelLogText(LOG_DEBUG, TEXT("BSS cleared"));
-
-    MemoryCopy(&KernelStartup, &TempKernelStartup, sizeof(KERNELSTARTUPINFO));
-
-    KernelLogText(LOG_DEBUG, TEXT("Kernel startup info:"));
-    KernelLogText(LOG_DEBUG, TEXT("  Loader_SS : %X"), KernelStartup.Loader_SS);
-    KernelLogText(LOG_DEBUG, TEXT("  Loader_SP : %X"), KernelStartup.Loader_SP);
-    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM : %X"), KernelStartup.IRQMask_21_RM);
-    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM : %X"), KernelStartup.IRQMask_A1_RM);
-    KernelLogText(LOG_DEBUG, TEXT("  MemorySize : %X"), KernelStartup.MemorySize);
+    KernelStartup.StubAddress = ImageAddress;
+    KernelStartup.PageDirectory = GetPageDirectory();
+    KernelStartup.IRQMask_21_RM = 0;
+    KernelStartup.IRQMask_A1_RM = 0;
+    KernelStartup.ConsoleX = CursorX;
+    KernelStartup.ConsoleY = CursorY;
+    KernelStartup.MemorySize = N_128MB;
+    KernelStartup.PageCount = KernelStartup.MemorySize >> MUL_4KB;
+    KernelStartup.E820_Count = 0;
 
     //-------------------------------------
-    // Initialize the VMM
+    // Init the kernel logger
 
-    InitializeVirtualMemoryManager();
-    KernelLogText(LOG_DEBUG, TEXT("Vitual memory manager initialized"));
-
-    // Provoke page fault
-    // *((U32*)0x70000000) = 5;
+    InitKernelLog();
+    KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Kernel logger initialized"));
 
     //-------------------------------------
-    // Initialize kernel heap
+    // Initialize interrupts
 
-    InitializeKernelHeap();
-    KernelLogText(LOG_DEBUG, TEXT("Kernel heap initialized"));
+    InitializeInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts initialized"));
+
+    //-------------------------------------
+    // Initialize the memory manager
+
+    InitializeMemoryManager();
+    KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Memory manager initialized"));
+
+    InitializeTaskSegments();
+    KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Task segments initialized"));
+
+    //-------------------------------------
+    // Check data integrity
+
+    CheckDataIntegrity();
+
+    //-------------------------------------
+    // Dump critical information
+
+    DumpCriticalInformation();
+
+    //-------------------------------------
+    // Initialize kernel process
+
+    InitializeKernelProcess();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel process and task initialized"));
 
     //-------------------------------------
     // Initialize the console
 
     InitializeConsole();
-    KernelLogText(LOG_VERBOSE, TEXT("Console initialized"));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Console initialized"));
 
     //-------------------------------------
     // Initialize the keyboard
 
     LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
-    KernelLogText(LOG_VERBOSE, TEXT("Keyboard initialized"));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Keyboard initialized"));
+
+    //-------------------------------------
+    // Initialize the mouse
+
+    LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Mouse initialized"));
 
     //-------------------------------------
     // Print system infomation
@@ -533,70 +430,53 @@ void InitializeKernel() {
     DumpSystemInformation();
 
     //-------------------------------------
-    // Initialize interrupts
-
-    InitializeInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("Interrupts initialized"));
-
-    //-------------------------------------
-    // Setup the kernel's main task
-
-    InitKernelTask();
-    LoadInitialTaskRegister(KernelTask.Selector);
-    KernelLogText(LOG_VERBOSE, TEXT("Kernel task setup"));
-
-    //-------------------------------------
-    // Initialize the clock
-
-    InitializeClock();
-    KernelLogText(LOG_VERBOSE, TEXT("Clock initialized"));
-
-    //-------------------------------------
-    // Enable interrupts
-
-    EnableInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("Interrupts enabled"));
-
-    //-------------------------------------
     // Get information on CPU
 
     GetCPUInformation(&(Kernel.CPU));
-    KernelLogText(LOG_VERBOSE, TEXT("Got CPU information"));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Got CPU information"));
 
     //-------------------------------------
     // Initialize RAM drives
 
     LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
-    KernelLogText(LOG_VERBOSE, TEXT("RAM drive initialized"));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] RAM drive initialized"));
 
     //-------------------------------------
     // Initialize physical drives
 
     LoadDriver(&StdHardDiskDriver, TEXT("StdHardDisk"));
-    KernelLogText(LOG_VERBOSE, TEXT("Physical drives initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Physical drives initialized"));
 
     //-------------------------------------
     // Initialize the file systems
 
     InitializeFileSystems();
-    KernelLogText(LOG_VERBOSE, TEXT("File systems initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] File systems initialized"));
 
     //-------------------------------------
     // Initialize the graphics card
 
     LoadDriver(&VESADriver, TEXT("VESA"));
-    KernelLogText(LOG_VERBOSE, TEXT("VESA driver initialized..."));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] VESA driver initialized"));
 
     //-------------------------------------
-    // Initialize the mouse
+    // Initialize the PCI drivers
 
-    LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
-    KernelLogText(LOG_VERBOSE, TEXT("Mouse initialized..."));
+    InitializePCI();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] PCI manager initialized"));
+
+    //-------------------------------------
+    // Initialize the clock
+
+    InitializeClock();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
 
     //-------------------------------------
     // Print the EXOS banner
 
     ConsolePrint(Text_OSTitle);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] OS title printed"));
 
     //-------------------------------------
     // Test tasks
@@ -612,8 +492,20 @@ void InitializeKernel() {
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
 
+    // StartTestNetworkTask();
+
+    //-------------------------------------
+    // Enable interrupts
+
+    EnableInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
+
     //-------------------------------------
     // Shell task
+
+    ConsolePrint(TEXT("Launching shell\n"));
+
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
 
     TaskInfo.Func = Shell;
     TaskInfo.Parameter = NULL;
@@ -622,6 +514,10 @@ void InitializeKernel() {
     TaskInfo.Flags = 0;
 
     CreateTask(&KernelProcess, &TaskInfo);
+
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
+
+    // Shell(NULL);
 
     //-------------------------------------
     // Launch Portal (windowing system)

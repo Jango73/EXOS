@@ -13,56 +13,14 @@ However, the code uses 32 bit registers when appropriate.
 2. Code in mbr.asm is executed.
 3. MBR code looks for the active partition and loads its VBR at 0x7E00.
 4. Code in vbr.asm is executed.
-5. VBR code loads the reserved FAT32 sectors which contain VBR part2 (payload) at 0x8000.
-6. Code in main-stub.asm is exectued.
-7. Main stub code calls BootMain in main.c.
-8. BootMain finds the FAT32 entry for the specified kernel binary.
-9. BootMain reads all the clusters of the binary at 0x20000 and jumps to it.
-10. That's all folks. But it was a real pain to code.
-
-## Startup sequence in the kernel binary
-
-The loader (whatever it is) jumps to the kernel stub at `StartAbsolute` which redirects execution to `Start`:
-
-```asm
-global StartAbsolute
-
-StartAbsolute :
-    jmp     Start
-```
-
-`Start` runs in 16‑bit real mode. It saves the loader stack, adjusts the segment registers, obtains the console cursor position and disables nterrupts. The routine then loads a temporary IDT and GDT, enables the A20 line and programs the PIC for protected mode. Finally the protection bit in CR0 is set and control is transferred to `Start32`:
-
-```asm
-mov     eax, CR0_PROTECTEDMODE
-mov     cr0, eax
-
-jmp     Next
-Next :
-    jmp     far dword [Start32_Entry - StartAbsolute]
-```
-
-`Start32` executes in 32‑bit mode without paging. It sets up the segment registers, determines the available RAM with `GetMemorySize` and clears the system memory area. The stub then copies the GDT to its final location, creates page tables via `SetupPaging`, loads the page directory and copies the kernel to its high memory address. Paging is enabled and the final GDT is loaded before jumping to `ProtectedModeEntry`:
-
-```asm
-mov     eax, cr0
-or      eax, CR0_PAGING
-mov     cr0, eax
-
-mov     eax, ProtectedModeEntry
-jmp     eax
-```
-
-`ProtectedModeEntry` installs the kernel data selectors in all segment registers, stores the stub base address and builds the kernel stack. After clearing the general registers the code jumps to the C entry point:
-
-```asm
-mov     [StubAddress], ebp
-mov     esp, KernelStack
-add     esp, STK_SIZE
-jmp     KernelMain
-```
-
-`KernelMain` is defined in `Main.c` and immediately calls `InitializeKernel` to perform all C‑level initialization tasks.
+5. VBR code loads the reserved FAT32 sectors (which contain VBR payload) at 0x8000.
+6. Code in vbr-payload-a.asm is executed.
+7. VBR payload asm sets up a stack and calls BootMain in vbr-payload-c.c.
+8. BootMain finds the FAT32 entry for the specified binary.
+9. BootMain reads all the clusters of the binary at 0x20000.
+10. EnterProtectedPagingAndJump sets up minimal GDT and paging structures for the loaded binary to execute in higher half memory (0xC0000000).
+11. It finally jumps to the loaded binary.
+12. That's all folks. But it was a real pain to code :D
 
 ## Modules and functions
 
@@ -194,6 +152,14 @@ Implements a simple text editor for the shell.
 - OpenTextFile: Loads a text file into the editor context.
 - Edit: Entry point used by the shell to invoke the editor.
 
+### E1000.c
+
+Implements a e1000 network driver.
+
+#### Functions in E1000.c
+
+- TODO
+
 ### FAT16.c
 
 Driver implementation for the FAT16 file system.
@@ -215,7 +181,6 @@ Driver implementation for the FAT16 file system.
 - OpenNext: Opens the next file in a directory iteration.
 - CloseFile: Closes a previously opened file.
 - ReadFile: Reads data from an open file.
-
 
 ### FAT32.c
 
@@ -349,8 +314,8 @@ Core initialization and debugging utilities for the kernel.
 - InitializeInterrupts: Sets up the interrupt descriptor table.
 - GetSegmentInfo: Retrieves segment descriptor data.
 - SegmentInfoToString: Formats segment info as text.
-- DumpGlobalDescriptorTable: Prints all GDT entries.
-- DumpRegisters: Displays the CPU register state.
+- LogGlobalDescriptorTable: Prints all GDT entries.
+- LogRegisters: Displays the CPU register state.
 - GetCPUInformation: Reads processor name and features.
 - ClockTask: Periodic task that updates the clock and mouse.
 - DumpSystemInformation: Logs CPU and memory information.
@@ -437,13 +402,33 @@ Interactive memory viewer used for debugging.
 - PrintMemory: Dumps a series of memory lines.
 - PrintMemoryPage: Shows a page of memory on the console.
 - MemEdit: Lets the user scroll through memory addresses.
+
+### Memory.c
+
+Memory manager for page allocation and mapping.
+
+#### Functions in Memory.c
+
+- InitializeMemoryManager: Detects memory size and page count.
+- SetPhysicalPageMark: Marks a physical page as used or free.
+- GetPhysicalPageMark: Returns the allocation state of a page.
+- AllocPhysicalPage: Reserves a free physical page.
+- GetDirectoryEntry: Returns the page directory entry index for an address.
+- GetTableEntry: Returns the page table entry index for an address.
+- AllocPageDirectory: Allocates a page directory for a process.
+- AllocPageTable: Creates a new page table if required.
+- IsRegionFree: Tests if a virtual memory region is unused.
+- FindFreeRegion: Searches for a free area of virtual memory.
+- FreeEmptyPageTables: Releases unused page tables.
+- AllocRegion: Maps a range of virtual memory with given flags.
+- FreeRegion: Unmaps a range of virtual memory pages.
+
 ### Process.c
 
 Manages executable loading, process creation and heap setup.
 
 #### Functions in Process.c
 
-- InitializeKernelHeap: Sets up the kernel heap area.
 - GetExecutableInfo_EXOS: Retrieves information from an EXOS executable.
 - LoadExecutable_EXOS: Loads an executable into memory.
 - NewProcess: Allocates and initializes a process structure.
@@ -451,6 +436,14 @@ Manages executable loading, process creation and heap setup.
 - GetProcessHeap: Returns the base address of a process heap.
 - DumpProcess: Prints process details for debugging.
 - InitSecurity: Initializes a security descriptor.
+
+### PCI.c
+
+Handles scanning of PCI buses.
+
+#### Functions in PCI.c
+
+- TODO
 
 ### RAMDisk.c
 
@@ -632,8 +625,8 @@ System call handler dispatching user mode requests.
 - SysCall_DeleteSemaphore: Deletes a mutex object.
 - SysCall_LockSemaphore: Locks a mutex with timeout.
 - SysCall_UnlockSemaphore: Unlocks a mutex.
-- SysCall_VirtualAlloc: Allocates virtual memory pages.
-- SysCall_VirtualFree: Frees virtual memory pages.
+- SysCall_AllocRegion: Allocates virtual memory pages.
+- SysCall_FreeRegion: Frees virtual memory pages.
 - SysCall_GetProcessHeap: Returns the heap of a process.
 - SysCall_HeapAlloc: Allocates memory from the heap.
 - SysCall_HeapFree: Releases heap memory.
@@ -792,26 +785,6 @@ Low level routines for standard VGA mode programming.
 - SendModeRegs: Loads a register set to configure video mode.
 - TestVGA: Simple routine that programs the first VGA mode.
 
-### VMM.c
-
-Kernel virtual memory manager for page allocation and mapping.
-
-#### Functions in VMM.c
-
-- InitializeVirtualMemoryManager: Detects memory size and page count.
-- SetPhysicalPageMark: Marks a physical page as used or free.
-- GetPhysicalPageMark: Returns the allocation state of a page.
-- AllocPhysicalPage: Reserves a free physical page.
-- GetDirectoryEntry: Returns the page directory entry index for an address.
-- GetTableEntry: Returns the page table entry index for an address.
-- AllocPageDirectory: Allocates a page directory for a process.
-- AllocPageTable: Creates a new page table if required.
-- IsRegionFree: Tests if a virtual memory region is unused.
-- FindFreeRegion: Searches for a free area of virtual memory.
-- FreeEmptyPageTables: Releases unused page tables.
-- VirtualAlloc: Maps a range of virtual memory with given flags.
-- VirtualFree: Unmaps a range of virtual memory pages.
-
 ### XFS.c
 
 EXOS file system driver for the native XFS format.
@@ -924,6 +897,8 @@ Provides low level hardware access and CPU control primitives.
 - OutPortByte: Writes a byte to an I/O port.
 - InPortWord: Reads a word from an I/O port.
 - OutPortWord: Writes a word to an I/O port.
+- InPortLong: Reads a long from an I/O port.
+- OutPortLong: Writes a long to an I/O port.
 - InPortStringWord: Reads a sequence of words from an I/O port.
 - MaskIRQ: Masks a specific IRQ line.
 - UnmaskIRQ: Unmasks a specific IRQ line.

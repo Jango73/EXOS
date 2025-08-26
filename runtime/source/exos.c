@@ -119,7 +119,7 @@ U32 SendMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
 
 /***************************************************************************/
 
-HANDLE CreateDesktop() { return (HANDLE)exoscall(SYSCALL_CreateDesktop, 0); }
+HANDLE CreateDesktop(void) { return (HANDLE)exoscall(SYSCALL_CreateDesktop, 0); }
 
 /***************************************************************************/
 
@@ -434,7 +434,7 @@ BOOL GetMousePos(LPPOINT Point) { return (BOOL)exoscall(SYSCALL_GetMousePos, (U3
 
 /***************************************************************************/
 
-U32 GetMouseButtons() { return (U32)exoscall(SYSCALL_GetMouseButtons, 0); }
+U32 GetMouseButtons(void) { return (U32)exoscall(SYSCALL_GetMouseButtons, 0); }
 
 /***************************************************************************/
 
@@ -445,6 +445,6 @@ HANDLE CaptureMouse(HANDLE Window) {
 
 /***************************************************************************/
 
-BOOL ReleaseMouse() { return FALSE; }
+BOOL ReleaseMouse(void) { return FALSE; }
 
 /***************************************************************************/

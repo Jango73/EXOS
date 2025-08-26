@@ -1,55 +1,21 @@
 
-/***************************************************************************\
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
     All rights reserved
 
-\***************************************************************************/
+\************************************************************************/
 
-#include "../include/Address.h"
 #include "../include/Clock.h"
+#include "../include/I386.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"
 
-/***************************************************************************/
+/************************************************************************/
 
-LIST KernelTaskMessageList = {
-    .First = NULL,
-    .Last = NULL,
-    .Current = NULL,
-    .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
-    .Destructor = NULL};
-
-TASK KernelTask = {
-    .ID = ID_TASK,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Mutex = EMPTY_MUTEX,
-    .Process = &KernelProcess,
-    .Status = TASK_STATUS_RUNNING,
-    .Priority = TASK_PRIORITY_LOWER,
-    .Function = NULL,
-    .Parameter = NULL,
-    .ReturnValue = 0,
-    .Table = 0,
-    .Selector = SELECTOR_TSS_0,
-    .StackBase = (LINEAR)LA_KERNEL_STACK + N_4KB,
-    .StackSize = STK_SIZE - N_4KB,
-    .SysStackBase = (LINEAR)LA_KERNEL_STACK,
-    .SysStackSize = N_4KB,
-    .Time = 0,
-    .WakeUpTime = 0,
-    .MessageMutex = EMPTY_MUTEX,
-    .Message = &KernelTaskMessageList};
-
-/***************************************************************************/
-
-static LPMESSAGE NewMessage() {
+static LPMESSAGE NewMessage(void) {
     LPMESSAGE This;
 
     This = (LPMESSAGE)KernelMemAlloc(sizeof(MESSAGE));
@@ -64,7 +30,7 @@ static LPMESSAGE NewMessage() {
     return This;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DeleteMessage(LPMESSAGE This) {
     if (This == NULL) return;
@@ -74,13 +40,13 @@ void DeleteMessage(LPMESSAGE This) {
     KernelMemFree(This);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 
-/***************************************************************************/
+/************************************************************************/
 
-LPTASK NewTask() {
+LPTASK NewTask(void) {
     LPTASK This = NULL;
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Enter"));
@@ -92,6 +58,13 @@ LPTASK NewTask() {
         return NULL;
     }
 
+    if (IsValidMemory((LINEAR) This) == FALSE) {
+        KernelLogText(LOG_ERROR, TEXT("[NewTask] Allocated task is not a valid pointer"));
+        return NULL;
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
+
     *This = (TASK){.ID = ID_TASK, .References = 1, .Mutex = EMPTY_MUTEX, .MessageMutex = EMPTY_MUTEX};
 
     InitMutex(&(This->Mutex));
@@ -100,6 +73,13 @@ LPTASK NewTask() {
     //-------------------------------------
     // Initialize the message queue
 
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Initialize task message queue"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] MessageDestructor = %X"), (LINEAR)MessageDestructor);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] KernelMemAlloc = %X"), (LINEAR)KernelMemAlloc);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] KernelMemFree = %X"), (LINEAR)KernelMemFree);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] EBP = %X"), (LINEAR)GetEBP());
+
+    This->Type = TASK_TYPE_KERNEL_OTHER;
     This->Message = NewList(MessageDestructor, KernelMemAlloc, KernelMemFree);
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Exit"));
@@ -136,14 +116,14 @@ void DeleteTask(LPTASK This) {
     //-------------------------------------
     // Delete the task's message queue
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting message queue..."));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting message queue"));
 
     if (This->Message != NULL) DeleteList(This->Message);
 
     //-------------------------------------
     // Delete the task's stacks
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks..."));
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks"));
 
     if (This->SysStackBase != NULL) {
         HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, (LPVOID)This->SysStackBase);
@@ -165,71 +145,12 @@ void DeleteTask(LPTASK This) {
 
 /***************************************************************************/
 
-BOOL InitKernelTask() {
-    LINEAR StackPointer = NULL;
-
-    KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask]"));
-
-    StackPointer = KernelTask.StackBase + KernelTask.StackSize;
-
-    //-------------------------------------
-    // Setup the TSS
-
-    KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask] Clearing TSS"));
-
-    MemorySet(TSS, 0, sizeof(TASKSTATESEGMENT));
-
-    TSS[0].SS0 = SELECTOR_KERNEL_DATA;
-    TSS[0].ESP0 = StackPointer - (0 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].SS1 = SELECTOR_KERNEL_DATA;
-    TSS[0].ESP1 = StackPointer - (1 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].SS2 = SELECTOR_KERNEL_DATA;
-    TSS[0].ESP2 = StackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].CR3 = PA_PGD;
-    TSS[0].EIP = (U32)TaskRunner;
-    TSS[0].EFlags = EFLAGS_A1 | EFLAGS_IF;
-    TSS[0].EAX = 0;
-    TSS[0].EBX = 0;
-    TSS[0].ESP = StackPointer - (3 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].EBP = StackPointer - (3 * TASK_SYSTEM_STACK_SIZE);
-    TSS[0].CS = SELECTOR_KERNEL_CODE;
-    TSS[0].DS = SELECTOR_KERNEL_DATA;
-    TSS[0].SS = SELECTOR_KERNEL_DATA;
-    TSS[0].ES = SELECTOR_KERNEL_DATA;
-    TSS[0].FS = SELECTOR_KERNEL_DATA;
-    TSS[0].GS = SELECTOR_KERNEL_DATA;
-    TSS[0].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
-
-    //-------------------------------------
-    // Setup the TSS descriptor
-
-    TTD[0].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
-    TTD[0].TSS.Privilege = PRIVILEGE_KERNEL;
-    TTD[0].TSS.Present = 0x01;
-    TTD[0].TSS.Granularity = GDT_GRANULAR_1B;
-
-    SetTSSDescriptorBase(&(TTD[0].TSS), (U32)(TSS + 0));
-    SetTSSDescriptorLimit(&(TTD[0].TSS), sizeof(TASKSTATESEGMENT) - 1);
-
-    //-------------------------------------
-
-    KernelLogText(LOG_VERBOSE, TEXT("[InitKernelTask] Calling UpdateScheduler"));
-
-    UpdateScheduler();
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
 LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     LPTASK Task = NULL;
     LINEAR StackPointer = NULL;
     LINEAR SysStackPointer = NULL;
     SELECTOR CodeSelector = 0;
     SELECTOR DataSelector = 0;
-    U32 Table = MAX_U32;
-    U32 Index = 0;
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Enter"));
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Process : %X"), Process);
@@ -254,22 +175,15 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         Info->Priority = TASK_PRIORITY_CRITICAL;
     }
 
+    if (IsValidMemory((LINEAR) Info->Func) == FALSE) {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
+        return NULL;
+    }
+
     //-------------------------------------
     // Lock access to kernel data
 
     LockMutex(MUTEX_KERNEL, INFINITY);
-
-    //-------------------------------------
-    // Find a free task
-
-    for (Index = 0; Index < NUM_TASKS; Index++) {
-        if (TTD[Index].TSS.Type == 0) {
-            Table = Index;
-            break;
-        }
-    }
-
-    if (Table == MAX_U32) goto Out;
 
     Task = NewTask();
 
@@ -287,10 +201,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Priority = Info->Priority;
     Task->Function = Info->Func;
     Task->Parameter = Info->Parameter;
-    Task->Table = Table;
-
-    Task->Selector = ((GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE) + (Table * GDT_TASK_DESCRIPTORS_SIZE)) |
-                     SELECTOR_GLOBAL | Process->Privilege;
 
     //-------------------------------------
     // Allocate the system stack
@@ -301,7 +211,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Allocate the task stack
 
-    Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
+    Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 3;
     Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
@@ -320,56 +230,46 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         goto Out;
     }
 
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Stack (%X bytes) allocated at %X"), Task->StackSize, Task->StackBase);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize, Task->SysStackBase);
+
     //-------------------------------------
     // Setup privilege data
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Setting kernel privilege (ring 0)"));
+
         CodeSelector = SELECTOR_KERNEL_CODE;
         DataSelector = SELECTOR_KERNEL_DATA;
     } else {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Setting user privilege (ring 3)"));
+
         CodeSelector = SELECTOR_USER_CODE;
         DataSelector = SELECTOR_USER_DATA;
     }
 
-    //-------------------------------------
-    // Setup the TSS
-
-    MemorySet(TSS + Table, 0, sizeof(TASKSTATESEGMENT));
-
     StackPointer = Task->StackBase + Task->StackSize;
     SysStackPointer = Task->SysStackBase + Task->SysStackSize;
+    Task->SysStackTop = SysStackPointer;
 
-    TSS[Table].SS0 = SELECTOR_KERNEL_DATA;
-    TSS[Table].ESP0 = SysStackPointer - (0 * TASK_SYSTEM_STACK_SIZE);
-    TSS[Table].SS1 = SELECTOR_KERNEL_DATA;
-    TSS[Table].ESP1 = SysStackPointer - (1 * TASK_SYSTEM_STACK_SIZE);
-    TSS[Table].SS2 = SELECTOR_KERNEL_DATA;
-    TSS[Table].ESP2 = SysStackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
-    TSS[Table].CR3 = Process->PageDirectory;
-    TSS[Table].EIP = (U32)TaskRunner;
-    TSS[Table].EFlags = EFLAGS_A1 | EFLAGS_IF;
-    TSS[Table].EAX = (U32)Task->Parameter;
-    TSS[Table].EBX = (U32)Task->Function;
-    TSS[Table].ESP = StackPointer;
-    TSS[Table].EBP = StackPointer;
-    TSS[Table].CS = CodeSelector;
-    TSS[Table].DS = DataSelector;
-    TSS[Table].SS = DataSelector;
-    TSS[Table].ES = DataSelector;
-    TSS[Table].FS = DataSelector;
-    TSS[Table].GS = DataSelector;
-    TSS[Table].IOMap = MEMBER_OFFSET(TASKSTATESEGMENT, IOMapBits[0]);
+    MemorySet(&(Task->Context), 0, sizeof(TRAPFRAME));
+    Task->Context.EIP = (U32)TaskRunner;
+    Task->Context.EAX = (U32)Task->Parameter;
+    Task->Context.EBX = (U32)Task->Function;
+    Task->Context.ESP = StackPointer;
+    Task->Context.EBP = StackPointer;
+    Task->Context.CS = CodeSelector;
+    Task->Context.DS = DataSelector;
+    Task->Context.ES = DataSelector;
+    Task->Context.FS = DataSelector;
+    Task->Context.GS = DataSelector;
+    Task->Context.SS = DataSelector;
+    Task->Context.UserESP = StackPointer;
+    Task->Context.EFlags = EFLAGS_IF | EFLAGS_A1;
 
-    //-------------------------------------
-    // Setup the TSS descriptor
-
-    TTD[Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
-    TTD[Table].TSS.Privilege = Process->Privilege;
-    TTD[Table].TSS.Present = 0x01;
-    TTD[Table].TSS.Granularity = GDT_GRANULAR_1B;
-
-    SetTSSDescriptorBase(&(TTD[Table].TSS), (U32)(TSS + Table));
-    SetTSSDescriptorLimit(&(TTD[Table].TSS), sizeof(TASKSTATESEGMENT) - 1);
+    if (Info->Flags & TASK_CREATE_MAIN) {
+        Kernel_i386.TSS->ESP0 = Task->SysStackTop;
+    }
 
     //-------------------------------------
     // Set the task's status as running
@@ -398,7 +298,7 @@ Out:
 
 BOOL KillTask(LPTASK Task) {
     if (Task == NULL) return FALSE;
-    if (Task == &KernelTask) return FALSE;
+    if (Task->Type == TASK_TYPE_KERNEL_MAIN) return FALSE;
 
     KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
     KernelLogText(LOG_DEBUG, TEXT("Process : %X"), Task->Process);
@@ -406,36 +306,23 @@ BOOL KillTask(LPTASK Task) {
     KernelLogText(
         LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
 
-    //-------------------------------------
     // Lock access to kernel data
-
     LockMutex(MUTEX_KERNEL, INFINITY);
     FreezeScheduler();
 
-    //-------------------------------------
     // Remove task from scheduler queue
-
     RemoveTaskFromQueue(Task);
 
-    Task->References--;
+    Task->References = 0;
     Task->Status = TASK_STATUS_DEAD;
 
-    //-------------------------------------
-    // Free all resources owned by the task
-
-    DeleteTask(Task);
-
+    // Remove from global kernel task list BEFORE freeing
     ListRemove(Kernel.Task, Task);
 
-    //-------------------------------------
-    // Free the associated Task State Segment
-    // by setting it's type to 0
+    // Finally, free all resources owned by the task
+    DeleteTask(Task);
 
-    TTD[Task->Table].TSS.Type = 0;
-
-    //-------------------------------------
     // Unlock access to kernel data
-
     UnfreezeScheduler();
     UnlockMutex(MUTEX_KERNEL);
 
@@ -476,6 +363,7 @@ void Sleep(U32 MilliSeconds) {
     UnfreezeScheduler();
 
     while (Task->Status == TASK_STATUS_SLEEPING) {
+        IdleCPU();
     }
 }
 
@@ -960,19 +848,18 @@ Out:
 void DumpTask(LPTASK Task) {
     LockMutex(&(Task->Mutex), INFINITY);
 
-    KernelLogText(LOG_VERBOSE, TEXT("Address         : %08X\n"), Task);
+    KernelLogText(LOG_VERBOSE, TEXT("Address         : %X\n"), Task);
     KernelLogText(LOG_VERBOSE, TEXT("References      : %d\n"), Task->References);
-    KernelLogText(LOG_VERBOSE, TEXT("Process         : %08X\n"), Task->Process);
+    KernelLogText(LOG_VERBOSE, TEXT("Process         : %X\n"), Task->Process);
     KernelLogText(LOG_VERBOSE, TEXT("Status          : %X\n"), Task->Status);
     KernelLogText(LOG_VERBOSE, TEXT("Priority        : %X\n"), Task->Priority);
-    KernelLogText(LOG_VERBOSE, TEXT("Function        : %08X\n"), Task->Function);
-    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %08X\n"), Task->Parameter);
-    KernelLogText(LOG_VERBOSE, TEXT("ReturnValue     : %08X\n"), Task->ReturnValue);
-    KernelLogText(LOG_VERBOSE, TEXT("Selector        : %04X\n"), Task->Selector);
-    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %08X\n"), Task->StackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %08X\n"), Task->StackSize);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %08X\n"), Task->SysStackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %08X\n"), Task->SysStackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("Function        : %X\n"), Task->Function);
+    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %X\n"), Task->Parameter);
+    KernelLogText(LOG_VERBOSE, TEXT("ReturnValue     : %X\n"), Task->ReturnValue);
+    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %X\n"), Task->StackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %X\n"), Task->StackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %X\n"), Task->SysStackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %X\n"), Task->SysStackSize);
     KernelLogText(LOG_VERBOSE, TEXT("Time            : %d\n"), Task->Time);
     KernelLogText(LOG_VERBOSE, TEXT("WakeUpTime      : %d\n"), Task->WakeUpTime);
     KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d\n"), Task->Message->NumItems);

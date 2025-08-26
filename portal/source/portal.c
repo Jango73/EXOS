@@ -331,7 +331,7 @@ U32 DesktopTask(LPVOID Param) {
 
 /***************************************************************************/
 
-BOOL InitApplication() {
+BOOL InitApplication(void) {
     TASKINFO TaskInfo;
 
     TaskInfo.Header.Size = sizeof(TASKINFO);

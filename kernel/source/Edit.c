@@ -85,7 +85,7 @@ void EditLineDestructor(LPVOID Item) { DeleteEditLine((LPEDITLINE)Item); }
 
 /***************************************************************************/
 
-LPEDITFILE NewEditFile() {
+LPEDITFILE NewEditFile(void) {
     LPEDITFILE This;
     LPEDITLINE Line;
 
@@ -125,7 +125,7 @@ void EditFileDestructor(LPVOID Item) { DeleteEditFile((LPEDITFILE)Item); }
 
 /***************************************************************************/
 
-LPEDITCONTEXT NewEditContext() {
+LPEDITCONTEXT NewEditContext(void) {
     LPEDITCONTEXT This = (LPEDITCONTEXT)HeapAlloc(sizeof(EDITCONTEXT));
     if (This == NULL) return NULL;
 

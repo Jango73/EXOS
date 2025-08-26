@@ -31,7 +31,7 @@
 
 /***************************************************************************/
 
-void VGAIODelay() {
+void VGAIODelay(void) {
     U32 Index, Data;
     for (Index = 0; Index < 10; Index++) Data = Index;
     UNUSED(Data);
@@ -99,6 +99,6 @@ static U32 SendModeRegs(U8* Regs) {
 
 /***************************************************************************/
 
-void TestVGA() { SendModeRegs(VGAModeRegs[0].Regs); }
+void TestVGA(void) { SendModeRegs(VGAModeRegs[0].Regs); }
 
 /***************************************************************************/

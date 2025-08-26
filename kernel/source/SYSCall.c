@@ -7,7 +7,6 @@
 
 \***************************************************************************/
 
-#include "../include/Address.h"
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
@@ -16,10 +15,10 @@
 #include "../include/ID.h"
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
+#include "../include/Memory.h"
 #include "../include/Mouse.h"
 #include "../include/Process.h"
 #include "../include/User.h"
-#include "../include/VMM.h"
 
 /***************************************************************************/
 
@@ -38,17 +37,17 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
     LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
 
     if (Info && Info->Header.Size >= sizeof(SYSTEMINFO)) {
-        Info->TotalPhysicalMemory = Memory;
+        Info->TotalPhysicalMemory = KernelStartup.MemorySize;
         Info->PhysicalMemoryUsed = GetPhysicalMemoryUsed();
-        Info->PhysicalMemoryAvail = Memory - Info->PhysicalMemoryUsed;
+        Info->PhysicalMemoryAvail = KernelStartup.MemorySize - Info->PhysicalMemoryUsed;
         Info->TotalSwapMemory = 0;
         Info->SwapMemoryUsed = 0;
         Info->SwapMemoryAvail = 0;
         Info->TotalMemoryAvail = Info->TotalPhysicalMemory + Info->TotalSwapMemory;
         Info->PageSize = PAGE_SIZE;
-        Info->TotalPhysicalPages = Pages;
+        Info->TotalPhysicalPages = KernelStartup.PageCount;
         Info->MinimumLinearAddress = LA_USER;
-        Info->MaximumLinearAddress = LA_DIRECTORY - 1;
+        Info->MaximumLinearAddress = LA_KERNEL - 1;
         Info->NumProcesses = Kernel.Process->NumItems;
         Info->NumTasks = Kernel.Task->NumItems;
 
@@ -232,7 +231,7 @@ U32 SysCall_DeleteMutex(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_LockMutex(U32 Parameter) {
-    LPSEMINFO Info = (LPSEMINFO)Parameter;
+    LPMUTEXINFO Info = (LPMUTEXINFO)Parameter;
     if (Info == NULL) return MAX_U32;
 
     return LockMutex((LPMUTEX)Info->Mutex, Info->MilliSeconds);
@@ -241,7 +240,7 @@ U32 SysCall_LockMutex(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_UnlockMutex(U32 Parameter) {
-    LPSEMINFO Info = (LPSEMINFO)Parameter;
+    LPMUTEXINFO Info = (LPMUTEXINFO)Parameter;
     if (Info == NULL) return MAX_U32;
 
     return UnlockMutex((LPMUTEX)Info->Mutex);
@@ -249,11 +248,11 @@ U32 SysCall_UnlockMutex(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_VirtualAlloc(U32 Parameter) {
+U32 SysCall_AllocRegion(U32 Parameter) {
     LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
 
     if (Info && Info->Header.Size >= sizeof(VIRTUALINFO)) {
-        return VirtualAlloc(Info->Base, Info->Size, Info->Flags);
+        return AllocRegion(Info->Base, Info->Target, Info->Size, Info->Flags);
     }
 
     return 0;
@@ -261,11 +260,11 @@ U32 SysCall_VirtualAlloc(U32 Parameter) {
 
 /***************************************************************************/
 
-U32 SysCall_VirtualFree(U32 Parameter) {
+U32 SysCall_FreeRegion(U32 Parameter) {
     LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
 
     if (Info && Info->Header.Size >= sizeof(VIRTUALINFO)) {
-        return VirtualFree(Info->Base, Info->Size);
+        return FreeRegion(Info->Base, Info->Size);
     }
 
     return 0;
@@ -748,8 +747,8 @@ SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
     SysCall_CreateMutex,           // 0x00000014
     SysCall_LockMutex,             // 0x00000015
     SysCall_UnlockMutex,           // 0x00000016
-    SysCall_VirtualAlloc,          // 0x00000017
-    SysCall_VirtualFree,           // 0x00000018
+    SysCall_AllocRegion,          // 0x00000017
+    SysCall_FreeRegion,           // 0x00000018
     SysCall_GetProcessHeap,        // 0x00000019
     SysCall_HeapAlloc,             // 0x0000001A
     SysCall_HeapFree,              // 0x0000001B
