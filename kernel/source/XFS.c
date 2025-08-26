@@ -79,11 +79,6 @@ static LPXFSFILESYSTEM NewXFSFileSystem(LPPHYSICALDISK Disk) {
 
     InitMutex(&(This->Header.Mutex));
 
-    //-------------------------------------
-    // Assign a default name to the file system
-
-    GetDefaultFileSystemName(This->Header.Name);
-
     return This;
 }
 
@@ -116,7 +111,7 @@ static LPXFSFILE NewXFSFile(LPXFSFILESYSTEM FileSystem, LPXFSFILELOC FileLoc) {
 
 /***************************************************************************/
 
-BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
     IOCONTROL Control;
@@ -184,6 +179,8 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base
 
     FileSystem = NewXFSFileSystem(Disk);
     if (FileSystem == NULL) return FALSE;
+
+    GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
 
     //-------------------------------------
     // Copy the Master Boot Sector and the Superblock

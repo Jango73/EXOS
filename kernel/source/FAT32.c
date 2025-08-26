@@ -80,11 +80,6 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
 
     InitMutex(&(This->Header.Mutex));
 
-    //-------------------------------------
-    // Assign a default name to the file system
-
-    GetDefaultFileSystemName(This->Header.Name);
-
     return This;
 }
 
@@ -117,7 +112,7 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
 /***************************************************************************/
 
-BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     LPFAT32MBR Master;
@@ -160,6 +155,8 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
 
     FileSystem = NewFATFileSystem(Disk);
     if (FileSystem == NULL) return FALSE;
+
+    GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
 
     //-------------------------------------
     // Copy the Master Sector
@@ -864,6 +861,13 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
             } else {
                 Component[CompIndex++] = Path[PathIndex++];
             }
+        }
+        if (Component[0] == STR_NULL) {
+            if (Path[PathIndex] == STR_NULL) {
+                FileLoc->DataCluster = FileLoc->FolderCluster;
+                return TRUE;
+            }
+            continue;
         }
 
         //-------------------------------------
