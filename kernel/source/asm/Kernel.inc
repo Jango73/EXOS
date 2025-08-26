@@ -309,6 +309,7 @@ extern ClockHandler
 extern KeyboardHandler
 extern MouseHandler
 extern HardDriveHandler
+extern Scheduler
 
 extern Kernel
 extern KernelStartup

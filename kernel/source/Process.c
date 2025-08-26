@@ -69,7 +69,7 @@ void InitializeKernelProcess(void) {
     TaskInfo.Func = (TASKFUNC)InitializeKernel;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
-    TaskInfo.Flags = 0;
+    TaskInfo.Flags = TASK_CREATE_MAIN;
 
     LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
 
@@ -84,7 +84,7 @@ void InitializeKernelProcess(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Loading TR"));
 
-    LoadInitialTaskRegister(KernelTask->Selector);
+    LoadInitialTaskRegister(SELECTOR_TSS);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Exit"));
 }

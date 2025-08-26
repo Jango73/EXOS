@@ -13,6 +13,7 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "I386.h"
 
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
@@ -28,8 +29,8 @@ BOOL AddTaskToQueue(LPTASK NewTask);
 // Removes a task from scheduler's queue
 BOOL RemoveTaskFromQueue(LPTASK);
 
-// Runs the scheduler to activate the next task (collborative)
-void Scheduler(void);
+// Runs the scheduler to activate the next task (preemptive)
+void Scheduler(LPTRAPFRAME Frame);
 
 // Returns the currently running task
 LPTASK GetCurrentTask(void);

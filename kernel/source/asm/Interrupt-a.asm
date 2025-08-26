@@ -259,14 +259,27 @@ Interrupt_AlignmentCheck :
 
 Interrupt_Clock :
 
-    pusha
+    push    ds
+    push    es
+    push    fs
+    push    gs
+    pushad
+
+    call    ClockHandler
+
+    mov     eax, esp
+    push    eax
+    call    Scheduler
+    add     esp, 4
 
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    call    ClockHandler
-
-    popa
+    popad
+    pop     gs
+    pop     fs
+    pop     es
+    pop     ds
     iretd
 
 ;--------------------------------------

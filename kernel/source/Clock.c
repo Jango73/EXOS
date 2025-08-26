@@ -11,7 +11,6 @@
 
 #include "../include/I386.h"
 #include "../include/Log.h"
-#include "../include/Schedule.h"
 #include "../include/String.h"
 #include "../include/System.h"
 #include "../include/Text.h"
@@ -79,8 +78,6 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
 
 void ClockHandler(void) {
     RawSystemTime += 10;
-
-    Scheduler();
 }
 
 /***************************************************************************/

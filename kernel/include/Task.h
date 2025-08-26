@@ -13,6 +13,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "I386.h"
 #include "Mutex.h"
 
 #define TASK_TYPE_KERNEL_MAIN       0
@@ -32,12 +33,12 @@ struct tag_TASK {
     TASKFUNC Function;  // Start address of this task
     LPVOID Parameter;   // Parameter passed to the function
     U32 ReturnValue;
-    U32 Table;         // Index in the TSS tables
-    U32 Selector;      // GDT selector for this task
+    TRAPFRAME Context; // Saved context for software switching
     LINEAR StackBase;  // This task's stack in the heap
     U32 StackSize;     // This task's stack size
     LINEAR SysStackBase;
     U32 SysStackSize;
+    LINEAR SysStackTop; // Top of system stack
     U32 Time;  // Time allocated to this task
     U32 WakeUpTime;
     MUTEX MessageMutex;  // Mutex to access message queue
@@ -47,10 +48,4 @@ struct tag_TASK {
 typedef struct tag_TASK TASK, *LPTASK;
 
 /************************************************************************/
-// The number of entries per task in the GDT
-
-#define GDT_TASK_DESCRIPTOR_ENTRIES 2
-
-/************************************************************************/
-
 #endif

@@ -48,7 +48,7 @@ static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
 
     U32 table = idx;
     LogTSSDescriptor(LOG_ERROR, (const TSSDESCRIPTOR*)&Kernel_i386.GDT[table]);
-    LogTaskStateSegment(LOG_ERROR, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + table));
+    LogTaskStateSegment(LOG_ERROR, (const TASKSTATESEGMENT*)Kernel_i386.TSS);
 }
 
 /************************************************************************/
@@ -253,7 +253,7 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     LogDescriptorAndTSSFromSelector(TEXT("[#DB]"), tr);
 
     U32 Index = SELECTOR_INDEX(tr);
-    LogTaskStateSegment(LOG_DEBUG, (LPTASKSTATESEGMENT) Kernel_i386.TSS + Index);
+    LogTaskStateSegment(LOG_DEBUG, (LPTASKSTATESEGMENT)Kernel_i386.TSS);
 
     DebugExceptionHandler_MinProbe();
 

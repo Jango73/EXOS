@@ -15,20 +15,6 @@
 #include "../include/System.h"
 #include "../include/Task.h"
 
-/***************************************************************************/
-// Internal helper for concise selector logging
-
-static void LogSelectorDetails(LPCSTR Prefix, SELECTOR Sel) {
-    U32 idx = SELECTOR_INDEX(Sel);
-    U32 ti  = SELECTOR_TI(Sel);
-    U32 rpl = SELECTOR_RPL(Sel);
-
-    KernelLogText(LOG_DEBUG, TEXT("%s selector=%X  index=%X  TI=%X  RPL=%X"),
-                  Prefix, (U32)Sel, idx, ti, rpl);
-}
-
-/***************************************************************************/
-
 typedef struct tag_TASKLIST {
     U32 Freeze;
     U32 SchedulerTime;
@@ -161,86 +147,55 @@ static void RotateQueue(void) {
 
 /***************************************************************************/
 
-void Scheduler(void) {
-    // We're in a interrupt gate
-    // No CLI or STI, it is managed by the processor (iretd)
-
+void Scheduler(LPTRAPFRAME Frame) {
     TaskList.SchedulerTime += 10;
+
+    if (TaskList.Current && Frame) {
+        TaskList.Current->Context = *Frame;
+    }
 
     if (TaskList.Freeze) return;
 
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
         TaskList.SchedulerTime = 0;
 
-        LPTASK StartTask = TaskList.Current;
+        LPTASK Current = TaskList.Current;
 
         while (1) {
             RotateQueue();
 
-            TaskList.TaskTime = TaskList.Current->Time;
+            LPTASK Next = TaskList.Current;
+            TaskList.TaskTime = Next->Time;
 
-            switch (TaskList.Current->Status) {
+            switch (Next->Status) {
                 case TASK_STATUS_RUNNING: {
+                    if (Next != Current) {
+                        if (Next->Process && Current && Next->Process->PageDirectory != Current->Process->PageDirectory) {
+                            KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
+                            LoadPageDirectory(Next->Process->PageDirectory);
+                        }
 
-                    SELECTOR target = TaskList.Current->Selector;
-                    SELECTOR current = GetTaskRegister();
+                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), Next->SysStackTop);
+                        Kernel_i386.TSS->ESP0 = Next->SysStackTop;
 
-                    if (SELECTOR_INDEX(target) == SELECTOR_INDEX(current) && SELECTOR_TI(target) == SELECTOR_TI(current)) {
-                        // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Skip switch: same TSS %X. Returning."), target);
-                        return;
+                        *Frame = Next->Context;
+
+                        TaskList.Current = Next;
                     }
-
-                    //-------------------------------------
-                    // Switch to the new current task
-
-                    U32 TableIndex = TaskList.Current->Table;
-
-                    /*
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switch to task %X"), TaskList.Current);
-
-                    SELECTOR CurrentSelector = GetTaskRegister();
-                    SELECTOR TargetSelector = TaskList.Current->Selector;
-
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP=%X  TR=%X"), (U32)GetEBP(), (U32)CurrentSelector);
-                    LogSelectorDetails("[Scheduler] Target", TargetSelector);
-                    LogSelectorDetails("[Scheduler] Current", CurrentSelector);
-                    LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*)&Kernel_i386.GDT[TaskList.Current->Table]);
-                    LogTaskStateSegment(LOG_DEBUG, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + TaskList.Current->Table));
-                    */
-
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Target task table index = %X"), TableIndex);
-
-                    ((LPTSSDESCRIPTOR)(Kernel_i386.GDT + TableIndex))->Type = GATE_TYPE_386_TSS_AVAIL;
-
-                    SELECTOR TargetSelector = TaskList.Current->Selector;
-                    LogSelectorDetails(TEXT("[Scheduler] Target task selector"), TargetSelector);
-
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] GDTR = %X"), GetGDTR());
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] LDTR = %X"), GetLDTR());
-
-                    SwitchToTask((U32)TaskList.Current->Selector);
-
-                    //-------------------------------------
-                    // Immediately return when scheduler comes back
                     return;
                 } break;
 
                 case TASK_STATUS_SLEEPING: {
-                    if (GetSystemTime() >= TaskList.Current->WakeUpTime) {
-                        //-------------------------------------
-                        // Wake-up the task
-
-                        TaskList.Current->Status = TASK_STATUS_RUNNING;
+                    if (GetSystemTime() >= Next->WakeUpTime) {
+                        Next->Status = TASK_STATUS_RUNNING;
                     }
                 } break;
             }
 
-            if (TaskList.Current == StartTask) {
+            if (Next == Current) {
                 return;
             }
         }
-
-        return;
     }
 }
 

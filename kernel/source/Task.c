@@ -151,8 +151,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     LINEAR SysStackPointer = NULL;
     SELECTOR CodeSelector = 0;
     SELECTOR DataSelector = 0;
-    U32 Table = MAX_U32;
-    U32 Index = 0;
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Enter"));
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Process : %X"), Process);
@@ -187,20 +185,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     LockMutex(MUTEX_KERNEL, INFINITY);
 
-    //-------------------------------------
-    // Find a free task
-
-    for (Index = GDT_NUM_BASE_DESCRIPTORS; Index < GDT_NUM_DESCRIPTORS; Index++) {
-        if (Kernel_i386.GDT[Index].Type == 0) {
-            Table = Index;
-            break;
-        }
-    }
-
-    if (Table == MAX_U32) goto Out;
-
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Task table index = %X"), Table);
-
     Task = NewTask();
 
     if (Task == NULL) {
@@ -217,9 +201,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Priority = Info->Priority;
     Task->Function = Info->Func;
     Task->Parameter = Info->Parameter;
-    Task->Table = Table;
-
-    Task->Selector = MAKE_GDT_SELECTOR(Table, 0);
 
     //-------------------------------------
     // Allocate the system stack
@@ -267,45 +248,28 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         DataSelector = SELECTOR_USER_DATA;
     }
 
-    //-------------------------------------
-    // Setup the TSS
-
-    MemorySet(Kernel_i386.TSS + Table, 0, sizeof(TASKSTATESEGMENT));
-
     StackPointer = Task->StackBase + Task->StackSize;
     SysStackPointer = Task->SysStackBase + Task->SysStackSize;
+    Task->SysStackTop = SysStackPointer;
 
-    Kernel_i386.TSS[Table].SS0 = SELECTOR_KERNEL_DATA;
-    Kernel_i386.TSS[Table].ESP0 = SysStackPointer - (0 * TASK_SYSTEM_STACK_SIZE);
-    Kernel_i386.TSS[Table].SS1 = SELECTOR_KERNEL_DATA;
-    Kernel_i386.TSS[Table].ESP1 = SysStackPointer - (1 * TASK_SYSTEM_STACK_SIZE);
-    Kernel_i386.TSS[Table].SS2 = SELECTOR_KERNEL_DATA;
-    Kernel_i386.TSS[Table].ESP2 = SysStackPointer - (2 * TASK_SYSTEM_STACK_SIZE);
-    Kernel_i386.TSS[Table].CR3 = Process->PageDirectory;
-    Kernel_i386.TSS[Table].EIP = (U32)TaskRunner;
-    Kernel_i386.TSS[Table].EFlags = EFLAGS_A1;
-    Kernel_i386.TSS[Table].EAX = (U32)Task->Parameter;
-    Kernel_i386.TSS[Table].EBX = (U32)Task->Function;
-    Kernel_i386.TSS[Table].ESP = StackPointer;
-    Kernel_i386.TSS[Table].EBP = StackPointer;
-    Kernel_i386.TSS[Table].CS = CodeSelector;
-    Kernel_i386.TSS[Table].DS = DataSelector;
-    Kernel_i386.TSS[Table].SS = DataSelector;
-    Kernel_i386.TSS[Table].ES = DataSelector;
-    Kernel_i386.TSS[Table].FS = DataSelector;
-    Kernel_i386.TSS[Table].GS = DataSelector;
-    Kernel_i386.TSS[Table].IOMap = sizeof(TASKSTATESEGMENT);;
+    MemorySet(&(Task->Context), 0, sizeof(TRAPFRAME));
+    Task->Context.EIP = (U32)TaskRunner;
+    Task->Context.EAX = (U32)Task->Parameter;
+    Task->Context.EBX = (U32)Task->Function;
+    Task->Context.ESP = StackPointer;
+    Task->Context.EBP = StackPointer;
+    Task->Context.CS = CodeSelector;
+    Task->Context.DS = DataSelector;
+    Task->Context.ES = DataSelector;
+    Task->Context.FS = DataSelector;
+    Task->Context.GS = DataSelector;
+    Task->Context.SS = DataSelector;
+    Task->Context.UserESP = StackPointer;
+    Task->Context.EFlags = EFLAGS_IF | EFLAGS_A1;
 
-    //-------------------------------------
-    // Setup the TSS descriptor
-
-    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Type = GATE_TYPE_386_TSS_AVAIL;
-    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Privilege = Process->Privilege;
-    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Present = 0x01;
-    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Granularity = GDT_GRANULAR_1B;
-
-    SetTSSDescriptorBase((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table, (U32)(Kernel_i386.TSS + Table));
-    SetTSSDescriptorLimit((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table, sizeof(TASKSTATESEGMENT) - 1);
+    if (Info->Flags & TASK_CREATE_MAIN) {
+        Kernel_i386.TSS->ESP0 = Task->SysStackTop;
+    }
 
     //-------------------------------------
     // Set the task's status as running
@@ -346,8 +310,6 @@ BOOL KillTask(LPTASK Task) {
     LockMutex(MUTEX_KERNEL, INFINITY);
     FreezeScheduler();
 
-    U32 Table = Task->Table;
-
     // Remove task from scheduler queue
     RemoveTaskFromQueue(Task);
 
@@ -356,9 +318,6 @@ BOOL KillTask(LPTASK Task) {
 
     // Remove from global kernel task list BEFORE freeing
     ListRemove(Kernel.Task, Task);
-
-    // Free the associated Task State Segment by setting its type to 0
-    MemorySet(Kernel_i386.GDT + Table, 0, sizeof(SEGMENTDESCRIPTOR));
 
     // Finally, free all resources owned by the task
     DeleteTask(Task);
@@ -897,7 +856,6 @@ void DumpTask(LPTASK Task) {
     KernelLogText(LOG_VERBOSE, TEXT("Function        : %X\n"), Task->Function);
     KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %X\n"), Task->Parameter);
     KernelLogText(LOG_VERBOSE, TEXT("ReturnValue     : %X\n"), Task->ReturnValue);
-    KernelLogText(LOG_VERBOSE, TEXT("Selector        : %X\n"), Task->Selector);
     KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %X\n"), Task->StackBase);
     KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %X\n"), Task->StackSize);
     KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %X\n"), Task->SysStackBase);

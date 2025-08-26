@@ -78,12 +78,12 @@ void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table) {
 void InitializeTaskSegments(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Enter"));
 
-    U32 TSSSize = sizeof(TASKSTATESEGMENT) * NUM_TASKS;
+    U32 TssSize = sizeof(TASKSTATESEGMENT);
 
     Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
         LA_KERNEL,
         0,
-        TSSSize,
+        TssSize,
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     if (Kernel_i386.TSS == NULL) {
@@ -91,7 +91,16 @@ void InitializeTaskSegments(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    MemorySet(Kernel_i386.TSS, 0, TSSSize);
+    MemorySet(Kernel_i386.TSS, 0, TssSize);
+    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
+
+    LPTSSDESCRIPTOR Desc = (LPTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_TSS_INDEX);
+    Desc->Type = GATE_TYPE_386_TSS_AVAIL;
+    Desc->Privilege = GDT_PRIVILEGE_KERNEL;
+    Desc->Present = 1;
+    Desc->Granularity = GDT_GRANULAR_1B;
+    SetTSSDescriptorBase(Desc, (U32)Kernel_i386.TSS);
+    SetTSSDescriptorLimit(Desc, sizeof(TASKSTATESEGMENT) - 1);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
     KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Exit"));
