@@ -36,13 +36,15 @@ DRIVER SystemFSDriver = {
 
 /***************************************************************************/
 
-typedef struct tag_SYSTEMFSFILE {
+typedef struct tag_SYSTEMFSFILE SYSTEMFSFILE, *LPSYSTEMFSFILE;
+
+struct tag_SYSTEMFSFILE {
     LISTNODE_FIELDS
     LPLIST Children;
     LPSYSTEMFSFILE Parent;
     LPFILESYSTEM Mounted;
     STR Name[MAX_FILE_NAME];
-} SYSTEMFSFILE, *LPSYSTEMFSFILE;
+};
 
 /***************************************************************************/
 // The file system object allocated when mounting
@@ -62,6 +64,18 @@ typedef struct tag_SYSFSFILE {
 } SYSFSFILE, *LPSYSFSFILE;
 
 /***************************************************************************/
+
+SYSTEMFSFILESYSTEM SystemFSFileSystem = {
+    .Header = {.ID = ID_FILESYSTEM,
+               .References = 1,
+               .Next = NULL,
+               .Prev = NULL,
+               .Mutex = EMPTY_MUTEX,
+               .Driver = &SystemFSDriver,
+               .Name = "System"},
+    .Root = NULL};
+
+#define SYSTEM_FS ((LPSYSTEMFSFILESYSTEM)Kernel.SystemFS)
 
 static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
     LPSYSTEMFSFILE Node;
@@ -116,7 +130,7 @@ static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
     Parts = DecompPath(Path);
     if (Parts == NULL) return NULL;
 
-    Current = Kernel.SystemFS->Root;
+    Current = SYSTEM_FS->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
         Part = (LPPATHNODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
@@ -142,7 +156,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     Parts = DecompPath(Control->Path);
     if (Parts == NULL) return DF_ERROR_BADPARAM;
 
-    Parent = Kernel.SystemFS->Root;
+    Parent = SYSTEM_FS->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
         Part = (LPPATHNODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
@@ -228,7 +242,7 @@ static U32 CreateFolder(LPFILEINFO Info) {
     Parts = DecompPath(Info->Name);
     if (Parts == NULL) return DF_ERROR_BADPARAM;
 
-    Parent = Kernel.SystemFS->Root;
+    Parent = SYSTEM_FS->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
         Part = (LPPATHNODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
@@ -282,47 +296,17 @@ static U32 DeleteFolder(LPFILEINFO Info) {
 
 /***************************************************************************/
 
-static LPSYSTEMFSFILESYSTEM NewSystemFSFileSystem(void) {
-    LPSYSTEMFSFILESYSTEM This;
-
-    This = (LPSYSTEMFSFILESYSTEM)KernelMemAlloc(sizeof(SYSTEMFSFILESYSTEM));
-    if (This == NULL) return NULL;
-
-    *This = (SYSTEMFSFILESYSTEM){
-        .Header =
-            {.ID = ID_FILESYSTEM,
-             .References = 1,
-             .Next = NULL,
-             .Prev = NULL,
-             .Mutex = EMPTY_MUTEX,
-             .Driver = &SystemFSDriver,
-             .Name = "System"},
-        .Root = NewSystemFileRoot()};
-
-    InitMutex(&(This->Header.Mutex));
-
-    return This;
-}
-
-/***************************************************************************/
-
 BOOL MountSystemFS(void) {
-    LPSYSTEMFSFILESYSTEM FileSystem;
-
     KernelLogText(LOG_VERBOSE, TEXT("[MountSystemFS] Mouting system FileSystem"));
 
-    //-------------------------------------
-    // Create the file system object
+    SystemFSFileSystem.Root = NewSystemFileRoot();
+    if (SystemFSFileSystem.Root == NULL) return FALSE;
 
-    FileSystem = NewSystemFSFileSystem();
-    if (FileSystem == NULL) return FALSE;
+    InitMutex(&(SystemFSFileSystem.Header.Mutex));
 
-    Kernel.SystemFS = FileSystem;
+    Kernel.SystemFS = (LPFILESYSTEM)&SystemFSFileSystem;
 
-    //-------------------------------------
-    // Register the file system
-
-    ListAddItem(Kernel.FileSystem, FileSystem);
+    ListAddItem(Kernel.FileSystem, Kernel.SystemFS);
 
     return TRUE;
 }

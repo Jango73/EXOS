@@ -24,6 +24,9 @@
 
 /***************************************************************************/
 
+typedef struct tag_SYSTEMFSFILESYSTEM SYSTEMFSFILESYSTEM;
+extern SYSTEMFSFILESYSTEM SystemFSFileSystem;
+
 extern U32 DeadBeef;
 
 extern void StartTestNetworkTask(void);
@@ -135,7 +138,7 @@ KERNELDATA Kernel = {
     .PCIDevice = &PciDeviceList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
-    .SystemFS = NULL,
+    .SystemFS = (LPFILESYSTEM)&SystemFSFileSystem,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
