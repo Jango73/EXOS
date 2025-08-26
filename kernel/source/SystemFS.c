@@ -114,7 +114,7 @@ static LPSYSTEMFSFILE FindChild(LPSYSTEMFSFILE Parent, LPCSTR Name) {
 
     for (Node = Parent->Children->First; Node; Node = Node->Next) {
         Child = (LPSYSTEMFSFILE)Node;
-        if (StringCompareNC(Child->Name, Name) == 0) return Child;
+        if (StringCompare(Child->Name, Name) == 0) return Child;
     }
 
     return NULL;

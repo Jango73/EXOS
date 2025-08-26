@@ -238,11 +238,11 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
         return;
     }
 
-    if (StringCompareNC(Context->Command, TEXT("..")) == 0) {
+    if (StringCompare(Context->Command, TEXT("..")) == 0) {
         StringCopy(NewPath, Context->CurrentFolder);
     {
         STR Root[2] = {PATH_SEP, STR_NULL};
-        if (StringCompareNC(NewPath, Root) != 0) {
+        if (StringCompare(NewPath, Root) != 0) {
             LPSTR Slash = StringFindCharR(NewPath, PATH_SEP);
             if (Slash && Slash != NewPath)
                 *Slash = STR_NULL;
@@ -321,8 +321,8 @@ static void ListFile(LPFILE File) {
     //-------------------------------------
     // Eliminate the . and .. files
 
-    if (StringCompareNC(File->Name, (LPCSTR) ".") == 0) return;
-    if (StringCompareNC(File->Name, (LPCSTR) "..") == 0) return;
+    if (StringCompare(File->Name, (LPCSTR) ".") == 0) return;
+    if (StringCompare(File->Name, (LPCSTR) "..") == 0) return;
 
     StringCopy(Name, File->Name);
 
