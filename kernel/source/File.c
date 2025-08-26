@@ -67,6 +67,32 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     UnlockMutex(MUTEX_FILE);
 
     //-------------------------------------
+    // Use SystemFS if an absolute path is provided
+
+    if (Info->Name[0] == PATH_SEP) {
+        Find.Size = sizeof Find;
+        Find.FileSystem = Kernel.SystemFS;
+        Find.Attributes = MAX_U32;
+        StringCopy(Find.Name, Info->Name);
+
+        File =
+            (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+
+        if (File != NULL) {
+            LockMutex(MUTEX_FILE, INFINITY);
+
+            File->OwnerTask = GetCurrentTask();
+            File->OpenFlags = Info->Flags;
+
+            ListAddItem(Kernel.File, File);
+
+            UnlockMutex(MUTEX_FILE);
+        }
+
+        goto Out;
+    }
+
+    //-------------------------------------
     // Get the name of the volume in which the file
     // is supposed to be located
 

@@ -838,12 +838,17 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
         STR CommandName[256];
         StringCopy(CommandName, Context->Command);
 
+        U32 Found = 0;
         for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
             if (StringCompareNC(CommandName, COMMANDS[Index].Name) == 0 ||
                 StringCompareNC(CommandName, COMMANDS[Index].AltName) == 0) {
                 COMMANDS[Index].Command(Context);
+                Found = 1;
                 break;
             }
+        }
+        if (Found == 0) {
+            ConsolePrint(TEXT("Unknown command : %s\n"), CommandName);
         }
     }
 
