@@ -305,11 +305,11 @@ void InitializePCI(void) {
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
-    MountSystemFS();
-
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
+
+    MountSystemFS();
 }
 
 /***************************************************************************/

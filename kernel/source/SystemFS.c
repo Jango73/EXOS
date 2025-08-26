@@ -297,14 +297,53 @@ static U32 DeleteFolder(LPFILEINFO Info) {
 /***************************************************************************/
 
 BOOL MountSystemFS(void) {
-    KernelLogText(LOG_VERBOSE, TEXT("[MountSystemFS] Mouting system FileSystem"));
+    LPLISTNODE Node;
+    LPFILESYSTEM FS;
+    VOLUMEINFO Volume;
+    FS_MOUNT_CONTROL Control;
+    FILEINFO Info;
+    STR Path[MAX_PATH_NAME];
+    const STR HdRoot[] = {PATH_SEP, 'h', 'd', STR_NULL};
+    U32 Result;
+    U32 Length;
+
+    KernelLogText(LOG_VERBOSE, TEXT("[MountSystemFS] Mounting system FileSystem"));
 
     SystemFSFileSystem.Root = NewSystemFileRoot();
     if (SystemFSFileSystem.Root == NULL) return FALSE;
 
     InitMutex(&(SystemFSFileSystem.Header.Mutex));
-
     Kernel.SystemFS = (LPFILESYSTEM)&SystemFSFileSystem;
+
+    Info.Size = sizeof(FILEINFO);
+    Info.FileSystem = Kernel.SystemFS;
+    Info.Attributes = 0;
+    Info.Flags = 0;
+    StringCopy(Info.Name, HdRoot);
+    CreateFolder(&Info);
+
+    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+        FS = (LPFILESYSTEM)Node;
+        if (FS == Kernel.SystemFS) continue;
+
+        Volume.Size = sizeof(VOLUMEINFO);
+        Volume.Volume = (HANDLE)FS;
+        Volume.Name[0] = STR_NULL;
+        Result = FS->Driver->Command(DF_FS_GETVOLUMEINFO, (U32)&Volume);
+        if (Result != DF_ERROR_SUCCESS || Volume.Name[0] == STR_NULL) {
+            StringCopy(Volume.Name, FS->Name);
+        }
+
+        StringCopy(Path, HdRoot);
+        Length = StringLength(Path);
+        Path[Length] = PATH_SEP;
+        Path[Length + 1] = STR_NULL;
+        StringConcat(Path, Volume.Name);
+
+        StringCopy(Control.Path, Path);
+        Control.Node = (LPLISTNODE)FS;
+        MountObject(&Control);
+    }
 
     ListAddItem(Kernel.FileSystem, Kernel.SystemFS);
 
