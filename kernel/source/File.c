@@ -258,7 +258,7 @@ U32 GetFileSize(LPFILE File) {
 
 /***************************************************************************/
 
-LPVOID FileReadAll(LPCSTR Name, LPU32 Size) {
+LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
     FILEOPENINFO OpenInfo;
     FILEOPERATION FileOp;
     LPFILE File = NULL;
@@ -288,7 +288,7 @@ LPVOID FileReadAll(LPCSTR Name, LPU32 Size) {
 
     if (Buffer != NULL) {
         FileOp.Header.Size = sizeof(FILEOPERATION);
-        FileOp.File = File;
+        FileOp.File = (HANDLE)File;
         FileOp.Buffer = Buffer;
         FileOp.NumBytes = *Size;
         ReadFile(&FileOp);
@@ -328,7 +328,7 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
     // Write the buffer to the file
 
     FileOp.Header.Size = sizeof(FILEOPERATION);
-    FileOp.File = File;
+    FileOp.File = (HANDLE)File;
     FileOp.Buffer = (LPVOID)Buffer;
     FileOp.NumBytes = Size;
     BytesWritten = WriteFile(&FileOp);
