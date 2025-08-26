@@ -137,6 +137,8 @@ typedef struct tag_KERNELDATA_I386 {
 
 extern KERNELDATA_I386 Kernel_i386;
 
+typedef struct tag_SYSTEMFSFILESYSTEM SYSTEMFSFILESYSTEM, *LPSYSTEMFSFILESYSTEM;
+
 typedef struct tag_KERNELDATA {
     LPLIST Desktop;
     LPLIST Process;
@@ -146,6 +148,7 @@ typedef struct tag_KERNELDATA {
     LPLIST PCIDevice;
     LPLIST FileSystem;
     LPLIST File;
+    LPSYSTEMFSFILESYSTEM SystemFS;
     CPUINFORMATION CPU;
 } KERNELDATA, *LPKERNELDATA;
 

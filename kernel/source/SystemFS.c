@@ -36,42 +36,40 @@ DRIVER SystemFSDriver = {
 
 /***************************************************************************/
 
-static LPSYSFSFILESYSTEM g_SystemFS = NULL;
-
-typedef struct tag_SYSTEMFILE {
+typedef struct tag_SYSTEMFSFILE {
     LISTNODE_FIELDS
     LPLIST Children;
-    LPSYSTEMFILE Parent;
+    LPSYSTEMFSFILE Parent;
     LPFILESYSTEM Mounted;
     STR Name[MAX_FILE_NAME];
-} SYSTEMFILE, *LPSYSTEMFILE;
+} SYSTEMFSFILE, *LPSYSTEMFSFILE;
 
 /***************************************************************************/
 // The file system object allocated when mounting
 
-typedef struct tag_SYSFSFILESYSTEM {
+typedef struct tag_SYSTEMFSFILESYSTEM {
     FILESYSTEM Header;
-    LPSYSTEMFILE Root;
-} SYSFSFILESYSTEM, *LPSYSFSFILESYSTEM;
+    LPSYSTEMFSFILE Root;
+} SYSTEMFSFILESYSTEM, *LPSYSTEMFSFILESYSTEM;
 
 /***************************************************************************/
 // The file object created when opening a file
 
 typedef struct tag_SYSFSFILE {
     FILE Header;
-    LPSYSTEMFILE SystemFile;
-    LPSYSTEMFILE Parent;
+    LPSYSTEMFSFILE SystemFile;
+    LPSYSTEMFSFILE Parent;
 } SYSFSFILE, *LPSYSFSFILE;
 
 /***************************************************************************/
 
-static LPSYSTEMFILE NewSystemFile(LPCSTR Name, LPSYSTEMFILE Parent) {
-    LPSYSTEMFILE Node;
+static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
+    LPSYSTEMFSFILE Node;
 
-    Node = (LPSYSTEMFILE)KernelMemAlloc(sizeof(SYSTEMFILE));
+    Node = (LPSYSTEMFSFILE)KernelMemAlloc(sizeof(SYSTEMFSFILE));
     if (Node == NULL) return NULL;
 
-    *Node = (SYSTEMFILE){
+    *Node = (SYSTEMFSFILE){
         .ID = ID_FILE,
         .References = 1,
         .Next = NULL,
@@ -89,36 +87,36 @@ static LPSYSTEMFILE NewSystemFile(LPCSTR Name, LPSYSTEMFILE Parent) {
     return Node;
 }
 
-static LPSYSTEMFILE NewSystemFileRoot(void) { return NewSystemFile(TEXT(""), NULL); }
+static LPSYSTEMFSFILE NewSystemFileRoot(void) { return NewSystemFile(TEXT(""), NULL); }
 
 /***************************************************************************/
 
-static LPSYSTEMFILE FindChild(LPSYSTEMFILE Parent, LPCSTR Name) {
+static LPSYSTEMFSFILE FindChild(LPSYSTEMFSFILE Parent, LPCSTR Name) {
     LPLISTNODE Node;
-    LPSYSTEMFILE Child;
+    LPSYSTEMFSFILE Child;
 
     if (Parent == NULL || Parent->Children == NULL) return NULL;
 
     for (Node = Parent->Children->First; Node; Node = Node->Next) {
-        Child = (LPSYSTEMFILE)Node;
+        Child = (LPSYSTEMFSFILE)Node;
         if (StringCompareNC(Child->Name, Name) == 0) return Child;
     }
 
     return NULL;
 }
 
-static LPSYSTEMFILE FindNode(LPCSTR Path) {
+static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
     LPLIST Parts;
     LPLISTNODE Node;
     LPPATHNODE Part;
-    LPSYSTEMFILE Current;
+    LPSYSTEMFSFILE Current;
 
-    if (g_SystemFS == NULL) return NULL;
+    if (Kernel.SystemFS == NULL) return NULL;
 
     Parts = DecompPath(Path);
     if (Parts == NULL) return NULL;
 
-    Current = g_SystemFS->Root;
+    Current = Kernel.SystemFS->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
         Part = (LPPATHNODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
@@ -136,15 +134,15 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     LPLIST Parts;
     LPLISTNODE Node;
     LPPATHNODE Part;
-    LPSYSTEMFILE Parent;
-    LPSYSTEMFILE Child;
+    LPSYSTEMFSFILE Parent;
+    LPSYSTEMFSFILE Child;
 
-    if (g_SystemFS == NULL || Control == NULL) return DF_ERROR_BADPARAM;
+    if (Kernel.SystemFS == NULL || Control == NULL) return DF_ERROR_BADPARAM;
 
     Parts = DecompPath(Control->Path);
     if (Parts == NULL) return DF_ERROR_BADPARAM;
 
-    Parent = g_SystemFS->Root;
+    Parent = Kernel.SystemFS->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
         Part = (LPPATHNODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
@@ -185,7 +183,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 }
 
 static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
-    LPSYSTEMFILE Node;
+    LPSYSTEMFSFILE Node;
 
     if (Control == NULL) return DF_ERROR_BADPARAM;
 
@@ -199,7 +197,7 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
 
 static BOOL PathExists(LPFS_PATHCHECK Control) {
     STR Temp[MAX_PATH_NAME];
-    LPSYSTEMFILE Node;
+    LPSYSTEMFSFILE Node;
 
     if (Control == NULL) return FALSE;
 
@@ -218,19 +216,19 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
 
 /***************************************************************************/
 
-static U32 CreateFolderFS(LPFILEINFO Info) {
+static U32 CreateFolder(LPFILEINFO Info) {
     LPLIST Parts;
     LPLISTNODE Node;
     LPPATHNODE Part;
-    LPSYSTEMFILE Parent;
-    LPSYSTEMFILE Child;
+    LPSYSTEMFSFILE Parent;
+    LPSYSTEMFSFILE Child;
 
     if (Info == NULL) return DF_ERROR_BADPARAM;
 
     Parts = DecompPath(Info->Name);
     if (Parts == NULL) return DF_ERROR_BADPARAM;
 
-    Parent = g_SystemFS->Root;
+    Parent = Kernel.SystemFS->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
         Part = (LPPATHNODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
@@ -268,8 +266,8 @@ static U32 CreateFolderFS(LPFILEINFO Info) {
     return DF_ERROR_SUCCESS;
 }
 
-static U32 DeleteFolderFS(LPFILEINFO Info) {
-    LPSYSTEMFILE Node;
+static U32 DeleteFolder(LPFILEINFO Info) {
+    LPSYSTEMFSFILE Node;
 
     if (Info == NULL) return DF_ERROR_BADPARAM;
 
@@ -284,13 +282,13 @@ static U32 DeleteFolderFS(LPFILEINFO Info) {
 
 /***************************************************************************/
 
-static LPSYSFSFILESYSTEM NewSystemFSFileSystem(void) {
-    LPSYSFSFILESYSTEM This;
+static LPSYSTEMFSFILESYSTEM NewSystemFSFileSystem(void) {
+    LPSYSTEMFSFILESYSTEM This;
 
-    This = (LPSYSFSFILESYSTEM)KernelMemAlloc(sizeof(SYSFSFILESYSTEM));
+    This = (LPSYSTEMFSFILESYSTEM)KernelMemAlloc(sizeof(SYSTEMFSFILESYSTEM));
     if (This == NULL) return NULL;
 
-    *This = (SYSFSFILESYSTEM){
+    *This = (SYSTEMFSFILESYSTEM){
         .Header =
             {.ID = ID_FILESYSTEM,
              .References = 1,
@@ -309,7 +307,7 @@ static LPSYSFSFILESYSTEM NewSystemFSFileSystem(void) {
 /***************************************************************************/
 
 BOOL MountSystemFS(void) {
-    LPSYSFSFILESYSTEM FileSystem;
+    LPSYSTEMFSFILESYSTEM FileSystem;
 
     KernelLogText(LOG_VERBOSE, TEXT("[MountSystemFS] Mouting system FileSystem"));
 
@@ -319,7 +317,7 @@ BOOL MountSystemFS(void) {
     FileSystem = NewSystemFSFileSystem();
     if (FileSystem == NULL) return FALSE;
 
-    g_SystemFS = FileSystem;
+    Kernel.SystemFS = FileSystem;
 
     //-------------------------------------
     // Register the file system
@@ -391,9 +389,9 @@ U32 SystemFSCommands(U32 Function, U32 Parameter) {
         case DF_FS_SETVOLUMEINFO:
             return DF_ERROR_NOTIMPL;
         case DF_FS_CREATEFOLDER:
-            return CreateFolderFS((LPFILEINFO)Parameter);
+            return CreateFolder((LPFILEINFO)Parameter);
         case DF_FS_DELETEFOLDER:
-            return DeleteFolderFS((LPFILEINFO)Parameter);
+            return DeleteFolder((LPFILEINFO)Parameter);
         case DF_FS_MOUNTOBJECT:
             return MountObject((LPFS_MOUNT_CONTROL)Parameter);
         case DF_FS_UNMOUNTOBJECT:

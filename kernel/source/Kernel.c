@@ -135,6 +135,7 @@ KERNELDATA Kernel = {
     .PCIDevice = &PciDeviceList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
+    .SystemFS = NULL,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
