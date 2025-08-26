@@ -47,16 +47,15 @@ I stopped development when I hit a wall: the scheduler was too slow, I lost moti
 
 ## Timeline & resilience
 
-In 2025, after more than 25 years in storage, I managed to revive EXOS with almost no changes.
+In 2025, after more than 25 years in storage, I managed to revive EXOS.
 The original routines (disk access, FAT32 handling, task/process logic) booted and worked out of the box on modern QEMU virtual machines, with image files replacing the physical hard drives of the 90s.
 
 - Hand-written drivers for IDE/ATA and interrupt management: still working
 - FAT32 filesystem code from 1999: able to mount and browse modern images
-- Survived several generations of toolchains (GCC, NASM, mkfs, QEMU) without major rewrite
+- Survived several generations of toolchains (GCC, NASM, mkfs, QEMU)
 
 > In 1999, EXOS read its first FAT32 disk on real hardware.
-> In 2025, it does exactly the same under QEMU (when bootloaders function...).
-> Same codebase, different century.
+> In 2025, it does exactly the same under QEMU.
 
 ## Things it does
 
@@ -74,7 +73,8 @@ The original routines (disk access, FAT32 handling, task/process logic) booted a
 
 * Add buffers for filesystem drivers
 * Rework the scheduler and task switching...
-* Add some file systems
+* Implement a POSIX-like virtual file system
+* Implement some file systems
 * Add some drivers
 * Destroy processes (they live infinitely now)
 * Continue graphics UI
