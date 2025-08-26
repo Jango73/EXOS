@@ -880,7 +880,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = (((U32)DirEntry->ClusterLow) | (((U32)DirEntry->ClusterHigh) << 16));
 
@@ -1038,7 +1038,7 @@ static U32 CreateFolder(LPFILEINFO File) {
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
                     if (File->Name[PathIndex] == STR_NULL) {
                         if (DirEntry->Attributes & FAT_ATTR_FOLDER) {
                             return DF_ERROR_SUCCESS;

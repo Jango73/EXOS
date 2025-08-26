@@ -433,7 +433,7 @@ static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
             if ((DirEntry->Cluster) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 && (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = DirEntry->Cluster;
 

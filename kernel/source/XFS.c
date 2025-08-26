@@ -322,8 +322,8 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
             }
 
             if (FileRec->ClusterTable > 0 && FileRec->ClusterTable != XFS_CLUSTER_END) {
-                if (StringCompareNC(Component->Name, TEXT("*")) == 0 ||
-                    StringCompareNC(Component->Name, FileRec->Name) == 0) {
+                if (StringCompare(Component->Name, TEXT("*")) == 0 ||
+                    StringCompare(Component->Name, FileRec->Name) == 0) {
                     if (Component->Next == NULL) {
                         FileLoc->DataCluster = FileRec->ClusterTable;
                         goto Out_Success;

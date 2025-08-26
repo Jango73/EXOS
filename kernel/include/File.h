@@ -39,6 +39,9 @@ U32 DeleteFile(LPFILEOPENINFO);
 U32 CreateFolder(LPFILEOPENINFO);
 U32 DeleteFolder(LPFILEOPENINFO);
 
+LPVOID FileReadAll(LPCSTR, LPU32);
+U32 FileWriteAll(LPCSTR, LPCVOID, U32);
+
 /***************************************************************************/
 
 #endif
