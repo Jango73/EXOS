@@ -203,13 +203,6 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static LPFILESYSTEM GetCurrentFileSystem(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-    return Kernel.SystemFS;
-}
-
-/***************************************************************************/
-
 BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
     STR Sep[2] = {PATH_SEP, STR_NULL};
 
@@ -298,7 +291,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
         return;
     }
 
-    FileSystem = GetCurrentFileSystem(Context);
+    FileSystem = Kernel.SystemFS;
     if (FileSystem == NULL) return;
 
     if (QualifyFileName(Context, Context->Command, FileName)) {
@@ -415,7 +408,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
         }
     }
 
-    FileSystem = GetCurrentFileSystem(Context);
+    FileSystem = Kernel.SystemFS;
 
     if (FileSystem == NULL || FileSystem->Driver == NULL) {
         ConsolePrint(TEXT("No file system mounted !\n"));
