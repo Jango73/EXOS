@@ -24,6 +24,7 @@
 #include "String.h"
 #include "Text.h"
 #include "User.h"
+#include "TOML.h"
 
 /***************************************************************************/
 
@@ -149,6 +150,7 @@ typedef struct tag_KERNELDATA {
     LPLIST FileSystem;
     LPLIST File;
     LPFILESYSTEM SystemFS;
+    LPTOML Configuration;
     CPUINFORMATION CPU;
 } KERNELDATA, *LPKERNELDATA;
 
@@ -165,6 +167,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
+void ReadKernelConfiguration(void);
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
 
 /***************************************************************************/

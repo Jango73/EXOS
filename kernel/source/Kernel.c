@@ -14,6 +14,7 @@
 #include "../include/Driver.h"
 #include "../include/E1000.h"
 #include "../include/FileSys.h"
+#include "../include/File.h"
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
@@ -21,6 +22,7 @@
 #include "../include/Mouse.h"
 #include "../include/PCI.h"
 #include "../include/System.h"
+#include "../include/TOML.h"
 
 /***************************************************************************/
 
@@ -139,6 +141,7 @@ KERNELDATA Kernel = {
     .FileSystem = &FileSystemList,
     .File = &FileList,
     .SystemFS = (LPFILESYSTEM)&SystemFSFileSystem,
+    .Configuration = NULL,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
@@ -291,6 +294,22 @@ void DumpSystemInformation(void) {
     ConsolePrint(Text_Space);
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
+}
+
+/***************************************************************************/
+
+void ReadKernelConfiguration(void) {
+    U32 Size = 0;
+    LPVOID Buffer = FileReadAll(TEXT("exos.cfg"), &Size);
+
+    if (Buffer == NULL) {
+        Buffer = FileReadAll(TEXT("EXOS.CFG"), &Size);
+    }
+
+    if (Buffer != NULL) {
+        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
+        HeapFree(Buffer);
+    }
 }
 
 /***************************************************************************/
@@ -451,6 +470,12 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     LoadDriver(&StdHardDiskDriver, TEXT("StdHardDisk"));
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Physical drives initialized"));
+
+    //-------------------------------------
+    // Read kernel configuration
+
+    ReadKernelConfiguration();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
 
     //-------------------------------------
     // Initialize the file systems
