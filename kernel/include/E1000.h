@@ -118,7 +118,7 @@
    COLD (Collision Distance) = 0x40
    These are written as raw values to be shifted by *_SHIFT. */
 
-#define E1000_TCTL_CT_DEFAULT   0x10
+#define E1000_TCTL_CT_DEFAULT 0x10
 #define E1000_TCTL_COLD_DEFAULT 0x40
 
 /***************************************************************************/

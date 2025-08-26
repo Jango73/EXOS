@@ -42,7 +42,7 @@ void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR This, U32 Type) {
 void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table) {
     KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] Enter"));
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] GDT address = %X"), (U32) Table);
+    KernelLogText(LOG_DEBUG, TEXT("[InitGlobalDescriptorTable] GDT address = %X"), (U32)Table);
 
     MemorySet(Table, 0, GDT_SIZE);
 
@@ -81,10 +81,7 @@ void InitializeTaskSegments(void) {
     U32 TssSize = sizeof(TASKSTATESEGMENT);
 
     Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
-        LA_KERNEL,
-        0,
-        TssSize,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+        LA_KERNEL, 0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     if (Kernel_i386.TSS == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
@@ -123,9 +120,7 @@ void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR This, U32 Limit) {
 
 /***************************************************************************/
 
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) {
-    SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base);
-}
+void SetTSSDescriptorBase(LPTSSDESCRIPTOR This, U32 Base) { SetSegmentDescriptorBase((LPSEGMENTDESCRIPTOR)This, Base); }
 
 /***************************************************************************/
 

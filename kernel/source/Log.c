@@ -18,9 +18,7 @@
 
 /***************************************************************************/
 
-void InitKernelLog(void) {
-    SerialReset(LOG_COM_INDEX);
-}
+void InitKernelLog(void) { SerialReset(LOG_COM_INDEX); }
 
 /***************************************************************************/
 
@@ -30,7 +28,7 @@ static int SkipAToI(LPCSTR* format) {
         result = result * 10 + (**format - '0');
         (*format)++;
     }
-    (*format)--; // Come back for next character
+    (*format)--;  // Come back for next character
     return result;
 }
 
@@ -101,12 +99,23 @@ void VarKernelPrint(LPCSTR Format, VarArgList Args) {
     Repeat:
         Format++;
         switch (*Format) {
-            case '-': Flags |= PF_LEFT; goto Repeat;
-            case '+': Flags |= PF_PLUS; goto Repeat;
-            case ' ': Flags |= PF_SPACE; goto Repeat;
-            case '#': Flags |= PF_SPECIAL; goto Repeat;
-            case '0': Flags |= PF_ZEROPAD; goto Repeat;
-            case STR_NULL: return;
+            case '-':
+                Flags |= PF_LEFT;
+                goto Repeat;
+            case '+':
+                Flags |= PF_PLUS;
+                goto Repeat;
+            case ' ':
+                Flags |= PF_SPACE;
+                goto Repeat;
+            case '#':
+                Flags |= PF_SPECIAL;
+                goto Repeat;
+            case '0':
+                Flags |= PF_ZEROPAD;
+                goto Repeat;
+            case STR_NULL:
+                return;
         }
 
         // Récupérer la largeur de champ
@@ -245,7 +254,6 @@ static void KernelLogRegistersCompact(void) {
 /***************************************************************************/
 
 void KernelLogText(U32 Type, LPCSTR Format, ...) {
-
     // KernelPrintString(Format);
     // return;
 

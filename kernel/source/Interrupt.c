@@ -89,7 +89,7 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_Default,            // 47  0x0F
 };
 
-GATEDESCRIPTOR IDT [IDT_SIZE / sizeof(GATEDESCRIPTOR)];
+GATEDESCRIPTOR IDT[IDT_SIZE / sizeof(GATEDESCRIPTOR)];
 
 /***************************************************************************/
 
@@ -146,7 +146,7 @@ void InitializeInterrupts(void) {
 
     //-------------------------------------
 
-    LoadInterruptDescriptorTable((PHYSICAL) IDT, sizeof(IDT) - 1);
+    LoadInterruptDescriptorTable((PHYSICAL)IDT, sizeof(IDT) - 1);
 
     // Reset debug registers
 

@@ -170,14 +170,8 @@ static U32 HardDiskInitialize(void) {
 
             ATAID = (LPATADRIVEID)Buffer;
 
-            if
-            (
-              ATAID->PhysicalCylinders != 0 &&
-              ATAID->PhysicalHeads     != 0 &&
-              ATAID->PhysicalSectors   != 0
-            )
-            {
-                KernelLogText(LOG_VERBOSE, TEXT("[HardDiskInitialize] HD: %X, port: %X"), (U32) Port, (U32) Drive);
+            if (ATAID->PhysicalCylinders != 0 && ATAID->PhysicalHeads != 0 && ATAID->PhysicalSectors != 0) {
+                KernelLogText(LOG_VERBOSE, TEXT("[HardDiskInitialize] HD: %X, port: %X"), (U32)Port, (U32)Drive);
 
                 Disk = NewStdHardDisk();
                 if (Disk == NULL) continue;

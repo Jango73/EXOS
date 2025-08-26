@@ -91,26 +91,26 @@ typedef U32 BOOL;
 /***************************************************************************/
 // Utilities
 
-#define UNUSED(x)               (void)(x)
-#define SAFE_USE(a)             if ((a) != NULL)
-#define SAFE_USE_2(a,b)         if ((a) != NULL && (b) != NULL)
-#define SAFE_USE_VALID(a)       if ((a) != NULL && IsValidMemory((LINEAR) a))
-#define SAFE_USE_VALID_2(a,b)   if ((a) != NULL && IsValidMemory((LINEAR) a) && (b) != NULL && IsValidMemory((LINEAR) b))
-#define SAFE_USE_VALID_ID(a,i)  if ((a) != NULL && IsValidMemory((LINEAR) a) && (a->ID == i))
+#define UNUSED(x) (void)(x)
+#define SAFE_USE(a) if ((a) != NULL)
+#define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
+#define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
+#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && (a->ID == i))
 
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
 // Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
 // clobber.
-#define DO_THE_SLEEPING_BEAUTY       \
-    do {                      \
-        __asm__ __volatile__( \
-            "1:\n\t"          \
-            "cli\n\t"         \
-            "hlt\n\t"         \
-            "jmp 1b\n\t"      \
-            :                 \
-            :                 \
-            : "memory");      \
+#define DO_THE_SLEEPING_BEAUTY \
+    do {                       \
+        __asm__ __volatile__(  \
+            "1:\n\t"           \
+            "cli\n\t"          \
+            "hlt\n\t"          \
+            "jmp 1b\n\t"       \
+            :                  \
+            :                  \
+            : "memory");       \
     } while (0)
 
 /***************************************************************************/

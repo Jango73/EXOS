@@ -12,7 +12,7 @@
 
 /************************************************************************/
 
-const U16 COMPorts[4] = { 0x3F8, 0x2F8, 0x3E8, 0x2E8 };
+const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
 
 /************************************************************************/
 
@@ -47,7 +47,7 @@ void SerialOut(U8 Which, U8 Char) {
     if (Which > 3) return;
     U16 base = COMPorts[Which];
 
-    const U32 MaxSpin = 100000;   /* Upper bound to avoid deadlock */
+    const U32 MaxSpin = 100000; /* Upper bound to avoid deadlock */
     U32 spins = 0;
 
     /* Wait for THR empty (LSR_THRE). Give up on timeout. */

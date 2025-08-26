@@ -117,7 +117,9 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 } break;
 
                 default: {
-                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Partition type %X not implemented\n"), (U32)Partition[Index].Type);
+                    KernelLogText(
+                        LOG_VERBOSE, TEXT("[MountDiskPartitions] Partition type %X not implemented\n"),
+                        (U32)Partition[Index].Type);
                 } break;
             }
         }

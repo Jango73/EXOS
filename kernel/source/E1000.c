@@ -316,7 +316,7 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
     {
         LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
         for (Index = 0; Index < Device->RxRingCount; Index++) {
-            Ring[Index].BufferAddrLow  = (U32)(Device->RxBufPhysical[Index] & 0xFFFFFFFF);
+            Ring[Index].BufferAddrLow = (U32)(Device->RxBufPhysical[Index] & 0xFFFFFFFF);
             Ring[Index].BufferAddrHigh = 0;
             Ring[Index].Length = 0;
             Ring[Index].Checksum = 0;
@@ -385,7 +385,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
     {
         LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;
         for (Index = 0; Index < Device->TxRingCount; Index++) {
-            Ring[Index].BufferAddrLow  = (U32)(Device->TxBufPhysical[Index] & 0xFFFFFFFF);
+            Ring[Index].BufferAddrLow = (U32)(Device->TxBufPhysical[Index] & 0xFFFFFFFF);
             Ring[Index].BufferAddrHigh = 0;
             Ring[Index].Length = 0;
             Ring[Index].CSO = 0;
@@ -462,16 +462,15 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));
 
     KernelLogText(
-        LOG_VERBOSE, TEXT("[E1000] Attached %X:%X.%u MMIO=%X size=%X MAC=%X:%X:%X:%X:%X:%X"),
-        (U32)Device->Info.Bus, (U32)Device->Info.Dev, (U32)Device->Info.Func, (U32)Device->MmioBase,
-        (U32)Device->MmioSize, (U32)Device->Mac[0],
-        (U32)Device->Mac[1], (U32)Device->Mac[2], (U32)Device->Mac[3], (U32)Device->Mac[4], (U32)Device->Mac[5]);
+        LOG_VERBOSE, TEXT("[E1000] Attached %X:%X.%u MMIO=%X size=%X MAC=%X:%X:%X:%X:%X:%X"), (U32)Device->Info.Bus,
+        (U32)Device->Info.Dev, (U32)Device->Info.Func, (U32)Device->MmioBase, (U32)Device->MmioSize,
+        (U32)Device->Mac[0], (U32)Device->Mac[1], (U32)Device->Mac[2], (U32)Device->Mac[3], (U32)Device->Mac[4],
+        (U32)Device->Mac[5]);
 
     return Device;
 }
 
 static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev) { return (LPPCI_DEVICE)NewE1000Device(PciDev); }
-
 
 /****************************************************************/
 // RX/TX operations

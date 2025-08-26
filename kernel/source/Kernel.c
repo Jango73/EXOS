@@ -123,7 +123,7 @@ static LIST FileList = {
 KERNELDATA_I386 Kernel_i386 = {
     .GDT = 0,
     .TSS = 0,
-    .PPB = (U8*) 1                       // To force inclusion in .data
+    .PPB = (U8*)1  // To force inclusion in .data
 };
 
 KERNELDATA Kernel = {
@@ -246,8 +246,9 @@ U32 ClockTask(LPVOID Param) {
 
 void DumpCriticalInformation(void) {
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
-        KernelLogText(LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"),
-        Index, (U32)KernelStartup.E820[Index].Base.LO, (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
+        KernelLogText(
+            LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"), Index, (U32)KernelStartup.E820[Index].Base.LO,
+            (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("Virtual addresses"));

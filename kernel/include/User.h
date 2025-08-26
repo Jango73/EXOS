@@ -229,9 +229,9 @@ typedef struct tag_VIRTUALINFO {
 #define ALLOC_PAGES_COMMIT 0x00000001
 #define ALLOC_PAGES_READONLY 0x00000000
 #define ALLOC_PAGES_READWRITE 0x00000002
-#define ALLOC_PAGES_UC 0x00000004  // Uncached (for MMIO/BAR mappings)
-#define ALLOC_PAGES_WC 0x00000008  // Write-combining (rare; mostly for framebuffers)
-#define ALLOC_PAGES_IO 0x00000010  // Exact PMA mapping for IO (BAR) -> do not touch RAM bitmap
+#define ALLOC_PAGES_UC 0x00000004          // Uncached (for MMIO/BAR mappings)
+#define ALLOC_PAGES_WC 0x00000008          // Write-combining (rare; mostly for framebuffers)
+#define ALLOC_PAGES_IO 0x00000010          // Exact PMA mapping for IO (BAR) -> do not touch RAM bitmap
 #define ALLOC_PAGES_AT_OR_OVER 0x00000020  // If a linear address is specified, can allocate anywhere above it
 
 typedef struct tag_ENUMVOLUMESINFO {

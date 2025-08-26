@@ -226,8 +226,8 @@ void PCI_ScanBus(void) {
 
                 PciFillFunctionInfo((U8)Bus, (U8)Device, (U8)Function, &PciInfo);
                 KernelLogText(
-                    LOG_DEBUG, TEXT("[PCI] Found %X:%X.%u VID=%X DID=%X"),
-                    (U32)Bus, (U32)Device, (U32)Function, (U32)PciInfo.VendorID, (U32)PciInfo.DeviceID);
+                    LOG_DEBUG, TEXT("[PCI] Found %X:%X.%u VID=%X DID=%X"), (U32)Bus, (U32)Device, (U32)Function,
+                    (U32)PciInfo.VendorID, (U32)PciInfo.DeviceID);
 
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
                 PciDevice.ID = ID_PCIDEVICE;
@@ -245,8 +245,8 @@ void PCI_ScanBus(void) {
                         if (PciInternalMatch(DriverMatch, &PciInfo)) {
                             if (PciDriver->Command) {
                                 KernelLogText(
-                                    LOG_DEBUG, TEXT("[PCI] %s matches %X:%X.%u"),
-                                    PciDriver->Product, (U32)Bus, (U32)Device, (U32)Function);
+                                    LOG_DEBUG, TEXT("[PCI] %s matches %X:%X.%u"), PciDriver->Product, (U32)Bus,
+                                    (U32)Device, (U32)Function);
 
                                 U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
                                 if (Result == DF_ERROR_SUCCESS) {
@@ -257,8 +257,8 @@ void PCI_ScanBus(void) {
                                         if (NewDev) {
                                             ListAddItem(Kernel.PCIDevice, NewDev);
                                             KernelLogText(
-                                                LOG_DEBUG, TEXT("[PCI] Attached %s to %X:%X.%u"),
-                                                PciDriver->Product, (U32)Bus, (U32)Device, (U32)Function);
+                                                LOG_DEBUG, TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
+                                                (U32)Bus, (U32)Device, (U32)Function);
                                             goto NextFunction;
                                         }
                                     }

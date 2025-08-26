@@ -17,11 +17,7 @@ extern LINEAR __bss_init_start;
 extern LINEAR __bss_init_end;
 
 KERNELSTARTUPINFO KernelStartup = {
-    .IRQMask_21_PM = 0x000000FB,
-    .IRQMask_A1_PM = 0x000000FF,
-    .IRQMask_21_RM = 0,
-    .IRQMask_A1_RM = 0
-};
+    .IRQMask_21_PM = 0x000000FB, .IRQMask_A1_PM = 0x000000FF, .IRQMask_21_RM = 0, .IRQMask_A1_RM = 0};
 
 /************************************************************************/
 // The entry point in paged protected mode
@@ -51,7 +47,7 @@ void KernelMain(void) {
     //--------------------------------------
     // Enter the idle task
 
-    while(1) {
+    while (1) {
         IdleCPU();
     }
 }
