@@ -182,13 +182,6 @@ typedef struct tag_TSSDESCRIPTOR {
 } TSSDESCRIPTOR, *LPTSSDESCRIPTOR;
 
 /***************************************************************************/
-
-typedef struct tag_TASKTSSDESCRIPTOR {
-    TSSDESCRIPTOR TSS;
-    TSSDESCRIPTOR LDT;
-} TASKTSSDESCRIPTOR, *LPTASKTSSDESCRIPTOR;
-
-/***************************************************************************/
 // The Task State Segment
 // It must be 256 bytes long
 

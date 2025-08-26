@@ -96,7 +96,6 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     LPTASK Task;
     U32 Flags;
     U32 Ret = 0;
-    STR Number [32];
 
     SaveFlags(&Flags);
     DisableInterrupts();

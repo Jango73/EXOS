@@ -46,8 +46,8 @@ static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
         return;
     }
 
-    U32 table = idx - GDT_NUM_BASE_DESCRIPTORS;
-    LogTSSDescriptor(LOG_ERROR, (const TSSDESCRIPTOR*)&Kernel_i386.TTD[table]);
+    U32 table = idx;
+    LogTSSDescriptor(LOG_ERROR, (const TSSDESCRIPTOR*)&Kernel_i386.GDT[table]);
     LogTaskStateSegment(LOG_ERROR, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + table));
 }
 
@@ -250,6 +250,8 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
 
     KernelPrintString(Text_NewLine);
 
+    LogDescriptorAndTSSFromSelector(TEXT("[#DB]"), tr);
+
     U32 Index = SELECTOR_INDEX(tr);
     LogTaskStateSegment(LOG_DEBUG, (LPTASKSTATESEGMENT) Kernel_i386.TSS + Index);
 
@@ -266,7 +268,6 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     // BD (bit13) = general detect
     if (dr6 & (1u << 13)) KernelPrintString(TEXT("[#DB] cause: general-detect (DR7.GD)\n"));
 
-    LogTR();
     DumpFrame(Frame);
 
     if (IsSpuriousTaskSwitchDB()){

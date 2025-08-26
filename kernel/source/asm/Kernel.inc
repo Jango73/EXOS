@@ -267,7 +267,6 @@ ENDSTRUC
 STRUC KERNELDATA_I386
     .IDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
     .GDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
-    .TTD                RESB 4        ; LPTASKTSSDESCRIPTOR*
     .TSS                RESB 4        ; LPTASKSTATESEGMENT*
     .PPB                RESB 4        ; LPPAGEBITMAP*
 ENDSTRUC

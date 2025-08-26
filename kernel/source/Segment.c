@@ -93,10 +93,7 @@ void InitializeTaskSegments(void) {
 
     MemorySet(Kernel_i386.TSS, 0, TSSSize);
 
-    Kernel_i386.TTD = (LPTASKTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_NUM_BASE_DESCRIPTORS);
-
     KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] TTD = %X"), Kernel_i386.TTD);
     KernelLogText(LOG_DEBUG, TEXT("[InitializeTaskSegments] Exit"));
 }
 

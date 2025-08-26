@@ -121,7 +121,6 @@ static LIST FileList = {
 
 KERNELDATA_I386 Kernel_i386 = {
     .GDT = 0,
-    .TTD = 0,
     .TSS = 0,
     .PPB = (U8*) 1                       // To force inclusion in .data
 };

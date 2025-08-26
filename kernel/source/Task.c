@@ -13,64 +13,7 @@
 #include "../include/Log.h"
 #include "../include/Process.h"
 
-/************************************************************************\
-
-    GDTR (6 bytes)
-    ┌───────────────────────────────────────────────────────────────┐
-    │ base = LA_GDT = 0xFF401000   •   limit ≈ 0x1FFF (8 KiB - 1)   │
-    └───────────────────────────────────────────────────────────────┘
-                    │
-                    ▼
-    GDT @ LA_GDT = 0xFF401000   (each entry = 8 bytes)
-    ┌──────┬───────────┬──────────────┬─────────────────────────────┐
-    │Idx   │ Selector  │ VA (LA_GDT + │ Role / Notes                │
-    │      │ (hex)     │   idx*8)     │                             │
-    ├──────┼───────────┼──────────────┼─────────────────────────────┤
-    │0     │ 0x00      │ +0x00        │ NULL                        │
-    │1     │ 0x08      │ +0x08        │ Kernel Code                 │
-    │2     │ 0x10      │ +0x10        │ Kernel Data                 │
-    │3     │ 0x18      │ +0x18        │ User   Code                 │
-    │4     │ 0x20      │ +0x20        │ User   Data                 │
-    │5     │ 0x28      │ +0x28        │ (free / system)             │
-    │6     │ 0x30      │ +0x30        │ (free / system)             │
-    │7     │ 0x38      │ +0x38        │ (free / system)             │
-    │------┴───────────┴──────────────┴─────────────────────────────│
-    │  Per-task region starts at:                                   │
-    │    LA_GDT_TASK = LA_GDT + GDT_NUM_BASE_DESCRIPTORS*8          │
-    │               = 0xFF401000 + 8*8 = 0xFF401040                 │
-    ├──────┬───────────┬──────────────┬─────────────────────────────┤
-    │8     │ 0x40      │ +0x40        │ Task 0 • TSS descriptor     │
-    │9     │ 0x48      │ +0x48        │ Task 0 • LDT descriptor (*) │
-    │10    │ 0x50      │ +0x50        │ Task 1 • TSS descriptor     │
-    │11    │ 0x58      │ +0x58        │ Task 1 • LDT descriptor (*) │
-    │12    │ 0x60      │ +0x60        │ Task 2 • TSS descriptor     │
-    │13    │ 0x68      │ +0x68        │ Task 2 • LDT descriptor (*) │
-    │…     │ …         │ …            │ …                           │
-    └──────┴───────────┴──────────────┴─────────────────────────────┘
-    (*) LDT slot reserved (P=0).
-    Per-task slot size in the GDT = 2 entries = 16 bytes (TSS then LDT).
-
-    TTD (per-task descriptor array in C)
-    LA_GDT_TASK = 0xFF401040  →  points inside the GDT
-    ┌───────────────────────────────────────────────────────────────┐
-    │ TTD[0] @ LA_GDT_TASK + 0x00 : { TSS desc, LDT desc }          │
-    │ TTD[1] @ LA_GDT_TASK + 0x10 : { TSS desc, LDT desc }          │
-    │ TTD[2] @ LA_GDT_TASK + 0x20 : { TSS desc, LDT desc }          │
-    │ …                                                             │
-    └───────────────────────────────────────────────────────────────┘
-    (Each TTD slot = sizeof(TASKTSSDESCRIPTOR) = 16 bytes = 2 GDT entries.)
-
-    TSS memory (system area)
-    LA_SYSTEM = 0xFF400000
-    ┌───────────────────────────────────────────────────────────────┐
-    │ TSS[0] @ LA_SYSTEM + 0x8000 = 0xFF408000  (256 bytes)         │
-    │ TSS[1] @ LA_SYSTEM + 0x8100 = 0xFF408100  (256 bytes)         │
-    │ TSS[2] @ LA_SYSTEM + 0x8200 = 0xFF408200  (256 bytes)         │
-    │ …                                                             │
-    └───────────────────────────────────────────────────────────────┘
-    (TSS[i] = 0xFF408000 + i*0x100 ; limit = 0xFF (byte granularity).)
-
-\************************************************************************/
+/************************************************************************/
 
 static LPMESSAGE NewMessage(void) {
     LPMESSAGE This;
@@ -115,7 +58,7 @@ LPTASK NewTask(void) {
         return NULL;
     }
 
-    if (IsValidMemory(This) == FALSE) {
+    if (IsValidMemory((LINEAR) This) == FALSE) {
         KernelLogText(LOG_ERROR, TEXT("[NewTask] Allocated task is not a valid pointer"));
         return NULL;
     }
@@ -247,8 +190,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Find a free task
 
-    for (Index = 0; Index < NUM_TASKS; Index++) {
-        if (Kernel_i386.TTD[Index].TSS.Type == 0) {
+    for (Index = GDT_NUM_BASE_DESCRIPTORS; Index < GDT_NUM_DESCRIPTORS; Index++) {
+        if (Kernel_i386.GDT[Index].Type == 0) {
             Table = Index;
             break;
         }
@@ -276,11 +219,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Parameter = Info->Parameter;
     Task->Table = Table;
 
-    Task->Selector =
-    (
-        (GDT_NUM_BASE_DESCRIPTORS * DESCRIPTOR_SIZE) +
-        (Table * GDT_TASK_DESCRIPTORS_SIZE)
-    ) | SELECTOR_GLOBAL | Process->Privilege;
+    Task->Selector = MAKE_GDT_SELECTOR(Table, 0);
 
     //-------------------------------------
     // Allocate the system stack
@@ -360,13 +299,13 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Setup the TSS descriptor
 
-    Kernel_i386.TTD[Table].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
-    Kernel_i386.TTD[Table].TSS.Privilege = Process->Privilege;
-    Kernel_i386.TTD[Table].TSS.Present = 0x01;
-    Kernel_i386.TTD[Table].TSS.Granularity = GDT_GRANULAR_1B;
+    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Type = GATE_TYPE_386_TSS_AVAIL;
+    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Privilege = Process->Privilege;
+    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Present = 0x01;
+    ((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table)->Granularity = GDT_GRANULAR_1B;
 
-    SetTSSDescriptorBase(&(Kernel_i386.TTD[Table].TSS), (U32)(Kernel_i386.TSS + Table));
-    SetTSSDescriptorLimit(&(Kernel_i386.TTD[Table].TSS), sizeof(TASKSTATESEGMENT) - 1);
+    SetTSSDescriptorBase((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table, (U32)(Kernel_i386.TSS + Table));
+    SetTSSDescriptorLimit((LPTSSDESCRIPTOR) Kernel_i386.GDT + Table, sizeof(TASKSTATESEGMENT) - 1);
 
     //-------------------------------------
     // Set the task's status as running
@@ -407,7 +346,7 @@ BOOL KillTask(LPTASK Task) {
     LockMutex(MUTEX_KERNEL, INFINITY);
     FreezeScheduler();
 
-    U32 table = Task->Table;
+    U32 Table = Task->Table;
 
     // Remove task from scheduler queue
     RemoveTaskFromQueue(Task);
@@ -419,7 +358,7 @@ BOOL KillTask(LPTASK Task) {
     ListRemove(Kernel.Task, Task);
 
     // Free the associated Task State Segment by setting its type to 0
-    Kernel_i386.TTD[table].TSS.Type = 0;
+    MemorySet(Kernel_i386.GDT + Table, 0, sizeof(SEGMENTDESCRIPTOR));
 
     // Finally, free all resources owned by the task
     DeleteTask(Task);

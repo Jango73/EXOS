@@ -204,19 +204,19 @@ void Scheduler(void) {
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP=%X  TR=%X"), (U32)GetEBP(), (U32)CurrentSelector);
                     LogSelectorDetails("[Scheduler] Target", TargetSelector);
                     LogSelectorDetails("[Scheduler] Current", CurrentSelector);
-                    LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*)&Kernel_i386.TTD[TaskList.Current->Table]);
+                    LogTSSDescriptor(LOG_DEBUG, (const TSSDESCRIPTOR*)&Kernel_i386.GDT[TaskList.Current->Table]);
                     LogTaskStateSegment(LOG_DEBUG, (const TASKSTATESEGMENT*)(Kernel_i386.TSS + TaskList.Current->Table));
                     */
 
-                    KernelLogText(LOG_DEBUG, "[Scheduler] Target task table index = %X", TableIndex);
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Target task table index = %X"), TableIndex);
 
-                    Kernel_i386.TTD[TableIndex].TSS.Type = GATE_TYPE_386_TSS_AVAIL;
+                    ((LPTSSDESCRIPTOR)(Kernel_i386.GDT + TableIndex))->Type = GATE_TYPE_386_TSS_AVAIL;
 
                     SELECTOR TargetSelector = TaskList.Current->Selector;
-                    LogSelectorDetails("[Scheduler] Target task selector", TargetSelector);
+                    LogSelectorDetails(TEXT("[Scheduler] Target task selector"), TargetSelector);
 
-                    KernelLogText(LOG_DEBUG, "[Scheduler] GDTR = %X", GetGDTR());
-                    KernelLogText(LOG_DEBUG, "[Scheduler] LDTR = %X", GetLDTR());
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] GDTR = %X"), GetGDTR());
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] LDTR = %X"), GetLDTR());
 
                     SwitchToTask((U32)TaskList.Current->Selector);
 
