@@ -89,7 +89,7 @@ static struct {
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
-    {"fs", "filesystem", "", CMD_filesystem},
+    {"filesystem", "filesystem", "", CMD_filesystem},
     {"irq", "irq", "", CMD_irq},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
