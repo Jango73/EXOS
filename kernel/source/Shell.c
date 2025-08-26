@@ -34,7 +34,6 @@ typedef struct tag_SHELLCONTEXT {
     U32 CommandChar;
     STR CommandLine[BUFFER_SIZE];
     STR Command[256];
-    STR CurrentVolume[MAX_FS_LOGICAL_NAME];
     STR CurrentFolder[MAX_PATH_NAME];
     LPVOID BufferBase;
     U32 BufferSize;
@@ -113,17 +112,10 @@ static void InitShellContext(LPSHELLCONTEXT This) {
         This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
     }
 
-    //-------------------------------------
-    // Find a starting volume
-
-    if (Kernel.FileSystem->First) {
-        LPFILESYSTEM FileSystem = (LPFILESYSTEM)Kernel.FileSystem->First;
-        StringCopy(This->CurrentVolume, FileSystem->Name);
-    } else {
-        StringCopy(This->CurrentVolume, TEXT("??"));
+    {
+        STR Root[2] = {PATH_SEP, STR_NULL};
+        StringCopy(This->CurrentFolder, Root);
     }
-
-    StringCopy(This->CurrentFolder, TEXT(""));
 
     KernelLogText(LOG_DEBUG, TEXT("[InitShellContext] Exit"));
 }
@@ -162,7 +154,7 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
 /***************************************************************************/
 
 static BOOL ShowPrompt(LPSHELLCONTEXT Context) {
-    ConsolePrint(TEXT("\n%s:/%s>"), Context->CurrentVolume, Context->CurrentFolder);
+    ConsolePrint(TEXT("\n%s>"), Context->CurrentFolder);
     return TRUE;
 }
 
@@ -212,40 +204,20 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static LPFILESYSTEM GetCurrentFileSystem(LPSHELLCONTEXT Context) {
-    LPLISTNODE Node;
-    LPFILESYSTEM FileSystem;
-
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
-        FileSystem = (LPFILESYSTEM)Node;
-
-        if (StringCompareNC(FileSystem->Name, Context->CurrentVolume) == 0) {
-            return FileSystem;
-        }
-    }
-
-    return NULL;
+    UNUSED(Context);
+    return Kernel.SystemFS;
 }
 
 /***************************************************************************/
 
 BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
-    if (StringFindChar(RawName, STR_COLON)) {
+    STR Sep[2] = {PATH_SEP, STR_NULL};
+
+    if (RawName[0] == PATH_SEP) {
         StringCopy(FileName, RawName);
     } else {
-        LPFILESYSTEM FileSystem;
-
-        FileSystem = GetCurrentFileSystem(Context);
-
-        if (FileSystem == NULL) return FALSE;
-
-        StringCopy(FileName, TEXT(FileSystem->Name));
-        StringConcat(FileName, TEXT(":/"));
-
-        if (StringLength(Context->CurrentFolder)) {
-            StringConcat(FileName, (LPCSTR)Context->CurrentFolder);
-            StringConcat(FileName, TEXT("/"));
-        }
-
+        StringCopy(FileName, Context->CurrentFolder);
+        if (FileName[StringLength(FileName) - 1] != PATH_SEP) StringConcat(FileName, Sep);
         StringConcat(FileName, (LPCSTR)RawName);
     }
 
@@ -255,11 +227,9 @@ BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
 /***************************************************************************/
 
 static void ChangeFolder(LPSHELLCONTEXT Context) {
-    LPFILESYSTEM FileSystem;
-    LPFILE File;
-    LPSTR Slash;
-    FILEINFO Find;
-    U32 GoingUp = 0;
+    FS_PATHCHECK Control;
+    STR Sep[2] = {PATH_SEP, STR_NULL};
+    STR NewPath[MAX_PATH_NAME];
 
     ParseNextComponent(Context);
 
@@ -268,46 +238,49 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
         return;
     }
 
-    FileSystem = GetCurrentFileSystem(Context);
-    if (FileSystem == NULL) return;
-
-    Find.Size = sizeof(FILEINFO);
-    Find.FileSystem = FileSystem;
-    Find.Attributes = FS_ATTR_FOLDER;
-
-    if (StringCompareNC(Context->Command, TEXT("..")) == 0) {
-        Slash = StringFindCharR(Context->CurrentFolder, STR_SLASH);
-        if (Slash) {
-            *Slash = STR_NULL;
+    if (StringCompare(Context->Command, TEXT("..")) == 0) {
+        StringCopy(NewPath, Context->CurrentFolder);
+    {
+        STR Root[2] = {PATH_SEP, STR_NULL};
+        if (StringCompare(NewPath, Root) != 0) {
+            LPSTR Slash = StringFindCharR(NewPath, PATH_SEP);
+            if (Slash && Slash != NewPath)
+                *Slash = STR_NULL;
+            else
+                NewPath[1] = STR_NULL;
+        }
+    }
+        Control.CurrentFolder[0] = STR_NULL;
+        StringCopy(Control.SubFolder, NewPath);
+        if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
+            StringCopy(Context->CurrentFolder, NewPath);
         } else {
-            StringCopy(Context->CurrentFolder, TEXT(""));
+            ConsolePrint(TEXT("Unknown folder : %s\n"), NewPath);
         }
         return;
-    } else {
-        if (StringLength(Context->CurrentFolder)) {
-            StringCopy(Find.Name, Context->CurrentFolder);
-            StringConcat(Find.Name, TEXT("/"));
-        } else {
-            StringCopy(Find.Name, TEXT(""));
-        }
-        StringConcat(Find.Name, Context->Command);
     }
 
-    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+    StringCopy(Control.CurrentFolder, Context->CurrentFolder);
+    StringCopy(Control.SubFolder, Context->Command);
 
-    if (File != NULL) {
-        if (GoingUp == 0) {
-            if (StringLength(Context->CurrentFolder)) {
-                StringConcat(Context->CurrentFolder, TEXT("/"));
-            }
-            StringConcat(Context->CurrentFolder, File->Name);
+    if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
+        if (Context->Command[0] == PATH_SEP) {
+            StringCopy(NewPath, Context->Command);
         } else {
-            StringCopy(Context->CurrentFolder, Find.Name);
+            StringCopy(NewPath, Context->CurrentFolder);
+            if (NewPath[StringLength(NewPath) - 1] != PATH_SEP) StringConcat(NewPath, Sep);
+            StringConcat(NewPath, Context->Command);
         }
-
-        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        StringCopy(Context->CurrentFolder, NewPath);
     } else {
-        ConsolePrint(TEXT("Unknown folder : %s\n"), Find.Name);
+        if (Context->Command[0] == PATH_SEP) {
+            StringCopy(NewPath, Context->Command);
+        } else {
+            StringCopy(NewPath, Context->CurrentFolder);
+            if (NewPath[StringLength(NewPath) - 1] != PATH_SEP) StringConcat(NewPath, Sep);
+            StringConcat(NewPath, Context->Command);
+        }
+        ConsolePrint(TEXT("Unknown folder : %s\n"), NewPath);
     }
 }
 
@@ -317,7 +290,6 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
     LPFILESYSTEM FileSystem;
     FILEINFO FileInfo;
     STR FileName[MAX_PATH_NAME];
-    LPSTR Colon;
 
     ParseNextComponent(Context);
 
@@ -329,19 +301,11 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
     FileSystem = GetCurrentFileSystem(Context);
     if (FileSystem == NULL) return;
 
-    // StringCopy(FileName, Context->Command);
-
     if (QualifyFileName(Context, Context->Command, FileName)) {
-        Colon = StringFindChar(FileName, STR_COLON);
-
-        if (Colon == NULL) return;
-
         FileInfo.Size = sizeof(FILEINFO);
         FileInfo.FileSystem = FileSystem;
         FileInfo.Attributes = MAX_U32;
-
-        StringCopy(FileInfo.Name, Colon + 2);
-
+        StringCopy(FileInfo.Name, FileName);
         FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (U32)&FileInfo);
     }
 }
@@ -357,8 +321,8 @@ static void ListFile(LPFILE File) {
     //-------------------------------------
     // Eliminate the . and .. files
 
-    if (StringCompareNC(File->Name, (LPCSTR) ".") == 0) return;
-    if (StringCompareNC(File->Name, (LPCSTR) "..") == 0) return;
+    if (StringCompare(File->Name, (LPCSTR) ".") == 0) return;
+    if (StringCompare(File->Name, (LPCSTR) "..") == 0) return;
 
     StringCopy(Name, File->Name);
 
@@ -441,7 +405,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
 
         if (StringLength(Context->Command) == 0) break;
 
-        if (Context->Command[0] == STR_SLASH || Context->Command[0] == STR_MINUS) {
+    if (Context->Command[0] == PATH_SEP || Context->Command[0] == STR_MINUS) {
             switch (Context->Command[1]) {
                 case 'p':
                 case 'P':
@@ -462,11 +426,10 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     Find.FileSystem = FileSystem;
     Find.Attributes = MAX_U32;
 
-    if (StringLength(Context->CurrentFolder)) {
+    {
+        STR Sep[2] = {PATH_SEP, STR_NULL};
         StringCopy(Find.Name, Context->CurrentFolder);
-        StringConcat(Find.Name, TEXT("/"));
-    } else {
-        StringCopy(Find.Name, TEXT(""));
+        if (Find.Name[StringLength(Find.Name) - 1] != PATH_SEP) StringConcat(Find.Name, Sep);
     }
 
     if (StringLength(Context->Command)) {
@@ -559,7 +522,6 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
     ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
     ConsolePrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
-    ConsolePrint((LPCSTR) "Stub address              : %p\n", KernelStartup.StubAddress);
 }
 
 /***************************************************************************/
@@ -872,34 +834,15 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     if (Length == 0) return TRUE;
 
-    //-------------------------------------
-    // First see if we're going on another file system
+    {
+        STR CommandName[256];
+        StringCopy(CommandName, Context->Command);
 
-    if (Context->Command[Length - 1] == STR_COLON) {
-        LPLISTNODE Node;
-        LPFILESYSTEM FileSystem;
-
-        Context->Command[Length - 1] = STR_NULL;
-
-        for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
-            FileSystem = (LPFILESYSTEM)Node;
-
-            if (StringCompareNC(FileSystem->Name, Context->Command) == 0) {
-                StringCopy(Context->CurrentVolume, FileSystem->Name);
-                StringCopy(Context->CurrentFolder, TEXT(""));
-            }
-        }
-
-        return TRUE;
-    }
-
-    //-------------------------------------
-
-    for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-        if (StringEmpty(Context->Command) == FALSE) {
-            if (StringCompareNC(Context->Command, COMMANDS[Index].Name) == 0 ||
-                StringCompareNC(Context->Command, COMMANDS[Index].AltName) == 0) {
+        for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
+            if (StringCompareNC(CommandName, COMMANDS[Index].Name) == 0 ||
+                StringCompareNC(CommandName, COMMANDS[Index].AltName) == 0) {
                 COMMANDS[Index].Command(Context);
+                break;
             }
         }
     }

@@ -24,6 +24,9 @@
 
 /***************************************************************************/
 
+typedef struct tag_SYSTEMFSFILESYSTEM SYSTEMFSFILESYSTEM;
+extern SYSTEMFSFILESYSTEM SystemFSFileSystem;
+
 extern U32 DeadBeef;
 
 extern void StartTestNetworkTask(void);
@@ -135,6 +138,7 @@ KERNELDATA Kernel = {
     .PCIDevice = &PciDeviceList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
+    .SystemFS = (LPFILESYSTEM)&SystemFSFileSystem,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
@@ -301,11 +305,11 @@ void InitializePCI(void) {
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
-    MountSystemFS();
-
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
+
+    MountSystemFS();
 }
 
 /***************************************************************************/
@@ -482,6 +486,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Test tasks
 
+    /*
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
@@ -492,6 +497,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
+    */
 
     // StartTestNetworkTask();
 
@@ -516,8 +522,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     CreateTask(&KernelProcess, &TaskInfo);
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
-
+    // KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
     // Shell(NULL);
 
     //-------------------------------------

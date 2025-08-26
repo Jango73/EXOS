@@ -280,6 +280,7 @@ typedef CONST USTR* LPCUSTR;
 #define STR_BACKSLASH ((STR)'\\')
 #define STR_PLUS ((STR)'+')
 #define STR_MINUS ((STR)'-')
+#define PATH_SEP STR_SLASH
 
 /***************************************************************************/
 // Common Unicode character values
