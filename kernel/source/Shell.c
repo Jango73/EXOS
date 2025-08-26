@@ -89,7 +89,7 @@ static struct {
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
-    {"filesystem", "filesystem", "", CMD_filesystem},
+    {"fs", "filesystem", "", CMD_filesystem},
     {"irq", "irq", "", CMD_irq},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
@@ -835,11 +835,15 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     if (Length == 0) return TRUE;
 
-    for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-        if (StringEmpty(Context->Command) == FALSE) {
-            if (StringCompareNC(Context->Command, COMMANDS[Index].Name) == 0 ||
-                StringCompareNC(Context->Command, COMMANDS[Index].AltName) == 0) {
+    {
+        STR CommandName[256];
+        StringCopy(CommandName, Context->Command);
+
+        for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
+            if (StringCompareNC(CommandName, COMMANDS[Index].Name) == 0 ||
+                StringCompareNC(CommandName, COMMANDS[Index].AltName) == 0) {
                 COMMANDS[Index].Command(Context);
+                break;
             }
         }
     }
