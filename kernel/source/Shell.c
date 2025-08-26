@@ -522,7 +522,6 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
     ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
     ConsolePrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
-    ConsolePrint((LPCSTR) "Stub address              : %p\n", KernelStartup.StubAddress);
 }
 
 /***************************************************************************/
