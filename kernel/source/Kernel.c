@@ -37,7 +37,7 @@ extern void StartTestNetworkTask(void);
 
 STR Text_OSTitle[] =
     "\n"
-    "EXOS - Extensible Operating System - Version 1.00\n"
+    "EXOS - Extensible Operating System - Version 0.2\n"
     "Copyright (c) 1999-2025 Jango73.\n"
     "All rights reserved.\n";
 
