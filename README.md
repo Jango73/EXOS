@@ -61,7 +61,7 @@ The original routines (disk access, FAT32 handling, task/process logic) booted a
 
 * Task management with scheduler
 * Virtual memory management
-* File system management : FAT, FAT32, XFS (EXOS file system)
+* File system management : FAT, FAT32, EXFS (EXOS file system)
 * SATA Hard disk driver
 * Console management
 * Basic keyboard and mouse management

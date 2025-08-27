@@ -17,7 +17,7 @@
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_NTFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_XFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_EXFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 
 /***************************************************************************/
 
@@ -134,8 +134,8 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 } break;
 
                 case FSID_EXOS: {
-                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting XFS partition"));
-                    MountPartition_XFS(Disk, Partition + Index, Base, Index);
+                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting EXFS partition"));
+                    MountPartition_EXFS(Disk, Partition + Index, Base, Index);
                 } break;
 
                 default: {

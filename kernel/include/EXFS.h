@@ -7,8 +7,8 @@
 
 \***************************************************************************/
 
-#ifndef XFS_H_INCLUDED
-#define XFS_H_INCLUDED
+#ifndef EXFS_H_INCLUDED
+#define EXFS_H_INCLUDED
 
 /***************************************************************************/
 
@@ -20,9 +20,9 @@
 #pragma pack(1)
 
 /***************************************************************************/
-// XFS Master Boot Record
+// EXFS Master Boot Record
 
-typedef struct tag_XFSMBR {
+typedef struct tag_EXFSMBR {
     U8 Jump[4];          // Jump to code and 2 NOPs
     U8 OEMName[8];       // "EXOS    "
     U8 MediaDescriptor;  // 0xF8 for Hard Disks
@@ -34,12 +34,12 @@ typedef struct tag_XFSMBR {
     U16 SectorsPerCluster;
     U8 Code[486];
     U16 BIOSMark;  // 0xAA55
-} XFSMBR, *LPXFSMBR;
+} EXFSMBR, *LPEXFSMBR;
 
 /***************************************************************************/
-// XFS Super Block
+// EXFS Super Block
 
-typedef struct tag_XFSSUPER {
+typedef struct tag_EXFSSUPER {
     U8 Magic[4];  // "EXOS"
     U32 Version;
     U32 BytesPerCluster;
@@ -59,12 +59,12 @@ typedef struct tag_XFSSUPER {
     U8 Password[32];
     U8 Creator[32];
     U8 VolumeName[128];
-} XFSSUPER, *LPXFSSUPER;
+} EXFSSUPER, *LPEXFSSUPER;
 
 /***************************************************************************/
 // File time, 64 bytes
 
-typedef struct tag_XFSTIME {
+typedef struct tag_EXFSTIME {
     U32 Year : 22;
     U32 Month : 4;
     U32 Day : 6;
@@ -73,17 +73,17 @@ typedef struct tag_XFSTIME {
     U32 Second : 6;
     U32 Milli : 10;
     U32 Reserved : 4;
-} XFSTIME, *LPXFSTIME;
+} EXFSTIME, *LPEXFSTIME;
 
 /***************************************************************************/
-// XFS File Record, 256 bytes
+// EXFS File Record, 256 bytes
 
-typedef struct tag_XFSFILEREC {
+typedef struct tag_EXFSFILEREC {
     U32 SizeLo;
     U32 SizeHi;
-    XFSTIME CreationTime;
-    XFSTIME LastAccessTime;
-    XFSTIME LastModificationTime;
+    EXFSTIME CreationTime;
+    EXFSTIME LastAccessTime;
+    EXFSTIME LastModificationTime;
     U32 ClusterTable;  // 0xFFFFFFFF = End of list
     U32 Attributes;
     U32 Security;
@@ -92,22 +92,22 @@ typedef struct tag_XFSFILEREC {
     U32 NameFormat;
     U8 Reserved[72];  // Zeroes
     U8 Name[128];
-} XFSFILEREC, *LPXFSFILEREC;
+} EXFSFILEREC, *LPEXFSFILEREC;
 
-#define XFS_ATTR_FOLDER BIT_0
-#define XFS_ATTR_READONLY BIT_1
-#define XFS_ATTR_SYSTEM BIT_2
-#define XFS_ATTR_ARCHIVE BIT_3
-#define XFS_ATTR_HIDDEN BIT_4
-#define XFS_ATTR_EXECUTABLE BIT_5
-
-/***************************************************************************/
-
-#define XFS_CLUSTER_RESERVED ((U32)0xFFFFFFF0)
-#define XFS_CLUSTER_END ((U32)0xFFFFFFFF)
+#define EXFS_ATTR_FOLDER BIT_0
+#define EXFS_ATTR_READONLY BIT_1
+#define EXFS_ATTR_SYSTEM BIT_2
+#define EXFS_ATTR_ARCHIVE BIT_3
+#define EXFS_ATTR_HIDDEN BIT_4
+#define EXFS_ATTR_EXECUTABLE BIT_5
 
 /***************************************************************************/
-// XFS File location
+
+#define EXFS_CLUSTER_RESERVED ((U32)0xFFFFFFF0)
+#define EXFS_CLUSTER_END ((U32)0xFFFFFFFF)
+
+/***************************************************************************/
+// EXFS File location
 
 typedef struct tag_XFSFILELOC {
     U32 PageCluster;
@@ -115,7 +115,7 @@ typedef struct tag_XFSFILELOC {
     U32 FileCluster;  // Actual cluster of this file
     U32 FileOffset;   // Offset in actual cluster of this file
     U32 DataCluster;  // Data cluster of this file
-} XFSFILELOC, *LPXFSFILELOC;
+} EXFSFILELOC, *LPEXFSFILELOC;
 
 /***************************************************************************/
 

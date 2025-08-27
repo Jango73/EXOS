@@ -1006,26 +1006,26 @@ Low level routines for standard VGA mode programming.
 - SendModeRegs: Loads a register set to configure video mode.
 - TestVGA: Simple routine that programs the first VGA mode.
 
-### XFS.c
+### EXFS.c
 
-EXOS file system driver for the native XFS format.
+EXOS file system driver for the native EXFS format.
 
-#### Functions in XFS.c
+#### Functions in EXFS.c
 
-- NewXFSFileSystem: Allocates an XFS file system structure.
-- NewXFSFile: Creates an XFS file object.
-- MountPartition_XFS: Mounts an XFS partition from disk.
+- NewEXFSFileSystem: Allocates an EXFS file system structure.
+- NewEXFSFile: Creates an EXFS file object.
+- MountPartition_EXFS: Mounts an EXFS partition from disk.
 - ReadCluster: Reads a cluster from the disk into memory.
 - WriteCluster: Writes a cluster back to disk.
 - LocateFile: Finds a file entry given its path.
 - WriteSectors: Writes raw sectors to a disk device.
-- CreatePartition: Formats a new XFS partition.
-- TranslateFileInfo: Copies XFS directory info to a file object.
+- CreatePartition: Formats a new EXFS partition.
+- TranslateFileInfo: Copies EXFS directory info to a file object.
 - Initialize: Loads the driver and returns success.
-- OpenFile: Opens a file using XFS search logic.
+- OpenFile: Opens a file using EXFS search logic.
 - OpenNext: Continues directory enumeration.
-- CloseFile: Closes an open XFS file.
-- XFSCommands: Dispatcher for driver functions.
+- CloseFile: Closes an open EXFS file.
+- EXFSCommands: Dispatcher for driver functions.
 
 ### Interrupt-a.asm
 
