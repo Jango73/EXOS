@@ -359,6 +359,10 @@ static void ListFile(LPFILE File) {
         ConsolePrint(TEXT("S"));
     else
         ConsolePrint(TEXT("-"));
+    if (File->Attributes & FS_ATTR_EXECUTABLE)
+        ConsolePrint(TEXT("X"));
+    else
+        ConsolePrint(TEXT("-"));
 
     ConsolePrint(Text_NewLine);
 }
