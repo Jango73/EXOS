@@ -37,9 +37,8 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LockMutex(MUTEX_FILE, INFINITY);
 
     for (Node = Kernel.File->First; Node; Node = Node->Next) {
-        LockMutex(&(AlreadyOpen->Mutex), INFINITY);  // ???????????????
-
         AlreadyOpen = (LPFILE)Node;
+        LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
         if (StringCompare(AlreadyOpen->Name, Info->Name) == 0) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
