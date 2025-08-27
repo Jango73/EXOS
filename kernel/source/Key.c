@@ -24,16 +24,16 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 0
     {{VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}},           // 1
     {{VK_NONE, '&', 0}, {VK_1, '1', 0}, {VK_NONE, 0, 0}},                // 2
-    {{VK_NONE, '‚Äö', 0}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},              // 3
+    {{VK_NONE, 'Ç', 0}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},              // 3
     {{VK_NONE, '"', 0}, {VK_3, '3', 0}, {VK_NONE, '#', 0}},              // 4
     {{VK_NONE, '\'', 0}, {VK_4, '4', 0}, {VK_NONE, '{', 0}},             // 5
     {{VK_NONE, '(', 0}, {VK_5, '5', 0}, {VK_NONE, '[', 0}},              // 6
     {{VK_MINUS, '-', 0}, {VK_6, '6', 0}, {VK_NONE, '|', 0}},             // 7
-    {{VK_NONE, '≈†', 0}, {VK_7, '7', 0}, {VK_NONE, '`', 0}},              // 8
+    {{VK_NONE, 'ä', 0}, {VK_7, '7', 0}, {VK_NONE, '`', 0}},              // 8
     {{VK_UNDERSCORE, '_', 0}, {VK_8, '8', 0}, {VK_BACKSLASH, '\\', 0}},  // 9
-    {{VK_NONE, '‚Ä°', 0}, {VK_9, '9', 0}, {VK_NONE, '^', 0}},              // 10
-    {{VK_NONE, '‚Ä¶', 0}, {VK_0, '0', 0}, {VK_AT, '@', 0}},                // 11
-    {{VK_NONE, ')', 0}, {VK_NONE, '√∏', 0}, {VK_NONE, ']', 0}},           // 12
+    {{VK_NONE, 'á', 0}, {VK_9, '9', 0}, {VK_NONE, '^', 0}},              // 10
+    {{VK_NONE, 'Ö', 0}, {VK_0, '0', 0}, {VK_AT, '@', 0}},                // 11
+    {{VK_NONE, ')', 0}, {VK_NONE, '¯', 0}, {VK_NONE, ']', 0}},           // 12
     {{VK_EQUAL, '=', 0}, {VK_PLUS, '+', 0}, {VK_NONE, '}', 0}},          // 13
     {{VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}},  // 14
     {{VK_TAB, 0, 0}, {VK_TAB, 0, 0}, {VK_TAB, 0, 0}},                    // 15
@@ -48,7 +48,7 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_O, 'o', 0}, {VK_O, 'O', 0}, {VK_O, 'o', 0}},                    // 24
     {{VK_P, 'p', 0}, {VK_P, 'P', 0}, {VK_P, 'p', 0}},                    // 25
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 26
-    {{VK_DOLLAR, '$', 0}, {VK_NONE, '≈ì', 0}, {VK_NONE, '√è', 0}},         // 27
+    {{VK_DOLLAR, '$', 0}, {VK_NONE, 'ú', 0}, {VK_NONE, 'œ', 0}},         // 27
     {{VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}},           // 28
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 29
     {{VK_Q, 'q', 0}, {VK_Q, 'Q', 0}, {VK_Q, 'q', 0}},                    // 30
@@ -61,7 +61,7 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_K, 'k', 0}, {VK_K, 'K', 0}, {VK_K, 'k', 0}},                    // 37
     {{VK_L, 'l', 0}, {VK_L, 'L', 0}, {VK_L, 'l', 0}},                    // 38
     {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_M, 'm', 0}},                    // 39
-    {{VK_NONE, '‚Äî', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},          // 40
+    {{VK_NONE, 'ó', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},          // 40
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 41
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 42
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 43
@@ -74,7 +74,7 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_COMMA, ',', 0}, {VK_QUESTION, '?', 0}, {VK_NONE, 0, 0}},        // 50
     {{VK_NONE, ';', 0}, {VK_DOT, '.', 0}, {VK_NONE, 0, 0}},              // 51
     {{VK_COLON, ':', 0}, {VK_SLASH, '/', 0}, {VK_NONE, 0, 0}},           // 52
-    {{VK_EXCL, '!', 0}, {VK_NONE, '√µ', 0}, {VK_NONE, 0, 0}},             // 53
+    {{VK_EXCL, '!', 0}, {VK_NONE, 'ı', 0}, {VK_NONE, 0, 0}},             // 53
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 54
     {{VK_STAR, '*', 0}, {VK_STAR, '*', 0}, {VK_STAR, '*', 0}},           // 55
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 56
