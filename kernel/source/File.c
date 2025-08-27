@@ -1,9 +1,11 @@
 
+// File.c
+
 /***************************************************************************\
 
-    EXOS Kernel
-    Copyright (c) 1999-2025 Jango73
-    All rights reserved
+  EXOS Kernel
+  Copyright (c) 1999-2025 Jango73
+  All rights reserved
 
 \***************************************************************************/
 
@@ -16,9 +18,15 @@
 /***************************************************************************/
 
 LPFILE OpenFile(LPFILEOPENINFO Info) {
+    STR Volume[MAX_FS_LOGICAL_NAME];
     FILEINFO Find;
+    LPFILESYSTEM FileSystem = NULL;
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
+    LPFILE AlreadyOpen = NULL;
+    LPCSTR Colon = NULL;
+    U32 FoundFileSystem;
+    U32 Index;
 
     //-------------------------------------
     // Check validity of parameters
@@ -36,9 +44,9 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LockMutex(MUTEX_FILE, INFINITY);
 
     for (Node = Kernel.File->First; Node; Node = Node->Next) {
-        LPFILE AlreadyOpen = (LPFILE)Node;
+        AlreadyOpen = (LPFILE)Node;
 
-        LockMutex(&(AlreadyOpen->Mutex), INFINITY);  // ???????????????
+        LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
         if (StringCompare(AlreadyOpen->Name, Info->Name) == 0) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
@@ -59,16 +67,104 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     UnlockMutex(MUTEX_FILE);
 
     //-------------------------------------
+    // Use SystemFS if an absolute path is provided
+
+    if (Info->Name[0] == PATH_SEP) {
+        Find.Size = sizeof Find;
+        Find.FileSystem = Kernel.SystemFS;
+        Find.Attributes = MAX_U32;
+        StringCopy(Find.Name, Info->Name);
+
+        File =
+            (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+
+        if (File != NULL) {
+            LockMutex(MUTEX_FILE, INFINITY);
+
+            File->OwnerTask = GetCurrentTask();
+            File->OpenFlags = Info->Flags;
+
+            ListAddItem(Kernel.File, File);
+
+            UnlockMutex(MUTEX_FILE);
+        }
+
+        goto Out;
+    }
+
+    //-------------------------------------
+    // Get the name of the volume in which the file
+    // is supposed to be located
+
+    Volume[0] = STR_NULL;
+
+    for (Index = 0; Index < MAX_FS_LOGICAL_NAME - 1; Index++) {
+        if (Info->Name[Index] == STR_NULL) break;
+        if (Info->Name[Index] == STR_COLON) {
+            Colon = Info->Name + Index;
+            break;
+        }
+        Volume[Index + 0] = Info->Name[Index];
+        Volume[Index + 1] = STR_NULL;
+    }
+
+    if (Colon == NULL) {
+        for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+            FileSystem = (LPFILESYSTEM)Node;
+
+            Find.Size = sizeof Find;
+            Find.FileSystem = FileSystem;
+            Find.Attributes = MAX_U32;
+            StringCopy(Find.Name, Info->Name);
+
+            File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+            if (File != NULL) {
+                LockMutex(MUTEX_FILE, INFINITY);
+
+                File->OwnerTask = GetCurrentTask();
+                File->OpenFlags = Info->Flags;
+
+                ListAddItem(Kernel.File, File);
+
+                UnlockMutex(MUTEX_FILE);
+                break;
+            }
+        }
+
+        goto Out;
+    }
+
+    if (Colon[0] != ':') goto Out;
+    if (Colon[1] != '/') goto Out;
+
+    //-------------------------------------
+    // Find the volume in the registered file systems
+
+    FoundFileSystem = 0;
+
+    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+        FileSystem = (LPFILESYSTEM)Node;
+        if (StringCompare(FileSystem->Name, Volume) == 0) {
+            FoundFileSystem = 1;
+            break;
+        }
+    }
+
+    if (FoundFileSystem == 0) goto Out;
+
+    //-------------------------------------
     // Fill the file system driver structure
 
     Find.Size = sizeof Find;
-    Find.FileSystem = Kernel.SystemFS;
+    Find.FileSystem = FileSystem;
     Find.Attributes = MAX_U32;
-    Find.Flags = 0;
-    StringCopy(Find.Name, Info->Name);
 
-    File =
-        (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+    StringCopy(Find.Name, Colon + 2);
+
+    //-------------------------------------
+    // Open the file
+
+    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
     if (File != NULL) {
         LockMutex(MUTEX_FILE, INFINITY);
@@ -101,6 +197,9 @@ U32 CloseFile(LPFILE File) {
     if (File->References) File->References--;
 
     if (File->References == 0) {
+        // File->ID = ID_NONE;
+        // ListEraseItem(Kernel.File, File);
+
         File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
 
         ListRemove(Kernel.File, File);
@@ -108,7 +207,7 @@ U32 CloseFile(LPFILE File) {
         UnlockMutex(&(File->Mutex));
     }
 
-    return SUCCESS;
+    return 1;
 }
 
 /***************************************************************************/
@@ -189,9 +288,6 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
         // File->Position += File->BytesRead;
         BytesRead = File->BytesRead;
     }
-
-    //-------------------------------------
-    // Unlock access to the file
 
     UnlockMutex(&(File->Mutex));
 

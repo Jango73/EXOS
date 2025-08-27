@@ -334,6 +334,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Info.Size = sizeof(FILEINFO);
     Info.FileSystem = Node->Mounted;
     Info.Attributes = MAX_U32;
+    Info.Flags = 0;
     StringCopy(Info.Name, Remaining);
 
     Mounted =
