@@ -158,7 +158,8 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                     }
                 }
             }
-        } else {
+        }
+        else {
             // Consider mutex free if no task valid
             Ret = 1;
         }

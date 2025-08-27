@@ -14,7 +14,7 @@
 
 #include "Base.h"
 #include "Driver.h"
-#include "FileSys.h"
+#include "FileSystem.h"
 #include "User.h"
 
 /***************************************************************************/
@@ -38,6 +38,9 @@ U32 GetFileSize(LPFILE);
 U32 DeleteFile(LPFILEOPENINFO);
 U32 CreateFolder(LPFILEOPENINFO);
 U32 DeleteFolder(LPFILEOPENINFO);
+
+LPVOID FileReadAll(LPCSTR, U32 *);
+U32 FileWriteAll(LPCSTR, LPCVOID, U32);
 
 /***************************************************************************/
 

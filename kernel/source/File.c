@@ -11,6 +11,7 @@
 
 #include "../include/File.h"
 
+#include "../include/Heap.h"
 #include "../include/Kernel.h"
 #include "../include/Process.h"
 
@@ -47,7 +48,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         AlreadyOpen = (LPFILE)Node;
 
-        if (StringCompareNC(AlreadyOpen->Name, Info->Name) == 0) {
+        if (StringCompare(AlreadyOpen->Name, Info->Name) == 0) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
                 if (AlreadyOpen->OpenFlags == Info->Flags) {
                     File = AlreadyOpen;
@@ -66,6 +67,32 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     UnlockMutex(MUTEX_FILE);
 
     //-------------------------------------
+    // Use SystemFS if an absolute path is provided
+
+    if (Info->Name[0] == PATH_SEP) {
+        Find.Size = sizeof Find;
+        Find.FileSystem = Kernel.SystemFS;
+        Find.Attributes = MAX_U32;
+        StringCopy(Find.Name, Info->Name);
+
+        File =
+            (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+
+        if (File != NULL) {
+            LockMutex(MUTEX_FILE, INFINITY);
+
+            File->OwnerTask = GetCurrentTask();
+            File->OpenFlags = Info->Flags;
+
+            ListAddItem(Kernel.File, File);
+
+            UnlockMutex(MUTEX_FILE);
+        }
+
+        goto Out;
+    }
+
+    //-------------------------------------
     // Get the name of the volume in which the file
     // is supposed to be located
 
@@ -81,7 +108,31 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Volume[Index + 1] = STR_NULL;
     }
 
-    if (Colon == NULL) goto Out;
+    if (Colon == NULL) {
+        for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+            FileSystem = (LPFILESYSTEM)Node;
+
+            Find.Size = sizeof Find;
+            Find.FileSystem = FileSystem;
+            Find.Attributes = MAX_U32;
+            StringCopy(Find.Name, Info->Name);
+
+            File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+            if (File != NULL) {
+                LockMutex(MUTEX_FILE, INFINITY);
+
+                File->OwnerTask = GetCurrentTask();
+                File->OpenFlags = Info->Flags;
+
+                ListAddItem(Kernel.File, File);
+
+                UnlockMutex(MUTEX_FILE);
+                break;
+            }
+        }
+
+        goto Out;
+    }
 
     if (Colon[0] != ':') goto Out;
     if (Colon[1] != '/') goto Out;
@@ -93,7 +144,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
-        if (StringCompareNC(FileSystem->Name, Volume) == 0) {
+        if (StringCompare(FileSystem->Name, Volume) == 0) {
             FoundFileSystem = 1;
             break;
         }
@@ -253,6 +304,88 @@ U32 GetFileSize(LPFILE File) {
     UnlockMutex(&(File->Mutex));
 
     return Size;
+}
+
+/***************************************************************************/
+
+LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
+    FILEOPENINFO OpenInfo;
+    FILEOPERATION FileOp;
+    LPFILE File = NULL;
+    LPVOID Buffer = NULL;
+
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (Name == NULL) return NULL;
+    if (Size == NULL) return NULL;
+
+    //-------------------------------------
+    // Open the file
+
+    OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    OpenInfo.Name = (LPSTR)Name;
+    OpenInfo.Flags = FILE_OPEN_READ;
+    File = OpenFile(&OpenInfo);
+
+    if (File == NULL) return NULL;
+
+    //-------------------------------------
+    // Allocate buffer and read content
+
+    *Size = GetFileSize(File);
+    Buffer = HeapAlloc(*Size + 1);
+
+    if (Buffer != NULL) {
+        FileOp.Header.Size = sizeof(FILEOPERATION);
+        FileOp.File = (HANDLE)File;
+        FileOp.Buffer = Buffer;
+        FileOp.NumBytes = *Size;
+        ReadFile(&FileOp);
+        ((LPSTR)Buffer)[*Size] = STR_NULL;
+    }
+
+    CloseFile(File);
+
+    return Buffer;
+}
+
+/***************************************************************************/
+
+U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
+    FILEOPENINFO OpenInfo;
+    FILEOPERATION FileOp;
+    LPFILE File = NULL;
+    U32 BytesWritten = 0;
+
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (Name == NULL) return 0;
+    if (Buffer == NULL) return 0;
+
+    //-------------------------------------
+    // Open the file
+
+    OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    OpenInfo.Name = (LPSTR)Name;
+    OpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+    File = OpenFile(&OpenInfo);
+
+    if (File == NULL) return 0;
+
+    //-------------------------------------
+    // Write the buffer to the file
+
+    FileOp.Header.Size = sizeof(FILEOPERATION);
+    FileOp.File = (HANDLE)File;
+    FileOp.Buffer = (LPVOID)Buffer;
+    FileOp.NumBytes = Size;
+    BytesWritten = WriteFile(&FileOp);
+
+    CloseFile(File);
+
+    return BytesWritten;
 }
 
 /***************************************************************************/

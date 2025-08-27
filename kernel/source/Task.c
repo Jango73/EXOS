@@ -58,7 +58,7 @@ LPTASK NewTask(void) {
         return NULL;
     }
 
-    if (IsValidMemory((LINEAR) This) == FALSE) {
+    if (IsValidMemory((LINEAR)This) == FALSE) {
         KernelLogText(LOG_ERROR, TEXT("[NewTask] Allocated task is not a valid pointer"));
         return NULL;
     }
@@ -175,7 +175,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         Info->Priority = TASK_PRIORITY_CRITICAL;
     }
 
-    if (IsValidMemory((LINEAR) Info->Func) == FALSE) {
+    if (IsValidMemory((LINEAR)Info->Func) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
         return NULL;
     }
@@ -231,7 +231,9 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Stack (%X bytes) allocated at %X"), Task->StackSize, Task->StackBase);
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize, Task->SysStackBase);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize,
+        Task->SysStackBase);
 
     //-------------------------------------
     // Setup privilege data

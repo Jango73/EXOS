@@ -13,7 +13,8 @@
 #include "../include/Console.h"
 #include "../include/Driver.h"
 #include "../include/E1000.h"
-#include "../include/FileSys.h"
+#include "../include/FileSystem.h"
+#include "../include/File.h"
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
@@ -21,8 +22,12 @@
 #include "../include/Mouse.h"
 #include "../include/PCI.h"
 #include "../include/System.h"
+#include "../include/TOML.h"
 
 /***************************************************************************/
+
+typedef struct tag_SYSTEMFSFILESYSTEM SYSTEMFSFILESYSTEM;
+extern SYSTEMFSFILESYSTEM SystemFSFileSystem;
 
 extern U32 DeadBeef;
 
@@ -123,7 +128,7 @@ static LIST FileList = {
 KERNELDATA_I386 Kernel_i386 = {
     .GDT = 0,
     .TSS = 0,
-    .PPB = (U8*) 1                       // To force inclusion in .data
+    .PPB = (U8*)1  // To force inclusion in .data
 };
 
 KERNELDATA Kernel = {
@@ -135,6 +140,8 @@ KERNELDATA Kernel = {
     .PCIDevice = &PciDeviceList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
+    .SystemFS = (LPFILESYSTEM)&SystemFSFileSystem,
+    .Configuration = NULL,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
@@ -246,8 +253,9 @@ U32 ClockTask(LPVOID Param) {
 
 void DumpCriticalInformation(void) {
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
-        KernelLogText(LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"),
-        Index, (U32)KernelStartup.E820[Index].Base.LO, (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
+        KernelLogText(
+            LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"), Index, (U32)KernelStartup.E820[Index].Base.LO,
+            (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("Virtual addresses"));
@@ -290,6 +298,22 @@ void DumpSystemInformation(void) {
 
 /***************************************************************************/
 
+void ReadKernelConfiguration(void) {
+    U32 Size = 0;
+    LPVOID Buffer = FileReadAll(TEXT("exos.cfg"), &Size);
+
+    if (Buffer == NULL) {
+        Buffer = FileReadAll(TEXT("EXOS.CFG"), &Size);
+    }
+
+    if (Buffer != NULL) {
+        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
+        HeapFree(Buffer);
+    }
+}
+
+/***************************************************************************/
+
 void InitializePCI(void) {
     PCI_RegisterDriver(&E1000Driver);
     PCI_ScanBus();
@@ -300,11 +324,15 @@ void InitializePCI(void) {
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
-    MountSystemFS();
-
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
+
+    if (Kernel.Configuration == NULL) {
+        ReadKernelConfiguration();
+    }
+
+    MountSystemFS();
 }
 
 /***************************************************************************/
@@ -448,6 +476,12 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Physical drives initialized"));
 
     //-------------------------------------
+    // Read kernel configuration
+
+    ReadKernelConfiguration();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
+
+    //-------------------------------------
     // Initialize the file systems
 
     InitializeFileSystems();
@@ -481,6 +515,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Test tasks
 
+    /*
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
@@ -491,6 +526,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
+    */
 
     // StartTestNetworkTask();
 
@@ -515,8 +551,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     CreateTask(&KernelProcess, &TaskInfo);
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
-
+    // KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
     // Shell(NULL);
 
     //-------------------------------------

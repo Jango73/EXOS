@@ -27,13 +27,7 @@ typedef struct tag_TASKLIST {
 /***************************************************************************/
 
 static TASKLIST TaskList = {
-    .Freeze = 0,
-    .SchedulerTime = 0,
-    .TaskTime = 20,
-    .NumTasks = 0,
-    .Current = NULL,
-    .Tasks = {NULL}
-};
+    .Freeze = 0, .SchedulerTime = 0, .TaskTime = 20, .NumTasks = 0, .Current = NULL, .Tasks = {NULL}};
 
 /***************************************************************************/
 
@@ -170,8 +164,10 @@ void Scheduler(LPTRAPFRAME Frame) {
             switch (Next->Status) {
                 case TASK_STATUS_RUNNING: {
                     if (Next != Current) {
-                        if (Next->Process && Current && Next->Process->PageDirectory != Current->Process->PageDirectory) {
-                            // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
+                        if (Next->Process && Current &&
+                            Next->Process->PageDirectory != Current->Process->PageDirectory) {
+                            // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"),
+                            // Next->Process->PageDirectory);
                             LoadPageDirectory(Next->Process->PageDirectory);
                         }
 
@@ -203,17 +199,13 @@ void Scheduler(LPTRAPFRAME Frame) {
 
 LPPROCESS GetCurrentProcess(void) {
     LPTASK Task = GetCurrentTask();
-    SAFE_USE(Task) {
-        return Task->Process;
-    }
+    SAFE_USE(Task) { return Task->Process; }
     return NULL;
 }
 
 /***************************************************************************/
 
-LPTASK GetCurrentTask(void) {
-    return TaskList.Current;
-}
+LPTASK GetCurrentTask(void) { return TaskList.Current; }
 
 /***************************************************************************/
 

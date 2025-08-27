@@ -10,7 +10,7 @@
 \***************************************************************************/
 
 #include "../include/FAT.h"
-#include "../include/FileSys.h"
+#include "../include/FileSystem.h"
 #include "../include/Kernel.h"
 
 /***************************************************************************/
@@ -80,11 +80,6 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
 
     InitMutex(&(This->Header.Mutex));
 
-    //-------------------------------------
-    // Assign a default name to the file system
-
-    GetDefaultFileSystemName(This->Header.Name);
-
     return This;
 }
 
@@ -117,7 +112,7 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
 /***************************************************************************/
 
-BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     LPFAT32MBR Master;
@@ -160,6 +155,8 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
 
     FileSystem = NewFATFileSystem(Disk);
     if (FileSystem == NULL) return FALSE;
+
+    GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
 
     //-------------------------------------
     // Copy the Master Sector
@@ -865,6 +862,13 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
                 Component[CompIndex++] = Path[PathIndex++];
             }
         }
+        if (Component[0] == STR_NULL) {
+            if (Path[PathIndex] == STR_NULL) {
+                FileLoc->DataCluster = FileLoc->FolderCluster;
+                return TRUE;
+            }
+            continue;
+        }
 
         //-------------------------------------
         // Loop through all directory entries
@@ -876,7 +880,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = (((U32)DirEntry->ClusterLow) | (((U32)DirEntry->ClusterHigh) << 16));
 
@@ -943,6 +947,8 @@ static void TranslateFileInfo(LPFATDIRENTRY_EXT DirEntry, LPFATFILE File) {
     if (DirEntry->Attributes & FAT_ATTR_SYSTEM) {
         File->Header.Attributes |= FS_ATTR_SYSTEM;
     }
+
+    File->Header.Attributes |= FS_ATTR_EXECUTABLE;
 
     //-------------------------------------
     // Translate the size
@@ -1034,7 +1040,7 @@ static U32 CreateFolder(LPFILEINFO File) {
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
                     if (File->Name[PathIndex] == STR_NULL) {
                         if (DirEntry->Attributes & FAT_ATTR_FOLDER) {
                             return DF_ERROR_SUCCESS;

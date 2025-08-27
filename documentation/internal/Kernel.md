@@ -253,11 +253,11 @@ High level functions to access files through drivers.
 - WriteFile: Writes bytes to a file.
 - GetFileSize: Returns the size of a file.
 
-### FileSys.c
+### FileSystem.c
 
 Handles mounting of disk partitions and path manipulation.
 
-#### Functions in FileSys.c
+#### Functions in FileSystem.c
 
 - GetNumFileSystems: Returns the number of available file systems.
 - GetDefaultFileSystemName: Builds a default name for new file systems.
@@ -541,8 +541,7 @@ Simple command interpreter for user interaction.
 - RotateBuffers: Maintains the command history.
 - ShowPrompt: Prints the current prompt.
 - ParseNextComponent: Extracts the next token from input.
-- GetCurrentFileSystem: Finds the active file system object.
-- QualifyFileName: Builds a fully qualified file name.
+- QualifyFileName: Builds a fully qualified file name, resolving '.' and '..' components.
 - ChangeFolder: Changes the current directory.
 - MakeFolder: Creates a new folder.
 - ListFile: Displays file information in a directory.
@@ -806,11 +805,11 @@ EXOS file system driver for the native XFS format.
 - CloseFile: Closes an open XFS file.
 - XFSCommands: Dispatcher for driver functions.
 
-### Int.asm
+### Interrupt-a.asm
 
 Provides interrupt and exception handlers for CPU and hardware devices.
 
-#### Functions in Int.asm
+#### Functions in Interrupt-a.asm
 
 - Interrupt_Default: Default handler for unassigned interrupts.
 - Interrupt_DivideError: Handles divide error exception (#DE).
@@ -849,32 +848,15 @@ Implements real mode call support and exit routines.
 
 ### Stub.asm
 
-Boot stub that transitions from the DOS loader to protected mode.
+Minimal 32-bit entry stub used when the kernel is loaded directly.
+It stores an "EXOS" magic string and jumps to the C kernel.
 
-#### Functions in Stub.asm
+#### Symbols in Stub.asm
 
-- StartAbsolute: Absolute entry point invoked by the DOS loader.
-- ProtectedModeEntry: Sets up segments and stack before jumping to the C kernel.
-- KernelStack: Preallocated kernel stack space.
-
-### Sys.asm
-
-Defines DOS service constants used during early boot.
-
-#### Functions in Sys.asm
-
-- DOS_CALL: DOS interrupt number for API calls.
-- DOS_PRINT: Function to print a string via DOS.
-- DOS_OPENFILE: Function to open a file via DOS.
-- DOS_CLOSEFILE: Function to close a DOS file.
-- DOS_READFILE: Function to read from a DOS file.
-- DOS_WRITEFILE: Function to write to a DOS file.
-- DOS_FILESEEK: Function to seek within a DOS file.
-- DOS_SEEK_SET: Seek from start of file.
-- DOS_SEEK_CUR: Seek from current position.
-- DOS_SEEK_END: Seek from end of file.
-- STACK_SIZE: Size of internal stack used by routines.
-- PAGE_SIZE: Memory page size constant.
+- stub_base: Start of the stub and reference for the magic string.
+- Magic: Four-byte identifier used to validate the stub.
+- start: Entry point that writes a debug byte to the serial port,
+  calls `KernelMain` and halts if it returns.
 
 ### System.asm
 

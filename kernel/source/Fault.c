@@ -8,14 +8,14 @@
 \************************************************************************/
 
 #include "../include/Console.h"
+#include "../include/I386.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
 #include "../include/Process.h"
 #include "../include/String.h"
-#include "../include/Text.h"
-#include "../include/I386.h"
 #include "../include/System.h"
+#include "../include/Text.h"
 
 /************************************************************************/
 // Fault logging helpers (selector-aware)
@@ -23,17 +23,18 @@
 static void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
     U16 sel = (U16)(Err & 0xFFFFu);
     U16 idx = SELECTOR_INDEX(sel);
-    U16 ti  = SELECTOR_TI(sel);
+    U16 ti = SELECTOR_TI(sel);
     U16 rpl = SELECTOR_RPL(sel);
 
-    KernelLogText(LOG_ERROR, TEXT("%s error code=%X  selector=%X  index=%u  TI=%u  RPL=%u"),
-                  Prefix, (U32)Err, (U32)sel, (U32)idx, (U32)ti, (U32)rpl);
+    KernelLogText(
+        LOG_ERROR, TEXT("%s error code=%X  selector=%X  index=%u  TI=%u  RPL=%u"), Prefix, (U32)Err, (U32)sel, (U32)idx,
+        (U32)ti, (U32)rpl);
 }
 
 /************************************************************************/
 
 static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
-    U16 ti  = SELECTOR_TI(Sel);
+    U16 ti = SELECTOR_TI(Sel);
     U16 idx = SELECTOR_INDEX(Sel);
 
     if (ti != 0) {
@@ -56,8 +57,9 @@ static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
 static void LogTR(void) {
     SELECTOR tr = GetTaskRegister();
 
-    KernelLogText(LOG_ERROR, TEXT("TR=%X (index=%u TI=%u RPL=%u)"),
-                  (U32)tr, (U32)SELECTOR_INDEX(tr), (U32)SELECTOR_TI(tr), (U32)SELECTOR_RPL(tr));
+    KernelLogText(
+        LOG_ERROR, TEXT("TR=%X (index=%u TI=%u RPL=%u)"), (U32)tr, (U32)SELECTOR_INDEX(tr), (U32)SELECTOR_TI(tr),
+        (U32)SELECTOR_RPL(tr));
 }
 
 /************************************************************************/
@@ -160,54 +162,65 @@ void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
 
 /************************************************************************/
 
-typedef struct { unsigned short Limit; unsigned int Base; } GDTR32;
+typedef struct {
+    unsigned short Limit;
+    unsigned int Base;
+} GDTR32;
 typedef struct {
     unsigned short Limit0;
     unsigned short Base0;
-    unsigned char  Base1;
-    unsigned char  Access;
-    unsigned char  Gran;
-    unsigned char  Base2;
+    unsigned char Base1;
+    unsigned char Access;
+    unsigned char Gran;
+    unsigned char Base2;
 } GdtDesc;
 
-static inline void Sgdt(GDTR32* g){ __asm__ __volatile__("sgdt %0":"=m"(*g)); }
-static inline unsigned short StrSel(void){ unsigned short s; __asm__ __volatile__("str %0":"=r"(s)); return s; }
-static inline unsigned int GdtBase(const GdtDesc* d){
+static inline void Sgdt(GDTR32* g) { __asm__ __volatile__("sgdt %0" : "=m"(*g)); }
+static inline unsigned short StrSel(void) {
+    unsigned short s;
+    __asm__ __volatile__("str %0" : "=r"(s));
+    return s;
+}
+static inline unsigned int GdtBase(const GdtDesc* d) {
     return (unsigned int)d->Base0 | ((unsigned int)d->Base1 << 16) | ((unsigned int)d->Base2 << 24);
 }
 
-static inline unsigned char ReadCurrentTSSTrapByte(void){
-    GDTR32 gd; Sgdt(&gd);
+static inline unsigned char ReadCurrentTSSTrapByte(void) {
+    GDTR32 gd;
+    Sgdt(&gd);
     const GdtDesc* gdt = (const GdtDesc*)(unsigned long)gd.Base;
-    unsigned short tr  = StrSel();
-    const GdtDesc de   = gdt[tr >> 3];
-    unsigned int  base = GdtBase(&de);
+    unsigned short tr = StrSel();
+    const GdtDesc de = gdt[tr >> 3];
+    unsigned int base = GdtBase(&de);
     return *(volatile unsigned char*)(unsigned long)(base + 0x64);
 }
 
-void DebugExceptionHandler_MinProbe(void){
-    GDTR32 gd; Sgdt(&gd);
+void DebugExceptionHandler_MinProbe(void) {
+    GDTR32 gd;
+    Sgdt(&gd);
     const GdtDesc* gdt = (const GdtDesc*)(unsigned long)gd.Base;
-    unsigned short tr  = StrSel();
-    const GdtDesc de   = gdt[tr >> 3];
-    unsigned int  base = GdtBase(&de);
+    unsigned short tr = StrSel();
+    const GdtDesc de = gdt[tr >> 3];
+    unsigned int base = GdtBase(&de);
     unsigned char trap = *(volatile unsigned char*)(unsigned long)(base + 0x64);
 
-    KernelPrintString(TEXT("[#DB] TSS base=")); VarKernelPrintNumber(base, 16, 0, 0, 0);
-    KernelPrintString(TEXT(" Trap@+0x64="));    VarKernelPrintNumber(trap, 16, 0, 0, 0);
+    KernelPrintString(TEXT("[#DB] TSS base="));
+    VarKernelPrintNumber(base, 16, 0, 0, 0);
+    KernelPrintString(TEXT(" Trap@+0x64="));
+    VarKernelPrintNumber(trap, 16, 0, 0, 0);
     KernelPrintString(Text_NewLine);
 }
 
-static int IsSpuriousTaskSwitchDB(void){
+static int IsSpuriousTaskSwitchDB(void) {
     U32 dr6 = GetDR6();
     U32 dr7 = GetDR7();
 
     // Keep meaningful DR6 bits
-    U32 cause = dr6 & (0xFu | (1u<<13) | (1u<<14) | (1u<<15));
-    if (cause != (1u<<15)) return 0;                // not BT-only
+    U32 cause = dr6 & (0xFu | (1u << 13) | (1u << 14) | (1u << 15));
+    if (cause != (1u << 15)) return 0;  // not BT-only
 
     // Only check Lx/Gx enable bits (0..7). Other DR7 bits can be non-zero harmlessly.
-    if ((dr7 & 0xFFu) != 0) return 0;               // some breakpoints enabled
+    if ((dr7 & 0xFFu) != 0) return 0;  // some breakpoints enabled
 
     // Double-check: the actual Trap byte in the TSS pointed by TR is 0
     if (ReadCurrentTSSTrapByte() != 0) return 0;
@@ -264,13 +277,13 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     // BT (bit15) = task-switch trap (TSS.T=1)
     if (dr6 & (1u << 15)) KernelPrintString(TEXT("[#DB] cause: task-switch trap (TSS.T=1)\n"));
     // B0..B3 = hardware breakpoints
-    if (dr6 & 0xF)        KernelPrintString(TEXT("[#DB] cause: hardware breakpoint (DR0-DR3)\n"));
+    if (dr6 & 0xF) KernelPrintString(TEXT("[#DB] cause: hardware breakpoint (DR0-DR3)\n"));
     // BD (bit13) = general detect
     if (dr6 & (1u << 13)) KernelPrintString(TEXT("[#DB] cause: general-detect (DR7.GD)\n"));
 
     DumpFrame(Frame);
 
-    if (IsSpuriousTaskSwitchDB()){
+    if (IsSpuriousTaskSwitchDB()) {
         SetDR6(0);
         SetDR7(0);
         KernelPrintString(TEXT("IsSpuriousTaskSwitchDB returned TRUE\n"));
@@ -353,7 +366,9 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
 
     LogTR();
     LogSelectorFromErrorCode(TEXT("[#TS]"), Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector(TEXT("[#TS]"), (U16)(Frame->ErrCode & 0xFFFFu)); }
+    if (Frame && Frame->ErrCode) {
+        LogDescriptorAndTSSFromSelector(TEXT("[#TS]"), (U16)(Frame->ErrCode & 0xFFFFu));
+    }
 
     DumpFrame(Frame);
     Die();
@@ -366,7 +381,9 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
 
     LogTR();
     LogSelectorFromErrorCode(TEXT("[#NP]"), Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector(TEXT("[#NP]"), (U16)(Frame->ErrCode & 0xFFFFu)); }
+    if (Frame && Frame->ErrCode) {
+        LogDescriptorAndTSSFromSelector(TEXT("[#NP]"), (U16)(Frame->ErrCode & 0xFFFFu));
+    }
 
     DumpFrame(Frame);
     Die();
@@ -379,7 +396,9 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 
     LogTR();
     LogSelectorFromErrorCode(TEXT("[#SS]"), Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector(TEXT("[#SS]"), (U16)(Frame->ErrCode & 0xFFFFu)); }
+    if (Frame && Frame->ErrCode) {
+        LogDescriptorAndTSSFromSelector(TEXT("[#SS]"), (U16)(Frame->ErrCode & 0xFFFFu));
+    }
 
     DumpFrame(Frame);
     Die();
@@ -387,13 +406,18 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
-static void LogGPError(U32 err){
-    KernelPrintString(TEXT("[#GP] err=")); VarKernelPrintNumber(err,16,0,0,0);
-    KernelPrintString(TEXT(" ext=")); VarKernelPrintNumber(err&1,16,0,0,0);
-    KernelPrintString(TEXT(" idt=")); VarKernelPrintNumber((err>>1)&1,16,0,0,0);
-    KernelPrintString(TEXT(" ti="));  VarKernelPrintNumber((err>>2)&1,16,0,0,0);
+static void LogGPError(U32 err) {
+    KernelPrintString(TEXT("[#GP] err="));
+    VarKernelPrintNumber(err, 16, 0, 0, 0);
+    KernelPrintString(TEXT(" ext="));
+    VarKernelPrintNumber(err & 1, 16, 0, 0, 0);
+    KernelPrintString(TEXT(" idt="));
+    VarKernelPrintNumber((err >> 1) & 1, 16, 0, 0, 0);
+    KernelPrintString(TEXT(" ti="));
+    VarKernelPrintNumber((err >> 2) & 1, 16, 0, 0, 0);
     U32 sel = err & 0xFFFC;
-    KernelPrintString(TEXT(" sel=")); VarKernelPrintNumber(sel,16,0,0,0);
+    KernelPrintString(TEXT(" sel="));
+    VarKernelPrintNumber(sel, 16, 0, 0, 0);
     KernelPrintString(Text_NewLine);
 }
 
@@ -441,7 +465,9 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
 
 void AlignmentCheckHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Alignment check fault"));
-    if (Frame) { DumpFrame(Frame); }
+    if (Frame) {
+        DumpFrame(Frame);
+    }
     PrintFaultDetails();
     Die();
 }

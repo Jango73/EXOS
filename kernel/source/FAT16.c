@@ -8,7 +8,7 @@
 \***************************************************************************/
 
 #include "../include/FAT.h"
-#include "../include/FileSys.h"
+#include "../include/FileSystem.h"
 #include "../include/Kernel.h"
 
 /***************************************************************************/
@@ -79,11 +79,6 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
 
     InitMutex(&(This->Header.Mutex));
 
-    //-------------------------------------
-    // Assign a default name to the file system
-
-    GetDefaultFileSystemName(This->Header.Name);
-
     return This;
 }
 
@@ -116,7 +111,7 @@ static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
 /***************************************************************************/
 
-BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     LPFAT16MBR Master;
@@ -159,6 +154,8 @@ BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
 
     FileSystem = NewFAT16FileSystem(Disk);
     if (FileSystem == NULL) return FALSE;
+
+    GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
 
     //-------------------------------------
     // Copy the Master Sector
@@ -366,6 +363,8 @@ static void TranslateFileInfo(LPFATDIRENTRY DirEntry, LPFATFILE File) {
         File->Header.Attributes |= FS_ATTR_SYSTEM;
     }
 
+    File->Header.Attributes |= FS_ATTR_EXECUTABLE;
+
     //-------------------------------------
     // Translate the size
 
@@ -436,7 +435,7 @@ static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
             if ((DirEntry->Cluster) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 && (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompareNC(Component, TEXT("*")) == 0 || StringCompareNC(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = DirEntry->Cluster;
 

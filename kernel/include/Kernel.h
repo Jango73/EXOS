@@ -14,9 +14,9 @@
 
 /***************************************************************************/
 
-#include "I386.h"
 #include "Base.h"
 #include "Heap.h"
+#include "I386.h"
 #include "ID.h"
 #include "List.h"
 #include "Memory.h"
@@ -24,6 +24,7 @@
 #include "String.h"
 #include "Text.h"
 #include "User.h"
+#include "TOML.h"
 
 /***************************************************************************/
 
@@ -60,8 +61,8 @@ typedef struct tag_CPUINFORMATION {
 #define DESCRIPTOR_SIZE 10
 #define GDT_NUM_DESCRIPTORS (GDT_SIZE / DESCRIPTOR_SIZE)
 #define GDT_NUM_BASE_DESCRIPTORS 8
-#define GDT_TSS_INDEX      GDT_NUM_BASE_DESCRIPTORS
-#define SELECTOR_TSS       MAKE_GDT_SELECTOR(GDT_TSS_INDEX, 0)
+#define GDT_TSS_INDEX GDT_NUM_BASE_DESCRIPTORS
+#define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, 0)
 
 #define GDT_NUM_TASKS (GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS)
 #define NUM_TASKS GDT_NUM_TASKS
@@ -73,12 +74,12 @@ typedef struct tag_CPUINFORMATION {
 // Static linear addresses (VMA)
 // All processes have the following address space layout
 
-#define LA_RAM 0x00000000        // Reserved for kernel
-#define LA_VIDEO 0x000A0000      // Reserved for kernel
-#define LA_CONSOLE 0x000B8000    // Reserved for kernel
-#define LA_USER 0x00400000       // Start of user address space
-#define LA_LIBRARY 0xA0000000    // Dynamic Libraries
-#define LA_KERNEL 0xC0000000     // Kernel
+#define LA_RAM 0x00000000      // Reserved for kernel
+#define LA_VIDEO 0x000A0000    // Reserved for kernel
+#define LA_CONSOLE 0x000B8000  // Reserved for kernel
+#define LA_USER 0x00400000     // Start of user address space
+#define LA_LIBRARY 0xA0000000  // Dynamic Libraries
+#define LA_KERNEL 0xC0000000   // Kernel
 
 /***************************************************************************/
 
@@ -118,10 +119,10 @@ typedef struct tag_KERNELSTARTUPINFO {
     U32 IRQMask_A1_RM;
     U32 ConsoleX;
     U32 ConsoleY;
-    U32 MemorySize;         // Total memory size in bytes
-    U32 PageCount;          // Total memory size in pages (4K)
-    U32 E820_Count;         // BIOS E820 function entries
-    E820ENTRY E820 [N_4KB / sizeof(E820ENTRY)];
+    U32 MemorySize;  // Total memory size in bytes
+    U32 PageCount;   // Total memory size in pages (4K)
+    U32 E820_Count;  // BIOS E820 function entries
+    E820ENTRY E820[N_4KB / sizeof(E820ENTRY)];
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
 extern KERNELSTARTUPINFO KernelStartup;
@@ -137,6 +138,8 @@ typedef struct tag_KERNELDATA_I386 {
 
 extern KERNELDATA_I386 Kernel_i386;
 
+typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
+
 typedef struct tag_KERNELDATA {
     LPLIST Desktop;
     LPLIST Process;
@@ -146,6 +149,8 @@ typedef struct tag_KERNELDATA {
     LPLIST PCIDevice;
     LPLIST FileSystem;
     LPLIST File;
+    LPFILESYSTEM SystemFS;
+    LPTOML Configuration;
     CPUINFORMATION CPU;
 } KERNELDATA, *LPKERNELDATA;
 
@@ -162,6 +167,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
+void ReadKernelConfiguration(void);
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
 
 /***************************************************************************/

@@ -18,21 +18,21 @@
 
 PROCESS KernelProcess = {
     .ID = ID_PROCESS,  // ID
-    .References = 1,           // References
+    .References = 1,   // References
     .Next = NULL,
-    .Prev = NULL,              // Next, previous
-    .Mutex = EMPTY_MUTEX,       // Mutex
+    .Prev = NULL,                   // Next, previous
+    .Mutex = EMPTY_MUTEX,           // Mutex
     .HeapMutex = EMPTY_MUTEX,       // Heap mutex
-    .Security = EMPTY_SECURITY,    // Security
-    .Desktop = NULL,              // Desktop
-    .Parent = NULL,              // Parent
+    .Security = EMPTY_SECURITY,     // Security
+    .Desktop = NULL,                // Desktop
+    .Parent = NULL,                 // Parent
     .Privilege = PRIVILEGE_KERNEL,  // Privilege
-    .PageDirectory = 0,            // Page directory
-    .HeapBase = 0,                 // Heap base
-    .HeapSize = 0,                 // Heap size
-    .FileName = "EXOS",            // File name
-    .CommandLine = "",                // Command line
-    .Objects = NULL               // Objects
+    .PageDirectory = 0,             // Page directory
+    .HeapBase = 0,                  // Heap base
+    .HeapSize = 0,                  // Heap size
+    .FileName = "EXOS",             // File name
+    .CommandLine = "",              // Command line
+    .Objects = NULL                 // Objects
 };
 
 /***************************************************************************/
@@ -48,8 +48,8 @@ void InitializeKernelProcess(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Memory : %X"), KernelStartup.MemorySize);
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Pages : %X"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = AllocRegion(LA_KERNEL, 0, KernelProcess.HeapSize,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    LINEAR HeapBase = AllocRegion(
+        LA_KERNEL, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] HeapBase : %X"), HeapBase);
 

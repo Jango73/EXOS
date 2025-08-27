@@ -4,28 +4,28 @@
     Logs in English; no emojis/icons.
 \***************************************************************************/
 
-#include "../../include/Kernel.h"
 #include "../../include/Console.h"
 #include "../../include/Driver.h"
-#include "../../include/Network.h"
-#include "../../include/Log.h"
+#include "../../include/Kernel.h"
 #include "../../include/List.h"
+#include "../../include/Log.h"
+#include "../../include/Network.h"
 #include "../../include/String.h"
 
 /* Local view matching what E1000_OnGetInfo writes */
 typedef struct NETINFO_LOCAL {
-    U8  MAC[6];
-    U8  LinkUp;
+    U8 MAC[6];
+    U8 LinkUp;
     U32 SpeedMbps;
-    U8  DuplexFull;
+    U8 DuplexFull;
     U16 MTU;
 } NETINFO_LOCAL;
 
 // --- Config ---
-#define TEST_TX_INTERVAL_MS   1000U    /* send every 1s */
-#define TEST_POLL_INTERVAL_MS 10U      /* poll every 10ms */
-#define TEST_ETHERTYPE        0x88B5U  /* experimental Ethertype */
-#define TEST_MIN_FRAME        60U      /* min Ethernet payload (no FCS) */
+#define TEST_TX_INTERVAL_MS 1000U /* send every 1s */
+#define TEST_POLL_INTERVAL_MS 10U /* poll every 10ms */
+#define TEST_ETHERTYPE 0x88B5U    /* experimental Ethertype */
+#define TEST_MIN_FRAME 60U        /* min Ethernet payload (no FCS) */
 
 // --- State ---
 static LPPCI_DEVICE sNetDev = NULL;
@@ -43,10 +43,15 @@ static void DumpHexShort(const U8 *buf, U32 len) {
         U32ToHexString(buf[i], tmp);
         /* U32ToHexString prints 8 hexes; we need two last chars */
         STR byteTxt[3];
-        byteTxt[0] = tmp[6]; byteTxt[1] = tmp[7]; byteTxt[2] = '\0';
+        byteTxt[0] = tmp[6];
+        byteTxt[1] = tmp[7];
+        byteTxt[2] = '\0';
         StringConcat(line, byteTxt);
         if ((i + 1) < n) StringConcat(line, TEXT(" "));
-        if ((i % 16) == 15) { KernelLogText(LOG_VERBOSE, line); line[0] = '\0'; }
+        if ((i % 16) == 15) {
+            KernelLogText(LOG_VERBOSE, line);
+            line[0] = '\0';
+        }
     }
     if (line[0]) KernelLogText(LOG_VERBOSE, line);
 }
@@ -96,19 +101,19 @@ static U32 SendTestBroadcast(U32 counter) {
     if (pos + 4 <= TEST_MIN_FRAME) {
         frame[pos++] = (U8)((counter >> 24) & 0xFF);
         frame[pos++] = (U8)((counter >> 16) & 0xFF);
-        frame[pos++] = (U8)((counter >>  8) & 0xFF);
-        frame[pos++] = (U8)((counter >>  0) & 0xFF);
+        frame[pos++] = (U8)((counter >> 8) & 0xFF);
+        frame[pos++] = (U8)((counter >> 0) & 0xFF);
     }
 
     /* Pad to minimum frame length (already zeroed) */
 
-    NETWORKSEND snd = { .Device = sNetDev, .Data = frame, .Length = TEST_MIN_FRAME };
+    NETWORKSEND snd = {.Device = sNetDev, .Data = frame, .Length = TEST_MIN_FRAME};
     return sNetDev->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&snd);
 }
 
 /* --- Periodic poll --- */
 static U32 DoPoll(void) {
-    NETWORKPOLL poll = { .Device = sNetDev };
+    NETWORKPOLL poll = {.Device = sNetDev};
     return sNetDev->Driver->Command(DF_NT_POLL, (U32)(LPVOID)&poll);
 }
 
@@ -126,22 +131,21 @@ static U32 NetworkTestTask(LPVOID param) {
     KernelLogText(LOG_VERBOSE, TEXT("[NETTEST] Using device %s"), sNetDev->Driver->Product);
 
     /* Reset (optional) */
-    NETWORKRESET rst = { .Device = sNetDev };
+    NETWORKRESET rst = {.Device = sNetDev};
     sNetDev->Driver->Command(DF_NT_RESET, (U32)(LPVOID)&rst);
 
     /* Get info (MAC/link) */
     MemorySet(&sInfo, 0, sizeof(sInfo));
-    NETWORKGETINFO gi = { .Device = sNetDev, .Info = (LPNETWORKINFO)(LPVOID)&sInfo };
+    NETWORKGETINFO gi = {.Device = sNetDev, .Info = (LPNETWORKINFO)(LPVOID)&sInfo};
     sNetDev->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&gi);
 
     KernelLogText(
-        LOG_VERBOSE, TEXT("[NETTEST] MAC=%X:%X:%X:%X:%X:%X Link=%s Speed=%u Duplex=%s MTU=%u"),
-        (U32)sInfo.MAC[0], (U32)sInfo.MAC[1], (U32)sInfo.MAC[2], (U32)sInfo.MAC[3], (U32)sInfo.MAC[4], (U32)sInfo.MAC[5],
-        sInfo.LinkUp ? "UP" : "DOWN", (unsigned)sInfo.SpeedMbps, sInfo.DuplexFull ? "FULL" : "HALF", sInfo.MTU
-    );
+        LOG_VERBOSE, TEXT("[NETTEST] MAC=%X:%X:%X:%X:%X:%X Link=%s Speed=%u Duplex=%s MTU=%u"), (U32)sInfo.MAC[0],
+        (U32)sInfo.MAC[1], (U32)sInfo.MAC[2], (U32)sInfo.MAC[3], (U32)sInfo.MAC[4], (U32)sInfo.MAC[5],
+        sInfo.LinkUp ? "UP" : "DOWN", (unsigned)sInfo.SpeedMbps, sInfo.DuplexFull ? "FULL" : "HALF", sInfo.MTU);
 
     /* Install RX callback */
-    NETWORKSETRXCB setcb = { .Device = sNetDev, .Callback = TestNet_Rx };
+    NETWORKSETRXCB setcb = {.Device = sNetDev, .Callback = TestNet_Rx};
     sNetDev->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&setcb);
 
     /* Simple loop: poll often, send periodically */

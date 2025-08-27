@@ -747,8 +747,8 @@ SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
     SysCall_CreateMutex,           // 0x00000014
     SysCall_LockMutex,             // 0x00000015
     SysCall_UnlockMutex,           // 0x00000016
-    SysCall_AllocRegion,          // 0x00000017
-    SysCall_FreeRegion,           // 0x00000018
+    SysCall_AllocRegion,           // 0x00000017
+    SysCall_FreeRegion,            // 0x00000018
     SysCall_GetProcessHeap,        // 0x00000019
     SysCall_HeapAlloc,             // 0x0000001A
     SysCall_HeapFree,              // 0x0000001B

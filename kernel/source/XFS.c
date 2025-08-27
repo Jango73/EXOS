@@ -9,7 +9,7 @@
 
 #include "../include/XFS.h"
 
-#include "../include/FileSys.h"
+#include "../include/FileSystem.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 
@@ -79,11 +79,6 @@ static LPXFSFILESYSTEM NewXFSFileSystem(LPPHYSICALDISK Disk) {
 
     InitMutex(&(This->Header.Mutex));
 
-    //-------------------------------------
-    // Assign a default name to the file system
-
-    GetDefaultFileSystemName(This->Header.Name);
-
     return This;
 }
 
@@ -116,7 +111,7 @@ static LPXFSFILE NewXFSFile(LPXFSFILESYSTEM FileSystem, LPXFSFILELOC FileLoc) {
 
 /***************************************************************************/
 
-BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
     IOCONTROL Control;
@@ -184,6 +179,8 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base
 
     FileSystem = NewXFSFileSystem(Disk);
     if (FileSystem == NULL) return FALSE;
+
+    GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
 
     //-------------------------------------
     // Copy the Master Boot Sector and the Superblock
@@ -325,8 +322,8 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
             }
 
             if (FileRec->ClusterTable > 0 && FileRec->ClusterTable != XFS_CLUSTER_END) {
-                if (StringCompareNC(Component->Name, TEXT("*")) == 0 ||
-                    StringCompareNC(Component->Name, FileRec->Name) == 0) {
+                if (StringCompare(Component->Name, TEXT("*")) == 0 ||
+                    StringCompare(Component->Name, FileRec->Name) == 0) {
                     if (Component->Next == NULL) {
                         FileLoc->DataCluster = FileRec->ClusterTable;
                         goto Out_Success;
@@ -596,6 +593,10 @@ static void TranslateFileInfo(LPXFSFILEREC FileRec, LPXFSFILE File) {
 
     if (FileRec->Attributes & XFS_ATTR_SYSTEM) {
         File->Header.Attributes |= FS_ATTR_SYSTEM;
+    }
+
+    if (FileRec->Attributes & XFS_ATTR_EXECUTABLE) {
+        File->Header.Attributes |= FS_ATTR_EXECUTABLE;
     }
 
     //-------------------------------------

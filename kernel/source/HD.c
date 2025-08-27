@@ -119,11 +119,11 @@ void SectorToBlockParams(LPDISKGEOMETRY Geometry, U32 Sector, LPBLOCKPARAMS Bloc
 BOOL WaitNotBusy(U32 Port, U32 TimeOut) {
     U32 Status;
 
-    while (TimeOut) {
+    while (TimeOut--) {
         Status = InPortByte(Port + HD_STATUS);
-        if (Status & HD_STATUS_BUSY) continue;
-        if (Status & HD_STATUS_READY) return TRUE;
-        TimeOut--;
+        if ((Status & (HD_STATUS_BUSY | HD_STATUS_READY)) == HD_STATUS_READY) {
+            return TRUE;
+        }
     }
 
     KernelLogText(LOG_WARNING, (LPSTR) "Time-out in HD");
@@ -170,14 +170,8 @@ static U32 HardDiskInitialize(void) {
 
             ATAID = (LPATADRIVEID)Buffer;
 
-            if
-            (
-              ATAID->PhysicalCylinders != 0 &&
-              ATAID->PhysicalHeads     != 0 &&
-              ATAID->PhysicalSectors   != 0
-            )
-            {
-                KernelLogText(LOG_VERBOSE, TEXT("[HardDiskInitialize] HD: %X, port: %X"), (U32) Port, (U32) Drive);
+            if (ATAID->PhysicalCylinders != 0 && ATAID->PhysicalHeads != 0 && ATAID->PhysicalSectors != 0) {
+                KernelLogText(LOG_VERBOSE, TEXT("[HardDiskInitialize] HD: %X, port: %X"), (U32)Drive, (U32)RealPort);
 
                 Disk = NewStdHardDisk();
                 if (Disk == NULL) continue;
@@ -338,30 +332,30 @@ U32 FindSectorInBuffers(LPSTDHARDDISK Disk, U32 SectorLow, U32 SectorHigh) {
 
 static U32 GetEmptyBuffer(LPSTDHARDDISK Disk) {
     U32 Index;
-    U32 Worst_Score = MAX_U32;
-    U32 Worst_Index = MAX_U32;
+    U32 WorstScore = MAX_U32;
+    U32 WorstIndex = MAX_U32;
 
     for (Index = 0; Index < Disk->NumBuffers; Index++) {
         if (Disk->Buffer[Index].SectorLow == MAX_U32) {
             return Index;
         } else if (Disk->Buffer[Index].SectorLow != MAX_U32) {
-            if (Disk->Buffer[Index].Score < Worst_Score) {
-                Worst_Score = Disk->Buffer[Index].Score;
-                Worst_Index = Index;
+            if (Disk->Buffer[Index].Score < WorstScore) {
+                WorstScore = Disk->Buffer[Index].Score;
+                WorstIndex = Index;
             }
         }
     }
 
     //-------------------------------------
-    // Invalidate the buffer and reset it's score
+    // Invalidate the buffer and reset its score
 
-    if (Worst_Index != MAX_U32) {
-        Disk->Buffer[Index].Score = 10;
-        Disk->Buffer[Index].SectorLow = MAX_U32;
-        Disk->Buffer[Index].SectorHigh = MAX_U32;
+    if (WorstIndex != MAX_U32) {
+        Disk->Buffer[WorstIndex].Score = 10;
+        Disk->Buffer[WorstIndex].SectorLow = MAX_U32;
+        Disk->Buffer[WorstIndex].SectorHigh = MAX_U32;
     }
 
-    return Worst_Index;
+    return WorstIndex;
 }
 
 /***************************************************************************/

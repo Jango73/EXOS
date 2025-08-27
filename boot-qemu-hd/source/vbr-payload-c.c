@@ -17,9 +17,9 @@ __asm__(".code16gcc");
 /************************************************************************/
 // FAT32 special values (masked to 28 bits)
 
-#define FAT32_MASK              0x0FFFFFFF
-#define FAT32_EOC_MIN           0x0FFFFFF8
-#define FAT32_BAD_CLUSTER       0x0FFFFFF7
+#define FAT32_MASK 0x0FFFFFFF
+#define FAT32_EOC_MIN 0x0FFFFFF8
+#define FAT32_BAD_CLUSTER 0x0FFFFFF7
 
 /************************************************************************/
 // I386 values
@@ -48,13 +48,9 @@ static void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
 /************************************************************************/
 
-static inline U32 PackSegOfs(U16 Seg, U16 Ofs) {
-    return ((U32)Seg << 16) | (U32)Ofs;
-}
+static inline U32 PackSegOfs(U16 Seg, U16 Ofs) { return ((U32)Seg << 16) | (U32)Ofs; }
 
-static inline U32 SegOfsToLinear(U16 Seg, U16 Ofs) {
-    return ((U32)Seg << 4) | (U32)Ofs;
-}
+static inline U32 SegOfsToLinear(U16 Seg, U16 Ofs) { return ((U32)Seg << 4) | (U32)Ofs; }
 
 // Build seg:ofs from a linear pointer. Aligns segment down to 16 bytes.
 static inline U32 MakeSegOfs(const void* Ptr) {
@@ -67,15 +63,15 @@ static inline U32 MakeSegOfs(const void* Ptr) {
 /************************************************************************/
 
 struct __attribute__((packed)) Fat32BootSector {
-    U8  Jump[3];
-    U8  Oem[8];
+    U8 Jump[3];
+    U8 Oem[8];
     U16 BytesPerSector;
-    U8  SectorsPerCluster;
+    U8 SectorsPerCluster;
     U16 ReservedSectorCount;
-    U8  NumberOfFats;
+    U8 NumberOfFats;
     U16 RootEntryCount_NA;
     U16 TotalSectors16_NA;
-    U8  Media;
+    U8 Media;
     U16 SectorsPerFat16_NA;
     U16 SectorsPerTrack;
     U16 NumberOfHeads;
@@ -87,22 +83,22 @@ struct __attribute__((packed)) Fat32BootSector {
     U32 RootCluster;
     U16 InfoSector;
     U16 BackupBootSector;
-    U8  Reserved1[12];
-    U8  LogicalDriveNumber;
-    U8  Reserved2;
-    U8  ExtendedSignature;
+    U8 Reserved1[12];
+    U8 LogicalDriveNumber;
+    U8 Reserved2;
+    U8 ExtendedSignature;
     U32 SerialNumber;
-    U8  VolumeName[11];
-    U8  FatName[8];
-    U8  Code[420];
+    U8 VolumeName[11];
+    U8 FatName[8];
+    U8 Code[420];
     U16 BiosMark;
 };
 
 struct __attribute__((packed)) FatDirEntry {
-    U8  Name[11];
-    U8  Attributes;
-    U8  NtReserved;
-    U8  CreationTimeTenth;
+    U8 Name[11];
+    U8 Attributes;
+    U8 NtReserved;
+    U8 CreationTimeTenth;
     U16 CreationTime;
     U16 CreationDate;
     U16 LastAccessDate;
@@ -115,7 +111,7 @@ struct __attribute__((packed)) FatDirEntry {
 
 /************************************************************************/
 
-const U16 COMPorts[4] = { 0x3F8, 0x2F8, 0x3E8, 0x2E8 };
+const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
 
 STR TempString[128];
 
@@ -136,14 +132,16 @@ static inline U8 InPortByte(U16 Port) {
     return Val;
 }
 
-static inline void OutPortByte(U16 Port, U8 Val) {
-    __asm__ __volatile__("outb %0, %1" :: "a"(Val), "Nd"(Port));
-}
+static inline void OutPortByte(U16 Port, U8 Val) { __asm__ __volatile__("outb %0, %1" ::"a"(Val), "Nd"(Port)); }
 
 static void EnableA20(void) {
     // Fast A20 on port 0x92
     U8 v = InPortByte(0x92);
-    if ((v & 0x02) == 0) { v |= 0x02; v &= ~0x01; OutPortByte(0x92, v); }
+    if ((v & 0x02) == 0) {
+        v |= 0x02;
+        v &= ~0x01;
+        OutPortByte(0x92, v);
+    }
 }
 
 void SerialReset(U8 Which) {
@@ -193,7 +191,7 @@ static void PrintString(LPCSTR Str) {
         "lodsb\n\t"             // AL = [ESI], ESI++
         "or    %%al, %%al\n\t"  // End of string?
         "jz    2f\n\t"
-        "mov   $0x0E, %%ah\n\t" // AH = 0Eh (BIOS teletype)
+        "mov   $0x0E, %%ah\n\t"  // AH = 0Eh (BIOS teletype)
         "int   $0x10\n\t"
         "jmp   1b\n\t"
         "2:\n\t"
@@ -290,11 +288,11 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         Hang();
     }
 
-    U32 FatStartSector    = Fat32Lba + BootSector.ReservedSectorCount;
-    U32 FatSizeSectors    = BootSector.NumSectorsPerFat;
-    U32 RootCluster       = BootSector.RootCluster;
+    U32 FatStartSector = Fat32Lba + BootSector.ReservedSectorCount;
+    U32 FatSizeSectors = BootSector.NumSectorsPerFat;
+    U32 RootCluster = BootSector.RootCluster;
     U32 SectorsPerCluster = BootSector.SectorsPerCluster;
-    U32 FirstDataSector   = Fat32Lba + BootSector.ReservedSectorCount + ((U32)BootSector.NumberOfFats * FatSizeSectors);
+    U32 FirstDataSector = Fat32Lba + BootSector.ReservedSectorCount + ((U32)BootSector.NumberOfFats * FatSizeSectors);
 
     if (SectorsPerCluster == 0) {
         PrintString(TEXT("[VBR] Invalid SectorsPerCluster = 0. Halting.\r\n"));
@@ -313,11 +311,11 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     /********************************************************************/
     /* Scan ROOT directory chain to find the file                       */
     /********************************************************************/
-    U8  Found = 0;
+    U8 Found = 0;
     U32 FileCluster = 0, FileSize = 0;
     U32 DirCluster = RootCluster;
-    U32 CurrentFatSector = 0xFFFFFFFF; 
-    U8  DirEnd = 0;
+    U32 CurrentFatSector = 0xFFFFFFFF;
+    U8 DirEnd = 0;
 
     PrintString(TEXT("[VBR] Scanning root directory chain...\r\n"));
 
@@ -340,16 +338,16 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         for (U8* Ptr = ClusterBuffer; Ptr < ClusterBuffer + SectorsPerCluster * SectorSize; Ptr += 32) {
             struct FatDirEntry* DirEntry = (struct FatDirEntry*)Ptr;
 
-            if (DirEntry->Name[0] == 0x00) { 
+            if (DirEntry->Name[0] == 0x00) {
                 DirEnd = 1;
                 break;
             }
-            if (DirEntry->Name[0] == 0xE5) continue;       
-            if ((DirEntry->Attributes & 0x0F) == 0x0F) continue; 
+            if (DirEntry->Name[0] == 0xE5) continue;
+            if ((DirEntry->Attributes & 0x0F) == 0x0F) continue;
 
             if (MemCmp(DirEntry->Name, FileToLoad, 11) == 0) {
                 FileCluster = ((U32)DirEntry->FirstClusterHigh << 16) | DirEntry->FirstClusterLow;
-                FileSize    = DirEntry->FileSize;
+                FileSize = DirEntry->FileSize;
                 Found = 1;
                 break;
             }
@@ -391,7 +389,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     U16 DestOfs = LoadAddress_Ofs;
     U32 Cluster = FileCluster;
     int ClusterCount = 0;
-    CurrentFatSector = 0xFFFFFFFF; 
+    CurrentFatSector = 0xFFFFFFFF;
 
     U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SectorSize;
     U32 MaxClusters = (FileSize + (ClusterBytes - 1)) / ClusterBytes;
@@ -437,8 +435,10 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
             DestSeg += 1;
         }
 
-        if (Remaining <= AdvanceBytes) Remaining = 0;
-        else Remaining -= AdvanceBytes;
+        if (Remaining <= AdvanceBytes)
+            Remaining = 0;
+        else
+            Remaining -= AdvanceBytes;
 
         // Get next cluster from FAT (with checks)
         U32 Next = ReadFatEntry(BootDrive, FatStartSector, Cluster, &CurrentFatSector);
@@ -500,32 +500,31 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     Hang();
 }
 
-static LPPAGEDIRECTORY PageDirectory = (LPPAGEDIRECTORY) PAGE_DIRECTORY_ADDRESS;
-static LPPAGETABLE     PageTableLow = (LPPAGETABLE) PAGE_TABLE_LOW_ADDRESS;
-static LPPAGETABLE     PageTableKrn = (LPPAGETABLE) PAGE_TABLE_KERNEL_ADDRESS;
-static GDTREGISTER     Gdtr;
+static LPPAGEDIRECTORY PageDirectory = (LPPAGEDIRECTORY)PAGE_DIRECTORY_ADDRESS;
+static LPPAGETABLE PageTableLow = (LPPAGETABLE)PAGE_TABLE_LOW_ADDRESS;
+static LPPAGETABLE PageTableKrn = (LPPAGETABLE)PAGE_TABLE_KERNEL_ADDRESS;
+static GDTREGISTER Gdtr;
 
-static void SetSegmentDescriptor(LPSEGMENTDESCRIPTOR D,
-                                 U32 Base, U32 Limit,
-                                 U32 Type/*0=data,1=code*/, U32 CanWrite,
-                                 U32 Priv/*0*/, U32 Operand32/*1*/, U32 Gran4K/*1*/) {
+static void SetSegmentDescriptor(
+    LPSEGMENTDESCRIPTOR D, U32 Base, U32 Limit, U32 Type /*0=data,1=code*/, U32 CanWrite, U32 Priv /*0*/,
+    U32 Operand32 /*1*/, U32 Gran4K /*1*/) {
     // Fill SEGMENTDESCRIPTOR bitfields (per your I386.h)
-    D->Limit_00_15   = (U16)(Limit & 0xFFFF);
-    D->Base_00_15    = (U16)(Base  & 0xFFFF);
-    D->Base_16_23    = (U8)((Base  >> 16) & 0xFF);
-    D->Accessed      = 0;
-    D->CanWrite      = (CanWrite ? 1U : 0U);
-    D->ConformExpand = 0;                 // non-conforming code / non expand-down data
-    D->Type          = (Type ? 1U : 0U);  // 1=code, 0=data
-    D->Segment       = 1;                 // code/data segment
-    D->Privilege     = (Priv & 3U);
-    D->Present       = 1;
-    D->Limit_16_19   = (Limit >> 16) & 0xF;
-    D->Available     = 0;
-    D->Unused        = 0;
-    D->OperandSize   = (Operand32 ? 1U : 0U);
-    D->Granularity   = (Gran4K ? 1U : 0U);
-    D->Base_24_31    = (U8)((Base  >> 24) & 0xFF);
+    D->Limit_00_15 = (U16)(Limit & 0xFFFF);
+    D->Base_00_15 = (U16)(Base & 0xFFFF);
+    D->Base_16_23 = (U8)((Base >> 16) & 0xFF);
+    D->Accessed = 0;
+    D->CanWrite = (CanWrite ? 1U : 0U);
+    D->ConformExpand = 0;        // non-conforming code / non expand-down data
+    D->Type = (Type ? 1U : 0U);  // 1=code, 0=data
+    D->Segment = 1;              // code/data segment
+    D->Privilege = (Priv & 3U);
+    D->Present = 1;
+    D->Limit_16_19 = (Limit >> 16) & 0xF;
+    D->Available = 0;
+    D->Unused = 0;
+    D->OperandSize = (Operand32 ? 1U : 0U);
+    D->Granularity = (Gran4K ? 1U : 0U);
+    D->Base_24_31 = (U8)((Base >> 24) & 0xFF);
 }
 
 static void BuildGdtFlat(void) {
@@ -538,54 +537,56 @@ static void BuildGdtFlat(void) {
     MemorySet(GdtBuffer, 0, sizeof(GdtBuffer));
 
     /* Code segment: base=0, limit=0xFFFFF, type=code, RW=1, gran=4K, 32-bit */
-    SetSegmentDescriptor(&GdtBuffer[1], 0x00000000, 0x000FFFFF, /*Type=*/1, /*RW=*/1,
+    SetSegmentDescriptor(
+        &GdtBuffer[1], 0x00000000, 0x000FFFFF, /*Type=*/1, /*RW=*/1,
         /*Conforming=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
 
     /* Data segment: base=0, limit=0xFFFFF, type=data, RW=1, gran=4K, 32-bit */
-    SetSegmentDescriptor(&GdtBuffer[2], 0x00000000, 0x000FFFFF, /*Type=*/0, /*RW=*/1,
+    SetSegmentDescriptor(
+        &GdtBuffer[2], 0x00000000, 0x000FFFFF, /*Type=*/0, /*RW=*/1,
         /*ExpandDown=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
 
     /* Now copy to the physical location expected by your early boot */
-    MemoryCopy((void*) GDT_ADDRESS, GdtBuffer, sizeof(GdtBuffer));
+    MemoryCopy((void*)GDT_ADDRESS, GdtBuffer, sizeof(GdtBuffer));
 
     Gdtr.Limit = (U16)(sizeof(GdtBuffer) - 1);
-    Gdtr.Base  = (U32) GDT_ADDRESS;
+    Gdtr.Base = (U32)GDT_ADDRESS;
 }
 
 static void ClearPdPt(void) {
     MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
-    MemorySet(PageTableLow,  0, PAGE_TABLE_SIZE);
-    MemorySet(PageTableKrn,  0, PAGE_TABLE_SIZE);
+    MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageTableKrn, 0, PAGE_TABLE_SIZE);
 }
 
 static void SetPde(LPPAGEDIRECTORY E, U32 PtPhys) {
-    E->Present      = 1;
-    E->ReadWrite    = 1;
-    E->Privilege    = 0;
+    E->Present = 1;
+    E->ReadWrite = 1;
+    E->Privilege = 0;
     E->WriteThrough = 0;
-    E->CacheDisabled= 0;
-    E->Accessed     = 0;
-    E->Reserved     = 0;
-    E->PageSize     = 0;                 // 0 = 4KB pages
-    E->Global       = 0;
-    E->User         = 0;
-    E->Fixed        = 1;
-    E->Address      = (PtPhys >> 12);    // top 20 bits
+    E->CacheDisabled = 0;
+    E->Accessed = 0;
+    E->Reserved = 0;
+    E->PageSize = 0;  // 0 = 4KB pages
+    E->Global = 0;
+    E->User = 0;
+    E->Fixed = 1;
+    E->Address = (PtPhys >> 12);  // top 20 bits
 }
 
 static void SetPte(LPPAGETABLE E, U32 Phys) {
-    E->Present      = 1;
-    E->ReadWrite    = 1;
-    E->Privilege    = 0;
+    E->Present = 1;
+    E->ReadWrite = 1;
+    E->Privilege = 0;
     E->WriteThrough = 0;
-    E->CacheDisabled= 0;
-    E->Accessed     = 0;
-    E->Dirty        = 0;
-    E->Reserved     = 0;
-    E->Global       = 0;
-    E->User         = 0;
-    E->Fixed        = 1;
-    E->Address      = (Phys >> 12);      // top 20 bits
+    E->CacheDisabled = 0;
+    E->Accessed = 0;
+    E->Dirty = 0;
+    E->Reserved = 0;
+    E->Global = 0;
+    E->User = 0;
+    E->Fixed = 1;
+    E->Address = (Phys >> 12);  // top 20 bits
 }
 
 static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
@@ -609,7 +610,7 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
     SetPde(PageDirectory + 0, (U32)PageTableLow);
 
     // High mapping: 0xC0000000 -> KernelPhysBase .. +MapSize
-    const U32 PdiK = (KernelVirtBase >> 22) & 0x3FFU;        // 768 for 0xC0000000
+    const U32 PdiK = (KernelVirtBase >> 22) & 0x3FFU;  // 768 for 0xC0000000
     SetPde(PageDirectory + PdiK, (U32)PageTableKrn);
 
     const U32 NumPages = (MapSize + 4095U) >> 12;
@@ -620,21 +621,39 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
     SetPde(PageDirectory + 1023, (U32)PageDirectory);
 
     PrintString(TEXT("[VBR] PDE[0], PDE[1], PDE[2], PDE[3], PDE[4], PDE[768], PDE[769] : "));
-    NumberToString(TempString, ((U32*)PageDirectory)[0],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[1],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[2],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[3],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[4],   16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[768], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[769], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[770], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[1023], 16, 0, 0, PF_SPECIAL); PrintString(TempString); PrintString(TEXT("\r\n"));
+    NumberToString(TempString, ((U32*)PageDirectory)[0], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[1], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[2], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[3], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[4], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[768], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[769], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[770], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT(" "));
+    NumberToString(TempString, ((U32*)PageDirectory)[1023], 16, 0, 0, PF_SPECIAL);
+    PrintString(TempString);
+    PrintString(TEXT("\r\n"));
 }
 
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     const U32 KernelPhysBase = SegOfsToLinear(LoadAddress_Seg, LoadAddress_Ofs);
     const U32 KernelVirtBase = 0xC0000000U;
-    const U32 MapSize        = PAGE_ALIGN(FileSize + N_512KB);
+    const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
 
     EnableA20();
     BuildGdtFlat();
@@ -643,7 +662,9 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     // Pass kernel entry VA as a normal C value (we le-recharge dans l'asm)
     const U32 KernelEntryVA = 0xC0000000;
 
-    for (volatile int i = 0; i < 100000; ++i) { __asm__ __volatile__("nop"); }
+    for (volatile int i = 0; i < 100000; ++i) {
+        __asm__ __volatile__("nop");
+    }
 
     StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA);
 

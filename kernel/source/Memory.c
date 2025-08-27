@@ -103,9 +103,9 @@
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 /// These are internal-only constants; do not export in public headers.
 
-#define PD_RECURSIVE_SLOT   1023u                 /* PDE index used for self-map */
-#define PD_VA               ((LINEAR)0xFFFFF000)  /* Page Directory linear alias */
-#define PT_BASE_VA          ((LINEAR)0xFFC00000)  /* Page Tables linear window   */
+#define PD_RECURSIVE_SLOT 1023u         /* PDE index used for self-map */
+#define PD_VA ((LINEAR)0xFFFFF000)      /* Page Directory linear alias */
+#define PT_BASE_VA ((LINEAR)0xFFC00000) /* Page Tables linear window   */
 
 // Two on-demand temporary virtual pages, reserved at init.
 static LINEAR G_TempLinear1 = 0;
@@ -158,7 +158,6 @@ static U32 GetPhysicalPageMark(U32 Page) {
 
 // Marks a contiguous range of pages in the PPB (1 = used, 0 = free)
 static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
-
     KernelLogText(LOG_DEBUG, TEXT("[SetPhysicalPageRangeMark] Enter"));
 
     U32 End = FirstPage + PageCount;
@@ -169,7 +168,7 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
 
     for (U32 Page = FirstPage; Page < End; Page++) {
         U32 Byte = Page >> MUL_8;
-        U8  Mask = (U8)(1u << (Page & 0x07));    /* bit within byte */
+        U8 Mask = (U8)(1u << (Page & 0x07)); /* bit within byte */
         if (Used) {
             Kernel_i386.PPB[Byte] |= Mask;
         } else {
@@ -195,19 +194,19 @@ PHYSICAL AllocPhysicalPage(void) {
     StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
 
     // Convert to PPB byte index
-    StartByte = StartPage >> MUL_8;                 /* == ((... >> 12) >> 3) */
-    MaxByte   = (KernelStartup.PageCount + 7) >> MUL_8;
+    StartByte = StartPage >> MUL_8; /* == ((... >> 12) >> 3) */
+    MaxByte = (KernelStartup.PageCount + 7) >> MUL_8;
 
     /* Scan from StartByte upward */
     for (i = StartByte; i < MaxByte; i++) {
         v = Kernel_i386.PPB[i];
         if (v != 0xFF) {
-            page = (i << MUL_8);                    /* first page covered by this byte */
+            page = (i << MUL_8); /* first page covered by this byte */
             for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
                 mask = 1u << bit;
                 if ((v & mask) == 0) {
                     Kernel_i386.PPB[i] = (U8)(v | mask);
-                    result = (PHYSICAL)page << PAGE_SIZE_MUL;  /* page * 4096 */
+                    result = (PHYSICAL)page << PAGE_SIZE_MUL; /* page * 4096 */
                     goto Out;
                 }
             }
@@ -256,8 +255,8 @@ void FreePhysicalPage(PHYSICAL Page) {
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     // Bitmap math: 8 pages per byte
-    U32 ByteIndex = PageIndex >> MUL_8;             // == PageIndex / 8
-    U8  mask      = (U8)(1u << (PageIndex & 0x07)); // bit within the byte
+    U32 ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
+    U8 mask = (U8)(1u << (PageIndex & 0x07));  // bit within the byte
 
     // If already free, nothing to do
     if ((Kernel_i386.PPB[ByteIndex] & mask) == 0) {
@@ -284,9 +283,7 @@ static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_C
 
 // Self-map helpers (no public exposure)
 
-static inline LPPAGEDIRECTORY GetCurrentPageDirectoryVA(void) {
-    return (LPPAGEDIRECTORY)PD_VA;
-}
+static inline LPPAGEDIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGEDIRECTORY)PD_VA; }
 
 static inline LPPAGETABLE GetPageTableVAFor(LINEAR Address) {
     U32 dir = GetDirectoryEntry(Address);
@@ -299,31 +296,31 @@ static inline volatile U32* GetPteRawPtr(LINEAR Address) {
 }
 
 // Compose a raw 32-bit PTE value from fields + physical address.
-static inline U32 MakePteValue(PHYSICAL Physical, U32 ReadWrite, U32 Privilege,
-                               U32 WriteThrough, U32 CacheDisabled, U32 Global, U32 Fixed) {
+static inline U32 MakePteValue(
+    PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global, U32 Fixed) {
     U32 val = 0;
-    val |= 1u;                                        // Present
-    if (ReadWrite)     val |= (1u << 1);
-    if (Privilege)     val |= (1u << 2);              // 1=user, 0=kernel
-    if (WriteThrough)  val |= (1u << 3);
+    val |= 1u;  // Present
+    if (ReadWrite) val |= (1u << 1);
+    if (Privilege) val |= (1u << 2);  // 1=user, 0=kernel
+    if (WriteThrough) val |= (1u << 3);
     if (CacheDisabled) val |= (1u << 4);
     /* Accessed (bit 5) / Dirty (bit 6) left to CPU */
-    if (Global)        val |= (1u << 8);
-    if (Fixed)         val |= (1u << 9);              // Your code uses this bit in PTE
-    val |= (U32)(Physical & ~(PAGE_SIZE - 1));        // Frame address aligned
+    if (Global) val |= (1u << 8);
+    if (Fixed) val |= (1u << 9);                // Your code uses this bit in PTE
+    val |= (U32)(Physical & ~(PAGE_SIZE - 1));  // Frame address aligned
     return val;
 }
 
 // Map or remap a single virtual page by directly editing its PTE via the self-map.
-static inline void MapOnePage(LINEAR Linear, PHYSICAL Physical,
-                              U32 ReadWrite, U32 Privilege, U32 WriteThrough,
-                              U32 CacheDisabled, U32 Global, U32 Fixed) {
+static inline void MapOnePage(
+    LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
+    U32 Fixed) {
     volatile U32* Pte = GetPteRawPtr(Linear);
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     U32 dir = GetDirectoryEntry(Linear);
     if (!Directory[dir].Present) {
         KernelLogText(LOG_ERROR, TEXT("[MapOnePage] PDE not present for VA %X (dir=%d)"), Linear, dir);
-        return; // Ou panic, selon la politique
+        return;  // Ou panic, selon la politique
     }
     *Pte = MakePteValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
     InvalidatePage(Linear);
@@ -366,8 +363,9 @@ LINEAR MapPhysicalPage(PHYSICAL Physical) {
         KernelLogText(LOG_ERROR, TEXT("[MapPhysicalPage] Temp slot #1 not reserved"));
         return NULL;
     }
-    MapOnePage(G_TempLinear1, Physical,
-               /*RW*/1, PAGE_PRIVILEGE_KERNEL, /*WT*/0, /*UC*/0, /*Global*/0, /*Fixed*/1);
+    MapOnePage(
+        G_TempLinear1, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
     return G_TempLinear1;
 }
 
@@ -377,8 +375,9 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
         KernelLogText(LOG_ERROR, TEXT("[MapPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
     }
-    MapOnePage(G_TempLinear2, Physical,
-               /*RW*/1, PAGE_PRIVILEGE_KERNEL, /*WT*/0, /*UC*/0, /*Global*/0, /*Fixed*/1);
+    MapOnePage(
+        G_TempLinear2, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
     return G_TempLinear2;
 }
 
@@ -393,7 +392,7 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
  */
 
 PHYSICAL AllocPageDirectory(void) {
-    PHYSICAL PA_Directory   = NULL;
+    PHYSICAL PA_Directory = NULL;
     PHYSICAL PA_LowTable = NULL;
     PHYSICAL PA_KernelTable = NULL;
 
@@ -403,8 +402,8 @@ PHYSICAL AllocPageDirectory(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Enter"));
 
-    U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL); // 4MB directory slot for LA_KERNEL
-    U32 PhysBaseKernel = KernelStartup.StubAddress;         // Kernel physical base
+    U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for LA_KERNEL
+    U32 PhysBaseKernel = KernelStartup.StubAddress;          // Kernel physical base
     U32 Index;
 
     // Allocate required physical pages (PD + 2 PTs)
@@ -435,30 +434,30 @@ PHYSICAL AllocPageDirectory(void) {
     Directory[0].WriteThrough = 0;
     Directory[0].CacheDisabled = 0;
     Directory[0].Accessed = 0;
-    Directory[0].Reserved      = 0;
-    Directory[0].PageSize      = 0; // 4KB pages
-    Directory[0].Global        = 0;
-    Directory[0].User          = 0;
-    Directory[0].Fixed         = 1;
-    Directory[0].Address       = (PA_LowTable >> PAGE_SIZE_MUL);
+    Directory[0].Reserved = 0;
+    Directory[0].PageSize = 0;  // 4KB pages
+    Directory[0].Global = 0;
+    Directory[0].User = 0;
+    Directory[0].Fixed = 1;
+    Directory[0].Address = (PA_LowTable >> PAGE_SIZE_MUL);
 
     // Directory[DirKernel] -> map LA_KERNEL..LA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
-    Directory[DirKernel].Present       = 1;
-    Directory[DirKernel].ReadWrite     = 1;
+    Directory[DirKernel].Present = 1;
+    Directory[DirKernel].ReadWrite = 1;
     Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
     Directory[DirKernel].WriteThrough = 0;
     Directory[DirKernel].CacheDisabled = 0;
     Directory[DirKernel].Accessed = 0;
-    Directory[DirKernel].Reserved      = 0;
-    Directory[DirKernel].PageSize      = 0; // 4KB pages
-    Directory[DirKernel].Global        = 0;
-    Directory[DirKernel].User          = 0;
-    Directory[DirKernel].Fixed         = 1;
-    Directory[DirKernel].Address       = (PA_KernelTable >> PAGE_SIZE_MUL);
+    Directory[DirKernel].Reserved = 0;
+    Directory[DirKernel].PageSize = 0;  // 4KB pages
+    Directory[DirKernel].Global = 0;
+    Directory[DirKernel].User = 0;
+    Directory[DirKernel].Fixed = 1;
+    Directory[DirKernel].Address = (PA_KernelTable >> PAGE_SIZE_MUL);
 
     // Install recursive mapping: PDE[1023] = PD
-    Directory[PD_RECURSIVE_SLOT].Present       = 1;
-    Directory[PD_RECURSIVE_SLOT].ReadWrite     = 1;
+    Directory[PD_RECURSIVE_SLOT].Present = 1;
+    Directory[PD_RECURSIVE_SLOT].ReadWrite = 1;
     Directory[PD_RECURSIVE_SLOT].Privilege = PAGE_PRIVILEGE_KERNEL;
     Directory[PD_RECURSIVE_SLOT].WriteThrough = 0;
     Directory[PD_RECURSIVE_SLOT].CacheDisabled = 0;
@@ -491,9 +490,9 @@ PHYSICAL AllocPageDirectory(void) {
         LowTable[Index].Dirty = 0;
         LowTable[Index].Reserved = 0;
         LowTable[Index].Global = 0;
-        LowTable[Index].User          = 0;
-        LowTable[Index].Fixed         = 1;
-        LowTable[Index].Address       = Index; // frame N -> 4KB*N
+        LowTable[Index].User = 0;
+        LowTable[Index].Fixed = 1;
+        LowTable[Index].Address = Index;  // frame N -> 4KB*N
     }
 
     // Fill kernel mapping table
@@ -526,18 +525,20 @@ PHYSICAL AllocPageDirectory(void) {
     // TLB sync before returning
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[1023]=%X"), 
-        *(U32*)&Directory[0], *(U32*)&Directory[768], *(U32*)&Directory[1023]);
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X"), 
-        *(U32*)&LowTable[0], *(U32*)&KernelTable[0]);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
+        *(U32*)&Directory[768], *(U32*)&Directory[1023]);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X"), *(U32*)&LowTable[0],
+        *(U32*)&KernelTable[0]);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Exit"));
     return PA_Directory;
 
-Out_Error :
+Out_Error:
 
-    if (PA_Directory)   FreePhysicalPage(PA_Directory);
-    if (PA_LowTable)    FreePhysicalPage(PA_LowTable);
+    if (PA_Directory) FreePhysicalPage(PA_Directory);
+    if (PA_LowTable) FreePhysicalPage(PA_LowTable);
     if (PA_KernelTable) FreePhysicalPage(PA_KernelTable);
 
     return NULL;
@@ -751,7 +752,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     }
 
     // Rounding behavior for page count
-    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;   // ceil(Size / 4096)
+    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;  // ceil(Size / 4096)
     if (NumPages == 0) NumPages = 1;
 
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
@@ -890,7 +891,7 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
     U32 NumPages = 0;
     U32 Index = 0;
 
-    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;   /* ceil(Size / 4096) */
+    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL; /* ceil(Size / 4096) */
     if (NumPages == 0) NumPages = 1;
 
     // Free each page in turn.
@@ -1013,7 +1014,7 @@ void InitializeMemoryManager(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
 
     // Put the physical page bitmap at 2mb/2 = 1mb
-    Kernel_i386.PPB = (LPPAGEBITMAP) LOW_MEMORY_HALF;
+    Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
 
     // Mark low 4mb as used
@@ -1022,10 +1023,11 @@ void InitializeMemoryManager(void) {
     SetPhysicalPageRangeMark(Start, End, 1);
 
     // Reserve two temporary linear pages (not committed). They will be remapped on demand.
-    G_TempLinear1 = 0xC0100000; // VA dans kernel space, dir=768
-    G_TempLinear2 = 0xC0101000; // VA suivante, même dir
+    G_TempLinear1 = 0xC0100000;  // VA dans kernel space, dir=768
+    G_TempLinear2 = 0xC0101000;  // VA suivante, même dir
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Temp pages reserved: %X and %X"), G_TempLinear1, G_TempLinear2);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[InitializeMemoryManager] Temp pages reserved: %X and %X"), G_TempLinear1, G_TempLinear2);
 
     // Reserve VAs via AllocRegion without commit
     if (!AllocRegion(G_TempLinear1, 0, PAGE_SIZE, ALLOC_PAGES_RESERVE | ALLOC_PAGES_READWRITE)) {
@@ -1066,8 +1068,8 @@ void InitializeMemoryManager(void) {
     }
 
     // Allocate a permanent linear region for the GDT
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR) AllocRegion(LA_KERNEL, 0, GDT_SIZE,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)AllocRegion(
+        LA_KERNEL, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     if (Kernel_i386.GDT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
@@ -1082,8 +1084,9 @@ void InitializeMemoryManager(void) {
 
     // Log GDT contents
     for (U32 i = 0; i < 3; i++) {
-        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] GDT[%u]=0x%X%X"), i,
-            ((U32*)(Kernel_i386.GDT))[i*2+1], ((U32*)(Kernel_i386.GDT))[i*2]);
+        KernelLogText(
+            LOG_DEBUG, TEXT("[InitializeMemoryManager] GDT[%u]=0x%X%X"), i, ((U32*)(Kernel_i386.GDT))[i * 2 + 1],
+            ((U32*)(Kernel_i386.GDT))[i * 2]);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));

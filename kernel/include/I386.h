@@ -209,26 +209,26 @@ typedef struct tag_TASKSTATESEGMENT {
     U32 ESI;       // ESI general purpose register
     U32 EDI;       // EDI general purpose register
 
-    U16 ES;        // ES segment register (Extra segment)
-    U16 Res5;      // Reserved
+    U16 ES;    // ES segment register (Extra segment)
+    U16 Res5;  // Reserved
 
-    U16 CS;        // CS segment register (Code segment)
-    U16 Res6;      // Reserved
+    U16 CS;    // CS segment register (Code segment)
+    U16 Res6;  // Reserved
 
-    U16 SS;        // SS segment register (Stack segment)
-    U16 Res7;      // Reserved
+    U16 SS;    // SS segment register (Stack segment)
+    U16 Res7;  // Reserved
 
-    U16 DS;        // DS segment register (Data segment)
-    U16 Res8;      // Reserved
+    U16 DS;    // DS segment register (Data segment)
+    U16 Res8;  // Reserved
 
-    U16 FS;        // FS segment register (Extra segment)
-    U16 Res9;      // Reserved
+    U16 FS;    // FS segment register (Extra segment)
+    U16 Res9;  // Reserved
 
-    U16 GS;        // GS segment register (Extra segment)
-    U16 Res10;     // Reserved
+    U16 GS;     // GS segment register (Extra segment)
+    U16 Res10;  // Reserved
 
-    U16 LDT;       // Local descriptor table segment selector
-    U16 Res11;     // Reserved
+    U16 LDT;    // Local descriptor table segment selector
+    U16 Res11;  // Reserved
 
     U8 Trap;
     U8 Res12;
@@ -263,9 +263,9 @@ typedef struct tag_TRAPFRAME {
 // NOTE: fields not meaningful for a given trap are set to 0 by the stub.
 
 typedef struct tag_INTERRUPTFRAME {
-    INTEL386REGISTERS Registers;    // Filled by the stub
-    U32 IntNo;                      // Interrupt / exception vector
-    U32 ErrCode;                    // CPU error code (0 for #UD)
+    INTEL386REGISTERS Registers;  // Filled by the stub
+    U32 IntNo;                    // Interrupt / exception vector
+    U32 ErrCode;                  // CPU error code (0 for #UD)
 } INTERRUPTFRAME, *LPINTERRUPTFRAME;
 
 /************************************************************************/
@@ -349,37 +349,35 @@ typedef struct __attribute__((packed)) {
 // Constants below remove all magic numbers.
 
 // Number of low bits used by RPL (Requested Privilege Level)
-#define SELECTOR_RPL_BITS          2u
-#define SELECTOR_RPL_MASK          0x0003u
-#define SELECTOR_RPL_SHIFT         0u
+#define SELECTOR_RPL_BITS 2u
+#define SELECTOR_RPL_MASK 0x0003u
+#define SELECTOR_RPL_SHIFT 0u
 
 // Table Indicator (0=GDT, 1=LDT)
-#define SELECTOR_TI_MASK           0x0001u
-#define SELECTOR_TI_SHIFT          2u
-#define SELECTOR_TABLE_GDT         0u
-#define SELECTOR_TABLE_LDT         1u
+#define SELECTOR_TI_MASK 0x0001u
+#define SELECTOR_TI_SHIFT 2u
+#define SELECTOR_TABLE_GDT 0u
+#define SELECTOR_TABLE_LDT 1u
 
 // Index starts at bit 3
-#define SELECTOR_INDEX_SHIFT       3u
+#define SELECTOR_INDEX_SHIFT 3u
 
 // ----- Accessors -----
 
 // Extract index from selector (ignores RPL and TI)
-#define SELECTOR_INDEX(sel)        ((U16)(sel) >> SELECTOR_INDEX_SHIFT)
+#define SELECTOR_INDEX(sel) ((U16)(sel) >> SELECTOR_INDEX_SHIFT)
 
 // Extract RPL (requested privilege level)
-#define SELECTOR_RPL(sel)          ((U16)(sel) & SELECTOR_RPL_MASK)
+#define SELECTOR_RPL(sel) ((U16)(sel)&SELECTOR_RPL_MASK)
 
 // Extract TI (table indicator: 0=GDT, 1=LDT)
-#define SELECTOR_TI(sel)           ((((U16)(sel)) >> SELECTOR_TI_SHIFT) & SELECTOR_TI_MASK)
+#define SELECTOR_TI(sel) ((((U16)(sel)) >> SELECTOR_TI_SHIFT) & SELECTOR_TI_MASK)
 
 // ----- Builders -----
 
 // Make a selector from index, TI (0=GDT/1=LDT) and RPL (0..3)
 #define MAKE_SELECTOR(index, ti, rpl) \
-    ( (SELECTOR)( (((U16)(index)) << SELECTOR_INDEX_SHIFT) \
-                | ((((U16)(ti))  & SELECTOR_TI_MASK)  << SELECTOR_TI_SHIFT) \
-                | (((U16)(rpl)) & SELECTOR_RPL_MASK)) )
+    ((SELECTOR)((((U16)(index)) << SELECTOR_INDEX_SHIFT) | ((((U16)(ti)) & SELECTOR_TI_MASK) << SELECTOR_TI_SHIFT) | (((U16)(rpl)) & SELECTOR_RPL_MASK)))
 
 // Convenience: selector into GDT with given index and RPL
 #define MAKE_GDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_GDT, (rpl))
@@ -553,12 +551,12 @@ typedef struct tag_FARPOINTER {
 /***************************************************************************/
 // Bit layout of CR0 (Control register 0)
 
-#define CR0_PROTECTED_MODE 0x00000001           // Protected mode on/off
-#define CR0_COPROCESSOR 0x00000002              // Math present
-#define CR0_MONITOR_COPROCESSOR 0x00000004      // Emulate co-processor
-#define CR0_TASKSWITCH 0x00000008               // Set on task switch
-#define CR0_80387 0x00000010                    // Type of co-processor
-#define CR0_PAGING 0x80000000                   // Paging on/off
+#define CR0_PROTECTED_MODE 0x00000001       // Protected mode on/off
+#define CR0_COPROCESSOR 0x00000002          // Math present
+#define CR0_MONITOR_COPROCESSOR 0x00000004  // Emulate co-processor
+#define CR0_TASKSWITCH 0x00000008           // Set on task switch
+#define CR0_80387 0x00000010                // Type of co-processor
+#define CR0_PAGING 0x80000000               // Paging on/off
 
 // CR2 = Faulty linear address in case of page fault
 // CR3 = Physical address of page directory
@@ -591,11 +589,11 @@ typedef struct tag_FARPOINTER {
 /***************************************************************************/
 // BIOS
 
-#define BIOS_E820_TYPE_USABLE       1
-#define BIOS_E820_TYPE_RESERVED     2
-#define BIOS_E820_TYPE_ACPI         3
-#define BIOS_E820_TYPE_ACPI_NVS     4
-#define BIOS_E820_TYPE_BAD_MEM      5
+#define BIOS_E820_TYPE_USABLE 1
+#define BIOS_E820_TYPE_RESERVED 2
+#define BIOS_E820_TYPE_ACPI 3
+#define BIOS_E820_TYPE_ACPI_NVS 4
+#define BIOS_E820_TYPE_BAD_MEM 5
 
 /***************************************************************************/
 // Clock ports
@@ -642,14 +640,14 @@ typedef struct tag_FARPOINTER {
 /***************************************************************************/
 // Static low memory pages
 
-#define LOW_MEMORY_PAGE_1   0x1000      // Reserved by VBR system structures
-#define LOW_MEMORY_PAGE_2   0x2000      // Reserved by VBR system structures
-#define LOW_MEMORY_PAGE_3   0x3000      // Reserved by VBR system structures
-#define LOW_MEMORY_PAGE_4   0x4000      //
-#define LOW_MEMORY_PAGE_5   0x5000      // RMC code base
-#define LOW_MEMORY_PAGE_6   0x6000      // RMC buffers
-#define LOW_MEMORY_PAGE_7   0x7000
-#define LOW_MEMORY_PAGE_8   0x8000
+#define LOW_MEMORY_PAGE_1 0x1000  // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_2 0x2000  // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_3 0x3000  // Reserved by VBR system structures
+#define LOW_MEMORY_PAGE_4 0x4000  //
+#define LOW_MEMORY_PAGE_5 0x5000  // RMC code base
+#define LOW_MEMORY_PAGE_6 0x6000  // RMC buffers
+#define LOW_MEMORY_PAGE_7 0x7000
+#define LOW_MEMORY_PAGE_8 0x8000
 
 /***************************************************************************/
 // Structure to receive information about a segment in a more friendly way

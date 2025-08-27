@@ -13,7 +13,7 @@
 /***************************************************************************/
 
 #include "FSID.h"
-#include "FileSys.h"
+#include "FileSystem.h"
 
 /***************************************************************************/
 
@@ -99,6 +99,7 @@ typedef struct tag_XFSFILEREC {
 #define XFS_ATTR_SYSTEM BIT_2
 #define XFS_ATTR_ARCHIVE BIT_3
 #define XFS_ATTR_HIDDEN BIT_4
+#define XFS_ATTR_EXECUTABLE BIT_5
 
 /***************************************************************************/
 

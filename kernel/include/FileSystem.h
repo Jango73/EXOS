@@ -43,6 +43,9 @@
 #define DF_FS_GETATTRIBUTES (DF_FIRSTFUNC + 15)
 #define DF_FS_SETATTRIBUTES (DF_FIRSTFUNC + 16)
 #define DF_FS_CREATEPARTITION (DF_FIRSTFUNC + 17)
+#define DF_FS_MOUNTOBJECT (DF_FIRSTFUNC + 18)
+#define DF_FS_UNMOUNTOBJECT (DF_FIRSTFUNC + 19)
+#define DF_FS_PATHEXISTS (DF_FIRSTFUNC + 20)
 
 /***************************************************************************/
 
@@ -59,6 +62,7 @@
 #define FS_ATTR_READONLY 0x0002
 #define FS_ATTR_HIDDEN 0x0004
 #define FS_ATTR_SYSTEM 0x0008
+#define FS_ATTR_EXECUTABLE 0x0010
 
 /***************************************************************************/
 
@@ -168,9 +172,23 @@ typedef struct tag_PATHNODE {
 
 /***************************************************************************/
 
+typedef struct tag_FS_MOUNT_CONTROL {
+    STR Path[MAX_PATH_NAME];
+    LPLISTNODE Node;
+} FS_MOUNT_CONTROL, *LPFS_MOUNT_CONTROL;
+
+typedef FS_MOUNT_CONTROL FS_UNMOUNT_CONTROL, *LPFS_UNMOUNT_CONTROL;
+
+typedef struct tag_FS_PATHCHECK {
+    STR CurrentFolder[MAX_PATH_NAME];
+    STR SubFolder[MAX_PATH_NAME];
+} FS_PATHCHECK, *LPFS_PATHCHECK;
+
+/***************************************************************************/
+
 BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
-BOOL GetDefaultFileSystemName(LPSTR);
+BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
 BOOL MountSystemFS(void);
 LPLIST DecompPath(LPCSTR);
 

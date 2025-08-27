@@ -30,25 +30,17 @@
 
 \************************************************************************/
 
-static inline U16 Htons(U16 Value) {
-	return (U16)((Value << 8) | (Value >> 8));
-}
+static inline U16 Htons(U16 Value) { return (U16)((Value << 8) | (Value >> 8)); }
 
-static inline U16 Ntohs(U16 Value) {
-	return Htons(Value);
-}
+static inline U16 Ntohs(U16 Value) { return Htons(Value); }
 
 static inline U32 Htonl(U32 Value) {
-	return ((Value & 0x000000FFU) << 24) |
-	       ((Value & 0x0000FF00U) <<  8) |
-	       ((Value & 0x00FF0000U) >>  8) |
-	       ((Value & 0xFF000000U) >> 24);
+    return ((Value & 0x000000FFU) << 24) | ((Value & 0x0000FF00U) << 8) | ((Value & 0x00FF0000U) >> 8) |
+           ((Value & 0xFF000000U) >> 24);
 }
 
-static inline U32 Ntohl(U32 Value) {
-	return Htonl(Value);
-}
+static inline U32 Ntohl(U32 Value) { return Htonl(Value); }
 
 /************************************************************************/
 
-#endif	// ENDIANNESS_H_INCLUDED
+#endif  // ENDIANNESS_H_INCLUDED

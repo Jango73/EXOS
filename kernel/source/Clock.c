@@ -76,9 +76,7 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
 
 /***************************************************************************/
 
-void ClockHandler(void) {
-    RawSystemTime += 10;
-}
+void ClockHandler(void) { RawSystemTime += 10; }
 
 /***************************************************************************/
 
