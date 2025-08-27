@@ -13,6 +13,7 @@
 
 #include "../include/Heap.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
 
 /***************************************************************************/
@@ -109,6 +110,8 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     }
 
     if (Colon == NULL) {
+        KernelLogText(LOG_DEBUG, "[OpenFile] Searching for %s in file systems", Info->Name);
+
         for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
             FileSystem = (LPFILESYSTEM)Node;
 
@@ -118,7 +121,10 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             StringCopy(Find.Name, Info->Name);
 
             File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+
             if (File != NULL) {
+                KernelLogText(LOG_DEBUG, "[OpenFile] Found %s in %s", Info->Name, FileSystem->Driver->Product);
+
                 LockMutex(MUTEX_FILE, INFINITY);
 
                 File->OwnerTask = GetCurrentTask();
