@@ -593,6 +593,8 @@ BOOL GetKeyCodeDown(KEYCODE KeyCode) {
             return Keyboard.Status[SCAN_CONTROL] != 0;
         case VK_RCTRL:
             return Keyboard.Status[SCAN_RIGHT_CONTROL] != 0;
+        case VK_CONTROL:
+            return Keyboard.Status[SCAN_CONTROL] != 0 || Keyboard.Status[SCAN_RIGHT_CONTROL] != 0;
         case VK_LALT:
             return Keyboard.Status[SCAN_ALT] != 0;
         case VK_RALT:

@@ -21,19 +21,28 @@
 
 /***************************************************************************/
 
+typedef struct tag_EDITCONTEXT EDITCONTEXT, *LPEDITCONTEXT;
+
 static I32 MenuHeight = 2;
 
 #define MAX_COLUMNS (Console.Width - 10)
 #define MAX_LINES (Console.Height - MenuHeight)
 
+typedef BOOL (*EDITMENUPROC)(LPEDITCONTEXT);
+
 typedef struct tag_EDITMENUITEM {
     KEYCODE Modifier;
     KEYCODE Key;
     LPCSTR Name;
+    EDITMENUPROC Function;
 } EDITMENUITEM, *LPEDITMENUITEM;
 
+static BOOL CommandExit(LPEDITCONTEXT Context);
+static BOOL CommandSave(LPEDITCONTEXT Context);
+
 static EDITMENUITEM Menu[] = {
-    {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, "Exit"},
+    {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, "Exit", CommandExit},
+    {{VK_CONTROL, 0, 0}, {VK_S, 0, 0}, "Save", CommandSave},
 };
 static const U32 MenuItems = sizeof(Menu) / sizeof(Menu[0]);
 
@@ -56,6 +65,7 @@ typedef struct tag_EDITFILE {
     POINT SelEnd;
     I32 Left;
     I32 Top;
+    LPSTR Name;
 } EDITFILE, *LPEDITFILE;
 
 /***************************************************************************/
@@ -116,6 +126,7 @@ LPEDITFILE NewEditFile(void) {
     This->SelEnd.Y = 0;
     This->Left = 0;
     This->Top = 0;
+    This->Name = NULL;
 
     Line = NewEditLine(8);
     ListAddItem(This->Lines, Line);
@@ -129,6 +140,7 @@ void DeleteEditFile(LPEDITFILE This) {
     if (This == NULL) return;
 
     DeleteList(This->Lines);
+    HeapFree(This->Name);
     HeapFree(This);
 }
 
@@ -195,6 +207,7 @@ static LPCSTR GetKeyName(U8 VirtualKey) {
     switch (VirtualKey) {
         case VK_ESCAPE:
             return "ESC";
+        case VK_CONTROL:
         case VK_LCTRL:
         case VK_RCTRL:
             return "Ctrl";
@@ -292,6 +305,62 @@ void Render(LPEDITFILE File) {
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
     UnlockMutex(MUTEX_CONSOLE);
+}
+
+/***************************************************************************/
+
+static BOOL CommandExit(LPEDITCONTEXT Context) {
+    UNUSED(Context);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+static BOOL SaveFile(LPEDITFILE File) {
+    FILEOPENINFO Info;
+    FILEOPERATION Operation;
+    LPLISTNODE Node;
+    LPEDITLINE Line;
+    HANDLE Handle;
+    U8 CRLF[2] = {13, 10};
+
+    if (File == NULL || File->Name == NULL) return FALSE;
+
+    Info.Header.Size = sizeof Info;
+    Info.Header.Version = EXOS_ABI_VERSION;
+    Info.Header.Flags = 0;
+    Info.Name = File->Name;
+    Info.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+
+    Handle = DoSystemCall(SYSCALL_OpenFile, (U32)&Info);
+    if (Handle) {
+        for (Node = File->Lines->First; Node; Node = Node->Next) {
+            Line = (LPEDITLINE)Node;
+
+            Operation.Header.Size = sizeof Operation;
+            Operation.Header.Version = EXOS_ABI_VERSION;
+            Operation.Header.Flags = 0;
+            Operation.File = Handle;
+            Operation.Buffer = Line->Chars;
+            Operation.NumBytes = Line->NumChars;
+            DoSystemCall(SYSCALL_WriteFile, (U32)&Operation);
+
+            Operation.Buffer = CRLF;
+            Operation.NumBytes = 2;
+            DoSystemCall(SYSCALL_WriteFile, (U32)&Operation);
+        }
+        DoSystemCall(SYSCALL_DeleteObject, Handle);
+    } else {
+        KernelLogText(LOG_VERBOSE, TEXT("Could not save file '%s'\n"), File->Name);
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL CommandSave(LPEDITCONTEXT Context) {
+    return SaveFile(Context->Current);
 }
 
 /***************************************************************************/
@@ -530,6 +599,7 @@ static void GotoStartOfLine(LPEDITFILE File) {
 static I32 Loop(LPEDITCONTEXT Context) {
     KEYCODE KeyCode;
     U32 Item;
+    BOOL Handled;
 
     Render(Context->Current);
 
@@ -537,15 +607,21 @@ static I32 Loop(LPEDITCONTEXT Context) {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 
+            Handled = FALSE;
             for (Item = 0; Item < MenuItems; Item++) {
                 if (KeyCode.VirtualKey == Menu[Item].Key.VirtualKey) {
                     if (Menu[Item].Modifier.VirtualKey == VK_NONE || GetKeyCodeDown(Menu[Item].Modifier)) {
-                        if (Menu[Item].Key.VirtualKey == VK_ESCAPE) {
+                        Handled = TRUE;
+                        if (Menu[Item].Function(Context)) {
                             return 0;
                         }
+                        Render(Context->Current);
                     }
+                    break;
                 }
             }
+
+            if (Handled) continue;
 
             if (KeyCode.VirtualKey == VK_DOWN) {
                 Context->Current->Cursor.Y++;
@@ -558,6 +634,15 @@ static I32 Loop(LPEDITCONTEXT Context) {
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_LEFT) {
                 Context->Current->Cursor.X--;
+                Render(Context->Current);
+            } else if (KeyCode.VirtualKey == VK_PAGEDOWN) {
+                I32 Lines = (Console.Height * 8) / 10;
+                Context->Current->Top += Lines;
+                Render(Context->Current);
+            } else if (KeyCode.VirtualKey == VK_PAGEUP) {
+                I32 Lines = (Console.Height * 8) / 10;
+                Context->Current->Top -= Lines;
+                if (Context->Current->Top < 0) Context->Current->Top = 0;
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_HOME) {
                 GotoStartOfLine(Context->Current);
@@ -631,6 +716,10 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                 if (DoSystemCall(SYSCALL_ReadFile, (U32)&FileOperation)) {
                     File = NewEditFile();
                     if (File) {
+                        File->Name = HeapAlloc(StringLength(Name) + 1);
+                        if (File->Name) {
+                            StringCopy(File->Name, Name);
+                        }
                         ListAddItem(Context->Files, File);
                         Context->Current = File;
 

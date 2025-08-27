@@ -358,6 +358,9 @@ Implements a simple text editor for the shell.
 - CheckPositions: Adjusts viewport offsets according to cursor position.
 - Render: Renders the text buffer and menu onto the console.
 - RenderMenu: Displays the editor command menu.
+- SaveFile: Writes the current buffer to disk.
+- CommandExit: Menu action that leaves the editor.
+- CommandSave: Menu action that saves the current file.
 - CheckLineSize: Grows a line buffer when needed.
 - FillToCursor: Inserts spaces until the cursor column is valid.
 - GetCurrentLine: Returns the line at the current cursor row.

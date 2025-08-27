@@ -88,6 +88,7 @@
 #define VK_RSHIFT 0x64
 #define VK_LCTRL 0x65
 #define VK_RCTRL 0x66
+#define VK_CONTROL 0x90
 #define VK_LALT 0x67
 #define VK_RALT 0x68
 #define VK_TAB 0x69
