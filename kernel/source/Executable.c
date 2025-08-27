@@ -1,4 +1,3 @@
-// Executable.c
 
 /***************************************************************************\
 
@@ -75,7 +74,7 @@ BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
     if (Signature == EXOS_SIGNATURE) {
         return LoadExecutable_EXOS(Load->File, Load->Info, Load->CodeBase, Load->DataBase);
     } else if (Signature == ELF_SIGNATURE) {
-        return LoadExecutable_ELF(Load->File, Load->Info, Load->CodeBase, Load->DataBase);
+        return LoadExecutable_ELF(Load->File, Load->Info, Load->CodeBase, Load->DataBase, Load->BssBase);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[LoadExecutable] Unknown signature %X"), Signature);

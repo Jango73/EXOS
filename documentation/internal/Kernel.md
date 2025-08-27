@@ -868,8 +868,8 @@ System call handler dispatching user mode requests.
 - SysCall_ReadFile: Reads data from a file.
 - SysCall_WriteFile: Writes data to a file.
 - SysCall_GetFileSize: Returns the size of a file.
-- SysCall_GetFilePointer: Gets the current file offset.
-- SysCall_SetFilePointer: Sets the current file offset.
+- SysCall_GetFilePosition: Gets the current file position.
+- SysCall_SetFilePosition: Sets the current file position.
 - SysCall_ConsolePeekKey: Checks if a key is ready.
 - SysCall_ConsoleGetKey: Reads a key code.
 - SysCall_ConsolePrint: Prints text to the console.

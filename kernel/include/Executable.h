@@ -20,6 +20,8 @@ typedef struct tag_EXECUTABLEINFO {
     U32 CodeSize;
     U32 DataBase;
     U32 DataSize;
+    U32 BssBase;
+    U32 BssSize;
     U32 StackMinimum;
     U32 StackRequested;
     U32 HeapMinimum;
@@ -27,12 +29,14 @@ typedef struct tag_EXECUTABLEINFO {
 } EXECUTABLEINFO, *LPEXECUTABLEINFO;
 
 /***************************************************************************/
+// Load request: caller provides actual target bases where segments will land.
 
 typedef struct tag_EXECUTABLELOAD {
     LPFILE File;
     LPEXECUTABLEINFO Info;
     LINEAR CodeBase;
     LINEAR DataBase;
+    LINEAR BssBase;
 } EXECUTABLELOAD, *LPEXECUTABLELOAD;
 
 /***************************************************************************/

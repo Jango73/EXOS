@@ -40,9 +40,9 @@ typedef signed long I32;
 typedef unsigned int UINT;
 typedef signed int INT;
 
-typedef U32 LINEAR;
-typedef U32 PHYSICAL;
-typedef U8* LPPAGEBITMAP;
+typedef U32 LINEAR;             // A linear address, paged or not
+typedef U32 PHYSICAL;           // A physical address
+typedef U8* LPPAGEBITMAP;       // A pointer to a page allocation bitmap
 
 /***************************************************************************/
 
@@ -382,6 +382,12 @@ typedef U32 COLOR;
 #define COLOR_PURPLE ((COLOR)0x00FF00FF)
 #define COLOR_BROWN ((COLOR)0x00008080)
 #define COLOR_DARK_CYAN ((COLOR)0x00808000)
+
+/***************************************************************************/
+// Error codes
+
+#define SUCCESS                 0x0000
+#define ERROR_OUT_OF_MEMORY     0x0001
 
 /***************************************************************************/
 
