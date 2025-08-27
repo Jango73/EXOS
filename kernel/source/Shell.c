@@ -42,6 +42,7 @@ typedef struct tag_SHELLCONTEXT {
     U32 BufferSize;
     LPSTR Buffer[NUM_BUFFERS];
     STRINGARRAY History;
+    STRINGARRAY Options;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
 /***************************************************************************/
@@ -51,7 +52,9 @@ typedef void (*SHELLCOMMAND)(LPSHELLCONTEXT);
 static void CMD_commands(LPSHELLCONTEXT);
 static void CMD_cls(LPSHELLCONTEXT);
 static void CMD_dir(LPSHELLCONTEXT);
-static BOOL IsPauseOption(LPCSTR);
+static void ClearOptions(LPSHELLCONTEXT);
+static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
+static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
 static void CMD_cd(LPSHELLCONTEXT);
 static void CMD_md(LPSHELLCONTEXT);
 static void CMD_run(LPSHELLCONTEXT);
@@ -80,7 +83,7 @@ static struct {
 } COMMANDS[] = {
     {"commands", "help", "", CMD_commands},
     {"clear", "cls", "", CMD_cls},
-    {"ls", "dir", "[Name] [/P]", CMD_dir},
+    {"ls", "dir", "[Name] [-p] [-r]", CMD_dir},
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
     {"run", "launch", "Name", CMD_run},
@@ -114,6 +117,7 @@ static void InitShellContext(LPSHELLCONTEXT This) {
     This->CommandChar = 0;
 
     StringArrayInit(&This->History, HISTORY_SIZE);
+    StringArrayInit(&This->Options, 8);
 
     for (Index = 0; Index < NUM_BUFFERS; Index++) {
         This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
@@ -139,8 +143,19 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
     }
 
     StringArrayDeinit(&This->History);
+    StringArrayDeinit(&This->Options);
 
     KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Exit"));
+}
+
+/***************************************************************************/
+
+static void ClearOptions(LPSHELLCONTEXT Context) {
+    U32 Index;
+    for (Index = 0; Index < Context->Options.Count; Index++) {
+        if (Context->Options.Items[Index]) HeapFree(Context->Options.Items[Index]);
+    }
+    Context->Options.Count = 0;
 }
 
 /***************************************************************************/
@@ -207,7 +222,29 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
     Context->Component++;
     Context->Command[d] = STR_NULL;
 
+    if (Context->Command[0] == STR_MINUS) {
+        U32 Offset = 1;
+        if (Context->Command[1] == STR_MINUS) Offset = 2;
+        if (Context->Command[Offset] != STR_NULL) {
+            StringArrayAddUnique(&Context->Options, Context->Command + Offset);
+        }
+        return ParseNextComponent(Context);
+    }
+
     return TRUE;
+}
+
+/***************************************************************************/
+
+static BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName) {
+    U32 Index;
+    LPCSTR Option;
+    for (Index = 0; Index < Context->Options.Count; Index++) {
+        Option = StringArrayGet(&Context->Options, Index);
+        if (ShortName && StringCompareNC(Option, ShortName) == 0) return TRUE;
+        if (LongName && StringCompareNC(Option, LongName) == 0) return TRUE;
+    }
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -386,7 +423,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static void ListFile(LPFILE File) {
+static void ListFile(LPFILE File, U32 Indent) {
     STR Name[MAX_FILE_NAME];
     U32 MaxWidth = 80;
     U32 Length;
@@ -400,18 +437,19 @@ static void ListFile(LPFILE File) {
 
     StringCopy(Name, File->Name);
 
-    if (StringLength(Name) > (MaxWidth / 2)) {
-        Index = (MaxWidth / 2) - 4;
+    if (StringLength(Name) > ((MaxWidth - Indent) / 2)) {
+        Index = ((MaxWidth - Indent) / 2) - 4;
         Name[Index++] = STR_DOT;
         Name[Index++] = STR_DOT;
         Name[Index++] = STR_DOT;
         Name[Index++] = STR_NULL;
     }
 
-    Length = (MaxWidth / 2) - StringLength(Name);
+    Length = ((MaxWidth - Indent) / 2) - StringLength(Name);
 
     // Print name
 
+    for (Index = 0; Index < Indent; Index++) ConsolePrint(TEXT(" "));
     ConsolePrint(Name);
     for (Index = 0; Index < Length; Index++) ConsolePrint(TEXT(" "));
 
@@ -451,6 +489,64 @@ static void ListFile(LPFILE File) {
 
 /***************************************************************************/
 
+static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, BOOL Recurse, U32* NumListed) {
+    FILEINFO Find;
+    LPFILESYSTEM FileSystem;
+    LPFILE File;
+    STR Pattern[MAX_PATH_NAME];
+    STR Sep[2] = {PATH_SEP, STR_NULL};
+
+    UNUSED(Context);
+    FileSystem = Kernel.SystemFS;
+
+    Find.Size = sizeof(FILEINFO);
+    Find.FileSystem = FileSystem;
+    Find.Attributes = MAX_U32;
+
+    StringCopy(Pattern, Base);
+    if (Pattern[StringLength(Pattern) - 1] != PATH_SEP) StringConcat(Pattern, Sep);
+    StringConcat(Pattern, TEXT("*"));
+    StringCopy(Find.Name, Pattern);
+
+    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+    if (File == NULL) {
+        StringCopy(Find.Name, Base);
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        if (File == NULL) {
+            ConsolePrint(TEXT("Unknown file : %s\n"), Base);
+            return;
+        }
+        ListFile(File, Indent);
+        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        return;
+    }
+
+    do {
+        ListFile(File, Indent);
+        if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
+            if (StringCompare(File->Name, TEXT(".")) != 0 &&
+                StringCompare(File->Name, TEXT("..")) != 0) {
+                STR NewBase[MAX_PATH_NAME];
+                StringCopy(NewBase, Base);
+                if (NewBase[StringLength(NewBase) - 1] != PATH_SEP) StringConcat(NewBase, Sep);
+                StringConcat(NewBase, File->Name);
+                ListDirectory(Context, NewBase, Indent + 2, Pause, Recurse, NumListed);
+            }
+        }
+        if (Pause) {
+            (*NumListed)++;
+            if (*NumListed >= Console.Height - 2) {
+                *NumListed = 0;
+                WaitKey();
+            }
+        }
+    } while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
+
+    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+}
+
+/***************************************************************************/
+
 static void CMD_commands(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
@@ -471,37 +567,24 @@ static void CMD_cls(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static BOOL IsPauseOption(LPCSTR Argument) {
-    if (StringLength(Argument) != 2) return FALSE;
-    if (Argument[0] != STR_MINUS && Argument[0] != PATH_SEP) return FALSE;
-    if (Argument[1] != 'p' && Argument[1] != 'P') return FALSE;
-    return TRUE;
-}
-
-/***************************************************************************/
 
 static void CMD_dir(LPSHELLCONTEXT Context) {
-    FILEINFO Find;
-    LPFILESYSTEM FileSystem = NULL;
-    LPFILE File = NULL;
     STR Target[MAX_PATH_NAME];
     STR Base[MAX_PATH_NAME];
-    U32 Pause = 0;
+    LPFILESYSTEM FileSystem = NULL;
+    BOOL Pause;
+    BOOL Recurse;
     U32 NumListed = 0;
+
+    Pause = HasOption(Context, TEXT("p"), TEXT("pause"));
+    Recurse = HasOption(Context, TEXT("r"), TEXT("recursive"));
 
     Target[0] = STR_NULL;
 
     ParseNextComponent(Context);
     if (StringLength(Context->Command)) {
-        if (IsPauseOption(Context->Command)) {
-            Pause = 1;
-        } else {
-            QualifyFileName(Context, Context->Command, Target);
-        }
+        QualifyFileName(Context, Context->Command, Target);
     }
-
-    ParseNextComponent(Context);
-    if (StringLength(Context->Command) && IsPauseOption(Context->Command)) Pause = 1;
 
     FileSystem = Kernel.SystemFS;
 
@@ -510,52 +593,13 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
         return;
     }
 
-    Find.Size = sizeof(FILEINFO);
-    Find.FileSystem = FileSystem;
-    Find.Attributes = MAX_U32;
-
-    {
-        STR Sep[2] = {PATH_SEP, STR_NULL};
-
-        if (StringLength(Target) == 0) {
-            StringCopy(Base, Context->CurrentFolder);
-        } else {
-            StringCopy(Base, Target);
-        }
-
-        StringCopy(Find.Name, Base);
-        if (Find.Name[StringLength(Find.Name) - 1] != PATH_SEP) StringConcat(Find.Name, Sep);
-        StringConcat(Find.Name, TEXT("*"));
+    if (StringLength(Target) == 0) {
+        StringCopy(Base, Context->CurrentFolder);
+    } else {
+        StringCopy(Base, Target);
     }
 
-    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
-
-    if (File == NULL) {
-        StringCopy(Find.Name, (StringLength(Target) ? Target : Context->CurrentFolder));
-        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
-        if (File == NULL) {
-            ConsolePrint(TEXT("Unknown file : %s\n"), (StringLength(Target) ? Target : Context->CurrentFolder));
-            return;
-        }
-
-        ListFile(File);
-        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
-        return;
-    }
-
-    ListFile(File);
-    while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS) {
-        ListFile(File);
-        if (Pause) {
-            NumListed++;
-            if (NumListed >= Console.Height - 2) {
-                NumListed = 0;
-                WaitKey();
-            }
-        }
-    }
-
-    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+    ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
 }
 
 /***************************************************************************/
@@ -924,6 +968,16 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     if (Context->CommandLine[0] != STR_NULL) {
         StringArrayAddUnique(&Context->History, Context->CommandLine);
     }
+
+    ClearOptions(Context);
+
+    while (1) {
+        ParseNextComponent(Context);
+        if (StringLength(Context->Command) == 0) break;
+    }
+
+    Context->Component = 0;
+    Context->CommandChar = 0;
 
     ParseNextComponent(Context);
 
