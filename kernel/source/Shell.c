@@ -178,7 +178,7 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
 /***************************************************************************/
 
 static BOOL ShowPrompt(LPSHELLCONTEXT Context) {
-    ConsolePrint(TEXT("\n%s>"), Context->CurrentFolder);
+    ConsolePrint(TEXT("%s>"), Context->CurrentFolder);
     return TRUE;
 }
 
@@ -1017,8 +1017,6 @@ U32 Shell(LPVOID Param) {
     KernelLogText(LOG_DEBUG, TEXT("[Shell] Enter"));
 
     InitShellContext(&Context);
-
-    ConsolePrint(Text_NewLine);
 
     while (ParseCommand(&Context)) {
     }

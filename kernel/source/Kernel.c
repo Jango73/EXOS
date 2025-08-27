@@ -531,8 +531,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Shell task
 
-    ConsolePrint(TEXT("Launching shell\n"));
-
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
 
     TaskInfo.Func = Shell;
