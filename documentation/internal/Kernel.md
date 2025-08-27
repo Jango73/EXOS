@@ -565,7 +565,7 @@ Implements the PC keyboard driver and key buffering.
 - PeekChar: Checks if a character is available.
 - GetChar: Reads a character from the buffer.
 - GetKeyCode: Reads a full key code from the buffer.
-- GetKeyCodeDown: Returns TRUE if the specified key is currently pressed.
+- GetKeyCodeDown: Returns TRUE if the specified key is currently pressed. Supports VK_CONTROL, VK_SHIFT and VK_ALT to check either side.
 - WaitKey: Waits for a key press.
 - KeyboardHandler: Interrupt handler that reads scan codes.
 - KeyboardInitialize: Initializes keyboard structures and IRQ.

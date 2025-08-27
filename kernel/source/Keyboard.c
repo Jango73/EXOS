@@ -595,6 +595,10 @@ BOOL GetKeyCodeDown(KEYCODE KeyCode) {
             return Keyboard.Status[SCAN_RIGHT_CONTROL] != 0;
         case VK_CONTROL:
             return Keyboard.Status[SCAN_CONTROL] != 0 || Keyboard.Status[SCAN_RIGHT_CONTROL] != 0;
+        case VK_SHIFT:
+            return Keyboard.Status[SCAN_LEFT_SHIFT] != 0 || Keyboard.Status[SCAN_RIGHT_SHIFT] != 0;
+        case VK_ALT:
+            return Keyboard.Status[SCAN_ALT] != 0 || Keyboard.Status[SCAN_RIGHT_ALT] != 0;
         case VK_LALT:
             return Keyboard.Status[SCAN_ALT] != 0;
         case VK_RALT:
