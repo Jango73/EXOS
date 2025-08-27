@@ -7,6 +7,26 @@ BITS 16
 ORIGIN equ 0x8000
 KERNEL_LOAD_ADDRESS      equ 0x00020000
 
+%macro DebugPrint 1
+%if DEBUG_OUTPUT
+    mov         si, %1
+%if DEBUG_OUTPUT = 2
+    call        SerialPrintString
+%else
+    call        PrintString
+%endif
+%endif
+%endmacro
+
+%macro ErrorPrint 1
+    mov         si, %1
+%if DEBUG_OUTPUT = 2
+    call        SerialPrintString
+%else
+    call        PrintString
+%endif
+%endmacro
+
 section .start
 global _start
 global BiosReadSectors
@@ -49,8 +69,11 @@ Start:
 
     sti                                     ; Enable interrupts
 
-    mov         si, Text_Jumping
-    call        PrintString
+%if DEBUG_OUTPUT = 2
+    call        InitSerial
+%endif
+
+    DebugPrint  Text_Jumping
 
     mov         eax, [DAP_Start_LBA_Low]
     push        eax                         ; Param 2 : Partition LBA
@@ -248,6 +271,47 @@ PrintString:
 .done:
     ret
 
+SerialPrintString:
+    lodsb
+    or          al, al
+    jz          .sdone
+    push        ax
+.wait:
+    mov         dx, 0x3FD
+    in          al, dx
+    test        al, 0x20
+    jz          .wait
+    pop         ax
+    mov         dx, 0x3F8
+    out         dx, al
+    jmp         SerialPrintString
+.sdone:
+    ret
+
+InitSerial:
+    mov         dx, 0x3F8 + 1
+    mov         al, 0x00
+    out         dx, al
+    mov         dx, 0x3F8 + 3
+    mov         al, 0x80
+    out         dx, al
+    mov         dx, 0x3F8
+    mov         al, 0x03
+    out         dx, al
+    mov         dx, 0x3F8 + 1
+    mov         al, 0x00
+    out         dx, al
+    mov         dx, 0x3F8 + 3
+    mov         al, 0x03
+    out         dx, al
+    mov         dx, 0x3F8 + 2
+    mov         al, 0xC7
+    out         dx, al
+    mov         dx, 0x3F8 + 4
+    mov         al, 0x0B
+    out         dx, al
+    ret
+
 ;-------------------------------------------------------------------------
 ; PrintHex32
 ; In : EAX = value to write
@@ -322,8 +386,7 @@ StubJumpToImage:
 
     cli
 
-    mov         si, Text_JumpingToPM
-    call        PrintString
+    DebugPrint  Text_JumpingToPM
 
     xor         ebx, ebx               ; Prepare EBX and select page 0
     mov         ah, 0x03               ; BIOS get cursor position

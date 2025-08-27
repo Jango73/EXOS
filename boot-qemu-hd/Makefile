@@ -9,6 +9,9 @@ MTOOLS_CONF     = .mtoolsrc.tmp
 CUSTOM_MBR      = source/mbr.asm
 CUSTOM_MBR_BIN  = bin/mbr.bin
 
+DEBUG_OUTPUT    ?= 0
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+
 VBR_SRC         = source/vbr.asm
 VBR_BIN         = bin/vbr.bin
 SECTORS_TO_LOAD = 8         # Number of sectors loaded by VBR (including sector 0)
@@ -27,11 +30,12 @@ PAYLOAD_ELF     = bin/payload.elf
 PAYLOAD_MAP     = bin/payload.map
 
 CFLAGS  = -m16 -g -Wall -Wextra -O2 \
-	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
-	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
-	-fvisibility=hidden -mno-red-zone -fno-stack-protector \
-	-mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
-	-Werror-implicit-function-declaration -Wstrict-prototypes
+        -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+        -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+        -fvisibility=hidden -mno-red-zone -fno-stack-protector \
+        -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
+        -Werror-implicit-function-declaration -Wstrict-prototypes \
+        -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
 
 LD      		= i686-elf-ld
 LDFLAGS 		= -nostdlib -no-pie
@@ -116,15 +120,15 @@ install-vbr-payload: $(FINAL_IMG) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
 
 $(CUSTOM_MBR_BIN): $(CUSTOM_MBR)
 	@echo "Assembling custom MBR (NASM)..."
-	nasm -f bin $(CUSTOM_MBR) -o $(CUSTOM_MBR_BIN)
+	nasm $(NASMFLAGS) -f bin $(CUSTOM_MBR) -o $(CUSTOM_MBR_BIN)
 
 $(VBR_BIN): $(VBR_SRC)
 	@echo "Assembling VBR (NASM)..."
-	nasm -f bin $(VBR_SRC) -o $(VBR_BIN)
+	nasm $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
 
 $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@echo "Assembling payload stub (NASM)..."
-	nasm -f elf32 $< -o $@
+	nasm $(NASMFLAGS) -f elf32 $< -o $@
 
 $(PAYLOAD_C_O): $(PAYLOAD_C)
 	@echo "Compiling payload C..."

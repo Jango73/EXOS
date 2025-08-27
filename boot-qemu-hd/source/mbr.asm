@@ -7,6 +7,26 @@ ORG 0x7C00
 
 VBR_OFFSET equ 0x7E00
 
+%macro DebugPrint 1
+%if DEBUG_OUTPUT
+    mov         si, %1
+%if DEBUG_OUTPUT = 2
+    call        SerialPrintString
+%else
+    call        PrintString
+%endif
+%endif
+%endmacro
+
+%macro ErrorPrint 1
+    mov         si, %1
+%if DEBUG_OUTPUT = 2
+    call        SerialPrintString
+%else
+    call        PrintString
+%endif
+%endmacro
+
     jmp         Start
     db          'MBR'
 
@@ -19,12 +39,15 @@ Start:
     mov         es, ax
     sti                                     ; Enable interrupts
 
+%if DEBUG_OUTPUT = 2
+    call        InitSerial
+%endif
+
 ; BIOS parameter block offset: skip table entries
 ; Partition table starts at offset 0x1BE; BIOS vector at 0x1FE
 ; We'll search for active partition entry
 
-    mov         si, Text_Loading
-    call        PrintString
+    DebugPrint  Text_Loading
 
     mov         si, Partition
     mov         cx, 4                       ; up to 4 partition entries
@@ -54,8 +77,7 @@ ActivePartitionFound:
     int         0x13
     jc          BootFailed
 
-    mov         si, Text_Jumping
-    call        PrintString
+    DebugPrint  Text_Jumping
 
     ; Transfer Partition Start LBA to VBR
     mov         si, [ActivePartition]
@@ -65,8 +87,7 @@ ActivePartitionFound:
     jmp         VBR_OFFSET
 
 BootFailed:
-    mov         si, Text_Failed
-    call        PrintString
+    ErrorPrint  Text_Failed
 
     ; Hang
     hlt
@@ -80,6 +101,47 @@ PrintString:
     int         0x10
     jmp         PrintString
 .done:
+    ret
+
+SerialPrintString:
+    lodsb
+    or          al, al
+    jz          .sdone
+    push        ax
+.wait:
+    mov         dx, 0x3FD
+    in          al, dx
+    test        al, 0x20
+    jz          .wait
+    pop         ax
+    mov         dx, 0x3F8
+    out         dx, al
+    jmp         SerialPrintString
+.sdone:
+    ret
+
+InitSerial:
+    mov         dx, 0x3F8 + 1
+    mov         al, 0x00
+    out         dx, al
+    mov         dx, 0x3F8 + 3
+    mov         al, 0x80
+    out         dx, al
+    mov         dx, 0x3F8
+    mov         al, 0x03
+    out         dx, al
+    mov         dx, 0x3F8 + 1
+    mov         al, 0x00
+    out         dx, al
+    mov         dx, 0x3F8 + 3
+    mov         al, 0x03
+    out         dx, al
+    mov         dx, 0x3F8 + 2
+    mov         al, 0xC7
+    out         dx, al
+    mov         dx, 0x3F8 + 4
+    mov         al, 0x0B
+    out         dx, al
     ret
 
 DAP :
