@@ -647,17 +647,28 @@ Memory manager for page allocation and mapping.
 
 ### Process.c
 
-Manages executable loading, process creation and heap setup.
+Manages process creation and heap setup.
 
 #### Functions in Process.c
 
-- GetExecutableInfo_EXOS: Retrieves information from an EXOS executable.
-- LoadExecutable_EXOS: Loads an executable into memory.
 - NewProcess: Allocates and initializes a process structure.
 - CreateProcess: Loads a program and creates its initial task.
 - GetProcessHeap: Returns the base address of a process heap.
 - DumpProcess: Prints process details for debugging.
 - InitSecurity: Initializes a security descriptor.
+
+### Executable.c
+
+Provides a generic interface for loading executables and dispatches to
+format specific loaders.
+
+### ExecutableEXOS.c
+
+Contains the EXOS executable loader implementation.
+
+### ExecutableELF.c
+
+Placeholder for the upcoming ELF executable loader.
 
 ### PCI.c
 
