@@ -19,7 +19,6 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     FILEINFO Find;
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
-    LPFILE AlreadyOpen = NULL;
 
     //-------------------------------------
     // Check validity of parameters
@@ -37,9 +36,9 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LockMutex(MUTEX_FILE, INFINITY);
 
     for (Node = Kernel.File->First; Node; Node = Node->Next) {
-        LockMutex(&(AlreadyOpen->Mutex), INFINITY);  // ???????????????
+        LPFILE AlreadyOpen = (LPFILE)Node;
 
-        AlreadyOpen = (LPFILE)Node;
+        LockMutex(&(AlreadyOpen->Mutex), INFINITY);  // ???????????????
 
         if (StringCompare(AlreadyOpen->Name, Info->Name) == 0) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
@@ -65,6 +64,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     Find.Size = sizeof Find;
     Find.FileSystem = Kernel.SystemFS;
     Find.Attributes = MAX_U32;
+    Find.Flags = 0;
     StringCopy(Find.Name, Info->Name);
 
     File =
