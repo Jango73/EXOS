@@ -356,7 +356,8 @@ Implements a simple text editor for the shell.
 - NewEditContext: Creates the top-level editor context.
 - DeleteEditContext: Releases the editor context.
 - CheckPositions: Adjusts viewport offsets according to cursor position.
-- DrawText: Renders the text buffer onto the console.
+- Render: Renders the text buffer and menu onto the console.
+- RenderMenu: Displays the editor command menu.
 - CheckLineSize: Grows a line buffer when needed.
 - FillToCursor: Inserts spaces until the cursor column is valid.
 - GetCurrentLine: Returns the line at the current cursor row.
@@ -561,6 +562,7 @@ Implements the PC keyboard driver and key buffering.
 - PeekChar: Checks if a character is available.
 - GetChar: Reads a character from the buffer.
 - GetKeyCode: Reads a full key code from the buffer.
+- GetKeyCodeDown: Returns TRUE if the specified key is currently pressed.
 - WaitKey: Waits for a key press.
 - KeyboardHandler: Interrupt handler that reads scan codes.
 - KeyboardInitialize: Initializes keyboard structures and IRQ.

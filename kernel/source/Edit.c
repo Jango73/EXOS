@@ -21,8 +21,21 @@
 
 /***************************************************************************/
 
-#define MAX_COLUMNS 70
-#define MAX_LINES 20
+static I32 MenuHeight = 2;
+
+#define MAX_COLUMNS (Console.Width - 10)
+#define MAX_LINES (Console.Height - MenuHeight)
+
+typedef struct tag_EDITMENUITEM {
+    KEYCODE Modifier;
+    KEYCODE Key;
+    LPCSTR Name;
+} EDITMENUITEM, *LPEDITMENUITEM;
+
+static EDITMENUITEM Menu[] = {
+    {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, "Exit"},
+};
+static const U32 MenuItems = sizeof(Menu) / sizeof(Menu[0]);
 
 /***************************************************************************/
 
@@ -178,7 +191,57 @@ void CheckPositions(LPEDITFILE File) {
 
 /***************************************************************************/
 
-void DrawText(LPEDITFILE File) {
+static LPCSTR GetKeyName(U8 VirtualKey) {
+    switch (VirtualKey) {
+        case VK_ESCAPE:
+            return "ESC";
+        case VK_LCTRL:
+        case VK_RCTRL:
+            return "Ctrl";
+        case VK_LALT:
+        case VK_RALT:
+            return "Alt";
+        case VK_LSHIFT:
+        case VK_RSHIFT:
+            return "Shift";
+        default:
+            return "";
+    }
+}
+
+/***************************************************************************/
+
+static void RenderMenu(void) {
+    U32 Item;
+    I32 Line;
+    I32 Col;
+
+    Console.CursorY = MAX_LINES;
+    for (Line = 0; Line < MenuHeight; Line++) {
+        Console.CursorX = 0;
+        for (Col = 0; Col < (I32)Console.Width; Col++) {
+            ConsolePrintChar(STR_SPACE);
+        }
+        Console.CursorY++;
+    }
+
+    Console.CursorY = MAX_LINES;
+    Console.CursorX = 0;
+    for (Item = 0; Item < MenuItems; Item++) {
+        if (Menu[Item].Modifier.VirtualKey != VK_NONE) {
+            ConsolePrint(GetKeyName(Menu[Item].Modifier.VirtualKey));
+            ConsolePrint(TEXT("+"));
+        }
+        ConsolePrint(GetKeyName(Menu[Item].Key.VirtualKey));
+        ConsolePrint(TEXT(" "));
+        ConsolePrint(Menu[Item].Name);
+        ConsolePrint(TEXT("  "));
+    }
+}
+
+/***************************************************************************/
+
+void Render(LPEDITFILE File) {
     LPLISTNODE Node;
     LPEDITLINE Line;
     I32 Index;
@@ -218,6 +281,8 @@ void DrawText(LPEDITFILE File) {
             ConsolePrintChar(STR_SPACE);
         }
     }
+
+    RenderMenu();
 
     // Draw temp cursor
 
@@ -464,48 +529,57 @@ static void GotoStartOfLine(LPEDITFILE File) {
 
 static I32 Loop(LPEDITCONTEXT Context) {
     KEYCODE KeyCode;
+    U32 Item;
 
-    DrawText(Context->Current);
+    Render(Context->Current);
 
     while (1) {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 
-            if (KeyCode.VirtualKey == VK_ESCAPE) {
-                return 0;
-            } else if (KeyCode.VirtualKey == VK_DOWN) {
+            for (Item = 0; Item < MenuItems; Item++) {
+                if (KeyCode.VirtualKey == Menu[Item].Key.VirtualKey) {
+                    if (Menu[Item].Modifier.VirtualKey == VK_NONE || GetKeyCodeDown(Menu[Item].Modifier)) {
+                        if (Menu[Item].Key.VirtualKey == VK_ESCAPE) {
+                            return 0;
+                        }
+                    }
+                }
+            }
+
+            if (KeyCode.VirtualKey == VK_DOWN) {
                 Context->Current->Cursor.Y++;
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_UP) {
                 Context->Current->Cursor.Y--;
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_RIGHT) {
                 Context->Current->Cursor.X++;
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_LEFT) {
                 Context->Current->Cursor.X--;
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_HOME) {
                 GotoStartOfLine(Context->Current);
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_END) {
                 GotoEndOfLine(Context->Current);
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
                 DeleteCharacter(Context->Current, 0);
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_DELETE) {
                 DeleteCharacter(Context->Current, 1);
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_ENTER) {
                 AddLine(Context->Current);
-                DrawText(Context->Current);
+                Render(Context->Current);
             } else {
                 switch (KeyCode.ASCIICode) {
                     default: {
                         if (KeyCode.ASCIICode >= STR_SPACE) {
                             AddCharacter(Context->Current, KeyCode.ASCIICode);
-                            DrawText(Context->Current);
+                            Render(Context->Current);
                         }
                     } break;
                 }

@@ -72,6 +72,7 @@ extern KEYBOARDSTRUCT Keyboard;
 BOOL PeekChar(void);
 STR GetChar(void);
 BOOL GetKeyCode(LPKEYCODE);
+BOOL GetKeyCodeDown(KEYCODE);
 void WaitKey(void);
 void KeyboardHandler(void);
 

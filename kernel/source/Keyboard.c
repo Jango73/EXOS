@@ -581,6 +581,38 @@ BOOL GetKeyCode(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
+BOOL GetKeyCodeDown(KEYCODE KeyCode) {
+    U32 Index;
+
+    switch (KeyCode.VirtualKey) {
+        case VK_LSHIFT:
+            return Keyboard.Status[SCAN_LEFT_SHIFT] != 0;
+        case VK_RSHIFT:
+            return Keyboard.Status[SCAN_RIGHT_SHIFT] != 0;
+        case VK_LCTRL:
+            return Keyboard.Status[SCAN_CONTROL] != 0;
+        case VK_RCTRL:
+            return Keyboard.Status[SCAN_RIGHT_CONTROL] != 0;
+        case VK_LALT:
+            return Keyboard.Status[SCAN_ALT] != 0;
+        case VK_RALT:
+            return Keyboard.Status[SCAN_RIGHT_ALT] != 0;
+        default:
+            for (Index = 0; Index < KEYTABSIZE; Index++) {
+                if (ScanCodeToKeyCode_fr[Index].Normal.VirtualKey == KeyCode.VirtualKey ||
+                    ScanCodeToKeyCode_fr[Index].Shift.VirtualKey == KeyCode.VirtualKey ||
+                    ScanCodeToKeyCode_fr[Index].Alt.VirtualKey == KeyCode.VirtualKey) {
+                    return Keyboard.Status[Index] != 0;
+                }
+            }
+            break;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
 void WaitKey(void) {
     ConsolePrint(TEXT("Press a key\n"));
     while (!PeekChar()) {
