@@ -108,7 +108,31 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Volume[Index + 1] = STR_NULL;
     }
 
-    if (Colon == NULL) goto Out;
+    if (Colon == NULL) {
+        for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+            FileSystem = (LPFILESYSTEM)Node;
+
+            Find.Size = sizeof Find;
+            Find.FileSystem = FileSystem;
+            Find.Attributes = MAX_U32;
+            StringCopy(Find.Name, Info->Name);
+
+            File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+            if (File != NULL) {
+                LockMutex(MUTEX_FILE, INFINITY);
+
+                File->OwnerTask = GetCurrentTask();
+                File->OpenFlags = Info->Flags;
+
+                ListAddItem(Kernel.File, File);
+
+                UnlockMutex(MUTEX_FILE);
+                break;
+            }
+        }
+
+        goto Out;
+    }
 
     if (Colon[0] != ':') goto Out;
     if (Colon[1] != '/') goto Out;

@@ -328,6 +328,10 @@ void InitializeFileSystems(void) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
 
+    if (Kernel.Configuration == NULL) {
+        ReadKernelConfiguration();
+    }
+
     MountSystemFS();
 }
 
