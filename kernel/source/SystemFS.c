@@ -530,8 +530,12 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         return File;
     }
 
-    Child = NULL;
-    if (Parent->Children) Child = (LPSYSTEMFSFILE)Parent->Children->First;
+    if (Part == NULL || Part->Name[0] == STR_NULL) {
+        Child = Parent;
+    } else {
+        Child = FindChild(Parent, Part->Name);
+    }
+
     if (Child == NULL) {
         DeleteList(Parts);
         return NULL;
@@ -547,7 +551,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
     File->Header.ID = ID_FILE;
     File->Header.FileSystem = Kernel.SystemFS;
     File->SystemFile = Child;
-    File->Parent = Parent;
+    File->Parent = Child->Parent;
     StringCopy(File->Header.Name, Child->Name);
     File->Header.Attributes = FS_ATTR_FOLDER;
 
