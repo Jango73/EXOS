@@ -62,6 +62,7 @@
 #define FS_ATTR_READONLY 0x0002
 #define FS_ATTR_HIDDEN 0x0004
 #define FS_ATTR_SYSTEM 0x0008
+#define FS_ATTR_EXECUTABLE 0x0010
 
 /***************************************************************************/
 

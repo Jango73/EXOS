@@ -595,6 +595,10 @@ static void TranslateFileInfo(LPXFSFILEREC FileRec, LPXFSFILE File) {
         File->Header.Attributes |= FS_ATTR_SYSTEM;
     }
 
+    if (FileRec->Attributes & XFS_ATTR_EXECUTABLE) {
+        File->Header.Attributes |= FS_ATTR_EXECUTABLE;
+    }
+
     //-------------------------------------
     // Translate the size
 

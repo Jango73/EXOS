@@ -848,13 +848,15 @@ Implements real mode call support and exit routines.
 
 ### Stub.asm
 
-Boot stub that transitions from the DOS loader to protected mode.
+Minimal 32-bit entry stub used when the kernel is loaded directly.
+It stores an "EXOS" magic string and jumps to the C kernel.
 
-#### Functions in Stub.asm
+#### Symbols in Stub.asm
 
-- StartAbsolute: Absolute entry point invoked by the DOS loader.
-- ProtectedModeEntry: Sets up segments and stack before jumping to the C kernel.
-- KernelStack: Preallocated kernel stack space.
+- stub_base: Start of the stub and reference for the magic string.
+- Magic: Four-byte identifier used to validate the stub.
+- start: Entry point that writes a debug byte to the serial port,
+  calls `KernelMain` and halts if it returns.
 
 ### Sys.asm
 

@@ -363,6 +363,8 @@ static void TranslateFileInfo(LPFATDIRENTRY DirEntry, LPFATFILE File) {
         File->Header.Attributes |= FS_ATTR_SYSTEM;
     }
 
+    File->Header.Attributes |= FS_ATTR_EXECUTABLE;
+
     //-------------------------------------
     // Translate the size
 
