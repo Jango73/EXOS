@@ -13,7 +13,7 @@
 #include "../include/Console.h"
 #include "../include/Driver.h"
 #include "../include/E1000.h"
-#include "../include/FileSys.h"
+#include "../include/FileSystem.h"
 #include "../include/File.h"
 #include "../include/HD.h"
 #include "../include/Interrupt.h"

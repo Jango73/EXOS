@@ -10,7 +10,7 @@
 #include "../include/Base.h"
 #include "../include/Console.h"
 #include "../include/File.h"
-#include "../include/FileSys.h"
+#include "../include/FileSystem.h"
 #include "../include/GFX.h"
 #include "../include/HD.h"
 #include "../include/Heap.h"
