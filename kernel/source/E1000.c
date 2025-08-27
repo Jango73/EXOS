@@ -411,7 +411,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     KernelLogText(
         LOG_DEBUG, TEXT("[E1000] New device %X:%X.%u"), (U32)PciDevice->Info.Bus, (U32)PciDevice->Info.Dev,
         (U32)PciDevice->Info.Func);
-    LPE1000DEVICE Device = (LPE1000DEVICE)KernelMemAlloc(sizeof(E1000DEVICE));
+    LPE1000DEVICE Device = (LPE1000DEVICE)HeapAlloc(sizeof(E1000DEVICE));
     if (Device == NULL) return NULL;
 
     MemorySet(Device, 0, sizeof(E1000DEVICE));
@@ -425,7 +425,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     U32 Bar0Size = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
     if (Bar0Phys == 0 || Bar0Size == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] Invalid BAR0"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
 
@@ -433,7 +433,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     Device->MmioSize = Bar0Size;
     if (Device->MmioBase == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] MmMapIo failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] MMIO mapped at %X size %X"), Device->MmioBase, Device->MmioSize);
@@ -442,7 +442,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
 
     if (!E1000_Reset(Device)) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] Reset failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] Reset complete"));
@@ -450,13 +450,13 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
 
     if (!E1000_SetupRx(Device)) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] RX setup failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] RX setup complete"));
     if (!E1000_SetupTx(Device)) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] TX setup failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));

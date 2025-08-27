@@ -60,7 +60,7 @@ typedef struct tag_FATFILE {
 static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
     LPFAT16FILESYSTEM This;
 
-    This = (LPFAT16FILESYSTEM)KernelMemAlloc(sizeof(FAT16FILESYSTEM));
+    This = (LPFAT16FILESYSTEM)HeapAlloc(sizeof(FAT16FILESYSTEM));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(FAT16FILESYSTEM));
@@ -87,7 +87,7 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
 static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
     LPFATFILE This;
 
-    This = (LPFATFILE)KernelMemAlloc(sizeof(FATFILE));
+    This = (LPFATFILE)HeapAlloc(sizeof(FATFILE));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(FATFILE));
@@ -166,7 +166,7 @@ BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     FileSystem->PartitionSize = Partition->Size;
     FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->IOBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the FAT
@@ -599,7 +599,7 @@ static U32 CloseFile(LPFATFILE File) {
 
     File->Header.ID = ID_NONE;
 
-    KernelMemFree(File);
+    HeapFree(File);
 
     return DF_ERROR_SUCCESS;
 }

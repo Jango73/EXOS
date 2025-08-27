@@ -160,8 +160,8 @@ extern KERNELDATA Kernel;
 
 // Functions in Kernel.c
 
-LPVOID KernelMemAlloc(U32);
-void KernelMemFree(LPVOID);
+LPVOID HeapAlloc(U32);
+void HeapFree(LPVOID);
 BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR, LPSEGMENTINFO);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);

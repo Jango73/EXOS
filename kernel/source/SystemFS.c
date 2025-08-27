@@ -85,7 +85,7 @@ SYSTEMFSFILESYSTEM SystemFSFileSystem = {
 static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
     LPSYSTEMFSFILE Node;
 
-    Node = (LPSYSTEMFSFILE)KernelMemAlloc(sizeof(SYSTEMFSFILE));
+    Node = (LPSYSTEMFSFILE)HeapAlloc(sizeof(SYSTEMFSFILE));
     if (Node == NULL) return NULL;
 
     *Node = (SYSTEMFSFILE){
@@ -93,7 +93,7 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
         .References = 1,
         .Next = NULL,
         .Prev = NULL,
-        .Children = NewList(NULL, KernelMemAlloc, KernelMemFree),
+        .Children = NewList(NULL, HeapAlloc, HeapFree),
         .Parent = Parent,
         .Mounted = NULL};
 
@@ -210,7 +210,7 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
     if (Node == NULL || Node->Parent == NULL) return DF_ERROR_GENERIC;
 
     ListErase(Node->Parent->Children, Node);
-    KernelMemFree(Node);
+    HeapFree(Node);
     return DF_ERROR_SUCCESS;
 }
 
@@ -286,7 +286,7 @@ static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
 
     if (Mounted == NULL) return NULL;
 
-    File = (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+    File = (LPSYSFSFILE)HeapAlloc(sizeof(SYSFSFILE));
     if (File == NULL) return NULL;
 
     *File = (SYSFSFILE){0};
@@ -407,7 +407,7 @@ static U32 DeleteFolder(LPFILEINFO Info) {
     if (Node->Children && Node->Children->NumItems) return DF_ERROR_GENERIC;
 
     ListErase(Node->Parent->Children, Node);
-    KernelMemFree(Node);
+    HeapFree(Node);
     return DF_ERROR_SUCCESS;
 }
 
@@ -576,7 +576,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             if (Child == NULL) return NULL;
 
             LPSYSFSFILE File =
-                (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+                (LPSYSFSFILE)HeapAlloc(sizeof(SYSFSFILE));
             if (File == NULL) return NULL;
 
             *File = (SYSFSFILE){0};
@@ -603,7 +603,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
     {
         LPSYSFSFILE File =
-            (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+            (LPSYSFSFILE)HeapAlloc(sizeof(SYSFSFILE));
         if (File == NULL) return NULL;
 
         *File = (SYSFSFILE){0};
@@ -661,7 +661,7 @@ static U32 CloseFile(LPSYSFSFILE File) {
                                                (U32)File->MountedFile);
     }
 
-    KernelMemFree(File);
+    HeapFree(File);
 
     return DF_ERROR_SUCCESS;
 }

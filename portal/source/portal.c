@@ -339,7 +339,7 @@ BOOL InitApplication(void) {
     TaskInfo.Header.Flags = 0;
     TaskInfo.Func = DesktopTask;
     TaskInfo.Parameter = NULL;
-    TaskInfo.StackSize = 65536;
+    TaskInfo.StackSize = N_64KB;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = 0;
 

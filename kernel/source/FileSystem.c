@@ -152,7 +152,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
 /***************************************************************************/
 
-static void PathCompDestructor(LPVOID This) { KernelMemFree(This); }
+static void PathCompDestructor(LPVOID This) { HeapFree(This); }
 
 /***************************************************************************/
 
@@ -160,7 +160,7 @@ LPLIST DecompPath(LPCSTR Path) {
     STR Component[MAX_FILE_NAME];
     U32 PathIndex = 0;
     U32 CompIndex = 0;
-    LPLIST List = NewList(PathCompDestructor, KernelMemAlloc, KernelMemFree);
+    LPLIST List = NewList(PathCompDestructor, HeapAlloc, HeapFree);
     LPPATHNODE Node = NULL;
 
     while (1) {
@@ -179,7 +179,7 @@ LPLIST DecompPath(LPCSTR Path) {
             }
         }
 
-        Node = KernelMemAlloc(sizeof(PATHNODE));
+        Node = HeapAlloc(sizeof(PATHNODE));
         if (Node == NULL) goto Out;
         StringCopy(Node->Name, Component);
         ListAddItem(List, Node);

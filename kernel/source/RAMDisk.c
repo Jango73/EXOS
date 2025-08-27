@@ -50,7 +50,7 @@ typedef struct tag_RAMDISK {
 static LPRAMDISK NewRAMDisk(void) {
     LPRAMDISK This;
 
-    This = (LPRAMDISK)KernelMemAlloc(sizeof(RAMDISK));
+    This = (LPRAMDISK)HeapAlloc(sizeof(RAMDISK));
 
     if (This == NULL) return NULL;
 

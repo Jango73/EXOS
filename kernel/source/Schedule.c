@@ -200,7 +200,7 @@ void Scheduler(LPTRAPFRAME Frame) {
 LPPROCESS GetCurrentProcess(void) {
     LPTASK Task = GetCurrentTask();
     SAFE_USE(Task) { return Task->Process; }
-    return NULL;
+    return &KernelProcess;
 }
 
 /***************************************************************************/

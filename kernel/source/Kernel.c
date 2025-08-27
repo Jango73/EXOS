@@ -48,8 +48,8 @@ static LIST DesktopList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -59,8 +59,8 @@ static LIST ProcessList = {
     .Last = (LPLISTNODE)&KernelProcess,
     .Current = (LPLISTNODE)&KernelProcess,
     .NumItems = 1,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -70,8 +70,8 @@ static LIST TaskList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -81,8 +81,8 @@ static LIST MutexList = {
     .Last = (LPLISTNODE)&ConsoleMutex,
     .Current = (LPLISTNODE)&KernelMutex,
     .NumItems = 9,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -92,8 +92,8 @@ static LIST DiskList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 static LIST PciDeviceList = {
@@ -101,8 +101,8 @@ static LIST PciDeviceList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 static LIST FileSystemList = {
@@ -110,8 +110,8 @@ static LIST FileSystemList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 static LIST FileList = {
@@ -119,8 +119,8 @@ static LIST FileList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -143,14 +143,6 @@ KERNELDATA Kernel = {
     .SystemFS = (LPFILESYSTEM)&SystemFSFileSystem,
     .Configuration = NULL,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
-
-/***************************************************************************/
-
-LPVOID KernelMemAlloc(U32 Size) { return HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Size); }
-
-/***************************************************************************/
-
-void KernelMemFree(LPVOID Pointer) { HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Pointer); }
 
 /***************************************************************************/
 
@@ -478,8 +470,8 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Read kernel configuration
 
-    ReadKernelConfiguration();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
+    // ReadKernelConfiguration();
+    // KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
 
     //-------------------------------------
     // Initialize the file systems

@@ -23,7 +23,7 @@ LPTOML TomlParse(LPCSTR Source) {
     U32 SectionIndex = 0;
     U32 Index = 0;
 
-    Toml = (LPTOML)KernelMemAlloc(sizeof(TOML));
+    Toml = (LPTOML)HeapAlloc(sizeof(TOML));
     if (Toml == NULL) return NULL;
     Toml->First = NULL;
 
@@ -126,15 +126,15 @@ LPTOML TomlParse(LPCSTR Source) {
         }
         StringConcat(FullKey, Key);
 
-        Item = (LPTOMLITEM)KernelMemAlloc(sizeof(TOMLITEM));
+        Item = (LPTOMLITEM)HeapAlloc(sizeof(TOMLITEM));
         if (Item == NULL) continue;
         Item->Next = NULL;
-        Item->Key = (LPSTR)KernelMemAlloc(StringLength(FullKey) + 1);
-        Item->Value = (LPSTR)KernelMemAlloc(StringLength(Value) + 1);
+        Item->Key = (LPSTR)HeapAlloc(StringLength(FullKey) + 1);
+        Item->Value = (LPSTR)HeapAlloc(StringLength(Value) + 1);
         if (Item->Key == NULL || Item->Value == NULL) {
-            if (Item->Key) KernelMemFree(Item->Key);
-            if (Item->Value) KernelMemFree(Item->Value);
-            KernelMemFree(Item);
+            if (Item->Key) HeapFree(Item->Key);
+            if (Item->Value) HeapFree(Item->Value);
+            HeapFree(Item);
             continue;
         }
         StringCopy(Item->Key, FullKey);
@@ -178,12 +178,12 @@ void TomlFree(LPTOML Toml) {
 
     for (Item = Toml->First; Item; Item = Next) {
         Next = Item->Next;
-        if (Item->Key) KernelMemFree(Item->Key);
-        if (Item->Value) KernelMemFree(Item->Value);
-        KernelMemFree(Item);
+        if (Item->Key) HeapFree(Item->Key);
+        if (Item->Value) HeapFree(Item->Value);
+        HeapFree(Item);
     }
 
-    KernelMemFree(Toml);
+    HeapFree(Toml);
 }
 
 /***************************************************************************/

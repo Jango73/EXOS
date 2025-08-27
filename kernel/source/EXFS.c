@@ -63,7 +63,7 @@ typedef struct tag_EXFSFILE {
 static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
     LPEXFSFILESYSTEM This;
 
-    This = (LPEXFSFILESYSTEM)KernelMemAlloc(sizeof(EXFSFILESYSTEM));
+    This = (LPEXFSFILESYSTEM)HeapAlloc(sizeof(EXFSFILESYSTEM));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(EXFSFILESYSTEM));
@@ -87,7 +87,7 @@ static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
 static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc) {
     LPEXFSFILE This;
 
-    This = (LPEXFSFILE)KernelMemAlloc(sizeof(EXFSFILE));
+    This = (LPEXFSFILE)HeapAlloc(sizeof(EXFSFILE));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(EXFSFILE));
@@ -192,9 +192,9 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     FileSystem->PartitionSize = Partition->Size;
     FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->PageBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->PageBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
-    FileSystem->IOBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the data
@@ -765,7 +765,7 @@ static U32 CloseFile(LPEXFSFILE File) {
 
     File->Header.ID = ID_NONE;
 
-    KernelMemFree(File);
+    HeapFree(File);
 
     return DF_ERROR_SUCCESS;
 }

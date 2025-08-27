@@ -79,7 +79,7 @@ typedef struct tag_BLOCKPARAMS {
 static LPSTDHARDDISK NewStdHardDisk(void) {
     LPSTDHARDDISK This;
 
-    This = (LPSTDHARDDISK)KernelMemAlloc(sizeof(STDHARDDISK));
+    This = (LPSTDHARDDISK)HeapAlloc(sizeof(STDHARDDISK));
 
     if (This == NULL) return NULL;
 
@@ -184,7 +184,7 @@ static U32 HardDiskInitialize(void) {
                 Disk->IRQ = HD_IRQ;
                 Disk->Drive = Drive;
                 Disk->NumBuffers = NUM_BUFFERS;
-                Disk->Buffer = KernelMemAlloc(NUM_BUFFERS * sizeof(SECTORBUFFER));
+                Disk->Buffer = HeapAlloc(NUM_BUFFERS * sizeof(SECTORBUFFER));
 
                 //-------------------------------------
                 // Clear the buffers

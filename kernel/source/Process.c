@@ -97,7 +97,7 @@ LPPROCESS NewProcess(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("Entering NewProcess\n"));
 
-    This = (LPPROCESS)KernelMemAlloc(sizeof(PROCESS));
+    This = (LPPROCESS)HeapAlloc(sizeof(PROCESS));
 
     if (This == NULL) return NULL;
 

@@ -24,7 +24,7 @@ U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 
 /***************************************************************************/
 
-static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelMemAlloc, KernelMemFree, NULL};
+static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, HeapAlloc, HeapFree, NULL};
 
 /***************************************************************************/
 
@@ -155,7 +155,7 @@ LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
     WINDOWINFO WindowInfo;
 
-    This = (LPDESKTOP)KernelMemAlloc(sizeof(DESKTOP));
+    This = (LPDESKTOP)HeapAlloc(sizeof(DESKTOP));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(DESKTOP));
@@ -182,7 +182,7 @@ LPDESKTOP CreateDesktop(void) {
     This->Window = CreateWindow(&WindowInfo);
 
     if (This->Window == NULL) {
-        KernelMemFree(This);
+        HeapFree(This);
         return NULL;
     }
 
@@ -211,7 +211,7 @@ void DeleteDesktop(LPDESKTOP This) {
         DeleteWindow(This->Window);
     }
 
-    KernelMemFree(This);
+    HeapFree(This);
 }
 
 /***************************************************************************/
@@ -267,7 +267,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
 /***************************************************************************/
 
 LPWINDOW NewWindow(void) {
-    LPWINDOW This = (LPWINDOW)KernelMemAlloc(sizeof(WINDOW));
+    LPWINDOW This = (LPWINDOW)HeapAlloc(sizeof(WINDOW));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(WINDOW));
@@ -276,8 +276,8 @@ LPWINDOW NewWindow(void) {
 
     This->ID = ID_WINDOW;
     This->References = 1;
-    This->Properties = NewList(NULL, KernelMemAlloc, KernelMemFree);
-    This->Children = NewList(NULL, KernelMemAlloc, KernelMemFree);
+    This->Properties = NewList(NULL, HeapAlloc, HeapFree);
+    This->Children = NewList(NULL, HeapAlloc, HeapFree);
 
     return This;
 }
@@ -340,7 +340,7 @@ void DeleteWindow(LPWINDOW This) {
     This->ID = ID_NONE;
     This->References = 0;
 
-    KernelMemFree(This);
+    HeapFree(This);
 }
 
 /***************************************************************************/
@@ -825,7 +825,7 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
     //-------------------------------------
     // Add the property to the window
 
-    Prop = (LPPROPERTY)KernelMemAlloc(sizeof(PROPERTY));
+    Prop = (LPPROPERTY)HeapAlloc(sizeof(PROPERTY));
 
     if (Prop != NULL) {
         StringCopy(Prop->Name, Name);
