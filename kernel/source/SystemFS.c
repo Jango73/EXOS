@@ -565,7 +565,8 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         if (Node->Mounted) {
             Local = *Find;
             Local.FileSystem = Node->Mounted;
-            StringCopy(Local.Name, TEXT("/*"));
+            // Request listing of the mounted filesystem root
+            StringCopy(Local.Name, TEXT("*"));
             Mounted = (LPFILE)Node->Mounted->Driver->Command(
                 DF_FS_OPENFILE, (U32)&Local);
             return WrapMountedFile(Node, Mounted);
@@ -593,7 +594,8 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
     if (Node->Mounted) {
         Local = *Find;
         Local.FileSystem = Node->Mounted;
-        StringCopy(Local.Name, TEXT("/"));
+        // Open the root of the mounted filesystem
+        Local.Name[0] = STR_NULL;
         Mounted =
             (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
         return WrapMountedFile(Node, Mounted);

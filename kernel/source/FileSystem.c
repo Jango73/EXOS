@@ -25,6 +25,9 @@ U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
 
 /***************************************************************************/
 
+/*
+    Build a default volume name using zero-based disk and partition indexes.
+*/
 BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
     STR Temp[12];
     LPLISTNODE Node;
@@ -44,10 +47,13 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
             break;
     }
 
+    // Append the zero-based disk index
     U32ToString(DiskIndex, Temp);
     StringConcat(Name, Temp);
     StringConcat(Name, TEXT("p"));
-    U32ToString(PartIndex + 1, Temp);
+
+    // Append the zero-based partition index
+    U32ToString(PartIndex, Temp);
     StringConcat(Name, Temp);
 
     return TRUE;
