@@ -437,7 +437,7 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
             }
         }
 
-        Sleep(100);
+        Sleep(20);
     }
 
     Buffer[Index] = STR_NULL;
