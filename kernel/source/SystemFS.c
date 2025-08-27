@@ -608,25 +608,51 @@ static U32 CloseFile(LPSYSFSFILE File) {
 /***************************************************************************/
 
 static U32 ReadFile(LPSYSFSFILE File) {
+    LPFILESYSTEM FS;
+    LPFILE Mounted;
+    U32 Result;
+
     if (File == NULL) return DF_ERROR_BADPARAM;
 
-    if (File->MountedFile && File->Parent && File->Parent->Mounted)
-        return File->Parent->Mounted->Driver->Command(DF_FS_READ,
-                                                      (U32)File->MountedFile);
+    FS = (File->Parent) ? File->Parent->Mounted : NULL;
+    Mounted = File->MountedFile;
+    if (FS == NULL || Mounted == NULL) return DF_ERROR_GENERIC;
 
-    return DF_ERROR_GENERIC;
+    Mounted->Buffer = File->Header.Buffer;
+    Mounted->BytesToRead = File->Header.BytesToRead;
+    Mounted->Position = File->Header.Position;
+
+    Result = FS->Driver->Command(DF_FS_READ, (U32)Mounted);
+
+    File->Header.BytesRead = Mounted->BytesRead;
+    File->Header.Position = Mounted->Position;
+
+    return Result;
 }
 
 /***************************************************************************/
 
 static U32 WriteFile(LPSYSFSFILE File) {
+    LPFILESYSTEM FS;
+    LPFILE Mounted;
+    U32 Result;
+
     if (File == NULL) return DF_ERROR_BADPARAM;
 
-    if (File->MountedFile && File->Parent && File->Parent->Mounted)
-        return File->Parent->Mounted->Driver->Command(DF_FS_WRITE,
-                                                      (U32)File->MountedFile);
+    FS = (File->Parent) ? File->Parent->Mounted : NULL;
+    Mounted = File->MountedFile;
+    if (FS == NULL || Mounted == NULL) return DF_ERROR_NOTIMPL;
 
-    return DF_ERROR_NOTIMPL;
+    Mounted->Buffer = File->Header.Buffer;
+    Mounted->BytesToRead = File->Header.BytesToRead;
+    Mounted->Position = File->Header.Position;
+
+    Result = FS->Driver->Command(DF_FS_WRITE, (U32)Mounted);
+
+    File->Header.BytesRead = Mounted->BytesRead;
+    File->Header.Position = Mounted->Position;
+
+    return Result;
 }
 
 /***************************************************************************/
