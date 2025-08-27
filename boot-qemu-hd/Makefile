@@ -4,6 +4,7 @@ FINAL_IMG       = bin/exos.img
 SOURCE_IMG      = bin/src.img
 IMG_SIZE_MB     = 64
 KERNEL_BIN      = ../kernel/bin/exos.bin
+KERNEL_CFG      = exos.cfg
 MTOOLS_CONF     = .mtoolsrc.tmp
 CUSTOM_MBR      = source/mbr.asm
 CUSTOM_MBR_BIN  = bin/mbr.bin
@@ -85,6 +86,7 @@ rebuild-image:
 update: $(FINAL_IMG)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
                 MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
+                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.cfg; \
                 MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true;,\
                 All files injected into image.)
 
