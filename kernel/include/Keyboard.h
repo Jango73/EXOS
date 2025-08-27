@@ -75,6 +75,7 @@ BOOL GetKeyCode(LPKEYCODE);
 BOOL GetKeyCodeDown(KEYCODE);
 void WaitKey(void);
 void KeyboardHandler(void);
+LPCSTR GetKeyName(U8);
 
 /***************************************************************************/
 

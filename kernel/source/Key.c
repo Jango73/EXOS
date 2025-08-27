@@ -13,20 +13,27 @@
 
 /***************************************************************************/
 
+typedef struct tag_KEYNAME {
+    U8 VirtualKey;
+    LPCSTR String;
+} KEYNAME, *LPKEYNAME;
+
+/***************************************************************************/
+
 KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 0
     {{VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}},           // 1
     {{VK_NONE, '&', 0}, {VK_1, '1', 0}, {VK_NONE, 0, 0}},                // 2
-    {{VK_NONE, 'Ç', 0}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},              // 3
+    {{VK_NONE, '‚Äö', 0}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},              // 3
     {{VK_NONE, '"', 0}, {VK_3, '3', 0}, {VK_NONE, '#', 0}},              // 4
     {{VK_NONE, '\'', 0}, {VK_4, '4', 0}, {VK_NONE, '{', 0}},             // 5
     {{VK_NONE, '(', 0}, {VK_5, '5', 0}, {VK_NONE, '[', 0}},              // 6
     {{VK_MINUS, '-', 0}, {VK_6, '6', 0}, {VK_NONE, '|', 0}},             // 7
-    {{VK_NONE, 'ä', 0}, {VK_7, '7', 0}, {VK_NONE, '`', 0}},              // 8
+    {{VK_NONE, '≈†', 0}, {VK_7, '7', 0}, {VK_NONE, '`', 0}},              // 8
     {{VK_UNDERSCORE, '_', 0}, {VK_8, '8', 0}, {VK_BACKSLASH, '\\', 0}},  // 9
-    {{VK_NONE, 'á', 0}, {VK_9, '9', 0}, {VK_NONE, '^', 0}},              // 10
-    {{VK_NONE, 'Ö', 0}, {VK_0, '0', 0}, {VK_AT, '@', 0}},                // 11
-    {{VK_NONE, ')', 0}, {VK_NONE, '¯', 0}, {VK_NONE, ']', 0}},           // 12
+    {{VK_NONE, '‚Ä°', 0}, {VK_9, '9', 0}, {VK_NONE, '^', 0}},              // 10
+    {{VK_NONE, '‚Ä¶', 0}, {VK_0, '0', 0}, {VK_AT, '@', 0}},                // 11
+    {{VK_NONE, ')', 0}, {VK_NONE, '√∏', 0}, {VK_NONE, ']', 0}},           // 12
     {{VK_EQUAL, '=', 0}, {VK_PLUS, '+', 0}, {VK_NONE, '}', 0}},          // 13
     {{VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}},  // 14
     {{VK_TAB, 0, 0}, {VK_TAB, 0, 0}, {VK_TAB, 0, 0}},                    // 15
@@ -41,7 +48,7 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_O, 'o', 0}, {VK_O, 'O', 0}, {VK_O, 'o', 0}},                    // 24
     {{VK_P, 'p', 0}, {VK_P, 'P', 0}, {VK_P, 'p', 0}},                    // 25
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 26
-    {{VK_DOLLAR, '$', 0}, {VK_NONE, 'ú', 0}, {VK_NONE, 'œ', 0}},         // 27
+    {{VK_DOLLAR, '$', 0}, {VK_NONE, '≈ì', 0}, {VK_NONE, '√è', 0}},         // 27
     {{VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}},           // 28
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 29
     {{VK_Q, 'q', 0}, {VK_Q, 'Q', 0}, {VK_Q, 'q', 0}},                    // 30
@@ -54,7 +61,7 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_K, 'k', 0}, {VK_K, 'K', 0}, {VK_K, 'k', 0}},                    // 37
     {{VK_L, 'l', 0}, {VK_L, 'L', 0}, {VK_L, 'l', 0}},                    // 38
     {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_M, 'm', 0}},                    // 39
-    {{VK_NONE, 'ó', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},          // 40
+    {{VK_NONE, '‚Äî', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},          // 40
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 41
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 42
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 43
@@ -67,7 +74,7 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_COMMA, ',', 0}, {VK_QUESTION, '?', 0}, {VK_NONE, 0, 0}},        // 50
     {{VK_NONE, ';', 0}, {VK_DOT, '.', 0}, {VK_NONE, 0, 0}},              // 51
     {{VK_COLON, ':', 0}, {VK_SLASH, '/', 0}, {VK_NONE, 0, 0}},           // 52
-    {{VK_EXCL, '!', 0}, {VK_NONE, 'ı', 0}, {VK_NONE, 0, 0}},             // 53
+    {{VK_EXCL, '!', 0}, {VK_NONE, '√µ', 0}, {VK_NONE, 0, 0}},             // 53
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 54
     {{VK_STAR, '*', 0}, {VK_STAR, '*', 0}, {VK_STAR, '*', 0}},           // 55
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 56
@@ -143,5 +150,45 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 126
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 127
 };
+static KEYNAME KeyNames[] = {
+    {VK_NONE, "NONE"},
+    {VK_F1, "F1"}, {VK_F2, "F2"}, {VK_F3, "F3"}, {VK_F4, "F4"},
+    {VK_F5, "F5"}, {VK_F6, "F6"}, {VK_F7, "F7"}, {VK_F8, "F8"},
+    {VK_F9, "F9"}, {VK_F10, "F10"}, {VK_F11, "F11"}, {VK_F12, "F12"},
+    {VK_0, "0"}, {VK_1, "1"}, {VK_2, "2"}, {VK_3, "3"}, {VK_4, "4"},
+    {VK_5, "5"}, {VK_6, "6"}, {VK_7, "7"}, {VK_8, "8"}, {VK_9, "9"},
+    {VK_A, "A"}, {VK_B, "B"}, {VK_C, "C"}, {VK_D, "D"}, {VK_E, "E"},
+    {VK_F, "F"}, {VK_G, "G"}, {VK_H, "H"}, {VK_I, "I"}, {VK_J, "J"},
+    {VK_K, "K"}, {VK_L, "L"}, {VK_M, "M"}, {VK_N, "N"}, {VK_O, "O"},
+    {VK_P, "P"}, {VK_Q, "Q"}, {VK_R, "R"}, {VK_S, "S"}, {VK_T, "T"},
+    {VK_U, "U"}, {VK_V, "V"}, {VK_W, "W"}, {VK_X, "X"}, {VK_Y, "Y"},
+    {VK_Z, "Z"},
+    {VK_DOT, "."}, {VK_COLON, ":"}, {VK_COMMA, ","}, {VK_UNDERSCORE, "_"},
+    {VK_STAR, "*"}, {VK_PERCENT, "%"}, {VK_EQUAL, "="}, {VK_PLUS, "+"},
+    {VK_MINUS, "-"}, {VK_SLASH, "/"}, {VK_BACKSLASH, "\\"}, {VK_QUESTION, "?"},
+    {VK_EXCL, "!"}, {VK_DOLLAR, "$"}, {VK_AT, "@"},
+    {VK_SPACE, "SPACE"}, {VK_ENTER, "ENTER"}, {VK_ESCAPE, "ESC"},
+    {VK_SHIFT, "SHFT"}, {VK_LSHIFT, "LSHF"}, {VK_RSHIFT, "RSHF"},
+    {VK_CONTROL, "CTRL"}, {VK_LCTRL, "LCTL"}, {VK_RCTRL, "RCTL"},
+    {VK_ALT, "ALT"}, {VK_LALT, "LALT"}, {VK_RALT, "RALT"},
+    {VK_TAB, "TAB"}, {VK_BACKSPACE, "BKSP"}, {VK_INSERT, "INS"},
+    {VK_DELETE, "DEL"}, {VK_HOME, "HOME"}, {VK_END, "END"},
+    {VK_PAGEUP, "PGUP"}, {VK_PAGEDOWN, "PGDN"}, {VK_UP, "UP"},
+    {VK_DOWN, "DOWN"}, {VK_LEFT, "LEFT"}, {VK_RIGHT, "RIGHT"},
+    {VK_NUM, "NUM"}, {VK_CAPS, "CAPS"}, {VK_SCROLL, "SCRL"}, {VK_PAUSE, "PAUS"}
+};
+
+LPCSTR GetKeyName(U8 VirtualKey) {
+    U32 Index;
+
+    for (Index = 0; Index < sizeof(KeyNames) / sizeof(KEYNAME); Index++) {
+        if (KeyNames[Index].VirtualKey == VirtualKey) {
+            return KeyNames[Index].String;
+        }
+    }
+
+    return "";
+}
+
 
 /***************************************************************************/

@@ -203,26 +203,6 @@ void CheckPositions(LPEDITFILE File) {
 
 /***************************************************************************/
 
-static LPCSTR GetKeyName(U8 VirtualKey) {
-    switch (VirtualKey) {
-        case VK_ESCAPE:
-            return "ESC";
-        case VK_CONTROL:
-        case VK_LCTRL:
-        case VK_RCTRL:
-            return "Ctrl";
-        case VK_LALT:
-        case VK_RALT:
-            return "Alt";
-        case VK_LSHIFT:
-        case VK_RSHIFT:
-            return "Shift";
-        default:
-            return "";
-    }
-}
-
-/***************************************************************************/
 
 static void RenderMenu(void) {
     U32 Item;
