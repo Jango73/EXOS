@@ -47,6 +47,7 @@ typedef void (*SHELLCOMMAND)(LPSHELLCONTEXT);
 static void CMD_commands(LPSHELLCONTEXT);
 static void CMD_cls(LPSHELLCONTEXT);
 static void CMD_dir(LPSHELLCONTEXT);
+static BOOL IsPauseOption(LPCSTR);
 static void CMD_cd(LPSHELLCONTEXT);
 static void CMD_md(LPSHELLCONTEXT);
 static void CMD_run(LPSHELLCONTEXT);
@@ -386,27 +387,37 @@ static void CMD_cls(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+static BOOL IsPauseOption(LPCSTR Argument) {
+    if (StringLength(Argument) != 2) return FALSE;
+    if (Argument[0] != STR_MINUS && Argument[0] != PATH_SEP) return FALSE;
+    if (Argument[1] != 'p' && Argument[1] != 'P') return FALSE;
+    return TRUE;
+}
+
+/***************************************************************************/
+
 static void CMD_dir(LPSHELLCONTEXT Context) {
     FILEINFO Find;
     LPFILESYSTEM FileSystem = NULL;
     LPFILE File = NULL;
+    STR Target[MAX_PATH_NAME];
+    STR Base[MAX_PATH_NAME];
     U32 Pause = 0;
     U32 NumListed = 0;
 
-    while (1) {
-        ParseNextComponent(Context);
+    Target[0] = STR_NULL;
 
-        if (StringLength(Context->Command) == 0) break;
-
-    if (Context->Command[0] == PATH_SEP || Context->Command[0] == STR_MINUS) {
-            switch (Context->Command[1]) {
-                case 'p':
-                case 'P':
-                    Pause = 1;
-                    break;
-            }
+    ParseNextComponent(Context);
+    if (StringLength(Context->Command)) {
+        if (IsPauseOption(Context->Command)) {
+            Pause = 1;
+        } else {
+            QualifyFileName(Context, Context->Command, Target);
         }
     }
+
+    ParseNextComponent(Context);
+    if (StringLength(Context->Command) && IsPauseOption(Context->Command)) Pause = 1;
 
     FileSystem = Kernel.SystemFS;
 
@@ -421,34 +432,46 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
 
     {
         STR Sep[2] = {PATH_SEP, STR_NULL};
-        StringCopy(Find.Name, Context->CurrentFolder);
-        if (Find.Name[StringLength(Find.Name) - 1] != PATH_SEP) StringConcat(Find.Name, Sep);
-    }
 
-    if (StringLength(Context->Command)) {
-        // StringConcat(Find.Name, Context->Command);
-        StringConcat(Find.Name, TEXT("*"));
-    } else {
+        if (StringLength(Target) == 0) {
+            StringCopy(Base, Context->CurrentFolder);
+        } else {
+            StringCopy(Base, Target);
+        }
+
+        StringCopy(Find.Name, Base);
+        if (Find.Name[StringLength(Find.Name) - 1] != PATH_SEP) StringConcat(Find.Name, Sep);
         StringConcat(Find.Name, TEXT("*"));
     }
 
     File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
-    if (File) {
-        ListFile(File);
-        while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS) {
-            ListFile(File);
-            if (Pause) {
-                NumListed++;
-                if (NumListed >= Console.Height - 2) {
-                    NumListed = 0;
-                    WaitKey();
-                }
-            }
+    if (File == NULL) {
+        StringCopy(Find.Name, (StringLength(Target) ? Target : Context->CurrentFolder));
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        if (File == NULL) {
+            ConsolePrint(TEXT("Unknown file : %s\n"), (StringLength(Target) ? Target : Context->CurrentFolder));
+            return;
         }
 
+        ListFile(File);
         FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        return;
     }
+
+    ListFile(File);
+    while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS) {
+        ListFile(File);
+        if (Pause) {
+            NumListed++;
+            if (NumListed >= Console.Height - 2) {
+                NumListed = 0;
+                WaitKey();
+            }
+        }
+    }
+
+    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
 }
 
 /***************************************************************************/
