@@ -311,9 +311,14 @@ BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
         if (Length == 1 && Token[0] == STR_DOT) {
             // Skip current directory component
         } else if (Length == 2 && Token[0] == STR_DOT && Token[1] == STR_DOT) {
-            // Remove previous component
+            // Remove previous component while preserving root
             LPSTR Slash = StringFindCharR(FileName, PATH_SEP);
-            if (Slash && Slash != FileName) *Slash = STR_NULL;
+            if (Slash) {
+                if (Slash != FileName)
+                    *Slash = STR_NULL;
+                else
+                    FileName[1] = STR_NULL;
+            }
         } else if (Length > 0) {
             if (StringLength(FileName) > 1) StringConcat(FileName, Sep);
             Save = Token[Length];

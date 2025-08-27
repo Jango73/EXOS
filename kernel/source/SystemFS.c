@@ -503,22 +503,28 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
     Part = (LPPATHNODE)Node;
 
+    // Detect a wildcard on the final component
+    BOOL Wildcard =
+        (Part && StringCompare(Part->Name, TEXT("*")) == 0);
+
     // Delegate to mounted filesystem only for regular path components
     if (Parent->Mounted && Part && Part->Name[0] != STR_NULL &&
         StringCompare(Part->Name, TEXT(".")) != 0 &&
-        StringCompare(Part->Name, TEXT("..")) != 0) {
+        StringCompare(Part->Name, TEXT("..")) != 0 && !Wildcard) {
         STR Remaining[MAX_PATH_NAME] = {PATH_SEP, STR_NULL};
         FILEINFO Local = *Find;
         LPFILE MountedFile;
         LPFILESYSTEM FS = Parent->Mounted;
 
+        // Forward the name of the entry to the mounted filesystem
         StringConcat(Remaining, Part->Name);
         Local.FileSystem = FS;
         StringCopy(Local.Name, Remaining);
 
         DeleteList(Parts);
 
-        MountedFile = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+        MountedFile =
+            (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
         if (MountedFile == NULL) return NULL;
 
         LPSYSFSFILE File =
@@ -543,10 +549,14 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         return File;
     }
 
-    if (Part == NULL || Part->Name[0] == STR_NULL ||
-        StringCompare(Part->Name, TEXT(".")) == 0) {
+    if (Wildcard) {
+        // Wildcard targets the current parent node
+        Child = Parent;
+    } else if (Part == NULL || Part->Name[0] == STR_NULL ||
+               StringCompare(Part->Name, TEXT(".")) == 0) {
         Child = Parent;
     } else if (StringCompare(Part->Name, TEXT("..")) == 0) {
+        // Navigate to parent folder if possible
         Child = (Parent && Parent->Parent) ? Parent->Parent : Parent;
     } else {
         Child = FindChild(Parent, Part->Name);
@@ -563,11 +573,15 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         LPFILESYSTEM FS = Child->Mounted;
         LPFILE MountedFile;
         Local.FileSystem = FS;
-        StringCopy(Local.Name, TEXT("/"));
+        if (Wildcard)
+            StringCopy(Local.Name, TEXT("/*"));
+        else
+            StringCopy(Local.Name, TEXT("/"));
 
         DeleteList(Parts);
 
-        MountedFile = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+        MountedFile =
+            (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
         if (MountedFile == NULL) return NULL;
 
         LPSYSFSFILE File =
@@ -592,7 +606,37 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         return File;
     }
 
-    LPSYSFSFILE File = (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+    if (Wildcard) {
+        // Return the first child entry for directory listing
+        LPSYSTEMFSFILE Current =
+            (Child->Children) ? (LPSYSTEMFSFILE)Child->Children->First : NULL;
+        if (Current == NULL) {
+            DeleteList(Parts);
+            return NULL;
+        }
+
+        LPSYSFSFILE File =
+            (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+        if (File == NULL) {
+            DeleteList(Parts);
+            return NULL;
+        }
+
+        *File = (SYSFSFILE){0};
+        File->Header.ID = ID_FILE;
+        File->Header.FileSystem = Kernel.SystemFS;
+        File->Parent = Child;
+        File->MountedFile = NULL;
+        StringCopy(File->Header.Name, Current->Name);
+        File->Header.Attributes = FS_ATTR_FOLDER;
+        File->SystemFile = (LPSYSTEMFSFILE)Current->Next;
+
+        DeleteList(Parts);
+        return File;
+    }
+
+    LPSYSFSFILE File =
+        (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
     if (File == NULL) {
         DeleteList(Parts);
         return NULL;
