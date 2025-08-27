@@ -125,6 +125,15 @@ KEYBOARDSTRUCT Keyboard = {
     .Buffer = {{0}},
     .Status = {0}};
 
+static LPKEYTRANS ScanCodeMap = NULL;
+
+void UseKeyboardLayout(LPCSTR Code) {
+    ScanCodeMap = GetScanCodeToKeyCode(Code);
+    if (ScanCodeMap == NULL) {
+        ScanCodeMap = GetScanCodeToKeyCode("fr-FR");
+    }
+}
+
 /***************************************************************************/
 
 static void KeyboardWait(void) {
@@ -169,6 +178,29 @@ static void SendKeyboardCommand(U32 Command, U32 Data) {
 Out:
 
     RestoreFlags(&Flags);
+}
+
+/***************************************************************************/
+
+LPCSTR DetectKeyboard(void) {
+    U32 Flags;
+    STR Id1;
+    STR Id2;
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+    KeyboardWait();
+    OutPortByte(KEYBOARD_DATA, 0xF2);
+    KeyboardWait();
+    Id1 = InPortByte(KEYBOARD_DATA);
+    KeyboardWait();
+    Id2 = InPortByte(KEYBOARD_DATA);
+    RestoreFlags(&Flags);
+
+    if (Id2 == 0x83) {
+        return "fr-FR";
+    }
+    return "en-US";
 }
 
 /***************************************************************************/
@@ -263,11 +295,17 @@ static void ScanCodeToKeyCode(U32 ScanCode, LPKEYCODE KeyCode) {
             }
         }
     } else if (Keyboard.Status[SCAN_LEFT_SHIFT] || Keyboard.Status[SCAN_RIGHT_SHIFT] || Keyboard.CapsLock) {
-        *KeyCode = ScanCodeToKeyCode_fr[ScanCode].Shift;
+        if (ScanCodeMap) {
+            *KeyCode = ScanCodeMap[ScanCode].Shift;
+        }
     } else if (Keyboard.Status[SCAN_ALT] || Keyboard.Status[SCAN_RIGHT_ALT]) {
-        *KeyCode = ScanCodeToKeyCode_fr[ScanCode].Alt;
+        if (ScanCodeMap) {
+            *KeyCode = ScanCodeMap[ScanCode].Alt;
+        }
     } else {
-        *KeyCode = ScanCodeToKeyCode_fr[ScanCode].Normal;
+        if (ScanCodeMap) {
+            *KeyCode = ScanCodeMap[ScanCode].Normal;
+        }
     }
 
     // Echo character
@@ -604,11 +642,13 @@ BOOL GetKeyCodeDown(KEYCODE KeyCode) {
         case VK_RALT:
             return Keyboard.Status[SCAN_RIGHT_ALT] != 0;
         default:
-            for (Index = 0; Index < KEYTABSIZE; Index++) {
-                if (ScanCodeToKeyCode_fr[Index].Normal.VirtualKey == KeyCode.VirtualKey ||
-                    ScanCodeToKeyCode_fr[Index].Shift.VirtualKey == KeyCode.VirtualKey ||
-                    ScanCodeToKeyCode_fr[Index].Alt.VirtualKey == KeyCode.VirtualKey) {
-                    return Keyboard.Status[Index] != 0;
+            if (ScanCodeMap) {
+                for (Index = 0; Index < KEYTABSIZE; Index++) {
+                    if (ScanCodeMap[Index].Normal.VirtualKey == KeyCode.VirtualKey ||
+                        ScanCodeMap[Index].Shift.VirtualKey == KeyCode.VirtualKey ||
+                        ScanCodeMap[Index].Alt.VirtualKey == KeyCode.VirtualKey) {
+                        return Keyboard.Status[Index] != 0;
+                    }
                 }
             }
             break;

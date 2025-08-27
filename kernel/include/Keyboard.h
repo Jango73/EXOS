@@ -76,10 +76,9 @@ BOOL GetKeyCodeDown(KEYCODE);
 void WaitKey(void);
 void KeyboardHandler(void);
 LPCSTR GetKeyName(U8);
-
-/***************************************************************************/
-
-extern KEYTRANS ScanCodeToKeyCode_fr[128];
+LPKEYTRANS GetScanCodeToKeyCode(LPCSTR Code);
+void UseKeyboardLayout(LPCSTR Code);
+LPCSTR DetectKeyboard(void);
 
 /***************************************************************************/
 

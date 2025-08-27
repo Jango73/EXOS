@@ -18,6 +18,7 @@
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
+#include "../include/Lang.h"
 #include "../include/Log.h"
 #include "../include/Mouse.h"
 #include "../include/PCI.h"
@@ -142,6 +143,8 @@ KERNELDATA Kernel = {
     .File = &FileList,
     .SystemFS = (LPFILESYSTEM)&SystemFSFileSystem,
     .Configuration = NULL,
+    .LanguageCode = "en-US",
+    .KeyboardCode = "fr-FR",
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
@@ -437,6 +440,8 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Keyboard initialized"));
+
+    SelectKeyboard(DetectKeyboard());
 
     //-------------------------------------
     // Initialize the mouse

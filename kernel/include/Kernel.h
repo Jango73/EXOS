@@ -151,6 +151,8 @@ typedef struct tag_KERNELDATA {
     LPLIST File;
     LPFILESYSTEM SystemFS;
     LPTOML Configuration;
+    STR LanguageCode[8];
+    STR KeyboardCode[8];
     CPUINFORMATION CPU;
 } KERNELDATA, *LPKERNELDATA;
 
