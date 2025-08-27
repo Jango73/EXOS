@@ -206,13 +206,46 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
 
 BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
     STR Sep[2] = {PATH_SEP, STR_NULL};
+    STR Temp[MAX_PATH_NAME];
+    LPSTR Ptr;
+    LPSTR Token;
+    U32 Length;
+    STR Save;
 
     if (RawName[0] == PATH_SEP) {
-        StringCopy(FileName, RawName);
+        StringCopy(Temp, RawName);
     } else {
-        StringCopy(FileName, Context->CurrentFolder);
-        if (FileName[StringLength(FileName) - 1] != PATH_SEP) StringConcat(FileName, Sep);
-        StringConcat(FileName, (LPCSTR)RawName);
+        StringCopy(Temp, Context->CurrentFolder);
+        if (Temp[StringLength(Temp) - 1] != PATH_SEP) StringConcat(Temp, Sep);
+        StringConcat(Temp, (LPCSTR)RawName);
+    }
+
+    FileName[0] = PATH_SEP;
+    FileName[1] = STR_NULL;
+
+    Ptr = Temp;
+    if (Ptr[0] == PATH_SEP) Ptr++;
+
+    while (*Ptr) {
+        Token = Ptr;
+        while (*Ptr && *Ptr != PATH_SEP) Ptr++;
+        Length = Ptr - Token;
+
+        if (Length == 1 && Token[0] == STR_DOT) {
+            // Skip current directory component
+        } else if (Length == 2 && Token[0] == STR_DOT && Token[1] == STR_DOT) {
+            // Remove previous component
+            LPSTR Slash = StringFindCharR(FileName, PATH_SEP);
+            if (Slash && Slash != FileName) *Slash = STR_NULL;
+        } else if (Length > 0) {
+            if (StringLength(FileName) > 1) StringConcat(FileName, Sep);
+            Save = Token[Length];
+            Token[Length] = STR_NULL;
+            StringConcat(FileName, Token);
+            Token[Length] = Save;
+        }
+
+        if (*Ptr == PATH_SEP) Ptr++;
     }
 
     return TRUE;
@@ -222,7 +255,6 @@ BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
 
 static void ChangeFolder(LPSHELLCONTEXT Context) {
     FS_PATHCHECK Control;
-    STR Sep[2] = {PATH_SEP, STR_NULL};
     STR NewPath[MAX_PATH_NAME];
 
     ParseNextComponent(Context);
@@ -232,48 +264,14 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
         return;
     }
 
-    if (StringCompare(Context->Command, TEXT("..")) == 0) {
-        StringCopy(NewPath, Context->CurrentFolder);
-    {
-        STR Root[2] = {PATH_SEP, STR_NULL};
-        if (StringCompare(NewPath, Root) != 0) {
-            LPSTR Slash = StringFindCharR(NewPath, PATH_SEP);
-            if (Slash && Slash != NewPath)
-                *Slash = STR_NULL;
-            else
-                NewPath[1] = STR_NULL;
-        }
-    }
-        Control.CurrentFolder[0] = STR_NULL;
-        StringCopy(Control.SubFolder, NewPath);
-        if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
-            StringCopy(Context->CurrentFolder, NewPath);
-        } else {
-            ConsolePrint(TEXT("Unknown folder : %s\n"), NewPath);
-        }
-        return;
-    }
+    if (QualifyFileName(Context, Context->Command, NewPath) == 0) return;
 
-    StringCopy(Control.CurrentFolder, Context->CurrentFolder);
-    StringCopy(Control.SubFolder, Context->Command);
+    Control.CurrentFolder[0] = STR_NULL;
+    StringCopy(Control.SubFolder, NewPath);
 
     if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
-        if (Context->Command[0] == PATH_SEP) {
-            StringCopy(NewPath, Context->Command);
-        } else {
-            StringCopy(NewPath, Context->CurrentFolder);
-            if (NewPath[StringLength(NewPath) - 1] != PATH_SEP) StringConcat(NewPath, Sep);
-            StringConcat(NewPath, Context->Command);
-        }
         StringCopy(Context->CurrentFolder, NewPath);
     } else {
-        if (Context->Command[0] == PATH_SEP) {
-            StringCopy(NewPath, Context->Command);
-        } else {
-            StringCopy(NewPath, Context->CurrentFolder);
-            if (NewPath[StringLength(NewPath) - 1] != PATH_SEP) StringConcat(NewPath, Sep);
-            StringConcat(NewPath, Context->Command);
-        }
         ConsolePrint(TEXT("Unknown folder : %s\n"), NewPath);
     }
 }

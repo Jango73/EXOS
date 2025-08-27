@@ -541,7 +541,7 @@ Simple command interpreter for user interaction.
 - RotateBuffers: Maintains the command history.
 - ShowPrompt: Prints the current prompt.
 - ParseNextComponent: Extracts the next token from input.
-- QualifyFileName: Builds a fully qualified file name.
+- QualifyFileName: Builds a fully qualified file name, resolving '.' and '..' components.
 - ChangeFolder: Changes the current directory.
 - MakeFolder: Creates a new folder.
 - ListFile: Displays file information in a directory.
