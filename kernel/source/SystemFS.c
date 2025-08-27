@@ -83,13 +83,13 @@ SYSTEMFSFILESYSTEM SystemFSFileSystem = {
 
 #define SYSTEM_FS ((LPSYSTEMFSFILESYSTEM)Kernel.SystemFS)
 
-static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
-    LPSYSTEMFSFILE Node;
+/***************************************************************************/
 
-    Node = (LPSYSTEMFSFILE)HeapAlloc(sizeof(SYSTEMFSFILE));
+static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
+    LPSYSTEMFSFILE Node = (LPSYSTEMFSFILE)HeapAlloc(sizeof(SYSTEMFSFILE));
     if (Node == NULL) return NULL;
 
-    *Node = (SYSTEMFSFILE){
+    *Node = (SYSTEMFSFILE) {
         .ID = ID_FILE,
         .References = 1,
         .Next = NULL,

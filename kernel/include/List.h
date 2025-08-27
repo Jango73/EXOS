@@ -55,7 +55,7 @@ typedef I32 (*COMPAREFUNC)(LPCVOID, LPCVOID);
 /*************************************************************************************************/
 
 void QuickSort(LPVOID, U32, U32, COMPAREFUNC);
-LPLIST NewList(LISTITEMDESTRUCTOR, MEMALLOCFUNC, MEMFREEFUNC);
+LPLIST NewList(LISTITEMDESTRUCTOR Destructor, MEMALLOCFUNC Alloc, MEMFREEFUNC Free);
 U32 DeleteList(LPLIST);
 U32 ListGetSize(LPLIST);
 U32 ListAddItem(LPLIST, LPVOID);
