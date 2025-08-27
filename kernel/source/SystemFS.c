@@ -438,7 +438,17 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
     Parent = SYSTEM_FS->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
         Part = (LPPATHNODE)Node;
-        if (Part->Name[0] == STR_NULL) continue;
+
+        // Skip empty segments and handle '.' and '..' explicitly
+        if (Part->Name[0] == STR_NULL ||
+            StringCompare(Part->Name, TEXT(".")) == 0) {
+            continue;
+        }
+        if (StringCompare(Part->Name, TEXT("..")) == 0) {
+            if (Parent && Parent->Parent) Parent = Parent->Parent;
+            continue;
+        }
+
         if (Node->Next == NULL) break;
         Child = FindChild(Parent, Part->Name);
         if (Child == NULL) {
@@ -493,7 +503,10 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
     Part = (LPPATHNODE)Node;
 
-    if (Parent->Mounted && Part && Part->Name[0] != STR_NULL) {
+    // Delegate to mounted filesystem only for regular path components
+    if (Parent->Mounted && Part && Part->Name[0] != STR_NULL &&
+        StringCompare(Part->Name, TEXT(".")) != 0 &&
+        StringCompare(Part->Name, TEXT("..")) != 0) {
         STR Remaining[MAX_PATH_NAME] = {PATH_SEP, STR_NULL};
         FILEINFO Local = *Find;
         LPFILE MountedFile;
@@ -530,8 +543,11 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         return File;
     }
 
-    if (Part == NULL || Part->Name[0] == STR_NULL) {
+    if (Part == NULL || Part->Name[0] == STR_NULL ||
+        StringCompare(Part->Name, TEXT(".")) == 0) {
         Child = Parent;
+    } else if (StringCompare(Part->Name, TEXT("..")) == 0) {
+        Child = (Parent && Parent->Parent) ? Parent->Parent : Parent;
     } else {
         Child = FindChild(Parent, Part->Name);
     }
@@ -539,6 +555,41 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
     if (Child == NULL) {
         DeleteList(Parts);
         return NULL;
+    }
+
+    // If the node is a mount point, open the root of the mounted filesystem
+    if (Child->Mounted) {
+        FILEINFO Local = *Find;
+        LPFILESYSTEM FS = Child->Mounted;
+        LPFILE MountedFile;
+        Local.FileSystem = FS;
+        StringCopy(Local.Name, TEXT("/"));
+
+        DeleteList(Parts);
+
+        MountedFile = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+        if (MountedFile == NULL) return NULL;
+
+        LPSYSFSFILE File =
+            (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+        if (File == NULL) {
+            FS->Driver->Command(DF_FS_CLOSEFILE, (U32)MountedFile);
+            return NULL;
+        }
+
+        *File = (SYSFSFILE){0};
+        File->Header.ID = ID_FILE;
+        File->Header.FileSystem = Kernel.SystemFS;
+        File->Parent = Child;
+        File->MountedFile = MountedFile;
+        StringCopy(File->Header.Name, MountedFile->Name);
+        File->Header.Attributes = MountedFile->Attributes;
+        File->Header.SizeLow = MountedFile->SizeLow;
+        File->Header.SizeHigh = MountedFile->SizeHigh;
+        File->Header.Creation = MountedFile->Creation;
+        File->Header.Accessed = MountedFile->Accessed;
+        File->Header.Modified = MountedFile->Modified;
+        return File;
     }
 
     LPSYSFSFILE File = (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
@@ -550,7 +601,8 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
     *File = (SYSFSFILE){0};
     File->Header.ID = ID_FILE;
     File->Header.FileSystem = Kernel.SystemFS;
-    File->SystemFile = Child;
+    File->SystemFile =
+        (Child->Children) ? (LPSYSTEMFSFILE)Child->Children->First : NULL;
     File->Parent = Child->Parent;
     StringCopy(File->Header.Name, Child->Name);
     File->Header.Attributes = FS_ATTR_FOLDER;
@@ -585,11 +637,10 @@ static U32 OpenNext(LPSYSFSFILE File) {
 
     if (File->SystemFile == NULL) return DF_ERROR_GENERIC;
 
-    File->SystemFile = (LPSYSTEMFSFILE)File->SystemFile->Next;
-    if (File->SystemFile == NULL) return DF_ERROR_GENERIC;
-
+    // Return current entry then move to the next one
     StringCopy(File->Header.Name, File->SystemFile->Name);
     File->Header.Attributes = FS_ATTR_FOLDER;
+    File->SystemFile = (LPSYSTEMFSFILE)File->SystemFile->Next;
 
     return DF_ERROR_SUCCESS;
 }
