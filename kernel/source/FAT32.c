@@ -1,6 +1,4 @@
 
-// FAT32.c
-
 /***************************************************************************\
 
   EXOS Kernel
@@ -12,6 +10,7 @@
 #include "../include/FAT.h"
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 
 /***************************************************************************/
 
@@ -119,6 +118,8 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     LPFAT32FILESYSTEM FileSystem;
     U32 Result;
 
+    KernelLogText(LOG_DEBUG, TEXT("[MountPartition_FAT32] Enter"));
+
     Control.ID = ID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = Base + Partition->LBA;
@@ -187,6 +188,8 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     // Register the file system
 
     ListAddItem(Kernel.FileSystem, FileSystem);
+
+    KernelLogText(LOG_DEBUG, TEXT("[MountPartition_FAT32] Exit"));
 
     return TRUE;
 }

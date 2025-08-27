@@ -66,6 +66,7 @@ typedef struct tag_SYSFSFILE {
 } SYSFSFILE, *LPSYSFSFILE;
 
 /***************************************************************************/
+
 static LPSYSFSFILE OpenFile(LPFILEINFO Find);
 static U32 CloseFile(LPSYSFSFILE File);
 static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path);

@@ -117,23 +117,24 @@ U32 ListGetSize(LPLIST This) { return This->NumItems; }
 U32 ListAddItem(LPLIST This, LPVOID Item) {
     LPLISTNODE NewNode = (LPLISTNODE)Item;
 
-    if (This == NULL) return FALSE;
+    SAFE_USE_VALID_2(This, Item) {
+        if (NewNode) {
+            if (This->First == NULL) {
+                This->First = NewNode;
+            } else {
+                This->Last->Next = NewNode;
+                NewNode->Prev = This->Last;
+            }
 
-    if (NewNode) {
-        if (This->First == NULL) {
-            This->First = NewNode;
-        } else {
-            This->Last->Next = NewNode;
-            NewNode->Prev = This->Last;
+            This->Last = NewNode;
+            NewNode->Next = NULL;
+
+            This->NumItems++;
+
+            return TRUE;
         }
-
-        This->Last = NewNode;
-        NewNode->Next = NULL;
-
-        This->NumItems++;
-
-        return TRUE;
     }
+
 
     return FALSE;
 }
