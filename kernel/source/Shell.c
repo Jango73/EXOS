@@ -21,11 +21,14 @@
 #include "../include/String.h"
 #include "../include/System.h"
 #include "../include/User.h"
+#include "../include/StringArray.h"
+#include "../include/VKey.h"
 
 /***************************************************************************/
 
 #define NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
+#define HISTORY_SIZE 20
 
 /***************************************************************************/
 
@@ -38,6 +41,7 @@ typedef struct tag_SHELLCONTEXT {
     LPVOID BufferBase;
     U32 BufferSize;
     LPSTR Buffer[NUM_BUFFERS];
+    STRINGARRAY History;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
 /***************************************************************************/
@@ -109,6 +113,8 @@ static void InitShellContext(LPSHELLCONTEXT This) {
     This->Component = 0;
     This->CommandChar = 0;
 
+    StringArrayInit(&This->History, HISTORY_SIZE);
+
     for (Index = 0; Index < NUM_BUFFERS; Index++) {
         This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
     }
@@ -131,6 +137,8 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
     for (Index = 0; Index < NUM_BUFFERS; Index++) {
         if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
     }
+
+    StringArrayDeinit(&This->History);
 
     KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Exit"));
 }
@@ -200,6 +208,75 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
     Context->Command[d] = STR_NULL;
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+static void ReadCommandLine(LPSHELLCONTEXT Context) {
+    KEYCODE KeyCode;
+    U32 Index = 0;
+    U32 HistoryPos = Context->History.Count;
+
+    Context->CommandLine[0] = STR_NULL;
+
+    while (1) {
+        if (PeekChar()) {
+            GetKeyCode(&KeyCode);
+
+            if (KeyCode.VirtualKey == VK_ESCAPE) {
+                while (Index) {
+                    Index--;
+                    ConsoleBackSpace();
+                }
+                Context->CommandLine[0] = STR_NULL;
+            } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
+                if (Index) {
+                    Index--;
+                    ConsoleBackSpace();
+                    Context->CommandLine[Index] = STR_NULL;
+                }
+            } else if (KeyCode.VirtualKey == VK_ENTER) {
+                ConsolePrintChar(STR_NEWLINE);
+                Context->CommandLine[Index] = STR_NULL;
+                return;
+            } else if (KeyCode.VirtualKey == VK_UP) {
+                if (HistoryPos > 0) {
+                    HistoryPos--;
+                    while (Index) {
+                        Index--;
+                        ConsoleBackSpace();
+                    }
+                    StringCopy(Context->CommandLine,
+                               StringArrayGet(&Context->History, HistoryPos));
+                    ConsolePrint(Context->CommandLine);
+                    Index = StringLength(Context->CommandLine);
+                }
+            } else if (KeyCode.VirtualKey == VK_DOWN) {
+                if (HistoryPos < Context->History.Count) HistoryPos++;
+                while (Index) {
+                    Index--;
+                    ConsoleBackSpace();
+                }
+                if (HistoryPos == Context->History.Count) {
+                    Context->CommandLine[0] = STR_NULL;
+                    Index = 0;
+                } else {
+                    StringCopy(Context->CommandLine,
+                               StringArrayGet(&Context->History, HistoryPos));
+                    ConsolePrint(Context->CommandLine);
+                    Index = StringLength(Context->CommandLine);
+                }
+            } else if (KeyCode.ASCIICode >= STR_SPACE) {
+                if (Index < BUFFER_SIZE - 1) {
+                    ConsolePrintChar(KeyCode.ASCIICode);
+                    Context->CommandLine[Index++] = KeyCode.ASCIICode;
+                    Context->CommandLine[Index] = STR_NULL;
+                }
+            }
+        }
+
+        Sleep(100);
+    }
 }
 
 /***************************************************************************/
@@ -835,16 +912,13 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     Context->Component = 0;
     Context->CommandChar = 0;
-
     MemorySet(Context->CommandLine, 0, sizeof Context->CommandLine);
 
-    // KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Context->CommandLine cleared"));
+    ReadCommandLine(Context);
 
-    ConsoleGetString(Context->CommandLine, sizeof Context->CommandLine);
-
-    // KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Got a string"));
-
-    // RotateBuffers(Context);
+    if (Context->CommandLine[0] != STR_NULL) {
+        StringArrayAddUnique(&Context->History, Context->CommandLine);
+    }
 
     ParseNextComponent(Context);
 
