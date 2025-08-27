@@ -214,11 +214,104 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
     return DF_ERROR_SUCCESS;
 }
 
+/*
+    ResolvePath breaks a path into its SystemFS node and the remaining
+    subpath that must be delegated to a mounted filesystem. The resolved
+    node is returned in Node and the remaining path is stored in Remaining
+    (or an empty string if fully resolved inside SystemFS).
+*/
+static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node,
+                        STR Remaining[MAX_PATH_NAME]) {
+    LPLIST Parts;
+    LPLISTNODE It;
+    LPPATHNODE Part;
+    LPSYSTEMFSFILE Current;
+
+    if (Path == NULL || Node == NULL || Remaining == NULL) return FALSE;
+
+    Parts = DecompPath(Path);
+    if (Parts == NULL) return FALSE;
+
+    Current = SYSTEM_FS->Root;
+    Remaining[0] = STR_NULL;
+
+    for (It = Parts->First; It; It = It->Next) {
+        Part = (LPPATHNODE)It;
+
+        if (Part->Name[0] == STR_NULL ||
+            StringCompare(Part->Name, TEXT(".")) == 0) {
+            continue;
+        }
+
+        if (StringCompare(Part->Name, TEXT("..")) == 0) {
+            if (Current && Current->Parent) Current = Current->Parent;
+            continue;
+        }
+
+        LPSYSTEMFSFILE Child = FindChild(Current, Part->Name);
+        if (Child == NULL) {
+            if (Current->Mounted) {
+                STR Sep[2] = {PATH_SEP, STR_NULL};
+                Remaining[0] = PATH_SEP;
+                Remaining[1] = STR_NULL;
+                for (; It; It = It->Next) {
+                    Part = (LPPATHNODE)It;
+                    if (Part->Name[0] == STR_NULL) continue;
+                    StringConcat(Remaining, Part->Name);
+                    if (It->Next) StringConcat(Remaining, Sep);
+                }
+                *Node = Current;
+                DeleteList(Parts);
+                return TRUE;
+            }
+            DeleteList(Parts);
+            return FALSE;
+        }
+
+        Current = Child;
+    }
+
+    *Node = Current;
+    DeleteList(Parts);
+    return TRUE;
+}
+
+/*
+    WrapMountedFile allocates a SYSFSFILE object from a file returned by a
+    mounted filesystem and copies the common attributes so the caller can
+    interact with it as a regular SystemFS file.
+*/
+static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
+    LPSYSFSFILE File;
+
+    if (Mounted == NULL) return NULL;
+
+    File = (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+    if (File == NULL) return NULL;
+
+    *File = (SYSFSFILE){0};
+    File->Header.ID = ID_FILE;
+    File->Header.FileSystem = Kernel.SystemFS;
+    File->Parent = Parent;
+    File->MountedFile = Mounted;
+    StringCopy(File->Header.Name, Mounted->Name);
+    File->Header.Attributes = Mounted->Attributes;
+    File->Header.SizeLow = Mounted->SizeLow;
+    File->Header.SizeHigh = Mounted->SizeHigh;
+    File->Header.Creation = Mounted->Creation;
+    File->Header.Accessed = Mounted->Accessed;
+    File->Header.Modified = Mounted->Modified;
+
+    return File;
+}
+
 static BOOL PathExists(LPFS_PATHCHECK Control) {
     STR Temp[MAX_PATH_NAME];
-    FILEINFO Find;
-    LPSYSFSFILE File;
-    BOOL Result;
+    STR Remaining[MAX_PATH_NAME];
+    LPSYSTEMFSFILE Node;
+    FILEINFO Info;
+    LPFILE Mounted;
+    BOOL Result = FALSE;
 
     if (Control == NULL) return FALSE;
 
@@ -231,16 +324,23 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
         StringConcat(Temp, Control->SubFolder);
     }
 
-    Find.Size = sizeof(FILEINFO);
-    Find.FileSystem = Kernel.SystemFS;
-    Find.Attributes = MAX_U32;
-    StringCopy(Find.Name, Temp);
+    if (!ResolvePath(Temp, &Node, Remaining)) return FALSE;
 
-    File = OpenFile(&Find);
-    if (File == NULL) return FALSE;
+    if (Remaining[0] == STR_NULL) return TRUE;
 
-    Result = (File->Header.Attributes & FS_ATTR_FOLDER) != 0;
-    CloseFile(File);
+    if (Node->Mounted == NULL) return FALSE;
+
+    Info.Size = sizeof(FILEINFO);
+    Info.FileSystem = Node->Mounted;
+    Info.Attributes = MAX_U32;
+    StringCopy(Info.Name, Remaining);
+
+    Mounted =
+        (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Info);
+    if (Mounted == NULL) return FALSE;
+
+    Result = (Mounted->Attributes & FS_ATTR_FOLDER) != 0;
+    Node->Mounted->Driver->Command(DF_FS_CLOSEFILE, (U32)Mounted);
 
     return Result;
 }
@@ -423,237 +523,97 @@ static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 /***************************************************************************/
 
 static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
-    LPLIST Parts;
-    LPLISTNODE Node;
-    LPPATHNODE Part;
-    LPSYSTEMFSFILE Parent;
-    LPSYSTEMFSFILE Child;
-    STR Sep[2] = {PATH_SEP, STR_NULL};
+    STR Path[MAX_PATH_NAME];
+    STR Remaining[MAX_PATH_NAME];
+    LPSYSTEMFSFILE Node;
+    FILEINFO Local;
+    LPFILE Mounted;
+    BOOL Wildcard = FALSE;
 
     if (Find == NULL) return NULL;
 
-    Parts = DecompPath(Find->Name);
-    if (Parts == NULL) return NULL;
-
-    Parent = SYSTEM_FS->Root;
-    for (Node = Parts->First; Node; Node = Node->Next) {
-        Part = (LPPATHNODE)Node;
-
-        // Skip empty segments and handle '.' and '..' explicitly
-        if (Part->Name[0] == STR_NULL ||
-            StringCompare(Part->Name, TEXT(".")) == 0) {
-            continue;
+    StringCopy(Path, Find->Name);
+    {
+        U32 Len = StringLength(Path);
+        if (Len > 0 && Path[Len - 1] == '*') {
+            Wildcard = TRUE;
+            Path[Len - 1] = STR_NULL;
+            if (Len > 1 && Path[Len - 2] == PATH_SEP) Path[Len - 2] = STR_NULL;
         }
-        if (StringCompare(Part->Name, TEXT("..")) == 0) {
-            if (Parent && Parent->Parent) Parent = Parent->Parent;
-            continue;
-        }
-
-        if (Node->Next == NULL) break;
-        Child = FindChild(Parent, Part->Name);
-        if (Child == NULL) {
-            if (Parent->Mounted) {
-                STR Remaining[MAX_PATH_NAME] = {PATH_SEP, STR_NULL};
-                LPLISTNODE N;
-                LPPATHNODE P;
-                for (N = Node; N; N = N->Next) {
-                    P = (LPPATHNODE)N;
-                    if (P->Name[0] == STR_NULL) continue;
-                    StringConcat(Remaining, P->Name);
-                    if (N->Next) StringConcat(Remaining, Sep);
-                }
-
-                FILEINFO Local = *Find;
-                LPFILESYSTEM FS = Parent->Mounted;
-                LPFILE MountedFile;
-                Local.FileSystem = FS;
-                StringCopy(Local.Name, Remaining);
-                DeleteList(Parts);
-                MountedFile =
-                    (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
-                if (MountedFile == NULL) return NULL;
-
-                LPSYSFSFILE File =
-                    (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
-                if (File == NULL) {
-                    FS->Driver->Command(DF_FS_CLOSEFILE, (U32)MountedFile);
-                    return NULL;
-                }
-
-                *File = (SYSFSFILE){0};
-                File->Header.ID = ID_FILE;
-                File->Header.FileSystem = Kernel.SystemFS;
-                File->Parent = Parent;
-                File->MountedFile = MountedFile;
-                StringCopy(File->Header.Name, MountedFile->Name);
-                File->Header.Attributes = MountedFile->Attributes;
-                File->Header.SizeLow = MountedFile->SizeLow;
-                File->Header.SizeHigh = MountedFile->SizeHigh;
-                File->Header.Creation = MountedFile->Creation;
-                File->Header.Accessed = MountedFile->Accessed;
-                File->Header.Modified = MountedFile->Modified;
-                return File;
-            }
-
-            DeleteList(Parts);
-            return NULL;
-        }
-        Parent = Child;
     }
 
-    Part = (LPPATHNODE)Node;
+    if (!ResolvePath(Path, &Node, Remaining)) return NULL;
 
-    // Detect a wildcard on the final component
-    BOOL Wildcard =
-        (Part && StringCompare(Part->Name, TEXT("*")) == 0);
+    if (Remaining[0] != STR_NULL) {
+        if (Node->Mounted == NULL) return NULL;
 
-    // Delegate to mounted filesystem only for regular path components
-    if (Parent->Mounted && Part && Part->Name[0] != STR_NULL &&
-        StringCompare(Part->Name, TEXT(".")) != 0 &&
-        StringCompare(Part->Name, TEXT("..")) != 0 && !Wildcard) {
-        STR Remaining[MAX_PATH_NAME] = {PATH_SEP, STR_NULL};
-        FILEINFO Local = *Find;
-        LPFILE MountedFile;
-        LPFILESYSTEM FS = Parent->Mounted;
-
-        // Forward the name of the entry to the mounted filesystem
-        StringConcat(Remaining, Part->Name);
-        Local.FileSystem = FS;
+        Local = *Find;
+        Local.FileSystem = Node->Mounted;
         StringCopy(Local.Name, Remaining);
-
-        DeleteList(Parts);
-
-        MountedFile =
-            (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
-        if (MountedFile == NULL) return NULL;
-
-        LPSYSFSFILE File =
-            (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
-        if (File == NULL) {
-            FS->Driver->Command(DF_FS_CLOSEFILE, (U32)MountedFile);
-            return NULL;
+        if (Wildcard) {
+            if (Local.Name[StringLength(Local.Name) - 1] != PATH_SEP)
+                StringConcat(Local.Name, TEXT("/"));
+            StringConcat(Local.Name, TEXT("*"));
         }
 
-        *File = (SYSFSFILE){0};
-        File->Header.ID = ID_FILE;
-        File->Header.FileSystem = Kernel.SystemFS;
-        File->Parent = Parent;
-        File->MountedFile = MountedFile;
-        StringCopy(File->Header.Name, MountedFile->Name);
-        File->Header.Attributes = MountedFile->Attributes;
-        File->Header.SizeLow = MountedFile->SizeLow;
-        File->Header.SizeHigh = MountedFile->SizeHigh;
-        File->Header.Creation = MountedFile->Creation;
-        File->Header.Accessed = MountedFile->Accessed;
-        File->Header.Modified = MountedFile->Modified;
-        return File;
+        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE,
+                                                         (U32)&Local);
+        return WrapMountedFile(Node, Mounted);
     }
 
     if (Wildcard) {
-        // Wildcard targets the current parent node
-        Child = Parent;
-    } else if (Part == NULL || Part->Name[0] == STR_NULL ||
-               StringCompare(Part->Name, TEXT(".")) == 0) {
-        Child = Parent;
-    } else if (StringCompare(Part->Name, TEXT("..")) == 0) {
-        // Navigate to parent folder if possible
-        Child = (Parent && Parent->Parent) ? Parent->Parent : Parent;
-    } else {
-        Child = FindChild(Parent, Part->Name);
-    }
-
-    if (Child == NULL) {
-        DeleteList(Parts);
-        return NULL;
-    }
-
-    // If the node is a mount point, open the root of the mounted filesystem
-    if (Child->Mounted) {
-        FILEINFO Local = *Find;
-        LPFILESYSTEM FS = Child->Mounted;
-        LPFILE MountedFile;
-        Local.FileSystem = FS;
-        if (Wildcard)
+        if (Node->Mounted) {
+            Local = *Find;
+            Local.FileSystem = Node->Mounted;
             StringCopy(Local.Name, TEXT("/*"));
-        else
-            StringCopy(Local.Name, TEXT("/"));
+            Mounted = (LPFILE)Node->Mounted->Driver->Command(
+                DF_FS_OPENFILE, (U32)&Local);
+            return WrapMountedFile(Node, Mounted);
+        } else {
+            LPSYSTEMFSFILE Child =
+                (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
+            if (Child == NULL) return NULL;
 
-        DeleteList(Parts);
+            LPSYSFSFILE File =
+                (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
+            if (File == NULL) return NULL;
 
-        MountedFile =
-            (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
-        if (MountedFile == NULL) return NULL;
-
-        LPSYSFSFILE File =
-            (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
-        if (File == NULL) {
-            FS->Driver->Command(DF_FS_CLOSEFILE, (U32)MountedFile);
-            return NULL;
+            *File = (SYSFSFILE){0};
+            File->Header.ID = ID_FILE;
+            File->Header.FileSystem = Kernel.SystemFS;
+            File->Parent = Node;
+            File->MountedFile = NULL;
+            StringCopy(File->Header.Name, Child->Name);
+            File->Header.Attributes = FS_ATTR_FOLDER;
+            File->SystemFile = (LPSYSTEMFSFILE)Child->Next;
+            return File;
         }
-
-        *File = (SYSFSFILE){0};
-        File->Header.ID = ID_FILE;
-        File->Header.FileSystem = Kernel.SystemFS;
-        File->Parent = Child;
-        File->MountedFile = MountedFile;
-        StringCopy(File->Header.Name, MountedFile->Name);
-        File->Header.Attributes = MountedFile->Attributes;
-        File->Header.SizeLow = MountedFile->SizeLow;
-        File->Header.SizeHigh = MountedFile->SizeHigh;
-        File->Header.Creation = MountedFile->Creation;
-        File->Header.Accessed = MountedFile->Accessed;
-        File->Header.Modified = MountedFile->Modified;
-        return File;
     }
 
-    if (Wildcard) {
-        // Return the first child entry for directory listing
-        LPSYSTEMFSFILE Current =
-            (Child->Children) ? (LPSYSTEMFSFILE)Child->Children->First : NULL;
-        if (Current == NULL) {
-            DeleteList(Parts);
-            return NULL;
-        }
+    if (Node->Mounted) {
+        Local = *Find;
+        Local.FileSystem = Node->Mounted;
+        StringCopy(Local.Name, TEXT("/"));
+        Mounted =
+            (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+        return WrapMountedFile(Node, Mounted);
+    }
 
+    {
         LPSYSFSFILE File =
             (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
-        if (File == NULL) {
-            DeleteList(Parts);
-            return NULL;
-        }
+        if (File == NULL) return NULL;
 
         *File = (SYSFSFILE){0};
         File->Header.ID = ID_FILE;
         File->Header.FileSystem = Kernel.SystemFS;
-        File->Parent = Child;
-        File->MountedFile = NULL;
-        StringCopy(File->Header.Name, Current->Name);
+        File->SystemFile =
+            (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
+        File->Parent = Node->Parent;
+        StringCopy(File->Header.Name, Node->Name);
         File->Header.Attributes = FS_ATTR_FOLDER;
-        File->SystemFile = (LPSYSTEMFSFILE)Current->Next;
-
-        DeleteList(Parts);
         return File;
     }
-
-    LPSYSFSFILE File =
-        (LPSYSFSFILE)KernelMemAlloc(sizeof(SYSFSFILE));
-    if (File == NULL) {
-        DeleteList(Parts);
-        return NULL;
-    }
-
-    *File = (SYSFSFILE){0};
-    File->Header.ID = ID_FILE;
-    File->Header.FileSystem = Kernel.SystemFS;
-    File->SystemFile =
-        (Child->Children) ? (LPSYSTEMFSFILE)Child->Children->First : NULL;
-    File->Parent = Child->Parent;
-    StringCopy(File->Header.Name, Child->Name);
-    File->Header.Attributes = FS_ATTR_FOLDER;
-
-    DeleteList(Parts);
-
-    return File;
 }
 
 /***************************************************************************/
