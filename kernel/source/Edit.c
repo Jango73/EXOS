@@ -796,6 +796,7 @@ U32 Edit(U32 NumArguments, LPCSTR* Arguments) {
     Loop(Context);
 
     DeleteEditContext(Context);
+    ClearConsole();
 
     return 0;
 }
