@@ -25,7 +25,6 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
-    LPCSTR Colon = NULL;
     U32 FoundFileSystem;
     U32 Index;
 
@@ -97,90 +96,31 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     // Get the name of the volume in which the file
     // is supposed to be located
 
-    Volume[0] = STR_NULL;
-
-    for (Index = 0; Index < MAX_FS_LOGICAL_NAME - 1; Index++) {
-        if (Info->Name[Index] == STR_NULL) break;
-        if (Info->Name[Index] == STR_COLON) {
-            Colon = Info->Name + Index;
-            break;
-        }
-        Volume[Index + 0] = Info->Name[Index];
-        Volume[Index + 1] = STR_NULL;
-    }
-
-    if (Colon == NULL) {
-        KernelLogText(LOG_DEBUG, "[OpenFile] Searching for %s in file systems", Info->Name);
-
-        for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
-            FileSystem = (LPFILESYSTEM)Node;
-
-            Find.Size = sizeof Find;
-            Find.FileSystem = FileSystem;
-            Find.Attributes = MAX_U32;
-            StringCopy(Find.Name, Info->Name);
-
-            File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
-
-            if (File != NULL) {
-                KernelLogText(LOG_DEBUG, "[OpenFile] Found %s in %s", Info->Name, FileSystem->Driver->Product);
-
-                LockMutex(MUTEX_FILE, INFINITY);
-
-                File->OwnerTask = GetCurrentTask();
-                File->OpenFlags = Info->Flags;
-
-                ListAddItem(Kernel.File, File);
-
-                UnlockMutex(MUTEX_FILE);
-                break;
-            }
-        }
-
-        goto Out;
-    }
-
-    if (Colon[0] != ':') goto Out;
-    if (Colon[1] != '/') goto Out;
-
-    //-------------------------------------
-    // Find the volume in the registered file systems
-
-    FoundFileSystem = 0;
+    KernelLogText(LOG_DEBUG, "[OpenFile] Searching for %s in file systems", Info->Name);
 
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
-        if (StringCompare(FileSystem->Name, Volume) == 0) {
-            FoundFileSystem = 1;
+
+        Find.Size = sizeof Find;
+        Find.FileSystem = FileSystem;
+        Find.Attributes = MAX_U32;
+        StringCopy(Find.Name, Info->Name);
+
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+
+        if (File != NULL) {
+            KernelLogText(LOG_DEBUG, "[OpenFile] Found %s in %s", Info->Name, FileSystem->Driver->Product);
+
+            LockMutex(MUTEX_FILE, INFINITY);
+
+            File->OwnerTask = GetCurrentTask();
+            File->OpenFlags = Info->Flags;
+
+            ListAddItem(Kernel.File, File);
+
+            UnlockMutex(MUTEX_FILE);
             break;
         }
-    }
-
-    if (FoundFileSystem == 0) goto Out;
-
-    //-------------------------------------
-    // Fill the file system driver structure
-
-    Find.Size = sizeof Find;
-    Find.FileSystem = FileSystem;
-    Find.Attributes = MAX_U32;
-
-    StringCopy(Find.Name, Colon + 2);
-
-    //-------------------------------------
-    // Open the file
-
-    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
-
-    if (File != NULL) {
-        LockMutex(MUTEX_FILE, INFINITY);
-
-        File->OwnerTask = GetCurrentTask();
-        File->OpenFlags = Info->Flags;
-
-        ListAddItem(Kernel.File, File);
-
-        UnlockMutex(MUTEX_FILE);
     }
 
 Out:
