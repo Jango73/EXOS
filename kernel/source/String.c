@@ -457,8 +457,6 @@ static int SkipAToI(LPCSTR* Format) {
         (*Format)++;
     }
 
-    (*Format)--;
-
     return Result;
 }
 
