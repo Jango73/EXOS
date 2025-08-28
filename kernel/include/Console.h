@@ -37,7 +37,7 @@ void ScrollConsole(void);
 void ClearConsole(void);
 void ConsolePrintChar(STR);
 void ConsoleBackSpace(void);
-BOOL ConsolePrint(LPCSTR, ...);
+void ConsolePrint(LPCSTR Format, ...);
 BOOL ConsoleGetString(LPSTR, U32);
 BOOL InitializeConsole(void);
 U32 Shell(LPVOID);

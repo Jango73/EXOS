@@ -210,7 +210,7 @@ static void ConsolePrintString(LPCSTR Text) {
  * @param Format Format string.
  * @return TRUE on success.
  */
-BOOL ConsolePrint(LPCSTR Format, ...) {
+void ConsolePrint(LPCSTR Format, ...) {
     STR Text[0x1000];
     VarArgList Args;
 
@@ -223,8 +223,6 @@ BOOL ConsolePrint(LPCSTR Format, ...) {
     ConsolePrintString(Text);
 
     UnlockMutex(MUTEX_CONSOLE);
-
-    return TRUE;
 }
 
 /***************************************************************************/

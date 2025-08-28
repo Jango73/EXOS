@@ -1,8 +1,13 @@
 
-/***************************************************************************\
-    EXOS Kernel - Network test task (E1000 / generic NETWORK DF_* API)
-    Logs in English; no emojis/icons.
-\***************************************************************************/
+/************************************************************************\
+
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
+
+    Network test task (E1000 / generic NETWORK DF_* API)
+
+\************************************************************************/
 
 #include "../../include/Console.h"
 #include "../../include/Driver.h"

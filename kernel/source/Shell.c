@@ -26,6 +26,10 @@
 
 /***************************************************************************/
 
+void RegexSelfTest(void);
+
+/***************************************************************************/
+
 #define NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
 #define HISTORY_SIZE 20
@@ -74,6 +78,8 @@ static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
+
+/***************************************************************************/
 
 static struct {
     STR Name[32];
@@ -931,6 +937,7 @@ static void CMD_reboot(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static void CMD_test(LPSHELLCONTEXT Context) {
+    /*
     TASKINFO TaskInfo;
 
     UNUSED(Context);
@@ -947,6 +954,9 @@ static void CMD_test(LPSHELLCONTEXT Context) {
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
+    */
+
+    RegexSelfTest();
 }
 
 /***************************************************************************/
