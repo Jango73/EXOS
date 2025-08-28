@@ -60,6 +60,11 @@ typedef struct tag_EXFSFILE {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a new EXFS file system object.
+ * @param Disk Physical disk associated with the file system.
+ * @return Pointer to the created file system or NULL.
+ */
 static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
     LPEXFSFILESYSTEM This;
 
@@ -84,6 +89,12 @@ static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new EXFS file object for a given location.
+ * @param FileSystem File system handle.
+ * @param FileLoc Location information for the file.
+ * @return Pointer to the created file or NULL.
+ */
 static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc) {
     LPEXFSFILE This;
 
@@ -111,6 +122,14 @@ static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc
 
 /***************************************************************************/
 
+/**
+ * @brief Mount an EXFS partition found on a physical disk.
+ * @param Disk Physical disk.
+ * @param Partition Partition descriptor.
+ * @param Base Base LBA offset.
+ * @param PartIndex Partition index.
+ * @return TRUE on success.
+ */
 BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
@@ -211,6 +230,13 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
 /***************************************************************************/
 
+/**
+ * @brief Read a cluster from disk into a buffer.
+ * @param FileSystem Target file system.
+ * @param Cluster Cluster index to read.
+ * @param Buffer Destination buffer.
+ * @return TRUE on success.
+ */
 static BOOL ReadCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
@@ -274,6 +300,13 @@ static BOOL WriteCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster,
 
 #define GET_PAGE_ENTRY() (*((U32*)(FileSystem->PageBuffer + FileLoc->PageOffset)))
 
+/**
+ * @brief Locate a file by path on the EXFS file system.
+ * @param FileSystem File system to search.
+ * @param Path Path to the file.
+ * @param FileLoc Output location information.
+ * @return TRUE if file found.
+ */
 static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC FileLoc) {
     LPLIST List = NULL;
     LPPATHNODE Component = NULL;
@@ -401,6 +434,14 @@ Out_Error:
 
 /***************************************************************************/
 
+/**
+ * @brief Write sectors to a physical disk.
+ * @param Disk Target disk.
+ * @param Sector Starting sector.
+ * @param NumSectors Number of sectors to write.
+ * @param Buffer Source buffer.
+ * @return TRUE on success.
+ */
 static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPVOID Buffer) {
     IOCONTROL Control;
     U32 Result;
@@ -422,6 +463,11 @@ static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPV
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new EXFS partition on a disk.
+ * @param Create Parameters for the partition.
+ * @return Driver-specific error code.
+ */
 static U32 CreatePartition(LPPARTITION_CREATION Create) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
@@ -573,6 +619,11 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
 /***************************************************************************/
 
+/**
+ * @brief Translate an EXFS file record to a file structure.
+ * @param FileRec Source file record.
+ * @param File Destination file.
+ */
 static void TranslateFileInfo(LPEXFSFILEREC FileRec, LPEXFSFILE File) {
     //-------------------------------------
     // Translate the attributes
@@ -619,10 +670,19 @@ static void TranslateFileInfo(LPEXFSFILEREC FileRec, LPEXFSFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the EXFS driver.
+ * @return Driver-specific result code.
+ */
 static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 
+/**
+ * @brief Open a file based on search information.
+ * @param Find File information from a directory search.
+ * @return Pointer to opened file or NULL.
+ */
 static LPEXFSFILE OpenFile(LPFILEINFO Find) {
     LPEXFSFILESYSTEM FileSystem = NULL;
     LPEXFSFILE File = NULL;
@@ -660,6 +720,11 @@ static LPEXFSFILE OpenFile(LPFILEINFO Find) {
 
 #define GET_PAGE_ENTRY() (*((U32*)(FileSystem->PageBuffer + File->Location.PageOffset)))
 
+/**
+ * @brief Open the next file in a directory listing.
+ * @param File Current file handle.
+ * @return Driver-specific status code.
+ */
 static U32 OpenNext(LPEXFSFILE File) {
     LPEXFSFILESYSTEM FileSystem = NULL;
     LPEXFSFILEREC FileRec = NULL;
@@ -727,6 +792,11 @@ static U32 OpenNext(LPEXFSFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Close an open EXFS file.
+ * @param File File handle.
+ * @return Driver-specific status code.
+ */
 static U32 CloseFile(LPEXFSFILE File) {
     // LPEXFSFILESYSTEM FileSystem = NULL;
     // LPEXFSFILEREC FileRec = NULL;
@@ -772,6 +842,12 @@ static U32 CloseFile(LPEXFSFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Dispatch EXFS driver commands.
+ * @param Function Command identifier.
+ * @param Parameter Command parameter.
+ * @return Driver-specific result code.
+ */
 U32 EXFSCommands(U32 Function, U32 Parameter) {
     switch (Function) {
         case DF_LOAD:

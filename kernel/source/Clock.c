@@ -25,6 +25,9 @@ static U32 RawSystemTime = 10;
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the system clock and enable timer interrupts.
+ */
 void InitializeClock(void) {
     // The 8254 Timer Chip receives 1,193,180 signals from
     // the system, so to increment a 10 millisecond counter,
@@ -46,10 +49,19 @@ void InitializeClock(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve the current system time in milliseconds.
+ * @return Number of milliseconds since startup.
+ */
 U32 GetSystemTime(void) { return RawSystemTime; }
 
 /***************************************************************************/
 
+/**
+ * @brief Convert milliseconds to HH:MM:SS text representation.
+ * @param MilliSeconds Time in milliseconds.
+ * @param Text Destination buffer for formatted string.
+ */
 void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
     U32 Seconds = MilliSeconds / 1000;
     U32 H = (Seconds / 3600);
@@ -76,10 +88,18 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
 
 /***************************************************************************/
 
+/**
+ * @brief Increment the internal millisecond counter.
+ */
 void ClockHandler(void) { RawSystemTime += 10; }
 
 /***************************************************************************/
 
+/**
+ * @brief Read a byte from the CMOS at the given address.
+ * @param Address CMOS register address.
+ * @return Value read from CMOS.
+ */
 static U32 ReadCMOS(U32 Address) {
     OutPortByte(CMOS_COMMAND, Address);
     return InPortByte(CMOS_DATA);
@@ -96,6 +116,11 @@ static void WriteCMOS(U32 Address, U32 Value) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve current time from CMOS into a SYSTEMTIME structure.
+ * @param Time Destination structure for the current time.
+ * @return TRUE on success.
+ */
 BOOL GetLocalTime(LPSYSTEMTIME Time) {
     Time->Year = ReadCMOS(CMOS_YEAR);
     Time->Month = ReadCMOS(CMOS_MONTH);

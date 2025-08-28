@@ -97,6 +97,11 @@ PEN Pen_Title_Text = {ID_PEN, 1, NULL, NULL, COLOR_WHITE, MAX_U32};
 
 /***************************************************************************/
 
+/**
+ * @brief Reset a graphics context to its default state.
+ * @param This Graphics context to reset.
+ * @return TRUE on success.
+ */
 BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This) {
     //-------------------------------------
     // Check validity of parameters
@@ -127,8 +132,15 @@ BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This) {
     return TRUE;
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Comparison routine for sorting desktops by order.
+ * @param Item1 First desktop pointer.
+ * @param Item2 Second desktop pointer.
+ * @return Difference of desktop orders.
+ */
 I32 SortDesktops_Order(LPCVOID Item1, LPCVOID Item2) {
     LPDESKTOP* Ptr1 = (LPDESKTOP*)Item1;
     LPDESKTOP* Ptr2 = (LPDESKTOP*)Item2;
@@ -138,8 +150,15 @@ I32 SortDesktops_Order(LPCVOID Item1, LPCVOID Item2) {
     return (Dsk1->Order - Dsk2->Order);
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Comparison routine for sorting windows by order.
+ * @param Item1 First window pointer.
+ * @param Item2 Second window pointer.
+ * @return Difference of window orders.
+ */
 I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
     LPWINDOW* Ptr1 = (LPWINDOW*)Item1;
     LPWINDOW* Ptr2 = (LPWINDOW*)Item2;
@@ -149,8 +168,13 @@ I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
     return (Win1->Order - Win2->Order);
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Create a new desktop and its main window.
+ * @return Pointer to the created desktop or NULL on failure.
+ */
 LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
     WINDOWINFO WindowInfo;
@@ -200,8 +224,13 @@ LPDESKTOP CreateDesktop(void) {
     return This;
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Delete a desktop and release its resources.
+ * @param This Desktop to delete.
+ */
 void DeleteDesktop(LPDESKTOP This) {
     if (This == NULL) return;
 
@@ -214,8 +243,14 @@ void DeleteDesktop(LPDESKTOP This) {
     HeapFree(This);
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Display a desktop by setting the graphics mode and ordering.
+ * @param This Desktop to show.
+ * @return TRUE on success.
+ */
 BOOL ShowDesktop(LPDESKTOP This) {
     GRAPHICSMODEINFO ModeInfo;
     LPDESKTOP Desktop;
@@ -264,8 +299,13 @@ BOOL ShowDesktop(LPDESKTOP This) {
     return TRUE;
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a new window structure.
+ * @return Pointer to the created window or NULL on failure.
+ */
 LPWINDOW NewWindow(void) {
     LPWINDOW This = (LPWINDOW)HeapAlloc(sizeof(WINDOW));
     if (This == NULL) return NULL;
@@ -282,8 +322,13 @@ LPWINDOW NewWindow(void) {
     return This;
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Delete a window and its children.
+ * @param This Window to delete.
+ */
 void DeleteWindow(LPWINDOW This) {
     LPPROCESS Process;
     LPTASK Task;
@@ -343,8 +388,15 @@ void DeleteWindow(LPWINDOW This) {
     HeapFree(This);
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Search recursively for a window starting from another window.
+ * @param Start Window to start searching from.
+ * @param Target Window to find.
+ * @return Pointer to the found window or NULL.
+ */
 LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
     LPLISTNODE Node = NULL;
     LPWINDOW Current = NULL;
@@ -375,8 +427,14 @@ Out:
     return Current;
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Create a window based on provided window information.
+ * @param Info Structure describing the window to create.
+ * @return Pointer to the created window or NULL on failure.
+ */
 LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     LPWINDOW This;
     LPWINDOW Win;
@@ -454,8 +512,14 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     return This;
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Retrieve the desktop owning a given window.
+ * @param This Window whose desktop is requested.
+ * @return Pointer to the desktop or NULL.
+ */
 LPDESKTOP GetWindowDesktop(LPWINDOW This) {
     LPPROCESS Process = NULL;
     LPTASK Task = NULL;
@@ -485,8 +549,17 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
     return Desktop;
 }
 
+
 /***************************************************************************/
 
+/**
+ * @brief Post a message to a window and all of its children.
+ * @param This Starting window for broadcast.
+ * @param Msg Message identifier.
+ * @param Param1 First parameter.
+ * @param Param2 Second parameter.
+ * @return TRUE on success.
+ */
 BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     LPLISTNODE Node;
 
@@ -518,6 +591,12 @@ static BOOL ComputeWindowRegions(LPWINDOW This) {
 
 /***************************************************************************/
 
+/**
+ * @brief Determine if a rectangle is fully contained within another.
+ * @param Src Source rectangle.
+ * @param Dst Destination rectangle.
+ * @return TRUE if Src is inside Dst.
+ */
 BOOL RectInRect(LPRECT Src, LPRECT Dst) {
     if (Src == NULL) return FALSE;
     if (Dst == NULL) return FALSE;
@@ -532,6 +611,13 @@ BOOL RectInRect(LPRECT Src, LPRECT Dst) {
 
 /***************************************************************************/
 
+/**
+ * @brief Convert a window-relative rectangle to screen coordinates.
+ * @param Handle Window handle.
+ * @param Src Source rectangle in window coordinates.
+ * @param Dst Destination rectangle in screen coordinates.
+ * @return TRUE on success.
+ */
 BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
     LPWINDOW This = (LPWINDOW)Handle;
 
@@ -555,6 +641,13 @@ BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
 
 /***************************************************************************/
 
+/**
+ * @brief Convert a screen rectangle to window-relative coordinates.
+ * @param Handle Window handle.
+ * @param Src Source screen rectangle.
+ * @param Dst Destination window rectangle.
+ * @return TRUE on success.
+ */
 BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
     LPWINDOW This = (LPWINDOW)Handle;
 
@@ -578,6 +671,12 @@ BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
 
 /***************************************************************************/
 
+/**
+ * @brief Add a rectangle to a window's invalid region.
+ * @param Handle Window handle.
+ * @param Src Rectangle to invalidate.
+ * @return TRUE on success.
+ */
 BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     LPWINDOW This = (LPWINDOW)Handle;
     RECT Rect;
@@ -616,6 +715,11 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
 
 /***************************************************************************/
 
+/**
+ * @brief Raise a window to the front of the Z order.
+ * @param Handle Window handle.
+ * @return TRUE on success.
+ */
 BOOL BringWindowToFront(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPWINDOW That;
@@ -677,6 +781,12 @@ Out:
 
 /***************************************************************************/
 
+/**
+ * @brief Show or hide a window and its visible children.
+ * @param Handle Window handle.
+ * @param ShowHide TRUE to show, FALSE to hide.
+ * @return TRUE on success.
+ */
 BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPWINDOW Child;
@@ -719,6 +829,12 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
 
 /***************************************************************************/
 
+/**
+ * @brief Obtain the size of a window in its own coordinates.
+ * @param Handle Window handle.
+ * @param Rect Destination rectangle.
+ * @return TRUE on success.
+ */
 BOOL GetWindowRect(HANDLE Handle, LPRECT Rect) {
     LPWINDOW This = (LPWINDOW)Handle;
 
@@ -750,6 +866,12 @@ BOOL GetWindowRect(HANDLE Handle, LPRECT Rect) {
 
 /***************************************************************************/
 
+/**
+ * @brief Move a window to a new position.
+ * @param Handle Window handle.
+ * @param Position New position.
+ * @return TRUE on success.
+ */
 BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
     LPWINDOW This = (LPWINDOW)Handle;
 
@@ -766,6 +888,12 @@ BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
 
 /***************************************************************************/
 
+/**
+ * @brief Resize a window.
+ * @param Handle Window handle.
+ * @param Size New size.
+ * @return TRUE on success.
+ */
 BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
     LPWINDOW This = (LPWINDOW)Handle;
 
@@ -782,6 +910,11 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve the parent of a window.
+ * @param Handle Window handle.
+ * @return Handle of the parent window.
+ */
 HANDLE GetWindowParent(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
 
@@ -796,6 +929,13 @@ HANDLE GetWindowParent(HANDLE Handle) {
 
 /***************************************************************************/
 
+/**
+ * @brief Set a custom property on a window.
+ * @param Handle Window handle.
+ * @param Name Property name.
+ * @param Value Property value.
+ * @return Previous property value or 0.
+ */
 U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPLISTNODE Node;
@@ -845,6 +985,12 @@ Out:
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve a custom property from a window.
+ * @param Handle Window handle.
+ * @param Name Property name.
+ * @return Property value or 0 if not found.
+ */
 U32 GetWindowProp(HANDLE Handle, LPCSTR Name) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPLISTNODE Node = NULL;
@@ -885,6 +1031,11 @@ Out:
 
 /***************************************************************************/
 
+/**
+ * @brief Obtain a graphics context for a window.
+ * @param Handle Window handle.
+ * @return Handle to a graphics context or NULL.
+ */
 HANDLE GetWindowGC(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPGRAPHICSCONTEXT Context;
@@ -921,6 +1072,11 @@ HANDLE GetWindowGC(HANDLE Handle) {
 
 /***************************************************************************/
 
+/**
+ * @brief Release a previously obtained graphics context.
+ * @param Handle Graphics context handle.
+ * @return TRUE on success.
+ */
 BOOL ReleaseWindowGC(HANDLE Handle) {
     LPGRAPHICSCONTEXT This = (LPGRAPHICSCONTEXT)Handle;
 
@@ -935,6 +1091,11 @@ BOOL ReleaseWindowGC(HANDLE Handle) {
 
 /***************************************************************************/
 
+/**
+ * @brief Prepare a window for drawing and return its graphics context.
+ * @param Handle Window handle.
+ * @return Graphics context or NULL on failure.
+ */
 HANDLE BeginWindowDraw(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
     HANDLE GC = NULL;
@@ -962,6 +1123,11 @@ HANDLE BeginWindowDraw(HANDLE Handle) {
 
 /***************************************************************************/
 
+/**
+ * @brief Finish drawing operations on a window.
+ * @param Handle Window handle.
+ * @return TRUE on success.
+ */
 BOOL EndWindowDraw(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
 
@@ -986,6 +1152,11 @@ BOOL EndWindowDraw(HANDLE Handle) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve a system brush by index.
+ * @param Index Brush identifier.
+ * @return Handle to the brush.
+ */
 HANDLE GetSystemBrush(U32 Index) {
     switch (Index) {
         case SM_COLOR_DESKTOP:
@@ -1019,6 +1190,11 @@ HANDLE GetSystemBrush(U32 Index) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve a system pen by index.
+ * @param Index Pen identifier.
+ * @return Handle to the pen.
+ */
 HANDLE GetSystemPen(U32 Index) {
     switch (Index) {
         case SM_COLOR_DESKTOP:
@@ -1052,6 +1228,12 @@ HANDLE GetSystemPen(U32 Index) {
 
 /***************************************************************************/
 
+/**
+ * @brief Select a brush into a graphics context.
+ * @param GC Graphics context handle.
+ * @param Brush Brush handle to select.
+ * @return Previous brush handle.
+ */
 HANDLE SelectBrush(HANDLE GC, HANDLE Brush) {
     LPGRAPHICSCONTEXT Context;
     LPBRUSH NewBrush;
@@ -1076,6 +1258,12 @@ HANDLE SelectBrush(HANDLE GC, HANDLE Brush) {
 
 /***************************************************************************/
 
+/**
+ * @brief Select a pen into a graphics context.
+ * @param GC Graphics context handle.
+ * @param Pen Pen handle to select.
+ * @return Previous pen handle.
+ */
 HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
     LPGRAPHICSCONTEXT Context;
     LPPEN NewPen;
@@ -1100,6 +1288,11 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a brush from brush information.
+ * @param BrushInfo Brush parameters.
+ * @return Handle to the created brush or NULL.
+ */
 HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
     LPBRUSH Brush = NULL;
 
@@ -1120,6 +1313,11 @@ HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a pen from pen information.
+ * @param PenInfo Pen parameters.
+ * @return Handle to the created pen or NULL.
+ */
 HANDLE CreatePen(LPPENINFO PenInfo) {
     LPPEN Pen = NULL;
 
@@ -1140,6 +1338,11 @@ HANDLE CreatePen(LPPENINFO PenInfo) {
 
 /***************************************************************************/
 
+/**
+ * @brief Set a pixel in a graphics context.
+ * @param PixelInfo Pixel parameters.
+ * @return TRUE on success.
+ */
 BOOL SetPixel(LPPIXELINFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
 
@@ -1163,6 +1366,11 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve a pixel from a graphics context.
+ * @param PixelInfo Pixel parameters.
+ * @return TRUE on success.
+ */
 BOOL GetPixel(LPPIXELINFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
 
@@ -1186,6 +1394,11 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a line using the current pen.
+ * @param LineInfo Line parameters.
+ * @return TRUE on success.
+ */
 BOOL Line(LPLINEINFO LineInfo) {
     LPGRAPHICSCONTEXT Context;
 
@@ -1212,6 +1425,11 @@ BOOL Line(LPLINEINFO LineInfo) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a rectangle using current pen and brush.
+ * @param RectInfo Rectangle parameters.
+ * @return TRUE on success.
+ */
 BOOL Rectangle(LPRECTINFO RectInfo) {
     LPGRAPHICSCONTEXT Context;
 
@@ -1238,6 +1456,12 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
 
 /***************************************************************************/
 
+/**
+ * @brief Determine which window is under a given screen position.
+ * @param Handle Starting window handle.
+ * @param Position Screen coordinates to test.
+ * @return Handle to the window or NULL.
+ */
 HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPWINDOW Target = NULL;
@@ -1286,6 +1510,14 @@ Out:
 
 /***************************************************************************/
 
+/**
+ * @brief Default window procedure for unhandled messages.
+ * @param Window Window handle.
+ * @param Message Message identifier.
+ * @param Param1 First parameter.
+ * @param Param2 Second parameter.
+ * @return Message-specific result.
+ */
 U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     UNUSED(Param1);
     UNUSED(Param2);
@@ -1405,6 +1637,14 @@ static U32 DrawButtons(HANDLE GC) {
 
 /***************************************************************************/
 
+/**
+ * @brief Window procedure for the desktop window.
+ * @param Window Desktop window handle.
+ * @param Message Message identifier.
+ * @param Param1 First parameter.
+ * @param Param2 Second parameter.
+ * @return Message-specific result.
+ */
 U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
         case EWM_CREATE: {

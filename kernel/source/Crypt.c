@@ -21,6 +21,12 @@
 
 /***************************************************************************/
 
+/**
+ * @brief Encrypt a password string using a simple hash-based algorithm.
+ * @param lpszPassword Source password.
+ * @param lpszCrypted Buffer to receive encrypted password.
+ * @return TRUE on success.
+ */
 BOOL MakePassword(LPCSTR lpszPassword, LPSTR lpszCrypted) {
     STR szPass[64];
     STR szEncrypt[64];
@@ -90,6 +96,12 @@ BOOL MakePassword(LPCSTR lpszPassword, LPSTR lpszCrypted) {
 
 /***************************************************************************/
 
+/**
+ * @brief Verify that a password matches its encrypted representation.
+ * @param lpszCrypted Encrypted password.
+ * @param lpszPassword Plain text password to check.
+ * @return TRUE if passwords match.
+ */
 BOOL CheckPassword(LPCSTR lpszCrypted, LPCSTR lpszPassword) {
     STR szPass[48];
     STR szEncrypt[48];
@@ -176,7 +188,12 @@ BOOL CheckPassword(LPCSTR lpszCrypted, LPCSTR lpszPassword) {
 
 /***************************************************************************/
 
-/* Process one byte with bitwise algorithm (LSB-first). */
+/**
+ * @brief Process one byte for the CRC32 computation.
+ * @param Crc Current CRC value.
+ * @param Byte Input byte.
+ * @return Updated CRC value.
+ */
 static inline U32 CRC32_ProcessByte(U32 Crc, U8 Byte) {
     U32 c = Crc ^ (U32)Byte;
     for (UINT i = 0; i < 8; ++i) {
@@ -188,12 +205,21 @@ static inline U32 CRC32_ProcessByte(U32 Crc, U8 Byte) {
 
 /***************************************************************************/
 
-/* Streaming API */
+/**
+ * @brief Initialize a CRC32 context for streaming operations.
+ * @param Ctx CRC32 context to initialize.
+ */
 void CRC32Begin(LPCRC32_CTX Ctx) {
     /* State holds the "internal" CRC value (before final XOR). */
     Ctx->State = CRC32_INIT;
 }
 
+/**
+ * @brief Update a CRC32 context with new data.
+ * @param Ctx CRC32 context.
+ * @param Data Pointer to data block.
+ * @param Length Number of bytes to process.
+ */
 void CRC32Update(LPCRC32_CTX Ctx, const void *Data, U32 Length) {
     const U8 *p = (const U8 *)Data;
     U32 c = Ctx->State;
@@ -204,7 +230,11 @@ void CRC32Update(LPCRC32_CTX Ctx, const void *Data, U32 Length) {
 
     Ctx->State = c;
 }
-
+/**
+ * @brief Finalize the CRC32 computation and return the checksum.
+ * @param Ctx CRC32 context.
+ * @return Final CRC32 value.
+ */
 U32 CRC32Final(LPCRC32_CTX Ctx) {
     /* Apply final XOR and return; also store finalized value in context. */
     Ctx->State ^= CRC32_FINAL_XOR;
@@ -213,7 +243,12 @@ U32 CRC32Final(LPCRC32_CTX Ctx) {
 
 /***************************************************************************/
 
-/* One-shot API */
+/**
+ * @brief Compute a CRC32 checksum in a single call.
+ * @param Data Pointer to data block.
+ * @param Length Number of bytes to process.
+ * @return CRC32 checksum of the data.
+ */
 U32 CRC32(const void *Data, U32 Length) {
     CRC32_CTX ctx;
     CRC32Begin(&ctx);

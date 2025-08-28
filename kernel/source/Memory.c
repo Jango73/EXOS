@@ -113,6 +113,14 @@ static LINEAR G_TempLinear2 = 0;
 
 /***************************************************************************/
 
+/**
+ * @brief Clip a 64-bit range to 32 bits.
+ * @param base Input base address.
+ * @param len Length of the range.
+ * @param outBase Resulting 32-bit base.
+ * @param outLen Resulting 32-bit length.
+ * @return Non-zero if clipping succeeded.
+ */
 static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
 
     U64 limit = U64_Make(1, 0x00000000u);
@@ -134,6 +142,11 @@ static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
 
 /***************************************************************************/
 
+/**
+ * @brief Mark a physical page as used or free in the PPB.
+ * @param Page Page index.
+ * @param Used Non-zero to mark used.
+ */
 static void SetPhysicalPageMark(U32 Page, U32 Used) {
     U32 Offset = 0;
     U32 Value = 0;
@@ -156,6 +169,11 @@ static void SetPhysicalPageMark(U32 Page, U32 Used) {
 
 /***************************************************************************/
 
+/**
+ * @brief Query the usage mark of a physical page.
+ * @param Page Page index.
+ * @return Non-zero if page is used.
+ */
 static U32 GetPhysicalPageMark(U32 Page) {
     U32 Offset = 0;
     U32 Value = 0;
@@ -178,6 +196,12 @@ static U32 GetPhysicalPageMark(U32 Page) {
 /***************************************************************************/
 
 // Marks a contiguous range of pages in the PPB (1 = used, 0 = free)
+/**
+ * @brief Mark a range of physical pages as used or free.
+ * @param FirstPage First page index.
+ * @param PageCount Number of pages.
+ * @param Used Non-zero to mark used.
+ */
 static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
     KernelLogText(LOG_DEBUG, TEXT("[SetPhysicalPageRangeMark] Enter"));
 
@@ -200,6 +224,9 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
 
 /************************************************************************/
 
+/**
+ * @brief Mark physical pages that are reserved or already used.
+ */
 static void MarkUsedPhysicalMemory(void) {
 
     U32 Start = 0;
@@ -240,6 +267,10 @@ static void MarkUsedPhysicalMemory(void) {
 
 /* Allocate one free physical page and mark it used in PPB.
    Returns the physical address (page-aligned) or 0 on failure. */
+/**
+ * @brief Allocate a free physical page.
+ * @return Physical page number or MAX_U32 on failure.
+ */
 PHYSICAL AllocPhysicalPage(void) {
     U32 i, v, bit, page, mask;
     U32 StartPage, StartByte, MaxByte;
@@ -282,6 +313,10 @@ Out:
 /***************************************************************************/
 
 // Frees one physical page and marks it free in the PPB (bitmap).
+/**
+ * @brief Release a previously allocated physical page.
+ * @param Page Page number to free.
+ */
 void FreePhysicalPage(PHYSICAL Page) {
     U32 StartPage, PageIndex;
 
@@ -332,23 +367,51 @@ void FreePhysicalPage(PHYSICAL Page) {
 
 /***************************************************************************/
 
-static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TABLE_CAPACITY_MUL; }
+/**
+ * @brief Get the page directory index for a linear address.
+ * @param Address Linear address.
+ * @return Page directory entry index.
+ */
+static inline U32 GetDirectoryEntry(LINEAR Address) {
+    return Address >> PAGE_TABLE_CAPACITY_MUL;
+}
 
 /***************************************************************************/
 
-static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
+/**
+ * @brief Get the page table index for a linear address.
+ * @param Address Linear address.
+ * @return Page table entry index.
+ */
+static inline U32 GetTableEntry(LINEAR Address) {
+    return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL;
+}
 
 /***************************************************************************/
 
 // Self-map helpers (no public exposure)
 
+/**
+ * @brief Obtain the virtual address of the current page directory.
+ * @return Pointer to page directory.
+ */
 static inline LPPAGEDIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGEDIRECTORY)PD_VA; }
 
+/**
+ * @brief Get the virtual address of the page table for a linear address.
+ * @param Address Linear address.
+ * @return Pointer to page table.
+ */
 static inline LPPAGETABLE GetPageTableVAFor(LINEAR Address) {
     U32 dir = GetDirectoryEntry(Address);
     return (LPPAGETABLE)(PT_BASE_VA + (dir << PAGE_SIZE_MUL));
 }
 
+/**
+ * @brief Get a pointer to the raw PTE entry for a linear address.
+ * @param Address Linear address.
+ * @return Pointer to the PTE.
+ */
 static inline volatile U32* GetPteRawPtr(LINEAR Address) {
     U32 tab = GetTableEntry(Address);
     return (volatile U32*)&GetPageTableVAFor(Address)[tab];
@@ -386,6 +449,10 @@ static inline void MapOnePage(
 }
 
 // Unmap (mark not-present) one virtual page.
+/**
+ * @brief Unmap a single page from the current address space.
+ * @param Linear Linear address to unmap.
+ */
 static inline void UnmapOnePage(LINEAR Linear) {
     volatile U32* Pte = GetPteRawPtr(Linear);
     *Pte = 0;
@@ -394,6 +461,11 @@ static inline void UnmapOnePage(LINEAR Linear) {
 
 /***************************************************************************/
 
+/**
+ * @brief Check if a linear address is mapped and accessible.
+ * @param Pointer Linear address to test.
+ * @return TRUE if address is valid.
+ */
 BOOL IsValidMemory(LINEAR Pointer) {
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
 
@@ -417,6 +489,11 @@ BOOL IsValidMemory(LINEAR Pointer) {
 /*************************************************************************/
 
 // Public temporary map #1
+/**
+ * @brief Map a physical page to a temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
 LINEAR MapPhysicalPage(PHYSICAL Physical) {
     if (G_TempLinear1 == 0) {
         KernelLogText(LOG_ERROR, TEXT("[MapPhysicalPage] Temp slot #1 not reserved"));
@@ -429,6 +506,11 @@ LINEAR MapPhysicalPage(PHYSICAL Physical) {
 }
 
 // Internal temporary map #2
+/**
+ * @brief Map a physical page to the second temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
 static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
     if (G_TempLinear2 == 0) {
         KernelLogText(LOG_ERROR, TEXT("[MapPhysicalPage2] Temp slot #2 not reserved"));
@@ -450,6 +532,10 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
  * @return: The physical address of the page directory that goes in cr3
  */
 
+/**
+ * @brief Allocate a new page directory.
+ * @return Physical address of the page directory or MAX_U32 on failure.
+ */
 PHYSICAL AllocPageDirectory(void) {
     PHYSICAL PA_Directory = NULL;
     PHYSICAL PA_LowTable = NULL;
@@ -612,6 +698,11 @@ Out_Error:
  * @return: The virtual address of the new page
  */
 
+/**
+ * @brief Allocate a page table for the given base address.
+ * @param Base Base linear address.
+ * @return Linear address of the new table or 0.
+ */
 LINEAR AllocPageTable(LINEAR Base) {
     PHYSICAL PA_Table = AllocPhysicalPage();
 
@@ -659,6 +750,12 @@ LINEAR AllocPageTable(LINEAR Base) {
  * @return: TRUE if the region is free, FALSE otherwise
  */
 
+/**
+ * @brief Check if a linear region is free of mappings.
+ * @param Base Base linear address.
+ * @param Size Size of region.
+ * @return TRUE if region is free.
+ */
 BOOL IsRegionFree(LINEAR Base, U32 Size) {
     // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Enter"));
 
@@ -689,6 +786,12 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
 /* Tries to find a linear address region of "Size" bytes
    which is not mapped in the page tables */
 
+/**
+ * @brief Find a free linear region starting from a base address.
+ * @param StartBase Starting linear address.
+ * @param Size Desired region size.
+ * @return Base of free region or 0.
+ */
 static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     U32 Base = N_4MB;
 
@@ -712,6 +815,12 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
 /*************************************************************************/
 // Checks if a physical memory range is free
 
+/**
+ * @brief Check if a range of physical pages is free.
+ * @param Target Starting physical page.
+ * @param NumPages Number of pages.
+ * @return TRUE if range is free.
+ */
 static BOOL IsPhysicalRangeFree(PHYSICAL Target, U32 NumPages) {
     U32 PageIndex = 0;
 
@@ -725,6 +834,9 @@ static BOOL IsPhysicalRangeFree(PHYSICAL Target, U32 NumPages) {
 
 /*************************************************************************/
 
+/**
+ * @brief Release page tables that no longer contain mappings.
+ */
 static void FreeEmptyPageTables(void) {
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     LPPAGETABLE Table = NULL;
@@ -759,6 +871,11 @@ static void FreeEmptyPageTables(void) {
 /* Maps a linear address to its physical address (page-level granularity).
    Returns 0 on failure. */
 
+/**
+ * @brief Translate a linear address to its physical counterpart.
+ * @param Address Linear address.
+ * @return Physical page number or MAX_U32 on failure.
+ */
 PHYSICAL MapLinearToPhysical(LINEAR Address) {
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     U32 DirEntry = GetDirectoryEntry(Address);
@@ -791,6 +908,14 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
 
 \***************************************************************************/
 
+/**
+ * @brief Map a physical region into the linear address space.
+ * @param Base Desired base address or 0.
+ * @param Target Physical base address.
+ * @param Size Size in bytes.
+ * @param Flags Mapping flags.
+ * @return Linear base address or 0 on failure.
+ */
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     LPPAGETABLE Table = NULL;
@@ -942,6 +1067,12 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
 /***************************************************************************/
 
+/**
+ * @brief Unmap and free a linear region.
+ * @param Base Base linear address.
+ * @param Size Size of region.
+ * @return TRUE on success.
+ */
 BOOL FreeRegion(LINEAR Base, U32 Size) {
     LPPAGEDIRECTORY Directory = (LPPAGEDIRECTORY)GetCurrentPageDirectoryVA();
     LPPAGETABLE Table = NULL;
@@ -1032,6 +1163,12 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
 
 \***************************************************************************/
 
+/**
+ * @brief Map an I/O physical range into virtual memory.
+ * @param PhysicalBase Physical base address.
+ * @param Size Size in bytes.
+ * @return Linear address or 0 on failure.
+ */
 LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
     // Basic parameter checks
     if (PhysicalBase == 0 || Size == 0) {
@@ -1056,6 +1193,12 @@ LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
 
 /***************************************************************************/
 
+/**
+ * @brief Unmap a previously mapped I/O range.
+ * @param LinearBase Linear base address.
+ * @param Size Size in bytes.
+ * @return TRUE on success.
+ */
 BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
     // Basic parameter checks
     if (LinearBase == 0 || Size == 0) {
@@ -1069,6 +1212,9 @@ BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the kernel memory manager.
+ */
 void InitializeMemoryManager(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
 

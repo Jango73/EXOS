@@ -39,6 +39,11 @@ ConsoleStruct Console = {
 
 /***************************************************************************/
 
+/**
+ * @brief Move the hardware and logical console cursor.
+ * @param CursorX X coordinate of the cursor.
+ * @param CursorY Y coordinate of the cursor.
+ */
 void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     U32 Position = (CursorY * Console.Width) + CursorX;
 
@@ -57,6 +62,10 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
 
 /***************************************************************************/
 
+/**
+ * @brief Place a character at the current cursor position.
+ * @param Char Character to display.
+ */
 void SetConsoleCharacter(STR Char) {
     U32 Offset = 0;
 
@@ -66,6 +75,9 @@ void SetConsoleCharacter(STR Char) {
 
 /***************************************************************************/
 
+/**
+ * @brief Scroll the console up by one line.
+ */
 void ScrollConsole(void) {
     U32 CurX, CurY, Src, Dst;
     U32 Width, Height;
@@ -99,6 +111,9 @@ void ScrollConsole(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Clear the entire console screen.
+ */
 void ClearConsole(void) {
     U32 CurX, CurY, Offset;
 
@@ -121,6 +136,10 @@ void ClearConsole(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Print a single character to the console handling control codes.
+ * @param Char Character to print.
+ */
 void ConsolePrintChar(STR Char) {
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
@@ -143,6 +162,9 @@ void ConsolePrintChar(STR Char) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle backspace at the current cursor position.
+ */
 void ConsoleBackSpace(void) {
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
@@ -166,6 +188,10 @@ Out:
 
 /***************************************************************************/
 
+/**
+ * @brief Print a null-terminated string to the console.
+ * @param Text String to print.
+ */
 static void ConsolePrintString(LPCSTR Text) {
     U32 Index = 0;
 
@@ -179,6 +205,11 @@ static void ConsolePrintString(LPCSTR Text) {
 
 /***************************************************************************/
 
+/**
+ * @brief Print a formatted string to the console.
+ * @param Format Format string.
+ * @return TRUE on success.
+ */
 BOOL ConsolePrint(LPCSTR Format, ...) {
     STR Text[0x1000];
     VarArgList Args;
