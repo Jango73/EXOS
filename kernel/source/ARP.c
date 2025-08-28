@@ -47,6 +47,12 @@ static ArpContext GlobalArp;
 
 /************************************************************************/
 // Utilities
+/**
+ * @brief Checks if a MAC address is the broadcast address.
+ *
+ * @param Mac MAC address to test.
+ * @return Non-zero if the address is broadcast.
+ */
 
 static int MacIsBroadcast(const U8 Mac[6]) {
     return (Mac[0] == 0xFF && Mac[1] == 0xFF && Mac[2] == 0xFF && Mac[3] == 0xFF && Mac[4] == 0xFF && Mac[5] == 0xFF);
@@ -54,9 +60,24 @@ static int MacIsBroadcast(const U8 Mac[6]) {
 
 /************************************************************************/
 
+/**
+ * @brief Copies a MAC address.
+ *
+ * @param Destination Buffer receiving the address.
+ * @param Source      Source MAC address.
+ */
+
 static void MacCopy(U8 Destination[6], const U8 Source[6]) { MemoryCopy(Destination, Source, 6); }
 
 /************************************************************************/
+
+/**
+ * @brief Compares two MAC addresses.
+ *
+ * @param A First MAC address.
+ * @param B Second MAC address.
+ * @return 1 if the addresses are equal, otherwise 0.
+ */
 
 static int MacEqual(const U8 A[6], const U8 B[6]) {
     U32 Index;
@@ -67,6 +88,13 @@ static int MacEqual(const U8 A[6], const U8 B[6]) {
 
 /************************************************************************/
 
+/**
+ * @brief Searches the ARP cache for an IPv4 address.
+ *
+ * @param IPv4_Be IPv4 address in big-endian.
+ * @return Matching cache entry or NULL.
+ */
+
 static LPArpCacheEntry ArpLookup(U32 IPv4_Be) {
     U32 Index;
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
@@ -76,6 +104,15 @@ static LPArpCacheEntry ArpLookup(U32 IPv4_Be) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Allocates a cache slot for an IPv4 address.
+ *
+ * Finds an empty slot or evicts the entry with the smallest TTL.
+ *
+ * @param IPv4_Be IPv4 address in big-endian.
+ * @return Pointer to the selected cache entry.
+ */
 
 static LPArpCacheEntry ArpAllocateSlot(U32 IPv4_Be) {
     U32 Index, Victim = 0;
@@ -106,6 +143,17 @@ static LPArpCacheEntry ArpAllocateSlot(U32 IPv4_Be) {
     return &GlobalArp.Cache[Victim];
 }
 
+/************************************************************************/
+
+/**
+ * @brief Updates the ARP cache with a resolved address.
+ *
+ * Creates or refreshes an entry and sets its TTL.
+ *
+ * @param IPv4_Be    IPv4 address in big-endian.
+ * @param MacAddress Corresponding MAC address.
+ */
+
 static void ArpCacheUpdate(U32 IPv4_Be, const U8 MacAddress[6]) {
     LPArpCacheEntry Entry = ArpLookup(IPv4_Be);
     if (!Entry) Entry = ArpAllocateSlot(IPv4_Be);
@@ -119,6 +167,14 @@ static void ArpCacheUpdate(U32 IPv4_Be, const U8 MacAddress[6]) {
 /************************************************************************/
 // Transmission
 
+/**
+ * @brief Sends a raw Ethernet frame.
+ *
+ * @param Data   Pointer to frame data.
+ * @param Length Frame length in bytes.
+ * @return 1 on success, otherwise 0.
+ */
+
 static int ArpSendFrame(const U8* Data, U32 Length) {
     NETWORKSEND Send;
     Send.Device = GlobalArp.NetworkDevice;
@@ -128,6 +184,13 @@ static int ArpSendFrame(const U8* Data, U32 Length) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Sends an ARP request for the specified target.
+ *
+ * @param TargetIPv4_Be IPv4 address to resolve in big-endian.
+ * @return 1 on success, otherwise 0.
+ */
 
 static int ArpSendRequest(U32 TargetIPv4_Be) {
     U8 Buffer[sizeof(EthernetHeader) + sizeof(ArpPacket)];
@@ -158,6 +221,14 @@ static int ArpSendRequest(U32 TargetIPv4_Be) {
 
 /************************************************************************/
 
+/**
+ * @brief Sends an ARP reply to the requester.
+ *
+ * @param DestinationMac      Target MAC address.
+ * @param DestinationIPv4_Be  Target IPv4 address in big-endian.
+ * @return 1 on success, otherwise 0.
+ */
+
 static int ArpSendReply(const U8 DestinationMac[6], U32 DestinationIPv4_Be) {
     U8 Buffer[sizeof(EthernetHeader) + sizeof(ArpPacket)];
     LPEthernetHeader Ethernet = (LPEthernetHeader)Buffer;
@@ -186,6 +257,14 @@ static int ArpSendReply(const U8 DestinationMac[6], U32 DestinationIPv4_Be) {
 /************************************************************************/
 // Receive path
 
+/**
+ * @brief Processes an incoming ARP packet.
+ *
+ * Updates the cache and replies if the packet targets the local address.
+ *
+ * @param Packet Pointer to the ARP packet.
+ */
+
 static void ArpHandlePacket(const ArpPacket* Packet) {
     U16 HardwareType = Ntohs(Packet->HardwareType);
     U16 ProtocolType = Ntohs(Packet->ProtocolType);
@@ -207,6 +286,15 @@ static void ArpHandlePacket(const ArpPacket* Packet) {
 
 /************************************************************************/
 
+/**
+ * @brief Handles incoming Ethernet frames for ARP.
+ *
+ * Validates that the frame contains an ARP packet before processing it.
+ *
+ * @param Frame  Pointer to Ethernet frame data.
+ * @param Length Frame length in bytes.
+ */
+
 void ARP_OnEthernetFrame(const U8* Frame, U32 Length) {
     if (Length < sizeof(EthernetHeader)) return;
 
@@ -222,6 +310,17 @@ void ARP_OnEthernetFrame(const U8* Frame, U32 Length) {
 
 /************************************************************************/
 // Public API
+
+/**
+ * @brief Initializes the ARP subsystem.
+ *
+ * Sets the network device context, obtains the local MAC address and
+ * registers the receive callback.
+ *
+ * @param NetworkDevice  Underlying network device.
+ * @param NetworkCommand Device command handler.
+ * @param LocalIPv4_Be   Local IPv4 address in big-endian.
+ */
 
 void ARP_Initialize(LPVOID NetworkDevice, DRVFUNC NetworkCommand, U32 LocalIPv4_Be) {
     U32 Index;
@@ -263,6 +362,10 @@ void ARP_Initialize(LPVOID NetworkDevice, DRVFUNC NetworkCommand, U32 LocalIPv4_
 
 /************************************************************************/
 
+/**
+ * @brief Decrements cache timers and expires old entries.
+ */
+
 void ARP_Tick(void) {
     U32 Index;
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
@@ -277,6 +380,16 @@ void ARP_Tick(void) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Resolves an IPv4 address to a MAC address.
+ *
+ * Returns the cached mapping if available or triggers a request.
+ *
+ * @param TargetIPv4_Be IPv4 address to resolve in big-endian.
+ * @param OutMacAddress Buffer that receives the MAC address.
+ * @return 1 if resolved, otherwise 0.
+ */
 
 int ARP_Resolve(U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
     LPArpCacheEntry Entry = ArpLookup(TargetIPv4_Be);
@@ -295,6 +408,10 @@ int ARP_Resolve(U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Logs all valid ARP cache entries.
+ */
 
 void ARP_DumpCache(void) {
     U32 Index;

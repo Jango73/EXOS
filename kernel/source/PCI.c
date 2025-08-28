@@ -43,6 +43,19 @@ static U32 PciDriverCount = 0;
 /***************************************************************************/
 // Low-level config space access (assumes port I/O helpers exist)
 
+/**
+ * @brief Reads a 32-bit value from PCI configuration space.
+ *
+ * Builds a type-1 configuration address and retrieves the value via port
+ * I/O.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param Offset   Register offset.
+ * @return 32-bit value read from the device.
+ */
+
 U32 PCI_Read32(U8 Bus, U8 Device, U8 Function, U16 Offset) {
     U32 Address = PCI_CONFIG_ADDRESS(Bus, Device, Function, Offset);
     OutPortLong(PCI_CONFIG_ADDRESS_PORT, Address);
@@ -50,6 +63,19 @@ U32 PCI_Read32(U8 Bus, U8 Device, U8 Function, U16 Offset) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Writes a 32-bit value to PCI configuration space.
+ *
+ * Builds a type-1 configuration address and writes the value using port
+ * I/O.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param Offset   Register offset.
+ * @param Value    32-bit value to write.
+ */
 
 void PCI_Write32(U8 Bus, U8 Device, U8 Function, U16 Offset, U32 Value) {
     U32 Address = PCI_CONFIG_ADDRESS(Bus, Device, Function, Offset);
@@ -59,6 +85,19 @@ void PCI_Write32(U8 Bus, U8 Device, U8 Function, U16 Offset, U32 Value) {
 
 /***************************************************************************/
 
+/**
+ * @brief Reads a 16-bit value from PCI configuration space.
+ *
+ * Reads the containing 32-bit register and extracts the requested
+ * 16-bit field.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param Offset   Register offset.
+ * @return 16-bit value read from the device.
+ */
+
 U16 PCI_Read16(U8 Bus, U8 Device, U8 Function, U16 Offset) {
     U32 Value32 = PCI_Read32(Bus, Device, Function, (U16)(Offset & ~3U));
     return (U16)((Value32 >> ((Offset & 2U) * 8U)) & 0xFFFFU);
@@ -66,12 +105,38 @@ U16 PCI_Read16(U8 Bus, U8 Device, U8 Function, U16 Offset) {
 
 /***************************************************************************/
 
+/**
+ * @brief Reads an 8-bit value from PCI configuration space.
+ *
+ * Reads the containing 32-bit register and extracts the requested
+ * byte.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param Offset   Register offset.
+ * @return 8-bit value read from the device.
+ */
+
 U8 PCI_Read8(U8 Bus, U8 Device, U8 Function, U16 Offset) {
     U32 Value32 = PCI_Read32(Bus, Device, Function, (U16)(Offset & ~3U));
     return (U8)((Value32 >> ((Offset & 3U) * 8U)) & 0xFFU);
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Writes a 16-bit value to PCI configuration space.
+ *
+ * Reads the containing 32-bit register, updates the target field and writes
+ * it back.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param Offset   Register offset.
+ * @param Value    16-bit value to write.
+ */
 
 void PCI_Write16(U8 Bus, U8 Device, U8 Function, U16 Offset, U16 Value) {
     U32 Value32 = PCI_Read32(Bus, Device, Function, (U16)(Offset & ~3U));
@@ -83,6 +148,19 @@ void PCI_Write16(U8 Bus, U8 Device, U8 Function, U16 Offset, U16 Value) {
 
 /***************************************************************************/
 
+/**
+ * @brief Writes an 8-bit value to PCI configuration space.
+ *
+ * Reads the containing 32-bit register, updates the target byte and writes
+ * it back.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param Offset   Register offset.
+ * @param Value    8-bit value to write.
+ */
+
 void PCI_Write8(U8 Bus, U8 Device, U8 Function, U16 Offset, U8 Value) {
     U32 Value32 = PCI_Read32(Bus, Device, Function, (U16)(Offset & ~3U));
     U32 Shift = (Offset & 3U) * 8U;
@@ -93,6 +171,19 @@ void PCI_Write8(U8 Bus, U8 Device, U8 Function, U16 Offset, U8 Value) {
 
 /***************************************************************************/
 /* Command helpers                                                          */
+
+/**
+ * @brief Enables or disables bus mastering for a PCI function.
+ *
+ * Modifies the command register to toggle the bus master and memory
+ * access bits.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param Enable   Non-zero to enable bus mastering, zero to disable.
+ * @return Previous command register value.
+ */
 
 U16 PCI_EnableBusMaster(U8 Bus, U8 Device, U8 Function, int Enable) {
     U16 Command = PCI_Read16(Bus, Device, Function, PCI_CFG_COMMAND);
@@ -109,12 +200,35 @@ U16 PCI_EnableBusMaster(U8 Bus, U8 Device, U8 Function, int Enable) {
 /***************************************************************************/
 /* BAR helpers                                                              */
 
+/**
+ * @brief Reads a Base Address Register of a PCI function.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param BarIndex Index of the BAR to read.
+ * @return Raw BAR value.
+ */
+
 static U32 PciReadBAR(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
     U16 Offset = (U16)(PCI_CFG_BAR0 + (BarIndex * 4));
     return PCI_Read32(Bus, Device, Function, Offset);
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Retrieves the base address of a BAR.
+ *
+ * Handles both I/O and memory BARs and returns the base address. For
+ * 64-bit memory BARs only the low part is returned.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param BarIndex Index of the BAR to query.
+ * @return Base address of the BAR.
+ */
 
 U32 PCI_GetBARBase(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
     U32 Bar = PciReadBAR(Bus, Device, Function, BarIndex);
@@ -127,6 +241,20 @@ U32 PCI_GetBARBase(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Determines the size of a BAR.
+ *
+ * Temporarily writes all ones to the BAR to read back the size mask, as
+ * described by the PCI specification. Restores the original value
+ * afterward.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param BarIndex Index of the BAR to probe.
+ * @return Size of the BAR in bytes.
+ */
 
 U32 PCI_GetBARSize(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
     U16 Offset = (U16)(PCI_CFG_BAR0 + (BarIndex * 4));
@@ -170,6 +298,18 @@ U32 PCI_GetBARSize(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
 /***************************************************************************/
 /* Capabilities                                                             */
 
+/**
+ * @brief Searches the capability list for a specific capability ID.
+ *
+ * Traverses the linked list of capabilities if present.
+ *
+ * @param Bus          Bus number.
+ * @param Device       Device number.
+ * @param Function     Function number.
+ * @param CapabilityId Capability identifier to locate.
+ * @return Offset of the capability or 0 if not found.
+ */
+
 U8 PCI_FindCapability(U8 Bus, U8 Device, U8 Function, U8 CapabilityId) {
     U16 Status = PCI_Read16(Bus, Device, Function, PCI_CFG_STATUS);
     if ((Status & 0x10U) == 0) return 0; /* no cap list */
@@ -190,6 +330,15 @@ U8 PCI_FindCapability(U8 Bus, U8 Device, U8 Function, U8 CapabilityId) {
 /***************************************************************************/
 /* Driver registration                                                      */
 
+/**
+ * @brief Registers a PCI driver with the bus layer.
+ *
+ * Drivers are stored in an internal table until the bus scan associates
+ * them with matching devices.
+ *
+ * @param Driver Pointer to the driver structure.
+ */
+
 void PCI_RegisterDriver(LPPCI_DRIVER Driver) {
     if (Driver == NULL) return;
     if (PciDriverCount >= PCI_MAX_REGISTERED_DRIVERS) return;
@@ -199,6 +348,13 @@ void PCI_RegisterDriver(LPPCI_DRIVER Driver) {
 
 /***************************************************************************/
 /* Scan & bind                                                              */
+
+/**
+ * @brief Scans the PCI bus and binds drivers to detected devices.
+ *
+ * Enumerates all buses, devices and functions, matches registered
+ * drivers and attaches them to devices that report a successful probe.
+ */
 
 void PCI_ScanBus(void) {
     /* Use 32-bit counters to avoid wrap when PCI_MAX_* == 256 */
@@ -279,6 +435,17 @@ void PCI_ScanBus(void) {
 /***************************************************************************/
 /* Internals                                                                */
 
+/**
+ * @brief Checks whether a PCI device matches a driver's criteria.
+ *
+ * Compares vendor, device and class codes against the driver's match
+ * structure.
+ *
+ * @param DriverMatch Matching criteria from the driver.
+ * @param PciInfo     Device information to test.
+ * @return Non-zero if the device matches.
+ */
+
 static int PciInternalMatch(const DRIVER_MATCH* DriverMatch, const PCI_INFO* PciInfo) {
     if (DriverMatch == NULL || PciInfo == NULL) return 0;
 
@@ -292,6 +459,18 @@ static int PciInternalMatch(const DRIVER_MATCH* DriverMatch, const PCI_INFO* Pci
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Populates a PCI_INFO structure with data from configuration space.
+ *
+ * Reads common identification fields, BAR values and interrupt lines for a
+ * given function.
+ *
+ * @param Bus      Bus number.
+ * @param Device   Device number.
+ * @param Function Function number.
+ * @param PciInfo  Output structure to fill.
+ */
 
 static void PciFillFunctionInfo(U8 Bus, U8 Device, U8 Function, PCI_INFO* PciInfo) {
     U32 Index;
@@ -317,6 +496,16 @@ static void PciFillFunctionInfo(U8 Bus, U8 Device, U8 Function, PCI_INFO* PciInf
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Decodes raw BAR values into physical addresses.
+ *
+ * Extracts base addresses from the BARs and stores them in the PCI_DEVICE
+ * structure while resetting mapped pointers.
+ *
+ * @param PciInfo   Source information obtained from the device.
+ * @param PciDevice Target device structure to update.
+ */
 
 static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice) {
     U32 Index;

@@ -149,6 +149,13 @@ KERNELDATA Kernel = {
 
 /***************************************************************************/
 
+/**
+ * @brief Checks that the DeadBeef sentinel retains its expected value.
+ *
+ * This routine verifies the global DeadBeef variable and halts if it has
+ * been altered, indicating memory corruption.
+ */
+
 void CheckDataIntegrity(void) {
     if (DeadBeef != 0xDEADBEEF) {
         KernelLogText(LOG_DEBUG, TEXT("Expected a dead beef at %X"), (&DeadBeef));
@@ -169,6 +176,16 @@ typedef struct tag_CPUIDREGISTERS {
 } CPUIDREGISTERS, *LPCPUIDREGISTERS;
 
 /***************************************************************************/
+
+/**
+ * @brief Retrieves basic CPU identification data.
+ *
+ * Populates the provided structure using CPUID information, including
+ * vendor string, model and feature flags.
+ *
+ * @param Info Pointer to structure that receives CPU information.
+ * @return TRUE on success.
+ */
 
 BOOL GetCPUInformation(LPCPUINFORMATION Info) {
     CPUIDREGISTERS Regs[4];
@@ -198,6 +215,16 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Task that displays system time and mouse status.
+ *
+ * The parameter encodes console coordinates where the time is printed.
+ * X is stored in the high 16 bits and Y in the low 16 bits.
+ *
+ * @param Param Encoded console position.
+ * @return Always returns 0.
+ */
 
 U32 ClockTask(LPVOID Param) {
     STR Text[64];
@@ -246,6 +273,10 @@ U32 ClockTask(LPVOID Param) {
 
 /***************************************************************************/
 
+/**
+ * @brief Logs memory map and kernel startup information.
+ */
+
 void DumpCriticalInformation(void) {
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
         KernelLogText(
@@ -272,6 +303,10 @@ void DumpCriticalInformation(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Prints memory information and the operating system banner.
+ */
+
 static void Welcome(void) {
     //-------------------------------------
     // Print information on computer
@@ -295,6 +330,13 @@ static void Welcome(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Loads and parses the kernel configuration file.
+ *
+ * Attempts to read "exos.cfg" (case insensitive) and stores the resulting
+ * TOML data in Kernel.Configuration.
+ */
+
 static void ReadKernelConfiguration(void) {
     KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Enter"));
 
@@ -315,6 +357,13 @@ static void ReadKernelConfiguration(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Selects keyboard layout based on configuration.
+ *
+ * Reads the layout from Kernel.Configuration and applies it with
+ * SelectKeyboard.
+ */
+
 static void SetKeyboardLayout(void) {
     KernelLogText(LOG_VERBOSE, TEXT("[SetKeyboardLayout] Enter"));
 
@@ -333,12 +382,19 @@ static void SetKeyboardLayout(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initializes PCI subsystem by registering drivers and scanning the bus.
+ */
+
 void InitializePCI(void) {
     PCI_RegisterDriver(&E1000Driver);
     PCI_ScanBus();
 }
 
 /***************************************************************************/
+/**
+ * @brief Mounts available disk partitions and the system file system.
+ */
 
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
@@ -355,6 +411,14 @@ void InitializeFileSystems(void) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Calculates the amount of physical memory currently in use.
+ *
+ * Traverses the page bitmap and counts allocated pages.
+ *
+ * @return Number of bytes of physical memory used.
+ */
 
 U32 GetPhysicalMemoryUsed(void) {
     U32 NumPages = 0;
@@ -377,6 +441,16 @@ U32 GetPhysicalMemoryUsed(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Loads a driver and performs basic validation.
+ *
+ * Logs the driver address, verifies the magic ID and invokes its load
+ * command.
+ *
+ * @param Driver Pointer to driver structure.
+ * @param Name   Driver name for logging.
+ */
+
 void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     if (Driver != NULL) {
         KernelLogText(LOG_DEBUG, TEXT("[LoadDriver] : %s at %X"), Name, Driver);
@@ -393,6 +467,17 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Entry point for kernel initialization.
+ *
+ * Sets up core services, loads drivers, mounts file systems and starts
+ * the initial shell task.
+ *
+ * @param ImageAddress Address of the kernel image in memory.
+ * @param CursorX Initial console cursor X position.
+ * @param CursorY Initial console cursor Y position.
+ */
 
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     // PROCESSINFO ProcessInfo;
