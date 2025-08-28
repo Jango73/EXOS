@@ -20,6 +20,12 @@
 /************************************************************************/
 // Fault logging helpers (selector-aware)
 
+static void KernelPrintHex(U32 Number) {
+    STR Text[32];
+    StringPrintFormat(Text, TEXT("%X"), Number);
+    KernelPrintString(Text);
+}
+
 static void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
     U16 sel = (U16)(Err & 0xFFFFu);
     U16 idx = SELECTOR_INDEX(sel);
@@ -205,9 +211,9 @@ void DebugExceptionHandler_MinProbe(void) {
     unsigned char trap = *(volatile unsigned char*)(unsigned long)(base + 0x64);
 
     KernelPrintString(TEXT("[#DB] TSS base="));
-    VarKernelPrintNumber(base, 16, 0, 0, 0);
+    KernelPrintHex(base);
     KernelPrintString(TEXT(" Trap@+0x64="));
-    VarKernelPrintNumber(trap, 16, 0, 0, 0);
+    KernelPrintHex(trap);
     KernelPrintString(Text_NewLine);
 }
 
@@ -239,26 +245,26 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
 
     U32 gdtr = GetGDTR();
     KernelPrintString(TEXT("GDTR : "));
-    VarKernelPrintNumber(gdtr, 16, 0, 0, 0);
+    KernelPrintHex(gdtr);
     KernelPrintString(Text_Space);
 
     U32 ldtr = GetLDTR();
     KernelPrintString(TEXT("LDTR : "));
-    VarKernelPrintNumber(ldtr, 16, 0, 0, 0);
+    KernelPrintHex(ldtr);
     KernelPrintString(Text_Space);
 
     SELECTOR tr = GetTaskRegister();
 
     KernelPrintString(TEXT("Index : "));
-    VarKernelPrintNumber((U32)SELECTOR_INDEX(tr), 16, 0, 0, 0);
+    KernelPrintHex((U32)SELECTOR_INDEX(tr));
     KernelPrintString(Text_Space);
 
     KernelPrintString(TEXT("TI : "));
-    VarKernelPrintNumber((U32)SELECTOR_TI(tr), 16, 0, 0, 0);
+    KernelPrintHex((U32)SELECTOR_TI(tr));
     KernelPrintString(Text_Space);
 
     KernelPrintString(TEXT("RPL : "));
-    VarKernelPrintNumber((U32)SELECTOR_RPL(tr), 16, 0, 0, 0);
+    KernelPrintHex((U32)SELECTOR_RPL(tr));
     KernelPrintString(Text_Space);
 
     KernelPrintString(Text_NewLine);
@@ -408,16 +414,16 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 
 static void LogGPError(U32 err) {
     KernelPrintString(TEXT("[#GP] err="));
-    VarKernelPrintNumber(err, 16, 0, 0, 0);
+    KernelPrintHex(err);
     KernelPrintString(TEXT(" ext="));
-    VarKernelPrintNumber(err & 1, 16, 0, 0, 0);
+    KernelPrintHex(err & 1);
     KernelPrintString(TEXT(" idt="));
-    VarKernelPrintNumber((err >> 1) & 1, 16, 0, 0, 0);
+    KernelPrintHex((err >> 1) & 1);
     KernelPrintString(TEXT(" ti="));
-    VarKernelPrintNumber((err >> 2) & 1, 16, 0, 0, 0);
+    KernelPrintHex((err >> 2) & 1);
     U32 sel = err & 0xFFFC;
     KernelPrintString(TEXT(" sel="));
-    VarKernelPrintNumber(sel, 16, 0, 0, 0);
+    KernelPrintHex(sel);
     KernelPrintString(Text_NewLine);
 }
 
