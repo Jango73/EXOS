@@ -10,6 +10,7 @@
 #include "../include/String.h"
 
 #include "../include/Base.h"
+#include "../include/VarArg.h"
 #include "../include/Log.h"
 
 /***************************************************************************/
@@ -444,6 +445,195 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
     *Text++ = STR_NULL;
 
     return Text;
+}
+
+/***************************************************************************/
+
+static int SkipAToI(LPCSTR* Format) {
+    int Result = 0;
+
+    while (IsNumeric(**Format)) {
+        Result = Result * 10 + (**Format - '0');
+        (*Format)++;
+    }
+
+    (*Format)--;
+
+    return Result;
+}
+
+/***************************************************************************/
+
+void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
+    LPCSTR Text = NULL;
+    long Number;
+    int Flags, FieldWidth, Precision, Qualifier, Base, Length, i;
+    LPSTR Dst = Destination;
+
+    if (Format == NULL) {
+        *Dst++ = '<';
+        *Dst++ = 'N';
+        *Dst++ = 'U';
+        *Dst++ = 'L';
+        *Dst++ = 'L';
+        *Dst++ = '>';
+        *Dst = STR_NULL;
+        return;
+    }
+
+    for (; *Format != STR_NULL; Format++) {
+        if (*Format != '%') {
+            *Dst++ = *Format;
+            continue;
+        }
+
+        Flags = 0;
+
+    Repeat:
+        Format++;
+        switch (*Format) {
+            case '-':
+                Flags |= PF_LEFT;
+                goto Repeat;
+            case '+':
+                Flags |= PF_PLUS;
+                goto Repeat;
+            case ' ':
+                Flags |= PF_SPACE;
+                goto Repeat;
+            case '#':
+                Flags |= PF_SPECIAL;
+                goto Repeat;
+            case '0':
+                Flags |= PF_ZEROPAD;
+                goto Repeat;
+            case STR_NULL:
+                *Dst = STR_NULL;
+                return;
+        }
+
+        FieldWidth = -1;
+        if (IsNumeric(*Format)) {
+            FieldWidth = SkipAToI(&Format);
+        } else if (*Format == '*') {
+            Format++;
+            FieldWidth = VarArg(Args, int);
+            if (FieldWidth < 0) {
+                FieldWidth = -FieldWidth;
+                Flags |= PF_LEFT;
+            }
+        }
+
+        Precision = -1;
+        if (*Format == '.') {
+            Format++;
+            if (IsNumeric(*Format)) {
+                Precision = SkipAToI(&Format);
+            } else if (*Format == '*') {
+                Format++;
+                Precision = VarArg(Args, int);
+            }
+            if (Precision < 0) Precision = 0;
+        }
+
+        Qualifier = -1;
+        if (*Format == 'h' || *Format == 'l' || *Format == 'L') {
+            Qualifier = *Format;
+            Format++;
+        }
+
+        Base = 10;
+
+        switch (*Format) {
+            case 'c':
+                if (!(Flags & PF_LEFT)) {
+                    while (--FieldWidth > 0) *Dst++ = STR_SPACE;
+                }
+                *Dst++ = (STR)VarArg(Args, int);
+                while (--FieldWidth > 0) *Dst++ = STR_SPACE;
+                continue;
+
+            case 's':
+                Text = VarArg(Args, LPCSTR);
+                if (Text == NULL) Text = TEXT("<NULL>");
+
+                Length = StringLength(Text);
+                if (Precision >= 0 && Length > Precision) Length = Precision;
+
+                if (!(Flags & PF_LEFT)) {
+                    while (Length < FieldWidth--) *Dst++ = STR_SPACE;
+                }
+                for (i = 0; i < Length && Text[i] != STR_NULL; i++) {
+                    *Dst++ = Text[i];
+                }
+                while (Length < FieldWidth--) *Dst++ = STR_SPACE;
+                continue;
+
+            case 'p':
+                if (FieldWidth == -1) {
+                    FieldWidth = 2 * sizeof(void*);
+                    Flags |= PF_ZEROPAD | PF_LARGE;
+                }
+                goto HandleNumber;
+
+            case 'o':
+                Flags |= PF_SPECIAL;
+                Base = 8;
+                break;
+            case 'X':
+                Flags |= PF_SPECIAL | PF_LARGE;
+                Base = 16;
+                break;
+            case 'x':
+                Flags |= PF_SPECIAL;
+                Base = 16;
+                break;
+            case 'b':
+                Base = 2;
+                break;
+            case 'd':
+            case 'i':
+                Flags |= PF_SIGN;
+                break;
+            case 'u':
+                break;
+            default:
+                if (*Format != '%') *Dst++ = '%';
+                if (*Format) {
+                    *Dst++ = *Format;
+                } else {
+                    Format--;
+                }
+                continue;
+        }
+
+    HandleNumber:
+        if (Qualifier == 'l') {
+            Number = VarArg(Args, long);
+        } else if (Qualifier == 'h') {
+            Number = (Flags & PF_SIGN) ? (short)VarArg(Args, int) : (unsigned short)VarArg(Args, int);
+        } else {
+            Number = (Flags & PF_SIGN) ? VarArg(Args, int) : (unsigned int)VarArg(Args, unsigned int);
+        }
+
+        STR Temp[128];
+        NumberToString(Temp, Number, Base, FieldWidth, Precision, Flags);
+        for (i = 0; Temp[i] != STR_NULL; i++) {
+            *Dst++ = Temp[i];
+        }
+    }
+
+    *Dst = STR_NULL;
+}
+
+/***************************************************************************/
+
+void StringPrintFormat(LPSTR Destination, LPCSTR Format, ...) {
+    VarArgList Args;
+
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(Destination, Format, Args);
+    VarArgEnd(Args);
 }
 
 /***************************************************************************/

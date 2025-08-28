@@ -28,7 +28,6 @@
 /***************************************************************************/
 
 void InitKernelLog(void);
-void VarKernelPrintNumber(I32 Number, I32 Base, I32 FieldWidth, I32 Precision, I32 Flags);
 void KernelPrintString(LPCSTR Text);
 void KernelPrintStringNoMutex(LPCSTR Text);
 void KernelLogText(U32, LPCSTR, ...);
