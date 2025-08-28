@@ -4,9 +4,9 @@
 
 To be completed.
 
-## Startup sequence on HD (in qemu-system-i386)
+## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
-Everything in this sequence runs in 16 bits real mode on i386+ processors.
+Everything in this sequence runs in 16-bit real mode on i386+ processors.
 However, the code uses 32 bit registers when appropriate.
 
 1. BIOS loads disk MBR at 0x7C00.
