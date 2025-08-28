@@ -197,10 +197,7 @@ LPCSTR DetectKeyboard(void) {
     Id2 = InPortByte(KEYBOARD_DATA);
     RestoreFlags(&Flags);
 
-    if (Id2 == 0x83) {
-        return "fr-FR";
-    }
-    return "en-US";
+    return Id2;
 }
 
 /***************************************************************************/

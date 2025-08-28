@@ -326,7 +326,7 @@ static void SetKeyboardLayout(void) {
 
     Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
     if (Layout) {
-        ConsolePrint("Keboard = %s\n", Layout);
+        ConsolePrint(TEXT("Keboard = %s\n"), Layout);
         SelectKeyboard(Layout);
     }
 }

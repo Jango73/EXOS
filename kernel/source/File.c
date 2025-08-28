@@ -17,14 +17,11 @@
 /***************************************************************************/
 
 LPFILE OpenFile(LPFILEOPENINFO Info) {
-    STR Volume[MAX_FS_LOGICAL_NAME];
     FILEINFO Find;
     LPFILESYSTEM FileSystem = NULL;
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
-    U32 FoundFileSystem;
-    U32 Index;
 
     //-------------------------------------
     // Check validity of parameters
@@ -94,7 +91,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     // Get the name of the volume in which the file
     // is supposed to be located
 
-    KernelLogText(LOG_DEBUG, "[OpenFile] Searching for %s in file systems", Info->Name);
+    KernelLogText(LOG_DEBUG, TEXT("[OpenFile] Searching for %s in file systems"), Info->Name);
 
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
@@ -107,7 +104,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
         if (File != NULL) {
-            KernelLogText(LOG_DEBUG, "[OpenFile] Found %s in %s", Info->Name, FileSystem->Driver->Product);
+            KernelLogText(LOG_DEBUG, TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
 
             LockMutex(MUTEX_FILE, INFINITY);
 
