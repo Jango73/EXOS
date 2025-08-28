@@ -614,16 +614,16 @@ Kernel entry point after transitioning to protected mode.
 - KernelIdle: Idle loop executed when no tasks run.
 - KernelMain: Initializes the kernel and enters idle loop.
 
-### Memedit.c
+### MemoryEditor.c
 
 Interactive memory viewer used for debugging.
 
-#### Functions in Memedit.c
+#### Functions in MemoryEditor.c
 
 - PrintMemoryLine: Displays a single line of memory values.
 - PrintMemory: Dumps a series of memory lines.
 - PrintMemoryPage: Shows a page of memory on the console.
-- MemEdit: Lets the user scroll through memory addresses.
+- MemoryEditor: Lets the user scroll through memory addresses.
 
 ### Memory.c
 

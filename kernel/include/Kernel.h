@@ -182,10 +182,10 @@ void SetTSSDescriptorBase(LPTSSDESCRIPTOR Desc, U32 Base);
 void SetTSSDescriptorLimit(LPTSSDESCRIPTOR Desc, U32 Limit);
 
 /***************************************************************************/
-// Functions in MemEdit.c
+// Functions in MemoryEditor.c
 
 void PrintMemory(U32, U32);
-void MemEdit(U32);
+void MemoryEditor(U32);
 
 /***************************************************************************/
 // Functions in Edit.c

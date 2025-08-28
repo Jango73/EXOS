@@ -701,7 +701,7 @@ static void CMD_showtask(LPSHELLCONTEXT Context) {
 
 static void CMD_memedit(LPSHELLCONTEXT Context) {
     ParseNextComponent(Context);
-    MemEdit(StringToU32(Context->Command));
+    MemoryEditor(StringToU32(Context->Command));
 }
 
 /***************************************************************************/
