@@ -41,8 +41,8 @@ static BOOL CommandExit(LPEDITCONTEXT Context);
 static BOOL CommandSave(LPEDITCONTEXT Context);
 
 static EDITMENUITEM Menu[] = {
-    {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, "Exit", CommandExit},
-    {{VK_CONTROL, 0, 0}, {VK_S, 0, 0}, "Save", CommandSave},
+    {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, TEXT("Exit"), CommandExit},
+    {{VK_CONTROL, 0, 0}, {VK_S, 0, 0}, TEXT("Save"), CommandSave},
 };
 static const U32 MenuItems = sizeof(Menu) / sizeof(Menu[0]);
 

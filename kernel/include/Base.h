@@ -390,5 +390,47 @@ typedef U32 COLOR;
 #define ERROR_OUT_OF_MEMORY     0x0001
 
 /***************************************************************************/
+// 64 bits math
+
+// Make U64 from hi/lo
+inline U64 U64_Make(U32 hi, U32 lo) {
+    U64 v; v.HI = hi; v.LO = lo; return v;
+}
+
+// Add two U64
+inline U64 U64_Add(U64 a, U64 b) {
+    U64 r;
+    U32 lo = a.LO + b.LO;
+    U32 carry = (lo < a.LO) ? 1u : 0u;
+    r.LO = lo;
+    r.HI = a.HI + b.HI + carry;
+    return r;
+}
+
+// Subtract b from a
+inline U64 U64_Sub(U64 a, U64 b) {
+    U64 r;
+    U32 borrow = (a.LO < b.LO) ? 1u : 0u;
+    r.LO = a.LO - b.LO;
+    r.HI = a.HI - b.HI - borrow;
+    return r;
+}
+
+// Compare: return -1 if a<b, 0 if a==b, 1 if a>b
+inline int U64_Cmp(U64 a, U64 b) {
+    if (a.HI < b.HI) return -1;
+    if (a.HI > b.HI) return  1;
+    if (a.LO < b.LO) return -1;
+    if (a.LO > b.LO) return  1;
+    return 0;
+}
+
+// Convert U64 to 32-bit if <= 0xFFFFFFFF, else clip
+inline U32 U64_ToU32_Clip(U64 v) {
+    if (v.HI != 0) return 0xFFFFFFFFu;
+    return v.LO;
+}
+
+/***************************************************************************/
 
 #endif

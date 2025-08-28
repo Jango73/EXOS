@@ -150,11 +150,12 @@ struct Fat32BootSector BootSector;
 U8 FatBuffer[SectorSize];
 
 // NOTE: This should be high enough (e.g., up to 128 sectors) for large cluster sizes.
-// For minimal BIOS calls here we keep 8 sectors worth of buffer.
-U8 ClusterBuffer[SectorSize * 8];
+// For minimal BIOS calls here we keep 4 sectors worth of buffer.
+// Should allocate some memory outside the payload
+U8 ClusterBuffer[SectorSize * 4];
 
 // E820 memory map
-#define E820_MAX_ENTRIES 128
+#define E820_MAX_ENTRIES 64
 typedef struct __attribute__((packed)) {
     U64 Base;
     U64 Size;

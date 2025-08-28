@@ -113,6 +113,27 @@ static LINEAR G_TempLinear2 = 0;
 
 /***************************************************************************/
 
+static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
+
+    U64 limit = U64_Make(1, 0x00000000u);
+    if (len.HI == 0 && len.LO == 0) return 0;
+    if (U64_Cmp(base, limit) >= 0) return 0;
+    U64 end = U64_Add(base, len);
+    if (U64_Cmp(end, limit) > 0) end = limit;
+    U64 newLen = U64_Sub(end, base);
+
+    if (newLen.HI != 0) {
+        *outBase = base.LO;
+        *outLen  = 0xFFFFFFFFu - base.LO;
+    } else {
+        *outBase = base.LO;
+        *outLen  = newLen.LO;
+    }
+    return (*outLen != 0);
+}
+
+/***************************************************************************/
+
 static void SetPhysicalPageMark(U32 Page, U32 Used) {
     U32 Offset = 0;
     U32 Value = 0;
@@ -180,17 +201,38 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
 /************************************************************************/
 
 static void MarkUsedPhysicalMemory(void) {
+
     U32 Start = 0;
     U32 End = (N_4MB) >> PAGE_SIZE_MUL;
     SetPhysicalPageRangeMark(Start, End, 1);
 
-    for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
-        const E820ENTRY* Entry = &KernelStartup.E820[i];
-        if (Entry->Type != 1) {
-            U32 FirstPage = (U32)(Entry->Base >> PAGE_SIZE_MUL);
-            U32 PageCount = (U32)((Entry->Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
-            SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+    // Derive total memory size and number of pages from the E820 map
+    if (KernelStartup.E820_Count > 0) {
+        U32 MaxAddress = 0;
+
+        for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
+            const E820ENTRY* Entry = &KernelStartup.E820[i];
+            U32 Base = 0;
+            U32 Size = 0;
+
+            ClipTo32Bit(Entry->Base, Entry->Size, &Base, &Size);
+
+            U32 End = Base + Size;
+            if (End > MaxAddress) {
+                MaxAddress = End;
+            }
+
+            if (Entry->Type != 1) {
+                U32 FirstPage = (U32)(Base >> PAGE_SIZE_MUL);
+                U32 PageCount = (U32)((Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
+                SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+            }
         }
+
+        KernelStartup.MemorySize = (U32)MaxAddress;
+        KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+
+        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Memory size = %X"), KernelStartup.MemorySize);
     }
 }
 
@@ -1033,23 +1075,6 @@ void InitializeMemoryManager(void) {
     // Put the physical page bitmap at 2mb/2 = 1mb
     Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
-
-    // Derive total memory size and number of pages from the E820 map
-    if (KernelStartup.E820_Count > 0) {
-        U64 MaxAddress = 0;
-        for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
-            const E820ENTRY* Entry = &KernelStartup.E820[i];
-            U64 End = Entry->Base + Entry->Size;
-            if (End > MaxAddress) {
-                MaxAddress = End;
-            }
-        }
-        if (MaxAddress > 0xFFFFFFFFULL) {
-            MaxAddress = 0xFFFFFFFFULL;
-        }
-        KernelStartup.MemorySize = (U32)MaxAddress;
-        KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
-    }
 
     MarkUsedPhysicalMemory();
 
