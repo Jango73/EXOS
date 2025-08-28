@@ -57,6 +57,11 @@ typedef struct tag_FATFILE {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a FAT32 file system object.
+ * @param Disk Physical disk hosting the partition.
+ * @return Pointer to a new FAT32 file system or NULL on failure.
+ */
 static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
     LPFAT32FILESYSTEM This;
 
@@ -84,6 +89,12 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a FAT32 file handle.
+ * @param FileSystem Owning file system.
+ * @param FileLoc Initial file location information.
+ * @return Pointer to a new FATFILE or NULL on failure.
+ */
 static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
     LPFATFILE This;
 
@@ -111,6 +122,14 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
 /***************************************************************************/
 
+/**
+ * @brief Mount a FAT32 partition and register the file system.
+ * @param Disk Physical disk containing the partition.
+ * @param Partition Partition descriptor.
+ * @param Base Base sector offset.
+ * @param PartIndex Partition index for naming.
+ * @return TRUE on success, FALSE on failure.
+ */
 BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
@@ -196,6 +215,11 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
 
 /***************************************************************************/
 
+/**
+ * @brief Compute FAT32 short name checksum.
+ * @param Name 11-character short name.
+ * @return Calculated checksum value.
+ */
 static U32 GetNameChecksum(LPSTR Name) {
     U32 Checksum = 0;
     U32 Index = 0;
@@ -211,6 +235,13 @@ static U32 GetNameChecksum(LPSTR Name) {
 
 /***************************************************************************/
 
+/**
+ * @brief Read a cluster from disk into memory.
+ * @param FileSystem Target file system.
+ * @param Cluster Cluster number to read.
+ * @param Buffer Destination buffer.
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
@@ -240,6 +271,13 @@ static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
 
 /***************************************************************************/
 
+/**
+ * @brief Write a memory buffer to a specific cluster.
+ * @param FileSystem Target file system.
+ * @param Cluster Cluster number to write.
+ * @param Buffer Source buffer.
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
@@ -269,6 +307,12 @@ static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID B
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve the next cluster in a FAT chain.
+ * @param FileSystem Target file system.
+ * @param Cluster Current cluster in chain.
+ * @return Next cluster number or 0 on failure.
+ */
 static CLUSTER GetNextClusterInChain(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
     U32 Buffer[SECTOR_SIZE / sizeof(U32)];
     IOCONTROL Control;
@@ -303,6 +347,11 @@ static CLUSTER GetNextClusterInChain(LPFAT32FILESYSTEM FileSystem, CLUSTER Clust
 
 /***************************************************************************/
 
+/**
+ * @brief Search the FAT for a free cluster.
+ * @param FileSystem Target file system.
+ * @return Cluster number or 0 if none available.
+ */
 static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
     U32 Buffer[SECTOR_SIZE / sizeof(U32)];
     IOCONTROL Control;
@@ -438,6 +487,14 @@ static BOOL FindFreeFATEntry(LPFAT32FILESYSTEM FileSystem, U32* Sector,
 
 /***************************************************************************/
 
+/**
+ * @brief Populate a directory entry in a buffer.
+ * @param Buffer Directory sector buffer.
+ * @param Name 8.3 formatted name.
+ * @param Cluster Starting cluster of file.
+ * @param Attributes Attribute flags.
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL SetDirEntry(LPVOID Buffer, LPSTR Name, CLUSTER Cluster, U32 Attributes) {
     LPFATDIRENTRY_EXT DirEntry = NULL;
     LPFATDIRENTRY_LFN LFNEntry = NULL;
@@ -609,6 +666,14 @@ static BOOL SetDirEntry(LPVOID Buffer, LPSTR Name, CLUSTER Cluster, U32 Attribut
 
 /***************************************************************************/
 
+/**
+ * @brief Create a directory entry for a file or folder.
+ * @param FileSystem Target file system.
+ * @param FolderCluster Cluster of parent folder.
+ * @param Name 8.3 formatted name.
+ * @param Attributes Attribute flags.
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, LPSTR Name, U32 Attributes) {
     LPFATDIRENTRY_EXT DirEntry;
     LPFATDIRENTRY_EXT BaseEntry;
@@ -691,6 +756,12 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, 
 
 /***************************************************************************/
 
+/**
+ * @brief Append a new cluster to an existing chain.
+ * @param FileSystem Target file system.
+ * @param Cluster Current last cluster in chain.
+ * @return Number of new cluster or 0 on failure.
+ */
 static CLUSTER ChainNewCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
     U32 Buffer[SECTOR_SIZE / sizeof(U32)];
     IOCONTROL Control;
@@ -767,6 +838,11 @@ Next:
 
 /***************************************************************************/
 
+/**
+ * @brief Convert a FAT directory entry name to a null-terminated string.
+ * @param DirEntry Directory entry containing 8.3 name.
+ * @param Name Output buffer for decoded name.
+ */
 static void DecodeFileName(LPFATDIRENTRY_EXT DirEntry, LPSTR Name) {
     LPFATDIRENTRY_LFN LFNEntry = NULL;
     LPSTR LongName = Name;
@@ -825,6 +901,13 @@ static void DecodeFileName(LPFATDIRENTRY_EXT DirEntry, LPSTR Name) {
 
 /***************************************************************************/
 
+/**
+ * @brief Locate a file within the FAT32 file system.
+ * @param FileSystem Target file system.
+ * @param Path Path of the file to locate.
+ * @param FileLoc Output location information.
+ * @return TRUE on success, FALSE if not found.
+ */
 static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC FileLoc) {
     STR Component[MAX_FILE_NAME];
     STR Name[MAX_FILE_NAME];
@@ -929,6 +1012,11 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
 
 /***************************************************************************/
 
+/**
+ * @brief Populate file information from a directory entry.
+ * @param DirEntry Directory entry source.
+ * @param File Target FAT file object.
+ */
 static void TranslateFileInfo(LPFATDIRENTRY_EXT DirEntry, LPFATFILE File) {
     //-------------------------------------
     // Translate the attributes
@@ -973,10 +1061,19 @@ static void TranslateFileInfo(LPFATDIRENTRY_EXT DirEntry, LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the FAT32 driver.
+ * @return DF_ERROR_SUCCESS.
+ */
 static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 
+/**
+ * @brief Create a folder on the file system.
+ * @param File File information containing path and attributes.
+ * @return DF_ERROR_* code.
+ */
 static U32 CreateFolder(LPFILEINFO File) {
     LPFAT32FILESYSTEM FileSystem = NULL;
     FATFILELOC FileLoc;
@@ -1100,6 +1197,11 @@ static U32 CreateFolder(LPFILEINFO File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Delete a folder from the file system.
+ * @param File File information describing folder.
+ * @return DF_ERROR_* code.
+ */
 static U32 DeleteFolder(LPFILEINFO File) {
     UNUSED(File);
 
@@ -1108,6 +1210,11 @@ static U32 DeleteFolder(LPFILEINFO File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Rename a folder within the file system.
+ * @param File File information with old and new names.
+ * @return DF_ERROR_* code.
+ */
 static U32 RenameFolder(LPFILEINFO File) {
     UNUSED(File);
 
@@ -1116,6 +1223,11 @@ static U32 RenameFolder(LPFILEINFO File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Open a file for reading or writing.
+ * @param Find File information containing path.
+ * @return Handle to FAT file or NULL on failure.
+ */
 static LPFATFILE OpenFile(LPFILEINFO Find) {
     LPFAT32FILESYSTEM FileSystem = NULL;
     LPFATFILE File = NULL;
@@ -1149,6 +1261,11 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
 
 /***************************************************************************/
 
+/**
+ * @brief Advance to next directory entry during enumeration.
+ * @param File Current FAT file handle representing directory.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 OpenNext(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem = NULL;
     LPFATDIRENTRY_EXT DirEntry = NULL;
@@ -1200,6 +1317,11 @@ static U32 OpenNext(LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Close an open FAT32 file handle.
+ * @param File File handle to close.
+ * @return DF_ERROR_SUCCESS.
+ */
 static U32 CloseFile(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem;
     LPFATDIRENTRY_EXT DirEntry;
@@ -1237,6 +1359,11 @@ static U32 CloseFile(LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Read data from a file.
+ * @param File File handle with read parameters.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 ReadFile(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem;
     CLUSTER RelativeCluster;
@@ -1320,6 +1447,11 @@ static U32 ReadFile(LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write data to a file.
+ * @param File File handle with write parameters.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 WriteFile(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem;
     CLUSTER RelativeCluster;
@@ -1430,6 +1562,11 @@ static U32 WriteFile(LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new FAT32 partition on disk.
+ * @param Create Partition creation parameters.
+ * @return DF_ERROR_* code.
+ */
 static U32 CreatePartition(LPPARTITION_CREATION Create) {
     LPFAT32MBR Master = NULL;
 
@@ -1495,6 +1632,12 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
 /***************************************************************************/
 
+/**
+ * @brief Dispatch function for FAT32 driver commands.
+ * @param Function Requested driver function.
+ * @param Parameter Optional parameter pointer.
+ * @return DF_ERROR_* result code.
+ */
 U32 FAT32Commands(U32 Function, U32 Parameter) {
     switch (Function) {
         case DF_LOAD:

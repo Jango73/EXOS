@@ -14,6 +14,12 @@
 
 /***************************************************************************/
 
+/**
+ * @brief Determine executable format and fill information structure.
+ * @param File Open file handle.
+ * @param Info Output structure to populate.
+ * @return TRUE on success, FALSE on error or unknown format.
+ */
 BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
     FILEOPERATION FileOperation;
     U32 Signature;
@@ -49,6 +55,11 @@ BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Load an executable into memory based on its format.
+ * @param Load Parameters describing the load operation.
+ * @return TRUE on success, FALSE on failure.
+ */
 BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
     FILEOPERATION FileOperation;
     U32 Signature;

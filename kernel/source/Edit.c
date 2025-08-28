@@ -77,8 +77,11 @@ typedef struct tag_EDITCONTEXT {
     I32 Insert;
 } EDITCONTEXT, *LPEDITCONTEXT;
 
-/***************************************************************************/
-
+/**
+ * @brief Allocate a new editable line with a given capacity.
+ * @param Size Maximum number of characters in the line.
+ * @return Pointer to the newly created line or NULL on failure.
+ */
 LPEDITLINE NewEditLine(I32 Size) {
     LPEDITLINE This = (LPEDITLINE)HeapAlloc(sizeof(EDITLINE));
 
@@ -95,6 +98,10 @@ LPEDITLINE NewEditLine(I32 Size) {
 
 /***************************************************************************/
 
+/**
+ * @brief Free an editable line and its resources.
+ * @param This Line to destroy.
+ */
 void DeleteEditLine(LPEDITLINE This) {
     if (This == NULL) return;
 
@@ -104,10 +111,18 @@ void DeleteEditLine(LPEDITLINE This) {
 
 /***************************************************************************/
 
+/**
+ * @brief List destructor callback for edit lines.
+ * @param Item Item to delete.
+ */
 void EditLineDestructor(LPVOID Item) { DeleteEditLine((LPEDITLINE)Item); }
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new editable file instance.
+ * @return Pointer to a new EDITFILE or NULL on failure.
+ */
 LPEDITFILE NewEditFile(void) {
     LPEDITFILE This;
     LPEDITLINE Line;
@@ -136,6 +151,10 @@ LPEDITFILE NewEditFile(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Destroy an editable file and all contained lines.
+ * @param This File to delete.
+ */
 void DeleteEditFile(LPEDITFILE This) {
     if (This == NULL) return;
 
@@ -146,10 +165,18 @@ void DeleteEditFile(LPEDITFILE This) {
 
 /***************************************************************************/
 
+/**
+ * @brief List destructor callback for edit files.
+ * @param Item Item to delete.
+ */
 void EditFileDestructor(LPVOID Item) { DeleteEditFile((LPEDITFILE)Item); }
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate a new editor context.
+ * @return Pointer to a new EDITCONTEXT or NULL on failure.
+ */
 LPEDITCONTEXT NewEditContext(void) {
     LPEDITCONTEXT This = (LPEDITCONTEXT)HeapAlloc(sizeof(EDITCONTEXT));
     if (This == NULL) return NULL;
@@ -165,6 +192,10 @@ LPEDITCONTEXT NewEditContext(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Destroy an editor context and its files list.
+ * @param This Context to delete.
+ */
 void DeleteEditContext(LPEDITCONTEXT This) {
     if (This == NULL) return;
 
@@ -174,6 +205,10 @@ void DeleteEditContext(LPEDITCONTEXT This) {
 
 /***************************************************************************/
 
+/**
+ * @brief Ensure cursor and viewport positions remain within bounds.
+ * @param File File whose positions are validated.
+ */
 void CheckPositions(LPEDITFILE File) {
     I32 MinX = 0;
     I32 MinY = 0;
@@ -203,7 +238,9 @@ void CheckPositions(LPEDITFILE File) {
 
 /***************************************************************************/
 
-
+/**
+ * @brief Draw the editor menu at the bottom of the console.
+ */
 static void RenderMenu(void) {
     U32 Item;
     I32 Line;
@@ -234,6 +271,10 @@ static void RenderMenu(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Render the current file content to the console.
+ * @param File File to render.
+ */
 void Render(LPEDITFILE File) {
     LPLISTNODE Node;
     LPEDITLINE Line;
@@ -289,6 +330,11 @@ void Render(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handler for the exit command.
+ * @param Context Active editor context.
+ * @return TRUE to terminate the editor.
+ */
 static BOOL CommandExit(LPEDITCONTEXT Context) {
     UNUSED(Context);
     return TRUE;
@@ -296,6 +342,11 @@ static BOOL CommandExit(LPEDITCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Save the current file to disk.
+ * @param File File to save.
+ * @return TRUE on success, FALSE on error.
+ */
 static BOOL SaveFile(LPEDITFILE File) {
     FILEOPENINFO Info;
     FILEOPERATION Operation;
@@ -339,12 +390,23 @@ static BOOL SaveFile(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handler for the save command.
+ * @param Context Active editor context.
+ * @return TRUE if the file was saved.
+ */
 static BOOL CommandSave(LPEDITCONTEXT Context) {
     return SaveFile(Context->Current);
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Ensure a line has enough capacity for a given index.
+ * @param Line Line to check.
+ * @param Size Desired capacity.
+ * @return TRUE on success, FALSE if memory allocation failed.
+ */
 static BOOL CheckLineSize(LPEDITLINE Line, I32 Size) {
     LPSTR Text;
     I32 NewSize;
@@ -364,6 +426,11 @@ static BOOL CheckLineSize(LPEDITLINE Line, I32 Size) {
 
 /***************************************************************************/
 
+/**
+ * @brief Fill the current line with spaces up to the cursor position.
+ * @param File Active file.
+ * @param Line Line to modify.
+ */
 static void FillToCursor(LPEDITFILE File, LPEDITLINE Line) {
     I32 Index;
     I32 LineX;
@@ -379,6 +446,11 @@ static void FillToCursor(LPEDITFILE File, LPEDITLINE Line) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve the line under the current cursor.
+ * @param File File containing the line.
+ * @return Pointer to the current line or NULL.
+ */
 static LPEDITLINE GetCurrentLine(LPEDITFILE File) {
     I32 LineY = File->Top + File->Cursor.Y;
     return ListGetItem(File->Lines, LineY);
@@ -386,6 +458,11 @@ static LPEDITLINE GetCurrentLine(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Insert a character at the cursor position.
+ * @param File Active file.
+ * @param ASCIICode Character to insert.
+ */
 static void AddCharacter(LPEDITFILE File, STR ASCIICode) {
     LPEDITLINE Line;
     I32 Index;
@@ -429,6 +506,11 @@ static void AddCharacter(LPEDITFILE File, STR ASCIICode) {
 
 /***************************************************************************/
 
+/**
+ * @brief Remove a character relative to the cursor.
+ * @param File Active file.
+ * @param Flag 0 deletes before cursor, non-zero deletes at cursor.
+ */
 static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
     LPLISTNODE Node;
     LPEDITLINE Line;
@@ -491,6 +573,10 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
 
 /***************************************************************************/
 
+/**
+ * @brief Split the current line at the cursor position.
+ * @param File Active file.
+ */
 static void AddLine(LPEDITFILE File) {
     LPEDITLINE Line;
     LPEDITLINE NewLine;
@@ -558,6 +644,10 @@ static void AddLine(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Move cursor to the end of current line.
+ * @param File Active file.
+ */
 static void GotoEndOfLine(LPEDITFILE File) {
     LPEDITLINE Line;
 
@@ -569,6 +659,10 @@ static void GotoEndOfLine(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Move cursor to the start of current line.
+ * @param File Active file.
+ */
 static void GotoStartOfLine(LPEDITFILE File) {
     File->Left = 0;
     File->Cursor.X = 0;
@@ -576,6 +670,11 @@ static void GotoStartOfLine(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Main editor loop handling user input.
+ * @param Context Editor context.
+ * @return Exit code.
+ */
 static I32 Loop(LPEDITCONTEXT Context) {
     KEYCODE KeyCode;
     U32 Item;
@@ -657,6 +756,12 @@ static I32 Loop(LPEDITCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Load a text file into the editor.
+ * @param Context Editor context.
+ * @param Name Path of the file to open.
+ * @return TRUE on success, FALSE on error.
+ */
 static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
     FILEOPENINFO Info;
     FILEOPERATION FileOperation;
@@ -756,6 +861,12 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
 
 /***************************************************************************/
 
+/**
+ * @brief Entry point for the text editor utility.
+ * @param NumArguments Number of command line arguments.
+ * @param Arguments Array of argument strings.
+ * @return 0 on success or error code.
+ */
 U32 Edit(U32 NumArguments, LPCSTR* Arguments) {
     LPEDITCONTEXT Context;
     LPEDITFILE File;

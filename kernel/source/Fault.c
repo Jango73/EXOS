@@ -20,12 +20,21 @@
 /************************************************************************/
 // Fault logging helpers (selector-aware)
 
+/**
+ * @brief Print a 32-bit hexadecimal number using kernel facilities.
+ * @param Number Value to display.
+ */
 static void KernelPrintHex(U32 Number) {
     STR Text[32];
     StringPrintFormat(Text, TEXT("%X"), Number);
     KernelPrintString(Text);
 }
 
+/**
+ * @brief Log a segment selector extracted from an error code.
+ * @param Prefix Text prefix for the log entry.
+ * @param Err Raw error code containing a selector.
+ */
 static void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
     U16 sel = (U16)(Err & 0xFFFFu);
     U16 idx = SELECTOR_INDEX(sel);
@@ -39,6 +48,11 @@ static void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
 
 /************************************************************************/
 
+/**
+ * @brief Dump descriptor and TSS information for a selector.
+ * @param Prefix Text prefix for the log entry.
+ * @param Sel Segment selector value.
+ */
 static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
     U16 ti = SELECTOR_TI(Sel);
     U16 idx = SELECTOR_INDEX(Sel);
@@ -60,6 +74,9 @@ static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
 
 /************************************************************************/
 
+/**
+ * @brief Log the current task register value.
+ */
 static void LogTR(void) {
     SELECTOR tr = GetTaskRegister();
 
@@ -70,6 +87,10 @@ static void LogTR(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Log register state for a task at fault.
+ * @param Frame Interrupt frame with register snapshot.
+ */
 static void DumpFrame(LPINTERRUPTFRAME Frame) {
     LPPROCESS Process;
     LPTASK Task;
@@ -89,6 +110,9 @@ static void DumpFrame(LPINTERRUPTFRAME Frame) {
 
 /************************************************************************/
 
+/**
+ * @brief Log detailed register state of the current task.
+ */
 static void PrintFaultDetails(void) {
     INTEL386REGISTERS Regs;
     LPPROCESS Process;
@@ -114,6 +138,9 @@ static void PrintFaultDetails(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Terminate the current task and halt if necessary.
+ */
 static void Die(void) {
     LPTASK Task;
 
@@ -143,6 +170,10 @@ static void Die(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Validate an instruction pointer and terminate on failure.
+ * @param Address Linear address to check.
+ */
 void ValidateEIPOrDie(LINEAR Address) {
     if (IsValidMemory(Address) == FALSE) {
         Die();
@@ -151,6 +182,10 @@ void ValidateEIPOrDie(LINEAR Address) {
 
 /************************************************************************/
 
+/**
+ * @brief Handle unknown interrupts.
+ * @param Frame Interrupt frame context.
+ */
 void DefaultHandler(LPINTERRUPTFRAME Frame) {
     KernelPrintString(Text_Separator);
     KernelLogText(LOG_ERROR, TEXT("Unknown interrupt"));
@@ -160,6 +195,10 @@ void DefaultHandler(LPINTERRUPTFRAME Frame) {
 
 /************************************************************************/
 
+/**
+ * @brief Handle divide-by-zero faults.
+ * @param Frame Interrupt frame context.
+ */
 void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Divide error"));
     DumpFrame(Frame);
@@ -201,6 +240,9 @@ static inline unsigned char ReadCurrentTSSTrapByte(void) {
     return *(volatile unsigned char*)(unsigned long)(base + 0x64);
 }
 
+/**
+ * @brief Minimal debug handler probe showing TSS trap byte.
+ */
 void DebugExceptionHandler_MinProbe(void) {
     GDTR32 gd;
     Sgdt(&gd);
@@ -217,6 +259,10 @@ void DebugExceptionHandler_MinProbe(void) {
     KernelPrintString(Text_NewLine);
 }
 
+/**
+ * @brief Determine if a debug exception is a spurious task switch.
+ * @return 1 if spurious, otherwise 0.
+ */
 static int IsSpuriousTaskSwitchDB(void) {
     U32 dr6 = GetDR6();
     U32 dr7 = GetDR7();
@@ -234,6 +280,10 @@ static int IsSpuriousTaskSwitchDB(void) {
     return 1;
 }
 
+/**
+ * @brief Handle debug exceptions and log diagnostic information.
+ * @param Frame Interrupt frame context.
+ */
 void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     LPTASK Task = GetCurrentTask();
 
@@ -305,6 +355,10 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
 
 /************************************************************************/
 
+/**
+ * @brief Handle non-maskable interrupts.
+ * @param Frame Interrupt frame context.
+ */
 void NMIHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Non-maskable interrupt"));
     DumpFrame(Frame);
@@ -312,6 +366,10 @@ void NMIHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle breakpoint exceptions.
+ * @param Frame Interrupt frame context.
+ */
 void BreakPointHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Breakpoint"));
     DumpFrame(Frame);
@@ -320,6 +378,10 @@ void BreakPointHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle overflow exceptions.
+ * @param Frame Interrupt frame context.
+ */
 void OverflowHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Overflow"));
     DumpFrame(Frame);
@@ -328,6 +390,10 @@ void OverflowHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle bound range exceeded faults.
+ * @param Frame Interrupt frame context.
+ */
 void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Bound range fault"));
     DumpFrame(Frame);
@@ -336,6 +402,10 @@ void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle invalid opcode faults.
+ * @param Frame Interrupt frame context.
+ */
 void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Invalid opcode"));
     DumpFrame(Frame);
@@ -344,6 +414,10 @@ void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle device-not-available faults.
+ * @param Frame Interrupt frame context.
+ */
 void DeviceNotAvailHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Device not available"));
     DumpFrame(Frame);
@@ -351,6 +425,10 @@ void DeviceNotAvailHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle double fault exceptions.
+ * @param Frame Interrupt frame context.
+ */
 void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Double fault"));
     DumpFrame(Frame);
@@ -359,6 +437,10 @@ void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle math overflow exceptions.
+ * @param Frame Interrupt frame context.
+ */
 void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Math overflow"));
     DumpFrame(Frame);
@@ -367,6 +449,10 @@ void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle invalid TSS faults.
+ * @param Frame Interrupt frame context.
+ */
 void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Invalid TSS"));
 
@@ -382,6 +468,10 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle segment not present faults.
+ * @param Frame Interrupt frame context.
+ */
 void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Segment fault"));
 
@@ -397,6 +487,10 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle stack fault exceptions.
+ * @param Frame Interrupt frame context.
+ */
 void StackFaultHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Stack fault"));
 
@@ -412,6 +506,10 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Log details of a general protection fault error code.
+ * @param err Raw error code value.
+ */
 static void LogGPError(U32 err) {
     KernelPrintString(TEXT("[#GP] err="));
     KernelPrintHex(err);
@@ -429,6 +527,10 @@ static void LogGPError(U32 err) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle general protection faults.
+ * @param Frame Interrupt frame context.
+ */
 void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("General protection fault"));
 
@@ -448,6 +550,12 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle page fault exceptions.
+ * @param ErrorCode Fault error code.
+ * @param Address Faulting linear address.
+ * @param Eip Instruction pointer where fault occurred.
+ */
 void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
     LPTASK Task = GetCurrentTask();
     INTEL386REGISTERS Regs;
@@ -469,6 +577,10 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
 
 /***************************************************************************/
 
+/**
+ * @brief Handle alignment check faults.
+ * @param Frame Interrupt frame context.
+ */
 void AlignmentCheckHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Alignment check fault"));
     if (Frame) {
