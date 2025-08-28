@@ -179,6 +179,23 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
 
 /************************************************************************/
 
+static void MarkUsedPhysicalMemory(void) {
+    U32 Start = 0;
+    U32 End = (N_4MB) >> PAGE_SIZE_MUL;
+    SetPhysicalPageRangeMark(Start, End, 1);
+
+    for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
+        const E820ENTRY* Entry = &KernelStartup.E820[i];
+        if (Entry->Type != 1) {
+            U32 FirstPage = (U32)(Entry->Base >> PAGE_SIZE_MUL);
+            U32 PageCount = (U32)((Entry->Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
+            SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+        }
+    }
+}
+
+/************************************************************************/
+
 /* Allocate one free physical page and mark it used in PPB.
    Returns the physical address (page-aligned) or 0 on failure. */
 PHYSICAL AllocPhysicalPage(void) {
@@ -1017,10 +1034,7 @@ void InitializeMemoryManager(void) {
     Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
 
-    // Mark low 4mb as used
-    U32 Start = 0;
-    U32 End = (N_4MB) >> PAGE_SIZE_MUL;
-    SetPhysicalPageRangeMark(Start, End, 1);
+    MarkUsedPhysicalMemory();
 
     // Reserve two temporary linear pages (not committed). They will be remapped on demand.
     G_TempLinear1 = 0xC0100000;  // VA dans kernel space, dir=768

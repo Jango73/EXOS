@@ -33,6 +33,7 @@ global BiosReadSectors
 global MemorySet
 global MemoryCopy
 global StubJumpToImage
+global BiosGetMemoryMap
 
 extern BootMain
 
@@ -245,6 +246,64 @@ MemoryCopy :
     ret
 
 ;-------------------------------------------------------------------------
+; BiosGetMemoryMap
+; In : EBP+8 = buffer (seg:ofs packed)
+;      EBP+12 = max entries
+; Out: EAX = entry count
+;-------------------------------------------------------------------------
+
+BiosGetMemoryMap:
+    push    ebp
+    mov     ebp, esp
+    push    esi
+    push    edi
+    push    ebx
+    push    ecx
+    push    edx
+
+    mov     eax, [ebp+8]
+    mov     di, ax
+    shr     eax, 16
+    mov     es, ax
+    mov     esi, [ebp+12]
+    xor     ebx, ebx
+
+.loop:
+    mov     eax, 0xE820
+    mov     edx, 0x534D4150
+    mov     ecx, 24
+    int     0x15
+    jc      .error
+    cmp     eax, 0x534D4150
+    jne     .error
+    add     di, 24
+    dec     esi
+    jz      .done
+    cmp     ebx, 0
+    jne     .loop
+
+.done:
+    mov     eax, [ebp+12]
+    sub     eax, esi
+    jmp     .return
+
+.error:
+    mov     si, Text_E820Error
+    call    PrintString
+    cli
+    hlt
+    jmp     .error
+
+.return:
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     edi
+    pop     esi
+    pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
 ; PrintChar
 ; In : AL = character to write
 ;-------------------------------------------------------------------------
@@ -421,9 +480,11 @@ ProtectedEntryPoint:
     mov         cr0, eax
     jmp         $+2                ; Pipeline flush
 
-    mov         ecx, [ebp + 16]    ; KernelEntryVA
+    mov         edx, [ebp + 16]    ; KernelEntryVA
+    mov         esi, [ebp + 20]    ; E820 map pointer
+    mov         ecx, [ebp + 24]    ; E820 entry count
     mov         eax, KERNEL_LOAD_ADDRESS
-    jmp         ecx
+    jmp         edx
 
     hlt
 .hang:
@@ -442,6 +503,7 @@ Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
 Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",0
 Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
+Text_E820Error: db "[VBR C Stub] E820 call failed",0
 Text_NewLine: db 10,13,0
 
 ;-------------------------------------------------------------------------

@@ -39,7 +39,8 @@ __asm__(".code16gcc");
 extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 extern void MemorySet(LPVOID Base, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
-extern void __attribute__((noreturn)) StubJumpToImage(U32 PageDirectoryPA, U32 KernelEntryVA, U32 GDTR);
+extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
+extern void __attribute__((noreturn)) StubJumpToImage(U32 GDTR, U32 PageDirectoryPA, U32 KernelEntryVA, U32 MapPtr, U32 MapCount);
 
 /************************************************************************/
 // Functions in this module
@@ -151,6 +152,22 @@ U8 FatBuffer[SectorSize];
 // NOTE: This should be high enough (e.g., up to 128 sectors) for large cluster sizes.
 // For minimal BIOS calls here we keep 8 sectors worth of buffer.
 U8 ClusterBuffer[SectorSize * 8];
+
+// E820 memory map
+#define E820_MAX_ENTRIES 128
+typedef struct __attribute__((packed)) {
+    U64 Base;
+    U64 Size;
+    U32 Type;
+    U32 Attributes;
+} E820ENTRY;
+
+static E820ENTRY E820_Map[E820_MAX_ENTRIES];
+static U32 E820_EntryCount = 0;
+
+static void RetrieveMemoryMap(void) {
+    E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
+}
 
 /************************************************************************/
 // Low-level I/O + A20
@@ -268,6 +285,7 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 
 void BootMain(U32 BootDrive, U32 Fat32Lba) {
     InitDebug();
+    RetrieveMemoryMap();
     DebugPrint(TEXT("[VBR] Loading and running binary OS at "));
     NumberToString(TempString, LoadAddress_Seg, 16, 0, 0, PF_SPECIAL);
     DebugPrint(TempString);
@@ -680,7 +698,7 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
         __asm__ __volatile__("nop");
     }
 
-    StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA);
+    StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA, (U32)E820_Map, E820_EntryCount);
 
     __builtin_unreachable();
 }
