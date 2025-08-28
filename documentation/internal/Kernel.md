@@ -539,7 +539,7 @@ Core initialization and debugging utilities for the kernel.
 - LogRegisters: Displays the CPU register state.
 - GetCPUInformation: Reads processor name and features.
 - ClockTask: Periodic task that updates the clock and mouse.
-- DumpSystemInformation: Logs CPU and memory information.
+- Welcome: Prints some basic information and the welcome text.
 - InitializePhysicalPageBitmap: Marks kernel pages as used.
 - InitializeFileSystems: Mounts all detected file systems.
 - GetPhysicalMemoryUsed: Returns the number of used bytes.

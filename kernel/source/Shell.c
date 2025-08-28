@@ -312,7 +312,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
             }
         }
 
-        Sleep(100);
+        Sleep(50);
     }
 }
 

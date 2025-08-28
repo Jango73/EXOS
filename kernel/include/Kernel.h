@@ -159,7 +159,6 @@ typedef struct tag_KERNELDATA {
 extern KERNELDATA Kernel;
 
 /***************************************************************************/
-
 // Functions in Kernel.c
 
 LPVOID HeapAlloc(U32);
@@ -169,11 +168,9 @@ BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
-void ReadKernelConfiguration(void);
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
 
 /***************************************************************************/
-
 // Functions in Segment.c
 
 void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR, U32);
@@ -185,14 +182,12 @@ void SetTSSDescriptorBase(LPTSSDESCRIPTOR Desc, U32 Base);
 void SetTSSDescriptorLimit(LPTSSDESCRIPTOR Desc, U32 Limit);
 
 /***************************************************************************/
-
 // Functions in MemEdit.c
 
 void PrintMemory(U32, U32);
 void MemEdit(U32);
 
 /***************************************************************************/
-
 // Functions in Edit.c
 
 U32 Edit(U32, LPCSTR*);

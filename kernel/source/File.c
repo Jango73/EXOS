@@ -1,11 +1,9 @@
 
-// File.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -231,7 +229,6 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
     Result = File->FileSystem->Driver->Command(DF_FS_READ, (U32)File);
 
     if (Result == DF_ERROR_SUCCESS) {
-        // File->Position += File->BytesRead;
         BytesRead = File->BytesRead;
     }
 
@@ -269,7 +266,6 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
     Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (U32)File);
 
     if (Result == DF_ERROR_SUCCESS) {
-        // File->Position += File->BytesRead;
         BytesWritten = File->BytesRead;
     }
 
@@ -306,40 +302,42 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
     LPFILE File = NULL;
     LPVOID Buffer = NULL;
 
-    //-------------------------------------
-    // Check validity of parameters
+    KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] Name = %s"), Name);
 
-    if (Name == NULL) return NULL;
-    if (Size == NULL) return NULL;
+    SAFE_USE_2(Name, Size) {
+        //-------------------------------------
+        // Open the file
 
-    //-------------------------------------
-    // Open the file
+        OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+        OpenInfo.Name = (LPSTR)Name;
+        OpenInfo.Flags = FILE_OPEN_READ;
+        File = OpenFile(&OpenInfo);
 
-    OpenInfo.Header.Size = sizeof(FILEOPENINFO);
-    OpenInfo.Name = (LPSTR)Name;
-    OpenInfo.Flags = FILE_OPEN_READ;
-    File = OpenFile(&OpenInfo);
+        if (File == NULL) return NULL;
 
-    if (File == NULL) return NULL;
+        KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] File found"));
 
-    //-------------------------------------
-    // Allocate buffer and read content
+        //-------------------------------------
+        // Allocate buffer and read content
 
-    *Size = GetFileSize(File);
-    Buffer = HeapAlloc(*Size + 1);
+        *Size = GetFileSize(File);
+        Buffer = HeapAlloc(*Size + 1);
 
-    if (Buffer != NULL) {
-        FileOp.Header.Size = sizeof(FILEOPERATION);
-        FileOp.File = (HANDLE)File;
-        FileOp.Buffer = Buffer;
-        FileOp.NumBytes = *Size;
-        ReadFile(&FileOp);
-        ((LPSTR)Buffer)[*Size] = STR_NULL;
+        if (Buffer != NULL) {
+            FileOp.Header.Size = sizeof(FILEOPERATION);
+            FileOp.File = (HANDLE)File;
+            FileOp.Buffer = Buffer;
+            FileOp.NumBytes = *Size;
+            ReadFile(&FileOp);
+            ((LPSTR)Buffer)[*Size] = STR_NULL;
+        }
+
+        CloseFile(File);
+
+        return Buffer;
     }
 
-    CloseFile(File);
-
-    return Buffer;
+    return NULL;
 }
 
 /***************************************************************************/
@@ -350,34 +348,34 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
     LPFILE File = NULL;
     U32 BytesWritten = 0;
 
-    //-------------------------------------
-    // Check validity of parameters
+    KernelLogText(LOG_VERBOSE, TEXT("[FileWriteAll] Name"));
 
-    if (Name == NULL) return 0;
-    if (Buffer == NULL) return 0;
+    SAFE_USE_2(Name, Buffer) {
+        //-------------------------------------
+        // Open the file
 
-    //-------------------------------------
-    // Open the file
+        OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+        OpenInfo.Name = (LPSTR)Name;
+        OpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+        File = OpenFile(&OpenInfo);
 
-    OpenInfo.Header.Size = sizeof(FILEOPENINFO);
-    OpenInfo.Name = (LPSTR)Name;
-    OpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
-    File = OpenFile(&OpenInfo);
+        if (File == NULL) return 0;
 
-    if (File == NULL) return 0;
+        //-------------------------------------
+        // Write the buffer to the file
 
-    //-------------------------------------
-    // Write the buffer to the file
+        FileOp.Header.Size = sizeof(FILEOPERATION);
+        FileOp.File = (HANDLE)File;
+        FileOp.Buffer = (LPVOID)Buffer;
+        FileOp.NumBytes = Size;
+        BytesWritten = WriteFile(&FileOp);
 
-    FileOp.Header.Size = sizeof(FILEOPERATION);
-    FileOp.File = (HANDLE)File;
-    FileOp.Buffer = (LPVOID)Buffer;
-    FileOp.NumBytes = Size;
-    BytesWritten = WriteFile(&FileOp);
+        CloseFile(File);
 
-    CloseFile(File);
+        return BytesWritten;
+    }
 
-    return BytesWritten;
+    return 0;
 }
 
 /***************************************************************************/

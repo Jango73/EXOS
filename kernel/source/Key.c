@@ -158,46 +158,6 @@ KEYTRANS ScanCodeToKeyCode_fr[128] = {
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 126
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 127
 };
-static KEYNAME KeyNames[] = {
-    {VK_NONE, "NONE"},
-    {VK_F1, "F1"}, {VK_F2, "F2"}, {VK_F3, "F3"}, {VK_F4, "F4"},
-    {VK_F5, "F5"}, {VK_F6, "F6"}, {VK_F7, "F7"}, {VK_F8, "F8"},
-    {VK_F9, "F9"}, {VK_F10, "F10"}, {VK_F11, "F11"}, {VK_F12, "F12"},
-    {VK_0, "0"}, {VK_1, "1"}, {VK_2, "2"}, {VK_3, "3"}, {VK_4, "4"},
-    {VK_5, "5"}, {VK_6, "6"}, {VK_7, "7"}, {VK_8, "8"}, {VK_9, "9"},
-    {VK_A, "A"}, {VK_B, "B"}, {VK_C, "C"}, {VK_D, "D"}, {VK_E, "E"},
-    {VK_F, "F"}, {VK_G, "G"}, {VK_H, "H"}, {VK_I, "I"}, {VK_J, "J"},
-    {VK_K, "K"}, {VK_L, "L"}, {VK_M, "M"}, {VK_N, "N"}, {VK_O, "O"},
-    {VK_P, "P"}, {VK_Q, "Q"}, {VK_R, "R"}, {VK_S, "S"}, {VK_T, "T"},
-    {VK_U, "U"}, {VK_V, "V"}, {VK_W, "W"}, {VK_X, "X"}, {VK_Y, "Y"},
-    {VK_Z, "Z"},
-    {VK_DOT, "."}, {VK_COLON, ":"}, {VK_COMMA, ","}, {VK_UNDERSCORE, "_"},
-    {VK_STAR, "*"}, {VK_PERCENT, "%"}, {VK_EQUAL, "="}, {VK_PLUS, "+"},
-    {VK_MINUS, "-"}, {VK_SLASH, "/"}, {VK_BACKSLASH, "\\"}, {VK_QUESTION, "?"},
-    {VK_EXCL, "!"}, {VK_DOLLAR, "$"}, {VK_AT, "@"},
-    {VK_SPACE, "SPACE"}, {VK_ENTER, "ENTER"}, {VK_ESCAPE, "ESC"},
-    {VK_SHIFT, "SHFT"}, {VK_LSHIFT, "LSHF"}, {VK_RSHIFT, "RSHF"},
-    {VK_CONTROL, "CTRL"}, {VK_LCTRL, "LCTL"}, {VK_RCTRL, "RCTL"},
-    {VK_ALT, "ALT"}, {VK_LALT, "LALT"}, {VK_RALT, "RALT"},
-    {VK_TAB, "TAB"}, {VK_BACKSPACE, "BKSP"}, {VK_INSERT, "INS"},
-    {VK_DELETE, "DEL"}, {VK_HOME, "HOME"}, {VK_END, "END"},
-    {VK_PAGEUP, "PGUP"}, {VK_PAGEDOWN, "PGDN"}, {VK_UP, "UP"},
-    {VK_DOWN, "DOWN"}, {VK_LEFT, "LEFT"}, {VK_RIGHT, "RIGHT"},
-    {VK_NUM, "NUM"}, {VK_CAPS, "CAPS"}, {VK_SCROLL, "SCRL"}, {VK_PAUSE, "PAUS"}
-};
-
-LPCSTR GetKeyName(U8 VirtualKey) {
-    U32 Index;
-
-    for (Index = 0; Index < sizeof(KeyNames) / sizeof(KEYNAME); Index++) {
-        if (KeyNames[Index].VirtualKey == VirtualKey) {
-            return KeyNames[Index].String;
-        }
-    }
-
-    return "";
-}
-
 
 /***************************************************************************/
 
@@ -332,10 +292,14 @@ KEYTRANS ScanCodeToKeyCode_enUS[128] = {
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                // 127
 };
 
+/***************************************************************************/
+
 KEYBOARDLAYOUT ScanCodeToKeyCode[] = {
     {"fr-FR", ScanCodeToKeyCode_fr},
     {"en-US", ScanCodeToKeyCode_enUS}
 };
+
+/***************************************************************************/
 
 LPKEYTRANS GetScanCodeToKeyCode(LPCSTR Code) {
     U32 Index;
@@ -349,3 +313,46 @@ LPKEYTRANS GetScanCodeToKeyCode(LPCSTR Code) {
     return NULL;
 }
 
+/***************************************************************************/
+
+static KEYNAME KeyNames[] = {
+    {VK_NONE, "NONE"},
+    {VK_F1, "F1"}, {VK_F2, "F2"}, {VK_F3, "F3"}, {VK_F4, "F4"},
+    {VK_F5, "F5"}, {VK_F6, "F6"}, {VK_F7, "F7"}, {VK_F8, "F8"},
+    {VK_F9, "F9"}, {VK_F10, "F10"}, {VK_F11, "F11"}, {VK_F12, "F12"},
+    {VK_0, "0"}, {VK_1, "1"}, {VK_2, "2"}, {VK_3, "3"}, {VK_4, "4"},
+    {VK_5, "5"}, {VK_6, "6"}, {VK_7, "7"}, {VK_8, "8"}, {VK_9, "9"},
+    {VK_A, "A"}, {VK_B, "B"}, {VK_C, "C"}, {VK_D, "D"}, {VK_E, "E"},
+    {VK_F, "F"}, {VK_G, "G"}, {VK_H, "H"}, {VK_I, "I"}, {VK_J, "J"},
+    {VK_K, "K"}, {VK_L, "L"}, {VK_M, "M"}, {VK_N, "N"}, {VK_O, "O"},
+    {VK_P, "P"}, {VK_Q, "Q"}, {VK_R, "R"}, {VK_S, "S"}, {VK_T, "T"},
+    {VK_U, "U"}, {VK_V, "V"}, {VK_W, "W"}, {VK_X, "X"}, {VK_Y, "Y"},
+    {VK_Z, "Z"},
+    {VK_DOT, "."}, {VK_COLON, ":"}, {VK_COMMA, ","}, {VK_UNDERSCORE, "_"},
+    {VK_STAR, "*"}, {VK_PERCENT, "%"}, {VK_EQUAL, "="}, {VK_PLUS, "+"},
+    {VK_MINUS, "-"}, {VK_SLASH, "/"}, {VK_BACKSLASH, "\\"}, {VK_QUESTION, "?"},
+    {VK_EXCL, "!"}, {VK_DOLLAR, "$"}, {VK_AT, "@"},
+    {VK_SPACE, "SPACE"}, {VK_ENTER, "ENTER"}, {VK_ESCAPE, "ESC"},
+    {VK_SHIFT, "SHFT"}, {VK_LSHIFT, "LSHF"}, {VK_RSHIFT, "RSHF"},
+    {VK_CONTROL, "CTRL"}, {VK_LCTRL, "LCTL"}, {VK_RCTRL, "RCTL"},
+    {VK_ALT, "ALT"}, {VK_LALT, "LALT"}, {VK_RALT, "RALT"},
+    {VK_TAB, "TAB"}, {VK_BACKSPACE, "BKSP"}, {VK_INSERT, "INS"},
+    {VK_DELETE, "DEL"}, {VK_HOME, "HOME"}, {VK_END, "END"},
+    {VK_PAGEUP, "PGUP"}, {VK_PAGEDOWN, "PGDN"}, {VK_UP, "UP"},
+    {VK_DOWN, "DOWN"}, {VK_LEFT, "LEFT"}, {VK_RIGHT, "RIGHT"},
+    {VK_NUM, "NUM"}, {VK_CAPS, "CAPS"}, {VK_SCROLL, "SCRL"}, {VK_PAUSE, "PAUS"}
+};
+
+/***************************************************************************/
+
+LPCSTR GetKeyName(U8 VirtualKey) {
+    U32 Index;
+
+    for (Index = 0; Index < sizeof(KeyNames) / sizeof(KEYNAME); Index++) {
+        if (KeyNames[Index].VirtualKey == VirtualKey) {
+            return KeyNames[Index].String;
+        }
+    }
+
+    return "";
+}

@@ -272,15 +272,15 @@ void DumpCriticalInformation(void) {
 
 /***************************************************************************/
 
-void DumpSystemInformation(void) {
-    KernelLogText(LOG_VERBOSE, TEXT("DumpSystemInformation"));
-
+static void Welcome(void) {
     //-------------------------------------
     // Print information on computer
 
+    /*
     ConsolePrint(TEXT("Computer ID : "));
     ConsolePrint(Kernel.CPU.Name);
     ConsolePrint(Text_NewLine);
+    */
 
     //-------------------------------------
     // Print information on memory
@@ -289,11 +289,15 @@ void DumpSystemInformation(void) {
     ConsolePrint(Text_Space);
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
+
+    ConsolePrint(Text_OSTitle);
 }
 
 /***************************************************************************/
 
-void ReadKernelConfiguration(void) {
+static void ReadKernelConfiguration(void) {
+    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Enter"));
+
     U32 Size = 0;
     LPVOID Buffer = FileReadAll(TEXT("exos.cfg"), &Size);
 
@@ -304,6 +308,26 @@ void ReadKernelConfiguration(void) {
     if (Buffer != NULL) {
         Kernel.Configuration = TomlParse((LPCSTR)Buffer);
         HeapFree(Buffer);
+    }
+
+    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Exit"));
+}
+
+/***************************************************************************/
+
+static void SetKeyboardLayout(void) {
+    KernelLogText(LOG_VERBOSE, TEXT("[SetKeyboardLayout] Enter"));
+
+    LPCSTR Layout;
+
+    if (Kernel.Configuration == NULL) {
+        ReadKernelConfiguration();
+    }
+
+    Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
+    if (Layout) {
+        ConsolePrint("Keboard = %s\n", Layout);
+        SelectKeyboard(Layout);
     }
 }
 
@@ -441,18 +465,11 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Keyboard initialized"));
 
-    SelectKeyboard(DetectKeyboard());
-
     //-------------------------------------
     // Initialize the mouse
 
     LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Mouse initialized"));
-
-    //-------------------------------------
-    // Print system infomation
-
-    DumpSystemInformation();
 
     //-------------------------------------
     // Get information on CPU
@@ -475,8 +492,8 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Read kernel configuration
 
-    // ReadKernelConfiguration();
-    // KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
+    ReadKernelConfiguration();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
 
     //-------------------------------------
     // Initialize the file systems
@@ -503,11 +520,15 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
 
     //-------------------------------------
+    // Set keyboard mapping
+
+    SetKeyboardLayout();
+
+    //-------------------------------------
     // Print the EXOS banner
 
-    ConsolePrint(Text_OSTitle);
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] OS title printed"));
+    Welcome();
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Welcome called"));
 
     //-------------------------------------
     // Test tasks
