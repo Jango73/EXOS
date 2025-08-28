@@ -7,8 +7,8 @@
 
 \***************************************************************************/
 
-#ifndef EXT4_H_INCLUDED
-#define EXT4_H_INCLUDED
+#ifndef EXT2_H_INCLUDED
+#define EXT2_H_INCLUDED
 
 /***************************************************************************/
 
@@ -22,23 +22,23 @@
 /***************************************************************************/
 // EXT4 Super Block
 
-typedef struct tag_EXT4SUPER {
+typedef struct tag_EXT2SUPER {
     // TODO
-} EXT4SUPER, *LPEXT4SUPER;
+} EXT2SUPER, *LPEXT2SUPER;
 
 /***************************************************************************/
 // EXT4 File Record
 
-typedef struct tag_EXT4FILEREC {
+typedef struct tag_EXT2FILEREC {
     // TODO
-} EXT4FILEREC, *LPEXT4FILEREC;
+} EXT2FILEREC, *LPEXT2FILEREC;
 
 /***************************************************************************/
 // EXT4 File location
 
-typedef struct tag_XFSFILELOC {
-} XFSFILELOC, *LPXFSFILELOC;
+typedef struct tag_EXT2FILELOC {
+} EXT2FILELOC, *LPEXT2FILELOC;
 
 /***************************************************************************/
 
-#endif  // EXT4_H_INCLUDED
+#endif  // EXT2_H_INCLUDED

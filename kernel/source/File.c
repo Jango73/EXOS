@@ -1,11 +1,9 @@
 
-// File.c
-
 /***************************************************************************\
 
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+    All rights reserved
 
 \***************************************************************************/
 
@@ -13,20 +11,17 @@
 
 #include "../include/Heap.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Process.h"
 
 /***************************************************************************/
 
 LPFILE OpenFile(LPFILEOPENINFO Info) {
-    STR Volume[MAX_FS_LOGICAL_NAME];
     FILEINFO Find;
     LPFILESYSTEM FileSystem = NULL;
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
-    LPCSTR Colon = NULL;
-    U32 FoundFileSystem;
-    U32 Index;
 
     //-------------------------------------
     // Check validity of parameters
@@ -44,9 +39,9 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LockMutex(MUTEX_FILE, INFINITY);
 
     for (Node = Kernel.File->First; Node; Node = Node->Next) {
-        LockMutex(&(AlreadyOpen->Mutex), INFINITY);  // ???????????????
-
         AlreadyOpen = (LPFILE)Node;
+
+        LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
         if (StringCompare(AlreadyOpen->Name, Info->Name) == 0) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
@@ -96,85 +91,31 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     // Get the name of the volume in which the file
     // is supposed to be located
 
-    Volume[0] = STR_NULL;
-
-    for (Index = 0; Index < MAX_FS_LOGICAL_NAME - 1; Index++) {
-        if (Info->Name[Index] == STR_NULL) break;
-        if (Info->Name[Index] == STR_COLON) {
-            Colon = Info->Name + Index;
-            break;
-        }
-        Volume[Index + 0] = Info->Name[Index];
-        Volume[Index + 1] = STR_NULL;
-    }
-
-    if (Colon == NULL) {
-        for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
-            FileSystem = (LPFILESYSTEM)Node;
-
-            Find.Size = sizeof Find;
-            Find.FileSystem = FileSystem;
-            Find.Attributes = MAX_U32;
-            StringCopy(Find.Name, Info->Name);
-
-            File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
-            if (File != NULL) {
-                LockMutex(MUTEX_FILE, INFINITY);
-
-                File->OwnerTask = GetCurrentTask();
-                File->OpenFlags = Info->Flags;
-
-                ListAddItem(Kernel.File, File);
-
-                UnlockMutex(MUTEX_FILE);
-                break;
-            }
-        }
-
-        goto Out;
-    }
-
-    if (Colon[0] != ':') goto Out;
-    if (Colon[1] != '/') goto Out;
-
-    //-------------------------------------
-    // Find the volume in the registered file systems
-
-    FoundFileSystem = 0;
+    KernelLogText(LOG_DEBUG, TEXT("[OpenFile] Searching for %s in file systems"), Info->Name);
 
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
-        if (StringCompare(FileSystem->Name, Volume) == 0) {
-            FoundFileSystem = 1;
+
+        Find.Size = sizeof Find;
+        Find.FileSystem = FileSystem;
+        Find.Attributes = MAX_U32;
+        StringCopy(Find.Name, Info->Name);
+
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+
+        if (File != NULL) {
+            KernelLogText(LOG_DEBUG, TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
+
+            LockMutex(MUTEX_FILE, INFINITY);
+
+            File->OwnerTask = GetCurrentTask();
+            File->OpenFlags = Info->Flags;
+
+            ListAddItem(Kernel.File, File);
+
+            UnlockMutex(MUTEX_FILE);
             break;
         }
-    }
-
-    if (FoundFileSystem == 0) goto Out;
-
-    //-------------------------------------
-    // Fill the file system driver structure
-
-    Find.Size = sizeof Find;
-    Find.FileSystem = FileSystem;
-    Find.Attributes = MAX_U32;
-
-    StringCopy(Find.Name, Colon + 2);
-
-    //-------------------------------------
-    // Open the file
-
-    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
-
-    if (File != NULL) {
-        LockMutex(MUTEX_FILE, INFINITY);
-
-        File->OwnerTask = GetCurrentTask();
-        File->OpenFlags = Info->Flags;
-
-        ListAddItem(Kernel.File, File);
-
-        UnlockMutex(MUTEX_FILE);
     }
 
 Out:
@@ -212,6 +153,52 @@ U32 CloseFile(LPFILE File) {
 
 /***************************************************************************/
 
+U32 GetFilePosition(LPFILE File) {
+    U32 Position = 0;
+
+    SAFE_USE_VALID_ID(File, ID_FILE) {
+        //-------------------------------------
+        // Lock access to the file
+
+        LockMutex(&(File->Mutex), INFINITY);
+
+        Position = File->Position;
+
+        //-------------------------------------
+        // Unlock access to the file
+
+        UnlockMutex(&(File->Mutex));
+    }
+
+    return Position;
+}
+
+/***************************************************************************/
+
+U32 SetFilePosition(LPFILEOPERATION Operation) {
+    SAFE_USE_VALID(Operation) {
+        LPFILE File = (LPFILE)Operation->File;
+
+        SAFE_USE_VALID_ID(File, ID_FILE) {
+            //-------------------------------------
+            // Lock access to the file
+
+            LockMutex(&(File->Mutex), INFINITY);
+
+            File->Position = Operation->NumBytes;
+
+            //-------------------------------------
+            // Unlock access to the file
+
+            UnlockMutex(&(File->Mutex));
+        }
+    }
+
+    return SUCCESS;
+}
+
+/***************************************************************************/
+
 U32 ReadFile(LPFILEOPERATION FileOp) {
     LPFILE File = NULL;
     U32 Result = 0;
@@ -239,7 +226,6 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
     Result = File->FileSystem->Driver->Command(DF_FS_READ, (U32)File);
 
     if (Result == DF_ERROR_SUCCESS) {
-        // File->Position += File->BytesRead;
         BytesRead = File->BytesRead;
     }
 
@@ -277,7 +263,6 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
     Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (U32)File);
 
     if (Result == DF_ERROR_SUCCESS) {
-        // File->Position += File->BytesRead;
         BytesWritten = File->BytesRead;
     }
 
@@ -314,40 +299,42 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
     LPFILE File = NULL;
     LPVOID Buffer = NULL;
 
-    //-------------------------------------
-    // Check validity of parameters
+    KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] Name = %s"), Name);
 
-    if (Name == NULL) return NULL;
-    if (Size == NULL) return NULL;
+    SAFE_USE_2(Name, Size) {
+        //-------------------------------------
+        // Open the file
 
-    //-------------------------------------
-    // Open the file
+        OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+        OpenInfo.Name = (LPSTR)Name;
+        OpenInfo.Flags = FILE_OPEN_READ;
+        File = OpenFile(&OpenInfo);
 
-    OpenInfo.Header.Size = sizeof(FILEOPENINFO);
-    OpenInfo.Name = (LPSTR)Name;
-    OpenInfo.Flags = FILE_OPEN_READ;
-    File = OpenFile(&OpenInfo);
+        if (File == NULL) return NULL;
 
-    if (File == NULL) return NULL;
+        KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] File found"));
 
-    //-------------------------------------
-    // Allocate buffer and read content
+        //-------------------------------------
+        // Allocate buffer and read content
 
-    *Size = GetFileSize(File);
-    Buffer = HeapAlloc(*Size + 1);
+        *Size = GetFileSize(File);
+        Buffer = HeapAlloc(*Size + 1);
 
-    if (Buffer != NULL) {
-        FileOp.Header.Size = sizeof(FILEOPERATION);
-        FileOp.File = (HANDLE)File;
-        FileOp.Buffer = Buffer;
-        FileOp.NumBytes = *Size;
-        ReadFile(&FileOp);
-        ((LPSTR)Buffer)[*Size] = STR_NULL;
+        if (Buffer != NULL) {
+            FileOp.Header.Size = sizeof(FILEOPERATION);
+            FileOp.File = (HANDLE)File;
+            FileOp.Buffer = Buffer;
+            FileOp.NumBytes = *Size;
+            ReadFile(&FileOp);
+            ((LPSTR)Buffer)[*Size] = STR_NULL;
+        }
+
+        CloseFile(File);
+
+        return Buffer;
     }
 
-    CloseFile(File);
-
-    return Buffer;
+    return NULL;
 }
 
 /***************************************************************************/
@@ -358,34 +345,34 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
     LPFILE File = NULL;
     U32 BytesWritten = 0;
 
-    //-------------------------------------
-    // Check validity of parameters
+    KernelLogText(LOG_VERBOSE, TEXT("[FileWriteAll] Name"));
 
-    if (Name == NULL) return 0;
-    if (Buffer == NULL) return 0;
+    SAFE_USE_2(Name, Buffer) {
+        //-------------------------------------
+        // Open the file
 
-    //-------------------------------------
-    // Open the file
+        OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+        OpenInfo.Name = (LPSTR)Name;
+        OpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+        File = OpenFile(&OpenInfo);
 
-    OpenInfo.Header.Size = sizeof(FILEOPENINFO);
-    OpenInfo.Name = (LPSTR)Name;
-    OpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
-    File = OpenFile(&OpenInfo);
+        if (File == NULL) return 0;
 
-    if (File == NULL) return 0;
+        //-------------------------------------
+        // Write the buffer to the file
 
-    //-------------------------------------
-    // Write the buffer to the file
+        FileOp.Header.Size = sizeof(FILEOPERATION);
+        FileOp.File = (HANDLE)File;
+        FileOp.Buffer = (LPVOID)Buffer;
+        FileOp.NumBytes = Size;
+        BytesWritten = WriteFile(&FileOp);
 
-    FileOp.Header.Size = sizeof(FILEOPERATION);
-    FileOp.File = (HANDLE)File;
-    FileOp.Buffer = (LPVOID)Buffer;
-    FileOp.NumBytes = Size;
-    BytesWritten = WriteFile(&FileOp);
+        CloseFile(File);
 
-    CloseFile(File);
+        return BytesWritten;
+    }
 
-    return BytesWritten;
+    return 0;
 }
 
 /***************************************************************************/

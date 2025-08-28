@@ -249,9 +249,9 @@ U32 SysCall_UnlockMutex(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_AllocRegion(U32 Parameter) {
-    LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
+    LPALLOCREGIONINFO Info = (LPALLOCREGIONINFO)Parameter;
 
-    if (Info && Info->Header.Size >= sizeof(VIRTUALINFO)) {
+    if (Info && Info->Header.Size >= sizeof(ALLOCREGIONINFO)) {
         return AllocRegion(Info->Base, Info->Target, Info->Size, Info->Flags);
     }
 
@@ -261,9 +261,9 @@ U32 SysCall_AllocRegion(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_FreeRegion(U32 Parameter) {
-    LPVIRTUALINFO Info = (LPVIRTUALINFO)Parameter;
+    LPALLOCREGIONINFO Info = (LPALLOCREGIONINFO)Parameter;
 
-    if (Info && Info->Header.Size >= sizeof(VIRTUALINFO)) {
+    if (Info && Info->Header.Size >= sizeof(ALLOCREGIONINFO)) {
         return FreeRegion(Info->Base, Info->Size);
     }
 
@@ -348,16 +348,14 @@ U32 SysCall_GetFileSize(U32 Parameter) { return GetFileSize((LPFILE)Parameter); 
 
 /***************************************************************************/
 
-U32 SysCall_GetFilePointer(U32 Parameter) {
-    UNUSED(Parameter);
-    return 0;
+U32 SysCall_GetFilePosition(U32 Parameter) {
+    return GetFilePosition((LPFILE)Parameter);
 }
 
 /***************************************************************************/
 
-U32 SysCall_SetFilePointer(U32 Parameter) {
-    UNUSED(Parameter);
-    return 0;
+U32 SysCall_SetFilePosition(U32 Parameter) {
+    return SetFilePosition((LPFILEOPERATION)Parameter);
 }
 
 /***************************************************************************/
@@ -758,8 +756,8 @@ SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
     SysCall_ReadFile,              // 0x0000001F
     SysCall_WriteFile,             // 0x00000020
     SysCall_GetFileSize,           // 0x00000021
-    SysCall_GetFilePointer,        // 0x00000022
-    SysCall_SetFilePointer,        // 0x00000023
+    SysCall_GetFilePosition,       // 0x00000022
+    SysCall_SetFilePosition,       // 0x00000023
     NULL,                          // 0x00000024
     NULL,                          // 0x00000025
     NULL,                          // 0x00000026

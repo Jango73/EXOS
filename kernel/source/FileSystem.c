@@ -17,7 +17,7 @@
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_NTFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_XFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_EXFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 
 /***************************************************************************/
 
@@ -25,6 +25,9 @@ U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
 
 /***************************************************************************/
 
+/*
+    Build a default volume name using zero-based disk and partition indexes.
+*/
 BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
     STR Temp[12];
     LPLISTNODE Node;
@@ -44,10 +47,13 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
             break;
     }
 
+    // Append the zero-based disk index
     U32ToString(DiskIndex, Temp);
     StringConcat(Name, Temp);
     StringConcat(Name, TEXT("p"));
-    U32ToString(PartIndex + 1, Temp);
+
+    // Append the zero-based partition index
+    U32ToString(PartIndex, Temp);
     StringConcat(Name, Temp);
 
     return TRUE;
@@ -128,8 +134,8 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 } break;
 
                 case FSID_EXOS: {
-                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting XFS partition"));
-                    MountPartition_XFS(Disk, Partition + Index, Base, Index);
+                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting EXFS partition"));
+                    MountPartition_EXFS(Disk, Partition + Index, Base, Index);
                 } break;
 
                 default: {
@@ -146,7 +152,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
 /***************************************************************************/
 
-static void PathCompDestructor(LPVOID This) { KernelMemFree(This); }
+static void PathCompDestructor(LPVOID This) { HeapFree(This); }
 
 /***************************************************************************/
 
@@ -154,7 +160,7 @@ LPLIST DecompPath(LPCSTR Path) {
     STR Component[MAX_FILE_NAME];
     U32 PathIndex = 0;
     U32 CompIndex = 0;
-    LPLIST List = NewList(PathCompDestructor, KernelMemAlloc, KernelMemFree);
+    LPLIST List = NewList(PathCompDestructor, HeapAlloc, HeapFree);
     LPPATHNODE Node = NULL;
 
     while (1) {
@@ -173,7 +179,7 @@ LPLIST DecompPath(LPCSTR Path) {
             }
         }
 
-        Node = KernelMemAlloc(sizeof(PATHNODE));
+        Node = HeapAlloc(sizeof(PATHNODE));
         if (Node == NULL) goto Out;
         StringCopy(Node->Name, Component);
         ListAddItem(List, Node);

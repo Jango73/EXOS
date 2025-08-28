@@ -74,8 +74,8 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     KernelLogText(LOG_ERROR, TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
     KernelLogText(LOG_ERROR, TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
     KernelLogText(LOG_ERROR, TEXT("[NewList] EBP = %X"), (LINEAR)GetEBP());
-    KernelLogText(LOG_ERROR, TEXT("[NewList] KernelMemAlloc = %X"), (LINEAR)KernelMemAlloc);
-    KernelLogText(LOG_ERROR, TEXT("[NewList] KernelMemFree = %X"), (LINEAR)KernelMemFree);
+    KernelLogText(LOG_ERROR, TEXT("[NewList] HeapAlloc = %X"), (LINEAR)HeapAlloc);
+    KernelLogText(LOG_ERROR, TEXT("[NewList] HeapFree = %X"), (LINEAR)HeapFree);
 
     if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)HeapAlloc;
     if (MemFree == NULL) MemFree = (MEMFREEFUNC)HeapFree;
@@ -93,6 +93,8 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     This->MemAllocFunc = MemAlloc;
     This->MemFreeFunc = MemFree;
     This->Destructor = ItemDestructor;
+
+    KernelLogText(LOG_ERROR, TEXT("[NewList] Exit"));
 
     return This;
 }
@@ -115,23 +117,24 @@ U32 ListGetSize(LPLIST This) { return This->NumItems; }
 U32 ListAddItem(LPLIST This, LPVOID Item) {
     LPLISTNODE NewNode = (LPLISTNODE)Item;
 
-    if (This == NULL) return FALSE;
+    SAFE_USE_VALID_2(This, Item) {
+        if (NewNode) {
+            if (This->First == NULL) {
+                This->First = NewNode;
+            } else {
+                This->Last->Next = NewNode;
+                NewNode->Prev = This->Last;
+            }
 
-    if (NewNode) {
-        if (This->First == NULL) {
-            This->First = NewNode;
-        } else {
-            This->Last->Next = NewNode;
-            NewNode->Prev = This->Last;
+            This->Last = NewNode;
+            NewNode->Next = NULL;
+
+            This->NumItems++;
+
+            return TRUE;
         }
-
-        This->Last = NewNode;
-        NewNode->Next = NULL;
-
-        This->NumItems++;
-
-        return TRUE;
     }
+
 
     return FALSE;
 }

@@ -4,9 +4,9 @@
 
 To be completed.
 
-## Startup sequence on HD (in qemu-system-i386)
+## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
-Everything in this sequence runs in 16 bits real mode on i386+ processors.
+Everything in this sequence runs in 16-bit real mode on i386+ processors.
 However, the code uses 32 bit registers when appropriate.
 
 1. BIOS loads disk MBR at 0x7C00.
@@ -21,6 +21,223 @@ However, the code uses 32 bit registers when appropriate.
 10. EnterProtectedPagingAndJump sets up minimal GDT and paging structures for the loaded binary to execute in higher half memory (0xC0000000).
 11. It finally jumps to the loaded binary.
 12. That's all folks. But it was a real pain to code :D
+
+## Foreign File systems
+
+| FS | Key Concepts | RO Difficulty | Full RW Difficulty | Notes |
+|---|---|---:|---:|---|
+| **FAT12/16** | Boot-friendly, allocation tables, 8.3 names | 2 | 3 | Very simple; some edge cases with cluster chains. |
+| **ISO9660/Joliet/Rock Ridge** | CD-ROM FS, fixed tables | 2 | 2 | Read-only only; trivial for mounting images. |
+| **MINIX (v1/v2)** | Bitmaps, inodes, direct/indirect | 3 | 4 | Educational, limited size, very clean spec. |
+| **FAT32** | FAT + FSInfo + VFAT long names | 3 | 4 | Long File Names, timestamp quirks, no journal. |
+| **squashfs** | Read-only, compressed, indexed tables | 3 | 3 | Dead simple in RO; great for system images. |
+| **exFAT** | Bitmap + FAT, chained dir entries | 4 | 6 | Official specs exist, but many entry types. |
+| **UDF** | Successor to ISO9660, incremental writes | 4 | 6–7 | Many versions/profiles; optical and USB use. |
+| **ext2** | Superblock, group desc, bitmaps, inodes | 5 | 6 | Very documented; no journal; fsck required. |
+| **ext3** | ext2 + JBD journal | 6 | 7 | Journaling metadata/data, proper recovery required. |
+| **ReiserFS (v3)** | Balanced trees, small entry packing | 6 | 8 | Non-standard layout; legacy. |
+| **HFS+** | B-trees (catalog, extents), forks | 6 | 8 | Unicode normalization, legacy quirks. |
+| **ext4** | Extents, htree, 64-bit, JBD2 | 6 | 9 | Extents + journal + optional features. |
+| **XFS** | Btrees everywhere, delayed alloc, journaling | 6 | 9 | High-performance, recovery heavy. |
+| **F2FS** | Log-structured, flash segments | 6 | 8 | GC/segment cleaning, wear-level tuning. |
+| **APFS** | Copy-on-write, containers, snapshots | 7 | 9–10 | Encryption, clones, variable blocks; partial docs. |
+| **Btrfs** | COW, extent trees, checksums, RAID, snapshots | 7 | 9–10 | Complex balance between many trees; fragile. |
+| **ZFS** | COW, pools, checksums, RAID-Z, snapshots | 7 | 10 | Includes volume mgmt; very large scope. |
+| **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
+
+## EXOS File System - EXFS
+
+### Notations used in this document
+
+| Abbrev | Meaning                |
+|--------|------------------------|
+| U8     | unsigned byte          |
+| I8     | signed byte            |
+| U16    | unsigned word          |
+| I16    | signed word            |
+| U32    | unsigned long          |
+| I32    | signed long            |
+
+| Abbrev | Meaning                           |
+|--------|-----------------------------------|
+| EXOS   | Extensible Operating System       |
+| BIOS   | Basic Input/Output System         |
+| CHS    | Cylinder-Head-Sector              |
+| MBR    | Master Boot Record                |
+| OS     | Operating System                  |
+
+---
+
+### Structure of the Master Boot Record
+
+| Offset   | Type | Description                                  |
+|----------|------|----------------------------------------------|
+| 0..445   | U8x? | The boot sequence                            |
+| 446..461 | ?    | CHS location of partition No 1               |
+| 462..477 | ?    | CHS location of partition No 2               |
+| 478..493 | ?    | CHS location of partition No 3               |
+| 494..509 | ?    | CHS location of partition No 4               |
+| 510      | U16  | BIOS signature : 0x55AA (`_*_*_*_**_*_*_*_`) |
+
+---
+
+### Structure of SuperBlock
+
+The SuperBlock is always **1024 bytes** in size.
+
+| Offset | Type   | Description                                   |
+|--------|--------|-----------------------------------------------|
+| 0      | U32    | Magic number, must be `"EXOS"`                |
+| 4      | U32    | Version (high word = major, low word = minor) |
+| 8      | U32    | Size of a cluster in bytes                    |
+| 12     | U32    | Number of clusters                            |
+| 16     | U32    | Number of free clusters                       |
+| 20     | U32    | Cluster index of cluster bitmap               |
+| 24     | U32    | Cluster index of bad cluster page             |
+| 28     | U32    | Cluster index of root FileRecord ("/")        |
+| 32     | U32    | Cluster index of security info                |
+| 36     | U32    | Index in root for OS kernel main file         |
+| 40     | U32    | Number of folders (excluding "." and "..")    |
+| 44     | U32    | Number of files                               |
+| 48     | U32    | Max mount count before check is forced        |
+| 52     | U32    | Current mount count                           |
+| 56     | U32    | Format of the volume name                     |
+| 60–63  | U8x4   | Reserved                                      |
+| 64     | U8x32  | Password (optional)                           |
+| 96     | U8x32  | Name of this file system's creator            |
+| 128    | U8x128 | Name of the volume                            |
+
+---
+
+### Structure of FileRecord
+
+| Offset | Type   | Description                        |
+|--------|--------|------------------------------------|
+| 0      | U32    | SizeLow                            |
+| 4      | U32    | SizeHigh                           |
+| 8      | U64    | Creation time                      |
+| 16     | U64    | Last access time                   |
+| 24     | U64    | Last modification time             |
+| 32     | U32    | Cluster index for ClusterTable     |
+| 36     | U32    | Standard attributes                |
+| 40     | U32    | Security attributes                |
+| 44     | U32    | Group owner of this file           |
+| 48     | U32    | User owner of this file            |
+| 52     | U32    | Format of name                     |
+| 56–127 | U8x?   | Reserved, should be zero           |
+| 128    | U8x128 | Name of the file (NULL terminated) |
+
+---
+
+### FileRecord fields
+
+**Time fields (bit layout):**
+
+- Bits 0..21  : Year (max: 4,194,303)  
+- Bits 22..25 : Month in the year (max: 15)  
+- Bits 26..31 : Day in the month (max: 63)  
+- Bits 32..37 : Hour in the day (max: 63)  
+- Bits 38..43 : Minute in the hour (max: 63)  
+- Bits 44..49 : Second in the minute (max: 63)  
+- Bits 50..59 : Millisecond in the second (max: 1023)  
+
+**Standard attributes field:**
+
+- Bit 0 : 1 = folder, 0 = file  
+- Bit 1 : 1 = read-only, 0 = read/write  
+- Bit 2 : 1 = system  
+- Bit 3 : 1 = archive  
+- Bit 4 : 1 = hidden  
+
+**Security attributes field:**
+
+- Bit 0 : 1 = only kernel has access to the file  
+- Bit 1 : 1 = fill the file's clusters with zeroes on delete  
+
+**Name format:**
+
+- 0 : ASCII (8 bits per character)  
+- 1 : Unicode (16 bits per character)  
+
+---
+
+### Structure of folders and files
+
+- A cluster that contains 32-bit indices to other clusters is called a **page**.  
+- FileRecord contains a cluster index for its first page.  
+- A page is filled with cluster indices pointing to file/folder data.  
+- For folders: data = series of FileRecords.  
+- For files: data = arbitrary user data.  
+- The **last entry** of a page is `0xFFFFFFFF`.  
+- If more than one page is needed, the last index points to the **next page**.  
+
+---
+
+### Clusters
+
+- All cluster pointers are 32-bit.  
+- Cluster 0 = boot sector (1024 bytes).  
+- Cluster 1 = SuperBlock (1024 bytes).  
+- First usable cluster starts at byte 2048.  
+
+**Max addressable bytes by cluster size:**
+
+| Cluster size | Max addressable bytes  |
+|--------------|-------------------------|
+| 1024         | 4,398,046,510,080       |
+| 2048         | 8,796,093,020,160       |
+| 4096         | 17,592,186,040,320      |
+| 8192         | 35,184,372,080,640      |
+
+**Number of clusters formula:**  
+
+```
+(Disc size in bytes - 2048) / Cluster size
+```
+
+Fractional part = unusable space.  
+
+**Examples:**
+
+| Disc size               | Cluster size | Total clusters |
+|-------------------------|--------------|----------------|
+| 536,870,912 (500 MB)    | 1,024 (1 KB) | 524,286        |
+| 536,870,912 (500 MB)    | 2,048 (2 KB) | 262,143        |
+| 536,870,912 (500 MB)    | 4,096 (4 KB) | 131,071        |
+| 536,870,912 (500 MB)    | 8,192 (8 KB) | 65,535         |
+| 4,294,967,296 (4 GB)    | 1,024 (1 KB) | 4,194,302      |
+| 4,294,967,296 (4 GB)    | 2,048 (2 KB) | 2,097,151      |
+| 4,294,967,296 (4 GB)    | 4,096 (4 KB) | 1,048,575      |
+| 4,294,967,296 (4 GB)    | 8,192 (8 KB) | 524,287        |
+
+---
+
+### Cluster bitmap
+
+- A bit array showing free/used clusters.  
+- `0 = free`, `1 = used`.  
+- Size of bitmap =  
+
+```
+(Total disc size / Cluster size) / 8
+```
+
+**Examples:**
+
+| Disc size              | Cluster size | Bitmap size | Num. clusters |
+|------------------------|--------------|-------------|---------------|
+| 536,870,912 (500 MB)   | 1,024 (1 KB) | 65,536      | 64            |
+| 536,870,912 (500 MB)   | 2,048 (2 KB) | 32,768      | 16            |
+| 536,870,912 (500 MB)   | 4,096 (4 KB) | 16,384      | 4             |
+| 536,870,912 (500 MB)   | 8,192 (8 KB) | 8,192       | 1             |
+| 4,294,967,296 (4 GB)   | 1,024 (1 KB) | 524,288     | 512           |
+| 4,294,967,296 (4 GB)   | 2,048 (2 KB) | 262,144     | 128           |
+| 4,294,967,296 (4 GB)   | 4,096 (4 KB) | 131,072     | 32            |
+| 4,294,967,296 (4 GB)   | 8,192 (8 KB) | 65,536      | 8             |
+| 17,179,869,184 (16 GB) | 1,024 (1 KB) | 4,194,304   | 8,192         |
+| 17,179,869,184 (16 GB) | 2,048 (2 KB) | 1,048,576   | 512           |
+| 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
+| 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
 
 ## Modules and functions
 
@@ -139,7 +356,11 @@ Implements a simple text editor for the shell.
 - NewEditContext: Creates the top-level editor context.
 - DeleteEditContext: Releases the editor context.
 - CheckPositions: Adjusts viewport offsets according to cursor position.
-- DrawText: Renders the text buffer onto the console.
+- Render: Renders the text buffer and menu onto the console.
+- RenderMenu: Displays the editor command menu.
+- SaveFile: Writes the current buffer to disk.
+- CommandExit: Menu action that leaves the editor.
+- CommandSave: Menu action that saves the current file.
 - CheckLineSize: Grows a line buffer when needed.
 - FillToCursor: Inserts spaces until the cursor column is valid.
 - GetCurrentLine: Returns the line at the current cursor row.
@@ -318,7 +539,7 @@ Core initialization and debugging utilities for the kernel.
 - LogRegisters: Displays the CPU register state.
 - GetCPUInformation: Reads processor name and features.
 - ClockTask: Periodic task that updates the clock and mouse.
-- DumpSystemInformation: Logs CPU and memory information.
+- Welcome: Prints some basic information and the welcome text.
 - InitializePhysicalPageBitmap: Marks kernel pages as used.
 - InitializeFileSystems: Mounts all detected file systems.
 - GetPhysicalMemoryUsed: Returns the number of used bytes.
@@ -344,6 +565,7 @@ Implements the PC keyboard driver and key buffering.
 - PeekChar: Checks if a character is available.
 - GetChar: Reads a character from the buffer.
 - GetKeyCode: Reads a full key code from the buffer.
+- GetKeyCodeDown: Returns TRUE if the specified key is currently pressed. Supports VK_CONTROL, VK_SHIFT and VK_ALT to check either side.
 - WaitKey: Waits for a key press.
 - KeyboardHandler: Interrupt handler that reads scan codes.
 - KeyboardInitialize: Initializes keyboard structures and IRQ.
@@ -392,16 +614,16 @@ Kernel entry point after transitioning to protected mode.
 - KernelIdle: Idle loop executed when no tasks run.
 - KernelMain: Initializes the kernel and enters idle loop.
 
-### Memedit.c
+### MemoryEditor.c
 
 Interactive memory viewer used for debugging.
 
-#### Functions in Memedit.c
+#### Functions in MemoryEditor.c
 
 - PrintMemoryLine: Displays a single line of memory values.
 - PrintMemory: Dumps a series of memory lines.
 - PrintMemoryPage: Shows a page of memory on the console.
-- MemEdit: Lets the user scroll through memory addresses.
+- MemoryEditor: Lets the user scroll through memory addresses.
 
 ### Memory.c
 
@@ -425,17 +647,28 @@ Memory manager for page allocation and mapping.
 
 ### Process.c
 
-Manages executable loading, process creation and heap setup.
+Manages process creation and heap setup.
 
 #### Functions in Process.c
 
-- GetExecutableInfo_EXOS: Retrieves information from an EXOS executable.
-- LoadExecutable_EXOS: Loads an executable into memory.
 - NewProcess: Allocates and initializes a process structure.
 - CreateProcess: Loads a program and creates its initial task.
 - GetProcessHeap: Returns the base address of a process heap.
 - DumpProcess: Prints process details for debugging.
 - InitSecurity: Initializes a security descriptor.
+
+### Executable.c
+
+Provides a generic interface for loading executables and dispatches to
+format specific loaders.
+
+### ExecutableEXOS.c
+
+Contains the EXOS executable loader implementation.
+
+### ExecutableELF.c
+
+Placeholder for the upcoming ELF executable loader.
 
 ### PCI.c
 
@@ -635,8 +868,8 @@ System call handler dispatching user mode requests.
 - SysCall_ReadFile: Reads data from a file.
 - SysCall_WriteFile: Writes data to a file.
 - SysCall_GetFileSize: Returns the size of a file.
-- SysCall_GetFilePointer: Gets the current file offset.
-- SysCall_SetFilePointer: Sets the current file offset.
+- SysCall_GetFilePosition: Gets the current file position.
+- SysCall_SetFilePosition: Sets the current file position.
 - SysCall_ConsolePeekKey: Checks if a key is ready.
 - SysCall_ConsoleGetKey: Reads a key code.
 - SysCall_ConsolePrint: Prints text to the console.
@@ -784,26 +1017,26 @@ Low level routines for standard VGA mode programming.
 - SendModeRegs: Loads a register set to configure video mode.
 - TestVGA: Simple routine that programs the first VGA mode.
 
-### XFS.c
+### EXFS.c
 
-EXOS file system driver for the native XFS format.
+EXOS file system driver for the native EXFS format.
 
-#### Functions in XFS.c
+#### Functions in EXFS.c
 
-- NewXFSFileSystem: Allocates an XFS file system structure.
-- NewXFSFile: Creates an XFS file object.
-- MountPartition_XFS: Mounts an XFS partition from disk.
+- NewEXFSFileSystem: Allocates an EXFS file system structure.
+- NewEXFSFile: Creates an EXFS file object.
+- MountPartition_EXFS: Mounts an EXFS partition from disk.
 - ReadCluster: Reads a cluster from the disk into memory.
 - WriteCluster: Writes a cluster back to disk.
 - LocateFile: Finds a file entry given its path.
 - WriteSectors: Writes raw sectors to a disk device.
-- CreatePartition: Formats a new XFS partition.
-- TranslateFileInfo: Copies XFS directory info to a file object.
+- CreatePartition: Formats a new EXFS partition.
+- TranslateFileInfo: Copies EXFS directory info to a file object.
 - Initialize: Loads the driver and returns success.
-- OpenFile: Opens a file using XFS search logic.
+- OpenFile: Opens a file using EXFS search logic.
 - OpenNext: Continues directory enumeration.
-- CloseFile: Closes an open XFS file.
-- XFSCommands: Dispatcher for driver functions.
+- CloseFile: Closes an open EXFS file.
+- EXFSCommands: Dispatcher for driver functions.
 
 ### Interrupt-a.asm
 

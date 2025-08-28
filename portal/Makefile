@@ -8,7 +8,7 @@ CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O2 -fno-pic -fno-stack-protector -f
 
 LDFLAGS = -T portal.ld -nostdlib -Map=bin/portal.map
 
-PORTAL  = bin/portal.bin
+PORTAL  = bin/portal.elf
 
 SRC_C  = $(wildcard source/*.c)
 OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))

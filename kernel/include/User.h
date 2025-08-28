@@ -14,11 +14,11 @@
 
 #include "Base.h"
 
-/***************************************************************************
- * EXOS Userland ABI Core
- ***************************************************************************/
 
-/* Global ABI version for user/kernel boundary */
+/************************************************************************/
+// EXOS ABI
+
+// Global ABI version for user/kernel boundary
 #define EXOS_ABI_VERSION 0x0001
 
 /* Common header prefix for syscall payload structures.
@@ -32,12 +32,11 @@ typedef struct tag_ABI_HEADER {
     U16 Flags;
 } ABI_HEADER;
 
-/* C11 static assert helper (replace if your toolchain lacks _Static_assert) */
+// C11 static assert helper
 #define ABI_STATIC_ASSERT(cond, name) typedef char static_assert_##name[(cond) ? 1 : -1]
 
-/***************************************************************************
- * EXOS Base Services - Syscall IDs
- ***************************************************************************/
+/************************************************************************/
+// EXOS Base Services - Syscall IDs
 
 #define SYSCALL_GetVersion 0x00000000
 #define SYSCALL_GetSystemInfo 0x00000001
@@ -87,6 +86,7 @@ typedef struct tag_ABI_HEADER {
 #define SYSCALL_ConsoleGetString 0x0000002D
 #define SYSCALL_ConsoleGotoXY 0x0000002E
 
+/************************************************************************/
 // EXOS Windowing Services
 
 #define SYSCALL_CreateDesktop 0x00000040
@@ -132,9 +132,8 @@ typedef struct tag_ABI_HEADER {
 #define SYSCALL_CaptureMouse 0x00000068
 #define SYSCALL_ReleaseMouse 0x00000069
 
-/***************************************************************************
- * ABI Data Structures
- ***************************************************************************/
+/************************************************************************/
+// ABI Data Structures
 
 // A function for a thread entry
 typedef U32 (*TASKFUNC)(LPVOID);
@@ -217,13 +216,13 @@ typedef struct tag_MUTEXINFO {
     U32 MilliSeconds;
 } MUTEXINFO, *LPMUTEXINFO;
 
-typedef struct tag_VIRTUALINFO {
+typedef struct tag_ALLOCREGIONINFO {
     ABI_HEADER Header;
     U32 Base;    // The base virtual address (0 = don't care)
     U32 Target;  // The physical address to map to (0 = don't care)
     U32 Size;    // The size in bytes to allocate
     U32 Flags;   // See ALLOC_PAGES_xxx
-} VIRTUALINFO, *LPVIRTUALINFO;
+} ALLOCREGIONINFO, *LPALLOCREGIONINFO;
 
 #define ALLOC_PAGES_RESERVE 0x00000000
 #define ALLOC_PAGES_COMMIT 0x00000001

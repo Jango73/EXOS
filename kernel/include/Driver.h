@@ -119,7 +119,7 @@ extern DRIVER SerialMouseDriver;
 extern DRIVER StdHardDiskDriver;
 extern DRIVER RAMDiskDriver;
 extern DRIVER VESADriver;
-extern DRIVER XFSDriver;
+extern DRIVER EXFSDriver;
 
 /***************************************************************************/
 

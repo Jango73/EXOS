@@ -72,12 +72,13 @@ extern KEYBOARDSTRUCT Keyboard;
 BOOL PeekChar(void);
 STR GetChar(void);
 BOOL GetKeyCode(LPKEYCODE);
+BOOL GetKeyCodeDown(KEYCODE);
 void WaitKey(void);
 void KeyboardHandler(void);
-
-/***************************************************************************/
-
-extern KEYTRANS ScanCodeToKeyCode_fr[128];
+LPCSTR GetKeyName(U8);
+LPKEYTRANS GetScanCodeToKeyCode(LPCSTR Code);
+void UseKeyboardLayout(LPCSTR Code);
+U16 DetectKeyboard(void);
 
 /***************************************************************************/
 

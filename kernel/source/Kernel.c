@@ -18,6 +18,7 @@
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
+#include "../include/Lang.h"
 #include "../include/Log.h"
 #include "../include/Mouse.h"
 #include "../include/PCI.h"
@@ -37,7 +38,7 @@ extern void StartTestNetworkTask(void);
 
 STR Text_OSTitle[] =
     "\n"
-    "EXOS - Extensible Operating System - Version 1.00\n"
+    "EXOS - Extensible Operating System - Version 0.2\n"
     "Copyright (c) 1999-2025 Jango73.\n"
     "All rights reserved.\n";
 
@@ -48,8 +49,8 @@ static LIST DesktopList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -59,8 +60,8 @@ static LIST ProcessList = {
     .Last = (LPLISTNODE)&KernelProcess,
     .Current = (LPLISTNODE)&KernelProcess,
     .NumItems = 1,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -70,8 +71,8 @@ static LIST TaskList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -81,8 +82,8 @@ static LIST MutexList = {
     .Last = (LPLISTNODE)&ConsoleMutex,
     .Current = (LPLISTNODE)&KernelMutex,
     .NumItems = 9,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -92,8 +93,8 @@ static LIST DiskList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 static LIST PciDeviceList = {
@@ -101,8 +102,8 @@ static LIST PciDeviceList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 static LIST FileSystemList = {
@@ -110,8 +111,8 @@ static LIST FileSystemList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 static LIST FileList = {
@@ -119,8 +120,8 @@ static LIST FileList = {
     .Last = NULL,
     .Current = NULL,
     .NumItems = 0,
-    .MemAllocFunc = KernelMemAlloc,
-    .MemFreeFunc = KernelMemFree,
+    .MemAllocFunc = HeapAlloc,
+    .MemFreeFunc = HeapFree,
     .Destructor = NULL};
 
 /***************************************************************************/
@@ -142,17 +143,18 @@ KERNELDATA Kernel = {
     .File = &FileList,
     .SystemFS = (LPFILESYSTEM)&SystemFSFileSystem,
     .Configuration = NULL,
+    .LanguageCode = "en-US",
+    .KeyboardCode = "fr-FR",
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
 
 /***************************************************************************/
 
-LPVOID KernelMemAlloc(U32 Size) { return HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Size); }
-
-/***************************************************************************/
-
-void KernelMemFree(LPVOID Pointer) { HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Pointer); }
-
-/***************************************************************************/
+/**
+ * @brief Checks that the DeadBeef sentinel retains its expected value.
+ *
+ * This routine verifies the global DeadBeef variable and halts if it has
+ * been altered, indicating memory corruption.
+ */
 
 void CheckDataIntegrity(void) {
     if (DeadBeef != 0xDEADBEEF) {
@@ -174,6 +176,16 @@ typedef struct tag_CPUIDREGISTERS {
 } CPUIDREGISTERS, *LPCPUIDREGISTERS;
 
 /***************************************************************************/
+
+/**
+ * @brief Retrieves basic CPU identification data.
+ *
+ * Populates the provided structure using CPUID information, including
+ * vendor string, model and feature flags.
+ *
+ * @param Info Pointer to structure that receives CPU information.
+ * @return TRUE on success.
+ */
 
 BOOL GetCPUInformation(LPCPUINFORMATION Info) {
     CPUIDREGISTERS Regs[4];
@@ -203,6 +215,16 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Task that displays system time and mouse status.
+ *
+ * The parameter encodes console coordinates where the time is printed.
+ * X is stored in the high 16 bits and Y in the low 16 bits.
+ *
+ * @param Param Encoded console position.
+ * @return Always returns 0.
+ */
 
 U32 ClockTask(LPVOID Param) {
     STR Text[64];
@@ -251,6 +273,10 @@ U32 ClockTask(LPVOID Param) {
 
 /***************************************************************************/
 
+/**
+ * @brief Logs memory map and kernel startup information.
+ */
+
 void DumpCriticalInformation(void) {
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
         KernelLogText(
@@ -277,15 +303,19 @@ void DumpCriticalInformation(void) {
 
 /***************************************************************************/
 
-void DumpSystemInformation(void) {
-    KernelLogText(LOG_VERBOSE, TEXT("DumpSystemInformation"));
+/**
+ * @brief Prints memory information and the operating system banner.
+ */
 
+static void Welcome(void) {
     //-------------------------------------
     // Print information on computer
 
+    /*
     ConsolePrint(TEXT("Computer ID : "));
     ConsolePrint(Kernel.CPU.Name);
     ConsolePrint(Text_NewLine);
+    */
 
     //-------------------------------------
     // Print information on memory
@@ -294,11 +324,22 @@ void DumpSystemInformation(void) {
     ConsolePrint(Text_Space);
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
+
+    ConsolePrint(Text_OSTitle);
 }
 
 /***************************************************************************/
 
-void ReadKernelConfiguration(void) {
+/**
+ * @brief Loads and parses the kernel configuration file.
+ *
+ * Attempts to read "exos.cfg" (case insensitive) and stores the resulting
+ * TOML data in Kernel.Configuration.
+ */
+
+static void ReadKernelConfiguration(void) {
+    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Enter"));
+
     U32 Size = 0;
     LPVOID Buffer = FileReadAll(TEXT("exos.cfg"), &Size);
 
@@ -310,9 +351,40 @@ void ReadKernelConfiguration(void) {
         Kernel.Configuration = TomlParse((LPCSTR)Buffer);
         HeapFree(Buffer);
     }
+
+    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Exit"));
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Selects keyboard layout based on configuration.
+ *
+ * Reads the layout from Kernel.Configuration and applies it with
+ * SelectKeyboard.
+ */
+
+static void SetKeyboardLayout(void) {
+    KernelLogText(LOG_VERBOSE, TEXT("[SetKeyboardLayout] Enter"));
+
+    LPCSTR Layout;
+
+    if (Kernel.Configuration == NULL) {
+        ReadKernelConfiguration();
+    }
+
+    Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
+    if (Layout) {
+        ConsolePrint(TEXT("Keboard = %s\n"), Layout);
+        SelectKeyboard(Layout);
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Initializes PCI subsystem by registering drivers and scanning the bus.
+ */
 
 void InitializePCI(void) {
     PCI_RegisterDriver(&E1000Driver);
@@ -320,6 +392,9 @@ void InitializePCI(void) {
 }
 
 /***************************************************************************/
+/**
+ * @brief Mounts available disk partitions and the system file system.
+ */
 
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
@@ -336,6 +411,14 @@ void InitializeFileSystems(void) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Calculates the amount of physical memory currently in use.
+ *
+ * Traverses the page bitmap and counts allocated pages.
+ *
+ * @return Number of bytes of physical memory used.
+ */
 
 U32 GetPhysicalMemoryUsed(void) {
     U32 NumPages = 0;
@@ -358,6 +441,16 @@ U32 GetPhysicalMemoryUsed(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Loads a driver and performs basic validation.
+ *
+ * Logs the driver address, verifies the magic ID and invokes its load
+ * command.
+ *
+ * @param Driver Pointer to driver structure.
+ * @param Name   Driver name for logging.
+ */
+
 void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     if (Driver != NULL) {
         KernelLogText(LOG_DEBUG, TEXT("[LoadDriver] : %s at %X"), Name, Driver);
@@ -374,6 +467,17 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Entry point for kernel initialization.
+ *
+ * Sets up core services, loads drivers, mounts file systems and starts
+ * the initial shell task.
+ *
+ * @param ImageAddress Address of the kernel image in memory.
+ * @param CursorX Initial console cursor X position.
+ * @param CursorY Initial console cursor Y position.
+ */
 
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     // PROCESSINFO ProcessInfo;
@@ -393,9 +497,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelStartup.IRQMask_A1_RM = 0;
     KernelStartup.ConsoleX = CursorX;
     KernelStartup.ConsoleY = CursorY;
-    KernelStartup.MemorySize = N_128MB;
-    KernelStartup.PageCount = KernelStartup.MemorySize >> MUL_4KB;
-    KernelStartup.E820_Count = 0;
 
     //-------------------------------------
     // Init the kernel logger
@@ -453,11 +554,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Mouse initialized"));
 
     //-------------------------------------
-    // Print system infomation
-
-    DumpSystemInformation();
-
-    //-------------------------------------
     // Get information on CPU
 
     GetCPUInformation(&(Kernel.CPU));
@@ -506,11 +602,15 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
 
     //-------------------------------------
+    // Set keyboard mapping
+
+    SetKeyboardLayout();
+
+    //-------------------------------------
     // Print the EXOS banner
 
-    ConsolePrint(Text_OSTitle);
-
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] OS title printed"));
+    Welcome();
+    KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Welcome called"));
 
     //-------------------------------------
     // Test tasks
@@ -538,8 +638,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     //-------------------------------------
     // Shell task
-
-    ConsolePrint(TEXT("Launching shell\n"));
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
 

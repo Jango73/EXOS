@@ -7,7 +7,7 @@
 
 \***************************************************************************/
 
-#include "../include/XFS.h"
+#include "../include/EXFS.h"
 
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
@@ -18,9 +18,9 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 XFSCommands(U32, U32);
+U32 EXFSCommands(U32, U32);
 
-DRIVER XFSDriver = {
+DRIVER EXFSDriver = {
     .ID = ID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -31,48 +31,53 @@ DRIVER XFSDriver = {
     .Designer = "Jango73",
     .Manufacturer = "Jango73",
     .Product = "EXOS File System",
-    .Command = XFSCommands};
+    .Command = EXFSCommands};
 
 U8 Dummy[128] = {1, 1};
 
 /***************************************************************************/
 // The file system object allocated when mounting
 
-typedef struct tag_XFSFILESYSTEM {
+typedef struct tag_EXFSFILESYSTEM {
     FILESYSTEM Header;
     LPPHYSICALDISK Disk;
-    XFSMBR Master;
-    XFSSUPER Super;
+    EXFSMBR Master;
+    EXFSSUPER Super;
     SECTOR PartitionStart;
     U32 PartitionSize;
     U32 BytesPerCluster;
     SECTOR DataStart;
     U8* PageBuffer;
     U8* IOBuffer;
-} XFSFILESYSTEM, *LPXFSFILESYSTEM;
+} EXFSFILESYSTEM, *LPEXFSFILESYSTEM;
 
 /***************************************************************************/
 
-typedef struct tag_XFSFILE {
+typedef struct tag_EXFSFILE {
     FILE Header;
-    XFSFILELOC Location;
-} XFSFILE, *LPXFSFILE;
+    EXFSFILELOC Location;
+} EXFSFILE, *LPEXFSFILE;
 
 /***************************************************************************/
 
-static LPXFSFILESYSTEM NewXFSFileSystem(LPPHYSICALDISK Disk) {
-    LPXFSFILESYSTEM This;
+/**
+ * @brief Allocate and initialize a new EXFS file system object.
+ * @param Disk Physical disk associated with the file system.
+ * @return Pointer to the created file system or NULL.
+ */
+static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
+    LPEXFSFILESYSTEM This;
 
-    This = (LPXFSFILESYSTEM)KernelMemAlloc(sizeof(XFSFILESYSTEM));
+    This = (LPEXFSFILESYSTEM)HeapAlloc(sizeof(EXFSFILESYSTEM));
     if (This == NULL) return NULL;
 
-    MemorySet(This, 0, sizeof(XFSFILESYSTEM));
+    MemorySet(This, 0, sizeof(EXFSFILESYSTEM));
 
     This->Header.ID = ID_FILESYSTEM;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
-    This->Header.Driver = &XFSDriver;
+    This->Header.Driver = &EXFSDriver;
     This->Disk = Disk;
     This->PageBuffer = NULL;
     This->IOBuffer = NULL;
@@ -84,13 +89,19 @@ static LPXFSFILESYSTEM NewXFSFileSystem(LPPHYSICALDISK Disk) {
 
 /***************************************************************************/
 
-static LPXFSFILE NewXFSFile(LPXFSFILESYSTEM FileSystem, LPXFSFILELOC FileLoc) {
-    LPXFSFILE This;
+/**
+ * @brief Create a new EXFS file object for a given location.
+ * @param FileSystem File system handle.
+ * @param FileLoc Location information for the file.
+ * @return Pointer to the created file or NULL.
+ */
+static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc) {
+    LPEXFSFILE This;
 
-    This = (LPXFSFILE)KernelMemAlloc(sizeof(XFSFILE));
+    This = (LPEXFSFILE)HeapAlloc(sizeof(EXFSFILE));
     if (This == NULL) return NULL;
 
-    MemorySet(This, 0, sizeof(XFSFILE));
+    MemorySet(This, 0, sizeof(EXFSFILE));
 
     This->Header.ID = ID_FILE;
     This->Header.References = 1;
@@ -111,13 +122,21 @@ static LPXFSFILE NewXFSFile(LPXFSFILESYSTEM FileSystem, LPXFSFILELOC FileLoc) {
 
 /***************************************************************************/
 
-BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+/**
+ * @brief Mount an EXFS partition found on a physical disk.
+ * @param Disk Physical disk.
+ * @param Partition Partition descriptor.
+ * @param Base Base LBA offset.
+ * @param PartIndex Partition index.
+ * @return TRUE on success.
+ */
+BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
     IOCONTROL Control;
-    LPXFSMBR Master = NULL;
-    LPXFSSUPER Super = NULL;
-    LPXFSFILESYSTEM FileSystem = NULL;
+    LPEXFSMBR Master = NULL;
+    LPEXFSSUPER Super = NULL;
+    LPEXFSFILESYSTEM FileSystem = NULL;
     U32 Result = 0;
 
     //-------------------------------------
@@ -153,8 +172,8 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base
     //-------------------------------------
     // Assign pointers
 
-    Master = (LPXFSMBR)Buffer1;
-    Super = (LPXFSSUPER)Buffer2;
+    Master = (LPEXFSMBR)Buffer1;
+    Super = (LPEXFSSUPER)Buffer2;
 
     //-------------------------------------
     // Check for presence of BIOS mark
@@ -177,7 +196,7 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base
     //-------------------------------------
     // Create the file system object
 
-    FileSystem = NewXFSFileSystem(Disk);
+    FileSystem = NewEXFSFileSystem(Disk);
     if (FileSystem == NULL) return FALSE;
 
     GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
@@ -185,16 +204,16 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base
     //-------------------------------------
     // Copy the Master Boot Sector and the Superblock
 
-    MemoryCopy(&(FileSystem->Master), Master, sizeof(XFSMBR));
-    MemoryCopy(&(FileSystem->Super), Super, sizeof(XFSSUPER));
+    MemoryCopy(&(FileSystem->Master), Master, sizeof(EXFSMBR));
+    MemoryCopy(&(FileSystem->Super), Super, sizeof(EXFSSUPER));
 
     FileSystem->PartitionStart = Base + Partition->LBA;
     FileSystem->PartitionSize = Partition->Size;
     FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->PageBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->PageBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
-    FileSystem->IOBuffer = (U8*)KernelMemAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the data
@@ -211,7 +230,14 @@ BOOL MountPartition_XFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base
 
 /***************************************************************************/
 
-static BOOL ReadCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
+/**
+ * @brief Read a cluster from disk into a buffer.
+ * @param FileSystem Target file system.
+ * @param Cluster Cluster index to read.
+ * @param Buffer Destination buffer.
+ * @return TRUE on success.
+ */
+static BOOL ReadCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
     U32 Result;
@@ -240,7 +266,7 @@ static BOOL ReadCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buff
 /***************************************************************************/
 
 /*
-static BOOL WriteCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster,
+static BOOL WriteCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster,
                          LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
@@ -274,10 +300,17 @@ static BOOL WriteCluster(LPXFSFILESYSTEM FileSystem, CLUSTER Cluster,
 
 #define GET_PAGE_ENTRY() (*((U32*)(FileSystem->PageBuffer + FileLoc->PageOffset)))
 
-static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC FileLoc) {
+/**
+ * @brief Locate a file by path on the EXFS file system.
+ * @param FileSystem File system to search.
+ * @param Path Path to the file.
+ * @param FileLoc Output location information.
+ * @return TRUE if file found.
+ */
+static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC FileLoc) {
     LPLIST List = NULL;
     LPPATHNODE Component = NULL;
-    LPXFSFILEREC FileRec;
+    LPEXFSFILEREC FileRec;
 
     FileLoc->PageCluster = FileSystem->Super.RootCluster;
     FileLoc->PageOffset = 0;
@@ -294,7 +327,7 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
 
     FileLoc->FileCluster = GET_PAGE_ENTRY();
 
-    if (FileLoc->FileCluster == XFS_CLUSTER_END) return FALSE;
+    if (FileLoc->FileCluster == EXFS_CLUSTER_END) return FALSE;
 
     if (!ReadCluster(FileSystem, FileLoc->FileCluster, FileSystem->IOBuffer)) {
         return FALSE;
@@ -315,20 +348,20 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
         // Loop through all directory entries
 
         while (1) {
-            FileRec = (LPXFSFILEREC)(FileSystem->IOBuffer + FileLoc->FileOffset);
+            FileRec = (LPEXFSFILEREC)(FileSystem->IOBuffer + FileLoc->FileOffset);
 
-            if (FileRec->ClusterTable == XFS_CLUSTER_END) {
+            if (FileRec->ClusterTable == EXFS_CLUSTER_END) {
                 goto Out_Error;
             }
 
-            if (FileRec->ClusterTable > 0 && FileRec->ClusterTable != XFS_CLUSTER_END) {
+            if (FileRec->ClusterTable > 0 && FileRec->ClusterTable != EXFS_CLUSTER_END) {
                 if (StringCompare(Component->Name, TEXT("*")) == 0 ||
                     StringCompare(Component->Name, FileRec->Name) == 0) {
                     if (Component->Next == NULL) {
                         FileLoc->DataCluster = FileRec->ClusterTable;
                         goto Out_Success;
                     } else {
-                        if (FileRec->Attributes & XFS_ATTR_FOLDER) {
+                        if (FileRec->Attributes & EXFS_ATTR_FOLDER) {
                             FileLoc->PageCluster = FileRec->ClusterTable;
                             FileLoc->PageOffset = 0;
                             FileLoc->FileCluster = 0;
@@ -339,7 +372,7 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
 
                             FileLoc->FileCluster = GET_PAGE_ENTRY();
 
-                            if (FileLoc->FileCluster == XFS_CLUSTER_END) goto Out_Error;
+                            if (FileLoc->FileCluster == EXFS_CLUSTER_END) goto Out_Error;
 
                             if (ReadCluster(FileSystem, FileLoc->FileCluster, FileSystem->IOBuffer) == FALSE)
                                 goto Out_Error;
@@ -355,7 +388,7 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
             //-------------------------------------
             // Advance to the next entry
 
-            FileLoc->FileOffset += sizeof(XFSFILEREC);
+            FileLoc->FileOffset += sizeof(EXFSFILEREC);
 
             if (FileLoc->FileOffset >= FileSystem->BytesPerCluster) {
                 FileLoc->PageOffset += sizeof(U32);
@@ -368,7 +401,7 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
                     FileLoc->PageCluster = GET_PAGE_ENTRY();
                     FileLoc->PageOffset = 0;
 
-                    if (FileLoc->PageCluster == XFS_CLUSTER_END) goto Out_Error;
+                    if (FileLoc->PageCluster == EXFS_CLUSTER_END) goto Out_Error;
 
                     if (!ReadCluster(FileSystem, FileLoc->PageCluster, FileSystem->PageBuffer)) {
                         return FALSE;
@@ -377,7 +410,7 @@ static BOOL LocateFile(LPXFSFILESYSTEM FileSystem, LPCSTR Path, LPXFSFILELOC Fil
 
                 FileLoc->FileCluster = GET_PAGE_ENTRY();
 
-                if (FileLoc->FileCluster == XFS_CLUSTER_END) goto Out_Error;
+                if (FileLoc->FileCluster == EXFS_CLUSTER_END) goto Out_Error;
 
                 if (!ReadCluster(FileSystem, FileLoc->FileCluster, FileSystem->IOBuffer)) {
                     return FALSE;
@@ -401,6 +434,14 @@ Out_Error:
 
 /***************************************************************************/
 
+/**
+ * @brief Write sectors to a physical disk.
+ * @param Disk Target disk.
+ * @param Sector Starting sector.
+ * @param NumSectors Number of sectors to write.
+ * @param Buffer Source buffer.
+ * @return TRUE on success.
+ */
 static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPVOID Buffer) {
     IOCONTROL Control;
     U32 Result;
@@ -422,13 +463,18 @@ static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPV
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new EXFS partition on a disk.
+ * @param Create Parameters for the partition.
+ * @return Driver-specific error code.
+ */
 static U32 CreatePartition(LPPARTITION_CREATION Create) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
     U8 Buffer3[SECTOR_SIZE * 2];
-    LPXFSMBR Master = (LPXFSMBR)Buffer1;
-    LPXFSSUPER Super = (LPXFSSUPER)Buffer2;
-    LPXFSFILEREC FileRec = (LPXFSFILEREC)Buffer3;
+    LPEXFSMBR Master = (LPEXFSMBR)Buffer1;
+    LPEXFSSUPER Super = (LPEXFSSUPER)Buffer2;
+    LPEXFSFILEREC FileRec = (LPEXFSFILEREC)Buffer3;
     U32* Buffer3Long = (U32*)Buffer3;
     U32 PartitionNumClusters = 0;
     U32 BytesPerCluster = 0;
@@ -438,7 +484,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     U32 RootCluster = 0;
     U32 CurrentSector = Create->PartitionStartSector;
 
-    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Enter"));
 
     //-------------------------------------
     // Check validity of parameters
@@ -453,7 +499,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     MemorySet(Buffer2, 0, SECTOR_SIZE * 2);
     MemorySet(Buffer3, 0, SECTOR_SIZE * 2);
 
-    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Buffers cleared"));
+    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Buffers cleared"));
 
     //-------------------------------------
     // Compute size in clusters of bitmap
@@ -495,7 +541,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] MBR written"));
+    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] MBR written"));
 
     //-------------------------------------
     // Fill the superblock
@@ -526,7 +572,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Superblock written"));
+    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Superblock written"));
 
     //-------------------------------------
     // Cluster 0 is empty because 0 is not a valid
@@ -543,7 +589,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     // Write the root cluster page
 
     Buffer3Long[0] = RootCluster + 1;
-    Buffer3Long[1] = XFS_CLUSTER_END;
+    Buffer3Long[1] = EXFS_CLUSTER_END;
 
     if (WriteSectors(Create->Disk, CurrentSector, 1, Buffer3) == FALSE) {
         return DF_ERROR_FS_CANT_WRITE_SECTOR;
@@ -551,20 +597,20 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += Create->SectorsPerCluster;
 
-    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] Root cluster page written"));
+    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Root cluster page written"));
 
     //-------------------------------------
     // Write the first file record
 
-    MemorySet(FileRec, 0, sizeof(XFSFILEREC));
+    MemorySet(FileRec, 0, sizeof(EXFSFILEREC));
 
-    FileRec->ClusterTable = XFS_CLUSTER_END;
+    FileRec->ClusterTable = EXFS_CLUSTER_END;
 
     if (WriteSectors(Create->Disk, CurrentSector, 1, Buffer3) == FALSE) {
         return DF_ERROR_FS_CANT_WRITE_SECTOR;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[XFS.CreatePartition] First file record written"));
+    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] First file record written"));
 
     //-------------------------------------
 
@@ -573,29 +619,34 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
 /***************************************************************************/
 
-static void TranslateFileInfo(LPXFSFILEREC FileRec, LPXFSFILE File) {
+/**
+ * @brief Translate an EXFS file record to a file structure.
+ * @param FileRec Source file record.
+ * @param File Destination file.
+ */
+static void TranslateFileInfo(LPEXFSFILEREC FileRec, LPEXFSFILE File) {
     //-------------------------------------
     // Translate the attributes
 
     File->Header.Attributes = 0;
 
-    if (FileRec->Attributes & XFS_ATTR_FOLDER) {
+    if (FileRec->Attributes & EXFS_ATTR_FOLDER) {
         File->Header.Attributes |= FS_ATTR_FOLDER;
     }
 
-    if (FileRec->Attributes & XFS_ATTR_READONLY) {
+    if (FileRec->Attributes & EXFS_ATTR_READONLY) {
         File->Header.Attributes |= FS_ATTR_READONLY;
     }
 
-    if (FileRec->Attributes & XFS_ATTR_HIDDEN) {
+    if (FileRec->Attributes & EXFS_ATTR_HIDDEN) {
         File->Header.Attributes |= FS_ATTR_HIDDEN;
     }
 
-    if (FileRec->Attributes & XFS_ATTR_SYSTEM) {
+    if (FileRec->Attributes & EXFS_ATTR_SYSTEM) {
         File->Header.Attributes |= FS_ATTR_SYSTEM;
     }
 
-    if (FileRec->Attributes & XFS_ATTR_EXECUTABLE) {
+    if (FileRec->Attributes & EXFS_ATTR_EXECUTABLE) {
         File->Header.Attributes |= FS_ATTR_EXECUTABLE;
     }
 
@@ -619,15 +670,24 @@ static void TranslateFileInfo(LPXFSFILEREC FileRec, LPXFSFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the EXFS driver.
+ * @return Driver-specific result code.
+ */
 static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 
-static LPXFSFILE OpenFile(LPFILEINFO Find) {
-    LPXFSFILESYSTEM FileSystem = NULL;
-    LPXFSFILE File = NULL;
-    LPXFSFILEREC FileRec = NULL;
-    XFSFILELOC FileLoc;
+/**
+ * @brief Open a file based on search information.
+ * @param Find File information from a directory search.
+ * @return Pointer to opened file or NULL.
+ */
+static LPEXFSFILE OpenFile(LPFILEINFO Find) {
+    LPEXFSFILESYSTEM FileSystem = NULL;
+    LPEXFSFILE File = NULL;
+    LPEXFSFILEREC FileRec = NULL;
+    EXFSFILELOC FileLoc;
 
     //-------------------------------------
     // Check validity of parameters
@@ -637,14 +697,14 @@ static LPXFSFILE OpenFile(LPFILEINFO Find) {
     //-------------------------------------
     // Get the associated file system
 
-    FileSystem = (LPXFSFILESYSTEM)Find->FileSystem;
+    FileSystem = (LPEXFSFILESYSTEM)Find->FileSystem;
 
     if (LocateFile(FileSystem, Find->Name, &FileLoc) == TRUE) {
         if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) return FALSE;
 
-        FileRec = (LPXFSFILEREC)(FileSystem->IOBuffer + FileLoc.FileOffset);
+        FileRec = (LPEXFSFILEREC)(FileSystem->IOBuffer + FileLoc.FileOffset);
 
-        File = NewXFSFile(FileSystem, &FileLoc);
+        File = NewEXFSFile(FileSystem, &FileLoc);
         if (File == NULL) return NULL;
 
         StringCopy(File->Header.Name, FileRec->Name);
@@ -660,9 +720,14 @@ static LPXFSFILE OpenFile(LPFILEINFO Find) {
 
 #define GET_PAGE_ENTRY() (*((U32*)(FileSystem->PageBuffer + File->Location.PageOffset)))
 
-static U32 OpenNext(LPXFSFILE File) {
-    LPXFSFILESYSTEM FileSystem = NULL;
-    LPXFSFILEREC FileRec = NULL;
+/**
+ * @brief Open the next file in a directory listing.
+ * @param File Current file handle.
+ * @return Driver-specific status code.
+ */
+static U32 OpenNext(LPEXFSFILE File) {
+    LPEXFSFILESYSTEM FileSystem = NULL;
+    LPEXFSFILEREC FileRec = NULL;
 
     //-------------------------------------
     // Check validity of parameters
@@ -673,7 +738,7 @@ static U32 OpenNext(LPXFSFILE File) {
     //-------------------------------------
     // Get the associated file system
 
-    FileSystem = (LPXFSFILESYSTEM)File->Header.FileSystem;
+    FileSystem = (LPEXFSFILESYSTEM)File->Header.FileSystem;
 
     //-------------------------------------
     // Read the cluster containing the file
@@ -681,7 +746,7 @@ static U32 OpenNext(LPXFSFILE File) {
     if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return FALSE;
 
     while (1) {
-        File->Location.FileOffset += sizeof(XFSFILEREC);
+        File->Location.FileOffset += sizeof(EXFSFILEREC);
 
         if (File->Location.FileOffset >= FileSystem->BytesPerCluster) {
             File->Location.PageOffset += sizeof(U32);
@@ -694,7 +759,7 @@ static U32 OpenNext(LPXFSFILE File) {
                 File->Location.PageCluster = GET_PAGE_ENTRY();
                 File->Location.PageOffset = 0;
 
-                if (File->Location.PageCluster == XFS_CLUSTER_END) return DF_ERROR_GENERIC;
+                if (File->Location.PageCluster == EXFS_CLUSTER_END) return DF_ERROR_GENERIC;
 
                 if (!ReadCluster(FileSystem, File->Location.PageCluster, FileSystem->PageBuffer)) {
                     return DF_ERROR_GENERIC;
@@ -703,16 +768,16 @@ static U32 OpenNext(LPXFSFILE File) {
 
             File->Location.FileCluster = GET_PAGE_ENTRY();
 
-            if (File->Location.FileCluster == XFS_CLUSTER_END) return DF_ERROR_GENERIC;
+            if (File->Location.FileCluster == EXFS_CLUSTER_END) return DF_ERROR_GENERIC;
 
             if (!ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer)) {
                 return DF_ERROR_GENERIC;
             }
         }
 
-        FileRec = (LPXFSFILEREC)(FileSystem->IOBuffer + File->Location.FileOffset);
+        FileRec = (LPEXFSFILEREC)(FileSystem->IOBuffer + File->Location.FileOffset);
 
-        if (FileRec->ClusterTable == XFS_CLUSTER_END) return DF_ERROR_GENERIC;
+        if (FileRec->ClusterTable == EXFS_CLUSTER_END) return DF_ERROR_GENERIC;
 
         if (FileRec->ClusterTable) {
             File->Location.DataCluster = FileRec->ClusterTable;
@@ -727,16 +792,21 @@ static U32 OpenNext(LPXFSFILE File) {
 
 /***************************************************************************/
 
-static U32 CloseFile(LPXFSFILE File) {
-    // LPXFSFILESYSTEM FileSystem = NULL;
-    // LPXFSFILEREC FileRec = NULL;
+/**
+ * @brief Close an open EXFS file.
+ * @param File File handle.
+ * @return Driver-specific status code.
+ */
+static U32 CloseFile(LPEXFSFILE File) {
+    // LPEXFSFILESYSTEM FileSystem = NULL;
+    // LPEXFSFILEREC FileRec = NULL;
 
     if (File == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
     // Get the associated file system
 
-    // FileSystem = (LPXFSFILESYSTEM)File->Header.FileSystem;
+    // FileSystem = (LPEXFSFILESYSTEM)File->Header.FileSystem;
 
     //-------------------------------------
     // Update file information in directory entry
@@ -765,14 +835,20 @@ static U32 CloseFile(LPXFSFILE File) {
 
     File->Header.ID = ID_NONE;
 
-    KernelMemFree(File);
+    HeapFree(File);
 
     return DF_ERROR_SUCCESS;
 }
 
 /***************************************************************************/
 
-U32 XFSCommands(U32 Function, U32 Parameter) {
+/**
+ * @brief Dispatch EXFS driver commands.
+ * @param Function Command identifier.
+ * @param Parameter Command parameter.
+ * @return Driver-specific result code.
+ */
+U32 EXFSCommands(U32 Function, U32 Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
@@ -791,9 +867,9 @@ U32 XFSCommands(U32 Function, U32 Parameter) {
         case DF_FS_OPENFILE:
             return (U32)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
-            return (U32)OpenNext((LPXFSFILE)Parameter);
+            return (U32)OpenNext((LPEXFSFILE)Parameter);
         case DF_FS_CLOSEFILE:
-            return (U32)CloseFile((LPXFSFILE)Parameter);
+            return (U32)CloseFile((LPEXFSFILE)Parameter);
         case DF_FS_DELETEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_RENAMEFILE:

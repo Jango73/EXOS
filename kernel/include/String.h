@@ -13,6 +13,7 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "VarArg.h"
 
 /***************************************************************************/
 // Flags for format printing
@@ -56,6 +57,9 @@ U32 StringToU32(LPCSTR);
 /***************************************************************************/
 
 LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, I32 Type);
+
+void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args);
+void StringPrintFormat(LPSTR Destination, LPCSTR Format, ...);
 
 /***************************************************************************/
 

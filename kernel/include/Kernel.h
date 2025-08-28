@@ -151,27 +151,26 @@ typedef struct tag_KERNELDATA {
     LPLIST File;
     LPFILESYSTEM SystemFS;
     LPTOML Configuration;
+    STR LanguageCode[8];
+    STR KeyboardCode[8];
     CPUINFORMATION CPU;
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
 
 /***************************************************************************/
-
 // Functions in Kernel.c
 
-LPVOID KernelMemAlloc(U32);
-void KernelMemFree(LPVOID);
+LPVOID HeapAlloc(U32);
+void HeapFree(LPVOID);
 BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR, LPSEGMENTINFO);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
-void ReadKernelConfiguration(void);
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
 
 /***************************************************************************/
-
 // Functions in Segment.c
 
 void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR, U32);
@@ -183,14 +182,12 @@ void SetTSSDescriptorBase(LPTSSDESCRIPTOR Desc, U32 Base);
 void SetTSSDescriptorLimit(LPTSSDESCRIPTOR Desc, U32 Limit);
 
 /***************************************************************************/
-
-// Functions in MemEdit.c
+// Functions in MemoryEditor.c
 
 void PrintMemory(U32, U32);
-void MemEdit(U32);
+void MemoryEditor(U32);
 
 /***************************************************************************/
-
 // Functions in Edit.c
 
 U32 Edit(U32, LPCSTR*);

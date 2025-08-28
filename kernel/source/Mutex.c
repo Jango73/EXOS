@@ -42,7 +42,7 @@ void InitMutex(LPMUTEX This) {
 /***************************************************************************/
 
 LPMUTEX NewMutex(void) {
-    LPMUTEX This = (LPMUTEX)KernelMemAlloc(sizeof(MUTEX));
+    LPMUTEX This = (LPMUTEX)HeapAlloc(sizeof(MUTEX));
 
     if (This == NULL) return NULL;
 

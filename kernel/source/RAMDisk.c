@@ -50,7 +50,7 @@ typedef struct tag_RAMDISK {
 static LPRAMDISK NewRAMDisk(void) {
     LPRAMDISK This;
 
-    This = (LPRAMDISK)KernelMemAlloc(sizeof(RAMDISK));
+    This = (LPRAMDISK)HeapAlloc(sizeof(RAMDISK));
 
     if (This == NULL) return NULL;
 
@@ -454,7 +454,7 @@ static U32 RAMDiskInitialize(void) {
     KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Partition created"));
 
     //-------------------------------------
-    // Create an XFS partition
+    // Create an EXFS partition
 
     Create.Size = sizeof(PARTITION_CREATION);
     Create.Disk = (LPPHYSICALDISK)Disk;
@@ -465,9 +465,9 @@ static U32 RAMDiskInitialize(void) {
 
     StringCopy(Create.VolumeName, TEXT("RamDisk"));
 
-    XFSDriver.Command(DF_FS_CREATEPARTITION, (U32)&Create);
+    EXFSDriver.Command(DF_FS_CREATEPARTITION, (U32)&Create);
 
-    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Partition formated in XFS"));
+    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Partition formated in EXFS"));
 
     //-------------------------------------
 

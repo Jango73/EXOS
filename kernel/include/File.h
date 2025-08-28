@@ -30,14 +30,16 @@
 
 /***************************************************************************/
 
-LPFILE OpenFile(LPFILEOPENINFO);
-U32 CloseFile(LPFILE);
-U32 ReadFile(LPFILEOPERATION);
-U32 WriteFile(LPFILEOPERATION);
-U32 GetFileSize(LPFILE);
-U32 DeleteFile(LPFILEOPENINFO);
-U32 CreateFolder(LPFILEOPENINFO);
-U32 DeleteFolder(LPFILEOPENINFO);
+LPFILE OpenFile(LPFILEOPENINFO FileOpenInfo);
+U32 CloseFile(LPFILE File);
+U32 GetFilePosition(LPFILE File);
+U32 SetFilePosition(LPFILEOPERATION Operation);
+U32 ReadFile(LPFILEOPERATION Operation);
+U32 WriteFile(LPFILEOPERATION Operation);
+U32 GetFileSize(LPFILE File);
+U32 DeleteFile(LPFILEOPENINFO FileOpenInfo);
+U32 CreateFolder(LPFILEOPENINFO FileOpenInfo);
+U32 DeleteFolder(LPFILEOPENINFO FileOpenInfo);
 
 LPVOID FileReadAll(LPCSTR, U32 *);
 U32 FileWriteAll(LPCSTR, LPCVOID, U32);

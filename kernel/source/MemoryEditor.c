@@ -87,7 +87,7 @@ static void PrintMemoryPage(U32 Base, U32 Size) {
 
 /***************************************************************************/
 
-void MemEdit(U32 Base) {
+void MemoryEditor(U32 Base) {
     KEYCODE KeyCode;
 
     PrintMemoryPage(Base, 24 * 16);
@@ -105,6 +105,7 @@ void MemEdit(U32 Base) {
                 } break;
                 case VK_UP: {
                     if (Base >= 16) Base -= 16;
+                    else Base = 0;
                     PrintMemoryPage(Base, 24 * 16);
                 } break;
                 case VK_PAGEDOWN: {

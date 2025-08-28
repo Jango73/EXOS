@@ -26,10 +26,19 @@ void KernelMain(void) {
     U32 ImageAddress;
     U8 CursorX;
     U8 CursorY;
+    U32 E820Ptr;
+    U32 E820Entries;
 
     __asm__ __volatile__("movl %%eax, %0" : "=m"(ImageAddress));
     __asm__ __volatile__("movb %%bl, %0" : "=m"(CursorX));
     __asm__ __volatile__("movb %%bh, %0" : "=m"(CursorY));
+    __asm__ __volatile__("movl %%esi, %0" : "=m"(E820Ptr));
+    __asm__ __volatile__("movl %%ecx, %0" : "=m"(E820Entries));
+
+    if (E820Entries > 0 && E820Entries < (N_4KB / sizeof(E820ENTRY))) {
+        MemoryCopy(KernelStartup.E820, (LPE820ENTRY)E820Ptr, E820Entries * sizeof(E820ENTRY));
+        KernelStartup.E820_Count = E820Entries;
+    }
 
     //-------------------------------------
     // Clear the BSS

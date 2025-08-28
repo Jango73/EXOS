@@ -18,7 +18,7 @@
 static LPMESSAGE NewMessage(void) {
     LPMESSAGE This;
 
-    This = (LPMESSAGE)KernelMemAlloc(sizeof(MESSAGE));
+    This = (LPMESSAGE)HeapAlloc(sizeof(MESSAGE));
 
     if (This == NULL) return NULL;
 
@@ -37,7 +37,7 @@ void DeleteMessage(LPMESSAGE This) {
 
     This->ID = ID_NONE;
 
-    KernelMemFree(This);
+    HeapFree(This);
 }
 
 /************************************************************************/
@@ -51,7 +51,7 @@ LPTASK NewTask(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Enter"));
 
-    This = (LPTASK)KernelMemAlloc(sizeof(TASK));
+    This = (LPTASK)HeapAlloc(sizeof(TASK));
 
     if (This == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[NewTask] Could not allocate memory for task"));
@@ -75,12 +75,12 @@ LPTASK NewTask(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Initialize task message queue"));
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] MessageDestructor = %X"), (LINEAR)MessageDestructor);
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] KernelMemAlloc = %X"), (LINEAR)KernelMemAlloc);
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] KernelMemFree = %X"), (LINEAR)KernelMemFree);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] HeapAlloc = %X"), (LINEAR)HeapAlloc);
+    KernelLogText(LOG_DEBUG, TEXT("[NewTask] HeapFree = %X"), (LINEAR)HeapFree);
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] EBP = %X"), (LINEAR)GetEBP());
 
     This->Type = TASK_TYPE_KERNEL_OTHER;
-    This->Message = NewList(MessageDestructor, KernelMemAlloc, KernelMemFree);
+    This->Message = NewList(MessageDestructor, HeapAlloc, HeapFree);
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Exit"));
 
@@ -138,7 +138,7 @@ void DeleteTask(LPTASK This) {
     //-------------------------------------
     // Free the task structure itself
 
-    KernelMemFree(This);
+    HeapFree(This);
 
     KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Exit"));
 }

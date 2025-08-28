@@ -7,12 +7,33 @@ BITS 16
 ORIGIN equ 0x8000
 KERNEL_LOAD_ADDRESS      equ 0x00020000
 
+%macro DebugPrint 1
+%if DEBUG_OUTPUT
+    mov         si, %1
+%if DEBUG_OUTPUT = 2
+    call        SerialPrintString
+%else
+    call        PrintString
+%endif
+%endif
+%endmacro
+
+%macro ErrorPrint 1
+    mov         si, %1
+%if DEBUG_OUTPUT = 2
+    call        SerialPrintString
+%else
+    call        PrintString
+%endif
+%endmacro
+
 section .start
 global _start
 global BiosReadSectors
 global MemorySet
 global MemoryCopy
 global StubJumpToImage
+global BiosGetMemoryMap
 
 extern BootMain
 
@@ -49,8 +70,11 @@ Start:
 
     sti                                     ; Enable interrupts
 
-    mov         si, Text_Jumping
-    call        PrintString
+%if DEBUG_OUTPUT = 2
+    call        InitSerial
+%endif
+
+    DebugPrint  Text_Jumping
 
     mov         eax, [DAP_Start_LBA_Low]
     push        eax                         ; Param 2 : Partition LBA
@@ -222,6 +246,64 @@ MemoryCopy :
     ret
 
 ;-------------------------------------------------------------------------
+; BiosGetMemoryMap
+; In : EBP+8 = buffer (seg:ofs packed)
+;      EBP+12 = max entries
+; Out: EAX = entry count
+;-------------------------------------------------------------------------
+
+BiosGetMemoryMap:
+    push    ebp
+    mov     ebp, esp
+    push    esi
+    push    edi
+    push    ebx
+    push    ecx
+    push    edx
+
+    mov     eax, [ebp+8]
+    mov     di, ax
+    shr     eax, 16
+    mov     es, ax
+    mov     esi, [ebp+12]
+    xor     ebx, ebx
+
+.loop:
+    mov     eax, 0xE820
+    mov     edx, 0x534D4150
+    mov     ecx, 24
+    int     0x15
+    jc      .error
+    cmp     eax, 0x534D4150
+    jne     .error
+    add     di, 24
+    dec     esi
+    jz      .done
+    cmp     ebx, 0
+    jne     .loop
+
+.done:
+    mov     eax, [ebp+12]
+    sub     eax, esi
+    jmp     .return
+
+.error:
+    mov     si, Text_E820Error
+    call    PrintString
+    cli
+    hlt
+    jmp     .error
+
+.return:
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     edi
+    pop     esi
+    pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
 ; PrintChar
 ; In : AL = character to write
 ;-------------------------------------------------------------------------
@@ -246,6 +328,47 @@ PrintString:
     int         0x10
     jmp         PrintString
 .done:
+    ret
+
+SerialPrintString:
+    lodsb
+    or          al, al
+    jz          .sdone
+    push        ax
+.wait:
+    mov         dx, 0x3FD
+    in          al, dx
+    test        al, 0x20
+    jz          .wait
+    pop         ax
+    mov         dx, 0x3F8
+    out         dx, al
+    jmp         SerialPrintString
+.sdone:
+    ret
+
+InitSerial:
+    mov         dx, 0x3F8 + 1
+    mov         al, 0x00
+    out         dx, al
+    mov         dx, 0x3F8 + 3
+    mov         al, 0x80
+    out         dx, al
+    mov         dx, 0x3F8
+    mov         al, 0x03
+    out         dx, al
+    mov         dx, 0x3F8 + 1
+    mov         al, 0x00
+    out         dx, al
+    mov         dx, 0x3F8 + 3
+    mov         al, 0x03
+    out         dx, al
+    mov         dx, 0x3F8 + 2
+    mov         al, 0xC7
+    out         dx, al
+    mov         dx, 0x3F8 + 4
+    mov         al, 0x0B
+    out         dx, al
     ret
 
 ;-------------------------------------------------------------------------
@@ -322,8 +445,7 @@ StubJumpToImage:
 
     cli
 
-    mov         si, Text_JumpingToPM
-    call        PrintString
+    DebugPrint  Text_JumpingToPM
 
     xor         ebx, ebx               ; Prepare EBX and select page 0
     mov         ah, 0x03               ; BIOS get cursor position
@@ -358,9 +480,11 @@ ProtectedEntryPoint:
     mov         cr0, eax
     jmp         $+2                ; Pipeline flush
 
-    mov         ecx, [ebp + 16]    ; KernelEntryVA
+    mov         edx, [ebp + 16]    ; KernelEntryVA
+    mov         esi, [ebp + 20]    ; E820 map pointer
+    mov         ecx, [ebp + 24]    ; E820 entry count
     mov         eax, KERNEL_LOAD_ADDRESS
-    jmp         ecx
+    jmp         edx
 
     hlt
 .hang:
@@ -379,6 +503,7 @@ Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
 Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",0
 Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
+Text_E820Error: db "[VBR C Stub] E820 call failed",0
 Text_NewLine: db 10,13,0
 
 ;-------------------------------------------------------------------------

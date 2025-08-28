@@ -45,38 +45,32 @@ This was a year-long solo project, developed the hard way:
 
 I stopped development when I hit a wall: the scheduler was too slow, I lost motivation at that time.
 
-## Timeline & resilience
-
-In 2025, after more than 25 years in storage, I managed to revive EXOS.
-The original routines (disk access, FAT32 handling, task/process logic) booted and worked out of the box on modern QEMU virtual machines, with image files replacing the physical hard drives of the 90s.
-
-- Hand-written drivers for IDE/ATA and interrupt management: still working
-- FAT32 filesystem code from 1999: able to mount and browse modern images
-- Survived several generations of toolchains (GCC, NASM, mkfs, QEMU)
-
-> In 1999, EXOS read its first FAT32 disk on real hardware.
-> In 2025, it does exactly the same under QEMU.
-
 ## Things it does
 
 * Task management with scheduler
 * Virtual memory management
-* File system management : FAT, FAT32, XFS (EXOS file system)
-* SATA Hard disk driver
+* File system management : FAT, FAT32, EXFS (EXOS file system)
+* ATA Hard disk driver
 * Console management
 * Basic keyboard and mouse management
 * Primitive graphics using VESA standard
 * Heap management
 * Process spawning, task spawning, scheduling
+* Shell with minimal functionality
+* Virtual file system with mount points
+* TOML configuration file
 
 ## Things to do
 
-* Add buffers for filesystem drivers
-* Rework the scheduler and task switching...
-* Implement a POSIX-like virtual file system
-* Implement some file systems
-* Add some drivers
-* Destroy processes (they live infinitely now)
-* Continue graphics UI
 * Load ELF executables
+* Minimal network drivers
+* Add buffers for filesystem drivers
+* Improve the scheduler
+* Implement some file systems
+* Add some drivers/managers (USB, PCIe, NVMe)
+* Destroy processes (they live infinitely now)
+* Implement Unicode
+* Implement I18n
+* Add keyboard layouts
+* Continue graphics UI
 * and all the rest....

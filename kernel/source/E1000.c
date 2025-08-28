@@ -189,6 +189,12 @@ PCI_DRIVER E1000Driver = {
 /****************************************************************/
 // EEPROM read and MAC
 
+/**
+ * @brief Read a 16-bit word from the device EEPROM.
+ * @param Device Target E1000 device.
+ * @param Address Word offset within the EEPROM.
+ * @return Word value read from EEPROM.
+ */
 static U16 E1000_EepromReadWord(LPE1000DEVICE Device, U32 Address) {
     U32 Value = 0;
     U32 Count = 0;
@@ -204,6 +210,10 @@ static U16 E1000_EepromReadWord(LPE1000DEVICE Device, U32 Address) {
     return (U16)((Value >> E1000_EERD_DATA_SHIFT) & 0xFFFF);
 }
 
+/**
+ * @brief Retrieve the MAC address from hardware or EEPROM.
+ * @param Device Target E1000 device.
+ */
 static void E1000_ReadMac(LPE1000DEVICE Device) {
     U32 low = E1000_ReadReg32(Device->MmioBase, E1000_REG_RAL0);
     U32 high = E1000_ReadReg32(Device->MmioBase, E1000_REG_RAH0);
@@ -239,6 +249,11 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
 
 /****************************************************************/
 // Core HW ops
+/**
+ * @brief Reset the network controller and configure basic settings.
+ * @param Device Target E1000 device.
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL E1000_Reset(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_Reset] Begin"));
     U32 Ctrl = E1000_ReadReg32(Device->MmioBase, E1000_REG_CTRL);
@@ -264,6 +279,11 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
 /****************************************************************/
 // RX/TX rings setup
 
+/**
+ * @brief Initialize the receive descriptor ring and buffers.
+ * @param Device Target E1000 device.
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupRx] Begin"));
     U32 Index;
@@ -335,6 +355,11 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
     return TRUE;
 }
 
+/**
+ * @brief Initialize the transmit descriptor ring and buffers.
+ * @param Device Target E1000 device.
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_SetupTx] Begin"));
     U32 Index;
@@ -407,11 +432,16 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
     return TRUE;
 }
 
+/**
+ * @brief Allocate and initialize a new E1000 device structure.
+ * @param PciDevice PCI device information.
+ * @return Pointer to a new E1000DEVICE or NULL on failure.
+ */
 static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     KernelLogText(
         LOG_DEBUG, TEXT("[E1000] New device %X:%X.%u"), (U32)PciDevice->Info.Bus, (U32)PciDevice->Info.Dev,
         (U32)PciDevice->Info.Func);
-    LPE1000DEVICE Device = (LPE1000DEVICE)KernelMemAlloc(sizeof(E1000DEVICE));
+    LPE1000DEVICE Device = (LPE1000DEVICE)HeapAlloc(sizeof(E1000DEVICE));
     if (Device == NULL) return NULL;
 
     MemorySet(Device, 0, sizeof(E1000DEVICE));
@@ -425,7 +455,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     U32 Bar0Size = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
     if (Bar0Phys == 0 || Bar0Size == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] Invalid BAR0"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
 
@@ -433,7 +463,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     Device->MmioSize = Bar0Size;
     if (Device->MmioBase == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] MmMapIo failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] MMIO mapped at %X size %X"), Device->MmioBase, Device->MmioSize);
@@ -442,7 +472,7 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
 
     if (!E1000_Reset(Device)) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] Reset failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] Reset complete"));
@@ -450,13 +480,13 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
 
     if (!E1000_SetupRx(Device)) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] RX setup failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] RX setup complete"));
     if (!E1000_SetupTx(Device)) {
         KernelLogText(LOG_ERROR, TEXT("[E1000] TX setup failed"));
-        KernelMemFree(Device);
+        HeapFree(Device);
         return NULL;
     }
     KernelLogText(LOG_DEBUG, TEXT("[E1000] TX setup complete"));
@@ -470,10 +500,22 @@ static LPE1000DEVICE NewE1000Device(LPPCI_DEVICE PciDevice) {
     return Device;
 }
 
+/**
+ * @brief Attach routine used by the PCI subsystem.
+ * @param PciDev PCI device to attach.
+ * @return Pointer to device cast as LPPCI_DEVICE.
+ */
 static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev) { return (LPPCI_DEVICE)NewE1000Device(PciDev); }
 
 /****************************************************************/
 // RX/TX operations
+/**
+ * @brief Send a frame using the transmit ring.
+ * @param Device Target E1000 device.
+ * @param Data Pointer to frame data.
+ * @param Length Length of frame in bytes.
+ * @return DF_ERROR_SUCCESS on success or error code.
+ */
 static U32 E1000_TxSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
     if (Length == 0 || Length > E1000_RX_BUF_SIZE) return DF_ERROR_BADPARAM;
 
@@ -503,6 +545,11 @@ static U32 E1000_TxSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
     return DF_ERROR_SUCCESS;
 }
 
+/**
+ * @brief Poll the receive ring for incoming frames.
+ * @param Device Target E1000 device.
+ * @return DF_ERROR_SUCCESS after processing frames.
+ */
 static U32 E1000_RxPoll(LPE1000DEVICE Device) {
     KernelLogText(LOG_DEBUG, TEXT("[E1000_RxPoll] Begin"));
     LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
@@ -540,6 +587,11 @@ static U32 E1000_RxPoll(LPE1000DEVICE Device) {
 /****************************************************************/
 // PCI-level helpers (per-function)
 
+/**
+ * @brief Verify PCI information matches supported hardware.
+ * @param PciInfo PCI configuration to probe.
+ * @return DF_ERROR_SUCCESS if supported, otherwise DF_ERROR_NOTIMPL.
+ */
 static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
     if (PciInfo->VendorID != E1000_VENDOR_INTEL) return DF_ERROR_NOTIMPL;
     if (PciInfo->DeviceID != E1000_DEVICE_82540EM) return DF_ERROR_NOTIMPL;
@@ -550,11 +602,21 @@ static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
 
 // Network DF_* helpers (per-function)
 
+/**
+ * @brief Reset callback for network stack.
+ * @param Reset Reset parameters.
+ * @return DF_ERROR_SUCCESS on success or error code.
+ */
 static U32 E1000_OnReset(const NETWORKRESET *Reset) {
     if (Reset == NULL || Reset->Device == NULL) return DF_ERROR_BADPARAM;
     return E1000_Reset((LPE1000DEVICE)Reset->Device) ? DF_ERROR_SUCCESS : DF_ERROR_UNEXPECT;
 }
 
+/**
+ * @brief Fill NETWORKINFO structure with device state.
+ * @param Get Query parameters and output buffer.
+ * @return DF_ERROR_SUCCESS on success or error code.
+ */
 static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
     if (Get == NULL || Get->Device == NULL || Get->Info == NULL) return DF_ERROR_BADPARAM;
     LPE1000DEVICE Device = (LPE1000DEVICE)Get->Device;
@@ -575,6 +637,11 @@ static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
     return DF_ERROR_SUCCESS;
 }
 
+/**
+ * @brief Register a callback for received frames.
+ * @param Set Parameters including callback pointer.
+ * @return DF_ERROR_SUCCESS on success or error code.
+ */
 static U32 E1000_OnSetRxCb(const NETWORKSETRXCB *Set) {
     if (Set == NULL || Set->Device == NULL) return DF_ERROR_BADPARAM;
     LPE1000DEVICE Device = (LPE1000DEVICE)Set->Device;
@@ -582,11 +649,21 @@ static U32 E1000_OnSetRxCb(const NETWORKSETRXCB *Set) {
     return DF_ERROR_SUCCESS;
 }
 
+/**
+ * @brief Send frame through network stack interface.
+ * @param Send Parameters describing frame to send.
+ * @return DF_ERROR_SUCCESS on success or error code.
+ */
 static U32 E1000_OnSend(const NETWORKSEND *Send) {
     if (Send == NULL || Send->Device == NULL || Send->Data == NULL || Send->Length == 0) return DF_ERROR_BADPARAM;
     return E1000_TxSend((LPE1000DEVICE)Send->Device, Send->Data, Send->Length);
 }
 
+/**
+ * @brief Poll device for received frames through network stack interface.
+ * @param Poll Poll parameters.
+ * @return DF_ERROR_SUCCESS on success or error code.
+ */
 static U32 E1000_OnPoll(const NETWORKPOLL *Poll) {
     if (Poll == NULL || Poll->Device == NULL) return DF_ERROR_BADPARAM;
     return E1000_RxPoll((LPE1000DEVICE)Poll->Device);
@@ -595,19 +672,45 @@ static U32 E1000_OnPoll(const NETWORKPOLL *Poll) {
 /****************************************************************/
 // Driver meta helpers
 
+/**
+ * @brief Driver load callback.
+ * @return DF_ERROR_SUCCESS.
+ */
 static U32 E1000_OnLoad(void) { return DF_ERROR_SUCCESS; }
 
+/**
+ * @brief Driver unload callback.
+ * @return DF_ERROR_SUCCESS.
+ */
 static U32 E1000_OnUnload(void) { return DF_ERROR_SUCCESS; }
 
+/**
+ * @brief Retrieve driver version encoded with MAKE_VERSION.
+ * @return Encoded version number.
+ */
 static U32 E1000_OnGetVersion(void) { return MAKE_VERSION(VER_MAJOR, VER_MINOR); }
 
+/**
+ * @brief Report driver capabilities bitmask.
+ * @return Capability flags, zero if none.
+ */
 static U32 E1000_OnGetCaps(void) { return 0; }
 
+/**
+ * @brief Return last implemented DF_* function.
+ * @return Function identifier used for iteration.
+ */
 static U32 E1000_OnGetLastFunc(void) { return DF_NT_POLL; }
 
 /****************************************************************/
 // Driver entry
 
+/**
+ * @brief Central dispatch for all driver functions.
+ * @param Function Identifier of requested driver operation.
+ * @param Param Optional pointer to parameters.
+ * @return DF_ERROR_* code depending on operation.
+ */
 static U32 E1000Commands(U32 Function, U32 Param) {
     switch (Function) {
         case DF_LOAD:
