@@ -497,9 +497,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelStartup.IRQMask_A1_RM = 0;
     KernelStartup.ConsoleX = CursorX;
     KernelStartup.ConsoleY = CursorY;
-    KernelStartup.MemorySize = N_128MB;
-    KernelStartup.PageCount = KernelStartup.MemorySize >> MUL_4KB;
-    KernelStartup.E820_Count = 0;
 
     //-------------------------------------
     // Init the kernel logger

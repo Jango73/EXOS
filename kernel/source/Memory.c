@@ -1034,6 +1034,23 @@ void InitializeMemoryManager(void) {
     Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
 
+    // Derive total memory size and number of pages from the E820 map
+    if (KernelStartup.E820_Count > 0) {
+        U64 MaxAddress = 0;
+        for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
+            const E820ENTRY* Entry = &KernelStartup.E820[i];
+            U64 End = Entry->Base + Entry->Size;
+            if (End > MaxAddress) {
+                MaxAddress = End;
+            }
+        }
+        if (MaxAddress > 0xFFFFFFFFULL) {
+            MaxAddress = 0xFFFFFFFFULL;
+        }
+        KernelStartup.MemorySize = (U32)MaxAddress;
+        KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+    }
+
     MarkUsedPhysicalMemory();
 
     // Reserve two temporary linear pages (not committed). They will be remapped on demand.
