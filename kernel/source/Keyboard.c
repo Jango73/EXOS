@@ -130,7 +130,7 @@ static LPKEYTRANS ScanCodeMap = NULL;
 void UseKeyboardLayout(LPCSTR Code) {
     ScanCodeMap = GetScanCodeToKeyCode(Code);
     if (ScanCodeMap == NULL) {
-        ScanCodeMap = GetScanCodeToKeyCode("fr-FR");
+        ScanCodeMap = GetScanCodeToKeyCode(TEXT("en-US"));
     }
 }
 
@@ -182,10 +182,10 @@ Out:
 
 /***************************************************************************/
 
-LPCSTR DetectKeyboard(void) {
+U16 DetectKeyboard(void) {
     U32 Flags;
-    STR Id1;
-    STR Id2;
+    U8 Id1;
+    U8 Id2;
 
     SaveFlags(&Flags);
     DisableInterrupts();
@@ -197,7 +197,7 @@ LPCSTR DetectKeyboard(void) {
     Id2 = InPortByte(KEYBOARD_DATA);
     RestoreFlags(&Flags);
 
-    return Id2;
+    return (U16) (Id2 << 8 | Id1);
 }
 
 /***************************************************************************/

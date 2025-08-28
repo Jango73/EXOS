@@ -428,9 +428,9 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
 /***************************************************************************/
 
 KEYBOARDLAYOUT ScanCodeToKeyCode[] = {
-    {"fr-FR", ScanCodeToKeyCode_frFR},
-    {"en-US", ScanCodeToKeyCode_enUS},
-    {"de-DE", ScanCodeToKeyCode_deDE}
+    {TEXT("fr-FR"), ScanCodeToKeyCode_frFR},
+    {TEXT("en-US"), ScanCodeToKeyCode_enUS},
+    {TEXT("de-DE"), ScanCodeToKeyCode_deDE}
 };
 
 /***************************************************************************/
@@ -450,31 +450,31 @@ LPKEYTRANS GetScanCodeToKeyCode(LPCSTR Code) {
 /***************************************************************************/
 
 static KEYNAME KeyNames[] = {
-    {VK_NONE, "NONE"},
-    {VK_F1, "F1"}, {VK_F2, "F2"}, {VK_F3, "F3"}, {VK_F4, "F4"},
-    {VK_F5, "F5"}, {VK_F6, "F6"}, {VK_F7, "F7"}, {VK_F8, "F8"},
-    {VK_F9, "F9"}, {VK_F10, "F10"}, {VK_F11, "F11"}, {VK_F12, "F12"},
-    {VK_0, "0"}, {VK_1, "1"}, {VK_2, "2"}, {VK_3, "3"}, {VK_4, "4"},
-    {VK_5, "5"}, {VK_6, "6"}, {VK_7, "7"}, {VK_8, "8"}, {VK_9, "9"},
-    {VK_A, "A"}, {VK_B, "B"}, {VK_C, "C"}, {VK_D, "D"}, {VK_E, "E"},
-    {VK_F, "F"}, {VK_G, "G"}, {VK_H, "H"}, {VK_I, "I"}, {VK_J, "J"},
-    {VK_K, "K"}, {VK_L, "L"}, {VK_M, "M"}, {VK_N, "N"}, {VK_O, "O"},
-    {VK_P, "P"}, {VK_Q, "Q"}, {VK_R, "R"}, {VK_S, "S"}, {VK_T, "T"},
-    {VK_U, "U"}, {VK_V, "V"}, {VK_W, "W"}, {VK_X, "X"}, {VK_Y, "Y"},
-    {VK_Z, "Z"},
-    {VK_DOT, "."}, {VK_COLON, ":"}, {VK_COMMA, ","}, {VK_UNDERSCORE, "_"},
-    {VK_STAR, "*"}, {VK_PERCENT, "%"}, {VK_EQUAL, "="}, {VK_PLUS, "+"},
-    {VK_MINUS, "-"}, {VK_SLASH, "/"}, {VK_BACKSLASH, "\\"}, {VK_QUESTION, "?"},
-    {VK_EXCL, "!"}, {VK_DOLLAR, "$"}, {VK_AT, "@"},
-    {VK_SPACE, "SPACE"}, {VK_ENTER, "ENTER"}, {VK_ESCAPE, "ESC"},
-    {VK_SHIFT, "SHFT"}, {VK_LSHIFT, "LSHF"}, {VK_RSHIFT, "RSHF"},
-    {VK_CONTROL, "CTRL"}, {VK_LCTRL, "LCTL"}, {VK_RCTRL, "RCTL"},
-    {VK_ALT, "ALT"}, {VK_LALT, "LALT"}, {VK_RALT, "RALT"},
-    {VK_TAB, "TAB"}, {VK_BACKSPACE, "BKSP"}, {VK_INSERT, "INS"},
-    {VK_DELETE, "DEL"}, {VK_HOME, "HOME"}, {VK_END, "END"},
-    {VK_PAGEUP, "PGUP"}, {VK_PAGEDOWN, "PGDN"}, {VK_UP, "UP"},
-    {VK_DOWN, "DOWN"}, {VK_LEFT, "LEFT"}, {VK_RIGHT, "RIGHT"},
-    {VK_NUM, "NUM"}, {VK_CAPS, "CAPS"}, {VK_SCROLL, "SCRL"}, {VK_PAUSE, "PAUS"}
+    {VK_NONE, TEXT("NONE")},
+    {VK_F1, TEXT("F1")}, {VK_F2, TEXT("F2")}, {VK_F3, TEXT("F3")}, {VK_F4, TEXT("F4")},
+    {VK_F5, TEXT("F5")}, {VK_F6, TEXT("F6")}, {VK_F7, TEXT("F7")}, {VK_F8, TEXT("F8")},
+    {VK_F9, TEXT("F9")}, {VK_F10, TEXT("F10")}, {VK_F11, TEXT("F11")}, {VK_F12, TEXT("F12")},
+    {VK_0, TEXT("0")}, {VK_1, TEXT("1")}, {VK_2, TEXT("2")}, {VK_3, TEXT("3")}, {VK_4, TEXT("4")},
+    {VK_5, TEXT("5")}, {VK_6, TEXT("6")}, {VK_7, TEXT("7")}, {VK_8, TEXT("8")}, {VK_9, TEXT("9")},
+    {VK_A, TEXT("A")}, {VK_B, TEXT("B")}, {VK_C, TEXT("C")}, {VK_D, TEXT("D")}, {VK_E, TEXT("E")},
+    {VK_F, TEXT("F")}, {VK_G, TEXT("G")}, {VK_H, TEXT("H")}, {VK_I, TEXT("I")}, {VK_J, TEXT("J")},
+    {VK_K, TEXT("K")}, {VK_L, TEXT("L")}, {VK_M, TEXT("M")}, {VK_N, TEXT("N")}, {VK_O, TEXT("O")},
+    {VK_P, TEXT("P")}, {VK_Q, TEXT("Q")}, {VK_R, TEXT("R")}, {VK_S, TEXT("S")}, {VK_T, TEXT("T")},
+    {VK_U, TEXT("U")}, {VK_V, TEXT("V")}, {VK_W, TEXT("W")}, {VK_X, TEXT("X")}, {VK_Y, TEXT("Y")},
+    {VK_Z, TEXT("Z")},
+    {VK_DOT, TEXT(".")}, {VK_COLON, TEXT(":")}, {VK_COMMA, TEXT(",")}, {VK_UNDERSCORE, TEXT("_")},
+    {VK_STAR, TEXT("*")}, {VK_PERCENT, TEXT("%")}, {VK_EQUAL, TEXT("=")}, {VK_PLUS, TEXT("+")},
+    {VK_MINUS, TEXT("-")}, {VK_SLASH, TEXT("/")}, {VK_BACKSLASH, TEXT("\\")}, {VK_QUESTION, TEXT("?")},
+    {VK_EXCL, TEXT("!")}, {VK_DOLLAR, TEXT("$")}, {VK_AT, TEXT("@")},
+    {VK_SPACE, TEXT("SPACE")}, {VK_ENTER, TEXT("ENTER")}, {VK_ESCAPE, TEXT("ESC")},
+    {VK_SHIFT, TEXT("SHFT")}, {VK_LSHIFT, TEXT("LSHF")}, {VK_RSHIFT, TEXT("RSHF")},
+    {VK_CONTROL, TEXT("CTRL")}, {VK_LCTRL, TEXT("LCTL")}, {VK_RCTRL, TEXT("RCTL")},
+    {VK_ALT, TEXT("ALT")}, {VK_LALT, TEXT("LALT")}, {VK_RALT, TEXT("RALT")},
+    {VK_TAB, TEXT("TAB")}, {VK_BACKSPACE, TEXT("BKSP")}, {VK_INSERT, TEXT("INS")},
+    {VK_DELETE, TEXT("DEL")}, {VK_HOME, TEXT("HOME")}, {VK_END, TEXT("END")},
+    {VK_PAGEUP, TEXT("PGUP")}, {VK_PAGEDOWN, TEXT("PGDN")}, {VK_UP, TEXT("UP")},
+    {VK_DOWN, TEXT("DOWN")}, {VK_LEFT, TEXT("LEFT")}, {VK_RIGHT, TEXT("RIGHT")},
+    {VK_NUM, TEXT("NUM")}, {VK_CAPS, TEXT("CAPS")}, {VK_SCROLL, TEXT("SCRL")}, {VK_PAUSE, TEXT("PAUS")}
 };
 
 /***************************************************************************/
