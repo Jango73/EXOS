@@ -263,7 +263,15 @@ Interrupt_Clock :
     push    es
     push    fs
     push    gs
-    pushad
+    push    eax
+    push    ecx
+    push    edx
+    push    ebx
+    sub     esp, 4               ; reserve slot for ESP
+    mov     [esp], esp           ; store current stack pointer
+    push    ebp
+    push    esi
+    push    edi
 
     call    ClockHandler
 
@@ -275,7 +283,14 @@ Interrupt_Clock :
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    popad
+    pop     edi
+    pop     esi
+    pop     ebp
+    add     esp, 4               ; discard saved ESP
+    pop     ebx
+    pop     edx
+    pop     ecx
+    pop     eax
     pop     gs
     pop     fs
     pop     es

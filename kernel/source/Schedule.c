@@ -174,7 +174,9 @@ void Scheduler(LPTRAPFRAME Frame) {
                         // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), Next->SysStackTop);
                         Kernel_i386.TSS->ESP0 = Next->SysStackTop;
 
-                        *Frame = Next->Context;
+                        U32 OldESP = Frame->ESP;  // Keep original kernel stack
+                        *Frame = Next->Context;   // Load next task context
+                        Frame->ESP = OldESP;      // Restore kernel ESP for ISR cleanup
 
                         TaskList.Current = Next;
                     }
