@@ -56,5 +56,5 @@ void KernelMain(void) {
     //--------------------------------------
     // Enter idle
 
-    IdleCPU();
+    DeadCPU();
 }

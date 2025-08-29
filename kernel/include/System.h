@@ -76,6 +76,7 @@ extern void MemorySet(LPVOID Destination, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
 extern U32 DoSystemCall(U32, U32);
 extern void IdleCPU(void);
+extern void DeadCPU(void);
 extern void Reboot(void);
 
 /***************************************************************************/

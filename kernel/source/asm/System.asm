@@ -84,6 +84,7 @@ bits 32
     global MemoryCopy
     global DoSystemCall
     global IdleCPU
+    global DeadCPU
     global Reboot
 
 ;--------------------------------------
@@ -1029,7 +1030,16 @@ IdleCPU :
     cli
     sti
     hlt
-    jmp     IdleCPU
+    ret
+
+;--------------------------------------
+
+DeadCPU :
+
+    cli
+    sti
+    hlt
+    jmp     DeadCPU
     ret
 
 ;--------------------------------------

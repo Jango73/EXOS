@@ -141,11 +141,7 @@ void ClearConsole(void) {
  * @param Char Character to print.
  */
 void ConsolePrintChar(STR Char) {
-    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrintChar] Enter"));
-
     LockMutex(MUTEX_CONSOLE, INFINITY);
-
-    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrintChar] Printing %X"), Char);
 
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
@@ -166,8 +162,6 @@ void ConsolePrintChar(STR Char) {
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
     UnlockMutex(MUTEX_CONSOLE);
-
-    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrintChar] Exit"));
 }
 
 /***************************************************************************/
