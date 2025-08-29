@@ -162,7 +162,21 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
         MemoryCopy(&(TaskList.Current->Context), Frame, sizeof(TRAPFRAME));
     }
 
-    if (TaskList.Freeze) return NULL;
+    if (TaskList.Freeze) {
+        #ifdef SCHEDULER_LOGS_ENABLED
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
+        #endif
+
+        return NULL;
+    }
+
+    #ifdef SCHEDULER_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Current frame EAX : %X, EBX : %X, ECX %X, EDX %X\n"
+        ", ESI : %X, EDI : %X, EBP %X, ESP %X"),
+        Frame->EAX, Frame->EBX, Frame->ECX, Frame->EDX,
+        Frame->ESI, Frame->EDI, Frame->EBP, Frame->ESP
+        );
+    #endif
 
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
         TaskList.SchedulerTime = 0;
@@ -201,6 +215,11 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
                         TaskList.Current = Next;
                         return NextFrame;  // Switch to this stack
                     }
+
+                    #ifdef SCHEDULER_LOGS_ENABLED
+                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
+                    #endif
+
                     return NULL;
                 } break;
 
@@ -212,10 +231,18 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
             }
 
             if (Next == Current) {
+                #ifdef SCHEDULER_LOGS_ENABLED
+                KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
+                #endif
+
                 return NULL;
             }
         }
     }
+
+    #ifdef SCHEDULER_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
+    #endif
 
     return NULL;
 }
