@@ -19,6 +19,10 @@
 
 /***************************************************************************/
 
+#define DEBUG_LOGS_ENABLED 1
+
+/***************************************************************************/
+
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
@@ -669,7 +673,18 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-    if (Busy) return;
+    #ifdef SCHEDULER_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Enter"));
+    #endif
+
+    if (Busy) {
+        #ifdef SCHEDULER_LOGS_ENABLED
+        KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Busy, exiting"));
+        #endif
+
+        return;
+    }
+
     Busy = 1;
 
     Status = InPortByte(KEYBOARD_COMMAND);
@@ -687,6 +702,10 @@ void KeyboardHandler(void) {
     } while (Status & KSR_OUT_FULL);
 
     Busy = 0;
+
+    #ifdef SCHEDULER_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Exit"));
+    #endif
 }
 
 /***************************************************************************/
