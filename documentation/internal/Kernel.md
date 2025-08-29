@@ -568,7 +568,7 @@ Implements the PC keyboard driver and key buffering.
 - GetKeyCodeDown: Returns TRUE if the specified key is currently pressed. Supports VK_CONTROL, VK_SHIFT and VK_ALT to check either side.
 - WaitKey: Waits for a key press.
 - KeyboardHandler: Interrupt handler that reads scan codes.
-- KeyboardInitialize: Initializes keyboard structures and IRQ.
+ - KeyboardInitialize: Initializes keyboard structures, configures the controller command byte for IRQ1, and unmasks the keyboard interrupt.
 - StdKeyboardCommands: Driver entry function.
 
 ### List.c

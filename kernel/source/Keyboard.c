@@ -741,19 +741,21 @@ static U32 InitializeKeyboard(void) {
     SendKeyboardCommand(KSC_ENABLE, 0);
 
     //-------------------------------------
+    // Allow keyboard interrupts and translation
+
+    KeyboardWait();
+    OutPortByte(KEYBOARD_COMMAND, KSC_READ_MODE);
+    KeyboardWait();
+    U8 CommandByte = InPortByte(KEYBOARD_DATA);
+    CommandByte |= 0x01;    // enable IRQ1
+    CommandByte |= 0x40;    // enable translation
+    CommandByte &= (U8)~0x10;    // ensure keyboard enabled
+    SendKeyboardCommand(KSC_WRITE_MODE, CommandByte);
+
+    //-------------------------------------
     // Set the LED status
 
     UpdateKeyboardLEDs();
-
-    InPortByte(KEYBOARD_COMMAND);
-    InPortByte(KEYBOARD_COMMAND);
-    InPortByte(KEYBOARD_COMMAND);
-    InPortByte(KEYBOARD_COMMAND);
-
-    InPortByte(KEYBOARD_DATA);
-    InPortByte(KEYBOARD_DATA);
-    InPortByte(KEYBOARD_DATA);
-    InPortByte(KEYBOARD_DATA);
 
     //-------------------------------------
     // Enable the keyboard's IRQ
