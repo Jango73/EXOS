@@ -28,7 +28,6 @@ OBJ_S  = $(patsubst source/asm/%.asm, bin/%.o, $(SRC_S))
 OBJS   = $(OBJ_S) $(OBJ_C)
 
 # Sections to extract (edit as needed)
-STUB_BIN   = bin/stub.bin
 TEXT_BIN   = bin/text.bin
 DATA_BIN   = bin/data.bin
 BSS_BIN    = bin/bss.bin
@@ -43,11 +42,6 @@ all: check_magic
 $(KERNEL_ELF): $(OBJS) linker-elf.ld
 	$(LD) $(LDFLAGS_ELF) -o $@ $(OBJS)
 
-# Extract each section as a flat binary
-$(STUB_BIN): $(KERNEL_ELF)
-	@echo "Extracting .stub section to $@"
-	$(OBJCOPY) -O binary --only-section=.stub $< $@
-
 $(TEXT_BIN): $(KERNEL_ELF)
 	@echo "Extracting .text section to $@"
 	$(OBJCOPY) -O binary --only-section=.text $< $@
@@ -61,24 +55,11 @@ $(BSS_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) -O binary --only-section=.bss $< $@
 
 # Build final padded image
-$(FINAL_IMG): $(STUB_BIN) $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
+$(FINAL_IMG): $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 	@echo "Building paged disk image: $@ (ALIGN=$(ALIGN))"
 
 	# Clear binary file
 	rm -f -- $@
-
-	# Write stub
-	cat $(STUB_BIN) > $@
-
-	# Align current image to next ALIGN boundary (before .text)
-	@{ \
-		sz=$$(stat -c %s "$@"); \
-		pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
-		echo "Padding before .text: $$pad bytes"; \
-		if [ $$pad -gt 0 ]; then \
-			dd if=/dev/zero bs=1 count=$$pad >> "$@" 2>/dev/null; \
-		fi; \
-	}
 
 	# Append .text
 	cat $(TEXT_BIN) >> $@

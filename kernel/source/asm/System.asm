@@ -1029,6 +1029,7 @@ IdleCPU :
     cli
     sti
     hlt
+    jmp     IdleCPU
     ret
 
 ;--------------------------------------
