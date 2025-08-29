@@ -104,9 +104,9 @@ static void Die(void) {
 
         KillTask(Task);
 
-        UnlockMutex(MUTEX_KERNEL);
-        UnlockMutex(MUTEX_MEMORY);
         UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_MEMORY);
+        UnlockMutex(MUTEX_KERNEL);
 
         UnfreezeScheduler();
 
@@ -114,7 +114,9 @@ static void Die(void) {
     }
 
     // Wait forever
-    DO_THE_SLEEPING_BEAUTY;
+    do {
+        __asm__ __volatile__( "1:\n\t" "hlt\n\t" "jmp 1b\n\t" : : : "memory");
+    } while (0);
 }
 
 /************************************************************************/
