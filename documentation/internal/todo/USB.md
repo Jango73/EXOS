@@ -1,16 +1,16 @@
-# USB Implementation Plan for EXOS
+# USB Implementation Roadmap
 
 ## Prerequisites (one-time)
 
--   **PCI + IRQs**: enumerate classes 0x0C/0x03, MSI/MSI-X if available,
+- **PCI + IRQs**: enumerate classes 0x0C/0x03, MSI/MSI-X if available,
     fallback INTx.\
--   **MMIO & DMA**: map BAR, physically contiguous pages, 4K aligned,
+- **MMIO & DMA**: map BAR, physically contiguous pages, 4K aligned,
     "coherent" buffers.\
--   **Timers**: reliable delays in ms.\
--   **USB core (types)**: UsbSpeed{LS,FS,HS,SS},
+- **Timers**: reliable delays in ms.\
+- **USB core (types)**: UsbSpeed{LS,FS,HS,SS},
     EndpointType{Control,Bulk,Intr,Iso}, UsbAddress(0..127), descriptors
     (Device/Config/Interface/Endpoint/String).\
--   **Logs**: compact trace per event (setup, TRB, port change, stall).
+- **Logs**: compact trace per event (setup, TRB, port change, stall).
 
 ## Step 1 --- xHCI Detection (no transfer)
 

@@ -1,4 +1,4 @@
-# Specification: Minimal Unicode Module (EXOS)
+# Specification: Minimal Unicode Module
 
 ## 1) Goals
 - **Single encoding for storage/transport**: strict UTF-8.  
