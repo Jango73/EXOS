@@ -258,8 +258,14 @@ Interrupt_AlignmentCheck :
 ; Error code : No
 
 Interrupt_Clock :
-    mov     dword [esp + 12], 0    ; Placeholder for UserESP
-    mov     dword [esp + 16], 0    ; Placeholder for SS
+    pop     eax                     ; EIP
+    pop     ecx                     ; CS
+    pop     edx                     ; EFLAGS
+    push    dword 0                 ; Placeholder for SS
+    push    dword 0                 ; Placeholder for UserESP
+    push    edx                     ; EFLAGS
+    push    ecx                     ; CS
+    push    eax                     ; EIP
     push    ds
     push    es
     push    fs
@@ -272,9 +278,9 @@ Interrupt_Clock :
     push    eax
     call    Scheduler
     add     esp, 4
-    test    eax, eax            ; Did we switch tasks ?
+    test    eax, eax                ; Did we switch tasks ?
     jz      .NoSwitch
-    mov     esp, eax            ; Load new task stack
+    mov     esp, eax                ; Load new task stack
 .NoSwitch:
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
@@ -284,6 +290,13 @@ Interrupt_Clock :
     pop     fs
     pop     es
     pop     ds
+    mov     eax, [esp]
+    mov     ecx, [esp + 4]
+    mov     edx, [esp + 8]
+    add     esp, 8
+    mov     [esp], eax
+    mov     [esp + 4], ecx
+    mov     [esp + 8], edx
     iretd
 
 ;--------------------------------------
