@@ -365,11 +365,13 @@ void Sleep(U32 MilliSeconds) {
 
     FreezeScheduler();
     Task = GetCurrentTask();
-    if (Task == NULL) return;
-    Task->Status = TASK_STATUS_SLEEPING;
+    if (Task == NULL) { UnfreezeScheduler(); return; }
+
+    Task->Status    = TASK_STATUS_SLEEPING;
     Task->WakeUpTime = GetSystemTime() + MilliSeconds;
     UnfreezeScheduler();
 
+    // Block here until the timer IRQ moves us back to RUNNING
     while (Task->Status == TASK_STATUS_SLEEPING) {
         IdleCPU();
     }
@@ -663,6 +665,7 @@ void WaitForMessage(LPTASK Task) {
     // CPU cycles.
 
     while (Task->Status == TASK_STATUS_WAITMESSAGE) {
+        IdleCPU();
     }
 }
 

@@ -408,15 +408,16 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Enter"));
     #endif
 
-    if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return;
+    if (KeyCode->VirtualKey != 0 || KeyCode->ASCIICode != 0) {
 
-    //-------------------------------------
-    // Put the key in the buffer
+        //-------------------------------------
+        // Put the key in the buffer
 
-    for (Index = 0; Index < MAXKEYBUFFER; Index++) {
-        if (Keyboard.Buffer[Index].VirtualKey == 0 && Keyboard.Buffer[Index].ASCIICode == 0) {
-            Keyboard.Buffer[Index] = *KeyCode;
-            break;
+        for (Index = 0; Index < MAXKEYBUFFER; Index++) {
+            if (Keyboard.Buffer[Index].VirtualKey == 0 && Keyboard.Buffer[Index].ASCIICode == 0) {
+                Keyboard.Buffer[Index] = *KeyCode;
+                break;
+            }
         }
     }
 

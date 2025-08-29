@@ -1027,7 +1027,6 @@ DoSystemCall :
 
 IdleCPU :
 
-    cli
     sti
     hlt
     ret
@@ -1036,11 +1035,10 @@ IdleCPU :
 
 DeadCPU :
 
-    cli
+.loop:
     sti
     hlt
-    jmp     DeadCPU
-    ret
+    jmp     .loop
 
 ;--------------------------------------
 
