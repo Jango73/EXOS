@@ -404,6 +404,10 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
 static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     U32 Index;
 
+    #ifdef DEBUG_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Enter"));
+    #endif
+
     if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return;
 
     //-------------------------------------
@@ -415,6 +419,10 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
             break;
         }
     }
+
+    #ifdef DEBUG_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Exit"));
+    #endif
 }
 
 /***************************************************************************/
@@ -462,6 +470,10 @@ static U32 SetKeyboardLEDs(U32 LED) {
 static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
+
+    #ifdef DEBUG_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Enter"));
+    #endif
 
     if (ScanCode == 0) {
         PreviousCode = 0;
@@ -551,6 +563,10 @@ static void HandleScanCode(U32 ScanCode) {
             }
         }
     }
+
+    #ifdef DEBUG_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Exit"));
+    #endif
 }
 
 /***************************************************************************/
@@ -558,12 +574,20 @@ static void HandleScanCode(U32 ScanCode) {
 BOOL PeekChar(void) {
     U32 Result = FALSE;
 
+    #ifdef DEBUG_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Enter"));
+    #endif
+
     LockMutex(&(Keyboard.Mutex), INFINITY);
 
     if (Keyboard.Buffer[0].VirtualKey) Result = TRUE;
     if (Keyboard.Buffer[0].ASCIICode) Result = TRUE;
 
     UnlockMutex(&(Keyboard.Mutex));
+
+    #ifdef DEBUG_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Exit"));
+    #endif
 
     return Result;
 }
@@ -673,12 +697,12 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-    #ifdef SCHEDULER_LOGS_ENABLED
+    #ifdef DEBUG_LOGS_ENABLED
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Enter"));
     #endif
 
     if (Busy) {
-        #ifdef SCHEDULER_LOGS_ENABLED
+        #ifdef DEBUG_LOGS_ENABLED
         KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Busy, exiting"));
         #endif
 
@@ -703,7 +727,7 @@ void KeyboardHandler(void) {
 
     Busy = 0;
 
-    #ifdef SCHEDULER_LOGS_ENABLED
+    #ifdef DEBUG_LOGS_ENABLED
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Exit"));
     #endif
 }

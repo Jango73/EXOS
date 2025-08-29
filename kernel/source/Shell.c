@@ -262,6 +262,8 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
     U32 Index = 0;
     U32 HistoryPos = Context->History.Count;
 
+    KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Enter"));
+
     Context->CommandLine[0] = STR_NULL;
 
     while (1) {
@@ -320,8 +322,10 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
             }
         }
 
-        Sleep(50);
+        Sleep(20);
     }
+
+    KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Exit"));
 }
 
 /***************************************************************************/

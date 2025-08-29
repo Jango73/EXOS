@@ -141,7 +141,11 @@ void ClearConsole(void) {
  * @param Char Character to print.
  */
 void ConsolePrintChar(STR Char) {
+    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrintChar] Enter"));
+
     LockMutex(MUTEX_CONSOLE, INFINITY);
+
+    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrintChar] Printing %X"), Char);
 
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
@@ -162,6 +166,8 @@ void ConsolePrintChar(STR Char) {
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    KernelLogText(LOG_DEBUG, TEXT("[ConsolePrintChar] Exit"));
 }
 
 /***************************************************************************/
@@ -254,6 +260,8 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
     U32 Index = 0;
     U32 Done = 0;
 
+    KernelLogText(LOG_DEBUG, TEXT("[ConsoleGetString] Enter"));
+
     Buffer[0] = STR_NULL;
 
     while (Done == 0) {
@@ -287,6 +295,8 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
     }
 
     Buffer[Index] = STR_NULL;
+
+    KernelLogText(LOG_DEBUG, TEXT("[ConsoleGetString] Exit"));
 
     return TRUE;
 }
