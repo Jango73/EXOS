@@ -171,10 +171,15 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
     }
 
     #ifdef SCHEDULER_LOGS_ENABLED
-    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Current frame EAX : %X, EBX : %X, ECX %X, EDX %X\n"
-        ", ESI : %X, EDI : %X, EBP %X, ESP %X"),
-        Frame->EAX, Frame->EBX, Frame->ECX, Frame->EDX,
-        Frame->ESI, Frame->EDI, Frame->EBP, Frame->ESP
+    KernelLogText(LOG_DEBUG, TEXT(
+            "[Scheduler] Current frame"
+            " DS : %X, ES : %X, FS %X, GS %X\n"
+            ", EAX : %X, EBX : %X, ECX %X, EDX %X\n"
+            ", ESI : %X, EDI : %X, EBP %X, ESP %X\n"
+        ),
+        Frame->DS, Frame->ES, Frame->FS, Frame->GS,
+        Frame->ESI, Frame->EDI, Frame->EBP, Frame->ESP,
+        Frame->EAX, Frame->EBX, Frame->ECX, Frame->EDX
         );
     #endif
 
