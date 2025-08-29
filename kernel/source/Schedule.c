@@ -141,14 +141,14 @@ static void RotateQueue(void) {
 
 /***************************************************************************/
 
-void Scheduler(LPTRAPFRAME Frame) {
+LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
     TaskList.SchedulerTime += 10;
 
     if (TaskList.Current && Frame) {
-        TaskList.Current->Context = *Frame;
+        MemoryCopy(&(TaskList.Current->Context), Frame, sizeof(TRAPFRAME));
     }
 
-    if (TaskList.Freeze) return;
+    if (TaskList.Freeze) return NULL;
 
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
         TaskList.SchedulerTime = 0;
@@ -174,11 +174,14 @@ void Scheduler(LPTRAPFRAME Frame) {
                         // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), Next->SysStackTop);
                         Kernel_i386.TSS->ESP0 = Next->SysStackTop;
 
-                        *Frame = Next->Context;
+                        LPTRAPFRAME NextFrame =
+                            (LPTRAPFRAME)(Next->SysStackTop - sizeof(TRAPFRAME));
+                        MemoryCopy(NextFrame, &(Next->Context), sizeof(TRAPFRAME));
 
                         TaskList.Current = Next;
+                        return NextFrame;  // Switch to this stack
                     }
-                    return;
+                    return NULL;
                 } break;
 
                 case TASK_STATUS_SLEEPING: {
@@ -189,10 +192,12 @@ void Scheduler(LPTRAPFRAME Frame) {
             }
 
             if (Next == Current) {
-                return;
+                return NULL;
             }
         }
     }
+
+    return NULL;
 }
 
 /***************************************************************************/

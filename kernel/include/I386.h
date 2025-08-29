@@ -239,6 +239,7 @@ typedef struct tag_TASKSTATESEGMENT {
 
 /************************************************************************/
 
+// 60-byte context saved by the interrupt stub (ring 0 only)
 typedef struct tag_TRAPFRAME {
     U32 EDI;
     U32 ESI;

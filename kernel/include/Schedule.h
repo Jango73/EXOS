@@ -30,7 +30,7 @@ BOOL AddTaskToQueue(LPTASK NewTask);
 BOOL RemoveTaskFromQueue(LPTASK);
 
 // Runs the scheduler to activate the next task (preemptive)
-void Scheduler(LPTRAPFRAME Frame);
+LPTRAPFRAME Scheduler(LPTRAPFRAME Frame);
 
 // Returns the currently running task
 LPTASK GetCurrentTask(void);
