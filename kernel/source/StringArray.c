@@ -1,16 +1,17 @@
-/***************************************************************************\\
+
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
     All rights reserved
 
-\\***************************************************************************/
+\************************************************************************/
 
 #include "../include/Heap.h"
 #include "../include/String.h"
 #include "../include/StringArray.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 BOOL StringArrayInit(LPSTRINGARRAY Array, U32 Capacity) {
     Array->Capacity = Capacity;
@@ -20,7 +21,7 @@ BOOL StringArrayInit(LPSTRINGARRAY Array, U32 Capacity) {
     return TRUE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void StringArrayDeinit(LPSTRINGARRAY Array) {
     U32 Index;
@@ -35,7 +36,7 @@ void StringArrayDeinit(LPSTRINGARRAY Array) {
     Array->Capacity = 0;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void StringArrayShiftLeft(LPSTRINGARRAY Array) {
     U32 Index;
@@ -47,7 +48,7 @@ static void StringArrayShiftLeft(LPSTRINGARRAY Array) {
     Array->Count--;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 BOOL StringArrayAddUnique(LPSTRINGARRAY Array, LPCSTR String) {
     U32 Index;
@@ -70,11 +71,9 @@ BOOL StringArrayAddUnique(LPSTRINGARRAY Array, LPCSTR String) {
     return TRUE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 LPCSTR StringArrayGet(LPSTRINGARRAY Array, U32 Index) {
     if (Index >= Array->Count) return NULL;
     return Array->Items[Index];
 }
-
-/***************************************************************************/

@@ -64,6 +64,87 @@ static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
 
 /************************************************************************/
 
+// Conservative pointer checks. If StackLow/High are zero, use heuristics.
+/*
+static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackHigh) {
+    // EBP must increase (stack grows down in x86, older frame is at higher address).
+    if (CurEbp <= PrevEbp) return FALSE;
+
+    // Heuristic: frame size should not be absurd (e.g., > 256 KiB).
+    if ((CurEbp - PrevEbp) > (256u * 1024u)) return FALSE;
+
+    // If we have valid stack bounds, enforce them.
+    if (StackLow | StackHigh) {
+        if (CurEbp < StackLow || CurEbp >= StackHigh) return FALSE;
+    } else {
+        // Heuristic bounds (typical higher-half kernel). Adjust if your layout differs.
+        if (CurEbp < 0xC0000000u) return FALSE;
+    }
+    // 4-byte alignment is expected.
+    if ((CurEbp & 3u) != 0) return FALSE;
+
+    return TRUE;
+}
+*/
+
+/************************************************************************/
+
+// Starts at EBP, prints up to MaxFrames return addresses.
+void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
+    U32 Depth = 0;
+    U32 Prev = 0;
+    U32 Ebp = StartEbp;
+
+    ConsolePrint(TEXT("Backtrace (EBP=0x%08X, max=%u)\n"), StartEbp, MaxFrames);
+
+    SAFE_USE_VALID(Task) {
+        // U32 StackLow = Task->StackBase;
+        // U32 StackHigh = Task->StackBase + Task->StackSize
+
+        while (Ebp && Depth < MaxFrames) {
+            // Validate the current frame pointer
+            // if (!IsFramePointerSane(Ebp, Prev, StackLow, StackHigh)) {
+            if (IsValidMemory(Ebp) == FALSE) {
+                ConsolePrint(TEXT("#%u  EBP=0x%08X  [stop: invalid/suspect frame]\n"), Depth, Ebp);
+                break;
+            }
+
+            /* Frame layout:
+               [EBP+0] = saved EBP (prev)
+               [EBP+4] = return address (EIP)
+               [EBP+8] = first argument (optional to print) */
+            U32 *Fp = (U32*)Ebp;
+
+            // Safely fetch next and return PC.
+            U32 NextEbp = Fp[0];
+            U32 RetAddr = Fp[1];
+
+            if (RetAddr == 0) {
+                ConsolePrint(TEXT("#%u  EBP=0x%08X  RET=? [null]\n"), Depth, Ebp);
+                break;
+            }
+
+            LPCSTR Sym = NULL;
+            // if (&SymbolLookup) Sym = SymbolLookup(RetAddr);
+
+            if (Sym && Sym[0]) {
+                ConsolePrint(TEXT("#%u  EIP=0x%08X  (%s)  EBP=0x%08X\n"), Depth, RetAddr, Sym, Ebp);
+            } else {
+                ConsolePrint(TEXT("#%u  EIP=0x%08X  EBP=0x%08X\n"), Depth, RetAddr, Ebp);
+            }
+
+            /* Advance */
+            Prev = Ebp;
+            Ebp = NextEbp;
+            ++Depth;
+        }
+    }
+
+    ConsolePrint(TEXT("Backtrace end (frames=%u)\n"), Depth);
+}
+
+/************************************************************************/
+
 /**
  * @brief Log register state for a task at fault.
  * @param Frame Interrupt frame with register snapshot.
@@ -174,6 +255,7 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     LogDescriptorAndTSSFromSelector(TEXT("[#DB]"), tr);
 
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -197,7 +279,6 @@ void NMIHandler(LPINTERRUPTFRAME Frame) {
 void BreakPointHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Breakpoint"));
     DumpFrame(Frame);
-    Die();
 }
 
 /***************************************************************************/
@@ -207,8 +288,10 @@ void BreakPointHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void OverflowHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Overflow"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -219,8 +302,10 @@ void OverflowHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Bound range fault"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -231,8 +316,10 @@ void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Invalid opcode"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -254,8 +341,10 @@ void DeviceNotAvailHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Double fault"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -266,8 +355,10 @@ void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Math overflow"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -278,8 +369,10 @@ void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Invalid TSS"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -290,8 +383,10 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Segment fault"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -302,8 +397,10 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void StackFaultHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Stack fault"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -314,9 +411,8 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
-    KernelLogText(LOG_ERROR, TEXT("General protection fault"));
-
     LPTASK Task = GetCurrentTask();
+    KernelLogText(LOG_ERROR, TEXT("General protection fault"));
 
     ConsolePrint(TEXT("General protection fault !\n"));
     ConsolePrint(TEXT("The current thread (%X) triggered a general protection "), Task ? Task : 0);
@@ -325,6 +421,7 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
     ConsolePrint(TEXT("Halting"));
 
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -352,7 +449,7 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
 
     Regs.EIP = Eip;
     LogRegisters(&Regs);
-
+    BacktraceFrom(Task, Regs.EBP, 10);
     Die();
 }
 

@@ -141,6 +141,8 @@ void ClearConsole(void) {
  * @param Char Character to print.
  */
 void ConsolePrintChar(STR Char) {
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
         Console.CursorY++;
@@ -158,6 +160,8 @@ void ConsolePrintChar(STR Char) {
     }
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -195,12 +199,16 @@ Out:
 static void ConsolePrintString(LPCSTR Text) {
     U32 Index = 0;
 
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
     if (Text) {
         for (Index = 0; Index < 0x10000; Index++) {
             if (Text[Index] == STR_NULL) break;
             ConsolePrintChar(Text[Index]);
         }
     }
+
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -224,9 +232,6 @@ void ConsolePrint(LPCSTR Format, ...) {
 
     UnlockMutex(MUTEX_CONSOLE);
 }
-
-/***************************************************************************/
-
 
 /***************************************************************************/
 
