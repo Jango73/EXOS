@@ -166,6 +166,7 @@ static BOOL KeyboardACK(void) {
 
 /***************************************************************************/
 
+// Send a command to the keyboard controller or device.
 static void SendKeyboardCommand(U32 Command, U32 Data) {
     U32 Flags;
 
@@ -174,10 +175,26 @@ static void SendKeyboardCommand(U32 Command, U32 Data) {
 
     KeyboardWait();
 
-    OutPortByte(KEYBOARD_DATA, Command);
-    if (KeyboardACK() == FALSE) goto Out;
-    OutPortByte(KEYBOARD_DATA, Data);
-    if (KeyboardACK() == FALSE) goto Out;
+    switch (Command) {
+        case KSC_ENABLE:
+        case KSC_SELF_TEST:
+        case KSC_READ_MODE:
+            OutPortByte(KEYBOARD_COMMAND, Command);
+            break;
+
+        case KSC_WRITE_MODE:
+            OutPortByte(KEYBOARD_COMMAND, Command);
+            KeyboardWait();
+            OutPortByte(KEYBOARD_DATA, Data);
+            break;
+
+        default:
+            OutPortByte(KEYBOARD_DATA, Command);
+            if (KeyboardACK() == FALSE) goto Out;
+            OutPortByte(KEYBOARD_DATA, Data);
+            if (KeyboardACK() == FALSE) goto Out;
+            break;
+    }
 
 Out:
 
@@ -721,7 +738,7 @@ static U32 InitializeKeyboard(void) {
     //-------------------------------------
     // Enable the keyboard
 
-    SendKeyboardCommand(KSC_ENABLE, KSC_ENABLE);
+    SendKeyboardCommand(KSC_ENABLE, 0);
 
     //-------------------------------------
     // Set the LED status

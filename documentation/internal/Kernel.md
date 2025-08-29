@@ -553,7 +553,7 @@ Implements the PC keyboard driver and key buffering.
 
 - KeyboardWait: Waits for the controller input buffer to clear.
 - KeyboardACK: Checks if the keyboard acknowledged a command.
-- SendKeyboardCommand: Sends a command and data byte to the keyboard.
+- SendKeyboardCommand: Sends a command to the keyboard controller or device.
 - ScanCodeToKeyCode: Converts hardware scan codes to key codes.
 - ScanCodeToKeyCode_E0: Handles extended scan code prefix E0.
 - ScanCodeToKeyCode_E1: Handles extended scan code prefix E1.
