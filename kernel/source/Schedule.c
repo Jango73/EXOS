@@ -15,6 +15,12 @@
 #include "../include/System.h"
 #include "../include/Task.h"
 
+/***************************************************************************/
+
+#define SCHEDULER_LOGS_ENABLED 1
+
+/***************************************************************************/
+
 typedef struct tag_TASKLIST {
     U32 Freeze;
     U32 SchedulerTime;
@@ -51,6 +57,10 @@ void UpdateScheduler(void) {
 
 BOOL AddTaskToQueue(LPTASK NewTask) {
     U32 Index = 0;
+
+    #ifdef SCHEDULER_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %X"), NewTask);
+    #endif
 
     FreezeScheduler();
 
@@ -142,6 +152,10 @@ static void RotateQueue(void) {
 /***************************************************************************/
 
 LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
+    #ifdef SCHEDULER_LOGS_ENABLED
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter"));
+    #endif
+
     TaskList.SchedulerTime += 10;
 
     if (TaskList.Current && Frame) {
@@ -166,12 +180,18 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
                     if (Next != Current) {
                         if (Next->Process && Current &&
                             Next->Process->PageDirectory != Current->Process->PageDirectory) {
-                            // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"),
-                            // Next->Process->PageDirectory);
+
+                            #ifdef SCHEDULER_LOGS_ENABLED
+                            KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
+                            #endif
+
                             LoadPageDirectory(Next->Process->PageDirectory);
                         }
 
-                        // KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), Next->SysStackTop);
+                        #ifdef SCHEDULER_LOGS_ENABLED
+                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), Next->SysStackTop);
+                        #endif
+
                         Kernel_i386.TSS->ESP0 = Next->SysStackTop;
 
                         LPTRAPFRAME NextFrame =

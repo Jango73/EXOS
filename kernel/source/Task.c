@@ -204,13 +204,17 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Parameter = Info->Parameter;
 
     //-------------------------------------
-    // Allocate the system stack
+    // Allocate the stack
 
     Task->StackSize = Info->StackSize;
     Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);
 
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
+
     //-------------------------------------
     // Allocate the task stack
+
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase, KernelProcess.HeapSize);
 
     Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 3;
     Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);

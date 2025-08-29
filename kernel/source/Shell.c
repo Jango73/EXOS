@@ -117,6 +117,8 @@ static struct {
 static void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
+    MemorySet(This, 0, sizeof(SHELLCONTEXT));
+
     KernelLogText(LOG_DEBUG, TEXT("[InitShellContext] Enter"));
 
     This->Component = 0;
