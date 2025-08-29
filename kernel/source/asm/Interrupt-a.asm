@@ -272,6 +272,8 @@ Interrupt_Clock :
     push    gs
     pushad
 
+    call    EnterKernel
+
     call    ClockHandler
 
     mov     eax, esp
@@ -314,6 +316,8 @@ Interrupt_Keyboard :
     push    esi
     push    edi
 
+    call    EnterKernel
+
     call    KeyboardHandler
 
     mov     al, INTERRUPT_DONE
@@ -346,6 +350,8 @@ Interrupt_Mouse :
     push    edx
     push    esi
     push    edi
+
+    call    EnterKernel
 
     mov     eax, 4
     push    eax
@@ -390,9 +396,12 @@ Interrupt_HardDrive :
     push    esi
     push    edi
 
+    call    EnterKernel
+
     call    HardDriveHandler
 
     mov     al, INTERRUPT_DONE
+    out     PIC2_CMD, al
     out     INTERRUPT_CONTROL, al
 
     pop     edi

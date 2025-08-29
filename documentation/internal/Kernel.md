@@ -568,7 +568,7 @@ Implements the PC keyboard driver and key buffering.
 - GetKeyCodeDown: Returns TRUE if the specified key is currently pressed. Supports VK_CONTROL, VK_SHIFT and VK_ALT to check either side.
 - WaitKey: Waits for a key press.
 - KeyboardHandler: Interrupt handler that reads scan codes.
- - KeyboardInitialize: Initializes keyboard structures, configures the controller command byte for IRQ1, and unmasks the keyboard interrupt.
+- KeyboardInitialize: Initializes keyboard structures, configures the controller command byte for IRQ1, enables scanning, and unmasks the keyboard interrupt.
 - StdKeyboardCommands: Driver entry function.
 
 ### List.c
@@ -1062,9 +1062,9 @@ Provides interrupt and exception handlers for CPU and hardware devices.
 - Interrupt_PageFault: Handles page fault exception (#PF).
 - Interrupt_AlignmentCheck: Handles alignment check exception (#AC).
 - Interrupt_Clock: Handles system timer interrupts (IRQ 0).
-- Interrupt_Keyboard: Handles keyboard input interrupts (IRQ 1).
-- Interrupt_Mouse: Handles mouse controller interrupts.
-- Interrupt_HardDrive: Handles hard drive interrupts.
+- Interrupt_Keyboard: Handles keyboard input interrupts (IRQ 1) and switches to kernel segments before processing.
+- Interrupt_Mouse: Handles mouse controller interrupts and runs with kernel segments.
+- Interrupt_HardDrive: Handles hard drive interrupts, runs with kernel segments, and acknowledges both PICs.
 - Interrupt_SystemCall: Entry point for system calls.
 - Interrupt_DriverCall: Entry point for driver calls.
 - EnterKernel: Sets up kernel segments for interrupt context.

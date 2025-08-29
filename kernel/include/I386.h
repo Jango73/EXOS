@@ -635,6 +635,7 @@ typedef struct tag_FARPOINTER {
 #define KSC_SELF_TEST 0xAA
 #define KSC_ENABLE 0xAE
 #define KSC_SETLEDSTATUS 0xED
+#define KSC_ENABLE_SCANNING 0xF4
 
 #define KSS_ACK 0xFA
 

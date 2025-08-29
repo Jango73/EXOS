@@ -188,6 +188,11 @@ static void SendKeyboardCommand(U32 Command, U32 Data) {
             OutPortByte(KEYBOARD_DATA, Data);
             break;
 
+        case KSC_ENABLE_SCANNING:
+            OutPortByte(KEYBOARD_DATA, Command);
+            if (KeyboardACK() == FALSE) goto Out;
+            break;
+
         default:
             OutPortByte(KEYBOARD_DATA, Command);
             if (KeyboardACK() == FALSE) goto Out;
@@ -751,6 +756,11 @@ static U32 InitializeKeyboard(void) {
     CommandByte |= 0x40;    // enable translation
     CommandByte &= (U8)~0x10;    // ensure keyboard enabled
     SendKeyboardCommand(KSC_WRITE_MODE, CommandByte);
+
+    //-------------------------------------
+    // Start scanning
+
+    SendKeyboardCommand(KSC_ENABLE_SCANNING, 0);
 
     //-------------------------------------
     // Set the LED status
