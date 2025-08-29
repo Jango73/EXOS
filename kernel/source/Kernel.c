@@ -615,7 +615,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Test tasks
 
-    /*
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
@@ -626,7 +625,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
-    */
 
     // StartTestNetworkTask();
 

@@ -95,7 +95,7 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
     U32 Prev = 0;
     U32 Ebp = StartEbp;
 
-    ConsolePrint(TEXT("Backtrace (EBP=0x%08X, max=%u)\n"), StartEbp, MaxFrames);
+    ConsolePrint(TEXT("Backtrace (EBP=%08X, max=%u)\n"), StartEbp, MaxFrames);
 
     SAFE_USE_VALID(Task) {
         // U32 StackLow = Task->StackBase;
@@ -105,7 +105,7 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
             // Validate the current frame pointer
             // if (!IsFramePointerSane(Ebp, Prev, StackLow, StackHigh)) {
             if (IsValidMemory(Ebp) == FALSE) {
-                ConsolePrint(TEXT("#%u  EBP=0x%08X  [stop: invalid/suspect frame]\n"), Depth, Ebp);
+                ConsolePrint(TEXT("#%u  EBP=%08X  [stop: invalid/suspect frame]\n"), Depth, Ebp);
                 break;
             }
 
@@ -120,7 +120,7 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
             U32 RetAddr = Fp[1];
 
             if (RetAddr == 0) {
-                ConsolePrint(TEXT("#%u  EBP=0x%08X  RET=? [null]\n"), Depth, Ebp);
+                ConsolePrint(TEXT("#%u  EBP=%08X  RET=? [null]\n"), Depth, Ebp);
                 break;
             }
 
@@ -128,9 +128,9 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
             // if (&SymbolLookup) Sym = SymbolLookup(RetAddr);
 
             if (Sym && Sym[0]) {
-                ConsolePrint(TEXT("#%u  EIP=0x%08X  (%s)  EBP=0x%08X\n"), Depth, RetAddr, Sym, Ebp);
+                ConsolePrint(TEXT("#%u  EIP=%08X  (%s)  EBP=%08X\n"), Depth, RetAddr, Sym, Ebp);
             } else {
-                ConsolePrint(TEXT("#%u  EIP=0x%08X  EBP=0x%08X\n"), Depth, RetAddr, Ebp);
+                ConsolePrint(TEXT("#%u  EIP=%08X  EBP=%08X\n"), Depth, RetAddr, Ebp);
             }
 
             /* Advance */
@@ -357,6 +357,7 @@ void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
 void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
     LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Math overflow"));
+    ConsolePrint(TEXT("Math overflow!\n"));
     DumpFrame(Frame);
     BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
@@ -371,6 +372,7 @@ void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
 void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
     LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Invalid TSS"));
+    ConsolePrint(TEXT("Invalid TSS!\n"));
     DumpFrame(Frame);
     BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
@@ -385,6 +387,7 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
 void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
     LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Segment fault"));
+    ConsolePrint(TEXT("Segment fault!\n"));
     DumpFrame(Frame);
     BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
@@ -399,6 +402,7 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
 void StackFaultHandler(LPINTERRUPTFRAME Frame) {
     LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Stack fault"));
+    ConsolePrint(TEXT("Stack fault!\n"));
     DumpFrame(Frame);
     BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
@@ -418,7 +422,7 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
     ConsolePrint(TEXT("The current thread (%X) triggered a general protection "), Task ? Task : 0);
     ConsolePrint(TEXT("fault with error code : %X, at EIP : %X\n"), Frame->ErrCode, Frame->Registers.EIP);
     ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
-    ConsolePrint(TEXT("Halting"));
+    ConsolePrint(TEXT("Halting\n"));
 
     DumpFrame(Frame);
     BacktraceFrom(Task, Frame->Registers.EBP, 10);
@@ -439,13 +443,13 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
 
     LPTASK Task = GetCurrentTask();
 
+    KernelLogText(LOG_ERROR, TEXT("Page fault at %X (EIP %X)"), Address, Eip);
+
     ConsolePrint(TEXT("Page fault !\n"));
     ConsolePrint(TEXT("The current thread (%X) did an unauthorized access "), Task ? Task : 0);
     ConsolePrint(TEXT("at linear address : %X, error code : %X, EIP : %X\n"), Address, ErrorCode, Eip);
     ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
-    ConsolePrint(TEXT("Halting"));
-
-    KernelLogText(LOG_ERROR, TEXT("Page fault at %X (EIP %X)"), Address, Eip);
+    ConsolePrint(TEXT("Halting\n"));
 
     Regs.EIP = Eip;
     LogRegisters(&Regs);
