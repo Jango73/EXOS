@@ -704,7 +704,7 @@ Implements task scheduling and queue management.
 - AddTaskToQueue: Inserts a new task in the scheduler queue.
 - RemoveTaskFromQueue: Removes a task from the scheduler queue.
 - RotateQueue: Moves to the next task in the round-robin list.
-- Scheduler: Chooses the next task to run.
+- Scheduler: Chooses the next task to run and ensures the IF flag stays set in task frames.
 - GetCurrentProcess: Returns the process owning the current task.
 - GetCurrentTask: Returns the currently running task.
 - FreezeScheduler: Increments scheduler freeze counter.
@@ -1061,7 +1061,7 @@ Provides interrupt and exception handlers for CPU and hardware devices.
 - Interrupt_GeneralProtection: Handles general protection faults (#GP).
 - Interrupt_PageFault: Handles page fault exception (#PF).
 - Interrupt_AlignmentCheck: Handles alignment check exception (#AC).
-- Interrupt_Clock: Handles system timer interrupts (IRQ 0).
+- Interrupt_Clock: Handles system timer interrupts (IRQ 0) and sets IF before returning.
 - Interrupt_Keyboard: Handles keyboard input interrupts (IRQ 1) and switches to kernel segments before processing.
 - Interrupt_Mouse: Handles mouse controller interrupts and runs with kernel segments.
 - Interrupt_HardDrive: Handles hard drive interrupts, runs with kernel segments, and acknowledges both PICs.

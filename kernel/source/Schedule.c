@@ -159,6 +159,7 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
     TaskList.SchedulerTime += 10;
 
     if (TaskList.Current && Frame) {
+        Frame->EFlags |= EFLAGS_IF;
         MemoryCopy(&(TaskList.Current->Context), Frame, sizeof(TRAPFRAME));
     }
 
@@ -215,6 +216,7 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
 
                         LPTRAPFRAME NextFrame =
                             (LPTRAPFRAME)(Next->SysStackTop - sizeof(TRAPFRAME));
+                        Next->Context.EFlags |= EFLAGS_IF;
                         MemoryCopy(NextFrame, &(Next->Context), sizeof(TRAPFRAME));
 
                         TaskList.Current = Next;

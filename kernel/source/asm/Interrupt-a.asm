@@ -299,6 +299,7 @@ Interrupt_Clock :
     mov     [esp], eax
     mov     [esp + 4], ecx
     mov     [esp + 8], edx
+    or      dword [esp + 8], EFLAGS_IF
     iretd
 
 ;--------------------------------------
