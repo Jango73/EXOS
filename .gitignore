@@ -6,6 +6,7 @@
 *.map
 *.lst
 *.log
+*.tmp
 *.elf
 *.img
 *.iso
