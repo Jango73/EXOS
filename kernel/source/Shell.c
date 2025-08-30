@@ -1029,7 +1029,6 @@ static void RunConfiguredExecutables(void) {
     STR IndexText[0x10];
     LPCSTR ExecutablePath;
     FILEINFO FileInfo;
-    LPFILE File;
 
     KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Enter"));
 
@@ -1051,9 +1050,7 @@ static void RunConfiguredExecutables(void) {
         FileInfo.Attributes = MAX_U32;
         StringCopy(FileInfo.Name, ExecutablePath);
 
-        File = (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&FileInfo);
-        if (File != NULL) {
-            Kernel.SystemFS->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        if (Kernel.SystemFS->Driver->Command(DF_FS_FILEEXISTS, (U32)&FileInfo)) {
             Spawn(ExecutablePath, NULL);
         } else {
             KernelLogText(LOG_WARNING, TEXT("[RunConfiguredExecutables] Executable not found : %s"), ExecutablePath);

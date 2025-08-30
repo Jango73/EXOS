@@ -60,6 +60,7 @@
 #define DF_FS_MOUNTOBJECT (DF_FIRSTFUNC + 18)
 #define DF_FS_UNMOUNTOBJECT (DF_FIRSTFUNC + 19)
 #define DF_FS_PATHEXISTS (DF_FIRSTFUNC + 20)
+#define DF_FS_FILEEXISTS (DF_FIRSTFUNC + 21)
 
 /***************************************************************************/
 

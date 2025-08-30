@@ -107,16 +107,15 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
     LPSYSTEMFSFILE Node = (LPSYSTEMFSFILE)HeapAlloc(sizeof(SYSTEMFSFILE));
     if (Node == NULL) return NULL;
 
-    *Node = (SYSTEMFSFILE){
-        .ID = ID_FILE,
-        .References = 1,
-        .Next = NULL,
-        .Prev = NULL,
-        .Children = NewList(NULL, HeapAlloc, HeapFree),
-        .Parent = Parent,
-        .Mounted = NULL,
-        .Attributes = FS_ATTR_FOLDER | FS_ATTR_READONLY,
-        .Creation = {0}};
+    *Node = (SYSTEMFSFILE){.ID = ID_FILE,
+                           .References = 1,
+                           .Next = NULL,
+                           .Prev = NULL,
+                           .Children = NewList(NULL, HeapAlloc, HeapFree),
+                           .Parent = Parent,
+                           .Mounted = NULL,
+                           .Attributes = FS_ATTR_FOLDER | FS_ATTR_READONLY,
+                           .Creation = {0}};
 
     GetLocalTime(&(Node->Creation));
 
@@ -363,6 +362,18 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Node->Mounted->Driver->Command(DF_FS_CLOSEFILE, (U32)Mounted);
 
     return Result;
+}
+
+static BOOL FileExists(LPFILEINFO Info) {
+    LPSYSFSFILE File;
+
+    if (Info == NULL) return FALSE;
+
+    File = OpenFile(Info);
+    if (File == NULL) return FALSE;
+
+    CloseFile(File);
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -758,6 +769,8 @@ U32 SystemFSCommands(U32 Function, U32 Parameter) {
             return UnmountObject((LPFS_UNMOUNT_CONTROL)Parameter);
         case DF_FS_PATHEXISTS:
             return (U32)PathExists((LPFS_PATHCHECK)Parameter);
+        case DF_FS_FILEEXISTS:
+            return (U32)FileExists((LPFILEINFO)Parameter);
         case DF_FS_OPENFILE:
             return (U32)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
