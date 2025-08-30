@@ -16,7 +16,7 @@ static void TestRegex(LPCSTR Pattern, LPCSTR Text) {
     REGEX Rx;
     BOOL Ok = RegexCompile(Pattern, &Rx);
     if (!Ok) {
-        ConsolePrint("Regex compile failed: %s\n", Pattern);
+        ConsolePrint(TEXT("Regex compile failed: %s\n"), Pattern);
         return;
     }
 
@@ -24,19 +24,19 @@ static void TestRegex(LPCSTR Pattern, LPCSTR Text) {
     U32 Start = 0, End = 0;
     BOOL Search = RegexSearch(&Rx, Text, &Start, &End);
 
-    ConsolePrint("Pattern: \"%s\"\n", Pattern);
-    ConsolePrint("Text   : \"%s\"\n", Text);
-    ConsolePrint("Match? : %s\n", Match ? "YES" : "NO");
+    ConsolePrint(TEXT("Pattern: \"%s\"\n"), Pattern);
+    ConsolePrint(TEXT("Text   : \"%s\"\n"), Text);
+    ConsolePrint(TEXT("Match? : %s\n"), Match ? TEXT("YES") : TEXT("NO"));
     if (Search) {
-        ConsolePrint("Search : YES (span %u..%u)\n", Start, End);
+        ConsolePrint(TEXT("Search : YES (span %u..%u)\n"), Start, End);
     } else {
-        ConsolePrint("Search : NO\n");
+        ConsolePrint(TEXT("Search : NO\n"));
     }
-    ConsolePrint("\n");
+    ConsolePrint(TEXT("\n"));
 }
 
 void RegexSelfTest(void) {
-    ConsolePrint("=== REGEX SELF TEST ===\n");
+    ConsolePrint(TEXT("=== REGEX SELF TEST ===\n"));
 
     TestRegex("^[A-Za-z_][A-Za-z0-9_]*$", "Hello_123");
     TestRegex("^[A-Za-z_][A-Za-z0-9_]*$", "123Oops");
@@ -53,5 +53,5 @@ void RegexSelfTest(void) {
     TestRegex("a[0-9]b", "ab");
     TestRegex("a[^0-9]b", "axb");
 
-    ConsolePrint("=== END SELF TEST ===\n");
+    ConsolePrint(TEXT("=== END SELF TEST ===\n"));
 }
