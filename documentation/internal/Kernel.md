@@ -976,6 +976,9 @@ Kernel text constants used for interface messages.
 - Text_Registers: Prefix for register dumps.
 - Text_Image: "Image :" label string.
 - Text_Clk: "Clk" string constant.
+- Text_Rd: "rd" string constant for ramdisks.
+- Text_Fd: "fd" string constant for floppy disks.
+- Text_Hd: "hd" string constant for hard disks.
 
 ### VESA.c
 

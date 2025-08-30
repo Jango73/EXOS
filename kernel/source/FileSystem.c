@@ -26,6 +26,7 @@
 #include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/String.h"
+#include "../include/Text.h"
 #include "../include/Log.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
@@ -58,13 +59,13 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
 
     switch (Disk->Driver->Type) {
         case DRIVER_TYPE_RAMDISK:
-            StringCopy(Name, TEXT("rd"));
+            StringCopy(Name, Text_Rd);
             break;
         case DRIVER_TYPE_FLOPPYDISK:
-            StringCopy(Name, TEXT("fd"));
+            StringCopy(Name, Text_Fd);
             break;
         default:
-            StringCopy(Name, TEXT("hd"));
+            StringCopy(Name, Text_Hd);
             break;
     }
 

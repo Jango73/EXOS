@@ -36,6 +36,9 @@ extern STR Text_Exit[];
 extern STR Text_Registers[];
 extern STR Text_Image[];
 extern STR Text_Clk[];
+extern STR Text_Rd[];
+extern STR Text_Fd[];
+extern STR Text_Hd[];
 extern STR Text_Separator[];
 
 /***************************************************************************/
