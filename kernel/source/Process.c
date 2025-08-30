@@ -52,6 +52,12 @@ PROCESS KernelProcess = {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the kernel process and main task.
+ *
+ * Prepare the kernel heap, set up the kernel process fields and create the
+ * primary kernel task.
+ */
 void InitializeKernelProcess(void) {
     TASKINFO TaskInfo;
 
@@ -106,6 +112,11 @@ void InitializeKernelProcess(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a new user process structure.
+ *
+ * @return Pointer to the new PROCESS or NULL on failure.
+ */
 LPPROCESS NewProcess(void) {
     LPPROCESS This = NULL;
 
@@ -141,6 +152,12 @@ LPPROCESS NewProcess(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new process from an executable file.
+ *
+ * @param Info Pointer to a PROCESSINFO describing the executable.
+ * @return TRUE on success, FALSE on failure.
+ */
 BOOL CreateProcess(LPPROCESSINFO Info) {
     EXECUTABLEINFO ExecutableInfo;
     TASKINFO TaskInfo;
@@ -373,6 +390,13 @@ Out:
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new process using only a file name and command line.
+ *
+ * @param FileName Name of the executable file to run.
+ * @param CommandLine Command line passed to the process or NULL.
+ * @return TRUE on success, FALSE otherwise.
+ */
 BOOL Spawn(LPCSTR FileName, LPCSTR CommandLine) {
     PROCESSINFO ProcessInfo;
 
@@ -391,6 +415,12 @@ BOOL Spawn(LPCSTR FileName, LPCSTR CommandLine) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve the heap base address of a process.
+ *
+ * @param Process Process to inspect, or NULL for the current process.
+ * @return Linear address of the process heap.
+ */
 LINEAR GetProcessHeap(LPPROCESS Process) {
     LINEAR HeapBase = NULL;
 
@@ -407,6 +437,11 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
 
 /***************************************************************************/
 
+/**
+ * @brief Output process information to the kernel log.
+ *
+ * @param Process Process to dump. Nothing is logged if NULL.
+ */
 void DumpProcess(LPPROCESS Process) {
     if (Process == NULL) return;
 
@@ -426,6 +461,11 @@ void DumpProcess(LPPROCESS Process) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize a SECURITY structure.
+ *
+ * @param This SECURITY structure to initialize.
+ */
 void InitSecurity(LPSECURITY This) {
     if (This == NULL) return;
 

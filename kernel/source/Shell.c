@@ -689,6 +689,11 @@ static void CMD_md(LPSHELLCONTEXT Context) { MakeFolder(Context); }
 
 /***************************************************************************/
 
+/**
+ * @brief Launch an executable specified on the command line.
+ *
+ * @param Context Shell context containing parsed arguments.
+ */
 static void CMD_run(LPSHELLCONTEXT Context) {
     STR FileName[MAX_PATH_NAME];
 
@@ -1023,6 +1028,12 @@ static void CMD_test(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Launch executables listed in the kernel configuration.
+ *
+ * Each [[Run]] item of exos.toml is checked and the executable is spawned
+ * if present on disk.
+ */
 static void RunConfiguredExecutables(void) {
     U32 ConfigIndex = 0;
     STR Key[0x100];
@@ -1064,6 +1075,12 @@ static void RunConfiguredExecutables(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Parse and execute a single command line.
+ *
+ * @param Context Shell context to fill and execute.
+ * @return TRUE to continue the shell loop, FALSE otherwise.
+ */
 static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     U32 Length;
     U32 Index;
@@ -1123,6 +1140,15 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Entry point for the interactive shell.
+ *
+ * Initializes the shell context, runs configured executables and processes
+ * user commands until termination.
+ *
+ * @param Param Unused parameter.
+ * @return Exit code of the shell.
+ */
 U32 Shell(LPVOID Param) {
     UNUSED(Param);
     SHELLCONTEXT Context;
