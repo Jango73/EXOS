@@ -38,20 +38,20 @@ static void TestRegex(LPCSTR Pattern, LPCSTR Text) {
 void RegexSelfTest(void) {
     ConsolePrint(TEXT("=== REGEX SELF TEST ===\n"));
 
-    TestRegex("^[A-Za-z_][A-Za-z0-9_]*$", "Hello_123");
-    TestRegex("^[A-Za-z_][A-Za-z0-9_]*$", "123Oops");
-    TestRegex("^h.llo$", "hello");
-    TestRegex("^h.llo$", "hallo");
-    TestRegex("^h.llo$", "hxllo");
-    TestRegex("ab*c", "ac");
-    TestRegex("ab*c", "abc");
-    TestRegex("ab*c", "abbbc");
-    TestRegex("colou?r", "color");
-    TestRegex("colou?r", "colour");
-    TestRegex("colou?r", "colouur");
-    TestRegex("a[0-9]b", "a7b");
-    TestRegex("a[0-9]b", "ab");
-    TestRegex("a[^0-9]b", "axb");
+    TestRegex(TEXT("^[A-Za-z_][A-Za-z0-9_]*$"), TEXT("Hello_123"));
+    TestRegex(TEXT("^[A-Za-z_][A-Za-z0-9_]*$"), TEXT("123Oops"));
+    TestRegex(TEXT("^h.llo$"), TEXT("hello"));
+    TestRegex(TEXT("^h.llo$"), TEXT("hallo"));
+    TestRegex(TEXT("^h.llo$"), TEXT("hxllo"));
+    TestRegex(TEXT("ab*c"), TEXT("ac"));
+    TestRegex(TEXT("ab*c"), TEXT("abc"));
+    TestRegex(TEXT("ab*c"), TEXT("abbbc"));
+    TestRegex(TEXT("colou?r"), TEXT("color"));
+    TestRegex(TEXT("colou?r"), TEXT("colour"));
+    TestRegex(TEXT("colou?r"), TEXT("colouur"));
+    TestRegex(TEXT("a[0-9]b"), TEXT("a7b"));
+    TestRegex(TEXT("a[0-9]b"), TEXT("ab"));
+    TestRegex(TEXT("a[^0-9]b"), TEXT("axb"));
 
     ConsolePrint(TEXT("=== END SELF TEST ===\n"));
 }
