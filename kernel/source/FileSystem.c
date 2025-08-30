@@ -40,21 +40,28 @@ U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
 /***************************************************************************/
 
 /*
-    Build a default volume name using zero-based disk and partition indexes.
+    Build a default volume name using zero-based disk and partition indexes
+    per disk type.
 */
 BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
     STR Temp[12];
     LPLISTNODE Node;
+    LPPHYSICALDISK CurrentDisk;
     U32 DiskIndex = 0;
 
+    // Find the index of this disk among disks of the same type
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
-        if ((LPPHYSICALDISK)Node == Disk) break;
-        DiskIndex++;
+        CurrentDisk = (LPPHYSICALDISK)Node;
+        if (CurrentDisk == Disk) break;
+        if (CurrentDisk->Driver->Type == Disk->Driver->Type) DiskIndex++;
     }
 
     switch (Disk->Driver->Type) {
         case DRIVER_TYPE_RAMDISK:
             StringCopy(Name, TEXT("rd"));
+            break;
+        case DRIVER_TYPE_FLOPPYDISK:
+            StringCopy(Name, TEXT("fd"));
             break;
         default:
             StringCopy(Name, TEXT("hd"));

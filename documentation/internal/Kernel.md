@@ -481,7 +481,8 @@ Handles mounting of disk partitions and path manipulation.
 #### Functions in FileSystem.c
 
 - GetNumFileSystems: Returns the number of available file systems.
-- GetDefaultFileSystemName: Builds a default name for new file systems.
+- GetDefaultFileSystemName: Builds a default name for new file systems. Disk index
+  starts at 0 for each disk type (hd0, rd0, ...).
 - MountPartition_Extended: Mounts an extended partition.
 - MountDiskPartitions: Scans a disk and mounts each partition.
 - DecompPath: Splits a path into its individual components.
