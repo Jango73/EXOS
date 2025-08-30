@@ -21,14 +21,15 @@
     Executable ELF
 
 \************************************************************************/
+
 #include "../include/ExecutableELF.h"
 
 #include "../include/Log.h"
 
-/***************************************************************************
- * Internal ELF constants/types (32-bit i386 LSB)
- * Kept local to avoid leaking ABI; must match ExecutableELF.h if defined.
- ***************************************************************************/
+/************************************************************************/
+// Internal ELF constants/types (32-bit i386 LSB)
+// Kept local to avoid leaking ABI; must match ExecutableELF.h if defined.
+
 #ifndef ELF_SIGNATURE
 #define ELF_SIGNATURE 0x464C457F /* 0x7F 'E' 'L' 'F' */
 #endif
@@ -112,7 +113,9 @@
 #define PF_R 0x4
 #endif
 
-/* Packed structures (GCC/Clang). */
+/************************************************************************/
+
+// Packed structures (GCC/Clang).
 typedef struct __attribute__((packed)) _EXOS_Elf32_Ehdr {
     U8 e_ident[EI_NIDENT];
     U16 e_type;
