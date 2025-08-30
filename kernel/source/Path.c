@@ -40,7 +40,6 @@ static void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     STR Dir[MAX_PATH_NAME];
     STR Part[MAX_FILE_NAME];
     STR Pattern[MAX_PATH_NAME];
-    STR Sep[2] = {PATH_SEP, STR_NULL};
     LPSTR Slash;
     FILEINFO Find;
     LPFILE File;
@@ -76,7 +75,6 @@ static void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
             STR Full[MAX_PATH_NAME];
             StringCopy(Full, Dir);
             StringConcat(Full, File->Name);
-            if (File->Attributes & FS_ATTR_FOLDER) StringConcat(Full, Sep);
             StringArrayAddUnique(&Context->Matches, Full);
         }
     } while (Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
@@ -102,8 +100,30 @@ void PathCompletionDeinit(LPPATHCOMPLETION Context) {
 /***************************************************************************/
 
 BOOL PathCompletionNext(LPPATHCOMPLETION Context, LPCSTR Path, LPSTR Output) {
-    if (StringCompare(Context->Base, Path) != 0) {
+    U32 Index;
+    BOOL SameStart = TRUE;
+    U32 BaseLength = StringLength(Context->Base);
+
+    for (Index = 0; Index < BaseLength; Index++) {
+        if (CharToLower(Path[Index]) != CharToLower(Context->Base[Index])) {
+            SameStart = FALSE;
+            break;
+        }
+    }
+
+    if (Context->Matches.Count == 0 || SameStart == FALSE) {
         BuildMatches(Context, Path);
+    } else {
+        for (Index = 0; Index < Context->Matches.Count; Index++) {
+            if (StringCompare(StringArrayGet(&Context->Matches, Index), Path) == 0) {
+                Context->Index = Index + 1;
+                if (Context->Index >= Context->Matches.Count) Context->Index = 0;
+                break;
+            }
+        }
+        if (Index == Context->Matches.Count) {
+            BuildMatches(Context, Path);
+        }
     }
 
     if (Context->Matches.Count == 0) return FALSE;
