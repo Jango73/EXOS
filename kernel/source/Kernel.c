@@ -347,7 +347,7 @@ static void Welcome(void) {
 /**
  * @brief Loads and parses the kernel configuration file.
  *
- * Attempts to read "exos.cfg" (case insensitive) and stores the resulting
+ * Attempts to read "exos.toml" (case insensitive) and stores the resulting
  * TOML data in Kernel.Configuration.
  */
 
@@ -355,10 +355,10 @@ static void ReadKernelConfiguration(void) {
     KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Enter"));
 
     U32 Size = 0;
-    LPVOID Buffer = FileReadAll(TEXT("exos.cfg"), &Size);
+    LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
 
     if (Buffer == NULL) {
-        Buffer = FileReadAll(TEXT("EXOS.CFG"), &Size);
+        Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
     }
 
     if (Buffer != NULL) {
@@ -574,16 +574,16 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Got CPU information"));
 
     //-------------------------------------
-    // Initialize RAM drives
-
-    LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] RAM drive initialized"));
-
-    //-------------------------------------
     // Initialize physical drives
 
     LoadDriver(&StdHardDiskDriver, TEXT("StdHardDisk"));
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Physical drives initialized"));
+
+    //-------------------------------------
+    // Initialize RAM drives
+
+    LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] RAM drive initialized"));
 
     //-------------------------------------
     // Read kernel configuration

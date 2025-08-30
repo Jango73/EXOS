@@ -313,7 +313,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
     LPFILE File = NULL;
     LPVOID Buffer = NULL;
 
-    KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] Name = %s"), Name);
+    KernelLogText(LOG_DEBUG, TEXT("[FileReadAll] Name = %s"), Name);
 
     SAFE_USE_2(Name, Size) {
         //-------------------------------------
@@ -326,7 +326,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
 
         if (File == NULL) return NULL;
 
-        KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] File found"));
+        KernelLogText(LOG_DEBUG, TEXT("[FileReadAll] File found"));
 
         //-------------------------------------
         // Allocate buffer and read content

@@ -1,6 +1,7 @@
+
 /************************************************************************\
 
-    EXOS Kernel
+    EXOS Sample program
     Copyright (c) 1999-2025 Jango73
 
     This program is free software: you can redistribute it and/or modify
@@ -15,6 +16,7 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 
     Hello - Simple hello world program
 
