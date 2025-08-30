@@ -31,11 +31,30 @@
 
 /***************************************************************************/
 
-#define CLOCK_FREQUENCY 1000
+#define CLOCK_FREQUENCY 0x000003E8
 
 /***************************************************************************/
 
-static U32 RawSystemTime = 10;
+static U32 RawSystemTime = 0x0A;
+static U32 ReadCMOS(U32 Address);
+static SYSTEMTIME CurrentTime;
+static const U8 DaysInMonth[0x0C] = {0x1F, 0x1C, 0x1F, 0x1E, 0x1F, 0x1E,
+                                     0x1F, 0x1F, 0x1E, 0x1F, 0x1E, 0x1F};
+
+static BOOL IsLeapYear(U32 Year) {
+    return (Year % 0x190 == 0x00) ||
+           ((Year % 0x04 == 0x00) && (Year % 0x64 != 0x00));
+}
+
+static void InitializeLocalTime(void) {
+    CurrentTime.Year = ReadCMOS(CMOS_YEAR);
+    CurrentTime.Month = ReadCMOS(CMOS_MONTH);
+    CurrentTime.Day = ReadCMOS(CMOS_DAY_OF_MONTH);
+    CurrentTime.Hour = ReadCMOS(CMOS_HOUR);
+    CurrentTime.Minute = ReadCMOS(CMOS_MINUTE);
+    CurrentTime.Second = ReadCMOS(CMOS_SECOND);
+    CurrentTime.Milli = 0x00000000;
+}
 
 /***************************************************************************/
 
@@ -59,6 +78,7 @@ void InitializeClock(void) {
     RestoreFlags(&Flags);
 
     EnableIRQ(0);
+    InitializeLocalTime();
 }
 
 /***************************************************************************/
@@ -107,7 +127,36 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
  */
 void ClockHandler(void) {
     // KernelLogText(LOG_DEBUG, TEXT("[ClockHandler]"));
-    RawSystemTime += 10;
+    RawSystemTime += 0x0A;
+    CurrentTime.Milli += 0x0A;
+    if (CurrentTime.Milli >= 0x000003E8) {
+        CurrentTime.Milli -= 0x000003E8;
+        CurrentTime.Second++;
+    }
+    if (CurrentTime.Second >= 0x3C) {
+        CurrentTime.Second = 0x00;
+        CurrentTime.Minute++;
+    }
+    if (CurrentTime.Minute >= 0x3C) {
+        CurrentTime.Minute = 0x00;
+        CurrentTime.Hour++;
+    }
+    if (CurrentTime.Hour >= 0x18) {
+        CurrentTime.Hour = 0x00;
+        CurrentTime.Day++;
+        U32 DaysInCurrentMonth = DaysInMonth[CurrentTime.Month - 1];
+        if (CurrentTime.Month == 0x02 && IsLeapYear(CurrentTime.Year)) {
+            DaysInCurrentMonth++;
+        }
+        if (CurrentTime.Day > DaysInCurrentMonth) {
+            CurrentTime.Day = 0x01;
+            CurrentTime.Month++;
+            if (CurrentTime.Month > 0x0C) {
+                CurrentTime.Month = 0x01;
+                CurrentTime.Year++;
+            }
+        }
+    }
 }
 
 /***************************************************************************/
@@ -139,14 +188,14 @@ static void WriteCMOS(U32 Address, U32 Value) {
  * @return TRUE on success.
  */
 BOOL GetLocalTime(LPSYSTEMTIME Time) {
-    Time->Year = ReadCMOS(CMOS_YEAR);
-    Time->Month = ReadCMOS(CMOS_MONTH);
-    Time->Day = ReadCMOS(CMOS_DAY_OF_MONTH);
-    Time->Hour = ReadCMOS(CMOS_HOUR);
-    Time->Minute = ReadCMOS(CMOS_MINUTE);
-    Time->Second = ReadCMOS(CMOS_SECOND);
-    Time->Milli = 0;
+    if (Time == NULL) return FALSE;
+    *Time = CurrentTime;
+    return TRUE;
+}
 
+BOOL SetLocalTime(LPSYSTEMTIME Time) {
+    if (Time == NULL) return FALSE;
+    CurrentTime = *Time;
     return TRUE;
 }
 

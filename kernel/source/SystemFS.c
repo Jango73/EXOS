@@ -28,6 +28,7 @@
 #include "../include/String.h"
 #include "../include/TOML.h"
 #include "../include/User.h"
+#include "../include/Clock.h"
 
 /***************************************************************************/
 
@@ -58,6 +59,8 @@ struct tag_SYSTEMFSFILE {
     LPLIST Children;
     LPSYSTEMFSFILE Parent;
     LPFILESYSTEM Mounted;
+    U32 Attributes;
+    SYSTEMTIME Creation;
     STR Name[MAX_FILE_NAME];
 };
 
@@ -110,7 +113,11 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
         .Prev = NULL,
         .Children = NewList(NULL, HeapAlloc, HeapFree),
         .Parent = Parent,
-        .Mounted = NULL};
+        .Mounted = NULL,
+        .Attributes = FS_ATTR_FOLDER | FS_ATTR_READONLY,
+        .Creation = {0}};
+
+    GetLocalTime(&(Node->Creation));
 
     if (Name) {
         StringCopy(Node->Name, Name);
@@ -601,7 +608,8 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             File->Parent = Node;
             File->MountedFile = NULL;
             StringCopy(File->Header.Name, Child->Name);
-            File->Header.Attributes = FS_ATTR_FOLDER;
+            File->Header.Attributes = Child->Attributes;
+            File->Header.Creation = Child->Creation;
             File->SystemFile = (LPSYSTEMFSFILE)Child->Next;
             return File;
         }
@@ -629,7 +637,8 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
         File->Parent = Node->Parent;
         StringCopy(File->Header.Name, Node->Name);
-        File->Header.Attributes = FS_ATTR_FOLDER;
+        File->Header.Attributes = Node->Attributes;
+        File->Header.Creation = Node->Creation;
         return File;
     }
 }
@@ -661,7 +670,8 @@ static U32 OpenNext(LPSYSFSFILE File) {
 
     // Return current entry then move to the next one
     StringCopy(File->Header.Name, File->SystemFile->Name);
-    File->Header.Attributes = FS_ATTR_FOLDER;
+    File->Header.Attributes = File->SystemFile->Attributes;
+    File->Header.Creation = File->SystemFile->Creation;
     File->SystemFile = (LPSYSTEMFSFILE)File->SystemFile->Next;
 
     return DF_ERROR_SUCCESS;

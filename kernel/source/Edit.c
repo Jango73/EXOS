@@ -836,8 +836,8 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                         FinalLineSize = 0;
 
                         while (*LineData) {
-                            if (*LineData == 13 || *LineData == 10) {
-                                Line = NewEditLine(FinalLineSize);
+                            if (*LineData == 0x0D || *LineData == 0x0A) {
+                                Line = NewEditLine(FinalLineSize ? FinalLineSize : 0x01);
                                 if (Line) {
                                     for (Index = 0; Index < LineSize; Index++) {
                                         if (LineStart[Index] == STR_TAB) {
@@ -852,16 +852,19 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                                     ListAddItem(File->Lines, Line);
                                 }
 
-                                LineData++;
-                                while (*LineData == 10) LineData++;
+                                if (*LineData == 0x0D && LineData[1] == 0x0A) {
+                                    LineData += 0x02;
+                                } else {
+                                    LineData++;
+                                }
 
                                 LineStart = LineData;
-                                LineSize = 0;
-                                FinalLineSize = 0;
+                                LineSize = 0x00;
+                                FinalLineSize = 0x00;
                             } else if (*LineData == STR_TAB) {
                                 LineData++;
                                 LineSize++;
-                                FinalLineSize += 4;
+                                FinalLineSize += 0x04;
                             } else {
                                 LineData++;
                                 LineSize++;
