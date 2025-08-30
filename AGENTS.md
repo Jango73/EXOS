@@ -9,16 +9,17 @@ The documentation for boot sequence and kernel modules is in documentation/inter
 ## Build
 - run "make"
 
-## Test
+## Test (Codex : don't bother, you don't have the tools)
 - run "./scripts/6-1-start-qemu-hd-nogfx.sh".
 - check "log/debug.log" for page faults, exceptions, etc...
 
 ## General Conventions
+- Use full names for struct/class members and variables, or acronyms (no "len", "sz", "idx", ...).
 - Use PascalCase for struct/class members and variables.
 - Use SCREAMING_SNAKE_CASE for structure names and defines.
 - Use hexadecimal for constant numbers, except for graphic points/sizes.
-- Always use 4 spaces for indentation in code.
-- Always write comments, console output and technical doc in english.
+- Use 4 spaces for indentation in code.
+- Write comments, console output and technical doc in english.
 - There should be no duplicate code. Create intermediate functions to avoid it.
 
 ## Forbidden Actions
