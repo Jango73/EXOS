@@ -3,37 +3,24 @@
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
-    All rights reserved
 
-    Minimal Regex Engine
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-    Features:
-        - Literals, '.'
-        - Char classes: [abc], ranges [a-z], negation [^...]
-        - Suffix quantifiers: *, +, ?
-        - Anchors: ^ (BOL), $ (EOL)
-        - Escapes: \\, \[, \], \., \*, \+, \?, \^, \$, \-
-    Non-Features (for V1):
-        - No grouping '()'
-        - No alternation '|'
-        - No {m,n}
-        - ASCII only
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-    API:
-        typedef struct REGEX REGEX;
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-        BOOL RegexCompile(CONST LPCSTR Pattern, REGEX* OutRegex);
-        BOOL RegexMatch(CONST REGEX* Rx, CONST LPCSTR Text);                         // match anywhere
-        BOOL RegexSearch(CONST REGEX* Rx, CONST LPCSTR Text, U32* OutStart, U32* OutEnd); // first match span
-        void RegexFree(REGEX* Rx); // no-op in this V1
 
-    Notes:
-        - Deterministic backtracking on a token stream (no catastrophic explosion for supported ops).
-        - No heap usage; all buffers bounded. Tune constants below as needed.
-        - All identifiers follow your naming conventions (PascalCase, SCREAMING_SNAKE_CASE).
+    Regex
 
 \************************************************************************/
-
 #include "../include/Regex.h"
 
 #include "../include/Base.h"
@@ -414,3 +401,4 @@ void RegexFree(REGEX* Rx) {
     /* No dynamic allocation in V1 */
     UNUSED(Rx);
 }
+
