@@ -246,9 +246,6 @@ U32 ClockTestTask(LPVOID Param) {
     U32 Y = ((U32)Param & 0x0000FFFF) >> 0;
     U32 OldX = 0;
     U32 OldY = 0;
-    I32 MouseX = 0;
-    I32 MouseY = 0;
-    U32 Buttons = 0;
 
     U32 Time = 0;
     U32 OldTime = 0;
@@ -265,15 +262,6 @@ U32 ClockTestTask(LPVOID Param) {
             Console.CursorX = X;
             Console.CursorY = Y;
             ConsolePrint(Text);
-
-            // KernelLogText(LOG_VERBOSE, Text);
-
-            MouseX = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
-            MouseY = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
-            Buttons = SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
-            Console.CursorX = 0;
-            Console.CursorY = 0;
-            ConsolePrint(TEXT("%d %d %d"), MouseX, MouseY, Buttons);
 
             Console.CursorX = OldX;
             Console.CursorY = OldY;

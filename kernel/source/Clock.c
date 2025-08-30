@@ -45,13 +45,17 @@ static BOOL IsLeapYear(U32 Year) {
     return (Year % 400 == 0) || ((Year % 4 == 0) && (Year % 100 != 0));
 }
 
+static U32 BCDToInteger(U32 Value) {
+    return ((Value >> 4) * 10) + (Value & 0x0F);
+}
+
 static void InitializeLocalTime(void) {
-    CurrentTime.Year = ReadCMOS(CMOS_YEAR);
-    CurrentTime.Month = ReadCMOS(CMOS_MONTH);
-    CurrentTime.Day = ReadCMOS(CMOS_DAY_OF_MONTH);
-    CurrentTime.Hour = ReadCMOS(CMOS_HOUR);
-    CurrentTime.Minute = ReadCMOS(CMOS_MINUTE);
-    CurrentTime.Second = ReadCMOS(CMOS_SECOND);
+    CurrentTime.Year = 2000 + BCDToInteger(ReadCMOS(CMOS_YEAR));
+    CurrentTime.Month = BCDToInteger(ReadCMOS(CMOS_MONTH));
+    CurrentTime.Day = BCDToInteger(ReadCMOS(CMOS_DAY_OF_MONTH));
+    CurrentTime.Hour = BCDToInteger(ReadCMOS(CMOS_HOUR));
+    CurrentTime.Minute = BCDToInteger(ReadCMOS(CMOS_MINUTE));
+    CurrentTime.Second = BCDToInteger(ReadCMOS(CMOS_SECOND));
     CurrentTime.Milli = 0;
 }
 
