@@ -6,6 +6,7 @@ IMG_SIZE_MB     = 64
 KERNEL_BIN      = ../kernel/bin/exos.bin
 KERNEL_CFG      = exos.cfg
 PORTAL_ELF      = ../portal/bin/portal.elf
+HELLO_ELF       = ../hello/bin/Hello.elf
 MTOOLS_CONF     = .mtoolsrc.tmp
 CUSTOM_MBR      = source/mbr.asm
 CUSTOM_MBR_BIN  = bin/mbr.bin
@@ -90,11 +91,12 @@ rebuild-image:
 
 update: $(FINAL_IMG)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.cfg; \
-                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true;,\
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/exos/portal.elf; \
-                All files injected into image.)
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.cfg; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/exos/portal.elf; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/exos/Hello.elf;,\
+		All files injected into image.)
 
 update-src: $(SOURCE_IMG)
 	$(call MTOOLS_OPERATION,$(SOURCE_IMG),Injecting sources using mtools,\
