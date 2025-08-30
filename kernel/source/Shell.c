@@ -36,6 +36,7 @@
 #include "../include/System.h"
 #include "../include/User.h"
 #include "../include/StringArray.h"
+#include "../include/Path.h"
 #include "../include/VKey.h"
 
 /***************************************************************************/
@@ -61,6 +62,7 @@ typedef struct tag_SHELLCONTEXT {
     LPSTR Buffer[NUM_BUFFERS];
     STRINGARRAY History;
     STRINGARRAY Options;
+    PATHCOMPLETION PathCompletion;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
 /***************************************************************************/
@@ -92,6 +94,7 @@ static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
+static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
 
 /***************************************************************************/
 
@@ -140,6 +143,7 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 
     StringArrayInit(&This->History, HISTORY_SIZE);
     StringArrayInit(&This->Options, 8);
+    PathCompletionInit(&This->PathCompletion, Kernel.SystemFS);
 
     for (Index = 0; Index < NUM_BUFFERS; Index++) {
         This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
@@ -166,6 +170,7 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
 
     StringArrayDeinit(&This->History);
     StringArrayDeinit(&This->Options);
+    PathCompletionDeinit(&This->PathCompletion);
 
     KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Exit"));
 }
@@ -327,6 +332,53 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                     ConsolePrint(Context->CommandLine);
                     Index = StringLength(Context->CommandLine);
                 }
+            } else if (KeyCode.VirtualKey == VK_TAB) {
+                if (Index < BUFFER_SIZE - 1) {
+                    STR Token[MAX_PATH_NAME];
+                    STR Full[MAX_PATH_NAME];
+                    STR Completed[MAX_PATH_NAME];
+                    STR Display[MAX_PATH_NAME];
+                    STR Temp[MAX_PATH_NAME];
+                    U32 Start = Index;
+
+                    while (Start && Context->CommandLine[Start - 1] != STR_SPACE) {
+                        Start--;
+                    }
+
+                    StringCopyNum(Token, Context->CommandLine + Start, Index - Start);
+                    Token[Index - Start] = STR_NULL;
+
+                    if (Token[0] == PATH_SEP) {
+                        StringCopy(Full, Token);
+                    } else {
+                        QualifyFileName(Context, Token, Full);
+                    }
+
+                    if (PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
+                        if (Token[0] == PATH_SEP) {
+                            StringCopy(Display, Completed);
+                        } else {
+                            U32 Len = StringLength(Context->CurrentFolder);
+                            StringCopyNum(Temp, Completed, Len);
+                            Temp[Len] = STR_NULL;
+                            if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
+                                StringCopy(Display, Completed + Len);
+                                if (Display[0] == PATH_SEP) Display++;
+                            } else {
+                                StringCopy(Display, Completed);
+                            }
+                        }
+
+                        while (Index > Start) {
+                            Index--;
+                            ConsoleBackSpace();
+                        }
+                        StringCopy(Context->CommandLine + Start, Display);
+                        ConsolePrint(Display);
+                        Index = Start + StringLength(Display);
+                        Context->CommandLine[Index] = STR_NULL;
+                    }
+                }
             } else if (KeyCode.ASCIICode >= STR_SPACE) {
                 if (Index < BUFFER_SIZE - 1) {
                     ConsolePrintChar(KeyCode.ASCIICode);
@@ -344,7 +396,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
+static BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
     STR Sep[2] = {PATH_SEP, STR_NULL};
     STR Temp[MAX_PATH_NAME];
     LPSTR Ptr;
