@@ -61,8 +61,7 @@ typedef struct tag_SECURITY {
 
 // Macro to initialize a security
 
-#define EMPTY_SECURITY \
-    { ID_SECURITY, 1, NULL, NULL, 0, 0, PERMISSION_NONE }
+#define EMPTY_SECURITY {ID_SECURITY, 1, NULL, NULL, 0, 0, PERMISSION_NONE}
 
 /***************************************************************************\
 
@@ -210,6 +209,7 @@ LINEAR GetProcessHeap(LPPROCESS);
 void DumpProcess(LPPROCESS);
 void InitSecurity(LPSECURITY);
 BOOL CreateProcess(LPPROCESSINFO);
+BOOL Spawn(LPCSTR, LPCSTR);
 
 /***************************************************************************/
 // Functions in Task.c

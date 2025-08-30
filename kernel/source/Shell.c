@@ -33,6 +33,7 @@
 #include "../include/List.h"
 #include "../include/Log.h"
 #include "../include/Path.h"
+#include "../include/Process.h"
 #include "../include/String.h"
 #include "../include/StringArray.h"
 #include "../include/System.h"
@@ -95,7 +96,6 @@ static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
 static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
-static void CreateProcessSimple(LPCSTR, LPCSTR);
 static void RunConfiguredExecutables(void);
 
 /***************************************************************************/
@@ -696,7 +696,7 @@ static void CMD_run(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
-            CreateProcessSimple(FileName, NULL);
+            Spawn(FileName, NULL);
         }
     }
 }
@@ -1023,24 +1023,6 @@ static void CMD_test(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static void CreateProcessSimple(LPCSTR FileName, LPCSTR CommandLine) {
-    PROCESSINFO ProcessInfo;
-
-    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
-    ProcessInfo.Header.Version = EXOS_ABI_VERSION;
-    ProcessInfo.Header.Flags = 0;
-    ProcessInfo.Flags = 0;
-    ProcessInfo.FileName = FileName;
-    ProcessInfo.CommandLine = CommandLine;
-    ProcessInfo.StdOut = NULL;
-    ProcessInfo.StdIn = NULL;
-    ProcessInfo.StdErr = NULL;
-
-    CreateProcess(&ProcessInfo);
-}
-
-/***************************************************************************/
-
 static void RunConfiguredExecutables(void) {
     U32 ConfigIndex = 0;
     STR Key[0x100];
@@ -1067,7 +1049,7 @@ static void RunConfiguredExecutables(void) {
         StringCopy(PathCheck.SubFolder, ExecutablePath);
 
         if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&PathCheck)) {
-            CreateProcessSimple(ExecutablePath, NULL);
+            Spawn(ExecutablePath, NULL);
         } else {
             KernelLogText(LOG_WARNING, TEXT("[RunConfiguredExecutables] Executable not found : %s"), ExecutablePath);
         }

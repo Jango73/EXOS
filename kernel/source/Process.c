@@ -373,6 +373,24 @@ Out:
 
 /***************************************************************************/
 
+BOOL Spawn(LPCSTR FileName, LPCSTR CommandLine) {
+    PROCESSINFO ProcessInfo;
+
+    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+    ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+    ProcessInfo.Header.Flags = 0;
+    ProcessInfo.Flags = 0;
+    ProcessInfo.FileName = FileName;
+    ProcessInfo.CommandLine = CommandLine;
+    ProcessInfo.StdOut = NULL;
+    ProcessInfo.StdIn = NULL;
+    ProcessInfo.StdErr = NULL;
+
+    return CreateProcess(&ProcessInfo);
+}
+
+/***************************************************************************/
+
 LINEAR GetProcessHeap(LPPROCESS Process) {
     LINEAR HeapBase = NULL;
 
