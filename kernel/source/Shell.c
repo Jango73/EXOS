@@ -358,11 +358,11 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                         if (Token[0] == PATH_SEP) {
                             StringCopy(Display, Completed);
                         } else {
-                            U32 Len = StringLength(Context->CurrentFolder);
-                            StringCopyNum(Temp, Completed, Len);
-                            Temp[Len] = STR_NULL;
+                            U32 FolderLength = StringLength(Context->CurrentFolder);
+                            StringCopyNum(Temp, Completed, FolderLength);
+                            Temp[FolderLength] = STR_NULL;
                             if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
-                                StringCopy(Display, Completed + Len);
+                                StringCopy(Display, Completed + FolderLength);
                                 if (Display[0] == PATH_SEP) Display++;
                             } else {
                                 StringCopy(Display, Completed);

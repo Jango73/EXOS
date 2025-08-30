@@ -51,9 +51,9 @@ static void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
 
     Slash = StringFindCharR(Path, PATH_SEP);
     if (Slash) {
-        U32 DirLen = Slash - Path + 1;
-        StringCopyNum(Dir, Path, DirLen);
-        Dir[DirLen] = STR_NULL;
+        U32 DirectoryLength = Slash - Path + 1;
+        StringCopyNum(Dir, Path, DirectoryLength);
+        Dir[DirectoryLength] = STR_NULL;
         StringCopy(Part, Slash + 1);
     } else {
         Dir[0] = STR_NULL;
