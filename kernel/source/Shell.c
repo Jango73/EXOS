@@ -95,6 +95,7 @@ static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
 static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
+static void CreateProcessSimple(LPCSTR, LPCSTR);
 static void RunConfiguredExecutables(void);
 
 /***************************************************************************/
@@ -689,24 +690,13 @@ static void CMD_md(LPSHELLCONTEXT Context) { MakeFolder(Context); }
 /***************************************************************************/
 
 static void CMD_run(LPSHELLCONTEXT Context) {
-    PROCESSINFO ProcessInfo;
     STR FileName[MAX_PATH_NAME];
 
     ParseNextComponent(Context);
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
-            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
-            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
-            ProcessInfo.Header.Flags = 0;
-            ProcessInfo.Flags = 0;
-            ProcessInfo.FileName = FileName;
-            ProcessInfo.CommandLine = NULL;
-            ProcessInfo.StdOut = NULL;
-            ProcessInfo.StdIn = NULL;
-            ProcessInfo.StdErr = NULL;
-
-            CreateProcess(&ProcessInfo);
+            CreateProcessSimple(FileName, NULL);
         }
     }
 }
@@ -1033,13 +1023,30 @@ static void CMD_test(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+static void CreateProcessSimple(LPCSTR FileName, LPCSTR CommandLine) {
+    PROCESSINFO ProcessInfo;
+
+    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+    ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+    ProcessInfo.Header.Flags = 0;
+    ProcessInfo.Flags = 0;
+    ProcessInfo.FileName = FileName;
+    ProcessInfo.CommandLine = CommandLine;
+    ProcessInfo.StdOut = NULL;
+    ProcessInfo.StdIn = NULL;
+    ProcessInfo.StdErr = NULL;
+
+    CreateProcess(&ProcessInfo);
+}
+
+/***************************************************************************/
+
 static void RunConfiguredExecutables(void) {
     U32 ConfigIndex = 0;
     STR Key[0x100];
     STR IndexText[0x10];
     LPCSTR ExecutablePath;
     FS_PATHCHECK PathCheck;
-    PROCESSINFO ProcessInfo;
 
     KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Enter"));
 
@@ -1060,17 +1067,7 @@ static void RunConfiguredExecutables(void) {
         StringCopy(PathCheck.SubFolder, ExecutablePath);
 
         if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&PathCheck)) {
-            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
-            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
-            ProcessInfo.Header.Flags = 0;
-            ProcessInfo.Flags = 0;
-            ProcessInfo.FileName = ExecutablePath;
-            ProcessInfo.CommandLine = NULL;
-            ProcessInfo.StdOut = NULL;
-            ProcessInfo.StdIn = NULL;
-            ProcessInfo.StdErr = NULL;
-
-            CreateProcess(&ProcessInfo);
+            CreateProcessSimple(ExecutablePath, NULL);
         } else {
             KernelLogText(LOG_WARNING, TEXT("[RunConfiguredExecutables] Executable not found : %s"), ExecutablePath);
         }
