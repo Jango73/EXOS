@@ -95,6 +95,7 @@ static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
 static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
+static void RunConfiguredExecutables(void);
 
 /***************************************************************************/
 
@@ -1032,6 +1033,56 @@ static void CMD_test(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+static void RunConfiguredExecutables(void) {
+    U32 ConfigIndex = 0;
+    STR Key[0x100];
+    STR IndexText[0x10];
+    LPCSTR ExecutablePath;
+    FS_PATHCHECK PathCheck;
+    PROCESSINFO ProcessInfo;
+
+    KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Enter"));
+
+    if (Kernel.Configuration == NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Exit"));
+        return;
+    }
+
+    while (1) {
+        U32ToString(ConfigIndex, IndexText);
+        StringCopy(Key, TEXT("Run."));
+        StringConcat(Key, IndexText);
+        StringConcat(Key, TEXT(".Path"));
+        ExecutablePath = TomlGet(Kernel.Configuration, Key);
+        if (ExecutablePath == NULL) break;
+
+        PathCheck.CurrentFolder[0] = STR_NULL;
+        StringCopy(PathCheck.SubFolder, ExecutablePath);
+
+        if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&PathCheck)) {
+            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+            ProcessInfo.Header.Flags = 0;
+            ProcessInfo.Flags = 0;
+            ProcessInfo.FileName = ExecutablePath;
+            ProcessInfo.CommandLine = NULL;
+            ProcessInfo.StdOut = NULL;
+            ProcessInfo.StdIn = NULL;
+            ProcessInfo.StdErr = NULL;
+
+            CreateProcess(&ProcessInfo);
+        } else {
+            KernelLogText(LOG_WARNING, TEXT("[RunConfiguredExecutables] Executable not found : %s"), ExecutablePath);
+        }
+
+        ConfigIndex++;
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Exit"));
+}
+
+/***************************************************************************/
+
 static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     U32 Length;
     U32 Index;
@@ -1098,6 +1149,8 @@ U32 Shell(LPVOID Param) {
     KernelLogText(LOG_DEBUG, TEXT("[Shell] Enter"));
 
     InitShellContext(&Context);
+
+    RunConfiguredExecutables();
 
     while (ParseCommand(&Context)) {
     }
