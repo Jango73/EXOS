@@ -305,7 +305,7 @@ static U32 MouseInitialize(void) {
     //-------------------------------------
     //
 
-    KernelLogText(LOG_VERBOSE, TEXT("Mouse found on COM1: %c%c"), Sig1, Sig2);
+    KernelLogText(LOG_VERBOSE, TEXT("[MouseInitialize] Mouse found on COM1: %c%c"), Sig1, Sig2);
 
     //-------------------------------------
     // Enable the mouse's IRQ
