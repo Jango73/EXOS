@@ -226,7 +226,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  * @return Always returns 0.
  */
 
-U32 ClockTask(LPVOID Param) {
+U32 ClockTestTask(LPVOID Param) {
     STR Text[64];
     U32 X = ((U32)Param & 0xFFFF0000) >> 16;
     U32 Y = ((U32)Param & 0x0000FFFF) >> 0;
@@ -613,28 +613,26 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Welcome called"));
 
     //-------------------------------------
+    // Enable interrupts
+
+    EnableInterrupts();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
+
+    //-------------------------------------
     // Test tasks
 
-    /*
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
-    TaskInfo.Func = ClockTask;
+    TaskInfo.Func = ClockTestTask;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = 0;
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
-    */
 
     // StartTestNetworkTask();
-
-    //-------------------------------------
-    // Enable interrupts
-
-    EnableInterrupts();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
 
     //-------------------------------------
     // Shell task

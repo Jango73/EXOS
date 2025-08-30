@@ -238,31 +238,9 @@ typedef struct tag_TASKSTATESEGMENT {
 } TASKSTATESEGMENT, *LPTASKSTATESEGMENT;
 
 /************************************************************************/
-
-typedef struct tag_TRAPFRAME {
-    U32 EDI;
-    U32 ESI;
-    U32 EBP;
-    U32 ESP;
-    U32 EBX;
-    U32 EDX;
-    U32 ECX;
-    U32 EAX;
-    U32 GS;
-    U32 FS;
-    U32 ES;
-    U32 DS;
-    U32 EIP;
-    U32 CS;
-    U32 EFlags;
-    U32 UserESP;
-    U32 SS;
-} TRAPFRAME, *LPTRAPFRAME;
-
-/************************************************************************/
 // NOTE: fields not meaningful for a given trap are set to 0 by the stub.
 
-typedef struct tag_INTERRUPTFRAME {
+typedef struct __attribute__((packed)) tag_INTERRUPTFRAME {
     INTEL386REGISTERS Registers;  // Filled by the stub
     U32 IntNo;                    // Interrupt / exception vector
     U32 ErrCode;                  // CPU error code (0 for #UD)

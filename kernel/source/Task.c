@@ -181,9 +181,13 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     }
 
     //-------------------------------------
-    // Lock access to kernel data
+    // Lock access to kernel data & to the process
 
     LockMutex(MUTEX_KERNEL, INFINITY);
+
+    if (Process != &KernelProcess) {
+        LockMutex(&(Process->Mutex), INFINITY);
+    }
 
     Task = NewTask();
 
@@ -203,7 +207,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Parameter = Info->Parameter;
 
     //-------------------------------------
-    // Allocate the system stack
+    // Allocate the stack
+
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Allocating stack..."));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase, KernelProcess.HeapSize);
 
     Task->StackSize = Info->StackSize;
     Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);
@@ -211,7 +219,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Allocate the task stack
 
-    Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 3;
+    Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
     Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
@@ -252,25 +260,24 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     StackPointer = Task->StackBase + Task->StackSize;
     SysStackPointer = Task->SysStackBase + Task->SysStackSize;
-    Task->SysStackTop = SysStackPointer;
 
-    MemorySet(&(Task->Context), 0, sizeof(TRAPFRAME));
-    Task->Context.EIP = (U32)TaskRunner;
-    Task->Context.EAX = (U32)Task->Parameter;
-    Task->Context.EBX = (U32)Task->Function;
-    Task->Context.ESP = StackPointer;
-    Task->Context.EBP = StackPointer;
-    Task->Context.CS = CodeSelector;
-    Task->Context.DS = DataSelector;
-    Task->Context.ES = DataSelector;
-    Task->Context.FS = DataSelector;
-    Task->Context.GS = DataSelector;
-    Task->Context.SS = DataSelector;
-    Task->Context.UserESP = StackPointer;
-    Task->Context.EFlags = EFLAGS_IF | EFLAGS_A1;
+    MemorySet(&(Task->Context), 0, sizeof(INTERRUPTFRAME));
+
+    Task->Context.Registers.EIP = (U32)TaskRunner;
+    Task->Context.Registers.EAX = (U32)Task->Parameter;
+    Task->Context.Registers.EBX = (U32)Task->Function;
+    Task->Context.Registers.ESP = StackPointer;
+    Task->Context.Registers.EBP = StackPointer;
+    Task->Context.Registers.CS = CodeSelector;
+    Task->Context.Registers.DS = DataSelector;
+    Task->Context.Registers.ES = DataSelector;
+    Task->Context.Registers.FS = DataSelector;
+    Task->Context.Registers.GS = DataSelector;
+    Task->Context.Registers.SS = DataSelector;
+    Task->Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
 
     if (Info->Flags & TASK_CREATE_MAIN) {
-        Kernel_i386.TSS->ESP0 = Task->SysStackTop;
+        Kernel_i386.TSS->ESP0 = Task->SysStackBase + Task->SysStackSize;
     }
 
     //-------------------------------------
@@ -289,6 +296,10 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
 Out:
 
+    if (Process != &KernelProcess) {
+        UnlockMutex(&(Process->Mutex));
+    }
+
     UnlockMutex(MUTEX_KERNEL);
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Exit"));
@@ -299,38 +310,46 @@ Out:
 /***************************************************************************/
 
 BOOL KillTask(LPTASK Task) {
-    if (Task == NULL) return FALSE;
-    if (Task->Type == TASK_TYPE_KERNEL_MAIN) return FALSE;
+    SAFE_USE_VALID_ID(Task, ID_TASK) {
+        KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
 
-    KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
-    KernelLogText(LOG_DEBUG, TEXT("Process : %X"), Task->Process);
-    KernelLogText(LOG_DEBUG, TEXT("Task : %X"), Task);
-    KernelLogText(
-        LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
+        if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
+            KernelLogText(LOG_DEBUG, TEXT("[KillTask] Can't kill kernel task, halting"));
+            DO_THE_SLEEPING_BEAUTY;
+            return FALSE;
+        }
 
-    // Lock access to kernel data
-    LockMutex(MUTEX_KERNEL, INFINITY);
-    FreezeScheduler();
+        KernelLogText(LOG_DEBUG, TEXT("Process : %X"), Task->Process);
+        KernelLogText(LOG_DEBUG, TEXT("Task : %X, func = %X"), Task, Task->Function);
+        KernelLogText(
+            LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
 
-    // Remove task from scheduler queue
-    RemoveTaskFromQueue(Task);
+        // Lock access to kernel data
+        LockMutex(MUTEX_KERNEL, INFINITY);
+        FreezeScheduler();
 
-    Task->References = 0;
-    Task->Status = TASK_STATUS_DEAD;
+        // Remove task from scheduler queue
+        RemoveTaskFromQueue(Task);
 
-    // Remove from global kernel task list BEFORE freeing
-    ListRemove(Kernel.Task, Task);
+        Task->References = 0;
+        Task->Status = TASK_STATUS_DEAD;
 
-    // Finally, free all resources owned by the task
-    DeleteTask(Task);
+        // Remove from global kernel task list BEFORE freeing
+        ListRemove(Kernel.Task, Task);
 
-    // Unlock access to kernel data
-    UnfreezeScheduler();
-    UnlockMutex(MUTEX_KERNEL);
+        // Finally, free all resources owned by the task
+        DeleteTask(Task);
 
-    KernelLogText(LOG_DEBUG, TEXT("[KillTask] Exit"));
+        // Unlock access to kernel data
+        UnfreezeScheduler();
+        UnlockMutex(MUTEX_KERNEL);
 
-    return TRUE;
+        KernelLogText(LOG_DEBUG, TEXT("[KillTask] Exit"));
+
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -359,11 +378,13 @@ void Sleep(U32 MilliSeconds) {
 
     FreezeScheduler();
     Task = GetCurrentTask();
-    if (Task == NULL) return;
-    Task->Status = TASK_STATUS_SLEEPING;
+    if (Task == NULL) { UnfreezeScheduler(); return; }
+
+    Task->Status    = TASK_STATUS_SLEEPING;
     Task->WakeUpTime = GetSystemTime() + MilliSeconds;
     UnfreezeScheduler();
 
+    // Block here until the timer IRQ moves us back to RUNNING
     while (Task->Status == TASK_STATUS_SLEEPING) {
         IdleCPU();
     }
@@ -657,6 +678,7 @@ void WaitForMessage(LPTASK Task) {
     // CPU cycles.
 
     while (Task->Status == TASK_STATUS_WAITMESSAGE) {
+        IdleCPU();
     }
 }
 

@@ -204,33 +204,8 @@ Interrupt_GeneralProtection :
 ; Error code : Yes
 
 Interrupt_PageFault:
-    ; Stack on entry (top -> bottom):
-    ; [esp+0]=error, [esp+4]=EIP, [esp+8]=CS, [esp+12]=EFLAGS, (and possibly [old ESP], [old SS])
-
-    push    eax                    ; save original EAX
-    push    ecx                    ; save original ECX
-
-    mov     ecx, [esp+8]           ; ECX = error code (after 2 pushes)
-    mov     eax, [esp+12]          ; EAX = faulting EIP (after 2 pushes)
-    mov     ebx, cr2               ; EBX = faulting linear address (read ASAP)
-
-    pusha                          ; save all GPRs (incl. our EAX/ECX/EBX copies)
-
-    call    EnterKernel            ; enter kernel context (segments, etc.)
-
-    ; Args: (cdecl) push in reverse order of prototype if needed
-    push    eax                    ; EIP
-    push    ebx                    ; linear addr (CR2)
-    push    ecx                    ; error code
-    call    PageFaultHandler
-    add     esp, 12
-
-    popa
-    pop     ecx                    ; restore original ECX
-    pop     eax                    ; restore original EAX
-
-    add     esp, 4                 ; drop CPU-pushed error code
-    iretd
+    ISR_BUILD_FRAME_ERR_AND_CALL 14, PageFaultHandler
+    ISR_RETURN_ERR
 
 ;--------------------------------------
 ; Int 16     : Floating-Point Error Exception (#MF)
@@ -257,30 +232,33 @@ Interrupt_AlignmentCheck :
 ; Class      : Trap
 ; Error code : No
 
-Interrupt_Clock :
-
-    push    ds
-    push    es
-    push    fs
-    push    gs
-    pushad
-
+Interrupt_Clock:
+    ISR_BUILD_FRAME_NOERR 32
     call    ClockHandler
-
-    mov     eax, esp
-    push    eax
+    push    edi
     call    Scheduler
     add     esp, 4
-
+    
+    ; DEBUG: Log la valeur de retour de Scheduler
+    push    eax
+    push    eax
+    push    LOG_DEBUG
+    call    KernelLogText
+    add     esp, 8
+    pop     eax
+    
+    ; SAUVEGARDER eax avant d'écraser AL
+    push    eax                         ; Sauvegarder le résultat de Scheduler
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
+    pop     eax                         ; Restaurer le résultat de Scheduler
+    
+    test    eax, eax                    ; Maintenant le test est correct
+    jz      .NoSwitch
+    BUILD_EXIT_STACK_NOERR  eax
 
-    popad
-    pop     gs
-    pop     fs
-    pop     es
-    pop     ds
-    iretd
+.NoSwitch:
+    ISR_RETURN
 
 ;--------------------------------------
 
@@ -469,5 +447,8 @@ Delay :
     dw      0x00EB                     ; jmp $+2
     dw      0x00EB                     ; jmp $+2
     ret
+
+section .data
+debug_msg db "[Scheduler returned: %X]", 0
 
 ;----------------------------------------------------------------------------

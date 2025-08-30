@@ -54,9 +54,7 @@ void KernelMain(void) {
     InitializeKernel(ImageAddress, CursorX, CursorY);
 
     //--------------------------------------
-    // Enter the idle task
+    // Enter idle
 
-    while (1) {
-        IdleCPU();
-    }
+    DeadCPU();
 }

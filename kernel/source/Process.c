@@ -91,7 +91,6 @@ void InitializeKernelProcess(void) {
 
 /***************************************************************************/
 
-
 LPPROCESS NewProcess(void) {
     LPPROCESS This = NULL;
 

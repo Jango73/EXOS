@@ -84,6 +84,7 @@ bits 32
     global MemoryCopy
     global DoSystemCall
     global IdleCPU
+    global DeadCPU
     global Reboot
 
 ;--------------------------------------
@@ -1026,10 +1027,18 @@ DoSystemCall :
 
 IdleCPU :
 
-    cli
     sti
     hlt
     ret
+
+;--------------------------------------
+
+DeadCPU :
+
+.loop:
+    sti
+    hlt
+    jmp     .loop
 
 ;--------------------------------------
 

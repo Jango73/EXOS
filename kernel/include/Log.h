@@ -14,6 +14,7 @@
 
 #include "Base.h"
 #include "I386.h"
+#include "Task.h"
 
 /***************************************************************************/
 
@@ -41,6 +42,7 @@ void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEn
 void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory);
 void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor);
 void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss);
+void LogTask(U32 LogType, const LPTASK Task);
 
 /***************************************************************************/
 

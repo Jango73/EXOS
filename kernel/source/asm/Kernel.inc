@@ -243,6 +243,13 @@ KEYBOARD_STATUS_PARITY_ERROR equ 0x80
 %endmacro
 
 ;----------------------------------------------------------
+; Log values
+LOG_DEBUG equ 0x0001
+LOG_VERBOSE equ 0x0002
+LOG_WARNING equ 0x0004
+LOG_ERROR equ 0x0008
+
+;----------------------------------------------------------
 ; KernelStartupInfo data layout (partial)
 
 STRUC KernelStartupInfo
@@ -279,10 +286,12 @@ extern InitializeKernel
 extern KernelPrint
 extern ConsolePrint
 extern ConsolePrintChar
-extern ClockTask
+extern ClockTestTask
 extern KillTask
 extern GetCurrentTask
 extern ValidateEIPOrDie
+
+extern KernelLogText
 
 extern SystemCallHandler
 extern DriverCallHandler

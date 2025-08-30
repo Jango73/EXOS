@@ -35,11 +35,11 @@ STR CharToLower(STR);
 STR CharToUpper(STR);
 BOOL StringEmpty(LPCSTR);
 U32 StringLength(LPCSTR);
-void StringCopy(LPSTR, LPCSTR);
-void StringCopyNum(LPSTR, LPCSTR, U32);
-void StringConcat(LPSTR, LPCSTR);
-I32 StringCompare(LPCSTR, LPCSTR);
-I32 StringCompareNC(LPCSTR, LPCSTR);
+void StringCopy(LPSTR Dst, LPCSTR Src);                 // Copies Src to Dst
+void StringCopyNum(LPSTR Dst, LPCSTR Src, U32 Length);  // Copies Src to Dst using Length
+void StringConcat(LPSTR Dst, LPCSTR Src);               // Concatenates Src to Dst
+I32 StringCompare(LPCSTR, LPCSTR);                      // Compares two strings WITH case sensitivity
+I32 StringCompareNC(LPCSTR, LPCSTR);                    // Compares with strings NO case sensitivity
 LPSTR StringToLower(LPSTR);
 LPSTR StringToUpper(LPSTR);
 LPSTR StringFindChar(LPCSTR, STR);

@@ -141,6 +141,8 @@ void ClearConsole(void) {
  * @param Char Character to print.
  */
 void ConsolePrintChar(STR Char) {
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
         Console.CursorY++;
@@ -158,6 +160,8 @@ void ConsolePrintChar(STR Char) {
     }
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -195,12 +199,16 @@ Out:
 static void ConsolePrintString(LPCSTR Text) {
     U32 Index = 0;
 
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
     if (Text) {
         for (Index = 0; Index < 0x10000; Index++) {
             if (Text[Index] == STR_NULL) break;
             ConsolePrintChar(Text[Index]);
         }
     }
+
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -210,7 +218,7 @@ static void ConsolePrintString(LPCSTR Text) {
  * @param Format Format string.
  * @return TRUE on success.
  */
-BOOL ConsolePrint(LPCSTR Format, ...) {
+void ConsolePrint(LPCSTR Format, ...) {
     STR Text[0x1000];
     VarArgList Args;
 
@@ -223,12 +231,7 @@ BOOL ConsolePrint(LPCSTR Format, ...) {
     ConsolePrintString(Text);
 
     UnlockMutex(MUTEX_CONSOLE);
-
-    return TRUE;
 }
-
-/***************************************************************************/
-
 
 /***************************************************************************/
 
@@ -250,6 +253,8 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
     KEYCODE KeyCode;
     U32 Index = 0;
     U32 Done = 0;
+
+    KernelLogText(LOG_DEBUG, TEXT("[ConsoleGetString] Enter"));
 
     Buffer[0] = STR_NULL;
 
@@ -284,6 +289,8 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
     }
 
     Buffer[Index] = STR_NULL;
+
+    KernelLogText(LOG_DEBUG, TEXT("[ConsoleGetString] Exit"));
 
     return TRUE;
 }

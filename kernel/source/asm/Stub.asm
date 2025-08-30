@@ -14,9 +14,6 @@ Magic : db 'EXOS'
 
 start:
 
-    mov     al, 0x7A
-    out     0x2F8, al
-
     call    KernelMain
 
     cli

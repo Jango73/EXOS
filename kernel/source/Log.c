@@ -52,7 +52,6 @@ void KernelPrintStringNoMutex(LPCSTR Text) {
 
 /***************************************************************************/
 
-
 void KernelLogText(U32 Type, LPCSTR Format, ...) {
     if (StringEmpty(Format)) return;
 
@@ -65,15 +64,19 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     switch (Type) {
         case LOG_DEBUG: {
+            /*
             KernelPrintString(TEXT("DEBUG > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
+            */
         } break;
 
         default:
         case LOG_VERBOSE: {
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
+            ConsolePrint(TextBuffer);
+            ConsolePrint(Text_NewLine);
         } break;
 
         case LOG_WARNING: {

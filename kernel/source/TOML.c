@@ -168,6 +168,7 @@ LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
 
     for (Item = Toml->First; Item; Item = Item->Next) {
         if (StringCompare(Item->Key, Path) == 0) {
+            KernelLogText(LOG_DEBUG, TEXT("[TomlGet] Exit"));
             return Item->Value;
         }
     }

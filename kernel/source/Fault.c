@@ -18,24 +18,14 @@
 #include "../include/Text.h"
 
 /************************************************************************/
-// Fault logging helpers (selector-aware)
-
-/**
- * @brief Print a 32-bit hexadecimal number using kernel facilities.
- * @param Number Value to display.
- */
-static void KernelPrintHex(U32 Number) {
-    STR Text[32];
-    StringPrintFormat(Text, TEXT("%X"), Number);
-    KernelPrintString(Text);
-}
+// Fault logging helpers
 
 /**
  * @brief Log a segment selector extracted from an error code.
  * @param Prefix Text prefix for the log entry.
  * @param Err Raw error code containing a selector.
  */
-static void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
+void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
     U16 sel = (U16)(Err & 0xFFFFu);
     U16 idx = SELECTOR_INDEX(sel);
     U16 ti = SELECTOR_TI(sel);
@@ -53,7 +43,7 @@ static void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
  * @param Prefix Text prefix for the log entry.
  * @param Sel Segment selector value.
  */
-static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
+void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
     U16 ti = SELECTOR_TI(Sel);
     U16 idx = SELECTOR_INDEX(Sel);
 
@@ -74,15 +64,83 @@ static void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
 
 /************************************************************************/
 
-/**
- * @brief Log the current task register value.
- */
-static void LogTR(void) {
-    SELECTOR tr = GetTaskRegister();
+// Conservative pointer checks. If StackLow/High are zero, use heuristics.
+/*
+static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackHigh) {
+    // EBP must increase (stack grows down in x86, older frame is at higher address).
+    if (CurEbp <= PrevEbp) return FALSE;
 
-    KernelLogText(
-        LOG_ERROR, TEXT("TR=%X (index=%u TI=%u RPL=%u)"), (U32)tr, (U32)SELECTOR_INDEX(tr), (U32)SELECTOR_TI(tr),
-        (U32)SELECTOR_RPL(tr));
+    // Heuristic: frame size should not be absurd (e.g., > 256 KiB).
+    if ((CurEbp - PrevEbp) > (256u * 1024u)) return FALSE;
+
+    // If we have valid stack bounds, enforce them.
+    if (StackLow | StackHigh) {
+        if (CurEbp < StackLow || CurEbp >= StackHigh) return FALSE;
+    } else {
+        // Heuristic bounds (typical higher-half kernel). Adjust if your layout differs.
+        if (CurEbp < 0xC0000000u) return FALSE;
+    }
+    // 4-byte alignment is expected.
+    if ((CurEbp & 3u) != 0) return FALSE;
+
+    return TRUE;
+}
+*/
+
+/************************************************************************/
+
+// Starts at EBP, prints up to MaxFrames return addresses.
+void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
+    U32 Depth = 0;
+    U32 Prev = 0;
+    U32 Ebp = StartEbp;
+
+    KernelLogText(LOG_VERBOSE, TEXT("Backtrace (EBP=%08X, max=%u)"), StartEbp, MaxFrames);
+
+    SAFE_USE_VALID(Task) {
+        // U32 StackLow = Task->StackBase;
+        // U32 StackHigh = Task->StackBase + Task->StackSize
+
+        while (Ebp && Depth < MaxFrames) {
+            // Validate the current frame pointer
+            // if (!IsFramePointerSane(Ebp, Prev, StackLow, StackHigh)) {
+            if (IsValidMemory(Ebp) == FALSE) {
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%08X  [stop: invalid/suspect frame]"), Depth, Ebp);
+                break;
+            }
+
+            /* Frame layout:
+               [EBP+0] = saved EBP (prev)
+               [EBP+4] = return address (EIP)
+               [EBP+8] = first argument (optional to print) */
+            U32 *Fp = (U32*)Ebp;
+
+            // Safely fetch next and return PC.
+            U32 NextEbp = Fp[0];
+            U32 RetAddr = Fp[1];
+
+            if (RetAddr == 0) {
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%08X  RET=? [null]"), Depth, Ebp);
+                break;
+            }
+
+            LPCSTR Sym = NULL;
+            // if (&SymbolLookup) Sym = SymbolLookup(RetAddr);
+
+            if (Sym && Sym[0]) {
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%08X  (%s)  EBP=%08X"), Depth, RetAddr, Sym, Ebp);
+            } else {
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%08X  EBP=%08X"), Depth, RetAddr, Ebp);
+            }
+
+            /* Advance */
+            Prev = Ebp;
+            Ebp = NextEbp;
+            ++Depth;
+        }
+    }
+
+    KernelLogText(LOG_VERBOSE, TEXT("Backtrace end (frames=%u)"), Depth);
 }
 
 /************************************************************************/
@@ -91,7 +149,7 @@ static void LogTR(void) {
  * @brief Log register state for a task at fault.
  * @param Frame Interrupt frame with register snapshot.
  */
-static void DumpFrame(LPINTERRUPTFRAME Frame) {
+void DumpFrame(LPINTERRUPTFRAME Frame) {
     LPPROCESS Process;
     LPTASK Task;
 
@@ -111,38 +169,12 @@ static void DumpFrame(LPINTERRUPTFRAME Frame) {
 /************************************************************************/
 
 /**
- * @brief Log detailed register state of the current task.
- */
-static void PrintFaultDetails(void) {
-    INTEL386REGISTERS Regs;
-    LPPROCESS Process;
-    LPTASK Task;
-
-    Task = GetCurrentTask();
-
-    if (Task != NULL) {
-        Process = Task->Process;
-
-        if (Process != NULL) {
-            KernelLogText(LOG_VERBOSE, TEXT("Image : %s"), Process->FileName);
-            KernelLogText(LOG_VERBOSE, Text_Registers);
-
-            SaveRegisters(&Regs);
-            LogRegisters(&Regs);
-        }
-    }
-
-    // LINEAR Table = MapPhysicalPage(Process->PageDirectory);
-    // LogPageDirectory(LOG_DEBUG, Table);
-}
-
-/************************************************************************/
-
-/**
  * @brief Terminate the current task and halt if necessary.
  */
-static void Die(void) {
+void Die(void) {
     LPTASK Task;
+
+    KernelLogText(LOG_DEBUG, TEXT("[DIE] Enter"));
 
     Task = GetCurrentTask();
 
@@ -155,9 +187,9 @@ static void Die(void) {
 
         KillTask(Task);
 
-        UnlockMutex(MUTEX_KERNEL);
-        UnlockMutex(MUTEX_MEMORY);
         UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_MEMORY);
+        UnlockMutex(MUTEX_KERNEL);
 
         UnfreezeScheduler();
 
@@ -165,7 +197,9 @@ static void Die(void) {
     }
 
     // Wait forever
-    DO_THE_SLEEPING_BEAUTY;
+    do {
+        __asm__ __volatile__( "1:\n\t" "hlt\n\t" "jmp 1b\n\t" : : : "memory");
+    } while (0);
 }
 
 /************************************************************************/
@@ -187,7 +221,6 @@ void ValidateEIPOrDie(LINEAR Address) {
  * @param Frame Interrupt frame context.
  */
 void DefaultHandler(LPINTERRUPTFRAME Frame) {
-    KernelPrintString(Text_Separator);
     KernelLogText(LOG_ERROR, TEXT("Unknown interrupt"));
     DumpFrame(Frame);
     Die();
@@ -207,79 +240,6 @@ void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
 
 /************************************************************************/
 
-typedef struct {
-    unsigned short Limit;
-    unsigned int Base;
-} GDTR32;
-typedef struct {
-    unsigned short Limit0;
-    unsigned short Base0;
-    unsigned char Base1;
-    unsigned char Access;
-    unsigned char Gran;
-    unsigned char Base2;
-} GdtDesc;
-
-static inline void Sgdt(GDTR32* g) { __asm__ __volatile__("sgdt %0" : "=m"(*g)); }
-static inline unsigned short StrSel(void) {
-    unsigned short s;
-    __asm__ __volatile__("str %0" : "=r"(s));
-    return s;
-}
-static inline unsigned int GdtBase(const GdtDesc* d) {
-    return (unsigned int)d->Base0 | ((unsigned int)d->Base1 << 16) | ((unsigned int)d->Base2 << 24);
-}
-
-static inline unsigned char ReadCurrentTSSTrapByte(void) {
-    GDTR32 gd;
-    Sgdt(&gd);
-    const GdtDesc* gdt = (const GdtDesc*)(unsigned long)gd.Base;
-    unsigned short tr = StrSel();
-    const GdtDesc de = gdt[tr >> 3];
-    unsigned int base = GdtBase(&de);
-    return *(volatile unsigned char*)(unsigned long)(base + 0x64);
-}
-
-/**
- * @brief Minimal debug handler probe showing TSS trap byte.
- */
-void DebugExceptionHandler_MinProbe(void) {
-    GDTR32 gd;
-    Sgdt(&gd);
-    const GdtDesc* gdt = (const GdtDesc*)(unsigned long)gd.Base;
-    unsigned short tr = StrSel();
-    const GdtDesc de = gdt[tr >> 3];
-    unsigned int base = GdtBase(&de);
-    unsigned char trap = *(volatile unsigned char*)(unsigned long)(base + 0x64);
-
-    KernelPrintString(TEXT("[#DB] TSS base="));
-    KernelPrintHex(base);
-    KernelPrintString(TEXT(" Trap@+0x64="));
-    KernelPrintHex(trap);
-    KernelPrintString(Text_NewLine);
-}
-
-/**
- * @brief Determine if a debug exception is a spurious task switch.
- * @return 1 if spurious, otherwise 0.
- */
-static int IsSpuriousTaskSwitchDB(void) {
-    U32 dr6 = GetDR6();
-    U32 dr7 = GetDR7();
-
-    // Keep meaningful DR6 bits
-    U32 cause = dr6 & (0xFu | (1u << 13) | (1u << 14) | (1u << 15));
-    if (cause != (1u << 15)) return 0;  // not BT-only
-
-    // Only check Lx/Gx enable bits (0..7). Other DR7 bits can be non-zero harmlessly.
-    if ((dr7 & 0xFFu) != 0) return 0;  // some breakpoints enabled
-
-    // Double-check: the actual Trap byte in the TSS pointed by TR is 0
-    if (ReadCurrentTSSTrapByte() != 0) return 0;
-
-    return 1;
-}
-
 /**
  * @brief Handle debug exceptions and log diagnostic information.
  * @param Frame Interrupt frame context.
@@ -293,63 +253,11 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     ConsolePrint(TEXT("The current task (%X) triggered a debug exception "), Task ? Task : 0);
     ConsolePrint(TEXT("at EIP : %X\n"), Frame->Registers.EIP);
 
-    U32 gdtr = GetGDTR();
-    KernelPrintString(TEXT("GDTR : "));
-    KernelPrintHex(gdtr);
-    KernelPrintString(Text_Space);
-
-    U32 ldtr = GetLDTR();
-    KernelPrintString(TEXT("LDTR : "));
-    KernelPrintHex(ldtr);
-    KernelPrintString(Text_Space);
-
     SELECTOR tr = GetTaskRegister();
-
-    KernelPrintString(TEXT("Index : "));
-    KernelPrintHex((U32)SELECTOR_INDEX(tr));
-    KernelPrintString(Text_Space);
-
-    KernelPrintString(TEXT("TI : "));
-    KernelPrintHex((U32)SELECTOR_TI(tr));
-    KernelPrintString(Text_Space);
-
-    KernelPrintString(TEXT("RPL : "));
-    KernelPrintHex((U32)SELECTOR_RPL(tr));
-    KernelPrintString(Text_Space);
-
-    KernelPrintString(Text_NewLine);
-
     LogDescriptorAndTSSFromSelector(TEXT("[#DB]"), tr);
 
-    U32 Index = SELECTOR_INDEX(tr);
-    LogTaskStateSegment(LOG_DEBUG, (LPTASKSTATESEGMENT)Kernel_i386.TSS);
-
-    DebugExceptionHandler_MinProbe();
-
-    U32 dr6 = GetDR6();
-
-    // BS (bit14) = single-step (TF=1)
-    if (dr6 & (1u << 14)) KernelPrintString(TEXT("[#DB] cause: single-step (TF=1)\n"));
-    // BT (bit15) = task-switch trap (TSS.T=1)
-    if (dr6 & (1u << 15)) KernelPrintString(TEXT("[#DB] cause: task-switch trap (TSS.T=1)\n"));
-    // B0..B3 = hardware breakpoints
-    if (dr6 & 0xF) KernelPrintString(TEXT("[#DB] cause: hardware breakpoint (DR0-DR3)\n"));
-    // BD (bit13) = general detect
-    if (dr6 & (1u << 13)) KernelPrintString(TEXT("[#DB] cause: general-detect (DR7.GD)\n"));
-
     DumpFrame(Frame);
-
-    if (IsSpuriousTaskSwitchDB()) {
-        SetDR6(0);
-        SetDR7(0);
-        KernelPrintString(TEXT("IsSpuriousTaskSwitchDB returned TRUE\n"));
-        return;
-    }
-
-    ConsolePrint(Text_NewLine);
-    ConsolePrint(TEXT("Debug exception !\n"));
-    ConsolePrint(TEXT("The current task (%X) triggered a debug exception "), Task ? Task : 0);
-    ConsolePrint(TEXT("at EIP : %X\n"), Frame->Registers.EIP);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -373,7 +281,6 @@ void NMIHandler(LPINTERRUPTFRAME Frame) {
 void BreakPointHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Breakpoint"));
     DumpFrame(Frame);
-    Die();
 }
 
 /***************************************************************************/
@@ -383,8 +290,10 @@ void BreakPointHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void OverflowHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Overflow"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -395,8 +304,10 @@ void OverflowHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Bound range fault"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -407,8 +318,10 @@ void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Invalid opcode"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -430,8 +343,10 @@ void DeviceNotAvailHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Double fault"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -442,8 +357,11 @@ void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Math overflow"));
+    ConsolePrint(TEXT("Math overflow!\n"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -454,15 +372,11 @@ void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Invalid TSS"));
-
-    LogTR();
-    LogSelectorFromErrorCode(TEXT("[#TS]"), Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) {
-        LogDescriptorAndTSSFromSelector(TEXT("[#TS]"), (U16)(Frame->ErrCode & 0xFFFFu));
-    }
-
+    ConsolePrint(TEXT("Invalid TSS!\n"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -473,15 +387,11 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Segment fault"));
-
-    LogTR();
-    LogSelectorFromErrorCode(TEXT("[#NP]"), Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) {
-        LogDescriptorAndTSSFromSelector(TEXT("[#NP]"), (U16)(Frame->ErrCode & 0xFFFFu));
-    }
-
+    ConsolePrint(TEXT("Segment fault!\n"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -492,37 +402,12 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void StackFaultHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Stack fault"));
-
-    LogTR();
-    LogSelectorFromErrorCode(TEXT("[#SS]"), Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) {
-        LogDescriptorAndTSSFromSelector(TEXT("[#SS]"), (U16)(Frame->ErrCode & 0xFFFFu));
-    }
-
+    ConsolePrint(TEXT("Stack fault!\n"));
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
-}
-
-/***************************************************************************/
-
-/**
- * @brief Log details of a general protection fault error code.
- * @param err Raw error code value.
- */
-static void LogGPError(U32 err) {
-    KernelPrintString(TEXT("[#GP] err="));
-    KernelPrintHex(err);
-    KernelPrintString(TEXT(" ext="));
-    KernelPrintHex(err & 1);
-    KernelPrintString(TEXT(" idt="));
-    KernelPrintHex((err >> 1) & 1);
-    KernelPrintString(TEXT(" ti="));
-    KernelPrintHex((err >> 2) & 1);
-    U32 sel = err & 0xFFFC;
-    KernelPrintString(TEXT(" sel="));
-    KernelPrintHex(sel);
-    KernelPrintString(Text_NewLine);
 }
 
 /***************************************************************************/
@@ -532,19 +417,17 @@ static void LogGPError(U32 err) {
  * @param Frame Interrupt frame context.
  */
 void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
+    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("General protection fault"));
 
     ConsolePrint(TEXT("General protection fault !\n"));
-
-    /*
-    LogTR();
-    LogSelectorFromErrorCode("[#GP]", Frame ? Frame->ErrCode : 0);
-    if (Frame && Frame->ErrCode) { LogDescriptorAndTSSFromSelector("[#GP]", (U16)(Frame->ErrCode & 0xFFFFu)); }
-    */
-
-    LogGPError(Frame->ErrCode);
+    ConsolePrint(TEXT("The current thread (%X) triggered a general protection "), Task ? Task : 0);
+    ConsolePrint(TEXT("fault with error code : %X, at EIP : %X\n"), Frame->ErrCode, Frame->Registers.EIP);
+    ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
+    ConsolePrint(TEXT("Halting\n"));
 
     DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -552,26 +435,24 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
 
 /**
  * @brief Handle page fault exceptions.
- * @param ErrorCode Fault error code.
- * @param Address Faulting linear address.
- * @param Eip Instruction pointer where fault occurred.
+ * @param Frame Interrupt frame context.
  */
-void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
+void PageFaultHandler(LPINTERRUPTFRAME Frame) {
+    LINEAR FaultAddress;
+    __asm__ volatile ("mov %%cr2, %0" : "=r" (FaultAddress));
+
+    KernelLogText(LOG_ERROR, TEXT("Page fault %X (EIP %X)"), FaultAddress, Frame->Registers.EIP);
+
     LPTASK Task = GetCurrentTask();
-    INTEL386REGISTERS Regs;
 
     ConsolePrint(TEXT("Page fault !\n"));
-    ConsolePrint(TEXT("The current task (%X) did an unauthorized access "), Task ? Task : 0);
-    ConsolePrint(TEXT("at linear address : %X, error code : %X, EIP : %X\n"), Address, ErrorCode, Eip);
+    ConsolePrint(TEXT("The current thread (%X) did an unauthorized access "), Task ? Task : 0);
+    ConsolePrint(TEXT("at linear address : %X, error code : %X, EIP : %X\n"), FaultAddress, Frame->ErrCode, Frame->Registers.EIP);
     ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
-    ConsolePrint(TEXT("Halting"));
+    ConsolePrint(TEXT("Halting\n"));
 
-    KernelLogText(LOG_ERROR, TEXT("Page fault at %X (EIP %X)"), Address, Eip);
-
-    SaveRegisters(&Regs);
-    Regs.EIP = Eip;
-    LogRegisters(&Regs);
-
+    DumpFrame(Frame);
+    BacktraceFrom(Task, Frame->Registers.EBP, 10);
     Die();
 }
 
@@ -583,9 +464,6 @@ void PageFaultHandler(U32 ErrorCode, LINEAR Address, U32 Eip) {
  */
 void AlignmentCheckHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Alignment check fault"));
-    if (Frame) {
-        DumpFrame(Frame);
-    }
-    PrintFaultDetails();
+    DumpFrame(Frame);
     Die();
 }

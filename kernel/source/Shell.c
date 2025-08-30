@@ -26,6 +26,10 @@
 
 /***************************************************************************/
 
+void RegexSelfTest(void);
+
+/***************************************************************************/
+
 #define NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
 #define HISTORY_SIZE 20
@@ -75,6 +79,8 @@ static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
 
+/***************************************************************************/
+
 static struct {
     STR Name[32];
     STR AltName[32];
@@ -110,6 +116,8 @@ static struct {
 
 static void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
+
+    MemorySet(This, 0, sizeof(SHELLCONTEXT));
 
     KernelLogText(LOG_DEBUG, TEXT("[InitShellContext] Enter"));
 
@@ -254,6 +262,8 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
     U32 Index = 0;
     U32 HistoryPos = Context->History.Count;
 
+    KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Enter"));
+
     Context->CommandLine[0] = STR_NULL;
 
     while (1) {
@@ -312,8 +322,10 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
             }
         }
 
-        Sleep(50);
+        Sleep(20);
     }
+
+    KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Exit"));
 }
 
 /***************************************************************************/
@@ -931,22 +943,26 @@ static void CMD_reboot(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static void CMD_test(LPSHELLCONTEXT Context) {
+    /*
     TASKINFO TaskInfo;
 
     UNUSED(Context);
 
-    KernelLogText(LOG_DEBUG, TEXT("[Shell] Creating test task : ClockTask"));
+    KernelLogText(LOG_DEBUG, TEXT("[Shell] Creating test task : ClockTestTask"));
 
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
-    TaskInfo.Func = ClockTask;
+    TaskInfo.Func = ClockTestTask;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = 0;
 
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
+    */
+
+    RegexSelfTest();
 }
 
 /***************************************************************************/
