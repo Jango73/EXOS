@@ -362,8 +362,9 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                             StringCopyNum(Temp, Completed, FolderLength);
                             Temp[FolderLength] = STR_NULL;
                             if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
-                                StringCopy(Display, Completed + FolderLength);
-                                if (Display[0] == PATH_SEP) Display++;
+                                STR *DisplayPtr = Completed + FolderLength;
+                                if (DisplayPtr[0] == PATH_SEP) DisplayPtr++;
+                                StringCopy(Display, DisplayPtr);
                             } else {
                                 StringCopy(Display, Completed);
                             }
@@ -1027,6 +1028,8 @@ static void CMD_test(LPSHELLCONTEXT Context) {
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
     */
+
+    UNUSED(Context);
 
     RegexSelfTest();
 }
