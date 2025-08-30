@@ -17,7 +17,7 @@ The documentation for boot sequence and kernel modules is in documentation/inter
 - Use full names for struct/class members and variables, or acronyms (no "len", "sz", "idx", ...).
 - Use PascalCase for struct/class members and variables.
 - Use SCREAMING_SNAKE_CASE for structure names and defines.
-- Use hexadecimal for constant numbers, except for graphic points/sizes.
+- Use hexadecimal for constant numbers, except for graphic points/sizes and time.
 - Use 4 spaces for indentation in code.
 - Write comments, console output and technical doc in english.
 - There should be no duplicate code. Create intermediate functions to avoid it.
