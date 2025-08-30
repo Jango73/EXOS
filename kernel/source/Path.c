@@ -21,6 +21,7 @@
 
 \************************************************************************/
 #include "../include/Path.h"
+
 #include "../include/String.h"
 
 /***************************************************************************/
@@ -93,9 +94,7 @@ BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
 
 /***************************************************************************/
 
-void PathCompletionDeinit(LPPATHCOMPLETION Context) {
-    StringArrayDeinit(&Context->Matches);
-}
+void PathCompletionDeinit(LPPATHCOMPLETION Context) { StringArrayDeinit(&Context->Matches); }
 
 /***************************************************************************/
 

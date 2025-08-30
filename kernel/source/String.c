@@ -24,8 +24,8 @@
 #include "../include/String.h"
 
 #include "../include/Base.h"
-#include "../include/VarArg.h"
 #include "../include/Log.h"
+#include "../include/VarArg.h"
 
 /***************************************************************************/
 
@@ -649,4 +649,3 @@ void StringPrintFormat(LPSTR Destination, LPCSTR Format, ...) {
 }
 
 /***************************************************************************/
-

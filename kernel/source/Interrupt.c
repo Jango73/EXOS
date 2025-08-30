@@ -166,4 +166,3 @@ void InitializeInterrupts(void) {
 
     SetDR7(0);
 }
-

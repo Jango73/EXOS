@@ -9,8 +9,8 @@
 
 #include "../../include/Base.h"
 #include "../../include/Console.h"
-#include "../../include/String.h"
 #include "../../include/Regex.h"
+#include "../../include/String.h"
 
 static void TestRegex(LPCSTR Pattern, LPCSTR Text) {
     REGEX Rx;

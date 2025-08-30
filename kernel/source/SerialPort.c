@@ -72,4 +72,3 @@ void SerialOut(U8 Which, U8 Char) {
 
     OutPortByte(base + UART_THR, Char);
 }
-

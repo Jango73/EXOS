@@ -22,6 +22,9 @@ The documentation for boot sequence and kernel modules is in documentation/inter
 - Write comments, console output and technical doc in english.
 - There should be no duplicate code. Create intermediate functions to avoid it.
 
+## Format
+- Format must follow clang-format rules in .clang-format
+
 ## Forbidden Actions
 - Never enable network during tests.
 - DON'T delete blank lines between functions, comments, etc...

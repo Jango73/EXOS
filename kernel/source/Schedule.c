@@ -68,9 +68,9 @@ void UpdateScheduler(void) {
 BOOL AddTaskToQueue(LPTASK NewTask) {
     U32 Index = 0;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %X"), NewTask);
-    #endif
+#endif
 
     FreezeScheduler();
 
@@ -98,9 +98,9 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     //-------------------------------------
     // Add task to queue
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
-    #endif
+#endif
 
     TaskList.Tasks[TaskList.NumTasks] = NewTask;
 
@@ -164,9 +164,9 @@ static void RotateQueue(void) {
 /************************************************************************/
 
 LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter"));
-    #endif
+#endif
 
     TaskList.SchedulerTime += 10;
 
@@ -175,27 +175,25 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     }
 
     if (TaskList.Freeze) {
-        #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen : Returning NULL"));
-        #endif
+#endif
 
         return NULL;
     }
 
-    #ifdef ENABLE_CRITICAL_LOGS
-    KernelLogText(LOG_DEBUG, TEXT(
-            "[Scheduler] Incoming frame (current) :\n"
-            " EIP : %X, SS : %X\n"
-            " DS : %X, ES : %X, FS %X, GS %X\n"
-            ", ESI : %X, EDI : %X, EBP %X, ESP %X\n"
-            ", EAX : %X, EBX : %X, ECX %X, EDX %X"
-        ),
-        Frame->Registers.EIP, Frame->Registers.SS,
-        Frame->Registers.DS, Frame->Registers.ES, Frame->Registers.FS, Frame->Registers.GS,
-        Frame->Registers.ESI, Frame->Registers.EDI, Frame->Registers.EBP, Frame->Registers.ESP,
-        Frame->Registers.EAX, Frame->Registers.EBX, Frame->Registers.ECX, Frame->Registers.EDX
-        );
-    #endif
+#ifdef ENABLE_CRITICAL_LOGS
+    KernelLogText(
+        LOG_DEBUG,
+        TEXT("[Scheduler] Incoming frame (current) :\n"
+             " EIP : %X, SS : %X\n"
+             " DS : %X, ES : %X, FS %X, GS %X\n"
+             ", ESI : %X, EDI : %X, EBP %X, ESP %X\n"
+             ", EAX : %X, EBX : %X, ECX %X, EDX %X"),
+        Frame->Registers.EIP, Frame->Registers.SS, Frame->Registers.DS, Frame->Registers.ES, Frame->Registers.FS,
+        Frame->Registers.GS, Frame->Registers.ESI, Frame->Registers.EDI, Frame->Registers.EBP, Frame->Registers.ESP,
+        Frame->Registers.EAX, Frame->Registers.EBX, Frame->Registers.ECX, Frame->Registers.EDX);
+#endif
 
     if (TaskList.SchedulerTime >= TaskList.TaskTime) {
         TaskList.SchedulerTime = 0;
@@ -213,23 +211,22 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
                     if (Next != NULL && Next != Current) {
                         if (Next->Process && Current &&
                             Next->Process->PageDirectory != Current->Process->PageDirectory) {
-
-                            #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
                             KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
-                            #endif
+#endif
 
                             LoadPageDirectory(Next->Process->PageDirectory);
                         }
 
-                        #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
                         LogTask(LOG_DEBUG, Next);
-                        #endif
+#endif
 
                         U32 NextSysStackTop = Next->SysStackBase + Next->SysStackSize;
 
-                        #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
                         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
-                        #endif
+#endif
 
                         // Kernel_i386.TSS->ESP0 = NextSysStackTop;
 
@@ -240,9 +237,9 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
                         return NextFrame;  // Switch to this stack
                     }
 
-                    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
-                    #endif
+#endif
 
                     return NULL;
                 } break;
@@ -255,18 +252,18 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
             }
 
             if (Next == Current) {
-                #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
                 KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No task to switch to, returning NULL"));
-                #endif
+#endif
 
                 return NULL;
             }
         }
     }
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Not sheduling time yet, returning NULL"));
-    #endif
+#endif
 
     return NULL;
 }
@@ -302,4 +299,3 @@ BOOL UnfreezeScheduler(void) {
 }
 
 /***************************************************************************/
-

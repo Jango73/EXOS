@@ -16,7 +16,7 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- 
+
 
     VBR Payload main code
 
@@ -64,7 +64,8 @@ extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 extern void MemorySet(LPVOID Base, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
 extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
-extern void __attribute__((noreturn)) StubJumpToImage(U32 GDTR, U32 PageDirectoryPA, U32 KernelEntryVA, U32 MapPtr, U32 MapCount);
+extern void __attribute__((noreturn))
+StubJumpToImage(U32 GDTR, U32 PageDirectoryPA, U32 KernelEntryVA, U32 MapPtr, U32 MapCount);
 
 /************************************************************************/
 // Functions in this module
@@ -77,7 +78,7 @@ static void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 static void InitDebug(void) { SerialReset(0); }
 static void OutputChar(U8 Char) { SerialOut(0, Char); }
 #else
-static void InitDebug(void) { }
+static void InitDebug(void) {}
 static void OutputChar(U8 Char) {
     __asm__ __volatile__(
         "mov   $0x0E, %%ah\n\t"
@@ -190,9 +191,7 @@ typedef struct __attribute__((packed)) {
 static E820ENTRY E820_Map[E820_MAX_ENTRIES];
 static U32 E820_EntryCount = 0;
 
-static void RetrieveMemoryMap(void) {
-    E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
-}
+static void RetrieveMemoryMap(void) { E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES); }
 
 /************************************************************************/
 // Low-level I/O + A20

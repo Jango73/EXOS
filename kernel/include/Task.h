@@ -49,11 +49,11 @@ struct tag_TASK {
     LPVOID Parameter;   // Parameter passed to the function
     U32 ReturnValue;
     INTERRUPTFRAME Context;  // Saved context for software switching
-    LINEAR StackBase;   // This task's stack in the heap
-    U32 StackSize;      // This task's stack size
+    LINEAR StackBase;        // This task's stack in the heap
+    U32 StackSize;           // This task's stack size
     LINEAR SysStackBase;
     U32 SysStackSize;
-    U32 Time;            // Time allocated to this task
+    U32 Time;  // Time allocated to this task
     U32 WakeUpTime;
     MUTEX MessageMutex;  // Mutex to access message queue
     LPLIST Message;      // This task's message queue

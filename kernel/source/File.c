@@ -84,8 +84,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.Attributes = MAX_U32;
         StringCopy(Find.Name, Info->Name);
 
-        File =
-            (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
         if (File != NULL) {
             LockMutex(MUTEX_FILE, INFINITY);
@@ -390,4 +389,3 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
 }
 
 /***************************************************************************/
-

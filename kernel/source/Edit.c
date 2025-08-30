@@ -417,9 +417,7 @@ static BOOL SaveFile(LPEDITFILE File) {
  * @param Context Active editor context.
  * @return TRUE if the file was saved.
  */
-static BOOL CommandSave(LPEDITCONTEXT Context) {
-    return SaveFile(Context->Current);
-}
+static BOOL CommandSave(LPEDITCONTEXT Context) { return SaveFile(Context->Current); }
 
 /***************************************************************************/
 
@@ -918,4 +916,3 @@ U32 Edit(U32 NumArguments, LPCSTR* Arguments) {
 }
 
 /***************************************************************************/
-

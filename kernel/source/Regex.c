@@ -39,9 +39,7 @@ static void ClassClear(CHAR_CLASS* C) {
     C->Neg = 0;
 }
 
-static void ClassSet(CHAR_CLASS* C, U32 Ch) {
-    C->Bits[Ch >> 3] |= (U8)(1u << (Ch & 7));
-}
+static void ClassSet(CHAR_CLASS* C, U32 Ch) { C->Bits[Ch >> 3] |= (U8)(1u << (Ch & 7)); }
 
 static BOOL ClassHas(CONST CHAR_CLASS* C, U32 Ch) {
     U8 In = (U8)((C->Bits[Ch >> 3] >> (Ch & 7)) & 1u);
@@ -49,7 +47,11 @@ static BOOL ClassHas(CONST CHAR_CLASS* C, U32 Ch) {
 }
 
 static void ClassAddRange(CHAR_CLASS* C, U32 A, U32 B) {
-    if (A > B) { U32 T = A; A = B; B = T; }
+    if (A > B) {
+        U32 T = A;
+        A = B;
+        B = T;
+    }
     for (U32 X = A; X <= B; ++X) ClassSet(C, X);
 }
 
@@ -63,12 +65,27 @@ static BOOL ReadEscapedChar(LPCSTR* P, U8* OutCh) {
     STR C = *S;
     if (C == STR_NULL) return FALSE;
     switch (C) {
-        case 'n': *OutCh = (U8)'\n'; break;
-        case 'r': *OutCh = (U8)'\r'; break;
-        case 't': *OutCh = (U8)'\t'; break;
-        case '\\': case '[': case ']': case '.':
-        case '*': case '+': case '?': case '^': case '$': case '-':
-            *OutCh = (U8)C; break;
+        case 'n':
+            *OutCh = (U8)'\n';
+            break;
+        case 'r':
+            *OutCh = (U8)'\r';
+            break;
+        case 't':
+            *OutCh = (U8)'\t';
+            break;
+        case '\\':
+        case '[':
+        case ']':
+        case '.':
+        case '*':
+        case '+':
+        case '?':
+        case '^':
+        case '$':
+        case '-':
+            *OutCh = (U8)C;
+            break;
         default:
             *OutCh = (U8)C; /* treat unknown escapes as literal char */
             break;
@@ -88,7 +105,10 @@ static BOOL ParseClass(LPCSTR* P, CHAR_CLASS* Out) {
     ClassClear(Out);
 
     /* Negation */
-    if (*S == '^') { Out->Neg = 1; ++S; }
+    if (*S == '^') {
+        Out->Neg = 1;
+        ++S;
+    }
 
     BOOL First = TRUE;
     U8 Prev = 0;
@@ -171,17 +191,14 @@ BOOL RegexCompile(CONST LPCSTR Pattern, REGEX* OutRegex) {
             OutRegex->AnchorEOL = 1;
             ++P;
             break;
-        }
-        else if (C == '.') {
+        } else if (C == '.') {
             if (!EmitToken(OutRegex, TT_DOT, 0, NULL)) return FALSE;
             ++P;
-        }
-        else if (C == '[') {
+        } else if (C == '[') {
             CHAR_CLASS CC;
             if (!ParseClass(&P, &CC)) return FALSE;
             if (!EmitToken(OutRegex, TT_CLASS, 0, &CC)) return FALSE;
-        }
-        else if (C == '*' || C == '+' || C == '?') {
+        } else if (C == '*' || C == '+' || C == '?') {
             /* quantifier applies to previous atom */
             TOKEN_TYPE Q = (C == '*') ? TT_STAR : (C == '+') ? TT_PLUS : TT_QMARK;
             /* must have something before */
@@ -191,23 +208,19 @@ BOOL RegexCompile(CONST LPCSTR Pattern, REGEX* OutRegex) {
             if (!(Prev == TT_CHAR || Prev == TT_DOT || Prev == TT_CLASS)) return FALSE;
             if (!EmitToken(OutRegex, Q, 0, NULL)) return FALSE;
             ++P;
-        }
-        else if (C == '\\') {
+        } else if (C == '\\') {
             U8 Lit = 0;
             if (!ReadEscapedChar(&P, &Lit)) return FALSE;
             if (!EmitToken(OutRegex, TT_CHAR, Lit, NULL)) return FALSE;
-        }
-        else if (C == '^') {
+        } else if (C == '^') {
             /* '^' in middle treated as literal unless you want multiline */
             if (!EmitToken(OutRegex, TT_CHAR, (U8)'^', NULL)) return FALSE;
             ++P;
-        }
-        else if (C == '$') {
+        } else if (C == '$') {
             /* '$' in middle treated as literal (simple policy) */
             if (!EmitToken(OutRegex, TT_CHAR, (U8)'$', NULL)) return FALSE;
             ++P;
-        }
-        else {
+        } else {
             if (!EmitToken(OutRegex, TT_CHAR, (U8)C, NULL)) return FALSE;
             ++P;
         }
@@ -376,17 +389,17 @@ BOOL RegexSearch(CONST REGEX* Rx, CONST LPCSTR Text, U32* OutStart, U32* OutEnd)
         /* naive way to find end: advance until next char fails */
         while (*T && MatchHere(Toks, 0, T)) ++T;
         if (OutStart) *OutStart = 0;
-        if (OutEnd)   *OutEnd   = (U32)(T - (CONST U8*)Text);
+        if (OutEnd) *OutEnd = (U32)(T - (CONST U8*)Text);
         return TRUE;
     } else {
         CONST U8* Base = (CONST U8*)Text;
-        for (CONST U8* S = Base; ; ++S) {
+        for (CONST U8* S = Base;; ++S) {
             if (MatchHere(Toks, 0, S)) {
                 /* find shortest end >= S */
                 CONST U8* T = S;
                 while (*T && MatchHere(Toks, 0, T)) ++T;
                 if (OutStart) *OutStart = (U32)(S - Base);
-                if (OutEnd)   *OutEnd   = (U32)(T - Base);
+                if (OutEnd) *OutEnd = (U32)(T - Base);
                 return TRUE;
             }
             if (*S == 0) break;
@@ -401,4 +414,3 @@ void RegexFree(REGEX* Rx) {
     /* No dynamic allocation in V1 */
     UNUSED(Rx);
 }
-

@@ -72,8 +72,8 @@ void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
     }
 
     U32 table = idx;
-    LogTSSDescriptor(LOG_ERROR, (const TSSDESCRIPTOR*)&Kernel_i386.GDT[table]);
-    LogTaskStateSegment(LOG_ERROR, (const TASKSTATESEGMENT*)Kernel_i386.TSS);
+    LogTSSDescriptor(LOG_ERROR, (const TSSDESCRIPTOR *)&Kernel_i386.GDT[table]);
+    LogTaskStateSegment(LOG_ERROR, (const TASKSTATESEGMENT *)Kernel_i386.TSS);
 }
 
 /************************************************************************/
@@ -127,7 +127,7 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
                [EBP+0] = saved EBP (prev)
                [EBP+4] = return address (EIP)
                [EBP+8] = first argument (optional to print) */
-            U32 *Fp = (U32*)Ebp;
+            U32 *Fp = (U32 *)Ebp;
 
             // Safely fetch next and return PC.
             U32 NextEbp = Fp[0];
@@ -212,7 +212,13 @@ void Die(void) {
 
     // Wait forever
     do {
-        __asm__ __volatile__( "1:\n\t" "hlt\n\t" "jmp 1b\n\t" : : : "memory");
+        __asm__ __volatile__(
+            "1:\n\t"
+            "hlt\n\t"
+            "jmp 1b\n\t"
+            :
+            :
+            : "memory");
     } while (0);
 }
 
@@ -453,7 +459,7 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
  */
 void PageFaultHandler(LPINTERRUPTFRAME Frame) {
     LINEAR FaultAddress;
-    __asm__ volatile ("mov %%cr2, %0" : "=r" (FaultAddress));
+    __asm__ volatile("mov %%cr2, %0" : "=r"(FaultAddress));
 
     KernelLogText(LOG_ERROR, TEXT("Page fault %X (EIP %X)"), FaultAddress, Frame->Registers.EIP);
 
@@ -461,7 +467,9 @@ void PageFaultHandler(LPINTERRUPTFRAME Frame) {
 
     ConsolePrint(TEXT("Page fault !\n"));
     ConsolePrint(TEXT("The current thread (%X) did an unauthorized access "), Task ? Task : 0);
-    ConsolePrint(TEXT("at linear address : %X, error code : %X, EIP : %X\n"), FaultAddress, Frame->ErrCode, Frame->Registers.EIP);
+    ConsolePrint(
+        TEXT("at linear address : %X, error code : %X, EIP : %X\n"), FaultAddress, Frame->ErrCode,
+        Frame->Registers.EIP);
     ConsolePrint(TEXT("Since this error is unrecoverable, the task will be shutdown now.\n"));
     ConsolePrint(TEXT("Halting\n"));
 
@@ -481,4 +489,3 @@ void AlignmentCheckHandler(LPINTERRUPTFRAME Frame) {
     DumpFrame(Frame);
     Die();
 }
-

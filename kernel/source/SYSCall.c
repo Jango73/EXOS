@@ -362,15 +362,11 @@ U32 SysCall_GetFileSize(U32 Parameter) { return GetFileSize((LPFILE)Parameter); 
 
 /***************************************************************************/
 
-U32 SysCall_GetFilePosition(U32 Parameter) {
-    return GetFilePosition((LPFILE)Parameter);
-}
+U32 SysCall_GetFilePosition(U32 Parameter) { return GetFilePosition((LPFILE)Parameter); }
 
 /***************************************************************************/
 
-U32 SysCall_SetFilePosition(U32 Parameter) {
-    return SetFilePosition((LPFILEOPERATION)Parameter);
-}
+U32 SysCall_SetFilePosition(U32 Parameter) { return SetFilePosition((LPFILEOPERATION)Parameter); }
 
 /***************************************************************************/
 
@@ -856,4 +852,3 @@ U32 SystemCallHandler(U32 Function, U32 Parameter) {
 }
 
 /***************************************************************************/
-

@@ -212,7 +212,7 @@ U16 DetectKeyboard(void) {
     Id2 = InPortByte(KEYBOARD_DATA);
     RestoreFlags(&Flags);
 
-    return (U16) (Id2 << 8 | Id1);
+    return (U16)(Id2 << 8 | Id1);
 }
 
 /***************************************************************************/
@@ -415,12 +415,11 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
 static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     U32 Index;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Enter"));
-    #endif
+#endif
 
     if (KeyCode->VirtualKey != 0 || KeyCode->ASCIICode != 0) {
-
         //-------------------------------------
         // Put the key in the buffer
 
@@ -432,9 +431,9 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
         }
     }
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Exit"));
-    #endif
+#endif
 }
 
 /***************************************************************************/
@@ -483,9 +482,9 @@ static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Enter"));
-    #endif
+#endif
 
     if (ScanCode == 0) {
         PreviousCode = 0;
@@ -576,9 +575,9 @@ static void HandleScanCode(U32 ScanCode) {
         }
     }
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Exit"));
-    #endif
+#endif
 }
 
 /***************************************************************************/
@@ -586,9 +585,9 @@ static void HandleScanCode(U32 ScanCode) {
 BOOL PeekChar(void) {
     U32 Result = FALSE;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Enter"));
-    #endif
+#endif
 
     LockMutex(&(Keyboard.Mutex), INFINITY);
 
@@ -597,9 +596,9 @@ BOOL PeekChar(void) {
 
     UnlockMutex(&(Keyboard.Mutex));
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Exit"));
-    #endif
+#endif
 
     return Result;
 }
@@ -709,14 +708,14 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Enter"));
-    #endif
+#endif
 
     if (Busy) {
-        #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
         KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Busy, exiting"));
-        #endif
+#endif
 
         return;
     }
@@ -739,9 +738,9 @@ void KeyboardHandler(void) {
 
     Busy = 0;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Exit"));
-    #endif
+#endif
 }
 
 /***************************************************************************/
@@ -816,4 +815,3 @@ U32 StdKeyboardCommands(U32 Function, U32 Parameter) {
 }
 
 /***************************************************************************/
-

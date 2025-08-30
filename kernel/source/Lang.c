@@ -22,6 +22,7 @@
 
 \************************************************************************/
 #include "../include/Lang.h"
+
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
 #include "../include/String.h"
@@ -44,4 +45,3 @@ void SelectKeyboard(LPCSTR Code) {
 }
 
 /***************************************************************************/
-

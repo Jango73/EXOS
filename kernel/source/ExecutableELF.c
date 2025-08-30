@@ -22,6 +22,7 @@
 
 \************************************************************************/
 #include "../include/ExecutableELF.h"
+
 #include "../include/Log.h"
 
 /***************************************************************************
@@ -29,7 +30,7 @@
  * Kept local to avoid leaking ABI; must match ExecutableELF.h if defined.
  ***************************************************************************/
 #ifndef ELF_SIGNATURE
-#define ELF_SIGNATURE 0x464C457F  /* 0x7F 'E' 'L' 'F' */
+#define ELF_SIGNATURE 0x464C457F /* 0x7F 'E' 'L' 'F' */
 #endif
 
 /* e_ident indices */
@@ -76,25 +77,25 @@
 
 /* Program header types */
 #ifndef PT_NULL
-#define PT_NULL    0
+#define PT_NULL 0
 #endif
 #ifndef PT_LOAD
-#define PT_LOAD    1
+#define PT_LOAD 1
 #endif
 #ifndef PT_DYNAMIC
 #define PT_DYNAMIC 2
 #endif
 #ifndef PT_INTERP
-#define PT_INTERP  3
+#define PT_INTERP 3
 #endif
 #ifndef PT_NOTE
-#define PT_NOTE    4
+#define PT_NOTE 4
 #endif
 #ifndef PT_PHDR
-#define PT_PHDR    6
+#define PT_PHDR 6
 #endif
 #ifndef PT_TLS
-#define PT_TLS     7
+#define PT_TLS 7
 #endif
 #ifndef PT_GNU_STACK
 #define PT_GNU_STACK 0x6474e551
@@ -113,7 +114,7 @@
 
 /* Packed structures (GCC/Clang). */
 typedef struct __attribute__((packed)) _EXOS_Elf32_Ehdr {
-    U8  e_ident[EI_NIDENT];
+    U8 e_ident[EI_NIDENT];
     U16 e_type;
     U16 e_machine;
     U32 e_version;
@@ -151,8 +152,10 @@ static BOOL ELFIsCode(U32 flags) { return (flags & PF_X) != 0; }
 static BOOL ELFIsData(U32 flags) { return (flags & PF_W) != 0 || ((flags & PF_X) == 0); }
 
 static void ELFZero(LPVOID dst, U32 size) {
-    U8 *p = (U8*)dst;
-    while (size--) { *p++ = 0; }
+    U8* p = (U8*)dst;
+    while (size--) {
+        *p++ = 0;
+    }
 }
 
 /* Safe 32-bit range addition: returns FALSE on overflow */
@@ -178,7 +181,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
 
     U32 CodeMin = 0xFFFFFFFFU, CodeMax = 0;
     U32 DataMin = 0xFFFFFFFFU, DataMax = 0;
-    U32 BssMin  = 0xFFFFFFFFU, BssMax  = 0;
+    U32 BssMin = 0xFFFFFFFFU, BssMax = 0;
     BOOL HasLoadable = FALSE;
     BOOL HasCode = FALSE;
     BOOL HasInterp = FALSE;
@@ -211,7 +214,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     Sig = ELFMakeSig(Ehdr.e_ident);
     if (Sig != ELF_SIGNATURE) goto Out_Error;
     if (Ehdr.e_ident[EI_CLASS] != ELFCLASS32) goto Out_Error;
-    if (Ehdr.e_ident[EI_DATA]  != ELFDATA2LSB) goto Out_Error;
+    if (Ehdr.e_ident[EI_DATA] != ELFDATA2LSB) goto Out_Error;
     if (Ehdr.e_version != EV_CURRENT) goto Out_Error;
     if (Ehdr.e_type != ET_EXEC) goto Out_Error;
     if (Ehdr.e_machine != EM_386) goto Out_Error;
@@ -242,7 +245,9 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
         FileOperation.NumBytes = sizeof(EXOS_Elf32_Phdr);
         if (ReadFile(&FileOperation) != sizeof(EXOS_Elf32_Phdr)) goto Out_Error;
 
-        if (Phdr.p_type == PT_INTERP) { HasInterp = TRUE; }
+        if (Phdr.p_type == PT_INTERP) {
+            HasInterp = TRUE;
+        }
         if (Phdr.p_type != PT_LOAD) continue;
 
         HasLoadable = TRUE;
@@ -278,13 +283,13 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
             if (!Add32Overflow(Phdr.p_vaddr, Phdr.p_filesz, &bss_start)) goto Out_Error;
             if (!Add32Overflow(Phdr.p_vaddr, Phdr.p_memsz, &bss_end)) goto Out_Error;
             if (bss_start < BssMin) BssMin = bss_start;
-            if (bss_end   > BssMax) BssMax = bss_end;
+            if (bss_end > BssMax) BssMax = bss_end;
         }
     }
 
     if (!HasLoadable) goto Out_Error;
-    if (!HasCode) goto Out_Error;      /* must have at least one executable segment */
-    if (HasInterp) goto Out_Error;     /* dynamic/ELF with interpreter not supported here */
+    if (!HasCode) goto Out_Error;  /* must have at least one executable segment */
+    if (HasInterp) goto Out_Error; /* dynamic/ELF with interpreter not supported here */
 
     /* Populate Info (image-space) */
     Info->EntryPoint = Ehdr.e_entry;
@@ -314,10 +319,10 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     }
 
     /* ELF does not carry stack/heap size requests in the file format */
-    Info->StackMinimum   = 0;
+    Info->StackMinimum = 0;
     Info->StackRequested = 0;
-    Info->HeapMinimum    = 0;
-    Info->HeapRequested  = 0;
+    Info->HeapMinimum = 0;
+    Info->HeapRequested = 0;
 
     KernelLogText(LOG_DEBUG, TEXT("Exiting GetExecutableInfo_ELF (success)"));
     return TRUE;
@@ -371,7 +376,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
     /* Validate minimal fields again */
     if (ELFMakeSig(Ehdr.e_ident) != ELF_SIGNATURE) goto Out_Error;
     if (Ehdr.e_ident[EI_CLASS] != ELFCLASS32) goto Out_Error;
-    if (Ehdr.e_ident[EI_DATA]  != ELFDATA2LSB) goto Out_Error;
+    if (Ehdr.e_ident[EI_DATA] != ELFDATA2LSB) goto Out_Error;
     if (Ehdr.e_version != EV_CURRENT) goto Out_Error;
     if (Ehdr.e_type != ET_EXEC) goto Out_Error;
     if (Ehdr.e_machine != EM_386) goto Out_Error;
@@ -431,10 +436,10 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
 
         if (ELFIsCode(Phdr.p_flags)) {
             Base = CodeBase;
-            Ref  = CodeRef;
+            Ref = CodeRef;
         } else {
             Base = DataBase;
-            Ref  = DataRef;
+            Ref = DataRef;
         }
 
         /* Compute destination address */
@@ -483,4 +488,3 @@ Out_Error:
 }
 
 /***************************************************************************/
-

@@ -22,8 +22,9 @@
 
 \************************************************************************/
 #include "../include/Process.h"
-#include "../include/Executable.h"
+
 #include "../include/Console.h"
+#include "../include/Executable.h"
 #include "../include/File.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
@@ -420,4 +421,3 @@ void InitSecurity(LPSECURITY This) {
 }
 
 /***************************************************************************/
-

@@ -38,16 +38,11 @@
 static U32 RawSystemTime = 10;
 static U32 ReadCMOS(U32 Address);
 static SYSTEMTIME CurrentTime;
-static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30,
-                                   31, 31, 30, 31, 30, 31};
+static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-static BOOL IsLeapYear(U32 Year) {
-    return (Year % 400 == 0) || ((Year % 4 == 0) && (Year % 100 != 0));
-}
+static BOOL IsLeapYear(U32 Year) { return (Year % 400 == 0) || ((Year % 4 == 0) && (Year % 100 != 0)); }
 
-static U32 BCDToInteger(U32 Value) {
-    return ((Value >> 4) * 10) + (Value & 0x0F);
-}
+static U32 BCDToInteger(U32 Value) { return ((Value >> 4) * 10) + (Value & 0x0F); }
 
 static void InitializeLocalTime(void) {
     CurrentTime.Year = 2000 + BCDToInteger(ReadCMOS(CMOS_YEAR));
@@ -206,4 +201,3 @@ BOOL SetLocalTime(LPSYSTEMTIME Time) {
 }
 
 /***************************************************************************/
-

@@ -72,4 +72,3 @@ void KernelMain(void) {
 
     DeadCPU();
 }
-

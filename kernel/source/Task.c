@@ -224,8 +224,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     // Allocate the stack
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Allocating stack..."));
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase, KernelProcess.HeapSize);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase,
+        KernelProcess.HeapSize);
 
     Task->StackSize = Info->StackSize;
     Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);
@@ -392,9 +395,12 @@ void Sleep(U32 MilliSeconds) {
 
     FreezeScheduler();
     Task = GetCurrentTask();
-    if (Task == NULL) { UnfreezeScheduler(); return; }
+    if (Task == NULL) {
+        UnfreezeScheduler();
+        return;
+    }
 
-    Task->Status    = TASK_STATUS_SLEEPING;
+    Task->Status = TASK_STATUS_SLEEPING;
     Task->WakeUpTime = GetSystemTime() + MilliSeconds;
     UnfreezeScheduler();
 
@@ -906,4 +912,3 @@ void DumpTask(LPTASK Task) {
 }
 
 /***************************************************************************/
-

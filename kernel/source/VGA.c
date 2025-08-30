@@ -116,4 +116,3 @@ static U32 SendModeRegs(U8* Regs) {
 void TestVGA(void) { SendModeRegs(VGAModeRegs[0].Regs); }
 
 /***************************************************************************/
-

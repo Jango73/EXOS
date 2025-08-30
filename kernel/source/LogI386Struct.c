@@ -265,25 +265,22 @@ void LogTask(U32 LogType, const LPTASK Task) {
     KernelLogText(
         LogType,
         TEXT("TASK @ %X:\n"
-        "Mutex : %X\n"
-        "Process : %X\n"
-        "Type : %X\n"
-        "Status : %X\n"
-        "Priority : %X\n"
-        "Function : %X\n"
-        "Parameter : %X\n"
-        "ReturnValue : %X\n"
-        "StackBase : %X\n"
-        "StackSize : %X\n"
-        "SysStackBase : %X\n"
-        "SysStackSize : %X\n"
-        "Time : %X\n"
-        "WakeUpTime : %X\n"
-        "MessageMutex : %X\n"),
-        (LINEAR) Task, Task->Mutex, Task->Process, Task->Type, Task->Status,
-        Task->Priority, Task->Function, (U32) Task->Parameter,
-        Task->ReturnValue, Task->StackBase, Task->StackSize,
-        Task->SysStackBase, Task->SysStackSize, Task->Time,
-        Task->WakeUpTime, Task->MessageMutex);
+             "Mutex : %X\n"
+             "Process : %X\n"
+             "Type : %X\n"
+             "Status : %X\n"
+             "Priority : %X\n"
+             "Function : %X\n"
+             "Parameter : %X\n"
+             "ReturnValue : %X\n"
+             "StackBase : %X\n"
+             "StackSize : %X\n"
+             "SysStackBase : %X\n"
+             "SysStackSize : %X\n"
+             "Time : %X\n"
+             "WakeUpTime : %X\n"
+             "MessageMutex : %X\n"),
+        (LINEAR)Task, Task->Mutex, Task->Process, Task->Type, Task->Status, Task->Priority, Task->Function,
+        (U32)Task->Parameter, Task->ReturnValue, Task->StackBase, Task->StackSize, Task->SysStackBase,
+        Task->SysStackSize, Task->Time, Task->WakeUpTime, Task->MessageMutex);
 }
-

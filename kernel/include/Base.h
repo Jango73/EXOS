@@ -56,9 +56,9 @@ typedef signed long I32;
 typedef unsigned int UINT;
 typedef signed int INT;
 
-typedef U32 LINEAR;             // A linear address, paged or not
-typedef U32 PHYSICAL;           // A physical address
-typedef U8* LPPAGEBITMAP;       // A pointer to a page allocation bitmap
+typedef U32 LINEAR;        // A linear address, paged or not
+typedef U32 PHYSICAL;      // A physical address
+typedef U8* LPPAGEBITMAP;  // A pointer to a page allocation bitmap
 
 /***************************************************************************/
 
@@ -402,17 +402,20 @@ typedef U32 COLOR;
 /***************************************************************************/
 // Error codes
 
-#define SUCCESS                 0x0000
-#define ERROR_NOT_IMPLEMENTED   0x0001
-#define ERROR_OUT_OF_MEMORY     0x0002
-#define ERROR_BAD_PARAMETER     0x0003
+#define SUCCESS 0x0000
+#define ERROR_NOT_IMPLEMENTED 0x0001
+#define ERROR_OUT_OF_MEMORY 0x0002
+#define ERROR_BAD_PARAMETER 0x0003
 
 /***************************************************************************/
 // 64 bits math
 
 // Make U64 from hi/lo
 inline U64 U64_Make(U32 hi, U32 lo) {
-    U64 v; v.HI = hi; v.LO = lo; return v;
+    U64 v;
+    v.HI = hi;
+    v.LO = lo;
+    return v;
 }
 
 // Add two U64
@@ -437,9 +440,9 @@ inline U64 U64_Sub(U64 a, U64 b) {
 // Compare: return -1 if a<b, 0 if a==b, 1 if a>b
 inline int U64_Cmp(U64 a, U64 b) {
     if (a.HI < b.HI) return -1;
-    if (a.HI > b.HI) return  1;
+    if (a.HI > b.HI) return 1;
     if (a.LO < b.LO) return -1;
-    if (a.LO > b.LO) return  1;
+    if (a.LO > b.LO) return 1;
     return 0;
 }
 

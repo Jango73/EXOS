@@ -21,6 +21,7 @@
     System FS
 
 \************************************************************************/
+#include "../include/Clock.h"
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
 #include "../include/List.h"
@@ -28,7 +29,6 @@
 #include "../include/String.h"
 #include "../include/TOML.h"
 #include "../include/User.h"
-#include "../include/Clock.h"
 
 /***************************************************************************/
 
@@ -89,13 +89,14 @@ static U32 CloseFile(LPSYSFSFILE File);
 static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path);
 
 SYSTEMFSFILESYSTEM SystemFSFileSystem = {
-    .Header = {.ID = ID_FILESYSTEM,
-               .References = 1,
-               .Next = NULL,
-               .Prev = NULL,
-               .Mutex = EMPTY_MUTEX,
-               .Driver = &SystemFSDriver,
-               .Name = "System"},
+    .Header =
+        {.ID = ID_FILESYSTEM,
+         .References = 1,
+         .Next = NULL,
+         .Prev = NULL,
+         .Mutex = EMPTY_MUTEX,
+         .Driver = &SystemFSDriver,
+         .Name = "System"},
     .Root = NULL};
 
 #define SYSTEM_FS ((LPSYSTEMFSFILESYSTEM)Kernel.SystemFS)
@@ -106,7 +107,7 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
     LPSYSTEMFSFILE Node = (LPSYSTEMFSFILE)HeapAlloc(sizeof(SYSTEMFSFILE));
     if (Node == NULL) return NULL;
 
-    *Node = (SYSTEMFSFILE) {
+    *Node = (SYSTEMFSFILE){
         .ID = ID_FILE,
         .References = 1,
         .Next = NULL,
@@ -242,8 +243,7 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
     node is returned in Node and the remaining path is stored in Remaining
     (or an empty string if fully resolved inside SystemFS).
 */
-static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node,
-                        STR Remaining[MAX_PATH_NAME]) {
+static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PATH_NAME]) {
     LPLIST Parts;
     LPLISTNODE It;
     LPPATHNODE Part;
@@ -260,8 +260,7 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node,
     for (It = Parts->First; It; It = It->Next) {
         Part = (LPPATHNODE)It;
 
-        if (Part->Name[0] == STR_NULL ||
-            StringCompare(Part->Name, TEXT(".")) == 0) {
+        if (Part->Name[0] == STR_NULL || StringCompare(Part->Name, TEXT(".")) == 0) {
             continue;
         }
 
@@ -341,8 +340,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
         StringCopy(Temp, Control->SubFolder);
     } else {
         StringCopy(Temp, Control->CurrentFolder);
-        if (Temp[StringLength(Temp) - 1] != PATH_SEP)
-            StringConcat(Temp, TEXT("/"));
+        if (Temp[StringLength(Temp) - 1] != PATH_SEP) StringConcat(Temp, TEXT("/"));
         StringConcat(Temp, Control->SubFolder);
     }
 
@@ -358,8 +356,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Info.Flags = 0;
     StringCopy(Info.Name, Remaining);
 
-    Mounted =
-        (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Info);
+    Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Info);
     if (Mounted == NULL) return FALSE;
 
     Result = (Mounted->Attributes & FS_ATTR_FOLDER) != 0;
@@ -574,13 +571,11 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         Local.FileSystem = Node->Mounted;
         StringCopy(Local.Name, Remaining);
         if (Wildcard) {
-            if (Local.Name[StringLength(Local.Name) - 1] != PATH_SEP)
-                StringConcat(Local.Name, TEXT("/"));
+            if (Local.Name[StringLength(Local.Name) - 1] != PATH_SEP) StringConcat(Local.Name, TEXT("/"));
             StringConcat(Local.Name, TEXT("*"));
         }
 
-        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE,
-                                                         (U32)&Local);
+        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
         return WrapMountedFile(Node, Mounted);
     }
 
@@ -590,16 +585,13 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             Local.FileSystem = Node->Mounted;
             // Request listing of the mounted filesystem root
             StringCopy(Local.Name, TEXT("*"));
-            Mounted = (LPFILE)Node->Mounted->Driver->Command(
-                DF_FS_OPENFILE, (U32)&Local);
+            Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
             return WrapMountedFile(Node, Mounted);
         } else {
-            LPSYSTEMFSFILE Child =
-                (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
+            LPSYSTEMFSFILE Child = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
             if (Child == NULL) return NULL;
 
-            LPSYSFSFILE File =
-                (LPSYSFSFILE)HeapAlloc(sizeof(SYSFSFILE));
+            LPSYSFSFILE File = (LPSYSFSFILE)HeapAlloc(sizeof(SYSFSFILE));
             if (File == NULL) return NULL;
 
             *File = (SYSFSFILE){0};
@@ -620,21 +612,18 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         Local.FileSystem = Node->Mounted;
         // Open the root of the mounted filesystem
         Local.Name[0] = STR_NULL;
-        Mounted =
-            (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
         return WrapMountedFile(Node, Mounted);
     }
 
     {
-        LPSYSFSFILE File =
-            (LPSYSFSFILE)HeapAlloc(sizeof(SYSFSFILE));
+        LPSYSFSFILE File = (LPSYSFSFILE)HeapAlloc(sizeof(SYSFSFILE));
         if (File == NULL) return NULL;
 
         *File = (SYSFSFILE){0};
         File->Header.ID = ID_FILE;
         File->Header.FileSystem = Kernel.SystemFS;
-        File->SystemFile =
-            (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
+        File->SystemFile = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
         File->Parent = Node->Parent;
         StringCopy(File->Header.Name, Node->Name);
         File->Header.Attributes = Node->Attributes;
@@ -683,8 +672,7 @@ static U32 CloseFile(LPSYSFSFILE File) {
     if (File == NULL) return DF_ERROR_BADPARAM;
 
     if (File->MountedFile && File->Parent && File->Parent->Mounted) {
-        File->Parent->Mounted->Driver->Command(DF_FS_CLOSEFILE,
-                                               (U32)File->MountedFile);
+        File->Parent->Mounted->Driver->Command(DF_FS_CLOSEFILE, (U32)File->MountedFile);
     }
 
     HeapFree(File);
@@ -796,4 +784,3 @@ U32 SystemFSCommands(U32 Function, U32 Parameter) {
 }
 
 /***************************************************************************/
-

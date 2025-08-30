@@ -36,9 +36,9 @@
 #include "Memory.h"
 #include "Process.h"
 #include "String.h"
+#include "TOML.h"
 #include "Text.h"
 #include "User.h"
-#include "TOML.h"
 
 /***************************************************************************/
 

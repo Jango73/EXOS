@@ -754,4 +754,3 @@ static U32 E1000Commands(U32 Function, U32 Param) {
 
     return DF_ERROR_NOTIMPL;
 }
-

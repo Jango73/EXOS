@@ -22,8 +22,9 @@
 
 \************************************************************************/
 #include "../include/Executable.h"
-#include "../include/ExecutableEXOS.h"
+
 #include "../include/ExecutableELF.h"
+#include "../include/ExecutableEXOS.h"
 #include "../include/Log.h"
 
 /***************************************************************************/
@@ -108,4 +109,3 @@ BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
 }
 
 /***************************************************************************/
-

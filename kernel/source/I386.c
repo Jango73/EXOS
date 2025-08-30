@@ -105,4 +105,3 @@ BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text) {
 
     return FALSE;
 }
-

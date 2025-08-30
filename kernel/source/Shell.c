@@ -32,11 +32,11 @@
 #include "../include/Keyboard.h"
 #include "../include/List.h"
 #include "../include/Log.h"
+#include "../include/Path.h"
 #include "../include/String.h"
+#include "../include/StringArray.h"
 #include "../include/System.h"
 #include "../include/User.h"
-#include "../include/StringArray.h"
-#include "../include/Path.h"
 #include "../include/VKey.h"
 
 /***************************************************************************/
@@ -312,8 +312,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                         Index--;
                         ConsoleBackSpace();
                     }
-                    StringCopy(Context->CommandLine,
-                               StringArrayGet(&Context->History, HistoryPos));
+                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
                     ConsolePrint(Context->CommandLine);
                     Index = StringLength(Context->CommandLine);
                 }
@@ -327,8 +326,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                     Context->CommandLine[0] = STR_NULL;
                     Index = 0;
                 } else {
-                    StringCopy(Context->CommandLine,
-                               StringArrayGet(&Context->History, HistoryPos));
+                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
                     ConsolePrint(Context->CommandLine);
                     Index = StringLength(Context->CommandLine);
                 }
@@ -362,7 +360,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                             StringCopyNum(Temp, Completed, FolderLength);
                             Temp[FolderLength] = STR_NULL;
                             if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
-                                STR *DisplayPtr = Completed + FolderLength;
+                                STR* DisplayPtr = Completed + FolderLength;
                                 if (DisplayPtr[0] == PATH_SEP) DisplayPtr++;
                                 StringCopy(Display, DisplayPtr);
                             } else {
@@ -603,8 +601,7 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     do {
         ListFile(File, Indent);
         if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
-            if (StringCompare(File->Name, TEXT(".")) != 0 &&
-                StringCompare(File->Name, TEXT("..")) != 0) {
+            if (StringCompare(File->Name, TEXT(".")) != 0 && StringCompare(File->Name, TEXT("..")) != 0) {
                 STR NewBase[MAX_PATH_NAME];
                 StringCopy(NewBase, Base);
                 if (NewBase[StringLength(NewBase) - 1] != PATH_SEP) StringConcat(NewBase, Sep);
@@ -645,7 +642,6 @@ static void CMD_cls(LPSHELLCONTEXT Context) {
 }
 
 /***************************************************************************/
-
 
 static void CMD_dir(LPSHELLCONTEXT Context) {
     STR Target[MAX_PATH_NAME];
@@ -1116,4 +1112,3 @@ U32 Shell(LPVOID Param) {
 }
 
 /***************************************************************************/
-

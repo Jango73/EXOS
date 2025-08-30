@@ -25,9 +25,9 @@
 
 #include "../include/Console.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/String.h"
 #include "../include/Text.h"
-#include "../include/Log.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
@@ -215,4 +215,3 @@ Out:
 }
 
 /***************************************************************************/
-

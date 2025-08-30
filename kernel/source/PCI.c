@@ -535,4 +535,3 @@ static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice) {
 }
 
 /***************************************************************************/
-

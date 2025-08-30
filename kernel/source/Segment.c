@@ -151,4 +151,3 @@ void SetTSSDescriptorLimit(LPTSSDESCRIPTOR This, U32 Limit) {
 }
 
 /***************************************************************************/
-

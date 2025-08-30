@@ -136,7 +136,6 @@ static LINEAR G_TempLinear2 = 0;
  * @return Non-zero if clipping succeeded.
  */
 static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
-
     U64 limit = U64_Make(1, 0x00000000u);
     if (len.HI == 0 && len.LO == 0) return 0;
     if (U64_Cmp(base, limit) >= 0) return 0;
@@ -146,10 +145,10 @@ static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
 
     if (newLen.HI != 0) {
         *outBase = base.LO;
-        *outLen  = 0xFFFFFFFFu - base.LO;
+        *outLen = 0xFFFFFFFFu - base.LO;
     } else {
         *outBase = base.LO;
-        *outLen  = newLen.LO;
+        *outLen = newLen.LO;
     }
     return (*outLen != 0);
 }
@@ -242,7 +241,6 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
  * @brief Mark physical pages that are reserved or already used.
  */
 static void MarkUsedPhysicalMemory(void) {
-
     U32 Start = 0;
     U32 End = (N_4MB) >> PAGE_SIZE_MUL;
     SetPhysicalPageRangeMark(Start, End, 1);
@@ -386,9 +384,7 @@ void FreePhysicalPage(PHYSICAL Page) {
  * @param Address Linear address.
  * @return Page directory entry index.
  */
-static inline U32 GetDirectoryEntry(LINEAR Address) {
-    return Address >> PAGE_TABLE_CAPACITY_MUL;
-}
+static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TABLE_CAPACITY_MUL; }
 
 /***************************************************************************/
 
@@ -397,9 +393,7 @@ static inline U32 GetDirectoryEntry(LINEAR Address) {
  * @param Address Linear address.
  * @return Page table entry index.
  */
-static inline U32 GetTableEntry(LINEAR Address) {
-    return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL;
-}
+static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
 
 /***************************************************************************/
 
@@ -1309,4 +1303,3 @@ void InitializeMemoryManager(void) {
 }
 
 /***************************************************************************/
-
