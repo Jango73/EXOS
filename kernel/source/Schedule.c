@@ -177,9 +177,9 @@ LPTRAPFRAME Scheduler(LPTRAPFRAME Frame) {
             ", EAX : %X, EBX : %X, ECX %X, EDX %X\n"
             ", ESI : %X, EDI : %X, EBP %X, ESP %X\n"
         ),
-        Frame->DS, Frame->ES, Frame->FS, Frame->GS,
-        Frame->ESI, Frame->EDI, Frame->EBP, Frame->ESP,
-        Frame->EAX, Frame->EBX, Frame->ECX, Frame->EDX
+        Frame->Ds, Frame->Es, Frame->Fs, Frame->Gs,
+        Frame->Esi, Frame->Edi, Frame->Ebp, Frame->Esp,
+        Frame->Eax, Frame->Ebx, Frame->Ecx, Frame->Edx
         );
     #endif
 

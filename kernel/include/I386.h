@@ -241,23 +241,31 @@ typedef struct tag_TASKSTATESEGMENT {
 
 // 60-byte context saved by the interrupt stub (ring 0 only)
 typedef struct tag_TRAPFRAME {
-    U32 EDI;
-    U32 ESI;
-    U32 EBP;
-    U32 ESP;
-    U32 EBX;
-    U32 EDX;
-    U32 ECX;
-    U32 EAX;
-    U32 GS;
-    U32 FS;
-    U32 ES;
-    U32 DS;
-    U32 EIP;
-    U32 CS;
+    U32 Edi;
+    U32 Esi;
+    U32 Ebp;
+    U32 Oesp;
+    U32 Ebx;
+    U32 Edx;
+    U32 Ecx;
+    U32 Eax;
+    U16 Gs;
+    U16 Padding1;
+    U16 Fs;
+    U16 Padding2;
+    U16 Es;
+    U16 Padding3;
+    U16 Ds;
+    U16 Padding4;
+    U32 TrapNo;
+    U32 Err;
+    U32 Eip;
+    U16 Cs;
+    U16 Padding5;
     U32 EFlags;
-    U32 UserESP;
-    U32 SS;
+    U32 Esp;
+    U16 Ss;
+    U16 Padding6;
 } TRAPFRAME, *LPTRAPFRAME;
 
 /************************************************************************/

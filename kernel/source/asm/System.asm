@@ -706,21 +706,21 @@ FlushTLB :
 
 SwitchToTask :
 
-    push        ebp
-    mov         ebp, esp
-    sub         esp, 8                      ; reserve space for far pointer
+    mov     eax, [esp + 4]        ; Pointer to save old stack
+    mov     edx, [esp + 8]        ; New stack pointer
 
-    xor         eax, eax
-    mov         dr6, eax
-    mov         dr7, eax
+    push    ebp                   ; Save callee-saved registers
+    push    ebx
+    push    esi
+    push    edi
 
-    mov         eax, [ebp+PBN]
-    mov         dword [esp], 0              ; offset
-    mov         word [esp+4], ax            ; selector
-    jmp         far dword [esp]
+    mov     [eax], esp            ; Save old stack pointer
+    mov     esp, edx              ; Switch to new stack
 
-    add         esp, 8
-    pop         ebp
+    pop     edi                   ; Restore callee-saved registers
+    pop     esi
+    pop     ebx
+    pop     ebp
     ret
 
 ;--------------------------------------

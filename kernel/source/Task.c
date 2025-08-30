@@ -260,18 +260,17 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->SysStackTop = SysStackPointer;
 
     MemorySet(&(Task->Context), 0, sizeof(TRAPFRAME));
-    Task->Context.EIP = (U32)TaskRunner;
-    Task->Context.EAX = (U32)Task->Parameter;
-    Task->Context.EBX = (U32)Task->Function;
-    Task->Context.ESP = StackPointer;
-    Task->Context.EBP = StackPointer;
-    Task->Context.CS = CodeSelector;
-    Task->Context.DS = DataSelector;
-    Task->Context.ES = DataSelector;
-    Task->Context.FS = DataSelector;
-    Task->Context.GS = DataSelector;
-    Task->Context.SS = DataSelector;
-    Task->Context.UserESP = StackPointer;
+    Task->Context.Eip = (U32)TaskRunner;
+    Task->Context.Eax = (U32)Task->Parameter;
+    Task->Context.Ebx = (U32)Task->Function;
+    Task->Context.Esp = StackPointer;
+    Task->Context.Ebp = StackPointer;
+    Task->Context.Cs = (U16)CodeSelector;
+    Task->Context.Ds = (U16)DataSelector;
+    Task->Context.Es = (U16)DataSelector;
+    Task->Context.Fs = (U16)DataSelector;
+    Task->Context.Gs = (U16)DataSelector;
+    Task->Context.Ss = (U16)DataSelector;
     Task->Context.EFlags = EFLAGS_IF | EFLAGS_A1;
 
     if (Info->Flags & TASK_CREATE_MAIN) {

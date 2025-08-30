@@ -258,14 +258,8 @@ Interrupt_AlignmentCheck :
 ; Error code : No
 
 Interrupt_Clock :
-    pop     eax                     ; EIP
-    pop     ecx                     ; CS
-    pop     edx                     ; EFLAGS
-    push    dword 0                 ; Placeholder for SS
-    push    dword 0                 ; Placeholder for UserESP
-    push    edx                     ; EFLAGS
-    push    ecx                     ; CS
-    push    eax                     ; EIP
+    push    dword 0                 ; Error code
+    push    dword 32                ; Trap number
     push    ds
     push    es
     push    fs
@@ -290,13 +284,7 @@ Interrupt_Clock :
     pop     fs
     pop     es
     pop     ds
-    mov     eax, [esp]
-    mov     ecx, [esp + 4]
-    mov     edx, [esp + 8]
-    add     esp, 8
-    mov     [esp], eax
-    mov     [esp + 4], ecx
-    mov     [esp + 8], edx
+    add     esp, 8                  ; Remove trap number and error code
     iretd
 
 ;--------------------------------------

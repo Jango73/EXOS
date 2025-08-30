@@ -65,7 +65,7 @@ extern U32 GetPageDirectory(void);
 extern void SetPageDirectory(PHYSICAL Base);
 extern void InvalidatePage(U32 Address);
 extern void FlushTLB(void);
-extern U32 SwitchToTask(U32);
+extern void SwitchToTask(LPTRAPFRAME *Old, LPTRAPFRAME New);
 extern U32 TaskRunner(void);
 extern U32 ClearTaskState(void);
 extern U32 PeekConsoleWord(U32);
