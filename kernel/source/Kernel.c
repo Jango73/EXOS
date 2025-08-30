@@ -261,6 +261,7 @@ U32 ClockTestTask(LPVOID Param) {
 
             Console.CursorX = X;
             Console.CursorY = Y;
+
             ConsolePrint(Text);
 
             Console.CursorX = OldX;
@@ -484,7 +485,6 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
-    U32 ClockPosX;
 
     //-------------------------------------
     // No more interrupts
@@ -624,6 +624,7 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Test tasks
 
+    /*
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
@@ -632,9 +633,9 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = 0;
 
-    ClockPosX = Console.Width - 8;
-    TaskInfo.Parameter = (LPVOID)((ClockPosX << 0x10) | 0);
+    TaskInfo.Parameter = (LPVOID)(((Console.Width - 8) << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
+    */
 
     // StartTestNetworkTask();
 

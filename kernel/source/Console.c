@@ -166,11 +166,25 @@ void ConsolePrintChar(STR Char) {
         }
     } else if (Char == STR_TAB) {
         Console.CursorX += 4;
-        if (Console.CursorX >= Console.Width) ConsolePrintChar(STR_NEWLINE);
+        if (Console.CursorX >= Console.Width) {
+            Console.CursorX = 0;
+            Console.CursorY++;
+            if (Console.CursorY >= Console.Height) {
+                ScrollConsole();
+                Console.CursorY = Console.Height - 1;
+            }
+        }
     } else {
         SetConsoleCharacter(Char);
         Console.CursorX++;
-        if (Console.CursorX >= Console.Width) ConsolePrintChar(STR_NEWLINE);
+        if (Console.CursorX >= Console.Width) {
+            Console.CursorX = 0;
+            Console.CursorY++;
+            if (Console.CursorY >= Console.Height) {
+                ScrollConsole();
+                Console.CursorY = Console.Height - 1;
+            }
+        }
     }
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
