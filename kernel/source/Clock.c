@@ -188,6 +188,9 @@ static void WriteCMOS(U32 Address, U32 Value) {
  */
 BOOL GetLocalTime(LPSYSTEMTIME Time) {
     if (Time == NULL) return FALSE;
+    if (CurrentTime.Year == 0) {
+        InitializeLocalTime();
+    }
     *Time = CurrentTime;
     return TRUE;
 }

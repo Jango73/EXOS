@@ -496,6 +496,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     // PROCESSINFO ProcessInfo;
     TASKINFO TaskInfo;
+    U32 ClockPosX;
 
     //-------------------------------------
     // No more interrupts
@@ -592,6 +593,12 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
 
     //-------------------------------------
+    // Initialize the clock
+
+    InitializeClock();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
+
+    //-------------------------------------
     // Initialize the file systems
 
     InitializeFileSystems();
@@ -608,12 +615,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     InitializePCI();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] PCI manager initialized"));
-
-    //-------------------------------------
-    // Initialize the clock
-
-    InitializeClock();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
 
     //-------------------------------------
     // Set keyboard mapping
@@ -643,7 +644,8 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = 0;
 
-    TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
+    ClockPosX = Console.Width - 8;
+    TaskInfo.Parameter = (LPVOID)((ClockPosX << 0x10) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
 
     // StartTestNetworkTask();
