@@ -1,3 +1,27 @@
+
+/************************************************************************\
+
+    EXOS Bootloader
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ 
+
+    VBR Payload main code
+
+\************************************************************************/
+
 // I386 32 bits real mode
 // Minimal FAT32 loader to load a binary image from FAT32 root directory.
 // It won't load large files, you'll get critical errors if you try to.

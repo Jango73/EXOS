@@ -1,48 +1,25 @@
 
-/***************************************************************************\
+/************************************************************************\
 
-    TTY mechanism
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
 
-        ┌──────────────────────────────────────────────────┐
-        │                  User Process                    │
-        │  (e.g., shell, htop, interactive program)        │
-        └──────────────────────────────────────────────────┘
-                    │                   ▲
-        write() ----┘                   │---- read()
-                    ▼                   │
-        ┌──────────────────────────────────────────────────┐
-        │             TTY Interface (syscalls)             │
-        │  - tty_write(): push to output buffer            │
-        │  - tty_read():  fetch from input buffer          │
-        └──────────────────────────────────────────────────┘
-                    │                   ▲
-                    ▼                   │
-        ┌──────────────────────────────────────────────────┐
-        │           Line Discipline Layer                  │
-        │  - Canonical mode: local editing, echo, CR→LF    │
-        │  - Raw mode: direct character feed               │
-        │  - Handles Ctrl+C, Ctrl+D, ESC sequences         │
-        │  - Circular input/output buffers                 │
-        └──────────────────────────────────────────────────┘
-                    │                   ▲
-         output --->│                   │<--- input
-                    ▼                   │
-        ┌──────────────────────────────────────────────────┐
-        │          Physical Terminal Driver                │
-        │ (VGA text, framebuffer, serial, network term)    │
-        │  - Writes display data to screen                 │
-        │  - Receives keyboard/serial input                │
-        └──────────────────────────────────────────────────┘
-                    │                   ▲
-        to screen   │                   │ from keyboard
-                    ▼                   │
-        ┌──────────────────────────────────────────────────┐
-        │             Hardware / Device Layer              │
-        │  - Keyboard controller (PS/2, USB)               │
-        │  - Video controller (VGA, GPU)                   │
-        │  - Serial UART                                   │
-        └──────────────────────────────────────────────────┘
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-\***************************************************************************/
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    TTY
+
+\************************************************************************/
 // TODO...
+
