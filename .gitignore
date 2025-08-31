@@ -22,3 +22,5 @@ boot-limine/limine
 node_modules
 package.json
 package-lock.json
+
+boot-qemu-hd/exos.toml

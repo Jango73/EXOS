@@ -5,6 +5,7 @@ SOURCE_IMG      = bin/src.img
 IMG_SIZE_MB     = 64
 KERNEL_BIN      = ../kernel/bin/exos.bin
 KERNEL_CFG      = exos.toml
+KERNEL_CFG_REF  = exos.ref.toml
 PORTAL_ELF      = ../portal/bin/portal.elf
 HELLO_ELF       = ../hello/bin/hello.elf
 MTOOLS_CONF     = .mtoolsrc.tmp
@@ -32,7 +33,7 @@ PAYLOAD_ELF     = bin/payload.elf
 PAYLOAD_MAP     = bin/payload.map
 
 CFLAGS  = -m16 -g -Wall -Wextra -O2 \
-        -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
         -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
         -fvisibility=hidden -mno-red-zone -fno-stack-protector \
         -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
@@ -83,20 +84,23 @@ $(FINAL_IMG):
 $(SOURCE_IMG):
 	$(call CREATE_FAT32_IMAGE,$@)
 
+$(KERNEL_CFG):
+	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
+
 # Force a full rebuild of the image (explicit call)
 rebuild-image:
 	@echo "Forcing full image rebuild..."
 	@rm -f $(FINAL_IMG)
 	$(MAKE) $(FINAL_IMG)
 
-update: $(FINAL_IMG)
+update: $(FINAL_IMG) $(KERNEL_CFG)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.toml; \
-		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/exos/portal.elf; \
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/exos/hello.elf;,\
-		All files injected into image.)
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.toml; \
+	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/exos/portal.elf; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/exos/hello.elf;,\
+	        All files injected into image.)
 
 update-src: $(SOURCE_IMG)
 	$(call MTOOLS_OPERATION,$(SOURCE_IMG),Injecting sources using mtools,\
