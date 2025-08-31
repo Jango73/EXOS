@@ -34,9 +34,6 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
 /***************************************************************************/
 
-// Updates the scheduler
-void UpdateScheduler(void);
-
 // Adds a task to the scheduler's queue
 BOOL AddTaskToQueue(LPTASK NewTask);
 

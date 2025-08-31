@@ -37,107 +37,144 @@ typedef struct tag_TASKLIST {
     U32 SchedulerTime;
     U32 TaskTime;
     U32 NumTasks;
-    LPTASK Current;
+    U32 CurrentIndex;        // Index of current task instead of pointer
     LPTASK Tasks[NUM_TASKS];
 } TASKLIST, *LPTASKLIST;
 
 /***************************************************************************/
 
 static TASKLIST TaskList = {
-    .Freeze = 0, .SchedulerTime = 0, .TaskTime = 20, .NumTasks = 0, .Current = NULL, .Tasks = {NULL}};
+    .Freeze = 0, .SchedulerTime = 0, .TaskTime = 20, .NumTasks = 0, .CurrentIndex = 0, .Tasks = {NULL}};
 
 /***************************************************************************/
 
-void UpdateScheduler(void) {
-    U32 Index = 0;
+// Calculate quantum time based on priority (once per task)
+static inline U32 CalculateQuantumTime(U32 Priority) {
+    U32 Time = (Priority & 0xFF) * 2;
+    return (Time < 20) ? 20 : Time;
+}
 
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        // TaskList.Tasks[Index]->Time = TaskList.Tasks[Index]->Priority & 0xFF;
+/***************************************************************************/
 
-        TaskList.Tasks[Index]->Time = TaskList.Tasks[Index]->Priority;
-        TaskList.Tasks[Index]->Time &= 0xFF;
-        TaskList.Tasks[Index]->Time *= 2;
-
-        if (TaskList.Tasks[Index]->Time < 20) {
-            TaskList.Tasks[Index]->Time = 20;
+// Count how many tasks are ready to run
+static U32 CountRunnableTasks(void) {
+    U32 RunnableCount = 0;
+    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+        LPTASK Task = TaskList.Tasks[Index];
+        if (Task->Status == TASK_STATUS_RUNNING) {
+            RunnableCount++;
+        } else if (Task->Status == TASK_STATUS_SLEEPING) {
+            // Check if sleep time has expired
+            if (GetSystemTime() >= Task->WakeUpTime) {
+                Task->Status = TASK_STATUS_RUNNING;
+                RunnableCount++;
+            }
         }
     }
+    return RunnableCount;
+}
+
+/***************************************************************************/
+
+// Find next runnable task starting from given index
+static U32 FindNextRunnableTask(U32 StartIndex) {
+    for (U32 Attempts = 0; Attempts < TaskList.NumTasks; Attempts++) {
+        U32 Index = (StartIndex + Attempts) % TaskList.NumTasks;
+        LPTASK Task = TaskList.Tasks[Index];
+        
+        if (Task->Status == TASK_STATUS_RUNNING) {
+            return Index;
+        }
+        
+        // Wake up sleeping tasks if needed
+        if (Task->Status == TASK_STATUS_SLEEPING && GetSystemTime() >= Task->WakeUpTime) {
+            Task->Status = TASK_STATUS_RUNNING;
+            return Index;
+        }
+    }
+    return TaskList.NumTasks;  // No runnable task found
 }
 
 /***************************************************************************/
 
 BOOL AddTaskToQueue(LPTASK NewTask) {
-    U32 Index = 0;
-
 #ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %X"), NewTask);
 #endif
 
     FreezeScheduler();
 
-    //-------------------------------------
     // Check validity of parameters
+    if (NewTask == NULL || NewTask->ID != ID_TASK) {
+        UnfreezeScheduler();
+        return FALSE;
+    }
 
-    if (NewTask == NULL) goto Out_Error;
-    if (NewTask->ID != ID_TASK) goto Out_Error;
-
-    //-------------------------------------
     // Check if task queue is full
-
-    if (TaskList.NumTasks == NUM_TASKS) {
-        KernelLogText(LOG_ERROR, TEXT("[AddTaskToQueue] Cannot add %X, too much tasks"), NewTask);
-        goto Out_Error;
+    if (TaskList.NumTasks >= NUM_TASKS) {
+        KernelLogText(LOG_ERROR, TEXT("[AddTaskToQueue] Cannot add %X, too many tasks"), NewTask);
+        UnfreezeScheduler();
+        return FALSE;
     }
 
-    //-------------------------------------
     // Check if task already in task queue
-
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        if (TaskList.Tasks[Index] == NewTask) goto Out_Success;
+    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+        if (TaskList.Tasks[Index] == NewTask) {
+            UnfreezeScheduler();
+            return TRUE;  // Already present, success
+        }
     }
 
-    //-------------------------------------
     // Add task to queue
-
 #ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
 #endif
 
     TaskList.Tasks[TaskList.NumTasks] = NewTask;
-
+    
+    // Set quantum time for this task
+    NewTask->Time = CalculateQuantumTime(NewTask->Priority);
+    
+    // If this is the first task, make it current
     if (TaskList.NumTasks == 0) {
-        TaskList.Current = NewTask;
+        TaskList.CurrentIndex = 0;
     }
 
     TaskList.NumTasks++;
 
-    UpdateScheduler();
-
-Out_Success:
-
     UnfreezeScheduler();
     return TRUE;
-
-Out_Error:
-
-    UnfreezeScheduler();
-    return FALSE;
 }
 
 /***************************************************************************/
 
 BOOL RemoveTaskFromQueue(LPTASK OldTask) {
-    U32 Index = 0;
-
     FreezeScheduler();
 
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
+    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
         if (TaskList.Tasks[Index] == OldTask) {
-            for (Index++; Index < TaskList.NumTasks; Index++) {
-                TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
+            // If removing current task, adjust current index
+            if (Index == TaskList.CurrentIndex) {
+                // Find next runnable task or wrap around
+                if (TaskList.NumTasks > 1) {
+                    TaskList.CurrentIndex = FindNextRunnableTask((Index + 1) % (TaskList.NumTasks - 1));
+                    if (TaskList.CurrentIndex >= TaskList.NumTasks - 1) {
+                        TaskList.CurrentIndex = 0;  // Wrap to beginning
+                    }
+                } else {
+                    TaskList.CurrentIndex = 0;
+                }
+            } else if (Index < TaskList.CurrentIndex) {
+                TaskList.CurrentIndex--;  // Adjust index after removal
+            }
+
+            // Shift remaining tasks
+            for (U32 ShiftIndex = Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
+                TaskList.Tasks[ShiftIndex] = TaskList.Tasks[ShiftIndex + 1];
             }
 
             TaskList.NumTasks--;
+            TaskList.Tasks[TaskList.NumTasks] = NULL;  // Clear last slot
 
             UnfreezeScheduler();
             return TRUE;
@@ -148,21 +185,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
     return FALSE;
 }
 
-/************************************************************************/
-
-static void RotateQueue(void) {
-    if (TaskList.NumTasks > 1) {
-        TaskList.Current = TaskList.Tasks[0];
-
-        for (U32 Index = 1; Index < TaskList.NumTasks; Index++) {
-            TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
-        }
-
-        TaskList.Tasks[TaskList.NumTasks - 1] = TaskList.Current;
-    }
-}
-
-/************************************************************************/
+/***************************************************************************/
 
 LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 #ifdef ENABLE_CRITICAL_DEBUG_LOGS
@@ -171,105 +194,94 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
     TaskList.SchedulerTime += 10;
 
-    if (TaskList.Current && Frame) {
-        MemoryCopy(&(TaskList.Current->Context), Frame, sizeof(INTERRUPTFRAME));
-    }
-
-    if (TaskList.Freeze) {
-#ifdef ENABLE_CRITICAL_DEBUG_LOGS
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen : Returning NULL"));
-#endif
-
-        return NULL;
-    }
-
-#ifdef ENABLE_CRITICAL_DEBUG_LOGS
-    KernelLogText(
-        LOG_DEBUG,
-        TEXT("[Scheduler] Incoming frame (current) :\n"
-             " EIP : %X, SS : %X\n"
-             " DS : %X, ES : %X, FS %X, GS %X\n"
-             ", ESI : %X, EDI : %X, EBP %X, ESP %X\n"
-             ", EAX : %X, EBX : %X, ECX %X, EDX %X"),
-        Frame->Registers.EIP, Frame->Registers.SS, Frame->Registers.DS, Frame->Registers.ES, Frame->Registers.FS,
-        Frame->Registers.GS, Frame->Registers.ESI, Frame->Registers.EDI, Frame->Registers.EBP, Frame->Registers.ESP,
-        Frame->Registers.EAX, Frame->Registers.EBX, Frame->Registers.ECX, Frame->Registers.EDX);
-#endif
-
-    if (TaskList.SchedulerTime >= TaskList.TaskTime) {
-        TaskList.SchedulerTime = 0;
-
-        LPTASK Current = TaskList.Current;
-
-        while (1) {
-            RotateQueue();
-
-            LPTASK Next = TaskList.Current;
-            TaskList.TaskTime = Next->Time;
-
-            switch (Next->Status) {
-                case TASK_STATUS_RUNNING: {
-                    if (Next != NULL && Next != Current) {
-                        if (Next->Process && Current &&
-                            Next->Process->PageDirectory != Current->Process->PageDirectory) {
-#ifdef ENABLE_CRITICAL_DEBUG_LOGS
-                            KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
-#endif
-
-                            LoadPageDirectory(Next->Process->PageDirectory);
-                        }
-
-#ifdef ENABLE_CRITICAL_DEBUG_LOGS
-                        LogTask(LOG_DEBUG, Next);
-#endif
-
-                        U32 NextSysStackTop = Next->SysStackBase + Next->SysStackSize;
-
-#ifdef ENABLE_CRITICAL_DEBUG_LOGS
-                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
-#endif
-
-                        Kernel_i386.TSS->ESP0 = NextSysStackTop;
-
-                        LPINTERRUPTFRAME NextFrame = (LPINTERRUPTFRAME)(NextSysStackTop - sizeof(INTERRUPTFRAME));
-                        MemoryCopy(NextFrame, &(Next->Context), sizeof(INTERRUPTFRAME));
-
-                        TaskList.Current = Next;
-                        return NextFrame;  // Switch to this stack
-                    }
-
-#ifdef ENABLE_CRITICAL_DEBUG_LOGS
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
-#endif
-
-                    return NULL;
-                } break;
-
-                case TASK_STATUS_SLEEPING: {
-                    if (GetSystemTime() >= Next->WakeUpTime) {
-                        Next->Status = TASK_STATUS_RUNNING;
-                    }
-                } break;
-            }
-
-            if (Next == Current) {
-#ifdef ENABLE_CRITICAL_DEBUG_LOGS
-                KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No task to switch to, returning NULL"));
-#endif
-
-                return NULL;
-            }
+    // Save current task context if we have one
+    if (TaskList.NumTasks > 0 && TaskList.CurrentIndex < TaskList.NumTasks && Frame) {
+        LPTASK CurrentTask = TaskList.Tasks[TaskList.CurrentIndex];
+        if (CurrentTask) {
+            MemoryCopy(&(CurrentTask->Context), Frame, sizeof(INTERRUPTFRAME));
         }
     }
 
+    // If scheduler is frozen, don't switch
+    if (TaskList.Freeze) {
 #ifdef ENABLE_CRITICAL_DEBUG_LOGS
-    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Not sheduling time yet, returning NULL"));
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen: Returning NULL"));
+#endif
+        return NULL;
+    }
+
+    // No tasks to schedule
+    if (TaskList.NumTasks == 0) {
+        return NULL;
+    }
+
+    // Check if current task quantum has expired
+    BOOL QuantumExpired = (TaskList.SchedulerTime >= TaskList.TaskTime);
+    LPTASK CurrentTask = (TaskList.CurrentIndex < TaskList.NumTasks) ? TaskList.Tasks[TaskList.CurrentIndex] : NULL;
+    
+    // Update sleeping tasks status
+    U32 RunnableCount = CountRunnableTasks();
+    
+    // No runnable tasks - system idle
+    if (RunnableCount == 0) {
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No runnable tasks"));
+#endif
+        return NULL;
+    }
+
+    // If current task is still running and quantum not expired, keep it
+    if (CurrentTask && CurrentTask->Status == TASK_STATUS_RUNNING && !QuantumExpired) {
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Current task continues"));
+#endif
+        return NULL;
+    }
+
+    // Time to switch - find next runnable task
+    U32 NextIndex = FindNextRunnableTask((TaskList.CurrentIndex + 1) % TaskList.NumTasks);
+    
+    if (NextIndex >= TaskList.NumTasks) {
+        // Should not happen if RunnableCount > 0, but safety check
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No next task found"));
+#endif
+        return NULL;
+    }
+
+    LPTASK NextTask = TaskList.Tasks[NextIndex];
+    TaskList.CurrentIndex = NextIndex;
+    TaskList.SchedulerTime = 0;
+    TaskList.TaskTime = NextTask->Time;
+
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
+    LogTask(LOG_DEBUG, NextTask);
 #endif
 
-    return NULL;
+    // Switch page directory if different process
+    if (NextTask->Process && CurrentTask && 
+        NextTask->Process->PageDirectory != CurrentTask->Process->PageDirectory) {
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), NextTask->Process->PageDirectory);
+#endif
+        LoadPageDirectory(NextTask->Process->PageDirectory);
+    }
+
+    // Set up system stack for new task
+    U32 NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
+#endif
+    Kernel_i386.TSS->ESP0 = NextSysStackTop;
+
+    // Prepare interrupt frame for task switch
+    LPINTERRUPTFRAME NextFrame = (LPINTERRUPTFRAME)(NextSysStackTop - sizeof(INTERRUPTFRAME));
+    MemoryCopy(NextFrame, &(NextTask->Context), sizeof(INTERRUPTFRAME));
+
+    return NextFrame;
 }
 
-/************************************************************************/
+/***************************************************************************/
 
 LPPROCESS GetCurrentProcess(void) {
     LPTASK Task = GetCurrentTask();
@@ -279,7 +291,12 @@ LPPROCESS GetCurrentProcess(void) {
 
 /***************************************************************************/
 
-LPTASK GetCurrentTask(void) { return TaskList.Current; }
+LPTASK GetCurrentTask(void) {
+    if (TaskList.NumTasks == 0 || TaskList.CurrentIndex >= TaskList.NumTasks) {
+        return NULL;
+    }
+    return TaskList.Tasks[TaskList.CurrentIndex];
+}
 
 /***************************************************************************/
 
@@ -298,5 +315,3 @@ BOOL UnfreezeScheduler(void) {
     UnlockMutex(MUTEX_SCHEDULE);
     return TRUE;
 }
-
-/***************************************************************************/

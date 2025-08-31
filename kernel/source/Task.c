@@ -229,6 +229,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     KernelLogText(
         LOG_DEBUG, TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase,
         KernelProcess.HeapSize);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
     Task->StackSize = Info->StackSize;
     Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);
@@ -380,8 +381,6 @@ U32 SetTaskPriority(LPTASK Task, U32 Priority) {
 
     OldPriority = Task->Priority;
     Task->Priority = Priority;
-
-    UpdateScheduler();
 
     UnlockMutex(MUTEX_KERNEL);
 
@@ -892,21 +891,21 @@ Out:
 void DumpTask(LPTASK Task) {
     LockMutex(&(Task->Mutex), INFINITY);
 
-    KernelLogText(LOG_VERBOSE, TEXT("Address         : %X\n"), Task);
-    KernelLogText(LOG_VERBOSE, TEXT("References      : %d\n"), Task->References);
-    KernelLogText(LOG_VERBOSE, TEXT("Process         : %X\n"), Task->Process);
-    KernelLogText(LOG_VERBOSE, TEXT("Status          : %X\n"), Task->Status);
-    KernelLogText(LOG_VERBOSE, TEXT("Priority        : %X\n"), Task->Priority);
-    KernelLogText(LOG_VERBOSE, TEXT("Function        : %X\n"), Task->Function);
-    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %X\n"), Task->Parameter);
-    KernelLogText(LOG_VERBOSE, TEXT("ReturnValue     : %X\n"), Task->ReturnValue);
-    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %X\n"), Task->StackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %X\n"), Task->StackSize);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %X\n"), Task->SysStackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %X\n"), Task->SysStackSize);
-    KernelLogText(LOG_VERBOSE, TEXT("Time            : %d\n"), Task->Time);
-    KernelLogText(LOG_VERBOSE, TEXT("WakeUpTime      : %d\n"), Task->WakeUpTime);
-    KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d\n"), Task->Message->NumItems);
+    KernelLogText(LOG_VERBOSE, TEXT("Address         : %X"), Task);
+    KernelLogText(LOG_VERBOSE, TEXT("References      : %d"), Task->References);
+    KernelLogText(LOG_VERBOSE, TEXT("Process         : %X"), Task->Process);
+    KernelLogText(LOG_VERBOSE, TEXT("Status          : %X"), Task->Status);
+    KernelLogText(LOG_VERBOSE, TEXT("Priority        : %X"), Task->Priority);
+    KernelLogText(LOG_VERBOSE, TEXT("Function        : %X"), Task->Function);
+    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %X"), Task->Parameter);
+    KernelLogText(LOG_VERBOSE, TEXT("ReturnValue     : %X"), Task->ReturnValue);
+    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %X"), Task->StackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %X"), Task->StackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %X"), Task->SysStackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %X"), Task->SysStackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("Time            : %d"), Task->Time);
+    KernelLogText(LOG_VERBOSE, TEXT("WakeUpTime      : %d"), Task->WakeUpTime);
+    KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d"), Task->Message->NumItems);
 
     UnlockMutex(&(Task->Mutex));
 }
