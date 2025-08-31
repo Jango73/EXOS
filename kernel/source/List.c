@@ -83,7 +83,7 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
     LPLIST This = NULL;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[NewList] Enter"));
     KernelLogText(LOG_DEBUG, TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
     KernelLogText(LOG_DEBUG, TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
@@ -97,7 +97,7 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
 
     This = (LPLIST)MemAlloc(sizeof(LIST));
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[NewList] List pointer = %X"), (LINEAR)This);
 #endif
 
@@ -111,7 +111,7 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     This->MemFreeFunc = MemFree;
     This->Destructor = ItemDestructor;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[NewList] Exit"));
 #endif
 

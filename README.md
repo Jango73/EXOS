@@ -20,7 +20,7 @@ Because it is a very long work, it will probably never be finished.
 
 ### Build
 
-./scripts/4-2-build.sh
+./scripts/4-3-build.sh
 
 ( or ./scripts/4-1-clean-build-exos.sh to later build from a clean repo )
 

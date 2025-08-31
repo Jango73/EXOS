@@ -18,9 +18,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Log
+    Kernel log manager
 
 \************************************************************************/
+
 #include "../include/Log.h"
 
 #include "../include/Console.h"
@@ -78,11 +79,11 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     switch (Type) {
         case LOG_DEBUG: {
-            /*
+            #ifdef DEBUG_OUTPUT
             KernelPrintString(TEXT("DEBUG > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
-            */
+            #endif
         } break;
 
         default:

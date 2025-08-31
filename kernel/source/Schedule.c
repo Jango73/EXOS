@@ -21,6 +21,7 @@
     Schedule
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
@@ -68,7 +69,7 @@ void UpdateScheduler(void) {
 BOOL AddTaskToQueue(LPTASK NewTask) {
     U32 Index = 0;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %X"), NewTask);
 #endif
 
@@ -98,7 +99,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     //-------------------------------------
     // Add task to queue
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
 #endif
 
@@ -164,7 +165,7 @@ static void RotateQueue(void) {
 /************************************************************************/
 
 LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter"));
 #endif
 
@@ -175,14 +176,14 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     }
 
     if (TaskList.Freeze) {
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen : Returning NULL"));
 #endif
 
         return NULL;
     }
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(
         LOG_DEBUG,
         TEXT("[Scheduler] Incoming frame (current) :\n"
@@ -211,24 +212,24 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
                     if (Next != NULL && Next != Current) {
                         if (Next->Process && Current &&
                             Next->Process->PageDirectory != Current->Process->PageDirectory) {
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
                             KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
 #endif
 
                             LoadPageDirectory(Next->Process->PageDirectory);
                         }
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
                         LogTask(LOG_DEBUG, Next);
 #endif
 
                         U32 NextSysStackTop = Next->SysStackBase + Next->SysStackSize;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
                         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
 #endif
 
-                        // Kernel_i386.TSS->ESP0 = NextSysStackTop;
+                        Kernel_i386.TSS->ESP0 = NextSysStackTop;
 
                         LPINTERRUPTFRAME NextFrame = (LPINTERRUPTFRAME)(NextSysStackTop - sizeof(INTERRUPTFRAME));
                         MemoryCopy(NextFrame, &(Next->Context), sizeof(INTERRUPTFRAME));
@@ -237,7 +238,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
                         return NextFrame;  // Switch to this stack
                     }
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
                     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
 #endif
 
@@ -252,7 +253,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
             }
 
             if (Next == Current) {
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
                 KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No task to switch to, returning NULL"));
 #endif
 
@@ -261,7 +262,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
         }
     }
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Not sheduling time yet, returning NULL"));
 #endif
 

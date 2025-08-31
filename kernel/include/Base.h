@@ -21,6 +21,7 @@
     Base
 
 \************************************************************************/
+
 #ifndef BASE_H_INCLUDED
 #define BASE_H_INCLUDED
 
@@ -28,7 +29,9 @@
 
 #define __EXOS__
 
-// #define ENABLE_CRITICAL_LOGS
+#ifdef DEBUG_OUTPUT
+// #define ENABLE_CRITICAL_DEBUG_LOGS
+#endif
 
 /***************************************************************************/
 

@@ -262,19 +262,19 @@ Interrupt_Clock:
     call    Scheduler
     add     esp, 4
     
-    ; DEBUG: Log la valeur de retour de Scheduler
-    push    eax
-    push    eax
-    push    LOG_DEBUG
-    call    KernelLogText
-    add     esp, 8
-    pop     eax
+    ; DEBUG: Log Scheduler return value
+;    push    eax
+;    push    eax
+;    push    LOG_DEBUG
+;    call    KernelLogText
+;    add     esp, 8
+;    pop     eax
     
     ; SAUVEGARDER eax avant d'écraser AL
-    push    eax                         ; Sauvegarder le résultat de Scheduler
+    push    eax                         ; Save Scheduler return value
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
-    pop     eax                         ; Restaurer le résultat de Scheduler
+    pop     eax                         ; Restore Scheduler return value
     
     test    eax, eax                    ; Maintenant le test est correct
     jz      .NoSwitch

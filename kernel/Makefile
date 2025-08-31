@@ -1,5 +1,8 @@
 SHELL   = /bin/bash
 
+DEBUG_OUTPUT    ?= 0
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+
 CC      = i686-elf-gcc
 LD      = i686-elf-ld
 NASM    = nasm
@@ -10,9 +13,10 @@ CFLAGS  = -DNAME="__KERNEL__" -g -Wall -Wextra -O2 \
 	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
-	-Werror-implicit-function-declaration -Wstrict-prototypes
+	-Werror-implicit-function-declaration -Wstrict-prototypes \
+	-DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
 
-AFLAGS  = -f elf -g -F dwarf -I source/asm/
+AFLAGS  = -f elf -g -F dwarf -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -I source/asm/
 
 LDFLAGS_ELF = -T linker-elf.ld -static -nostdlib -no-pie --no-dynamic-linker --verbose -Map=bin/exos-elf.map
 

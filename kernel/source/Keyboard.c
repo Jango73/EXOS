@@ -415,7 +415,7 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
 static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     U32 Index;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Enter"));
 #endif
 
@@ -431,7 +431,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
         }
     }
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Exit"));
 #endif
 }
@@ -482,7 +482,7 @@ static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Enter"));
 #endif
 
@@ -575,7 +575,7 @@ static void HandleScanCode(U32 ScanCode) {
         }
     }
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Exit"));
 #endif
 }
@@ -585,7 +585,7 @@ static void HandleScanCode(U32 ScanCode) {
 BOOL PeekChar(void) {
     U32 Result = FALSE;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Enter"));
 #endif
 
@@ -596,7 +596,7 @@ BOOL PeekChar(void) {
 
     UnlockMutex(&(Keyboard.Mutex));
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Exit"));
 #endif
 
@@ -708,12 +708,12 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Enter"));
 #endif
 
     if (Busy) {
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
         KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Busy, exiting"));
 #endif
 
@@ -738,7 +738,7 @@ void KeyboardHandler(void) {
 
     Busy = 0;
 
-#ifdef ENABLE_CRITICAL_LOGS
+#ifdef ENABLE_CRITICAL_DEBUG_LOGS
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Exit"));
 #endif
 }
