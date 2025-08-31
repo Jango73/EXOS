@@ -12,5 +12,5 @@ Layout="fr-FR"
 
 # Run section
 # Specify an executable to run
-[[Run]]
-Path="/os/EXOS/HELLO.ELF"
+# [[Run]]
+# Path="/os/HELLO.ELF"

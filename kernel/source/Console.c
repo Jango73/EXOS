@@ -21,6 +21,7 @@
     Console
 
 \************************************************************************/
+
 #include "../include/Console.h"
 
 #include "../include/Kernel.h"

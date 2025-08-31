@@ -21,6 +21,7 @@
     Process
 
 \************************************************************************/
+
 #ifndef PROCESS_H_INCLUDED
 #define PROCESS_H_INCLUDED
 
@@ -33,6 +34,7 @@
 #include "List.h"
 #include "Mutex.h"
 #include "Schedule.h"
+#include "Security.h"
 #include "System.h"
 #include "Task.h"
 #include "User.h"
@@ -43,25 +45,6 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 typedef struct tag_MESSAGE MESSAGE, *LPMESSAGE;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
-
-/***************************************************************************/
-// The security structure
-
-typedef struct tag_SECURITY {
-    LISTNODE_FIELDS   // Standard EXOS object fields
-        U32 Group;    // Group that owns the item
-    U32 User;         // User that owns the item
-    U32 Permissions;  // Permissions accorded to the item
-} SECURITY, *LPSECURITY;
-
-#define PERMISSION_NONE 0x00000000
-#define PERMISSION_EXECUTE 0x00000001
-#define PERMISSION_READ 0x00000002
-#define PERMISSION_WRITE 0x00000004
-
-// Macro to initialize a security
-
-#define EMPTY_SECURITY {ID_SECURITY, 1, NULL, NULL, 0, 0, PERMISSION_NONE}
 
 /***************************************************************************\
 
