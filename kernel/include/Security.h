@@ -31,17 +31,21 @@
 
 /************************************************************************/
 
+#pragma pack(1)
+
+/************************************************************************/
+
 #define MAX_SPECIFIC_PERMISSIONS 16
 
 typedef struct tag_SECURITY {
     LISTNODE_FIELDS
     U64 Owner;                    // Owner ID (hash)
-    U32 UserPermissionCount;      
+    U32 UserPermissionCount;
+    U32 DefaultPermissions;
     struct {
         U64 UserHash;             // User ID
         U32 Permissions;
     } UserPerms[MAX_SPECIFIC_PERMISSIONS];
-    U32 DefaultPermissions;
 } SECURITY, *LPSECURITY;
 
 #define PERMISSION_NONE 0x00000000

@@ -473,9 +473,9 @@ void InitSecurity(LPSECURITY This) {
     This->References = 1;
     This->Next = NULL;
     This->Prev = NULL;
-    This->Group = 0;
-    This->User = 0;
-    This->Permissions = PERMISSION_NONE;
+    This->Owner = U64_Make(0, 0);
+    This->UserPermissionCount = 0;
+    This->DefaultPermissions = PERMISSION_NONE;
 }
 
 /***************************************************************************/
