@@ -28,6 +28,10 @@
 #include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/System.h"
+
+extern LINEAR __task_runner_start;
+extern LINEAR __task_runner_end;
 
 /************************************************************************\
 
@@ -1308,6 +1312,20 @@ void InitializeMemoryManager(void) {
         KernelLogText(
             LOG_DEBUG, TEXT("[InitializeMemoryManager] GDT[%u]=0x%X%X"), i, ((U32*)(Kernel_i386.GDT))[i * 2 + 1],
             ((U32*)(Kernel_i386.GDT))[i * 2]);
+    }
+
+    // Expose TaskRunner section to user mode
+    {
+        LINEAR TaskStubStart = (LINEAR)(&__task_runner_start);
+        LINEAR TaskStubEnd = (LINEAR)(&__task_runner_end);
+
+        for (LINEAR Address = TaskStubStart & ~(PAGE_SIZE - 1); Address < TaskStubEnd; Address += PAGE_SIZE) {
+            volatile U32* Pte = GetPteRawPtr(Address);
+            *Pte |= (1u << 2);  // Set user privilege bit
+            InvalidatePage(Address);
+        }
+
+        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] TaskRunner marked user"));
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));

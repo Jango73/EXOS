@@ -219,6 +219,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Priority = Info->Priority;
     Task->Function = Info->Func;
     Task->Parameter = Info->Parameter;
+    Task->Type = (Process->Privilege == PRIVILEGE_KERNEL) ? TASK_TYPE_KERNEL_OTHER : TASK_TYPE_USER;
 
     //-------------------------------------
     // Allocate the stack
@@ -229,7 +230,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     KernelLogText(
         LOG_DEBUG, TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase,
         KernelProcess.HeapSize);
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
+    KernelLogText(
+        LOG_DEBUG, TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
     Task->StackSize = Info->StackSize;
     Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);

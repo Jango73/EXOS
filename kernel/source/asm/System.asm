@@ -748,6 +748,8 @@ SwitchToTask :
 ; to reside in ebx and the argument in eax
 ; They should be set in the TSS by the kernel
 
+section .task_runner progbits alloc exec align=16
+
 TaskRunner :
 
     ;--------------------------------------
@@ -800,6 +802,8 @@ _TaskRunner_L1 :
     jmp         _TaskRunner_L1
 
 ;--------------------------------------
+
+section .text
 
 SetTaskState :
 

@@ -10,9 +10,17 @@ SECTIONS
         *(.rodata .rodata.* .rdata .rdata.*)
     }
 
-    /* Data — aligned after .text */
+    /* TaskRunner stub mapped for user mode */
     . = ALIGN(0x1000);
-    .data : AT(ALIGN(LOADADDR(.text) + SIZEOF(.text), 0x1000)) {
+    .task_runner : AT(ALIGN(LOADADDR(.text) + SIZEOF(.text), 0x1000)) {
+        __task_runner_start = .;
+        *(.task_runner)
+        __task_runner_end = .;
+    }
+
+    /* Data — aligned after task runner */
+    . = ALIGN(0x1000);
+    .data : AT(ALIGN(LOADADDR(.task_runner) + SIZEOF(.task_runner), 0x1000)) {
         *(.data)
     }
 
