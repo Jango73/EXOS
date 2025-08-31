@@ -1232,8 +1232,8 @@ BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
 void InitializeMemoryManager(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
 
-    // Put the physical page bitmap at 2mb/2 = 1mb
-    Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
+    // Put the physical page bitmap at 1MB to avoid overlap with kernel sections
+    Kernel_i386.PPB = (LPPAGEBITMAP)N_1MB;
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
 
     MarkUsedPhysicalMemory();
