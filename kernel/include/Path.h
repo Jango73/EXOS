@@ -17,7 +17,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Path completion
+    Path utilities
 
 \************************************************************************/
 #ifndef PATH_H_INCLUDED
@@ -27,6 +27,10 @@
 
 #include "FileSystem.h"
 #include "StringArray.h"
+
+/***************************************************************************/
+
+LPLIST DecomposePath(LPCSTR Path);
 
 /***************************************************************************/
 

@@ -17,12 +17,54 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Path completion
+    Path utilities
 
 \************************************************************************/
 #include "../include/Path.h"
 
+#include "../include/Heap.h"
+#include "../include/List.h"
 #include "../include/String.h"
+
+static void PathComponentDestructor(LPVOID This) { HeapFree(This); }
+
+/***************************************************************************/
+
+LPLIST DecomposePath(LPCSTR Path) {
+    STR Component[MAX_FILE_NAME];
+    U32 PathIndex = 0;
+    U32 ComponentIndex = 0;
+    LPLIST List = NewList(PathComponentDestructor, HeapAlloc, HeapFree);
+    LPPATHNODE Node = NULL;
+
+    while (1) {
+        ComponentIndex = 0;
+
+        while (1) {
+            if (Path[PathIndex] == STR_SLASH) {
+                Component[ComponentIndex] = STR_NULL;
+                PathIndex++;
+                break;
+            } else if (Path[PathIndex] == STR_NULL) {
+                Component[ComponentIndex] = STR_NULL;
+                break;
+            } else {
+                Component[ComponentIndex++] = Path[PathIndex++];
+            }
+        }
+
+        Node = HeapAlloc(sizeof(PATHNODE));
+        if (Node == NULL) goto Exit;
+        StringCopy(Node->Name, Component);
+        ListAddItem(List, Node);
+
+        if (Path[PathIndex] == STR_NULL) break;
+    }
+
+Exit:
+
+    return List;
+}
 
 /***************************************************************************/
 

@@ -485,7 +485,7 @@ Handles mounting of disk partitions and path manipulation.
   starts at 0 for each disk type (hd0, rd0, ...).
 - MountPartition_Extended: Mounts an extended partition.
 - MountDiskPartitions: Scans a disk and mounts each partition.
-- DecompPath: Splits a path into its individual components.
+- DecomposePath: Splits a path into its individual components.
 
 ### HD.c
 

@@ -26,6 +26,7 @@
 #include "../include/Kernel.h"
 #include "../include/List.h"
 #include "../include/Log.h"
+#include "../include/Path.h"
 #include "../include/String.h"
 #include "../include/TOML.h"
 #include "../include/User.h"
@@ -154,7 +155,7 @@ static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
 
     if (Kernel.SystemFS == NULL) return NULL;
 
-    Parts = DecompPath(Path);
+    Parts = DecomposePath(Path);
     if (Parts == NULL) return NULL;
 
     Current = SYSTEM_FS->Root;
@@ -180,7 +181,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 
     if (Kernel.SystemFS == NULL || Control == NULL) return DF_ERROR_BADPARAM;
 
-    Parts = DecompPath(Control->Path);
+    Parts = DecomposePath(Control->Path);
     if (Parts == NULL) return DF_ERROR_BADPARAM;
 
     Parent = SYSTEM_FS->Root;
@@ -250,7 +251,7 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
 
     if (Path == NULL || Node == NULL || Remaining == NULL) return FALSE;
 
-    Parts = DecompPath(Path);
+    Parts = DecomposePath(Path);
     if (Parts == NULL) return FALSE;
 
     Current = SYSTEM_FS->Root;
@@ -387,7 +388,7 @@ static U32 CreateFolder(LPFILEINFO Info) {
 
     if (Info == NULL) return DF_ERROR_BADPARAM;
 
-    Parts = DecompPath(Info->Name);
+    Parts = DecomposePath(Info->Name);
     if (Parts == NULL) return DF_ERROR_BADPARAM;
 
     Parent = SYSTEM_FS->Root;

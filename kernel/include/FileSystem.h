@@ -205,7 +205,6 @@ BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
 BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
 BOOL MountSystemFS(void);
-LPLIST DecompPath(LPCSTR);
 
 /***************************************************************************/
 
