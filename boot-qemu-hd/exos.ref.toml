@@ -8,9 +8,8 @@ Path="/work"
 
 [Keyboard]
 # Available : de-DE, en-US, fr-FR
-Layout="fr-FR"
+Layout="en-US"
 
-# Run section
-# Specify an executable to run
+# Run section (specify an executable to run)
 # [[Run]]
 # Path="/os/HELLO.ELF"
