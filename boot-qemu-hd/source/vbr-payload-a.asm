@@ -455,7 +455,7 @@ PrintHex32Nibble:
     ret
 
 ;-------------------------------------------------------------------------
-; EnterLongMode : switches to protected mode, enables paging
+; StubJumpToImage : switches to protected mode, enables paging
 ; and jumps into the kernel at 0xC0000000
 ; Param 1 : GDTR
 ; Param 2 : PageDirectory (physical)

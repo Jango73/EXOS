@@ -21,9 +21,11 @@
     Memory
 
 \************************************************************************/
+
 #include "../include/Memory.h"
 
 #include "../include/Base.h"
+#include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 
@@ -1232,6 +1234,10 @@ void InitializeMemoryManager(void) {
 
     MarkUsedPhysicalMemory();
 
+    if (KernelStartup.MemorySize == 0) {
+        ConsolePanic(TEXT("Detected memory = 0"));
+    }
+
     // Reserve two temporary linear pages (not committed). They will be remapped on demand.
     G_TempLinear1 = 0xC0100000;  // VA dans kernel space, dir=768
     G_TempLinear2 = 0xC0101000;  // VA suivante, même dir
@@ -1242,11 +1248,13 @@ void InitializeMemoryManager(void) {
     // Reserve VAs via AllocRegion without commit
     if (!AllocRegion(G_TempLinear1, 0, PAGE_SIZE, ALLOC_PAGES_RESERVE | ALLOC_PAGES_READWRITE)) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] Failed to reserve G_TempLinear1"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
     if (!AllocRegion(G_TempLinear2, 0, PAGE_SIZE, ALLOC_PAGES_RESERVE | ALLOC_PAGES_READWRITE)) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] Failed to reserve G_TempLinear2"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
@@ -1257,6 +1265,7 @@ void InitializeMemoryManager(void) {
 
     if (NewPageDirectory == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
@@ -1274,6 +1283,7 @@ void InitializeMemoryManager(void) {
 
     if (G_TempLinear1 == 0 || G_TempLinear2 == 0) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] Failed to reserve temp linear pages"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
@@ -1283,6 +1293,7 @@ void InitializeMemoryManager(void) {
 
     if (Kernel_i386.GDT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 

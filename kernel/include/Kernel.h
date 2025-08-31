@@ -182,7 +182,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION);
 U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
-void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
+void InitializeKernel(void);
 
 /***************************************************************************/
 // Functions in Segment.c

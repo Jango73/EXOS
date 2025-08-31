@@ -325,6 +325,29 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
 
 /***************************************************************************/
 
+/**
+ * @brief Print a formatted string to the console.
+ * @param Format Format string.
+ * @return TRUE on success.
+ */
+void ConsolePanic(LPCSTR Format, ...) {
+    STR Text[0x1000];
+    VarArgList Args;
+
+    DisableInterrupts();
+
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(Text, Format, Args);
+    VarArgEnd(Args);
+
+    ConsolePrintString(Text);
+    ConsolePrintString(TEXT("\n>>> Halting system <<<"));
+
+    DO_THE_SLEEPING_BEAUTY;
+}
+
+/***************************************************************************/
+
 BOOL InitializeConsole(void) {
     Console.Width = 80;
     Console.Height = 25;

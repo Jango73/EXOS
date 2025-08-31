@@ -74,3 +74,11 @@ I stopped development when I hit a wall: the scheduler was too slow, I lost moti
 * Add keyboard layouts
 * Continue graphics UI
 * and all the rest....
+
+## FAQ
+
+Q. What to do with "[VBR] FREE cluster in file chain (corruption)" ?
+A. If you see this message, it means the disk image (boot-qemu-hd/bin/exos.img) is corrupt because payload.bin exceeded, at some point, 32 sectors in size and destroyed the cluster chain.
+Solutions :
+- Delete exos.img, reduce the size of payload.bin and build.
+- Or, build a FAT32 disk that has enough reserved sectors to store the payload.

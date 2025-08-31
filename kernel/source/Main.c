@@ -54,6 +54,10 @@ void KernelMain(void) {
         KernelStartup.E820_Count = E820Entries;
     }
 
+    KernelStartup.StubAddress = ImageAddress;
+    KernelStartup.ConsoleX = CursorX;
+    KernelStartup.ConsoleY = CursorY;
+
     //-------------------------------------
     // Clear the BSS
 
@@ -65,7 +69,7 @@ void KernelMain(void) {
     //--------------------------------------
     // Main initialization routine
 
-    InitializeKernel(ImageAddress, CursorX, CursorY);
+    InitializeKernel();
 
     //--------------------------------------
     // Enter idle

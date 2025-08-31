@@ -35,7 +35,7 @@ BOOL PeekMessage(HANDLE, LPMESSAGE, U32, U32, U32);
 BOOL DispatchMessage(LPMESSAGE);
 BOOL PostMessage(HANDLE, U32, U32, U32);
 U32 SendMessage(HANDLE, U32, U32, U32);
-HANDLE CreateDesktop();
+HANDLE CreateDesktop(void);
 BOOL ShowDesktop(HANDLE);
 HANDLE GetDesktopWindow(HANDLE);
 HANDLE CreateWindow(HANDLE, WINDOWFUNC, U32, U32, I32, I32, I32, I32);
@@ -62,9 +62,9 @@ U32 GetPixel(HANDLE, U32, U32);
 void Line(HANDLE, U32, U32, U32, U32);
 void Rectangle(HANDLE, U32, U32, U32, U32);
 BOOL GetMousePos(LPPOINT);
-U32 GetMouseButtons();
+U32 GetMouseButtons(void);
 HANDLE CaptureMouse(HANDLE);
-BOOL ReleaseMouse();
+BOOL ReleaseMouse(void);
 
 /***************************************************************************/
 

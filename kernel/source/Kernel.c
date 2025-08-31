@@ -482,8 +482,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
  * @param CursorY Initial console cursor Y position.
  */
 
-void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
-    // PROCESSINFO ProcessInfo;
+void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
     //-------------------------------------
@@ -494,12 +493,9 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Gather startup information
 
-    KernelStartup.StubAddress = ImageAddress;
     KernelStartup.PageDirectory = GetPageDirectory();
     KernelStartup.IRQMask_21_RM = 0;
     KernelStartup.IRQMask_A1_RM = 0;
-    KernelStartup.ConsoleX = CursorX;
-    KernelStartup.ConsoleY = CursorY;
 
     //-------------------------------------
     // Init the kernel logger
@@ -512,6 +508,12 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     InitializeInterrupts();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts initialized"));
+
+    //-------------------------------------
+    // Initialize the console
+
+    InitializeConsole();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Console initialized"));
 
     //-------------------------------------
     // Initialize the memory manager
@@ -537,12 +539,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     InitializeKernelProcess();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel process and task initialized"));
-
-    //-------------------------------------
-    // Initialize the console
-
-    InitializeConsole();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Console initialized"));
 
     //-------------------------------------
     // Initialize the keyboard
@@ -654,23 +650,6 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     // KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
     // Shell(NULL);
-
-    //-------------------------------------
-    // Launch Portal (windowing system)
-
-    /*
-      StringCopy(FileName, "C:/EXOS/SYSTEM/EXPLORER.PRG");
-
-      ProcessInfo.Size        = sizeof ProcessInfo;
-      ProcessInfo.Flags       = 0;
-      ProcessInfo.FileName    = FileName;
-      ProcessInfo.CommandLine = NULL;
-      ProcessInfo.StdOut      = NULL;
-      ProcessInfo.StdIn       = NULL;
-      ProcessInfo.StdErr      = NULL;
-
-      CreateProcess(&ProcessInfo);
-    */
 }
 
 /***************************************************************************/

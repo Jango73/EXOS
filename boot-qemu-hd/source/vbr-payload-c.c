@@ -33,6 +33,12 @@
 
 __asm__(".code16gcc");
 
+#define ORIGIN 0x8000
+#define STACK_SIZE 0x1000
+#define USABLE_RAM_START 0x1000
+#define USABLE_RAM_END (ORIGIN - STACK_SIZE)
+#define USABLE_RAM_SIZE (USABLE_RAM_END - USABLE_RAM_START)
+
 #define SectorSize 512
 #define FileToLoad "EXOS    BIN"  // 8+3, no dot, padded
 #define LoadAddress_Seg 0x2000
@@ -165,22 +171,7 @@ struct __attribute__((packed)) FatDirEntry {
     U32 FileSize;
 };
 
-/************************************************************************/
-
-const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
-
-STR TempString[128];
-
-struct Fat32BootSector BootSector;
-U8 FatBuffer[SectorSize];
-
-// NOTE: This should be high enough (e.g., up to 128 sectors) for large cluster sizes.
-// For minimal BIOS calls here we keep 4 sectors worth of buffer.
-// Should allocate some memory outside the payload
-U8 ClusterBuffer[SectorSize * 4];
-
 // E820 memory map
-#define E820_MAX_ENTRIES 64
 typedef struct __attribute__((packed)) {
     U64 Base;
     U64 Size;
@@ -188,14 +179,30 @@ typedef struct __attribute__((packed)) {
     U32 Attributes;
 } E820ENTRY;
 
-static E820ENTRY E820_Map[E820_MAX_ENTRIES];
-static U32 E820_EntryCount = 0;
+/************************************************************************/
+// Use total available memory for E80 entries and cluster
 
-static void RetrieveMemoryMap(void) { E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES); }
+#define E820_MAX_ENTRIES 32
+#define E820_SIZE (E820_MAX_ENTRIES * sizeof(E820ENTRY))
+#define MAX_SECTORS_PER_CLUSTER ((USABLE_RAM_SIZE - E820_SIZE) / 512)
+
+/************************************************************************/
+
+static U32 E820_EntryCount = 0;
+static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
+static STR TempString[128];
+
+struct Fat32BootSector BootSector;
+static U8 FatBuffer[SectorSize];
+
+// static E820ENTRY* const E820_Map = (E820ENTRY*)(USABLE_RAM_START);
+// static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START + E820_SIZE);
+
+static E820ENTRY E820_Map[E820_MAX_ENTRIES];
+static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 // Low-level I/O + A20
-/************************************************************************/
 
 static inline U8 InPortByte(U16 Port) {
     U8 Val;
@@ -204,6 +211,8 @@ static inline U8 InPortByte(U16 Port) {
 }
 
 static inline void OutPortByte(U16 Port, U8 Val) { __asm__ __volatile__("outb %0, %1" ::"a"(Val), "Nd"(Port)); }
+
+/************************************************************************/
 
 static void EnableA20(void) {
     // Fast A20 on port 0x92
@@ -214,6 +223,8 @@ static void EnableA20(void) {
         OutPortByte(0x92, v);
     }
 }
+
+/************************************************************************/
 
 void SerialReset(U8 Which) {
     if (Which > 3) return;
@@ -238,6 +249,8 @@ void SerialReset(U8 Which) {
     /* Assert DTR/RTS and enable OUT2 (required for IRQ routing) */
     OutPortByte(base + UART_MCR, (U8)(MCR_DTR | MCR_RTS | MCR_OUT2));
 }
+
+/************************************************************************/
 
 void SerialOut(U8 Which, U8 Char) {
     if (Which > 3) return;
@@ -307,9 +320,23 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 
 /************************************************************************/
 
+static void RetrieveMemoryMap(void) {
+    MemorySet((void*)E820_Map, 0, E820_SIZE);
+    E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
+}
+
+/************************************************************************/
+
 void BootMain(U32 BootDrive, U32 Fat32Lba) {
     InitDebug();
+
+    DebugPrint(TEXT("[VBR] Maximum sectors per cluster : "));
+    NumberToString(TempString, MAX_SECTORS_PER_CLUSTER, 16, 0, 0, PF_SPECIAL);
+    DebugPrint(TempString);
+    DebugPrint(TEXT("\r\n"));
+
     RetrieveMemoryMap();
+
     DebugPrint(TEXT("[VBR] Loading and running binary OS at "));
     NumberToString(TempString, LoadAddress_Seg, 16, 0, 0, PF_SPECIAL);
     DebugPrint(TempString);
@@ -349,6 +376,11 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     U32 RootCluster = BootSector.RootCluster;
     U32 SectorsPerCluster = BootSector.SectorsPerCluster;
     U32 FirstDataSector = Fat32Lba + BootSector.ReservedSectorCount + ((U32)BootSector.NumberOfFats * FatSizeSectors);
+
+    if (SectorsPerCluster > MAX_SECTORS_PER_CLUSTER) {
+        ErrorPrint(TEXT("[VBR] Max sectors per cluster exceeded. Code needs rewriting... Halting.\r\n"));
+        Hang();
+    }
 
     if (SectorsPerCluster == 0) {
         ErrorPrint(TEXT("[VBR] Invalid SectorsPerCluster = 0. Halting.\r\n"));
@@ -551,6 +583,21 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         Hang();
     }
 
+    DebugPrint(TEXT("[VBR] E820 map at "));
+    NumberToString(TempString, E820_Map, 16, 0, 0, PF_SPECIAL);
+    DebugPrint(TempString);
+    DebugPrint(TEXT("\r\n"));
+
+    DebugPrint(TEXT("[VBR] Cluster buffer at "));
+    NumberToString(TempString, ClusterBuffer, 16, 0, 0, PF_SPECIAL);
+    DebugPrint(TempString);
+    DebugPrint(TEXT("\r\n"));
+
+    DebugPrint(TEXT("[VBR] E820 entries : "));
+    NumberToString(TempString, E820_EntryCount, 16, 0, 0, PF_SPECIAL);
+    DebugPrint(TempString);
+    DebugPrint(TEXT("\r\n"));
+
     EnterProtectedPagingAndJump(FileSize);
 
     Hang();
@@ -715,7 +762,7 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     BuildGdtFlat();
     BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);
 
-    // Pass kernel entry VA as a normal C value (we le-recharge dans l'asm)
+    // Pass kernel entry VA as a normal C value
     const U32 KernelEntryVA = 0xC0000000;
 
     for (volatile int i = 0; i < 100000; ++i) {
