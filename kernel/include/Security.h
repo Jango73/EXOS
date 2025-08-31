@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#ifndef USER_H_INCLUDED
-#define USER_H_INCLUDED
+#ifndef SECURITY_H_INCLUDED
+#define SECURITY_H_INCLUDED
 
 /************************************************************************/
 
@@ -42,7 +42,7 @@ typedef struct tag_SECURITY {
         U32 Permissions;
     } UserPerms[MAX_SPECIFIC_PERMISSIONS];
     U32 DefaultPermissions;
-} SECURITY;
+} SECURITY, *LPSECURITY;
 
 #define PERMISSION_NONE 0x00000000
 #define PERMISSION_EXECUTE 0x00000001
@@ -54,3 +54,5 @@ typedef struct tag_SECURITY {
 #define EMPTY_SECURITY {ID_SECURITY, 1, NULL, NULL, 0, 0, PERMISSION_NONE}
 
 /************************************************************************/
+
+#endif  // SECURITY_H_INCLUDED
