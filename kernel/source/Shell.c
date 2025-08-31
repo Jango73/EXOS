@@ -21,6 +21,7 @@
     Shell
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Console.h"
 #include "../include/File.h"
@@ -389,7 +390,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
             }
         }
 
-        Sleep(20);
+        Sleep(10);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Exit"));
