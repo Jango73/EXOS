@@ -30,9 +30,6 @@
 #include "../include/Log.h"
 #include "../include/System.h"
 
-extern LINEAR __task_runner_start;
-extern LINEAR __task_runner_end;
-
 /************************************************************************\
 
     Virtual Address Space (32-bit)
@@ -603,7 +600,7 @@ PHYSICAL AllocPageDirectory(void) {
     // Directory[DirKernel] -> map LA_KERNEL..LA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
     Directory[DirKernel].Present = 1;
     Directory[DirKernel].ReadWrite = 1;
-    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_USER;  // Allow user stub access
+    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
     Directory[DirKernel].WriteThrough = 0;
     Directory[DirKernel].CacheDisabled = 0;
     Directory[DirKernel].Accessed = 0;
@@ -954,7 +951,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     if (NumPages == 0) NumPages = 1;
 
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
-    Privilege = PAGE_PRIVILEGE_USER;
+    Privilege = PAGE_PRIVILEGE_KERNEL;
 
     // Derive cache policy flags for PTE
     U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
@@ -1314,18 +1311,21 @@ void InitializeMemoryManager(void) {
             ((U32*)(Kernel_i386.GDT))[i * 2]);
     }
 
-    // Expose TaskRunner section to user mode
+    // Map TaskRunner stub to a user-accessible window
     {
-        LINEAR TaskStubStart = (LINEAR)(&__task_runner_start);
-        LINEAR TaskStubEnd = (LINEAR)(&__task_runner_end);
+        PHYSICAL TaskStubPhysical = (PHYSICAL)(&TaskRunner) - LA_KERNEL + KERNEL_PHYSICAL_ORIGIN;
 
-        for (LINEAR Address = TaskStubStart & ~(PAGE_SIZE - 1); Address < TaskStubEnd; Address += PAGE_SIZE) {
-            volatile U32* Pte = GetPteRawPtr(Address);
-            *Pte |= (1u << 2);  // Set user privilege bit
-            InvalidatePage(Address);
+        if (AllocRegion(LA_TASK_RUNNER, TaskStubPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT) != NULL) {
+            LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
+            U32 Dir = GetDirectoryEntry(LA_TASK_RUNNER);
+            Directory[Dir].Privilege = PAGE_PRIVILEGE_USER;
+            MapOnePage(
+                LA_TASK_RUNNER, TaskStubPhysical, /*RW*/ 0, PAGE_PRIVILEGE_USER, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0,
+                /*Fixed*/ 1);
+            KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] TaskRunner window mapped"));
+        } else {
+            KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] Failed to map TaskRunner window"));
         }
-
-        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] TaskRunner marked user"));
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));

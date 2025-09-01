@@ -283,7 +283,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     MemorySet(&(Task->Context), 0, sizeof(INTERRUPTFRAME));
 
-    Task->Context.Registers.EIP = (U32)TaskRunner;
+    Task->Context.Registers.EIP = LA_TASK_RUNNER;
     Task->Context.Registers.EAX = (U32)Task->Parameter;
     Task->Context.Registers.EBX = (U32)Task->Function;
     Task->Context.Registers.ESP = StackPointer;
