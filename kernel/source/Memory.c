@@ -794,6 +794,13 @@ PHYSICAL AllocUserPageDirectory(void) {
     for (Index = 1; Index < 1023; Index++) {  // Skip 0 (already done) and 1023 (self-map)
         if (CurrentPD[Index].Present && Index != DirKernel) {
             Directory[Index] = CurrentPD[Index];
+            
+            // Ensure TaskRunner PDE has user privilege
+            if (Index == GetDirectoryEntry(LA_TASK_RUNNER)) {
+                Directory[Index].Privilege = PAGE_PRIVILEGE_USER;
+                KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Set TaskRunner PDE[%d] to user privilege"), Index);
+            }
+            
             KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Copied PDE[%d]"), Index);
         }
     }
@@ -811,6 +818,13 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[PD_RECURSIVE_SLOT].User = 0;
     Directory[PD_RECURSIVE_SLOT].Fixed = 1;
     Directory[PD_RECURSIVE_SLOT].Address = (PA_Directory >> PAGE_SIZE_MUL);
+
+    // Ensure TaskRunner is properly mapped with user privilege
+    {
+        PHYSICAL TaskStubPhysical = (PHYSICAL)(&TaskRunner) - LA_KERNEL + KERNEL_PHYSICAL_ORIGIN;
+        MapOnePage(LA_TASK_RUNNER, TaskStubPhysical, /*RW*/ 0, PAGE_PRIVILEGE_USER, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+        KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] TaskRunner mapped at %X"), LA_TASK_RUNNER);
+    }
 
     // Fill identity-mapped low table (0..4MB) - manual setup like AllocPageDirectory
     LINEAR LA_PT = MapPhysicalPage2(PA_LowTable);
@@ -1019,6 +1033,12 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     }
 
     while (1) {
+        // Skip LA_USER region (reserved for user processes)
+        if (Base >= LA_USER && Base < LA_USER + 0x1000000) {
+            Base = LA_USER + 0x1000000; // Skip 16MB user space
+            continue;
+        }
+        
         if (IsRegionFree(Base, Size) == TRUE) return Base;
         Base += PAGE_SIZE;
     }
@@ -1207,6 +1227,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
     // Set the return value to "Base".
     Pointer = Base;
+
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Allocating pages"));
 
