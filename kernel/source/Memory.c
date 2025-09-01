@@ -603,7 +603,7 @@ PHYSICAL AllocPageDirectory(void) {
     // Directory[DirKernel] -> map LA_KERNEL..LA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
     Directory[DirKernel].Present = 1;
     Directory[DirKernel].ReadWrite = 1;
-    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
+    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_USER;  // Allow user stub access
     Directory[DirKernel].WriteThrough = 0;
     Directory[DirKernel].CacheDisabled = 0;
     Directory[DirKernel].Accessed = 0;
@@ -1232,8 +1232,8 @@ BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
 void InitializeMemoryManager(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
 
-    // Put the physical page bitmap at 1MB to avoid overlap with kernel sections
-    Kernel_i386.PPB = (LPPAGEBITMAP)N_1MB;
+    // Place the physical page bitmap at 2MB (half of reserved low memory)
+    Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
 
     MarkUsedPhysicalMemory();
