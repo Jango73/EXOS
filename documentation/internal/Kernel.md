@@ -239,6 +239,32 @@ Fractional part = unusable space.
 | 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
 | 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
 
+## Tasks
+
+### IRQ scheduling
+
+Int 32 triggers
+└── trap lands in interrupt-a.asm : Interrupt_Clock
+    └── calls ClockHandler to increment system time
+    └── calls Scheduler to check if it's time to switch to another task
+        └── Scheduler switches page directory if needed and returns the next task's context
+
+## System calls
+
+### Full path for a system call
+
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── calls int 0x80
+        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
+
+## Debugging
+
+To see critical debug info like scheduling, uncomment "#define ENABLE_CRITICAL_DEBUG_LOGS" in Base.h. Be aware that it generates A LOT of COM2 output, the scheduler is called every 10ms...
+
 ## Modules and functions
 
 ### Clock.c
@@ -669,7 +695,7 @@ Contains the EXOS executable loader implementation.
 
 ### ExecutableELF.c
 
-Placeholder for the upcoming ELF executable loader.
+Contains the ELF executable loader implementation.
 
 ### PCI.c
 
@@ -677,7 +703,7 @@ Handles scanning of PCI buses.
 
 #### Functions in PCI.c
 
-- TODO
+- TO DOCUMENT
 
 ### RAMDisk.c
 
@@ -1142,4 +1168,3 @@ Provides low level hardware access and CPU control primitives.
 - MemoryCopy: Copies a block of memory.
 - DoSystemCall: Invokes a system call from user mode.
 - Reboot: Restarts the computer via the keyboard controller.
-

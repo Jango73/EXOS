@@ -4,7 +4,8 @@
 This is a 32 bit operating system for i386-i686.
 
 ## Documentation
-The documentation for boot sequence and kernel modules is in documentation/internal/Kernel.md
+The documentation for boot sequence and kernel modules is in documentation/internal/Kernel.md.
+Kernel.md must be updated when adding/removing a file/class/function.
 
 ## Build
 - run "make"
