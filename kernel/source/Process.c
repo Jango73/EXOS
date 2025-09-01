@@ -265,13 +265,21 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     TotalSize = (HeapBase + HeapSize) - LA_USER;
 
     //-------------------------------------
-    // Allocate and setup the page directory
-
-    Process->PageDirectory = AllocPageDirectory();
-
-    //-------------------------------------
 
     FreezeScheduler();
+
+    //-------------------------------------
+    // Allocate and setup the page directory
+
+    Process->PageDirectory = AllocUserPageDirectory();
+    if (Process->PageDirectory == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[CreateProcess] Failed to allocate page directory"));
+        UnfreezeScheduler();
+        CloseFile(File);
+        goto Out;
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Page directory allocated at physical 0x%X"), Process->PageDirectory);
 
     //-------------------------------------
     // We can use the new page directory from now on
@@ -282,6 +290,8 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
     LoadPageDirectory(Process->PageDirectory);
+
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Page directory switch successful"));
 
     //-------------------------------------
     // Allocate enough memory for the code, data and heap

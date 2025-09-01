@@ -40,6 +40,9 @@ LINEAR MapPhysicalPage(PHYSICAL Physical);
 // Allocates physical space for a new page directory
 PHYSICAL AllocPageDirectory(void);
 
+// Allocates physical space for a new page directory for userland processes
+PHYSICAL AllocUserPageDirectory(void);
+
 // Allocates a physical page
 PHYSICAL AllocPhysicalPage(void);
 
