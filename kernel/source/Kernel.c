@@ -258,14 +258,9 @@ U32 ClockTestTask(LPVOID Param) {
             MilliSecondsToHMS(Time, Text);
             OldX = Console.CursorX;
             OldY = Console.CursorY;
-
-            Console.CursorX = X;
-            Console.CursorY = Y;
-
+            SetConsoleCursorPosition(X, Y);
             ConsolePrint(Text);
-
-            Console.CursorX = OldX;
-            Console.CursorY = OldY;
+            SetConsoleCursorPosition(OldX, OldY);
         }
 
         DoSystemCall(SYSCALL_Sleep, 40);
