@@ -538,7 +538,7 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
 /*
  * AllocPageDirectory
  * - Identity-map the first 4MB at 0x00000000..0x003FFFFF
- * - Map the kernel at LA_KERNEL to KernelStartup.StubAddress (4MB window)
+ * - Copy kernel PDE/PTE entries so heap, stacks and descriptors stay mapped
  * - Install recursive mapping PDE[1023] = PD
  *
  * @return: The physical address of the page directory that goes in cr3
@@ -551,24 +551,21 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
 PHYSICAL AllocPageDirectory(void) {
     PHYSICAL PA_Directory = NULL;
     PHYSICAL PA_LowTable = NULL;
-    PHYSICAL PA_KernelTable = NULL;
 
     LPPAGEDIRECTORY Directory = NULL;
+    LPPAGEDIRECTORY CurrentDirectory = NULL;
     LPPAGETABLE LowTable = NULL;
-    LPPAGETABLE KernelTable = NULL;
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Enter"));
 
-    U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for LA_KERNEL
-    U32 PhysBaseKernel = KernelStartup.StubAddress;          // Kernel physical base
+    U32 DirKernel = GetDirectoryEntry(KernelProcess.HeapBase);
     U32 Index;
 
-    // Allocate required physical pages (PD + 2 PTs)
+    // Allocate required physical pages (PD + Low PT)
     PA_Directory = AllocPhysicalPage();
     PA_LowTable = AllocPhysicalPage();
-    PA_KernelTable = AllocPhysicalPage();
 
-    if (PA_Directory == NULL || PA_LowTable == NULL || PA_KernelTable == NULL) {
+    if (PA_Directory == NULL || PA_LowTable == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
@@ -598,19 +595,9 @@ PHYSICAL AllocPageDirectory(void) {
     Directory[0].Fixed = 1;
     Directory[0].Address = (PA_LowTable >> PAGE_SIZE_MUL);
 
-    // Directory[DirKernel] -> map LA_KERNEL..LA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
-    Directory[DirKernel].Present = 1;
-    Directory[DirKernel].ReadWrite = 1;
-    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[DirKernel].WriteThrough = 0;
-    Directory[DirKernel].CacheDisabled = 0;
-    Directory[DirKernel].Accessed = 0;
-    Directory[DirKernel].Reserved = 0;
-    Directory[DirKernel].PageSize = 0;  // 4KB pages
-    Directory[DirKernel].Global = 0;
-    Directory[DirKernel].User = 0;
-    Directory[DirKernel].Fixed = 1;
-    Directory[DirKernel].Address = (PA_KernelTable >> PAGE_SIZE_MUL);
+    // Copy existing kernel PDE to preserve kernel heap and stacks
+    CurrentDirectory = GetCurrentPageDirectoryVA();
+    Directory[DirKernel] = CurrentDirectory[DirKernel];
 
     // Install recursive mapping: PDE[1023] = PD
     Directory[PD_RECURSIVE_SLOT].Present = 1;
@@ -652,42 +639,13 @@ PHYSICAL AllocPageDirectory(void) {
         LowTable[Index].Address = Index;  // frame N -> 4KB*N
     }
 
-    // Fill kernel mapping table
-    LA_PT = MapPhysicalPage2(PA_KernelTable);
-    if (LA_PT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage2 failed on KernelTable"));
-        goto Out_Error;
-    }
-    KernelTable = (LPPAGETABLE)LA_PT;
-    MemorySet(KernelTable, 0, PAGE_SIZE);
-
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Kernel table cleared"));
-
-    U32 KernelFirstFrame = (PhysBaseKernel >> PAGE_SIZE_MUL);
-    for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        KernelTable[Index].Present = 1;
-        KernelTable[Index].ReadWrite = 1;
-        KernelTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
-        KernelTable[Index].WriteThrough = 0;
-        KernelTable[Index].CacheDisabled = 0;
-        KernelTable[Index].Accessed = 0;
-        KernelTable[Index].Dirty = 0;
-        KernelTable[Index].Reserved = 0;
-        KernelTable[Index].Global = 0;
-        KernelTable[Index].User = 0;
-        KernelTable[Index].Fixed = 1;
-        KernelTable[Index].Address = KernelFirstFrame + Index;
-    }
-
     // TLB sync before returning
     FlushTLB();
 
     KernelLogText(
-        LOG_DEBUG, TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
-        *(U32*)&Directory[768], *(U32*)&Directory[1023]);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X"), *(U32*)&LowTable[0],
-        *(U32*)&KernelTable[0]);
+        LOG_DEBUG, TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[%u]=%X, PDE[1023]=%X"), *(U32*)&Directory[0], DirKernel,
+        *(U32*)&Directory[DirKernel], *(U32*)&Directory[1023]);
+    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] LowTable[0]=%X"), *(U32*)&LowTable[0]);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Exit"));
     return PA_Directory;
@@ -696,7 +654,6 @@ Out_Error:
 
     if (PA_Directory) FreePhysicalPage(PA_Directory);
     if (PA_LowTable) FreePhysicalPage(PA_LowTable);
-    if (PA_KernelTable) FreePhysicalPage(PA_KernelTable);
 
     return NULL;
 }
