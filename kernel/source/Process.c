@@ -120,7 +120,7 @@ void InitializeKernelProcess(void) {
 LPPROCESS NewProcess(void) {
     LPPROCESS This = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Enter\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Enter"));
 
     This = (LPPROCESS)HeapAlloc(sizeof(PROCESS));
 
@@ -145,7 +145,7 @@ LPPROCESS NewProcess(void) {
 
     InitSecurity(&(This->Security));
 
-    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Exit\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Exit"));
 
     return This;
 }
@@ -177,7 +177,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     U32 TotalSize = 0;
     BOOL Result = FALSE;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering CreateProcess\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Enter"));
 
     if (Info == NULL) return FALSE;
 
@@ -188,7 +188,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Open the executable file
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Opening file %s\n"), Info->FileName);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] : Opening file %s"), Info->FileName);
 
     FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
@@ -207,7 +207,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     if (FileSize == 0) return FALSE;
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : File size %d\n"), FileSize);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] : File size %d"), FileSize);
 
     //-------------------------------------
     // Get executable information
@@ -231,7 +231,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate a new process structure
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Allocating process\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] : Allocating process"));
 
     Process = NewProcess();
     if (Process == NULL) goto Out;
@@ -277,7 +277,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // We can use the new page directory from now on
     // and switch back to the previous when done
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching page directory"));
 
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
@@ -286,7 +286,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate enough memory for the code, data and heap
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : AllocRegioning process space\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] AllocRegioning process space"));
 
     AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
@@ -305,7 +305,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // Load executable image
     // For tests, image must be at LA_KERNEL
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Loading executable"));
 
     EXECUTABLELOAD LoadInfo;
     LoadInfo.File = File;
@@ -314,7 +314,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     LoadInfo.DataBase = (LINEAR)DataBase;
 
     if (LoadExecutable(&LoadInfo) == FALSE) {
-        KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Load failed !\n"));
+        KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Load failed !"));
 
         FreeRegion(LA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
@@ -338,7 +338,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Create the initial task
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Creating initial task\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Creating initial task"));
 
     // TaskInfo.Func      = (TASKFUNC) LA_USER;
     TaskInfo.Parameter = NULL;
@@ -353,7 +353,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Switch back to our page directory
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching page directory"));
 
     LoadPageDirectory(PageDirectory);
 
@@ -383,7 +383,7 @@ Out:
 
     UnlockMutex(MUTEX_KERNEL);
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting CreateProcess : Result = %d\n"), Result);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Exit, Result = %d\n"), Result);
 
     return Result;
 }
@@ -398,7 +398,7 @@ Out:
  * @return TRUE on success, FALSE otherwise.
  */
 BOOL Spawn(LPCSTR FileName, LPCSTR CommandLine) {
-    KernelLogText(LOG_WARNING, TEXT("[Spawn] Lunching : %s"), FileName);
+    KernelLogText(LOG_WARNING, TEXT("[Spawn] Launching : %s"), FileName);
 
     PROCESSINFO ProcessInfo;
 
