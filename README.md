@@ -62,6 +62,7 @@ I stopped development when I hit a wall: the scheduler was too slow, I lost moti
 
 ## Things to do
 
+* Kernel pointer masking and ASLR (Address Space Layout Randomization)
 * Load ELF executables
 * Minimal network drivers
 * Add buffers for filesystem drivers
