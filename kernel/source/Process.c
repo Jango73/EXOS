@@ -120,7 +120,7 @@ void InitializeKernelProcess(void) {
 LPPROCESS NewProcess(void) {
     LPPROCESS This = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering NewProcess\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Enter\n"));
 
     This = (LPPROCESS)HeapAlloc(sizeof(PROCESS));
 
@@ -145,7 +145,7 @@ LPPROCESS NewProcess(void) {
 
     InitSecurity(&(This->Security));
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting NewProcess\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Exit\n"));
 
     return This;
 }
@@ -398,6 +398,8 @@ Out:
  * @return TRUE on success, FALSE otherwise.
  */
 BOOL Spawn(LPCSTR FileName, LPCSTR CommandLine) {
+    KernelLogText(LOG_WARNING, TEXT("[Spawn] Lunching : %s"), FileName);
+
     PROCESSINFO ProcessInfo;
 
     ProcessInfo.Header.Size = sizeof(PROCESSINFO);

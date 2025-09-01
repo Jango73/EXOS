@@ -93,7 +93,6 @@ bits 32
     global InvalidatePage
     global FlushTLB
     global SwitchToTask
-    global TaskRunner
     global SetTaskState
     global ClearTaskState
     global PeekConsoleWord
@@ -105,6 +104,7 @@ bits 32
     global IdleCPU
     global DeadCPU
     global Reboot
+    global TaskRunner
 
 ;--------------------------------------
 
@@ -743,48 +743,6 @@ SwitchToTask :
     ret
 
 ;--------------------------------------
-; This is the entry point of each new task
-; It expects the task's main function pointer
-; to reside in ebx and the argument in eax
-; They should be set in the TSS by the kernel
-
-section .task_runner progbits alloc exec align=16
-
-TaskRunner :
-
-    ;--------------------------------------
-    ; EBX in the TSS contains the function
-    ; EAX in the TSS contains the parameter
-
-    cmp         ebx, 0
-    je          _TaskRunner_KillMe
-
-    PRE_CALL_C
-    push        eax                        ; Argument for task function
-    call        ebx                        ; Call task function
-    add         esp, 4                     ; Adjust stack
-    POST_CALL_C
-
-_TaskRunner_KillMe :
-
-    mov         eax, 0x0000002F            ; SYSCALL_KillMe
-    xor         ebx, ebx
-    int         0x80
-
-    ;--------------------------------------
-    ; Do an infinite loop, task will be removed by scheduler
-
-_TaskRunner_L1 :
-
-    nop
-    nop
-    nop
-    nop
-    jmp         _TaskRunner_L1
-
-;--------------------------------------
-
-section .text
 
 SetTaskState :
 
@@ -1064,6 +1022,49 @@ Reboot :
 .hang:
     hlt
     jmp     .hang
+
+;----------------------------------------------------------------------------
+
+section .shared_text
+bits 32
+
+;--------------------------------------
+; This is the entry point of each new task
+; It expects the task's main function pointer
+; to reside in ebx and the argument in eax
+; They should be set in the TSS by the kernel
+
+TaskRunner :
+
+    ;--------------------------------------
+    ; EBX in the TSS contains the function
+    ; EAX in the TSS contains the parameter
+
+    cmp         ebx, 0
+    je          _TaskRunner_KillMe
+
+    PRE_CALL_C
+    push        eax                        ; Argument for task function
+    call        ebx                        ; Call task function
+    add         esp, 4                     ; Adjust stack
+    POST_CALL_C
+
+_TaskRunner_KillMe :
+
+    mov         eax, 0x0000002F            ; SYSCALL_KillMe
+    xor         ebx, ebx
+    int         0x80
+
+    ;--------------------------------------
+    ; Do an infinite loop, task will be removed by scheduler
+
+_TaskRunner_L1 :
+
+    nop
+    nop
+    nop
+    nop
+    jmp         _TaskRunner_L1
 
 ;----------------------------------------------------------------------------
 

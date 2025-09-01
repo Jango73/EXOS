@@ -12,15 +12,15 @@ SECTIONS
 
     /* TaskRunner stub mapped for user mode */
     . = ALIGN(0x1000);
-    .task_runner : AT(ALIGN(LOADADDR(.text) + SIZEOF(.text), 0x1000)) {
+    .shared_text : AT(ALIGN(LOADADDR(.text) + SIZEOF(.text), 0x1000)) {
         __task_runner_start = .;
-        *(.task_runner)
+        *(.shared_text)
         __task_runner_end = .;
     }
 
     /* Data — aligned after task runner */
     . = ALIGN(0x1000);
-    .data : AT(ALIGN(LOADADDR(.task_runner) + SIZEOF(.task_runner), 0x1000)) {
+    .data : AT(ALIGN(LOADADDR(.shared_text) + SIZEOF(.shared_text), 0x1000)) {
         *(.data)
     }
 

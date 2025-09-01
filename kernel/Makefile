@@ -32,12 +32,13 @@ OBJ_S  = $(patsubst source/asm/%.asm, bin/%.o, $(SRC_S))
 OBJS   = $(OBJ_S) $(OBJ_C)
 
 # Sections to extract (edit as needed)
-TEXT_BIN   = bin/text.bin
-DATA_BIN   = bin/data.bin
-BSS_BIN    = bin/bss.bin
-FINAL_IMG  = bin/exos.bin
+TEXT_BIN        = bin/text.bin
+SHARED_TEXT_BIN = bin/shared_text.bin
+DATA_BIN   		= bin/data.bin
+BSS_BIN    		= bin/bss.bin
+FINAL_IMG  		= bin/exos.bin
 
-ALIGN      = 4096
+ALIGN      		= 4096
 
 .PHONY: all check_magic clean check-nogot
 
@@ -50,6 +51,10 @@ $(TEXT_BIN): $(KERNEL_ELF)
 	@echo "Extracting .text section to $@"
 	$(OBJCOPY) -O binary --only-section=.text $< $@
 
+$(SHARED_TEXT_BIN): $(KERNEL_ELF)
+	@echo "Extracting .shared_text section to $@"
+	$(OBJCOPY) -O binary --only-section=.shared_text $< $@
+
 $(DATA_BIN): $(KERNEL_ELF)
 	@echo "Extracting .data section to $@"
 	$(OBJCOPY) -O binary --only-section=.data $< $@
@@ -59,7 +64,7 @@ $(BSS_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) -O binary --only-section=.bss $< $@
 
 # Build final padded image
-$(FINAL_IMG): $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
+$(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 	@echo "Building paged disk image: $@ (ALIGN=$(ALIGN))"
 
 	# Clear binary file
@@ -67,6 +72,19 @@ $(FINAL_IMG): $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 
 	# Append .text
 	cat $(TEXT_BIN) >> $@
+
+	# Align current image to next ALIGN boundary (before .shared_text)
+	@{ \
+		sz=$$(stat -c %s "$@"); \
+		pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+		echo "Padding before .shared_text: $$pad bytes"; \
+		if [ $$pad -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$pad >> "$@" 2>/dev/null; \
+		fi; \
+	}
+
+	# Append .data
+	cat $(SHARED_TEXT_BIN) >> $@
 
 	# Align current image to next ALIGN boundary (before .data)
 	@{ \
