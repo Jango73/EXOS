@@ -712,23 +712,27 @@ PHYSICAL AllocUserPageDirectory(void) {
     PHYSICAL PA_Directory = NULL;
     PHYSICAL PA_LowTable = NULL;
     PHYSICAL PA_KernelTable = NULL;
+    PHYSICAL PA_UserTable = NULL;
 
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE LowTable = NULL;
     LPPAGETABLE KernelTable = NULL;
+    LPPAGETABLE UserTable = NULL;
     LPPAGEDIRECTORY CurrentPD = (LPPAGEDIRECTORY)PD_VA;
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Enter"));
 
     U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for LA_KERNEL
+    U32 DirUser = (LA_USER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for LA_USER
     U32 Index;
 
-    // Allocate required physical pages (PD + 2 PTs)
+    // Allocate required physical pages (PD + 3 PTs)
     PA_Directory = AllocPhysicalPage();
     PA_LowTable = AllocPhysicalPage();
     PA_KernelTable = AllocPhysicalPage();
+    PA_UserTable = AllocPhysicalPage();
 
-    if (PA_Directory == NULL || PA_LowTable == NULL || PA_KernelTable == NULL) {
+    if (PA_Directory == NULL || PA_LowTable == NULL || PA_KernelTable == NULL || PA_UserTable == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
@@ -757,6 +761,20 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[0].User = 0;
     Directory[0].Fixed = 1;
     Directory[0].Address = (PA_LowTable >> PAGE_SIZE_MUL);
+
+    // Directory[DirUser] -> map LA_USER..LA_USER+4MB-1 for userland
+    Directory[DirUser].Present = 1;
+    Directory[DirUser].ReadWrite = 1;
+    Directory[DirUser].Privilege = PAGE_PRIVILEGE_USER;
+    Directory[DirUser].WriteThrough = 0;
+    Directory[DirUser].CacheDisabled = 0;
+    Directory[DirUser].Accessed = 0;
+    Directory[DirUser].Reserved = 0;
+    Directory[DirUser].PageSize = 0;  // 4KB pages
+    Directory[DirUser].Global = 0;
+    Directory[DirUser].User = 0;
+    Directory[DirUser].Fixed = 1;
+    Directory[DirUser].Address = (PA_UserTable >> PAGE_SIZE_MUL);
 
     // Directory[DirKernel] -> map LA_KERNEL..LA_KERNEL+4MB-1 to current kernel state
     Directory[DirKernel].Present = 1;
@@ -794,17 +812,29 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[PD_RECURSIVE_SLOT].Fixed = 1;
     Directory[PD_RECURSIVE_SLOT].Address = (PA_Directory >> PAGE_SIZE_MUL);
 
-    // Fill identity-mapped low table (0..4MB) - copy from current
+    // Fill identity-mapped low table (0..4MB) - manual setup like AllocPageDirectory
     LINEAR LA_PT = MapPhysicalPage2(PA_LowTable);
     if (LA_PT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
     LowTable = (LPPAGETABLE)LA_PT;
+    MemorySet(LowTable, 0, PAGE_SIZE);
     
-    LPPAGETABLE CurrentLowTable = (LPPAGETABLE)(PT_BASE_VA + 0 * PAGE_SIZE);
+    // Initialize identity mapping for 0..4MB (same as AllocPageDirectory)
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        LowTable[Index] = CurrentLowTable[Index];
+        LowTable[Index].Present = 1;
+        LowTable[Index].ReadWrite = 1;
+        LowTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
+        LowTable[Index].WriteThrough = 0;
+        LowTable[Index].CacheDisabled = 0;
+        LowTable[Index].Accessed = 0;
+        LowTable[Index].Dirty = 0;
+        LowTable[Index].Reserved = 0;
+        LowTable[Index].Global = 0;
+        LowTable[Index].User = 0;
+        LowTable[Index].Fixed = 1;
+        LowTable[Index].Address = Index;  // Identity mapping: page Index -> physical page Index
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
@@ -841,6 +871,17 @@ PHYSICAL AllocUserPageDirectory(void) {
     
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
 
+    // Initialize empty user table (will be filled by AllocRegion)
+    LA_PT = MapPhysicalPage2(PA_UserTable);
+    if (LA_PT == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on UserTable"));
+        goto Out_Error;
+    }
+    UserTable = (LPPAGETABLE)LA_PT;
+    MemorySet(UserTable, 0, PAGE_SIZE);
+
+    KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] User table initialized"));
+
     // TLB sync before returning
     FlushTLB();
 
@@ -859,6 +900,7 @@ Out_Error:
     if (PA_Directory) FreePhysicalPage(PA_Directory);
     if (PA_LowTable) FreePhysicalPage(PA_LowTable);
     if (PA_KernelTable) FreePhysicalPage(PA_KernelTable);
+    if (PA_UserTable) FreePhysicalPage(PA_UserTable);
 
     return NULL;
 }

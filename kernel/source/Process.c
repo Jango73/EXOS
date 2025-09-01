@@ -243,6 +243,10 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     HeapSize = ExecutableInfo.HeapRequested;
     StackSize = ExecutableInfo.StackRequested;
 
+    if (HeapSize < N_64KB) {
+        HeapSize = N_64KB;
+    }
+
     if (StackSize < TASK_MINIMUM_STACK_SIZE) {
         StackSize = TASK_MINIMUM_STACK_SIZE;
     }
@@ -298,7 +302,13 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] AllocRegioning process space"));
 
-    AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    if (AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[CreateProcess] Failed to allocate process space"));
+        LoadPageDirectory(PageDirectory);
+        UnfreezeScheduler();
+        CloseFile(File);
+        goto Out;
+    }
 
     //-------------------------------------
     // Open the executable file
