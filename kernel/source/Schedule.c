@@ -279,6 +279,10 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     LPINTERRUPTFRAME NextFrame = (LPINTERRUPTFRAME)(NextSysStackTop - sizeof(INTERRUPTFRAME));
     MemoryCopy(NextFrame, &(NextTask->Context), sizeof(INTERRUPTFRAME));
 
+#if CRITICAL_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning next frame to the stub"));
+#endif
+
     return NextFrame;
 }
 
