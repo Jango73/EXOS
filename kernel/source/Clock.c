@@ -21,6 +21,7 @@
     Clock
 
 \************************************************************************/
+
 #include "../include/Clock.h"
 
 #include "../include/I386.h"
@@ -31,7 +32,11 @@
 
 /***************************************************************************/
 
-#define CLOCK_FREQUENCY 1000
+#define DIVISOR 11932
+#define MILLIS 10
+
+// #define DIVISOR 59659
+// #define MILLIS 50
 
 /***************************************************************************/
 
@@ -70,13 +75,56 @@ void InitializeClock(void) {
     SaveFlags(&Flags);
 
     OutPortByte(CLOCK_COMMAND, 0x36);
-    OutPortByte(CLOCK_DATA, (U8)(0x2E9C >> 0));
-    OutPortByte(CLOCK_DATA, (U8)(0x2E9C >> 8));
+    OutPortByte(CLOCK_DATA, (U8)(DIVISOR >> 0));
+    OutPortByte(CLOCK_DATA, (U8)(DIVISOR >> 8));
 
     RestoreFlags(&Flags);
 
     EnableIRQ(0);
     InitializeLocalTime();
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Increment the internal millisecond counter.
+ */
+void ClockHandler(void) {
+    // KernelLogText(LOG_DEBUG, TEXT("[ClockHandler]"));
+    RawSystemTime += MILLIS;
+    CurrentTime.Milli += MILLIS;
+ 
+    if (CurrentTime.Milli >= 1000) {
+        CurrentTime.Milli -= 1000;
+        CurrentTime.Second++;
+    }
+
+    if (CurrentTime.Second >= 60) {
+        CurrentTime.Second = 0;
+        CurrentTime.Minute++;
+    }
+
+    if (CurrentTime.Minute >= 60) {
+        CurrentTime.Minute = 0;
+        CurrentTime.Hour++;
+    }
+
+    if (CurrentTime.Hour >= 24) {
+        CurrentTime.Hour = 0;
+        CurrentTime.Day++;
+        U32 DaysInCurrentMonth = DaysInMonth[CurrentTime.Month - 1];
+        if (CurrentTime.Month == 2 && IsLeapYear(CurrentTime.Year)) {
+            DaysInCurrentMonth++;
+        }
+        if (CurrentTime.Day > DaysInCurrentMonth) {
+            CurrentTime.Day = 1;
+            CurrentTime.Month++;
+            if (CurrentTime.Month > 12) {
+                CurrentTime.Month = 1;
+                CurrentTime.Year++;
+            }
+        }
+    }
 }
 
 /***************************************************************************/
@@ -116,45 +164,6 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
     if (S < 10) StringConcat(Text, Text_0);
     U32ToString(S, Temp);
     StringConcat(Text, Temp);
-}
-
-/***************************************************************************/
-
-/**
- * @brief Increment the internal millisecond counter.
- */
-void ClockHandler(void) {
-    // KernelLogText(LOG_DEBUG, TEXT("[ClockHandler]"));
-    RawSystemTime += 10;
-    CurrentTime.Milli += 10;
-    if (CurrentTime.Milli >= 1000) {
-        CurrentTime.Milli -= 1000;
-        CurrentTime.Second++;
-    }
-    if (CurrentTime.Second >= 60) {
-        CurrentTime.Second = 0;
-        CurrentTime.Minute++;
-    }
-    if (CurrentTime.Minute >= 60) {
-        CurrentTime.Minute = 0;
-        CurrentTime.Hour++;
-    }
-    if (CurrentTime.Hour >= 24) {
-        CurrentTime.Hour = 0;
-        CurrentTime.Day++;
-        U32 DaysInCurrentMonth = DaysInMonth[CurrentTime.Month - 1];
-        if (CurrentTime.Month == 2 && IsLeapYear(CurrentTime.Year)) {
-            DaysInCurrentMonth++;
-        }
-        if (CurrentTime.Day > DaysInCurrentMonth) {
-            CurrentTime.Day = 1;
-            CurrentTime.Month++;
-            if (CurrentTime.Month > 12) {
-                CurrentTime.Month = 1;
-                CurrentTime.Year++;
-            }
-        }
-    }
 }
 
 /***************************************************************************/

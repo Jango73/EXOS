@@ -79,7 +79,7 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     switch (Type) {
         case LOG_DEBUG: {
-            #ifdef DEBUG_OUTPUT
+            #if DEBUG_OUTPUT == 1
             KernelPrintString(TEXT("DEBUG > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);

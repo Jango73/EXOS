@@ -21,6 +21,8 @@
     Log I386Struct
 
 \************************************************************************/
+
+#include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
 
@@ -265,22 +267,22 @@ void LogTask(U32 LogType, const LPTASK Task) {
     KernelLogText(
         LogType,
         TEXT("TASK @ %X:\n"
-             "Mutex : %X\n"
-             "Process : %X\n"
-             "Type : %X\n"
-             "Status : %X\n"
-             "Priority : %X\n"
-             "Function : %X\n"
-             "Parameter : %X\n"
-             "ReturnValue : %X\n"
-             "StackBase : %X\n"
-             "StackSize : %X\n"
-             "SysStackBase : %X\n"
-             "SysStackSize : %X\n"
-             "Time : %X\n"
-             "WakeUpTime : %X\n"
-             "MessageMutex : %X\n"),
-        (LINEAR)Task, Task->Mutex, Task->Process, Task->Type, Task->Status, Task->Priority, Task->Function,
-        (U32)Task->Parameter, Task->ReturnValue, Task->StackBase, Task->StackSize, Task->SysStackBase,
-        Task->SysStackSize, Task->Time, Task->WakeUpTime, Task->MessageMutex);
+             "  Process : %X (%S)\n"
+             "  Type : %X\n"
+             "  Status : %X\n"
+             "  Priority : %X\n"
+             "  Function : %X\n"
+             "  Parameter : %X\n"
+             "  ReturnValue : %X\n"
+             "  StackBase : %X\n"
+             "  StackSize : %X\n"
+             "  SysStackBase : %X\n"
+             "  SysStackSize : %X\n"
+             "  Time : %X\n"
+             "  WakeUpTime : %X"),
+        (LINEAR)Task, (U32)Task->Process, Task->Process == &Kernel.Process ? "K" : "U",
+        (U32)Task->Type, (U32)Task->Status, (U32)Task->Priority,
+        (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ReturnValue, (U32)Task->StackBase, (U32)Task->StackSize,
+        (U32)Task->SysStackBase, (U32)Task->SysStackSize, (U32)Task->Time, (U32)Task->WakeUpTime
+        );
 }

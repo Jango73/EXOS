@@ -1,5 +1,11 @@
 # Kernel documentation
 
+## Debugging
+
+To have standard debug info, use scripts/4-2-clean-build-debug.sh or scripts/4-5-build-debug.sh.
+To have critical debug info like scheduling, use 4-3-clean-build-critical-debug.sh or scripts/4-6-build-critical-debug.sh.
+Be aware that it generates A LOT of COM2 output, the scheduler is called every 10ms...
+
 ## Architecture
 
 To be completed.
@@ -243,7 +249,7 @@ Fractional part = unusable space.
 
 ### IRQ scheduling
 
-Int 32 triggers
+IRQ0 triggers
 └── trap lands in interrupt-a.asm : Interrupt_Clock
     └── calls ClockHandler to increment system time
     └── calls Scheduler to check if it's time to switch to another task
@@ -260,10 +266,6 @@ exos-runtime-c.c : malloc() (or any other function)
             └── calls SYSCall.c : SystemCallHandler()
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
-
-## Debugging
-
-To see critical debug info like scheduling, uncomment "#define ENABLE_CRITICAL_DEBUG_LOGS" in Base.h. Be aware that it generates A LOT of COM2 output, the scheduler is called every 10ms...
 
 ## Modules and functions
 

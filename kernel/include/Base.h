@@ -29,10 +29,6 @@
 
 #define __EXOS__
 
-#ifdef DEBUG_OUTPUT
-// #define ENABLE_CRITICAL_DEBUG_LOGS
-#endif
-
 /***************************************************************************/
 
 #pragma pack(1)
