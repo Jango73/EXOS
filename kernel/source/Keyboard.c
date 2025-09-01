@@ -754,6 +754,11 @@ static U32 InitializeKeyboard(void) {
     Keyboard.NumLock = 1;
 
     //-------------------------------------
+    // Initialize keyboard layout to default
+
+    UseKeyboardLayout(TEXT("en-US"));
+
+    //-------------------------------------
     // Enable the keyboard
 
     SendKeyboardCommand(KSC_ENABLE, KSC_ENABLE);

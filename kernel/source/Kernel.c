@@ -380,6 +380,9 @@ static void SetKeyboardLayout(void) {
     if (Layout) {
         ConsolePrint(TEXT("Keboard = %s\n"), Layout);
         SelectKeyboard(Layout);
+    } else {
+        ConsolePrint(TEXT("Keyboard layout not found in config, using default en-US\n"));
+        SelectKeyboard(TEXT("en-US"));
     }
 }
 
