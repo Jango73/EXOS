@@ -757,13 +757,7 @@ TaskRunner :
     ; EAX in the TSS contains the parameter
 
     cmp         ebx, 0
-    je          _TaskRunner_KillTask
-
-    PRE_CALL_C
-    push        eax                        ; Argument for task function
-    call        ValidateEIPOrDie
-    add         esp, 4                     ; Adjust stack
-    POST_CALL_C
+    je          _TaskRunner_KillMe
 
     PRE_CALL_C
     push        eax                        ; Argument for task function
@@ -771,24 +765,11 @@ TaskRunner :
     add         esp, 4                     ; Adjust stack
     POST_CALL_C
 
-    ;--------------------------------------
-    ; When we come back from the function,
-    ; we kill the task so that the kernel
-    ; frees resources allocated and the
-    ; scheduler does not jump to it
+_TaskRunner_KillMe :
 
-_TaskRunner_KillTask :
-
-    ;--------------------------------------
-    ; Kill the task
-
-    PRE_CALL_C
-    call        GetCurrentTask
-    POST_CALL_C
-
-    push        eax
-    call        KillTask
-    add         esp, 4
+    mov         eax, 0x0000002F            ; SYSCALL_KillMe
+    xor         ebx, ebx
+    int         0x80
 
     ;--------------------------------------
     ; Do an infinite loop, task will be removed by scheduler

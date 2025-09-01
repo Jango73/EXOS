@@ -310,10 +310,6 @@ extern KernelPrint
 extern ConsolePrint
 extern ConsolePrintChar
 extern ClockTestTask
-extern KillTask
-extern GetCurrentTask
-extern ValidateEIPOrDie
-
 extern KernelLogText
 
 extern SystemCallHandler

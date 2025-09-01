@@ -29,6 +29,7 @@
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/System.h"
+#include "../include/Schedule.h"
 
 /************************************************************************\
 
@@ -951,7 +952,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     if (NumPages == 0) NumPages = 1;
 
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
-    Privilege = PAGE_PRIVILEGE_KERNEL;
+    Privilege = (GetCurrentProcess()->Privilege == PRIVILEGE_KERNEL) ? PAGE_PRIVILEGE_KERNEL : PAGE_PRIVILEGE_USER;
 
     // Derive cache policy flags for PTE
     U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;

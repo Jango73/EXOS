@@ -99,6 +99,7 @@ typedef struct tag_ABI_HEADER {
 #define SYSCALL_ConsolePrint 0x0000002C
 #define SYSCALL_ConsoleGetString 0x0000002D
 #define SYSCALL_ConsoleGotoXY 0x0000002E
+#define SYSCALL_KillMe 0x0000002F
 
 /************************************************************************/
 // EXOS Windowing Services

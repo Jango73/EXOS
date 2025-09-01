@@ -42,6 +42,10 @@ BOOL KillTask(HANDLE Task) { return (BOOL)exoscall(SYSCALL_KillTask, (U32)Task);
 
 /***************************************************************************/
 
+void KillMe(void) { exoscall(SYSCALL_KillMe, 0); }
+
+/***************************************************************************/
+
 void Sleep(U32 MilliSeconds) { exoscall(SYSCALL_Sleep, MilliSeconds); }
 
 /***************************************************************************/

@@ -33,6 +33,7 @@
 #include "../include/Mouse.h"
 #include "../include/Process.h"
 #include "../include/User.h"
+#include "../include/Schedule.h"
 
 /***************************************************************************/
 
@@ -159,6 +160,13 @@ U32 SysCall_CreateTask(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_KillTask(U32 Parameter) { return (U32)KillTask((LPTASK)Parameter); }
+
+/***************************************************************************/
+
+U32 SysCall_KillMe(U32 Parameter) {
+    UNUSED(Parameter);
+    return (U32)KillTask(GetCurrentTask());
+}
 
 /***************************************************************************/
 
@@ -779,7 +787,7 @@ SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
     SysCall_ConsolePrint,          // 0x0000002C
     SysCall_ConsoleGetString,      // 0x0000002D
     SysCall_ConsoleGotoXY,         // 0x0000002E
-    NULL,                          // 0x0000002F
+    SysCall_KillMe,                // 0x0000002F
     NULL,                          // 0x00000030
     NULL,                          // 0x00000031
     NULL,                          // 0x00000032
