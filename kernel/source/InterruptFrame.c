@@ -164,7 +164,7 @@
 #define INCOMING_ECX_INDEX 12
 #define INCOMING_EAX_INDEX 13
 #define INCOMING_ERROR_CODE_INDEX 14    // If present, the following will shifted up by 1 (+ HasErrorCode)
-#define INCOMING_EIP_INDEX 14
+#define INCOMING_EIP_INDEX 14           // Yes, it is the same index as INCOMING_ERROR_CODE_INDEX, don't touch this
 #define INCOMING_CS_INDEX 15
 #define INCOMING_EFLAGS_INDEX 16
 #define INCOMING_R3_ESP_INDEX 17
