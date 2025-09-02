@@ -90,9 +90,7 @@
 ;
 ;-------------------------------------------------------------------------
 
-; =================== INTEL386REGISTERS layout (no padding issues) ===================
-; Offsets inside INTEL386REGISTERS (bytes)
-
+; =================== INTEL386REGISTERS layout ===================
 %define R_EFlags    0
 %define R_EAX       4
 %define R_EBX       8
@@ -129,38 +127,56 @@
 %define F_ErrCode   (SIZE_REGS + 4)
 %define SIZE_FRAME  (SIZE_REGS + 8)
 
-; Layout notes for NO error code path:
-; - After PUSHAD: 32 bytes saved GPRs at S0-32 .. S0-1
-; - Then we PUSH DS/ES/FS/GS (each 4 bytes in 32-bit mode): GS@[S0-48], FS@[S0-44], ES@[S0-40], DS@[S0-36]
-; - Hardware frame (no error code): EIP@[S0+0], CS@[S0+4], EFLAGS@[S0+8], [UserESP@[S0+12], UserSS@[S0+16] if CPL3]
+; Stack layout after our prologue (using EBP as frame pointer):
+;
+; [EBP + 0]     = old EBP (we push EBP after segments)
+; [EBP + 4]     = return address from call EnterKernel
+; [EBP + 8]     = GS (pushed)
+; [EBP + 12]    = FS (pushed) 
+; [EBP + 16]    = ES (pushed)
+; [EBP + 20]    = DS (pushed)
+; [EBP + 24]    = EDI (from pushad)
+; [EBP + 28]    = ESI (from pushad)
+; [EBP + 32]    = EBP_old (from pushad)
+; [EBP + 36]    = ESP_at_entry (from pushad)
+; [EBP + 40]    = EBX (from pushad)
+; [EBP + 44]    = EDX (from pushad)
+; [EBP + 48]    = ECX (from pushad)
+; [EBP + 52]    = EAX (from pushad)
+; [EBP + 56]    = EIP (hardware frame)
+; [EBP + 60]    = CS (hardware frame)
+; [EBP + 64]    = EFLAGS (hardware frame)
+; [EBP + 68]    = User ESP (only if privilege change)
+; [EBP + 72]    = User SS (only if privilege change)
 
-%define OFF_SAVED_GPRS   (SIZE_FRAME + 16)          ; +0: EDI, +4: ESI, +8: EBP, +12: ESP(saved at ISR entry), +16: EBX, +20: EDX, +24: ECX, +28: EAX
-%define OFF_HW_NOERR     (SIZE_FRAME + 16 + 32)     ; +0:EIP, +4:CS, +8:EFLAGS, (+12:UserESP, +16:UserSS if CPL3)
+; Frame offsets from EBP
+%define FP_GS           8
+%define FP_FS           12
+%define FP_ES           16
+%define FP_DS           20
+%define FP_EDI          24
+%define FP_ESI          28
+%define FP_EBP_OLD      32
+%define FP_ESP_ENTRY    36
+%define FP_EBX          40
+%define FP_EDX          44
+%define FP_ECX          48
+%define FP_EAX          52
+%define FP_EIP          56
+%define FP_CS           60
+%define FP_EFLAGS       64
+%define FP_USER_ESP     68
+%define FP_USER_SS      72
 
-%define OFF_HW_ERR       (SIZE_FRAME + 16 + 32 + 4) ; base at EIP (EIP @ +0, CS @ +4, EFLAGS @ +8)
-%define OFF_ERR_WORD     (OFF_HW_ERR - 4)           ; error code sits 4 bytes before EIP
-
-%define OFF_SAVED_EAX   (OFF_SAVED_GPRS + 28)
-%define OFF_SAVED_EBX   (OFF_SAVED_GPRS + 16)
-%define OFF_SAVED_ECX   (OFF_SAVED_GPRS + 24)
-%define OFF_SAVED_EDX   (OFF_SAVED_GPRS + 20)
-
-%define OFF_SAVED_ESI   (OFF_SAVED_GPRS + 4)
-%define OFF_SAVED_EDI   (OFF_SAVED_GPRS + 0)
-%define OFF_SAVED_EBP   (OFF_SAVED_GPRS + 8)
-
-%define OFF_SAVED_CS    (OFF_HW_NOERR + 4)
-%define OFF_SAVED_ESP   (OFF_HW_NOERR + 12)         ; User ESP (only if CPL3)
-%define OFF_SAVED_SS    (OFF_HW_NOERR + 16)         ; User SS (only if CPL3)
-
-; Helpers to read/write the four pushed segment selectors (GS,FS,ES,DS) just above PUSHAD
-%define OFF_PUSHED_GS   (SIZE_FRAME + 0)
-%define OFF_PUSHED_FS   (SIZE_FRAME + 4)
-%define OFF_PUSHED_ES   (SIZE_FRAME + 8)
-%define OFF_PUSHED_DS   (SIZE_FRAME + 12)
+; For error code exceptions, add 4 to all hardware frame offsets
+%define FP_ERR_CODE     56
+%define FP_EIP_ERR      60
+%define FP_CS_ERR       64
+%define FP_EFLAGS_ERR   68
+%define FP_USER_ESP_ERR 72
+%define FP_USER_SS_ERR  76
 
 ; ------------------- Build frame (NO error code) --------------------
-; Usage: ISR_BUILD_FRAME_NOERR IntNo
 %macro ISR_BUILD_FRAME_NOERR 1
     cli
     pushad
@@ -168,109 +184,115 @@
     push        es
     push        fs
     push        gs
-
-    ; Capture SS explicitly, zero-extended to 32-bit and into a callee-saved reg (ESI).
-    push        ss
-    pop         esi                            ; ESI = SS at ISR entry (zero-extended)
-
-    call        EnterKernel                    ; switch to ring0 segs
-
-    ; Reserve frame
+    
+    ; Setup frame pointer BEFORE calling EnterKernel
+    push        ebp
+    mov         ebp, esp                    ; EBP = stable frame pointer
+    
+    ; Capture SS before EnterKernel changes it
+    mov         eax, ss
+    push        eax                         ; Save original SS on stack
+    
+    call        EnterKernel                 ; Switch to ring0 segments
+    
+    ; Reserve space for INTERRUPTFRAME
     sub         esp, SIZE_FRAME
-    mov         edi, esp                       ; EDI = &frame
-
-    ; ---------------- Fill INTEL386REGISTERS ----------------
-    ; Segment selectors from the four pushed dwords (stable across the call)
-    movzx       eax, word [esp + OFF_PUSHED_DS]
+    mov         edi, esp                    ; EDI = pointer to frame
+    
+    ; ============ Fill INTEL386REGISTERS ============
+    
+    ; Segment registers (zero-extended to 32-bit)
+    movzx       eax, word [ebp + FP_DS]
     mov         word [edi + R_DS], ax
-    movzx       eax, word [esp + OFF_PUSHED_ES]
+    movzx       eax, word [ebp + FP_ES]
     mov         word [edi + R_ES], ax
-    movzx       eax, word [esp + OFF_PUSHED_FS]
+    movzx       eax, word [ebp + FP_FS]
     mov         word [edi + R_FS], ax
-    movzx       eax, word [esp + OFF_PUSHED_GS]
+    movzx       eax, word [ebp + FP_GS]
     mov         word [edi + R_GS], ax
-
-    ; HW triplet
-    mov         eax, [esp + OFF_HW_NOERR + 8]      ; EFLAGS
+    
+    ; Hardware frame registers
+    mov         eax, [ebp + FP_EFLAGS]
     mov         [edi + R_EFlags], eax
-    mov         eax, [esp + OFF_HW_NOERR + 0]      ; EIP
-    mov         [edi + R_EIP],   eax
-    movzx       eax, word [esp + OFF_HW_NOERR + 4] ; CS
+    mov         eax, [ebp + FP_EIP]
+    mov         [edi + R_EIP], eax
+    movzx       eax, word [ebp + FP_CS]
     mov         word [edi + R_CS], ax
-
-    ; Default to ring0->ring0 entry: SS from captured ESI, ESP from saved PUSHAD slot.
-    mov         ax, si
-    mov         word [edi + R_SS], ax
-    mov         eax, [esp + OFF_SAVED_GPRS + 12]   ; ESP saved by PUSHAD = ESP at ISR entry
-    mov         [edi + R_ESP], eax
-
-    ; Saved GPRs (pushad order)
-    mov         eax, [esp + OFF_SAVED_EAX]         ; EAX
+    
+    ; General purpose registers from PUSHAD
+    mov         eax, [ebp + FP_EAX]
     mov         [edi + R_EAX], eax
-    mov         eax, [esp + OFF_SAVED_EBX]         ; EBX
+    mov         eax, [ebp + FP_EBX]
     mov         [edi + R_EBX], eax
-    mov         eax, [esp + OFF_SAVED_ECX]         ; ECX
+    mov         eax, [ebp + FP_ECX]
     mov         [edi + R_ECX], eax
-    mov         eax, [esp + OFF_SAVED_EDX]         ; EDX
+    mov         eax, [ebp + FP_EDX]
     mov         [edi + R_EDX], eax
-    mov         eax, [esp + OFF_SAVED_ESI]         ; ESI
+    mov         eax, [ebp + FP_ESI]
     mov         [edi + R_ESI], eax
-    mov         eax, [esp + OFF_SAVED_EDI]         ; EDI
+    mov         eax, [ebp + FP_EDI]
     mov         [edi + R_EDI], eax
-    mov         eax, [esp + OFF_SAVED_EBP]         ; EBP
+    mov         eax, [ebp + FP_EBP_OLD]
     mov         [edi + R_EBP], eax
-
-    ; If CPL3, overwrite with UserESP/SS from HW frame
-    mov         eax, [esp + OFF_SAVED_CS]          ; CS
-    test        eax, 3
-    jz          %%no_user
-    mov         eax, [esp + OFF_SAVED_ESP]         ; User ESP
-    mov         [edi + R_ESP], eax
-    movzx       eax, word [esp + OFF_SAVED_SS]     ; User SS
+    
+    ; Default stack info (ring 0 -> ring 0 case)
+    pop         eax                         ; Restore original SS
     mov         word [edi + R_SS], ax
-%%no_user:
-
-    ; Control/Debug registers: zero unknowns, fill safe subset (avoid DR4/DR5 reads).
+    mov         eax, [ebp + FP_ESP_ENTRY]   ; ESP at ISR entry
+    mov         [edi + R_ESP], eax
+    
+    ; Check if we came from user mode (CPL = 3)
+    mov         eax, [ebp + FP_CS]
+    test        eax, 3                      ; Test CPL bits
+    jz          %%ring0_entry
+    
+    ; Ring 3 -> Ring 0: use user ESP/SS from hardware frame
+    mov         eax, [ebp + FP_USER_ESP]
+    mov         [edi + R_ESP], eax
+    movzx       eax, word [ebp + FP_USER_SS]
+    mov         word [edi + R_SS], ax
+    
+%%ring0_entry:
+    
+    ; Control registers (set to safe defaults for now)
     mov         dword [edi + R_CR0], 0
     mov         dword [edi + R_CR2], 0
     mov         dword [edi + R_CR3], 0
     mov         dword [edi + R_CR4], 0
-
-    push        edx
-    mov         edx, dr0
-    mov         dword [edi + R_DR0], edx
-    mov         edx, dr1
-    mov         dword [edi + R_DR1], edx
-    mov         edx, dr2
-    mov         dword [edi + R_DR2], edx
-    mov         edx, dr3
-    mov         dword [edi + R_DR3], edx
-    mov         edx, dr6
-    mov         dword [edi + R_DR6], edx
-    mov         edx, dr7
-    mov         dword [edi + R_DR7], edx
-    pop         edx
-
+    
+    ; Debug registers
+    mov         eax, dr0
+    mov         [edi + R_DR0], eax
+    mov         eax, dr1
+    mov         [edi + R_DR1], eax
+    mov         eax, dr2
+    mov         [edi + R_DR2], eax
+    mov         eax, dr3
+    mov         [edi + R_DR3], eax
+    mov         eax, dr6
+    mov         [edi + R_DR6], eax
+    mov         eax, dr7
+    mov         [edi + R_DR7], eax
+    
+    ; DR4/DR5 set to safe defaults
     mov         dword [edi + R_DR4], 0
     mov         dword [edi + R_DR5], 0
-
-    ; ---------------- Tail: IntNo / ErrCode -----------------
-    mov         dword [edi + F_IntNo],  %1
+    
+    ; Frame metadata
+    mov         dword [edi + F_IntNo], %1
     mov         dword [edi + F_ErrCode], 0
 %endmacro
 
 %macro ISR_BUILD_FRAME_NOERR_AND_CALL 2
     ISR_BUILD_FRAME_NOERR %1
-
+    
     ; Call C handler: void Handler(INTERRUPTFRAME* Frame)
     push        edi
     call        %2
     add         esp, 4
 %endmacro
 
-; ------------------- Variant: with CPU error code on stack ------------------
-; For exceptions that push an error code (#TS, #NP, #SS, #GP, #PF, #AC, etc.).
-; Hardware layout at entry (top->bottom): [err][EIP][CS][EFLAGS][(UserESP,UserSS if CPL3)]
+; ------------------- Build frame (WITH error code) --------------------
 %macro ISR_BUILD_FRAME_ERR_AND_CALL 2
     cli
     pushad
@@ -278,188 +300,213 @@
     push        es
     push        fs
     push        gs
-
-    ; Capture SS explicitly into ESI
-    push        ss
-    pop         esi
-
-    call        EnterKernel                ; switch to ring0 segs
-
-    ; Reserve frame
+    
+    ; Setup frame pointer
+    push        ebp
+    mov         ebp, esp                    ; EBP = stable frame pointer
+    
+    ; Capture SS before EnterKernel changes it
+    mov         eax, ss
+    push        eax                         ; Save original SS on stack
+    
+    call        EnterKernel                 ; Switch to ring0 segments
+    
+    ; Reserve space for INTERRUPTFRAME
     sub         esp, SIZE_FRAME
-    mov         edi, esp                   ; EDI = &frame
-
-    ; ---------------- Fill INTEL386REGISTERS ----------------
-    movzx       eax, word [esp + OFF_PUSHED_DS]
+    mov         edi, esp                    ; EDI = pointer to frame
+    
+    ; ============ Fill INTEL386REGISTERS ============
+    
+    ; Segment registers
+    movzx       eax, word [ebp + FP_DS]
     mov         word [edi + R_DS], ax
-    movzx       eax, word [esp + OFF_PUSHED_ES]
+    movzx       eax, word [ebp + FP_ES]
     mov         word [edi + R_ES], ax
-    movzx       eax, word [esp + OFF_PUSHED_FS]
+    movzx       eax, word [ebp + FP_FS]
     mov         word [edi + R_FS], ax
-    movzx       eax, word [esp + OFF_PUSHED_GS]
+    movzx       eax, word [ebp + FP_GS]
     mov         word [edi + R_GS], ax
-
-    ; HW triplet
-    mov         eax, [esp + OFF_HW_ERR + 8]        ; EFLAGS
+    
+    ; Hardware frame registers (with error code offset)
+    mov         eax, [ebp + FP_EFLAGS_ERR]
     mov         [edi + R_EFlags], eax
-    mov         eax, [esp + OFF_HW_ERR + 0]        ; EIP
-    mov         [edi + R_EIP],   eax
-    movzx       eax, word [esp + OFF_HW_ERR + 4]   ; CS
+    mov         eax, [ebp + FP_EIP_ERR]
+    mov         [edi + R_EIP], eax
+    movzx       eax, word [ebp + FP_CS_ERR]
     mov         word [edi + R_CS], ax
-
-    ; Default to ring0->ring0 entry
-    mov         ax, si
-    mov         word [edi + R_SS], ax
-    mov         eax, [esp + OFF_SAVED_GPRS + 12]   ; ESP at ISR entry
-    mov         [edi + R_ESP], eax
-
-    ; Saved GPRs (pushad order)
-    mov         eax, [esp + OFF_SAVED_EAX]         ; EAX
+    
+    ; General purpose registers from PUSHAD
+    mov         eax, [ebp + FP_EAX]
     mov         [edi + R_EAX], eax
-    mov         eax, [esp + OFF_SAVED_EBX]         ; EBX
+    mov         eax, [ebp + FP_EBX]
     mov         [edi + R_EBX], eax
-    mov         eax, [esp + OFF_SAVED_ECX]         ; ECX
+    mov         eax, [ebp + FP_ECX]
     mov         [edi + R_ECX], eax
-    mov         eax, [esp + OFF_SAVED_EDX]         ; EDX
+    mov         eax, [ebp + FP_EDX]
     mov         [edi + R_EDX], eax
-    mov         eax, [esp + OFF_SAVED_ESI]         ; ESI
+    mov         eax, [ebp + FP_ESI]
     mov         [edi + R_ESI], eax
-    mov         eax, [esp + OFF_SAVED_EDI]         ; EDI
+    mov         eax, [ebp + FP_EDI]
     mov         [edi + R_EDI], eax
-    mov         eax, [esp + OFF_SAVED_EBP]         ; EBP
+    mov         eax, [ebp + FP_EBP_OLD]
     mov         [edi + R_EBP], eax
-
-    ; If CPL3, overwrite with UserESP/SS from HW frame
-    mov         eax, [esp + OFF_HW_ERR + 4]        ; CS
-    test        eax, 3
-    jz          %%no_user
-    mov         eax, [esp + OFF_HW_ERR + 12]       ; User ESP
-    mov         [edi + R_ESP], eax
-    movzx       eax, word [esp + OFF_HW_ERR + 16]  ; User SS
+    
+    ; Default stack info (ring 0 -> ring 0 case)
+    pop         eax                         ; Restore original SS
     mov         word [edi + R_SS], ax
-%%no_user:
-
-    ; Control/Debug registers
+    mov         eax, [ebp + FP_ESP_ENTRY]   ; ESP at ISR entry
+    mov         [edi + R_ESP], eax
+    
+    ; Check if we came from user mode
+    mov         eax, [ebp + FP_CS_ERR]
+    test        eax, 3
+    jz          %%ring0_entry
+    
+    ; Ring 3 -> Ring 0: use user ESP/SS from hardware frame
+    mov         eax, [ebp + FP_USER_ESP_ERR]
+    mov         [edi + R_ESP], eax
+    movzx       eax, word [ebp + FP_USER_SS_ERR]
+    mov         word [edi + R_SS], ax
+    
+%%ring0_entry:
+    
+    ; Control registers
     mov         dword [edi + R_CR0], 0
     mov         dword [edi + R_CR2], 0
     mov         dword [edi + R_CR3], 0
     mov         dword [edi + R_CR4], 0
-
-    push        edx
-    mov         edx, dr0
-    mov         dword [edi + R_DR0], edx
-    mov         edx, dr1
-    mov         dword [edi + R_DR1], edx
-    mov         edx, dr2
-    mov         dword [edi + R_DR2], edx
-    mov         edx, dr3
-    mov         dword [edi + R_DR3], edx
-    mov         edx, dr6
-    mov         dword [edi + R_DR6], edx
-    mov         edx, dr7
-    mov         dword [edi + R_DR7], edx
-    pop         edx
-
+    
+    ; Debug registers
+    mov         eax, dr0
+    mov         [edi + R_DR0], eax
+    mov         eax, dr1
+    mov         [edi + R_DR1], eax
+    mov         eax, dr2
+    mov         [edi + R_DR2], eax
+    mov         eax, dr3
+    mov         [edi + R_DR3], eax
+    mov         eax, dr6
+    mov         [edi + R_DR6], eax
+    mov         eax, dr7
+    mov         [edi + R_DR7], eax
+    
     mov         dword [edi + R_DR4], 0
     mov         dword [edi + R_DR5], 0
-
-    ; ---------------- Tail: IntNo / ErrCode -----------------
-    mov         dword [edi + F_IntNo],  %1
-    mov         eax,  [esp + OFF_ERR_WORD]
-    mov         dword [edi + F_ErrCode], eax
-
-    ; Call C handler: void Handler(INTERRUPTFRAME* Frame)
+    
+    ; Frame metadata
+    mov         dword [edi + F_IntNo], %1
+    mov         eax, [ebp + FP_ERR_CODE]    ; Get error code from stack
+    mov         [edi + F_ErrCode], eax
+    
+    ; Call C handler
     push        edi
     call        %2
     add         esp, 4
 %endmacro
 
 ; ------------------- Build synthetic exit stack (NO error code) ------------------
-; Recreate exactly the stack layout expected by ISR_RETURN (NO error code).
-; IN: %1 = register containing pointer to INTERRUPTFRAME (NextFrame)
-; ------------------- Build synthetic exit stack (NO error code) - CORRIGÉE ------------------
-; Recreate exactly the stack layout expected by ISR_RETURN (NO error code).
-; IN: %1 = register containing pointer to INTERRUPTFRAME (NextFrame)
 %macro BUILD_EXIT_STACK_NOERR 1
-    ; Save the frame pointer
-    mov     ecx, %1                       ; ECX = pointeur vers NextFrame (stable)
+    mov         esi, %1                     ; ESI = pointer to NextFrame (preserve across ops)
     
-    ; Target ESP before ISR_RETURN must be NextS_hw - OFF_HW_NOERR
-    mov     edx, [ecx + R_ESP]            ; EDX = NextS_hw (ESP at ISR entry for next task)
-    lea     ebx, [edx - OFF_HW_NOERR]     ; EBX = target ESP before ISR_RETURN
-
-    ; [GS][FS][ES][DS] dwords - use ECX instead of %1
-    movzx   eax, word [ecx + R_GS]
-    mov     [ebx + OFF_PUSHED_GS], eax
-    movzx   eax, word [ecx + R_FS]
-    mov     [ebx + OFF_PUSHED_FS], eax
-    movzx   eax, word [ecx + R_ES]
-    mov     [ebx + OFF_PUSHED_ES], eax
-    movzx   eax, word [ecx + R_DS]
-    mov     [ebx + OFF_PUSHED_DS], eax
-
-    ; PUSHAD block (use the symmetric OFF_SAVED_* offsets) - use ECX
-    mov     eax, [ecx + R_EDI]
-    mov     [ebx + OFF_SAVED_EDI], eax
-    mov     eax, [ecx + R_ESI]
-    mov     [ebx + OFF_SAVED_ESI], eax
-    mov     eax, [ecx + R_EBP]
-    mov     [ebx + OFF_SAVED_EBP], eax
-    mov     eax, [ecx + R_ESP]
-    mov     [ebx + OFF_SAVED_GPRS + 12], eax      ; original ESP slot
-    mov     eax, [ecx + R_EBX]
-    mov     [ebx + OFF_SAVED_EBX], eax
-    mov     eax, [ecx + R_EDX]
-    mov     [ebx + OFF_SAVED_EDX], eax
-    mov     eax, [ecx + R_ECX]
-    mov     [ebx + OFF_SAVED_ECX], eax
-    mov     eax, [ecx + R_EAX]
-    mov     [ebx + OFF_SAVED_EAX], eax
-
-    ; HW frame - utiliser ECX
-    mov     eax, [ecx + R_EIP]
-    mov     [ebx + OFF_HW_NOERR + 0], eax         ; EIP
-    movzx   eax, word [ecx + R_CS]
-    mov     [ebx + OFF_HW_NOERR + 4], eax         ; CS as dword
-    mov     eax, [ecx + R_EFlags]
-    mov     [ebx + OFF_HW_NOERR + 8], eax         ; EFLAGS
-
-    ; If CPL3, append UserESP/UserSS - utiliser ECX
-    movzx   eax, word [ecx + R_CS]
-    test    eax, 3
-    jz      %%no_user
-    mov     eax, [ecx + R_ESP]
-    mov     [ebx + OFF_SAVED_ESP], eax            ; User ESP
-    movzx   eax, word [ecx + R_SS]
-    mov     [ebx + OFF_SAVED_SS], eax             ; User SS
-%%no_user:
-
-    ; Pivot to the synthesized stack
-    mov     esp, ebx
+    ; Calculate target stack layout
+    ; We need: [GS][FS][ES][DS][PUSHAD][HW_FRAME][USER_ESP,SS if CPL3]
+    
+    ; Determine stack size needed
+    mov         eax, 4 + 4 + 4 + 4          ; 4 segment pushes
+    add         eax, 32                     ; PUSHAD (8 * 4 bytes)
+    add         eax, 12                     ; Basic HW frame: EIP, CS, EFLAGS
+    
+    ; Check if target is ring 3
+    movzx       ecx, word [esi + R_CS]
+    test        ecx, 3
+    jz          %%calc_done
+    add         eax, 8                      ; Add space for User ESP + SS
+    
+%%calc_done:
+    ; Calculate new ESP: NextFrame.ESP - stack_size
+    mov         edx, [esi + R_ESP]          ; EDX = target ESP for task
+    sub         edx, eax                    ; EDX = base of new stack layout
+    
+    ; Build the stack from bottom to top
+    
+    ; Hardware frame first (at highest addresses)
+    mov         eax, [esi + R_EIP]
+    mov         [edx + 16 + 32 + 0], eax    ; EIP
+    movzx       eax, word [esi + R_CS]
+    mov         [edx + 16 + 32 + 4], eax    ; CS (zero-extended)
+    mov         eax, [esi + R_EFlags]
+    mov         [edx + 16 + 32 + 8], eax    ; EFLAGS
+    
+    ; Add user stack info if needed
+    movzx       eax, word [esi + R_CS]
+    test        eax, 3
+    jz          %%build_pushad
+    mov         eax, [esi + R_ESP]
+    mov         [edx + 16 + 32 + 12], eax   ; User ESP
+    movzx       eax, word [esi + R_SS]
+    mov         [edx + 16 + 32 + 16], eax   ; User SS
+    
+%%build_pushad:
+    ; PUSHAD layout: EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX
+    mov         eax, [esi + R_EDI]
+    mov         [edx + 16 + 0], eax         ; EDI
+    mov         eax, [esi + R_ESI]
+    mov         [edx + 16 + 4], eax         ; ESI
+    mov         eax, [esi + R_EBP]
+    mov         [edx + 16 + 8], eax         ; EBP
+    mov         eax, [esi + R_ESP]
+    mov         [edx + 16 + 12], eax        ; ESP (will be ignored by POPAD)
+    mov         eax, [esi + R_EBX]
+    mov         [edx + 16 + 16], eax        ; EBX
+    mov         eax, [esi + R_EDX]
+    mov         [edx + 16 + 20], eax        ; EDX
+    mov         eax, [esi + R_ECX]
+    mov         [edx + 16 + 24], eax        ; ECX
+    mov         eax, [esi + R_EAX]
+    mov         [edx + 16 + 28], eax        ; EAX
+    
+    ; Segment registers
+    movzx       eax, word [esi + R_DS]
+    mov         [edx + 0], eax              ; DS
+    movzx       eax, word [esi + R_ES]
+    mov         [edx + 4], eax              ; ES
+    movzx       eax, word [esi + R_FS]
+    mov         [edx + 8], eax              ; FS
+    movzx       eax, word [esi + R_GS]
+    mov         [edx + 12], eax             ; GS
+    
+    ; Switch to the new stack
+    mov         esp, edx
 %endmacro
 
 %macro ISR_RETURN 0
-    add         esp, SIZE_FRAME      ; free the reserved INTERRUPTFRAME
-
+    ; Clean up our local frame
+    add         esp, SIZE_FRAME             ; Free INTERRUPTFRAME
+    add         esp, 4                      ; Remove saved SS
+    pop         ebp                         ; Restore EBP
+    
+    ; Now we're back to the standard ISR exit layout
     pop         gs
     pop         fs
     pop         es
     pop         ds
-
     popad
     iretd
 %endmacro
 
 %macro ISR_RETURN_ERR 0
-    add         esp, SIZE_FRAME      ; free the reserved INTERRUPTFRAME
-
+    ; Clean up our local frame
+    add         esp, SIZE_FRAME             ; Free INTERRUPTFRAME
+    add         esp, 4                      ; Remove saved SS
+    pop         ebp                         ; Restore EBP
+    
+    ; Now we're back to the standard ISR exit layout
     pop         gs
     pop         fs
     pop         es
     pop         ds
-
     popad
-    add         esp, 4               ; discard error code pushed by CPU
+    add         esp, 4                      ; Skip error code pushed by CPU
     iretd
 %endmacro
 
@@ -467,5 +514,5 @@
     cli
 %%hang:
     hlt
-    jmp     %%hang
+    jmp         %%hang
 %endmacro
