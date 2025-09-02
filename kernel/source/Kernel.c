@@ -21,6 +21,7 @@
     Kernel
 
 \************************************************************************/
+
 #include "../include/Kernel.h"
 
 #include "../include/Clock.h"
@@ -618,7 +619,8 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Test tasks
 
-    /*
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting test task"));
+
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
@@ -629,7 +631,6 @@ void InitializeKernel(void) {
 
     TaskInfo.Parameter = (LPVOID)(((Console.Width - 8) << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
-    */
 
     // StartTestNetworkTask();
 
@@ -638,6 +639,9 @@ void InitializeKernel(void) {
 
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
 
+    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Version = EXOS_ABI_VERSION;
+    TaskInfo.Header.Flags = 0;
     TaskInfo.Func = Shell;
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
