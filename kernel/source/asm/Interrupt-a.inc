@@ -22,6 +22,74 @@
 ;
 ;-------------------------------------------------------------------------
 
+;-------------------------------------------------------------------------
+; Trap entry stack for #DB, #DF, #TS, #NP, #SS, #GP, #PF, #AC
+;   
+;
+;   High addresses
+;        |
+;        v
+;   
+;   +------------------+ <-- ESP before exception
+;   |                  |
+;   |   User stack     |     (user data before exception)
+;   |                  |
+;   +------------------+
+;   |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+
+;   |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+;   +------------------+
+;   |      EIP         | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+
+;   |   ERROR_CODE     | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+ <-- ESP after exception (in handler)
+;   |                  |
+;   |  Kernel stack    |     (exception handler)
+;   |                  |
+;        |
+;        v
+;   Low addresses
+;
+;   ERROR_CODE = 0 for #DB, #DF, #AC; = selector for #TS, #NP, #SS, #GP; = info for #PF
+;-------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------
+; Trap entry stack for IRQs and #DE, #BR, #UD, #NM, #MF
+; Just short of an error code
+;   
+;
+;   High addresses
+;        |
+;        v
+;   
+;   +------------------+ <-- ESP before exception
+;   |                  |
+;   |   User stack     |     (user data before exception)
+;   |                  |
+;   +------------------+
+;   |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+
+;   |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+;   +------------------+
+;   |      EIP         | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+ <-- ESP after exception (in handler)
+;   |                  |
+;   |  Kernel stack    |     (exception handler)
+;   |                  |
+;        |
+;        v
+;   Low addresses
+;
+;-------------------------------------------------------------------------
+
 ; =================== INTEL386REGISTERS layout (no padding issues) ===================
 ; Offsets inside INTEL386REGISTERS (bytes)
 
