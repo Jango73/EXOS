@@ -267,7 +267,7 @@ void LogTask(U32 LogType, const LPTASK Task) {
     KernelLogText(
         LogType,
         TEXT("TASK @ %X:\n"
-             "  Process : %X (%S)\n"
+             "  Process : %X (%s)\n"
              "  Type : %X\n"
              "  Status : %X\n"
              "  Priority : %X\n"
@@ -280,7 +280,7 @@ void LogTask(U32 LogType, const LPTASK Task) {
              "  SysStackSize : %X\n"
              "  Time : %X\n"
              "  WakeUpTime : %X"),
-        (LINEAR)Task, (U32)Task->Process, Task->Process == &Kernel.Process ? "K" : "U",
+        (LINEAR)Task, (U32)Task->Process, (Task->Process == Kernel.Process ? "K" : "U"),
         (U32)Task->Type, (U32)Task->Status, (U32)Task->Priority,
         (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ReturnValue, (U32)Task->StackBase, (U32)Task->StackSize,
         (U32)Task->SysStackBase, (U32)Task->SysStackSize, (U32)Task->Time, (U32)Task->WakeUpTime

@@ -368,11 +368,8 @@ static void SetKeyboardLayout(void) {
 
     LPCSTR Layout;
 
-    if (Kernel.Configuration == NULL) {
-        ReadKernelConfiguration();
-    }
-
     Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
+
     if (Layout) {
         ConsolePrint(TEXT("Keboard = %s\n"), Layout);
         SelectKeyboard(Layout);
@@ -403,10 +400,6 @@ void InitializeFileSystems(void) {
 
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
-    }
-
-    if (Kernel.Configuration == NULL) {
-        ReadKernelConfiguration();
     }
 
     MountSystemFS();

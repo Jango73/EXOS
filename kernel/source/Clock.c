@@ -26,6 +26,7 @@
 
 #include "../include/I386.h"
 #include "../include/Log.h"
+#include "../include/Schedule.h"
 #include "../include/String.h"
 #include "../include/System.h"
 #include "../include/Text.h"
@@ -89,42 +90,68 @@ void InitializeClock(void) {
 /**
  * @brief Increment the internal millisecond counter.
  */
-void ClockHandler(void) {
-    // KernelLogText(LOG_DEBUG, TEXT("[ClockHandler]"));
+LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
+    BOOL CallScheduler = FALSE;
+
+/*
+#if CRITICAL_DEBUG_OUTPUT == 1
+    KernelPrintString(TEXT("[ClockHandler]"));
+#endif
+*/
+
     RawSystemTime += MILLIS;
     CurrentTime.Milli += MILLIS;
- 
+
+    if (CurrentTime.Milli >= 100) {
+#if CRITICAL_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Time = %d"), RawSystemTime);
+#endif
+    }
+
     if (CurrentTime.Milli >= 1000) {
+        CallScheduler = TRUE;
+
         CurrentTime.Milli -= 1000;
         CurrentTime.Second++;
-    }
 
-    if (CurrentTime.Second >= 60) {
-        CurrentTime.Second = 0;
-        CurrentTime.Minute++;
-    }
+        if (CurrentTime.Second >= 60) {
+            CurrentTime.Second = 0;
+            CurrentTime.Minute++;
 
-    if (CurrentTime.Minute >= 60) {
-        CurrentTime.Minute = 0;
-        CurrentTime.Hour++;
-    }
+            if (CurrentTime.Minute >= 60) {
+                CurrentTime.Minute = 0;
+                CurrentTime.Hour++;
 
-    if (CurrentTime.Hour >= 24) {
-        CurrentTime.Hour = 0;
-        CurrentTime.Day++;
-        U32 DaysInCurrentMonth = DaysInMonth[CurrentTime.Month - 1];
-        if (CurrentTime.Month == 2 && IsLeapYear(CurrentTime.Year)) {
-            DaysInCurrentMonth++;
-        }
-        if (CurrentTime.Day > DaysInCurrentMonth) {
-            CurrentTime.Day = 1;
-            CurrentTime.Month++;
-            if (CurrentTime.Month > 12) {
-                CurrentTime.Month = 1;
-                CurrentTime.Year++;
+                if (CurrentTime.Hour >= 24) {
+                    CurrentTime.Hour = 0;
+                    CurrentTime.Day++;
+                    U32 DaysInCurrentMonth = DaysInMonth[CurrentTime.Month - 1];
+
+                    if (CurrentTime.Month == 2 && IsLeapYear(CurrentTime.Year)) {
+                        DaysInCurrentMonth++;
+                    }
+
+                    if (CurrentTime.Day > DaysInCurrentMonth) {
+                        CurrentTime.Day = 1;
+                        CurrentTime.Month++;
+                        if (CurrentTime.Month > 12) {
+                            CurrentTime.Month = 1;
+                            CurrentTime.Year++;
+                        }
+                    }
+                }
             }
         }
     }
+
+    if (CallScheduler) {
+#if CRITICAL_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Calling Scheduler"));
+#endif
+        return Scheduler(Frame);
+    }
+
+    return NULL;
 }
 
 /***************************************************************************/

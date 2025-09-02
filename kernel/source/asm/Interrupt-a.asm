@@ -22,24 +22,175 @@
 ;
 ;-------------------------------------------------------------------------
 
+;-------------------------------------------------------------------------
+; Trap entry stack for #DB, #DF, #TS, #NP, #SS, #GP, #PF, #AC
+;   
+;
+;   High addresses
+;        |
+;        v
+;   
+;   +------------------+ <-- ESP before exception
+;   |                  |
+;   |   User stack     |     (user data before exception)
+;   |                  |
+;   +------------------+
+;   |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+
+;   |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+;   +------------------+
+;   |      EIP         | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+
+;   |   ERROR_CODE     | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+ <-- ESP after exception (in handler)
+;   |                  |
+;   |  Kernel stack    |     (exception handler)
+;   |                  |
+;        |
+;        v
+;   Low addresses
+;
+;   ERROR_CODE = 0 for #DB, #DF, #AC; = selector for #TS, #NP, #SS, #GP; = info for #PF
+;-------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------
+; Trap entry stack for IRQs and #DE, #BR, #UD, #NM, #MF
+; Just short of an error code
+;   
+;
+;   High addresses
+;        |
+;        v
+;   
+;   +------------------+ <-- ESP before exception
+;   |                  |
+;   |   User stack     |     (user data before exception)
+;   |                  |
+;   +------------------+
+;   |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
+;   +------------------+
+;   |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+
+;   |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+;   +------------------+
+;   |      EIP         | <-- 32 bits - ALWAYS PRESENT
+;   +------------------+ <-- ESP after exception (in handler)
+;   |                  |
+;   |  Kernel stack    |     (exception handler)
+;   |                  |
+;        |
+;        v
+;   Low addresses
+;
+;-------------------------------------------------------------------------
+
 BITS 32
 
 ;----------------------------------------------------------------------------
 
 %include "./Kernel.inc"
-%include "./Interrupt-a.inc"
 
 ;----------------------------------------------------------------------------
 
 extern DisableIRQ
 extern EnableIRQ
+extern BuildInterruptFrame
+extern RestoreFromInterruptFrame
 
 ;----------------------------------------------------------------------------
-
 ; Helper values to access function parameters
 
 PBN equ 0x08
 PBF equ 0x0A
+
+;----------------------------------------------------------------------------
+; Macros
+
+%macro ISR_HANDLER_NOERR 2
+    cli
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
+    
+    push        ebp
+    mov         ebp, esp
+    
+    mov         eax, ss
+    push        eax
+    
+    call        EnterKernel
+    
+    push        0
+    push        %1
+    call        BuildInterruptFrame
+    add         esp, 8
+    
+    push        eax
+    call        %2
+    add         esp, 4
+    
+    add         esp, 4
+    pop         ebp
+    
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
+    iretd
+%endmacro
+
+%macro ISR_HANDLER_ERR 2
+    cli
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
+    
+    push        ebp
+    mov         ebp, esp
+    
+    mov         eax, ss
+    push        eax
+    
+    call        EnterKernel
+    
+    push        1
+    push        %1
+    call        BuildInterruptFrame
+    add         esp, 8
+    
+    push        eax
+    call        %2
+    add         esp, 4
+    
+    add         esp, 4
+    pop         ebp
+    
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
+    add         esp, 4
+    iretd
+%endmacro
+
+%macro ISR_PANIC_HALT 0
+    cli
+%%hang:
+    hlt
+    jmp         %%hang
+%endmacro
 
 ;----------------------------------------------------------------------------
 
@@ -77,9 +228,7 @@ EXOS_Start :
 ; Error code : No
 
 Interrupt_Default :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 0xFFFF, DefaultHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 0xFFFF, DefaultHandler
 
 ;--------------------------------------
 ; Int 0      : Divide error (#DE)
@@ -87,9 +236,7 @@ Interrupt_Default :
 ; Error code : No
 
 Interrupt_DivideError :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 0, DivideErrorHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 0, DivideErrorHandler
 
 ;--------------------------------------
 ; Int 1      : Debug exception (#DB)
@@ -97,9 +244,7 @@ Interrupt_DivideError :
 ; Error code : No
 
 Interrupt_DebugException :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 1, DebugExceptionHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 1, DebugExceptionHandler
 
 ;--------------------------------------
 ; Int 2      : Non-maskable interrupt
@@ -107,9 +252,7 @@ Interrupt_DebugException :
 ; Error code : Not applicable
 
 Interrupt_NMI :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 2, NMIHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 2, NMIHandler
 
 ;--------------------------------------
 ; Int 3      : Breakpoint exception (#BP)
@@ -117,9 +260,7 @@ Interrupt_NMI :
 ; Error code : No
 
 Interrupt_BreakPoint :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 3, BreakPointHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 3, BreakPointHandler
 
 ;--------------------------------------
 ; Int 4      : Overflow exception (#OF)
@@ -127,9 +268,7 @@ Interrupt_BreakPoint :
 ; Error code : No
 
 Interrupt_Overflow :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 4, OverflowHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 4, OverflowHandler
 
 ;--------------------------------------
 ; Int 5      : Bound range exceeded exception (#BR)
@@ -137,9 +276,7 @@ Interrupt_Overflow :
 ; Error code : No
 
 Interrupt_BoundRange :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 5, BoundRangeHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 5, BoundRangeHandler
 
 ;--------------------------------------
 ; Int 6      : Invalid opcode exception (#UD)
@@ -147,9 +284,7 @@ Interrupt_BoundRange :
 ; Error code : No
 
 Interrupt_InvalidOpcode:
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 6, InvalidOpcodeHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 6, InvalidOpcodeHandler
 
 ;--------------------------------------
 ; Int 7      : Device not available exception (#NM)
@@ -157,9 +292,7 @@ Interrupt_InvalidOpcode:
 ; Error code : No
 
 Interrupt_DeviceNotAvail :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 7, DeviceNotAvailHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 7, DeviceNotAvailHandler
 
 ;--------------------------------------
 ; Int 8      : Double fault exception (#DF)
@@ -167,9 +300,7 @@ Interrupt_DeviceNotAvail :
 ; Error code : Yes, always 0
 
 Interrupt_DoubleFault :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 8, DoubleFaultHandler
-    ISR_RETURN
+    ISR_HANDLER_ERR 8, DoubleFaultHandler
 
 ;--------------------------------------
 ; Int 9      : Coprocessor Segment Overrun
@@ -177,9 +308,7 @@ Interrupt_DoubleFault :
 ; Error code : No
 
 Interrupt_MathOverflow :
-
-    ISR_BUILD_FRAME_NOERR_AND_CALL 9, MathOverflowHandler
-    ISR_RETURN
+    ISR_HANDLER_NOERR 9, MathOverflowHandler
 
 ;--------------------------------------
 ; Int 10     : Invalid TSS Exception (#TS)
@@ -187,9 +316,7 @@ Interrupt_MathOverflow :
 ; Error code : Yes
 
 Interrupt_InvalidTSS :
-
-    ISR_BUILD_FRAME_ERR_AND_CALL 10, InvalidTSSHandler
-    ISR_RETURN_ERR
+    ISR_HANDLER_ERR 10, InvalidTSSHandler
 
 ;--------------------------------------
 ; Int 11     : Segment Not Present (#NP)
@@ -197,9 +324,7 @@ Interrupt_InvalidTSS :
 ; Error code : Yes
 
 Interrupt_SegmentFault :
-
-    ISR_BUILD_FRAME_ERR_AND_CALL 11, SegmentFaultHandler
-    ISR_RETURN_ERR
+    ISR_HANDLER_ERR 11, SegmentFaultHandler
 
 ;--------------------------------------
 ; Int 12     : Stack Fault Exception (#SS)
@@ -207,9 +332,7 @@ Interrupt_SegmentFault :
 ; Error code : Yes
 
 Interrupt_StackFault :
-
-    ISR_BUILD_FRAME_ERR_AND_CALL 12, StackFaultHandler
-    ISR_RETURN_ERR
+    ISR_HANDLER_ERR 12, StackFaultHandler
 
 ;--------------------------------------
 ; Int 13     : General Protection Exception (#GP)
@@ -217,9 +340,7 @@ Interrupt_StackFault :
 ; Error code : Yes
 
 Interrupt_GeneralProtection :
-
-    ISR_BUILD_FRAME_ERR_AND_CALL 13, GeneralProtectionHandler
-    ISR_RETURN_ERR
+    ISR_HANDLER_ERR 13, GeneralProtectionHandler
 
 ;--------------------------------------
 ; Int 14     : Page Fault Exception (#PF)
@@ -227,8 +348,7 @@ Interrupt_GeneralProtection :
 ; Error code : Yes
 
 Interrupt_PageFault:
-    ISR_BUILD_FRAME_ERR_AND_CALL 14, PageFaultHandler
-    ISR_RETURN_ERR
+    ISR_HANDLER_ERR 14, PageFaultHandler
 
 ;--------------------------------------
 ; Int 16     : Floating-Point Error Exception (#MF)
@@ -241,9 +361,7 @@ Interrupt_PageFault:
 ; Error code : Yes, always 0
 
 Interrupt_AlignmentCheck :
-
-    ISR_BUILD_FRAME_ERR_AND_CALL 17, AlignmentCheckHandler
-    ISR_RETURN_ERR
+    ISR_HANDLER_ERR 17, AlignmentCheckHandler
 
 ;--------------------------------------
 ; Int 18     : Machine-Check Exception (#MC)
@@ -256,32 +374,49 @@ Interrupt_AlignmentCheck :
 ; Error code : No
 
 Interrupt_Clock:
-    ISR_BUILD_FRAME_NOERR 32
-    call    ClockHandler
-    push    edi
-    call    Scheduler
-    add     esp, 4
+    cli
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
     
-    ; DEBUG: Log Scheduler return value
-;    push    eax
-;    push    eax
-;    push    LOG_DEBUG
-;    call    KernelLogText
-;    add     esp, 8
-;    pop     eax
+    push        ebp
+    mov         ebp, esp
     
-    ; SAUVEGARDER eax avant d'écraser AL
-    push    eax                         ; Save Scheduler return value
-    mov     al, INTERRUPT_DONE
-    out     INTERRUPT_CONTROL, al
-    pop     eax                         ; Restore Scheduler return value
+    mov         eax, ss
+    push        eax
     
-    test    eax, eax                    ; Maintenant le test est correct
-    jz      .NoSwitch
-    BUILD_EXIT_STACK_NOERR  eax
+    call        EnterKernel
+    
+    push        0
+    push        32
+    call        BuildInterruptFrame
+    add         esp, 8
+    
+    push        eax
+    call        ClockHandler
+    add         esp, 4
 
+    push        eax
+    mov         al, INTERRUPT_DONE
+    out         INTERRUPT_CONTROL, al
+    pop         eax
+    
+    test        eax, eax
+    jz          .NoSwitch
+    call        RestoreFromInterruptFrame
+    
 .NoSwitch:
-    ISR_RETURN
+    add         esp, 4
+    pop         ebp
+    
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
+    iretd
 
 ;--------------------------------------
 
