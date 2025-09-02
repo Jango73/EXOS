@@ -21,6 +21,7 @@
     Interrupt
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Kernel.h"
 
@@ -85,7 +86,7 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_Default,            // 29
     Interrupt_Default,            // 30
     Interrupt_Default,            // 31
-    Interrupt_Clock,              // 32
+    Interrupt_Clock,              // 32  0x00
     Interrupt_Keyboard,           // 33  0x01
     Interrupt_Default,            // 34  0x02
     Interrupt_Default,            // 35  0x03

@@ -331,8 +331,8 @@ typedef struct __attribute__((packed)) {
 #define GATE_TYPE_386_TSS_AVAIL 0x09
 #define GATE_TYPE_386_TSS_BUSY 0x0B
 #define GATE_TYPE_386_CALL 0x0C
-#define GATE_TYPE_386_INT 0x0E
-#define GATE_TYPE_386_TRAP 0x0F
+#define GATE_TYPE_386_INT 0x0E              // This clears interrupt flag on entry
+#define GATE_TYPE_386_TRAP 0x0F             // This DOES NOT clear interrupt flag on entry
 
 /***************************************************************************/
 
