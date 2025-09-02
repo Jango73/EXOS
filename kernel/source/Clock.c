@@ -41,7 +41,7 @@
 
 /***************************************************************************/
 
-static U32 RawSystemTime = 10;
+static U32 RawSystemTime = 0;
 static U32 ReadCMOS(U32 Address);
 static SYSTEMTIME CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -91,6 +91,7 @@ void InitializeClock(void) {
  * @brief Increment the internal millisecond counter.
  */
 LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
+    LPINTERRUPTFRAME ReturnValue = NULL;
     BOOL CallScheduler = FALSE;
 
 /*
@@ -106,11 +107,11 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
 #if CRITICAL_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Time = %d"), RawSystemTime);
 #endif
+
+        CallScheduler = TRUE;
     }
 
     if (CurrentTime.Milli >= 1000) {
-        CallScheduler = TRUE;
-
         CurrentTime.Milli -= 1000;
         CurrentTime.Second++;
 
@@ -148,10 +149,18 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
 #if CRITICAL_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Calling Scheduler"));
 #endif
-        return Scheduler(Frame);
+        ReturnValue = Scheduler(Frame);
+
+#if CRITICAL_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Returning next frame to the stub :"));
+    SAFE_USE(ReturnValue) {
+        DumpFrame(ReturnValue);
+    }
+#endif
+
     }
 
-    return NULL;
+    return ReturnValue;
 }
 
 /***************************************************************************/

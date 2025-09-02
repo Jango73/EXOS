@@ -160,29 +160,6 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
 /************************************************************************/
 
 /**
- * @brief Log register state for a task at fault.
- * @param Frame Interrupt frame with register snapshot.
- */
-void DumpFrame(LPINTERRUPTFRAME Frame) {
-    LPPROCESS Process;
-    LPTASK Task;
-
-    Task = GetCurrentTask();
-
-    if (Task != NULL) {
-        Process = Task->Process;
-
-        if (Process != NULL) {
-            KernelLogText(LOG_VERBOSE, TEXT("Image : %s"), Process->FileName);
-            KernelLogText(LOG_VERBOSE, Text_Registers);
-            LogRegisters(&(Frame->Registers));
-        }
-    }
-}
-
-/************************************************************************/
-
-/**
  * @brief Terminate the current task and halt if necessary.
  */
 void Die(void) {

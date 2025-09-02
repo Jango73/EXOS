@@ -140,7 +140,7 @@ BOOL WaitNotBusy(U32 Port, U32 TimeOut) {
         }
     }
 
-    KernelLogText(LOG_WARNING, (LPSTR) "Time-out in HD");
+    KernelLogText(LOG_WARNING, TEXT("[WaitNotBusy] Time-out in HD"));
 
     return FALSE;
 }

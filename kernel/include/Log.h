@@ -21,6 +21,7 @@
     Log
 
 \************************************************************************/
+
 #ifndef LOG_H_INCLUDED
 #define LOG_H_INCLUDED
 
@@ -57,6 +58,7 @@ void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory);
 void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor);
 void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss);
 void LogTask(U32 LogType, const LPTASK Task);
+void DumpFrame(LPINTERRUPTFRAME Frame);
 
 /***************************************************************************/
 

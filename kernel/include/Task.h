@@ -18,9 +18,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Task
+    Task manager
 
 \************************************************************************/
+
 #ifndef TASK_H_INCLUDED
 #define TASK_H_INCLUDED
 

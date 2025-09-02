@@ -286,3 +286,26 @@ void LogTask(U32 LogType, const LPTASK Task) {
         (U32)Task->SysStackBase, (U32)Task->SysStackSize, (U32)Task->Time, (U32)Task->WakeUpTime
         );
 }
+
+/************************************************************************/
+
+/**
+ * @brief Log register state for a task at fault.
+ * @param Frame Interrupt frame with register snapshot.
+ */
+void DumpFrame(LPINTERRUPTFRAME Frame) {
+    LPPROCESS Process;
+    LPTASK Task;
+
+    Task = GetCurrentTask();
+
+    if (Task != NULL) {
+        Process = Task->Process;
+
+        if (Process != NULL) {
+            KernelLogText(LOG_VERBOSE, TEXT("Image : %s"), Process->FileName);
+            KernelLogText(LOG_VERBOSE, Text_Registers);
+            LogRegisters(&(Frame->Registers));
+        }
+    }
+}

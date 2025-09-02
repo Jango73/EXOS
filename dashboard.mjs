@@ -216,15 +216,15 @@ const screen = blessed.screen({
 const sidebar = blessed.box({
     top: 0,
     left: 0,
-    width: '30%',
+    width: '20%',
     height: '100%',
     label: 'Scripts',
     border: 'line'
 });
 const rightContainer = blessed.box({
     top: 0,
-    left: '30%',
-    width: '70%',
+    left: '20%',
+    width: '80%',
     height: '100%',
 });
 

@@ -22,74 +22,6 @@
 ;
 ;-------------------------------------------------------------------------
 
-;-------------------------------------------------------------------------
-; Trap entry stack for #DB, #DF, #TS, #NP, #SS, #GP, #PF, #AC
-;   
-;
-;   High addresses
-;        |
-;        v
-;   
-;   +------------------+ <-- ESP before exception
-;   |                  |
-;   |   User stack     |     (user data before exception)
-;   |                  |
-;   +------------------+
-;   |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
-;   +------------------+
-;   |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
-;   +------------------+
-;   |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
-;   +------------------+
-;   |        |   CS    | <-- 16 bits - ALWAYS PRESENT
-;   +------------------+
-;   |      EIP         | <-- 32 bits - ALWAYS PRESENT
-;   +------------------+
-;   |   ERROR_CODE     | <-- 32 bits - ALWAYS PRESENT
-;   +------------------+ <-- ESP after exception (in handler)
-;   |                  |
-;   |  Kernel stack    |     (exception handler)
-;   |                  |
-;        |
-;        v
-;   Low addresses
-;
-;   ERROR_CODE = 0 for #DB, #DF, #AC; = selector for #TS, #NP, #SS, #GP; = info for #PF
-;-------------------------------------------------------------------------
-
-;-------------------------------------------------------------------------
-; Trap entry stack for IRQs and #DE, #BR, #UD, #NM, #MF
-; Just short of an error code
-;   
-;
-;   High addresses
-;        |
-;        v
-;   
-;   +------------------+ <-- ESP before exception
-;   |                  |
-;   |   User stack     |     (user data before exception)
-;   |                  |
-;   +------------------+
-;   |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
-;   +------------------+
-;   |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
-;   +------------------+
-;   |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
-;   +------------------+
-;   |        |   CS    | <-- 16 bits - ALWAYS PRESENT
-;   +------------------+
-;   |      EIP         | <-- 32 bits - ALWAYS PRESENT
-;   +------------------+ <-- ESP after exception (in handler)
-;   |                  |
-;   |  Kernel stack    |     (exception handler)
-;   |                  |
-;        |
-;        v
-;   Low addresses
-;
-;-------------------------------------------------------------------------
-
 BITS 32
 
 ;----------------------------------------------------------------------------
@@ -119,27 +51,31 @@ PBF equ 0x0A
     push        es
     push        fs
     push        gs
-    
+
     push        ebp
     mov         ebp, esp
-    
-    mov         eax, ss
+
+    mov         eax, ss                     ; push SS
     push        eax
-    
+
     call        EnterKernel
-    
-    push        0
-    push        %1
+
+    sub         esp, INTERRUPT_FRAME_size   ; Space used by frame
+
+    push        esp                         ; cdecl arg 3
+    push        0                           ; cdecl arg 2
+    push        %1                          ; cdecl arg 1
     call        BuildInterruptFrame
-    add         esp, 8
-    
-    push        eax
+    add         esp, 12                     ; cdecl clear args
+
+    push        eax                         ; cdecl arg 1
     call        %2
-    add         esp, 4
-    
-    add         esp, 4
+    add         esp, 4                      ; cdecl clear args
+
+    add         esp, INTERRUPT_FRAME_size   ; Space used by frame
+    add         esp, 4                      ; Space used by SS
     pop         ebp
-    
+
     pop         gs
     pop         fs
     pop         es
@@ -155,33 +91,37 @@ PBF equ 0x0A
     push        es
     push        fs
     push        gs
-    
+
     push        ebp
     mov         ebp, esp
-    
+
     mov         eax, ss
     push        eax
-    
+
     call        EnterKernel
-    
-    push        1
-    push        %1
+
+    sub         esp, INTERRUPT_FRAME_size   ; Space used by frame
+
+    push        esp                         ; cdecl arg 3
+    push        1                           ; cdecl arg 2
+    push        %1                          ; cdecl arg 1
     call        BuildInterruptFrame
-    add         esp, 8
-    
-    push        eax
+    add         esp, 12                     ; cdecl clear args
+
+    push        eax                         ; cdecl arg 1
     call        %2
-    add         esp, 4
-    
-    add         esp, 4
+    add         esp, 4                      ; cdecl clear args
+
+    add         esp, INTERRUPT_FRAME_size   ; Space used by frame
+    add         esp, 4                      ; Space used by SS
     pop         ebp
-    
+
     pop         gs
     pop         fs
     pop         es
     pop         ds
     popad
-    add         esp, 4
+
     iretd
 %endmacro
 
@@ -380,35 +320,44 @@ Interrupt_Clock:
     push        es
     push        fs
     push        gs
-    
+
     push        ebp
     mov         ebp, esp
     
-    mov         eax, ss
+    mov         eax, ss                     ; push ss
     push        eax
-    
+
     call        EnterKernel
-    
-    push        0
-    push        32
+
+    sub         esp, INTERRUPT_FRAME_size   ; Space used by frame
+
+    push        esp                         ; cdecl arg 3
+    push        0                           ; cdecl arg 2
+    push        32                          ; cdecl arg 1
     call        BuildInterruptFrame
-    add         esp, 8
-    
-    push        eax
+    add         esp, 12                     ; cdecl clear args
+
+    push        eax                         ; cdecl arg 1
     call        ClockHandler
-    add         esp, 4
+    add         esp, 4                      ; cdecl clear args
 
     push        eax
     mov         al, INTERRUPT_DONE
     out         INTERRUPT_CONTROL, al
     pop         eax
     
-    test        eax, eax
-    jz          .NoSwitch
+    test        eax, eax                    ; If return = null
+    jz          .NoSwitch                   ; Don't switch
+
+    push        esp                         ; cdecl arg 2
+    push        eax                         ; cdecl arg 1
     call        RestoreFromInterruptFrame
+    add         esp, 8                      ; cdecl clear args
     
 .NoSwitch:
-    add         esp, 4
+    add         esp, INTERRUPT_FRAME_size   ; Space used by frame
+    add         esp, 4                      ; Space used by SS
+
     pop         ebp
     
     pop         gs
@@ -416,6 +365,7 @@ Interrupt_Clock:
     pop         es
     pop         ds
     popad
+
     iretd
 
 ;--------------------------------------

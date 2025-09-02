@@ -21,6 +21,7 @@
     I386
 
 \************************************************************************/
+
 #ifndef I386_H_INCLUDED
 #define I386_H_INCLUDED
 
@@ -34,13 +35,13 @@
 
 /***************************************************************************/
 
-typedef struct tag_INTEL386REGISTERS {
+typedef struct __attribute__((packed)) tag_INTEL386REGISTERS {
     U32 EFlags;
     U32 EAX, EBX, ECX, EDX;
     U32 ESI, EDI, ESP, EBP;
     U32 EIP;
-    U16 CS, DS, SS;
-    U16 ES, FS, GS;
+    U32 CS, DS, SS;
+    U32 ES, FS, GS;
     U32 CR0, CR2, CR3, CR4;
     U32 DR0, DR1, DR2, DR3;
     U32 DR4, DR5, DR6, DR7;
@@ -48,7 +49,7 @@ typedef struct tag_INTEL386REGISTERS {
 
 /***************************************************************************/
 
-typedef union tag_X86REGS {
+typedef union __attribute__((packed)) tag_X86REGS {
     struct {
         U16 DS;
         U16 ES;
@@ -106,7 +107,7 @@ typedef union tag_X86REGS {
 // The page directory entry
 // Size : 4 bytes
 
-typedef struct tag_PAGEDIRECTORY {
+typedef struct __attribute__((packed)) tag_PAGEDIRECTORY {
     U32 Present : 1;    // Is page present in RAM ?
     U32 ReadWrite : 1;  // Read-write access rights
     U32 Privilege : 1;  // Privilege level
@@ -125,7 +126,7 @@ typedef struct tag_PAGEDIRECTORY {
 // The page table entry
 // Size : 4 bytes
 
-typedef struct tag_PAGETABLE {
+typedef struct __attribute__((packed)) tag_PAGETABLE {
     U32 Present : 1;    // Is page present in RAM ?
     U32 ReadWrite : 1;  // Read-write access rights
     U32 Privilege : 1;  // Privilege level
@@ -144,7 +145,7 @@ typedef struct tag_PAGETABLE {
 // The segment descriptor
 // Size : 8 bytes
 
-typedef struct tag_SEGMENTDESCRIPTOR {
+typedef struct __attribute__((packed)) tag_SEGMENTDESCRIPTOR {
     U32 Limit_00_15 : 16;   // Bits 0-15 of segment limit
     U32 Base_00_15 : 16;    // Bits 0-15 of segment base
     U32 Base_16_23 : 8;     // Bits 16-23 of segment base
@@ -168,7 +169,7 @@ typedef struct tag_SEGMENTDESCRIPTOR {
 /***************************************************************************/
 // The Gate Descriptor
 
-typedef struct tag_GATEDESCRIPTOR {
+typedef struct __attribute__((packed)) tag_GATEDESCRIPTOR {
     U32 Offset_00_15 : 16;  // Bits 0-15 of entry point offset
     U32 Selector : 16;      // Selector for code segment
     U32 Reserved : 8;       // Reserved
@@ -181,7 +182,7 @@ typedef struct tag_GATEDESCRIPTOR {
 /***************************************************************************/
 // The TSS descriptor
 
-typedef struct tag_TSSDESCRIPTOR {
+typedef struct __attribute__((packed)) tag_TSSDESCRIPTOR {
     U32 Limit_00_15 : 16;  // Bits 0-15 of segment limit
     U32 Base_00_15 : 16;   // Bits 0-15 of segment base
     U32 Base_16_23 : 8;    // Bits 16-23 of segment base
@@ -199,7 +200,7 @@ typedef struct tag_TSSDESCRIPTOR {
 // The Task State Segment
 // It must be 256 bytes long
 
-typedef struct tag_TASKSTATESEGMENT {
+typedef struct __attribute__((packed)) tag_TASKSTATESEGMENT {
     U16 BackLink;  // TSS backlink
     U16 Res1;      // Reserved
     U32 ESP0;      // Stack 0 pointer (CPL = 0)
@@ -252,12 +253,14 @@ typedef struct tag_TASKSTATESEGMENT {
 } TASKSTATESEGMENT, *LPTASKSTATESEGMENT;
 
 /************************************************************************/
-// NOTE: fields not meaningful for a given trap are set to 0 by the stub.
+// NOTE: fields not meaningful for a given trap are set to 0
 
 typedef struct __attribute__((packed)) tag_INTERRUPTFRAME {
-    INTEL386REGISTERS Registers;  // Filled by the stub
-    U32 IntNo;                    // Interrupt / exception vector
-    U32 ErrCode;                  // CPU error code (0 for #UD)
+    INTEL386REGISTERS Registers;
+    U32 SS0;                        // SS in ring 0
+    U32 ESP0;                       // ESP in ring 0
+    U32 IntNo;                      // Interrupt / exception vector
+    U32 ErrCode;                    // CPU error code (0 for #UD)
 } INTERRUPTFRAME, *LPINTERRUPTFRAME;
 
 /************************************************************************/

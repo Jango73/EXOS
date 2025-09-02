@@ -20,142 +20,296 @@
 
     Interrupt Frame Management
 
+--------------------------------------------------------------------------
+
+    Trap entry stack for #DB, #DF, #TS, #NP, #SS, #GP, #PF, #AC
+   
+
+    High addresses
+         |
+         v
+   
+ E  +------------------+ <-- ESP before exception
+ S  |                  |
+ P  |   User Stack     |     (user data before exception)
+    |                  |
+ G  +------------------+
+ O  |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
+ E  +------------------+
+ S  |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
+    +------------------+
+ D  |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+ O  +------------------+
+ W  |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+ N  +------------------+
+    |      EIP         | <-- 32 bits - ALWAYS PRESENT
+ |  +------------------+
+ v  |   ERROR_CODE     | <-- 32 bits - ALWAYS PRESENT
+    +------------------+ <-- ESP after exception (in handler)
+    |                  |
+    |  Kernel Stack    |     (exception handler)
+    |                  |
+         |
+         v
+    Low addresses
+
+    ERROR_CODE = 0 for #DB, #DF, #AC; = selector for #TS, #NP, #SS, #GP; = info for #PF
+
+--------------------------------------------------------------------------
+
+    Trap entry stack for IRQs and #DE, #BR, #UD, #NM, #MF
+    Just short of an error code
+   
+
+    High addresses
+         |
+         v
+   
+ E  +------------------+ <-- ESP before exception
+ S  |                  |
+ P  |   User Stack     |     (user data before exception)
+    |                  |
+ G  +------------------+
+ O  |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
+ E  +------------------+
+ S  |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
+    +------------------+
+ D  |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+ O  +------------------+
+ W  |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+ N  +------------------+
+    |      EIP         | <-- 32 bits - ALWAYS PRESENT
+ |  +------------------+ <-- ESP after exception (in handler)
+ v  |                  |
+    |  Kernel Stack    |     (exception handler)
+    |                  |
+         |
+         v
+    Low addresses
+
+--------------------------------------------------------------------------
+
+    Trap stack after all pushes from stub, without an error code
+
+ E  +------------------+ <-- ESP before exception
+ S  |                  |
+ P  | Some stack data  |     (user data before exception)
+    |                  |
+ G  +------------------+ <-- TRAP
+ O  |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
+ E  +------------------+
+ S  |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
+    +------------------+
+ D  |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+ O  +------------------+
+ W  |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+ N  +------------------+
+    |      EIP         | <-- 32 bits - ALWAYS PRESENT
+ |  +------------------+ <-- ESP after exception (in handler)
+ v  |      EAX         |
+    +------------------+
+    |      ECX         |
+    +------------------+
+    |      EDX         |
+    +------------------+
+    |      EBX         |
+    +------------------+
+    |      ESP         |
+    +------------------+
+    |      EBP         |
+    +------------------+
+    |      ESI         |
+    +------------------+
+    |      EDI         |
+    +------------------+
+    |        |   DS    |
+    +------------------+
+    |        |   ES    |
+    +------------------+
+    |        |   FS    |
+    +------------------+
+    |        |   GS    |
+    +------------------+
+    |      EBP         |
+    +------------------+
+    |        |   SS    |
+    +------------------+
+    |      DATA        |
+    |       OF         |
+    |  INTERRUPTFRAME  |
+    +------------------+ <-- ESP as given to BuildInterruptFrame
+
 \************************************************************************/
 
 #include "../include/Base.h"
 #include "../include/I386.h"
 #include "../include/Log.h"
+#include "../include/Memory.h"
 #include "../include/System.h"
 
 /************************************************************************/
 
-LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 hasErrorCode)
+#define INCOMING_SS_INDEX 0
+#define INCOMING_C_EBP_INDEX 1
+#define INCOMING_GS_INDEX 2
+#define INCOMING_FS_INDEX 3
+#define INCOMING_ES_INDEX 4
+#define INCOMING_DS_INDEX 5
+#define INCOMING_EDI_INDEX 6
+#define INCOMING_ESI_INDEX 7
+#define INCOMING_EBP_INDEX 8
+#define INCOMING_ESP_INDEX 9
+#define INCOMING_EBX_INDEX 10
+#define INCOMING_EDX_INDEX 11
+#define INCOMING_ECX_INDEX 12
+#define INCOMING_EAX_INDEX 13
+#define INCOMING_ERROR_CODE_INDEX 14    // If present, the following will shifted up by 1 (+ HasErrorCode)
+#define INCOMING_EIP_INDEX 14
+#define INCOMING_CS_INDEX 15
+#define INCOMING_EFLAGS_INDEX 16
+#define INCOMING_R3_ESP_INDEX 17
+#define INCOMING_R3_SS_INDEX 18
+
+/************************************************************************/
+
+LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
 {
-    U32 esp, ebp;
-    LPINTERRUPTFRAME frame;
-    U32 *stack, *hwFrame;
-    U32 userMode;
+    LPINTERRUPTFRAME Frame;
+    U32* Stack;
+    U32 UserMode;
+
+/*
+#if CRITICAL_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Enter (%d, %d)"), intNo, HasErrorCode);
+#endif
+*/
+
+    Frame = (LPINTERRUPTFRAME) ESP;
+    Stack = (U32*) (ESP + sizeof(INTERRUPTFRAME));
 
 #if CRITICAL_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Enter (%d, %d)"), intNo, hasErrorCode);
+    KernelLogText(LOG_VERBOSE, TEXT("[BuildInterruptFrame] IntNo=%d, HasErrorCode=%d, ESP=%X"), intNo, HasErrorCode, ESP);
 #endif
 
-    __asm__ volatile("mov %%esp, %0" : "=r"(esp));
-    __asm__ volatile("mov %%ebp, %0" : "=r"(ebp));
+    UserMode = (Stack[INCOMING_CS_INDEX + HasErrorCode] & SELECTOR_RPL_MASK) != 0;
 
-    esp -= sizeof(INTERRUPTFRAME);
-    frame = (LPINTERRUPTFRAME)esp;
+    Frame->Registers.EFlags = Stack[INCOMING_EFLAGS_INDEX + HasErrorCode];
+    Frame->Registers.EIP = Stack[INCOMING_EIP_INDEX + HasErrorCode];
+    Frame->Registers.CS = Stack[INCOMING_CS_INDEX + HasErrorCode];
 
-    stack = (U32*)ebp;
+#if CRITICAL_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Built CS=%X, EIP=%X, EFlags=%X"), 
+                  Frame->Registers.CS, Frame->Registers.EIP, Frame->Registers.EFlags);
+#endif
 
-    if (hasErrorCode) {
-        hwFrame = stack + 14;
+    Frame->Registers.EAX = Stack[INCOMING_EAX_INDEX];
+    Frame->Registers.EBX = Stack[INCOMING_EBX_INDEX];
+    Frame->Registers.ECX = Stack[INCOMING_ECX_INDEX];
+    Frame->Registers.EDX = Stack[INCOMING_EDX_INDEX];
+    Frame->Registers.ESI = Stack[INCOMING_ESI_INDEX];
+    Frame->Registers.EDI = Stack[INCOMING_EDI_INDEX];
+    Frame->Registers.EBP = Stack[INCOMING_EBP_INDEX];
+
+    Frame->Registers.DS = Stack[INCOMING_DS_INDEX];
+    Frame->Registers.ES = Stack[INCOMING_ES_INDEX];
+    Frame->Registers.FS = Stack[INCOMING_FS_INDEX];
+    Frame->Registers.GS = Stack[INCOMING_GS_INDEX];
+
+    if (UserMode) {
+        Frame->Registers.ESP = Stack[INCOMING_R3_ESP_INDEX + HasErrorCode];
+        Frame->Registers.SS = Stack[INCOMING_R3_SS_INDEX + HasErrorCode];
     } else {
-        hwFrame = stack + 13;
+        Frame->Registers.ESP = Stack[INCOMING_ESP_INDEX];
+        Frame->Registers.SS = Stack[INCOMING_SS_INDEX];
     }
 
-    userMode = (hwFrame[1] & 3) != 0;
+    __asm__ volatile("mov %%cr0, %0" : "=r"(Frame->Registers.CR0));
+    __asm__ volatile("mov %%cr2, %0" : "=r"(Frame->Registers.CR2));
+    __asm__ volatile("mov %%cr3, %0" : "=r"(Frame->Registers.CR3));
+    __asm__ volatile("mov %%cr4, %0" : "=r"(Frame->Registers.CR4));
 
-    frame->Registers.EFlags = hwFrame[2];
-    frame->Registers.EAX = stack[13];
-    frame->Registers.EBX = stack[10];
-    frame->Registers.ECX = stack[12];
-    frame->Registers.EDX = stack[11];
-    frame->Registers.ESI = stack[7];
-    frame->Registers.EDI = stack[6];
-    frame->Registers.EBP = stack[8];
-    frame->Registers.EIP = hwFrame[0];
+    __asm__ volatile("mov %%dr0, %0" : "=r"(Frame->Registers.DR0));
+    __asm__ volatile("mov %%dr1, %0" : "=r"(Frame->Registers.DR1));
+    __asm__ volatile("mov %%dr2, %0" : "=r"(Frame->Registers.DR2));
+    __asm__ volatile("mov %%dr3, %0" : "=r"(Frame->Registers.DR3));
+    Frame->Registers.DR4 = 0;
+    Frame->Registers.DR5 = 0;
+    __asm__ volatile("mov %%dr6, %0" : "=r"(Frame->Registers.DR6));
+    __asm__ volatile("mov %%dr7, %0" : "=r"(Frame->Registers.DR7));
+    Frame->IntNo = intNo;
 
-    frame->Registers.CS = (U16)(hwFrame[1] & 0xFFFF);
-    frame->Registers.DS = (U16)(stack[5] & 0xFFFF);
-    frame->Registers.ES = (U16)(stack[4] & 0xFFFF);
-    frame->Registers.FS = (U16)(stack[3] & 0xFFFF);
-    frame->Registers.GS = (U16)(stack[2] & 0xFFFF);
-
-    if (userMode) {
-        frame->Registers.ESP = hwFrame[3];
-        frame->Registers.SS = (U16)(hwFrame[4] & 0xFFFF);
+    if (HasErrorCode) {
+        Frame->ErrCode = Stack[INCOMING_ERROR_CODE_INDEX];
     } else {
-        frame->Registers.ESP = stack[9];
-        
-        U32 savedSS;
-        __asm__ volatile("mov -4(%%ebp), %0" : "=r"(savedSS));
-        frame->Registers.SS = (U16)(savedSS & 0xFFFF);
+        Frame->ErrCode = 0;
     }
 
-    __asm__ volatile("mov %%cr0, %0" : "=r"(frame->Registers.CR0));
-    __asm__ volatile("mov %%cr2, %0" : "=r"(frame->Registers.CR2));
-    __asm__ volatile("mov %%cr3, %0" : "=r"(frame->Registers.CR3));
-    __asm__ volatile("mov %%cr4, %0" : "=r"(frame->Registers.CR4));
-
-    __asm__ volatile("mov %%dr0, %0" : "=r"(frame->Registers.DR0));
-    __asm__ volatile("mov %%dr1, %0" : "=r"(frame->Registers.DR1));
-    __asm__ volatile("mov %%dr2, %0" : "=r"(frame->Registers.DR2));
-    __asm__ volatile("mov %%dr3, %0" : "=r"(frame->Registers.DR3));
-    frame->Registers.DR4 = 0;
-    frame->Registers.DR5 = 0;
-    __asm__ volatile("mov %%dr6, %0" : "=r"(frame->Registers.DR6));
-    __asm__ volatile("mov %%dr7, %0" : "=r"(frame->Registers.DR7));
-
-    frame->IntNo = intNo;
-    
-    if (hasErrorCode) {
-        frame->ErrCode = hwFrame[-1];
-    } else {
-        frame->ErrCode = 0;
-    }
-
+/*
 #if CRITICAL_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Exit"));
 #endif
+*/
 
-    __asm__ volatile("mov %0, %%esp" : : "r"(esp));
-
-    return frame;
+    return Frame;
 }
 
 /************************************************************************/
 
-void RestoreFromInterruptFrame(LPINTERRUPTFRAME nextFrame)
+void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
 {
-    U32 targetESP, stackSize;
-    U32 *newStack;
-    U32 userMode;
+    U32* Stack;
+    U32 UserMode;
+    U32 HasErrorCode = 0;  // Timer interrupts don't have error codes
 
-    if (nextFrame == NULL) return;
+    SAFE_USE_VALID(NextFrame) {
 
-    userMode = (nextFrame->Registers.CS & 3) != 0;
+#if CRITICAL_DEBUG_OUTPUT == 1
+        // KernelLogText(LOG_VERBOSE, TEXT("[RestoreFromInterruptFrame] Enter"));
+#endif
 
-    stackSize = 16 + 32 + 12;
-    if (userMode) {
-        stackSize += 8;
+        Stack = (U32*) (ESP + sizeof(INTERRUPTFRAME));
+        // HasErrorCode should match the CURRENT interrupt context, not NextFrame->IntNo
+        // For task switching via timer interrupt (32), HasErrorCode = 0
+        UserMode = (NextFrame->Registers.CS & SELECTOR_RPL_MASK) != 0;
+
+        // Restore segment registers
+        Stack[INCOMING_DS_INDEX] = NextFrame->Registers.DS;
+        Stack[INCOMING_ES_INDEX] = NextFrame->Registers.ES;
+        Stack[INCOMING_FS_INDEX] = NextFrame->Registers.FS;
+        Stack[INCOMING_GS_INDEX] = NextFrame->Registers.GS;
+
+        // Restore general-purpose registers
+        Stack[INCOMING_EAX_INDEX] = NextFrame->Registers.EAX;
+        Stack[INCOMING_EBX_INDEX] = NextFrame->Registers.EBX;
+        Stack[INCOMING_ECX_INDEX] = NextFrame->Registers.ECX;
+        Stack[INCOMING_EDX_INDEX] = NextFrame->Registers.EDX;
+        Stack[INCOMING_ESI_INDEX] = NextFrame->Registers.ESI;
+        Stack[INCOMING_EDI_INDEX] = NextFrame->Registers.EDI;
+        Stack[INCOMING_EBP_INDEX] = NextFrame->Registers.EBP;
+
+        // Restore stack-related registers based on privilege mode
+        if (UserMode) {
+            Stack[INCOMING_R3_ESP_INDEX + HasErrorCode] = NextFrame->Registers.ESP;
+            Stack[INCOMING_R3_SS_INDEX + HasErrorCode] = NextFrame->Registers.SS;
+        } else {
+            Stack[INCOMING_ESP_INDEX] = NextFrame->Registers.ESP;
+            Stack[INCOMING_SS_INDEX] = NextFrame->Registers.SS;
+        }
+
+        // Restore CS, EIP, and EFLAGS
+        Stack[INCOMING_CS_INDEX + HasErrorCode] = NextFrame->Registers.CS;
+        Stack[INCOMING_EIP_INDEX + HasErrorCode] = NextFrame->Registers.EIP;
+        Stack[INCOMING_EFLAGS_INDEX + HasErrorCode] = NextFrame->Registers.EFlags;
+
+        // Restore error code if present
+        if (HasErrorCode) {
+            Stack[INCOMING_ERROR_CODE_INDEX] = NextFrame->ErrCode;
+        }
+    } else {
+        KernelLogText(LOG_ERROR, TEXT("[RestoreFromInterruptFrame] Invalid frame %X"), NextFrame);
     }
 
-    targetESP = nextFrame->Registers.ESP - stackSize;
-    newStack = (U32*)targetESP;
-
-    newStack[0] = (U32)nextFrame->Registers.DS;
-    newStack[1] = (U32)nextFrame->Registers.ES;
-    newStack[2] = (U32)nextFrame->Registers.FS;
-    newStack[3] = (U32)nextFrame->Registers.GS;
-
-    newStack[4] = nextFrame->Registers.EDI;
-    newStack[5] = nextFrame->Registers.ESI;
-    newStack[6] = nextFrame->Registers.EBP;
-    newStack[7] = nextFrame->Registers.ESP;
-    newStack[8] = nextFrame->Registers.EBX;
-    newStack[9] = nextFrame->Registers.EDX;
-    newStack[10] = nextFrame->Registers.ECX;
-    newStack[11] = nextFrame->Registers.EAX;
-
-    newStack[12] = nextFrame->Registers.EIP;
-    newStack[13] = (U32)nextFrame->Registers.CS;
-    newStack[14] = nextFrame->Registers.EFlags;
-
-    if (userMode) {
-        newStack[15] = nextFrame->Registers.ESP;
-        newStack[16] = (U32)nextFrame->Registers.SS;
-    }
-
-    __asm__ volatile("mov %0, %%esp" : : "r"(targetESP));
+#if CRITICAL_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Exit"));
+#endif
 }

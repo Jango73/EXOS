@@ -286,6 +286,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Context.Registers.EIP = LA_TASK_RUNNER;
     Task->Context.Registers.EAX = (U32)Task->Parameter;
     Task->Context.Registers.EBX = (U32)Task->Function;
+    Task->Context.Registers.ECX = 0;
+    Task->Context.Registers.EDX = 0;
     Task->Context.Registers.ESP = StackPointer;
     Task->Context.Registers.EBP = StackPointer;
     Task->Context.Registers.CS = CodeSelector;

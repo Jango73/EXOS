@@ -54,9 +54,6 @@ __asm__(".code16gcc");
 /************************************************************************/
 // I386 values
 
-#define GDT_SEL_CODE 0x08
-#define GDT_SEL_DATA 0x10
-
 #define GDT_ADDRESS 0x500
 #define PAGE_DIRECTORY_ADDRESS LOW_MEMORY_PAGE_1
 #define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_2

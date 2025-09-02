@@ -271,19 +271,20 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     // Set up system stack for new task
     U32 NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
 #if CRITICAL_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] NextTask = %X"), NextTask);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] NextTask->SysStackBase = %X"), NextTask->SysStackBase);  
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] NextTask->SysStackSize = %X"), NextTask->SysStackSize);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Calculated ESP0 = %X"), NextSysStackTop);
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
 #endif
     Kernel_i386.TSS->ESP0 = NextSysStackTop;
 
-    // Prepare interrupt frame for task switch
-    LPINTERRUPTFRAME NextFrame = (LPINTERRUPTFRAME)(NextSysStackTop - sizeof(INTERRUPTFRAME));
-    MemoryCopy(NextFrame, &(NextTask->Context), sizeof(INTERRUPTFRAME));
-
 #if CRITICAL_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning next frame to the stub"));
+    DumpFrame(&(NextTask->Context));
 #endif
 
-    return NextFrame;
+    return &(NextTask->Context);
 }
 
 /***************************************************************************/
