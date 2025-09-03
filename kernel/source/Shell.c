@@ -35,6 +35,7 @@
 #include "../include/Log.h"
 #include "../include/Path.h"
 #include "../include/Process.h"
+#include "../include/StackTrace.h"
 #include "../include/String.h"
 #include "../include/StringArray.h"
 #include "../include/System.h"
@@ -1157,6 +1158,8 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
  * @return Exit code of the shell.
  */
 U32 Shell(LPVOID Param) {
+    TRACED_FUNCTION;
+
     UNUSED(Param);
     SHELLCONTEXT Context;
 
@@ -1176,6 +1179,7 @@ U32 Shell(LPVOID Param) {
 
     KernelLogText(LOG_DEBUG, TEXT("[Shell] Exit"));
 
+    TRACED_EPILOGUE("Shell");
     return 1;
 }
 

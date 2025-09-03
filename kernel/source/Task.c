@@ -28,11 +28,7 @@
 #include "../include/Log.h"
 #include "../include/Process.h"
 #include "../include/Stack.h"
-
-/***************************************************************************/
-// Stack overflow detection
-
-#define STACK_SAFETY_MARGIN 1024  // Minimum bytes before stack overflow
+#include "../include/StackTrace.h"
 
 /************************************************************************/
 
@@ -68,6 +64,8 @@ void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 /************************************************************************/
 
 LPTASK NewTask(void) {
+    TRACED_FUNCTION;
+
     LPTASK This = NULL;
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Enter"));
@@ -76,11 +74,15 @@ LPTASK NewTask(void) {
 
     if (This == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[NewTask] Could not allocate memory for task"));
+
+        TRACED_EPILOGUE("NewTask");
         return NULL;
     }
 
     if (IsValidMemory((LINEAR)This) == FALSE) {
         KernelLogText(LOG_ERROR, TEXT("[NewTask] Allocated task is not a valid pointer"));
+
+        TRACED_EPILOGUE("NewTask");
         return NULL;
     }
 
@@ -105,12 +107,15 @@ LPTASK NewTask(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[NewTask] Exit"));
 
+    TRACED_EPILOGUE("NewTask");
     return This;
 }
 
 /***************************************************************************/
 
 void DeleteTask(LPTASK This) {
+    TRACED_FUNCTION;
+
     LPLISTNODE Node = NULL;
     LPMUTEX Mutex = NULL;
 
@@ -162,11 +167,15 @@ void DeleteTask(LPTASK This) {
     HeapFree(This);
 
     KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Exit"));
+
+    TRACED_EPILOGUE("DeleteTask");
 }
 
 /***************************************************************************/
 
 LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
+    TRACED_FUNCTION;
+
     LPTASK Task = NULL;
     LINEAR StackTop = NULL;
     LINEAR SysStackTop = NULL;
@@ -186,7 +195,10 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Check parameters
 
-    if (Info->Func == NULL) return NULL;
+    if (Info->Func == NULL) {
+        TRACED_EPILOGUE("CreateTask");
+        return NULL;
+    }
 
     if (Info->StackSize < TASK_MINIMUM_STACK_SIZE) {
         Info->StackSize = TASK_MINIMUM_STACK_SIZE;
@@ -198,6 +210,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     if (IsValidMemory((LINEAR)Info->Func) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
+
+        TRACED_EPILOGUE("CreateTask");
         return NULL;
     }
 
@@ -211,6 +225,9 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         LockMutex(&(Process->Mutex), INFINITY);
         LockMutex(&(Process->HeapMutex), INFINITY);
     }
+
+    //-------------------------------------
+    // Instantiate a task
 
     Task = NewTask();
 

@@ -18,9 +18,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Process
+    Process manager
 
 \************************************************************************/
+
 #include "../include/Process.h"
 
 #include "../include/Console.h"
@@ -28,6 +29,7 @@
 #include "../include/File.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/StackTrace.h"
 
 /***************************************************************************/
 
@@ -59,6 +61,8 @@ PROCESS KernelProcess = {
  * primary kernel task.
  */
 void InitializeKernelProcess(void) {
+    TRACED_FUNCTION;
+
     TASKINFO TaskInfo;
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Enter"));
@@ -110,6 +114,8 @@ void InitializeKernelProcess(void) {
     LoadInitialTaskRegister(SELECTOR_TSS);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Exit"));
+
+    TRACED_EPILOGUE("InitializeKernelProcess");
 }
 
 /***************************************************************************/
@@ -120,13 +126,18 @@ void InitializeKernelProcess(void) {
  * @return Pointer to the new PROCESS or NULL on failure.
  */
 LPPROCESS NewProcess(void) {
+    TRACED_FUNCTION;
+
     LPPROCESS This = NULL;
 
     KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Enter"));
 
     This = (LPPROCESS)HeapAlloc(sizeof(PROCESS));
 
-    if (This == NULL) return NULL;
+    if (This == NULL) {
+        TRACED_EPILOGUE("NewProcess");
+        return NULL;
+    }
 
     MemorySet(This, 0, sizeof(PROCESS));
 
@@ -149,6 +160,7 @@ LPPROCESS NewProcess(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Exit"));
 
+    TRACED_EPILOGUE("NewProcess");
     return This;
 }
 
@@ -161,6 +173,8 @@ LPPROCESS NewProcess(void) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL CreateProcess(LPPROCESSINFO Info) {
+    TRACED_FUNCTION;
+
     EXECUTABLEINFO ExecutableInfo;
     TASKINFO TaskInfo;
     FILEOPENINFO FileOpenInfo;
@@ -181,7 +195,10 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Enter"));
 
-    if (Info == NULL) return FALSE;
+    if (Info == NULL) {
+        TRACED_EPILOGUE("CreateProcess");
+        return FALSE;
+    }
 
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
@@ -200,14 +217,20 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     File = OpenFile(&FileOpenInfo);
 
-    if (File == NULL) return FALSE;
+    if (File == NULL) {
+        TRACED_EPILOGUE("CreateProcess");
+        return FALSE;
+    }
 
     //-------------------------------------
     // Read the size of the file
 
     FileSize = GetFileSize(File);
 
-    if (FileSize == 0) return FALSE;
+    if (FileSize == 0) {
+        TRACED_EPILOGUE("CreateProcess");
+        return FALSE;
+    }
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] : File size %d"), FileSize);
 
@@ -215,6 +238,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // Get executable information
 
     if (GetExecutableInfo(File, &ExecutableInfo) == FALSE) {
+        TRACED_EPILOGUE("CreateProcess");
         return FALSE;
     }
 
@@ -407,6 +431,7 @@ Out:
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Exit, Result = %d\n"), Result);
 
+    TRACED_EPILOGUE("CreateProcess");
     return Result;
 }
 

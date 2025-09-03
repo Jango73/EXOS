@@ -31,6 +31,7 @@
 #include "../include/System.h"
 #include "../include/Task.h"
 #include "../include/Stack.h"
+#include "../include/StackTrace.h"
 
 /***************************************************************************/
 
@@ -104,6 +105,8 @@ static U32 FindNextRunnableTask(U32 StartIndex) {
 /***************************************************************************/
 
 BOOL AddTaskToQueue(LPTASK NewTask) {
+    TRACED_FUNCTION;
+
 #if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %X"), NewTask);
 #endif
@@ -113,6 +116,8 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     // Check validity of parameters
     if (NewTask == NULL || NewTask->ID != ID_TASK) {
         UnfreezeScheduler();
+
+        TRACED_EPILOGUE("AddTaskToQueue");
         return FALSE;
     }
 
@@ -120,6 +125,8 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     if (TaskList.NumTasks >= NUM_TASKS) {
         KernelLogText(LOG_ERROR, TEXT("[AddTaskToQueue] Cannot add %X, too many tasks"), NewTask);
         UnfreezeScheduler();
+
+        TRACED_EPILOGUE("AddTaskToQueue");
         return FALSE;
     }
 
@@ -127,6 +134,8 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
         if (TaskList.Tasks[Index] == NewTask) {
             UnfreezeScheduler();
+
+            TRACED_EPILOGUE("AddTaskToQueue");
             return TRUE;  // Already present, success
         }
     }
@@ -149,12 +158,16 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     TaskList.NumTasks++;
 
     UnfreezeScheduler();
+
+    TRACED_EPILOGUE("AddTaskToQueue");
     return TRUE;
 }
 
 /***************************************************************************/
 
 BOOL RemoveTaskFromQueue(LPTASK OldTask) {
+    TRACED_FUNCTION;
+
     FreezeScheduler();
 
     for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
@@ -184,17 +197,23 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
             TaskList.Tasks[TaskList.NumTasks] = NULL;  // Clear last slot
 
             UnfreezeScheduler();
+
+            TRACED_EPILOGUE("RemoveTaskFromQueue");
             return TRUE;
         }
     }
 
     UnfreezeScheduler();
+
+    TRACED_EPILOGUE("RemoveTaskFromQueue");
     return FALSE;
 }
 
 /***************************************************************************/
 
 LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
+    TRACED_FUNCTION;
+
 #if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter"));
 #endif
@@ -238,6 +257,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
     // No tasks to schedule
     if (TaskList.NumTasks == 0) {
+        TRACED_EPILOGUE("Scheduler");
         return NULL;
     }
 
@@ -253,6 +273,8 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No runnable tasks"));
 #endif
+
+        TRACED_EPILOGUE("Scheduler");
         return NULL;
     }
 
@@ -261,6 +283,8 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Current task continues"));
 #endif
+
+        TRACED_EPILOGUE("Scheduler");
         return NULL;
     }
 
@@ -272,6 +296,8 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No next task found"));
 #endif
+
+        TRACED_EPILOGUE("Scheduler");
         return NULL;
     }
 
@@ -310,6 +336,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     DumpFrame(&(NextTask->Context));
 #endif
 
+    TRACED_EPILOGUE("Scheduler");
     return &(NextTask->Context);
 }
 

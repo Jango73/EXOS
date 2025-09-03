@@ -1,7 +1,8 @@
 SHELL   = /bin/bash
 
-DEBUG_OUTPUT    ?= 0
-SCHEDULING_DEBUG_OUTPUT    ?= 0
+DEBUG_OUTPUT    			?= 0
+SCHEDULING_DEBUG_OUTPUT    	?= 0
+TRACE_STACK_USAGE			?= 0
 
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
 
@@ -16,7 +17,7 @@ CFLAGS  = -DNAME="__KERNEL__" -g -Wall -Wextra -O2 \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
 	-Werror-implicit-function-declaration -Wstrict-prototypes \
-	-DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT)
+	-DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE)
 
 AFLAGS  = -f elf -g -F dwarf -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
 
