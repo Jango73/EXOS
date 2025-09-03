@@ -63,4 +63,9 @@ struct tag_TASK {
 typedef struct tag_TASK TASK, *LPTASK;
 
 /************************************************************************/
+
+// Stack overflow protection
+BOOL CheckTaskStackSafety(void);
+
+/************************************************************************/
 #endif

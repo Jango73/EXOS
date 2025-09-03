@@ -26,6 +26,7 @@
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/Memory.h"
 #include "../include/Process.h"
 #include "../include/System.h"
 #include "../include/Task.h"
@@ -193,6 +194,20 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 #endif
 
     TaskList.SchedulerTime += 10;
+
+    // Check for stack overflow - kill dangerous tasks immediately
+    if (!CheckTaskStackSafety()) {
+        LPTASK DangerousTask = GetCurrentTask();
+
+        if (DangerousTask) {
+
+            KernelLogText(LOG_ERROR, TEXT("[Scheduler] Killing task due to overflow : %X"), DangerousTask);
+
+            // Mark task as ended and remove it from the scheduler
+            DangerousTask->Status = TASK_STATUS_DEAD;
+            KillTask(DangerousTask);
+        }
+    }
 
     // Save current task context if we have one
     if (TaskList.NumTasks > 0 && TaskList.CurrentIndex < TaskList.NumTasks && Frame) {

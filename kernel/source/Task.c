@@ -18,14 +18,20 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Task
+    Task manager
 
 \************************************************************************/
+
 #include "../include/Clock.h"
 #include "../include/I386.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"
+
+/***************************************************************************/
+// Stack overflow detection
+
+#define STACK_SAFETY_MARGIN 1024  // Minimum bytes before stack overflow
 
 /************************************************************************/
 
@@ -916,6 +922,70 @@ void DumpTask(LPTASK Task) {
     KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d"), Task->Message->NumItems);
 
     UnlockMutex(&(Task->Mutex));
+}
+
+/***************************************************************************/
+
+BOOL CheckTaskStackSafety(void) {
+    LPTASK CurrentTask;
+    U32 CurrentESP;
+    U32 CurrentCS;
+    U32 StackStart, StackEnd;
+    BOOL InKernelMode;
+    
+    // Get current task
+    CurrentTask = GetCurrentTask();
+
+    if (CurrentTask == NULL) {
+        // No current task, assume we're safe (boot/kernel initialization)
+        return TRUE;
+    }
+    
+    // Get current ESP and CS using inline assembly
+    __asm__ volatile("movl %%esp, %0" : "=r" (CurrentESP));
+    __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=r" (CurrentCS) : : "eax");
+    
+    // Determine if we're in kernel mode (ring 0) or user mode (ring 3)
+    // In i386, the segment selector's lower 2 bits indicate the privilege level
+    InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
+    
+    if (InKernelMode) {
+        // Using system stack (ring 0)
+        StackStart = CurrentTask->SysStackBase;
+        StackEnd = StackStart + CurrentTask->SysStackSize;
+    } else {
+        // Using user stack (ring 3)
+        StackStart = CurrentTask->StackBase;
+        StackEnd = StackStart + CurrentTask->StackSize;
+    }
+    
+    // Check if ESP is dangerously close to stack base
+    // Stack grows downward, so danger is when ESP approaches StackStart
+    if (CurrentESP <= (StackStart + STACK_SAFETY_MARGIN)) {
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] STACK OVERFLOW DETECTED!"));
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] Task: %X"), CurrentTask);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] ESP: %X"), CurrentESP);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackStart: %X"), StackStart);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackEnd: %X"), StackEnd);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] InKernelMode: %u"), InKernelMode ? 1 : 0);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] Safety margin violated by %u bytes"), 
+                     (StackStart + STACK_SAFETY_MARGIN) - CurrentESP);
+        return FALSE;
+    }
+    
+    // Check if ESP is outside stack bounds entirely
+    if (CurrentESP < StackStart || CurrentESP >= StackEnd) {
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] ESP OUTSIDE STACK BOUNDS!"));
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] Task: %X"), CurrentTask);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] ESP: %X"), CurrentESP);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackStart: %X"), StackStart);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackEnd: %X"), StackEnd);
+        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] InKernelMode: %u"), InKernelMode ? 1 : 0);
+
+        return FALSE;
+    }
+    
+    return TRUE;
 }
 
 /***************************************************************************/
