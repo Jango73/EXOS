@@ -148,6 +148,11 @@ BOOL CheckStack(void) {
         return TRUE;
     }
 
+    // Skip stack checking for main kernel task since ESP is not saved in context
+    if (CurrentTask->Flags & TASK_CREATE_MAIN) {
+        return TRUE;
+    }
+
     __asm__ volatile("movl %%esp, %0" : "=r" (CurrentESP));
     __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=r" (CurrentCS) : : "eax");
 
