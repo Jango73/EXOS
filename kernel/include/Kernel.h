@@ -18,9 +18,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Kernel
+    Kernel definitions
 
 \************************************************************************/
+
 #ifndef KERNEL_H_INCLUDED
 #define KERNEL_H_INCLUDED
 
@@ -83,18 +84,6 @@ typedef struct tag_CPUINFORMATION {
 
 #define IDT_SIZE N_4KB
 #define GDT_SIZE N_8KB
-
-/***************************************************************************/
-// Static linear addresses (VMA)
-// All processes have the following address space layout
-
-#define LA_RAM 0x00000000                        // Reserved for kernel
-#define LA_VIDEO 0x000A0000                      // Reserved for kernel
-#define LA_CONSOLE 0x000B8000                    // Reserved for kernel
-#define LA_USER 0x00400000                       // Start of user address space
-#define LA_LIBRARY 0xA0000000                    // Dynamic Libraries
-#define LA_TASK_RUNNER (LA_LIBRARY - PAGE_SIZE)  // User alias for TaskRunner
-#define LA_KERNEL 0xC0000000                     // Kernel
 
 /***************************************************************************/
 

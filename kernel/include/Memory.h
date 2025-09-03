@@ -18,11 +18,24 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Memory
+    Memory manager
 
 \************************************************************************/
+
 #ifndef MEMORY_H_INCLUDED
 #define MEMORY_H_INCLUDED
+
+/***************************************************************************/
+// Static virtual memory addresses (VMA)
+// All processes have the following address space layout
+
+#define VMA_RAM 0x00000000                          // Reserved for kernel
+#define VMA_VIDEO 0x000A0000                        // Reserved for kernel
+#define VMA_CONSOLE 0x000B8000                      // Reserved for kernel
+#define VMA_USER 0x00400000                         // Start of user address space
+#define VMA_LIBRARY 0xA0000000                      // Dynamic Libraries
+#define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)   // User alias for TaskRunner
+#define VMA_KERNEL 0xC0000000                       // Kernel
 
 /************************************************************************/
 

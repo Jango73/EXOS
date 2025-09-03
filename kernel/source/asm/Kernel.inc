@@ -124,9 +124,9 @@ PAGE_SIZE_MUL      equ MUL_4KB
 IDT_SIZE     equ N_4KB
 GDT_SIZE     equ N_8KB
 
-LA_USER      equ 0x00400000
-LA_LIBRARY   equ 0xA0000000
-LA_KERNEL    equ 0xC0000000
+VMA_USER      equ 0x00400000
+VMA_LIBRARY   equ 0xA0000000
+VMA_KERNEL    equ 0xC0000000
 
 LOW_MEMORY_PAGE_1   equ 0x1000  ; Reserved by VBR system structures
 LOW_MEMORY_PAGE_2   equ 0x2000  ; Reserved by VBR system structures

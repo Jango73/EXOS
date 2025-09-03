@@ -53,16 +53,16 @@
     ofs =  VMA & 0xFFF
 
                       PDE index
-            ┌────────────┬────────────┬────────────┬────────────┬────────────┐
-            │     0      │     1      │   ...      │ KernelDir  │   1023     │
-            ├────────────┼────────────┼────────────┼────────────┼────────────┤
-    points→ │  Low PT    │   PT #1    │   ...      │ Kernel PT  │  SELF-MAP  │
-    to PA   │ (0..4MB)   │            │            │ (LA_KERNEL)│ (PD itself)│
-            └────────────┴────────────┴────────────┴────────────┴────────────┘
+            ┌────────────┬────────────┬────────────┬────────────┬─────────────┐
+            │     0      │     1      │   ...      │ KernelDir  │   1023      │
+            ├────────────┼────────────┼────────────┼────────────┼─────────── ─┤
+    points→ │  Low PT    │   PT #1    │   ...      │ Kernel PT  │  SELF-MAP   │
+    to PA   │ (0..4MB)   │            │            │ (VMA_KERNEL)│ (PD itself)│
+            └────────────┴────────────┴────────────┴────────────┴─────────────┘
                                                               ^
-                                                              │
+                                                              |
                                          PDE[1023] -> PD physical page (recursive)
-                                                              │
+                                                              |
                                                               v
     PD_VA = 0xFFFFF000 ----------------------------------> Page Directory (VA alias)
 
@@ -80,11 +80,11 @@
     Resolution path for any VMA:
            VMA
             │
-       dir = VMA>>22  ───────►  PD_VA[dir] (PDE)  ──────►  PT_VA(dir)[tab] (PTE)  ──────►  PA + ofs
+       dir = VMA>>22  ------>  PD_VA[dir] (PDE)  ------>  PT_VA(dir)[tab] (PTE)  ------>  PA + ofs
 
     Kernel mappings installed at init:
     - PDE[0]         -> Low PT (identity map 0..4MB)
-    - PDE[KernelDir] -> Kernel PT (maps LA_KERNEL .. LA_KERNEL+4MB-1)
+    - PDE[KernelDir] -> Kernel PT (maps VMA_KERNEL .. VMA_KERNEL+4MB-1)
     - PDE[1023]      -> PD itself (self-map)
 
 
@@ -100,9 +100,9 @@
     Simplified view of the two temporary pages:
 
                          (reserved via AllocRegion, not present by default)
-    G_TempLinear1  ─┐    ┌────────────────────────────────────────────┐
-                    ├──► │ PTE ← (Present=1, RW=1, ..., Address=P>>12)│  map/unmap to chosen PA
-    G_TempLinear2  ─┘    └────────────────────────────────────────────┘
+    G_TempLinear1  -\    ┌────────────────────────────────────────────┐
+                    |-─> │ PTE < (Present=1, RW=1, ..., Address=P>>12)│  map/unmap to chosen PA
+    G_TempLinear2  -/    └────────────────────────────────────────────┘
                                    ^
                                    │ (written through) PT_VA(dir(G_TempLinearX)) = PT_BASE_VA + dir*0x1000
                                    │
@@ -538,7 +538,7 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
 /*
  * AllocPageDirectory
  * - Identity-map the first 4MB at 0x00000000..0x003FFFFF
- * - Map the kernel at LA_KERNEL to KernelStartup.StubAddress (4MB window)
+ * - Map the kernel at VMA_KERNEL to KernelStartup.StubAddress (4MB window)
  * - Install recursive mapping PDE[1023] = PD
  *
  * @return: The physical address of the page directory that goes in cr3
@@ -549,9 +549,9 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
  * @return Physical address of the page directory or MAX_U32 on failure.
  */
 PHYSICAL AllocPageDirectory(void) {
-    PHYSICAL PA_Directory = NULL;
-    PHYSICAL PA_LowTable = NULL;
-    PHYSICAL PA_KernelTable = NULL;
+    PHYSICAL PMA_Directory = NULL;
+    PHYSICAL PMA_LowTable = NULL;
+    PHYSICAL PMA_KernelTable = NULL;
 
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE LowTable = NULL;
@@ -559,32 +559,32 @@ PHYSICAL AllocPageDirectory(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Enter"));
 
-    U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for LA_KERNEL
+    U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
     U32 PhysBaseKernel = KernelStartup.StubAddress;          // Kernel physical base
     U32 Index;
 
     // Allocate required physical pages (PD + 2 PTs)
-    PA_Directory = AllocPhysicalPage();
-    PA_LowTable = AllocPhysicalPage();
-    PA_KernelTable = AllocPhysicalPage();
+    PMA_Directory = AllocPhysicalPage();
+    PMA_LowTable = AllocPhysicalPage();
+    PMA_KernelTable = AllocPhysicalPage();
 
-    if (PA_Directory == NULL || PA_LowTable == NULL || PA_KernelTable == NULL) {
+    if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
 
     // Clear and prepare the Page Directory
-    LINEAR LA_PD = MapPhysicalPage(PA_Directory);
-    if (LA_PD == NULL) {
+    LINEAR VMA_PD = MapPhysicalPage(PMA_Directory);
+    if (VMA_PD == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage failed on Directory"));
         goto Out_Error;
     }
-    Directory = (LPPAGEDIRECTORY)LA_PD;
+    Directory = (LPPAGEDIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Page directory cleared"));
 
-    // Directory[0] -> identity map 0..4MB via PA_LowTable
+    // Directory[0] -> identity map 0..4MB via PMA_LowTable
     Directory[0].Present = 1;
     Directory[0].ReadWrite = 1;
     Directory[0].Privilege = PAGE_PRIVILEGE_KERNEL;
@@ -596,9 +596,9 @@ PHYSICAL AllocPageDirectory(void) {
     Directory[0].Global = 0;
     Directory[0].User = 0;
     Directory[0].Fixed = 1;
-    Directory[0].Address = (PA_LowTable >> PAGE_SIZE_MUL);
+    Directory[0].Address = (PMA_LowTable >> PAGE_SIZE_MUL);
 
-    // Directory[DirKernel] -> map LA_KERNEL..LA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
+    // Directory[DirKernel] -> map VMA_KERNEL..VMA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
     Directory[DirKernel].Present = 1;
     Directory[DirKernel].ReadWrite = 1;
     Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
@@ -610,7 +610,7 @@ PHYSICAL AllocPageDirectory(void) {
     Directory[DirKernel].Global = 0;
     Directory[DirKernel].User = 0;
     Directory[DirKernel].Fixed = 1;
-    Directory[DirKernel].Address = (PA_KernelTable >> PAGE_SIZE_MUL);
+    Directory[DirKernel].Address = (PMA_KernelTable >> PAGE_SIZE_MUL);
 
     // Install recursive mapping: PDE[1023] = PD
     Directory[PD_RECURSIVE_SLOT].Present = 1;
@@ -624,15 +624,15 @@ PHYSICAL AllocPageDirectory(void) {
     Directory[PD_RECURSIVE_SLOT].Global = 0;
     Directory[PD_RECURSIVE_SLOT].User = 0;
     Directory[PD_RECURSIVE_SLOT].Fixed = 1;
-    Directory[PD_RECURSIVE_SLOT].Address = (PA_Directory >> PAGE_SIZE_MUL);
+    Directory[PD_RECURSIVE_SLOT].Address = (PMA_Directory >> PAGE_SIZE_MUL);
 
     // Fill identity-mapped low table (0..4MB)
-    LINEAR LA_PT = MapPhysicalPage2(PA_LowTable);
-    if (LA_PT == NULL) {
+    LINEAR VMA_PT = MapPhysicalPage2(PMA_LowTable);
+    if (VMA_PT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
-    LowTable = (LPPAGETABLE)LA_PT;
+    LowTable = (LPPAGETABLE)VMA_PT;
     MemorySet(LowTable, 0, PAGE_SIZE);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Low memory table cleared"));
@@ -653,12 +653,12 @@ PHYSICAL AllocPageDirectory(void) {
     }
 
     // Fill kernel mapping table by copying the current kernel PT
-    LA_PT = MapPhysicalPage2(PA_KernelTable);
-    if (LA_PT == NULL) {
+    VMA_PT = MapPhysicalPage2(PMA_KernelTable);
+    if (VMA_PT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
-    KernelTable = (LPPAGETABLE)LA_PT;
+    KernelTable = (LPPAGETABLE)VMA_PT;
 
     MemorySet(KernelTable, 0, PAGE_SIZE);
 
@@ -691,13 +691,13 @@ PHYSICAL AllocPageDirectory(void) {
         *(U32*)&KernelTable[0]);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Exit"));
-    return PA_Directory;
+    return PMA_Directory;
 
 Out_Error:
 
-    if (PA_Directory) FreePhysicalPage(PA_Directory);
-    if (PA_LowTable) FreePhysicalPage(PA_LowTable);
-    if (PA_KernelTable) FreePhysicalPage(PA_KernelTable);
+    if (PMA_Directory) FreePhysicalPage(PMA_Directory);
+    if (PMA_LowTable) FreePhysicalPage(PMA_LowTable);
+    if (PMA_KernelTable) FreePhysicalPage(PMA_KernelTable);
 
     return NULL;
 }
@@ -709,10 +709,10 @@ Out_Error:
  * @return Physical address of the page directory or NULL on failure.
  */
 PHYSICAL AllocUserPageDirectory(void) {
-    PHYSICAL PA_Directory = NULL;
-    PHYSICAL PA_LowTable = NULL;
-    PHYSICAL PA_KernelTable = NULL;
-    PHYSICAL PA_UserTable = NULL;
+    PHYSICAL PMA_Directory = NULL;
+    PHYSICAL PMA_LowTable = NULL;
+    PHYSICAL PMA_KernelTable = NULL;
+    PHYSICAL PMA_UserTable = NULL;
 
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE LowTable = NULL;
@@ -722,33 +722,33 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Enter"));
 
-    U32 DirKernel = (LA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for LA_KERNEL
-    U32 DirUser = (LA_USER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for LA_USER
+    U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
+    U32 DirUser = (VMA_USER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_USER
     U32 Index;
 
     // Allocate required physical pages (PD + 3 PTs)
-    PA_Directory = AllocPhysicalPage();
-    PA_LowTable = AllocPhysicalPage();
-    PA_KernelTable = AllocPhysicalPage();
-    PA_UserTable = AllocPhysicalPage();
+    PMA_Directory = AllocPhysicalPage();
+    PMA_LowTable = AllocPhysicalPage();
+    PMA_KernelTable = AllocPhysicalPage();
+    PMA_UserTable = AllocPhysicalPage();
 
-    if (PA_Directory == NULL || PA_LowTable == NULL || PA_KernelTable == NULL || PA_UserTable == NULL) {
+    if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL || PMA_UserTable == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
 
     // Clear and prepare the Page Directory
-    LINEAR LA_PD = MapPhysicalPage(PA_Directory);
-    if (LA_PD == NULL) {
+    LINEAR VMA_PD = MapPhysicalPage(PMA_Directory);
+    if (VMA_PD == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage failed on Directory"));
         goto Out_Error;
     }
-    Directory = (LPPAGEDIRECTORY)LA_PD;
+    Directory = (LPPAGEDIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Page directory cleared"));
 
-    // Directory[0] -> identity map 0..4MB via PA_LowTable
+    // Directory[0] -> identity map 0..4MB via PMA_LowTable
     Directory[0].Present = 1;
     Directory[0].ReadWrite = 1;
     Directory[0].Privilege = PAGE_PRIVILEGE_KERNEL;
@@ -760,9 +760,9 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[0].Global = 0;
     Directory[0].User = 0;
     Directory[0].Fixed = 1;
-    Directory[0].Address = (PA_LowTable >> PAGE_SIZE_MUL);
+    Directory[0].Address = (PMA_LowTable >> PAGE_SIZE_MUL);
 
-    // Directory[DirUser] -> map LA_USER..LA_USER+4MB-1 for userland
+    // Directory[DirUser] -> map VMA_USER..VMA_USER+4MB-1 for userland
     Directory[DirUser].Present = 1;
     Directory[DirUser].ReadWrite = 1;
     Directory[DirUser].Privilege = PAGE_PRIVILEGE_USER;
@@ -774,9 +774,9 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[DirUser].Global = 0;
     Directory[DirUser].User = 0;
     Directory[DirUser].Fixed = 1;
-    Directory[DirUser].Address = (PA_UserTable >> PAGE_SIZE_MUL);
+    Directory[DirUser].Address = (PMA_UserTable >> PAGE_SIZE_MUL);
 
-    // Directory[DirKernel] -> map LA_KERNEL..LA_KERNEL+4MB-1 to current kernel state
+    // Directory[DirKernel] -> map VMA_KERNEL..VMA_KERNEL+4MB-1 to current kernel state
     Directory[DirKernel].Present = 1;
     Directory[DirKernel].ReadWrite = 1;
     Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
@@ -788,7 +788,7 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[DirKernel].Global = 0;
     Directory[DirKernel].User = 0;
     Directory[DirKernel].Fixed = 1;
-    Directory[DirKernel].Address = (PA_KernelTable >> PAGE_SIZE_MUL);
+    Directory[DirKernel].Address = (PMA_KernelTable >> PAGE_SIZE_MUL);
     
     // Copy ALL present PDEs from current directory (simple approach)
     for (Index = 1; Index < 1023; Index++) {  // Skip 0 (already done) and 1023 (self-map)
@@ -796,7 +796,7 @@ PHYSICAL AllocUserPageDirectory(void) {
             Directory[Index] = CurrentPD[Index];
             
             // Ensure TaskRunner PDE has user privilege
-            if (Index == GetDirectoryEntry(LA_TASK_RUNNER)) {
+            if (Index == GetDirectoryEntry(VMA_TASK_RUNNER)) {
                 Directory[Index].Privilege = PAGE_PRIVILEGE_USER;
                 KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Set TaskRunner PDE[%d] to user privilege"), Index);
             }
@@ -817,22 +817,22 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[PD_RECURSIVE_SLOT].Global = 0;
     Directory[PD_RECURSIVE_SLOT].User = 0;
     Directory[PD_RECURSIVE_SLOT].Fixed = 1;
-    Directory[PD_RECURSIVE_SLOT].Address = (PA_Directory >> PAGE_SIZE_MUL);
+    Directory[PD_RECURSIVE_SLOT].Address = (PMA_Directory >> PAGE_SIZE_MUL);
 
     // Ensure TaskRunner is properly mapped with user privilege
     {
-        PHYSICAL TaskStubPhysical = (PHYSICAL)(&TaskRunner) - LA_KERNEL + KERNEL_PHYSICAL_ORIGIN;
-        MapOnePage(LA_TASK_RUNNER, TaskStubPhysical, /*RW*/ 0, PAGE_PRIVILEGE_USER, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
-        KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] TaskRunner mapped at %X"), LA_TASK_RUNNER);
+        PHYSICAL TaskStubPhysical = (PHYSICAL)(&TaskRunner) - VMA_KERNEL + KERNEL_PHYSICAL_ORIGIN;
+        MapOnePage(VMA_TASK_RUNNER, TaskStubPhysical, /*RW*/ 0, PAGE_PRIVILEGE_USER, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+        KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] TaskRunner mapped at %X"), VMA_TASK_RUNNER);
     }
 
     // Fill identity-mapped low table (0..4MB) - manual setup like AllocPageDirectory
-    LINEAR LA_PT = MapPhysicalPage2(PA_LowTable);
-    if (LA_PT == NULL) {
+    LINEAR VMA_PT = MapPhysicalPage2(PMA_LowTable);
+    if (VMA_PT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
-    LowTable = (LPPAGETABLE)LA_PT;
+    LowTable = (LPPAGETABLE)VMA_PT;
     MemorySet(LowTable, 0, PAGE_SIZE);
     
     // Initialize identity mapping for 0..4MB (same as AllocPageDirectory)
@@ -854,12 +854,12 @@ PHYSICAL AllocUserPageDirectory(void) {
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
 
     // Fill kernel mapping table by copying the current kernel PT
-    LA_PT = MapPhysicalPage2(PA_KernelTable);
-    if (LA_PT == NULL) {
+    VMA_PT = MapPhysicalPage2(PMA_KernelTable);
+    if (VMA_PT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
-    KernelTable = (LPPAGETABLE)LA_PT;
+    KernelTable = (LPPAGETABLE)VMA_PT;
 
     // Create basic static kernel mapping instead of copying (for testing)
     MemorySet(KernelTable, 0, PAGE_SIZE);
@@ -886,12 +886,12 @@ PHYSICAL AllocUserPageDirectory(void) {
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
 
     // Initialize empty user table (will be filled by AllocRegion)
-    LA_PT = MapPhysicalPage2(PA_UserTable);
-    if (LA_PT == NULL) {
+    VMA_PT = MapPhysicalPage2(PMA_UserTable);
+    if (VMA_PT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on UserTable"));
         goto Out_Error;
     }
-    UserTable = (LPPAGETABLE)LA_PT;
+    UserTable = (LPPAGETABLE)VMA_PT;
     MemorySet(UserTable, 0, PAGE_SIZE);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] User table initialized"));
@@ -907,14 +907,14 @@ PHYSICAL AllocUserPageDirectory(void) {
         *(U32*)&KernelTable[0]);
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Exit"));
-    return PA_Directory;
+    return PMA_Directory;
 
 Out_Error:
 
-    if (PA_Directory) FreePhysicalPage(PA_Directory);
-    if (PA_LowTable) FreePhysicalPage(PA_LowTable);
-    if (PA_KernelTable) FreePhysicalPage(PA_KernelTable);
-    if (PA_UserTable) FreePhysicalPage(PA_UserTable);
+    if (PMA_Directory) FreePhysicalPage(PMA_Directory);
+    if (PMA_LowTable) FreePhysicalPage(PMA_LowTable);
+    if (PMA_KernelTable) FreePhysicalPage(PMA_KernelTable);
+    if (PMA_UserTable) FreePhysicalPage(PMA_UserTable);
 
     return NULL;
 }
@@ -934,9 +934,9 @@ Out_Error:
  * @return Linear address of the new table or 0.
  */
 LINEAR AllocPageTable(LINEAR Base) {
-    PHYSICAL PA_Table = AllocPhysicalPage();
+    PHYSICAL PMA_Table = AllocPhysicalPage();
 
-    if (PA_Table == NULL) {
+    if (PMA_Table == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocPageTable] Out of physical pages"));
         return NULL;
     }
@@ -956,11 +956,11 @@ LINEAR AllocPageTable(LINEAR Base) {
     Directory[DirEntry].Global = 0;
     Directory[DirEntry].User = 0;
     Directory[DirEntry].Fixed = 1;
-    Directory[DirEntry].Address = PA_Table >> PAGE_SIZE_MUL;
+    Directory[DirEntry].Address = PMA_Table >> PAGE_SIZE_MUL;
 
     // Clear the new table by mapping its physical page temporarily.
-    LINEAR LA_PT = MapPhysicalPage2(PA_Table);
-    MemorySet((LPVOID)LA_PT, 0, PAGE_SIZE);
+    LINEAR VMA_PT = MapPhysicalPage2(PMA_Table);
+    MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
 
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
@@ -1033,9 +1033,9 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     }
 
     while (1) {
-        // Skip LA_USER region (reserved for user processes)
-        if (Base >= LA_USER && Base < LA_USER + 0x1000000) {
-            Base = LA_USER + 0x1000000; // Skip 16MB user space
+        // Skip VMA_USER region (reserved for user processes)
+        if (Base >= VMA_USER && Base < VMA_USER + 0x1000000) {
+            Base = VMA_USER + 0x1000000; // Skip 16MB user space
             continue;
         }
         
@@ -1081,7 +1081,7 @@ static void FreeEmptyPageTables(void) {
     U32 Index = 0;
     U32 DestroyIt = 0;
 
-    while (Base < LA_KERNEL) {
+    while (Base < VMA_KERNEL) {
         DestroyIt = 1;
         DirEntry = GetDirectoryEntry(Base);
 
@@ -1516,7 +1516,7 @@ void InitializeMemoryManager(void) {
 
     // Allocate a permanent linear region for the GDT
     Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)AllocRegion(
-        LA_KERNEL, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+        VMA_KERNEL, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     if (Kernel_i386.GDT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
@@ -1539,14 +1539,14 @@ void InitializeMemoryManager(void) {
 
     // Map TaskRunner stub to a user-accessible window
     {
-        PHYSICAL TaskStubPhysical = (PHYSICAL)(&TaskRunner) - LA_KERNEL + KERNEL_PHYSICAL_ORIGIN;
+        PHYSICAL TaskStubPhysical = (PHYSICAL)(&TaskRunner) - VMA_KERNEL + KERNEL_PHYSICAL_ORIGIN;
 
-        if (AllocRegion(LA_TASK_RUNNER, TaskStubPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT) != NULL) {
+        if (AllocRegion(VMA_TASK_RUNNER, TaskStubPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT) != NULL) {
             LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
-            U32 Dir = GetDirectoryEntry(LA_TASK_RUNNER);
+            U32 Dir = GetDirectoryEntry(VMA_TASK_RUNNER);
             Directory[Dir].Privilege = PAGE_PRIVILEGE_USER;
             MapOnePage(
-                LA_TASK_RUNNER, TaskStubPhysical, /*RW*/ 0, PAGE_PRIVILEGE_USER, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0,
+                VMA_TASK_RUNNER, TaskStubPhysical, /*RW*/ 0, PAGE_PRIVILEGE_USER, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0,
                 /*Fixed*/ 1);
             KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] TaskRunner window mapped"));
         } else {

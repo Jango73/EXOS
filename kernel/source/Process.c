@@ -70,7 +70,7 @@ void InitializeKernelProcess(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Pages : %X"), KernelStartup.PageCount);
 
     LINEAR HeapBase = AllocRegion(
-        LA_KERNEL, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+        VMA_KERNEL, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] HeapBase : %X"), HeapBase);
 
@@ -256,7 +256,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Compute addresses
 
-    CodeBase = LA_USER;
+    CodeBase = VMA_USER;
     DataBase = CodeBase + CodeSize;
 
     while (DataBase & N_4KB_M1) DataBase++;
@@ -268,7 +268,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Compute total size
 
-    TotalSize = (HeapBase + HeapSize) - LA_USER;
+    TotalSize = (HeapBase + HeapSize) - VMA_USER;
 
     //-------------------------------------
 
@@ -304,7 +304,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] AllocRegioning process space"));
 
-    if (AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
+    if (AllocRegion(VMA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[CreateProcess] Failed to allocate process space"));
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
@@ -325,7 +325,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     //-------------------------------------
     // Load executable image
-    // For tests, image must be at LA_KERNEL
+    // For tests, image must be at VMA_KERNEL
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Loading executable"));
 
@@ -338,7 +338,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     if (LoadExecutable(&LoadInfo) == FALSE) {
         KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Load failed !"));
 
-        FreeRegion(LA_USER, TotalSize);
+        FreeRegion(VMA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
         CloseFile(File);
@@ -362,7 +362,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Creating initial task"));
 
-    // TaskInfo.Func      = (TASKFUNC) LA_USER;
+    // TaskInfo.Func      = (TASKFUNC) VMA_USER;
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = StackSize;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;

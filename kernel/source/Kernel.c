@@ -284,12 +284,12 @@ void DumpCriticalInformation(void) {
     }
 
     KernelLogText(LOG_DEBUG, TEXT("Virtual addresses"));
-    KernelLogText(LOG_DEBUG, TEXT("LA_RAM : %X"), LA_RAM);
-    KernelLogText(LOG_DEBUG, TEXT("LA_VIDEO : %X"), LA_VIDEO);
-    KernelLogText(LOG_DEBUG, TEXT("LA_CONSOLE : %X"), LA_CONSOLE);
-    KernelLogText(LOG_DEBUG, TEXT("LA_USER : %X"), LA_USER);
-    KernelLogText(LOG_DEBUG, TEXT("LA_LIBRARY : %X"), LA_LIBRARY);
-    KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_RAM : %X"), VMA_RAM);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_VIDEO : %X"), VMA_VIDEO);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_CONSOLE : %X"), VMA_CONSOLE);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_USER : %X"), VMA_USER);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_LIBRARY : %X"), VMA_LIBRARY);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_KERNEL : %X"), VMA_KERNEL);
 
     KernelLogText(LOG_DEBUG, TEXT("Kernel startup info:"));
     KernelLogText(LOG_DEBUG, TEXT("  StubAddress : %X"), KernelStartup.StubAddress);

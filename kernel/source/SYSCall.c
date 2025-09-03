@@ -61,8 +61,8 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
         Info->TotalMemoryAvail = Info->TotalPhysicalMemory + Info->TotalSwapMemory;
         Info->PageSize = PAGE_SIZE;
         Info->TotalPhysicalPages = KernelStartup.PageCount;
-        Info->MinimumLinearAddress = LA_USER;
-        Info->MaximumLinearAddress = LA_KERNEL - 1;
+        Info->MinimumLinearAddress = VMA_USER;
+        Info->MaximumLinearAddress = VMA_KERNEL - 1;
         Info->NumProcesses = Kernel.Process->NumItems;
         Info->NumTasks = Kernel.Task->NumItems;
 
