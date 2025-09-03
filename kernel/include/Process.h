@@ -25,7 +25,7 @@
 #ifndef PROCESS_H_INCLUDED
 #define PROCESS_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
 #include "Base.h"
 #include "Driver.h"
@@ -39,21 +39,21 @@
 #include "Task.h"
 #include "User.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 typedef struct tag_MESSAGE MESSAGE, *LPMESSAGE;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 
-/***************************************************************************\
+/************************************************************************\
 
   The process structure
 
   For kernel process, the heap base should be somewhere above 0xC0000000.
   For a user process, it should be between 0x00400000 and 0x40000000.
 
-\***************************************************************************/
+\************************************************************************/
 
 struct tag_PROCESS {
     LISTNODE_FIELDS          // Standard EXOS object fields
@@ -71,8 +71,7 @@ struct tag_PROCESS {
     LPLIST Objects;  // Objects owned by this process
 };
 
-/***************************************************************************/
-
+/************************************************************************/
 // The Message structure
 
 struct tag_MESSAGE {
@@ -84,8 +83,7 @@ struct tag_MESSAGE {
     U32 Param2;
 };
 
-/***************************************************************************/
-
+/************************************************************************/
 // Task status values
 
 #define TASK_STATUS_FREE 0x00
@@ -98,15 +96,14 @@ struct tag_MESSAGE {
 // Miscellaneous task values
 
 #define TASK_MINIMUM_STACK_SIZE N_32KB
-#define TASK_SYSTEM_STACK_SIZE N_4KB
+#define TASK_SYSTEM_STACK_SIZE N_8KB
 
 // Task creation flags
 
 #define TASK_CREATE_SUSPENDED 0x00000001
 #define TASK_CREATE_MAIN 0x00000002
 
-/***************************************************************************/
-
+/************************************************************************/
 // The window structure
 
 struct tag_WINDOW {
@@ -132,7 +129,7 @@ struct tag_WINDOW {
 #define WINDOW_STATUS_VISIBLE 0x0001
 #define WINDOW_STATUS_NEED_DRAW 0x0002
 
-/***************************************************************************/
+/************************************************************************/
 // The property structure
 
 typedef struct tag_PROPERTY {
@@ -141,7 +138,7 @@ typedef struct tag_PROPERTY {
     U32 Value;
 } PROPERTY, *LPPROPERTY;
 
-/***************************************************************************/
+/************************************************************************/
 // The desktop structure
 
 struct tag_DESKTOP {
@@ -155,7 +152,7 @@ struct tag_DESKTOP {
     I32 Order;
 };
 
-/***************************************************************************/
+/************************************************************************/
 
 #define MUTEX_KERNEL (&KernelMutex)
 #define MUTEX_LOG (&LogMutex)
@@ -168,7 +165,7 @@ struct tag_DESKTOP {
 #define MUTEX_FILE (&FileMutex)
 #define MUTEX_CONSOLE (&ConsoleMutex)
 
-/***************************************************************************/
+/************************************************************************/
 
 extern PROCESS KernelProcess;
 extern WINDOW MainDesktopWindow;
@@ -184,7 +181,7 @@ extern MUTEX FileSystemMutex;
 extern MUTEX FileMutex;
 extern MUTEX ConsoleMutex;
 
-/***************************************************************************/
+/************************************************************************/
 // Functions in Process.c
 
 void InitializeKernelProcess(void);
@@ -194,7 +191,7 @@ void InitSecurity(LPSECURITY);
 BOOL CreateProcess(LPPROCESSINFO);
 BOOL Spawn(LPCSTR, LPCSTR);
 
-/***************************************************************************/
+/************************************************************************/
 // Functions in Task.c
 
 BOOL InitKernelTask(void);
@@ -208,7 +205,7 @@ BOOL GetMessage(LPMESSAGEINFO);
 BOOL DispatchMessage(LPMESSAGEINFO);
 void DumpTask(LPTASK);
 
-/***************************************************************************/
+/************************************************************************/
 // Functions in Mutex.c
 
 void InitMutex(LPMUTEX);
@@ -217,7 +214,7 @@ BOOL DeleteMutex(LPMUTEX);
 U32 LockMutex(LPMUTEX, U32);
 BOOL UnlockMutex(LPMUTEX);
 
-/***************************************************************************/
+/************************************************************************/
 // Functions in Desktop.c
 
 LPDESKTOP CreateDesktop(void);
@@ -250,6 +247,6 @@ BOOL Line(LPLINEINFO);
 BOOL Rectangle(LPRECTINFO);
 U32 DefWindowFunc(HANDLE, U32, U32, U32);
 
-/***************************************************************************/
+/************************************************************************/
 
 #endif
