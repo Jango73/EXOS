@@ -1,7 +1,7 @@
 SHELL   = /bin/bash
 
 DEBUG_OUTPUT    ?= 0
-CRITICAL_DEBUG_OUTPUT    ?= 0
+SCHEDULING_DEBUG_OUTPUT    ?= 0
 
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
 
@@ -16,9 +16,9 @@ CFLAGS  = -DNAME="__KERNEL__" -g -Wall -Wextra -O2 \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
 	-Werror-implicit-function-declaration -Wstrict-prototypes \
-	-DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DCRITICAL_DEBUG_OUTPUT=$(CRITICAL_DEBUG_OUTPUT)
+	-DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT)
 
-AFLAGS  = -f elf -g -F dwarf -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DCRITICAL_DEBUG_OUTPUT=$(CRITICAL_DEBUG_OUTPUT) -I source/asm/
+AFLAGS  = -f elf -g -F dwarf -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
 
 LDFLAGS_ELF = -T linker-elf.ld -static -nostdlib -no-pie --no-dynamic-linker --verbose -Map=bin/exos-elf.map
 

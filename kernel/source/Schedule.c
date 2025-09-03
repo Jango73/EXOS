@@ -99,7 +99,7 @@ static U32 FindNextRunnableTask(U32 StartIndex) {
 /***************************************************************************/
 
 BOOL AddTaskToQueue(LPTASK NewTask) {
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %X"), NewTask);
 #endif
 
@@ -127,7 +127,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     }
 
     // Add task to queue
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
 #endif
 
@@ -189,7 +189,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
 /***************************************************************************/
 
 LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter"));
 #endif
 
@@ -219,7 +219,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
     // If scheduler is frozen, don't switch (atomic read - safe in interrupt context)
     if (TaskList.Freeze) {
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen: Returning NULL"));
 #endif
         return NULL;
@@ -239,7 +239,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     
     // No runnable tasks - system idle
     if (RunnableCount == 0) {
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No runnable tasks"));
 #endif
         return NULL;
@@ -247,7 +247,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
     // If current task is still running and quantum not expired, keep it
     if (CurrentTask && CurrentTask->Status == TASK_STATUS_RUNNING && !QuantumExpired) {
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Current task continues"));
 #endif
         return NULL;
@@ -258,7 +258,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     
     if (NextIndex >= TaskList.NumTasks) {
         // Should not happen if RunnableCount > 0, but safety check
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No next task found"));
 #endif
         return NULL;
@@ -269,7 +269,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     TaskList.SchedulerTime = 0;
     TaskList.TaskTime = NextTask->Time;
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switching to"));
     LogTask(LOG_DEBUG, NextTask);
 #endif
@@ -277,7 +277,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     // Switch page directory if different process
     if (NextTask->Process && CurrentTask && 
         NextTask->Process->PageDirectory != CurrentTask->Process->PageDirectory) {
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), NextTask->Process->PageDirectory);
 #endif
         LoadPageDirectory(NextTask->Process->PageDirectory);
@@ -285,7 +285,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
     // Set up system stack for new task
     U32 NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] NextTask = %X"), NextTask);
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] NextTask->SysStackBase = %X"), NextTask->SysStackBase);  
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] NextTask->SysStackSize = %X"), NextTask->SysStackSize);
@@ -294,7 +294,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 #endif
     Kernel_i386.TSS->ESP0 = NextSysStackTop;
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning next frame to the stub"));
     DumpFrame(&(NextTask->Context));
 #endif

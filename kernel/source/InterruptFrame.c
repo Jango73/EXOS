@@ -179,7 +179,7 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
     U32 UserMode;
 
 /*
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Enter (%d, %d)"), intNo, HasErrorCode);
 #endif
 */
@@ -187,7 +187,7 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
     Frame = (LPINTERRUPTFRAME) ESP;
     Stack = (U32*) (ESP + sizeof(INTERRUPTFRAME));
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_VERBOSE, TEXT("[BuildInterruptFrame] IntNo=%d, HasErrorCode=%d, ESP=%X"), intNo, HasErrorCode, ESP);
 #endif
 
@@ -197,7 +197,7 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
     Frame->Registers.EIP = Stack[INCOMING_EIP_INDEX + HasErrorCode];
     Frame->Registers.CS = Stack[INCOMING_CS_INDEX + HasErrorCode];
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Built CS=%X, EIP=%X, EFlags=%X"), 
                   Frame->Registers.CS, Frame->Registers.EIP, Frame->Registers.EFlags);
 #endif
@@ -245,7 +245,7 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
     }
 
 /*
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Exit"));
 #endif
 */
@@ -263,7 +263,7 @@ void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
 
     SAFE_USE_VALID(NextFrame) {
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         // KernelLogText(LOG_VERBOSE, TEXT("[RestoreFromInterruptFrame] Enter"));
 #endif
 
@@ -309,7 +309,7 @@ void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
         KernelLogText(LOG_ERROR, TEXT("[RestoreFromInterruptFrame] Invalid frame %X"), NextFrame);
     }
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Exit"));
 #endif
 }

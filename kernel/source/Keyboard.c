@@ -409,7 +409,7 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
 static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     U32 Index;
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Enter"));
 #endif
 
@@ -425,7 +425,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
         }
     }
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Exit"));
 #endif
 }
@@ -476,7 +476,7 @@ static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Enter"));
 #endif
 
@@ -569,7 +569,7 @@ static void HandleScanCode(U32 ScanCode) {
         }
     }
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Exit"));
 #endif
 }
@@ -579,7 +579,7 @@ static void HandleScanCode(U32 ScanCode) {
 BOOL PeekChar(void) {
     U32 Result = FALSE;
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Enter"));
 #endif
 
@@ -590,7 +590,7 @@ BOOL PeekChar(void) {
 
     UnlockMutex(&(Keyboard.Mutex));
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Exit"));
 #endif
 
@@ -702,12 +702,12 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Enter"));
 #endif
 
     if (Busy) {
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Busy, exiting"));
 #endif
 
@@ -732,7 +732,7 @@ void KeyboardHandler(void) {
 
     Busy = 0;
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Exit"));
 #endif
 }

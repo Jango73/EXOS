@@ -95,7 +95,7 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
     BOOL CallScheduler = FALSE;
 
 /*
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelPrintString(TEXT("[ClockHandler]"));
 #endif
 */
@@ -143,12 +143,12 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
 
     if (CallScheduler) {
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Calling Scheduler"));
 #endif
         ReturnValue = Scheduler(Frame);
 
-#if CRITICAL_DEBUG_OUTPUT == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Returning next frame to the stub :"));
         SAFE_USE(ReturnValue) {
             DumpFrame(ReturnValue);

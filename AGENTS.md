@@ -10,13 +10,13 @@ Kernel.md must be updated when adding/removing a file/class/function.
 ## Build
 - Run scripts/4-4-build.sh to test without debug information.
 - Run scripts/4-5-build-debug.sh to test with standard debug information.
-- Run scripts/4-6-build-critical-debug.sh to test with standard and critical debug information (flood of debug info).
+- Run scripts/4-6-build-scheduling-debug.sh to test with standard and scheduling debug information (flood of debug info).
 
-If testing Clock, Scheduler, Interrupts mechanism, build with scripts/4-6-build-critical-debug.sh.
+If testing Clock, Scheduler, Interrupts mechanism, build with scripts/4-6-build-scheduling-debug.sh.
 
 ## Test (Codex : don't bother, you don't have the tools)
 - Run 5-1-start-qemu-hd.sh if a display is available, 6-1-start-qemu-hd-nogfx.sh otherwise.
-- Wait a moment for system to initialize, takes longer if critical debug info is dumped.
+- Wait a moment for system to initialize, takes longer if scheduling debug info is dumped.
 - Read "log/debug-com2.log" for page faults, exceptions, etc...
 
 ## General Conventions
