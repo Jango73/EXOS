@@ -30,6 +30,7 @@
 #include "../include/Process.h"
 #include "../include/System.h"
 #include "../include/Task.h"
+#include "../include/Stack.h"
 
 /***************************************************************************/
 
@@ -60,8 +61,10 @@ static inline U32 CalculateQuantumTime(U32 Priority) {
 // Count how many tasks are ready to run
 static U32 CountRunnableTasks(void) {
     U32 RunnableCount = 0;
+
     for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
+
         if (Task->Status == TASK_STATUS_RUNNING) {
             RunnableCount++;
         } else if (Task->Status == TASK_STATUS_SLEEPING) {
@@ -72,6 +75,7 @@ static U32 CountRunnableTasks(void) {
             }
         }
     }
+
     return RunnableCount;
 }
 
@@ -93,6 +97,7 @@ static U32 FindNextRunnableTask(U32 StartIndex) {
             return Index;
         }
     }
+
     return TaskList.NumTasks;  // No runnable task found
 }
 
@@ -159,6 +164,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
                 // Find next runnable task or wrap around
                 if (TaskList.NumTasks > 1) {
                     TaskList.CurrentIndex = FindNextRunnableTask((Index + 1) % (TaskList.NumTasks - 1));
+
                     if (TaskList.CurrentIndex >= TaskList.NumTasks - 1) {
                         TaskList.CurrentIndex = 0;  // Wrap to beginning
                     }
@@ -196,7 +202,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     TaskList.SchedulerTime += 10;
 
     // Check for stack overflow - kill dangerous tasks immediately
-    if (!CheckTaskStackSafety()) {
+    if (!CheckStack()) {
         LPTASK DangerousTask = GetCurrentTask();
 
         if (DangerousTask) {
@@ -212,7 +218,10 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     // Save current task context if we have one
     if (TaskList.NumTasks > 0 && TaskList.CurrentIndex < TaskList.NumTasks && Frame) {
         LPTASK CurrentTask = TaskList.Tasks[TaskList.CurrentIndex];
+
         if (CurrentTask) {
+            // For the main kernel task, preserve the ESP if it was already switched
+            U32 OriginalESP = CurrentTask->Context.Registers.ESP;
             MemoryCopy(&(CurrentTask->Context), Frame, sizeof(INTERRUPTFRAME));
         }
     }
@@ -222,7 +231,9 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen: Returning NULL"));
 #endif
-        return NULL;
+        while (TaskList.Freeze) {
+            IdleCPU();
+        }
     }
 
     // No tasks to schedule

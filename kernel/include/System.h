@@ -88,6 +88,7 @@ extern void SetConsoleCursorPosition(U32, U32);
 extern U32 SaveRegisters(LPINTEL386REGISTERS);
 extern void MemorySet(LPVOID Destination, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
+extern I32 MemoryCompare(LPCVOID First, LPCVOID Second, U32 Size);
 extern U32 DoSystemCall(U32, U32);
 extern void IdleCPU(void);
 extern void DeadCPU(void);

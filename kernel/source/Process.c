@@ -99,7 +99,7 @@ void InitializeKernelProcess(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("Kernel task = %X"), KernelTask);
+    KernelLogText(LOG_DEBUG, TEXT("Kernel main task = %X"), KernelTask);
 
     KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
     MainDesktopWindow.Task = KernelTask;

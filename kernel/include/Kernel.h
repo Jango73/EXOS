@@ -25,8 +25,6 @@
 #ifndef KERNEL_H_INCLUDED
 #define KERNEL_H_INCLUDED
 
-#define __DEBUG__
-
 /***************************************************************************/
 
 #include "Base.h"
@@ -116,6 +114,7 @@ typedef struct tag_E820ENTRY {
 
 typedef struct tag_KERNELSTARTUPINFO {
     PHYSICAL StubAddress;
+    PHYSICAL StackTop;
     PHYSICAL PageDirectory;
     U32 IRQMask_21_PM;
     U32 IRQMask_A1_PM;

@@ -117,6 +117,7 @@ bits 32
     global SaveRegisters
     global MemorySet
     global MemoryCopy
+    global MemoryCompare
     global DoSystemCall
     global IdleCPU
     global DeadCPU
@@ -978,6 +979,45 @@ MemoryCopy :
     rep     movsb
 
     pop     es
+    pop     edi
+    pop     esi
+    pop     ecx
+
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+MemoryCompare :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    esi
+    push    edi
+
+    mov     esi, [ebp+(PBN+0)]     ; First buffer
+    mov     edi, [ebp+(PBN+4)]     ; Second buffer  
+    mov     ecx, [ebp+(PBN+8)]     ; Size
+    cld
+    repe    cmpsb
+    
+    je      .equal
+    ja      .greater
+    
+.less:
+    mov     eax, -1
+    jmp     .done
+    
+.greater:
+    mov     eax, 1
+    jmp     .done
+    
+.equal:
+    xor     eax, eax
+    
+.done:
     pop     edi
     pop     esi
     pop     ecx

@@ -37,6 +37,7 @@
 #include "../include/Log.h"
 #include "../include/Mouse.h"
 #include "../include/PCI.h"
+#include "../include/Stack.h"
 #include "../include/System.h"
 #include "../include/TOML.h"
 
@@ -284,20 +285,21 @@ void DumpCriticalInformation(void) {
     }
 
     KernelLogText(LOG_DEBUG, TEXT("Virtual addresses"));
-    KernelLogText(LOG_DEBUG, TEXT("VMA_RAM : %X"), VMA_RAM);
-    KernelLogText(LOG_DEBUG, TEXT("VMA_VIDEO : %X"), VMA_VIDEO);
-    KernelLogText(LOG_DEBUG, TEXT("VMA_CONSOLE : %X"), VMA_CONSOLE);
-    KernelLogText(LOG_DEBUG, TEXT("VMA_USER : %X"), VMA_USER);
-    KernelLogText(LOG_DEBUG, TEXT("VMA_LIBRARY : %X"), VMA_LIBRARY);
-    KernelLogText(LOG_DEBUG, TEXT("VMA_KERNEL : %X"), VMA_KERNEL);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_RAM = %X"), VMA_RAM);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_VIDEO = %X"), VMA_VIDEO);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_CONSOLE = %X"), VMA_CONSOLE);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_USER = %X"), VMA_USER);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_LIBRARY = %X"), VMA_LIBRARY);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_KERNEL = %X"), VMA_KERNEL);
 
     KernelLogText(LOG_DEBUG, TEXT("Kernel startup info:"));
-    KernelLogText(LOG_DEBUG, TEXT("  StubAddress : %X"), KernelStartup.StubAddress);
-    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM : %X"), KernelStartup.IRQMask_21_RM);
-    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM : %X"), KernelStartup.IRQMask_A1_RM);
-    KernelLogText(LOG_DEBUG, TEXT("  MemorySize : %X"), KernelStartup.MemorySize);
-    KernelLogText(LOG_DEBUG, TEXT("  PageCount : %X"), KernelStartup.PageCount);
-    KernelLogText(LOG_DEBUG, TEXT("  E820 entry count : %X"), KernelStartup.E820_Count);
+    KernelLogText(LOG_DEBUG, TEXT("  StubAddress = %X"), KernelStartup.StubAddress);
+    KernelLogText(LOG_DEBUG, TEXT("  StackTop = %X"), KernelStartup.StackTop);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM = %X"), KernelStartup.IRQMask_21_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM = %X"), KernelStartup.IRQMask_A1_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  MemorySize = %X"), KernelStartup.MemorySize);
+    KernelLogText(LOG_DEBUG, TEXT("  PageCount = %X"), KernelStartup.PageCount);
+    KernelLogText(LOG_DEBUG, TEXT("  E820 entry count = %X"), KernelStartup.E820_Count);
 }
 
 /***************************************************************************/
@@ -495,6 +497,8 @@ void InitializeKernel(void) {
 
     InitializeMemoryManager();
     KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Memory manager initialized"));
+
+    TestCopyStack();
 
     InitializeTaskSegments();
     KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Task segments initialized"));

@@ -821,7 +821,7 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     // Ensure TaskRunner is properly mapped with user privilege
     {
-        PHYSICAL TaskStubPhysical = (PHYSICAL)(&TaskRunner) - VMA_KERNEL + KERNEL_PHYSICAL_ORIGIN;
+        PHYSICAL TaskStubPhysical = ((PHYSICAL)(&TaskRunner) - VMA_KERNEL) + KERNEL_PHYSICAL_ORIGIN;
         MapOnePage(VMA_TASK_RUNNER, TaskStubPhysical, /*RW*/ 0, PAGE_PRIVILEGE_USER, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
         KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] TaskRunner mapped at %X"), VMA_TASK_RUNNER);
     }

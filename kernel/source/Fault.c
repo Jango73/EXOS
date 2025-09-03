@@ -21,6 +21,7 @@
     Fault
 
 \************************************************************************/
+
 #include "../include/Console.h"
 #include "../include/I386.h"
 #include "../include/Kernel.h"

@@ -27,6 +27,7 @@
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"
+#include "../include/Stack.h"
 
 /***************************************************************************/
 // Stack overflow detection
@@ -167,8 +168,8 @@ void DeleteTask(LPTASK This) {
 
 LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     LPTASK Task = NULL;
-    LINEAR StackPointer = NULL;
-    LINEAR SysStackPointer = NULL;
+    LINEAR StackTop = NULL;
+    LINEAR SysStackTop = NULL;
     SELECTOR CodeSelector = 0;
     SELECTOR DataSelector = 0;
 
@@ -286,8 +287,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         DataSelector = SELECTOR_USER_DATA;
     }
 
-    StackPointer = Task->StackBase + Task->StackSize;
-    SysStackPointer = Task->SysStackBase + Task->SysStackSize;
+    StackTop = Task->StackBase + Task->StackSize;
+    SysStackTop = Task->SysStackBase + Task->SysStackSize;
 
     MemorySet(&(Task->Context), 0, sizeof(INTERRUPTFRAME));
 
@@ -296,8 +297,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Context.Registers.EBX = (U32)Task->Function;
     Task->Context.Registers.ECX = 0;
     Task->Context.Registers.EDX = 0;
-    Task->Context.Registers.ESP = StackPointer;
-    Task->Context.Registers.EBP = StackPointer;
+    Task->Context.Registers.ESP = StackTop;
+    Task->Context.Registers.EBP = StackTop;
     Task->Context.Registers.CS = CodeSelector;
     Task->Context.Registers.DS = DataSelector;
     Task->Context.Registers.ES = DataSelector;
@@ -307,13 +308,33 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
 
     if (Info->Flags & TASK_CREATE_MAIN) {
-        Kernel_i386.TSS->ESP0 = Task->SysStackBase + Task->SysStackSize;
+        Kernel_i386.TSS->ESP0 = SysStackTop;
+
+        LINEAR BootStackTop = KernelStartup.StackTop;
+        LINEAR ESP = GetESP();
+        U32 StackUsed = (BootStackTop - ESP) + 256;
+
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] BootStackTop = %X"), BootStackTop);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] StackTop = %X"), StackTop);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] StackUsed = %X"), StackUsed);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Switching to new stack..."));
+
+        // Use the new SwitchStack function
+        if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
+            Task->Context.Registers.ESP = GetESP();
+            Task->Context.Registers.EBP = GetEBP();
+            KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Stack switched - New ESP = %X, EBP = %X"), 
+                         Task->Context.Registers.ESP, Task->Context.Registers.EBP);
+        } else {
+            KernelLogText(LOG_ERROR, TEXT("[CreateTask] Stack switch failed"));
+        }
     }
 
     //-------------------------------------
     // Set the task's status as running
 
     Task->Status = TASK_STATUS_RUNNING;
+    Task->Flags = Info->Flags; // Save flags for scheduler
 
     ListAddItem(Kernel.Task, Task);
 
@@ -922,70 +943,6 @@ void DumpTask(LPTASK Task) {
     KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d"), Task->Message->NumItems);
 
     UnlockMutex(&(Task->Mutex));
-}
-
-/***************************************************************************/
-
-BOOL CheckTaskStackSafety(void) {
-    LPTASK CurrentTask;
-    U32 CurrentESP;
-    U32 CurrentCS;
-    U32 StackStart, StackEnd;
-    BOOL InKernelMode;
-    
-    // Get current task
-    CurrentTask = GetCurrentTask();
-
-    if (CurrentTask == NULL) {
-        // No current task, assume we're safe (boot/kernel initialization)
-        return TRUE;
-    }
-    
-    // Get current ESP and CS using inline assembly
-    __asm__ volatile("movl %%esp, %0" : "=r" (CurrentESP));
-    __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=r" (CurrentCS) : : "eax");
-    
-    // Determine if we're in kernel mode (ring 0) or user mode (ring 3)
-    // In i386, the segment selector's lower 2 bits indicate the privilege level
-    InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
-    
-    if (InKernelMode) {
-        // Using system stack (ring 0)
-        StackStart = CurrentTask->SysStackBase;
-        StackEnd = StackStart + CurrentTask->SysStackSize;
-    } else {
-        // Using user stack (ring 3)
-        StackStart = CurrentTask->StackBase;
-        StackEnd = StackStart + CurrentTask->StackSize;
-    }
-    
-    // Check if ESP is dangerously close to stack base
-    // Stack grows downward, so danger is when ESP approaches StackStart
-    if (CurrentESP <= (StackStart + STACK_SAFETY_MARGIN)) {
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] STACK OVERFLOW DETECTED!"));
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] Task: %X"), CurrentTask);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] ESP: %X"), CurrentESP);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackStart: %X"), StackStart);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackEnd: %X"), StackEnd);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] InKernelMode: %u"), InKernelMode ? 1 : 0);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] Safety margin violated by %u bytes"), 
-                     (StackStart + STACK_SAFETY_MARGIN) - CurrentESP);
-        return FALSE;
-    }
-    
-    // Check if ESP is outside stack bounds entirely
-    if (CurrentESP < StackStart || CurrentESP >= StackEnd) {
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] ESP OUTSIDE STACK BOUNDS!"));
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] Task: %X"), CurrentTask);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] ESP: %X"), CurrentESP);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackStart: %X"), StackStart);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] StackEnd: %X"), StackEnd);
-        KernelLogText(LOG_ERROR, TEXT("[CheckTaskStackSafety] InKernelMode: %u"), InKernelMode ? 1 : 0);
-
-        return FALSE;
-    }
-    
-    return TRUE;
 }
 
 /***************************************************************************/

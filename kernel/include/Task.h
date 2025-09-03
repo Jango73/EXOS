@@ -49,6 +49,7 @@ struct tag_TASK {
     TASKFUNC Function;  // Start address of this task
     LPVOID Parameter;   // Parameter passed to the function
     U32 ReturnValue;
+    U32 Flags;               // Task creation flags
     INTERRUPTFRAME Context;  // Saved context for software switching
     LINEAR StackBase;        // This task's stack in the heap
     U32 StackSize;           // This task's stack size
@@ -64,8 +65,6 @@ typedef struct tag_TASK TASK, *LPTASK;
 
 /************************************************************************/
 
-// Stack overflow protection
-BOOL CheckTaskStackSafety(void);
 
 /************************************************************************/
 #endif
