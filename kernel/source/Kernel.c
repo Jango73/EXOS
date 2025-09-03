@@ -307,14 +307,6 @@ void DumpCriticalInformation(void) {
  */
 
 static void Welcome(void) {
-    //-------------------------------------
-    // Print information on computer
-
-    /*
-    ConsolePrint(TEXT("Computer ID : "));
-    ConsolePrint(Kernel.CPU.Name);
-    ConsolePrint(Text_NewLine);
-    */
 
     //-------------------------------------
     // Print information on memory
@@ -337,13 +329,19 @@ static void Welcome(void) {
  */
 
 static void ReadKernelConfiguration(void) {
-    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Enter"));
 
     U32 Size = 0;
     LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
 
     if (Buffer == NULL) {
         Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
+
+        if (Buffer != NULL) {
+            KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Conf read from EXOS.TOML"));
+        }
+    } else {
+        KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Conf read from exos.toml"));
     }
 
     if (Buffer != NULL) {
@@ -351,7 +349,7 @@ static void ReadKernelConfiguration(void) {
         HeapFree(Buffer);
     }
 
-    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Exit"));
+    KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Exit"));
 }
 
 /***************************************************************************/
@@ -364,7 +362,7 @@ static void ReadKernelConfiguration(void) {
  */
 
 static void SetKeyboardLayout(void) {
-    KernelLogText(LOG_VERBOSE, TEXT("[SetKeyboardLayout] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[SetKeyboardLayout] Enter"));
 
     LPCSTR Layout;
 
@@ -388,21 +386,6 @@ static void SetKeyboardLayout(void) {
 void InitializePCI(void) {
     PCI_RegisterDriver(&E1000Driver);
     PCI_ScanBus();
-}
-
-/***************************************************************************/
-/**
- * @brief Mounts available disk partitions and the system file system.
- */
-
-void InitializeFileSystems(void) {
-    LPLISTNODE Node;
-
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
-        MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
-    }
-
-    MountSystemFS();
 }
 
 /***************************************************************************/

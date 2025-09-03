@@ -103,11 +103,7 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
     RawSystemTime += MILLIS;
     CurrentTime.Milli += MILLIS;
 
-    if (CurrentTime.Milli >= 100) {
-#if CRITICAL_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Time = %d"), RawSystemTime);
-#endif
-
+    if (CurrentTime.Milli >= 10) {
         CallScheduler = TRUE;
     }
 
@@ -146,18 +142,23 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
     }
 
     if (CallScheduler) {
+
 #if CRITICAL_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Calling Scheduler"));
+        KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Calling Scheduler"));
 #endif
         ReturnValue = Scheduler(Frame);
 
 #if CRITICAL_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Returning next frame to the stub :"));
-    SAFE_USE(ReturnValue) {
-        DumpFrame(ReturnValue);
-    }
+        KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Returning next frame to the stub :"));
+        SAFE_USE(ReturnValue) {
+            DumpFrame(ReturnValue);
+        }
 #endif
 
+    }
+
+    if (RawSystemTime % 1000 == 0) {
+        KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Time = %d"), RawSystemTime);
     }
 
     return ReturnValue;

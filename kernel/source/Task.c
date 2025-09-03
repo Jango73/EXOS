@@ -198,9 +198,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     // Lock access to kernel data & to the process
 
     LockMutex(MUTEX_KERNEL, INFINITY);
+    LockMutex(MUTEX_MEMORY, INFINITY);
 
     if (Process != &KernelProcess) {
         LockMutex(&(Process->Mutex), INFINITY);
+        LockMutex(&(Process->HeapMutex), INFINITY);
     }
 
     Task = NewTask();
@@ -319,9 +321,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 Out:
 
     if (Process != &KernelProcess) {
+        UnlockMutex(&(Process->HeapMutex));
         UnlockMutex(&(Process->Mutex));
     }
 
+    UnlockMutex(MUTEX_MEMORY);
     UnlockMutex(MUTEX_KERNEL);
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Exit"));

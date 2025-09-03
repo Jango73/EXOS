@@ -247,6 +247,11 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
 
         Context->CommandChar++;
         d++;
+        
+        // Prevent buffer overflow
+        if (d >= 255) {
+            break;
+        }
     }
 
     Context->Component++;
@@ -307,6 +312,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
             } else if (KeyCode.VirtualKey == VK_ENTER) {
                 ConsolePrintChar(STR_NEWLINE);
                 Context->CommandLine[Index] = STR_NULL;
+                KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] ENTER pressed, final buffer: '%s', length=%d"), Context->CommandLine, Index);
                 return;
             } else if (KeyCode.VirtualKey == VK_UP) {
                 if (HistoryPos > 0) {
@@ -386,6 +392,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                     ConsolePrintChar(KeyCode.ASCIICode);
                     Context->CommandLine[Index++] = KeyCode.ASCIICode;
                     Context->CommandLine[Index] = STR_NULL;
+                    // Test: no KernelLogText calls at all during character processing
                 }
             }
         }
@@ -647,6 +654,8 @@ static void CMD_cls(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static void CMD_dir(LPSHELLCONTEXT Context) {
+    KernelLogText(LOG_DEBUG, TEXT("[CMD_dir] Enter"));
+    
     STR Target[MAX_PATH_NAME];
     STR Base[MAX_PATH_NAME];
     LPFILESYSTEM FileSystem = NULL;
@@ -678,6 +687,8 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     }
 
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
+    
+    KernelLogText(LOG_DEBUG, TEXT("[CMD_dir] Exit"));
 }
 
 /***************************************************************************/
@@ -732,8 +743,8 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint((LPCSTR) "Total memory available    : %d KB\n", Info.TotalMemoryAvail / 1024);
     ConsolePrint((LPCSTR) "Processor page size       : %d Bytes\n", Info.PageSize);
     ConsolePrint((LPCSTR) "Total physical pages      : %d Pages\n", Info.TotalPhysicalPages);
-    ConsolePrint((LPCSTR) "Minimum linear address    : %08X\n", Info.MinimumLinearAddress);
-    ConsolePrint((LPCSTR) "Maximum linear address    : %08X\n", Info.MaximumLinearAddress);
+    ConsolePrint((LPCSTR) "Minimum linear address    : %X\n", Info.MinimumLinearAddress);
+    ConsolePrint((LPCSTR) "Maximum linear address    : %X\n", Info.MaximumLinearAddress);
     ConsolePrint((LPCSTR) "User name                 : %s\n", Info.UserName);
     ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
     ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
@@ -1049,7 +1060,7 @@ static void RunConfiguredExecutables(void) {
         return;
     }
 
-    while (1) {
+    while (TRUE) {
         U32ToString(ConfigIndex, IndexText);
         StringCopy(Key, TEXT("Run."));
         StringConcat(Key, IndexText);
@@ -1102,11 +1113,6 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     ClearOptions(Context);
 
-    while (1) {
-        ParseNextComponent(Context);
-        if (StringLength(Context->Command) == 0) break;
-    }
-
     Context->Component = 0;
     Context->CommandChar = 0;
 
@@ -1117,7 +1123,7 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     if (Length == 0) return TRUE;
 
     {
-        STR CommandName[256];
+        STR CommandName[MAX_FILE_NAME];
         StringCopy(CommandName, Context->Command);
 
         U32 Found = 0;
@@ -1161,6 +1167,7 @@ U32 Shell(LPVOID Param) {
     RunConfiguredExecutables();
 
     while (ParseCommand(&Context)) {
+        IdleCPU();
     }
 
     ConsolePrint(TEXT("Exiting shell\n"));

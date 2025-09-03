@@ -21,6 +21,7 @@
     File System
 
 \************************************************************************/
+
 #ifndef FILESYS_H_INCLUDED
 #define FILESYS_H_INCLUDED
 
@@ -205,6 +206,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
 BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
 BOOL MountSystemFS(void);
+void InitializeFileSystems(void);
 
 /***************************************************************************/
 

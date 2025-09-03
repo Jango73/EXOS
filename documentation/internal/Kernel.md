@@ -513,7 +513,7 @@ Handles mounting of disk partitions and path manipulation.
   starts at 0 for each disk type (hd0, rd0, ...).
 - MountPartition_Extended: Mounts an extended partition.
 - MountDiskPartitions: Scans a disk and mounts each partition.
-- DecomposePath: Splits a path into its individual components.
+- InitializeFileSystems: Mounts all detected file systems.
 
 ### HD.c
 
@@ -570,7 +570,6 @@ Core initialization and debugging utilities for the kernel.
 - ClockTestTask: Periodic task that updates the clock and mouse.
 - Welcome: Prints some basic information and the welcome text.
 - InitializePhysicalPageBitmap: Marks kernel pages as used.
-- InitializeFileSystems: Mounts all detected file systems.
 - GetPhysicalMemoryUsed: Returns the number of used bytes.
 - InitializeKernel: Performs global kernel initialization.
 
@@ -763,6 +762,14 @@ A mutex providing mutual exclusion.
 - DeleteMutex: Removes a mutex from the kernel list.
 - LockMutex: Acquires the mutex for the current task.
 - UnlockMutex: Releases a previously acquired mutex.
+
+### Path.c
+
+Path utilities.
+
+#### Functions in Path.c
+
+- DecomposePath: Splits a path into its individual components.
 
 ### SerialPort.c
 

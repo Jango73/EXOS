@@ -202,7 +202,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
         }
     }
 
-    // If scheduler is frozen, don't switch
+    // If scheduler is frozen, don't switch (atomic read - safe in interrupt context)
     if (TaskList.Freeze) {
 #if CRITICAL_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen: Returning NULL"));

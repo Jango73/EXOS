@@ -133,8 +133,6 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                         // Wait for mutex to be unlocked by its owner task
 
                         while (1) {
-                            DisableInterrupts();
-
                             //-------------------------------------
                             // Check if a process deleted this mutex
 
@@ -151,18 +149,18 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                             }
 
                             //-------------------------------------
-                            // Sleep
+                            // Sleep with proper interrupt handling
 
                             Task->Status = TASK_STATUS_SLEEPING;
                             Task->WakeUpTime = GetSystemTime() + 20;
 
-                            EnableInterrupts();
-
+                            // Keep interrupts disabled during critical section
                             while (Task->Status == TASK_STATUS_SLEEPING) {
+                                IdleCPU();
+                                DisableInterrupts();  // Disable immediately after
                             }
+                            // Continue loop with interrupts already disabled
                         }
-
-                        DisableInterrupts();
 
                         Mutex->Process = Process;
                         Mutex->Task = Task;

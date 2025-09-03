@@ -109,7 +109,7 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
     U32 Prev = 0;
     U32 Ebp = StartEbp;
 
-    KernelLogText(LOG_VERBOSE, TEXT("Backtrace (EBP=%08X, max=%u)"), StartEbp, MaxFrames);
+    KernelLogText(LOG_VERBOSE, TEXT("Backtrace (EBP=%X, max=%u)"), StartEbp, MaxFrames);
 
     SAFE_USE_VALID(Task) {
         // U32 StackLow = Task->StackBase;
@@ -119,7 +119,7 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
             // Validate the current frame pointer
             // if (!IsFramePointerSane(Ebp, Prev, StackLow, StackHigh)) {
             if (IsValidMemory(Ebp) == FALSE) {
-                KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%08X  [stop: invalid/suspect frame]"), Depth, Ebp);
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%X  [stop: invalid/suspect frame]"), Depth, Ebp);
                 break;
             }
 
@@ -134,7 +134,7 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
             U32 RetAddr = Fp[1];
 
             if (RetAddr == 0) {
-                KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%08X  RET=? [null]"), Depth, Ebp);
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%X  RET=? [null]"), Depth, Ebp);
                 break;
             }
 
@@ -142,9 +142,9 @@ void BacktraceFrom(LPTASK Task, U32 StartEbp, U32 MaxFrames) {
             // if (&SymbolLookup) Sym = SymbolLookup(RetAddr);
 
             if (Sym && Sym[0]) {
-                KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%08X  (%s)  EBP=%08X"), Depth, RetAddr, Sym, Ebp);
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%X  (%s)  EBP=%X"), Depth, RetAddr, Sym, Ebp);
             } else {
-                KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%08X  EBP=%08X"), Depth, RetAddr, Ebp);
+                KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%X  EBP=%X"), Depth, RetAddr, Ebp);
             }
 
             /* Advance */

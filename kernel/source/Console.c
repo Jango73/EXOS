@@ -84,8 +84,12 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
 void SetConsoleCharacter(STR Char) {
     U32 Offset = 0;
 
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
     Offset = (Console.CursorY * Console.Width) + Console.CursorX;
     Console.Memory[Offset] = Char | (CHARATTR << 0x08);
+
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/

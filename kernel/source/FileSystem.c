@@ -21,6 +21,7 @@
     File System
 
 \************************************************************************/
+
 #include "../include/FileSystem.h"
 
 #include "../include/Console.h"
@@ -170,6 +171,21 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     }
 
     return TRUE;
+}
+
+/***************************************************************************/
+/**
+ * @brief Mounts available disk partitions and the system file system.
+ */
+
+void InitializeFileSystems(void) {
+    LPLISTNODE Node;
+
+    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+        MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
+    }
+
+    MountSystemFS();
 }
 
 /***************************************************************************/
