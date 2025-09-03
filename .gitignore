@@ -1,3 +1,4 @@
+# Common files
 *.c~
 *.o
 *.a
@@ -16,11 +17,17 @@
 *.user
 *.gdbinit
 
+# AI agents
+CLAUDE.md
+.claude/*
+
+# Project
 temp
 boot-qemu/kernel_sectors.inc
 boot-limine/limine
+boot-qemu-hd/exos.toml
+
+# Node
 node_modules
 package.json
 package-lock.json
-
-boot-qemu-hd/exos.toml
