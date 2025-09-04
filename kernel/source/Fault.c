@@ -221,6 +221,10 @@ void ValidateEIPOrDie(LINEAR Address) {
 void DefaultHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Unknown interrupt"));
     DumpFrame(Frame);
+    LPTASK Task = GetCurrentTask();
+    SAFE_USE(Task) {
+        BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    }
     Die();
 }
 
@@ -233,6 +237,10 @@ void DefaultHandler(LPINTERRUPTFRAME Frame) {
 void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Divide error"));
     DumpFrame(Frame);
+    LPTASK Task = GetCurrentTask();
+    SAFE_USE(Task) {
+        BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    }
     Die();
 }
 
@@ -255,7 +263,10 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
     LogDescriptorAndTSSFromSelector(TEXT("[#DB]"), tr);
 
     DumpFrame(Frame);
-    BacktraceFrom(Task, Frame->Registers.EBP, 10);
+
+    SAFE_USE(Task) {
+        BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    }
     Die();
 }
 
@@ -268,6 +279,10 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
 void NMIHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Non-maskable interrupt"));
     DumpFrame(Frame);
+    LPTASK Task = GetCurrentTask();
+    SAFE_USE(Task) {
+        BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    }
 }
 
 /***************************************************************************/
@@ -279,6 +294,10 @@ void NMIHandler(LPINTERRUPTFRAME Frame) {
 void BreakPointHandler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_ERROR, TEXT("Breakpoint"));
     DumpFrame(Frame);
+    LPTASK Task = GetCurrentTask();
+    SAFE_USE(Task) {
+        BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    }
 }
 
 /***************************************************************************/
@@ -288,10 +307,12 @@ void BreakPointHandler(LPINTERRUPTFRAME Frame) {
  * @param Frame Interrupt frame context.
  */
 void OverflowHandler(LPINTERRUPTFRAME Frame) {
-    LPTASK Task = GetCurrentTask();
     KernelLogText(LOG_ERROR, TEXT("Overflow"));
     DumpFrame(Frame);
-    BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    LPTASK Task = GetCurrentTask();
+    SAFE_USE(Task) {
+        BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    }
     Die();
 }
 

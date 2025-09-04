@@ -45,7 +45,6 @@
 
 void InitKernelLog(void);
 void KernelPrintString(LPCSTR Text);
-void KernelPrintStringNoMutex(LPCSTR Text);
 void KernelLogText(U32, LPCSTR, ...);
 
 void LogRegisters(LPINTEL386REGISTERS Regs);

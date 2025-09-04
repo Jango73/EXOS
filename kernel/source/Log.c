@@ -56,17 +56,6 @@ void KernelPrintString(LPCSTR Text) {
 
 /***************************************************************************/
 
-void KernelPrintStringNoMutex(LPCSTR Text) {
-    if (Text != NULL) {
-        for (U32 Index = 0; Index < 0x1000; Index++) {
-            if (Text[Index] == STR_NULL) break;
-            KernelPrintChar(Text[Index]);
-        }
-    }
-}
-
-/***************************************************************************/
-
 void KernelLogText(U32 Type, LPCSTR Format, ...) {
     if (StringEmpty(Format)) return;
 

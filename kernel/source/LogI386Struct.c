@@ -304,7 +304,7 @@ void DumpFrame(LPINTERRUPTFRAME Frame) {
 
         if (Process != NULL) {
             KernelLogText(LOG_VERBOSE, TEXT("Process image : %s"), Process->FileName);
-            KernelLogText(LOG_VERBOSE, TEXT("Task : %X"), Task);
+            KernelLogText(LOG_VERBOSE, TEXT("Task : %x (%s)"), Task, Task->Name);
             KernelLogText(LOG_VERBOSE, Text_Registers);
             LogRegisters(&(Frame->Registers));
         }
