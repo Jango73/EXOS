@@ -769,6 +769,8 @@ static I32 Loop(LPEDITCONTEXT Context) {
                 }
             }
         }
+
+        Sleep(20);
     }
 
     return 0;
@@ -897,7 +899,7 @@ U32 Edit(U32 NumArguments, LPCSTR* Arguments) {
 
     Context = NewEditContext();
 
-    if (NumArguments) {
+    if (NumArguments && Arguments) {
         for (Index = 0; Index < NumArguments; Index++) {
             OpenTextFile(Context, Arguments[Index]);
         }

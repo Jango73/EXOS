@@ -269,7 +269,8 @@ U32 ClockTestTask(LPVOID Param) {
             SetConsoleCursorPosition(OldX, OldY);
         }
 
-        DoSystemCall(SYSCALL_Sleep, 40);
+        // DoSystemCall(SYSCALL_Sleep, 40);
+        Sleep(40);
     }
 
     TRACED_EPILOGUE("ClockTestTask");
