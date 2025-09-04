@@ -24,5 +24,7 @@ sleep 2
 # ddd --eval-command="symbol-file kernel/bin/exos.elf" --eval-command="dir kernel/source" --eval-command="dir kernel/source/asm" --eval-command="target remote localhost:1234"
 # gdbgui -r localhost:1234 --args -ex symbol-file\ ../kernel/bin/exos.elf
 # gdb ../kernel/bin/exos.elf -ex "set architecture i386" -ex "show architecture" -ex "target remote localhost:1234"
-gdb kernel/bin/exos.elf -ex "set architecture i386" -ex "target remote localhost:1234"
+cgdb kernel/bin/exos.elf -ex "set architecture i386" -ex "target remote localhost:1234" \
+-ex "break *0x00400000" -ex "break *0x00400020" -ex "break *0x9FFFF000"  -ex "break *0x9FFFF00C" \
+-ex "display/x \$cr3" -ex "display/x \$eax" -ex "display/x \$ebx" -ex "display/x \$ecx" -ex "display/x \$edx"
 # gdb-multiarch ./kernel/bin/exos.elf -ex "set architecture i386" -ex "show architecture" -ex "target remote localhost:1234"

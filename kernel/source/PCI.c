@@ -422,13 +422,16 @@ void PCI_ScanBus(void) {
                                 if (Result == DF_ERROR_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
+
                                     if (PciDriver->Attach) {
                                         LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
+
                                         if (NewDev) {
                                             ListAddItem(Kernel.PCIDevice, NewDev);
                                             KernelLogText(
                                                 LOG_DEBUG, TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
                                                 (U32)Bus, (U32)Device, (U32)Function);
+
                                             goto NextFunction;
                                         }
                                     }
@@ -533,5 +536,3 @@ static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice) {
         PciDevice->BARMapped[Index] = NULL;
     }
 }
-
-/***************************************************************************/

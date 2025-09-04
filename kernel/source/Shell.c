@@ -684,7 +684,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     }
 
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
-    
+
     KernelLogText(LOG_DEBUG, TEXT("[CMD_dir] Exit"));
 }
 
@@ -1175,7 +1175,7 @@ U32 Shell(LPVOID Param) {
     RunConfiguredExecutables();
 
     while (ParseCommand(&Context)) {
-        Sleep(100);
+        Sleep(20);
     }
 
     ConsolePrint(TEXT("Exiting shell\n"));

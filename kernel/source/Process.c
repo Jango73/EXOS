@@ -327,7 +327,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate enough memory for the code, data and heap
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] AllocRegioning process space"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Allocating process space"));
 
     if (AllocRegion(VMA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[CreateProcess] Failed to allocate process space"));
@@ -398,7 +398,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     Task = CreateTask(Process, &TaskInfo);
 
     //-------------------------------------
-    // Switch back to our page directory
+    // Switch back to kernel page directory
 
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching back page directory to %x"), PageDirectory);
 
@@ -527,5 +527,3 @@ void InitSecurity(LPSECURITY This) {
     This->UserPermissionCount = 0;
     This->DefaultPermissions = PERMISSION_NONE;
 }
-
-/***************************************************************************/

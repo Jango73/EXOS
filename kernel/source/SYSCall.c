@@ -21,6 +21,7 @@
     SYS Call
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
@@ -858,5 +859,3 @@ U32 SystemCallHandler(U32 Function, U32 Parameter) {
     // return ERROR_INVALID_INDEX;
     return 0;
 }
-
-/***************************************************************************/

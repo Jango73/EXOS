@@ -21,6 +21,7 @@
     HD
 
 \************************************************************************/
+
 #include "../include/HD.h"
 
 #include "../include/Kernel.h"
@@ -567,5 +568,3 @@ U32 StdHardDiskCommands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-
-/***************************************************************************/
