@@ -446,7 +446,9 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
     ConsolePrint(TEXT("Halting\n"));
 
     DumpFrame(Frame);
-    BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    SAFE_USE(Task) {
+        BacktraceFrom(Task, Frame->Registers.EBP, 10);
+    }
     Die();
 }
 
