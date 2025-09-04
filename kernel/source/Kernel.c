@@ -554,11 +554,6 @@ void InitializeKernel(void) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] RAM drive initialized"));
 
     //-------------------------------------
-    // Read kernel configuration
-
-    ReadKernelConfiguration();
-
-    //-------------------------------------
     // Initialize the clock
 
     InitializeClock();
@@ -569,6 +564,11 @@ void InitializeKernel(void) {
 
     InitializeFileSystems();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] File systems initialized"));
+
+    //-------------------------------------
+    // Read kernel configuration
+
+    ReadKernelConfiguration();
 
     //-------------------------------------
     // Initialize the graphics card
