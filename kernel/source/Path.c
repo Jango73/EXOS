@@ -24,6 +24,7 @@
 
 #include "../include/Heap.h"
 #include "../include/List.h"
+#include "../include/Log.h"
 #include "../include/String.h"
 
 static void PathComponentDestructor(LPVOID This) { HeapFree(This); }
@@ -68,7 +69,7 @@ Exit:
 
 /***************************************************************************/
 
-static BOOL MatchStart(LPCSTR Name, LPCSTR Part) {
+BOOL MatchStart(LPCSTR Name, LPCSTR Part) {
     U32 Index = 0;
     while (Part[Index] != STR_NULL) {
         if (CharToLower(Name[Index]) != CharToLower(Part[Index])) return FALSE;
@@ -79,7 +80,7 @@ static BOOL MatchStart(LPCSTR Name, LPCSTR Part) {
 
 /***************************************************************************/
 
-static void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
+void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     STR Dir[MAX_PATH_NAME];
     STR Part[MAX_FILE_NAME];
     STR Pattern[MAX_PATH_NAME];
@@ -110,6 +111,25 @@ static void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     Find.Attributes = MAX_U32;
     StringCopy(Find.Name, Pattern);
 
+    if (Context->FileSystem == NULL) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem is NULL"));
+#endif
+        return;
+    }
+    if (Context->FileSystem->Driver == NULL) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem->Driver is NULL"));
+#endif
+        return;  
+    }
+    if (Context->FileSystem->Driver->Command == NULL) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem->Driver->Command is NULL"));
+#endif
+        return;
+    }
+
     File = (LPFILE)Context->FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
     if (File == NULL) return;
 
@@ -120,14 +140,38 @@ static void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
             StringConcat(Full, File->Name);
             StringArrayAddUnique(&Context->Matches, Full);
         }
-    } while (Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
+    } while (Context->FileSystem != NULL && 
+             Context->FileSystem->Driver != NULL && 
+             Context->FileSystem->Driver->Command != NULL &&
+             Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
 
-    Context->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+    if (Context->FileSystem != NULL && 
+        Context->FileSystem->Driver != NULL && 
+        Context->FileSystem->Driver->Command != NULL) {
+        Context->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+    } else {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem corrupted during file operations"));
+#endif
+    }
 }
 
 /***************************************************************************/
 
 BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
+    if (FileSystem == NULL) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Path] ERROR: PathCompletionInit called with NULL FileSystem"));
+#endif
+        return FALSE;
+    }
+    if (FileSystem->Driver == NULL) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Path] ERROR: PathCompletionInit - FileSystem->Driver is NULL"));
+#endif
+        return FALSE;
+    }
+    
     Context->FileSystem = FileSystem;
     Context->Base[0] = STR_NULL;
     Context->Index = 0;
