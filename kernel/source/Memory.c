@@ -452,10 +452,12 @@ static inline void MapOnePage(
     volatile U32* Pte = GetPteRawPtr(Linear);
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     U32 dir = GetDirectoryEntry(Linear);
+
     if (!Directory[dir].Present) {
         KernelLogText(LOG_ERROR, TEXT("[MapOnePage] PDE not present for VA %X (dir=%d)"), Linear, dir);
-        return;  // Ou panic, selon la politique
+        return;  // Or panic
     }
+
     *Pte = MakePteValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
     InvalidatePage(Linear);
 }
@@ -484,14 +486,14 @@ BOOL IsValidMemory(LINEAR Pointer) {
     U32 dir = GetDirectoryEntry(Pointer);
     U32 tab = GetTableEntry(Pointer);
 
-    /* Bounds check (defensive) */
+    // Bounds check
     if (dir >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
     if (tab >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
 
-    /* Page directory present? */
+    // Page directory present?
     if (Directory[dir].Present == 0) return FALSE;
 
-    /* Page table present? */
+    // Page table present?
     LPPAGETABLE Table = GetPageTableVAFor(Pointer);
     if (Table[tab].Present == 0) return FALSE;
 
@@ -1265,23 +1267,24 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
                 Physical = Target + (Index << PAGE_SIZE_MUL);
 
                 if (Flags & ALLOC_PAGES_IO) {
-                    /* IO mapping (BAR) -> no bitmap mark, Fixed=1 */
+                    // IO mapping (BAR) -> no bitmap mark, Fixed=1
                     Table[TabEntry].Fixed = 1;
                     Table[TabEntry].Present = 1;
                     Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
                 } else {
-                    /* RAM mapping */
+                    // RAM mapping
                     SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
                     Table[TabEntry].Present = 1;
                     Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
                 }
             } else {
-                /* Legacy path: allocate any free physical page */
+                // Legacy path: allocate any free physical page
                 Physical = AllocPhysicalPage();
 
                 if (Physical == NULL) {
                     KernelLogText(LOG_ERROR, TEXT("[AllocRegion] AllocPhysicalPage failed"));
-                    /* Roll back pages mapped so far */
+
+                    // Roll back pages mapped so far
                     FreeRegion(Pointer, (Index << PAGE_SIZE_MUL));
                     return NULL;
                 }
