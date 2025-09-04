@@ -204,6 +204,7 @@ typedef struct tag_TASKINFO {
     U32 Priority;
     U32 Flags;
     SECURITYATTRIBUTES Security;
+    STR Name[MAX_USER_NAME];
 } TASKINFO, *LPTASKINFO;
 
 #define TASK_PRIORITY_LOWEST 0x00

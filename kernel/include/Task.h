@@ -44,6 +44,7 @@ struct tag_TASK {
     LISTNODE_FIELDS     // Standard EXOS object fields
         MUTEX Mutex;    // This structure's mutex
     LPPROCESS Process;  // Process that owns this task
+    STR Name[MAX_USER_NAME]; // Task name for debugging
     U32 Type;           // Type of task
     U32 Status;         // Current status of this task
     U32 Priority;       // Current priority of this task

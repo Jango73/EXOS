@@ -95,6 +95,7 @@ void InitializeKernelProcess(void) {
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = TASK_CREATE_MAIN_KERNEL;
+    StringCopy(TaskInfo.Name, TEXT("KernelMain"));
 
     LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
 
@@ -103,7 +104,7 @@ void InitializeKernelProcess(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("Kernel main task = %X"), KernelTask);
+    KernelLogText(LOG_DEBUG, TEXT("Kernel main task = %x (%s)"), KernelTask, KernelTask->Name);
 
     KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
     MainDesktopWindow.Task = KernelTask;

@@ -300,6 +300,13 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Function = Info->Func;
     Task->Parameter = Info->Parameter;
     Task->Type = (Process->Privilege == PRIVILEGE_KERNEL) ? TASK_TYPE_KERNEL_OTHER : TASK_TYPE_USER;
+    
+    // Copy task name for debugging
+    if (Info->Name[0] != STR_NULL) {
+        StringCopy(Task->Name, Info->Name);
+    } else {
+        StringCopy(Task->Name, TEXT("Unnamed"));
+    }
 
     //-------------------------------------
     // Allocate the stack
@@ -1075,6 +1082,7 @@ void DumpTask(LPTASK Task) {
     LockMutex(&(Task->Mutex), INFINITY);
 
     KernelLogText(LOG_VERBOSE, TEXT("Address         : %X"), Task);
+    KernelLogText(LOG_VERBOSE, TEXT("Task Name       : %s"), Task->Name);
     KernelLogText(LOG_VERBOSE, TEXT("References      : %d"), Task->References);
     KernelLogText(LOG_VERBOSE, TEXT("Process         : %X"), Task->Process);
     KernelLogText(LOG_VERBOSE, TEXT("Status          : %X"), Task->Status);

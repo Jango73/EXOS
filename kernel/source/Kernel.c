@@ -616,6 +616,7 @@ void InitializeKernel(void) {
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = 0;
+    StringCopy(TaskInfo.Name, TEXT("ClockTest"));
 
     TaskInfo.Parameter = (LPVOID)(((Console.Width - 8) << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
@@ -635,6 +636,7 @@ void InitializeKernel(void) {
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = 0;
+    StringCopy(TaskInfo.Name, TEXT("Shell"));
 
     CreateTask(&KernelProcess, &TaskInfo);
 
