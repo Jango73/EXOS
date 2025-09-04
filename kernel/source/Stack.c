@@ -28,13 +28,25 @@
 #include "../include/Process.h"
 #include "../include/System.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 #define STACK_SAFETY_MARGIN 256
 #define TEST_STACK_SIZE 256
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Copies stack content and adjusts EBP chain pointers.
+ *
+ * This function copies stack content from source to destination and walks
+ * the frame chain to adjust all EBP values that point within the source stack.
+ *
+ * @param DestStackTop Top address of destination stack
+ * @param SourceStackTop Top address of source stack  
+ * @param Size Number of bytes to copy
+ * @param StartEBP Starting EBP value to begin frame chain adjustment
+ * @return TRUE on success, FALSE if parameters are invalid or EBP is out of range
+ */
 BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINEAR StartEBP) {
     if (!DestStackTop || !SourceStackTop || Size == 0) {
         return FALSE;
@@ -87,12 +99,35 @@ BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINE
     }
 }
 
+/**
+ * @brief Copies stack content using current EBP as starting point.
+ *
+ * Convenience wrapper around CopyStackWithEBP that uses the current
+ * EBP register value as the starting point for frame chain adjustment.
+ *
+ * @param DestStackTop Top address of destination stack
+ * @param SourceStackTop Top address of source stack
+ * @param Size Number of bytes to copy
+ * @return TRUE on success, FALSE on failure
+ */
 BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
     return CopyStackWithEBP(DestStackTop, SourceStackTop, Size, GetEBP());
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Copies stack content and switches ESP/EBP to the new stack.
+ *
+ * This function copies the stack content from source to destination,
+ * adjusts frame pointers, and then switches the current ESP and EBP
+ * registers to point to the corresponding locations in the destination stack.
+ *
+ * @param DestStackTop Top address of destination stack
+ * @param SourceStackTop Top address of source stack
+ * @param Size Number of bytes to copy and switch
+ * @return TRUE if stack switch successful, FALSE if copy failed or ESP out of range
+ */
 BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
     if (!CopyStack(DestStackTop, SourceStackTop, Size)) {
         return FALSE;
@@ -133,8 +168,18 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Validates that the current task's ESP is within valid stack bounds.
+ *
+ * This function checks if the current ESP register value falls within the
+ * expected stack range for the current task. For kernel tasks, it checks
+ * against the normal stack. For user tasks in kernel mode, it checks against
+ * the system stack. Includes safety margin checking to detect near-overflows.
+ *
+ * @return TRUE if stack is valid, FALSE if overflow or bounds violation detected
+ */
 BOOL CheckStack(void) {
     LPTASK CurrentTask;
     U32 CurrentESP;
@@ -202,6 +247,16 @@ BOOL CheckStack(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Unit test for stack copying functionality.
+ *
+ * This function creates test stack frames with known EBP values and verifies
+ * that CopyStackWithEBP correctly adjusts frame pointers while preserving
+ * return addresses and other stack content. Tests both in-range and out-of-range
+ * EBP values to ensure proper boundary handling.
+ *
+ * @return TRUE if all test cases pass, FALSE if any test fails
+ */
 BOOL TestCopyStack(void) {
     U8 SourceStack[TEST_STACK_SIZE];
     U8 DestStack[TEST_STACK_SIZE];

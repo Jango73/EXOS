@@ -32,6 +32,14 @@
 
 /************************************************************************/
 
+/**
+ * @brief Allocates and initializes a new message structure.
+ *
+ * Creates a new message object with default values and reference count of 1.
+ * The message ID is set to ID_MESSAGE for validation purposes.
+ *
+ * @return Pointer to newly allocated message, or NULL on allocation failure
+ */
 static LPMESSAGE NewMessage(void) {
     LPMESSAGE This;
 
@@ -49,6 +57,14 @@ static LPMESSAGE NewMessage(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Deallocates a message structure.
+ *
+ * Clears the message ID and frees the memory allocated for the message.
+ * The ID is set to ID_NONE to prevent use-after-free bugs.
+ *
+ * @param This Pointer to message to delete, ignored if NULL
+ */
 void DeleteMessage(LPMESSAGE This) {
     if (This == NULL) return;
 
@@ -59,10 +75,27 @@ void DeleteMessage(LPMESSAGE This) {
 
 /************************************************************************/
 
+/**
+ * @brief Destructor function for message objects in lists.
+ *
+ * Generic destructor callback that casts the void pointer to LPMESSAGE
+ * and calls DeleteMessage. Used by list structures for automatic cleanup.
+ *
+ * @param This Generic pointer to message object to destroy
+ */
 void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 
 /************************************************************************/
 
+/**
+ * @brief Allocates and initializes a new task structure.
+ *
+ * Creates a new task object with default values, initializes mutexes,
+ * and sets up the message queue. The task ID is set to ID_TASK for validation.
+ * Memory is validated before use to detect corruption.
+ *
+ * @return Pointer to newly allocated task, or NULL on allocation failure
+ */
 LPTASK NewTask(void) {
     TRACED_FUNCTION;
 
@@ -111,8 +144,17 @@ LPTASK NewTask(void) {
     return This;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Deallocates a task structure and all associated resources.
+ *
+ * Unlocks all mutexes locked by this task, deletes the message queue,
+ * frees stack memory, and deallocates the task structure itself.
+ * Validates task ID before proceeding.
+ *
+ * @param This Pointer to task to delete, ignored if NULL or invalid
+ */
 void DeleteTask(LPTASK This) {
     TRACED_FUNCTION;
 
@@ -171,8 +213,20 @@ void DeleteTask(LPTASK This) {
     TRACED_EPILOGUE("DeleteTask");
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Creates a new task with specified parameters and adds it to the scheduler.
+ *
+ * This function allocates memory for stack and system stack, sets up the task
+ * context with appropriate privilege level, initializes register values, and
+ * adds the task to both the kernel task list and scheduler queue. For main
+ * kernel tasks, it performs stack switching from boot stack to allocated stack.
+ *
+ * @param Process Pointer to process that will own this task
+ * @param Info Task creation parameters including function, stack size, priority
+ * @return Pointer to created task, or NULL on failure
+ */
 LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     TRACED_FUNCTION;
 
@@ -376,8 +430,18 @@ Out:
     return Task;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Terminates a task and frees all associated resources.
+ *
+ * Removes the task from the scheduler queue, marks it as dead, removes it
+ * from the kernel task list, and calls DeleteTask to free resources.
+ * Cannot be used to kill the main kernel task (will halt system).
+ *
+ * @param Task Pointer to task to kill
+ * @return TRUE if task was successfully killed, FALSE if invalid or main task
+ */
 BOOL KillTask(LPTASK Task) {
     SAFE_USE_VALID_ID(Task, ID_TASK) {
         KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
@@ -421,8 +485,15 @@ BOOL KillTask(LPTASK Task) {
     return FALSE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Changes the priority of a task.
+ *
+ * @param Task Pointer to task to modify
+ * @param Priority New priority value
+ * @return Previous priority value, or 0 if task is NULL
+ */
 U32 SetTaskPriority(LPTASK Task, U32 Priority) {
     U32 OldPriority = 0;
 
@@ -438,8 +509,17 @@ U32 SetTaskPriority(LPTASK Task, U32 Priority) {
     return OldPriority;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Suspends the current task for a specified duration.
+ *
+ * Puts the current task to sleep for the specified number of milliseconds.
+ * The task status is set to SLEEPING and a wake-up time is calculated.
+ * The task will remain suspended until the timer interrupt moves it back to RUNNING.
+ *
+ * @param MilliSeconds Number of milliseconds to sleep
+ */
 void Sleep(U32 MilliSeconds) {
     LPTASK Task;
 
@@ -460,8 +540,14 @@ void Sleep(U32 MilliSeconds) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Retrieves the current status of a task.
+ *
+ * @param Task Pointer to task to query
+ * @return Task status value, or 0 if task is NULL
+ */
 U32 GetTaskStatus(LPTASK Task) {
     U32 Status = 0;
 
@@ -476,8 +562,14 @@ U32 GetTaskStatus(LPTASK Task) {
     return Status;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Sets a task status to RUNNING (ignores Status parameter).
+ *
+ * @param Task Pointer to task to modify
+ * @param Status Unused parameter (always sets to RUNNING)
+ */
 void SetTaskStatus(LPTASK Task, U32 Status) {
     UNUSED(Status);
 
@@ -490,7 +582,7 @@ void SetTaskStatus(LPTASK Task, U32 Status) {
     UnlockMutex(&(Task->Mutex));
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
     LockMutex(&(Task->Mutex), INFINITY);
@@ -502,7 +594,7 @@ void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
     UnlockMutex(&(Task->Mutex));
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     LPLISTNODE Node;
@@ -684,7 +776,7 @@ Out_Success:
     return TRUE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     LPDESKTOP Desktop = NULL;
@@ -728,7 +820,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     return Result;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void WaitForMessage(LPTASK Task) {
     //-------------------------------------
@@ -752,8 +844,17 @@ void WaitForMessage(LPTASK Task) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Retrieves the next message from the current task's message queue.
+ *
+ * If no messages are available, the task will wait until a message arrives.
+ * Messages can be filtered by target or retrieved in FIFO order.
+ *
+ * @param Message Pointer to message info structure to fill
+ * @return TRUE if message retrieved successfully, FALSE on ETM_QUIT or error
+ */
 BOOL GetMessage(LPMESSAGEINFO Message) {
     LPTASK Task;
     LPMESSAGE CurrentMessage;
@@ -838,7 +939,7 @@ Out_Error:
     return FALSE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     LPLISTNODE Node = NULL;
@@ -882,7 +983,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     return Result;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 BOOL DispatchMessage(LPMESSAGEINFO Message) {
     LPPROCESS Process = NULL;
@@ -937,8 +1038,16 @@ Out:
     return Result;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+/**
+ * @brief Outputs detailed task information to the debug log.
+ *
+ * Prints all task fields including addresses, status, priority, stack info,
+ * timing information, and message queue status for debugging purposes.
+ *
+ * @param Task Pointer to task to dump
+ */
 void DumpTask(LPTASK Task) {
     LockMutex(&(Task->Mutex), INFINITY);
 
@@ -961,4 +1070,4 @@ void DumpTask(LPTASK Task) {
     UnlockMutex(&(Task->Mutex));
 }
 
-/***************************************************************************/
+/************************************************************************/

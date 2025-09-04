@@ -51,7 +51,14 @@ static TASKLIST TaskList = {
 
 /***************************************************************************/
 
-// Calculate quantum time based on priority (once per task)
+/**
+ * @brief Calculates the time quantum for a task based on its priority.
+ *
+ * Higher priority tasks get longer time slices. Minimum quantum is 20ms.
+ *
+ * @param Priority Task priority value
+ * @return Time quantum in milliseconds
+ */
 static inline U32 CalculateQuantumTime(U32 Priority) {
     U32 Time = (Priority & 0xFF) * 2;
     return (Time < 20) ? 20 : Time;
@@ -59,7 +66,13 @@ static inline U32 CalculateQuantumTime(U32 Priority) {
 
 /***************************************************************************/
 
-// Count how many tasks are ready to run
+/**
+ * @brief Counts the number of tasks that are ready to run.
+ *
+ * Also wakes up any sleeping tasks whose wake-up time has expired.
+ *
+ * @return Number of runnable tasks
+ */
 static U32 CountRunnableTasks(void) {
     U32 RunnableCount = 0;
 
@@ -82,7 +95,15 @@ static U32 CountRunnableTasks(void) {
 
 /***************************************************************************/
 
-// Find next runnable task starting from given index
+/**
+ * @brief Finds the next runnable task starting from a given index.
+ *
+ * Performs round-robin search through the task list, waking up sleeping tasks
+ * whose time has expired. Returns the index of the next runnable task.
+ *
+ * @param StartIndex Index to start searching from
+ * @return Index of next runnable task, or MAX_U32 if none found
+ */
 static U32 FindNextRunnableTask(U32 StartIndex) {
     for (U32 Attempts = 0; Attempts < TaskList.NumTasks; Attempts++) {
         U32 Index = (StartIndex + Attempts) % TaskList.NumTasks;
@@ -104,6 +125,16 @@ static U32 FindNextRunnableTask(U32 StartIndex) {
 
 /***************************************************************************/
 
+/**
+ * @brief Adds a task to the scheduler's execution queue.
+ *
+ * Validates the task, checks for duplicates and capacity, then adds the task
+ * to the scheduling queue. Calculates and assigns the task's quantum time
+ * based on its priority. If this is the first task, makes it current.
+ *
+ * @param NewTask Pointer to task to add to scheduler queue
+ * @return TRUE if task added successfully, FALSE on error or capacity exceeded
+ */
 BOOL AddTaskToQueue(LPTASK NewTask) {
     TRACED_FUNCTION;
 
@@ -165,6 +196,15 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
 
 /***************************************************************************/
 
+/**
+ * @brief Removes a task from the scheduler's execution queue.
+ *
+ * Searches for the task in the queue and removes it, compacting the array.
+ * Adjusts the current task index appropriately to maintain scheduling order.
+ *
+ * @param OldTask Pointer to task to remove from scheduler queue
+ * @return TRUE if task removed successfully, FALSE if not found
+ */
 BOOL RemoveTaskFromQueue(LPTASK OldTask) {
     TRACED_FUNCTION;
 
@@ -211,6 +251,18 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
 
 /***************************************************************************/
 
+/**
+ * @brief Main scheduler function called by timer interrupt.
+ *
+ * This is the core scheduling function that implements preemptive multitasking.
+ * It saves the current task context, checks for stack overflows, manages task
+ * quantums, wakes sleeping tasks, and selects the next task to run. Performs
+ * context switching by setting up ESP0 for Ring 3 tasks and returning the
+ * interrupt frame of the next task.
+ *
+ * @param Frame Current interrupt frame containing CPU state
+ * @return Interrupt frame of next task to execute, or NULL to continue current
+ */
 LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     TRACED_FUNCTION;
 
@@ -342,6 +394,11 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
 /***************************************************************************/
 
+/**
+ * @brief Returns the process that owns the currently executing task.
+ *
+ * @return Pointer to current process, or KernelProcess if no current task
+ */
 LPPROCESS GetCurrentProcess(void) {
     LPTASK Task = GetCurrentTask();
     SAFE_USE(Task) { return Task->Process; }
@@ -350,6 +407,11 @@ LPPROCESS GetCurrentProcess(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Returns the currently executing task.
+ *
+ * @return Pointer to current task, or NULL if no tasks are scheduled
+ */
 LPTASK GetCurrentTask(void) {
     if (TaskList.NumTasks == 0 || TaskList.CurrentIndex >= TaskList.NumTasks) {
         return NULL;
@@ -359,6 +421,14 @@ LPTASK GetCurrentTask(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Temporarily disables task switching.
+ *
+ * Increments the freeze counter to prevent the scheduler from switching tasks.
+ * Used for atomic operations that must not be interrupted by task switches.
+ *
+ * @return Always TRUE
+ */
 BOOL FreezeScheduler(void) {
     LockMutex(MUTEX_SCHEDULE, INFINITY);
     TaskList.Freeze++;
@@ -368,6 +438,14 @@ BOOL FreezeScheduler(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Re-enables task switching.
+ *
+ * Decrements the freeze counter. Task switching is only enabled when the
+ * counter reaches zero, allowing nested freeze/unfreeze calls.
+ *
+ * @return Always TRUE
+ */
 BOOL UnfreezeScheduler(void) {
     LockMutex(MUTEX_SCHEDULE, INFINITY);
     if (TaskList.Freeze) TaskList.Freeze--;
