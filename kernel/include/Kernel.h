@@ -172,6 +172,7 @@ U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
+void MonitorKernel(void);
 
 /***************************************************************************/
 // Functions in Segment.c

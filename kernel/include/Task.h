@@ -31,6 +31,7 @@
 #include "I386.h"
 #include "List.h"
 #include "Mutex.h"
+#include "User.h"
 
 #define TASK_TYPE_KERNEL_MAIN 0
 #define TASK_TYPE_KERNEL_OTHER 1
@@ -65,6 +66,18 @@ typedef struct tag_TASK TASK, *LPTASK;
 
 /************************************************************************/
 
+BOOL InitKernelTask(void);
+LPTASK CreateTask(LPPROCESS, LPTASKINFO);
+BOOL KillTask(LPTASK);
+// Delete all tasks marked DEAD
+void DeleteDeadTasks(void);
+U32 SetTaskPriority(LPTASK, U32);
+void Sleep(U32);
+BOOL PostMessage(HANDLE, U32, U32, U32);
+U32 SendMessage(HANDLE, U32, U32, U32);
+BOOL GetMessage(LPMESSAGEINFO);
+BOOL DispatchMessage(LPMESSAGEINFO);
+void DumpTask(LPTASK);
 
 /************************************************************************/
 #endif

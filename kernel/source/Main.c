@@ -73,9 +73,4 @@ void KernelMain(void) {
     // Main initialization routine
 
     InitializeKernel();
-
-    //--------------------------------------
-    // Enter idle
-
-    DeadCPU();
 }

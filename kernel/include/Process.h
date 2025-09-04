@@ -192,20 +192,6 @@ BOOL CreateProcess(LPPROCESSINFO);
 BOOL Spawn(LPCSTR, LPCSTR);
 
 /************************************************************************/
-// Functions in Task.c
-
-BOOL InitKernelTask(void);
-LPTASK CreateTask(LPPROCESS, LPTASKINFO);
-BOOL KillTask(LPTASK);
-U32 SetTaskPriority(LPTASK, U32);
-void Sleep(U32);
-BOOL PostMessage(HANDLE, U32, U32, U32);
-U32 SendMessage(HANDLE, U32, U32, U32);
-BOOL GetMessage(LPMESSAGEINFO);
-BOOL DispatchMessage(LPMESSAGEINFO);
-void DumpTask(LPTASK);
-
-/************************************************************************/
 // Functions in Mutex.c
 
 void InitMutex(LPMUTEX);

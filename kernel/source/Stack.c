@@ -197,7 +197,8 @@ BOOL CheckStack(void) {
         return TRUE;
     }
 
-    __asm__ volatile("movl %%esp, %0" : "=r" (CurrentESP));
+    // Use the task's saved ESP, not the current ESP (which is the interrupt stack)
+    CurrentESP = CurrentTask->Context.Registers.ESP;
     __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=r" (CurrentCS) : : "eax");
 
     InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
@@ -220,22 +221,23 @@ BOOL CheckStack(void) {
 
     if (CurrentESP <= (StackBase + STACK_SAFETY_MARGIN)) {
         KernelLogText(LOG_ERROR, TEXT("[CheckStack] STACK OVERFLOW DETECTED!"));
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] Task: %X"), CurrentTask);
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] ESP: %X"), CurrentESP);
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackBase: %X"), StackBase);
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackTop: %X"), StackTop);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] Task: %x"), CurrentTask);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] Func: %x"), CurrentTask ? CurrentTask->Function : 0);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] ESP: %x"), CurrentESP);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackBase: %x"), StackBase);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackTop: %x"), StackTop);
         KernelLogText(LOG_ERROR, TEXT("[CheckStack] InKernelMode: %u"), InKernelMode ? 1 : 0);
         KernelLogText(LOG_ERROR, TEXT("[CheckStack] Safety margin violated by %u bytes"), 
                      (StackBase + STACK_SAFETY_MARGIN) - CurrentESP);
         return FALSE;
     }
 
-    if (CurrentESP < StackBase || CurrentESP >= StackTop) {
+    if (CurrentESP < StackBase || CurrentESP > StackTop) {
         KernelLogText(LOG_ERROR, TEXT("[CheckStack] ESP OUTSIDE STACK BOUNDS!"));
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] Task: %X"), CurrentTask);
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] ESP: %X"), CurrentESP);
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackBase: %X"), StackBase);
-        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackTop: %X"), StackTop);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] Task: %x"), CurrentTask);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] ESP: %x"), CurrentESP);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackBase: %x"), StackBase);
+        KernelLogText(LOG_ERROR, TEXT("[CheckStack] StackTop: %x"), StackTop);
         KernelLogText(LOG_ERROR, TEXT("[CheckStack] InKernelMode: %u"), InKernelMode ? 1 : 0);
 
         return FALSE;

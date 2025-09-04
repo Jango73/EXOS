@@ -515,6 +515,14 @@ BOOL MountSystemFS(void) {
         MountObject(&Control);
     }
 
+    ListAddItem(Kernel.FileSystem, Kernel.SystemFS);
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+BOOL MountSystemFSUserNodes(void) {
     if (Kernel.Configuration) {
         U32 ConfigIndex = 0;
         while (1) {
@@ -541,11 +549,11 @@ BOOL MountSystemFS(void) {
 
             ConfigIndex++;
         }
+
+        return TRUE;
     }
 
-    ListAddItem(Kernel.FileSystem, Kernel.SystemFS);
-
-    return TRUE;
+    return FALSE;
 }
 
 /***************************************************************************/

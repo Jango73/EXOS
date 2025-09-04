@@ -123,7 +123,7 @@ static U32 FindNextRunnableTask(U32 StartIndex) {
     return TaskList.NumTasks;  // No runnable task found
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Adds a task to the scheduler's execution queue.
@@ -291,7 +291,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
             // Mark task as ended and remove it from the scheduler
             DangerousTask->Status = TASK_STATUS_DEAD;
-            KillTask(DangerousTask);
+            RemoveTaskFromQueue(DangerousTask);
         }
     }
 
@@ -300,9 +300,14 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
         LPTASK CurrentTask = TaskList.Tasks[TaskList.CurrentIndex];
 
         if (CurrentTask) {
-            // For the main kernel task, preserve the ESP if it was already switched
+            // For kernel tasks, preserve the ESP - it should not be overwritten from interrupt frame
             U32 OriginalESP = CurrentTask->Context.Registers.ESP;
             MemoryCopy(&(CurrentTask->Context), Frame, sizeof(INTERRUPTFRAME));
+            
+            // For all kernel tasks, restore original ESP as interrupt ESP is not reliable
+            if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
+                CurrentTask->Context.Registers.ESP = OriginalESP;
+            }
         }
     }
 

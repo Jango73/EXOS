@@ -573,6 +573,7 @@ void InitializeKernel(void) {
     // Read kernel configuration
 
     ReadKernelConfiguration();
+    MountSystemFSUserNodes();
 
     //-------------------------------------
     // Initialize the graphics card
@@ -639,6 +640,18 @@ void InitializeKernel(void) {
 
     // KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
     // Shell(NULL);
+
+    //--------------------------------------
+    // Enter kernel monitoring
+
+    MonitorKernel();
 }
 
-/***************************************************************************/
+/************************************************************************/
+
+void MonitorKernel(void) {
+    while (TRUE) {
+        DeleteDeadTasks();
+        Sleep(2000);
+    }
+}

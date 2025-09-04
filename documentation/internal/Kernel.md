@@ -249,15 +249,95 @@ Fractional part = unusable space.
 
 ### IRQ scheduling
 
-IRQ0 triggers
+#### IRQ 0 path
+
+IRQ 0
 └── trap lands in interrupt-a.asm : Interrupt_Clock
     └── calls ClockHandler to increment system time
     └── calls Scheduler to check if it's time to switch to another task
         └── Scheduler switches page directory if needed and returns the next task's context
 
+#### ISR 0 call graph
+
+Interrupt_Clock
+└── BuildInterruptFrame
+    └── KernelLogText
+        └── StringEmpty
+        └── StringPrintFormatArgs
+            └── IsNumeric : endpoint
+            └── IsNumeric : endpoint
+            └── SkipAToI : endpoint
+            └── VarArg : endpoint
+            └── StringLength : endpoint
+            └── NumberToString : endpoint
+        └── KernelPrintString
+            └── LockMutex
+                └── SaveFlags : endpoint
+                └── DisableInterrupts : endpoint
+                └── GetCurrentTask : endpoint
+                └── RestoreFlags : endpoint
+                └── GetSystemTime : endpoint
+                └── IdleCPU : endpoint
+            └── UnlockMutex
+                └── SaveFlags : endpoint
+                └── DisableInterrupts : endpoint
+                └── GetCurrentTask : endpoint
+                └── RestoreFlags : endpoint
+        └── KernelPrintChar : endpoint
+└── ClockHandler
+    └── KernelLogText
+        └── ...
+    └── KernelPrintString
+        └── ...
+    └── IsLeapYear : endpoint
+    └── Scheduler
+        └── KernelLogText
+            └── ...
+        └── CheckStack
+            └── GetCurrentTask : endpoint
+        └── KillTask
+            └── KernelLogText
+                └── ...
+            └── RemoveTaskFromQueue
+                └── FreezeScheduler
+                    └── LockMutex
+                        └── ...
+                    └── UnlockMutex
+                        └── ...
+                └── FindNextRunnableTask
+                    └── GetSystemTime : endpoint
+                └── UnfreezeScheduler
+                    └── LockMutex
+                        └── ...
+                    └── UnlockMutex
+                        └── ...
+                └── KernelLogText
+                    └── ...
+            └── LockMutex
+                └── ...
+            └── ListRemove : endpoint
+            └── DeleteTask
+                └── KernelLogText
+                    └── ...
+                    └── HeapFree_HBHS : endpoint
+                    └── HeapFree
+                        └── GetCurrentProcess
+                            └── GetCurrentTask : endpoint
+                        └── HeapFree_P
+                            └── LockMutex
+                                └── ...
+                            └── HeapFree_HBHS : endpoint
+                            └── UnlockMutex
+                                └── ...
+            └── UnlockMutex
+                └── ...
+└── RestoreFromInterruptFrame
+    └── KernelLogText
+        └── ...
+
 ## System calls
 
-### Full path for a system call
+### System call full path
 
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()

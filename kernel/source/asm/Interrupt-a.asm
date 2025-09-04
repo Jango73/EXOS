@@ -359,7 +359,7 @@ Interrupt_Clock:
     add         esp, 4                      ; Space used by SS
 
     pop         ebp
-    
+
     pop         gs
     pop         fs
     pop         es

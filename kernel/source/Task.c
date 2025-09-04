@@ -316,9 +316,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->StackSize = Info->StackSize;
     Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);
 
-    //-------------------------------------
-    // Allocate the task stack
-
     Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
     Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);
 
@@ -457,12 +454,11 @@ BOOL KillTask(LPTASK Task) {
         KernelLogText(
             LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
 
-        // Lock access to kernel data
-        LockMutex(MUTEX_KERNEL, INFINITY);
-        FreezeScheduler();
-
         // Remove task from scheduler queue
         RemoveTaskFromQueue(Task);
+
+        // Lock access to kernel data
+        LockMutex(MUTEX_KERNEL, INFINITY);
 
         Task->References = 0;
         Task->Status = TASK_STATUS_DEAD;
@@ -470,12 +466,11 @@ BOOL KillTask(LPTASK Task) {
         // Remove from global kernel task list BEFORE freeing
         ListRemove(Kernel.Task, Task);
 
+        // Unlock access to kernel data
+        UnlockMutex(MUTEX_KERNEL);
+
         // Finally, free all resources owned by the task
         DeleteTask(Task);
-
-        // Unlock access to kernel data
-        UnfreezeScheduler();
-        UnlockMutex(MUTEX_KERNEL);
 
         KernelLogText(LOG_DEBUG, TEXT("[KillTask] Exit"));
 
@@ -483,6 +478,34 @@ BOOL KillTask(LPTASK Task) {
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+void DeleteDeadTasks(void) {
+    LPTASK Task, NextTask;
+    
+    // Lock access to kernel data
+    LockMutex(MUTEX_KERNEL, INFINITY);
+    
+    Task = (LPTASK)Kernel.Task->First;
+    
+    while (Task != NULL) {
+        NextTask = (LPTASK)Task->Next;
+        
+        if (Task->Status == TASK_STATUS_DEAD) {
+            RemoveTaskFromQueue(Task);
+            ListRemove(Kernel.Task, Task);
+            DeleteTask(Task);
+
+            KernelLogText(LOG_VERBOSE, TEXT("Deleted task %x"), (U32)Task);
+        }
+
+        Task = NextTask;
+    }
+    
+    // Unlock access to kernel data
+    UnlockMutex(MUTEX_KERNEL);
 }
 
 /************************************************************************/

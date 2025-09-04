@@ -774,7 +774,17 @@ static void CMD_showtask(LPSHELLCONTEXT Context) {
     LPTASK Task;
     ParseNextComponent(Context);
     Task = ListGetItem(Kernel.Task, StringToU32(Context->Command));
-    if (Task) DumpTask(Task);
+
+    if (Task) {
+        DumpTask(Task);
+    } else {
+        STR Text[MAX_FILE_NAME];
+
+        for (LPTASK Task = Kernel.Task->First; Task != NULL; Task = Task->Next) {
+            StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, Task->Status);
+            ConsolePrint(Text);
+        }
+    }
 }
 
 /***************************************************************************/
