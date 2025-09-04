@@ -44,10 +44,6 @@
 
 /***************************************************************************/
 
-void RegexSelfTest(void);
-
-/***************************************************************************/
-
 #define NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
 #define HISTORY_SIZE 20
@@ -1015,6 +1011,8 @@ static void CMD_reboot(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static void CMD_test(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
     /*
     TASKINFO TaskInfo;
 
@@ -1033,10 +1031,6 @@ static void CMD_test(LPSHELLCONTEXT Context) {
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
     */
-
-    UNUSED(Context);
-
-    RegexSelfTest();
 }
 
 /***************************************************************************/

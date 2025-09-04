@@ -26,7 +26,8 @@ LDFLAGS_ELF = -T linker-elf.ld -static -nostdlib -no-pie --no-dynamic-linker --v
 KERNEL_ELF = bin/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
-         $(wildcard source/test/*.c)
+         $(wildcard source/test/*.c) \
+         $(wildcard source/autotest/*.c)
 SRC_S  = $(wildcard source/asm/*.asm)
 
 OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))

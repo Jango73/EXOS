@@ -1,0 +1,143 @@
+
+/************************************************************************\
+
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    Stack operations - Unit Tests
+
+\************************************************************************/
+
+#include "../../include/Base.h"
+#include "../../include/Log.h"
+#include "../../include/Memory.h"
+#include "../../include/Stack.h"
+#include "../../include/System.h"
+
+/************************************************************************/
+
+#define TEST_STACK_SIZE 256
+
+/************************************************************************/
+
+/**
+ * @brief Unit test for stack copying functionality.
+ *
+ * This function creates test stack frames with known EBP values and verifies
+ * that CopyStackWithEBP correctly adjusts frame pointers while preserving
+ * return addresses and other stack content. Tests both in-range and out-of-range
+ * EBP values to ensure proper boundary handling.
+ *
+ * @return TRUE if all test cases pass, FALSE if any test fails
+ */
+BOOL TestCopyStack(void) {
+    U8 SourceStack[TEST_STACK_SIZE];
+    U8 DestStack[TEST_STACK_SIZE];
+    U32 *SourcePtr, *DestPtr;
+    LINEAR SourceStackTop, DestStackTop;
+    I32 Delta;
+    BOOL TestPassed = TRUE;
+    
+    KernelLogText(LOG_DEBUG, TEXT("[TestCopyStack] Starting CopyStack test"));
+    
+    SourceStackTop = (LINEAR)(SourceStack + TEST_STACK_SIZE);
+    DestStackTop = (LINEAR)(DestStack + TEST_STACK_SIZE);
+    Delta = DestStackTop - SourceStackTop;
+    
+    KernelLogText(LOG_DEBUG, TEXT("[TestCopyStack] SourceStackTop=%X, DestStackTop=%X, Delta=%X"), 
+                  SourceStackTop, DestStackTop, Delta);
+    
+    MemorySet(SourceStack, 0xAA, TEST_STACK_SIZE);
+    MemorySet(DestStack, 0x55, TEST_STACK_SIZE);
+    
+    SourcePtr = (U32*)(SourceStackTop - 16);  // Frame 1 EBP
+    *SourcePtr = (U32)(SourceStackTop - 32); // Points to Frame 2
+    SourcePtr = (U32*)(SourceStackTop - 12);  // Frame 1 return addr
+    *SourcePtr = 0x12345678;
+    
+    SourcePtr = (U32*)(SourceStackTop - 32);  // Frame 2 EBP  
+    *SourcePtr = (U32)(SourceStackTop - 48);  // Points to Frame 3
+    SourcePtr = (U32*)(SourceStackTop - 28);  // Frame 2 return addr
+    *SourcePtr = 0x9ABCDEF0;
+    
+    SourcePtr = (U32*)(SourceStackTop - 48);  // Frame 3 EBP
+    *SourcePtr = 0x1000;  // Points outside stack (should not be adjusted)
+    SourcePtr = (U32*)(SourceStackTop - 44);  // Frame 3 return addr
+    *SourcePtr = 0xDEADBEEF;
+    
+    KernelLogText(LOG_DEBUG, TEXT("[TestCopyStack] Source stack populated with test frames"));
+    
+    if (!CopyStackWithEBP(DestStackTop, SourceStackTop, TEST_STACK_SIZE, (LINEAR)(SourceStackTop - 16))) {
+        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] CopyStack failed"));
+        return FALSE;
+    }
+    
+    DestPtr = (U32*)(DestStackTop - 16);  // Frame 1 EBP in dest
+    U32 ExpectedEbp1 = (SourceStackTop - 32) + Delta;
+    if (*DestPtr != ExpectedEbp1) {
+        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 1 EBP: expected %X, got %X"), 
+                      ExpectedEbp1, *DestPtr);
+        TestPassed = FALSE;
+    }
+    
+    DestPtr = (U32*)(DestStackTop - 12);  // Frame 1 return addr
+    if (*DestPtr != 0x12345678) {
+        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 1 return addr: expected 0x12345678, got %X"), 
+                      *DestPtr);
+        TestPassed = FALSE;
+    }
+    
+    DestPtr = (U32*)(DestStackTop - 32);  // Frame 2 EBP in dest
+    U32 ExpectedEbp2 = (SourceStackTop - 48) + Delta;
+    if (*DestPtr != ExpectedEbp2) {
+        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 2 EBP: expected %X, got %X"), 
+                      ExpectedEbp2, *DestPtr);
+        TestPassed = FALSE;
+    }
+    
+    DestPtr = (U32*)(DestStackTop - 28);  // Frame 2 return addr
+    if (*DestPtr != 0x9ABCDEF0) {
+        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 2 return addr: expected 0x9ABCDEF0, got %X"), 
+                      *DestPtr);
+        TestPassed = FALSE;
+    }
+    
+    DestPtr = (U32*)(DestStackTop - 48);  // Frame 3 EBP in dest (should NOT be adjusted)
+    if (*DestPtr != 0x1000) {
+        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 3 EBP: expected 0x1000 (unchanged), got %X"), 
+                      *DestPtr);
+        TestPassed = FALSE;
+    }
+    
+    DestPtr = (U32*)(DestStackTop - 44);  // Frame 3 return addr
+    if (*DestPtr != 0xDEADBEEF) {
+        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 3 return addr: expected 0xDEADBEEF, got %X"), 
+                      *DestPtr);
+        TestPassed = FALSE;
+    }
+    
+    for (U32 i = 0; i < TEST_STACK_SIZE - 48; i++) {
+        if (DestStack[i] != 0xAA) {
+            KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Non-frame data corrupted at offset %u: expected 0xAA, got %X"), 
+                          i, DestStack[i]);
+            TestPassed = FALSE;
+            break;
+        }
+    }
+    
+    return TestPassed;
+}

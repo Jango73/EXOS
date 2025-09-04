@@ -24,6 +24,7 @@
 
 #include "../include/Kernel.h"
 
+#include "../include/Autotest.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
 #include "../include/Driver.h"
@@ -502,8 +503,6 @@ void InitializeKernel(void) {
     InitializeMemoryManager();
     KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Memory manager initialized"));
 
-    TestCopyStack();
-
     InitializeTaskSegments();
     KernelLogText(LOG_VERBOSE, TEXT("[KernelMain] Task segments initialized"));
 
@@ -516,6 +515,11 @@ void InitializeKernel(void) {
     // Dump critical information
 
     DumpCriticalInformation();
+
+    //-------------------------------------
+    // Run auto tests
+
+    RunAllTests();
 
     //-------------------------------------
     // Initialize kernel process
