@@ -270,6 +270,15 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter"));
 #endif
 
+    // If scheduler is frozen, don't switch (atomic read - safe in interrupt context)
+    if (TaskList.Freeze) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen: Returning NULL"));
+#endif
+        TRACED_EPILOGUE("Scheduler");
+        return NULL;
+    }
+
     TaskList.SchedulerTime += 10;
 
     // Check for stack overflow - kill dangerous tasks immediately
@@ -294,16 +303,6 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
             // For the main kernel task, preserve the ESP if it was already switched
             U32 OriginalESP = CurrentTask->Context.Registers.ESP;
             MemoryCopy(&(CurrentTask->Context), Frame, sizeof(INTERRUPTFRAME));
-        }
-    }
-
-    // If scheduler is frozen, don't switch (atomic read - safe in interrupt context)
-    if (TaskList.Freeze) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen: Returning NULL"));
-#endif
-        while (TaskList.Freeze) {
-            IdleCPU();
         }
     }
 
