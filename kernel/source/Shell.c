@@ -1080,6 +1080,7 @@ static void RunConfiguredExecutables(void) {
 
         if (Kernel.SystemFS->Driver->Command(DF_FS_FILEEXISTS, (U32)&FileInfo)) {
             Spawn(ExecutablePath, NULL);
+            KernelLogText(LOG_VERBOSE, TEXT("[RunConfiguredExecutables] Spawned : %s"), ExecutablePath);
         } else {
             KernelLogText(LOG_WARNING, TEXT("[RunConfiguredExecutables] Executable not found : %s"), ExecutablePath);
         }

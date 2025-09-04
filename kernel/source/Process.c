@@ -316,7 +316,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // We can use the new page directory from now on
     // and switch back to the previous when done
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching page directory"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching page directory to new process : %x"), Process->PageDirectory);
 
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
@@ -400,7 +400,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Switch back to our page directory
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching page directory"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching back page directory to %x"), PageDirectory);
 
     LoadPageDirectory(PageDirectory);
 
