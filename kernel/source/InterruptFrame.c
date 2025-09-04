@@ -178,17 +178,11 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
     U32* Stack;
     U32 UserMode;
 
-/*
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Enter (%d, %d)"), intNo, HasErrorCode);
-#endif
-*/
-
     Frame = (LPINTERRUPTFRAME) ESP;
     Stack = (U32*) (ESP + sizeof(INTERRUPTFRAME));
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_VERBOSE, TEXT("[BuildInterruptFrame] IntNo=%d, HasErrorCode=%d, ESP=%X"), intNo, HasErrorCode, ESP);
+    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] IntNo=%d, HasErrorCode=%d, ESP=%X"), intNo, HasErrorCode, ESP);
 #endif
 
     UserMode = (Stack[INCOMING_CS_INDEX + HasErrorCode] & SELECTOR_RPL_MASK) != 0;
@@ -243,12 +237,6 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
     } else {
         Frame->ErrCode = 0;
     }
-
-/*
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Exit"));
-#endif
-*/
 
     return Frame;
 }

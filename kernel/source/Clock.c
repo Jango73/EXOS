@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Clock
+    Clock manager
 
 \************************************************************************/
 
@@ -32,12 +32,15 @@
 #include "../include/Text.h"
 
 /***************************************************************************/
+// Timer resolution
 
-#define DIVISOR 11932
-#define MILLIS 10
-
-// #define DIVISOR 59659
-// #define MILLIS 50
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    #define DIVISOR 59659
+    #define MILLIS 50
+#else
+    #define DIVISOR 11932
+    #define MILLIS 10
+#endif
 
 /***************************************************************************/
 
@@ -87,6 +90,10 @@ void InitializeClock(void) {
 
 /***************************************************************************/
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+static logCount = 0;
+#endif
+
 /**
  * @brief Increment the internal millisecond counter.
  */
@@ -94,11 +101,17 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
     LPINTERRUPTFRAME ReturnValue = NULL;
     BOOL CallScheduler = FALSE;
 
-/*
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    logCount++;
+    if (logCount > 10000) {
+        KernelLogText(LOG_DEBUG, TEXT("Too much flooding, halting system."));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+#endif
+
 #if SCHEDULING_DEBUG_OUTPUT == 1
     KernelPrintString(TEXT("[ClockHandler]"));
 #endif
-*/
 
     RawSystemTime += MILLIS;
     CurrentTime.Milli += MILLIS;
@@ -146,15 +159,8 @@ LPINTERRUPTFRAME ClockHandler(LPINTERRUPTFRAME Frame) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Calling Scheduler"));
 #endif
+
         ReturnValue = Scheduler(Frame);
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Returning next frame to the stub :"));
-        SAFE_USE(ReturnValue) {
-            DumpFrame(ReturnValue);
-        }
-#endif
-
     }
 
     if (RawSystemTime % 1000 == 0) {

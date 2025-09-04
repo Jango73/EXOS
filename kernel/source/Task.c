@@ -392,7 +392,7 @@ BOOL KillTask(LPTASK Task) {
         KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
 
         if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
-            KernelLogText(LOG_DEBUG, TEXT("[KillTask] Can't kill kernel task, halting"));
+            KernelLogText(LOG_ERROR, TEXT("[KillTask] Can't kill kernel task, halting"));
             DO_THE_SLEEPING_BEAUTY;
             return FALSE;
         }

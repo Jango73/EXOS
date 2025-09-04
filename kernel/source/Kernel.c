@@ -38,6 +38,7 @@
 #include "../include/Mouse.h"
 #include "../include/PCI.h"
 #include "../include/Stack.h"
+#include "../include/StackTrace.h"
 #include "../include/System.h"
 #include "../include/TOML.h"
 
@@ -243,6 +244,8 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  */
 
 U32 ClockTestTask(LPVOID Param) {
+    TRACED_FUNCTION;
+
     STR Text[64];
     U32 X = ((U32)Param & 0xFFFF0000) >> 16;
     U32 Y = ((U32)Param & 0x0000FFFF) >> 0;
@@ -268,6 +271,7 @@ U32 ClockTestTask(LPVOID Param) {
         DoSystemCall(SYSCALL_Sleep, 40);
     }
 
+    TRACED_EPILOGUE("ClockTestTask");
     return 0;
 }
 
@@ -340,10 +344,10 @@ static void ReadKernelConfiguration(void) {
         Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
 
         if (Buffer != NULL) {
-            KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Conf read from EXOS.TOML"));
+            KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
         }
     } else {
-        KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Conf read from exos.toml"));
+        KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
     }
 
     if (Buffer != NULL) {
@@ -553,7 +557,6 @@ void InitializeKernel(void) {
     // Read kernel configuration
 
     ReadKernelConfiguration();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
 
     //-------------------------------------
     // Initialize the clock

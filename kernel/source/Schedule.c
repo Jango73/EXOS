@@ -333,7 +333,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning next frame to the stub"));
-    DumpFrame(&(NextTask->Context));
+    // DumpFrame(&(NextTask->Context));
 #endif
 
     TRACED_EPILOGUE("Scheduler");
