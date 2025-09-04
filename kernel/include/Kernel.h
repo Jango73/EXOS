@@ -69,6 +69,8 @@ typedef struct tag_CPUINFORMATION {
 #define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 #define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
+#define PAGE_PRIVILEGE(adr) ((Base >= VMA_USER && Base < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
+
 /***************************************************************************/
 
 #define DESCRIPTOR_SIZE 10

@@ -945,9 +945,12 @@ LINEAR AllocPageTable(LINEAR Base) {
     U32 DirEntry = GetDirectoryEntry(Base);
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
 
+    // Determine privilege: user space (< VMA_KERNEL) needs user privilege
+    U32 Privilege = PAGE_PRIVILEGE(Base);
+
     Directory[DirEntry].Present = 1;
     Directory[DirEntry].ReadWrite = 1;
-    Directory[DirEntry].Privilege = PAGE_PRIVILEGE_KERNEL;
+    Directory[DirEntry].Privilege = Privilege;
     Directory[DirEntry].WriteThrough = 0;
     Directory[DirEntry].CacheDisabled = 0;
     Directory[DirEntry].Accessed = 0;
@@ -1161,7 +1164,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     U32 TabEntry = 0;
     U32 NumPages = 0;
     U32 ReadWrite = 0;
-    U32 Privilege = 0;
     U32 Index = 0;
 
     KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Enter"));
@@ -1176,8 +1178,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     if (NumPages == 0) NumPages = 1;
 
     ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
-    Privilege = (GetCurrentProcess()->Privilege == PRIVILEGE_KERNEL) ? PAGE_PRIVILEGE_KERNEL : PAGE_PRIVILEGE_USER;
-
+    
     // Derive cache policy flags for PTE
     U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
     U32 PteWriteThrough = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
@@ -1191,6 +1192,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
             KernelLogText(LOG_ERROR, TEXT("[AllocRegion] Target not page-aligned (%X)"), Target);
             return NULL;
         }
+
         if ((Flags & ALLOC_PAGES_COMMIT) == 0) {
             KernelLogText(LOG_ERROR, TEXT("[AllocRegion] Exact PMA mapping requires COMMIT"));
             return NULL;
@@ -1228,7 +1230,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     // Set the return value to "Base".
     Pointer = Base;
 
-
     KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Allocating pages"));
 
     /* Allocate each page in turn. */
@@ -1248,7 +1249,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
         Table[TabEntry].Present = 0;
         Table[TabEntry].ReadWrite = ReadWrite;
-        Table[TabEntry].Privilege = Privilege;
+        Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
         Table[TabEntry].WriteThrough = PteWriteThrough;
         Table[TabEntry].CacheDisabled = PteCacheDisabled;
         Table[TabEntry].Accessed = 0;
