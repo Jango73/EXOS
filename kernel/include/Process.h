@@ -101,7 +101,7 @@ struct tag_MESSAGE {
 // Task creation flags
 
 #define TASK_CREATE_SUSPENDED 0x00000001
-#define TASK_CREATE_MAIN 0x00000002
+#define TASK_CREATE_MAIN_KERNEL 0x00000002
 
 /************************************************************************/
 // The window structure

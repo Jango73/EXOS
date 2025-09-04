@@ -324,7 +324,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Context.Registers.SS = DataSelector;
     Task->Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
 
-    if (Info->Flags & TASK_CREATE_MAIN) {
+    if (Info->Flags & TASK_CREATE_MAIN_KERNEL) {
         Kernel_i386.TSS->ESP0 = SysStackTop;
 
         LINEAR BootStackTop = KernelStartup.StackTop;
@@ -338,18 +338,9 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
         // Use the new SwitchStack function
         if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
-            // For the main kernel task, don't save ESP in context since it will keep changing
-            // during normal execution. The stack switch worked, that's what matters.
-            if (Info->Flags & TASK_CREATE_MAIN) {
-                Task->Context.Registers.ESP = 0;  // Not used for main task
-                Task->Context.Registers.EBP = GetEBP();
-                KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Main task stack switched successfully"));
-            } else {
-                Task->Context.Registers.ESP = GetESP();
-                Task->Context.Registers.EBP = GetEBP();
-                KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Task stack switched - ESP = %X, EBP = %X"), 
-                             Task->Context.Registers.ESP, Task->Context.Registers.EBP);
-            }
+            Task->Context.Registers.ESP = 0;  // Not used for main task
+            Task->Context.Registers.EBP = GetEBP();
+            KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Main task stack switched successfully"));
         } else {
             KernelLogText(LOG_ERROR, TEXT("[CreateTask] Stack switch failed"));
         }

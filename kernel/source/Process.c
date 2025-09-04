@@ -94,7 +94,7 @@ void InitializeKernelProcess(void) {
     TaskInfo.Func = (TASKFUNC)InitializeKernel;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
-    TaskInfo.Flags = TASK_CREATE_MAIN;
+    TaskInfo.Flags = TASK_CREATE_MAIN_KERNEL;
 
     LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
 

@@ -149,7 +149,7 @@ BOOL CheckStack(void) {
     }
 
     // Skip stack checking for main kernel task since ESP is not saved in context
-    if (CurrentTask->Flags & TASK_CREATE_MAIN) {
+    if (CurrentTask->Flags & TASK_CREATE_MAIN_KERNEL) {
         return TRUE;
     }
 
@@ -158,10 +158,18 @@ BOOL CheckStack(void) {
 
     InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
 
-    if (InKernelMode) {
+    // For Ring 0 tasks (kernel tasks), they use their normal stack (StackBase)
+    // SysStackBase is only used when a Ring 3 task enters kernel mode via interrupt/syscall
+    if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
+        // Kernel tasks always use their normal stack
+        StackBase = CurrentTask->StackBase;                       
+        StackTop = StackBase + CurrentTask->StackSize;            
+    } else if (InKernelMode) {
+        // User task currently in kernel mode (via syscall/interrupt)
         StackBase = CurrentTask->SysStackBase;                    
         StackTop = StackBase + CurrentTask->SysStackSize;         
     } else {
+        // User task in user mode
         StackBase = CurrentTask->StackBase;                       
         StackTop = StackBase + CurrentTask->StackSize;            
     }
