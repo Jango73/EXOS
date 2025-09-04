@@ -1043,6 +1043,9 @@ DoSystemCall :
     ret
 
 ;--------------------------------------
+; DON'T call this one outside of :
+; Sleep, WaitForMessage and LockMutex
+; It will trigger random crashes
 
 IdleCPU :
 

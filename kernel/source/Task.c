@@ -194,12 +194,12 @@ void DeleteTask(LPTASK This) {
     KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks"));
 
     if (This->SysStackBase != NULL) {
-        HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, (LPVOID)This->SysStackBase);
+        FreeRegion(This->SysStackBase, This->SysStackSize);
     }
 
     if (This->Process != NULL) {
         if (This->StackBase != NULL) {
-            HeapFree_HBHS(This->Process->HeapBase, This->Process->HeapSize, (LPVOID)This->StackBase);
+            FreeRegion(This->StackBase, This->StackSize);
         }
     }
 
@@ -320,19 +320,26 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     KernelLogText(
         LOG_DEBUG, TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
-    Task->StackSize = Info->StackSize;
-    Task->StackBase = (LINEAR)HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Task->StackSize);
+    LINEAR BaseVMA = VMA_KERNEL;
+    LINEAR SysBaseVMA = VMA_KERNEL;
 
+    if (Process->Privilege == PRIVILEGE_USER) {
+        BaseVMA = VMA_USER;
+    }
+
+    Task->StackSize = Info->StackSize;
     Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
-    Task->SysStackBase = (LINEAR)HeapAlloc_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, Task->SysStackSize);
+
+    Task->StackBase = AllocRegion(BaseVMA, 0, Task->StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_AT_OR_OVER);
+    Task->SysStackBase = AllocRegion(SysBaseVMA, 0, Task->SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_AT_OR_OVER);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
         if (Task->StackBase != NULL) {
-            HeapFree_HBHS(Process->HeapBase, Process->HeapSize, (LPVOID)Task->StackBase);
+            FreeRegion(Task->StackBase, Task->StackSize);
         }
 
         if (Task->SysStackBase != NULL) {
-            HeapFree_HBHS(KernelProcess.HeapBase, KernelProcess.HeapSize, (LPVOID)Task->SysStackBase);
+            FreeRegion(Task->SysStackBase, Task->StackSize);
         }
 
         DeleteTask(Task);

@@ -1174,7 +1174,7 @@ U32 Shell(LPVOID Param) {
     RunConfiguredExecutables();
 
     while (ParseCommand(&Context)) {
-        IdleCPU();
+        Sleep(100);
     }
 
     ConsolePrint(TEXT("Exiting shell\n"));

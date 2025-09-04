@@ -95,8 +95,8 @@ struct tag_MESSAGE {
 
 // Miscellaneous task values
 
-#define TASK_MINIMUM_STACK_SIZE N_32KB
-#define TASK_SYSTEM_STACK_SIZE N_8KB
+#define TASK_MINIMUM_STACK_SIZE N_64KB
+#define TASK_SYSTEM_STACK_SIZE N_16KB
 
 // Task creation flags
 
