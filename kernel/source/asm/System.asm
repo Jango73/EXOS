@@ -939,10 +939,6 @@ MemorySet :
 
     push    ecx
     push    edi
-    push    es
-
-    push    ds
-    pop     es
 
     mov     edi, [ebp+(PBN+0)]
     mov     eax, [ebp+(PBN+4)]
@@ -950,7 +946,6 @@ MemorySet :
     cld
     rep     stosb
 
-    pop     es
     pop     edi
     pop     ecx
 
@@ -967,10 +962,6 @@ MemoryCopy :
     push    ecx
     push    esi
     push    edi
-    push    es
-
-    push    ds
-    pop     es
 
     mov     edi, [ebp+(PBN+0)]
     mov     esi, [ebp+(PBN+4)]
@@ -978,7 +969,6 @@ MemoryCopy :
     cld
     rep     movsb
 
-    pop     es
     pop     edi
     pop     esi
     pop     ecx
