@@ -1,6 +1,6 @@
 {
     "logs": [
-        "log/debug.log",
+        "log/debug-com2.log",
         "log/make.log"
     ],
     "scriptsDir": "./scripts",
