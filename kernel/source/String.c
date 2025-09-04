@@ -24,7 +24,6 @@
 #include "../include/String.h"
 
 #include "../include/Base.h"
-#include "../include/Log.h"
 #include "../include/VarArg.h"
 
 /***************************************************************************/
@@ -123,13 +122,6 @@ U32 StringLength(LPCSTR Src) {
     U32 Index = 0;
     U32 Size = 0;
 
-#ifdef __KERNEL__
-    // Debug warning if we somehow start with high index (shouldn't happen)
-    if (Index >= 8192) {
-        KernelLogText(LOG_WARNING, "[StringLength] Enter");
-    }
-#endif
-
     if (Src != NULL) {
         // Count characters until null terminator or safety limit
         for (Index = 0; Index < 8192; Index++) {
@@ -137,20 +129,7 @@ U32 StringLength(LPCSTR Src) {
             Src++; // Move to next character
             Size++; // Count this character
         }
-
-#ifdef __KERNEL__
-        // Warn if we hit the safety limit without finding null terminator
-        if (Index >= 8192) {
-            KernelLogText(LOG_WARNING, "[StringLength] Exceeded max string length");
-        }
-#endif
     }
-
-#ifdef __KERNEL__
-    if (Index >= 8192) {
-        KernelLogText(LOG_WARNING, "[StringLength] Exit");
-    }
-#endif
 
     return Size;
 }
