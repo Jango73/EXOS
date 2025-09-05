@@ -1266,11 +1266,13 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
                     // IO mapping (BAR) -> no bitmap mark, Fixed=1
                     Table[TabEntry].Fixed = 1;
                     Table[TabEntry].Present = 1;
+                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
                     Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
                 } else {
                     // RAM mapping
                     SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
                     Table[TabEntry].Present = 1;
+                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
                     Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
                 }
             } else {
@@ -1286,6 +1288,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
                 }
 
                 Table[TabEntry].Present = 1;
+                Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
                 Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
             }
         }
