@@ -91,11 +91,11 @@
 
     Trap stack after all pushes from stub, without an error code
 
- E  +------------------+ <-- ESP before exception
+ E  +------------------+ <-- ESP before exception (may be top of system stack)
  S  |                  |
  P  | Some stack data  |     (user data before exception)
     |                  |
- G  +------------------+ <-- TRAP
+ G  +------------------+ <-- TRAP (may be top of system stack)
  O  |        |   SS    | <-- 16 bits - PRESENT only if user->kernel privilege change
  E  +------------------+
  S  |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
@@ -249,6 +249,10 @@ void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
     U32 UserMode;
     U32 HasErrorCode = 0;  // Timer interrupts don't have error codes
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Enter"));
+#endif
+
     SAFE_USE_VALID(NextFrame) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
@@ -276,6 +280,7 @@ void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
         Stack[INCOMING_EBP_INDEX] = NextFrame->Registers.EBP;
 
         // Restore stack-related registers based on privilege mode
+        // For user mode tasks, always use R3 positions for IRET
         if (UserMode) {
             Stack[INCOMING_R3_ESP_INDEX + HasErrorCode] = NextFrame->Registers.ESP;
             Stack[INCOMING_R3_SS_INDEX + HasErrorCode] = NextFrame->Registers.SS;

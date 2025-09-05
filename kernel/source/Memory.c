@@ -212,7 +212,6 @@ static U32 GetPhysicalPageMark(U32 Page) {
 
 /***************************************************************************/
 
-// Marks a contiguous range of pages in the PPB (1 = used, 0 = free)
 /**
  * @brief Mark a range of physical pages as used or free.
  * @param FirstPage First page index.
@@ -279,10 +278,8 @@ static void MarkUsedPhysicalMemory(void) {
     }
 }
 
-/************************************************************************/
+/*********************************************************************/
 
-/* Allocate one free physical page and mark it used in PPB.
-   Returns the physical address (page-aligned) or 0 on failure. */
 /**
  * @brief Allocate a free physical page.
  * @return Physical page number or MAX_U32 on failure.
@@ -326,9 +323,8 @@ Out:
     return result;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
-// Frees one physical page and marks it free in the PPB (bitmap).
 /**
  * @brief Release a previously allocated physical page.
  * @param Page Page number to free.
@@ -381,7 +377,7 @@ void FreePhysicalPage(PHYSICAL Page) {
     UnlockMutex(MUTEX_MEMORY);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Get the page directory index for a linear address.
@@ -390,7 +386,7 @@ void FreePhysicalPage(PHYSICAL Page) {
  */
 static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TABLE_CAPACITY_MUL; }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Get the page table index for a linear address.
@@ -399,7 +395,7 @@ static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TAB
  */
 static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
 
-/***************************************************************************/
+/************************************************************************/
 
 // Self-map helpers (no public exposure)
 
@@ -408,6 +404,8 @@ static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_C
  * @return Pointer to page directory.
  */
 static inline LPPAGEDIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGEDIRECTORY)PD_VA; }
+
+/************************************************************************/
 
 /**
  * @brief Get the virtual address of the page table for a linear address.
@@ -419,37 +417,66 @@ static inline LPPAGETABLE GetPageTableVAFor(LINEAR Address) {
     return (LPPAGETABLE)(PT_BASE_VA + (dir << PAGE_SIZE_MUL));
 }
 
+/************************************************************************/
+
 /**
  * @brief Get a pointer to the raw PTE entry for a linear address.
  * @param Address Linear address.
  * @return Pointer to the PTE.
  */
-static inline volatile U32* GetPteRawPtr(LINEAR Address) {
+static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
     U32 tab = GetTableEntry(Address);
     return (volatile U32*)&GetPageTableVAFor(Address)[tab];
 }
 
+/************************************************************************/
+
 // Compose a raw 32-bit PTE value from fields + physical address.
-static inline U32 MakePteValue(
+static inline U32 MakePageTableEntryValue(
     PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global, U32 Fixed) {
     U32 val = 0;
     val |= 1u;  // Present
+
     if (ReadWrite) val |= (1u << 1);
     if (Privilege) val |= (1u << 2);  // 1=user, 0=kernel
     if (WriteThrough) val |= (1u << 3);
     if (CacheDisabled) val |= (1u << 4);
-    /* Accessed (bit 5) / Dirty (bit 6) left to CPU */
+
+    // Accessed (bit 5) / Dirty (bit 6) left to CPU
     if (Global) val |= (1u << 8);
     if (Fixed) val |= (1u << 9);                // Your code uses this bit in PTE
+
     val |= (U32)(Physical & ~(PAGE_SIZE - 1));  // Frame address aligned
+
     return val;
+
+    /*
+    PAGETABLE TableEntry;
+
+    TableEntry.Present = 1;
+    TableEntry.ReadWrite = ReadWrite;
+    TableEntry.Privilege = Privilege;
+    TableEntry.WriteThrough = WriteThrough;
+    TableEntry.CacheDisabled = CacheDisabled;
+    TableEntry.Accessed = 0;
+    TableEntry.Dirty = 0;
+    TableEntry.Reserved = 0;
+    TableEntry.Global = Global;
+    TableEntry.User = 0;
+    TableEntry.Fixed = Fixed;
+    TableEntry.Address = Physical & ~(PAGE_SIZE - 1);
+
+    return *((U32*)&TableEntry);
+    */
 }
+
+/************************************************************************/
 
 // Map or remap a single virtual page by directly editing its PTE via the self-map.
 static inline void MapOnePage(
     LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
     U32 Fixed) {
-    volatile U32* Pte = GetPteRawPtr(Linear);
+    volatile U32* Pte = GetPageTableEntryRawPointer(Linear);
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     U32 dir = GetDirectoryEntry(Linear);
 
@@ -458,9 +485,11 @@ static inline void MapOnePage(
         return;  // Or panic
     }
 
-    *Pte = MakePteValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
+    *Pte = MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
     InvalidatePage(Linear);
 }
+
+/************************************************************************/
 
 // Unmap (mark not-present) one virtual page.
 /**
@@ -468,12 +497,12 @@ static inline void MapOnePage(
  * @param Linear Linear address to unmap.
  */
 static inline void UnmapOnePage(LINEAR Linear) {
-    volatile U32* Pte = GetPteRawPtr(Linear);
+    volatile U32* Pte = GetPageTableEntryRawPointer(Linear);
     *Pte = 0;
     InvalidatePage(Linear);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Check if a linear address is mapped and accessible.
@@ -724,7 +753,6 @@ PHYSICAL AllocUserPageDirectory(void) {
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Enter"));
 
     U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
-    U32 DirUser = (VMA_USER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_USER
     U32 Index;
 
     // Allocate required physical pages (PD + 3 PTs)
@@ -964,7 +992,7 @@ LINEAR AllocPageTable(LINEAR Base) {
  * @return TRUE if region is free.
  */
 BOOL IsRegionFree(LINEAR Base, U32 Size) {
-    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Enter"));
+    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Enter : %x; %x"), Base, Size);
 
     U32 NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
@@ -1174,7 +1202,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
        see if the region is not already allocated. */
     if (Base != 0 && (Flags & ALLOC_PAGES_AT_OR_OVER) == 0) {
         if (IsRegionFree(Base, Size) == FALSE) {
-            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with specified base"));
+            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with specified base : %x"), Base);
             return NULL;
         }
     }
@@ -1183,18 +1211,18 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
        the region, try to find a region which is at least as large as
        the "Size" parameter. */
     if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
-        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Calling FindFreeRegion with base = %X and size = %X"), Base, Size);
+        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Calling FindFreeRegion with base = %x and size = %x"), Base, Size);
 
         LINEAR NewBase = FindFreeRegion(Base, Size);
 
         if (NewBase == NULL) {
-            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with unspecified base from %X"), Base);
+            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with unspecified base from %x"), Base);
             return NULL;
         }
 
         Base = NewBase;
 
-        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] FindFreeRegion found with base = %X and size = %X"), Base, Size);
+        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] FindFreeRegion found with base = %x and size = %x"), Base, Size);
     }
 
     // Set the return value to "Base".
@@ -1391,7 +1419,6 @@ LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
     }
 
     // Map as Uncached, Read/Write, exact PMA mapping, IO semantics
-    // Use AT_OR_OVER to avoid allocating in user space (VMA_USER)
     return AllocRegion(
         VMA_KERNEL,    // Start search in kernel space to avoid user space
         PhysicalBase,  // Exact PMA (BAR)
@@ -1518,9 +1545,9 @@ void InitializeMemoryManager(void) {
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
     // Log GDT contents
-    for (U32 i = 0; i < 3; i++) {
+    for (U32 i = 0; i < 10; i++) {
         KernelLogText(
-            LOG_DEBUG, TEXT("[InitializeMemoryManager] GDT[%u]=0x%X%X"), i, ((U32*)(Kernel_i386.GDT))[i * 2 + 1],
+            LOG_DEBUG, TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), i, ((U32*)(Kernel_i386.GDT))[i * 2 + 1],
             ((U32*)(Kernel_i386.GDT))[i * 2]);
     }
 
