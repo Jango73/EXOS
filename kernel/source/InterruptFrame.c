@@ -53,7 +53,9 @@
          v
     Low addresses
 
-    ERROR_CODE = 0 for #DB, #DF, #AC; = selector for #TS, #NP, #SS, #GP; = info for #PF
+    ERROR_CODE = 0 for #DB, #DF, #AC
+               = selector for #TS, #NP, #SS, #GP
+               = info for #PF
 
 --------------------------------------------------------------------------
 
@@ -100,35 +102,35 @@
  E  +------------------+
  S  |      ESP         | <-- 32 bits - PRESENT only if user->kernel privilege change
     +------------------+
- D  |    EFLAGS        | <-- 32 bits - ALWAYS PRESENT
+ D  |    EFLAGS        | <-- 32 bits - pushed by CPU
  O  +------------------+
- W  |        |   CS    | <-- 16 bits - ALWAYS PRESENT
+ W  |        |   CS    | <-- 16 bits - pushed by CPU
  N  +------------------+
-    |      EIP         | <-- 32 bits - ALWAYS PRESENT
+    |      EIP         | <-- 32 bits - pushed by CPU
  |  +------------------+ <-- ESP after exception (in handler)
- v  |      EAX         |
+ v  |      EAX         | <-- pushed by pushad
     +------------------+
-    |      ECX         |
+    |      ECX         | <-- pushed by "pushad"
     +------------------+
-    |      EDX         |
+    |      EDX         | <-- pushed by "pushad"
     +------------------+
-    |      EBX         |
+    |      EBX         | <-- pushed by "pushad"
     +------------------+
-    |      ESP         |
+    |      ESP         | <-- pushed by "pushad"
     +------------------+
-    |      EBP         |
+    |      EBP         | <-- pushed by "pushad"
     +------------------+
-    |      ESI         |
+    |      ESI         | <-- pushed by "pushad"
     +------------------+
-    |      EDI         |
+    |      EDI         | <-- pushed by "pushad"
     +------------------+
-    |        |   DS    |
+    |        |   DS    | <-- pushed by "push ds"
     +------------------+
-    |        |   ES    |
+    |        |   ES    | <-- pushed by "push es"
     +------------------+
-    |        |   FS    |
+    |        |   FS    | <-- pushed by "push fs"
     +------------------+
-    |        |   GS    |
+    |        |   GS    | <-- pushed by "push gs"
     +------------------+
     |      EBP         |
     +------------------+
