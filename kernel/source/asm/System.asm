@@ -75,6 +75,7 @@ bits 32
 
     global GetGDTR
     global GetLDTR
+    global GetCR4
     global GetESP
     global GetEBP
     global GetDR6
@@ -150,6 +151,13 @@ GetLDTR:
 
     add         esp, 6
     pop         ebp
+    ret
+
+;--------------------------------------
+
+GetCR4 :
+
+    mov         eax, cr4
     ret
 
 ;--------------------------------------
@@ -645,8 +653,17 @@ LoadPageDirectory :
 
     push    ebp
     mov     ebp, esp
+    push    ebx
+
     mov     eax, [ebp+PBN]
+    mov     ebx, cr3
+    cmp     eax, ebx
+    jz      .out
+
     mov     cr3, eax
+
+.out:
+    pop     ebx
     pop     ebp
     ret
 

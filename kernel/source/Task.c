@@ -332,8 +332,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->StackBase = AllocRegion(BaseVMA, 0, Task->StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_AT_OR_OVER);
     Task->SysStackBase = AllocKernelRegion(0, Task->SysStackSize, ALLOC_PAGES_COMMIT);
     
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] CRITICAL: BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] CRITICAL: Actually got StackBase=%X"), Task->StackBase);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Actually got StackBase=%X"), Task->StackBase);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
         if (Task->StackBase != NULL) {
@@ -388,8 +388,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Context.Registers.ECX = 0;
     Task->Context.Registers.EDX = 0;
     
-    Task->Context.Registers.ESP = StackTop;
-    Task->Context.Registers.EBP = StackTop;
+    Task->Context.Registers.ESP = StackTop - 256;
+    Task->Context.Registers.EBP = StackTop - 256;
     Task->Context.Registers.CS = CodeSelector;
     Task->Context.Registers.DS = DataSelector;
     Task->Context.Registers.ES = DataSelector;
@@ -397,6 +397,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Context.Registers.GS = DataSelector;
     Task->Context.Registers.SS = DataSelector;
     Task->Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
+    Task->Context.Registers.CR3 = Process->PageDirectory;
+    Task->Context.Registers.CR4 = GetCR4();
 
     // Debug logs for user tasks
     if (Process->Privilege != PRIVILEGE_KERNEL) {

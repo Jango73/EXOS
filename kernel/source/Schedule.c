@@ -367,15 +367,6 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     LogTask(LOG_DEBUG, NextTask);
 #endif
 
-    // Switch page directory if different process
-    if (NextTask->Process && CurrentTask && 
-        NextTask->Process->PageDirectory != CurrentTask->Process->PageDirectory) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), NextTask->Process->PageDirectory);
-#endif
-        LoadPageDirectory(NextTask->Process->PageDirectory);
-    }
-
     // Set up system stack for new task
     U32 NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
 #if SCHEDULING_DEBUG_OUTPUT == 1
@@ -385,7 +376,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Calculated ESP0 = %X"), NextSysStackTop);
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
 #endif
-    Kernel_i386.TSS->ESP0 = NextSysStackTop;
+    Kernel_i386.TSS->ESP0 = NextSysStackTop - 256;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning next frame to the stub"));
@@ -396,10 +387,11 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     if (NextTask->Process->Privilege != PRIVILEGE_KERNEL) {
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] === SWITCHING TO USER TASK ==="));
         KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Process: %s"), NextTask->Process->FileName);
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EIP: 0x%X"), NextTask->Context.Registers.EIP);
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] ESP: 0x%X"), NextTask->Context.Registers.ESP);
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] CS: 0x%X, DS: 0x%X"), NextTask->Context.Registers.CS, NextTask->Context.Registers.DS);
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] PageDir: 0x%X"), NextTask->Process->PageDirectory);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EIP: %x"), NextTask->Context.Registers.EIP);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP: %x"), NextTask->Context.Registers.EBP);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] ESP: %x"), NextTask->Context.Registers.ESP);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] CS: %x, DS: %x"), NextTask->Context.Registers.CS, NextTask->Context.Registers.DS);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Page directory (physical): %x"), NextTask->Process->PageDirectory);
     }
 
     TRACED_EPILOGUE("Scheduler");

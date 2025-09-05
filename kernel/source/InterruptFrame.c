@@ -304,5 +304,24 @@ void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Exit"));
+        // Critical debug for user mode transition
+        if (UserMode) {
+            KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] === USER MODE TRANSITION DEBUG ==="));
+            KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] UserMode=%d HasErrorCode=%d"), UserMode, HasErrorCode);
+            KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Stack EIP=%X CS=%X EFLAGS=%X"), 
+                Stack[INCOMING_EIP_INDEX + HasErrorCode], 
+                Stack[INCOMING_CS_INDEX + HasErrorCode], 
+                Stack[INCOMING_EFLAGS_INDEX + HasErrorCode]);
+            if (UserMode) {
+                KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Stack R3_ESP=%X R3_SS=%X"), 
+                    Stack[INCOMING_R3_ESP_INDEX + HasErrorCode], Stack[INCOMING_R3_SS_INDEX + HasErrorCode]);
+            } else {
+                KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Stack ESP=%X SS=%X"), 
+                    Stack[INCOMING_ESP_INDEX], Stack[INCOMING_SS_INDEX]);
+            }
+            KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] About to IRET..."));
+        }
 #endif
+
+    LoadPageDirectory(NextFrame->Registers.CR3);
 }

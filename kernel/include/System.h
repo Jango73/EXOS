@@ -44,6 +44,7 @@ extern U32 IRQMask_A1_RM;
 
 extern U32 GetGDTR(void);
 extern U32 GetLDTR(void);
+extern U32 GetCR4(void);
 extern U32 GetESP(void);
 extern U32 GetEBP(void);
 extern U32 GetDR6(void);
