@@ -372,16 +372,11 @@ Interrupt_Clock:
 
 Interrupt_Keyboard :
 
-    push    ds
-    push    es
-    push    fs
-    push    gs
-    push    eax
-    push    ebx
-    push    ecx
-    push    edx
-    push    esi
-    push    edi
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
 
     call    EnterKernel
 
@@ -390,16 +385,11 @@ Interrupt_Keyboard :
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    pop     edi
-    pop     esi
-    pop     edx
-    pop     ecx
-    pop     ebx
-    pop     eax
-    pop     gs
-    pop     fs
-    pop     es
-    pop     ds
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
 
     iretd
 
@@ -407,16 +397,11 @@ Interrupt_Keyboard :
 
 Interrupt_Mouse :
 
-    push    ds
-    push    es
-    push    fs
-    push    gs
-    push    eax
-    push    ebx
-    push    ecx
-    push    edx
-    push    esi
-    push    edi
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
 
     call    EnterKernel
 
@@ -435,16 +420,11 @@ Interrupt_Mouse :
     call    EnableIRQ
     add     esp, 4
 
-    pop     edi
-    pop     esi
-    pop     edx
-    pop     ecx
-    pop     ebx
-    pop     eax
-    pop     gs
-    pop     fs
-    pop     es
-    pop     ds
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
 
     iretd
 
@@ -452,16 +432,11 @@ Interrupt_Mouse :
 
 Interrupt_HardDrive :
 
-    push    ds
-    push    es
-    push    fs
-    push    gs
-    push    eax
-    push    ebx
-    push    ecx
-    push    edx
-    push    esi
-    push    edi
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
 
     call    EnterKernel
 
@@ -470,16 +445,11 @@ Interrupt_HardDrive :
     mov     al, INTERRUPT_DONE
     out     INTERRUPT_CONTROL, al
 
-    pop     edi
-    pop     esi
-    pop     edx
-    pop     ecx
-    pop     ebx
-    pop     eax
-    pop     gs
-    pop     fs
-    pop     es
-    pop     ds
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
 
     iretd
 
@@ -487,14 +457,11 @@ Interrupt_HardDrive :
 
 Interrupt_SystemCall :
 
-    push    ds
-    push    es
-    push    fs
-    push    gs
-    push    ecx
-    push    edx
-    push    esi
-    push    edi
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
 
     call    EnterKernel
 
@@ -503,14 +470,11 @@ Interrupt_SystemCall :
     call    SystemCallHandler
     add     esp, 8
 
-    pop     edi
-    pop     esi
-    pop     edx
-    pop     ecx
-    pop     gs
-    pop     fs
-    pop     es
-    pop     ds
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
 
     iretd
 
@@ -518,14 +482,11 @@ Interrupt_SystemCall :
 
 Interrupt_DriverCall :
 
-    push    ds
-    push    es
-    push    fs
-    push    gs
-    push    ecx
-    push    edx
-    push    esi
-    push    edi
+    pushad
+    push        ds
+    push        es
+    push        fs
+    push        gs
 
     call    EnterKernel
 
@@ -534,14 +495,11 @@ Interrupt_DriverCall :
     call    DriverCallHandler
     add     esp, 8
 
-    pop     edi
-    pop     esi
-    pop     edx
-    pop     ecx
-    pop     gs
-    pop     fs
-    pop     es
-    pop     ds
+    pop         gs
+    pop         fs
+    pop         es
+    pop         ds
+    popad
 
     iretd
 
