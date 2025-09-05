@@ -383,6 +383,8 @@ Interrupt_Keyboard :
     push    esi
     push    edi
 
+    call    EnterKernel
+
     call    KeyboardHandler
 
     mov     al, INTERRUPT_DONE
@@ -415,6 +417,8 @@ Interrupt_Mouse :
     push    edx
     push    esi
     push    edi
+
+    call    EnterKernel
 
     mov     eax, 4
     push    eax
@@ -459,6 +463,8 @@ Interrupt_HardDrive :
     push    esi
     push    edi
 
+    call    EnterKernel
+
     call    HardDriveHandler
 
     mov     al, INTERRUPT_DONE
@@ -490,6 +496,8 @@ Interrupt_SystemCall :
     push    esi
     push    edi
 
+    call    EnterKernel
+
     push    ebx
     push    eax
     call    SystemCallHandler
@@ -518,6 +526,8 @@ Interrupt_DriverCall :
     push    edx
     push    esi
     push    edi
+
+    call    EnterKernel
 
     push    ebx
     push    eax

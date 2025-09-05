@@ -1099,13 +1099,12 @@ bits 32
 ; This is the entry point of each new task
 ; It expects the task's main function pointer
 ; to reside in ebx and the argument in eax
-; They should be set in the TSS by the kernel
 
 TaskRunner :
 
     ;--------------------------------------
-    ; EBX in the TSS contains the function
-    ; EAX in the TSS contains the parameter
+    ; EBX contains the function
+    ; EAX contains the parameter
 
     cmp         ebx, 0
     je          _TaskRunner_KillMe

@@ -376,6 +376,7 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Calculated ESP0 = %X"), NextSysStackTop);
     KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
 #endif
+    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
     Kernel_i386.TSS->ESP0 = NextSysStackTop - 256;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1

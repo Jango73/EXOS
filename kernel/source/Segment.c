@@ -111,12 +111,10 @@ void InitializeTaskSegments(void) {
     }
 
     MemorySet(Kernel_i386.TSS, 0, TssSize);
-    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
-    // ESP0 will be initialized later when kernel task is created
 
     LPTSSDESCRIPTOR Desc = (LPTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_TSS_INDEX);
     Desc->Type = GATE_TYPE_386_TSS_AVAIL;
-    Desc->Privilege = GDT_PRIVILEGE_KERNEL;
+    Desc->Privilege = GDT_PRIVILEGE_USER;
     Desc->Present = 1;
     Desc->Granularity = GDT_GRANULAR_1B;
     SetTSSDescriptorBase(Desc, (U32)Kernel_i386.TSS);
