@@ -392,6 +392,16 @@ LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
     // DumpFrame(&(NextTask->Context));
 #endif
 
+    // Critical debug for user tasks
+    if (NextTask->Process->Privilege != PRIVILEGE_KERNEL) {
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] === SWITCHING TO USER TASK ==="));
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Process: %s"), NextTask->Process->FileName);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EIP: 0x%X"), NextTask->Context.Registers.EIP);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] ESP: 0x%X"), NextTask->Context.Registers.ESP);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] CS: 0x%X, DS: 0x%X"), NextTask->Context.Registers.CS, NextTask->Context.Registers.DS);
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] PageDir: 0x%X"), NextTask->Process->PageDirectory);
+    }
+
     TRACED_EPILOGUE("Scheduler");
     return &(NextTask->Context);
 }

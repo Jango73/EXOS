@@ -78,6 +78,9 @@ BOOL FreeRegion(LINEAR Base, U32 Size);
 LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size);
 BOOL MmUnmapIo(LINEAR LinearBase, U32 Size);
 
+// Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
+LINEAR AllocKernelRegion(PHYSICAL Target, U32 Size, U32 Flags);
+
 /************************************************************************/
 
 #endif  // MEMORY_H_INCLUDED

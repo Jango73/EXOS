@@ -321,7 +321,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         LOG_DEBUG, TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
     LINEAR BaseVMA = VMA_KERNEL;
-    LINEAR SysBaseVMA = VMA_KERNEL;
 
     if (Process->Privilege == PRIVILEGE_USER) {
         BaseVMA = VMA_USER;
@@ -331,7 +330,10 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
 
     Task->StackBase = AllocRegion(BaseVMA, 0, Task->StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_AT_OR_OVER);
-    Task->SysStackBase = AllocRegion(SysBaseVMA, 0, Task->SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_AT_OR_OVER);
+    Task->SysStackBase = AllocKernelRegion(0, Task->SysStackSize, ALLOC_PAGES_COMMIT);
+    
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] CRITICAL: BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] CRITICAL: Actually got StackBase=%X"), Task->StackBase);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
         if (Task->StackBase != NULL) {
@@ -374,7 +376,13 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     MemorySet(&(Task->Context), 0, sizeof(INTERRUPTFRAME));
 
-    Task->Context.Registers.EIP = VMA_TASK_RUNNER;
+    // Set EIP appropriately: VMA_TASK_RUNNER for kernel tasks, actual entry point for user tasks
+    if (Process->Privilege == PRIVILEGE_KERNEL) {
+        Task->Context.Registers.EIP = VMA_TASK_RUNNER;
+    } else {
+        // For user processes, EIP should be the actual entry point
+        Task->Context.Registers.EIP = (U32)Task->Function;
+    }
     Task->Context.Registers.EAX = (U32)Task->Parameter;
     Task->Context.Registers.EBX = (U32)Task->Function;
     Task->Context.Registers.ECX = 0;
@@ -388,6 +396,16 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Context.Registers.GS = DataSelector;
     Task->Context.Registers.SS = DataSelector;
     Task->Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
+
+    // Debug logs for user tasks
+    if (Process->Privilege != PRIVILEGE_KERNEL) {
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] USER TASK DEBUG:"));
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask]   EIP = 0x%X"), Task->Context.Registers.EIP);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask]   EBX (Function) = 0x%X"), Task->Context.Registers.EBX);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask]   ESP = 0x%X"), Task->Context.Registers.ESP);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask]   CS = 0x%X, DS = 0x%X"), Task->Context.Registers.CS, Task->Context.Registers.DS);
+        KernelLogText(LOG_DEBUG, TEXT("[CreateTask]   StackBase = 0x%X, StackSize = 0x%X"), Task->StackBase, Task->StackSize);
+    }
 
     if (Info->Flags & TASK_CREATE_MAIN_KERNEL) {
         Kernel_i386.TSS->ESP0 = SysStackTop;

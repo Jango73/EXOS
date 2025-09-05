@@ -73,8 +73,8 @@ void InitializeKernelProcess(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Memory : %X"), KernelStartup.MemorySize);
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Pages : %X"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = AllocRegion(
-        VMA_KERNEL, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    LINEAR HeapBase = AllocKernelRegion(
+        0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] HeapBase : %X"), HeapBase);
 
@@ -284,11 +284,11 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     CodeBase = VMA_USER;
     DataBase = CodeBase + CodeSize;
 
-    while (DataBase & N_4KB_M1) DataBase++;
+    while (DataBase & N_4KB_M1) DataBase++;     // Align 4K
 
     HeapBase = DataBase + DataSize;
 
-    while (HeapBase & N_4KB_M1) HeapBase++;
+    while (HeapBase & N_4KB_M1) HeapBase++;     // Align 4K
 
     //-------------------------------------
     // Compute total size
@@ -388,12 +388,11 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Creating initial task"));
 
     // TaskInfo.Func      = (TASKFUNC) VMA_USER;
+    TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint - ExecutableInfo.CodeBase));
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = StackSize;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = TASK_CREATE_SUSPENDED;
-
-    TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint - ExecutableInfo.CodeBase));
 
     Task = CreateTask(Process, &TaskInfo);
 
@@ -430,7 +429,7 @@ Out:
 
     UnlockMutex(MUTEX_KERNEL);
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Exit, Result = %d\n"), Result);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Exit, Result = %d"), Result);
 
     TRACED_EPILOGUE("CreateProcess");
     return Result;

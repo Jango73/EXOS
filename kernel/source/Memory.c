@@ -714,7 +714,6 @@ PHYSICAL AllocUserPageDirectory(void) {
     PHYSICAL PMA_Directory = NULL;
     PHYSICAL PMA_LowTable = NULL;
     PHYSICAL PMA_KernelTable = NULL;
-    PHYSICAL PMA_UserTable = NULL;
 
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE LowTable = NULL;
@@ -732,9 +731,8 @@ PHYSICAL AllocUserPageDirectory(void) {
     PMA_Directory = AllocPhysicalPage();
     PMA_LowTable = AllocPhysicalPage();
     PMA_KernelTable = AllocPhysicalPage();
-    PMA_UserTable = AllocPhysicalPage();
 
-    if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL || PMA_UserTable == NULL) {
+    if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
@@ -763,20 +761,6 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[0].User = 0;
     Directory[0].Fixed = 1;
     Directory[0].Address = (PMA_LowTable >> PAGE_SIZE_MUL);
-
-    // Directory[DirUser] -> map VMA_USER..VMA_USER+4MB-1 for userland
-    Directory[DirUser].Present = 1;
-    Directory[DirUser].ReadWrite = 1;
-    Directory[DirUser].Privilege = PAGE_PRIVILEGE_USER;
-    Directory[DirUser].WriteThrough = 0;
-    Directory[DirUser].CacheDisabled = 0;
-    Directory[DirUser].Accessed = 0;
-    Directory[DirUser].Reserved = 0;
-    Directory[DirUser].PageSize = 0;  // 4KB pages
-    Directory[DirUser].Global = 0;
-    Directory[DirUser].User = 0;
-    Directory[DirUser].Fixed = 1;
-    Directory[DirUser].Address = (PMA_UserTable >> PAGE_SIZE_MUL);
 
     // Directory[DirKernel] -> map VMA_KERNEL..VMA_KERNEL+4MB-1 to current kernel state
     Directory[DirKernel].Present = 1;
@@ -887,17 +871,6 @@ PHYSICAL AllocUserPageDirectory(void) {
     
     KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
 
-    // Initialize empty user table (will be filled by AllocRegion)
-    VMA_PT = MapPhysicalPage2(PMA_UserTable);
-    if (VMA_PT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on UserTable"));
-        goto Out_Error;
-    }
-    UserTable = (LPPAGETABLE)VMA_PT;
-    MemorySet(UserTable, 0, PAGE_SIZE);
-
-    KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] User table initialized"));
-
     // TLB sync before returning
     FlushTLB();
 
@@ -916,7 +889,6 @@ Out_Error:
     if (PMA_Directory) FreePhysicalPage(PMA_Directory);
     if (PMA_LowTable) FreePhysicalPage(PMA_LowTable);
     if (PMA_KernelTable) FreePhysicalPage(PMA_KernelTable);
-    if (PMA_UserTable) FreePhysicalPage(PMA_UserTable);
 
     return NULL;
 }
@@ -1032,18 +1004,12 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
 
     KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Enter"));
 
-    if (StartBase >= N_4MB) {
+    if (StartBase >= Base) {
         KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Starting at %X"), StartBase);
         Base = StartBase;
     }
 
     while (1) {
-        // Skip VMA_USER region (reserved for user processes)
-        if (Base >= VMA_USER && Base < VMA_USER + 0x1000000) {
-            Base = VMA_USER + 0x1000000; // Skip 16MB user space
-            continue;
-        }
-        
         if (IsRegionFree(Base, Size) == TRUE) return Base;
         Base += PAGE_SIZE;
     }
@@ -1227,6 +1193,8 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
         }
 
         Base = NewBase;
+
+        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] FindFreeRegion found with base = %X and size = %X"), Base, Size);
     }
 
     // Set the return value to "Base".
@@ -1423,12 +1391,13 @@ LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
     }
 
     // Map as Uncached, Read/Write, exact PMA mapping, IO semantics
+    // Use AT_OR_OVER to avoid allocating in user space (VMA_USER)
     return AllocRegion(
-        0,             // Let AllocRegion choose virtual address
+        VMA_KERNEL,    // Start search in kernel space to avoid user space
         PhysicalBase,  // Exact PMA (BAR)
         Size,
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
-            ALLOC_PAGES_IO                                             // Do not touch RAM bitmap; mark PTE.Fixed
+            ALLOC_PAGES_IO | ALLOC_PAGES_AT_OR_OVER                    // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
     );
 }
 
@@ -1449,6 +1418,20 @@ BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
 
     // Just unmap; FreeRegion will skip RAM bitmap if PTE.Fixed was set
     return FreeRegion(LinearBase, Size);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Allocate a kernel region - wrapper around AllocRegion with VMA_KERNEL and AT_OR_OVER.
+ * @param Target Physical base address (0 for any).
+ * @param Size Size in bytes.
+ * @param Flags Additional allocation flags.
+ * @return Linear address or 0 on failure.
+ */
+LINEAR AllocKernelRegion(PHYSICAL Target, U32 Size, U32 Flags) {
+    // Always use VMA_KERNEL base and add AT_OR_OVER flag
+    return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
 }
 
 /***************************************************************************/
@@ -1519,8 +1502,8 @@ void InitializeMemoryManager(void) {
     }
 
     // Allocate a permanent linear region for the GDT
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)AllocRegion(
-        VMA_KERNEL, 0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)AllocKernelRegion(
+        0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Kernel_i386.GDT == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
