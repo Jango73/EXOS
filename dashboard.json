@@ -1,7 +1,6 @@
 {
     "logs": [
-        "log/debug-com2.log",
-        "log/make.log"
+        "log/debug-com2.log"
     ],
     "scriptsDir": "./scripts",
     "keyBindings": {
