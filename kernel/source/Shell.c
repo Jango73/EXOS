@@ -21,6 +21,7 @@
     Shell
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Console.h"
 #include "../include/File.h"
@@ -32,15 +33,14 @@
 #include "../include/Keyboard.h"
 #include "../include/List.h"
 #include "../include/Log.h"
+#include "../include/Path.h"
+#include "../include/Process.h"
+#include "../include/StackTrace.h"
 #include "../include/String.h"
+#include "../include/StringArray.h"
 #include "../include/System.h"
 #include "../include/User.h"
-#include "../include/StringArray.h"
 #include "../include/VKey.h"
-
-/***************************************************************************/
-
-void RegexSelfTest(void);
 
 /***************************************************************************/
 
@@ -61,6 +61,7 @@ typedef struct tag_SHELLCONTEXT {
     LPSTR Buffer[NUM_BUFFERS];
     STRINGARRAY History;
     STRINGARRAY Options;
+    PATHCOMPLETION PathCompletion;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
 /***************************************************************************/
@@ -92,6 +93,8 @@ static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
 static void CMD_test(LPSHELLCONTEXT);
+static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
+static void RunConfiguredExecutables(void);
 
 /***************************************************************************/
 
@@ -140,6 +143,7 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 
     StringArrayInit(&This->History, HISTORY_SIZE);
     StringArrayInit(&This->Options, 8);
+    PathCompletionInit(&This->PathCompletion, Kernel.SystemFS);
 
     for (Index = 0; Index < NUM_BUFFERS; Index++) {
         This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
@@ -166,6 +170,7 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
 
     StringArrayDeinit(&This->History);
     StringArrayDeinit(&This->Options);
+    PathCompletionDeinit(&This->PathCompletion);
 
     KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Exit"));
 }
@@ -239,6 +244,11 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
 
         Context->CommandChar++;
         d++;
+        
+        // Prevent buffer overflow
+        if (d >= 255) {
+            break;
+        }
     }
 
     Context->Component++;
@@ -299,6 +309,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
             } else if (KeyCode.VirtualKey == VK_ENTER) {
                 ConsolePrintChar(STR_NEWLINE);
                 Context->CommandLine[Index] = STR_NULL;
+                KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] ENTER pressed, final buffer: '%s', length=%d"), Context->CommandLine, Index);
                 return;
             } else if (KeyCode.VirtualKey == VK_UP) {
                 if (HistoryPos > 0) {
@@ -307,8 +318,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                         Index--;
                         ConsoleBackSpace();
                     }
-                    StringCopy(Context->CommandLine,
-                               StringArrayGet(&Context->History, HistoryPos));
+                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
                     ConsolePrint(Context->CommandLine);
                     Index = StringLength(Context->CommandLine);
                 }
@@ -322,21 +332,69 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                     Context->CommandLine[0] = STR_NULL;
                     Index = 0;
                 } else {
-                    StringCopy(Context->CommandLine,
-                               StringArrayGet(&Context->History, HistoryPos));
+                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
                     ConsolePrint(Context->CommandLine);
                     Index = StringLength(Context->CommandLine);
+                }
+            } else if (KeyCode.VirtualKey == VK_TAB) {
+                if (Index < BUFFER_SIZE - 1) {
+                    STR Token[MAX_PATH_NAME];
+                    STR Full[MAX_PATH_NAME];
+                    STR Completed[MAX_PATH_NAME];
+                    STR Display[MAX_PATH_NAME];
+                    STR Temp[MAX_PATH_NAME];
+                    U32 Start = Index;
+
+                    while (Start && Context->CommandLine[Start - 1] != STR_SPACE) {
+                        Start--;
+                    }
+
+                    StringCopyNum(Token, Context->CommandLine + Start, Index - Start);
+                    Token[Index - Start] = STR_NULL;
+
+                    if (Token[0] == PATH_SEP) {
+                        StringCopy(Full, Token);
+                    } else {
+                        QualifyFileName(Context, Token, Full);
+                    }
+
+                    if (PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
+                        if (Token[0] == PATH_SEP) {
+                            StringCopy(Display, Completed);
+                        } else {
+                            U32 FolderLength = StringLength(Context->CurrentFolder);
+                            StringCopyNum(Temp, Completed, FolderLength);
+                            Temp[FolderLength] = STR_NULL;
+                            if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
+                                STR* DisplayPtr = Completed + FolderLength;
+                                if (DisplayPtr[0] == PATH_SEP) DisplayPtr++;
+                                StringCopy(Display, DisplayPtr);
+                            } else {
+                                StringCopy(Display, Completed);
+                            }
+                        }
+
+                        while (Index > Start) {
+                            Index--;
+                            ConsoleBackSpace();
+                        }
+                        StringCopy(Context->CommandLine + Start, Display);
+                        ConsolePrint(Display);
+                        Index = Start + StringLength(Display);
+                        Context->CommandLine[Index] = STR_NULL;
+                    }
                 }
             } else if (KeyCode.ASCIICode >= STR_SPACE) {
                 if (Index < BUFFER_SIZE - 1) {
                     ConsolePrintChar(KeyCode.ASCIICode);
                     Context->CommandLine[Index++] = KeyCode.ASCIICode;
                     Context->CommandLine[Index] = STR_NULL;
+                    // Test: no KernelLogText calls at all during character processing
                 }
             }
         }
 
-        Sleep(20);
+        Sleep(10);
     }
 
     KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Exit"));
@@ -344,7 +402,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
+static BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
     STR Sep[2] = {PATH_SEP, STR_NULL};
     STR Temp[MAX_PATH_NAME];
     LPSTR Ptr;
@@ -458,8 +516,8 @@ static void ListFile(LPFILE File, U32 Indent) {
     //-------------------------------------
     // Eliminate the . and .. files
 
-    if (StringCompare(File->Name, (LPCSTR) ".") == 0) return;
-    if (StringCompare(File->Name, (LPCSTR) "..") == 0) return;
+    if (StringCompare(File->Name, TEXT(".")) == 0) return;
+    if (StringCompare(File->Name, TEXT("..")) == 0) return;
 
     StringCopy(Name, File->Name);
 
@@ -550,8 +608,7 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     do {
         ListFile(File, Indent);
         if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
-            if (StringCompare(File->Name, TEXT(".")) != 0 &&
-                StringCompare(File->Name, TEXT("..")) != 0) {
+            if (StringCompare(File->Name, TEXT(".")) != 0 && StringCompare(File->Name, TEXT("..")) != 0) {
                 STR NewBase[MAX_PATH_NAME];
                 StringCopy(NewBase, Base);
                 if (NewBase[StringLength(NewBase) - 1] != PATH_SEP) StringConcat(NewBase, Sep);
@@ -593,8 +650,9 @@ static void CMD_cls(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-
 static void CMD_dir(LPSHELLCONTEXT Context) {
+    KernelLogText(LOG_DEBUG, TEXT("[CMD_dir] Enter"));
+    
     STR Target[MAX_PATH_NAME];
     STR Base[MAX_PATH_NAME];
     LPFILESYSTEM FileSystem = NULL;
@@ -602,15 +660,22 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     BOOL Recurse;
     U32 NumListed = 0;
 
-    Pause = HasOption(Context, TEXT("p"), TEXT("pause"));
-    Recurse = HasOption(Context, TEXT("r"), TEXT("recursive"));
-
     Target[0] = STR_NULL;
 
+    // Parse all command line components (including options) first
     ParseNextComponent(Context);
     if (StringLength(Context->Command)) {
         QualifyFileName(Context, Context->Command, Target);
     }
+    
+    // Continue parsing any remaining components to capture all options
+    while (Context->CommandLine[Context->CommandChar] != STR_NULL) {
+        ParseNextComponent(Context);
+    }
+
+    // Now check for options after all parsing is complete
+    Pause = HasOption(Context, TEXT("p"), TEXT("pause"));
+    Recurse = HasOption(Context, TEXT("r"), TEXT("recursive"));
 
     FileSystem = Kernel.SystemFS;
 
@@ -626,6 +691,8 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     }
 
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
+
+    KernelLogText(LOG_DEBUG, TEXT("[CMD_dir] Exit"));
 }
 
 /***************************************************************************/
@@ -638,25 +705,19 @@ static void CMD_md(LPSHELLCONTEXT Context) { MakeFolder(Context); }
 
 /***************************************************************************/
 
+/**
+ * @brief Launch an executable specified on the command line.
+ *
+ * @param Context Shell context containing parsed arguments.
+ */
 static void CMD_run(LPSHELLCONTEXT Context) {
-    PROCESSINFO ProcessInfo;
     STR FileName[MAX_PATH_NAME];
 
     ParseNextComponent(Context);
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
-            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
-            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
-            ProcessInfo.Header.Flags = 0;
-            ProcessInfo.Flags = 0;
-            ProcessInfo.FileName = FileName;
-            ProcessInfo.CommandLine = NULL;
-            ProcessInfo.StdOut = NULL;
-            ProcessInfo.StdIn = NULL;
-            ProcessInfo.StdErr = NULL;
-
-            CreateProcess(&ProcessInfo);
+            Spawn(FileName, NULL);
         }
     }
 }
@@ -677,21 +738,22 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Header.Flags = 0;
     DoSystemCall(SYSCALL_GetSystemInfo, (U32)&Info);
 
-    ConsolePrint((LPCSTR) "Total physical memory     : %d KB\n", Info.TotalPhysicalMemory / 1024);
-    ConsolePrint((LPCSTR) "Physical memory used      : %d KB\n", Info.PhysicalMemoryUsed / 1024);
-    ConsolePrint((LPCSTR) "Physical memory available : %d KB\n", Info.PhysicalMemoryAvail / 1024);
-    ConsolePrint((LPCSTR) "Total swap memory         : %d KB\n", Info.TotalSwapMemory / 1024);
-    ConsolePrint((LPCSTR) "Swap memory used          : %d KB\n", Info.SwapMemoryUsed / 1024);
-    ConsolePrint((LPCSTR) "Swap memory available     : %d KB\n", Info.SwapMemoryAvail / 1024);
-    ConsolePrint((LPCSTR) "Total memory available    : %d KB\n", Info.TotalMemoryAvail / 1024);
-    ConsolePrint((LPCSTR) "Processor page size       : %d Bytes\n", Info.PageSize);
-    ConsolePrint((LPCSTR) "Total physical pages      : %d Pages\n", Info.TotalPhysicalPages);
-    ConsolePrint((LPCSTR) "Minimum linear address    : %08X\n", Info.MinimumLinearAddress);
-    ConsolePrint((LPCSTR) "Maximum linear address    : %08X\n", Info.MaximumLinearAddress);
-    ConsolePrint((LPCSTR) "User name                 : %s\n", Info.UserName);
-    ConsolePrint((LPCSTR) "Company name              : %s\n", Info.CompanyName);
-    ConsolePrint((LPCSTR) "Number of processes       : %d\n", Info.NumProcesses);
-    ConsolePrint((LPCSTR) "Number of tasks           : %d\n", Info.NumTasks);
+    ConsolePrint(TEXT("Total physical memory     : %d KB\n"), Info.TotalPhysicalMemory / 1024);
+    ConsolePrint(TEXT("Physical memory used      : %d KB\n"), Info.PhysicalMemoryUsed / 1024);
+    ConsolePrint(TEXT("Physical memory available : %d KB\n"), Info.PhysicalMemoryAvail / 1024);
+    ConsolePrint(TEXT("Total swap memory         : %d KB\n"), Info.TotalSwapMemory / 1024);
+    ConsolePrint(TEXT("Swap memory used          : %d KB\n"), Info.SwapMemoryUsed / 1024);
+    ConsolePrint(TEXT("Swap memory available     : %d KB\n"), Info.SwapMemoryAvail / 1024);
+    ConsolePrint(TEXT("Total memory available    : %d KB\n"), Info.TotalMemoryAvail / 1024);
+    ConsolePrint(TEXT("Processor page size       : %d bytes\n"), Info.PageSize);
+    ConsolePrint(TEXT("Total physical pages      : %d pages\n"), Info.TotalPhysicalPages);
+    ConsolePrint(TEXT("Minimum linear address    : %x\n"), Info.MinimumLinearAddress);
+    ConsolePrint(TEXT("Maximum linear address    : %x\n"), Info.MaximumLinearAddress);
+    ConsolePrint(TEXT("User name                 : %s\n"), Info.UserName);
+    ConsolePrint(TEXT("Company name              : %s\n"), Info.CompanyName);
+    ConsolePrint(TEXT("Number of processes       : %d\n"), Info.NumProcesses);
+    ConsolePrint(TEXT("Number of tasks           : %d\n"), Info.NumTasks);
+    ConsolePrint(TEXT("Keyboard layout           : %s\n"), Info.KeyboardLayout);
 }
 
 /***************************************************************************/
@@ -720,7 +782,17 @@ static void CMD_showtask(LPSHELLCONTEXT Context) {
     LPTASK Task;
     ParseNextComponent(Context);
     Task = ListGetItem(Kernel.Task, StringToU32(Context->Command));
-    if (Task) DumpTask(Task);
+
+    if (Task) {
+        DumpTask(Task);
+    } else {
+        STR Text[MAX_FILE_NAME];
+
+        for (LPTASK Task = Kernel.Task->First; Task != NULL; Task = Task->Next) {
+            StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, Task->Status);
+            ConsolePrint(Text);
+        }
+    }
 }
 
 /***************************************************************************/
@@ -957,6 +1029,8 @@ static void CMD_reboot(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static void CMD_test(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
     /*
     TASKINFO TaskInfo;
 
@@ -975,12 +1049,67 @@ static void CMD_test(LPSHELLCONTEXT Context) {
     TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
     CreateTask(&KernelProcess, &TaskInfo);
     */
-
-    RegexSelfTest();
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Launch executables listed in the kernel configuration.
+ *
+ * Each [[Run]] item of exos.toml is checked and the executable is spawned
+ * if present on disk.
+ */
+static void RunConfiguredExecutables(void) {
+    U32 ConfigIndex = 0;
+    STR Key[0x100];
+    STR IndexText[0x10];
+    LPCSTR ExecutablePath;
+    FILEINFO FileInfo;
+
+    KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Enter"));
+
+    if (Kernel.Configuration == NULL) {
+        KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Exit"));
+        return;
+    }
+
+    while (TRUE) {
+        U32ToString(ConfigIndex, IndexText);
+        StringCopy(Key, TEXT("Run."));
+        StringConcat(Key, IndexText);
+        StringConcat(Key, TEXT(".Path"));
+        ExecutablePath = TomlGet(Kernel.Configuration, Key);
+        if (ExecutablePath == NULL) break;
+
+        FileInfo.Size = sizeof(FILEINFO);
+        FileInfo.FileSystem = Kernel.SystemFS;
+        FileInfo.Attributes = MAX_U32;
+        StringCopy(FileInfo.Name, ExecutablePath);
+
+        if (Kernel.SystemFS->Driver->Command(DF_FS_FILEEXISTS, (U32)&FileInfo)) {
+            if (Spawn(ExecutablePath, NULL)) {
+                KernelLogText(LOG_VERBOSE, TEXT("[RunConfiguredExecutables] Spawned : %s"), ExecutablePath);
+            } else {
+                KernelLogText(LOG_VERBOSE, TEXT("[RunConfiguredExecutables] Could not spawn : %s"), ExecutablePath);
+            }
+        } else {
+            KernelLogText(LOG_WARNING, TEXT("[RunConfiguredExecutables] Executable not found : %s"), ExecutablePath);
+        }
+
+        ConfigIndex++;
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Exit"));
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parse and execute a single command line.
+ *
+ * @param Context Shell context to fill and execute.
+ * @return TRUE to continue the shell loop, FALSE otherwise.
+ */
 static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     U32 Length;
     U32 Index;
@@ -1001,11 +1130,6 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     ClearOptions(Context);
 
-    while (1) {
-        ParseNextComponent(Context);
-        if (StringLength(Context->Command) == 0) break;
-    }
-
     Context->Component = 0;
     Context->CommandChar = 0;
 
@@ -1016,7 +1140,7 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     if (Length == 0) return TRUE;
 
     {
-        STR CommandName[256];
+        STR CommandName[MAX_FILE_NAME];
         StringCopy(CommandName, Context->Command);
 
         U32 Found = 0;
@@ -1040,7 +1164,18 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Entry point for the interactive shell.
+ *
+ * Initializes the shell context, runs configured executables and processes
+ * user commands until termination.
+ *
+ * @param Param Unused parameter.
+ * @return Exit code of the shell.
+ */
 U32 Shell(LPVOID Param) {
+    TRACED_FUNCTION;
+
     UNUSED(Param);
     SHELLCONTEXT Context;
 
@@ -1048,7 +1183,10 @@ U32 Shell(LPVOID Param) {
 
     InitShellContext(&Context);
 
+    RunConfiguredExecutables();
+
     while (ParseCommand(&Context)) {
+        Sleep(20);
     }
 
     ConsolePrint(TEXT("Exiting shell\n"));
@@ -1057,8 +1195,8 @@ U32 Shell(LPVOID Param) {
 
     KernelLogText(LOG_DEBUG, TEXT("[Shell] Exit"));
 
+    TRACED_EPILOGUE("Shell");
     return 1;
 }
 
 /***************************************************************************/
-

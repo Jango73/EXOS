@@ -18,11 +18,24 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Memory
+    Memory manager
 
 \************************************************************************/
+
 #ifndef MEMORY_H_INCLUDED
 #define MEMORY_H_INCLUDED
+
+/***************************************************************************/
+// Static virtual memory addresses (VMA)
+// All processes have the following address space layout
+
+#define VMA_RAM 0x00000000                          // Reserved for kernel
+#define VMA_VIDEO 0x000A0000                        // Reserved for kernel
+#define VMA_CONSOLE 0x000B8000                      // Reserved for kernel
+#define VMA_USER 0x00400000                         // Start of user address space
+#define VMA_LIBRARY 0xA0000000                      // Dynamic Libraries
+#define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)   // User alias for TaskRunner
+#define VMA_KERNEL 0xC0000000                       // Kernel
 
 /************************************************************************/
 
@@ -39,6 +52,9 @@ LINEAR MapPhysicalPage(PHYSICAL Physical);
 
 // Allocates physical space for a new page directory
 PHYSICAL AllocPageDirectory(void);
+
+// Allocates physical space for a new page directory for userland processes
+PHYSICAL AllocUserPageDirectory(void);
 
 // Allocates a physical page
 PHYSICAL AllocPhysicalPage(void);
@@ -61,6 +77,12 @@ BOOL FreeRegion(LINEAR Base, U32 Size);
 // Map/unmap a physical MMIO region (BAR or Base Address Register) as Uncached Read/Write
 LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size);
 BOOL MmUnmapIo(LINEAR LinearBase, U32 Size);
+
+// Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
+LINEAR AllocKernelRegion(PHYSICAL Target, U32 Size, U32 Flags);
+
+// Debug function to log all mapped entries in a page directory
+void LogPageDirectory(PHYSICAL DirectoryPhysical);
 
 /************************************************************************/
 

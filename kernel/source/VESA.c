@@ -190,7 +190,7 @@ VESACONTEXT VESAContext = {
 static U32 VESAInitialize(void) {
     X86REGS Regs;
 
-    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[VESAInitialize] Enter"));
 
     //-------------------------------------
     // Initialize the context
@@ -215,7 +215,7 @@ static U32 VESAInitialize(void) {
 
     RealModeCall(VIDEO_CALL, &Regs);
 
-    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Real mode call done"));
+    KernelLogText(LOG_DEBUG, TEXT("[VESAInitialize] Real mode call done"));
 
     MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(VESAINFOBLOCK));
 
@@ -234,7 +234,7 @@ static U32 VESAInitialize(void) {
                 (VESAContext.VESAInfo.Memory << MUL_64KB) >> MUL_1KB);
                 */
 
-    KernelLogText(LOG_VERBOSE, TEXT("[VESAInitialize] Exit"));
+    KernelLogText(LOG_DEBUG, TEXT("[VESAInitialize] Exit"));
 
     return DF_ERROR_SUCCESS;
 }
@@ -1407,4 +1407,3 @@ U32 VESACommands(U32 Function, U32 Param) {
 }
 
 /***************************************************************************/
-

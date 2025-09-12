@@ -162,7 +162,17 @@ function resolveLatest(p) {
 function loadScripts() {
     try {
         if (config.keyBindings) {
-            return Object.entries(config.keyBindings).map(([key, file]) => `${key.toUpperCase()} - ${file}`);
+            return Object.entries(config.keyBindings).map(([key, binding]) => {
+                // Support both new object format { label, script } and legacy string format
+                if (typeof binding === 'object' && binding.label && binding.script) {
+                    return `${key.toUpperCase()} - ${binding.label}`;
+                } else if (typeof binding === 'string') {
+                    return `${key.toUpperCase()} - ${binding}`;
+                } else if (typeof binding === 'object' && binding.script) {
+                    return `${key.toUpperCase()} - ${binding.script}`;
+                }
+                return `${key.toUpperCase()} - ${binding}`;
+            });
         }
         return [];
     } catch {
@@ -206,15 +216,15 @@ const screen = blessed.screen({
 const sidebar = blessed.box({
     top: 0,
     left: 0,
-    width: '30%',
+    width: '20%',
     height: '100%',
     label: 'Scripts',
     border: 'line'
 });
 const rightContainer = blessed.box({
     top: 0,
-    left: '30%',
-    width: '70%',
+    left: '20%',
+    width: '80%',
     height: '100%',
 });
 
@@ -388,8 +398,10 @@ screen.key('tab', () => {
 
 // Bind keys from config.keyBindings (NEW)
 if (config.keyBindings) {
-    for (const [keyName, scriptFile] of Object.entries(config.keyBindings)) {
+    for (const [keyName, binding] of Object.entries(config.keyBindings)) {
         screen.key(keyName, () => {
+            // Support both new object format { label, script } and legacy string format
+            const scriptFile = typeof binding === 'object' && binding.script ? binding.script : binding;
             runScriptFile(scriptFile);
         });
     }
@@ -431,8 +443,12 @@ focusables.forEach(el => {
 
 list.on('select', (_, index) => {
     const key = Object.keys(config.keyBindings ?? {})[index];
-    const file = config.keyBindings?.[key];
-    if (file) runScriptFile(file);
+    const binding = config.keyBindings?.[key];
+    if (binding) {
+        // Support both new object format { label, script } and legacy string format
+        const scriptFile = typeof binding === 'object' && binding.script ? binding.script : binding;
+        runScriptFile(scriptFile);
+    }
 });
 
 stopButton.on('press', () => {

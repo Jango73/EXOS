@@ -21,13 +21,13 @@
     User
 
 \************************************************************************/
+
 #ifndef USER_H_INCLUDED
 #define USER_H_INCLUDED
 
 /***************************************************************************/
 
 #include "Base.h"
-
 
 /************************************************************************/
 // EXOS ABI
@@ -99,6 +99,7 @@ typedef struct tag_ABI_HEADER {
 #define SYSCALL_ConsolePrint 0x0000002C
 #define SYSCALL_ConsoleGetString 0x0000002D
 #define SYSCALL_ConsoleGotoXY 0x0000002E
+#define SYSCALL_KillMe 0x0000002F
 
 /************************************************************************/
 // EXOS Windowing Services
@@ -176,6 +177,7 @@ typedef struct tag_SYSTEMINFO {
     U32 NumTasks;
     STR UserName[MAX_USER_NAME];
     STR CompanyName[MAX_USER_NAME];
+    STR KeyboardLayout[MAX_USER_NAME];
 } SYSTEMINFO, *LPSYSTEMINFO;
 
 typedef struct tag_SECURITYATTRIBUTES {
@@ -203,6 +205,7 @@ typedef struct tag_TASKINFO {
     U32 Priority;
     U32 Flags;
     SECURITYATTRIBUTES Security;
+    STR Name[MAX_USER_NAME];
 } TASKINFO, *LPTASKINFO;
 
 #define TASK_PRIORITY_LOWEST 0x00

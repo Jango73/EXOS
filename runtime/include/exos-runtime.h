@@ -43,6 +43,15 @@ typedef unsigned long size_t;
 
 /***************************************************************************/
 
+extern unsigned exoscall(unsigned, unsigned);
+extern void __exit__(int);
+extern unsigned strcmp(const char*, const char*);
+extern unsigned strstr(const char*, const char*);
+extern void memset(char*, int, int);
+extern void memcpy(char*, const char*, int);
+
+/***************************************************************************/
+
 extern void exit(int);
 extern void* malloc(size_t);
 extern void free(void*);

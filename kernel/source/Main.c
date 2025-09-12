@@ -37,6 +37,7 @@ KERNELSTARTUPINFO KernelStartup = {
 // The entry point in paged protected mode
 
 void KernelMain(void) {
+    U32 StackTop;
     U32 ImageAddress;
     U8 CursorX;
     U8 CursorY;
@@ -44,6 +45,7 @@ void KernelMain(void) {
     U32 E820Entries;
 
     __asm__ __volatile__("movl %%eax, %0" : "=m"(ImageAddress));
+    __asm__ __volatile__("movl %%edi, %0" : "=m"(StackTop));
     __asm__ __volatile__("movb %%bl, %0" : "=m"(CursorX));
     __asm__ __volatile__("movb %%bh, %0" : "=m"(CursorY));
     __asm__ __volatile__("movl %%esi, %0" : "=m"(E820Ptr));
@@ -53,6 +55,11 @@ void KernelMain(void) {
         MemoryCopy(KernelStartup.E820, (LPE820ENTRY)E820Ptr, E820Entries * sizeof(E820ENTRY));
         KernelStartup.E820_Count = E820Entries;
     }
+
+    KernelStartup.StubAddress = ImageAddress;
+    KernelStartup.StackTop = StackTop;
+    KernelStartup.ConsoleX = CursorX;
+    KernelStartup.ConsoleY = CursorY;
 
     //-------------------------------------
     // Clear the BSS
@@ -65,11 +72,5 @@ void KernelMain(void) {
     //--------------------------------------
     // Main initialization routine
 
-    InitializeKernel(ImageAddress, CursorX, CursorY);
-
-    //--------------------------------------
-    // Enter idle
-
-    DeadCPU();
+    InitializeKernel();
 }
-

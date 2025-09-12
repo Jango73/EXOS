@@ -21,6 +21,7 @@
     Schedule
 
 \************************************************************************/
+
 #ifndef SCHEDULE_H_INCLUDED
 #define SCHEDULE_H_INCLUDED
 
@@ -34,9 +35,6 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
 /***************************************************************************/
 
-// Updates the scheduler
-void UpdateScheduler(void);
-
 // Adds a task to the scheduler's queue
 BOOL AddTaskToQueue(LPTASK NewTask);
 
@@ -44,7 +42,7 @@ BOOL AddTaskToQueue(LPTASK NewTask);
 BOOL RemoveTaskFromQueue(LPTASK);
 
 // Runs the scheduler to activate the next task (preemptive)
-LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame);
+void Scheduler(void);
 
 // Returns the currently running task
 LPTASK GetCurrentTask(void);

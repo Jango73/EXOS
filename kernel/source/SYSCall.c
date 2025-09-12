@@ -21,6 +21,7 @@
     SYS Call
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
@@ -33,6 +34,7 @@
 #include "../include/Mouse.h"
 #include "../include/Process.h"
 #include "../include/User.h"
+#include "../include/Schedule.h"
 
 /***************************************************************************/
 
@@ -60,13 +62,14 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
         Info->TotalMemoryAvail = Info->TotalPhysicalMemory + Info->TotalSwapMemory;
         Info->PageSize = PAGE_SIZE;
         Info->TotalPhysicalPages = KernelStartup.PageCount;
-        Info->MinimumLinearAddress = LA_USER;
-        Info->MaximumLinearAddress = LA_KERNEL - 1;
+        Info->MinimumLinearAddress = VMA_USER;
+        Info->MaximumLinearAddress = VMA_KERNEL - 1;
         Info->NumProcesses = Kernel.Process->NumItems;
         Info->NumTasks = Kernel.Task->NumItems;
 
         StringCopy(Info->UserName, TEXT("Not implemented"));
         StringCopy(Info->CompanyName, TEXT("Not implemented"));
+        StringCopy(Info->KeyboardLayout, Kernel.KeyboardCode);
 
         return TRUE;
     }
@@ -159,6 +162,13 @@ U32 SysCall_CreateTask(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_KillTask(U32 Parameter) { return (U32)KillTask((LPTASK)Parameter); }
+
+/***************************************************************************/
+
+U32 SysCall_KillMe(U32 Parameter) {
+    UNUSED(Parameter);
+    return (U32)KillTask(GetCurrentTask());
+}
 
 /***************************************************************************/
 
@@ -362,15 +372,11 @@ U32 SysCall_GetFileSize(U32 Parameter) { return GetFileSize((LPFILE)Parameter); 
 
 /***************************************************************************/
 
-U32 SysCall_GetFilePosition(U32 Parameter) {
-    return GetFilePosition((LPFILE)Parameter);
-}
+U32 SysCall_GetFilePosition(U32 Parameter) { return GetFilePosition((LPFILE)Parameter); }
 
 /***************************************************************************/
 
-U32 SysCall_SetFilePosition(U32 Parameter) {
-    return SetFilePosition((LPFILEOPERATION)Parameter);
-}
+U32 SysCall_SetFilePosition(U32 Parameter) { return SetFilePosition((LPFILEOPERATION)Parameter); }
 
 /***************************************************************************/
 
@@ -783,7 +789,7 @@ SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
     SysCall_ConsolePrint,          // 0x0000002C
     SysCall_ConsoleGetString,      // 0x0000002D
     SysCall_ConsoleGotoXY,         // 0x0000002E
-    NULL,                          // 0x0000002F
+    SysCall_KillMe,                // 0x0000002F
     NULL,                          // 0x00000030
     NULL,                          // 0x00000031
     NULL,                          // 0x00000032
@@ -854,6 +860,3 @@ U32 SystemCallHandler(U32 Function, U32 Parameter) {
     // return ERROR_INVALID_INDEX;
     return 0;
 }
-
-/***************************************************************************/
-

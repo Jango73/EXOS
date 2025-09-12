@@ -42,8 +42,7 @@ extern U32 IRQMask_A1_RM;
 
 // Functions in System.asm
 
-extern U32 GetGDTR(void);
-extern U32 GetLDTR(void);
+extern U32 GetCR4(void);
 extern U32 GetESP(void);
 extern U32 GetEBP(void);
 extern U32 GetDR6(void);
@@ -76,11 +75,12 @@ extern U32 LoadPageDirectory(PHYSICAL Base);
 extern U32 LoadInitialTaskRegister(U32 TaskRegister);
 extern U32 GetTaskRegister(void);
 extern U32 GetPageDirectory(void);
-extern void SetPageDirectory(PHYSICAL Base);
 extern void InvalidatePage(U32 Address);
 extern void FlushTLB(void);
 extern U32 SwitchToTask(U32);
 extern U32 TaskRunner(void);
+extern void *__task_runner_start;
+extern void *__task_runner_end;
 extern U32 ClearTaskState(void);
 extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
@@ -88,17 +88,18 @@ extern void SetConsoleCursorPosition(U32, U32);
 extern U32 SaveRegisters(LPINTEL386REGISTERS);
 extern void MemorySet(LPVOID Destination, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
+extern I32 MemoryCompare(LPCVOID First, LPCVOID Second, U32 Size);
 extern U32 DoSystemCall(U32, U32);
 extern void IdleCPU(void);
 extern void DeadCPU(void);
 extern void Reboot(void);
+extern void JumpToReadyTask(U32 EAX, U32 EBX, LINEAR ESP);
 
 /***************************************************************************/
 
 // Functions in RMC.asm
 
 extern void RealModeCall(U32, LPX86REGS);
-extern void Exit_EXOS(U32 SS, U32 SP);
 extern void RealModeCallTest(void);
 
 /***************************************************************************/

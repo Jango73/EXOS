@@ -21,12 +21,14 @@
     File System
 
 \************************************************************************/
+
 #include "../include/FileSystem.h"
 
 #include "../include/Console.h"
 #include "../include/Kernel.h"
-#include "../include/String.h"
 #include "../include/Log.h"
+#include "../include/String.h"
+#include "../include/Text.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
@@ -40,24 +42,31 @@ U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
 /***************************************************************************/
 
 /*
-    Build a default volume name using zero-based disk and partition indexes.
+    Build a default volume name using zero-based disk and partition indexes
+    per disk type.
 */
 BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
     STR Temp[12];
     LPLISTNODE Node;
+    LPPHYSICALDISK CurrentDisk;
     U32 DiskIndex = 0;
 
+    // Find the index of this disk among disks of the same type
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
-        if ((LPPHYSICALDISK)Node == Disk) break;
-        DiskIndex++;
+        CurrentDisk = (LPPHYSICALDISK)Node;
+        if (CurrentDisk == Disk) break;
+        if (CurrentDisk->Driver->Type == Disk->Driver->Type) DiskIndex++;
     }
 
     switch (Disk->Driver->Type) {
         case DRIVER_TYPE_RAMDISK:
-            StringCopy(Name, TEXT("rd"));
+            StringCopy(Name, Text_Rd);
+            break;
+        case DRIVER_TYPE_FLOPPYDISK:
+            StringCopy(Name, Text_Fd);
             break;
         default:
-            StringCopy(Name, TEXT("hd"));
+            StringCopy(Name, Text_Hd);
             break;
     }
 
@@ -165,46 +174,18 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 }
 
 /***************************************************************************/
+/**
+ * @brief Mounts available disk partitions and the system file system.
+ */
 
-static void PathCompDestructor(LPVOID This) { HeapFree(This); }
+void InitializeFileSystems(void) {
+    LPLISTNODE Node;
 
-/***************************************************************************/
-
-LPLIST DecompPath(LPCSTR Path) {
-    STR Component[MAX_FILE_NAME];
-    U32 PathIndex = 0;
-    U32 CompIndex = 0;
-    LPLIST List = NewList(PathCompDestructor, HeapAlloc, HeapFree);
-    LPPATHNODE Node = NULL;
-
-    while (1) {
-        CompIndex = 0;
-
-        while (1) {
-            if (Path[PathIndex] == STR_SLASH) {
-                Component[CompIndex] = STR_NULL;
-                PathIndex++;
-                break;
-            } else if (Path[PathIndex] == STR_NULL) {
-                Component[CompIndex] = STR_NULL;
-                break;
-            } else {
-                Component[CompIndex++] = Path[PathIndex++];
-            }
-        }
-
-        Node = HeapAlloc(sizeof(PATHNODE));
-        if (Node == NULL) goto Out;
-        StringCopy(Node->Name, Component);
-        ListAddItem(List, Node);
-
-        if (Path[PathIndex] == STR_NULL) break;
+    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+        MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
 
-Out:
-
-    return List;
+    MountSystemFS();
 }
 
 /***************************************************************************/
-

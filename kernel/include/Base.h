@@ -21,14 +21,13 @@
     Base
 
 \************************************************************************/
+
 #ifndef BASE_H_INCLUDED
 #define BASE_H_INCLUDED
 
 /***************************************************************************/
 
 #define __EXOS__
-
-// #define ENABLE_CRITICAL_LOGS
 
 /***************************************************************************/
 
@@ -56,9 +55,9 @@ typedef signed long I32;
 typedef unsigned int UINT;
 typedef signed int INT;
 
-typedef U32 LINEAR;             // A linear address, paged or not
-typedef U32 PHYSICAL;           // A physical address
-typedef U8* LPPAGEBITMAP;       // A pointer to a page allocation bitmap
+typedef U32 LINEAR;        // A linear address, paged or not
+typedef U32 PHYSICAL;      // A physical address
+typedef U8* LPPAGEBITMAP;  // A pointer to a page allocation bitmap
 
 /***************************************************************************/
 
@@ -109,10 +108,12 @@ typedef U32 BOOL;
 
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
-#define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_2(a,b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_ID(a,i) if ((a) != NULL && (a->ID == i))
+#define SAFE_USE_ID_2(a,b,i) if ((a) != NULL && (a->ID == i) && (b) != NULL && (b->ID == i))
 #define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
-#define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
-#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && (a->ID == i))
+#define SAFE_USE_VALID_2(a,b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
+#define SAFE_USE_VALID_ID(a,i) if ((a) != NULL && IsValidMemory((LINEAR)a) && (a->ID == i))
 
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
 // Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
@@ -260,14 +261,17 @@ typedef U32 BOOL;
 #define BIT_15_VALUE(a) (((a) >> 15) & 1)
 
 /***************************************************************************/
-// This macro gives the offset of a structure member
+// These macros give the offset of a structure member and true if a structure
+// of a specified size contains the specified member
 
-#define MEMBER_OFFSET(s, m) ((U32)(&(((s*)NULL)->m)))
+#define MEMBER_OFFSET(struc, member) ((U32)(&(((struc*)NULL)->member)))
+#define HAS_MEMBER(struc, member, struc_size) (MEMBER_OFFSET(struc, member)<struc_size)
 
 /***************************************************************************/
 // ASCII string types
 
 typedef U8 STR;
+typedef const STR CSTR;
 typedef STR* LPSTR;
 typedef CONST STR* LPCSTR;
 
@@ -402,21 +406,24 @@ typedef U32 COLOR;
 /***************************************************************************/
 // Error codes
 
-#define SUCCESS                 0x0000
-#define ERROR_NOT_IMPLEMENTED   0x0001
-#define ERROR_OUT_OF_MEMORY     0x0002
-#define ERROR_BAD_PARAMETER     0x0003
+#define SUCCESS 0x0000
+#define ERROR_NOT_IMPLEMENTED 0x0001
+#define ERROR_OUT_OF_MEMORY 0x0002
+#define ERROR_BAD_PARAMETER 0x0003
 
-/***************************************************************************/
+/************************************************************************/
 // 64 bits math
 
 // Make U64 from hi/lo
-inline U64 U64_Make(U32 hi, U32 lo) {
-    U64 v; v.HI = hi; v.LO = lo; return v;
+static inline U64 U64_Make(U32 hi, U32 lo) {
+    U64 v;
+    v.HI = hi;
+    v.LO = lo;
+    return v;
 }
 
 // Add two U64
-inline U64 U64_Add(U64 a, U64 b) {
+static inline U64 U64_Add(U64 a, U64 b) {
     U64 r;
     U32 lo = a.LO + b.LO;
     U32 carry = (lo < a.LO) ? 1u : 0u;
@@ -426,7 +433,7 @@ inline U64 U64_Add(U64 a, U64 b) {
 }
 
 // Subtract b from a
-inline U64 U64_Sub(U64 a, U64 b) {
+static inline U64 U64_Sub(U64 a, U64 b) {
     U64 r;
     U32 borrow = (a.LO < b.LO) ? 1u : 0u;
     r.LO = a.LO - b.LO;
@@ -435,20 +442,53 @@ inline U64 U64_Sub(U64 a, U64 b) {
 }
 
 // Compare: return -1 if a<b, 0 if a==b, 1 if a>b
-inline int U64_Cmp(U64 a, U64 b) {
+static inline int U64_Cmp(U64 a, U64 b) {
     if (a.HI < b.HI) return -1;
-    if (a.HI > b.HI) return  1;
+    if (a.HI > b.HI) return 1;
     if (a.LO < b.LO) return -1;
-    if (a.LO > b.LO) return  1;
+    if (a.LO > b.LO) return 1;
     return 0;
 }
 
 // Convert U64 to 32-bit if <= 0xFFFFFFFF, else clip
-inline U32 U64_ToU32_Clip(U64 v) {
+static inline U32 U64_ToU32_Clip(U64 v) {
     if (v.HI != 0) return 0xFFFFFFFFu;
     return v.LO;
 }
 
-/***************************************************************************/
+// Helper functions for U64 operations in CRC64
+static inline U64 U64_ShiftRight1(U64 Value) {
+    U64 Result;
+    Result.LO = (Value.LO >> 1) | ((Value.HI & 1) << 31);
+    Result.HI = Value.HI >> 1;
+    return Result;
+}
+
+static inline U64 U64_Xor(U64 A, U64 B) {
+    U64 Result;
+    Result.LO = A.LO ^ B.LO;
+    Result.HI = A.HI ^ B.HI;
+    return Result;
+}
+
+static inline BOOL U64_IsOdd(U64 Value) {
+    return (Value.LO & 1) != 0;
+}
+
+static inline U64 U64_FromU32(U32 Value) {
+    U64 Result;
+    Result.LO = Value;
+    Result.HI = 0;
+    return Result;
+}
+
+static inline U64 U64_ShiftRight8(U64 Value) {
+    U64 Result;
+    Result.LO = (Value.LO >> 8) | ((Value.HI & 0xFF) << 24);
+    Result.HI = Value.HI >> 8;
+    return Result;
+}
+
+/************************************************************************/
 
 #endif

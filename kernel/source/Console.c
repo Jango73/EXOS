@@ -21,6 +21,7 @@
     Console
 
 \************************************************************************/
+
 #include "../include/Console.h"
 
 #include "../include/Kernel.h"
@@ -83,8 +84,12 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
 void SetConsoleCharacter(STR Char) {
     U32 Offset = 0;
 
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
     Offset = (Console.CursorY * Console.Width) + Console.CursorX;
     Console.Memory[Offset] = Char | (CHARATTR << 0x08);
+
+    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -166,11 +171,25 @@ void ConsolePrintChar(STR Char) {
         }
     } else if (Char == STR_TAB) {
         Console.CursorX += 4;
-        if (Console.CursorX >= Console.Width) ConsolePrintChar(STR_NEWLINE);
+        if (Console.CursorX >= Console.Width) {
+            Console.CursorX = 0;
+            Console.CursorY++;
+            if (Console.CursorY >= Console.Height) {
+                ScrollConsole();
+                Console.CursorY = Console.Height - 1;
+            }
+        }
     } else {
         SetConsoleCharacter(Char);
         Console.CursorX++;
-        if (Console.CursorX >= Console.Width) ConsolePrintChar(STR_NEWLINE);
+        if (Console.CursorX >= Console.Width) {
+            Console.CursorX = 0;
+            Console.CursorY++;
+            if (Console.CursorY >= Console.Height) {
+                ScrollConsole();
+                Console.CursorY = Console.Height - 1;
+            }
+        }
     }
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
@@ -311,6 +330,29 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
 
 /***************************************************************************/
 
+/**
+ * @brief Print a formatted string to the console.
+ * @param Format Format string.
+ * @return TRUE on success.
+ */
+void ConsolePanic(LPCSTR Format, ...) {
+    STR Text[0x1000];
+    VarArgList Args;
+
+    DisableInterrupts();
+
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(Text, Format, Args);
+    VarArgEnd(Args);
+
+    ConsolePrintString(Text);
+    ConsolePrintString(TEXT("\n>>> Halting system <<<"));
+
+    DO_THE_SLEEPING_BEAUTY;
+}
+
+/***************************************************************************/
+
 BOOL InitializeConsole(void) {
     Console.Width = 80;
     Console.Height = 25;
@@ -326,4 +368,3 @@ BOOL InitializeConsole(void) {
 }
 
 /***************************************************************************/
-

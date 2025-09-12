@@ -1,5 +1,11 @@
 # Kernel documentation
 
+## Debugging
+
+To have standard debug info, use scripts/4-2-clean-build-debug.sh or scripts/4-5-build-debug.sh.
+To have critical debug info like scheduling, use 4-3-clean-build-critical-debug.sh or scripts/4-6-build-critical-debug.sh.
+Be aware that it generates A LOT of COM2 output, the scheduler is called every 10ms...
+
 ## Architecture
 
 To be completed.
@@ -238,6 +244,108 @@ Fractional part = unusable space.
 | 17,179,869,184 (16 GB) | 2,048 (2 KB) | 1,048,576   | 512           |
 | 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
 | 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
+
+## Tasks
+
+### IRQ scheduling
+
+#### IRQ 0 path
+
+IRQ 0
+└── trap lands in interrupt-a.asm : Interrupt_Clock
+    └── calls ClockHandler to increment system time
+    └── calls Scheduler to check if it's time to switch to another task
+        └── Scheduler switches page directory if needed and returns the next task's context
+
+#### ISR 0 call graph
+
+Interrupt_Clock
+└── BuildInterruptFrame
+    └── KernelLogText
+        └── StringEmpty
+        └── StringPrintFormatArgs
+            └── IsNumeric : endpoint
+            └── IsNumeric : endpoint
+            └── SkipAToI : endpoint
+            └── VarArg : endpoint
+            └── StringLength : endpoint
+            └── NumberToString : endpoint
+        └── KernelPrintString
+            └── LockMutex
+                └── SaveFlags : endpoint
+                └── DisableInterrupts : endpoint
+                └── GetCurrentTask : endpoint
+                └── RestoreFlags : endpoint
+                └── GetSystemTime : endpoint
+                └── IdleCPU : endpoint
+            └── UnlockMutex
+                └── SaveFlags : endpoint
+                └── DisableInterrupts : endpoint
+                └── GetCurrentTask : endpoint
+                └── RestoreFlags : endpoint
+        └── KernelPrintChar : endpoint
+└── ClockHandler
+    └── KernelLogText
+        └── ...
+    └── KernelPrintString
+        └── ...
+    └── IsLeapYear : endpoint
+    └── Scheduler
+        └── KernelLogText
+            └── ...
+        └── CheckStack
+            └── GetCurrentTask : endpoint
+        └── KillTask
+            └── KernelLogText
+                └── ...
+            └── RemoveTaskFromQueue
+                └── FreezeScheduler
+                    └── LockMutex
+                        └── ...
+                    └── UnlockMutex
+                        └── ...
+                └── FindNextRunnableTask
+                    └── GetSystemTime : endpoint
+                └── UnfreezeScheduler
+                    └── LockMutex
+                        └── ...
+                    └── UnlockMutex
+                        └── ...
+                └── KernelLogText
+                    └── ...
+            └── LockMutex
+                └── ...
+            └── ListRemove : endpoint
+            └── DeleteTask
+                └── KernelLogText
+                    └── ...
+                    └── HeapFree_HBHS : endpoint
+                    └── HeapFree
+                        └── GetCurrentProcess
+                            └── GetCurrentTask : endpoint
+                        └── HeapFree_P
+                            └── LockMutex
+                                └── ...
+                            └── HeapFree_HBHS : endpoint
+                            └── UnlockMutex
+                                └── ...
+            └── UnlockMutex
+                └── ...
+└── RestoreFromInterruptFrame
+    └── KernelLogText
+        └── ...
+
+## System calls
+
+### System call full path
+
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── calls int 0x80
+        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
 
 ## Modules and functions
 
@@ -481,10 +589,11 @@ Handles mounting of disk partitions and path manipulation.
 #### Functions in FileSystem.c
 
 - GetNumFileSystems: Returns the number of available file systems.
-- GetDefaultFileSystemName: Builds a default name for new file systems.
+- GetDefaultFileSystemName: Builds a default name for new file systems. Disk index
+  starts at 0 for each disk type (hd0, rd0, ...).
 - MountPartition_Extended: Mounts an extended partition.
 - MountDiskPartitions: Scans a disk and mounts each partition.
-- DecompPath: Splits a path into its individual components.
+- InitializeFileSystems: Mounts all detected file systems.
 
 ### HD.c
 
@@ -541,7 +650,6 @@ Core initialization and debugging utilities for the kernel.
 - ClockTestTask: Periodic task that updates the clock and mouse.
 - Welcome: Prints some basic information and the welcome text.
 - InitializePhysicalPageBitmap: Marks kernel pages as used.
-- InitializeFileSystems: Mounts all detected file systems.
 - GetPhysicalMemoryUsed: Returns the number of used bytes.
 - InitializeKernel: Performs global kernel initialization.
 
@@ -668,7 +776,7 @@ Contains the EXOS executable loader implementation.
 
 ### ExecutableELF.c
 
-Placeholder for the upcoming ELF executable loader.
+Contains the ELF executable loader implementation.
 
 ### PCI.c
 
@@ -676,7 +784,7 @@ Handles scanning of PCI buses.
 
 #### Functions in PCI.c
 
-- TODO
+- TO DOCUMENT
 
 ### RAMDisk.c
 
@@ -734,6 +842,14 @@ A mutex providing mutual exclusion.
 - DeleteMutex: Removes a mutex from the kernel list.
 - LockMutex: Acquires the mutex for the current task.
 - UnlockMutex: Releases a previously acquired mutex.
+
+### Path.c
+
+Path utilities.
+
+#### Functions in Path.c
+
+- DecomposePath: Splits a path into its individual components.
 
 ### SerialPort.c
 
@@ -975,6 +1091,9 @@ Kernel text constants used for interface messages.
 - Text_Registers: Prefix for register dumps.
 - Text_Image: "Image :" label string.
 - Text_Clk: "Clk" string constant.
+- Text_Rd: "rd" string constant for ramdisks.
+- Text_Fd: "fd" string constant for floppy disks.
+- Text_Hd: "hd" string constant for hard disks.
 
 ### VESA.c
 
@@ -1076,7 +1195,6 @@ Implements real mode call support and exit routines.
 #### Functions in RMC.asm
 
 - RealModeCall: Switches to real mode, executes a routine, then returns to protected mode.
-- Exit_EXOS: Leaves the kernel and returns control to the DOS loader.
 - RealModeCallTest: Test helper for verifying real mode calls.
 
 ### Stub.asm
@@ -1138,4 +1256,3 @@ Provides low level hardware access and CPU control primitives.
 - MemoryCopy: Copies a block of memory.
 - DoSystemCall: Invokes a system call from user mode.
 - Reboot: Restarts the computer via the keyboard controller.
-

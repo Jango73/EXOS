@@ -118,7 +118,9 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     // Check validity of parameters
 
     SAFE_USE_VALID_ID(Mutex, ID_MUTEX) {
-        SAFE_USE_VALID_2(Kernel.Task->First, Kernel.Task->First->Next) {
+
+        // Have at leat two tasks
+        SAFE_USE_ID_2(Kernel.Task->First, Kernel.Task->First->Next, ID_TASK) {
             Task = GetCurrentTask();
 
             SAFE_USE_VALID_ID(Task, ID_TASK) {
@@ -133,8 +135,6 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                         // Wait for mutex to be unlocked by its owner task
 
                         while (1) {
-                            DisableInterrupts();
-
                             //-------------------------------------
                             // Check if a process deleted this mutex
 
@@ -151,18 +151,18 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                             }
 
                             //-------------------------------------
-                            // Sleep
+                            // Sleep with proper interrupt handling
 
                             Task->Status = TASK_STATUS_SLEEPING;
                             Task->WakeUpTime = GetSystemTime() + 20;
 
-                            EnableInterrupts();
-
+                            // Keep interrupts disabled during critical section
                             while (Task->Status == TASK_STATUS_SLEEPING) {
+                                IdleCPU();              // IdleCPU enables interrupts
+                                DisableInterrupts();    // Disable immediately after
                             }
+                            // Continue loop with interrupts already disabled
                         }
-
-                        DisableInterrupts();
 
                         Mutex->Process = Process;
                         Mutex->Task = Task;
@@ -219,4 +219,3 @@ Out_Error:
 }
 
 /***************************************************************************/
-

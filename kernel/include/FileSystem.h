@@ -21,6 +21,7 @@
     File System
 
 \************************************************************************/
+
 #ifndef FILESYS_H_INCLUDED
 #define FILESYS_H_INCLUDED
 
@@ -60,6 +61,7 @@
 #define DF_FS_MOUNTOBJECT (DF_FIRSTFUNC + 18)
 #define DF_FS_UNMOUNTOBJECT (DF_FIRSTFUNC + 19)
 #define DF_FS_PATHEXISTS (DF_FIRSTFUNC + 20)
+#define DF_FS_FILEEXISTS (DF_FIRSTFUNC + 21)
 
 /***************************************************************************/
 
@@ -204,7 +206,8 @@ BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
 BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
 BOOL MountSystemFS(void);
-LPLIST DecompPath(LPCSTR);
+BOOL MountSystemFSUserNodes(void);
+void InitializeFileSystems(void);
 
 /***************************************************************************/
 

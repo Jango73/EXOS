@@ -1,24 +1,38 @@
 {
     "logs": [
-        "log/debug.log",
-        "log/make.log"
+        "log/debug-com2.log"
     ],
     "scriptsDir": "./scripts",
     "keyBindings": {
-        "f1": "1-setup-deps.sh",
-        "f2": "2-setup-qemu-freedos.sh",
-        "f3": "3-format-all-code.sh",
-        "f4": "4-1-clean-build.sh",
-        "f5": "4-2-build.sh",
-        "f6": "5-1-start-qemu-hd.sh",
-        "f7": "5-2-debug-qemu-hd.sh",
-        "f8": "6-1-start-qemu-hd-nogfx.sh",
-        "p": "git pull",
-        "C-p": "git push",
-        "s": "git status",
-        "C-s": "git diff --staged",
-        "C-o": "nano -l boot-qemu-hd/source/main-stub.asm",
-        "C-p": "nano -l boot-qemu-hd/source/main.c"
+        "f1": { "label": "Setup Dependencies", "script": "1-setup-deps.sh" },
+
+        "f2": { "label": "Clean Build", "script": "4-1-clean-build.sh" },
+        "f3": { "label": "Build", "script": "4-4-build.sh" },
+        "f4": { "label": "Start QEMU", "script": "5-1-start-qemu-hd.sh" },
+
+        "1--------------------": "",
+
+        "f5": { "label": "Clean Build Debug", "script": "4-2-clean-build-debug.sh" },
+        "f6": { "label": "Build Debug", "script": "4-5-build-debug.sh" },
+
+        "2--------------------": "",
+
+        "f7": { "label": "Clean Build Scheduling Debug", "script": "4-3-clean-build-scheduling-debug.sh" },
+        "f8": { "label": "Build Scheduling Debug", "script": "4-6-build-scheduling-debug.sh" },
+
+        "3--------------------": "",
+
+        "f9": { "label": "Start QEMU debug", "script": "5-2-debug-qemu-hd.sh" },
+        "f10": { "label": "Start QEMU No GFX", "script": "6-1-start-qemu-hd-nogfx.sh" },
+
+        "f11": { "label": "Format Code", "script": "3-format-all-code.sh" },
+
+        "4--------------------": "",
+
+        "p": { "label": "Git Pull", "script": "git pull" },
+        "C-p": { "label": "Git Push", "script": "git push" },
+        "s": { "label": "Git Status", "script": "git status" },
+        "C-s": { "label": "Git Diff Staged", "script": "git diff --staged" }
     },
     "settings": {
         "enableCommandHistory": true,

@@ -21,15 +21,6 @@
     Segment
 
 \************************************************************************/
-// Segment.c
-
-/***************************************************************************\
-
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
-
-\***************************************************************************/
 
 #include "../include/Base.h"
 #include "../include/I386.h"
@@ -47,7 +38,7 @@ void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR This, U32 Type) {
     This->Base_16_23 = 0x00;
     This->Accessed = 0;
     This->CanWrite = 1;
-    This->ConformExpand = 1;
+    This->ConformExpand = 0;      // Expand-up for data, Conforming for code
     This->Type = Type;
     This->Segment = 1;
     This->Privilege = PRIVILEGE_USER;
@@ -102,8 +93,8 @@ void InitializeTaskSegments(void) {
 
     U32 TssSize = sizeof(TASKSTATESEGMENT);
 
-    Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocRegion(
-        LA_KERNEL, 0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Kernel_i386.TSS = (LPTASKSTATESEGMENT)AllocKernelRegion(
+        0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Kernel_i386.TSS == NULL) {
         KernelLogText(LOG_ERROR, TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
@@ -111,11 +102,10 @@ void InitializeTaskSegments(void) {
     }
 
     MemorySet(Kernel_i386.TSS, 0, TssSize);
-    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
 
     LPTSSDESCRIPTOR Desc = (LPTSSDESCRIPTOR)(Kernel_i386.GDT + GDT_TSS_INDEX);
     Desc->Type = GATE_TYPE_386_TSS_AVAIL;
-    Desc->Privilege = GDT_PRIVILEGE_KERNEL;
+    Desc->Privilege = GDT_PRIVILEGE_USER;
     Desc->Present = 1;
     Desc->Granularity = GDT_GRANULAR_1B;
     SetTSSDescriptorBase(Desc, (U32)Kernel_i386.TSS);
@@ -151,4 +141,3 @@ void SetTSSDescriptorLimit(LPTSSDESCRIPTOR This, U32 Limit) {
 }
 
 /***************************************************************************/
-

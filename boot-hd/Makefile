@@ -4,18 +4,20 @@ FINAL_IMG       = bin/exos.img
 SOURCE_IMG      = bin/src.img
 IMG_SIZE_MB     = 64
 KERNEL_BIN      = ../kernel/bin/exos.bin
-KERNEL_CFG      = exos.cfg
+KERNEL_CFG      = exos.toml
+KERNEL_CFG_REF  = exos.ref.toml
 PORTAL_ELF      = ../portal/bin/portal.elf
+HELLO_ELF       = ../hello/bin/hello.elf
 MTOOLS_CONF     = .mtoolsrc.tmp
 CUSTOM_MBR      = source/mbr.asm
 CUSTOM_MBR_BIN  = bin/mbr.bin
 
 DEBUG_OUTPUT    ?= 0
+RESERVED_SECTORS= 48
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
 
 VBR_SRC         = source/vbr.asm
 VBR_BIN         = bin/vbr.bin
-SECTORS_TO_LOAD = 8         # Number of sectors loaded by VBR (including sector 0)
 VBR_CODE_OFFSET = 0x5A      # Offset of code in VBR sector
 
 PAYLOAD_STUB    = source/vbr-payload-a.asm
@@ -30,8 +32,8 @@ PAYLOAD_BIN     = bin/payload.bin
 PAYLOAD_ELF     = bin/payload.elf
 PAYLOAD_MAP     = bin/payload.map
 
-CFLAGS  = -m16 -g -Wall -Wextra -O2 \
-        -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+CFLAGS  = -m16 -g -Wall -Wextra -O0 \
+	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
         -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
         -fvisibility=hidden -mno-red-zone -fno-stack-protector \
         -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
@@ -54,7 +56,7 @@ define CREATE_FAT32_IMAGE
                         exit 1; \
                 fi; \
                 echo "Formatting partition using mformat..."; \
-                MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F ::; \
+                MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
         }
 endef
 
@@ -73,7 +75,7 @@ endef
 .PHONY: all update update-src install-mbr install-vbr-payload clean check_tools hexdump-check rebuild-image
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) update install-mbr install-vbr-payload $(SOURCE_IMG) update-src hexdump-check
+all: check_tools $(FINAL_IMG) update install-mbr install-vbr-payload bin/payload.sym $(SOURCE_IMG) update-src hexdump-check
 
 # Create image only if it does not exist
 $(FINAL_IMG):
@@ -82,19 +84,23 @@ $(FINAL_IMG):
 $(SOURCE_IMG):
 	$(call CREATE_FAT32_IMAGE,$@)
 
+$(KERNEL_CFG):
+	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
+
 # Force a full rebuild of the image (explicit call)
 rebuild-image:
 	@echo "Forcing full image rebuild..."
 	@rm -f $(FINAL_IMG)
 	$(MAKE) $(FINAL_IMG)
 
-update: $(FINAL_IMG)
+update: $(FINAL_IMG) $(KERNEL_CFG)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.cfg; \
-                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true;,\
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/exos/portal.elf; \
-                All files injected into image.)
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.toml; \
+	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/exos/portal.elf; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/exos/hello.elf;,\
+	        All files injected into image.)
 
 update-src: $(SOURCE_IMG)
 	$(call MTOOLS_OPERATION,$(SOURCE_IMG),Injecting sources using mtools,\
@@ -148,6 +154,11 @@ $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_
 	@echo "Linking payload stub + C into elf binary..."
 	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
 
+# Extract payload symbols for Bochs debugging
+bin/payload.sym: $(PAYLOAD_ELF)
+	@echo "Extracting payload symbols for Bochs debugging"
+	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+
 check_tools:
 	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
 	@command -v mcopy >/dev/null 2>&1 || { echo "mtools is not installed. Please run: sudo apt install mtools"; exit 1; }
@@ -188,4 +199,4 @@ hexdump-check:
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
 
 clean:
-	rm -f $(MTOOLS_CONF) $(CUSTOM_MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O)
+	rm -f $(MTOOLS_CONF) $(CUSTOM_MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) bin/payload.sym

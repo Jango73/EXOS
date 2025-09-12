@@ -21,14 +21,16 @@
     Kernel
 
 \************************************************************************/
+
 #include "../include/Kernel.h"
 
+#include "../include/Autotest.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
 #include "../include/Driver.h"
 #include "../include/E1000.h"
-#include "../include/FileSystem.h"
 #include "../include/File.h"
+#include "../include/FileSystem.h"
 #include "../include/HD.h"
 #include "../include/Interrupt.h"
 #include "../include/Keyboard.h"
@@ -36,6 +38,8 @@
 #include "../include/Log.h"
 #include "../include/Mouse.h"
 #include "../include/PCI.h"
+#include "../include/Stack.h"
+#include "../include/StackTrace.h"
 #include "../include/System.h"
 #include "../include/TOML.h"
 
@@ -43,9 +47,7 @@
 
 typedef struct tag_SYSTEMFSFILESYSTEM SYSTEMFSFILESYSTEM;
 extern SYSTEMFSFILESYSTEM SystemFSFileSystem;
-
 extern U32 DeadBeef;
-
 extern void StartTestNetworkTask(void);
 
 /***************************************************************************/
@@ -159,7 +161,10 @@ KERNELDATA Kernel = {
     .Configuration = NULL,
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR",
-    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0}};
+    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
+    .MinimumQuantum = 250};
+
+U32 EXOS_End __attribute__((section(".end_mark"))) = 0x534F5845;
 
 /***************************************************************************/
 
@@ -231,6 +236,32 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
 /***************************************************************************/
 
 /**
+ * @brief Initializes the kernel minimum quantum time based on environment.
+ *
+ * Uses BARE_METAL compile-time flag to determine quantum time.
+ * Also accounts for debug output overhead which slows execution.
+ * Sets Kernel.MinimumQuantum to appropriate value.
+ */
+void InitializeQuantumTime(void) {
+    // Set base quantum time based on environment
+#if BARE_METAL == 1
+    Kernel.MinimumQuantum = 20;   // Shorter quantum for bare-metal
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeQuantumTime] Bare-metal mode, base quantum = %d ms"), Kernel.MinimumQuantum);
+#else
+    Kernel.MinimumQuantum = 500;  // Longer quantum for emulation/virtualization
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), Kernel.MinimumQuantum);
+#endif
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    // Double quantum when scheduling debug is enabled (logs slow down execution)
+    Kernel.MinimumQuantum *= 2;
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"), Kernel.MinimumQuantum);
+#endif
+}
+
+/***************************************************************************/
+
+/**
  * @brief Task that displays system time and mouse status.
  *
  * The parameter encodes console coordinates where the time is printed.
@@ -241,14 +272,13 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  */
 
 U32 ClockTestTask(LPVOID Param) {
+    TRACED_FUNCTION;
+
     STR Text[64];
     U32 X = ((U32)Param & 0xFFFF0000) >> 16;
     U32 Y = ((U32)Param & 0x0000FFFF) >> 0;
     U32 OldX = 0;
     U32 OldY = 0;
-    I32 MouseX = 0;
-    I32 MouseY = 0;
-    U32 Buttons = 0;
 
     U32 Time = 0;
     U32 OldTime = 0;
@@ -261,27 +291,15 @@ U32 ClockTestTask(LPVOID Param) {
             MilliSecondsToHMS(Time, Text);
             OldX = Console.CursorX;
             OldY = Console.CursorY;
-
-            Console.CursorX = X;
-            Console.CursorY = Y;
+            SetConsoleCursorPosition(X, Y);
             ConsolePrint(Text);
-
-            // KernelLogText(LOG_VERBOSE, Text);
-
-            MouseX = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
-            MouseY = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
-            Buttons = SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
-            Console.CursorX = 0;
-            Console.CursorY = 0;
-            ConsolePrint(TEXT("%d %d %d"), MouseX, MouseY, Buttons);
-
-            Console.CursorX = OldX;
-            Console.CursorY = OldY;
+            SetConsoleCursorPosition(OldX, OldY);
         }
 
-        DoSystemCall(SYSCALL_Sleep, 40);
+        DoSystemCall(SYSCALL_Sleep, 500);
     }
 
+    TRACED_EPILOGUE("ClockTestTask");
     return 0;
 }
 
@@ -299,20 +317,21 @@ void DumpCriticalInformation(void) {
     }
 
     KernelLogText(LOG_DEBUG, TEXT("Virtual addresses"));
-    KernelLogText(LOG_DEBUG, TEXT("LA_RAM : %X"), LA_RAM);
-    KernelLogText(LOG_DEBUG, TEXT("LA_VIDEO : %X"), LA_VIDEO);
-    KernelLogText(LOG_DEBUG, TEXT("LA_CONSOLE : %X"), LA_CONSOLE);
-    KernelLogText(LOG_DEBUG, TEXT("LA_USER : %X"), LA_USER);
-    KernelLogText(LOG_DEBUG, TEXT("LA_LIBRARY : %X"), LA_LIBRARY);
-    KernelLogText(LOG_DEBUG, TEXT("LA_KERNEL : %X"), LA_KERNEL);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_RAM = %X"), VMA_RAM);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_VIDEO = %X"), VMA_VIDEO);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_CONSOLE = %X"), VMA_CONSOLE);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_USER = %X"), VMA_USER);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_LIBRARY = %X"), VMA_LIBRARY);
+    KernelLogText(LOG_DEBUG, TEXT("VMA_KERNEL = %X"), VMA_KERNEL);
 
     KernelLogText(LOG_DEBUG, TEXT("Kernel startup info:"));
-    KernelLogText(LOG_DEBUG, TEXT("  StubAddress : %X"), KernelStartup.StubAddress);
-    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM : %X"), KernelStartup.IRQMask_21_RM);
-    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM : %X"), KernelStartup.IRQMask_A1_RM);
-    KernelLogText(LOG_DEBUG, TEXT("  MemorySize : %X"), KernelStartup.MemorySize);
-    KernelLogText(LOG_DEBUG, TEXT("  PageCount : %X"), KernelStartup.PageCount);
-    KernelLogText(LOG_DEBUG, TEXT("  E820 entry count : %X"), KernelStartup.E820_Count);
+    KernelLogText(LOG_DEBUG, TEXT("  StubAddress = %X"), KernelStartup.StubAddress);
+    KernelLogText(LOG_DEBUG, TEXT("  StackTop = %X"), KernelStartup.StackTop);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_21_RM = %X"), KernelStartup.IRQMask_21_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  IRQMask_A1_RM = %X"), KernelStartup.IRQMask_A1_RM);
+    KernelLogText(LOG_DEBUG, TEXT("  MemorySize = %X"), KernelStartup.MemorySize);
+    KernelLogText(LOG_DEBUG, TEXT("  PageCount = %X"), KernelStartup.PageCount);
+    KernelLogText(LOG_DEBUG, TEXT("  E820 entry count = %X"), KernelStartup.E820_Count);
 }
 
 /***************************************************************************/
@@ -322,14 +341,6 @@ void DumpCriticalInformation(void) {
  */
 
 static void Welcome(void) {
-    //-------------------------------------
-    // Print information on computer
-
-    /*
-    ConsolePrint(TEXT("Computer ID : "));
-    ConsolePrint(Kernel.CPU.Name);
-    ConsolePrint(Text_NewLine);
-    */
 
     //-------------------------------------
     // Print information on memory
@@ -347,18 +358,24 @@ static void Welcome(void) {
 /**
  * @brief Loads and parses the kernel configuration file.
  *
- * Attempts to read "exos.cfg" (case insensitive) and stores the resulting
+ * Attempts to read "exos.toml" (case insensitive) and stores the resulting
  * TOML data in Kernel.Configuration.
  */
 
 static void ReadKernelConfiguration(void) {
-    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Enter"));
+    KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Enter"));
 
     U32 Size = 0;
-    LPVOID Buffer = FileReadAll(TEXT("exos.cfg"), &Size);
+    LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
 
     if (Buffer == NULL) {
-        Buffer = FileReadAll(TEXT("EXOS.CFG"), &Size);
+        Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
+
+        if (Buffer != NULL) {
+            KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
+        }
+    } else {
+        KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
     }
 
     if (Buffer != NULL) {
@@ -366,10 +383,10 @@ static void ReadKernelConfiguration(void) {
         HeapFree(Buffer);
     }
 
-    KernelLogText(LOG_VERBOSE, TEXT("[ReadKernelConfiguration] Exit"));
+    KernelLogText(LOG_DEBUG, TEXT("[ReadKernelConfiguration] Exit"));
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Selects keyboard layout based on configuration.
@@ -378,23 +395,33 @@ static void ReadKernelConfiguration(void) {
  * SelectKeyboard.
  */
 
-static void SetKeyboardLayout(void) {
-    KernelLogText(LOG_VERBOSE, TEXT("[SetKeyboardLayout] Enter"));
+void UseConfiguration(void) {
+    KernelLogText(LOG_DEBUG, TEXT("[UseConfiguration] Enter"));
 
-    LPCSTR Layout;
+    SAFE_USE(Kernel.Configuration) {
+        LPCSTR Layout;
+        LPCSTR Quantum;
 
-    if (Kernel.Configuration == NULL) {
-        ReadKernelConfiguration();
-    }
+        Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
 
-    Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
-    if (Layout) {
-        ConsolePrint(TEXT("Keboard = %s\n"), Layout);
-        SelectKeyboard(Layout);
+        if (Layout) {
+            ConsolePrint(TEXT("Keyboard = %s\n"), Layout);
+            SelectKeyboard(Layout);
+        } else {
+            ConsolePrint(TEXT("Keyboard layout not found in config, using default en-US\n"));
+            SelectKeyboard(TEXT("en-US"));
+        }
+
+        Quantum = TomlGet(Kernel.Configuration, TEXT("General.Quantum"));
+
+        if (STRING_EMPTY(Quantum) == FALSE) {
+            ConsolePrint(TEXT("Task quantum set to %s\n"), Quantum);
+            Kernel.MinimumQuantum = StringToU32(Quantum);
+        }
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Initializes PCI subsystem by registering drivers and scanning the bus.
@@ -405,26 +432,7 @@ void InitializePCI(void) {
     PCI_ScanBus();
 }
 
-/***************************************************************************/
-/**
- * @brief Mounts available disk partitions and the system file system.
- */
-
-void InitializeFileSystems(void) {
-    LPLISTNODE Node;
-
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
-        MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
-    }
-
-    if (Kernel.Configuration == NULL) {
-        ReadKernelConfiguration();
-    }
-
-    MountSystemFS();
-}
-
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Calculates the amount of physical memory currently in use.
@@ -480,7 +488,24 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
+
+U32 MonitorKernel(LPVOID Param) {
+    while (TRUE) {
+        DeleteDeadTasks();
+        Sleep(1000);
+    }
+}
+
+/************************************************************************/
+
+void KernelIdle(void) {
+    while (TRUE) {
+        Sleep(4000);
+    }
+}
+
+/************************************************************************/
 
 /**
  * @brief Entry point for kernel initialization.
@@ -493,8 +518,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
  * @param CursorY Initial console cursor Y position.
  */
 
-void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
-    // PROCESSINFO ProcessInfo;
+void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
     //-------------------------------------
@@ -505,12 +529,9 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     //-------------------------------------
     // Gather startup information
 
-    KernelStartup.StubAddress = ImageAddress;
     KernelStartup.PageDirectory = GetPageDirectory();
     KernelStartup.IRQMask_21_RM = 0;
     KernelStartup.IRQMask_A1_RM = 0;
-    KernelStartup.ConsoleX = CursorX;
-    KernelStartup.ConsoleY = CursorY;
 
     //-------------------------------------
     // Init the kernel logger
@@ -523,6 +544,12 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
 
     InitializeInterrupts();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts initialized"));
+
+    //-------------------------------------
+    // Initialize the console
+
+    InitializeConsole();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Console initialized"));
 
     //-------------------------------------
     // Initialize the memory manager
@@ -544,16 +571,15 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     DumpCriticalInformation();
 
     //-------------------------------------
+    // Run auto tests
+
+    RunAllTests();
+
+    //-------------------------------------
     // Initialize kernel process
 
     InitializeKernelProcess();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel process and task initialized"));
-
-    //-------------------------------------
-    // Initialize the console
-
-    InitializeConsole();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Console initialized"));
 
     //-------------------------------------
     // Initialize the keyboard
@@ -574,10 +600,9 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Got CPU information"));
 
     //-------------------------------------
-    // Initialize RAM drives
-
-    LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] RAM drive initialized"));
+    // Initialize quantum time based on environment and debug settings
+    
+    InitializeQuantumTime();
 
     //-------------------------------------
     // Initialize physical drives
@@ -586,16 +611,28 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Physical drives initialized"));
 
     //-------------------------------------
-    // Read kernel configuration
+    // Initialize RAM drives
 
-    ReadKernelConfiguration();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Kernel configuration read"));
+    LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] RAM drive initialized"));
+
+    //-------------------------------------
+    // Initialize the clock
+
+    InitializeClock();
+    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
 
     //-------------------------------------
     // Initialize the file systems
 
     InitializeFileSystems();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] File systems initialized"));
+
+    //-------------------------------------
+    // Read kernel configuration
+
+    ReadKernelConfiguration();
+    MountSystemFSUserNodes();
 
     //-------------------------------------
     // Initialize the graphics card
@@ -610,15 +647,9 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] PCI manager initialized"));
 
     //-------------------------------------
-    // Initialize the clock
-
-    InitializeClock();
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Clock initialized"));
-
-    //-------------------------------------
     // Set keyboard mapping
 
-    SetKeyboardLayout();
+    UseConfiguration();
 
     //-------------------------------------
     // Print the EXOS banner
@@ -632,55 +663,67 @@ void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY) {
     EnableInterrupts();
     KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Interrupts enabled"));
 
-    //-------------------------------------
-    // Test tasks
+    LPCSTR Mono = TomlGet(Kernel.Configuration, TEXT("General.Mono"));
 
-    TaskInfo.Header.Size = sizeof(TASKINFO);
-    TaskInfo.Header.Version = EXOS_ABI_VERSION;
-    TaskInfo.Header.Flags = 0;
-    TaskInfo.Func = ClockTestTask;
-    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
-    TaskInfo.Priority = TASK_PRIORITY_LOWEST;
-    TaskInfo.Flags = 0;
+    if (StringCompare(Mono, TEXT("1")) == 0) {
+        Shell(NULL);
+    } else {
+        //-------------------------------------
+        // Kernel monitor
 
-    TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
-    CreateTask(&KernelProcess, &TaskInfo);
+        KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting monitor"));
 
-    // StartTestNetworkTask();
+        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Version = EXOS_ABI_VERSION;
+        TaskInfo.Header.Flags = 0;
+        TaskInfo.Func = MonitorKernel;
+        TaskInfo.Parameter = NULL;
+        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
+        TaskInfo.Flags = 0;
+        StringCopy(TaskInfo.Name, TEXT("MonitorKernel"));
 
-    //-------------------------------------
-    // Shell task
+        CreateTask(&KernelProcess, &TaskInfo);
 
-    KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
+        //-------------------------------------
+        // Test tasks
 
-    TaskInfo.Func = Shell;
-    TaskInfo.Parameter = NULL;
-    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
-    TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
-    TaskInfo.Flags = 0;
+        KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting task"));
 
-    CreateTask(&KernelProcess, &TaskInfo);
+        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Version = EXOS_ABI_VERSION;
+        TaskInfo.Header.Flags = 0;
+        TaskInfo.Func = ClockTestTask;
+        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.Priority = TASK_PRIORITY_LOWEST;
+        TaskInfo.Flags = 0;
+        StringCopy(TaskInfo.Name, TEXT("ClockTestTask"));
 
-    // KernelLogText(LOG_DEBUG, TEXT("[InitializeKernel] Calling Shell"));
-    // Shell(NULL);
+        TaskInfo.Parameter = (LPVOID)(((Console.Width - 8) << 16) | 0);
+        CreateTask(&KernelProcess, &TaskInfo);
 
-    //-------------------------------------
-    // Launch Portal (windowing system)
+        // StartTestNetworkTask();
 
-    /*
-      StringCopy(FileName, "C:/EXOS/SYSTEM/EXPLORER.PRG");
+        //-------------------------------------
+        // Shell task
 
-      ProcessInfo.Size        = sizeof ProcessInfo;
-      ProcessInfo.Flags       = 0;
-      ProcessInfo.FileName    = FileName;
-      ProcessInfo.CommandLine = NULL;
-      ProcessInfo.StdOut      = NULL;
-      ProcessInfo.StdIn       = NULL;
-      ProcessInfo.StdErr      = NULL;
+        KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting shell"));
 
-      CreateProcess(&ProcessInfo);
-    */
+        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Version = EXOS_ABI_VERSION;
+        TaskInfo.Header.Flags = 0;
+        TaskInfo.Func = Shell;
+        TaskInfo.Parameter = NULL;
+        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
+        TaskInfo.Flags = 0;
+        StringCopy(TaskInfo.Name, TEXT("Shell"));
+
+        CreateTask(&KernelProcess, &TaskInfo);
+    }
+
+    //--------------------------------------
+    // Enter idle
+
+    KernelIdle();
 }
-
-/***************************************************************************/
-

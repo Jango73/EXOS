@@ -21,14 +21,15 @@
     Executable EXOS
 
 \************************************************************************/
+
 #ifndef EXECUTABLEEXOS_H_INCLUDED
 #define EXECUTABLEEXOS_H_INCLUDED
 
 /************************************************************************/
 
 #include "Base.h"
-#include "File.h"
 #include "Executable.h"
+#include "File.h"
 
 /************************************************************************/
 

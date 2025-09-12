@@ -21,6 +21,7 @@
     String
 
 \************************************************************************/
+
 #ifndef STRING_H_INCLUDED
 #define STRING_H_INCLUDED
 
@@ -39,6 +40,10 @@
 #define PF_LEFT 16     // left justified
 #define PF_SPECIAL 32  // 0x for hex, 0 for octal
 #define PF_LARGE 64    // use 'ABCDEF' instead of 'abcdef'
+
+/***************************************************************************/
+
+#define STRING_EMPTY(a) (a == NULL || StringEmpty(a) == TRUE)
 
 /***************************************************************************/
 

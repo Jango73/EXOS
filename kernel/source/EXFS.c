@@ -26,6 +26,7 @@
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/Path.h"
 
 /***************************************************************************/
 
@@ -350,7 +351,7 @@ static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC F
     //-------------------------------------
     // Decompose the path
 
-    List = DecompPath(Path);
+    List = DecomposePath(Path);
 
     if (List == NULL) return FALSE;
 
@@ -900,4 +901,3 @@ U32 EXFSCommands(U32 Function, U32 Parameter) {
 }
 
 /***************************************************************************/
-

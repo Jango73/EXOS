@@ -308,7 +308,7 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
         return FALSE;
     }
     Device->RxRingLinear =
-        AllocRegion(0, Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->RxRingLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx ring map failed"));
         return FALSE;
@@ -317,7 +317,7 @@ static BOOL E1000_SetupRx(LPE1000DEVICE Device) {
 
     // RX buffer pool: allocate N pages in one shot (no target; VMM picks pages)
     Device->RxPoolLinear =
-        AllocRegion(0, 0, E1000_RX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(0, E1000_RX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->RxPoolLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupRx] Rx pool alloc failed"));
         return FALSE;
@@ -384,7 +384,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
         return FALSE;
     }
     Device->TxRingLinear =
-        AllocRegion(0, Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->TxRingLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx ring map failed"));
         return FALSE;
@@ -393,7 +393,7 @@ static BOOL E1000_SetupTx(LPE1000DEVICE Device) {
 
     // TX buffer pool: allocate N pages in one shot
     Device->TxPoolLinear =
-        AllocRegion(0, 0, E1000_TX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(0, E1000_TX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
     if (Device->TxPoolLinear == 0) {
         KernelLogText(LOG_ERROR, TEXT("[E1000_SetupTx] Tx pool alloc failed"));
         return FALSE;
@@ -754,4 +754,3 @@ static U32 E1000Commands(U32 Function, U32 Param) {
 
     return DF_ERROR_NOTIMPL;
 }
-

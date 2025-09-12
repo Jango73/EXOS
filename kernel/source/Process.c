@@ -18,15 +18,18 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Process
+    Process manager
 
 \************************************************************************/
+
 #include "../include/Process.h"
-#include "../include/Executable.h"
+
 #include "../include/Console.h"
+#include "../include/Executable.h"
 #include "../include/File.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/StackTrace.h"
 
 /***************************************************************************/
 
@@ -46,12 +49,21 @@ PROCESS KernelProcess = {
     .HeapSize = 0,                  // Heap size
     .FileName = "EXOS",             // File name
     .CommandLine = "",              // Command line
-    .Objects = NULL                 // Objects
+    .Objects = NULL,                // Objects
+    .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the kernel process and main task.
+ *
+ * Prepare the kernel heap, set up the kernel process fields and create the
+ * primary kernel task.
+ */
 void InitializeKernelProcess(void) {
+    TRACED_FUNCTION;
+
     TASKINFO TaskInfo;
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Enter"));
@@ -62,8 +74,8 @@ void InitializeKernelProcess(void) {
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Memory : %X"), KernelStartup.MemorySize);
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Pages : %X"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = AllocRegion(
-        LA_KERNEL, 0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    LINEAR HeapBase = AllocKernelRegion(
+        0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] HeapBase : %X"), HeapBase);
 
@@ -83,7 +95,8 @@ void InitializeKernelProcess(void) {
     TaskInfo.Func = (TASKFUNC)InitializeKernel;
     TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
-    TaskInfo.Flags = TASK_CREATE_MAIN;
+    TaskInfo.Flags = TASK_CREATE_MAIN_KERNEL;
+    StringCopy(TaskInfo.Name, TEXT("KernelMain"));
 
     LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
 
@@ -91,6 +104,8 @@ void InitializeKernelProcess(void) {
         KernelLogText(LOG_DEBUG, TEXT("Could not create kernel task, halting."));
         DO_THE_SLEEPING_BEAUTY;
     }
+
+    KernelLogText(LOG_DEBUG, TEXT("Kernel main task = %x (%s)"), KernelTask, KernelTask->Name);
 
     KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
     MainDesktopWindow.Task = KernelTask;
@@ -101,18 +116,30 @@ void InitializeKernelProcess(void) {
     LoadInitialTaskRegister(SELECTOR_TSS);
 
     KernelLogText(LOG_DEBUG, TEXT("[InitializeKernelProcess] Exit"));
+
+    TRACED_EPILOGUE("InitializeKernelProcess");
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a new user process structure.
+ *
+ * @return Pointer to the new PROCESS or NULL on failure.
+ */
 LPPROCESS NewProcess(void) {
+    TRACED_FUNCTION;
+
     LPPROCESS This = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering NewProcess\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Enter"));
 
     This = (LPPROCESS)HeapAlloc(sizeof(PROCESS));
 
-    if (This == NULL) return NULL;
+    if (This == NULL) {
+        TRACED_EPILOGUE("NewProcess");
+        return NULL;
+    }
 
     MemorySet(This, 0, sizeof(PROCESS));
 
@@ -121,6 +148,7 @@ LPPROCESS NewProcess(void) {
     This->Desktop = (LPDESKTOP)Kernel.Desktop->First;
     This->Parent = GetCurrentProcess();
     This->Privilege = PRIVILEGE_USER;
+    This->TaskCount = 0;
 
     //-------------------------------------
     // Initialize the process' mutexs
@@ -133,14 +161,70 @@ LPPROCESS NewProcess(void) {
 
     InitSecurity(&(This->Security));
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting NewProcess\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[NewProcess] Exit"));
 
+    TRACED_EPILOGUE("NewProcess");
     return This;
 }
 
 /***************************************************************************/
 
+void DeleteProcess(LPPROCESS This) {
+    TRACED_FUNCTION;
+    
+    if (This == NULL) {
+        TRACED_EPILOGUE("DeleteProcess");
+        return;
+    }
+    
+    if (This == &KernelProcess) {
+        KernelLogText(LOG_ERROR, TEXT("[DeleteProcess] Cannot delete kernel process"));
+        TRACED_EPILOGUE("DeleteProcess");
+        return;
+    }
+    
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteProcess] Deleting process %s (TaskCount=%d)"), This->FileName, This->TaskCount);
+    
+    // Remove from global process list
+    LockMutex(MUTEX_PROCESS, INFINITY);
+    ListRemove(Kernel.Process, This);
+    UnlockMutex(MUTEX_PROCESS);
+    
+    // Free page directory if allocated
+    if (This->PageDirectory != 0) {
+        KernelLogText(LOG_DEBUG, TEXT("[DeleteProcess] Freeing page directory 0x%X"), This->PageDirectory);
+        FreePhysicalPage(This->PageDirectory);
+    }
+    
+    // Free process heap if allocated
+    if (This->HeapBase != 0 && This->HeapSize != 0) {
+        KernelLogText(LOG_DEBUG, TEXT("[DeleteProcess] Freeing process heap base=0x%X size=0x%X"), This->HeapBase, This->HeapSize);
+        FreeRegion(This->HeapBase, This->HeapSize);
+    }
+    
+    // Delete objects list if exists
+    if (This->Objects != NULL) {
+        DeleteList(This->Objects);
+    }
+    
+    // Free the process structure itself
+    HeapFree(This);
+    
+    KernelLogText(LOG_DEBUG, TEXT("[DeleteProcess] Process deleted"));
+    TRACED_EPILOGUE("DeleteProcess");
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Create a new process from an executable file.
+ *
+ * @param Info Pointer to a PROCESSINFO describing the executable.
+ * @return TRUE on success, FALSE on failure.
+ */
 BOOL CreateProcess(LPPROCESSINFO Info) {
+    TRACED_FUNCTION;
+
     EXECUTABLEINFO ExecutableInfo;
     TASKINFO TaskInfo;
     FILEOPENINFO FileOpenInfo;
@@ -159,18 +243,24 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     U32 TotalSize = 0;
     BOOL Result = FALSE;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering CreateProcess\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Enter"));
 
-    if (Info == NULL) return FALSE;
+    if (Info == NULL) {
+        TRACED_EPILOGUE("CreateProcess");
+        return FALSE;
+    }
 
+    MemorySet(&TaskInfo, 0, sizeof(TaskInfo));
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
 
+    StringCopy(TaskInfo.Name, TEXT("UserMain"));
+
     //-------------------------------------
     // Open the executable file
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Opening file %s\n"), Info->FileName);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] : Opening file %s"), Info->FileName);
 
     FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
@@ -180,21 +270,28 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     File = OpenFile(&FileOpenInfo);
 
-    if (File == NULL) return FALSE;
+    if (File == NULL) {
+        TRACED_EPILOGUE("CreateProcess");
+        return FALSE;
+    }
 
     //-------------------------------------
     // Read the size of the file
 
     FileSize = GetFileSize(File);
 
-    if (FileSize == 0) return FALSE;
+    if (FileSize == 0) {
+        TRACED_EPILOGUE("CreateProcess");
+        return FALSE;
+    }
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : File size %d\n"), FileSize);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] : File size %d"), FileSize);
 
     //-------------------------------------
     // Get executable information
 
     if (GetExecutableInfo(File, &ExecutableInfo) == FALSE) {
+        TRACED_EPILOGUE("CreateProcess");
         return FALSE;
     }
 
@@ -213,7 +310,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Allocate a new process structure
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Allocating process\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] : Allocating process"));
 
     Process = NewProcess();
     if (Process == NULL) goto Out;
@@ -225,6 +322,10 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     HeapSize = ExecutableInfo.HeapRequested;
     StackSize = ExecutableInfo.StackRequested;
 
+    if (HeapSize < N_64KB) {
+        HeapSize = N_64KB;
+    }
+
     if (StackSize < TASK_MINIMUM_STACK_SIZE) {
         StackSize = TASK_MINIMUM_STACK_SIZE;
     }
@@ -232,45 +333,61 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Compute addresses
 
-    CodeBase = LA_USER;
+    CodeBase = VMA_USER;
     DataBase = CodeBase + CodeSize;
 
-    while (DataBase & N_4KB_M1) DataBase++;
+    while (DataBase & N_4KB_M1) DataBase++;     // Align 4K
 
     HeapBase = DataBase + DataSize;
 
-    while (HeapBase & N_4KB_M1) HeapBase++;
+    while (HeapBase & N_4KB_M1) HeapBase++;     // Align 4K
 
     //-------------------------------------
     // Compute total size
 
-    TotalSize = (HeapBase + HeapSize) - LA_USER;
-
-    //-------------------------------------
-    // Allocate and setup the page directory
-
-    Process->PageDirectory = AllocPageDirectory();
+    TotalSize = (HeapBase + HeapSize) - VMA_USER;
 
     //-------------------------------------
 
     FreezeScheduler();
 
     //-------------------------------------
+    // Allocate and setup the page directory
+
+    Process->PageDirectory = AllocUserPageDirectory();
+    if (Process->PageDirectory == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[CreateProcess] Failed to allocate page directory"));
+        UnfreezeScheduler();
+        CloseFile(File);
+        goto Out;
+    }
+
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Page directory allocated at physical 0x%X"), Process->PageDirectory);
+
+    //-------------------------------------
     // We can use the new page directory from now on
     // and switch back to the previous when done
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching page directory to new process : %x"), Process->PageDirectory);
 
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
     LoadPageDirectory(Process->PageDirectory);
 
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Page directory switch successful"));
+
     //-------------------------------------
     // Allocate enough memory for the code, data and heap
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : AllocRegioning process space\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Allocating process space"));
 
-    AllocRegion(LA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    if (AllocRegion(VMA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
+        KernelLogText(LOG_ERROR, TEXT("[CreateProcess] Failed to allocate process space"));
+        LoadPageDirectory(PageDirectory);
+        UnfreezeScheduler();
+        CloseFile(File);
+        goto Out;
+    }
 
     //-------------------------------------
     // Open the executable file
@@ -285,9 +402,9 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     //-------------------------------------
     // Load executable image
-    // For tests, image must be at LA_KERNEL
+    // For tests, image must be at VMA_KERNEL
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Loading executable\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Loading executable"));
 
     EXECUTABLELOAD LoadInfo;
     LoadInfo.File = File;
@@ -296,9 +413,9 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     LoadInfo.DataBase = (LINEAR)DataBase;
 
     if (LoadExecutable(&LoadInfo) == FALSE) {
-        KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Load failed !\n"));
+        KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Load failed !"));
 
-        FreeRegion(LA_USER, TotalSize);
+        FreeRegion(VMA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
         CloseFile(File);
@@ -320,22 +437,21 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Create the initial task
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Creating initial task\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Creating initial task"));
 
-    // TaskInfo.Func      = (TASKFUNC) LA_USER;
+    // TaskInfo.Func      = (TASKFUNC) VMA_USER;
+    TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint - ExecutableInfo.CodeBase));
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = StackSize;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = TASK_CREATE_SUSPENDED;
 
-    TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint - ExecutableInfo.CodeBase));
-
     Task = CreateTask(Process, &TaskInfo);
 
     //-------------------------------------
-    // Switch back to our page directory
+    // Switch back to kernel page directory
 
-    KernelLogText(LOG_DEBUG, TEXT("CreateProcess() : Switching page directory\n"));
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Switching back page directory to %x"), PageDirectory);
 
     LoadPageDirectory(PageDirectory);
 
@@ -365,13 +481,47 @@ Out:
 
     UnlockMutex(MUTEX_KERNEL);
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting CreateProcess : Result = %d\n"), Result);
+    KernelLogText(LOG_DEBUG, TEXT("[CreateProcess] Exit, Result = %d"), Result);
 
+    TRACED_EPILOGUE("CreateProcess");
     return Result;
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Create a new process using only a file name and command line.
+ *
+ * @param FileName Name of the executable file to run.
+ * @param CommandLine Command line passed to the process or NULL.
+ * @return TRUE on success, FALSE otherwise.
+ */
+BOOL Spawn(LPCSTR FileName, LPCSTR CommandLine) {
+    KernelLogText(LOG_WARNING, TEXT("[Spawn] Launching : %s"), FileName);
+
+    PROCESSINFO ProcessInfo;
+
+    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+    ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+    ProcessInfo.Header.Flags = 0;
+    ProcessInfo.Flags = 0;
+    ProcessInfo.FileName = FileName;
+    ProcessInfo.CommandLine = CommandLine;
+    ProcessInfo.StdOut = NULL;
+    ProcessInfo.StdIn = NULL;
+    ProcessInfo.StdErr = NULL;
+
+    return CreateProcess(&ProcessInfo);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve the heap base address of a process.
+ *
+ * @param Process Process to inspect, or NULL for the current process.
+ * @return Linear address of the process heap.
+ */
 LINEAR GetProcessHeap(LPPROCESS Process) {
     LINEAR HeapBase = NULL;
 
@@ -388,6 +538,11 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
 
 /***************************************************************************/
 
+/**
+ * @brief Output process information to the kernel log.
+ *
+ * @param Process Process to dump. Nothing is logged if NULL.
+ */
 void DumpProcess(LPPROCESS Process) {
     if (Process == NULL) return;
 
@@ -407,6 +562,11 @@ void DumpProcess(LPPROCESS Process) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize a SECURITY structure.
+ *
+ * @param This SECURITY structure to initialize.
+ */
 void InitSecurity(LPSECURITY This) {
     if (This == NULL) return;
 
@@ -414,10 +574,7 @@ void InitSecurity(LPSECURITY This) {
     This->References = 1;
     This->Next = NULL;
     This->Prev = NULL;
-    This->Group = 0;
-    This->User = 0;
-    This->Permissions = PERMISSION_NONE;
+    This->Owner = U64_Make(0, 0);
+    This->UserPermissionCount = 0;
+    This->DefaultPermissions = PERMISSION_NONE;
 }
-
-/***************************************************************************/
-

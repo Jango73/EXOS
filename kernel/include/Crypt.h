@@ -21,6 +21,7 @@
     Crypt
 
 \************************************************************************/
+
 #ifndef CRYPT_H_INCLUDED
 #define CRYPT_H_INCLUDED
 
@@ -48,6 +49,12 @@ U32 CRC32Final(LPCRC32_CTX Ctx);
 
 /* One-shot API */
 U32 CRC32(const void *Data, U32 Length);
+
+/***************************************************************************/
+// CRC-64 functions
+
+U64 CRC64_Hash(const void* data, U32 length);
+U64 HashString(LPCSTR Text);
 
 /***************************************************************************/
 

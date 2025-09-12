@@ -21,6 +21,7 @@
     Log
 
 \************************************************************************/
+
 #ifndef LOG_H_INCLUDED
 #define LOG_H_INCLUDED
 
@@ -43,14 +44,15 @@
 /***************************************************************************/
 
 void InitKernelLog(void);
-void KernelPrintString(LPCSTR Text);
-void KernelPrintStringNoMutex(LPCSTR Text);
 void KernelLogText(U32, LPCSTR, ...);
+void KernelLogMem(U32 Type, LINEAR Memory, U32 Size);
 
+void LogMemoryLine16B(U32 LogType, LPCSTR Prefix, const U8* Memory);
 void LogRegisters(LPINTEL386REGISTERS Regs);
+void LogFrame(LPTASK Task, LPINTERRUPTFRAME Frame);
 void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size);
-void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory);
-void LogPageTable(U32 LogType, const PAGETABLE* PageTable);
+void LogPageDirectoryEntry(U32 LogType, const PAGEDIRECTORY* PageDirectory);
+void LogPageTableEntry(U32 LogType, const PAGETABLE* PageTable);
 void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescriptor);
 void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEntry);
 void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory);

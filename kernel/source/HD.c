@@ -21,6 +21,7 @@
     HD
 
 \************************************************************************/
+
 #include "../include/HD.h"
 
 #include "../include/Kernel.h"
@@ -140,7 +141,7 @@ BOOL WaitNotBusy(U32 Port, U32 TimeOut) {
         }
     }
 
-    KernelLogText(LOG_WARNING, (LPSTR) "Time-out in HD");
+    KernelLogText(LOG_WARNING, TEXT("[WaitNotBusy] Time-out in HD"));
 
     return FALSE;
 }
@@ -282,12 +283,12 @@ static void ResetController(U32 Port) {
     for (Index = 0; Index < 1000; Index++) barrier();
     if (IsDriveBusy())
     {
-      KernelPrintString("HD : Controller still busy\n");
+      KernelLogText(LOG_VERBOSE, "HD : Controller still busy\n");
     }
     else
     if ((HD_Error = InPortByte(Port + HD_ERROR)) != 1)
     {
-      KernelPrintString("HD : Controller reset failed\n");
+      KernelLogText(LOG_VERBOSE, "HD : Controller reset failed\n");
     }
 }
 */
@@ -567,6 +568,3 @@ U32 StdHardDiskCommands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-
-/***************************************************************************/
-

@@ -21,8 +21,10 @@
     Serial Port
 
 \************************************************************************/
+
 #include "../include/SerialPort.h"
 
+#include "../include/Log.h"
 #include "../include/System.h"
 
 /************************************************************************/
@@ -73,3 +75,14 @@ void SerialOut(U8 Which, U8 Char) {
     OutPortByte(base + UART_THR, Char);
 }
 
+/************************************************************************/
+
+void COM2Handler(void) {
+    KernelLogText(LOG_DEBUG, TEXT("[COM2Handler]"));
+}
+
+/************************************************************************/
+
+void COM1Handler(void) {
+    KernelLogText(LOG_DEBUG, TEXT("[COM1Handler]"));
+}

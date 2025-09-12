@@ -21,6 +21,7 @@
     PCI
 
 \************************************************************************/
+
 #include "../include/PCI.h"
 
 #include "../include/Base.h"
@@ -422,13 +423,16 @@ void PCI_ScanBus(void) {
                                 if (Result == DF_ERROR_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
+
                                     if (PciDriver->Attach) {
                                         LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
+
                                         if (NewDev) {
                                             ListAddItem(Kernel.PCIDevice, NewDev);
                                             KernelLogText(
                                                 LOG_DEBUG, TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
                                                 (U32)Bus, (U32)Device, (U32)Function);
+
                                             goto NextFunction;
                                         }
                                     }
@@ -509,7 +513,7 @@ static void PciFillFunctionInfo(U8 Bus, U8 Device, U8 Function, PCI_INFO* PciInf
     PciInfo->IRQLegacyPin = PCI_Read8(Bus, Device, Function, PCI_CFG_IRQ_PIN);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Decodes raw BAR values into physical addresses.
@@ -534,5 +538,8 @@ static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+void PCIHandler(void) {
+    KernelLogText(LOG_DEBUG, TEXT("[PCIHandler]"));
+}

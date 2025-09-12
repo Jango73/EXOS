@@ -21,6 +21,7 @@
     List
 
 \************************************************************************/
+
 #include "../include/List.h"
 
 #include "../include/Heap.h"
@@ -83,23 +84,23 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
     LPLIST This = NULL;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[NewList] Enter"));
     KernelLogText(LOG_DEBUG, TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
     KernelLogText(LOG_DEBUG, TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
     KernelLogText(LOG_DEBUG, TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
     KernelLogText(LOG_DEBUG, TEXT("[NewList] HeapAlloc = %X"), (LINEAR)HeapAlloc);
     KernelLogText(LOG_DEBUG, TEXT("[NewList] HeapFree = %X"), (LINEAR)HeapFree);
-    #endif
+#endif
 
     if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)HeapAlloc;
     if (MemFree == NULL) MemFree = (MEMFREEFUNC)HeapFree;
 
     This = (LPLIST)MemAlloc(sizeof(LIST));
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[NewList] List pointer = %X"), (LINEAR)This);
-    #endif
+#endif
 
     if (This == NULL) return NULL;
 
@@ -111,9 +112,9 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     This->MemFreeFunc = MemFree;
     This->Destructor = ItemDestructor;
 
-    #ifdef ENABLE_CRITICAL_LOGS
+#if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(LOG_DEBUG, TEXT("[NewList] Exit"));
-    #endif
+#endif
 
     return This;
 }
@@ -153,7 +154,6 @@ U32 ListAddItem(LPLIST This, LPVOID Item) {
             return TRUE;
         }
     }
-
 
     return FALSE;
 }
@@ -451,6 +451,3 @@ U32 ListSort(LPLIST This, COMPAREFUNC Func) {
 
     return 1;
 }
-
-/*************************************************************************************************/
-

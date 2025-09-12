@@ -1,25 +1,34 @@
 SHELL   = /bin/bash
 
+BARE_METAL					?= 0
+DEBUG_OUTPUT    			?= 0
+SCHEDULING_DEBUG_OUTPUT    	?= 0
+TRACE_STACK_USAGE			?= 0
+
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+
 CC      = i686-elf-gcc
 LD      = i686-elf-ld
 NASM    = nasm
 OBJCOPY = i686-elf-objcopy
 READELF = i686-elf-readelf
 
-CFLAGS  = -DNAME="__KERNEL__" -g -Wall -Wextra -O2 \
+CFLAGS  = -DNAME="__KERNEL__" -g -Wall -Wextra -O0 -falign-functions=16 \
 	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
-	-Werror-implicit-function-declaration -Wstrict-prototypes
+	-Werror-implicit-function-declaration -Wstrict-prototypes \
+	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE)
 
-AFLAGS  = -f elf -g -F dwarf -I source/asm/
+AFLAGS  = -f elf -g -F dwarf -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
 
-LDFLAGS_ELF = -T linker-elf.ld -static -nostdlib -no-pie --no-dynamic-linker --verbose -Map=bin/exos-elf.map
+LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker --verbose -Map=bin/exos.map
 
 KERNEL_ELF = bin/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
-         $(wildcard source/test/*.c)
+         $(wildcard source/test/*.c) \
+         $(wildcard source/autotest/*.c)
 SRC_S  = $(wildcard source/asm/*.asm)
 
 OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))
@@ -28,23 +37,28 @@ OBJ_S  = $(patsubst source/asm/%.asm, bin/%.o, $(SRC_S))
 OBJS   = $(OBJ_S) $(OBJ_C)
 
 # Sections to extract (edit as needed)
-TEXT_BIN   = bin/text.bin
-DATA_BIN   = bin/data.bin
-BSS_BIN    = bin/bss.bin
-FINAL_IMG  = bin/exos.bin
+TEXT_BIN        = bin/text.bin
+SHARED_TEXT_BIN = bin/shared_text.bin
+DATA_BIN   		= bin/data.bin
+BSS_BIN    		= bin/bss.bin
+FINAL_IMG  		= bin/exos.bin
 
-ALIGN      = 4096
+ALIGN      		= 4096
 
 .PHONY: all check_magic clean check-nogot
 
-all: check_magic
+all: check_magic bin/exos.sym
 
-$(KERNEL_ELF): $(OBJS) linker-elf.ld
+$(KERNEL_ELF): $(OBJS) exos.ld
 	$(LD) $(LDFLAGS_ELF) -o $@ $(OBJS)
 
 $(TEXT_BIN): $(KERNEL_ELF)
 	@echo "Extracting .text section to $@"
 	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+$(SHARED_TEXT_BIN): $(KERNEL_ELF)
+	@echo "Extracting .shared_text section to $@"
+	$(OBJCOPY) -O binary --only-section=.shared_text $< $@
 
 $(DATA_BIN): $(KERNEL_ELF)
 	@echo "Extracting .data section to $@"
@@ -55,7 +69,7 @@ $(BSS_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) -O binary --only-section=.bss $< $@
 
 # Build final padded image
-$(FINAL_IMG): $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
+$(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 	@echo "Building paged disk image: $@ (ALIGN=$(ALIGN))"
 
 	# Clear binary file
@@ -63,6 +77,19 @@ $(FINAL_IMG): $(TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 
 	# Append .text
 	cat $(TEXT_BIN) >> $@
+
+	# Align current image to next ALIGN boundary (before .shared_text)
+	@{ \
+		sz=$$(stat -c %s "$@"); \
+		pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+		echo "Padding before .shared_text: $$pad bytes"; \
+		if [ $$pad -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$pad >> "$@" 2>/dev/null; \
+		fi; \
+	}
+
+	# Append .data
+	cat $(SHARED_TEXT_BIN) >> $@
 
 	# Align current image to next ALIGN boundary (before .data)
 	@{ \
@@ -100,6 +127,11 @@ bin/%.o: source/asm/%.asm
 check_magic: $(FINAL_IMG)
 	@./check-exos-magic.sh $(FINAL_IMG)
 
+# Extract debug symbols for Bochs
+bin/exos.sym: $(KERNEL_ELF)
+	@echo "Extracting symbols for Bochs debugging"
+	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+
 # Optional sanity check to ensure the ELF has no GOT/PLT/DYNAMIC/INTERP sections
 check-nogot: $(KERNEL_ELF)
 	@echo "[check] scanning ELF for GOT/PLT/DYNAMIC/INTERP"
@@ -108,4 +140,4 @@ check-nogot: $(KERNEL_ELF)
 	  $(READELF) -S $(KERNEL_ELF) | egrep -i "(\\.(got(\\.|$$)|plt(\\.|$$)|dynamic|rela?)|interp)"; exit 1 )
 
 clean:
-	rm -rf bin/*.o bin/*/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img
+	rm -rf bin/*.o bin/*/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img bin/*.sym

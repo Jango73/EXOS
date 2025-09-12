@@ -52,7 +52,7 @@ VBR_OFFSET equ 0x7E00
 %endmacro
 
     jmp         Start
-    db          'MBR'
+    db          'MBR0'
 
 Start:
     cli                                     ; Disable interrupts

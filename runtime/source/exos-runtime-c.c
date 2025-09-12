@@ -16,7 +16,7 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- 
+
 
     EXOS Runtime
 
@@ -24,13 +24,6 @@
 
 #include "../../kernel/include/User.h"
 #include "../include/exos-runtime.h"
-
-/***************************************************************************/
-
-extern unsigned exoscall(unsigned, unsigned);
-extern void __exit__(int);
-extern unsigned strcmp(const char*, const char*);
-extern unsigned strstr(const char*, const char*);
 
 /***************************************************************************/
 
@@ -69,6 +62,8 @@ int printf(const char* fmt, ...) { return (int)exoscall(SYSCALL_ConsolePrint, (u
 
 int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
     TASKINFO TaskInfo;
+
+    memset(&TaskInfo, 0, sizeof(TaskInfo));
 
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;

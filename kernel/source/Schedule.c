@@ -21,258 +21,282 @@
     Schedule
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
+#include "../include/Memory.h"
 #include "../include/Process.h"
 #include "../include/System.h"
 #include "../include/Task.h"
+#include "../include/Stack.h"
+#include "../include/StackTrace.h"
 
 /***************************************************************************/
 
 typedef struct tag_TASKLIST {
-    U32 Freeze;
-    U32 SchedulerTime;
-    U32 TaskTime;
-    U32 NumTasks;
-    LPTASK Current;
+    volatile U32 Freeze;
+    volatile U32 SchedulerTime;
+    volatile U32 NumTasks;
+    volatile U32 CurrentIndex;        // Index of current task instead of pointer
     LPTASK Tasks[NUM_TASKS];
 } TASKLIST, *LPTASKLIST;
 
 /***************************************************************************/
 
 static TASKLIST TaskList = {
-    .Freeze = 0, .SchedulerTime = 0, .TaskTime = 20, .NumTasks = 0, .Current = NULL, .Tasks = {NULL}};
+    .Freeze = 0, .SchedulerTime = 0, .NumTasks = 0, .CurrentIndex = 0, .Tasks = {NULL}};
 
 /***************************************************************************/
 
-void UpdateScheduler(void) {
-    U32 Index = 0;
+/**
+ * @brief Wakes up tasks whose sleep time has expired.
+ *
+ * Centralized function to check and wake sleeping tasks. Should be called
+ * periodically by the scheduler or timer interrupt.
+ */
+static void WakeUpExpiredTasks(void) {
+    U32 CurrentTime = GetSystemTime();
 
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        // TaskList.Tasks[Index]->Time = TaskList.Tasks[Index]->Priority & 0xFF;
+    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+        LPTASK Task = TaskList.Tasks[Index];
 
-        TaskList.Tasks[Index]->Time = TaskList.Tasks[Index]->Priority;
-        TaskList.Tasks[Index]->Time &= 0xFF;
-        TaskList.Tasks[Index]->Time *= 2;
-
-        if (TaskList.Tasks[Index]->Time < 20) {
-            TaskList.Tasks[Index]->Time = 20;
+        if (GetTaskStatus(Task) == TASK_STATUS_SLEEPING && CurrentTime >= Task->WakeUpTime) {
+            SetTaskStatus(Task, TASK_STATUS_RUNNING);
         }
     }
 }
 
 /***************************************************************************/
 
-BOOL AddTaskToQueue(LPTASK NewTask) {
-    U32 Index = 0;
+/**
+ * @brief Removes dead tasks from the scheduler queue during context switches.
+ *
+ * Called when switching TO a task that is not dead. Removes all dead tasks
+ * from the queue to prevent them from being scheduled again. This is done
+ * during context switches to avoid silent CurrentIndex adjustments.
+ *
+ * @param ExceptTask Task pointer we're switching to (don't remove it)
+ * @return New index of ExceptTask after removals
+ */
+static U32 RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
+    U32 NewExceptIndex = INFINITY;
+    
+    // Search backwards to handle array compaction safely
+    for (I32 Index = (I32)(TaskList.NumTasks - 1); Index >= 0; Index--) {
+        LPTASK Task = TaskList.Tasks[Index];
+        
+        if (GetTaskStatus(Task) == TASK_STATUS_DEAD && Task != ExceptTask) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogText(LOG_DEBUG, TEXT("[RemoveDeadTasksFromQueue] Removing dead task %s at index %d"), 
+                         Task->Name, Index);
+#endif
 
-    #ifdef ENABLE_CRITICAL_LOGS
-    KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %X"), NewTask);
-    #endif
+            // Shift remaining tasks down
+            for (U32 ShiftIndex = (U32)Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
+                TaskList.Tasks[ShiftIndex] = TaskList.Tasks[ShiftIndex + 1];
+            }
 
-    FreezeScheduler();
-
-    //-------------------------------------
-    // Check validity of parameters
-
-    if (NewTask == NULL) goto Out_Error;
-    if (NewTask->ID != ID_TASK) goto Out_Error;
-
-    //-------------------------------------
-    // Check if task queue is full
-
-    if (TaskList.NumTasks == NUM_TASKS) {
-        KernelLogText(LOG_ERROR, TEXT("[AddTaskToQueue] Cannot add %X, too much tasks"), NewTask);
-        goto Out_Error;
+            TaskList.NumTasks--;
+            TaskList.Tasks[TaskList.NumTasks] = NULL;  // Clear last slot
+        }
     }
-
-    //-------------------------------------
-    // Check if task already in task queue
-
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
-        if (TaskList.Tasks[Index] == NewTask) goto Out_Success;
+    
+    // Find new index of ExceptTask
+    for (U32 i = 0; i < TaskList.NumTasks; i++) {
+        if (TaskList.Tasks[i] == ExceptTask) {
+            NewExceptIndex = i;
+            break;
+        }
     }
-
-    //-------------------------------------
-    // Add task to queue
-
-    #ifdef ENABLE_CRITICAL_LOGS
-    KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
-    #endif
-
-    TaskList.Tasks[TaskList.NumTasks] = NewTask;
-
-    if (TaskList.NumTasks == 0) {
-        TaskList.Current = NewTask;
-    }
-
-    TaskList.NumTasks++;
-
-    UpdateScheduler();
-
-Out_Success:
-
-    UnfreezeScheduler();
-    return TRUE;
-
-Out_Error:
-
-    UnfreezeScheduler();
-    return FALSE;
+    
+    return NewExceptIndex;
 }
 
 /***************************************************************************/
 
-BOOL RemoveTaskFromQueue(LPTASK OldTask) {
-    U32 Index = 0;
+/**
+ * @brief Counts the number of tasks that are ready to run.
+ *
+ * Also wakes up any sleeping tasks whose wake-up time has expired.
+ *
+ * @return Number of runnable tasks
+ */
+static U32 CountRunnableTasks(void) {
+    U32 RunnableCount = 0;
+
+    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+        LPTASK Task = TaskList.Tasks[Index];
+
+        U32 Status = GetTaskStatus(Task);
+        if (Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) {
+            RunnableCount++;
+        }
+    }
+
+    return RunnableCount;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Finds the next runnable task starting from a given index.
+ *
+ * Performs round-robin search through the task list, skipping dead and sleeping tasks.
+ * Returns the index of the next runnable task.
+ *
+ * @param StartIndex Index to start searching from
+ * @return Index of next runnable task, or INFINITY if none found
+ */
+U32 FindNextRunnableTask(U32 StartIndex) {
+    for (U32 Attempts = 0; Attempts < TaskList.NumTasks; Attempts++) {
+        U32 Index = (StartIndex + Attempts) % TaskList.NumTasks;
+        LPTASK Task = TaskList.Tasks[Index];
+        
+        // Skip dead tasks - they will be removed during context switch
+        U32 Status = GetTaskStatus(Task);
+        if (Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) {
+            return Index;
+        }
+    }
+
+    return INFINITY;  // No runnable task found
+}
+
+/************************************************************************/
+
+/**
+ * @brief Adds a task to the scheduler's execution queue.
+ *
+ * Validates the task, checks for duplicates and capacity, then adds the task
+ * to the scheduling queue. Calculates and assigns the task's quantum time
+ * based on its priority. If this is the first task, makes it current.
+ *
+ * @param NewTask Pointer to task to add to scheduler queue
+ * @return TRUE if task added successfully, FALSE on error or capacity exceeded
+ */
+BOOL AddTaskToQueue(LPTASK NewTask) {
+    TRACED_FUNCTION;
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] NewTask = %x"), NewTask);
+#endif
 
     FreezeScheduler();
 
-    for (Index = 0; Index < TaskList.NumTasks; Index++) {
+    // Check validity of parameters
+    if (NewTask == NULL || NewTask->ID != ID_TASK) {
+        UnfreezeScheduler();
+
+        TRACED_EPILOGUE("AddTaskToQueue");
+        return FALSE;
+    }
+
+    // Check if task queue is full
+    if (TaskList.NumTasks >= NUM_TASKS) {
+        KernelLogText(LOG_ERROR, TEXT("[AddTaskToQueue] Cannot add %x, too many tasks"), NewTask);
+        UnfreezeScheduler();
+
+        TRACED_EPILOGUE("AddTaskToQueue");
+        return FALSE;
+    }
+
+    // Check if task already in task queue
+    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+        if (TaskList.Tasks[Index] == NewTask) {
+            UnfreezeScheduler();
+
+            TRACED_EPILOGUE("AddTaskToQueue");
+            return TRUE;  // Already present, success
+        }
+    }
+
+    // Add task to queue
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[AddTaskToQueue] Adding %X"), NewTask);
+#endif
+
+    TaskList.Tasks[TaskList.NumTasks] = NewTask;
+    
+    // Set quantum time for this task
+    SetTaskWakeUpTime(NewTask, ComputeTaskQuantumTime(NewTask->Priority));
+    
+    // If this is the first task, make it current
+    if (TaskList.NumTasks == 0) {
+        TaskList.CurrentIndex = 0;
+    }
+
+    TaskList.NumTasks++;
+
+    UnfreezeScheduler();
+
+    TRACED_EPILOGUE("AddTaskToQueue");
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Removes a task from the scheduler's execution queue.
+ *
+ * Searches for the task in the queue and removes it, compacting the array.
+ * Adjusts the current task index appropriately to maintain scheduling order.
+ *
+ * @param OldTask Pointer to task to remove from scheduler queue
+ * @return TRUE if task removed successfully, FALSE if not found
+ */
+BOOL RemoveTaskFromQueue(LPTASK OldTask) {
+    TRACED_FUNCTION;
+
+    FreezeScheduler();
+
+    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
         if (TaskList.Tasks[Index] == OldTask) {
-            for (Index++; Index < TaskList.NumTasks; Index++) {
-                TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
+            // If removing current task, adjust current index
+            if (Index == TaskList.CurrentIndex) {
+                // Find next runnable task or wrap around
+                if (TaskList.NumTasks > 1) {
+                    TaskList.CurrentIndex = FindNextRunnableTask((Index + 1) % TaskList.NumTasks);
+
+                    if (TaskList.CurrentIndex >= TaskList.NumTasks - 1) {
+                        TaskList.CurrentIndex = 0;  // Wrap to beginning
+                    }
+                } else {
+                    TaskList.CurrentIndex = 0;
+                }
+            } else if (Index < TaskList.CurrentIndex) {
+                TaskList.CurrentIndex--;  // Adjust index after removal
+            }
+
+            // Shift remaining tasks
+            for (U32 ShiftIndex = Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
+                TaskList.Tasks[ShiftIndex] = TaskList.Tasks[ShiftIndex + 1];
             }
 
             TaskList.NumTasks--;
+            TaskList.Tasks[TaskList.NumTasks] = NULL;  // Clear last slot
 
             UnfreezeScheduler();
+
+            TRACED_EPILOGUE("RemoveTaskFromQueue");
             return TRUE;
         }
     }
 
     UnfreezeScheduler();
+
+    TRACED_EPILOGUE("RemoveTaskFromQueue");
     return FALSE;
 }
 
-/************************************************************************/
+/***************************************************************************/
 
-static void RotateQueue(void) {
-    if (TaskList.NumTasks > 1) {
-        TaskList.Current = TaskList.Tasks[0];
-
-        for (U32 Index = 1; Index < TaskList.NumTasks; Index++) {
-            TaskList.Tasks[Index - 1] = TaskList.Tasks[Index];
-        }
-
-        TaskList.Tasks[TaskList.NumTasks - 1] = TaskList.Current;
-    }
-}
-
-/************************************************************************/
-
-LPINTERRUPTFRAME Scheduler(LPINTERRUPTFRAME Frame) {
-    #ifdef ENABLE_CRITICAL_LOGS
-    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter"));
-    #endif
-
-    TaskList.SchedulerTime += 10;
-
-    if (TaskList.Current && Frame) {
-        MemoryCopy(&(TaskList.Current->Context), Frame, sizeof(INTERRUPTFRAME));
-    }
-
-    if (TaskList.Freeze) {
-        #ifdef ENABLE_CRITICAL_LOGS
-        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen : Returning NULL"));
-        #endif
-
-        return NULL;
-    }
-
-    #ifdef ENABLE_CRITICAL_LOGS
-    KernelLogText(LOG_DEBUG, TEXT(
-            "[Scheduler] Incoming frame (current) :\n"
-            " EIP : %X, SS : %X\n"
-            " DS : %X, ES : %X, FS %X, GS %X\n"
-            ", ESI : %X, EDI : %X, EBP %X, ESP %X\n"
-            ", EAX : %X, EBX : %X, ECX %X, EDX %X"
-        ),
-        Frame->Registers.EIP, Frame->Registers.SS,
-        Frame->Registers.DS, Frame->Registers.ES, Frame->Registers.FS, Frame->Registers.GS,
-        Frame->Registers.ESI, Frame->Registers.EDI, Frame->Registers.EBP, Frame->Registers.ESP,
-        Frame->Registers.EAX, Frame->Registers.EBX, Frame->Registers.ECX, Frame->Registers.EDX
-        );
-    #endif
-
-    if (TaskList.SchedulerTime >= TaskList.TaskTime) {
-        TaskList.SchedulerTime = 0;
-
-        LPTASK Current = TaskList.Current;
-
-        while (1) {
-            RotateQueue();
-
-            LPTASK Next = TaskList.Current;
-            TaskList.TaskTime = Next->Time;
-
-            switch (Next->Status) {
-                case TASK_STATUS_RUNNING: {
-                    if (Next != NULL && Next != Current) {
-                        if (Next->Process && Current &&
-                            Next->Process->PageDirectory != Current->Process->PageDirectory) {
-
-                            #ifdef ENABLE_CRITICAL_LOGS
-                            KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Load CR3 = %X"), Next->Process->PageDirectory);
-                            #endif
-
-                            LoadPageDirectory(Next->Process->PageDirectory);
-                        }
-
-                        #ifdef ENABLE_CRITICAL_LOGS
-                        LogTask(LOG_DEBUG, Next);
-                        #endif
-
-                        U32 NextSysStackTop = Next->SysStackBase + Next->SysStackSize;
-
-                        #ifdef ENABLE_CRITICAL_LOGS
-                        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop);
-                        #endif
-
-                        // Kernel_i386.TSS->ESP0 = NextSysStackTop;
-
-                        LPINTERRUPTFRAME NextFrame = (LPINTERRUPTFRAME)(NextSysStackTop - sizeof(INTERRUPTFRAME));
-                        MemoryCopy(NextFrame, &(Next->Context), sizeof(INTERRUPTFRAME));
-
-                        TaskList.Current = Next;
-                        return NextFrame;  // Switch to this stack
-                    }
-
-                    #ifdef ENABLE_CRITICAL_LOGS
-                    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning NULL"));
-                    #endif
-
-                    return NULL;
-                } break;
-
-                case TASK_STATUS_SLEEPING: {
-                    if (GetSystemTime() >= Next->WakeUpTime) {
-                        Next->Status = TASK_STATUS_RUNNING;
-                    }
-                } break;
-            }
-
-            if (Next == Current) {
-                #ifdef ENABLE_CRITICAL_LOGS
-                KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No task to switch to, returning NULL"));
-                #endif
-
-                return NULL;
-            }
-        }
-    }
-
-    #ifdef ENABLE_CRITICAL_LOGS
-    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Not sheduling time yet, returning NULL"));
-    #endif
-
-    return NULL;
-}
-
-/************************************************************************/
-
+/**
+ * @brief Returns the process that owns the currently executing task.
+ *
+ * @return Pointer to current process, or KernelProcess if no current task
+ */
 LPPROCESS GetCurrentProcess(void) {
     LPTASK Task = GetCurrentTask();
     SAFE_USE(Task) { return Task->Process; }
@@ -281,25 +305,322 @@ LPPROCESS GetCurrentProcess(void) {
 
 /***************************************************************************/
 
-LPTASK GetCurrentTask(void) { return TaskList.Current; }
+/**
+ * @brief Returns the currently executing task.
+ *
+ * @return Pointer to current task, or NULL if no tasks are scheduled
+ */
+LPTASK GetCurrentTask(void) {
+    LPTASK Task = NULL;
+
+    FreezeScheduler();
+    if (TaskList.NumTasks == 0 || TaskList.CurrentIndex >= TaskList.NumTasks) {
+    } else {
+        Task = TaskList.Tasks[TaskList.CurrentIndex];
+    }
+    UnfreezeScheduler();
+
+    return Task;
+}
 
 /***************************************************************************/
 
+/**
+ * @brief Temporarily disables task switching.
+ *
+ * Increments the freeze counter to prevent the scheduler from switching tasks.
+ * Used for atomic operations that must not be interrupted by task switches.
+ *
+ * @return Always TRUE
+ */
 BOOL FreezeScheduler(void) {
-    LockMutex(MUTEX_SCHEDULE, INFINITY);
+    U32 Flags;
+    SaveFlags(&Flags);
+    DisableInterrupts();
     TaskList.Freeze++;
-    UnlockMutex(MUTEX_SCHEDULE);
+    RestoreFlags(&Flags);
     return TRUE;
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Re-enables task switching.
+ *
+ * Decrements the freeze counter. Task switching is only enabled when the
+ * counter reaches zero, allowing nested freeze/unfreeze calls.
+ *
+ * @return Always TRUE
+ */
 BOOL UnfreezeScheduler(void) {
-    LockMutex(MUTEX_SCHEDULE, INFINITY);
+    U32 Flags;
+    SaveFlags(&Flags);
+    DisableInterrupts();
     if (TaskList.Freeze) TaskList.Freeze--;
-    UnlockMutex(MUTEX_SCHEDULE);
+    RestoreFlags(&Flags);
     return TRUE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
+void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask] Enter %x"), NextTask);
+#endif
+
+    // __asm__ __volatile__("xchg %%bx,%%bx" : : );
+    SwitchToNextTask_2(CurrentTask, NextTask);
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask] Exit for task %x"), CurrentTask);
+#endif
+}
+
+/************************************************************************/
+
+void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] Enter"));
+
+    // Debug: Log task status information
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] CurrentTask: %x (%s)"), CurrentTask, CurrentTask->Name);
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] NextTask: %x (%s)"), NextTask, NextTask->Name);
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] NextTask->Status (direct): %x"), NextTask->Status);
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] GetTaskStatus(NextTask): %x"), GetTaskStatus(NextTask));
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] TASK_STATUS_READY constant: %x"), TASK_STATUS_READY);
+    KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] Task ID validation: %x"), NextTask->ID);
+#endif
+
+    // Memory corruption check: Validate task structure integrity
+    if (NextTask->ID != ID_TASK) {
+        KernelLogText(LOG_ERROR, TEXT("[SwitchToNextTask_3] MEMORY CORRUPTION: Task ID invalid %x, expected %x"), NextTask->ID, ID_TASK);
+    }
+    if (!IsValidMemory((LINEAR)NextTask)) {
+        KernelLogText(LOG_ERROR, TEXT("[SwitchToNextTask_3] MEMORY CORRUPTION: Task pointer %x is invalid"), NextTask);
+    }
+    if (NextTask->Status > TASK_STATUS_DEAD) {
+        KernelLogText(LOG_ERROR, TEXT("[SwitchToNextTask_3] MEMORY CORRUPTION: Task status %x is out of range"), NextTask->Status);
+    }
+
+    // Set up system stack for new task
+    U32 NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
+
+    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
+
+    // KernelLogText(LOG_DEBUG, TEXT("[SwitchTo] TSS SETUP DEBUG - Task: %s"), NextTask->Name);
+    // KernelLogText(LOG_DEBUG, TEXT("[SwitchTo] SysStackBase: %x SysStackSize: %x"), NextTask->SysStackBase, NextTask->SysStackSize);
+    // KernelLogText(LOG_DEBUG, TEXT("[SwitchTo] NextSysStackTop: %x STACK_SAFETY_MARGIN: %x"), NextSysStackTop, STACK_SAFETY_MARGIN);
+    // KernelLogText(LOG_DEBUG, TEXT("[SwitchTo] Old TSS ESP0: %x SS0: %x"), Kernel_i386.TSS->ESP0, Kernel_i386.TSS->SS0);
+
+    // KernelLogText(LOG_DEBUG, TEXT("[SwitchTo] New TSS ESP0: %x SS0: %x"), Kernel_i386.TSS->ESP0, Kernel_i386.TSS->SS0);
+    // KernelLogText(LOG_DEBUG, TEXT("[SwitchTo] Current ESP:"));
+    // KernelLogMem(LOG_DEBUG, GetESP(), 256);
+
+    GetFS(CurrentTask->Context.Registers.FS);
+    GetGS(CurrentTask->Context.Registers.GS);
+
+    // Load CR3 only if different than current
+    LoadPageDirectory(NextTask->Process->PageDirectory);
+
+    SetFS(NextTask->Context.Registers.FS);
+    SetGS(NextTask->Context.Registers.GS);
+
+    // First time run for the task
+    U32 CurrentTaskStatus = GetTaskStatus(NextTask);
+
+    if (CurrentTaskStatus == TASK_STATUS_READY) {
+        SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
+
+        if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] Switch to KERNEL READY task = %x (%s @ %s)"), NextTask, NextTask->Name, NextTask->Process->FileName);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EIP: %x"), NextTask->Context.Registers.EIP);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EBP: %x"), NextTask->Context.Registers.EBP);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] ESP: %x"), NextTask->Context.Registers.ESP);
+#endif
+
+            LINEAR ESP = NextTask->StackBase + NextTask->StackSize - STACK_SAFETY_MARGIN;
+            SetupStackForKernelMode(NextTask, ESP);
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EAX: %x"), NextTask->Context.Registers.EAX);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EBX: %x"), NextTask->Context.Registers.EBX);
+            KernelLogMem(LOG_DEBUG, ESP, 64);
+#endif
+
+            JumpToReadyTask(NextTask, ESP);
+        } else {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] Switch to USER READY task = %x (%s @ %s)"), NextTask, NextTask->Name, NextTask->Process->FileName);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EIP: %x"), NextTask->Context.Registers.EIP);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EBP: %x"), NextTask->Context.Registers.EBP);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] ESP: %x"), NextTask->Context.Registers.ESP);
+#endif
+
+            LINEAR ESP = NextTask->SysStackBase + NextTask->SysStackSize - STACK_SAFETY_MARGIN;
+            SetupStackForUserMode(NextTask, ESP, NextTask->StackBase + NextTask->StackSize - STACK_SAFETY_MARGIN);
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EAX: %x"), NextTask->Context.Registers.EAX);
+            KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] EBX: %x"), NextTask->Context.Registers.EBX);
+            KernelLogMem(LOG_DEBUG, ESP, 64);
+#endif
+
+            JumpToReadyTask(NextTask, ESP);
+        }
+    } else {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[SwitchToNextTask_3] Switch to RUNNING task = %x (%s @ %s)"), NextTask, NextTask->Name, NextTask->Process->FileName);
+#endif
+    }
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switching to %s task"), NextTask->Process->Privilege == PRIVILEGE_KERNEL ? TEXT("KERNEL") : TEXT("USER"));
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Returning next frame to the stub"));
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Task = %x (%s @ %s)"), NextTask, NextTask->Name, NextTask->Process->FileName);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Image: %s"), NextTask->Process->FileName);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Page directory (physical): %x"), NextTask->Process->PageDirectory);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] StackBase = %X"), NextTask->StackBase);  
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] StackSize = %X"), NextTask->StackSize);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] SysStackBase = %X"), NextTask->SysStackBase);  
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] SysStackSize = %X"), NextTask->SysStackSize);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Set ESP0 = %X"), NextSysStackTop - STACK_SAFETY_MARGIN);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EIP: %x"), NextTask->Context.Registers.EIP);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] EBP: %x"), NextTask->Context.Registers.EBP);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] ESP: %x"), NextTask->Context.Registers.ESP);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] CS: %x, DS: %x"), NextTask->Context.Registers.CS, NextTask->Context.Registers.DS);
+#endif
+
+    // KernelLogText(LOG_DEBUG, TEXT("[SwitchTo] Stack at NextTask->Context.Registers.ESP:"));
+    // KernelLogMem(LOG_DEBUG, NextTask->Context.Registers.ESP, 128);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Main scheduler function called by timer interrupt.
+ *
+ * This is the core scheduling function that implements preemptive multitasking.
+ * It saves the current task context, checks for stack overflows, manages task
+ * quantums, wakes sleeping tasks, and selects the next task to run. Performs
+ * context switching by setting up ESP0 for Ring 3 tasks and returning the
+ * interrupt frame of the next task.
+ *
+ */
+void Scheduler(void) {
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    U32 Flags;
+    SaveFlags(&Flags);
+    KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Enter : INT = %x, IF = %x"), Frame->IntNo, Flags & 0x200);
+#endif
+
+    // If scheduler is frozen, don't switch (atomic read - safe in interrupt context)
+    if (TaskList.Freeze) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] TaskList frozen: Returning NULL"));
+#endif
+        return;
+    }
+
+    TaskList.SchedulerTime += 10;
+
+    // Check for stack overflow - kill dangerous tasks immediately
+    /*
+    if (!CheckStack()) {
+        LPTASK DangerousTask = GetCurrentTask();
+
+        if (DangerousTask) {
+
+            KernelLogText(LOG_ERROR, TEXT("[Scheduler] Killing task due to overflow : %X"), DangerousTask);
+
+            // Mark task as dead - will be removed during next context switch
+            DangerousTask->Status = TASK_STATUS_DEAD;
+        }
+    }
+    */
+
+    // No tasks to schedule
+    if (TaskList.NumTasks == 0) {
+        return;
+    }
+
+    // Check if current task quantum has expired
+    LPTASK CurrentTask = (TaskList.CurrentIndex < TaskList.NumTasks) ? TaskList.Tasks[TaskList.CurrentIndex] : NULL;
+    BOOL QuantumExpired = CurrentTask && GetSystemTime() >= CurrentTask->WakeUpTime;
+
+    // Wake up expired sleeping tasks first
+    WakeUpExpiredTasks();
+    
+    // Update sleeping tasks status
+    U32 RunnableCount = CountRunnableTasks();
+
+    // No runnable tasks - system idle
+    if (RunnableCount == 0) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No runnable tasks"));
+#endif
+
+        return;
+    }
+
+    // If current task is still running and quantum not expired, keep it
+    if (CurrentTask && CurrentTask->Status == TASK_STATUS_RUNNING && !QuantumExpired) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Current task continues"));
+#endif
+
+        return;
+    }
+
+    // Time to switch - find next runnable task
+    U32 NextIndex = FindNextRunnableTask((TaskList.CurrentIndex + 1) % TaskList.NumTasks);
+
+    if (TaskList.CurrentIndex != NextIndex) {
+        // Get task pointers BEFORE any queue manipulation
+        LPTASK CurrentTask = (TaskList.CurrentIndex < TaskList.NumTasks) ? TaskList.Tasks[TaskList.CurrentIndex] : NULL;
+        LPTASK NextTask = TaskList.Tasks[NextIndex];
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Switch between task index %d (%s @ %s) and %d (%s @ %s)"),
+            TaskList.CurrentIndex, CurrentTask ? CurrentTask->Name : TEXT("NULL"), CurrentTask ? CurrentTask->Process->FileName : TEXT("NULL"),
+            NextIndex, NextTask->Name, NextTask->Process->FileName);
+#endif
+
+        if (NextIndex >= TaskList.NumTasks) {
+            // Should not happen if RunnableCount > 0, but safety check
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogText(LOG_DEBUG, TEXT("[Scheduler] No next task found"));
+#endif
+
+            return;
+        }
+
+        // Remove dead tasks from queue now that we're switching TO a non-dead task
+        // This prevents silent CurrentIndex adjustments and phantom task changes
+        if (NextTask->Status != TASK_STATUS_DEAD) {
+            NextIndex = RemoveDeadTasksFromQueue(NextTask);
+
+            if (NextIndex == INFINITY) {
+                // NextTask was somehow removed - this should not happen
+                KernelLogText(LOG_ERROR, TEXT("[Scheduler] NextTask was removed during cleanup!"));
+                return;
+            }
+        }
+        
+        TaskList.CurrentIndex = NextIndex;
+        TaskList.SchedulerTime = 0;
+
+        if (CurrentTask && CurrentTask->Process != NextTask->Process && CurrentTask->Process->Privilege != NextTask->Process->Privilege) {
+            KernelLogText(LOG_DEBUG, TEXT("[Scheduler] Different ring switch :"));
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            LogFrame(CurrentTask, &CurrentTask->Context);
+            LogFrame(NextTask, &NextTask->Context);
+#endif
+        }
+
+        SwitchToNextTask(CurrentTask, NextTask);
+    }
+}

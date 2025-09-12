@@ -53,7 +53,11 @@ void ConsolePrintChar(STR);
 void ConsoleBackSpace(void);
 void ConsolePrint(LPCSTR Format, ...);
 BOOL ConsoleGetString(LPSTR, U32);
+void ConsolePanic(LPCSTR Format, ...);
 BOOL InitializeConsole(void);
+
+// Functions in Shell.c
+
 U32 Shell(LPVOID);
 
 /***************************************************************************/

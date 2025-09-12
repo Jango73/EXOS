@@ -21,9 +21,11 @@
     String Array
 
 \************************************************************************/
+
+#include "../include/StringArray.h"
+
 #include "../include/Heap.h"
 #include "../include/String.h"
-#include "../include/StringArray.h"
 
 /************************************************************************/
 
@@ -91,4 +93,3 @@ LPCSTR StringArrayGet(LPSTRINGARRAY Array, U32 Index) {
     if (Index >= Array->Count) return NULL;
     return Array->Items[Index];
 }
-

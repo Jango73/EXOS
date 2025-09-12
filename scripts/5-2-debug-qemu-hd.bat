@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-cd /d boot-qemu-hd
+cd /d boot-hd
 
 set "QEMU=c:\program files\qemu\qemu-system-i386"
 set "IMG_1_PATH=bin/exos.img"

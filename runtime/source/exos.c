@@ -16,7 +16,7 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- 
+
 
     EXOS Runtime
 
@@ -39,6 +39,10 @@ HANDLE CreateTask(LPTASKINFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateT
 /***************************************************************************/
 
 BOOL KillTask(HANDLE Task) { return (BOOL)exoscall(SYSCALL_KillTask, (U32)Task); }
+
+/***************************************************************************/
+
+void KillMe(void) { exoscall(SYSCALL_KillMe, 0); }
 
 /***************************************************************************/
 

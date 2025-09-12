@@ -21,6 +21,7 @@
     Interrupt
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Kernel.h"
 
@@ -43,9 +44,18 @@ extern void Interrupt_StackFault(void);
 extern void Interrupt_GeneralProtection(void);
 extern void Interrupt_PageFault(void);
 extern void Interrupt_AlignmentCheck(void);
+extern void Interrupt_MachineCheck(void);
+extern void Interrupt_FloatingPoint(void);
+
 extern void Interrupt_Clock(void);
 extern void Interrupt_Keyboard(void);
+extern void Interrupt_PIC2(void);
+extern void Interrupt_COM2(void);
+extern void Interrupt_COM1(void);
+extern void Interrupt_RTC(void);
+extern void Interrupt_PCI(void);
 extern void Interrupt_Mouse(void);
+extern void Interrupt_FPU(void);
 extern void Interrupt_HardDrive(void);
 extern void Interrupt_SystemCall(void);
 extern void Interrupt_DriverCall(void);
@@ -71,8 +81,8 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_Default,            // 15
     Interrupt_Default,            // 16
     Interrupt_AlignmentCheck,     // 17
-    Interrupt_Default,            // 18
-    Interrupt_Default,            // 19
+    Interrupt_MachineCheck,       // 18
+    Interrupt_FloatingPoint,      // 19
     Interrupt_Default,            // 20
     Interrupt_Default,            // 21
     Interrupt_Default,            // 22
@@ -85,22 +95,22 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_Default,            // 29
     Interrupt_Default,            // 30
     Interrupt_Default,            // 31
-    Interrupt_Clock,              // 32
+    Interrupt_Clock,              // 32  0x00
     Interrupt_Keyboard,           // 33  0x01
-    Interrupt_Default,            // 34  0x02
-    Interrupt_Default,            // 35  0x03
-    Interrupt_Mouse,              // 36  0x04
+    Interrupt_PIC2,               // 34  0x02
+    Interrupt_COM2,               // 35  0x03
+    Interrupt_COM1,               // 36  0x04
     Interrupt_Default,            // 37  0x05
     Interrupt_Default,            // 38  0x06
     Interrupt_Default,            // 39  0x07
-    Interrupt_Default,            // 40  0x08
+    Interrupt_RTC,                // 40  0x08
     Interrupt_Default,            // 41  0x09
-    Interrupt_Default,            // 42  0x0A
-    Interrupt_Default,            // 43  0x0B
-    Interrupt_Default,            // 44  0x0C
-    Interrupt_Default,            // 45  0x0D
+    Interrupt_PCI,                // 42  0x0A
+    Interrupt_PCI,                // 43  0x0B
+    Interrupt_Mouse,              // 44  0x0C
+    Interrupt_FPU,                // 45  0x0D
     Interrupt_HardDrive,          // 46  0x0E
-    Interrupt_Default,            // 47  0x0F
+    Interrupt_HardDrive,          // 47  0x0F
 };
 
 GATEDESCRIPTOR IDT[IDT_SIZE / sizeof(GATEDESCRIPTOR)];
@@ -166,4 +176,3 @@ void InitializeInterrupts(void) {
 
     SetDR7(0);
 }
-

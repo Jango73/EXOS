@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,14 +17,36 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    ZZZ
+    Path utilities
 
 \************************************************************************/
-#include "../include/Base.h"
+#ifndef PATH_H_INCLUDED
+#define PATH_H_INCLUDED
 
 /***************************************************************************/
 
-U32 EXOS_End = 0x534F5845;
+#include "FileSystem.h"
+#include "StringArray.h"
 
 /***************************************************************************/
 
+LPLIST DecomposePath(LPCSTR Path);
+
+/***************************************************************************/
+
+typedef struct tag_PATHCOMPLETION {
+    LPFILESYSTEM FileSystem;
+    STR Base[MAX_PATH_NAME];
+    STRINGARRAY Matches;
+    U32 Index;
+} PATHCOMPLETION, *LPPATHCOMPLETION;
+
+/***************************************************************************/
+
+BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem);
+void PathCompletionDeinit(LPPATHCOMPLETION Context);
+BOOL PathCompletionNext(LPPATHCOMPLETION Context, LPCSTR Path, LPSTR Output);
+
+/***************************************************************************/
+
+#endif

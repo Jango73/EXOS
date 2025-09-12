@@ -42,7 +42,6 @@ section .text
 bits 32
 
     global RealModeCall
-    global Exit_EXOS
     global RealModeCallTest
 
 ;--------------------------------------
@@ -53,6 +52,7 @@ bits 32
 ; If Param1 <= 0xFF, Param1 is an interrupt
 ; If Param1 >  0xFF, Param1 is a far function pointer
 
+FUNC_HEADER
 RealModeCall :
 
     push    ebp
@@ -792,7 +792,7 @@ Gate_A20 :
 
 Gate_A20_Loop :
 
-    out     0xED, ax                   ; IO delay
+    out     0xED, al                   ; IO delay
     loop    Gate_A20_Loop
     pop     cx
 
@@ -805,13 +805,13 @@ bits 16
 
 Empty_8042 :
 
-    out     0x00ED, ax                 ; IO delay
+    out     0xED, al                   ; IO delay
 
     in      al, KEYBOARD_STATUS
     test    al, KEYBOARD_STATUS_OUT_FULL
     jz      Empty_8042_NoOutput
 
-    out     0x00ED, ax                 ; IO delay
+    out     0xED, al                   ; IO delay
 
     in      al, KEYBOARD_CONTROL
     jmp     Empty_8042
@@ -836,6 +836,7 @@ RMCSetupEnd :
 
 bits 32
 
+FUNC_HEADER
 SetupPIC_RM :
 
     push    eax
@@ -875,6 +876,7 @@ SetupPIC_RM :
 
 bits 32
 
+FUNC_HEADER
 SetupPIC_PM :
 
     push    eax
@@ -914,6 +916,7 @@ SetupPIC_PM :
 
 bits 32
 
+FUNC_HEADER
 SetupTimer_RM :
 
     push    eax
@@ -938,6 +941,7 @@ SetupTimer_RM :
 
 bits 32
 
+FUNC_HEADER
 SetupTimer_PM :
 
     push    eax
@@ -970,6 +974,7 @@ Delay_L2 : ret
 
 bits 32
 
+FUNC_HEADER
 _RealModeCallTest :
 
     jmp     _RealModeCallTest_Start

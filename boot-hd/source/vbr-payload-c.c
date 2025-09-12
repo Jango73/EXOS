@@ -16,7 +16,7 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- 
+
 
     VBR Payload main code
 
@@ -33,6 +33,12 @@
 
 __asm__(".code16gcc");
 
+#define ORIGIN 0x8000
+#define STACK_SIZE 0x1000
+#define USABLE_RAM_START 0x1000
+#define USABLE_RAM_END (ORIGIN - STACK_SIZE)
+#define USABLE_RAM_SIZE (USABLE_RAM_END - USABLE_RAM_START)
+
 #define SectorSize 512
 #define FileToLoad "EXOS    BIN"  // 8+3, no dot, padded
 #define LoadAddress_Seg 0x2000
@@ -48,9 +54,6 @@ __asm__(".code16gcc");
 /************************************************************************/
 // I386 values
 
-#define GDT_SEL_CODE 0x08
-#define GDT_SEL_DATA 0x10
-
 #define GDT_ADDRESS 0x500
 #define PAGE_DIRECTORY_ADDRESS LOW_MEMORY_PAGE_1
 #define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_2
@@ -64,7 +67,8 @@ extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 extern void MemorySet(LPVOID Base, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
 extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
-extern void __attribute__((noreturn)) StubJumpToImage(U32 GDTR, U32 PageDirectoryPA, U32 KernelEntryVA, U32 MapPtr, U32 MapCount);
+extern void __attribute__((noreturn))
+StubJumpToImage(U32 GDTR, U32 PageDirectoryPA, U32 KernelEntryVA, U32 MapPtr, U32 MapCount);
 
 /************************************************************************/
 // Functions in this module
@@ -77,7 +81,7 @@ static void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 static void InitDebug(void) { SerialReset(0); }
 static void OutputChar(U8 Char) { SerialOut(0, Char); }
 #else
-static void InitDebug(void) { }
+static void InitDebug(void) {}
 static void OutputChar(U8 Char) {
     __asm__ __volatile__(
         "mov   $0x0E, %%ah\n\t"
@@ -95,7 +99,7 @@ static void WriteString(LPCSTR Str) {
     }
 }
 
-#if DEBUG_OUTPUT
+#if DEBUG_OUTPUT == 1
 #define DebugPrint(Str) WriteString(Str)
 #else
 #define DebugPrint(Str) ((void)0)
@@ -164,22 +168,7 @@ struct __attribute__((packed)) FatDirEntry {
     U32 FileSize;
 };
 
-/************************************************************************/
-
-const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
-
-STR TempString[128];
-
-struct Fat32BootSector BootSector;
-U8 FatBuffer[SectorSize];
-
-// NOTE: This should be high enough (e.g., up to 128 sectors) for large cluster sizes.
-// For minimal BIOS calls here we keep 4 sectors worth of buffer.
-// Should allocate some memory outside the payload
-U8 ClusterBuffer[SectorSize * 4];
-
 // E820 memory map
-#define E820_MAX_ENTRIES 64
 typedef struct __attribute__((packed)) {
     U64 Base;
     U64 Size;
@@ -187,16 +176,30 @@ typedef struct __attribute__((packed)) {
     U32 Attributes;
 } E820ENTRY;
 
-static E820ENTRY E820_Map[E820_MAX_ENTRIES];
-static U32 E820_EntryCount = 0;
+/************************************************************************/
+// Use total available memory for E80 entries and cluster
 
-static void RetrieveMemoryMap(void) {
-    E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
-}
+#define E820_MAX_ENTRIES 32
+#define E820_SIZE (E820_MAX_ENTRIES * sizeof(E820ENTRY))
+#define MAX_SECTORS_PER_CLUSTER ((USABLE_RAM_SIZE - E820_SIZE) / 512)
+
+/************************************************************************/
+
+static U32 E820_EntryCount = 0;
+static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
+static STR TempString[128];
+
+struct Fat32BootSector BootSector;
+static U8 FatBuffer[SectorSize];
+
+// static E820ENTRY* const E820_Map = (E820ENTRY*)(USABLE_RAM_START);
+// static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START + E820_SIZE);
+
+static E820ENTRY E820_Map[E820_MAX_ENTRIES];
+static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 // Low-level I/O + A20
-/************************************************************************/
 
 static inline U8 InPortByte(U16 Port) {
     U8 Val;
@@ -205,6 +208,8 @@ static inline U8 InPortByte(U16 Port) {
 }
 
 static inline void OutPortByte(U16 Port, U8 Val) { __asm__ __volatile__("outb %0, %1" ::"a"(Val), "Nd"(Port)); }
+
+/************************************************************************/
 
 static void EnableA20(void) {
     // Fast A20 on port 0x92
@@ -215,6 +220,8 @@ static void EnableA20(void) {
         OutPortByte(0x92, v);
     }
 }
+
+/************************************************************************/
 
 void SerialReset(U8 Which) {
     if (Which > 3) return;
@@ -239,6 +246,8 @@ void SerialReset(U8 Which) {
     /* Assert DTR/RTS and enable OUT2 (required for IRQ routing) */
     OutPortByte(base + UART_MCR, (U8)(MCR_DTR | MCR_RTS | MCR_OUT2));
 }
+
+/************************************************************************/
 
 void SerialOut(U8 Which, U8 Char) {
     if (Which > 3) return;
@@ -308,16 +317,37 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 
 /************************************************************************/
 
+// Helper function to read byte via far pointer to avoid segment limit issues
+static U8 ReadFarByte(U16 seg, U16 ofs) {
+    U8 result;
+    __asm__ __volatile__(
+        "push %%ds\n\t"
+        "mov %1, %%ds\n\t"
+        "movb (%%si), %%al\n\t"
+        "pop %%ds"
+        : "=a"(result)
+        : "r"(seg), "S"(ofs)
+        : "memory");
+    return result;
+}
+
+static void RetrieveMemoryMap(void) {
+    MemorySet((void*)E820_Map, 0, E820_SIZE);
+    E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
+}
+
+/************************************************************************/
+
 void BootMain(U32 BootDrive, U32 Fat32Lba) {
     InitDebug();
+
+    StringPrintFormat(TempString, TEXT("[VBR] Maximum sectors per cluster : %08X\r\n"), MAX_SECTORS_PER_CLUSTER);
+    DebugPrint(TempString);
+
     RetrieveMemoryMap();
-    DebugPrint(TEXT("[VBR] Loading and running binary OS at "));
-    NumberToString(TempString, LoadAddress_Seg, 16, 0, 0, PF_SPECIAL);
+
+    StringPrintFormat(TempString, TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"), LoadAddress_Seg, LoadAddress_Ofs);
     DebugPrint(TempString);
-    DebugPrint(TEXT(":"));
-    NumberToString(TempString, LoadAddress_Ofs, 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT("\r\n"));
 
     DebugPrint(TEXT("[VBR] Reading FAT32 VBR\r\n"));
     if (BiosReadSectors(BootDrive, Fat32Lba, 1, MakeSegOfs(&BootSector))) {
@@ -350,6 +380,11 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     U32 RootCluster = BootSector.RootCluster;
     U32 SectorsPerCluster = BootSector.SectorsPerCluster;
     U32 FirstDataSector = Fat32Lba + BootSector.ReservedSectorCount + ((U32)BootSector.NumberOfFats * FatSizeSectors);
+
+    if (SectorsPerCluster > MAX_SECTORS_PER_CLUSTER) {
+        ErrorPrint(TEXT("[VBR] Max sectors per cluster exceeded. Code needs rewriting... Halting.\r\n"));
+        Hang();
+    }
 
     if (SectorsPerCluster == 0) {
         ErrorPrint(TEXT("[VBR] Invalid SectorsPerCluster = 0. Halting.\r\n"));
@@ -433,10 +468,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         Hang();
     }
 
-    DebugPrint(TEXT("[VBR] File size "));
-    NumberToString(TempString, FileSize, 16, 0, 0, PF_SPECIAL);
+    StringPrintFormat(TempString, TEXT("[VBR] File size %08X bytes\r\n"), FileSize);
     DebugPrint(TempString);
-    DebugPrint(TEXT(" bytes\r\n"));
 
     /********************************************************************/
     /* Load the file by following its FAT chain                         */
@@ -465,10 +498,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         U32 Lba = FirstDataSector + (Cluster - 2) * SectorsPerCluster;
 
         if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, PackSegOfs(DestSeg, DestOfs))) {
-            ErrorPrint(TEXT("[VBR] Cluster read failed "));
-            NumberToString(TempString, Cluster, 16, 0, 0, PF_SPECIAL);
+            StringPrintFormat(TempString, TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
             ErrorPrint(TempString);
-            ErrorPrint(TEXT(". Halting.\r\n"));
             Hang();
         }
 
@@ -524,33 +555,73 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     /********************************************************************/
     U8* Loaded = (U8*)(((U32)LoadAddress_Seg << 4) + (U32)LoadAddress_Ofs);
 
-    DebugPrint(TEXT("[VBR] Last 8 bytes of file: "));
-    NumberToString(TempString, *(U32*)(Loaded + (FileSize - 8)), 16, 0, 0, PF_SPECIAL);
+
+    // Sanity check before memory access
+    if (FileSize < 8) {
+        ErrorPrint(TEXT("[VBR] ERROR: FileSize too small for checksum. Halting.\r\n"));
+        Hang();
+    }
+
+    // Read last 8 bytes safely using far pointers to avoid segment limit issues
+    U32 BaseAddr = (U32)Loaded;
+    U32 LastBytes1 = 0, LastBytes2 = 0;
+    
+    // Read bytes -8 to -5 (first U32)
+    for (int i = 0; i < 4; i++) {
+        U32 ByteAddr = BaseAddr + FileSize - 8 + i;
+        U16 Seg = (U16)(ByteAddr >> 4);
+        U16 Ofs = (U16)(ByteAddr & 0xF);
+        U8 Byte = ReadFarByte(Seg, Ofs);
+        LastBytes1 |= ((U32)Byte) << (i * 8);
+    }
+    
+    // Read bytes -4 to -1 (second U32) 
+    for (int i = 0; i < 4; i++) {
+        U32 ByteAddr = BaseAddr + FileSize - 4 + i;
+        U16 Seg = (U16)(ByteAddr >> 4);
+        U16 Ofs = (U16)(ByteAddr & 0xF);
+        U8 Byte = ReadFarByte(Seg, Ofs);
+        LastBytes2 |= ((U32)Byte) << (i * 8);
+    }
+
+    StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
     DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, *(U32*)(Loaded + (FileSize - 4)), 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT("\r\n"));
 
     U32 Computed = 0;
     for (U32 Index = 0; Index < FileSize - sizeof(U32); Index++) {
-        Computed += Loaded[Index];
+        U32 ByteAddr = BaseAddr + Index;
+        U16 Seg = (U16)(ByteAddr >> 4);
+        U16 Ofs = (U16)(ByteAddr & 0xF);
+        Computed += ReadFarByte(Seg, Ofs);
     }
 
-    U32 Stored = *(U32*)(Loaded + (FileSize - sizeof(U32)));
+    // Read stored checksum byte-by-byte using far pointers
+    U32 Stored = 0;
+    for (int i = 0; i < 4; i++) {
+        U32 ByteAddr = BaseAddr + FileSize - sizeof(U32) + i;
+        U16 Seg = (U16)(ByteAddr >> 4);
+        U16 Ofs = (U16)(ByteAddr & 0xF);
+        U8 Byte = ReadFarByte(Seg, Ofs);
+        Stored |= ((U32)Byte) << (i * 8);
+    }
 
-    DebugPrint(TEXT("[VBR] Stored checksum in image : "));
-    NumberToString(TempString, Stored, 16, 0, 0, PF_SPECIAL);
+    StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
     DebugPrint(TempString);
-    DebugPrint(TEXT("\r\n"));
 
     if (Computed != Stored) {
-        ErrorPrint(TEXT("[VBR] Checksum mismatch. Halting. Computed : "));
-        NumberToString(TempString, Computed, 16, 0, 0, PF_SPECIAL);
+        StringPrintFormat(TempString, TEXT("[VBR] Checksum mismatch. Halting. Computed : %x\r\n"), Computed);
         ErrorPrint(TempString);
-        ErrorPrint(TEXT("\r\n"));
         Hang();
     }
+
+    StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
+    DebugPrint(TempString);
+
+    StringPrintFormat(TempString, TEXT("[VBR] Cluster buffer at %x\r\n"), (U32)ClusterBuffer);
+    DebugPrint(TempString);
+
+    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
+    DebugPrint(TempString);
 
     EnterProtectedPagingAndJump(FileSize);
 
@@ -647,16 +718,9 @@ static void SetPte(LPPAGETABLE E, U32 Phys) {
 }
 
 static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
-    DebugPrint(TEXT("[VBR] BuildPaging (KernelPhysBase, KernelVirtBase, MapSize : "));
-    NumberToString(TempString, KernelPhysBase, 16, 0, 0, PF_SPECIAL);
+    StringPrintFormat(TempString, TEXT("[VBR] BuildPaging (KernelPhysBase, KernelVirtBase, MapSize : %08X %08X %08X\r\n"), 
+                      KernelPhysBase, KernelVirtBase, MapSize);
     DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, KernelVirtBase, 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, MapSize, 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT("\r\n"));
 
     ClearPdPt();
 
@@ -677,34 +741,11 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
 
     SetPde(PageDirectory + 1023, (U32)PageDirectory);
 
-    DebugPrint(TEXT("[VBR] PDE[0], PDE[1], PDE[2], PDE[3], PDE[4], PDE[768], PDE[769] : "));
-    NumberToString(TempString, ((U32*)PageDirectory)[0], 16, 0, 0, PF_SPECIAL);
+    StringPrintFormat(TempString, TEXT("[VBR] PDE[0], PDE[1], PDE[2], PDE[3], PDE[4], PDE[768], PDE[769] : %08X %08X %08X %08X %08X %08X %08X %08X %08X\r\n"), 
+                      ((U32*)PageDirectory)[0], ((U32*)PageDirectory)[1], ((U32*)PageDirectory)[2], 
+                      ((U32*)PageDirectory)[3], ((U32*)PageDirectory)[4], ((U32*)PageDirectory)[768], 
+                      ((U32*)PageDirectory)[769], ((U32*)PageDirectory)[770], ((U32*)PageDirectory)[1023]);
     DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[1], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[2], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[3], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[4], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[768], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[769], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[770], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT(" "));
-    NumberToString(TempString, ((U32*)PageDirectory)[1023], 16, 0, 0, PF_SPECIAL);
-    DebugPrint(TempString);
-    DebugPrint(TEXT("\r\n"));
 }
 
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
@@ -716,7 +757,7 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     BuildGdtFlat();
     BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);
 
-    // Pass kernel entry VA as a normal C value (we le-recharge dans l'asm)
+    // Pass kernel entry VA as a normal C value
     const U32 KernelEntryVA = 0xC0000000;
 
     for (volatile int i = 0; i < 100000; ++i) {

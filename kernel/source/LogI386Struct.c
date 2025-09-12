@@ -21,31 +21,68 @@
     Log I386Struct
 
 \************************************************************************/
+
+#include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
+
+
+/************************************************************************/
+
+void LogMemoryLine16B(U32 LogType, LPCSTR Prefix, const U8* Memory) {
+    KernelLogText(LogType, TEXT("%s %x %x %x %x %x %x %x %x : %x %x %x %x %x %x %x %x"),
+        Prefix,
+        (U32)Memory[0], (U32)Memory[1], (U32)Memory[2], (U32)Memory[3],
+        (U32)Memory[4], (U32)Memory[5], (U32)Memory[6], (U32)Memory[7],
+        (U32)Memory[8], (U32)Memory[9], (U32)Memory[10], (U32)Memory[11],
+        (U32)Memory[12], (U32)Memory[13], (U32)Memory[14], (U32)Memory[15]
+        );
+}
 
 /************************************************************************/
 
 void LogRegisters(LPINTEL386REGISTERS Regs) {
+    KernelLogText(LOG_VERBOSE, TEXT("CS : %x DS : %x SS : %x "), Regs->CS, Regs->DS, Regs->SS);
+    KernelLogText(LOG_VERBOSE, TEXT("ES : %x FS : %x GS : %x "), Regs->ES, Regs->FS, Regs->GS);
     KernelLogText(
-        LOG_VERBOSE, TEXT("EAX : %X EBX : %X ECX : %X EDX : %X "), Regs->EAX, Regs->EBX, Regs->ECX, Regs->EDX);
-    KernelLogText(LOG_VERBOSE, TEXT("ESI : %X EDI : %X EBP : %X "), Regs->ESI, Regs->EDI, Regs->EBP);
-    KernelLogText(LOG_VERBOSE, TEXT("CS : %X DS : %X SS : %X "), Regs->CS, Regs->DS, Regs->SS);
-    KernelLogText(LOG_VERBOSE, TEXT("ES : %X FS : %X GS : %X "), Regs->ES, Regs->FS, Regs->GS);
-    KernelLogText(LOG_VERBOSE, TEXT("E-flags : %X EIP : %X "), Regs->EFlags, Regs->EIP);
+        LOG_VERBOSE, TEXT("EAX : %x EBX : %x ECX : %x EDX : %x "), Regs->EAX, Regs->EBX, Regs->ECX, Regs->EDX);
+    KernelLogText(LOG_VERBOSE, TEXT("ESI : %x EDI : %x EBP : %x "), Regs->ESI, Regs->EDI, Regs->EBP);
+    KernelLogText(LOG_VERBOSE, TEXT("E-flags : %x EIP : %x "), Regs->EFlags, Regs->EIP);
     KernelLogText(
-        LOG_VERBOSE, TEXT("CR0 : %X CR2 : %X CR3 : %X CR4 : %X "), Regs->CR0, Regs->CR2, Regs->CR3, Regs->CR4);
+        LOG_VERBOSE, TEXT("CR0 : %x CR2 : %x CR3 : %x CR4 : %x "), Regs->CR0, Regs->CR2, Regs->CR3, Regs->CR4);
     KernelLogText(
-        LOG_VERBOSE, TEXT("DR0 : %X DR1 : %X DR2 : %X DR3 : %X "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
+        LOG_VERBOSE, TEXT("DR0 : %x DR1 : %x DR2 : %x DR3 : %x "), Regs->DR0, Regs->DR1, Regs->DR2, Regs->DR3);
     KernelLogText(
-        LOG_VERBOSE, TEXT("DR6 : B0 : %X B1 : %X B2 : %X B3 : %X BD : %X BS : %X BT : %X"), BIT_0_VALUE(Regs->DR6),
+        LOG_VERBOSE, TEXT("DR6 : B0 : %x B1 : %x B2 : %x B3 : %x BD : %x BS : %x BT : %x"), BIT_0_VALUE(Regs->DR6),
         BIT_1_VALUE(Regs->DR6), BIT_2_VALUE(Regs->DR6), BIT_3_VALUE(Regs->DR6), BIT_13_VALUE(Regs->DR6),
         BIT_14_VALUE(Regs->DR6), BIT_15_VALUE(Regs->DR6));
     KernelLogText(
-        LOG_VERBOSE, TEXT("DR7 : L0 : %X G1 : %X L1 : %X G1 : %X L2 : %X G2 : %X L3 : %X G3 : %X GD : %X"),
+        LOG_VERBOSE, TEXT("DR7 : L0 : %x G1 : %x L1 : %x G1 : %x L2 : %x G2 : %x L3 : %x G3 : %x GD : %x"),
         BIT_0_VALUE(Regs->DR7), BIT_1_VALUE(Regs->DR7), BIT_2_VALUE(Regs->DR7), BIT_3_VALUE(Regs->DR7),
         BIT_4_VALUE(Regs->DR7), BIT_5_VALUE(Regs->DR7), BIT_6_VALUE(Regs->DR7), BIT_7_VALUE(Regs->DR7),
         BIT_13_VALUE(Regs->DR7));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Log register state for a task at fault.
+ * @param Frame Interrupt frame with register snapshot.
+ */
+void LogFrame(LPTASK Task, LPINTERRUPTFRAME Frame) {
+    LPPROCESS Process;
+
+    if (Task == NULL) Task = GetCurrentTask();
+
+    SAFE_USE(Task) {
+        Process = Task->Process;
+
+        SAFE_USE(Process) {
+            KernelLogText(LOG_VERBOSE, TEXT("Task : %x (%s @ %s)"), Task, Task->Name, Process->FileName);
+            KernelLogText(LOG_VERBOSE, Text_Registers);
+            LogRegisters(&(Frame->Registers));
+        }
+    }
 }
 
 /************************************************************************/
@@ -67,7 +104,7 @@ void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
 
 /************************************************************************/
 
-void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
+void LogPageDirectoryEntry(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
     KernelLogText(
         LogType,
         TEXT("PAGEDIRECTORY:\n"
@@ -91,7 +128,7 @@ void LogPageDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
 
 /***************************************************************************/
 
-void LogPageTable(U32 LogType, const PAGETABLE* PageTable) {
+void LogPageTableEntry(U32 LogType, const PAGETABLE* PageTable) {
     KernelLogText(
         LogType,
         TEXT("PAGETABLE:\n"
@@ -158,7 +195,7 @@ void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEn
     const PAGETABLE* PageTable = (const PAGETABLE*)PageTableVirtualAddress;
     for (U32 PageTableIndex = 0; PageTableIndex < 8; ++PageTableIndex) {
         if (PageTable[PageTableIndex].Present) {
-            LogPageTable(LogType, &PageTable[PageTableIndex]);
+            LogPageTableEntry(LogType, &PageTable[PageTableIndex]);
         }
     }
 }
@@ -259,31 +296,28 @@ void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
     */
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void LogTask(U32 LogType, const LPTASK Task) {
     KernelLogText(
         LogType,
-        TEXT("TASK @ %X:\n"
-        "Mutex : %X\n"
-        "Process : %X\n"
-        "Type : %X\n"
-        "Status : %X\n"
-        "Priority : %X\n"
-        "Function : %X\n"
-        "Parameter : %X\n"
-        "ReturnValue : %X\n"
-        "StackBase : %X\n"
-        "StackSize : %X\n"
-        "SysStackBase : %X\n"
-        "SysStackSize : %X\n"
-        "Time : %X\n"
-        "WakeUpTime : %X\n"
-        "MessageMutex : %X\n"),
-        (LINEAR) Task, Task->Mutex, Task->Process, Task->Type, Task->Status,
-        Task->Priority, Task->Function, (U32) Task->Parameter,
-        Task->ReturnValue, Task->StackBase, Task->StackSize,
-        Task->SysStackBase, Task->SysStackSize, Task->Time,
-        Task->WakeUpTime, Task->MessageMutex);
+        TEXT("TASK @ %x:\n"
+             "  Name : %s\n"
+             "  Process : %x (%s)\n"
+             "  Type : %x\n"
+             "  Status : %x\n"
+             "  Priority : %x\n"
+             "  Function : %x\n"
+             "  Parameter : %x\n"
+             "  ReturnValue : %x\n"
+             "  StackBase : %x\n"
+             "  StackSize : %x\n"
+             "  SysStackBase : %x\n"
+             "  SysStackSize : %x\n"
+             "  WakeUpTime : %x"),
+        (LINEAR)Task, Task->Name, (U32)Task->Process, (Task->Process == Kernel.Process ? "K" : "U"),
+        (U32)Task->Type, (U32)Task->Status, (U32)Task->Priority,
+        (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ReturnValue, (U32)Task->StackBase, (U32)Task->StackSize,
+        (U32)Task->SysStackBase, (U32)Task->SysStackSize, (U32)Task->WakeUpTime
+        );
 }
-

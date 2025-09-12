@@ -1,0 +1,18 @@
+# Bochs debugger commands
+
+# Define a macro to dump stack
+# define ds writemem "stack.txt" esp 0x200000-esp
+
+# Load kernel symbols
+ldsym global "kernel/bin/exos.sym"
+
+# Load payload symbols (bootloader)
+ldsym global "boot-hd/bin/payload.sym"
+
+# Breakpoints
+# lbreak 0xc0000000
+# lbreak "SwitchToNextTask_3"
+# lbreak "JumpToReadyTask"
+
+# Continue execution - set manual breakpoint if needed
+c

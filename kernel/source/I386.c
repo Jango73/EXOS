@@ -21,6 +21,7 @@
     I386
 
 \************************************************************************/
+
 #include "../include/I386.h"
 
 #include "../include/Log.h"
@@ -105,4 +106,3 @@ BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text) {
 
     return FALSE;
 }
-

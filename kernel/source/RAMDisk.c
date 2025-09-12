@@ -21,11 +21,10 @@
     RAM Disk
 
 \************************************************************************/
+
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
-
-// Temporary
 
 #include "../include/FAT.h"
 
@@ -406,13 +405,13 @@ static U32 RAMDiskInitialize(void) {
     if (Disk == NULL) return DF_ERROR_NOMEMORY;
 
     Disk->Size = N_512KB;
-    Disk->Base = AllocRegion(0, 0, Disk->Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Disk->Base = AllocKernelRegion(0, Disk->Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Disk->Base == NULL) {
         return DF_ERROR_NOMEMORY;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Memory allocated"));
+    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Memory allocated at %x"), Disk->Base);
 
     //-------------------------------------
     // Purge the disk
@@ -648,4 +647,3 @@ U32 RAMDiskCommands(U32 Function, U32 Parameter) {
 }
 
 /***************************************************************************/
-

@@ -149,7 +149,7 @@ InitSerial:
 DAP :
 DAP_Size : db 16
 DAP_Reserved : db 0
-DAP_NumSectors : dw 32
+DAP_NumSectors : dw 48
 DAP_Buffer_Offset : dw PAYLOAD_OFFSET
 DAP_Buffer_Segment : dw 0x0000
 DAP_Start_LBA_Low : dd 0

@@ -1,0 +1,29 @@
+# [[SystemFS.Mount]]
+# This type of entry mounts a device to a VFS node
+# FileSystem="<device name>"
+# Path="<some path to a node>"
+
+# [[Run]]
+# This type of entry runs an executable at startup
+# Path="<path to an executable>"
+
+[General]
+Mono=0
+# You may force a quantum time using the entry below
+# Quantum=10
+
+[[SystemFS.Mount]]
+FileSystem="hd0p0"
+Path="/os"
+
+[[SystemFS.Mount]]
+FileSystem="hd1p0"
+Path="/work"
+
+[Keyboard]
+# Available layouts : de-DE, en-US, fr-FR
+Layout="en-US"
+
+# Run section (specify an executable to run)
+# [[Run]]
+# Path="/os/HELLO.ELF"

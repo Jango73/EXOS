@@ -21,6 +21,7 @@
     Keyboard
 
 \************************************************************************/
+
 #ifndef KEYBOARD_H_INCLUDED
 #define KEYBOARD_H_INCLUDED
 
@@ -90,7 +91,7 @@ BOOL GetKeyCodeDown(KEYCODE);
 void WaitKey(void);
 void KeyboardHandler(void);
 LPCSTR GetKeyName(U8);
-LPKEYTRANS GetScanCodeToKeyCode(LPCSTR Code);
+LPKEYTRANS GetScanCodeToKeyCodeTable(LPCSTR Code);
 void UseKeyboardLayout(LPCSTR Code);
 U16 DetectKeyboard(void);
 

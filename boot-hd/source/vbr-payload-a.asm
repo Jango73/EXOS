@@ -455,7 +455,7 @@ PrintHex32Nibble:
     ret
 
 ;-------------------------------------------------------------------------
-; EnterLongMode : switches to protected mode, enables paging
+; StubJumpToImage : switches to protected mode, enables paging
 ; and jumps into the kernel at 0xC0000000
 ; Param 1 : GDTR
 ; Param 2 : PageDirectory (physical)
@@ -470,15 +470,15 @@ StubJumpToImage:
 
     DebugPrint  Text_JumpingToPM
 
-    xor         ebx, ebx               ; Prepare EBX and select page 0
-    mov         ah, 0x03               ; BIOS get cursor position
+    xor         ebx, ebx                    ; Prepare EBX and select page 0
+    mov         ah, 0x03                    ; BIOS get cursor position
     int         0x10
-    mov         bx, dx                 ; BL = X, BH = Y
+    mov         bx, dx                      ; BL = X, BH = Y
 
-    mov         eax, [ebp + 8]      ; GDTR
+    mov         eax, [ebp + 8]              ; GDTR
     lgdt        [eax]
 
-    mov         eax, [ebp + 12]     ; PageDirectory (cr3)
+    mov         eax, [ebp + 12]             ; PageDirectory (cr3)
     mov         cr3, eax
 
     ; Activate protected mode
@@ -495,22 +495,24 @@ ProtectedEntryPoint:
     mov         ds, ax
     mov         es, ax
     mov         ss, ax
-    mov         esp, 0x200000      ; Set stack halfway through low 4mb
+    mov         esp, 0x200000               ; Set stack halfway through low 4mb
 
     ; Activate paging
     mov         eax, cr0
     or          eax, CR0_PAGING
     mov         cr0, eax
-    jmp         $+2                ; Pipeline flush
+    jmp         $+2                         ; Pipeline flush
 
-    mov         edx, [ebp + 16]    ; KernelEntryVA
-    mov         esi, [ebp + 20]    ; E820 map pointer
-    mov         ecx, [ebp + 24]    ; E820 entry count
+    mov         edi, 0x200000               ; Top of stack
+    mov         edx, [ebp + 16]             ; KernelEntryVA
+    mov         esi, [ebp + 20]             ; E820 map pointer
+    mov         ecx, [ebp + 24]             ; E820 entry count
     mov         eax, KERNEL_LOAD_ADDRESS
     jmp         edx
 
-    hlt
 .hang:
+    cli
+    hlt
     jmp         .hang
 
 ;-------------------------------------------------------------------------

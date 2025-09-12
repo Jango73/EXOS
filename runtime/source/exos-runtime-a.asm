@@ -63,6 +63,8 @@ section .text
     global __start__
     global __exit__
     global exoscall
+    global memset
+    global memcpy
     global strlen
     global strcpy
     global strcat
@@ -117,6 +119,7 @@ __exit__ :
     ret
 
 ;--------------------------------------
+; This is TODO
 
 _SetupArguments :
 
@@ -144,6 +147,52 @@ exoscall :
     mov     eax, [ebp+(PBN+0)]
     mov     ebx, [ebp+(PBN+4)]
     int     0x80
+
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+memset :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    edi
+
+    mov     edi, [ebp+(PBN+0)]
+    mov     eax, [ebp+(PBN+4)]
+    mov     ecx, [ebp+(PBN+8)]
+    cld
+    rep     stosb
+
+    pop     edi
+    pop     ecx
+
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+memcpy :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    esi
+    push    edi
+
+    mov     edi, [ebp+(PBN+0)]
+    mov     esi, [ebp+(PBN+4)]
+    mov     ecx, [ebp+(PBN+8)]
+    cld
+    rep     movsb
+
+    pop     edi
+    pop     esi
+    pop     ecx
 
     pop     ebp
     ret

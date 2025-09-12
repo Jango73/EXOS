@@ -21,6 +21,7 @@
     FAT32
 
 \************************************************************************/
+
 #include "../include/FAT.h"
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
@@ -1688,6 +1689,3 @@ U32 FAT32Commands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-
-/***************************************************************************/
-

@@ -74,6 +74,8 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
 
             if (Entry->Base + Entry->Size > HighBlock) {
                 HighBlock = Entry->Base + Entry->Size;
+                // Align HighBlock to 16-byte boundary for next allocation
+                HighBlock = (HighBlock + 15) & ~15;
             }
         }
 
@@ -86,8 +88,9 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     }
 
     // First check if we have reached the top of the heap
-
-    if (HighBlock + Size > HeapBase + HeapSize) {
+    // Account for potential 16-byte alignment
+    LINEAR AlignedHighBlock = (HighBlock + 15) & ~15;
+    if (AlignedHighBlock + Size > HeapBase + HeapSize) {
         goto Out;
     }
 
@@ -101,7 +104,9 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
 
             if (Entry->Used == 0 && Entry->Base == NULL) {
                 Entry->Used = 1;
-                Entry->Base = HighBlock;
+                // Align HighBlock to 16-byte boundary
+                LINEAR AlignedBase = (HighBlock + 15) & ~15;
+                Entry->Base = AlignedBase;
                 Entry->Size = Size;
                 Pointer = Entry->Base;
                 goto Out;
@@ -201,4 +206,3 @@ void HeapFree(LPVOID Pointer) {
 }
 
 /***************************************************************************/
-

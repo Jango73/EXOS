@@ -35,13 +35,6 @@ LBF equ 0x04                           ; Local base far
 
 ;----------------------------------------------------------------------------
 
-TEMP_GDT_BASE equ 0x0000EF00
-RMC_BASE      equ 0x0000F000
-RMC_SEGMENT   equ 0x00000F00
-RMC_STACK     equ 0x00000400
-
-;----------------------------------------------------------------------------
-
 section .data
 bits 32
 
@@ -51,13 +44,39 @@ bits 32
 
 DeadBeef      dd 0xDEADBEEF
 
+;--------------------------------------
+
+section .text.stub
+bits 32
+
+global start
+extern KernelMain
+extern KernelLogText
+
+stub_base:
+
+    jmp     start
+
+times (4 - ($ - $$)) db 0
+
+Magic : db 'EXOS'
+
+FUNC_HEADER
+start:
+
+    call    KernelMain
+
+    cli                 ; Should not return here, hang
+    hlt
+    jmp $
+    nop
+
 ;----------------------------------------------------------------------------
 
 section .text
 bits 32
 
-    global GetGDTR
-    global GetLDTR
+    global GetCR4
     global GetESP
     global GetEBP
     global GetDR6
@@ -89,11 +108,9 @@ bits 32
     global LoadInitialTaskRegister
     global GetTaskRegister
     global GetPageDirectory
-    global SetPageDirectory
     global InvalidatePage
     global FlushTLB
     global SwitchToTask
-    global TaskRunner
     global SetTaskState
     global ClearTaskState
     global PeekConsoleWord
@@ -101,41 +118,24 @@ bits 32
     global SaveRegisters
     global MemorySet
     global MemoryCopy
+    global MemoryCompare
     global DoSystemCall
     global IdleCPU
     global DeadCPU
     global Reboot
+    global TaskRunner
 
 ;--------------------------------------
 
-GetGDTR:
-    push        ebp
-    mov         ebp, esp
-    sub         esp, 6            ; need 6 bytes for sgdt
+FUNC_HEADER
+GetCR4 :
 
-    sgdt        [ebp-6]           ; stores limit(2) + base(4)
-    mov         eax, [ebp-4]      ; eax = base
-
-    add         esp, 6
-    pop         ebp
+    mov         eax, cr4
     ret
 
 ;--------------------------------------
 
-GetLDTR:
-    push        ebp
-    mov         ebp, esp
-    sub         esp, 6            ; need 6 bytes for sgdt
-
-    sldt        [ebp-6]           ; stores limit(2) + base(4)
-    mov         eax, [ebp-4]      ; eax = base
-
-    add         esp, 6
-    pop         ebp
-    ret
-
-;--------------------------------------
-
+FUNC_HEADER
 GetESP :
 
     mov         eax, esp
@@ -143,6 +143,7 @@ GetESP :
 
 ;--------------------------------------
 
+FUNC_HEADER
 GetEBP :
 
     mov         eax, ebp
@@ -150,6 +151,7 @@ GetEBP :
 
 ;--------------------------------------
 
+FUNC_HEADER
 GetDR6 :
 
     mov         eax, dr6
@@ -157,6 +159,7 @@ GetDR6 :
 
 ;--------------------------------------
 
+FUNC_HEADER
 GetDR7 :
 
     mov         eax, dr7
@@ -164,6 +167,7 @@ GetDR7 :
 
 ;--------------------------------------
 
+FUNC_HEADER
 SetDR6 :
 
     push        ebp
@@ -177,6 +181,7 @@ SetDR6 :
 
 ;--------------------------------------
 
+FUNC_HEADER
 SetDR7 :
 
     push        ebp
@@ -190,6 +195,7 @@ SetDR7 :
 
 ;--------------------------------------
 
+FUNC_HEADER
 GetCPUID :
 
     push ebp
@@ -240,6 +246,7 @@ GetCPUID :
 
 ;--------------------------------------
 
+FUNC_HEADER
 DisablePaging :
 
     mov     eax, cr0
@@ -249,6 +256,7 @@ DisablePaging :
 
 ;--------------------------------------
 
+FUNC_HEADER
 EnablePaging :
 
     mov     eax, cr0
@@ -258,6 +266,7 @@ EnablePaging :
 
 ;--------------------------------------
 
+FUNC_HEADER
 DisableInterrupts :
 
    cli
@@ -265,6 +274,7 @@ DisableInterrupts :
 
 ;--------------------------------------
 
+FUNC_HEADER
 EnableInterrupts :
 
    sti
@@ -272,6 +282,7 @@ EnableInterrupts :
 
 ;--------------------------------------
 
+FUNC_HEADER
 SaveFlags :
 
     push    ebp
@@ -291,6 +302,7 @@ SaveFlags :
 
 ;--------------------------------------
 
+FUNC_HEADER
 RestoreFlags :
 
     push    ebp
@@ -310,6 +322,7 @@ RestoreFlags :
 
 ;--------------------------------------
 
+FUNC_HEADER
 InPortByte :
 
     push    ebp
@@ -324,6 +337,7 @@ InPortByte :
 
 ;--------------------------------------
 
+FUNC_HEADER
 OutPortByte :
 
     push    ebp
@@ -338,6 +352,7 @@ OutPortByte :
 
 ;--------------------------------------
 
+FUNC_HEADER
 InPortWord :
 
     push    ebp
@@ -352,6 +367,7 @@ InPortWord :
 
 ;--------------------------------------
 
+FUNC_HEADER
 OutPortWord :
 
     push    ebp
@@ -366,6 +382,7 @@ OutPortWord :
 
 ;--------------------------------------
 
+FUNC_HEADER
 InPortLong :
 
     push    ebp
@@ -379,6 +396,7 @@ InPortLong :
 
 ;--------------------------------------
 
+FUNC_HEADER
 OutPortLong :
 
     push    ebp
@@ -392,6 +410,7 @@ OutPortLong :
     ret
 ;--------------------------------------
 
+FUNC_HEADER
 InPortStringWord :
 
     push    ebp
@@ -412,6 +431,7 @@ InPortStringWord :
 
 ;--------------------------------------
 
+FUNC_HEADER
 MaskIRQ :
 
     push ebp
@@ -453,6 +473,7 @@ _MaskIRQ_Out :
 
 ;--------------------------------------
 
+FUNC_HEADER
 UnmaskIRQ :
 
     push ebp
@@ -495,6 +516,7 @@ _UnmaskIRQ_Out :
 
 ;--------------------------------------
 
+FUNC_HEADER
 DisableIRQ :
 
     push    ebp
@@ -511,6 +533,7 @@ DisableIRQ :
 
 ;--------------------------------------
 
+FUNC_HEADER
 EnableIRQ :
 
     push    ebp
@@ -527,6 +550,7 @@ EnableIRQ :
 
 ;--------------------------------------
 
+FUNC_HEADER
 LoadGlobalDescriptorTable :
 
     push        ebp
@@ -550,16 +574,22 @@ LoadGlobalDescriptorTable :
 
     lgdt        [ebp+PBN]
 
-    jmp         0x08:.flush
+    jmp         SELECTOR_KERNEL_CODE:.flush
 
 .flush :
 
-    mov ax, 0x10    ; data selector
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
+    mov         ax, SELECTOR_KERNEL_DATA    ; data selector
+    mov         ss, ax
+
+    nop
+    nop
+    nop
+    nop
+
+    mov         ds, ax
+    mov         es, ax
+    mov         fs, ax
+    mov         gs, ax
 
 _LGDT_Out :
 
@@ -571,6 +601,7 @@ _LGDT_Out :
 
 ;--------------------------------------
 
+FUNC_HEADER
 LoadLocalDescriptorTable :
 
     cli
@@ -595,6 +626,7 @@ LoadLocalDescriptorTable :
 
 ;--------------------------------------
 
+FUNC_HEADER
 LoadInterruptDescriptorTable :
 
     push    ebp
@@ -623,17 +655,28 @@ LoadInterruptDescriptorTable :
 
 ;--------------------------------------
 
+FUNC_HEADER
 LoadPageDirectory :
 
     push    ebp
     mov     ebp, esp
+    push    ebx
+
     mov     eax, [ebp+PBN]
+    mov     ebx, cr3
+    cmp     eax, ebx
+    jz      .out
+
     mov     cr3, eax
+
+.out:
+    pop     ebx
     pop     ebp
     ret
 
 ;--------------------------------------
 
+FUNC_HEADER
 LoadInitialTaskRegister :
 
     push        ebp
@@ -672,6 +715,7 @@ LoadInitialTaskRegister :
 
 ;--------------------------------------
 
+FUNC_HEADER
 GetTaskRegister :
 
     xor         eax, eax
@@ -680,6 +724,7 @@ GetTaskRegister :
 
 ;--------------------------------------
 
+FUNC_HEADER
 GetPageDirectory :
 
     mov     eax, cr3
@@ -687,21 +732,7 @@ GetPageDirectory :
 
 ;--------------------------------------
 
-SetPageDirectory :
-
-    push        ebp
-    mov         ebp, esp
-    push        ebx
-
-    mov         eax, [ebp+PBN+0]
-    mov         cr3, eax
-
-    pop         ebx
-    pop         ebp
-    ret
-
-;--------------------------------------
-
+FUNC_HEADER
 InvalidatePage :
 
     push        ebp
@@ -715,6 +746,7 @@ InvalidatePage :
 
 ;--------------------------------------
 
+FUNC_HEADER
 FlushTLB :
 
     mov     eax, cr3
@@ -723,6 +755,7 @@ FlushTLB :
 
 ;--------------------------------------
 
+FUNC_HEADER
 SwitchToTask :
 
     push        ebp
@@ -743,64 +776,8 @@ SwitchToTask :
     ret
 
 ;--------------------------------------
-; This is the entry point of each new task
-; It expects the task's main function pointer
-; to reside in ebx and the argument in eax
-; They should be set in the TSS by the kernel
 
-TaskRunner :
-
-    ;--------------------------------------
-    ; EBX in the TSS contains the function
-    ; EAX in the TSS contains the parameter
-
-    cmp         ebx, 0
-    je          _TaskRunner_KillTask
-
-    PRE_CALL_C
-    push        eax                        ; Argument for task function
-    call        ValidateEIPOrDie
-    add         esp, 4                     ; Adjust stack
-    POST_CALL_C
-
-    PRE_CALL_C
-    push        eax                        ; Argument for task function
-    call        ebx                        ; Call task function
-    add         esp, 4                     ; Adjust stack
-    POST_CALL_C
-
-    ;--------------------------------------
-    ; When we come back from the function,
-    ; we kill the task so that the kernel
-    ; frees resources allocated and the
-    ; scheduler does not jump to it
-
-_TaskRunner_KillTask :
-
-    ;--------------------------------------
-    ; Kill the task
-
-    PRE_CALL_C
-    call        GetCurrentTask
-    POST_CALL_C
-
-    push        eax
-    call        KillTask
-    add         esp, 4
-
-    ;--------------------------------------
-    ; Do an infinite loop, task will be removed by scheduler
-
-_TaskRunner_L1 :
-
-    nop
-    nop
-    nop
-    nop
-    jmp         _TaskRunner_L1
-
-;--------------------------------------
-
+FUNC_HEADER
 SetTaskState :
 
     mov     eax, cr0
@@ -810,6 +787,7 @@ SetTaskState :
 
 ;--------------------------------------
 
+FUNC_HEADER
 ClearTaskState :
 
     clts
@@ -817,6 +795,7 @@ ClearTaskState :
 
 ;--------------------------------------
 
+FUNC_HEADER
 PeekConsoleWord :
 
     push    ebp
@@ -832,6 +811,7 @@ PeekConsoleWord :
 
 ;--------------------------------------
 
+FUNC_HEADER
 PokeConsoleWord :
 
     push    ebp
@@ -849,6 +829,7 @@ PokeConsoleWord :
 
 ;--------------------------------------
 
+FUNC_HEADER
 SaveRegisters :
 
     push    ebp
@@ -971,6 +952,7 @@ SaveRegisters :
 
 ;--------------------------------------
 
+FUNC_HEADER
 MemorySet :
 
     push    ebp
@@ -978,10 +960,6 @@ MemorySet :
 
     push    ecx
     push    edi
-    push    es
-
-    push    ds
-    pop     es
 
     mov     edi, [ebp+(PBN+0)]
     mov     eax, [ebp+(PBN+4)]
@@ -989,7 +967,6 @@ MemorySet :
     cld
     rep     stosb
 
-    pop     es
     pop     edi
     pop     ecx
 
@@ -998,6 +975,7 @@ MemorySet :
 
 ;--------------------------------------
 
+FUNC_HEADER
 MemoryCopy :
 
     push    ebp
@@ -1006,10 +984,6 @@ MemoryCopy :
     push    ecx
     push    esi
     push    edi
-    push    es
-
-    push    ds
-    pop     es
 
     mov     edi, [ebp+(PBN+0)]
     mov     esi, [ebp+(PBN+4)]
@@ -1017,7 +991,6 @@ MemoryCopy :
     cld
     rep     movsb
 
-    pop     es
     pop     edi
     pop     esi
     pop     ecx
@@ -1027,6 +1000,47 @@ MemoryCopy :
 
 ;--------------------------------------
 
+FUNC_HEADER
+MemoryCompare :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    esi
+    push    edi
+
+    mov     esi, [ebp+(PBN+0)]     ; First buffer
+    mov     edi, [ebp+(PBN+4)]     ; Second buffer  
+    mov     ecx, [ebp+(PBN+8)]     ; Size
+    cld
+    repe    cmpsb
+    
+    je      .equal
+    ja      .greater
+    
+.less:
+    mov     eax, -1
+    jmp     .done
+    
+.greater:
+    mov     eax, 1
+    jmp     .done
+    
+.equal:
+    xor     eax, eax
+    
+.done:
+    pop     edi
+    pop     esi
+    pop     ecx
+
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+FUNC_HEADER
 DoSystemCall :
 
     push    ebp
@@ -1043,7 +1057,11 @@ DoSystemCall :
     ret
 
 ;--------------------------------------
+; DON'T call this one outside of :
+; Sleep, WaitForMessage and LockMutex
+; It will trigger random crashes
 
+FUNC_HEADER
 IdleCPU :
 
     sti
@@ -1052,6 +1070,7 @@ IdleCPU :
 
 ;--------------------------------------
 
+FUNC_HEADER
 DeadCPU :
 
 .loop:
@@ -1061,6 +1080,7 @@ DeadCPU :
 
 ;--------------------------------------
 
+FUNC_HEADER
 Reboot :
 
     cli
@@ -1079,6 +1099,84 @@ Reboot :
 .hang:
     hlt
     jmp     .hang
+
+;----------------------------------------------------------------------------
+
+FUNC_HEADER
+JumpToReadyTask :
+
+    push    ebp
+    mov     ebp, esp
+
+    mov     eax, [ebp+(PBN+0)]
+    mov     ebx, [ebp+(PBN+4)]
+    mov     esi, [ebp+(PBN+8)]
+    mov     esp, esi
+
+    iret
+
+;----------------------------------------------------------------------------
+
+section .shared_text
+bits 32
+
+;--------------------------------------
+; This is the entry point of each new task
+; It expects the task's main function pointer
+; to reside in ebx and the argument in eax
+
+FUNC_HEADER
+TaskRunner :
+
+    ;--------------------------------------
+    ; Log EAX and EBX values for debugging
+
+;    push        eax
+;    push        ebx
+
+;    push        ebx                        ; EBX value as parameter
+;    push        eax                        ; EAX value as parameter
+;    push        TaskRunnerLogMsg           ; Format string
+;    push        0x0001                     ; LOG_DEBUG
+;    call        KernelLogText
+;    add         esp, 16                    ; Clean up 4 parameters
+
+;    pop         ebx
+;    pop         eax
+
+    ;--------------------------------------
+    ; EBX contains the function
+    ; EAX contains the parameter
+
+    cmp         ebx, 0
+    je          _TaskRunner_KillMe
+
+    push        eax                        ; Argument for task function
+    call        ebx                        ; Call task function
+    add         esp, U32_SIZE              ; Adjust stack
+
+_TaskRunner_KillMe :
+
+    mov         eax, 0x0000002F            ; SYSCALL_KillMe
+    xor         ebx, ebx
+    int         0x80
+
+    ;--------------------------------------
+    ; Do an infinite loop, task will be removed by scheduler
+
+.sleep
+    mov         eax, 0xE
+    mov         ebx, MAX_UINT
+    int         0x80
+
+    jmp         .sleep
+
+;----------------------------------------------------------------------------
+
+section .data
+bits 32
+
+TaskRunnerLogMsg db '[TaskRunner] EAX=%x EBX=%x', 0
 
 ;----------------------------------------------------------------------------
 

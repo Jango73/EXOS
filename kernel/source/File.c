@@ -84,8 +84,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.Attributes = MAX_U32;
         StringCopy(Find.Name, Info->Name);
 
-        File =
-            (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)Kernel.SystemFS->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
         if (File != NULL) {
             LockMutex(MUTEX_FILE, INFINITY);
@@ -313,7 +312,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
     LPFILE File = NULL;
     LPVOID Buffer = NULL;
 
-    KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] Name = %s"), Name);
+    KernelLogText(LOG_DEBUG, TEXT("[FileReadAll] Name = %s"), Name);
 
     SAFE_USE_2(Name, Size) {
         //-------------------------------------
@@ -326,7 +325,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
 
         if (File == NULL) return NULL;
 
-        KernelLogText(LOG_VERBOSE, TEXT("[FileReadAll] File found"));
+        KernelLogText(LOG_DEBUG, TEXT("[FileReadAll] File found"));
 
         //-------------------------------------
         // Allocate buffer and read content
@@ -390,4 +389,3 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
 }
 
 /***************************************************************************/
-

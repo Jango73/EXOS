@@ -18,13 +18,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Kernel
+    Kernel definitions
 
 \************************************************************************/
+
 #ifndef KERNEL_H_INCLUDED
 #define KERNEL_H_INCLUDED
-
-#define __DEBUG__
 
 /***************************************************************************/
 
@@ -36,9 +35,9 @@
 #include "Memory.h"
 #include "Process.h"
 #include "String.h"
+#include "TOML.h"
 #include "Text.h"
 #include "User.h"
-#include "TOML.h"
 
 /***************************************************************************/
 
@@ -70,6 +69,8 @@ typedef struct tag_CPUINFORMATION {
 #define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 #define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
+#define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
+
 /***************************************************************************/
 
 #define DESCRIPTOR_SIZE 10
@@ -83,17 +84,6 @@ typedef struct tag_CPUINFORMATION {
 
 #define IDT_SIZE N_4KB
 #define GDT_SIZE N_8KB
-
-/***************************************************************************/
-// Static linear addresses (VMA)
-// All processes have the following address space layout
-
-#define LA_RAM 0x00000000      // Reserved for kernel
-#define LA_VIDEO 0x000A0000    // Reserved for kernel
-#define LA_CONSOLE 0x000B8000  // Reserved for kernel
-#define LA_USER 0x00400000     // Start of user address space
-#define LA_LIBRARY 0xA0000000  // Dynamic Libraries
-#define LA_KERNEL 0xC0000000   // Kernel
 
 /***************************************************************************/
 
@@ -113,7 +103,6 @@ typedef struct tag_CPUINFORMATION {
 
 // Global Kernel Data
 
-#define KERNEL_PHYSICAL_ORIGIN 0x20000
 #define RESERVED_LOW_MEMORY N_4MB
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
 
@@ -126,6 +115,7 @@ typedef struct tag_E820ENTRY {
 
 typedef struct tag_KERNELSTARTUPINFO {
     PHYSICAL StubAddress;
+    PHYSICAL StackTop;
     PHYSICAL PageDirectory;
     U32 IRQMask_21_PM;
     U32 IRQMask_A1_PM;
@@ -168,6 +158,7 @@ typedef struct tag_KERNELDATA {
     STR LanguageCode[8];
     STR KeyboardCode[8];
     CPUINFORMATION CPU;
+    U32 MinimumQuantum;  // Minimum quantum time in milliseconds (adjusted for emulation)
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
@@ -179,10 +170,11 @@ LPVOID HeapAlloc(U32);
 void HeapFree(LPVOID);
 BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR, LPSEGMENTINFO);
 BOOL GetCPUInformation(LPCPUINFORMATION);
+void InitializeQuantumTime(void);
 U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
-void InitializeKernel(U32 ImageAddress, U8 CursorX, U8 CursorY);
+void InitializeKernel(void);
 
 /***************************************************************************/
 // Functions in Segment.c
