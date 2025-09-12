@@ -1102,21 +1102,6 @@ Reboot :
 
 ;----------------------------------------------------------------------------
 
-FUNC_HEADER
-JumpToReadyTask :
-
-    push    ebp
-    mov     ebp, esp
-
-    mov     eax, [ebp+(PBN+0)]
-    mov     ebx, [ebp+(PBN+4)]
-    mov     esi, [ebp+(PBN+8)]
-    mov     esp, esi
-
-    iret
-
-;----------------------------------------------------------------------------
-
 section .shared_text
 bits 32
 

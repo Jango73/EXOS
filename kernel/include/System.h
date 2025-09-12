@@ -93,7 +93,6 @@ extern U32 DoSystemCall(U32, U32);
 extern void IdleCPU(void);
 extern void DeadCPU(void);
 extern void Reboot(void);
-extern void JumpToReadyTask(U32 EAX, U32 EBX, LINEAR ESP);
 
 /***************************************************************************/
 
