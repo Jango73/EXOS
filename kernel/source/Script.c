@@ -55,7 +55,6 @@ static BOOL ScriptIsKeyword(LPCSTR Str);
  * @return Pointer to new script context or NULL on failure
  */
 LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
-    DEBUG(TEXT("[ScriptCreateContext] Enter"));
 
     LPSCRIPT_CONTEXT Context = (LPSCRIPT_CONTEXT)HeapAlloc(sizeof(SCRIPT_CONTEXT));
     if (Context == NULL) {
@@ -80,7 +79,6 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
 
     Context->ErrorCode = SCRIPT_OK;
 
-    DEBUG(TEXT("[ScriptCreateContext] Exit - Context created"));
     return Context;
 }
 
@@ -93,15 +91,12 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context) {
     if (Context == NULL) return;
 
-    DEBUG(TEXT("[ScriptDestroyContext] Enter"));
-
     // Free global scope and all child scopes
     if (Context->GlobalScope) {
         ScriptDestroyScope(Context->GlobalScope);
     }
 
     HeapFree(Context);
-    DEBUG(TEXT("[ScriptDestroyContext] Exit"));
 }
 
 /************************************************************************/
@@ -117,8 +112,6 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
         DEBUG(TEXT("[ScriptExecute] NULL parameters"));
         return SCRIPT_ERROR_SYNTAX;
     }
-
-    DEBUG(TEXT("[ScriptExecute] Executing script"));
 
     Context->ErrorCode = SCRIPT_OK;
     Context->ErrorMessage[0] = STR_NULL;
@@ -220,8 +213,6 @@ BOOL ScriptIsScriptSyntax(LPCSTR Line) {
 LPSCRIPT_VARIABLE ScriptSetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value) {
     if (Context == NULL || Name == NULL) return NULL;
 
-    DEBUG(TEXT("[ScriptSetVariable] Setting variable %s"), Name);
-
     return ScriptSetVariableInScope(Context->CurrentScope, Name, Type, Value);
 }
 
@@ -248,8 +239,6 @@ LPSCRIPT_VARIABLE ScriptGetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name) {
  */
 void ScriptDeleteVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name) {
     if (Context == NULL || Name == NULL || Context->CurrentScope == NULL) return;
-
-    DEBUG(TEXT("[ScriptDeleteVariable] Deleting variable %s"), Name);
 
     U32 Hash = ScriptHashVariable(Name);
     LPLIST Bucket = Context->CurrentScope->Buckets[Hash];
@@ -332,24 +321,39 @@ static void ScriptFreeVariable(LPSCRIPT_VARIABLE Variable) {
 /************************************************************************/
 
 /**
- * @brief Execute a single line of script.
+ * @brief Execute a single line of script (may contain multiple statements separated by semicolons).
  * @param Context Script context
  * @param Line Line to execute
  * @return Script error code
  */
 static SCRIPT_ERROR ScriptExecuteLine(LPSCRIPT_CONTEXT Context, LPCSTR Line) {
-    DEBUG(TEXT("[ScriptExecuteLine] Executing: %s"), Line);
-
     SCRIPT_PARSER Parser;
     ScriptInitParser(&Parser, Line, &Context->Variables, &Context->Callbacks, Context->CurrentScope);
 
-    SCRIPT_ERROR Error = ScriptParseStatement(&Parser);
-    if (Error != SCRIPT_OK) {
-        StringCopy(Context->ErrorMessage, TEXT("Syntax error"));
-        Context->ErrorCode = Error;
+    // Parse all statements on this line until EOF
+    while (Parser.CurrentToken.Type != TOKEN_EOF) {
+        SCRIPT_ERROR Error = ScriptParseStatement(&Parser);
+        if (Error != SCRIPT_OK) {
+            StringCopy(Context->ErrorMessage, TEXT("Syntax error"));
+            Context->ErrorCode = Error;
+            return Error;
+        }
+
+        // Semicolon is mandatory to terminate statement
+        if (Parser.CurrentToken.Type != TOKEN_SEMICOLON && Parser.CurrentToken.Type != TOKEN_EOF) {
+            DEBUG(TEXT("[ScriptExecuteLine] Expected semicolon, got token type %d"), Parser.CurrentToken.Type);
+            StringCopy(Context->ErrorMessage, TEXT("Expected semicolon"));
+            Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
+            return SCRIPT_ERROR_SYNTAX;
+        }
+
+        // Skip semicolon if present
+        if (Parser.CurrentToken.Type == TOKEN_SEMICOLON) {
+            ScriptNextToken(&Parser);
+        }
     }
 
-    return Error;
+    return SCRIPT_OK;
 }
 
 /************************************************************************/
@@ -552,7 +556,6 @@ static SCRIPT_ERROR ScriptParseAssignment(LPSCRIPT_PARSER Parser) {
 
     STR VarName[MAX_VAR_NAME];
     StringCopy(VarName, Parser->CurrentToken.Value);
-    DEBUG(TEXT("[ScriptParseAssignment] Variable name: %s"), VarName);
 
     ScriptNextToken(Parser);
 
@@ -585,12 +588,9 @@ static SCRIPT_ERROR ScriptParseAssignment(LPSCRIPT_PARSER Parser) {
     }
 
     ScriptNextToken(Parser);
-    DEBUG(TEXT("[ScriptParseAssignment] Parsing expression, current token type: %d"), Parser->CurrentToken.Type);
 
     SCRIPT_ERROR Error = SCRIPT_OK;
     F32 Value = ScriptParseComparison(Parser, &Error);
-
-    DEBUG(TEXT("[ScriptParseAssignment] Expression parsed, error=%d value=%d"), Error, (I32)Value);
 
     if (Error == SCRIPT_OK) {
         SCRIPT_VAR_VALUE VarValue;
@@ -735,8 +735,6 @@ static F32 ScriptParseTerm(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
  * @return Factor value
  */
 static F32 ScriptParseFactor(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
-    DEBUG(TEXT("[ScriptParseFactor] Token type: %d value: '%s'"), Parser->CurrentToken.Type, Parser->CurrentToken.Value);
-
     if (Parser->CurrentToken.Type == TOKEN_NUMBER) {
         F32 Value = Parser->CurrentToken.NumValue;
         ScriptNextToken(Parser);
@@ -746,14 +744,11 @@ static F32 ScriptParseFactor(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
     if (Parser->CurrentToken.Type == TOKEN_IDENTIFIER) {
         STR VarName[MAX_VAR_NAME];
         StringCopy(VarName, Parser->CurrentToken.Value);
-        DEBUG(TEXT("[ScriptParseFactor] Identifier: %s"), VarName);
 
         ScriptNextToken(Parser);
-        DEBUG(TEXT("[ScriptParseFactor] After identifier, token type: %d"), Parser->CurrentToken.Type);
 
         // Check for function call
         if (Parser->CurrentToken.Type == TOKEN_LPAREN) {
-            DEBUG(TEXT("[ScriptParseFactor] Function call detected"));
             ScriptNextToken(Parser);
 
             // Parse string argument
@@ -765,7 +760,6 @@ static F32 ScriptParseFactor(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
 
             STR Argument[MAX_PATH_NAME];
             StringCopy(Argument, Parser->CurrentToken.Value);
-            DEBUG(TEXT("[ScriptParseFactor] Function argument: '%s'"), Argument);
             ScriptNextToken(Parser);
 
             if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
@@ -777,12 +771,9 @@ static F32 ScriptParseFactor(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
 
             // Call function via callback if available
             if (Parser->Callbacks && Parser->Callbacks->CallFunction) {
-                DEBUG(TEXT("[ScriptParseFactor] Calling function '%s' with argument '%s'"), VarName, Argument);
                 U32 Result = Parser->Callbacks->CallFunction(VarName, Argument, Parser->Callbacks->UserData);
-                DEBUG(TEXT("[ScriptParseFactor] Function returned: %u"), Result);
                 return (F32)Result;
             } else {
-                DEBUG(TEXT("[ScriptParseFactor] No callback available"));
                 *Error = SCRIPT_ERROR_SYNTAX;
                 return 0.0f;
             }
@@ -1049,8 +1040,6 @@ SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Ty
 LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value) {
     if (Context == NULL || Name == NULL) return NULL;
 
-    DEBUG(TEXT("[ScriptSetArrayElement] Setting %s[%d]"), Name, Index);
-
     LPSCRIPT_VARIABLE Variable = ScriptGetVariable(Context, Name);
 
     // Create array variable if it doesn't exist
@@ -1088,8 +1077,6 @@ LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U
  */
 LPSCRIPT_VARIABLE ScriptGetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index) {
     if (Context == NULL || Name == NULL) return NULL;
-
-    DEBUG(TEXT("[ScriptGetArrayElement] Getting %s[%d]"), Name, Index);
 
     LPSCRIPT_VARIABLE Variable = ScriptGetVariable(Context, Name);
     if (Variable == NULL || Variable->Type != SCRIPT_VAR_ARRAY) return NULL;
@@ -1133,8 +1120,6 @@ static BOOL ScriptIsKeyword(LPCSTR Str) {
  * @return Script error code
  */
 static SCRIPT_ERROR ScriptParseStatement(LPSCRIPT_PARSER Parser) {
-    DEBUG(TEXT("[ScriptParseStatement] Current token type: %d"), Parser->CurrentToken.Type);
-
     if (Parser->CurrentToken.Type == TOKEN_IF) {
         return ScriptParseIfStatement(Parser);
     } else if (Parser->CurrentToken.Type == TOKEN_FOR) {
@@ -1158,8 +1143,6 @@ static SCRIPT_ERROR ScriptParseStatement(LPSCRIPT_PARSER Parser) {
  * @return Script error code
  */
 static SCRIPT_ERROR ScriptParseBlock(LPSCRIPT_PARSER Parser) {
-    DEBUG(TEXT("[ScriptParseBlock] Enter"));
-
     if (Parser->CurrentToken.Type != TOKEN_LBRACE) {
         return SCRIPT_ERROR_SYNTAX;
     }
@@ -1177,8 +1160,6 @@ static SCRIPT_ERROR ScriptParseBlock(LPSCRIPT_PARSER Parser) {
     Parser->CurrentScope = NewScope;
     Context->CurrentScope = NewScope;
 
-    DEBUG(TEXT("[SCRIPT] BLOCK START - Created new scope level %d"), NewScope->ScopeLevel);
-
     // Parse statements until we hit the closing brace
     SCRIPT_ERROR Error = SCRIPT_OK;
     while (Parser->CurrentToken.Type != TOKEN_RBRACE && Parser->CurrentToken.Type != TOKEN_EOF) {
@@ -1187,7 +1168,14 @@ static SCRIPT_ERROR ScriptParseBlock(LPSCRIPT_PARSER Parser) {
             break;
         }
 
-        // Skip semicolons if present
+        // Semicolon is mandatory to terminate statement
+        if (Parser->CurrentToken.Type != TOKEN_SEMICOLON && Parser->CurrentToken.Type != TOKEN_RBRACE) {
+            DEBUG(TEXT("[ScriptParseBlock] Expected semicolon or }, got token type %d"), Parser->CurrentToken.Type);
+            Error = SCRIPT_ERROR_SYNTAX;
+            break;
+        }
+
+        // Skip semicolon
         if (Parser->CurrentToken.Type == TOKEN_SEMICOLON) {
             ScriptNextToken(Parser);
         }
@@ -1198,8 +1186,6 @@ static SCRIPT_ERROR ScriptParseBlock(LPSCRIPT_PARSER Parser) {
     Context->CurrentScope = OldScope;
     ScriptDestroyScope(NewScope);
 
-    DEBUG(TEXT("[SCRIPT] BLOCK END - Destroyed scope level %d, back to level %d"), NewScope->ScopeLevel, OldScope ? (I32)OldScope->ScopeLevel : -1);
-
     if (Error != SCRIPT_OK) {
         return Error;
     }
@@ -1209,7 +1195,6 @@ static SCRIPT_ERROR ScriptParseBlock(LPSCRIPT_PARSER Parser) {
     }
     ScriptNextToken(Parser);
 
-    DEBUG(TEXT("[ScriptParseBlock] Exit"));
     return SCRIPT_OK;
 }
 
@@ -1221,8 +1206,6 @@ static SCRIPT_ERROR ScriptParseBlock(LPSCRIPT_PARSER Parser) {
  * @return Script error code
  */
 static SCRIPT_ERROR ScriptParseIfStatement(LPSCRIPT_PARSER Parser) {
-    DEBUG(TEXT("[ScriptParseIfStatement] Enter"));
-
     if (Parser->CurrentToken.Type != TOKEN_IF) {
         return SCRIPT_ERROR_SYNTAX;
     }
@@ -1249,7 +1232,6 @@ static SCRIPT_ERROR ScriptParseIfStatement(LPSCRIPT_PARSER Parser) {
 
     // If condition is true (non-zero), execute the if block
     if (Condition != 0.0f) {
-        DEBUG(TEXT("[ScriptParseIfStatement] Condition is true, executing if block"));
         Error = ScriptParseStatement(Parser);
         if (Error != SCRIPT_OK) {
             return Error;
@@ -1277,7 +1259,6 @@ static SCRIPT_ERROR ScriptParseIfStatement(LPSCRIPT_PARSER Parser) {
             }
         }
     } else {
-        DEBUG(TEXT("[ScriptParseIfStatement] Condition is false, skipping if block"));
         // Skip the if block without executing it
         if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
             // Skip entire block
@@ -1298,7 +1279,6 @@ static SCRIPT_ERROR ScriptParseIfStatement(LPSCRIPT_PARSER Parser) {
 
         // Execute else block if present
         if (Parser->CurrentToken.Type == TOKEN_ELSE) {
-            DEBUG(TEXT("[ScriptParseIfStatement] Executing else block"));
             ScriptNextToken(Parser);
             Error = ScriptParseStatement(Parser);
             if (Error != SCRIPT_OK) {
@@ -1307,7 +1287,6 @@ static SCRIPT_ERROR ScriptParseIfStatement(LPSCRIPT_PARSER Parser) {
         }
     }
 
-    DEBUG(TEXT("[ScriptParseIfStatement] Exit"));
     return SCRIPT_OK;
 }
 
@@ -1319,8 +1298,6 @@ static SCRIPT_ERROR ScriptParseIfStatement(LPSCRIPT_PARSER Parser) {
  * @return Script error code
  */
 static SCRIPT_ERROR ScriptParseForStatement(LPSCRIPT_PARSER Parser) {
-    DEBUG(TEXT("[ScriptParseForStatement] Enter"));
-
     if (Parser->CurrentToken.Type != TOKEN_FOR) {
         return SCRIPT_ERROR_SYNTAX;
     }
@@ -1437,7 +1414,6 @@ static SCRIPT_ERROR ScriptParseForStatement(LPSCRIPT_PARSER Parser) {
         ScriptNextToken(Parser);
     }
 
-    DEBUG(TEXT("[ScriptParseForStatement] Exit - executed %d iterations"), LoopCount);
     return SCRIPT_OK;
 }
 
@@ -1449,8 +1425,6 @@ static SCRIPT_ERROR ScriptParseForStatement(LPSCRIPT_PARSER Parser) {
  * @return Pointer to new scope or NULL on failure
  */
 LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_SCOPE Parent) {
-    DEBUG(TEXT("[ScriptCreateScope] Enter - Parent: %p"), Parent);
-
     LPSCRIPT_SCOPE Scope = (LPSCRIPT_SCOPE)HeapAlloc(sizeof(SCRIPT_SCOPE));
     if (Scope == NULL) {
         DEBUG(TEXT("[ScriptCreateScope] Failed to allocate scope"));
@@ -1473,7 +1447,6 @@ LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_SCOPE Parent) {
     Scope->ScopeLevel = Parent ? Parent->ScopeLevel + 1 : 0;
     Scope->Count = 0;
 
-    DEBUG(TEXT("[ScriptCreateScope] Exit - Scope: %p, Level: %d"), Scope, Scope->ScopeLevel);
     return Scope;
 }
 
@@ -1485,8 +1458,6 @@ LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_SCOPE Parent) {
  */
 void ScriptDestroyScope(LPSCRIPT_SCOPE Scope) {
     if (Scope == NULL) return;
-
-    DEBUG(TEXT("[ScriptDestroyScope] Enter - Scope: %p, Level: %d"), Scope, Scope->ScopeLevel);
 
     // Free all variables in this scope
     for (U32 i = 0; i < SCRIPT_VAR_HASH_SIZE; i++) {
@@ -1502,7 +1473,6 @@ void ScriptDestroyScope(LPSCRIPT_SCOPE Scope) {
     }
 
     HeapFree(Scope);
-    DEBUG(TEXT("[ScriptDestroyScope] Exit"));
 }
 
 /************************************************************************/
@@ -1515,8 +1485,6 @@ void ScriptDestroyScope(LPSCRIPT_SCOPE Scope) {
 LPSCRIPT_SCOPE ScriptPushScope(LPSCRIPT_CONTEXT Context) {
     if (Context == NULL) return NULL;
 
-    DEBUG(TEXT("[ScriptPushScope] Enter - Current level: %d"), Context->CurrentScope ? (I32)Context->CurrentScope->ScopeLevel : -1);
-
     LPSCRIPT_SCOPE NewScope = ScriptCreateScope(Context->CurrentScope);
     if (NewScope == NULL) {
         return NULL;
@@ -1524,7 +1492,6 @@ LPSCRIPT_SCOPE ScriptPushScope(LPSCRIPT_CONTEXT Context) {
 
     Context->CurrentScope = NewScope;
 
-    DEBUG(TEXT("[ScriptPushScope] Exit - New level: %d"), Context->CurrentScope->ScopeLevel);
     return NewScope;
 }
 
@@ -1537,8 +1504,6 @@ LPSCRIPT_SCOPE ScriptPushScope(LPSCRIPT_CONTEXT Context) {
 void ScriptPopScope(LPSCRIPT_CONTEXT Context) {
     if (Context == NULL || Context->CurrentScope == NULL) return;
 
-    DEBUG(TEXT("[ScriptPopScope] Enter - Current level: %d"), Context->CurrentScope->ScopeLevel);
-
     LPSCRIPT_SCOPE OldScope = Context->CurrentScope;
     Context->CurrentScope = OldScope->Parent;
 
@@ -1546,8 +1511,6 @@ void ScriptPopScope(LPSCRIPT_CONTEXT Context) {
     if (OldScope != Context->GlobalScope) {
         ScriptDestroyScope(OldScope);
     }
-
-    DEBUG(TEXT("[ScriptPopScope] Exit - New level: %d"), Context->CurrentScope ? (I32)Context->CurrentScope->ScopeLevel : -1);
 }
 
 /************************************************************************/
@@ -1562,15 +1525,12 @@ void ScriptPopScope(LPSCRIPT_CONTEXT Context) {
 LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, BOOL SearchParents) {
     if (Scope == NULL || Name == NULL) return NULL;
 
-    DEBUG(TEXT("[ScriptFindVariableInScope] Searching for '%s' in scope level %d"), Name, Scope->ScopeLevel);
-
     U32 Hash = ScriptHashVariable(Name);
     LPLIST Bucket = Scope->Buckets[Hash];
 
     // Search in current scope
     for (LPSCRIPT_VARIABLE Variable = (LPSCRIPT_VARIABLE)Bucket->First; Variable; Variable = (LPSCRIPT_VARIABLE)Variable->Next) {
         if (StringCompare(Variable->Name, Name) == 0) {
-            DEBUG(TEXT("[ScriptFindVariableInScope] Found '%s' in scope level %d"), Name, Scope->ScopeLevel);
             return Variable;
         }
     }
@@ -1580,7 +1540,6 @@ LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, B
         return ScriptFindVariableInScope(Scope->Parent, Name, TRUE);
     }
 
-    DEBUG(TEXT("[ScriptFindVariableInScope] Variable '%s' not found"), Name);
     return NULL;
 }
 
@@ -1596,8 +1555,6 @@ LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, B
  */
 LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value) {
     if (Scope == NULL || Name == NULL) return NULL;
-
-    DEBUG(TEXT("[ScriptSetVariableInScope] Setting '%s' in scope level %d"), Name, Scope->ScopeLevel);
 
     U32 Hash = ScriptHashVariable(Name);
     LPLIST Bucket = Scope->Buckets[Hash];
@@ -1621,17 +1578,6 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
                 if (Variable->Value.String) {
                     StringCopy(Variable->Value.String, Value.String);
                 }
-            }
-
-            DEBUG(TEXT("[ScriptSetVariableInScope] Updated '%s' in scope level %d"), Name, Scope->ScopeLevel);
-
-            // Log updated variable value for visibility
-            if (Type == SCRIPT_VAR_STRING) {
-                DEBUG(TEXT("[SCRIPT] Variable '%s' = \"%s\" (string, updated, scope level %d)"), Name, Variable->Value.String ? Variable->Value.String : TEXT("(null)"), Scope->ScopeLevel);
-            } else if (Type == SCRIPT_VAR_INTEGER) {
-                DEBUG(TEXT("[SCRIPT] Variable '%s' = %d (integer, updated, scope level %d)"), Name, Variable->Value.Integer, Scope->ScopeLevel);
-            } else if (Type == SCRIPT_VAR_FLOAT) {
-                DEBUG(TEXT("[SCRIPT] Variable '%s' = %f (float, updated, scope level %d)"), Name, (double)Variable->Value.Float, Scope->ScopeLevel);
             }
 
             return Variable;
@@ -1663,25 +1609,5 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
     ListAddItem(Bucket, Variable);
     Scope->Count++;
 
-    DEBUG(TEXT("[ScriptSetVariableInScope] Created '%s' in scope level %d"), Name, Scope->ScopeLevel);
-
-    // Log variable value for visibility
-    if (Type == SCRIPT_VAR_STRING) {
-        DEBUG(TEXT("[SCRIPT] Variable '%s' = \"%s\" (string, scope level %d)"), Name, Variable->Value.String ? Variable->Value.String : TEXT("(null)"), Scope->ScopeLevel);
-    } else if (Type == SCRIPT_VAR_INTEGER) {
-        DEBUG(TEXT("[SCRIPT] Variable '%s' = %d (integer, scope level %d)"), Name, Variable->Value.Integer, Scope->ScopeLevel);
-    } else if (Type == SCRIPT_VAR_FLOAT) {
-        DEBUG(TEXT("[SCRIPT] Variable '%s' = %f (float, scope level %d)"), Name, (double)Variable->Value.Float, Scope->ScopeLevel);
-    }
-
     return Variable;
 }
-
-/************************************************************************/
-
-/**
- * @brief Helper function for recursive variable search.
- * @param Scope Starting scope
- * @param Name Variable name
- * @return Pointer to variable or NULL if not found
- */
