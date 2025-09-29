@@ -37,14 +37,26 @@ extern BOOL MountPartition_EXFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 
 /***************************************************************************/
 
+/**
+ * @brief Gets the number of mounted file systems.
+ *
+ * @return Number of file systems currently mounted in the system
+ */
 U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
 
 /***************************************************************************/
 
-/*
-    Build a default volume name using zero-based disk and partition indexes
-    per disk type.
-*/
+/**
+ * @brief Generates a default file system name for a disk partition.
+ *
+ * Creates a volume name using the disk type and zero-based partition index.
+ * The naming convention helps identify partitions systematically.
+ *
+ * @param Name Buffer to store the generated name (must be large enough)
+ * @param Disk Pointer to physical disk structure
+ * @param PartIndex Zero-based partition index on the disk
+ * @return TRUE if name was generated successfully, FALSE otherwise
+ */
 BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
     STR Temp[12];
     LPLISTNODE Node;
@@ -84,6 +96,17 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
 
 /***************************************************************************/
 
+/**
+ * @brief Mounts extended partitions from a disk.
+ *
+ * Reads and processes extended partition table entries to discover
+ * and mount logical drives within extended partitions.
+ *
+ * @param Disk Pointer to physical disk structure
+ * @param Partition Pointer to boot partition information
+ * @param Base Base sector address for partition calculations
+ * @return TRUE if extended partitions were processed successfully, FALSE otherwise
+ */
 BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
@@ -110,11 +133,25 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32
 
 /***************************************************************************/
 
+/**
+ * @brief Mounts all partitions found on a physical disk.
+ *
+ * Reads the Master Boot Record (MBR) and processes each partition entry,
+ * attempting to mount supported file system types (FAT16, FAT32, NTFS, EXFS).
+ * Handles both primary and extended partitions recursively.
+ *
+ * @param Disk Pointer to physical disk structure
+ * @param Partition Pointer to boot partition array, or NULL to read from disk
+ * @param Base Base sector address for partition offset calculations
+ * @return TRUE if partitions were processed successfully, FALSE otherwise
+ */
 BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
     U32 Index;
+
+    DEBUG(TEXT("[MountDiskPartitions] Disk = %x, Partition = %x, Base = %x"), Disk, Partition, Base);
 
     if (Partition == NULL) {
         Control.ID = ID_IOCONTROL;
@@ -146,24 +183,23 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
-                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting FAT16 partition"));
+                    DEBUG(TEXT("[MountDiskPartitions] Mounting FAT16 partition"));
                     MountPartition_FAT16(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
-                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting FAT32 partition"));
+                    DEBUG(TEXT("[MountDiskPartitions] Mounting FAT32 partition"));
                     MountPartition_FAT32(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_EXOS: {
-                    KernelLogText(LOG_VERBOSE, TEXT("[MountDiskPartitions] Mounting EXFS partition"));
+                    DEBUG(TEXT("[MountDiskPartitions] Mounting EXFS partition"));
                     MountPartition_EXFS(Disk, Partition + Index, Base, Index);
                 } break;
 
                 default: {
-                    KernelLogText(
-                        LOG_VERBOSE, TEXT("[MountDiskPartitions] Partition type %X not implemented\n"),
+                    WARNING(TEXT("[MountDiskPartitions] Partition type %X not implemented\n"),
                         (U32)Partition[Index].Type);
                 } break;
             }
@@ -187,5 +223,3 @@ void InitializeFileSystems(void) {
 
     MountSystemFS();
 }
-
-/***************************************************************************/

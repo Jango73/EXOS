@@ -35,17 +35,18 @@
 U32 FAT32Commands(U32, U32);
 
 DRIVER FAT32Driver = {
-    ID_DRIVER,
-    1,
-    NULL,
-    NULL,
-    DRIVER_TYPE_FILESYSTEM,
-    VER_MAJOR,
-    VER_MINOR,
-    "Jango73",
-    "Microsoft Corporation",
-    "Fat 32 File System",
-    FAT32Commands};
+    .ID = ID_DRIVER,
+    .References = 1,
+    .OwnerProcess = &KernelProcess,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_FILESYSTEM,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "Microsoft Corporation",
+    .Product = "Fat 32 File System",
+    .Command = FAT32Commands};
 
 /***************************************************************************/
 // The file system object allocated when mounting
@@ -80,7 +81,7 @@ typedef struct tag_FATFILE {
 static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
     LPFAT32FILESYSTEM This;
 
-    This = (LPFAT32FILESYSTEM)HeapAlloc(sizeof(FAT32FILESYSTEM));
+    This = (LPFAT32FILESYSTEM)KernelHeapAlloc(sizeof(FAT32FILESYSTEM));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(FAT32FILESYSTEM));
@@ -113,7 +114,7 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
 static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
     LPFATFILE This;
 
-    This = (LPFATFILE)HeapAlloc(sizeof(FATFILE));
+    This = (LPFATFILE)KernelHeapAlloc(sizeof(FATFILE));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(FATFILE));
@@ -152,7 +153,6 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     LPFAT32FILESYSTEM FileSystem;
     U32 Result;
 
-    KernelLogText(LOG_DEBUG, TEXT("[MountPartition_FAT32] Enter"));
 
     Control.ID = ID_IOCONTROL;
     Control.Disk = Disk;
@@ -202,7 +202,7 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     FileSystem->PartitionSize = Partition->Size;
     FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->IOBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)KernelHeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the FAT
@@ -223,7 +223,6 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
 
     ListAddItem(Kernel.FileSystem, FileSystem);
 
-    KernelLogText(LOG_DEBUG, TEXT("[MountPartition_FAT32] Exit"));
 
     return TRUE;
 }
@@ -376,6 +375,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
     U32 Index;
     U32 Result;
 
+
     //-------------------------------------
     // Setup variables
 
@@ -386,13 +386,16 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
     NumEntriesPerSector = SECTOR_SIZE / sizeof(U32);
     CurrentSector = 0;
 
+
     while (1) {
         Control.SectorLow = FileSystem->FATStart + CurrentSector;
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
 
         Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
-        if (Result != DF_ERROR_SUCCESS) goto Out;
+        if (Result != DF_ERROR_SUCCESS) {
+            goto Out;
+        }
 
         for (Index = 0; Index < NumEntriesPerSector; Index++) {
             if (Buffer[Index] == FAT32_CLUSTER_AVAIL) {
@@ -408,7 +411,9 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                 Control.SectorHigh = 0;
                 Control.NumSectors = 1;
                 Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
-                if (Result != DF_ERROR_SUCCESS) goto Out;
+                if (Result != DF_ERROR_SUCCESS) {
+                    goto Out;
+                }
 
                 NewCluster = (CurrentSector * NumEntriesPerSector) + Index;
 
@@ -420,7 +425,9 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
                     Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
-                    if (Result != DF_ERROR_SUCCESS) goto Out;
+                    if (Result != DF_ERROR_SUCCESS) {
+                        goto Out;
+                    }
 
                     //-------------------------------------
                     // Mark the cluster as used
@@ -434,7 +441,9 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
                     Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
-                    if (Result != DF_ERROR_SUCCESS) goto Out;
+                    if (Result != DF_ERROR_SUCCESS) {
+                        goto Out;
+                    }
                 }
 
                 return NewCluster;
@@ -442,7 +451,9 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
         }
 
         CurrentSector++;
-        if (CurrentSector >= FileSystem->Master.NumSectorsPerFAT) break;
+        if (CurrentSector >= FileSystem->Master.NumSectorsPerFAT) {
+            break;
+        }
     }
 
 Out:
@@ -699,8 +710,11 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, 
     U32 RequiredEntries;
     U32 FreeEntries;
 
+
     Length = StringLength(Name);
-    if (Length > 255) return FALSE;
+    if (Length > 255) {
+        return FALSE;
+    }
 
     //-------------------------------------
     // Compute the number of entries required
@@ -727,9 +741,13 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, 
             DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + CurrentOffset);
 
             if (DirEntry->Name[0] == 0 && DirEntry->Name[1] == 0) {
-                if (BaseEntry == NULL) BaseEntry = DirEntry;
+                if (BaseEntry == NULL) {
+                    BaseEntry = DirEntry;
+                }
                 FreeEntries++;
             } else {
+                if (FreeEntries > 0) {
+                }
                 BaseEntry = NULL;
                 FreeEntries = 0;
             }
@@ -737,7 +755,9 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, 
             if (FreeEntries == RequiredEntries) {
                 NewCluster = FindFreeCluster(FileSystem);
 
-                if (NewCluster == 0) return FALSE;
+                if (NewCluster == 0) {
+                    return FALSE;
+                }
 
                 SetDirEntry(BaseEntry, Name, NewCluster, Attributes);
 
@@ -766,7 +786,7 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, 
 
     // FileLoc.FileCluster = ChainNewCluster(FileSystem, LastValidCluster);
 
-    return TRUE;
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -1085,11 +1105,12 @@ static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 /***************************************************************************/
 
 /**
- * @brief Create a folder on the file system.
+ * @brief Create a file or folder on the file system.
  * @param File File information containing path and attributes.
+ * @param IsFolder TRUE to create a folder, FALSE to create a file.
  * @return DF_ERROR_* code.
  */
-static U32 CreateFolder(LPFILEINFO File) {
+static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
     LPFAT32FILESYSTEM FileSystem = NULL;
     FATFILELOC FileLoc;
     STR Component[MAX_FILE_NAME];
@@ -1098,15 +1119,21 @@ static U32 CreateFolder(LPFILEINFO File) {
     U32 PathIndex = 0;
     U32 CompIndex = 0;
 
+
     //-------------------------------------
     // Check validity of parameters
 
-    if (File == NULL) return DF_ERROR_BADPARAM;
+    if (File == NULL) {
+        return DF_ERROR_BADPARAM;
+    }
 
     //-------------------------------------
     // Get the associated file system
 
     FileSystem = (LPFAT32FILESYSTEM)File->FileSystem;
+    if (FileSystem == NULL) {
+        return DF_ERROR_BADPARAM;
+    }
 
     //-------------------------------------
     // Initialize file location
@@ -1145,6 +1172,9 @@ static U32 CreateFolder(LPFILEINFO File) {
             }
         }
 
+        // Check if we're at the last component (file/folder to create)
+        BOOL IsLastComponent = (File->Name[PathIndex] == STR_NULL);
+
         //-------------------------------------
         // Loop through all directory entries
 
@@ -1156,13 +1186,16 @@ static U32 CreateFolder(LPFILEINFO File) {
                 DecodeFileName(DirEntry, Name);
 
                 if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
-                    if (File->Name[PathIndex] == STR_NULL) {
-                        if (DirEntry->Attributes & FAT_ATTR_FOLDER) {
-                            return DF_ERROR_SUCCESS;
+                    if (IsLastComponent) {
+                        // Found existing item with same name
+                        if (IsFolder && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {
+                            return DF_ERROR_SUCCESS; // Folder already exists
+                        } else if (!IsFolder && !(DirEntry->Attributes & FAT_ATTR_FOLDER)) {
+                            return DF_ERROR_SUCCESS; // File already exists
                         }
-
-                        return DF_ERROR_GENERIC;
+                        return DF_ERROR_GENERIC; // Type mismatch
                     } else {
+                        // Navigating to next directory component
                         if (DirEntry->Attributes & FAT_ATTR_FOLDER) {
                             U32 NextDir;
 
@@ -1178,7 +1211,7 @@ static U32 CreateFolder(LPFILEINFO File) {
 
                             goto NextComponent;
                         } else {
-                            return DF_ERROR_GENERIC;
+                            return DF_ERROR_GENERIC; // Path component is not a directory
                         }
                     }
                 }
@@ -1193,13 +1226,58 @@ static U32 CreateFolder(LPFILEINFO File) {
                 FileLoc.Offset = 0;
                 FileLoc.FileCluster = GetNextClusterInChain(FileSystem, FileLoc.FileCluster);
 
-                if (FileLoc.FileCluster == 0 || FileLoc.FileCluster >= FAT32_CLUSTER_RESERVED) {
+                if (FileLoc.FileCluster == 0 || (FileLoc.FileCluster & 0x0FFFFFFF) >= 0x0FFFFFF8) {
                     //-------------------------------------
                     // We are at the end of this directory
                     // and we did not find the current component
                     // so we create it
 
-                    return CreateDirEntry(FileSystem, FileLoc.FolderCluster, Component, FAT_ATTR_FOLDER);
+                    if (IsLastComponent) {
+                        // Create the final file/folder
+                        BOOL result = CreateDirEntry(FileSystem, FileLoc.FolderCluster, Component, IsFolder ? FAT_ATTR_FOLDER : FAT_ATTR_ARCHIVE);
+                        return result ? DF_ERROR_SUCCESS : DF_ERROR_GENERIC;
+                    } else {
+                        // Create intermediate directory and continue navigation
+                        if (CreateDirEntry(FileSystem, FileLoc.FolderCluster, Component, FAT_ATTR_FOLDER) != TRUE) {
+                            return DF_ERROR_GENERIC;
+                        }
+
+                        // Find the newly created directory and navigate into it
+                        FileLoc.Offset = 0;
+                        FileLoc.FileCluster = FileLoc.FolderCluster;
+
+                        if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) {
+                            return DF_ERROR_IO;
+                        }
+
+                        // Search for the newly created directory
+                        while (1) {
+                            DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc.Offset);
+
+                            if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
+                                (DirEntry->Name[0] != 0xE5)) {
+                                DecodeFileName(DirEntry, Name);
+                
+                                if (StringCompare(Component, Name) == 0 && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {
+                                    U32 NextDir = (U32)DirEntry->ClusterLow | (((U32)DirEntry->ClusterHigh) << 16);
+                                    FileLoc.FolderCluster = NextDir;
+                                    FileLoc.FileCluster = NextDir;
+                                    FileLoc.Offset = 0;
+
+                                    if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) {
+                                        return DF_ERROR_IO;
+                                    }
+
+                                    goto NextComponent;
+                                }
+                            }
+
+                            FileLoc.Offset += sizeof(FATDIRENTRY_EXT);
+                            if (FileLoc.Offset >= FileSystem->BytesPerCluster) {
+                                return DF_ERROR_GENERIC; // Should have found the directory we just created
+                            }
+                        }
+                    }
                 }
 
                 if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_ERROR_IO;
@@ -1269,6 +1347,60 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
 
         DecodeFileName(DirEntry, File->Header.Name);
         TranslateFileInfo(DirEntry, File);
+
+        //-------------------------------------
+        // Handle FILE_OPEN_TRUNCATE flag
+
+        if (Find->Flags & FILE_OPEN_TRUNCATE) {
+
+            // Reset file size to zero in memory
+            File->Header.SizeLow = 0;
+            File->Header.SizeHigh = 0;
+
+            // Update directory entry
+            DirEntry->Size = 0;
+
+            // Write the updated directory entry back to disk
+            if (WriteCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) {
+                // Don't free directly - let ReleaseKernelObject handle it
+                return NULL;
+            }
+
+        }
+    } else if (Find->Flags & FILE_OPEN_CREATE_ALWAYS) {
+
+        //-------------------------------------
+        // Create the file
+
+        FILEINFO TempFileInfo;
+        TempFileInfo.FileSystem = (LPFILESYSTEM)FileSystem;
+        StringCopy(TempFileInfo.Name, Find->Name);
+
+        if (CreateFile(&TempFileInfo, FALSE) != DF_ERROR_SUCCESS) {
+            return NULL;
+        }
+
+        //-------------------------------------
+        // Now locate the newly created file
+
+        if (LocateFile(FileSystem, Find->Name, &FileLoc) == FALSE) {
+            return NULL;
+        }
+
+        if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) {
+            return NULL;
+        }
+
+        DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc.Offset);
+
+        File = NewFATFile(FileSystem, &FileLoc);
+        if (File == NULL) {
+            return NULL;
+        }
+
+        DecodeFileName(DirEntry, File->Header.Name);
+        TranslateFileInfo(DirEntry, File);
+
     }
 
     return File;
@@ -1365,9 +1497,7 @@ static U32 CloseFile(LPFATFILE File) {
         }
     }
 
-    File->Header.ID = ID_NONE;
-
-    HeapFree(File);
+    ReleaseKernelObject(File);
 
     return DF_ERROR_SUCCESS;
 }
@@ -1385,7 +1515,7 @@ static U32 ReadFile(LPFATFILE File) {
     CLUSTER Cluster;
     U32 OffsetInCluster;
     U32 BytesRemaining;
-    U32 BytesToRead;
+    U32 ByteCount;
     U32 Index;
 
     //-------------------------------------
@@ -1405,8 +1535,8 @@ static U32 ReadFile(LPFATFILE File) {
 
     RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
     OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
-    BytesRemaining = File->Header.BytesToRead;
-    File->Header.BytesRead = 0;
+    BytesRemaining = File->Header.ByteCount;
+    File->Header.BytesTransferred = 0;
 
     Cluster = File->Location.DataCluster;
 
@@ -1425,22 +1555,22 @@ static U32 ReadFile(LPFATFILE File) {
             return DF_ERROR_IO;
         }
 
-        BytesToRead = FileSystem->BytesPerCluster - OffsetInCluster;
-        if (BytesToRead > BytesRemaining) BytesToRead = BytesRemaining;
+        ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
+        if (ByteCount > BytesRemaining) ByteCount = BytesRemaining;
 
         //-------------------------------------
         // Copy the data to the user buffer
 
         MemoryCopy(
-            ((U8*)File->Header.Buffer) + File->Header.BytesRead, FileSystem->IOBuffer + OffsetInCluster, BytesToRead);
+            ((U8*)File->Header.Buffer) + File->Header.BytesTransferred, FileSystem->IOBuffer + OffsetInCluster, ByteCount);
 
         //-------------------------------------
         // Update counters
 
         OffsetInCluster = 0;
-        BytesRemaining -= BytesToRead;
-        File->Header.BytesRead += BytesToRead;
-        File->Header.Position += BytesToRead;
+        BytesRemaining -= ByteCount;
+        File->Header.BytesTransferred += ByteCount;
+        File->Header.Position += ByteCount;
 
         //-------------------------------------
         // Check if we read all data
@@ -1474,7 +1604,7 @@ static U32 WriteFile(LPFATFILE File) {
     CLUSTER LastValidCluster;
     U32 OffsetInCluster;
     U32 BytesRemaining;
-    U32 BytesToRead;
+    U32 ByteCount;
     U32 Index;
 
     //-------------------------------------
@@ -1494,9 +1624,9 @@ static U32 WriteFile(LPFATFILE File) {
 
     RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
     OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
-    BytesToRead = FileSystem->BytesPerCluster - OffsetInCluster;
-    BytesRemaining = File->Header.BytesToRead;
-    File->Header.BytesRead = 0;
+    ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
+    BytesRemaining = File->Header.ByteCount;
+    File->Header.BytesTransferred = 0;
 
     Cluster = File->Location.DataCluster;
     LastValidCluster = Cluster;
@@ -1527,7 +1657,7 @@ static U32 WriteFile(LPFATFILE File) {
         // Copy the user buffer
 
         MemoryCopy(
-            FileSystem->IOBuffer + OffsetInCluster, ((U8*)File->Header.Buffer) + File->Header.BytesRead, BytesToRead);
+            FileSystem->IOBuffer + OffsetInCluster, ((U8*)File->Header.Buffer) + File->Header.BytesTransferred, ByteCount);
 
         //-------------------------------------
         // Write the current data cluster
@@ -1536,16 +1666,16 @@ static U32 WriteFile(LPFATFILE File) {
             return DF_ERROR_IO;
         }
 
-        BytesToRead = FileSystem->BytesPerCluster - OffsetInCluster;
-        if (BytesToRead > BytesRemaining) BytesToRead = BytesRemaining;
+        ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
+        if (ByteCount > BytesRemaining) ByteCount = BytesRemaining;
 
         //-------------------------------------
         // Update counters
 
         OffsetInCluster = 0;
-        BytesRemaining -= BytesToRead;
-        File->Header.BytesRead += BytesToRead;
-        File->Header.Position += BytesToRead;
+        BytesRemaining -= ByteCount;
+        File->Header.BytesTransferred += ByteCount;
+        File->Header.Position += ByteCount;
 
         //-------------------------------------
         // Check if we wrote all data
@@ -1593,7 +1723,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     //-------------------------------------
 
-    Master = (LPFAT32MBR)HeapAlloc(sizeof(FAT32MBR));
+    Master = (LPFAT32MBR)KernelHeapAlloc(sizeof(FAT32MBR));
 
     if (Master == NULL) return DF_ERROR_NOMEMORY;
 
@@ -1664,7 +1794,7 @@ U32 FAT32Commands(U32 Function, U32 Parameter) {
         case DF_FS_SETVOLUMEINFO:
             return DF_ERROR_NOTIMPL;
         case DF_FS_CREATEFOLDER:
-            return (U32)CreateFolder((LPFILEINFO)Parameter);
+            return (U32)CreateFile((LPFILEINFO)Parameter, TRUE);
         case DF_FS_DELETEFOLDER:
             return (U32)DeleteFolder((LPFILEINFO)Parameter);
         case DF_FS_RENAMEFOLDER:

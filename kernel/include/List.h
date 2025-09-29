@@ -21,6 +21,7 @@
     List
 
 \************************************************************************/
+
 #ifndef LIST_H_INCLUDED
 #define LIST_H_INCLUDED
 
@@ -30,19 +31,25 @@
 
 /***************************************************************************/
 
-#pragma pack(1)
+// Forward declaration to avoid circular dependencies
+typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
 /***************************************************************************/
 
-#define LISTNODE_FIELDS \
-    U32 ID;             \
-    U32 References;     \
-    LPLISTNODE Next;    \
+#pragma pack(push, 1)
+
+/***************************************************************************/
+
+#define LISTNODE_FIELDS     \
+    U32 ID;                 \
+    U32 References;         \
+    LPPROCESS OwnerProcess; \
+    LPLISTNODE Next;        \
     LPLISTNODE Prev;
 
-typedef struct LISTNODESTRUCT LISTNODE, *LPLISTNODE;
+typedef struct tag_LISTNODE LISTNODE, *LPLISTNODE;
 
-struct LISTNODESTRUCT {
+struct tag_LISTNODE {
     LISTNODE_FIELDS
 };
 
@@ -52,7 +59,7 @@ typedef void (*LISTITEMDESTRUCTOR)(LPVOID);
 typedef LPVOID (*MEMALLOCFUNC)(U32);
 typedef void (*MEMFREEFUNC)(LPVOID);
 
-typedef struct LISTSTRUCT {
+typedef struct tag_LIST {
     LPLISTNODE First;
     LPLISTNODE Last;
     LPLISTNODE Current;
@@ -68,25 +75,27 @@ typedef I32 (*COMPAREFUNC)(LPCVOID, LPCVOID);
 
 /*************************************************************************************************/
 
-void QuickSort(LPVOID, U32, U32, COMPAREFUNC);
+void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func);
 LPLIST NewList(LISTITEMDESTRUCTOR Destructor, MEMALLOCFUNC Alloc, MEMFREEFUNC Free);
-U32 DeleteList(LPLIST);
-U32 ListGetSize(LPLIST);
-U32 ListAddItem(LPLIST, LPVOID);
-U32 ListAddBefore(LPLIST, LPVOID, LPVOID);
-U32 ListAddAfter(LPLIST, LPVOID, LPVOID);
-U32 ListAddHead(LPLIST, LPVOID);
-U32 ListAddTail(LPLIST, LPVOID);
-LPVOID ListRemove(LPLIST, LPVOID);
-U32 ListErase(LPLIST, LPVOID);
-U32 ListEraseLast(LPLIST);
-U32 ListEraseItem(LPLIST, LPVOID);
-U32 ListReset(LPLIST);
-LPVOID ListGetItem(LPLIST, U32);
-U32 ListGetItemIndex(LPLIST, LPVOID);
-LPLIST ListMergeList(LPLIST, LPLIST);
-U32 ListSort(LPLIST, COMPAREFUNC);
+U32 DeleteList(LPLIST List);
+U32 ListGetSize(LPLIST List);
+U32 ListAddItem(LPLIST List, LPVOID Item);
+U32 ListAddBefore(LPLIST List, LPVOID RefItem, LPVOID NewItem);
+U32 ListAddAfter(LPLIST List, LPVOID RefItem, LPVOID NewItem);
+U32 ListAddHead(LPLIST List, LPVOID Item);
+U32 ListAddTail(LPLIST List, LPVOID Item);
+LPVOID ListRemove(LPLIST List, LPVOID Item);
+void ListErase(LPLIST List, LPVOID Item);
+U32 ListEraseLast(LPLIST List);
+U32 ListEraseItem(LPLIST List, LPVOID Item);
+void ListReset(LPLIST List);
+LPVOID ListGetItem(LPLIST List, U32 Index);
+U32 ListGetItemIndex(LPLIST List, LPVOID Item);
+LPLIST ListMergeList(LPLIST List, LPLIST That);
+BOOL ListSort(LPLIST List, COMPAREFUNC Func);
 
 /*************************************************************************************************/
+
+#pragma pack(pop)
 
 #endif

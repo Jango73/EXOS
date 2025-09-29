@@ -21,9 +21,12 @@
     Main
 
 \************************************************************************/
+
+#include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/System.h"
+#include "../include/Multiboot.h"
 
 /************************************************************************/
 
@@ -34,32 +37,104 @@ KERNELSTARTUPINFO KernelStartup = {
     .IRQMask_21_PM = 0x000000FB, .IRQMask_A1_PM = 0x000000FF, .IRQMask_21_RM = 0, .IRQMask_A1_RM = 0};
 
 /************************************************************************/
-// The entry point in paged protected mode
 
+/**
+ * @brief Main entry point for the EXOS kernel in paged protected mode.
+ *
+ * This function initializes the kernel subsystems, processes memory maps,
+ * sets up hardware components, and starts the system. It is called after
+ * the bootloader has set up protected mode and paging.
+ *
+ * The function retrieves startup parameters from Multiboot information structure,
+ * initializes all kernel subsystems in proper order, and never returns.
+ */
 void KernelMain(void) {
-    U32 StackTop;
-    U32 ImageAddress;
-    U8 CursorX;
-    U8 CursorY;
-    U32 E820Ptr;
-    U32 E820Entries;
+    U32 MultibootMagic;
+    U32 MultibootInfoPhys;
 
-    __asm__ __volatile__("movl %%eax, %0" : "=m"(ImageAddress));
-    __asm__ __volatile__("movl %%edi, %0" : "=m"(StackTop));
-    __asm__ __volatile__("movb %%bl, %0" : "=m"(CursorX));
-    __asm__ __volatile__("movb %%bh, %0" : "=m"(CursorY));
-    __asm__ __volatile__("movl %%esi, %0" : "=m"(E820Ptr));
-    __asm__ __volatile__("movl %%ecx, %0" : "=m"(E820Entries));
+    // No more interrupts
 
-    if (E820Entries > 0 && E820Entries < (N_4KB / sizeof(E820ENTRY))) {
-        MemoryCopy(KernelStartup.E820, (LPE820ENTRY)E820Ptr, E820Entries * sizeof(E820ENTRY));
-        KernelStartup.E820_Count = E820Entries;
+    DisableInterrupts();
+
+    // Retrieve Multiboot parameters from registers
+    __asm__ __volatile__("movl %%eax, %0" : "=m"(MultibootMagic));
+    __asm__ __volatile__("movl %%ebx, %0" : "=m"(MultibootInfoPhys));
+
+    // Validate Multiboot magic number
+    if (MultibootMagic != MULTIBOOT_BOOTLOADER_MAGIC) {
+        ConsolePanic(TEXT("Multiboot information not valid"));
+        __builtin_unreachable();
     }
 
-    KernelStartup.StubAddress = ImageAddress;
-    KernelStartup.StackTop = StackTop;
-    KernelStartup.ConsoleX = CursorX;
-    KernelStartup.ConsoleY = CursorY;
+    // Map the multiboot info structure to access it
+    multiboot_info_t* MultibootInfo = (multiboot_info_t*)MultibootInfoPhys;
+
+    // Store the multiboot info pointer in kernel startup
+    KernelStartup.MultibootInfo = MultibootInfo;
+
+    // Extract information from Multiboot structure
+    // Get kernel address from first module
+    if (MultibootInfo->flags & MULTIBOOT_INFO_MODS && MultibootInfo->mods_count > 0) {
+        multiboot_module_t* FirstModule = (multiboot_module_t*)MultibootInfo->mods_addr;
+        KernelStartup.StubAddress = FirstModule->mod_start;
+    } else {
+        // Fallback - should not happen with our bootloader
+        KernelStartup.StubAddress = 0;
+    }
+
+    // Console cursor position now handled directly in InitializeConsole
+
+    // Process memory map if available
+    if (MultibootInfo->flags & MULTIBOOT_INFO_MEM_MAP) {
+        multiboot_memory_map_t* MmapEntry = (multiboot_memory_map_t*)MultibootInfo->mmap_addr;
+        U32 MmapEnd = MultibootInfo->mmap_addr + MultibootInfo->mmap_length;
+        U32 E820Count = 0;
+
+        while ((U32)MmapEntry < MmapEnd && E820Count < (N_4KB / sizeof(E820ENTRY))) {
+            // Fill E820 entry with Multiboot data
+            KernelStartup.E820[E820Count].Base.LO = MmapEntry->addr_low;
+            KernelStartup.E820[E820Count].Base.HI = MmapEntry->addr_high;
+            KernelStartup.E820[E820Count].Size.LO = MmapEntry->len_low;
+            KernelStartup.E820[E820Count].Size.HI = MmapEntry->len_high;
+            KernelStartup.E820[E820Count].Attributes = 0;
+
+            // Map Multiboot types to E820 types
+            switch (MmapEntry->type) {
+                case MULTIBOOT_MEMORY_AVAILABLE:
+                    KernelStartup.E820[E820Count].Type = E820_AVAILABLE;
+                    break;
+                case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
+                    KernelStartup.E820[E820Count].Type = E820_ACPI;
+                    break;
+                case MULTIBOOT_MEMORY_NVS:
+                    KernelStartup.E820[E820Count].Type = E820_NVS;
+                    break;
+                case MULTIBOOT_MEMORY_BADRAM:
+                    KernelStartup.E820[E820Count].Type = E820_UNUSABLE;
+                    break;
+                default:
+                    KernelStartup.E820[E820Count].Type = E820_RESERVED;
+                    break;
+            }
+            E820Count++;
+
+            // Move to next entry (size field is at the beginning and doesn't include itself)
+            MmapEntry = (multiboot_memory_map_t*)((U8*)MmapEntry + MmapEntry->size + sizeof(MmapEntry->size));
+        }
+
+        KernelStartup.E820_Count = E820Count;
+    }
+
+    if (KernelStartup.StubAddress == 0) {
+        ConsolePanic(TEXT("No physical address specified for the kernel"));
+    }
+
+    //-------------------------------------
+    // Read current GDT base address
+
+    GDTREGISTER gdtr;
+    ReadGlobalDescriptorTable(&gdtr);
+    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)gdtr.Base;
 
     //-------------------------------------
     // Clear the BSS

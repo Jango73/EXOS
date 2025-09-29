@@ -21,6 +21,7 @@
     Drv Call
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Driver.h"
 #include "../include/Process.h"
@@ -64,5 +65,3 @@ U32 DriverCallHandler(U32 Function, U32 Parameter) {
     // return ERROR_INVALID_INDEX;
     return 0;
 }
-
-/***************************************************************************/

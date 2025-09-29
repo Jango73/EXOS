@@ -22,11 +22,12 @@
 
 \************************************************************************/
 
+#include "../../include/Autotest.h"
 #include "../../include/Base.h"
 #include "../../include/Log.h"
 #include "../../include/Memory.h"
 #include "../../include/Stack.h"
-#include "../../include/System.h"
+#include "../../include/String.h"
 
 /************************************************************************/
 
@@ -42,102 +43,117 @@
  * return addresses and other stack content. Tests both in-range and out-of-range
  * EBP values to ensure proper boundary handling.
  *
- * @return TRUE if all test cases pass, FALSE if any test fails
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results
  */
-BOOL TestCopyStack(void) {
+void TestCopyStack(TEST_RESULTS* Results) {
     U8 SourceStack[TEST_STACK_SIZE];
     U8 DestStack[TEST_STACK_SIZE];
     U32 *SourcePtr, *DestPtr;
     LINEAR SourceStackTop, DestStackTop;
     I32 Delta;
-    BOOL TestPassed = TRUE;
-    
-    KernelLogText(LOG_DEBUG, TEXT("[TestCopyStack] Starting CopyStack test"));
-    
+
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
     SourceStackTop = (LINEAR)(SourceStack + TEST_STACK_SIZE);
     DestStackTop = (LINEAR)(DestStack + TEST_STACK_SIZE);
     Delta = DestStackTop - SourceStackTop;
-    
-    KernelLogText(LOG_DEBUG, TEXT("[TestCopyStack] SourceStackTop=%X, DestStackTop=%X, Delta=%X"), 
-                  SourceStackTop, DestStackTop, Delta);
-    
+
     MemorySet(SourceStack, 0xAA, TEST_STACK_SIZE);
     MemorySet(DestStack, 0x55, TEST_STACK_SIZE);
-    
-    SourcePtr = (U32*)(SourceStackTop - 16);  // Frame 1 EBP
-    *SourcePtr = (U32)(SourceStackTop - 32); // Points to Frame 2
-    SourcePtr = (U32*)(SourceStackTop - 12);  // Frame 1 return addr
+
+    SourcePtr = (U32 *)(SourceStackTop - 16);  // Frame 1 EBP
+    *SourcePtr = (U32)(SourceStackTop - 32);   // Points to Frame 2
+    SourcePtr = (U32 *)(SourceStackTop - 12);  // Frame 1 return addr
     *SourcePtr = 0x12345678;
-    
-    SourcePtr = (U32*)(SourceStackTop - 32);  // Frame 2 EBP  
-    *SourcePtr = (U32)(SourceStackTop - 48);  // Points to Frame 3
-    SourcePtr = (U32*)(SourceStackTop - 28);  // Frame 2 return addr
+
+    SourcePtr = (U32 *)(SourceStackTop - 32);  // Frame 2 EBP
+    *SourcePtr = (U32)(SourceStackTop - 48);   // Points to Frame 3
+    SourcePtr = (U32 *)(SourceStackTop - 28);  // Frame 2 return addr
     *SourcePtr = 0x9ABCDEF0;
-    
-    SourcePtr = (U32*)(SourceStackTop - 48);  // Frame 3 EBP
-    *SourcePtr = 0x1000;  // Points outside stack (should not be adjusted)
-    SourcePtr = (U32*)(SourceStackTop - 44);  // Frame 3 return addr
+
+    SourcePtr = (U32 *)(SourceStackTop - 48);  // Frame 3 EBP
+    *SourcePtr = 0x1000;                       // Points outside stack (should not be adjusted)
+    SourcePtr = (U32 *)(SourceStackTop - 44);  // Frame 3 return addr
     *SourcePtr = 0xDEADBEEF;
-    
-    KernelLogText(LOG_DEBUG, TEXT("[TestCopyStack] Source stack populated with test frames"));
-    
+
+    // Test 1: CopyStackWithEBP operation
+    Results->TestsRun++;
     if (!CopyStackWithEBP(DestStackTop, SourceStackTop, TEST_STACK_SIZE, (LINEAR)(SourceStackTop - 16))) {
-        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] CopyStack failed"));
-        return FALSE;
+        DEBUG(TEXT("[TestCopyStack] CopyStack failed"));
+        return;
     }
-    
-    DestPtr = (U32*)(DestStackTop - 16);  // Frame 1 EBP in dest
+    Results->TestsPassed++;
+
+    // Test 2: Frame 1 EBP adjustment
+    Results->TestsRun++;
+    DestPtr = (U32 *)(DestStackTop - 16);  // Frame 1 EBP in dest
     U32 ExpectedEbp1 = (SourceStackTop - 32) + Delta;
-    if (*DestPtr != ExpectedEbp1) {
-        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 1 EBP: expected %X, got %X"), 
-                      ExpectedEbp1, *DestPtr);
-        TestPassed = FALSE;
+    if (*DestPtr == ExpectedEbp1) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestCopyStack] Frame 1 EBP: expected %X, got %X"), ExpectedEbp1, *DestPtr);
     }
-    
-    DestPtr = (U32*)(DestStackTop - 12);  // Frame 1 return addr
-    if (*DestPtr != 0x12345678) {
-        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 1 return addr: expected 0x12345678, got %X"), 
-                      *DestPtr);
-        TestPassed = FALSE;
+
+    // Test 3: Frame 1 return address preservation
+    Results->TestsRun++;
+    DestPtr = (U32 *)(DestStackTop - 12);  // Frame 1 return addr
+    if (*DestPtr == 0x12345678) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestCopyStack] Frame 1 return addr: expected 0x12345678, got %X"), *DestPtr);
     }
-    
-    DestPtr = (U32*)(DestStackTop - 32);  // Frame 2 EBP in dest
+
+    // Test 4: Frame 2 EBP adjustment
+    Results->TestsRun++;
+    DestPtr = (U32 *)(DestStackTop - 32);  // Frame 2 EBP in dest
     U32 ExpectedEbp2 = (SourceStackTop - 48) + Delta;
-    if (*DestPtr != ExpectedEbp2) {
-        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 2 EBP: expected %X, got %X"), 
-                      ExpectedEbp2, *DestPtr);
-        TestPassed = FALSE;
+    if (*DestPtr == ExpectedEbp2) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestCopyStack] Frame 2 EBP: expected %X, got %X"), ExpectedEbp2, *DestPtr);
     }
-    
-    DestPtr = (U32*)(DestStackTop - 28);  // Frame 2 return addr
-    if (*DestPtr != 0x9ABCDEF0) {
-        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 2 return addr: expected 0x9ABCDEF0, got %X"), 
-                      *DestPtr);
-        TestPassed = FALSE;
+
+    // Test 5: Frame 2 return address preservation
+    Results->TestsRun++;
+    DestPtr = (U32 *)(DestStackTop - 28);  // Frame 2 return addr
+    if (*DestPtr == 0x9ABCDEF0) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestCopyStack] Frame 2 return addr: expected 0x9ABCDEF0, got %X"), *DestPtr);
     }
-    
-    DestPtr = (U32*)(DestStackTop - 48);  // Frame 3 EBP in dest (should NOT be adjusted)
-    if (*DestPtr != 0x1000) {
-        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 3 EBP: expected 0x1000 (unchanged), got %X"), 
-                      *DestPtr);
-        TestPassed = FALSE;
+
+    // Test 6: Frame 3 EBP not adjusted (out of range)
+    Results->TestsRun++;
+    DestPtr = (U32 *)(DestStackTop - 48);  // Frame 3 EBP in dest (should NOT be adjusted)
+    if (*DestPtr == 0x1000) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestCopyStack] Frame 3 EBP: expected 0x1000 (unchanged), got %X"), *DestPtr);
     }
-    
-    DestPtr = (U32*)(DestStackTop - 44);  // Frame 3 return addr
-    if (*DestPtr != 0xDEADBEEF) {
-        KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Frame 3 return addr: expected 0xDEADBEEF, got %X"), 
-                      *DestPtr);
-        TestPassed = FALSE;
+
+    // Test 7: Frame 3 return address preservation
+    Results->TestsRun++;
+    DestPtr = (U32 *)(DestStackTop - 44);  // Frame 3 return addr
+    if (*DestPtr == 0xDEADBEEF) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestCopyStack] Frame 3 return addr: expected 0xDEADBEEF, got %X"), *DestPtr);
     }
-    
+
+    // Test 8: Non-frame data integrity
+    Results->TestsRun++;
+    BOOL DataIntact = TRUE;
     for (U32 i = 0; i < TEST_STACK_SIZE - 48; i++) {
         if (DestStack[i] != 0xAA) {
-            KernelLogText(LOG_ERROR, TEXT("[TestCopyStack] Non-frame data corrupted at offset %u: expected 0xAA, got %X"), 
-                          i, DestStack[i]);
-            TestPassed = FALSE;
+            DEBUG(TEXT(
+                "[TestCopyStack] Non-frame data corrupted at offset %u: expected 0xAA, got %X"), i,
+                DestStack[i]);
+            DataIntact = FALSE;
             break;
         }
     }
-    
-    return TestPassed;
+    if (DataIntact) {
+        Results->TestsPassed++;
+    }
 }

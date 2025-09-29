@@ -63,7 +63,7 @@ static void ClassAddRange(CHAR_CLASS* C, U32 A, U32 B) {
  *
  * Supported escape sequences:
  * - \n → newline (0x0A)
- * - \r → carriage return (0x0D)  
+ * - \r → carriage return (0x0D)
  * - \t → tab (0x09)
  * - \\, \[, \], \., \*, \+, \?, \^, \$, \- → literal characters
  * - \<other> → treated as literal <other>

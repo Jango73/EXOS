@@ -21,29 +21,79 @@
     Mutex
 
 \************************************************************************/
+
 #ifndef MUTEX_H_INCLUDED
 #define MUTEX_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
-/***************************************************************************/
+/************************************************************************/
 // The mutex structure
 
 struct tag_MUTEX {
     LISTNODE_FIELDS         // Standard EXOS object fields
-        LPPROCESS Process;  // Process that has locked this sem.
-    LPTASK Task;            // Task that has locked this sem.
-    U32 Lock;               // Lock count of this sem.
+    LPPROCESS Owner;        // Process that created this mutex
+        LPPROCESS Process;  // Process that has locked this mutex.
+    LPTASK Task;            // Task that has locked this mutex.
+    U32 Lock;               // Lock count of this mutex.
 };
 
 typedef struct tag_MUTEX MUTEX, *LPMUTEX;
 
 // Macro to initialize a mutex
 
-#define EMPTY_MUTEX \
-    { .ID = ID_MUTEX, .References = 1, .Next = NULL, .Prev = NULL, .Process = NULL, .Task = NULL, .Lock = 0 }
+#define EMPTY_MUTEX { \
+    .ID = ID_MUTEX, \
+    .References = 1, \
+    .OwnerProcess = NULL, \
+    .Next = NULL, \
+    .Prev = NULL, \
+    .Process = NULL, \
+    .Task = NULL, \
+    .Lock = 0 \
+}
 
-#endif
+/************************************************************************/
+// Mutex shortcuts
+
+#define MUTEX_KERNEL (&KernelMutex)
+#define MUTEX_MEMORY (&MemoryMutex)
+#define MUTEX_SCHEDULE (&ScheduleMutex)
+#define MUTEX_DESKTOP (&DesktopMutex)
+#define MUTEX_PROCESS (&ProcessMutex)
+#define MUTEX_TASK (&TaskMutex)
+#define MUTEX_FILESYSTEM (&FileSystemMutex)
+#define MUTEX_FILE (&FileMutex)
+#define MUTEX_CONSOLE (&ConsoleMutex)
+#define MUTEX_ACCOUNTS (&UserAccountMutex)
+#define MUTEX_SESSION (&SessionMutex)
+
+/************************************************************************/
+// Global mutex
+
+extern MUTEX KernelMutex;
+extern MUTEX LogMutex;
+extern MUTEX MemoryMutex;
+extern MUTEX ScheduleMutex;
+extern MUTEX DesktopMutex;
+extern MUTEX ProcessMutex;
+extern MUTEX TaskMutex;
+extern MUTEX FileSystemMutex;
+extern MUTEX FileMutex;
+extern MUTEX ConsoleMutex;
+extern MUTEX UserAccountMutex;
+extern MUTEX SessionMutex;
+
+/************************************************************************/
+// Mutex API
+
+void InitMutex(LPMUTEX Mutex);
+LPMUTEX CreateMutex(void);
+BOOL DeleteMutex(LPMUTEX Mutex);
+U32 LockMutex(LPMUTEX Mutex, U32 Timeout);
+BOOL UnlockMutex(LPMUTEX Mutex);
+
+#endif  // MUTEX_H_INCLUDED

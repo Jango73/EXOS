@@ -58,13 +58,26 @@ setTimeout(() => {
 const defaultSettings = {
     enableCommandHistory: true,
     persistLogs: true,
-    notifyOnExit: true
+    notifyOnExit: true,
+    renderThrottleMs: 100,
+    maxLogLines: 1000
 };
 
 let logStream = null;
 
 // interface LastCommand { kind: 'script' | 'custom'; value: string; }
 let lastCommand = null;
+
+// Throttle rendering to avoid performance issues with high-frequency log updates
+let renderScheduled = false;
+function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    setTimeout(() => {
+        scheduleRender();
+        renderScheduled = false;
+    }, config.settings?.renderThrottleMs || 100);
+}
 
 function initLogFile() {
     if (config.settings?.persistLogs !== true || logStream) return;
@@ -182,7 +195,7 @@ function loadScripts() {
 
 function setOutputLabel(label) {
     output.setLabel(` ${label} `);
-    screen.render();
+    screen.render(); // Keep immediate render for UI state changes
 }
 
 // interface LogWatcher { configPath: string; currentPath: string; box: blessed.Widgets.Log; tail: Tail; }
@@ -195,11 +208,16 @@ function startTail(file, box) {
     });
     tail.on('line', (line) => {
         box.log(line);
-        screen.render();
+        // Limit memory usage by clearing old lines
+        const maxLines = config.settings?.maxLogLines || 1000;
+        if (box.getLines().length > maxLines) {
+            box.setContent('... [log cleared to prevent memory overflow] ...\n');
+        }
+        scheduleRender();
     });
     tail.on('error', (err) => {
         box.log(`Tail error: ${err.message}`);
-        screen.render();
+        scheduleRender();
     });
     return tail;
 }
@@ -381,7 +399,7 @@ setInterval(() => {
         w.box.setLabel(path.basename(newPath));
         w.tail = startTail(newPath, w.box);
         w.currentPath = newPath;
-        screen.render();
+        scheduleRender();
     });
 }, 60000);
 
@@ -393,7 +411,7 @@ let focusIndex = 0;
 screen.key('tab', () => {
     focusIndex = (focusIndex + 1) % focusables.length;
     focusables[focusIndex].focus();
-    screen.render();
+    screen.render(); // Keep immediate render for UI interactions
 });
 
 // Bind keys from config.keyBindings (NEW)
@@ -411,20 +429,20 @@ screen.key(['q', 'C-c'], () => {
     if (current) {
         current.kill();
     }
-    screen.render();
+    screen.render(); // Keep immediate render for exit
     process.exit(0);
 });
 
 screen.key('C-r', () => {
     if (!lastCommand) {
-        screen.render();
+        screen.render(); // Keep immediate render for UI feedback
         return;
     }
 
     if (lastCommand.kind === 'script') {
         runScript(lastCommand.value).catch(err => {
             output.log(`Error: ${err.message}`);
-            screen.render();
+            scheduleRender();
         });
     } else {
         runCustomCommand(lastCommand.value);
@@ -437,8 +455,8 @@ screen.key('C-s', () => {
 });
 
 focusables.forEach(el => {
-    el.key('up', () => { el.scroll(-1); screen.render(); });
-    el.key('down', () => { el.scroll(1); screen.render(); });
+    el.key('up', () => { el.scroll(-1); screen.render(); }); // Keep immediate render for scrolling
+    el.key('down', () => { el.scroll(1); screen.render(); }); // Keep immediate render for scrolling
 });
 
 list.on('select', (_, index) => {
@@ -464,7 +482,7 @@ inputBox.on('submit', (value) => {
     historyIndex = commandHistory.length;
     runCustomCommand(trimmed);
     inputBox.clearValue();
-    screen.render();
+    screen.render(); // Keep immediate render for UI interactions
 });
 
 inputBox.on('keypress', (_, key) => {
@@ -475,7 +493,7 @@ inputBox.on('keypress', (_, key) => {
         if (historyIndex > 0) historyIndex--;
         inputBox.setValue(commandHistory[historyIndex] ?? '');
         inputBox.cursor = inputBox.getValue().length;
-        screen.render();
+        scheduleRender();
     }
 
     if (key.name === 'down') {
@@ -487,7 +505,7 @@ inputBox.on('keypress', (_, key) => {
             inputBox.clearValue();
         }
         inputBox.cursor = inputBox.getValue().length;
-        screen.render();
+        scheduleRender();
     }
 });
 
@@ -495,7 +513,7 @@ inputBox.on('cancel', () => {
     inputBox.clearValue();
     focusIndex = (focusIndex + 1) % focusables.length;
     focusables[focusIndex].focus();
-    screen.render();
+    screen.render(); // Keep immediate render for UI interactions
 });
 
 inputBox.key(['escape'], () => {
@@ -512,7 +530,7 @@ function stopCurrentProcess() {
         current.kill();
         current = null;
         output.log('Current process killed.');
-        screen.render();
+        scheduleRender();
     }
 }
 
@@ -534,12 +552,12 @@ function runCustomCommand(command) {
 
     current.stdout.on('data', data => {
         output.log(data.toString());
-        screen.render();
+        scheduleRender();
     });
 
     current.stderr.on('data', data => {
         output.log(data.toString());
-        screen.render();
+        scheduleRender();
     });
 
     current.on('close', code => {
@@ -550,7 +568,7 @@ function runCustomCommand(command) {
             screen.program.bell();
         }
 
-        screen.render();
+        scheduleRender();
     });
 }
 
@@ -564,7 +582,7 @@ async function closePorts(method, ports) {
         } catch (err) {
             output.log(`Error closing ${method.toUpperCase()} port ${port}: ${err.message}`);
         }
-        screen.render();
+        scheduleRender();
     }
 }
 
@@ -683,7 +701,7 @@ async function killProcesses(params) {
             const res = await killPid(pid);
             if (res.ok) output.log(`Killed PID ${pid} via ${res.method}`);
             else output.log(`Failed to kill PID ${pid} via ${res.method}: ${res.error || 'unknown'}`);
-            screen.render();
+            scheduleRender();
             continue;
         }
 
@@ -697,7 +715,7 @@ async function killProcesses(params) {
             if (res.ok) output.log(`Killed "${name}" (PID ${pid}) via ${res.method}`);
             else output.log(`Failed to kill "${name}" (PID ${pid}) via ${res.method}: ${res.error || 'unknown'}`);
         }
-        screen.render();
+        scheduleRender();
     }
 }
 
@@ -725,7 +743,7 @@ async function executeActions(actions, label = 'actions') {
             output.log(`[${label}] unknown action "${act.action}"`);
         }
     }
-    screen.render();
+    scheduleRender();
 }
 
 
@@ -755,18 +773,18 @@ async function runScript(name) {
 
     current.stdout.on('data', data => {
         output.log(data.toString());
-        screen.render();
+        scheduleRender();
     });
 
     current.stderr.on('data', data => {
         output.log(data.toString());
-        screen.render();
+        scheduleRender();
     });
 
     current.on('close', code => {
         output.log(`Process exited with code ${code}`);
         current = null;
-        screen.render();
+        scheduleRender();
     });
 }
 
@@ -796,18 +814,18 @@ async function runScriptFile(scriptFile) {
 
     current.stdout.on('data', data => {
         output.log(data.toString());
-        screen.render();
+        scheduleRender();
     });
 
     current.stderr.on('data', data => {
         output.log(data.toString());
-        screen.render();
+        scheduleRender();
     });
 
     current.on('close', code => {
         output.log(`Process exited with code ${code}`);
         current = null;
-        screen.render();
+        scheduleRender();
     });
 }
 
@@ -817,7 +835,7 @@ async function runScriptFile(scriptFile) {
         await executeStartupActions();
     } catch (err) {
         output.log(`[startup] error: ${err?.message || err}`);
-        screen.render();
+        scheduleRender();
     }
 })();
 

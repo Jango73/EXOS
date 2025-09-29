@@ -28,7 +28,7 @@
 #include "../include/Log.h"
 #include "../include/Path.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 #define VER_MAJOR 1
 #define VER_MINOR 0
@@ -50,7 +50,7 @@ DRIVER EXFSDriver = {
 
 U8 Dummy[128] = {1, 1};
 
-/***************************************************************************/
+/************************************************************************/
 // The file system object allocated when mounting
 
 typedef struct tag_EXFSFILESYSTEM {
@@ -66,14 +66,14 @@ typedef struct tag_EXFSFILESYSTEM {
     U8* IOBuffer;
 } EXFSFILESYSTEM, *LPEXFSFILESYSTEM;
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef struct tag_EXFSFILE {
     FILE Header;
     EXFSFILELOC Location;
 } EXFSFILE, *LPEXFSFILE;
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Allocate and initialize a new EXFS file system object.
@@ -83,7 +83,7 @@ typedef struct tag_EXFSFILE {
 static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
     LPEXFSFILESYSTEM This;
 
-    This = (LPEXFSFILESYSTEM)HeapAlloc(sizeof(EXFSFILESYSTEM));
+    This = (LPEXFSFILESYSTEM)KernelHeapAlloc(sizeof(EXFSFILESYSTEM));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(EXFSFILESYSTEM));
@@ -102,7 +102,7 @@ static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
     return This;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Create a new EXFS file object for a given location.
@@ -113,7 +113,7 @@ static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
 static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc) {
     LPEXFSFILE This;
 
-    This = (LPEXFSFILE)HeapAlloc(sizeof(EXFSFILE));
+    This = (LPEXFSFILE)KernelHeapAlloc(sizeof(EXFSFILE));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(EXFSFILE));
@@ -135,7 +135,7 @@ static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc
     return This;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Mount an EXFS partition found on a physical disk.
@@ -226,9 +226,9 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     FileSystem->PartitionSize = Partition->Size;
     FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->PageBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->PageBuffer = (U8*)KernelHeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
-    FileSystem->IOBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)KernelHeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the data
@@ -499,7 +499,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     U32 RootCluster = 0;
     U32 CurrentSector = Create->PartitionStartSector;
 
-    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Enter"));
+    DEBUG(TEXT("[EXFS.CreatePartition] Enter"));
 
     //-------------------------------------
     // Check validity of parameters
@@ -514,7 +514,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     MemorySet(Buffer2, 0, SECTOR_SIZE * 2);
     MemorySet(Buffer3, 0, SECTOR_SIZE * 2);
 
-    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Buffers cleared"));
+    DEBUG(TEXT("[EXFS.CreatePartition] Buffers cleared"));
 
     //-------------------------------------
     // Compute size in clusters of bitmap
@@ -556,7 +556,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] MBR written"));
+    DEBUG(TEXT("[EXFS.CreatePartition] MBR written"));
 
     //-------------------------------------
     // Fill the superblock
@@ -587,7 +587,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Superblock written"));
+    DEBUG(TEXT("[EXFS.CreatePartition] Superblock written"));
 
     //-------------------------------------
     // Cluster 0 is empty because 0 is not a valid
@@ -612,7 +612,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += Create->SectorsPerCluster;
 
-    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] Root cluster page written"));
+    DEBUG(TEXT("[EXFS.CreatePartition] Root cluster page written"));
 
     //-------------------------------------
     // Write the first file record
@@ -625,7 +625,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
         return DF_ERROR_FS_CANT_WRITE_SECTOR;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[EXFS.CreatePartition] First file record written"));
+    DEBUG(TEXT("[EXFS.CreatePartition] First file record written"));
 
     //-------------------------------------
 
@@ -724,6 +724,12 @@ static LPEXFSFILE OpenFile(LPFILEINFO Find) {
 
         StringCopy(File->Header.Name, FileRec->Name);
         TranslateFileInfo(FileRec, File);
+    } else if (Find->Flags & FILE_OPEN_CREATE_ALWAYS) {
+        // TODO: Implement file creation in EXFS
+        // For now, this is a placeholder to handle FILE_OPEN_CREATE_ALWAYS
+        // The actual file creation functionality needs to be implemented
+        DEBUG(TEXT("[EXFS] FILE_OPEN_CREATE_ALWAYS requested for %s - not yet implemented"), Find->Name);
+        return NULL;
     }
 
     return File;
@@ -848,9 +854,7 @@ static U32 CloseFile(LPEXFSFILE File) {
       }
     */
 
-    File->Header.ID = ID_NONE;
-
-    HeapFree(File);
+    ReleaseKernelObject(File);
 
     return DF_ERROR_SUCCESS;
 }
@@ -899,5 +903,3 @@ U32 EXFSCommands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-
-/***************************************************************************/

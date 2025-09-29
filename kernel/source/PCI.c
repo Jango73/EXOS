@@ -225,7 +225,7 @@ U16 PCI_EnableBusMaster(U8 Bus, U8 Device, U8 Function, int Enable) {
  * @return Raw BAR value.
  */
 
-static U32 PciReadBAR(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
+U32 PciReadBAR(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
     U16 Offset = (U16)(PCI_CFG_BAR0 + (BarIndex * 4));
     return PCI_Read32(Bus, Device, Function, Offset);
 }
@@ -358,7 +358,7 @@ void PCI_RegisterDriver(LPPCI_DRIVER Driver) {
     if (Driver == NULL) return;
     if (PciDriverCount >= PCI_MAX_REGISTERED_DRIVERS) return;
     PciDriverTable[PciDriverCount++] = Driver;
-    KernelLogText(LOG_DEBUG, TEXT("[PCI] Registered driver %s"), Driver->Product);
+    DEBUG(TEXT("[PCI] Registered driver %s"), Driver->Product);
 }
 
 /***************************************************************************/
@@ -369,13 +369,57 @@ void PCI_RegisterDriver(LPPCI_DRIVER Driver) {
  *
  * Enumerates all buses, devices and functions, matches registered
  * drivers and attaches them to devices that report a successful probe.
+ *
+ * CRITICAL REQUIREMENT FOR PCI DRIVER ATTACH FUNCTIONS:
+ *
+ * All PCI driver attach functions MUST return a heap-allocated device object,
+ * NOT the original PciDevice parameter or a stack-allocated object.
+ *
+ * REQUIRED PATTERN FOR PCI DRIVER ATTACH FUNCTIONS:
+ * 1. Validate input parameters (return NULL if invalid)
+ * 2. Allocate new device structure using KernelHeapAlloc()
+ * 3. Copy PCI device information to the new structure
+ * 4. Initialize device-specific fields (Next, Prev, References)
+ * 5. Perform device initialization
+ * 6. On any failure: KernelHeapFree(Device) and return NULL
+ * 7. On success: return the heap-allocated device structure
+ *
+ * CORRECT EXAMPLE:
+ *   Device = (LPE1000DEVICE)KernelHeapAlloc(sizeof(E1000DEVICE));
+ *   if (Device == NULL) return NULL;
+ *   MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
+ *   Device->Next = NULL;
+ *   Device->Prev = NULL;
+ *   Device->References = 1;
+ *   // ... device initialization ...
+ *   return (LPPCI_DEVICE)Device;
+ *
+ * INCORRECT PATTERNS (DO NOT USE):
+ *   - return PciDevice;               // Returns original parameter
+ *   - return &localVariable;         // Returns stack object
+ *   - return staticGlobalObject;     // Returns static object
+ *
+ * WHY THIS IS REQUIRED:
+ * The PCI subsystem expects attach functions to return device objects that:
+ * - Are allocated on the kernel heap for proper memory management
+ * - Can be safely stored in device lists and referenced by other subsystems
+ * - Will not be invalidated when the attach function returns
+ * - Can be properly freed when the device is removed
+ *
+ * MEMORY MANAGEMENT:
+ * - Always use KernelHeapFree() on failure paths to prevent memory leaks
+ * - The returned object becomes owned by the PCI subsystem
+ * - Reference counting (References field) tracks object lifetime
+ *
+ * This pattern is enforced across all PCI drivers in the system.
+ * See E1000_Attach() for a reference implementation.
  */
 
 void PCI_ScanBus(void) {
     /* Use 32-bit counters to avoid wrap when PCI_MAX_* == 256 */
     U32 Bus, Device, Function;
 
-    KernelLogText(LOG_DEBUG, TEXT("[PCI] Scanning bus"));
+    DEBUG(TEXT("[PCI] Scanning bus"));
 
     for (Bus = 0; Bus < PCI_MAX_BUS; Bus++) {
         for (Device = 0; Device < PCI_MAX_DEV; Device++) {
@@ -396,8 +440,7 @@ void PCI_ScanBus(void) {
                 U32 DriverIndex;
 
                 PciFillFunctionInfo((U8)Bus, (U8)Device, (U8)Function, &PciInfo);
-                KernelLogText(
-                    LOG_DEBUG, TEXT("[PCI] Found %X:%X.%u VID=%X DID=%X"), (U32)Bus, (U32)Device, (U32)Function,
+                DEBUG(TEXT("[PCI] Found %X:%X.%u VID=%X DID=%X"), (U32)Bus, (U32)Device, (U32)Function,
                     (U32)PciInfo.VendorID, (U32)PciInfo.DeviceID);
 
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
@@ -415,8 +458,7 @@ void PCI_ScanBus(void) {
 
                         if (PciInternalMatch(DriverMatch, &PciInfo)) {
                             if (PciDriver->Command) {
-                                KernelLogText(
-                                    LOG_DEBUG, TEXT("[PCI] %s matches %X:%X.%u"), PciDriver->Product, (U32)Bus,
+                                DEBUG(TEXT("[PCI] %s matches %X:%X.%u"), PciDriver->Product, (U32)Bus,
                                     (U32)Device, (U32)Function);
 
                                 U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
@@ -428,9 +470,9 @@ void PCI_ScanBus(void) {
                                         LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
 
                                         if (NewDev) {
+                                            DEBUG(TEXT("[PCI] Adding device %x (ID=%x) to list"), NewDev, NewDev->ID);
                                             ListAddItem(Kernel.PCIDevice, NewDev);
-                                            KernelLogText(
-                                                LOG_DEBUG, TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
+                                            DEBUG(TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
                                                 (U32)Bus, (U32)Device, (U32)Function);
 
                                             goto NextFunction;
@@ -447,11 +489,11 @@ void PCI_ScanBus(void) {
         }
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[PCI] Bus scan complete"));
+    DEBUG(TEXT("[PCI] Bus scan complete"));
 }
 
 /***************************************************************************/
-/* Internals                                                                */
+// Internals
 
 /**
  * @brief Checks whether a PCI device matches a driver's criteria.
@@ -541,5 +583,16 @@ static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice) {
 /************************************************************************/
 
 void PCIHandler(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[PCIHandler]"));
+    DEBUG(TEXT("[PCIHandler] Enter"));
+
+    // For now, only handle AHCI interrupts if we have an AHCI device
+    // TODO: Implement proper IRQ mapping for multiple PCI devices
+    extern void AHCIInterruptHandler(void);
+    extern BOOL AHCIIsInitialized(void);
+
+    if (AHCIIsInitialized()) {
+        AHCIInterruptHandler();
+    }
+
+    DEBUG(TEXT("[PCIHandler] Exit"));
 }

@@ -23,52 +23,60 @@
 \************************************************************************/
 
 #include "../include/ARP.h"
-
+#include "../include/ARPContext.h"
+#include "../include/Device.h"
+#include "../include/Heap.h"
+#include "../include/ID.h"
 #include "../include/Log.h"
+#include "../include/Memory.h"
 #include "../include/Network.h"
 #include "../include/System.h"
+#include "../include/Notification.h"
+#include "../include/AdaptiveDelay.h"
 
 /************************************************************************/
-// Cache Configuration
+// Helper functions
 
-#define ARP_CACHE_SIZE 32U
-#define ARP_ENTRY_TTL_TICKS 600U    /* ~10 minutes if ARP_Tick is called each 1s */
-#define ARP_PROBE_INTERVAL_TICKS 3U /* pacing for repeated requests */
-
-/************************************************************************/
-// Types
-
-typedef struct ArpCacheEntryTag {
-    U32 IPv4_Be; /* IPv4 address (big-endian) */
-    U8 MacAddress[6];
-    U32 TimeToLive; /* in ticks */
-    U8 IsValid;
-    U8 IsProbing; /* request already sent recently */
-} ArpCacheEntry, *LPArpCacheEntry;
-
-typedef struct ArpContextTag {
-    LPVOID NetworkDevice;
-    DRVFUNC NetworkCommand;
-
-    U8 LocalMacAddress[6];
-    U32 LocalIPv4_Be;
-
-    ArpCacheEntry Cache[ARP_CACHE_SIZE];
-} ArpContext, *LPArpContext;
-
-static ArpContext GlobalArp;
+LPARP_CONTEXT ARP_GetContext(LPDEVICE Device) {
+    return (LPARP_CONTEXT)GetDeviceContext(Device, ID_ARP);
+}
 
 /************************************************************************/
 // Utilities
-/**
- * @brief Checks if a MAC address is the broadcast address.
- *
- * @param Mac MAC address to test.
- * @return Non-zero if the address is broadcast.
- */
 
-static int MacIsBroadcast(const U8 Mac[6]) {
-    return (Mac[0] == 0xFF && Mac[1] == 0xFF && Mac[2] == 0xFF && Mac[3] == 0xFF && Mac[4] == 0xFF && Mac[5] == 0xFF);
+/**
+ * @brief Vérifie si une adresse MAC est valide (unicast, non nulle, non broadcast).
+ *
+ * @param MacAddress Adresse MAC à valider (tableau de 6 octets).
+ * @return 1 si valide, 0 sinon.
+ */
+static int IsValidMacAddress(const U8 MacAddress[6]) {
+    if (MacAddress == NULL) {
+        DEBUG(TEXT("[IsValidMacAddress] NULL address"));
+        return 0;
+    }
+
+    // Vérifier si l'adresse est nulle (00:00:00:00:00:00)
+    if (MacAddress[0] == 0 && MacAddress[1] == 0 && MacAddress[2] == 0 &&
+        MacAddress[3] == 0 && MacAddress[4] == 0 && MacAddress[5] == 0) {
+        DEBUG(TEXT("[IsValidMacAddress] Zero address"));
+        return 0;
+    }
+
+    // Vérifier si l'adresse est broadcast (FF:FF:FF:FF:FF:FF)
+    if (MacAddress[0] == 0xFF && MacAddress[1] == 0xFF && MacAddress[2] == 0xFF &&
+        MacAddress[3] == 0xFF && MacAddress[4] == 0xFF && MacAddress[5] == 0xFF) {
+        DEBUG(TEXT("[IsValidMacAddress] Broadcast address"));
+        return 0;
+    }
+
+    // Vérifier si l'adresse est multidiffusion (bit I/G à 1 dans le premier octet)
+    if (MacAddress[0] & 0x01) {
+        DEBUG(TEXT("[IsValidMacAddress] Multicast address"));
+        return 0;
+    }
+
+    return 1;
 }
 
 /************************************************************************/
@@ -85,34 +93,24 @@ static void MacCopy(U8 Destination[6], const U8 Source[6]) { MemoryCopy(Destinat
 /************************************************************************/
 
 /**
- * @brief Compares two MAC addresses.
- *
- * @param A First MAC address.
- * @param B Second MAC address.
- * @return 1 if the addresses are equal, otherwise 0.
- */
-
-static int MacEqual(const U8 A[6], const U8 B[6]) {
-    U32 Index;
-    for (Index = 0; Index < 6; Index++)
-        if (A[Index] != B[Index]) return 0;
-    return 1;
-}
-
-/************************************************************************/
-
-/**
  * @brief Searches the ARP cache for an IPv4 address.
  *
  * @param IPv4_Be IPv4 address in big-endian.
  * @return Matching cache entry or NULL.
  */
 
-static LPArpCacheEntry ArpLookup(U32 IPv4_Be) {
+static LPARP_CACHE_ENTRY ArpLookup(LPARP_CONTEXT Context, U32 IPv4_Be) {
     U32 Index;
+    if (Context == NULL) return NULL;
+    DEBUG(TEXT("[ArpLookup] Searching for IP %x"), Ntohl(IPv4_Be));
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
-        if (GlobalArp.Cache[Index].IsValid && GlobalArp.Cache[Index].IPv4_Be == IPv4_Be) return &GlobalArp.Cache[Index];
+        if (Context->Cache[Index].IPv4_Be == IPv4_Be) {
+            DEBUG(TEXT("[ArpLookup] Found entry %u: IsValid=%u IsProbing=%u IPv4=%x"),
+                  Index, Context->Cache[Index].IsValid, Context->Cache[Index].IsProbing, Ntohl(Context->Cache[Index].IPv4_Be));
+            return &Context->Cache[Index];
+        }
     }
+    DEBUG(TEXT("[ArpLookup] No entry found for IP %x"), Ntohl(IPv4_Be));
     return NULL;
 }
 
@@ -127,12 +125,25 @@ static LPArpCacheEntry ArpLookup(U32 IPv4_Be) {
  * @return Pointer to the selected cache entry.
  */
 
-static LPArpCacheEntry ArpAllocateSlot(U32 IPv4_Be) {
+static LPARP_CACHE_ENTRY ArpAllocateSlot(LPARP_CONTEXT Context, U32 IPv4_Be) {
     U32 Index, Victim = 0;
+
+    if (Context == NULL) return NULL;
+
+    // Handle edge case: if cache size is 0, cannot allocate any slot
+    if (ARP_CACHE_SIZE == 0) return NULL;
+
+    /* First check if there's already a probing entry for this IP */
+    for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
+        if (Context->Cache[Index].IPv4_Be == IPv4_Be && Context->Cache[Index].IsProbing) {
+            DEBUG(TEXT("[ArpAllocateSlot] Found existing probing entry for IP %x at index %u"), Ntohl(IPv4_Be), Index);
+            return &Context->Cache[Index];
+        }
+    }
 
     /* Find an empty slot */
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
-        if (!GlobalArp.Cache[Index].IsValid) {
+        if (!Context->Cache[Index].IsValid) {
             Victim = Index;
             break;
         }
@@ -142,18 +153,18 @@ static LPArpCacheEntry ArpAllocateSlot(U32 IPv4_Be) {
     if (Index == ARP_CACHE_SIZE) {
         U32 MinTtl = 0xFFFFFFFFU;
         for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
-            if (GlobalArp.Cache[Index].TimeToLive < MinTtl) {
-                MinTtl = GlobalArp.Cache[Index].TimeToLive;
+            if (Context->Cache[Index].TimeToLive < MinTtl) {
+                MinTtl = Context->Cache[Index].TimeToLive;
                 Victim = Index;
             }
         }
     }
 
-    GlobalArp.Cache[Victim].IPv4_Be = IPv4_Be;
-    GlobalArp.Cache[Victim].IsValid = 0;
-    GlobalArp.Cache[Victim].IsProbing = 0;
-    GlobalArp.Cache[Victim].TimeToLive = 0;
-    return &GlobalArp.Cache[Victim];
+    Context->Cache[Victim].IPv4_Be = IPv4_Be;
+    Context->Cache[Victim].IsValid = 0;
+    Context->Cache[Victim].IsProbing = 0;
+    Context->Cache[Victim].TimeToLive = 0;
+    return &Context->Cache[Victim];
 }
 
 /************************************************************************/
@@ -167,14 +178,62 @@ static LPArpCacheEntry ArpAllocateSlot(U32 IPv4_Be) {
  * @param MacAddress Corresponding MAC address.
  */
 
-static void ArpCacheUpdate(U32 IPv4_Be, const U8 MacAddress[6]) {
-    LPArpCacheEntry Entry = ArpLookup(IPv4_Be);
-    if (!Entry) Entry = ArpAllocateSlot(IPv4_Be);
+static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddress[6]) {
+    LPARP_CACHE_ENTRY Entry;
+    U8 WasProbing = 0;
+    U8 MacChanged = 0;
 
-    MacCopy(Entry->MacAddress, MacAddress);
-    Entry->IsValid = 1;
-    Entry->IsProbing = 0;
-    Entry->TimeToLive = ARP_ENTRY_TTL_TICKS;
+    DEBUG(TEXT("[ArpCacheUpdate] Entry for IP %x, Context=%x"), Ntohl(IPv4_Be), (U32)Context);
+    if (Context == NULL) {
+        DEBUG(TEXT("[ArpCacheUpdate] Context is NULL, returning"));
+        return;
+    }
+
+    // Validate MAC address before storing
+    if (!IsValidMacAddress(MacAddress)) {
+        DEBUG(TEXT("[ArpCacheUpdate] Invalid MAC address, ignoring update"));
+        return;
+    }
+
+    Entry = ArpLookup(Context, IPv4_Be);
+    if (!Entry) {
+        DEBUG(TEXT("[ArpCacheUpdate] No existing entry, allocating new slot"));
+        Entry = ArpAllocateSlot(Context, IPv4_Be);
+    } else {
+        DEBUG(TEXT("[ArpCacheUpdate] Found existing entry, IsProbing=%u IsValid=%u"), Entry->IsProbing, Entry->IsValid);
+        // Check if MAC address changed for existing valid entries
+        if (Entry->IsValid) {
+            MacChanged = (MemoryCompare(Entry->MacAddress, MacAddress, 6) != 0);
+        }
+    }
+
+    if (Entry != NULL) {
+        WasProbing = Entry->IsProbing;
+        DEBUG(TEXT("[ArpCacheUpdate] Entry=%x, WasProbing=%u MacChanged=%u before update"), (U32)Entry, WasProbing, MacChanged);
+        MacCopy(Entry->MacAddress, MacAddress);
+        Entry->IsValid = 1;
+        Entry->IsProbing = 0;
+        Entry->TimeToLive = ARP_ENTRY_TTL_TICKS;
+
+        // Send notification if this was a pending resolution OR if MAC changed
+        DEBUG(TEXT("[ArpCacheUpdate] WasProbing=%u MacChanged=%u, NotificationContext=%x"), WasProbing, MacChanged, (U32)Context->NotificationContext);
+        if ((WasProbing || MacChanged) && Context->NotificationContext) {
+            ARP_RESOLVED_DATA ResolvedData;
+            ResolvedData.IPv4_Be = IPv4_Be;
+            MacCopy(ResolvedData.MacAddress, MacAddress);
+
+            DEBUG(TEXT("[ArpCacheUpdate] Sending ARP resolved notification for IP %x"), Ntohl(IPv4_Be));
+            Notification_Send(Context->NotificationContext, NOTIF_EVENT_ARP_RESOLVED, &ResolvedData, sizeof(ResolvedData));
+        } else {
+            DEBUG(TEXT("[ArpCacheUpdate] No notification sent: WasProbing=%u MacChanged=%u, NotificationContext=%x"),
+                  WasProbing, MacChanged, (U32)Context->NotificationContext);
+        }
+
+        // Signal success to adaptive delay if this was probing
+        if (WasProbing) {
+            AdaptiveDelay_OnSuccess(&Entry->DelayState);
+        }
+    }
 }
 
 /************************************************************************/
@@ -188,12 +247,26 @@ static void ArpCacheUpdate(U32 IPv4_Be, const U8 MacAddress[6]) {
  * @return 1 on success, otherwise 0.
  */
 
-static int ArpSendFrame(const U8* Data, U32 Length) {
+static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
     NETWORKSEND Send;
-    Send.Device = GlobalArp.NetworkDevice;
+
+    if (Context == NULL || Context->Device == NULL) return 0;
+
+    // Validate Data pointer and Length to prevent memory corruption
+    if (Data == NULL || Length == 0) {
+        DEBUG(TEXT("[ArpSendFrame] Invalid Data pointer or Length: Data=%x Length=%u"), (U32)Data, Length);
+        return 0;
+    }
+
+    Send.Device = (LPPCI_DEVICE)Context->Device;
     Send.Data = Data;
     Send.Length = Length;
-    return (GlobalArp.NetworkCommand(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
+    SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Context->Device)->Driver, ID_DRIVER) {
+            return (((LPPCI_DEVICE)Context->Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
+        }
+    }
+    return 0;
 }
 
 /************************************************************************/
@@ -205,16 +278,31 @@ static int ArpSendFrame(const U8* Data, U32 Length) {
  * @return 1 on success, otherwise 0.
  */
 
-static int ArpSendRequest(U32 TargetIPv4_Be) {
-    U8 Buffer[sizeof(EthernetHeader) + sizeof(ArpPacket)];
-    LPEthernetHeader Ethernet = (LPEthernetHeader)Buffer;
-    LPArpPacket Packet = (LPArpPacket)(Buffer + sizeof(EthernetHeader));
+static int ArpSendRequest(LPARP_CONTEXT Context, U32 TargetIPv4_Be) {
+    U8 Buffer[sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)];
+    LPETHERNET_HEADER Ethernet = (LPETHERNET_HEADER)Buffer;
+    LPARP_PACKET Packet = (LPARP_PACKET)(Buffer + sizeof(ETHERNET_HEADER));
+    int result;
+
+    if (Context == NULL) return 0;
+
+    // Validate buffer size to ensure structures haven't grown unexpectedly
+    if (sizeof(Buffer) < sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)) {
+        DEBUG(TEXT("[ArpSendRequest] Buffer too small: %u < %u"),
+              (U32)sizeof(Buffer), (U32)(sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)));
+        return 0;
+    }
+
+    U32 TargetIPHost = Ntohl(TargetIPv4_Be);
+    DEBUG(TEXT("[ArpSendRequest] Sending ARP request for %u.%u.%u.%u"),
+          (TargetIPHost >> 24) & 0xFF, (TargetIPHost >> 16) & 0xFF,
+          (TargetIPHost >> 8) & 0xFF, TargetIPHost & 0xFF);
 
     /* Ethernet header */
     U8 BroadcastMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     MacCopy(Ethernet->Destination, BroadcastMac);
-    MacCopy(Ethernet->Source, GlobalArp.LocalMacAddress);
-    Ethernet->EtherType = Htons(ETHERTYPE_ARP);
+    MacCopy(Ethernet->Source, Context->LocalMacAddress);
+    Ethernet->EthType = Htons(ETHTYPE_ARP);
 
     /* ARP payload */
     Packet->HardwareType = Htons(ARP_HTYPE_ETH);
@@ -223,13 +311,15 @@ static int ArpSendRequest(U32 TargetIPv4_Be) {
     Packet->ProtocolLength = ARP_PLEN_IPV4;
     Packet->Operation = Htons(ARP_OP_REQUEST);
 
-    MacCopy(Packet->SenderHardwareAddress, GlobalArp.LocalMacAddress);
-    Packet->SenderProtocolAddress = GlobalArp.LocalIPv4_Be;
+    MacCopy(Packet->SenderHardwareAddress, Context->LocalMacAddress);
+    Packet->SenderProtocolAddress = Context->LocalIPv4_Be;
 
     MemorySet(Packet->TargetHardwareAddress, 0, 6);
     Packet->TargetProtocolAddress = TargetIPv4_Be;
 
-    return ArpSendFrame(Buffer, (U32)sizeof(Buffer));
+    result = ArpSendFrame(Context, Buffer, (U32)sizeof(Buffer));
+    DEBUG(TEXT("[ArpSendRequest] ArpSendFrame returned %d"), result);
+    return result;
 }
 
 /************************************************************************/
@@ -242,14 +332,35 @@ static int ArpSendRequest(U32 TargetIPv4_Be) {
  * @return 1 on success, otherwise 0.
  */
 
-static int ArpSendReply(const U8 DestinationMac[6], U32 DestinationIPv4_Be) {
-    U8 Buffer[sizeof(EthernetHeader) + sizeof(ArpPacket)];
-    LPEthernetHeader Ethernet = (LPEthernetHeader)Buffer;
-    LPArpPacket Packet = (LPArpPacket)(Buffer + sizeof(EthernetHeader));
+static int ArpSendReply(LPARP_CONTEXT Context, const U8 DestinationMac[6], U32 DestinationIPv4_Be) {
+    U8 Buffer[sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)];
+    LPETHERNET_HEADER Ethernet = (LPETHERNET_HEADER)Buffer;
+    LPARP_PACKET Packet = (LPARP_PACKET)(Buffer + sizeof(ETHERNET_HEADER));
+
+    if (Context == NULL) return 0;
+
+    // Validate buffer size to ensure structures haven't grown unexpectedly
+    if (sizeof(Buffer) < sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)) {
+        DEBUG(TEXT("[ArpSendReply] Buffer too small: %u < %u"),
+              (U32)sizeof(Buffer), (U32)(sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)));
+        return 0;
+    }
+
+    // Validate destination MAC address parameter
+    if (DestinationMac == NULL) {
+        DEBUG(TEXT("[ArpSendReply] NULL destination MAC address"));
+        return 0;
+    }
+
+    // Validate MAC address before using it
+    if (!IsValidMacAddress(DestinationMac)) {
+        DEBUG(TEXT("[ArpSendReply] Invalid destination MAC address"));
+        return 0;
+    }
 
     MacCopy(Ethernet->Destination, DestinationMac);
-    MacCopy(Ethernet->Source, GlobalArp.LocalMacAddress);
-    Ethernet->EtherType = Htons(ETHERTYPE_ARP);
+    MacCopy(Ethernet->Source, Context->LocalMacAddress);
+    Ethernet->EthType = Htons(ETHTYPE_ARP);
 
     Packet->HardwareType = Htons(ARP_HTYPE_ETH);
     Packet->ProtocolType = Htons(ARP_PTYPE_IPV4);
@@ -258,13 +369,13 @@ static int ArpSendReply(const U8 DestinationMac[6], U32 DestinationIPv4_Be) {
     Packet->Operation = Htons(ARP_OP_REPLY);
 
     /* Sender = us, Target = original requester */
-    MacCopy(Packet->SenderHardwareAddress, GlobalArp.LocalMacAddress);
-    Packet->SenderProtocolAddress = GlobalArp.LocalIPv4_Be;
+    MacCopy(Packet->SenderHardwareAddress, Context->LocalMacAddress);
+    Packet->SenderProtocolAddress = Context->LocalIPv4_Be;
 
     MacCopy(Packet->TargetHardwareAddress, DestinationMac);
     Packet->TargetProtocolAddress = DestinationIPv4_Be;
 
-    return ArpSendFrame(Buffer, (U32)sizeof(Buffer));
+    return ArpSendFrame(Context, Buffer, (U32)sizeof(Buffer));
 }
 
 /************************************************************************/
@@ -278,21 +389,42 @@ static int ArpSendReply(const U8 DestinationMac[6], U32 DestinationIPv4_Be) {
  * @param Packet Pointer to the ARP packet.
  */
 
-static void ArpHandlePacket(const ArpPacket* Packet) {
-    U16 HardwareType = Ntohs(Packet->HardwareType);
-    U16 ProtocolType = Ntohs(Packet->ProtocolType);
-    U16 Operation = Ntohs(Packet->Operation);
+static void ArpHandlePacket(LPARP_CONTEXT Context, const ARP_PACKET* Packet) {
+    U16 HardwareType, ProtocolType, Operation;
+
+    if (Context == NULL) return;
+
+    // Validate packet pointer to prevent NULL dereference
+    if (Packet == NULL) {
+        DEBUG(TEXT("[ArpHandlePacket] NULL packet pointer"));
+        return;
+    }
+
+    HardwareType = Ntohs(Packet->HardwareType);
+    ProtocolType = Ntohs(Packet->ProtocolType);
+    Operation = Ntohs(Packet->Operation);
 
     if (HardwareType != ARP_HTYPE_ETH) return;
     if (ProtocolType != ARP_PTYPE_IPV4) return;
     if (Packet->HardwareLength != 6 || Packet->ProtocolLength != 4) return;
+    if (Operation != ARP_OP_REQUEST && Operation != ARP_OP_REPLY) {
+        DEBUG(TEXT("[ArpHandlePacket] Unsupported operation type: %u"), Operation);
+        return;
+    }
+
+    // Validate sender MAC address before processing
+    if (!IsValidMacAddress(Packet->SenderHardwareAddress)) {
+        DEBUG(TEXT("[ArpHandlePacket] Invalid sender MAC address, ignoring packet"));
+        return;
+    }
 
     /* Update cache from sender */
-    ArpCacheUpdate(Packet->SenderProtocolAddress, Packet->SenderHardwareAddress);
+    DEBUG(TEXT("[ArpHandlePacket] Calling ArpCacheUpdate for IP %x"), Ntohl(Packet->SenderProtocolAddress));
+    ArpCacheUpdate(Context, Packet->SenderProtocolAddress, Packet->SenderHardwareAddress);
 
     /* If request targets our IP, send a reply */
-    if (Operation == ARP_OP_REQUEST && Packet->TargetProtocolAddress == GlobalArp.LocalIPv4_Be) {
-        ArpSendReply(Packet->SenderHardwareAddress, Packet->SenderProtocolAddress);
+    if (Operation == ARP_OP_REQUEST && Packet->TargetProtocolAddress == Context->LocalIPv4_Be) {
+        ArpSendReply(Context, Packet->SenderHardwareAddress, Packet->SenderProtocolAddress);
     }
     /* For replies: cache already updated */
 }
@@ -308,45 +440,80 @@ static void ArpHandlePacket(const ArpPacket* Packet) {
  * @param Length Frame length in bytes.
  */
 
-void ARP_OnEthernetFrame(const U8* Frame, U32 Length) {
-    if (Length < sizeof(EthernetHeader)) return;
+void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
+    LPARP_CONTEXT Context;
 
-    const LPEthernetHeader Ethernet = (const LPEthernetHeader)Frame;
-    U16 EtherType = Ntohs(Ethernet->EtherType);
-    if (EtherType != ETHERTYPE_ARP) return;
+    DEBUG(TEXT("[ARP_OnEthernetFrame] Entry called Device=%x Frame=%x Length=%u"), (U32)Device, (U32)Frame, Length);
 
-    if (Length < (U32)(sizeof(EthernetHeader) + sizeof(ArpPacket))) return;
+    if (Device == NULL || Frame == NULL) {
+        DEBUG(TEXT("[ARP_OnEthernetFrame] NULL parameter: Device=%x Frame=%x"), (U32)Device, (U32)Frame);
+        return;
+    }
+    if (Length < sizeof(ETHERNET_HEADER)) {
+        DEBUG(TEXT("[ARP_OnEthernetFrame] Frame too short: %u < %u"), Length, (U32)sizeof(ETHERNET_HEADER));
+        return;
+    }
 
-    const LPArpPacket Packet = (const LPArpPacket)(Frame + sizeof(EthernetHeader));
-    ArpHandlePacket(Packet);
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) {
+        DEBUG(TEXT("[ARP_OnEthernetFrame] No ARP context for device %x"), (U32)Device);
+        return;
+    }
+
+    const LPETHERNET_HEADER Ethernet = (const LPETHERNET_HEADER)Frame;
+    U16 EthType = Ntohs(Ethernet->EthType);
+
+    DEBUG(TEXT("[ARP_OnEthernetFrame] Received frame, EthType=%x, Length=%u"), EthType, Length);
+    DEBUG(TEXT("[ARP_OnEthernetFrame] Dest MAC: %02X:%02X:%02X:%02X:%02X:%02X"),
+          Ethernet->Destination[0], Ethernet->Destination[1], Ethernet->Destination[2],
+          Ethernet->Destination[3], Ethernet->Destination[4], Ethernet->Destination[5]);
+    DEBUG(TEXT("[ARP_OnEthernetFrame] Src MAC: %02X:%02X:%02X:%02X:%02X:%02X"),
+          Ethernet->Source[0], Ethernet->Source[1], Ethernet->Source[2],
+          Ethernet->Source[3], Ethernet->Source[4], Ethernet->Source[5]);
+
+    if (EthType != ETHTYPE_ARP) {
+        DEBUG(TEXT("[ARP_OnEthernetFrame] Not ARP packet, ignoring (EthType=%x)"), EthType);
+        return;
+    }
+
+    DEBUG(TEXT("[ARP_OnEthernetFrame] Processing ARP packet"));
+
+    if (Length < (U32)(sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET))) {
+        DEBUG(TEXT("[ARP_OnEthernetFrame] ARP packet too short: %u < %u"), Length, (U32)(sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)));
+        return;
+    }
+
+    const LPARP_PACKET Packet = (const LPARP_PACKET)(Frame + sizeof(ETHERNET_HEADER));
+    ArpHandlePacket(Context, Packet);
 }
 
 /************************************************************************/
 // Public API
 
-/**
- * @brief Initializes the ARP subsystem.
- *
- * Sets the network device context, obtains the local MAC address and
- * registers the receive callback.
- *
- * @param NetworkDevice  Underlying network device.
- * @param NetworkCommand Device command handler.
- * @param LocalIPv4_Be   Local IPv4 address in big-endian.
- */
-
-void ARP_Initialize(LPVOID NetworkDevice, DRVFUNC NetworkCommand, U32 LocalIPv4_Be) {
+void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
+    LPARP_CONTEXT Context;
     U32 Index;
 
-    GlobalArp.NetworkDevice = NetworkDevice;
-    GlobalArp.NetworkCommand = NetworkCommand;
-    GlobalArp.LocalIPv4_Be = LocalIPv4_Be;
+    if (Device == NULL) return;
+
+    Context = (LPARP_CONTEXT)KernelHeapAlloc(sizeof(ARP_CONTEXT));
+    if (Context == NULL) return;
+
+    Context->Device = Device;
+    Context->LocalIPv4_Be = LocalIPv4_Be;
+    Context->NotificationContext = Notification_CreateContext();
+    if (Context->NotificationContext == NULL) {
+        DEBUG(TEXT("[ARP_Initialize] Failed to create notification context"));
+        KernelHeapFree(Context);
+        return;
+    }
 
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
-        GlobalArp.Cache[Index].IsValid = 0;
-        GlobalArp.Cache[Index].IsProbing = 0;
-        GlobalArp.Cache[Index].TimeToLive = 0;
-        GlobalArp.Cache[Index].IPv4_Be = 0;
+        Context->Cache[Index].IsValid = 0;
+        Context->Cache[Index].IsProbing = 0;
+        Context->Cache[Index].TimeToLive = 0;
+        Context->Cache[Index].IPv4_Be = 0;
+        AdaptiveDelay_Initialize(&Context->Cache[Index].DelayState);
     }
 
     /* Query local MAC through DF_NT_GETINFO */
@@ -354,89 +521,250 @@ void ARP_Initialize(LPVOID NetworkDevice, DRVFUNC NetworkCommand, U32 LocalIPv4_
     NETWORKINFO Info;
     MemorySet(&GetInfo, 0, sizeof(GetInfo));
     MemorySet(&Info, 0, sizeof(Info));
-    GetInfo.Device = GlobalArp.NetworkDevice;
+    GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &Info;
 
-    if (GlobalArp.NetworkCommand(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
-        GlobalArp.LocalMacAddress[0] = Info.MAC[0];
-        GlobalArp.LocalMacAddress[1] = Info.MAC[1];
-        GlobalArp.LocalMacAddress[2] = Info.MAC[2];
-        GlobalArp.LocalMacAddress[3] = Info.MAC[3];
-        GlobalArp.LocalMacAddress[4] = Info.MAC[4];
-        GlobalArp.LocalMacAddress[5] = Info.MAC[5];
+    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
+                DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"), (U32)Info.MAC[0], (U32)Info.MAC[1],
+                      (U32)Info.MAC[2], (U32)Info.MAC[3], (U32)Info.MAC[4], (U32)Info.MAC[5]);
+
+                Context->LocalMacAddress[0] = Info.MAC[0];
+                Context->LocalMacAddress[1] = Info.MAC[1];
+                Context->LocalMacAddress[2] = Info.MAC[2];
+                Context->LocalMacAddress[3] = Info.MAC[3];
+                Context->LocalMacAddress[4] = Info.MAC[4];
+                Context->LocalMacAddress[5] = Info.MAC[5];
+            } else {
+                // GetInfo failed - clean up and return to prevent memory leak
+                DEBUG(TEXT("[ARP_Initialize] DF_NT_GETINFO failed"));
+                if (Context->NotificationContext) {
+                    Notification_DestroyContext(Context->NotificationContext);
+                }
+                KernelHeapFree(Context);
+                return;
+            }
+
+            /* NOTE: Do not register RX callback directly - NetworkManager handles this */
+            /* NETWORKSETRXCB SetRxCallback;
+            SetRxCallback.Device = (LPPCI_DEVICE)Device;
+            SetRxCallback.Callback = ARP_OnEthernetFrame;
+            DEBUG(TEXT("[ARP_Initialize] Registering RX callback %x for device %x"), (U32)ARP_OnEthernetFrame, (U32)Device);
+            U32 Result = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCallback);
+            DEBUG(TEXT("[ARP_Initialize] RX callback registration result: %u"), Result); */
+            DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
+        } else {
+            // Driver not valid - clean up and return to prevent memory leak
+            DEBUG(TEXT("[ARP_Initialize] Device driver not valid"));
+            if (Context->NotificationContext) {
+                Notification_DestroyContext(Context->NotificationContext);
+            }
+            KernelHeapFree(Context);
+            return;
+        }
+    } else {
+        // Device not valid - clean up and return to prevent memory leak
+        DEBUG(TEXT("[ARP_Initialize] Device not valid"));
+        if (Context->NotificationContext) {
+            Notification_DestroyContext(Context->NotificationContext);
+        }
+        KernelHeapFree(Context);
+        return;
     }
 
-    /* Register RX callback */
-    NETWORKSETRXCB SetRxCallback;
-    SetRxCallback.Device = GlobalArp.NetworkDevice;
-    SetRxCallback.Callback = ARP_OnEthernetFrame;
-    GlobalArp.NetworkCommand(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCallback);
+    SetDeviceContext(Device, ID_ARP, Context);
 }
 
 /************************************************************************/
 
-/**
- * @brief Decrements cache timers and expires old entries.
- */
+void ARP_Destroy(LPDEVICE Device) {
+    LPARP_CONTEXT Context;
 
-void ARP_Tick(void) {
+    if (Device == NULL) return;
+
+    Context = ARP_GetContext(Device);
+    if (Context != NULL) {
+        if (Context->NotificationContext) {
+            Notification_DestroyContext(Context->NotificationContext);
+        }
+        RemoveDeviceContext(Device, ID_ARP);
+        KernelHeapFree(Context);
+    }
+}
+
+/************************************************************************/
+
+void ARP_Tick(LPDEVICE Device) {
+    LPARP_CONTEXT Context;
     U32 Index;
+
+    if (Device == NULL) return;
+
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) return;
+
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
-        LPArpCacheEntry Entry = &GlobalArp.Cache[Index];
-        if (!Entry->IsValid) continue;
-        if (Entry->TimeToLive) Entry->TimeToLive--;
-        if (Entry->TimeToLive == 0) {
-            Entry->IsValid = 0;
-            Entry->IsProbing = 0;
+        LPARP_CACHE_ENTRY Entry = &Context->Cache[Index];
+
+        // Handle valid entries with TTL
+        if (Entry->IsValid && Entry->TimeToLive) {
+            Entry->TimeToLive--;
+            if (Entry->TimeToLive == 0) {
+                Entry->IsValid = 0;
+                Entry->IsProbing = 0;
+                Entry->IPv4_Be = 0;
+                AdaptiveDelay_Reset(&Entry->DelayState);
+            }
+        }
+
+        // Handle probing entries that need retry
+        if (Entry->IsProbing && !Entry->IsValid && Entry->TimeToLive) {
+            Entry->TimeToLive--;
+            if (Entry->TimeToLive == 0) {
+                // Time to send another ARP request
+                if (AdaptiveDelay_ShouldContinue(&Entry->DelayState)) {
+                    DEBUG(TEXT("[ARP_Tick] Sending retry ARP request for IP %x"), Ntohl(Entry->IPv4_Be));
+                    ArpSendRequest(Context, Entry->IPv4_Be);
+                    U32 NextDelay = AdaptiveDelay_GetNextDelay(&Entry->DelayState);
+                    Entry->TimeToLive = NextDelay;
+                } else {
+                    DEBUG(TEXT("[ARP_Tick] Max retries reached for IP %x, giving up"), Ntohl(Entry->IPv4_Be));
+                    Entry->IsProbing = 0;
+                    AdaptiveDelay_Reset(&Entry->DelayState);
+                }
+            }
         }
     }
 }
 
 /************************************************************************/
 
-/**
- * @brief Resolves an IPv4 address to a MAC address.
- *
- * Returns the cached mapping if available or triggers a request.
- *
- * @param TargetIPv4_Be IPv4 address to resolve in big-endian.
- * @param OutMacAddress Buffer that receives the MAC address.
- * @return 1 if resolved, otherwise 0.
- */
+int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
+    LPARP_CONTEXT Context;
+    LPARP_CACHE_ENTRY Entry;
 
-int ARP_Resolve(U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
-    LPArpCacheEntry Entry = ArpLookup(TargetIPv4_Be);
+    if (Device == NULL || OutMacAddress == NULL) return 0;
+
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) return 0;
+
+    U32 TargetIPHost = Ntohl(TargetIPv4_Be);
+    DEBUG(TEXT("[ARP_Resolve] Resolving %u.%u.%u.%u"),
+          (TargetIPHost >> 24) & 0xFF, (TargetIPHost >> 16) & 0xFF,
+          (TargetIPHost >> 8) & 0xFF, TargetIPHost & 0xFF);
+
+    Entry = ArpLookup(Context, TargetIPv4_Be);
     if (Entry && Entry->IsValid) {
+        DEBUG(TEXT("[ARP_Resolve] Found in cache: %x:%x:%x:%x:%x:%x"),
+              Entry->MacAddress[0], Entry->MacAddress[1], Entry->MacAddress[2],
+              Entry->MacAddress[3], Entry->MacAddress[4], Entry->MacAddress[5]);
         MacCopy(OutMacAddress, Entry->MacAddress);
         return 1;
     }
 
-    if (!Entry) Entry = ArpAllocateSlot(TargetIPv4_Be);
-    if (!Entry->IsProbing) {
-        ArpSendRequest(TargetIPv4_Be);
+    if (!Entry) {
+        Entry = ArpAllocateSlot(Context, TargetIPv4_Be);
+        DEBUG(TEXT("[ARP_Resolve] Allocated new cache entry"));
+        if (Entry) {
+            Entry->IPv4_Be = TargetIPv4_Be;
+            AdaptiveDelay_Initialize(&Entry->DelayState);
+        }
+    }
+
+    if (Entry && !Entry->IsProbing) {
+        // First attempt - send immediately
+        DEBUG(TEXT("[ARP_Resolve] Sending initial ARP request"));
+        ArpSendRequest(Context, TargetIPv4_Be);
         Entry->IsProbing = 1;
         Entry->TimeToLive = ARP_PROBE_INTERVAL_TICKS;
+        DEBUG(TEXT("[ARP_Resolve] Set Entry=%x IsProbing=1"), (U32)Entry);
+        AdaptiveDelay_GetNextDelay(&Entry->DelayState); // Initialize delay state
+    } else if (Entry && Entry->IsProbing) {
+        // Check if we should retry based on adaptive delay
+        if (AdaptiveDelay_ShouldContinue(&Entry->DelayState)) {
+            U32 NextDelay = AdaptiveDelay_GetNextDelay(&Entry->DelayState);
+            if (NextDelay > 0) {
+                DEBUG(TEXT("[ARP_Resolve] Retry available, will wait %u ticks for next attempt"), NextDelay);
+                Entry->TimeToLive = NextDelay;
+            } else {
+                DEBUG(TEXT("[ARP_Resolve] Max attempts reached, giving up"));
+                Entry->IsProbing = 0;
+                AdaptiveDelay_Reset(&Entry->DelayState);
+                return 0;
+            }
+        } else {
+            DEBUG(TEXT("[ARP_Resolve] No more retries allowed"));
+            Entry->IsProbing = 0;
+            AdaptiveDelay_Reset(&Entry->DelayState);
+            return 0;
+        }
     }
     return 0;
 }
 
 /************************************************************************/
 
-/**
- * @brief Logs all valid ARP cache entries.
- */
-
-void ARP_DumpCache(void) {
+void ARP_DumpCache(LPDEVICE Device) {
+    LPARP_CONTEXT Context;
     U32 Index;
+
+    if (Device == NULL) return;
+
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) return;
+
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
-        LPArpCacheEntry Entry = &GlobalArp.Cache[Index];
+        LPARP_CACHE_ENTRY Entry = &Context->Cache[Index];
         if (!Entry->IsValid) continue;
 
         U32 HostOrder = Ntohl(Entry->IPv4_Be);
         KernelLogText(
-            LOG_DEBUG, TEXT("[ARP] %u.%u.%u.%u -> %X:%X:%X:%X:%X:%X ttl=%u"), (U32)((HostOrder >> 24) & 0xFF),
+            LOG_DEBUG, TEXT("[ARP] %u.%u.%u.%u -> %x:%x:%x:%x:%x:%x ttl=%u"), (U32)((HostOrder >> 24) & 0xFF),
             (U32)((HostOrder >> 16) & 0xFF), (U32)((HostOrder >> 8) & 0xFF), (U32)((HostOrder >> 0) & 0xFF),
             (U32)Entry->MacAddress[0], (U32)Entry->MacAddress[1], (U32)Entry->MacAddress[2], (U32)Entry->MacAddress[3],
             (U32)Entry->MacAddress[4], (U32)Entry->MacAddress[5], (U32)Entry->TimeToLive);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Registers a callback for ARP notifications.
+ * @param Device Device context.
+ * @param EventID Event ID to register for.
+ * @param Callback Callback function.
+ * @param UserData User data passed to callback.
+ * @return 1 on success, 0 on failure.
+ */
+U32 ARP_RegisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData) {
+    LPARP_CONTEXT Context;
+
+    if (!Device || !Callback) return 0;
+
+    Context = ARP_GetContext(Device);
+    if (!Context || !Context->NotificationContext) return 0;
+
+    return Notification_Register(Context->NotificationContext, EventID, Callback, UserData);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unregisters a callback for ARP notifications.
+ * @param Device Device context.
+ * @param EventID Event ID to unregister from.
+ * @param Callback Callback function.
+ * @param UserData User data passed to callback.
+ * @return 1 on success, 0 on failure.
+ */
+U32 ARP_UnregisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData) {
+    LPARP_CONTEXT Context;
+
+    if (!Device || !Callback) return 0;
+
+    Context = ARP_GetContext(Device);
+    if (!Context || !Context->NotificationContext) return 0;
+
+    return Notification_Unregister(Context->NotificationContext, EventID, Callback, UserData);
 }

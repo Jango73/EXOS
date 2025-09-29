@@ -29,12 +29,12 @@
 
 #include "Driver.h"
 #include "FSID.h"
-#include "HD.h"
+#include "Disk.h"
 #include "Process.h"
 
 /***************************************************************************/
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /***************************************************************************/
 
@@ -138,10 +138,8 @@ typedef struct tag_FILEINFO {
     STR Name[MAX_PATH_NAME];
 } FILEINFO, *LPFILEINFO;
 
-#define FIF_CREATE_ALWAYS 0x00000001
-#define FIF_DELETE_TREE 0x00000002
-
 /***************************************************************************/
+// Structure that discribes an open file
 
 typedef struct tag_FILE {
     LISTNODE_FIELDS
@@ -153,18 +151,17 @@ typedef struct tag_FILE {
     U32 Attributes;
     U32 SizeLow;
     U32 SizeHigh;
-    SYSTEMTIME Creation;
-    SYSTEMTIME Accessed;
-    SYSTEMTIME Modified;
+    DATETIME Creation;
+    DATETIME Accessed;
+    DATETIME Modified;
     U32 Position;
-    U32 BytesToRead;
-    U32 BytesRead;
+    U32 ByteCount;
+    U32 BytesTransferred;
     LPVOID Buffer;
     STR Name[MAX_FILE_NAME];
 } FILE, *LPFILE;
 
 /***************************************************************************/
-
 // Structure used by the partition commands
 
 #define FLAG_PART_CREATE_QUICK_FORMAT 0x0001
@@ -191,9 +188,12 @@ typedef struct tag_PATHNODE {
 typedef struct tag_FS_MOUNT_CONTROL {
     STR Path[MAX_PATH_NAME];
     LPLISTNODE Node;
+    STR SourcePath[MAX_PATH_NAME];
 } FS_MOUNT_CONTROL, *LPFS_MOUNT_CONTROL;
 
 typedef FS_MOUNT_CONTROL FS_UNMOUNT_CONTROL, *LPFS_UNMOUNT_CONTROL;
+
+/***************************************************************************/
 
 typedef struct tag_FS_PATHCHECK {
     STR CurrentFolder[MAX_PATH_NAME];
@@ -206,9 +206,11 @@ BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
 BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
 BOOL MountSystemFS(void);
-BOOL MountSystemFSUserNodes(void);
+BOOL MountUserNodes(void);
 void InitializeFileSystems(void);
 
 /***************************************************************************/
+
+#pragma pack(pop)
 
 #endif

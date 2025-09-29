@@ -21,19 +21,25 @@
     Address Resolution Protocol (ARP)
 
 \************************************************************************/
+
 #ifndef ARP_H_INCLUDED
 #define ARP_H_INCLUDED
 
 #include "../include/Base.h"
 #include "../include/Driver.h"
 #include "../include/Network.h"
+#include "../include/PCI.h"
 #include "../include/String.h"
 #include "Endianness.h"
 
 /************************************************************************/
+
+#pragma pack(push, 1)
+
+/************************************************************************/
 // EtherTypes
-#define ETHERTYPE_IPV4 0x0800
-#define ETHERTYPE_ARP 0x0806
+#define ETHTYPE_IPV4 0x0800
+#define ETHTYPE_ARP 0x0806
 
 // ARP constants
 #define ARP_HTYPE_ETH 0x0001
@@ -45,13 +51,13 @@
 
 /************************************************************************/
 
-typedef struct __attribute__((packed)) EthernetHeaderTag {
+typedef struct tag_ETHERNET_HEADER {
     U8 Destination[6];
     U8 Source[6];
-    U16 EtherType;  // Big-endian on the wire
-} EthernetHeader, *LPEthernetHeader;
+    U16 EthType;  // Big-endian on the wire
+} ETHERNET_HEADER, *LPETHERNET_HEADER;
 
-typedef struct __attribute__((packed)) ArpPacketTag {
+typedef struct tag_ARP_PACKET {
     U16 HardwareType;   // 1 = Ethernet (be)
     U16 ProtocolType;   /// 0x0800 = IPv4 (be)
     U8 HardwareLength;  // 6
@@ -63,20 +69,13 @@ typedef struct __attribute__((packed)) ArpPacketTag {
 
     U8 TargetHardwareAddress[6];  // MAC
     U32 TargetProtocolAddress;    // IPv4 (be)
-} ArpPacket, *LPArpPacket;
+} ARP_PACKET, *LPARP_PACKET;
 
-// Public API
-void ARP_Initialize(LPVOID NetworkDevice, DRVFUNC NetworkCommand, U32 LocalIPv4_Be);
-void ARP_Tick(void); /* Call periodically (e.g., each 1s) to age the cache. */
+// Per-device ARP API
+#include "ARPContext.h"
 
-// Resolve returns 1 if the MAC is known (OutMacAddress filled), 0 otherwise.
-// If unknown, it triggers an ARP Request (paced).
-int ARP_Resolve(U32 TargetIPv4_Be, U8 OutMacAddress[6]);
+/************************************************************************/
 
-// Debug helper
-void ARP_DumpCache(void);
-
-// RX entry point (registered as DF_NT_SETRXCB). You don't call this manually.
-void ARP_OnEthernetFrame(const U8* Frame, U32 Length);
+#pragma pack(pop)
 
 #endif  // ARP_H_INCLUDED

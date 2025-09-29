@@ -25,98 +25,12 @@
 #include "../include/ExecutableELF.h"
 
 #include "../include/Log.h"
-
-/************************************************************************/
-// Internal ELF constants/types (32-bit i386 LSB)
-// Kept local to avoid leaking ABI; must match ExecutableELF.h if defined.
-
-#ifndef ELF_SIGNATURE
-#define ELF_SIGNATURE 0x464C457F /* 0x7F 'E' 'L' 'F' */
-#endif
-
-/* e_ident indices */
-#ifndef EI_NIDENT
-#define EI_NIDENT 16
-#endif
-#ifndef EI_CLASS
-#define EI_CLASS 4
-#endif
-#ifndef EI_DATA
-#define EI_DATA 5
-#endif
-#ifndef EI_VERSION
-#define EI_VERSION 6
-#endif
-#ifndef EI_OSABI
-#define EI_OSABI 7
-#endif
-#ifndef EI_ABIVERSION
-#define EI_ABIVERSION 8
-#endif
-
-/* EI_CLASS */
-#ifndef ELFCLASS32
-#define ELFCLASS32 1
-#endif
-/* EI_DATA */
-#ifndef ELFDATA2LSB
-#define ELFDATA2LSB 1
-#endif
-/* e_version */
-#ifndef EV_CURRENT
-#define EV_CURRENT 1
-#endif
-
-/* e_type */
-#ifndef ET_EXEC
-#define ET_EXEC 2
-#endif
-/* e_machine */
-#ifndef EM_386
-#define EM_386 3
-#endif
-
-/* Program header types */
-#ifndef PT_NULL
-#define PT_NULL 0
-#endif
-#ifndef PT_LOAD
-#define PT_LOAD 1
-#endif
-#ifndef PT_DYNAMIC
-#define PT_DYNAMIC 2
-#endif
-#ifndef PT_INTERP
-#define PT_INTERP 3
-#endif
-#ifndef PT_NOTE
-#define PT_NOTE 4
-#endif
-#ifndef PT_PHDR
-#define PT_PHDR 6
-#endif
-#ifndef PT_TLS
-#define PT_TLS 7
-#endif
-#ifndef PT_GNU_STACK
-#define PT_GNU_STACK 0x6474e551
-#endif
-
-/* Program header flags */
-#ifndef PF_X
-#define PF_X 0x1
-#endif
-#ifndef PF_W
-#define PF_W 0x2
-#endif
-#ifndef PF_R
-#define PF_R 0x4
-#endif
+#include "../include/String.h"
 
 /************************************************************************/
 
 // Packed structures (GCC/Clang).
-typedef struct __attribute__((packed)) _EXOS_Elf32_Ehdr {
+typedef struct __attribute__((packed)) tag_EXOS_ELF32_EHDR {
     U8 e_ident[EI_NIDENT];
     U16 e_type;
     U16 e_machine;
@@ -131,9 +45,9 @@ typedef struct __attribute__((packed)) _EXOS_Elf32_Ehdr {
     U16 e_shentsize;
     U16 e_shnum;
     U16 e_shstrndx;
-} EXOS_Elf32_Ehdr;
+} EXOS_ELF32_EHDR;
 
-typedef struct __attribute__((packed)) _EXOS_Elf32_Phdr {
+typedef struct __attribute__((packed)) tag_EXOS_ELF32_PHDR {
     U32 p_type;
     U32 p_offset;
     U32 p_vaddr;
@@ -142,7 +56,7 @@ typedef struct __attribute__((packed)) _EXOS_Elf32_Phdr {
     U32 p_memsz;
     U32 p_flags;
     U32 p_align;
-} EXOS_Elf32_Phdr;
+} EXOS_ELF32_PHDR;
 
 /************************************************************************/
 // Local helpers
@@ -153,13 +67,6 @@ static U32 ELFMakeSig(const U8 ident[EI_NIDENT]) {
 
 static BOOL ELFIsCode(U32 flags) { return (flags & PF_X) != 0; }
 static BOOL ELFIsData(U32 flags) { return (flags & PF_W) != 0 || ((flags & PF_X) == 0); }
-
-static void ELFZero(LPVOID dst, U32 size) {
-    U8* p = (U8*)dst;
-    while (size--) {
-        *p++ = 0;
-    }
-}
 
 /* Safe 32-bit range addition: returns FALSE on overflow */
 static BOOL Add32Overflow(U32 a, U32 b, U32* out) {
@@ -176,8 +83,8 @@ static BOOL Add32Overflow(U32 a, U32 b, U32* out) {
 
 BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     FILEOPERATION FileOperation;
-    EXOS_Elf32_Ehdr Ehdr;
-    EXOS_Elf32_Phdr Phdr;
+    EXOS_ELF32_EHDR Ehdr;
+    EXOS_ELF32_PHDR Phdr;
     U32 FileSize;
     U32 Sig;
     U32 i;
@@ -189,7 +96,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     BOOL HasCode = FALSE;
     BOOL HasInterp = FALSE;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering GetExecutableInfo_ELF"));
+    DEBUG(TEXT("Entering GetExecutableInfo_ELF"));
 
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
@@ -203,15 +110,15 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     FileOperation.NumBytes = 0;
 
     FileSize = GetFileSize(File);
-    if (FileSize < sizeof(EXOS_Elf32_Ehdr)) goto Out_Error;
+    if (FileSize < sizeof(EXOS_ELF32_EHDR)) goto Out_Error;
 
     /* Read ELF header */
     FileOperation.NumBytes = 0; /* absolute offset 0 */
-    if (SetFilePosition(&FileOperation) != SUCCESS) goto Out_Error;
+    if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
 
     FileOperation.Buffer = (LPVOID)&Ehdr;
-    FileOperation.NumBytes = sizeof(EXOS_Elf32_Ehdr);
-    if (ReadFile(&FileOperation) != sizeof(EXOS_Elf32_Ehdr)) goto Out_Error;
+    FileOperation.NumBytes = sizeof(EXOS_ELF32_EHDR);
+    if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_EHDR)) goto Out_Error;
 
     /* Validate ELF basics */
     Sig = ELFMakeSig(Ehdr.e_ident);
@@ -223,7 +130,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     if (Ehdr.e_machine != EM_386) goto Out_Error;
 
     if (Ehdr.e_phnum == 0) goto Out_Error;
-    if (Ehdr.e_phentsize < sizeof(EXOS_Elf32_Phdr)) goto Out_Error;
+    if (Ehdr.e_phentsize < sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
 
     /* Bounds check Program Header Table area */
     {
@@ -242,11 +149,11 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
         if (!Add32Overflow(Ehdr.e_phoff, i * (U32)Ehdr.e_phentsize, &phoff_i)) goto Out_Error;
 
         FileOperation.NumBytes = phoff_i;
-        if (SetFilePosition(&FileOperation) != SUCCESS) goto Out_Error;
+        if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
 
         FileOperation.Buffer = (LPVOID)&Phdr;
-        FileOperation.NumBytes = sizeof(EXOS_Elf32_Phdr);
-        if (ReadFile(&FileOperation) != sizeof(EXOS_Elf32_Phdr)) goto Out_Error;
+        FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
+        if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
 
         if (Phdr.p_type == PT_INTERP) {
             HasInterp = TRUE;
@@ -327,11 +234,11 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     Info->HeapMinimum = 0;
     Info->HeapRequested = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting GetExecutableInfo_ELF (success)"));
+    DEBUG(TEXT("Exiting GetExecutableInfo_ELF (success)"));
     return TRUE;
 
 Out_Error:
-    KernelLogText(LOG_DEBUG, TEXT("Exiting GetExecutableInfo_ELF (error)"));
+    DEBUG(TEXT("Exiting GetExecutableInfo_ELF (error)"));
     return FALSE;
 }
 
@@ -342,17 +249,20 @@ Out_Error:
 // COMMENTS & LOGS IN ENGLISH (per coding guideline)
 
 BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase) {
+    UNUSED(BssBase);
+
     FILEOPERATION FileOperation;
-    EXOS_Elf32_Ehdr Ehdr;
-    EXOS_Elf32_Phdr Phdr;
+    EXOS_ELF32_EHDR Ehdr;
+    EXOS_ELF32_PHDR Phdr;
     U32 FileSize;
     U32 i;
+
     U32 CodeRef = 0, DataRef = 0;
     U32 CodeMin = 0xFFFFFFFFU, CodeMax = 0;
     U32 DataMin = 0xFFFFFFFFU, DataMax = 0;
     BOOL HasCode = FALSE;
 
-    KernelLogText(LOG_DEBUG, TEXT("Entering LoadExecutable_ELF"));
+    DEBUG(TEXT("[LoadExecutable_ELF] %s"), File->Name);
 
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
@@ -366,15 +276,15 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
     FileOperation.NumBytes = 0;
 
     FileSize = GetFileSize(File);
-    if (FileSize < sizeof(EXOS_Elf32_Ehdr)) goto Out_Error;
+    if (FileSize < sizeof(EXOS_ELF32_EHDR)) goto Out_Error;
 
     /* Read ELF header */
     FileOperation.NumBytes = 0;
-    if (SetFilePosition(&FileOperation) != SUCCESS) goto Out_Error;
+    if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
 
     FileOperation.Buffer = (LPVOID)&Ehdr;
-    FileOperation.NumBytes = sizeof(EXOS_Elf32_Ehdr);
-    if (ReadFile(&FileOperation) != sizeof(EXOS_Elf32_Ehdr)) goto Out_Error;
+    FileOperation.NumBytes = sizeof(EXOS_ELF32_EHDR);
+    if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_EHDR)) goto Out_Error;
 
     /* Validate minimal fields again */
     if (ELFMakeSig(Ehdr.e_ident) != ELF_SIGNATURE) goto Out_Error;
@@ -384,7 +294,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
     if (Ehdr.e_type != ET_EXEC) goto Out_Error;
     if (Ehdr.e_machine != EM_386) goto Out_Error;
     if (Ehdr.e_phnum == 0) goto Out_Error;
-    if (Ehdr.e_phentsize < sizeof(EXOS_Elf32_Phdr)) goto Out_Error;
+    if (Ehdr.e_phentsize < sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
 
     /* Determine reference bases from Info (computed by GetExecutableInfo_ELF) */
     CodeRef = Info->CodeBase;
@@ -396,11 +306,11 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
         if (!Add32Overflow(Ehdr.e_phoff, i * (U32)Ehdr.e_phentsize, &phoff_i)) goto Out_Error;
 
         FileOperation.NumBytes = phoff_i;
-        if (SetFilePosition(&FileOperation) != SUCCESS) goto Out_Error;
+        if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
 
         FileOperation.Buffer = (LPVOID)&Phdr;
-        FileOperation.NumBytes = sizeof(EXOS_Elf32_Phdr);
-        if (ReadFile(&FileOperation) != sizeof(EXOS_Elf32_Phdr)) goto Out_Error;
+        FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
+        if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
 
         if (Phdr.p_type != PT_LOAD) continue;
 
@@ -429,11 +339,11 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
         if (!Add32Overflow(Ehdr.e_phoff, i * (U32)Ehdr.e_phentsize, &phoff_i)) goto Out_Error;
 
         FileOperation.NumBytes = phoff_i;
-        if (SetFilePosition(&FileOperation) != SUCCESS) goto Out_Error;
+        if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
 
         FileOperation.Buffer = (LPVOID)&Phdr;
-        FileOperation.NumBytes = sizeof(EXOS_Elf32_Phdr);
-        if (ReadFile(&FileOperation) != sizeof(EXOS_Elf32_Phdr)) goto Out_Error;
+        FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
+        if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
 
         if (Phdr.p_type != PT_LOAD) continue;
 
@@ -460,7 +370,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
             if (fend > FileSize) goto Out_Error;
 
             FileOperation.NumBytes = Phdr.p_offset;
-            if (SetFilePosition(&FileOperation) != SUCCESS) goto Out_Error;
+            if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
 
             FileOperation.Buffer = (LPVOID)(Dest);
             FileOperation.NumBytes = CopySize;
@@ -469,7 +379,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
 
         /* Zero-fill BSS tail, if any */
         if (ZeroSize > 0) {
-            ELFZero((LPVOID)(Dest + CopySize), ZeroSize);
+            MemorySet((LPVOID)(Dest + CopySize), 0, ZeroSize);
         }
     }
 
@@ -482,12 +392,10 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
         goto Out_Error;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("Exiting LoadExecutable_ELF (success)"));
+    DEBUG(TEXT("[LoadExecutable_ELF] Exit (success)"));
     return TRUE;
 
 Out_Error:
-    KernelLogText(LOG_DEBUG, TEXT("Exiting LoadExecutable_ELF (error)"));
+    DEBUG(TEXT("[LoadExecutable_ELF] Exit (error)"));
     return FALSE;
 }
-
-/***************************************************************************/

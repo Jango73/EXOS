@@ -21,15 +21,6 @@
     TOML
 
 \************************************************************************/
-// TOML.c
-
-/***************************************************************************\
-
-    EXOS Kernel
-    Copyright (c) 1999-2025 Jango73
-    All rights reserved
-
-\***************************************************************************/
 
 #include "../include/TOML.h"
 
@@ -42,8 +33,8 @@
 /**
  * @brief Parses a TOML formatted string into a structured data object.
  *
- * This function implements a basic TOML parser that supports sections, 
- * key-value pairs, strings, and arrays. It builds a linked list of 
+ * This function implements a basic TOML parser that supports sections,
+ * key-value pairs, strings, and arrays. It builds a linked list of
  * TOMLITEM structures representing the parsed configuration.
  *
  * @param Source TOML-formatted string to parse
@@ -57,15 +48,15 @@ LPTOML TomlParse(LPCSTR Source) {
     U32 SectionIndex = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[TomlParse] Enter"));
+    DEBUG(TEXT("[TomlParse] Enter"));
 
     // Allocate main TOML structure
-    Toml = (LPTOML)HeapAlloc(sizeof(TOML));
+    Toml = (LPTOML)KernelHeapAlloc(sizeof(TOML));
     if (Toml == NULL) return NULL;
     Toml->First = NULL;
 
     // Initialize section tracking variables
-    Section[0] = STR_NULL;      // Current full section name (e.g., "server.database")  
+    Section[0] = STR_NULL;      // Current full section name (e.g., "server.database")
     SectionBase[0] = STR_NULL;  // Base section name (e.g., "server")
     if (Source == NULL) return Toml;
 
@@ -100,39 +91,39 @@ LPTOML TomlParse(LPCSTR Source) {
         // Skip leading whitespace
         Ptr = Line;
         while (*Ptr == ' ' || *Ptr == '\t') Ptr++;
-        if (*Ptr == STR_NULL) continue; // Skip empty lines
+        if (*Ptr == STR_NULL) continue;  // Skip empty lines
 
         // Handle section headers: [section] or [[array]]
         if (*Ptr == '[') {
             BOOL Array = FALSE;
 
-            Ptr++; // Skip first '['
+            Ptr++;  // Skip first '['
             if (*Ptr == '[') {
-                Array = TRUE; // This is an array of tables [[section]]
-                Ptr++;        // Skip second '['
+                Array = TRUE;  // This is an array of tables [[section]]
+                Ptr++;         // Skip second '['
             }
-            
+
             // Find closing bracket(s)
             End = StringFindChar(Ptr, ']');
             if (End) {
                 *End = STR_NULL;
-                if (Array && End[1] == ']') End++; // Skip second ']' for arrays
+                if (Array && End[1] == ']') End++;  // Skip second ']' for arrays
             }
 
             if (Array) {
                 // Handle array of tables: [[servers]] creates servers.0, servers.1, etc.
                 if (StringCompare(SectionBase, Ptr) == 0) {
-                    SectionIndex++; // Same section, increment index
+                    SectionIndex++;  // Same section, increment index
                 } else {
-                    StringCopy(SectionBase, Ptr); // New section
+                    StringCopy(SectionBase, Ptr);  // New section
                     SectionIndex = 0;
                 }
-                
+
                 // Build section name like "servers.0", "servers.1"
                 STR IndexText[0x10];
                 U32ToString(SectionIndex, IndexText);
                 StringCopy(Section, SectionBase);
-                StringConcat(Section, (LPCSTR) ".");
+                StringConcat(Section, TEXT("."));
                 StringConcat(Section, IndexText);
             } else {
                 // Regular section: [section.subsection]
@@ -140,14 +131,14 @@ LPTOML TomlParse(LPCSTR Source) {
                 SectionBase[0] = STR_NULL;
                 SectionIndex = 0;
             }
-            continue; // Move to next line
+            continue;  // Move to next line
         }
 
         // Handle key-value pairs: key = value
         Equal = StringFindChar(Ptr, '=');
-        if (Equal == NULL) continue; // Skip lines without '='
-        
-        *Equal = STR_NULL; // Split the line at '='
+        if (Equal == NULL) continue;  // Skip lines without '='
+
+        *Equal = STR_NULL;  // Split the line at '='
         Key = Ptr;
         Value = Equal + 1;
 
@@ -158,7 +149,7 @@ LPTOML TomlParse(LPCSTR Source) {
             End--;
         }
 
-        // Trim leading and trailing whitespace from value  
+        // Trim leading and trailing whitespace from value
         while (*Value == ' ' || *Value == '\t') Value++;
         End = Value + StringLength(Value);
         while (End > Value && (End[-1] == ' ' || End[-1] == '\t' || End[-1] == '\r')) {
@@ -168,50 +159,50 @@ LPTOML TomlParse(LPCSTR Source) {
 
         // Handle string values in quotes: "value"
         if (*Value == '\"') {
-            Value++; // Skip opening quote
+            Value++;  // Skip opening quote
             End = StringFindChar(Value, '\"');
-            if (End) *End = STR_NULL; // Remove closing quote
+            if (End) *End = STR_NULL;  // Remove closing quote
         }
 
         // Build full key name combining section and key: "section.key"
         FullKey[0] = STR_NULL;
         if (!StringEmpty(Section)) {
             StringCopy(FullKey, Section);
-            StringConcat(FullKey, (LPCSTR) ".");
+            StringConcat(FullKey, TEXT("."));
         }
         StringConcat(FullKey, Key);
 
         // Allocate new TOML item structure
-        Item = (LPTOMLITEM)HeapAlloc(sizeof(TOMLITEM));
+        Item = (LPTOMLITEM)KernelHeapAlloc(sizeof(TOMLITEM));
         if (Item == NULL) continue;
         Item->Next = NULL;
-        
+
         // Allocate memory for key and value strings
-        Item->Key = (LPSTR)HeapAlloc(StringLength(FullKey) + 1);
-        Item->Value = (LPSTR)HeapAlloc(StringLength(Value) + 1);
-        
+        Item->Key = (LPSTR)KernelHeapAlloc(StringLength(FullKey) + 1);
+        Item->Value = (LPSTR)KernelHeapAlloc(StringLength(Value) + 1);
+
         // Handle allocation failures
         if (Item->Key == NULL || Item->Value == NULL) {
-            if (Item->Key) HeapFree(Item->Key);
-            if (Item->Value) HeapFree(Item->Value);
-            HeapFree(Item);
+            if (Item->Key) KernelHeapFree(Item->Key);
+            if (Item->Value) KernelHeapFree(Item->Value);
+            KernelHeapFree(Item);
             continue;
         }
-        
+
         // Copy the key and value strings
         StringCopy(Item->Key, FullKey);
         StringCopy(Item->Value, Value);
 
         // Add item to linked list
         if (Toml->First == NULL) {
-            Toml->First = Item; // First item
+            Toml->First = Item;  // First item
         } else {
             Last->Next = Item;  // Append to end
         }
         Last = Item;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[TomlParse] Exit"));
+    DEBUG(TEXT("[TomlParse] Exit"));
 
     return Toml;
 }
@@ -231,7 +222,7 @@ LPTOML TomlParse(LPCSTR Source) {
 LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
     LPTOMLITEM Item = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("[TomlGet] Enter"));
+    DEBUG(TEXT("[TomlGet] Enter"));
 
     // Validate parameters
     if (Toml == NULL) return NULL;
@@ -240,12 +231,12 @@ LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
     // Search through linked list for matching key
     for (Item = Toml->First; Item; Item = Item->Next) {
         if (StringCompare(Item->Key, Path) == 0) {
-            KernelLogText(LOG_DEBUG, TEXT("[TomlGet] Exit"));
-            return Item->Value; // Found matching key
+            DEBUG(TEXT("[TomlGet] Exit"));
+            return Item->Value;  // Found matching key
         }
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[TomlGet] Exit"));
+    DEBUG(TEXT("[TomlGet] Exit"));
 
     return NULL;
 }
@@ -264,26 +255,24 @@ void TomlFree(LPTOML Toml) {
     LPTOMLITEM Item = NULL;
     LPTOMLITEM Next = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("[TomlFree] Enter"));
+    DEBUG(TEXT("[TomlFree] Enter"));
 
     if (Toml == NULL) return;
 
     // Free all items in the linked list
     for (Item = Toml->First; Item; Item = Next) {
-        Next = Item->Next; // Save next pointer before freeing current item
-        
+        Next = Item->Next;  // Save next pointer before freeing current item
+
         // Free the strings
-        if (Item->Key) HeapFree(Item->Key);
-        if (Item->Value) HeapFree(Item->Value);
-        
+        if (Item->Key) KernelHeapFree(Item->Key);
+        if (Item->Value) KernelHeapFree(Item->Value);
+
         // Free the item structure itself
-        HeapFree(Item);
+        KernelHeapFree(Item);
     }
 
     // Free the main TOML structure
-    HeapFree(Toml);
+    KernelHeapFree(Toml);
 
-    KernelLogText(LOG_DEBUG, TEXT("[TomlFree] Exit"));
+    DEBUG(TEXT("[TomlFree] Exit"));
 }
-
-/***************************************************************************/

@@ -64,11 +64,14 @@ Magic : db 'EXOS'
 FUNC_HEADER
 start:
 
-    call    KernelMain
+    mov         [KernelStartup + KernelStartupInfo.StackTop], esp
 
-    cli                 ; Should not return here, hang
+    call        KernelMain
+
+.hang:
+    cli         ; Should not return here, hang
     hlt
-    jmp $
+    jmp .hang
     nop
 
 ;----------------------------------------------------------------------------
@@ -90,6 +93,8 @@ bits 32
     global EnableInterrupts
     global SaveFlags
     global RestoreFlags
+    global SaveFPU
+    global RestoreFPU
     global InPortByte
     global OutPortByte
     global InPortWord
@@ -97,11 +102,13 @@ bits 32
     global InPortLong
     global OutPortLong
     global InPortStringWord
+    global OutPortStringWord
     global MaskIRQ
     global UnmaskIRQ
     global DisableIRQ
     global EnableIRQ
     global LoadGlobalDescriptorTable
+    global ReadGlobalDescriptorTable
     global LoadLocalDescriptorTable
     global LoadInterruptDescriptorTable
     global LoadPageDirectory
@@ -119,6 +126,7 @@ bits 32
     global MemorySet
     global MemoryCopy
     global MemoryCompare
+    global MemoryMove
     global DoSystemCall
     global IdleCPU
     global DeadCPU
@@ -217,13 +225,13 @@ GetCPUID :
     mov  [edi + 0x0008], ecx
     mov  [edi + 0x000C], edx
 
-    ;mov  eax, 1
-    ;cpuid
+    mov  eax, 1
+    cpuid
 
-    ;mov  [edi + 0x0010], eax
-    ;mov  [edi + 0x0014], ebx
-    ;mov  [edi + 0x0018], ecx
-    ;mov  [edi + 0x001C], edx
+    mov  [edi + 0x0010], eax
+    mov  [edi + 0x0014], ebx
+    mov  [edi + 0x0018], ecx
+    mov  [edi + 0x001C], edx
 
     ;mov  eax, 2
     ;cpuid
@@ -323,6 +331,42 @@ RestoreFlags :
 ;--------------------------------------
 
 FUNC_HEADER
+SaveFPU :
+
+    push    ebp
+    mov     ebp, esp
+    push    edi
+
+    mov     edi, [ebp+(PBN+0)]
+    fsave   [edi]
+
+    xor     eax, eax
+
+    pop     edi
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+FUNC_HEADER
+RestoreFPU :
+
+    push    ebp
+    mov     ebp, esp
+    push    edi
+
+    mov     edi, [ebp+(PBN+0)]
+    frstor  [edi]
+
+    xor     eax, eax
+
+    pop     edi
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+FUNC_HEADER
 InPortByte :
 
     push    ebp
@@ -408,6 +452,28 @@ OutPortLong :
     pop     edx
     pop     ebp
     ret
+
+;--------------------------------------
+
+FUNC_HEADER
+OutPortStringWord :
+
+    push    ebp
+    mov     ebp, esp
+    push    ecx
+    push    edx
+    push    esi
+    mov     edx, [ebp+(PBN+0)]
+    mov     esi, [ebp+(PBN+4)]
+    mov     ecx, [ebp+(PBN+8)]
+    cld
+    rep     outsw
+    pop     esi
+    pop     edx
+    pop     ecx
+    pop     ebp
+    ret
+
 ;--------------------------------------
 
 FUNC_HEADER
@@ -597,6 +663,25 @@ _LGDT_Out :
     pop  ebx
 
     pop  ebp
+    ret
+
+;--------------------------------------
+
+FUNC_HEADER
+ReadGlobalDescriptorTable :
+
+    ; void ReadGlobalDescriptorTable(GDTR* gdtr_ptr)
+    ; Parameter: pointer to GDTR structure (6 bytes: 2 limit + 4 base)
+
+    push    ebp
+    mov     ebp, esp
+    push    ebx
+
+    mov     ebx, [ebp+(PBN+0)]  ; Get pointer to GDTR structure
+    sgdt    [ebx]               ; Store GDTR at the provided address
+
+    pop     ebx
+    pop     ebp
     ret
 
 ;--------------------------------------
@@ -1041,6 +1126,59 @@ MemoryCompare :
 ;--------------------------------------
 
 FUNC_HEADER
+MemoryMove :
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    esi
+    push    edi
+
+    mov     edi, [ebp+(PBN+0)]   ; dest
+    mov     esi, [ebp+(PBN+4)]   ; src
+    mov     ecx, [ebp+(PBN+8)]   ; n
+
+    test    ecx, ecx
+    jz      .end                 ; if n == 0, nothing to do
+
+    cmp     edi, esi
+    je      .end                 ; if dest == src, nothing to do
+    jb      .copy_forward        ; if dest < src, copy forward
+
+    ; dest > src, check for overlap
+    mov     eax, esi
+    add     eax, ecx
+    cmp     edi, eax
+    jae     .copy_forward        ; if dest >= src+n, no overlap, copy forward
+
+    ; overlap detected, copy backward
+    add     esi, ecx
+    add     edi, ecx
+    dec     esi
+    dec     edi
+    std                          ; set direction flag for backward copy
+    rep     movsb
+    cld                          ; clear direction flag
+    jmp     .end
+
+.copy_forward:
+    cld                          ; clear direction flag for forward copy
+    rep     movsb
+
+.end:
+    mov     eax, [ebp+(PBN+0)]   ; return dest
+
+    pop     edi
+    pop     esi
+    pop     ecx
+
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+FUNC_HEADER
 DoSystemCall :
 
     push    ebp
@@ -1050,7 +1188,7 @@ DoSystemCall :
     mov     eax, [ebp+(PBN+0)]
     mov     ebx, [ebp+(PBN+4)]
 
-    int     0x80
+    int     EXOS_USER_CALL
 
     pop     ebx
     pop     ebp
@@ -1129,6 +1267,13 @@ TaskRunner :
 ;    pop         ebx
 ;    pop         eax
 
+    ; Clear registers
+    xor         ecx, ecx
+    xor         edx, edx
+    xor         esi, esi
+    xor         edi, edi
+    xor         ebp, ebp
+
     ;--------------------------------------
     ; EBX contains the function
     ; EAX contains the parameter
@@ -1136,23 +1281,23 @@ TaskRunner :
     cmp         ebx, 0
     je          _TaskRunner_KillMe
 
-    push        eax                        ; Argument for task function
-    call        ebx                        ; Call task function
-    add         esp, U32_SIZE              ; Adjust stack
+    push        eax                         ; Argument for task function
+    call        ebx                         ; Call task function
+    add         esp, U32_SIZE               ; Adjust stack
 
 _TaskRunner_KillMe :
 
-    mov         eax, 0x0000002F            ; SYSCALL_KillMe
+    mov         eax, 0x33                   ; SYSCALL_KillMe
     xor         ebx, ebx
-    int         0x80
+    int         EXOS_USER_CALL
 
     ;--------------------------------------
     ; Do an infinite loop, task will be removed by scheduler
 
 .sleep
-    mov         eax, 0xE
+    mov         eax, 0x0E
     mov         ebx, MAX_UINT
-    int         0x80
+    int         EXOS_USER_CALL
 
     jmp         .sleep
 

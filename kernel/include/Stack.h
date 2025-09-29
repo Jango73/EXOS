@@ -42,8 +42,4 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size);
 // Check current task's stack safety
 BOOL CheckStack(void);
 
-// Test function for CopyStack
-BOOL TestCopyStack(void);
-
-/************************************************************************/
 #endif

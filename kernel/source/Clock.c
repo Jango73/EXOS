@@ -25,6 +25,7 @@
 #include "../include/Clock.h"
 
 #include "../include/I386.h"
+#include "../include/InterruptController.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Schedule.h"
@@ -43,7 +44,7 @@
 
 static U32 SystemUpTime = 0;
 static U32 SchedulerTime = 0;
-static SYSTEMTIME CurrentTime;
+static DATETIME CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
@@ -103,7 +104,7 @@ void InitializeClock(void) {
 
     RestoreFlags(&Flags);
 
-    EnableIRQ(0);
+    EnableInterrupt(0);
     InitializeLocalTime();
 }
 
@@ -149,12 +150,10 @@ void ManageLocalTime(void) {
  * @brief Increment the internal millisecond counter.
  */
 void ClockHandler(void) {
-    BOOL CallScheduler = FALSE;
-
 #if SCHEDULING_DEBUG_OUTPUT == 1
     logCount++;
     if (logCount > 20000) {
-        KernelLogText(LOG_DEBUG, TEXT("Too much flooding, halting system."));
+        DEBUG(TEXT("Too much flooding, halting system."));
         DO_THE_SLEEPING_BEAUTY;
     }
 #endif
@@ -174,7 +173,7 @@ void ClockHandler(void) {
 
     /*
     if (SystemUpTime % 1000 == 0) {
-        KernelLogText(LOG_DEBUG, TEXT("[ClockHandler] Time = %d"), SystemUpTime);
+        DEBUG(TEXT("[ClockHandler] Time = %d"), SystemUpTime);
     }
     */
 }
@@ -230,11 +229,11 @@ static void WriteCMOS(U32 Address, U32 Value) {
 /************************************************************************/
 
 /**
- * @brief Retrieve current time from CMOS into a SYSTEMTIME structure.
+ * @brief Retrieve current time from CMOS into a DATETIME structure.
  * @param Time Destination structure for the current time.
  * @return TRUE on success.
  */
-BOOL GetLocalTime(LPSYSTEMTIME Time) {
+BOOL GetLocalTime(LPDATETIME Time) {
     if (Time == NULL) return FALSE;
     if (CurrentTime.Year == 0) {
         InitializeLocalTime();
@@ -245,7 +244,7 @@ BOOL GetLocalTime(LPSYSTEMTIME Time) {
 
 /************************************************************************/
 
-BOOL SetLocalTime(LPSYSTEMTIME Time) {
+BOOL SetLocalTime(LPDATETIME Time) {
     if (Time == NULL) return FALSE;
     CurrentTime = *Time;
     return TRUE;
@@ -253,18 +252,12 @@ BOOL SetLocalTime(LPSYSTEMTIME Time) {
 
 /************************************************************************/
 
-void RTCHandler(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[RTCHandler]"));
-}
+void RTCHandler(void) { DEBUG(TEXT("[RTCHandler]")); }
 
 /************************************************************************/
 
-void PIC2Handler(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[PIC2Handler]"));
-}
+void PIC2Handler(void) { DEBUG(TEXT("[PIC2Handler]")); }
 
 /************************************************************************/
 
-void FPUHandler(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[FPUHandler]"));
-}
+void FPUHandler(void) { DEBUG(TEXT("[FPUHandler]")); }

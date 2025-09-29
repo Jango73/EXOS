@@ -21,6 +21,7 @@
     System
 
 \************************************************************************/
+
 #ifndef SYSTEM_H_INCLUDED
 #define SYSTEM_H_INCLUDED
 
@@ -54,8 +55,10 @@ extern U32 DisablePaging(void);
 extern U32 EnablePaging(void);
 extern void DisableInterrupts(void);
 extern void EnableInterrupts(void);
-extern void SaveFlags(U32*);
-extern void RestoreFlags(U32*);
+extern void SaveFlags(U32 *);
+extern void RestoreFlags(U32 *);
+extern void SaveFPU(LPVOID);
+extern void RestoreFPU(LPVOID);
 extern U32 InPortByte(U32);
 extern U32 OutPortByte(U32, U32);
 extern U32 InPortWord(U32);
@@ -69,6 +72,7 @@ extern U32 UnmaskIRQ(U32);
 extern U32 DisableIRQ(U32);
 extern U32 EnableIRQ(U32);
 extern U32 LoadGlobalDescriptorTable(PHYSICAL Base, U32 Limit);
+extern void ReadGlobalDescriptorTable(LPVOID gdtr_ptr);
 extern U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit);
 extern U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit);
 extern U32 LoadPageDirectory(PHYSICAL Base);
@@ -86,9 +90,6 @@ extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32, U32);
 extern U32 SaveRegisters(LPINTEL386REGISTERS);
-extern void MemorySet(LPVOID Destination, U32 What, U32 Size);
-extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
-extern I32 MemoryCompare(LPCVOID First, LPCVOID Second, U32 Size);
 extern U32 DoSystemCall(U32, U32);
 extern void IdleCPU(void);
 extern void DeadCPU(void);

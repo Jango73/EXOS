@@ -23,25 +23,22 @@
 \************************************************************************/
 
 #include "../include/I386-MCI.h"
+
+#include "../include/Heap.h"
 #include "../include/String.h"
 #include "../include/System.h"
-#include "../include/Heap.h"
 
 /*************************************************************************************************/
 
-static long Intel_OperandSize = I32BIT;
-static long Intel_AddressSize = I32BIT;
+static long IntelOperandSize = I32BIT;
+static long IntelAddressSize = I32BIT;
 
-LPCSTR Intel_RegNames [] =
-{
-    TEXT(""),
-    TEXT("AL"),  TEXT("CL"),  TEXT("DL"),  TEXT("BL"),  TEXT("AH"),  TEXT("CH"),  TEXT("DH"),  TEXT("BH"),
-    TEXT("AX"),  TEXT("CX"),  TEXT("DX"),  TEXT("BX"),  TEXT("SP"),  TEXT("BP"),  TEXT("SI"),  TEXT("DI"),
-    TEXT("EAX"), TEXT("ECX"), TEXT("EDX"), TEXT("EBX"), TEXT("ESP"), TEXT("EBP"), TEXT("ESI"), TEXT("EDI"),
-    TEXT("MM0"), TEXT("MM1"), TEXT("MM2"), TEXT("MM3"), TEXT("MM4"), TEXT("MM5"), TEXT("MM6"), TEXT("MM7"),
-    TEXT("ES"),  TEXT("CS"),  TEXT("SS"),  TEXT("DS"),  TEXT("FS"),  TEXT("GS"),
-    TEXT("CR0"), TEXT("CR2"), TEXT("CR3"), TEXT("CR4")
-};
+LPCSTR Intel_RegNames[] = {
+    TEXT(""),    TEXT("AL"),  TEXT("CL"),  TEXT("DL"),  TEXT("BL"),  TEXT("AH"),  TEXT("CH"),  TEXT("DH"),  TEXT("BH"),
+    TEXT("AX"),  TEXT("CX"),  TEXT("DX"),  TEXT("BX"),  TEXT("SP"),  TEXT("BP"),  TEXT("SI"),  TEXT("DI"),  TEXT("EAX"),
+    TEXT("ECX"), TEXT("EDX"), TEXT("EBX"), TEXT("ESP"), TEXT("EBP"), TEXT("ESI"), TEXT("EDI"), TEXT("MM0"), TEXT("MM1"),
+    TEXT("MM2"), TEXT("MM3"), TEXT("MM4"), TEXT("MM5"), TEXT("MM6"), TEXT("MM7"), TEXT("ES"),  TEXT("CS"),  TEXT("SS"),
+    TEXT("DS"),  TEXT("FS"),  TEXT("GS"),  TEXT("CR0"), TEXT("CR2"), TEXT("CR3"), TEXT("CR4")};
 
 /*************************************************************************************************/
 
@@ -72,13 +69,12 @@ LPCSTR Intel_RegNames [] =
  * @param Reg Register identifier (INTEL_REG_* constants).
  * @return Size in bits (I8BIT, I16BIT, I32BIT, I64BIT) or 0 if invalid.
  */
-U32 Intel_GetRegisterSize (U32 Reg)
-{
-    if (Reg >= INTEL_REG_AL  && Reg <= INTEL_REG_BH)  return I8BIT;
-    if (Reg >= INTEL_REG_AX  && Reg <= INTEL_REG_DI)  return I16BIT;
+U32 Intel_GetRegisterSize(U32 Reg) {
+    if (Reg >= INTEL_REG_AL && Reg <= INTEL_REG_BH) return I8BIT;
+    if (Reg >= INTEL_REG_AX && Reg <= INTEL_REG_DI) return I16BIT;
     if (Reg >= INTEL_REG_EAX && Reg <= INTEL_REG_EDI) return I32BIT;
     if (Reg >= INTEL_REG_MM0 && Reg <= INTEL_REG_MM7) return I64BIT;
-    if (Reg >= INTEL_REG_ES  && Reg <= INTEL_REG_GS)  return I16BIT;
+    if (Reg >= INTEL_REG_ES && Reg <= INTEL_REG_GS) return I16BIT;
 
     return 0;
 }
@@ -91,40 +87,46 @@ U32 Intel_GetRegisterSize (U32 Reg)
  * @param Prototype Operand prototype string (e.g., "Eb", "Gv").
  * @return Size in bits (I8BIT, I16BIT, I32BIT, I64BIT) or 0.
  */
-U32 Intel_GetOperandSize (LP_INTEL_INSTRUCTION Instruction, LPCSTR Prototype)
-{
-	long c = 0;
+U32 Intel_GetOperandSize(LPINTEL_INSTRUCTION Instruction, LPCSTR Prototype) {
+    long c = 0;
 
-	if (Prototype[0] == '_')
-	{
-		long Reg = 0;
+    if (Prototype[0] == '_') {
+        long Reg = 0;
 
-		for (c = 0; c < INTEL_REG_LAST; c++)
-		{
-			if (StringCompare(Intel_RegNames[c], Prototype + 1) == 0) { Reg = c; break; }
-		}
+        for (c = 0; c < INTEL_REG_LAST; c++) {
+            if (StringCompare(Intel_RegNames[c], Prototype + 1) == 0) {
+                Reg = c;
+                break;
+            }
+        }
 
-		// Check the operand size
-		if (Reg >= INTEL_REG_AX && Reg <= INTEL_REG_DI)
-		{
-			if (Instruction->OperandSize == I32BIT) Reg = INTEL_REG_32 + (Reg - INTEL_REG_16);
-		}
+        // Check the operand size
+        if (Reg >= INTEL_REG_AX && Reg <= INTEL_REG_DI) {
+            if (Instruction->OperandSize == I32BIT) Reg = INTEL_REG_32 + (Reg - INTEL_REG_16);
+        }
 
-		// Return the size of the register
-		return Intel_GetRegisterSize(Reg);
-	}
+        // Return the size of the register
+        return Intel_GetRegisterSize(Reg);
+    }
 
-	switch (Prototype[1])
-	{
-		case 'b' : return I8BIT;
-		case 'w' : return I16BIT;
-		case 'd' : return I32BIT;
-		case 'q' : return I64BIT;
-		case 'c' : if (Instruction->OperandSize == I16BIT) return I16BIT; return I8BIT;
-		case 'v' : if (Instruction->OperandSize == I32BIT) return I32BIT; return I16BIT;
-	}
+    switch (Prototype[1]) {
+        case 'b':
+            return I8BIT;
+        case 'w':
+            return I16BIT;
+        case 'd':
+            return I32BIT;
+        case 'q':
+            return I64BIT;
+        case 'c':
+            if (Instruction->OperandSize == I16BIT) return I16BIT;
+            return I8BIT;
+        case 'v':
+            if (Instruction->OperandSize == I32BIT) return I32BIT;
+            return I16BIT;
+    }
 
-	return 0; // Make the compiler happy :)
+    return 0;  // Make the compiler happy :)
 }
 
 /*************************************************************************************************/
@@ -135,16 +137,18 @@ U32 Intel_GetOperandSize (LP_INTEL_INSTRUCTION Instruction, LPCSTR Prototype)
  * @param Prototype Prototype string.
  * @return Size in bits (I16BIT, I32BIT) or 0.
  */
-U32 Intel_GetAddressSize (LP_INTEL_INSTRUCTION Instruction, LPSTR Prototype)
-{
-	switch (Prototype[1])
-	{
-		case 'w' : return I16BIT;
-		case 'v' : if (Instruction->AddressSize == I32BIT) return I32BIT; return I16BIT;
-		case 'd' : return I32BIT;
-	}
+U32 Intel_GetAddressSize(LPINTEL_INSTRUCTION Instruction, LPSTR Prototype) {
+    switch (Prototype[1]) {
+        case 'w':
+            return I16BIT;
+        case 'v':
+            if (Instruction->AddressSize == I32BIT) return I32BIT;
+            return I16BIT;
+        case 'd':
+            return I32BIT;
+    }
 
-	return 0; // Make the compiler happy :)
+    return 0;  // Make the compiler happy :)
 }
 
 /*************************************************************************************************/
@@ -154,17 +158,19 @@ U32 Intel_GetAddressSize (LP_INTEL_INSTRUCTION Instruction, LPSTR Prototype)
  * @param Size Size in bits (I8BIT, I16BIT, I32BIT, I64BIT).
  * @return Index (0-3) for the given size.
  */
-U32 Intel_MapSizeToIndex (U32 Size)
-{
-	switch (Size)
-	{
-		case I8BIT  : return 0;
-		case I16BIT : return 1;
-		case I32BIT : return 2;
-		case I64BIT : return 3;
-	}
+U32 Intel_MapSizeToIndex(U32 Size) {
+    switch (Size) {
+        case I8BIT:
+            return 0;
+        case I16BIT:
+            return 1;
+        case I32BIT:
+            return 2;
+        case I64BIT:
+            return 3;
+    }
 
-	return 0; // Make the compiler happy :)
+    return 0;  // Make the compiler happy :)
 }
 
 /*************************************************************************************************/
@@ -175,11 +181,10 @@ U32 Intel_MapSizeToIndex (U32 Size)
  * @param InstBuffer Pointer to instruction bytes.
  * @return Number of bytes consumed (always 1).
  */
-U32 Intel_GetModR_M (LP_INTEL_INSTRUCTION Instruction, U8* InstBuffer)
-{
-	Instruction->ModR_M.Byte = *InstBuffer;
+U32 Intel_GetModR_M(LPINTEL_INSTRUCTION Instruction, U8* InstBuffer) {
+    Instruction->ModR_M.Byte = *InstBuffer;
 
-	return sizeof(U8);
+    return sizeof(U8);
 }
 
 /*************************************************************************************************/
@@ -190,11 +195,10 @@ U32 Intel_GetModR_M (LP_INTEL_INSTRUCTION Instruction, U8* InstBuffer)
  * @param InstBuffer Pointer to instruction bytes.
  * @return Number of bytes consumed (always 1).
  */
-U32 Intel_GetSIB (LP_INTEL_INSTRUCTION Instruction, U8* InstBuffer)
-{
-	Instruction->SIB.Byte = *InstBuffer;
+U32 Intel_GetSIB(LPINTEL_INSTRUCTION Instruction, U8* InstBuffer) {
+    Instruction->SIB.Byte = *InstBuffer;
 
-	return sizeof(U8);
+    return sizeof(U8);
 }
 
 /*************************************************************************************************/
@@ -207,40 +211,60 @@ U32 Intel_GetSIB (LP_INTEL_INSTRUCTION Instruction, U8* InstBuffer)
  * @param InstBuffer Pointer to instruction buffer.
  * @return Number of bytes processed.
  */
-U32 Intel_Decode_SIB (LP_INTEL_INSTRUCTION Instruction, lpIntel_Operand Operand, LPCSTR Prototype, U8* InstBuffer)
-{
-	UNUSED(Prototype);
+U32 Intel_Decode_SIB(LPINTEL_INSTRUCTION Instruction, LPINTEL_OPERAND Operand, LPCSTR Prototype, U8* InstBuffer) {
+    UNUSED(Prototype);
 
-	Intel_GetSIB(Instruction, InstBuffer);
+    Intel_GetSIB(Instruction, InstBuffer);
 
-	Operand->BISD.Base = INTEL_REG_32 + Instruction->SIB.Bits.Base;
+    Operand->BISD.Base = INTEL_REG_32 + Instruction->SIB.Bits.Base;
 
-	switch (Instruction->SIB.Bits.Index)
-	{
-		case 0 : Operand->BISD.Index = INTEL_REG_EAX; break;
-		case 1 : Operand->BISD.Index = INTEL_REG_ECX; break;
-		case 2 : Operand->BISD.Index = INTEL_REG_EDX; break;
-		case 3 : Operand->BISD.Index = INTEL_REG_EBX; break;
-		case 4 : Operand->BISD.Index = 0;             break;
-		case 5 : Operand->BISD.Index = INTEL_REG_EBP; break;
-		case 6 : Operand->BISD.Index = INTEL_REG_ESI; break;
-		case 7 : Operand->BISD.Index = INTEL_REG_EDI; break;
-	}
+    switch (Instruction->SIB.Bits.Index) {
+        case 0:
+            Operand->BISD.Index = INTEL_REG_EAX;
+            break;
+        case 1:
+            Operand->BISD.Index = INTEL_REG_ECX;
+            break;
+        case 2:
+            Operand->BISD.Index = INTEL_REG_EDX;
+            break;
+        case 3:
+            Operand->BISD.Index = INTEL_REG_EBX;
+            break;
+        case 4:
+            Operand->BISD.Index = 0;
+            break;
+        case 5:
+            Operand->BISD.Index = INTEL_REG_EBP;
+            break;
+        case 6:
+            Operand->BISD.Index = INTEL_REG_ESI;
+            break;
+        case 7:
+            Operand->BISD.Index = INTEL_REG_EDI;
+            break;
+    }
 
-	switch (Instruction->SIB.Bits.Scale)
-	{
-		case 0 : Operand->BISD.Scale = 0x01; break;
-		case 1 : Operand->BISD.Scale = 0x02; break;
-		case 2 : Operand->BISD.Scale = 0x04; break;
-		case 3 : Operand->BISD.Scale = 0x08; break;
-	}
+    switch (Instruction->SIB.Bits.Scale) {
+        case 0:
+            Operand->BISD.Scale = 0x01;
+            break;
+        case 1:
+            Operand->BISD.Scale = 0x02;
+            break;
+        case 2:
+            Operand->BISD.Scale = 0x04;
+            break;
+        case 3:
+            Operand->BISD.Scale = 0x08;
+            break;
+    }
 
-	if (Operand->BISD.Base == INTEL_REG_EBP && Instruction->ModR_M.Bits.Mod == 0x00)
-	{
-		Operand->BISD.Base = 0;
-	}
+    if (Operand->BISD.Base == INTEL_REG_EBP && Instruction->ModR_M.Bits.Mod == 0x00) {
+        Operand->BISD.Base = 0;
+    }
 
-	return sizeof(U8);
+    return sizeof(U8);
 }
 
 /*************************************************************************************************/
@@ -253,16 +277,15 @@ U32 Intel_Decode_SIB (LP_INTEL_INSTRUCTION Instruction, lpIntel_Operand Operand,
  * @param InstBuffer Pointer to instruction buffer.
  * @return Number of bytes processed.
  */
-U32 Intel_Decode_ModRM_Addressing_32 (LP_INTEL_INSTRUCTION Instruction, lpIntel_Operand Operand, LPCSTR Prototype, U8* InstBuffer)
-{
-    U8* InstPtr  = InstBuffer;
+U32 Intel_Decode_ModRM_Addressing_32(
+    LPINTEL_INSTRUCTION Instruction, LPINTEL_OPERAND Operand, LPCSTR Prototype, U8* InstBuffer) {
+    U8* InstPtr = InstBuffer;
 
     //-------------------------------------
     // Check the special case of the single 32-bit displacement
-    if (Instruction->ModR_M.Bits.Mod == 0x00 && Instruction->ModR_M.Bits.R_M == 0x05)
-    {
-        Operand->DSP.Type  = INTEL_OPERAND_DSP;
-        Operand->DSP.Size  = I32BIT;
+    if (Instruction->ModR_M.Bits.Mod == 0x00 && Instruction->ModR_M.Bits.R_M == 0x05) {
+        Operand->DSP.Type = INTEL_OPERAND_TYPE_DSP;
+        Operand->DSP.Size = I32BIT;
         Operand->DSP.Value = *((I32*)InstPtr);
         InstPtr += sizeof(I32);
         return InstPtr - InstBuffer;
@@ -270,44 +293,56 @@ U32 Intel_Decode_ModRM_Addressing_32 (LP_INTEL_INSTRUCTION Instruction, lpIntel_
 
     //-------------------------------------
     // Check if we have a single register
-    if (Instruction->ModR_M.Bits.Mod == 0x03)
-    {
+    if (Instruction->ModR_M.Bits.Mod == 0x03) {
         // When Mod == 0x03, we can have any general register : AL..BH, AX..DI, EAX..EDI, MM0..MM7
         long Register = INTEL_REG_8 + (Intel_MapSizeToIndex(Operand->Any.Size) * 0x08) + Instruction->ModR_M.Bits.R_M;
-        Operand->R.Type     = INTEL_OPERAND_R;
-        Operand->R.Size     = Intel_GetRegisterSize(Register);
+        Operand->R.Type = INTEL_OPERAND_TYPE_R;
+        Operand->R.Size = Intel_GetRegisterSize(Register);
         Operand->R.Register = Register;
         return InstPtr - InstBuffer;
     }
 
-    Operand->BISD.Type = INTEL_OPERAND_BISD;
-    Operand->BISD.Size = I32BIT;
+    Operand->BISD.Type = INTEL_OPERAND_TYPE_BISD;
+    Operand->BISD.Size = Operand->Any.Size;
 
     //-------------------------------------
     // Add the registers involved in the indirect addressing
-    switch (Instruction->ModR_M.Bits.R_M)
-    {
-        case 0x00 : Operand->BISD.Base = INTEL_REG_EAX; break;
-        case 0x01 : Operand->BISD.Base = INTEL_REG_ECX; break;
-        case 0x02 : Operand->BISD.Base = INTEL_REG_EDX; break;
-        case 0x03 : Operand->BISD.Base = INTEL_REG_EBX; break;
-        case 0x05 : Operand->BISD.Base = INTEL_REG_EBP; break;
-        case 0x06 : Operand->BISD.Base = INTEL_REG_ESI; break;
-        case 0x07 : Operand->BISD.Base = INTEL_REG_EDI; break;
-        case 0x04 : InstPtr += Intel_Decode_SIB(Instruction, Operand, Prototype, InstPtr); break;
+    switch (Instruction->ModR_M.Bits.R_M) {
+        case 0x00:
+            Operand->BISD.Base = INTEL_REG_EAX;
+            break;
+        case 0x01:
+            Operand->BISD.Base = INTEL_REG_ECX;
+            break;
+        case 0x02:
+            Operand->BISD.Base = INTEL_REG_EDX;
+            break;
+        case 0x03:
+            Operand->BISD.Base = INTEL_REG_EBX;
+            break;
+        case 0x05:
+            Operand->BISD.Base = INTEL_REG_EBP;
+            break;
+        case 0x06:
+            Operand->BISD.Base = INTEL_REG_ESI;
+            break;
+        case 0x07:
+            Operand->BISD.Base = INTEL_REG_EDI;
+            break;
+        case 0x04:
+            InstPtr += Intel_Decode_SIB(Instruction, Operand, Prototype, InstPtr);
+            break;
     }
 
     //-------------------------------------
     // Check if we have a displacement value
-    if (Instruction->ModR_M.Bits.Mod == 0x01) 
-    { 
-        Operand->BISD.Displace = *((I8*)InstPtr); // Changé de U8 à I8 pour gérer le signe
+    if (Instruction->ModR_M.Bits.Mod == 0x01) {
+        Operand->BISD.Displace = *((I8*)InstPtr);  // Changé de U8 à I8 pour gérer le signe
         InstPtr += sizeof(I8);
     }
-    if (Instruction->ModR_M.Bits.Mod == 0x02) 
-    { 
-        Operand->BISD.Displace = *((I32*)InstPtr); 
-        InstPtr += sizeof(I32); 
+    if (Instruction->ModR_M.Bits.Mod == 0x02) {
+        Operand->BISD.Displace = *((I32*)InstPtr);
+        InstPtr += sizeof(I32);
     }
 
     return InstPtr - InstBuffer;
@@ -323,56 +358,80 @@ U32 Intel_Decode_ModRM_Addressing_32 (LP_INTEL_INSTRUCTION Instruction, lpIntel_
  * @param InstBuffer Pointer to instruction buffer.
  * @return Number of bytes processed.
  */
-U32 Intel_Decode_ModRM_Addressing_16 (LP_INTEL_INSTRUCTION Instruction, lpIntel_Operand Operand, LPCSTR Prototype, U8* InstBuffer)
-{
+U32 Intel_Decode_ModRM_Addressing_16(
+    LPINTEL_INSTRUCTION Instruction, LPINTEL_OPERAND Operand, LPCSTR Prototype, U8* InstBuffer) {
     UNUSED(Prototype);
 
-	U8* InstPtr  = InstBuffer;
+    U8* InstPtr = InstBuffer;
 
-	if (Instruction->ModR_M.Bits.Mod == 0x03)
-	{
-		// When Mod == 0x03, we can have any general register : AL..BH, AX..DI, EAX..EDI, MM0..MM7
-		U32 Register = INTEL_REG_8 + (Intel_MapSizeToIndex(Instruction->OperandSize) * 0x08) + Instruction->ModR_M.Bits.R_M;
+    if (Instruction->ModR_M.Bits.Mod == 0x03) {
+        // When Mod == 0x03, we can have any general register : AL..BH, AX..DI, EAX..EDI, MM0..MM7
+        U32 Register =
+            INTEL_REG_8 + (Intel_MapSizeToIndex(Instruction->OperandSize) * 0x08) + Instruction->ModR_M.Bits.R_M;
 
-		Operand->R.Type     = INTEL_OPERAND_R;
-		Operand->R.Size     = Intel_GetRegisterSize(Register);
-		Operand->R.Register = Register;
+        Operand->R.Type = INTEL_OPERAND_TYPE_R;
+        Operand->R.Size = Intel_GetRegisterSize(Register);
+        Operand->R.Register = Register;
 
-		return InstPtr - InstBuffer;
-	}
+        return InstPtr - InstBuffer;
+    }
 
-	Operand->BISD.Type = INTEL_OPERAND_BISD;
-	Operand->BISD.Size = I16BIT;
+    Operand->BISD.Type = INTEL_OPERAND_TYPE_BISD;
+    Operand->BISD.Size = Operand->Any.Size;
 
-	//-------------------------------------
-	// We have a special case when Mod == 0x00 and R/M == 0x06 where
-	// instead of [BP+disp16] we just have [disp16]
+    //-------------------------------------
+    // We have a special case when Mod == 0x00 and R/M == 0x06 where
+    // instead of [BP+disp16] we just have [disp16]
 
-	if (Instruction->ModR_M.Bits.Mod == 0x00 && Instruction->ModR_M.Bits.R_M == 0x06)
-	{
-		Operand->BISD.Displace = *((U16*)InstPtr);
-		InstPtr += sizeof(U16);
-	}
+    if (Instruction->ModR_M.Bits.Mod == 0x00 && Instruction->ModR_M.Bits.R_M == 0x06) {
+        Operand->BISD.Displace = *((U16*)InstPtr);
+        InstPtr += sizeof(U16);
+    }
 
-	if (Instruction->ModR_M.Bits.Mod == 0x01) { Operand->BISD.Displace = *((U8*) InstPtr); InstPtr += sizeof(U8);  }
-	if (Instruction->ModR_M.Bits.Mod == 0x02) { Operand->BISD.Displace = *((U16*)InstPtr); InstPtr += sizeof(U16); }
+    if (Instruction->ModR_M.Bits.Mod == 0x01) {
+        Operand->BISD.Displace = *((U8*)InstPtr);
+        InstPtr += sizeof(U8);
+    }
+    if (Instruction->ModR_M.Bits.Mod == 0x02) {
+        Operand->BISD.Displace = *((U16*)InstPtr);
+        InstPtr += sizeof(U16);
+    }
 
-	//-------------------------------------
-	// Add the registers involved in the indirect addressing
+    //-------------------------------------
+    // Add the registers involved in the indirect addressing
 
-	switch (Instruction->ModR_M.Bits.R_M)
-	{
-		case 0x00 : Operand->BISD.Base = INTEL_REG_BX; Operand->BISD.Index = INTEL_REG_SI; break;
-		case 0x01 : Operand->BISD.Base = INTEL_REG_BX; Operand->BISD.Index = INTEL_REG_DI; break;
-		case 0x02 : Operand->BISD.Base = INTEL_REG_BP; Operand->BISD.Index = INTEL_REG_SI; break;
-		case 0x03 : Operand->BISD.Base = INTEL_REG_BP; Operand->BISD.Index = INTEL_REG_DI; break;
-		case 0x04 : Operand->BISD.Base = INTEL_REG_SI; break;
-		case 0x05 : Operand->BISD.Base = INTEL_REG_DI; break;
-		case 0x07 : Operand->BISD.Base = INTEL_REG_BX; break;
-		case 0x06 : if (Instruction->ModR_M.Bits.Mod != 0x00) Operand->BISD.Base = INTEL_REG_BP; break;
-	}
+    switch (Instruction->ModR_M.Bits.R_M) {
+        case 0x00:
+            Operand->BISD.Base = INTEL_REG_BX;
+            Operand->BISD.Index = INTEL_REG_SI;
+            break;
+        case 0x01:
+            Operand->BISD.Base = INTEL_REG_BX;
+            Operand->BISD.Index = INTEL_REG_DI;
+            break;
+        case 0x02:
+            Operand->BISD.Base = INTEL_REG_BP;
+            Operand->BISD.Index = INTEL_REG_SI;
+            break;
+        case 0x03:
+            Operand->BISD.Base = INTEL_REG_BP;
+            Operand->BISD.Index = INTEL_REG_DI;
+            break;
+        case 0x04:
+            Operand->BISD.Base = INTEL_REG_SI;
+            break;
+        case 0x05:
+            Operand->BISD.Base = INTEL_REG_DI;
+            break;
+        case 0x07:
+            Operand->BISD.Base = INTEL_REG_BX;
+            break;
+        case 0x06:
+            if (Instruction->ModR_M.Bits.Mod != 0x00) Operand->BISD.Base = INTEL_REG_BP;
+            break;
+    }
 
-	return InstPtr - InstBuffer;
+    return InstPtr - InstBuffer;
 }
 
 /*************************************************************************************************/
@@ -385,14 +444,13 @@ U32 Intel_Decode_ModRM_Addressing_16 (LP_INTEL_INSTRUCTION Instruction, lpIntel_
  * @param InstBuffer Pointer to instruction buffer.
  * @return Number of bytes processed.
  */
-U32 Intel_Decode_ModRM_Addressing (LP_INTEL_INSTRUCTION Instruction, lpIntel_Operand Operand, LPCSTR Prototype, U8* InstBuffer)
-{
-	if (Instruction->AddressSize == I16BIT)
-	{
-		return Intel_Decode_ModRM_Addressing_16(Instruction, Operand, Prototype, InstBuffer);
-	}
+U32 Intel_Decode_ModRM_Addressing(
+    LPINTEL_INSTRUCTION Instruction, LPINTEL_OPERAND Operand, LPCSTR Prototype, U8* InstBuffer) {
+    if (Instruction->AddressSize == I16BIT) {
+        return Intel_Decode_ModRM_Addressing_16(Instruction, Operand, Prototype, InstBuffer);
+    }
 
-	return Intel_Decode_ModRM_Addressing_32(Instruction, Operand, Prototype, InstBuffer);
+    return Intel_Decode_ModRM_Addressing_32(Instruction, Operand, Prototype, InstBuffer);
 }
 
 /*************************************************************************************************/
@@ -405,267 +463,207 @@ U32 Intel_Decode_ModRM_Addressing (LP_INTEL_INSTRUCTION Instruction, lpIntel_Ope
  * @param InstBuffer Pointer to instruction buffer.
  * @return Number of bytes processed.
  */
-U32 Intel_Decode_Operand (LP_INTEL_INSTRUCTION Instruction, lpIntel_Operand Operand, LPCSTR Prototype, U8* InstBuffer)
-{
-	U8*  InstPtr   = (U8*) InstBuffer;
-	U32  DirectReg = 0;
-	long c         = 0;
+U32 Intel_Decode_Operand(LPINTEL_INSTRUCTION Instruction, LPINTEL_OPERAND Operand, LPCSTR Prototype, U8* InstBuffer) {
+    U8* InstPtr = (U8*)InstBuffer;
+    U32 DirectReg = 0;
+    long c = 0;
 
-	if (StringCompare(Prototype, TEXT("")) == 0) return (U32) 0;
+    if (StringCompare(Prototype, TEXT("")) == 0) return (U32)0;
 
-	// Check if there is a direct register or number
-	if (Prototype[0] == '_')
-	{
-		LPCSTR RegName = Prototype + 1;
+    // Check if there is a direct register or number
+    if (Prototype[0] == '_') {
+        LPCSTR RegName = Prototype + 1;
 
-		for (c = 0; c < INTEL_REG_LAST; c++)
-		{
-			if (StringCompare(RegName, Intel_RegNames[c]) == 0)
-			{
-				DirectReg = c;
-				break;
-			}
-		}
-
-		if (DirectReg != 0)
-		{
-			// Check the operand size
-			if (DirectReg >= INTEL_REG_AX && DirectReg <= INTEL_REG_DI && Instruction->OperandSize == I32BIT)
-			{
-				DirectReg = INTEL_REG_32 + (DirectReg - INTEL_REG_16);
-			}
-
-			// Set it in the instruction
-			Operand->R.Type     = INTEL_OPERAND_R;
-			Operand->R.Size     = Intel_GetRegisterSize(DirectReg);
-			Operand->R.Register = DirectReg;
-		}
-		else
-		{
-			// We assume it is a direct number or anything else (for example : INT 3)
-			Operand->STR.Type = INTEL_OPERAND_STR;
-			Operand->STR.Size = 0;
-			StringCopy(Operand->STR.String, RegName);
-		}
-	}
-	else
-	switch (Prototype[0])
-	{
-		case 'A' :
-		{
-			// We have a 32-bit or 48-bit pointer
-			U32 Offset  = 0;
-			U32 Segment = 0;
-
-			// Get the offset
-			switch (Instruction->AddressSize)
-			{
-				case I16BIT : Offset = *((U16*)InstPtr); InstPtr += sizeof(U16); break;
-				case I32BIT : Offset = *((U32*)InstPtr); InstPtr += sizeof(U32); break;
-			}
-
-			// Get the segment
-			Segment = *((U16*)InstPtr); InstPtr += sizeof(U16);
-
-			// Assign values to the structure
-			switch (Instruction->AddressSize)
-			{
-				case I16BIT :
-				{
-					Operand->SO16.Type    = INTEL_OPERAND_SO16;
-					Operand->SO16.Size    = I32BIT;
-					Operand->SO16.Segment = Segment;
-					Operand->SO16.Offset  = Offset;
-				}
-				break;
-				case I32BIT :
-				{
-					Operand->SO32.Type    = INTEL_OPERAND_SO32;
-					Operand->SO32.Size    = I48BIT;
-					Operand->SO32.Segment = Segment;
-					Operand->SO32.Offset  = Offset;
-				}
-				break;
-			}
-		}
-		break;
-
-		case 'C' :
-		{
-		}
-		break;
-
-		case 'D' :
-		{
-		}
-		break;
-
-		case 'E' :
-		case 'M' :
-		{
-			InstPtr += Intel_Decode_ModRM_Addressing(Instruction, Operand, Prototype, InstPtr);
-		}
-		break;
-
-		case 'F' :
-		{
-		}
-		break;
-
-    case 'G' :
-    {
-      // The general purpose register is in the REG field of the ModR/M byte
-      long Register =
-      INTEL_REG_8 + (Intel_MapSizeToIndex(Operand->Any.Size) * 0x08) + Instruction->ModR_M.Bits.Reg;
-      Operand->R.Type     = INTEL_OPERAND_R;
-      Operand->R.Size     = Intel_GetRegisterSize(Register);
-      Operand->R.Register = Register;
-    }
-    break;
-
-    case 'I' :
-    {
-      switch (Operand->Any.Size)
-      {
-        case I8BIT :
-        {
-          Operand->I8.Type  = INTEL_OPERAND_I8;
-          Operand->I8.Size  = I8BIT;
-          Operand->I8.Value = *((U8*)InstPtr);
-          InstPtr += sizeof(U8);
+        for (c = 0; c < INTEL_REG_LAST; c++) {
+            if (StringCompare(RegName, Intel_RegNames[c]) == 0) {
+                DirectReg = c;
+                break;
+            }
         }
-        break;
-        case I16BIT :
-        {
-          Operand->I16.Type  = INTEL_OPERAND_I16;
-          Operand->I16.Size  = I16BIT;
-          Operand->I16.Value = *((U16*)InstPtr);
-          InstPtr += sizeof(U16);
+
+        if (DirectReg != 0) {
+            // Check the operand size
+            if (DirectReg >= INTEL_REG_AX && DirectReg <= INTEL_REG_DI && Instruction->OperandSize == I32BIT) {
+                DirectReg = INTEL_REG_32 + (DirectReg - INTEL_REG_16);
+            }
+
+            // Set it in the instruction
+            Operand->R.Type = INTEL_OPERAND_TYPE_R;
+            Operand->R.Size = Intel_GetRegisterSize(DirectReg);
+            Operand->R.Register = DirectReg;
+        } else {
+            // We assume it is a direct number or anything else (for example : INT 3)
+            Operand->STR.Type = INTEL_OPERAND_TYPE_STR;
+            Operand->STR.Size = 0;
+            StringCopy(Operand->STR.String, RegName);
         }
-        break;
-        case I32BIT :
-        {
-          Operand->I32.Type  = INTEL_OPERAND_I32;
-          Operand->I32.Size  = I32BIT;
-          Operand->I32.Value = *((U32*)InstPtr);
-          InstPtr += sizeof(U32);
+    } else
+        switch (Prototype[0]) {
+            case 'A': {
+                // We have a 32-bit or 48-bit pointer
+                U32 Offset = 0;
+                U32 Segment = 0;
+
+                // Get the offset
+                switch (Instruction->AddressSize) {
+                    case I16BIT:
+                        Offset = *((U16*)InstPtr);
+                        InstPtr += sizeof(U16);
+                        break;
+                    case I32BIT:
+                        Offset = *((U32*)InstPtr);
+                        InstPtr += sizeof(U32);
+                        break;
+                }
+
+                // Get the segment
+                Segment = *((U16*)InstPtr);
+                InstPtr += sizeof(U16);
+
+                // Assign values to the structure
+                switch (Instruction->AddressSize) {
+                    case I16BIT: {
+                        Operand->SO16.Type = INTEL_OPERAND_TYPE_SO16;
+                        Operand->SO16.Size = I32BIT;
+                        Operand->SO16.Segment = Segment;
+                        Operand->SO16.Offset = Offset;
+                    } break;
+                    case I32BIT: {
+                        Operand->SO32.Type = INTEL_OPERAND_TYPE_SO32;
+                        Operand->SO32.Size = I48BIT;
+                        Operand->SO32.Segment = Segment;
+                        Operand->SO32.Offset = Offset;
+                    } break;
+                }
+            } break;
+
+            case 'C': {
+            } break;
+
+            case 'D': {
+            } break;
+
+            case 'E':
+            case 'M': {
+                InstPtr += Intel_Decode_ModRM_Addressing(Instruction, Operand, Prototype, InstPtr);
+            } break;
+
+            case 'F': {
+            } break;
+
+            case 'G': {
+                // The general purpose register is in the REG field of the ModR/M byte
+                long Register =
+                    INTEL_REG_8 + (Intel_MapSizeToIndex(Operand->Any.Size) * 0x08) + Instruction->ModR_M.Bits.Reg;
+                Operand->R.Type = INTEL_OPERAND_TYPE_R;
+                Operand->R.Size = Intel_GetRegisterSize(Register);
+                Operand->R.Register = Register;
+            } break;
+
+            case 'I': {
+                switch (Operand->Any.Size) {
+                    case I8BIT: {
+                        Operand->I8.Type = INTEL_OPERAND_TYPE_I8;
+                        Operand->I8.Size = I8BIT;
+                        Operand->I8.Value = *((U8*)InstPtr);
+                        InstPtr += sizeof(U8);
+                    } break;
+                    case I16BIT: {
+                        Operand->I16.Type = INTEL_OPERAND_TYPE_I16;
+                        Operand->I16.Size = I16BIT;
+                        Operand->I16.Value = *((U16*)InstPtr);
+                        InstPtr += sizeof(U16);
+                    } break;
+                    case I32BIT: {
+                        Operand->I32.Type = INTEL_OPERAND_TYPE_I32;
+                        Operand->I32.Size = I32BIT;
+                        Operand->I32.Value = *((U32*)InstPtr);
+                        InstPtr += sizeof(U32);
+                    } break;
+                }
+            } break;
+
+            case 'J': {
+                switch (Operand->Any.Size) {
+                    case I8BIT: {
+                        Operand->DSP.Type = INTEL_OPERAND_TYPE_DSP;
+                        Operand->DSP.Size = I8BIT;
+                        Operand->DSP.Value = *((I8*)InstPtr);
+                        InstPtr += sizeof(I8);
+                    } break;
+                    case I16BIT: {
+                        Operand->DSP.Type = INTEL_OPERAND_TYPE_DSP;
+                        Operand->DSP.Size = I16BIT;
+                        Operand->DSP.Value = *((I16*)InstPtr);
+                        InstPtr += sizeof(I16);
+                    } break;
+                    case I32BIT: {
+                        Operand->DSP.Type = INTEL_OPERAND_TYPE_DSP;
+                        Operand->DSP.Size = I32BIT;
+                        Operand->DSP.Value = *((I32*)InstPtr);
+                        InstPtr += sizeof(I32);
+                    } break;
+                }
+            } break;
+
+            case 'O': {
+                // This is an indirect addressing with an immediate operand
+                switch (Instruction->AddressSize) {
+                    case I16BIT: {
+                        Operand->II.Type = INTEL_OPERAND_TYPE_II;
+                        Operand->II.Size = I16BIT;
+                        Operand->II.Value = *((I16*)InstPtr);
+                        InstPtr += sizeof(I16);
+                    } break;
+                    case I32BIT: {
+                        Operand->II.Type = INTEL_OPERAND_TYPE_II;
+                        Operand->II.Size = I32BIT;
+                        Operand->II.Value = *((I32*)InstPtr);
+                        InstPtr += sizeof(I32);
+                    } break;
+                }
+            } break;
+
+            case 'P': {
+                // The Reg field of the ModR/M byte is a MMX register
+                Operand->R.Type = INTEL_OPERAND_TYPE_R;
+                Operand->R.Size = I64BIT;
+                Operand->R.Register = INTEL_REG_64 + Instruction->ModR_M.Bits.Mod;
+            } break;
+
+            case 'Q': {
+            } break;
+
+            case 'R': {
+                // The general purpose register is in the Mod field of the ModR/M byte
+                long Register =
+                    INTEL_REG_8 + (Intel_MapSizeToIndex(Operand->Any.Size) * 0x08) + Instruction->ModR_M.Bits.Mod;
+                Operand->R.Type = INTEL_OPERAND_TYPE_R;
+                Operand->R.Size = Intel_GetRegisterSize(Register);
+                Operand->R.Register = Register;
+            } break;
+
+            case 'S': {
+                // The Reg field of the ModR/M byte is a Segment register
+                Operand->R.Type = INTEL_OPERAND_TYPE_R;
+                Operand->R.Size = I16BIT;
+                Operand->R.Register = INTEL_REG_SEG + Instruction->ModR_M.Bits.Reg;
+            } break;
+
+            case 'T': {
+                // The Reg field of the ModR/M byte is a Test register
+            } break;
+
+            case 'X': {
+                // StringConcat(InstString, "DS:[SI]");
+            } break;
+
+            case 'Y': {
+                // StringConcat(InstString, "ES:[DI]");
+            } break;
         }
-        break;
-      }
-    }
-    break;
 
-    case 'J' :
-    {
-      switch (Operand->Any.Size)
-      {
-        case I8BIT :
-        {
-          Operand->DSP.Type  = INTEL_OPERAND_DSP;
-          Operand->DSP.Size  = I8BIT;
-          Operand->DSP.Value = *((I8*)InstPtr);
-          InstPtr += sizeof(I8);
-        }
-        break;
-        case I16BIT :
-        {
-          Operand->DSP.Type  = INTEL_OPERAND_DSP;
-          Operand->DSP.Size  = I16BIT;
-          Operand->DSP.Value = *((I16*)InstPtr);
-          InstPtr += sizeof(I16);
-        }
-        break;
-        case I32BIT :
-        {
-          Operand->DSP.Type  = INTEL_OPERAND_DSP;
-          Operand->DSP.Size  = I32BIT;
-          Operand->DSP.Value = *((I32*)InstPtr);
-          InstPtr += sizeof(I32);
-        }
-        break;
-      }
-    }
-    break;
-
-    case 'O' :
-    {
-      // This is an indirect addressing with an immediate operand
-      switch (Instruction->AddressSize)
-      {
-        case I16BIT :
-        {
-          Operand->II.Type  = INTEL_OPERAND_II;
-          Operand->II.Size  = I16BIT;
-          Operand->II.Value = *((I16*)InstPtr);
-          InstPtr += sizeof(I16);
-        }
-        break;
-        case I32BIT :
-        {
-          Operand->II.Type  = INTEL_OPERAND_II;
-          Operand->II.Size  = I32BIT;
-          Operand->II.Value = *((I32*)InstPtr);
-          InstPtr += sizeof(I32);
-        }
-        break;
-      }
-    }
-    break;
-
-    case 'P' :
-    {
-      // The Reg field of the ModR/M byte is a MMX register
-      Operand->R.Type     = INTEL_OPERAND_R;
-      Operand->R.Size     = I64BIT;
-      Operand->R.Register = INTEL_REG_64 + Instruction->ModR_M.Bits.Mod;
-    }
-    break;
-
-    case 'Q' :
-    {
-    }
-    break;
-
-    case 'R' :
-    {
-      // The general purpose register is in the Mod field of the ModR/M byte
-      long Register =
-      INTEL_REG_8 + (Intel_MapSizeToIndex(Operand->Any.Size) * 0x08) + Instruction->ModR_M.Bits.Mod;
-      Operand->R.Type     = INTEL_OPERAND_R;
-      Operand->R.Size     = Intel_GetRegisterSize(Register);
-      Operand->R.Register = Register;
-    }
-    break;
-
-    case 'S' :
-    {
-      // The Reg field of the ModR/M byte is a Segment register
-      Operand->R.Type     = INTEL_OPERAND_R;
-      Operand->R.Size     = I16BIT;
-      Operand->R.Register = INTEL_REG_SEG + Instruction->ModR_M.Bits.Reg;
-    }
-    break;
-
-    case 'T' :
-    {
-      // The Reg field of the ModR/M byte is a Test register
-    }
-    break;
-
-    case 'X' :
-    {
-      // StringConcat(InstString, "DS:[SI]");
-    }
-    break;
-
-    case 'Y' :
-    {
-      // StringConcat(InstString, "ES:[DI]");
-    }
-    break;
-  }
-
-  return InstPtr - InstBuffer;
+    return InstPtr - InstBuffer;
 }
 
 /*************************************************************************************************/
@@ -675,16 +673,22 @@ U32 Intel_Decode_Operand (LP_INTEL_INSTRUCTION Instruction, lpIntel_Operand Oper
  * @param Code Operand prototype character (e.g., 'C', 'D', 'E', 'G', etc.).
  * @return 1 if ModR/M byte is required, 0 otherwise.
  */
-int Intel_IsModR_M (U8 Code)
-{
-	switch (Code)
-	{
-		case 'C' : case 'D' : case 'E' : case 'G' :
-		case 'M' : case 'P' : case 'Q' : case 'R' :
-		case 'S' : case 'T' : return 1;
-	}
+int Intel_IsModR_M(U8 Code) {
+    switch (Code) {
+        case 'C':
+        case 'D':
+        case 'E':
+        case 'G':
+        case 'M':
+        case 'P':
+        case 'Q':
+        case 'R':
+        case 'S':
+        case 'T':
+            return 1;
+    }
 
-	return 0;
+    return 0;
 }
 
 /*************************************************************************************************/
@@ -696,204 +700,201 @@ int Intel_IsModR_M (U8 Code)
  * @param Instruction Pointer to instruction structure to fill.
  * @return Length of decoded instruction in bytes.
  */
-U32 Intel_MachineCodeToStructure (LPCSTR Base, LPCSTR InstBuffer, LP_INTEL_INSTRUCTION Instruction)
-{
-	INTEL_OPCODE_PROTOTYPE* OpTblPtr = NULL;
+U32 Intel_MachineCodeToStructure(LPCSTR Base, LPCSTR InstBuffer, LPINTEL_INSTRUCTION Instruction) {
+    INTEL_OPCODE_PROTOTYPE* OpTblPtr = NULL;
 
-	U8*   InstPtr    = (U8*) InstBuffer;
+    U8* InstPtr = (U8*)InstBuffer;
 
-	LPCSTR OpProto1    = NULL;
-	LPCSTR OpProto2    = NULL;
-	LPCSTR OpProto3    = NULL;
-	U32    Op2b        = 0;
-	U32    Extension   = 0;
-	U32    HaveModR_M  = 0;
-	U32    OpcodeRow   = 0;
-	U32    OpcodeCol   = 0;
-	U32    OpcodeIndex = 0;
+    LPCSTR OpProto1 = NULL;
+    LPCSTR OpProto2 = NULL;
+    LPCSTR OpProto3 = NULL;
 
-	//-------------------------------------
-	// Clear the instruction structure
+    U32 Op2b = 0;
+    U32 Extension = 0;
+    U32 HaveModR_M = 0;
+    U32 OpcodeRow = 0;
+    U32 OpcodeCol = 0;
+    U32 OpcodeIndex = 0;
 
-	MemorySet(Instruction, 0, sizeof(INTEL_INSTRUCTION));
+    //-------------------------------------
+    // Clear the instruction structure
 
-	//-------------------------------------
-	// Set the base and address of the opcode
+    MemorySet(Instruction, 0, sizeof(INTEL_INSTRUCTION));
 
-	Instruction->Base    = (U8*) Base;
-	Instruction->Address = (U32)(((U8*)InstBuffer) - ((U8*)Base));
+    //-------------------------------------
+    // Set the base and address of the opcode
 
-	//-------------------------------------
-	// Set the default operand and address sizes
+    Instruction->Base = (U8*)Base;
+    Instruction->Address = (U32)(((U8*)InstBuffer) - ((U8*)Base));
 
-	Instruction->OperandSize = Intel_OperandSize;
-	Instruction->AddressSize = Intel_AddressSize;
+    //-------------------------------------
+    // Set the default operand and address sizes
 
-	//-------------------------------------
-	// Get the starting opcode
+    Instruction->OperandSize = IntelOperandSize;
+    Instruction->AddressSize = IntelAddressSize;
 
-	Instruction->Opcode = *InstPtr++;
+    //-------------------------------------
+    // Get the starting opcode
 
-	//-------------------------------------
-	// Check if we have an operand size override prefix
+    Instruction->Opcode = *InstPtr++;
 
-	if (Instruction->Opcode == (U8) 0x66)
-	{
-		switch (Instruction->OperandSize)
-		{
-			case I16BIT : Instruction->OperandSize = I32BIT; break;
-			case I32BIT : Instruction->OperandSize = I16BIT; break;
-		}
-		Instruction->Opcode = *InstPtr++;
-	}
+    //-------------------------------------
+    // Check if we have an operand size override prefix
 
-	//-------------------------------------
-	// Check if we have an address size override prefix
+    if (Instruction->Opcode == (U8)0x66) {
+        switch (Instruction->OperandSize) {
+            case I16BIT:
+                Instruction->OperandSize = I32BIT;
+                break;
+            case I32BIT:
+                Instruction->OperandSize = I16BIT;
+                break;
+        }
+        Instruction->Opcode = *InstPtr++;
+    }
 
-	if (Instruction->Opcode == (U8) 0x67)
-	{
-		switch (Instruction->AddressSize)
-		{
-			case I16BIT : Instruction->AddressSize = I32BIT; break;
-			case I32BIT : Instruction->AddressSize = I16BIT; break;
-		}
-		Instruction->Opcode = *InstPtr++;
-	}
+    //-------------------------------------
+    // Check if we have an address size override prefix
 
-	//-------------------------------------
-	// Check if this is a two-byte opcode
+    if (Instruction->Opcode == (U8)0x67) {
+        switch (Instruction->AddressSize) {
+            case I16BIT:
+                Instruction->AddressSize = I32BIT;
+                break;
+            case I32BIT:
+                Instruction->AddressSize = I16BIT;
+                break;
+        }
+        Instruction->Opcode = *InstPtr++;
+    }
 
-	if (Instruction->Opcode == (U8) 0x0F)
-	{
-		Instruction->Opcode = *InstPtr++;
-		Op2b                = 1;
-	}
+    //-------------------------------------
+    // Check if this is a two-byte opcode
 
-	//-------------------------------------
-	// Compute the index to the opcode table
+    if (Instruction->Opcode == (U8)0x0F) {
+        Instruction->Opcode = *InstPtr++;
+        Op2b = 1;
+    }
 
-	OpcodeRow   = (Instruction->Opcode & (U8) 0xF0) >> 4;
-	OpcodeCol   = (Instruction->Opcode & (U8) 0x0F) >> 0;
-	OpcodeIndex = (Op2b * 0x100) + (OpcodeRow * 0x10) + OpcodeCol;
+    //-------------------------------------
+    // Compute the index to the opcode table
 
-	//-------------------------------------
-	// Assign a pointer to the prototype instruction and its operands
+    OpcodeRow = (Instruction->Opcode & (U8)0xF0) >> 4;
+    OpcodeCol = (Instruction->Opcode & (U8)0x0F) >> 0;
+    OpcodeIndex = (Op2b * 0x100) + (OpcodeRow * 0x10) + OpcodeCol;
 
-	OpTblPtr = Opcode_Table + OpcodeIndex;
-	OpProto1 = OpTblPtr->Operand[0];
-	OpProto2 = OpTblPtr->Operand[1];
-	OpProto3 = OpTblPtr->Operand[2];
+    //-------------------------------------
+    // Assign a pointer to the prototype instruction and its operands
 
-	//-------------------------------------
-	// Check if this is an extension
-	// If so, redirect the pointer to the extension table
+    OpTblPtr = Opcode_Table + OpcodeIndex;
+    OpProto1 = OpTblPtr->Operand[0];
+    OpProto2 = OpTblPtr->Operand[1];
+    OpProto3 = OpTblPtr->Operand[2];
 
-	if (OpTblPtr->Name[0] == 'X' && OpTblPtr->Name[1] == 'G')
-	{
-		Extension = StringToI32(OpTblPtr->Name + 2) - 1;
-		InstPtr += Intel_GetModR_M(Instruction, InstPtr);
-		HaveModR_M = 1;
+    //-------------------------------------
+    // Check if this is an extension
+    // If so, redirect the pointer to the extension table
 
-		OpcodeIndex = (Extension * 0x08) + Instruction->ModR_M.Bits.Reg;
-		OpTblPtr = Extension_Table + OpcodeIndex;
+    if (OpTblPtr->Name[0] == 'X' && OpTblPtr->Name[1] == 'G') {
+        Extension = StringToI32(OpTblPtr->Name + 2) - 1;
+        InstPtr += Intel_GetModR_M(Instruction, InstPtr);
+        HaveModR_M = 1;
 
-		//-------------------------------------
-		// Append the operands of the extension group
-		// to the ones of the main opcode
-		if (OpTblPtr->Operand[0][0])
-		{
-			if (OpProto1[0] == '\0') OpProto1 = OpTblPtr->Operand[0];
-			else
-			if (OpProto2[0] == '\0') OpProto2 = OpTblPtr->Operand[0];
-			else
-			if (OpProto3[0] == '\0') OpProto3 = OpTblPtr->Operand[0];
-		}
-		if (OpTblPtr->Operand[1][0])
-		{
-			if (OpProto1[0] == '\0') OpProto1 = OpTblPtr->Operand[1];
-			else
-			if (OpProto2[0] == '\0') OpProto2 = OpTblPtr->Operand[1];
-			else
-			if (OpProto3[0] == '\0') OpProto3 = OpTblPtr->Operand[1];
-		}
-		if (OpTblPtr->Operand[2][0])
-		{
-			if (OpProto1[0] == '\0') OpProto1 = OpTblPtr->Operand[2];
-			else
-			if (OpProto2[0] == '\0') OpProto2 = OpTblPtr->Operand[2];
-			else
-			if (OpProto3[0] == '\0') OpProto3 = OpTblPtr->Operand[2];
-		}
-	}
+        OpcodeIndex = (Extension * 0x08) + Instruction->ModR_M.Bits.Reg;
+        OpTblPtr = Extension_Table + OpcodeIndex;
 
-	//-------------------------------------
-	// Check if this is a valid opcode
+        //-------------------------------------
+        // Append the operands of the extension group
+        // to the ones of the main opcode
+        if (OpTblPtr->Operand[0][0]) {
+            if (OpProto1[0] == '\0')
+                OpProto1 = OpTblPtr->Operand[0];
+            else if (OpProto2[0] == '\0')
+                OpProto2 = OpTblPtr->Operand[0];
+            else if (OpProto3[0] == '\0')
+                OpProto3 = OpTblPtr->Operand[0];
+        }
+        if (OpTblPtr->Operand[1][0]) {
+            if (OpProto1[0] == '\0')
+                OpProto1 = OpTblPtr->Operand[1];
+            else if (OpProto2[0] == '\0')
+                OpProto2 = OpTblPtr->Operand[1];
+            else if (OpProto3[0] == '\0')
+                OpProto3 = OpTblPtr->Operand[1];
+        }
+        if (OpTblPtr->Operand[2][0]) {
+            if (OpProto1[0] == '\0')
+                OpProto1 = OpTblPtr->Operand[2];
+            else if (OpProto2[0] == '\0')
+                OpProto2 = OpTblPtr->Operand[2];
+            else if (OpProto3[0] == '\0')
+                OpProto3 = OpTblPtr->Operand[2];
+        }
+    }
 
-	if (OpTblPtr->Name[0] == '\0')
-	{
-		// if (Op2b == 0) StringPrintFormat(InstString, "DB %.2X", Opcode.Opcode); else StringPrintFormat(InstString, "DB 0Fh");
-		Instruction->Length = sizeof(U8);
-		return Instruction->Length;
-	}
+    //-------------------------------------
+    // Check if this is a valid opcode
 
-	//-------------------------------------
-	// Set the opcode name
+    if (OpTblPtr->Name[0] == '\0') {
+        // if (Op2b == 0) StringPrintFormat(InstString, "DB %.2X", Opcode.Opcode); else StringPrintFormat(InstString,
+        // "DB 0Fh");
+        Instruction->Length = sizeof(U8);
+        return Instruction->Length;
+    }
 
-	if (OpTblPtr->Name[0] != '\0') {
-		StringCopy(Instruction->Name, OpTblPtr->Name);
-	} else {
-		Instruction->Name[0] = '\0';
-	}
+    //-------------------------------------
+    // Set the opcode name
 
-	//-------------------------------------
-	// Get the type from any of the operands
+    if (OpTblPtr->Name[0] != '\0') {
+        StringCopy(Instruction->Name, OpTblPtr->Name);
+    } else {
+        Instruction->Name[0] = '\0';
+    }
 
-	Instruction->Operand[0].Any.Size = Intel_GetOperandSize(Instruction, OpProto1);
-	Instruction->Operand[1].Any.Size = Intel_GetOperandSize(Instruction, OpProto2);
-	Instruction->Operand[2].Any.Size = Intel_GetOperandSize(Instruction, OpProto3);
+    //-------------------------------------
+    // Get the type from any of the operands
 
-	//-------------------------------------
-	// Check if we need a ModR/M byte if we don't already have it
+    Instruction->Operand[0].Any.Size = Intel_GetOperandSize(Instruction, OpProto1);
+    Instruction->Operand[1].Any.Size = Intel_GetOperandSize(Instruction, OpProto2);
+    Instruction->Operand[2].Any.Size = Intel_GetOperandSize(Instruction, OpProto3);
 
-	if (HaveModR_M == 0)
-	{
-		if (Intel_IsModR_M(OpProto1[0]) || Intel_IsModR_M(OpProto2[0]) || Intel_IsModR_M(OpProto3[0]))
-		{
-			InstPtr += Intel_GetModR_M(Instruction, InstPtr);
-			HaveModR_M = 1;
-		}
-	}
+    //-------------------------------------
+    // Check if we need a ModR/M byte if we don't already have it
 
-	//-------------------------------------
-	// Process operand 1 if any
+    if (HaveModR_M == 0) {
+        if (Intel_IsModR_M(OpProto1[0]) || Intel_IsModR_M(OpProto2[0]) || Intel_IsModR_M(OpProto3[0])) {
+            InstPtr += Intel_GetModR_M(Instruction, InstPtr);
+            HaveModR_M = 1;
+        }
+    }
 
-	if (OpProto1[0])
-	{
-		InstPtr += Intel_Decode_Operand(Instruction, &(Instruction->Operand[0]), OpProto1, InstPtr);
-		Instruction->NumOperands++;
-	}
+    //-------------------------------------
+    // Process operand 1 if any
 
-	//-------------------------------------
-	// Process operand 2 if any
+    if (OpProto1[0]) {
+        InstPtr += Intel_Decode_Operand(Instruction, &(Instruction->Operand[0]), OpProto1, InstPtr);
+        Instruction->NumOperands++;
+    }
 
-	if (OpProto2[0])
-	{
-		InstPtr += Intel_Decode_Operand(Instruction, &(Instruction->Operand[1]), OpProto2, InstPtr);
-		Instruction->NumOperands++;
-	}
+    //-------------------------------------
+    // Process operand 2 if any
 
-	//-------------------------------------
-	// Process operand 3 if any
+    if (OpProto2[0]) {
+        InstPtr += Intel_Decode_Operand(Instruction, &(Instruction->Operand[1]), OpProto2, InstPtr);
+        Instruction->NumOperands++;
+    }
 
-	if (OpProto3[0])
-	{
-		InstPtr += Intel_Decode_Operand(Instruction, &(Instruction->Operand[2]), OpProto3, InstPtr);
-		Instruction->NumOperands++;
-	}
+    //-------------------------------------
+    // Process operand 3 if any
 
-	Instruction->Length = InstPtr - (U8*) InstBuffer;
+    if (OpProto3[0]) {
+        InstPtr += Intel_Decode_Operand(Instruction, &(Instruction->Operand[2]), OpProto3, InstPtr);
+        Instruction->NumOperands++;
+    }
 
-	return Instruction->Length;
+    Instruction->Length = InstPtr - (U8*)InstBuffer;
+
+    return Instruction->Length;
 }
 
 /*************************************************************************************************/
@@ -904,17 +905,23 @@ U32 Intel_MachineCodeToStructure (LPCSTR Base, LPCSTR InstBuffer, LP_INTEL_INSTR
  * @param Buffer Output buffer to write the type specifier.
  * @return Length of written string.
  */
-int Intel_PrintTypeSpec (U32 Size, LPSTR Buffer)
-{
-	switch (Size)
-	{
-		case I8BIT  : StringCopy(Buffer, BYTEPTR);  break;
-		case I16BIT : StringCopy(Buffer, WORDPTR);  break;
-		case I32BIT : StringCopy(Buffer, DWORDPTR); break;
-		case I64BIT : StringCopy(Buffer, QWORDPTR); break;
-	}
+int Intel_PrintTypeSpec(U32 Size, LPSTR Buffer) {
+    switch (Size) {
+        case I8BIT:
+            StringCopy(Buffer, BYTEPTR);
+            break;
+        case I16BIT:
+            StringCopy(Buffer, WORDPTR);
+            break;
+        case I32BIT:
+            StringCopy(Buffer, DWORDPTR);
+            break;
+        case I64BIT:
+            StringCopy(Buffer, QWORDPTR);
+            break;
+    }
 
-	return 1;
+    return 1;
 }
 
 /*************************************************************************************************/
@@ -925,149 +932,119 @@ int Intel_PrintTypeSpec (U32 Size, LPSTR Buffer)
  * @param InstString Output buffer for assembly string.
  * @return Length of generated string.
  */
-int Intel_StructureToString (LP_INTEL_INSTRUCTION Instruction, LPSTR InstString)
-{
-	STR TempBuffer [64];
-	U32 c = 0;
+int Intel_StructureToString(LPINTEL_INSTRUCTION Instruction, LPSTR InstString) {
+    STR TempBuffer[64];
+    U32 c = 0;
 
-	if (Instruction->Name[0] == '\0')
-	{
-		StringPrintFormat(InstString, TEXT("%s"), INVALID);
-		return 1;
-	}
+    if (Instruction->Name[0] == '\0') {
+        StringPrintFormat(InstString, TEXT("%s"), INVALID);
+        return 1;
+    }
 
-	// Put the mnemonic of the instruction
-	StringPrintFormat(InstString, TEXT("%s "), Instruction->Name);
+    // Put the mnemonic of the instruction
+    StringPrintFormat(InstString, TEXT("%s "), Instruction->Name);
 
-	// Process the operands
-	for (c = 0; c < Instruction->NumOperands; c++)
-	{
-		// Put a comma
-		if (c > 0) StringConcat(InstString, TEXT(", "));
+    // Process the operands
+    for (c = 0; c < Instruction->NumOperands; c++) {
+        // Put a comma
+        if (c > 0) StringConcat(InstString, TEXT(", "));
 
-		// Put the operand
-		switch (Instruction->Operand[c].Any.Type)
-		{
-			case INTEL_OPERAND_R :
-			{
-				StringConcat(InstString, Intel_RegNames[Instruction->Operand[c].R.Register]);
-			}
-			break;
+        // Put the operand
+        switch (Instruction->Operand[c].Any.Type) {
+            case INTEL_OPERAND_TYPE_R: {
+                StringConcat(InstString, Intel_RegNames[Instruction->Operand[c].R.Register]);
+            } break;
 
-			case INTEL_OPERAND_I8 :
-			{
-				StringPrintFormat(TempBuffer, TEXT("%x"), (U32) Instruction->Operand[c].I8.Value);
-				StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_I8: {
+                StringPrintFormat(TempBuffer, TEXT("%x"), (U32)Instruction->Operand[c].I8.Value);
+                StringConcat(InstString, TempBuffer);
+            } break;
 
-			case INTEL_OPERAND_I16 :
-			{
-				StringPrintFormat(TempBuffer, TEXT("%x"), (U32) Instruction->Operand[c].I16.Value);
-				StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_I16: {
+                StringPrintFormat(TempBuffer, TEXT("%x"), (U32)Instruction->Operand[c].I16.Value);
+                StringConcat(InstString, TempBuffer);
+            } break;
 
-			case INTEL_OPERAND_I32 :
-			{
-				StringPrintFormat(TempBuffer, TEXT("%x"), (U32) Instruction->Operand[c].I32.Value);
-				StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_I32: {
+                StringPrintFormat(TempBuffer, TEXT("%x"), (U32)Instruction->Operand[c].I32.Value);
+                StringConcat(InstString, TempBuffer);
+            } break;
 
-			case INTEL_OPERAND_I64 :
-			{
-				// StringPrintFormat(TempBuffer, "%x", (U64) Instruction->Operand[c].I64.Value);
-				// StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_I64: {
+                // StringPrintFormat(TempBuffer, "%x", (U64) Instruction->Operand[c].I64.Value);
+                // StringConcat(InstString, TempBuffer);
+            } break;
 
-			case INTEL_OPERAND_DSP :
-			{
-				U32 Address = (U32) Instruction->Address + Instruction->Length + (I32) Instruction->Operand[c].DSP.Value;
-				StringPrintFormat(TempBuffer, TEXT("%x"), Address);
-				StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_DSP: {
+                U32 Address = (U32)Instruction->Address + Instruction->Length + (I32)Instruction->Operand[c].DSP.Value;
+                StringPrintFormat(TempBuffer, TEXT("%x"), Address);
+                StringConcat(InstString, TempBuffer);
+            } break;
 
-			case INTEL_OPERAND_II :
-			{
-				Intel_PrintTypeSpec(Instruction->Operand[c].II.Size, TempBuffer);
-				StringConcat(InstString, TempBuffer);
-				StringConcat(InstString, TEXT(" "));
-				StringPrintFormat(TempBuffer, TEXT("[%x]"), (U32) Instruction->Operand[c].II.Value);
-				StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_II: {
+                Intel_PrintTypeSpec(Instruction->Operand[c].II.Size, TempBuffer);
+                StringConcat(InstString, TempBuffer);
+                StringConcat(InstString, TEXT(" "));
+                StringPrintFormat(TempBuffer, TEXT("[%x]"), (U32)Instruction->Operand[c].II.Value);
+                StringConcat(InstString, TempBuffer);
+            } break;
 
-            case INTEL_OPERAND_BISD :
-            {
-                lpIntel_Operand_BISD BISD = &(Instruction->Operand[c].BISD);
+            case INTEL_OPERAND_TYPE_BISD: {
+                LPINTEL_OPERAND_BISD BISD = &(Instruction->Operand[c].BISD);
                 Intel_PrintTypeSpec(BISD->Size, TempBuffer);
 
                 StringConcat(InstString, TempBuffer);
                 StringConcat(InstString, TEXT(" ["));
 
-                if (BISD->Base != 0x00) 
-                {
+                if (BISD->Base != 0x00) {
                     StringConcat(InstString, Intel_RegNames[BISD->Base]);
                 }
 
-                if (BISD->Displace != 0x00)
-                {
-                    if (BISD->Displace > 0)
-                    {
+                if (BISD->Displace != 0x00) {
+                    if (BISD->Displace > 0) {
                         StringPrintFormat(TempBuffer, TEXT("+%x"), (U32)BISD->Displace);
-                    }
-                    else
-                    {
+                    } else {
                         StringPrintFormat(TempBuffer, TEXT("-%x"), (U32)-BISD->Displace);
                     }
                     StringConcat(InstString, TempBuffer);
                 }
 
-                if (BISD->Index != 0x00)
-                {
-                    if (BISD->Base != 0x00 || BISD->Displace != 0x00) 
-                    {
+                if (BISD->Index != 0x00) {
+                    if (BISD->Base != 0x00 || BISD->Displace != 0x00) {
                         StringConcat(InstString, TEXT("+"));
                     }
                     StringConcat(InstString, Intel_RegNames[BISD->Index]);
 
-                    if (BISD->Scale != 0x00 && BISD->Scale != 0x01)
-                    {
+                    if (BISD->Scale != 0x00 && BISD->Scale != 0x01) {
                         StringPrintFormat(TempBuffer, TEXT("*%u"), BISD->Scale);
                         StringConcat(InstString, TempBuffer);
                     }
                 }
 
-                StringConcat(InstString, TEXT("]")); 
-            }
-            break;
+                StringConcat(InstString, TEXT("]"));
+            } break;
 
-			case INTEL_OPERAND_SO16 :
-			{
-				StringPrintFormat(TempBuffer, TEXT("%x:%x"), (U32) Instruction->Operand[c].SO16.Segment, (U32) Instruction->Operand[c].SO16.Offset);
-				StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_SO16: {
+                StringPrintFormat(
+                    TempBuffer, TEXT("%x:%x"), (U32)Instruction->Operand[c].SO16.Segment,
+                    (U32)Instruction->Operand[c].SO16.Offset);
+                StringConcat(InstString, TempBuffer);
+            } break;
 
-			case INTEL_OPERAND_SO32 :
-			{
-				StringPrintFormat(TempBuffer, TEXT("%x:%x"), (U32) Instruction->Operand[c].SO32.Segment, (U32) Instruction->Operand[c].SO32.Offset);
-				StringConcat(InstString, TempBuffer);
-			}
-			break;
+            case INTEL_OPERAND_TYPE_SO32: {
+                StringPrintFormat(
+                    TempBuffer, TEXT("%x:%x"), (U32)Instruction->Operand[c].SO32.Segment,
+                    (U32)Instruction->Operand[c].SO32.Offset);
+                StringConcat(InstString, TempBuffer);
+            } break;
 
-			case INTEL_OPERAND_STR :
-			{
-				StringConcat(InstString, Instruction->Operand[c].STR.String);
-			}
-			break;
-		}
-	}
+            case INTEL_OPERAND_TYPE_STR: {
+                StringConcat(InstString, Instruction->Operand[c].STR.String);
+            } break;
+        }
+    }
 
-	return 1;
+    return 1;
 }
 
 /*************************************************************************************************/
@@ -1079,21 +1056,20 @@ int Intel_StructureToString (LP_INTEL_INSTRUCTION Instruction, LPSTR InstString)
  * @param InstString Buffer to store the resulting assembly string.
  * @return Length of decoded instruction in bytes.
  */
-U32 Intel_MachineCodeToString (LPCSTR Base, LPCSTR InstBuffer, LPSTR InstString)
-{
-	INTEL_INSTRUCTION Instruction;
-	long Length = Intel_MachineCodeToStructure(Base, InstBuffer, &Instruction);
-	Intel_StructureToString(&Instruction, InstString);
-	return Length;
+U32 Intel_MachineCodeToString(LPCSTR Base, LPCSTR InstBuffer, LPSTR InstString) {
+    INTEL_INSTRUCTION Instruction;
+    long Length = Intel_MachineCodeToStructure(Base, InstBuffer, &Instruction);
+    Intel_StructureToString(&Instruction, InstString);
+    return Length;
 }
 
 /*************************************************************************************************/
 
-#define MCSET(Name,Type,Data) \
-{ \
-	MemoryCopy(Name->Code + Name->Size, &(Data), sizeof (Type)); \
-	Name->Size += sizeof (Type); \
-};
+#define MCSET(Name, Type, Data)                                     \
+    {                                                               \
+        MemoryCopy(Name->Code + Name->Size, &(Data), sizeof(Type)); \
+        Name->Size += sizeof(Type);                                 \
+    };
 
 /*************************************************************************************************/
 
@@ -1103,723 +1079,727 @@ U32 Intel_MachineCodeToString (LPCSTR Base, LPCSTR InstBuffer, LPSTR InstString)
  * @param MachineCode Pointer to machine code structure to fill.
  * @return Number of bytes generated.
  */
-U32 Intel_StructureToMachineCode
-(LP_INTEL_INSTRUCTION Instruction, LP_INTEL_MACHINE_CODE MachineCode)
-{
-	U32 MemoryAddressing = 0;
-	U32 FoundPrototype   = 0;
-	U32 c                = 0;
-	U32 d                = 0;
-	U32 Register         = 0;
-	U8* MachineCodePtr   = MachineCode->Code;
-	Intel_ModR_M ModR_M;
-	Intel_SIB    SIB;
+U32 Intel_StructureToMachineCode(LPINTEL_INSTRUCTION Instruction, LPINTEL_MACHINE_CODE MachineCode) {
+    U32 MemoryAddressing = 0;
+    U32 FoundPrototype = 0;
+    U32 c = 0;
+    U32 d = 0;
+    U32 Register = 0;
+    U8* MachineCodePtr = MachineCode->Code;
+    INTEL_MODR_M ModR_M;
+    INTEL_SIB SIB;
 
-	//-------------------------------------
-
-	// Shortcut to intel instruction
-
-	STR Name [16];
-	U32 Immediate = 0;
-
-	U32 Have_ModR_M    = 0;
-	U32 Have_SIB       = 0;
-	U32 Have_Immediate = 0;
-
-	//-------------------------------------
-
-	// Variables used to search prototype
-
-	INTEL_OPCODE_PROTOTYPE* OpTblPtr = NULL;
-	INTEL_OPCODE_PROTOTYPE  Prototype;
-	STR ProtoOperand [INTEL_MAX_OPERANDS] [8];
-
-	//-------------------------------------
-
-	// Setup instruction
-
-	StringCopy(Name, Instruction->Name);
-
-	Instruction->ModR_M.Byte = 0;
-	Instruction->SIB.Byte    = 0;
-
-	//-------------------------------------
-
-	// Setup machine code
-
-	MemorySet(MachineCode, 0, sizeof (INTEL_MACHINE_CODE));
-
-	//-------------------------------------
-
-	// Setup prototype
-
-	Prototype.Name = Name;
-
-	for (c = 0; c < INTEL_MAX_OPERANDS; c++)
-	{
-		ProtoOperand[c][0]   = '\0';
-		Prototype.Operand[c] = ProtoOperand[c];
-	}
-
-	//---------------------------------------------
-
-	// Check validity of instruction
-
-	// Reject instructions using memory addressing in both operands
-
-	for (c = 0; c < Instruction->NumOperands; c++)
-	{
-		if (Instruction->Operand[c].Any.Type == INTEL_OPERAND_DSP  ||
-			Instruction->Operand[c].Any.Type == INTEL_OPERAND_II   ||
-			Instruction->Operand[c].Any.Type == INTEL_OPERAND_BI   ||
-			Instruction->Operand[c].Any.Type == INTEL_OPERAND_BISD ||
-			Instruction->Operand[c].Any.Type == INTEL_OPERAND_SO16 ||
-			Instruction->Operand[c].Any.Type == INTEL_OPERAND_SO32)
-		{
-			if (MemoryAddressing == 1)
-			{
-				return 0;
-			}
-			else
-			{
-				MemoryAddressing = 1;
-			}
-		}
-	}
-
-	//---------------------------------------------
-
-	// Handle special cases
-
-	if (Instruction->NumOperands == 0)
-	{
-		// NOP
-		if (StringCompare(Name, TEXT("NOP")) == 0)
-		{
-			MachineCode->Code[0] = 0x90;
-			MachineCode->Size    = sizeof (U8);
-			return MachineCode->Size;
-		}
-	}
-
-	if (Instruction->NumOperands == 1)
-	{
-		// Interrupt call
-		if (StringCompare(Name, TEXT("INT")) == 0)
-		{
-			if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_I32)
-			{
-				U8 Opcode    = 0;
-				U8 Interrupt = 0;
-
-				Interrupt = (U8) Instruction->Operand[0].I32.Value;
-
-				if (Interrupt == 0x03)
-				{
-					Opcode = 0xCC;
-					MCSET(MachineCode, U8, Opcode);
-				}
-				else
-				{
-					Opcode = 0xCD;
-					MCSET(MachineCode, U8, Opcode);
-					MCSET(MachineCode, U8, Interrupt);
-				}
-
-				return MachineCode->Size;
-			}
-		}
-
-		// PUSH 16 bit register
-		if (StringCompare(Name, TEXT("PUSH")) == 0)
-		{
-			if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_R)
-			{
-				Register = Instruction->Operand[0].R.Register;
-
-				// If 32 bit general purpose register, set to 16 bit
-				if (Register >= INTEL_REG_EAX && Register <= INTEL_REG_EDI)
-				{
-					Register = INTEL_REG_AX + (Register - INTEL_REG_EAX);
-				}
-
-				if
-				(
-					(Register >= INTEL_REG_AX && Register <= INTEL_REG_DI) ||
-					(Register >= INTEL_REG_ES && Register <= INTEL_REG_GS)
-				)
-				{
-					switch (Instruction->Operand[0].R.Register)
-					{
-						case INTEL_REG_AX : MachineCode->Code[0] = 0x50; break;
-						case INTEL_REG_CX : MachineCode->Code[0] = 0x51; break;
-						case INTEL_REG_DX : MachineCode->Code[0] = 0x52; break;
-						case INTEL_REG_BX : MachineCode->Code[0] = 0x53; break;
-						case INTEL_REG_SP : MachineCode->Code[0] = 0x54; break;
-						case INTEL_REG_BP : MachineCode->Code[0] = 0x55; break;
-						case INTEL_REG_SI : MachineCode->Code[0] = 0x56; break;
-						case INTEL_REG_DI : MachineCode->Code[0] = 0x57; break;
-						case INTEL_REG_ES : MachineCode->Code[0] = 0x06; break;
-						case INTEL_REG_CS : MachineCode->Code[0] = 0x0E; break;
-						case INTEL_REG_SS : MachineCode->Code[0] = 0x16; break;
-						case INTEL_REG_DS : MachineCode->Code[0] = 0x1E; break;
-						case INTEL_REG_FS : MachineCode->Code[0] = 0xA0; break;
-						case INTEL_REG_GS : MachineCode->Code[0] = 0xA8; break;
-					}
-					MachineCode->Size = 1;
-					return MachineCode->Size;
-				}
-			}
-		}
-
-		// POP 16 bit register
-		if (StringCompare(Name, TEXT("POP")) == 0)
-		{
-			if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_R)
-			{
-				Register = Instruction->Operand[0].R.Register;
-
-				if
-				(
-					(Register >= INTEL_REG_AX && Register <= INTEL_REG_DI) ||
-					(Register >= INTEL_REG_ES && Register <= INTEL_REG_GS)
-				)
-				{
-					switch (Instruction->Operand[0].R.Register)
-					{
-						case INTEL_REG_AX : MachineCode->Code[0] = 0x58; break;
-						case INTEL_REG_CX : MachineCode->Code[0] = 0x59; break;
-						case INTEL_REG_DX : MachineCode->Code[0] = 0x5A; break;
-						case INTEL_REG_BX : MachineCode->Code[0] = 0x5B; break;
-						case INTEL_REG_SP : MachineCode->Code[0] = 0x5C; break;
-						case INTEL_REG_BP : MachineCode->Code[0] = 0x5D; break;
-						case INTEL_REG_SI : MachineCode->Code[0] = 0x5E; break;
-						case INTEL_REG_DI : MachineCode->Code[0] = 0x5F; break;
-						case INTEL_REG_ES : MachineCode->Code[0] = 0x07; break;
-						case INTEL_REG_CS : MachineCode->Code[0] = 0x0E; break;
-						case INTEL_REG_SS : MachineCode->Code[0] = 0x17; break;
-						case INTEL_REG_DS : MachineCode->Code[0] = 0x1F; break;
-						case INTEL_REG_FS : MachineCode->Code[0] = 0xA1; break;
-						case INTEL_REG_GS : MachineCode->Code[0] = 0xA9; break;
-					}
-					MachineCode->Size = 1;
-					return MachineCode->Size;
-				}
-			}
-		}
-
-		// INC 16 bit register
-		if (StringCompare(Name, TEXT("INC")) == 0)
-		{
-			if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_R)
-			{
-				Register = Instruction->Operand[0].R.Register;
-
-				if (Register >= INTEL_REG_AX && Register <= INTEL_REG_DI)
-				{
-					switch (Instruction->Operand[0].R.Register)
-					{
-						case INTEL_REG_AX : MachineCode->Code[0] = 0x40; break;
-						case INTEL_REG_CX : MachineCode->Code[0] = 0x41; break;
-						case INTEL_REG_DX : MachineCode->Code[0] = 0x42; break;
-						case INTEL_REG_BX : MachineCode->Code[0] = 0x43; break;
-						case INTEL_REG_SP : MachineCode->Code[0] = 0x44; break;
-						case INTEL_REG_BP : MachineCode->Code[0] = 0x45; break;
-						case INTEL_REG_SI : MachineCode->Code[0] = 0x46; break;
-						case INTEL_REG_DI : MachineCode->Code[0] = 0x47; break;
-					}
-					MachineCode->Size = 1;
-					return MachineCode->Size;
-				}
-			}
-		}
-
-		// DEC 16 bit register
-		if (StringCompare(Name, TEXT("DEC")) == 0)
-		{
-			if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_R)
-			{
-				Register = Instruction->Operand[0].R.Register;
-
-				if (Register >= INTEL_REG_AX && Register <= INTEL_REG_DI)
-				{
-					switch (Instruction->Operand[0].R.Register)
-					{
-						case INTEL_REG_AX : MachineCode->Code[0] = 0x48; break;
-						case INTEL_REG_CX : MachineCode->Code[0] = 0x49; break;
-						case INTEL_REG_DX : MachineCode->Code[0] = 0x4A; break;
-						case INTEL_REG_BX : MachineCode->Code[0] = 0x4B; break;
-						case INTEL_REG_SP : MachineCode->Code[0] = 0x4C; break;
-						case INTEL_REG_BP : MachineCode->Code[0] = 0x4D; break;
-						case INTEL_REG_SI : MachineCode->Code[0] = 0x4E; break;
-						case INTEL_REG_DI : MachineCode->Code[0] = 0x4F; break;
-					}
-					MachineCode->Size = 1;
-					return MachineCode->Size;
-				}
-			}
-		}
-	}
-
-	if (Instruction->NumOperands == 2)
-	{
-		if (StringCompare(Name, TEXT("XCHG")) == 0)
-		{
-			if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_R &&
-				Instruction->Operand[1].Any.Type == INTEL_OPERAND_R)
-			{
-				U32 Reg1 = Instruction->Operand[0].R.Register;
-				U32 Reg2 = Instruction->Operand[1].R.Register;
-
-				if (Reg1 == INTEL_REG_AX && Reg2 >= INTEL_REG_CX && Reg2 <= INTEL_REG_DI)
-				{
-					MachineCode->Code[0] = 0x91 + (Reg2 - INTEL_REG_CX);
-					MachineCode->Size    = 1;
-					return MachineCode->Size;
-				}
-			}
-		}
-
-		// MOV reg8/reg16, imm
-
-		if
-		(
-			Instruction->Operand[0].Any.Type == INTEL_OPERAND_R &&
-			Instruction->Operand[1].Any.Type == INTEL_OPERAND_I32
-		)
-		{
-			U32 Register = Instruction->Operand[0].R.Register - INTEL_REG_AL;
-			U8  Opcode   = 0xB0 + Register;
-
-			MCSET(MachineCode, U8, Opcode);
-
-			switch (Instruction->OperandSize)
-			{
-				case I8BIT  : MCSET(MachineCode, U8,  Instruction->Operand[1].I32.Value); break;
-				case I16BIT : MCSET(MachineCode, U16, Instruction->Operand[1].I32.Value); break;
-				case I32BIT : MCSET(MachineCode, U32, Instruction->Operand[1].I32.Value); break;
-			}
-
-			return MachineCode->Size;
-		}
-
-		// MOV AL/AX, [imm]
-
-		if
-		(
-			Instruction->Operand[0].Any.Type == INTEL_OPERAND_R &&
-			Instruction->Operand[1].Any.Type == INTEL_OPERAND_II
-		)
-		{
-			U32 Register = Instruction->Operand[0].R.Register;
-
-			if
-			(
-				Register == INTEL_REG_AL ||
-				Register == INTEL_REG_AX ||
-				Register == INTEL_REG_EAX
-			)
-			{
-				U8 Opcode = 0;
-
-				if (Register == INTEL_REG_EAX) Register = INTEL_REG_AX;
-
-				if (Register == INTEL_REG_AL) Opcode = 0xA0;
-				if (Register == INTEL_REG_AX) Opcode = 0xA1;
-
-				MCSET(MachineCode, U8, Opcode);
-
-				switch (Instruction->OperandSize)
-				{
-					case I8BIT  : MCSET(MachineCode, U8,  Instruction->Operand[1].II.Value); break;
-					case I16BIT : MCSET(MachineCode, U16, Instruction->Operand[1].II.Value); break;
-					case I32BIT : MCSET(MachineCode, U32, Instruction->Operand[1].II.Value); break;
-				}
-
-				return MachineCode->Size;
-			}
-		}
-
-		// MOV [imm], AL/AX
-
-		if
-		(
-			Instruction->Operand[0].Any.Type == INTEL_OPERAND_II &&
-			Instruction->Operand[1].Any.Type == INTEL_OPERAND_R
-		)
-		{
-			U32 Register = Instruction->Operand[1].R.Register;
-
-			if
-			(
-				Register == INTEL_REG_AL ||
-				Register == INTEL_REG_AX ||
-				Register == INTEL_REG_EAX
-			)
-			{
-				U8 Opcode = 0;
-
-				if (Register == INTEL_REG_EAX) Register = INTEL_REG_AX;
-
-				if (Register == INTEL_REG_AL) Opcode = 0xA2;
-				if (Register == INTEL_REG_AX) Opcode = 0xA3;
-
-				MCSET(MachineCode, U8, Opcode);
-
-				switch (Instruction->OperandSize)
-				{
-					case I8BIT  : MCSET(MachineCode, U8,  Instruction->Operand[0].II.Value); break;
-					case I16BIT : MCSET(MachineCode, U16, Instruction->Operand[0].II.Value); break;
-					case I32BIT : MCSET(MachineCode, U32, Instruction->Operand[0].II.Value); break;
-				}
-
-				return MachineCode->Size;
-			}
-		}
-	}
-
-	//-------------------------------------
-
-	// Translate the instruction into an opcode prototype
-
-	for (c = 0; c < Instruction->NumOperands; c++)
-	{
-		switch (Instruction->Operand[c].Any.Type)
-		{
-			case INTEL_OPERAND_R :
-			{
-				// Select either G or E
-
-				for (d = 0; d < Instruction->NumOperands; d++)
-				{
-					if (d != c)
-					{
-						if (ProtoOperand[d][0] == 'E') { StringConcat(ProtoOperand[c], TEXT("G")); break; }
-						if (ProtoOperand[d][0] == 'G') { StringConcat(ProtoOperand[c], TEXT("E")); break; }
-					}
-				}
-
-				if (ProtoOperand[c][0] == '\0')
-				{
-					StringConcat(ProtoOperand[c], TEXT("G"));
-				}
-
-				// Add the type
-				switch (Instruction->OperandSize)
-				{
-					case I8BIT  : StringConcat(ProtoOperand[c], TEXT("b")); break;
-					case I16BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-					case I32BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-				}
-			}
-			break;
-
-			case INTEL_OPERAND_I32 :
-			{
-				// If the instruction is a conditional jump, need to change
-				// the immediate value to a relative displacement
-
-				if (StringCompare(Name, TEXT("JO"))   == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNO"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JB"))   == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNB"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JZ"))   == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNZ"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JBE"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNBE")) == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JS"))   == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNS"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JP"))   == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNP"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JL"))   == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNL"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JLE"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JNLE")) == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("JMP"))  == 0) StringConcat(ProtoOperand[c], TEXT("Jv"));
-				else
-				if (StringCompare(Name, TEXT("CALL")) == 0) StringConcat(ProtoOperand[c], TEXT("Ap"));
-				else
-				{
-					StringConcat(ProtoOperand[c], TEXT("I"));
-
-					// Add the type
-					switch (Instruction->OperandSize)
-					{
-						case I8BIT  : StringConcat(ProtoOperand[c], TEXT("b")); break;
-						case I16BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-						case I32BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-					}
-				}
-			}
-			break;
-
-			case INTEL_OPERAND_II :
-			{
-				StringConcat(ProtoOperand[c], TEXT("O"));
-
-				// Add the type
-				switch (Instruction->OperandSize)
-				{
-					case I8BIT  : StringConcat(ProtoOperand[c], TEXT("b")); break;
-					case I16BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-					case I32BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-				}
-			}
-			break;
-
-			case INTEL_OPERAND_BI :
-			{
-				StringConcat(ProtoOperand[c], TEXT("E"));
-
-				// Add the type
-				switch (Instruction->OperandSize)
-				{
-					case I8BIT  : StringConcat(ProtoOperand[c], TEXT("b")); break;
-					case I16BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-					case I32BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-				}
-			}
-			break;
-
-			case INTEL_OPERAND_BISD :
-			{
-				// First see if we can use a 16 bit BI instead of the SIB byte
-				// Note that the SIB byte is used only with 32 bit instructions
-
-				// Is it a [reg+reg] operand ?
-
-				if
-				(
-					Instruction->Operand[c].BISD.Scale == 1 &&
-					Instruction->Operand[c].BISD.Displace == 0
-				)
-				{
-					StringConcat(ProtoOperand[c], TEXT("E"));
-				}
-				else
-				// Is it a [reg+imm] / +imm[reg] operand ?
-				if
-				(
-					Instruction->Operand[c].BISD.Scale == 1 &&
-					Instruction->Operand[c].BISD.Index == 0
-				)
-				{
-					StringConcat(ProtoOperand[c], TEXT("E"));
-				}
-
-				// Add the type
-				switch (Instruction->OperandSize)
-				{
-					case I8BIT  : StringConcat(ProtoOperand[c], TEXT("b")); break;
-					case I16BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-					case I32BIT : StringConcat(ProtoOperand[c], TEXT("v")); break;
-				}
-			}
-			break;
-		}
-	}
-
-	// Search in the opcode table for a match
-
-	for (c = 0; c <512; c++)
-	{
-		// Point to the current prototype
-		OpTblPtr = Opcode_Table + c;
-
-		if
-		(
-			(StringCompare(OpTblPtr->Name,       Prototype.Name)       == 0) &&
-			(StringCompare(OpTblPtr->Operand[0], Prototype.Operand[0]) == 0) &&
-			(StringCompare(OpTblPtr->Operand[1], Prototype.Operand[1]) == 0) &&
-			(StringCompare(OpTblPtr->Operand[2], Prototype.Operand[2]) == 0)
-		)
-		{
-			FoundPrototype = 1;
-
-			if (c < 256)
-			{
-				// One byte opcode
-				*MachineCodePtr     = c;
-				MachineCodePtr     += sizeof (U8);
-				MachineCode->Size  += sizeof (U8);
-			}
-			else
-			{
-				// Two byte opcode
-				*MachineCodePtr     = 0x0F;
-				MachineCodePtr     += sizeof (U8);
-				MachineCode->Size  += sizeof (U8);
-
-				*MachineCodePtr     = c - 0x0100;
-				MachineCodePtr     += sizeof (U8);
-				MachineCode->Size  += sizeof (U8);
-			}
-
-			break;
-		}
-	}
-
-	if (FoundPrototype == 0)
-	{
-		/*
-		StringPrintFormat(Temp, "Invalid instruction (%s %s %s %s)", Prototype.Name,
-				Prototype.Operand[0], Prototype.Operand[1], Prototype.Operand[2]);
-		FatalError(Temp);
-		*/
-
-		return 0;
-	}
-
-	//-------------------------------------
-
-	// Encode the instruction given the prototype
-
-	for (c = 0; c < Instruction->NumOperands; c++)
-	{
-		switch (Instruction->Operand[c].Any.Type)
-		{
-			case INTEL_OPERAND_R :
-			{
-				Register = Instruction->Operand[c].R.Register;
-
-				if (Register >= INTEL_REG_AL  && Register <= INTEL_REG_BH)
-				{
-					Register -= INTEL_REG_8;
-				}
-				else
-				if (Register >= INTEL_REG_AX  && Register <= INTEL_REG_DI)
-				{
-					Register -= INTEL_REG_16;
-				}
-				else
-				if (Register >= INTEL_REG_EAX && Register <= INTEL_REG_EDI)
-				{
-					Register -= INTEL_REG_32;
-				}
-				else
-				if (Register >= INTEL_REG_MM0 && Register <= INTEL_REG_MM7)
-				{
-					Register -= INTEL_REG_64;
-				}
-				else
-				if (Register >= INTEL_REG_ES && Register <= INTEL_REG_GS)
-				{
-					Register -= INTEL_REG_SEG;
-				}
-				else
-				if (Register >= INTEL_REG_CR0 && Register <= INTEL_REG_CR4)
-				{
-					Register -= INTEL_REG_CRT;
-				}
-
-				// Encode the register value in either the Reg or R_M field
-				if (Prototype.Operand[c][0] == 'G')
-				{
-					Have_ModR_M = 1;
-					ModR_M.Bits.Reg = Register;
-				}
-				else
-				if (Prototype.Operand[c][0] == 'E')
-				{
-					Have_ModR_M = 1;
-					ModR_M.Bits.Mod = 0x03;
-					ModR_M.Bits.R_M = Register;
-				}
-			}
-			break;
-
-			case INTEL_OPERAND_I32 :
-			{
-				Have_Immediate = 1;
-				Immediate = Instruction->Operand[c].I32.Value;
-			}
-			break;
-
-			case INTEL_OPERAND_II :
-			{
-				Have_Immediate = 1;
-				Immediate = Instruction->Operand[c].I32.Value;
-			}
-			break;
-
-			case INTEL_OPERAND_BI :
-			{
-				U32 Base  = Instruction->Operand[c].BI.Base;
-				U32 Index = Instruction->Operand[c].BI.Index;
-
-				Have_ModR_M = 1;
-
-				// Encode the base and index in the ModR/M byte
-				if (Base == INTEL_REG_SI && Index == 0) ModR_M.Bits.R_M = 0x04;
-				else
-				if (Base == INTEL_REG_DI && Index == 0) ModR_M.Bits.R_M = 0x05;
-				else
-				if (Base == INTEL_REG_BX && Index == 0) ModR_M.Bits.R_M = 0x07;
-				else
-				if (Base == INTEL_REG_BX && Index == INTEL_REG_SI) ModR_M.Bits.R_M = 0x00;
-				else
-				if (Base == INTEL_REG_BX && Index == INTEL_REG_DI) ModR_M.Bits.R_M = 0x01;
-				else
-				if (Base == INTEL_REG_BP && Index == INTEL_REG_SI) ModR_M.Bits.R_M = 0x02;
-				else
-				if (Base == INTEL_REG_BP && Index == INTEL_REG_DI) ModR_M.Bits.R_M = 0x03;
-				else
-				{
-					return 0;
-				}
-			}
-			break;
-		}
-	}
-
-	//-------------------------------------
-
-	// Record the ModR/M byte if used
-	if (Have_ModR_M)
-	{
-		MachineCode->Offset_ModR_M = MachineCode->Size;
-		MCSET(MachineCode, Intel_ModR_M, ModR_M);
-	}
-
-	// Record the SIB byte if used
-	if (Have_SIB)
-	{
-		MachineCode->Offset_SIB = MachineCode->Size;
-		MCSET(MachineCode, Intel_SIB, SIB);
-	}
-
-	// Record the immediate value if used
-	if (Have_Immediate)
-	{
-		MachineCode->Offset_Imm = MachineCode->Size;
-
-		switch (Instruction->OperandSize)
-		{
-			case I8BIT  : MCSET(MachineCode, U8,  Immediate); break;
-			case I16BIT : MCSET(MachineCode, U16, Immediate); break;
-			case I32BIT : MCSET(MachineCode, U32, Immediate); break;
-		}
-	}
-
-	//-------------------------------------
-
-	return MachineCode->Size;
+    //-------------------------------------
+
+    // Shortcut to intel instruction
+
+    STR Name[16];
+    U32 Immediate = 0;
+
+    U32 Have_ModR_M = 0;
+    U32 Have_SIB = 0;
+    U32 Have_Immediate = 0;
+
+    //-------------------------------------
+
+    // Variables used to search prototype
+
+    INTEL_OPCODE_PROTOTYPE* OpTblPtr = NULL;
+    INTEL_OPCODE_PROTOTYPE Prototype;
+    STR ProtoOperand[INTEL_MAX_OPERANDS][8];
+
+    //-------------------------------------
+
+    // Setup instruction
+
+    StringCopy(Name, Instruction->Name);
+
+    Instruction->ModR_M.Byte = 0;
+    Instruction->SIB.Byte = 0;
+
+    //-------------------------------------
+
+    // Setup machine code
+
+    MemorySet(MachineCode, 0, sizeof(INTEL_MACHINE_CODE));
+
+    //-------------------------------------
+
+    // Setup prototype
+
+    Prototype.Name = Name;
+
+    for (c = 0; c < INTEL_MAX_OPERANDS; c++) {
+        ProtoOperand[c][0] = '\0';
+        Prototype.Operand[c] = ProtoOperand[c];
+    }
+
+    //---------------------------------------------
+
+    // Check validity of instruction
+
+    // Reject instructions using memory addressing in both operands
+
+    for (c = 0; c < Instruction->NumOperands; c++) {
+        if (Instruction->Operand[c].Any.Type == INTEL_OPERAND_TYPE_DSP ||
+            Instruction->Operand[c].Any.Type == INTEL_OPERAND_TYPE_II ||
+            Instruction->Operand[c].Any.Type == INTEL_OPERAND_TYPE_BI ||
+            Instruction->Operand[c].Any.Type == INTEL_OPERAND_TYPE_BISD ||
+            Instruction->Operand[c].Any.Type == INTEL_OPERAND_TYPE_SO16 ||
+            Instruction->Operand[c].Any.Type == INTEL_OPERAND_TYPE_SO32) {
+            if (MemoryAddressing == 1) {
+                return 0;
+            } else {
+                MemoryAddressing = 1;
+            }
+        }
+    }
+
+    //---------------------------------------------
+
+    // Handle special cases
+
+    if (Instruction->NumOperands == 0) {
+        // NOP
+        if (StringCompare(Name, TEXT("NOP")) == 0) {
+            MachineCode->Code[0] = 0x90;
+            MachineCode->Size = sizeof(U8);
+            return MachineCode->Size;
+        }
+    }
+
+    if (Instruction->NumOperands == 1) {
+        // Interrupt call
+        if (StringCompare(Name, TEXT("INT")) == 0) {
+            if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_I32) {
+                U8 Opcode = 0;
+                U8 Interrupt = 0;
+
+                Interrupt = (U8)Instruction->Operand[0].I32.Value;
+
+                if (Interrupt == 0x03) {
+                    Opcode = 0xCC;
+                    MCSET(MachineCode, U8, Opcode);
+                } else {
+                    Opcode = 0xCD;
+                    MCSET(MachineCode, U8, Opcode);
+                    MCSET(MachineCode, U8, Interrupt);
+                }
+
+                return MachineCode->Size;
+            }
+        }
+
+        // PUSH 16 bit register
+        if (StringCompare(Name, TEXT("PUSH")) == 0) {
+            if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_R) {
+                Register = Instruction->Operand[0].R.Register;
+
+                // If 32 bit general purpose register, set to 16 bit
+                if (Register >= INTEL_REG_EAX && Register <= INTEL_REG_EDI) {
+                    Register = INTEL_REG_AX + (Register - INTEL_REG_EAX);
+                }
+
+                if ((Register >= INTEL_REG_AX && Register <= INTEL_REG_DI) ||
+                    (Register >= INTEL_REG_ES && Register <= INTEL_REG_GS)) {
+                    switch (Instruction->Operand[0].R.Register) {
+                        case INTEL_REG_AX:
+                            MachineCode->Code[0] = 0x50;
+                            break;
+                        case INTEL_REG_CX:
+                            MachineCode->Code[0] = 0x51;
+                            break;
+                        case INTEL_REG_DX:
+                            MachineCode->Code[0] = 0x52;
+                            break;
+                        case INTEL_REG_BX:
+                            MachineCode->Code[0] = 0x53;
+                            break;
+                        case INTEL_REG_SP:
+                            MachineCode->Code[0] = 0x54;
+                            break;
+                        case INTEL_REG_BP:
+                            MachineCode->Code[0] = 0x55;
+                            break;
+                        case INTEL_REG_SI:
+                            MachineCode->Code[0] = 0x56;
+                            break;
+                        case INTEL_REG_DI:
+                            MachineCode->Code[0] = 0x57;
+                            break;
+                        case INTEL_REG_ES:
+                            MachineCode->Code[0] = 0x06;
+                            break;
+                        case INTEL_REG_CS:
+                            MachineCode->Code[0] = 0x0E;
+                            break;
+                        case INTEL_REG_SS:
+                            MachineCode->Code[0] = 0x16;
+                            break;
+                        case INTEL_REG_DS:
+                            MachineCode->Code[0] = 0x1E;
+                            break;
+                        case INTEL_REG_FS:
+                            MachineCode->Code[0] = 0xA0;
+                            break;
+                        case INTEL_REG_GS:
+                            MachineCode->Code[0] = 0xA8;
+                            break;
+                    }
+                    MachineCode->Size = 1;
+                    return MachineCode->Size;
+                }
+            }
+        }
+
+        // POP 16 bit register
+        if (StringCompare(Name, TEXT("POP")) == 0) {
+            if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_R) {
+                Register = Instruction->Operand[0].R.Register;
+
+                if ((Register >= INTEL_REG_AX && Register <= INTEL_REG_DI) ||
+                    (Register >= INTEL_REG_ES && Register <= INTEL_REG_GS)) {
+                    switch (Instruction->Operand[0].R.Register) {
+                        case INTEL_REG_AX:
+                            MachineCode->Code[0] = 0x58;
+                            break;
+                        case INTEL_REG_CX:
+                            MachineCode->Code[0] = 0x59;
+                            break;
+                        case INTEL_REG_DX:
+                            MachineCode->Code[0] = 0x5A;
+                            break;
+                        case INTEL_REG_BX:
+                            MachineCode->Code[0] = 0x5B;
+                            break;
+                        case INTEL_REG_SP:
+                            MachineCode->Code[0] = 0x5C;
+                            break;
+                        case INTEL_REG_BP:
+                            MachineCode->Code[0] = 0x5D;
+                            break;
+                        case INTEL_REG_SI:
+                            MachineCode->Code[0] = 0x5E;
+                            break;
+                        case INTEL_REG_DI:
+                            MachineCode->Code[0] = 0x5F;
+                            break;
+                        case INTEL_REG_ES:
+                            MachineCode->Code[0] = 0x07;
+                            break;
+                        case INTEL_REG_CS:
+                            MachineCode->Code[0] = 0x0E;
+                            break;
+                        case INTEL_REG_SS:
+                            MachineCode->Code[0] = 0x17;
+                            break;
+                        case INTEL_REG_DS:
+                            MachineCode->Code[0] = 0x1F;
+                            break;
+                        case INTEL_REG_FS:
+                            MachineCode->Code[0] = 0xA1;
+                            break;
+                        case INTEL_REG_GS:
+                            MachineCode->Code[0] = 0xA9;
+                            break;
+                    }
+                    MachineCode->Size = 1;
+                    return MachineCode->Size;
+                }
+            }
+        }
+
+        // INC 16 bit register
+        if (StringCompare(Name, TEXT("INC")) == 0) {
+            if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_R) {
+                Register = Instruction->Operand[0].R.Register;
+
+                if (Register >= INTEL_REG_AX && Register <= INTEL_REG_DI) {
+                    switch (Instruction->Operand[0].R.Register) {
+                        case INTEL_REG_AX:
+                            MachineCode->Code[0] = 0x40;
+                            break;
+                        case INTEL_REG_CX:
+                            MachineCode->Code[0] = 0x41;
+                            break;
+                        case INTEL_REG_DX:
+                            MachineCode->Code[0] = 0x42;
+                            break;
+                        case INTEL_REG_BX:
+                            MachineCode->Code[0] = 0x43;
+                            break;
+                        case INTEL_REG_SP:
+                            MachineCode->Code[0] = 0x44;
+                            break;
+                        case INTEL_REG_BP:
+                            MachineCode->Code[0] = 0x45;
+                            break;
+                        case INTEL_REG_SI:
+                            MachineCode->Code[0] = 0x46;
+                            break;
+                        case INTEL_REG_DI:
+                            MachineCode->Code[0] = 0x47;
+                            break;
+                    }
+                    MachineCode->Size = 1;
+                    return MachineCode->Size;
+                }
+            }
+        }
+
+        // DEC 16 bit register
+        if (StringCompare(Name, TEXT("DEC")) == 0) {
+            if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_R) {
+                Register = Instruction->Operand[0].R.Register;
+
+                if (Register >= INTEL_REG_AX && Register <= INTEL_REG_DI) {
+                    switch (Instruction->Operand[0].R.Register) {
+                        case INTEL_REG_AX:
+                            MachineCode->Code[0] = 0x48;
+                            break;
+                        case INTEL_REG_CX:
+                            MachineCode->Code[0] = 0x49;
+                            break;
+                        case INTEL_REG_DX:
+                            MachineCode->Code[0] = 0x4A;
+                            break;
+                        case INTEL_REG_BX:
+                            MachineCode->Code[0] = 0x4B;
+                            break;
+                        case INTEL_REG_SP:
+                            MachineCode->Code[0] = 0x4C;
+                            break;
+                        case INTEL_REG_BP:
+                            MachineCode->Code[0] = 0x4D;
+                            break;
+                        case INTEL_REG_SI:
+                            MachineCode->Code[0] = 0x4E;
+                            break;
+                        case INTEL_REG_DI:
+                            MachineCode->Code[0] = 0x4F;
+                            break;
+                    }
+                    MachineCode->Size = 1;
+                    return MachineCode->Size;
+                }
+            }
+        }
+    }
+
+    if (Instruction->NumOperands == 2) {
+        if (StringCompare(Name, TEXT("XCHG")) == 0) {
+            if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_R &&
+                Instruction->Operand[1].Any.Type == INTEL_OPERAND_TYPE_R) {
+                U32 Reg1 = Instruction->Operand[0].R.Register;
+                U32 Reg2 = Instruction->Operand[1].R.Register;
+
+                if (Reg1 == INTEL_REG_AX && Reg2 >= INTEL_REG_CX && Reg2 <= INTEL_REG_DI) {
+                    MachineCode->Code[0] = 0x91 + (Reg2 - INTEL_REG_CX);
+                    MachineCode->Size = 1;
+                    return MachineCode->Size;
+                }
+            }
+        }
+
+        // MOV reg8/reg16, imm
+
+        if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_R &&
+            Instruction->Operand[1].Any.Type == INTEL_OPERAND_TYPE_I32) {
+            U32 Register = Instruction->Operand[0].R.Register - INTEL_REG_AL;
+            U8 Opcode = 0xB0 + Register;
+
+            MCSET(MachineCode, U8, Opcode);
+
+            switch (Instruction->OperandSize) {
+                case I8BIT:
+                    MCSET(MachineCode, U8, Instruction->Operand[1].I32.Value);
+                    break;
+                case I16BIT:
+                    MCSET(MachineCode, U16, Instruction->Operand[1].I32.Value);
+                    break;
+                case I32BIT:
+                    MCSET(MachineCode, U32, Instruction->Operand[1].I32.Value);
+                    break;
+            }
+
+            return MachineCode->Size;
+        }
+
+        // MOV AL/AX, [imm]
+
+        if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_R &&
+            Instruction->Operand[1].Any.Type == INTEL_OPERAND_TYPE_II) {
+            U32 Register = Instruction->Operand[0].R.Register;
+
+            if (Register == INTEL_REG_AL || Register == INTEL_REG_AX || Register == INTEL_REG_EAX) {
+                U8 Opcode = 0;
+
+                if (Register == INTEL_REG_EAX) Register = INTEL_REG_AX;
+
+                if (Register == INTEL_REG_AL) Opcode = 0xA0;
+                if (Register == INTEL_REG_AX) Opcode = 0xA1;
+
+                MCSET(MachineCode, U8, Opcode);
+
+                switch (Instruction->OperandSize) {
+                    case I8BIT:
+                        MCSET(MachineCode, U8, Instruction->Operand[1].II.Value);
+                        break;
+                    case I16BIT:
+                        MCSET(MachineCode, U16, Instruction->Operand[1].II.Value);
+                        break;
+                    case I32BIT:
+                        MCSET(MachineCode, U32, Instruction->Operand[1].II.Value);
+                        break;
+                }
+
+                return MachineCode->Size;
+            }
+        }
+
+        // MOV [imm], AL/AX
+
+        if (Instruction->Operand[0].Any.Type == INTEL_OPERAND_TYPE_II &&
+            Instruction->Operand[1].Any.Type == INTEL_OPERAND_TYPE_R) {
+            U32 Register = Instruction->Operand[1].R.Register;
+
+            if (Register == INTEL_REG_AL || Register == INTEL_REG_AX || Register == INTEL_REG_EAX) {
+                U8 Opcode = 0;
+
+                if (Register == INTEL_REG_EAX) Register = INTEL_REG_AX;
+
+                if (Register == INTEL_REG_AL) Opcode = 0xA2;
+                if (Register == INTEL_REG_AX) Opcode = 0xA3;
+
+                MCSET(MachineCode, U8, Opcode);
+
+                switch (Instruction->OperandSize) {
+                    case I8BIT:
+                        MCSET(MachineCode, U8, Instruction->Operand[0].II.Value);
+                        break;
+                    case I16BIT:
+                        MCSET(MachineCode, U16, Instruction->Operand[0].II.Value);
+                        break;
+                    case I32BIT:
+                        MCSET(MachineCode, U32, Instruction->Operand[0].II.Value);
+                        break;
+                }
+
+                return MachineCode->Size;
+            }
+        }
+    }
+
+    //-------------------------------------
+
+    // Translate the instruction into an opcode prototype
+
+    for (c = 0; c < Instruction->NumOperands; c++) {
+        switch (Instruction->Operand[c].Any.Type) {
+            case INTEL_OPERAND_TYPE_R: {
+                // Select either G or E
+
+                for (d = 0; d < Instruction->NumOperands; d++) {
+                    if (d != c) {
+                        if (ProtoOperand[d][0] == 'E') {
+                            StringConcat(ProtoOperand[c], TEXT("G"));
+                            break;
+                        }
+                        if (ProtoOperand[d][0] == 'G') {
+                            StringConcat(ProtoOperand[c], TEXT("E"));
+                            break;
+                        }
+                    }
+                }
+
+                if (ProtoOperand[c][0] == '\0') {
+                    StringConcat(ProtoOperand[c], TEXT("G"));
+                }
+
+                // Add the type
+                switch (Instruction->OperandSize) {
+                    case I8BIT:
+                        StringConcat(ProtoOperand[c], TEXT("b"));
+                        break;
+                    case I16BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                    case I32BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                }
+            } break;
+
+            case INTEL_OPERAND_TYPE_I32: {
+                // If the instruction is a conditional jump, need to change
+                // the immediate value to a relative displacement
+
+                if (StringCompare(Name, TEXT("JO")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNO")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JB")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNB")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JZ")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNZ")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JBE")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNBE")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JS")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNS")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JP")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNP")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JL")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNL")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JLE")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JNLE")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("JMP")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Jv"));
+                else if (StringCompare(Name, TEXT("CALL")) == 0)
+                    StringConcat(ProtoOperand[c], TEXT("Ap"));
+                else {
+                    StringConcat(ProtoOperand[c], TEXT("I"));
+
+                    // Add the type
+                    switch (Instruction->OperandSize) {
+                        case I8BIT:
+                            StringConcat(ProtoOperand[c], TEXT("b"));
+                            break;
+                        case I16BIT:
+                            StringConcat(ProtoOperand[c], TEXT("v"));
+                            break;
+                        case I32BIT:
+                            StringConcat(ProtoOperand[c], TEXT("v"));
+                            break;
+                    }
+                }
+            } break;
+
+            case INTEL_OPERAND_TYPE_II: {
+                StringConcat(ProtoOperand[c], TEXT("O"));
+
+                // Add the type
+                switch (Instruction->OperandSize) {
+                    case I8BIT:
+                        StringConcat(ProtoOperand[c], TEXT("b"));
+                        break;
+                    case I16BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                    case I32BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                }
+            } break;
+
+            case INTEL_OPERAND_TYPE_BI: {
+                StringConcat(ProtoOperand[c], TEXT("E"));
+
+                // Add the type
+                switch (Instruction->OperandSize) {
+                    case I8BIT:
+                        StringConcat(ProtoOperand[c], TEXT("b"));
+                        break;
+                    case I16BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                    case I32BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                }
+            } break;
+
+            case INTEL_OPERAND_TYPE_BISD: {
+                // First see if we can use a 16 bit BI instead of the SIB byte
+                // Note that the SIB byte is used only with 32 bit instructions
+
+                // Is it a [reg+reg] operand ?
+
+                if (Instruction->Operand[c].BISD.Scale == 1 && Instruction->Operand[c].BISD.Displace == 0) {
+                    StringConcat(ProtoOperand[c], TEXT("E"));
+                } else
+                    // Is it a [reg+imm] / +imm[reg] operand ?
+                    if (Instruction->Operand[c].BISD.Scale == 1 && Instruction->Operand[c].BISD.Index == 0) {
+                        StringConcat(ProtoOperand[c], TEXT("E"));
+                    }
+
+                // Add the type
+                switch (Instruction->OperandSize) {
+                    case I8BIT:
+                        StringConcat(ProtoOperand[c], TEXT("b"));
+                        break;
+                    case I16BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                    case I32BIT:
+                        StringConcat(ProtoOperand[c], TEXT("v"));
+                        break;
+                }
+            } break;
+        }
+    }
+
+    // Search in the opcode table for a match
+
+    for (c = 0; c < 512; c++) {
+        // Point to the current prototype
+        OpTblPtr = Opcode_Table + c;
+
+        if ((StringCompare(OpTblPtr->Name, Prototype.Name) == 0) &&
+            (StringCompare(OpTblPtr->Operand[0], Prototype.Operand[0]) == 0) &&
+            (StringCompare(OpTblPtr->Operand[1], Prototype.Operand[1]) == 0) &&
+            (StringCompare(OpTblPtr->Operand[2], Prototype.Operand[2]) == 0)) {
+            FoundPrototype = 1;
+
+            if (c < 256) {
+                // One byte opcode
+                *MachineCodePtr = c;
+                MachineCodePtr += sizeof(U8);
+                MachineCode->Size += sizeof(U8);
+            } else {
+                // Two byte opcode
+                *MachineCodePtr = 0x0F;
+                MachineCodePtr += sizeof(U8);
+                MachineCode->Size += sizeof(U8);
+
+                *MachineCodePtr = c - 0x0100;
+                MachineCodePtr += sizeof(U8);
+                MachineCode->Size += sizeof(U8);
+            }
+
+            break;
+        }
+    }
+
+    if (FoundPrototype == 0) {
+        /*
+        StringPrintFormat(Temp, "Invalid instruction (%s %s %s %s)", Prototype.Name,
+                Prototype.Operand[0], Prototype.Operand[1], Prototype.Operand[2]);
+        FatalError(Temp);
+        */
+
+        return 0;
+    }
+
+    //-------------------------------------
+
+    // Encode the instruction given the prototype
+
+    for (c = 0; c < Instruction->NumOperands; c++) {
+        switch (Instruction->Operand[c].Any.Type) {
+            case INTEL_OPERAND_TYPE_R: {
+                Register = Instruction->Operand[c].R.Register;
+
+                if (Register >= INTEL_REG_AL && Register <= INTEL_REG_BH) {
+                    Register -= INTEL_REG_8;
+                } else if (Register >= INTEL_REG_AX && Register <= INTEL_REG_DI) {
+                    Register -= INTEL_REG_16;
+                } else if (Register >= INTEL_REG_EAX && Register <= INTEL_REG_EDI) {
+                    Register -= INTEL_REG_32;
+                } else if (Register >= INTEL_REG_MM0 && Register <= INTEL_REG_MM7) {
+                    Register -= INTEL_REG_64;
+                } else if (Register >= INTEL_REG_ES && Register <= INTEL_REG_GS) {
+                    Register -= INTEL_REG_SEG;
+                } else if (Register >= INTEL_REG_CR0 && Register <= INTEL_REG_CR4) {
+                    Register -= INTEL_REG_CRT;
+                }
+
+                // Encode the register value in either the Reg or R_M field
+                if (Prototype.Operand[c][0] == 'G') {
+                    Have_ModR_M = 1;
+                    ModR_M.Bits.Reg = Register;
+                } else if (Prototype.Operand[c][0] == 'E') {
+                    Have_ModR_M = 1;
+                    ModR_M.Bits.Mod = 0x03;
+                    ModR_M.Bits.R_M = Register;
+                }
+            } break;
+
+            case INTEL_OPERAND_TYPE_I32: {
+                Have_Immediate = 1;
+                Immediate = Instruction->Operand[c].I32.Value;
+            } break;
+
+            case INTEL_OPERAND_TYPE_II: {
+                Have_Immediate = 1;
+                Immediate = Instruction->Operand[c].I32.Value;
+            } break;
+
+            case INTEL_OPERAND_TYPE_BI: {
+                U32 Base = Instruction->Operand[c].BI.Base;
+                U32 Index = Instruction->Operand[c].BI.Index;
+
+                Have_ModR_M = 1;
+
+                // Encode the base and index in the ModR/M byte
+                if (Base == INTEL_REG_SI && Index == 0)
+                    ModR_M.Bits.R_M = 0x04;
+                else if (Base == INTEL_REG_DI && Index == 0)
+                    ModR_M.Bits.R_M = 0x05;
+                else if (Base == INTEL_REG_BX && Index == 0)
+                    ModR_M.Bits.R_M = 0x07;
+                else if (Base == INTEL_REG_BX && Index == INTEL_REG_SI)
+                    ModR_M.Bits.R_M = 0x00;
+                else if (Base == INTEL_REG_BX && Index == INTEL_REG_DI)
+                    ModR_M.Bits.R_M = 0x01;
+                else if (Base == INTEL_REG_BP && Index == INTEL_REG_SI)
+                    ModR_M.Bits.R_M = 0x02;
+                else if (Base == INTEL_REG_BP && Index == INTEL_REG_DI)
+                    ModR_M.Bits.R_M = 0x03;
+                else {
+                    return 0;
+                }
+            } break;
+        }
+    }
+
+    //-------------------------------------
+
+    // Record the ModR/M byte if used
+    if (Have_ModR_M) {
+        MachineCode->Offset_ModR_M = MachineCode->Size;
+        MCSET(MachineCode, INTEL_MODR_M, ModR_M);
+    }
+
+    // Record the SIB byte if used
+    if (Have_SIB) {
+        MachineCode->Offset_SIB = MachineCode->Size;
+        MCSET(MachineCode, INTEL_SIB, SIB);
+    }
+
+    // Record the immediate value if used
+    if (Have_Immediate) {
+        MachineCode->Offset_Imm = MachineCode->Size;
+
+        switch (Instruction->OperandSize) {
+            case I8BIT:
+                MCSET(MachineCode, U8, Immediate);
+                break;
+            case I16BIT:
+                MCSET(MachineCode, U16, Immediate);
+                break;
+            case I32BIT:
+                MCSET(MachineCode, U32, Immediate);
+                break;
+        }
+    }
+
+    //-------------------------------------
+
+    return MachineCode->Size;
 }
 
 /*************************************************************************************************/
@@ -1830,10 +1810,9 @@ U32 Intel_StructureToMachineCode
  * @param AddressSize Default address size (I16BIT or I32BIT).
  * @return Always returns 1.
  */
-int SetIntelAttributes (long OperandSize, long AddressSize)
-{
-	Intel_OperandSize = OperandSize;
-	Intel_AddressSize = AddressSize;
+int SetIntelAttributes(long OperandSize, long AddressSize) {
+    IntelOperandSize = OperandSize;
+    IntelAddressSize = AddressSize;
 
-	return 1;
+    return 1;
 }

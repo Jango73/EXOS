@@ -21,6 +21,7 @@
     FAT16
 
 \************************************************************************/
+
 #include "../include/FAT.h"
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
@@ -33,17 +34,18 @@
 U32 FAT16Commands(U32, U32);
 
 DRIVER FAT16Driver = {
-    ID_DRIVER,
-    1,
-    NULL,
-    NULL,
-    DRIVER_TYPE_FILESYSTEM,
-    VER_MAJOR,
-    VER_MINOR,
-    "Jango73",
-    "Microsoft Corporation",
-    "Fat 16 File System",
-    FAT16Commands};
+    .ID = ID_DRIVER,
+    .References = 1,
+    .OwnerProcess = &KernelProcess,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_FILESYSTEM,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "Microsoft Corporation",
+    .Product = "Fat 16 File System",
+    .Command = FAT16Commands};
 
 /***************************************************************************/
 // The file system object allocated when mounting
@@ -74,7 +76,7 @@ typedef struct tag_FATFILE {
 static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
     LPFAT16FILESYSTEM This;
 
-    This = (LPFAT16FILESYSTEM)HeapAlloc(sizeof(FAT16FILESYSTEM));
+    This = (LPFAT16FILESYSTEM)KernelHeapAlloc(sizeof(FAT16FILESYSTEM));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(FAT16FILESYSTEM));
@@ -101,7 +103,7 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
 static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
     LPFATFILE This;
 
-    This = (LPFATFILE)HeapAlloc(sizeof(FATFILE));
+    This = (LPFATFILE)KernelHeapAlloc(sizeof(FATFILE));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(FATFILE));
@@ -180,7 +182,7 @@ BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     FileSystem->PartitionSize = Partition->Size;
     FileSystem->BytesPerCluster = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    FileSystem->IOBuffer = (U8*)HeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
+    FileSystem->IOBuffer = (U8*)KernelHeapAlloc(FileSystem->Master.SectorsPerCluster * SECTOR_SIZE);
 
     //-------------------------------------
     // Compute the start of the FAT
@@ -251,7 +253,6 @@ static BOOL ReadCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
 
 /***************************************************************************/
 
-/*
 static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
                          LPVOID Buffer) {
     IOCONTROL Control;
@@ -293,7 +294,6 @@ static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
 
     return TRUE;
 }
-*/
 
 /***************************************************************************/
 
@@ -611,9 +611,7 @@ static U32 CloseFile(LPFATFILE File) {
       }
     */
 
-    File->Header.ID = ID_NONE;
-
-    HeapFree(File);
+    ReleaseKernelObject(File);
 
     return DF_ERROR_SUCCESS;
 }
@@ -626,7 +624,7 @@ static U32 ReadFile(LPFATFILE File) {
     CLUSTER Cluster;
     U32 OffsetInCluster;
     U32 BytesRemaining;
-    U32 BytesToRead;
+    U32 ByteCount;
     U32 Index;
 
     //-------------------------------------
@@ -646,8 +644,8 @@ static U32 ReadFile(LPFATFILE File) {
 
     RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
     OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
-    BytesRemaining = File->Header.BytesToRead;
-    File->Header.BytesRead = 0;
+    BytesRemaining = File->Header.ByteCount;
+    File->Header.BytesTransferred = 0;
 
     Cluster = File->Location.DataCluster;
 
@@ -666,22 +664,22 @@ static U32 ReadFile(LPFATFILE File) {
             return DF_ERROR_IO;
         }
 
-        BytesToRead = FileSystem->BytesPerCluster - OffsetInCluster;
-        if (BytesToRead > BytesRemaining) BytesToRead = BytesRemaining;
+        ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
+        if (ByteCount > BytesRemaining) ByteCount = BytesRemaining;
 
         //-------------------------------------
         // Copy the data to the user buffer
 
         MemoryCopy(
-            ((U8*)File->Header.Buffer) + File->Header.BytesRead, FileSystem->IOBuffer + OffsetInCluster, BytesToRead);
+            ((U8*)File->Header.Buffer) + File->Header.BytesTransferred, FileSystem->IOBuffer + OffsetInCluster, ByteCount);
 
         //-------------------------------------
         // Update counters
 
         OffsetInCluster = 0;
-        BytesRemaining -= BytesToRead;
-        File->Header.BytesRead += BytesToRead;
-        File->Header.Position += BytesToRead;
+        BytesRemaining -= ByteCount;
+        File->Header.BytesTransferred += ByteCount;
+        File->Header.Position += ByteCount;
 
         //-------------------------------------
         // Check if we read all data
@@ -696,6 +694,203 @@ static U32 ReadFile(LPFATFILE File) {
         if (Cluster == 0 || Cluster >= FAT16_CLUSTER_RESERVED) {
             break;
         }
+    }
+
+    return DF_ERROR_SUCCESS;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Chain a new cluster to extend a file.
+ * @param FileSystem File system handle.
+ * @param Cluster Last cluster to chain to.
+ * @return New cluster number or 0 on failure.
+ */
+static CLUSTER ChainNewCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster) {
+    U16 Buffer[SECTOR_SIZE / sizeof(U16)];
+    IOCONTROL Control;
+    U32 Result;
+    U32 NumEntriesPerSector;
+    U32 CurrentSector;
+    U32 CurrentOffset;
+    U32 CurrentFAT;
+    U32 FATStart;
+    CLUSTER NewCluster;
+
+    NumEntriesPerSector = SECTOR_SIZE / sizeof(U16);
+    CurrentSector = 0;
+    NewCluster = 0;
+    Control.ID = ID_IOCONTROL;
+    Control.Disk = FileSystem->Disk;
+    Control.Buffer = Buffer;
+    Control.BufferSize = SECTOR_SIZE;
+
+    while (1) {
+        Control.SectorLow = FileSystem->FATStart + CurrentSector;
+        Control.SectorHigh = 0;
+        Control.NumSectors = 1;
+
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+
+        if (Result != DF_ERROR_SUCCESS) {
+            return NewCluster;
+        }
+
+        for (CurrentOffset = 0; CurrentOffset < NumEntriesPerSector; CurrentOffset++) {
+            if (Buffer[CurrentOffset] == 0) goto Next;
+        }
+
+        CurrentSector++;
+
+        if (CurrentSector >= FileSystem->Master.SectorsPerFAT) break;
+    }
+
+    return NewCluster;
+
+Next:
+
+    NewCluster = (CurrentSector * NumEntriesPerSector) + CurrentOffset;
+    CurrentSector = Cluster / NumEntriesPerSector;
+    CurrentOffset = Cluster % NumEntriesPerSector;
+
+    FATStart = FileSystem->FATStart;
+
+    for (CurrentFAT = 0; CurrentFAT < FileSystem->Master.NumFATs; CurrentFAT++) {
+        Control.SectorLow = FATStart + CurrentSector;
+        Control.SectorHigh = 0;
+        Control.NumSectors = 1;
+
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+
+        if (Result != DF_ERROR_SUCCESS) {
+            return NewCluster;
+        }
+
+        Buffer[CurrentOffset] = NewCluster;
+
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+
+        if (Result != DF_ERROR_SUCCESS) {
+            return NewCluster;
+        }
+
+        FATStart += FileSystem->Master.SectorsPerFAT;
+    }
+
+    return NewCluster;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Write data to a file.
+ * @param File File handle with write parameters.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
+static U32 WriteFile(LPFATFILE File) {
+    LPFAT16FILESYSTEM FileSystem;
+    CLUSTER RelativeCluster;
+    CLUSTER Cluster;
+    CLUSTER LastValidCluster;
+    U32 OffsetInCluster;
+    U32 BytesRemaining;
+    U32 ByteCount;
+    U32 Index;
+
+    //-------------------------------------
+    // Check validity of parameters
+
+    if (File == NULL) return DF_ERROR_BADPARAM;
+    if (File->Header.ID != ID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.Buffer == NULL) return DF_ERROR_BADPARAM;
+
+    //-------------------------------------
+    // Get the associated file system
+
+    FileSystem = (LPFAT16FILESYSTEM)File->Header.FileSystem;
+
+    //-------------------------------------
+    // Compute the starting cluster and the offset
+
+    RelativeCluster = File->Header.Position / FileSystem->BytesPerCluster;
+    OffsetInCluster = File->Header.Position % FileSystem->BytesPerCluster;
+    ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
+    BytesRemaining = File->Header.ByteCount;
+    File->Header.BytesTransferred = 0;
+
+    Cluster = File->Location.DataCluster;
+    LastValidCluster = Cluster;
+
+    for (Index = 0; Index < RelativeCluster; Index++) {
+        Cluster = GetNextClusterInChain(FileSystem, Cluster);
+
+        if (Cluster == 0 || Cluster >= FAT16_CLUSTER_RESERVED) {
+            Cluster = ChainNewCluster(FileSystem, LastValidCluster);
+
+            if (Cluster == 0 || Cluster >= FAT16_CLUSTER_RESERVED) {
+                return DF_ERROR_FS_NOSPACE;
+            }
+        }
+
+        LastValidCluster = Cluster;
+    }
+
+    while (1) {
+        //-------------------------------------
+        // Read the current data cluster
+
+        if (ReadCluster(FileSystem, Cluster, FileSystem->IOBuffer) == FALSE) {
+            return DF_ERROR_IO;
+        }
+
+        //-------------------------------------
+        // Copy the user buffer
+
+        MemoryCopy(
+            FileSystem->IOBuffer + OffsetInCluster, ((U8*)File->Header.Buffer) + File->Header.BytesTransferred, ByteCount);
+
+        //-------------------------------------
+        // Write the current data cluster
+
+        if (WriteCluster(FileSystem, Cluster, FileSystem->IOBuffer) == FALSE) {
+            return DF_ERROR_IO;
+        }
+
+        ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
+        if (ByteCount > BytesRemaining) ByteCount = BytesRemaining;
+
+        //-------------------------------------
+        // Update counters
+
+        OffsetInCluster = 0;
+        BytesRemaining -= ByteCount;
+        File->Header.BytesTransferred += ByteCount;
+        File->Header.Position += ByteCount;
+
+        //-------------------------------------
+        // Check if we wrote all data
+
+        if (BytesRemaining == 0) break;
+
+        //-------------------------------------
+        // Get the next cluster in the chain
+
+        Cluster = GetNextClusterInChain(FileSystem, Cluster);
+
+        if (Cluster == 0 || Cluster >= FAT16_CLUSTER_RESERVED) {
+            Cluster = ChainNewCluster(FileSystem, LastValidCluster);
+
+            if (Cluster == 0 || Cluster >= FAT16_CLUSTER_RESERVED) {
+                return DF_ERROR_FS_NOSPACE;
+            }
+        }
+
+        LastValidCluster = Cluster;
+    }
+
+    if (File->Header.Position > File->Header.SizeLow) {
+        File->Header.SizeLow = File->Header.Position;
     }
 
     return DF_ERROR_SUCCESS;
@@ -732,10 +927,8 @@ U32 FAT16Commands(U32 Function, U32 Parameter) {
         case DF_FS_READ:
             return (U32)ReadFile((LPFATFILE)Parameter);
         case DF_FS_WRITE:
-            return DF_ERROR_NOTIMPL;
+            return (U32)WriteFile((LPFATFILE)Parameter);
     }
 
     return DF_ERROR_NOTIMPL;
 }
-
-/***************************************************************************/

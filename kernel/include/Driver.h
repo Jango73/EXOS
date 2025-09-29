@@ -21,6 +21,7 @@
     Driver
 
 \************************************************************************/
+
 #ifndef DRIVER_H_INCLUDED
 #define DRIVER_H_INCLUDED
 
@@ -52,33 +53,6 @@
 #define DRIVER_TYPE_GRAPHTABLE 0x00000011
 #define DRIVER_TYPE_DVD 0x00000012
 #define DRIVER_TYPE_OTHER 0xFFFFFFFF
-
-/***************************************************************************/
-// Generic functions
-
-#define DF_LOAD 0x0000
-#define DF_UNLOAD 0x0001
-#define DF_GETVERSION 0x0002
-#define DF_GETCAPS 0x0003
-#define DF_GETLASTFUNC 0x0004
-#define DF_FIRSTFUNC 0x1000
-
-#define DF_PROBE 0x0008 /* in: DEVICE_DESC* ; out: DF_ERROR_SUCCESS if supported */
-#define DF_ATTACH 0x0009
-#define DF_DETACH 0x000A
-
-/***************************************************************************/
-// Error codes common to all drivers
-
-#define DF_ERROR_SUCCESS 0x00000000
-#define DF_ERROR_NOTIMPL 0x00000001
-#define DF_ERROR_BADPARAM 0x00000002
-#define DF_ERROR_NOMEMORY 0x00000003
-#define DF_ERROR_UNEXPECT 0x00000004
-#define DF_ERROR_IO 0x00000005
-#define DF_ERROR_NOPERM 0x00000006
-#define DF_ERROR_FIRST 0x00001000
-#define DF_ERROR_GENERIC 0xFFFFFFFF
 
 /***************************************************************************/
 

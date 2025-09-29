@@ -28,10 +28,17 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "List.h"
 
 /************************************************************************/
 
-#pragma pack(1)
+#pragma pack(push, 1)
+
+/************************************************************************/
+
+#define EXOS_PRIVILEGE_KERNEL 0x0
+#define EXOS_PRIVILEGE_ADMIN 0x1
+#define EXOS_PRIVILEGE_USER 0x2
 
 /************************************************************************/
 
@@ -39,11 +46,11 @@
 
 typedef struct tag_SECURITY {
     LISTNODE_FIELDS
-    U64 Owner;                    // Owner ID (hash)
+    U64 Owner;  // Owner ID (hash)
     U32 UserPermissionCount;
     U32 DefaultPermissions;
     struct {
-        U64 UserHash;             // User ID
+        U64 UserHash;  // User ID
         U32 Permissions;
     } UserPerms[MAX_SPECIFIC_PERMISSIONS];
 } SECURITY, *LPSECURITY;
@@ -55,8 +62,11 @@ typedef struct tag_SECURITY {
 
 // Macro to initialize a security
 
-#define EMPTY_SECURITY {ID_SECURITY, 1, NULL, NULL, 0, 0, PERMISSION_NONE}
+#define EMPTY_SECURITY \
+    { .ID = ID_SECURITY, .References = 1, .Next = NULL, .Prev = NULL, .Owner = 0, .UserPermissionCount = 0, .DefaultPermissions = PERMISSION_NONE }
 
 /************************************************************************/
+
+#pragma pack(pop)
 
 #endif  // SECURITY_H_INCLUDED

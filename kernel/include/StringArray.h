@@ -41,6 +41,7 @@ typedef struct tag_STRINGARRAY {
 BOOL StringArrayInit(LPSTRINGARRAY Array, U32 Capacity);
 void StringArrayDeinit(LPSTRINGARRAY Array);
 BOOL StringArrayAddUnique(LPSTRINGARRAY Array, LPCSTR String);
+BOOL StringArrayMoveToEnd(LPSTRINGARRAY Array, LPCSTR String);
 LPCSTR StringArrayGet(LPSTRINGARRAY Array, U32 Index);
 
 /***************************************************************************/

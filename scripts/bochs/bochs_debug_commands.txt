@@ -9,10 +9,15 @@ ldsym global "kernel/bin/exos.sym"
 # Load payload symbols (bootloader)
 ldsym global "boot-hd/bin/payload.sym"
 
+# Load userland executable symbols
+ldsym global "system/hello/bin/hello.sym"
+
 # Breakpoints
 # lbreak 0xc0000000
 # lbreak "SwitchToNextTask_3"
 # lbreak "JumpToReadyTask"
+# lbreak "__start__"
+# lbreak "_SetupArguments"
 
 # Continue execution - set manual breakpoint if needed
 c

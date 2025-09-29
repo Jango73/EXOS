@@ -22,13 +22,16 @@
 
 \************************************************************************/
 
+#include "../include/ACPI.h"
 #include "../include/Base.h"
+#include "../include/Clock.h"
 #include "../include/Console.h"
 #include "../include/File.h"
 #include "../include/FileSystem.h"
 #include "../include/GFX.h"
-#include "../include/HD.h"
+#include "../include/Disk.h"
 #include "../include/Heap.h"
+#include "../include/Helpers.h"
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
 #include "../include/List.h"
@@ -40,31 +43,35 @@
 #include "../include/StringArray.h"
 #include "../include/System.h"
 #include "../include/User.h"
+#include "../include/UserAccount.h"
+#include "../include/UserSession.h"
 #include "../include/VKey.h"
 
 /***************************************************************************/
 
-#define NUM_BUFFERS 8
+#define SHELL_NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
 #define HISTORY_SIZE 20
 
 /***************************************************************************/
+// The shell context
 
 typedef struct tag_SHELLCONTEXT {
     U32 Component;
     U32 CommandChar;
-    STR CommandLine[BUFFER_SIZE];
+    STR CommandLine[MAX_PATH_NAME];
     STR Command[256];
     STR CurrentFolder[MAX_PATH_NAME];
     LPVOID BufferBase;
     U32 BufferSize;
-    LPSTR Buffer[NUM_BUFFERS];
+    LPSTR Buffer[SHELL_NUM_BUFFERS];
     STRINGARRAY History;
     STRINGARRAY Options;
     PATHCOMPLETION PathCompletion;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
 /***************************************************************************/
+// The shell command functions
 
 typedef void (*SHELLCOMMAND)(LPSHELLCONTEXT);
 
@@ -83,20 +90,31 @@ static void CMD_killtask(LPSHELLCONTEXT);
 static void CMD_showprocess(LPSHELLCONTEXT);
 static void CMD_showtask(LPSHELLCONTEXT);
 static void CMD_memedit(LPSHELLCONTEXT);
+static void CMD_disasm(LPSHELLCONTEXT);
 static void CMD_cat(LPSHELLCONTEXT);
 static void CMD_copy(LPSHELLCONTEXT);
 static void CMD_edit(LPSHELLCONTEXT);
 static void CMD_hd(LPSHELLCONTEXT);
 static void CMD_filesystem(LPSHELLCONTEXT);
-static void CMD_irq(LPSHELLCONTEXT);
+static void CMD_pic(LPSHELLCONTEXT);
 static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
 static void CMD_reboot(LPSHELLCONTEXT);
-static void CMD_test(LPSHELLCONTEXT);
+static void CMD_shutdown(LPSHELLCONTEXT);
+static void CMD_adduser(LPSHELLCONTEXT);
+static void CMD_deluser(LPSHELLCONTEXT);
+static void CMD_login(LPSHELLCONTEXT);
+static void CMD_logout(LPSHELLCONTEXT);
+static void CMD_whoami(LPSHELLCONTEXT);
+static void CMD_passwd(LPSHELLCONTEXT);
 static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
-static void RunConfiguredExecutables(void);
+static BOOL QualifyCommandLine(LPSHELLCONTEXT, LPCSTR, LPSTR);
+static void ExecuteStartupCommands(void);
+static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine);
+static BOOL SpawnExecutable(LPSHELLCONTEXT, LPCSTR, BOOL);
 
 /***************************************************************************/
+// The shell command table
 
 static struct {
     STR Name[32];
@@ -109,23 +127,30 @@ static struct {
     {"ls", "dir", "[Name] [-p] [-r]", CMD_dir},
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
-    {"run", "launch", "Name", CMD_run},
+    {"run", "launch", "Name [-b|--background]", CMD_run},
     {"quit", "exit", "", CMD_exit},
     {"sys", "sysinfo", "", CMD_sysinfo},
     {"kill", "killtask", "Number", CMD_killtask},
     {"process", "showprocess", "Number", CMD_showprocess},
     {"task", "showtask", "Number", CMD_showtask},
     {"mem", "memedit", "Address", CMD_memedit},
+    {"dis", "disasm", "Address InstructionCount", CMD_disasm},
     {"cat", "type", "", CMD_cat},
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
     {"fs", "filesystem", "", CMD_filesystem},
-    {"irq", "irq", "", CMD_irq},
+    {"pic", "pic", "", CMD_pic},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
     {"reboot", "reboot", "", CMD_reboot},
-    {"test", "test", "", CMD_test},
+    {"shutdown", "poweroff", "", CMD_shutdown},
+    {"adduser", "newuser", "username", CMD_adduser},
+    {"deluser", "deleteuser", "username", CMD_deluser},
+    {"login", "login", "", CMD_login},
+    {"logout", "logout", "", CMD_logout},
+    {"whoami", "who", "", CMD_whoami},
+    {"passwd", "setpassword", "", CMD_passwd},
     {"", "", "", NULL},
 };
 
@@ -136,16 +161,16 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 
     MemorySet(This, 0, sizeof(SHELLCONTEXT));
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitShellContext] Enter"));
+    DEBUG(TEXT("[InitShellContext] Enter"));
 
     This->Component = 0;
     This->CommandChar = 0;
 
     StringArrayInit(&This->History, HISTORY_SIZE);
     StringArrayInit(&This->Options, 8);
-    PathCompletionInit(&This->PathCompletion, Kernel.SystemFS);
+    PathCompletionInit(&This->PathCompletion, GetSystemFS());
 
-    for (Index = 0; Index < NUM_BUFFERS; Index++) {
+    for (Index = 0; Index < SHELL_NUM_BUFFERS; Index++) {
         This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
     }
 
@@ -154,7 +179,7 @@ static void InitShellContext(LPSHELLCONTEXT This) {
         StringCopy(This->CurrentFolder, Root);
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitShellContext] Exit"));
+    DEBUG(TEXT("[InitShellContext] Exit"));
 }
 
 /***************************************************************************/
@@ -162,9 +187,9 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 static void DeinitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Enter"));
+    DEBUG(TEXT("[DeinitShellContext] Enter"));
 
-    for (Index = 0; Index < NUM_BUFFERS; Index++) {
+    for (Index = 0; Index < SHELL_NUM_BUFFERS; Index++) {
         if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
     }
 
@@ -172,7 +197,7 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
     StringArrayDeinit(&This->Options);
     PathCompletionDeinit(&This->PathCompletion);
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeinitShellContext] Exit"));
+    DEBUG(TEXT("[DeinitShellContext] Exit"));
 }
 
 /***************************************************************************/
@@ -192,11 +217,11 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
     U32 Index = 0;
 
     if (This->BufferBase) {
-        for (Index = 1; Index < NUM_BUFFERS; Index++) {
+        for (Index = 1; Index < SHELL_NUM_BUFFERS; Index++) {
             MemoryCopy(This->Buffer[Index - 1], This->Buffer[Index],
                        BUFFER_SIZE);
         }
-        MemoryCopy(This->Buffer[NUM_BUFFERS - 1], This->CommandLine,
+        MemoryCopy(This->Buffer[SHELL_NUM_BUFFERS - 1], This->CommandLine,
                    BUFFER_SIZE);
     }
 }
@@ -211,7 +236,7 @@ static BOOL ShowPrompt(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
+static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
     U32 Quotes = 0;
     U32 d = 0;
 
@@ -244,7 +269,7 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
 
         Context->CommandChar++;
         d++;
-        
+
         // Prevent buffer overflow
         if (d >= 255) {
             break;
@@ -260,7 +285,7 @@ static BOOL ParseNextComponent(LPSHELLCONTEXT Context) {
         if (Context->Command[Offset] != STR_NULL) {
             StringArrayAddUnique(&Context->Options, Context->Command + Offset);
         }
-        return ParseNextComponent(Context);
+        return ParseNextCommandLineComponent(Context);
     }
 
     return TRUE;
@@ -281,12 +306,12 @@ static BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName)
 
 /***************************************************************************/
 
-static void ReadCommandLine(LPSHELLCONTEXT Context) {
+static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
     KEYCODE KeyCode;
     U32 Index = 0;
     U32 HistoryPos = Context->History.Count;
 
-    KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Enter"));
+    DEBUG(TEXT("[ReadCommandLine] Enter"));
 
     Context->CommandLine[0] = STR_NULL;
 
@@ -309,7 +334,9 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
             } else if (KeyCode.VirtualKey == VK_ENTER) {
                 ConsolePrintChar(STR_NEWLINE);
                 Context->CommandLine[Index] = STR_NULL;
-                KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] ENTER pressed, final buffer: '%s', length=%d"), Context->CommandLine, Index);
+                DEBUG(
+                    TEXT("[ReadCommandLine] ENTER pressed, final buffer: '%s', length=%d"), Context->CommandLine,
+                    Index);
                 return;
             } else if (KeyCode.VirtualKey == VK_UP) {
                 if (HistoryPos > 0) {
@@ -345,20 +372,26 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                     STR Temp[MAX_PATH_NAME];
                     U32 Start = Index;
 
+                    // Find start of current token
                     while (Start && Context->CommandLine[Start - 1] != STR_SPACE) {
                         Start--;
                     }
 
+                    // Extract token to complete
                     StringCopyNum(Token, Context->CommandLine + Start, Index - Start);
                     Token[Index - Start] = STR_NULL;
 
+                    // Apply completion rules:
                     if (Token[0] == PATH_SEP) {
+                        // Absolute path
                         StringCopy(Full, Token);
                     } else {
+                        // Relative path
                         QualifyFileName(Context, Token, Full);
                     }
 
                     if (PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
+                        // Determine display format
                         if (Token[0] == PATH_SEP) {
                             StringCopy(Display, Completed);
                         } else {
@@ -374,6 +407,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                             }
                         }
 
+                        // Replace token
                         while (Index > Start) {
                             Index--;
                             ConsoleBackSpace();
@@ -386,7 +420,11 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
                 }
             } else if (KeyCode.ASCIICode >= STR_SPACE) {
                 if (Index < BUFFER_SIZE - 1) {
-                    ConsolePrintChar(KeyCode.ASCIICode);
+                    if (MaskCharacters) {
+                        ConsolePrintChar('*');
+                    } else {
+                        ConsolePrintChar(KeyCode.ASCIICode);
+                    }
                     Context->CommandLine[Index++] = KeyCode.ASCIICode;
                     Context->CommandLine[Index] = STR_NULL;
                     // Test: no KernelLogText calls at all during character processing
@@ -397,7 +435,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context) {
         Sleep(10);
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[ReadCommandLine] Exit"));
+    DEBUG(TEXT("[ReadCommandLine] Exit"));
 }
 
 /***************************************************************************/
@@ -415,7 +453,7 @@ static BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileNa
     } else {
         StringCopy(Temp, Context->CurrentFolder);
         if (Temp[StringLength(Temp) - 1] != PATH_SEP) StringConcat(Temp, Sep);
-        StringConcat(Temp, (LPCSTR)RawName);
+        StringConcat(Temp, TEXT(RawName));
     }
 
     FileName[0] = PATH_SEP;
@@ -456,11 +494,74 @@ static BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileNa
 
 /***************************************************************************/
 
+static BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LPSTR QualifiedCommandLine) {
+    U32 Quotes = 0;
+    U32 s = 0;  // source index
+    U32 d = 0;  // destination index
+    STR ExecutableName[MAX_PATH_NAME];
+    STR QualifiedPath[MAX_PATH_NAME];
+    U32 e = 0;  // executable name index
+    BOOL InExecutableName = TRUE;
+
+    QualifiedCommandLine[0] = STR_NULL;
+
+    // Skip leading spaces
+    while (RawCommandLine[s] != STR_NULL && RawCommandLine[s] <= STR_SPACE) {
+        s++;
+    }
+
+    if (RawCommandLine[s] == STR_NULL) return FALSE;
+
+    // Parse the executable name (first word, handling quotes)
+    while (RawCommandLine[s] != STR_NULL && InExecutableName) {
+        if (RawCommandLine[s] == STR_QUOTE) {
+            if (Quotes == 0) {
+                Quotes = 1;
+            } else {
+                Quotes = 0;
+                InExecutableName = FALSE;
+            }
+        } else if (RawCommandLine[s] <= STR_SPACE && Quotes == 0) {
+            InExecutableName = FALSE;
+        } else {
+            if (e < MAX_PATH_NAME - 1) {
+                ExecutableName[e++] = RawCommandLine[s];
+            }
+        }
+        if (InExecutableName || RawCommandLine[s] == STR_QUOTE) {
+            s++;
+        }
+    }
+    ExecutableName[e] = STR_NULL;
+
+    // Qualify the executable name
+    if (!QualifyFileName(Context, ExecutableName, QualifiedPath)) {
+        return FALSE;
+    }
+
+    // Build the qualified command line
+    StringCopy(QualifiedCommandLine, QualifiedPath);
+    d = StringLength(QualifiedCommandLine);
+
+    // Copy the rest of the command line (arguments)
+    if (RawCommandLine[s] != STR_NULL) {
+        QualifiedCommandLine[d++] = STR_SPACE;
+        while (RawCommandLine[s] != STR_NULL && d < MAX_PATH_NAME - 1) {
+            QualifiedCommandLine[d++] = RawCommandLine[s++];
+        }
+    }
+    QualifiedCommandLine[d] = STR_NULL;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 static void ChangeFolder(LPSHELLCONTEXT Context) {
     FS_PATHCHECK Control;
     STR NewPath[MAX_PATH_NAME];
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
         ConsolePrint(TEXT("Missing argument\n"));
@@ -472,7 +573,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
     Control.CurrentFolder[0] = STR_NULL;
     StringCopy(Control.SubFolder, NewPath);
 
-    if (Kernel.SystemFS->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
+    if (GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
         StringCopy(Context->CurrentFolder, NewPath);
     } else {
         ConsolePrint(TEXT("Unknown folder : %s\n"), NewPath);
@@ -486,14 +587,14 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
     FILEINFO FileInfo;
     STR FileName[MAX_PATH_NAME];
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
         ConsolePrint(TEXT("Missing argument\n"));
         return;
     }
 
-    FileSystem = Kernel.SystemFS;
+    FileSystem = GetSystemFS();
     if (FileSystem == NULL) return;
 
     if (QualifyFileName(Context, Context->Command, FileName)) {
@@ -513,11 +614,15 @@ static void ListFile(LPFILE File, U32 Indent) {
     U32 Length;
     U32 Index;
 
+    DEBUG(TEXT("[ListFile] Processing file: %s"), File->Name);
+
     //-------------------------------------
     // Eliminate the . and .. files
 
     if (StringCompare(File->Name, TEXT(".")) == 0) return;
     if (StringCompare(File->Name, TEXT("..")) == 0) return;
+
+    DEBUG(TEXT("[ListFile] Displaying file: %s"), File->Name);
 
     StringCopy(Name, File->Name);
 
@@ -581,7 +686,7 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     STR Sep[2] = {PATH_SEP, STR_NULL};
 
     UNUSED(Context);
-    FileSystem = Kernel.SystemFS;
+    FileSystem = GetSystemFS();
 
     Find.Size = sizeof(FILEINFO);
     Find.FileSystem = FileSystem;
@@ -606,6 +711,7 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     }
 
     do {
+        DEBUG(TEXT("[ListDirectory] Found file: %s"), File->Name);
         ListFile(File, Indent);
         if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
             if (StringCompare(File->Name, TEXT(".")) != 0 && StringCompare(File->Name, TEXT("..")) != 0) {
@@ -651,8 +757,8 @@ static void CMD_cls(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static void CMD_dir(LPSHELLCONTEXT Context) {
-    KernelLogText(LOG_DEBUG, TEXT("[CMD_dir] Enter"));
-    
+    DEBUG(TEXT("[CMD_dir] Enter"));
+
     STR Target[MAX_PATH_NAME];
     STR Base[MAX_PATH_NAME];
     LPFILESYSTEM FileSystem = NULL;
@@ -663,21 +769,21 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     Target[0] = STR_NULL;
 
     // Parse all command line components (including options) first
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     if (StringLength(Context->Command)) {
         QualifyFileName(Context, Context->Command, Target);
     }
-    
+
     // Continue parsing any remaining components to capture all options
     while (Context->CommandLine[Context->CommandChar] != STR_NULL) {
-        ParseNextComponent(Context);
+        ParseNextCommandLineComponent(Context);
     }
 
     // Now check for options after all parsing is complete
     Pause = HasOption(Context, TEXT("p"), TEXT("pause"));
     Recurse = HasOption(Context, TEXT("r"), TEXT("recursive"));
 
-    FileSystem = Kernel.SystemFS;
+    FileSystem = GetSystemFS();
 
     if (FileSystem == NULL || FileSystem->Driver == NULL) {
         ConsolePrint(TEXT("No file system mounted !\n"));
@@ -692,7 +798,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
 
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
 
-    KernelLogText(LOG_DEBUG, TEXT("[CMD_dir] Exit"));
+    DEBUG(TEXT("[CMD_dir] Exit"));
 }
 
 /***************************************************************************/
@@ -711,14 +817,13 @@ static void CMD_md(LPSHELLCONTEXT Context) { MakeFolder(Context); }
  * @param Context Shell context containing parsed arguments.
  */
 static void CMD_run(LPSHELLCONTEXT Context) {
-    STR FileName[MAX_PATH_NAME];
+    BOOL Background = FALSE;
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command)) {
-        if (QualifyFileName(Context, Context->Command, FileName)) {
-            Spawn(FileName, NULL);
-        }
+        Background = HasOption(Context, TEXT("-b"), TEXT("--background"));
+        SpawnExecutable(Context, Context->Command, Background);
     }
 }
 
@@ -750,7 +855,6 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("Minimum linear address    : %x\n"), Info.MinimumLinearAddress);
     ConsolePrint(TEXT("Maximum linear address    : %x\n"), Info.MaximumLinearAddress);
     ConsolePrint(TEXT("User name                 : %s\n"), Info.UserName);
-    ConsolePrint(TEXT("Company name              : %s\n"), Info.CompanyName);
     ConsolePrint(TEXT("Number of processes       : %d\n"), Info.NumProcesses);
     ConsolePrint(TEXT("Number of tasks           : %d\n"), Info.NumTasks);
     ConsolePrint(TEXT("Keyboard layout           : %s\n"), Info.KeyboardLayout);
@@ -761,7 +865,7 @@ static void CMD_sysinfo(LPSHELLCONTEXT Context) {
 static void CMD_killtask(LPSHELLCONTEXT Context) {
     U32 TaskNum = 0;
     LPTASK Task = NULL;
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     TaskNum = StringToU32(Context->Command);
     Task = (LPTASK)ListGetItem(Kernel.Task, TaskNum);
     if (Task) KillTask(Task);
@@ -771,7 +875,7 @@ static void CMD_killtask(LPSHELLCONTEXT Context) {
 
 static void CMD_showprocess(LPSHELLCONTEXT Context) {
     LPPROCESS Process;
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     Process = ListGetItem(Kernel.Process, StringToU32(Context->Command));
     if (Process) DumpProcess(Process);
 }
@@ -780,7 +884,7 @@ static void CMD_showprocess(LPSHELLCONTEXT Context) {
 
 static void CMD_showtask(LPSHELLCONTEXT Context) {
     LPTASK Task;
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     Task = ListGetItem(Kernel.Task, StringToU32(Context->Command));
 
     if (Task) {
@@ -788,7 +892,7 @@ static void CMD_showtask(LPSHELLCONTEXT Context) {
     } else {
         STR Text[MAX_FILE_NAME];
 
-        for (LPTASK Task = Kernel.Task->First; Task != NULL; Task = Task->Next) {
+        for (LPTASK Task = (LPTASK)Kernel.Task->First; Task != NULL; Task = (LPTASK)Task->Next) {
             StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, Task->Status);
             ConsolePrint(Text);
         }
@@ -798,8 +902,35 @@ static void CMD_showtask(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static void CMD_memedit(LPSHELLCONTEXT Context) {
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     MemoryEditor(StringToU32(Context->Command));
+}
+
+/***************************************************************************/
+
+static void CMD_disasm(LPSHELLCONTEXT Context) {
+    DEBUG(TEXT("[CMD_disasm] Enter"));
+
+    U32 Address = 0;
+    U32 InstrCount = 0;
+    STR Buffer[MAX_STRING_BUFFER];
+
+    ParseNextCommandLineComponent(Context);
+    Address = StringToU32(Context->Command);
+
+    ParseNextCommandLineComponent(Context);
+    InstrCount = StringToU32(Context->Command);
+
+    if (Address != 0 && InstrCount > 0) {
+        MemorySet(Buffer, 0, MAX_STRING_BUFFER);
+
+        Disassemble(Buffer, Address, InstrCount);
+        ConsolePrint(Buffer);
+    } else {
+        ConsolePrint(TEXT("Missing parameter\n"));
+    }
+
+    DEBUG(TEXT("[CMD_disasm] Exit"));
 }
 
 /***************************************************************************/
@@ -812,7 +943,7 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
     U32 FileSize;
     U8* Buffer;
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
@@ -863,13 +994,13 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
     HANDLE SrcFile;
     HANDLE DstFile;
     U32 FileSize;
-    U32 BytesToRead;
+    U32 ByteCount;
     U32 Index;
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     if (QualifyFileName(Context, Context->Command, SrcName) == 0) return;
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     if (QualifyFileName(Context, Context->Command, DstName) == 0) return;
 
     ConsolePrint(TEXT("%s %s\n"), SrcName, DstName);
@@ -897,26 +1028,26 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
 
     if (FileSize != 0) {
         for (Index = 0; Index < FileSize; Index += 1024) {
-            BytesToRead = 1024;
-            if (Index + 1024 > FileSize) BytesToRead = FileSize - Index;
+            ByteCount = 1024;
+            if (Index + 1024 > FileSize) ByteCount = FileSize - Index;
 
             FileOperation.Header.Size = sizeof(FILEOPERATION);
             FileOperation.Header.Version = EXOS_ABI_VERSION;
             FileOperation.Header.Flags = 0;
             FileOperation.File = SrcFile;
-            FileOperation.NumBytes = BytesToRead;
+            FileOperation.NumBytes = ByteCount;
             FileOperation.Buffer = Buffer;
 
-            if (ReadFile(&FileOperation) != BytesToRead) break;
+            if (ReadFile(&FileOperation) != ByteCount) break;
 
             FileOperation.Header.Size = sizeof(FILEOPERATION);
             FileOperation.Header.Version = EXOS_ABI_VERSION;
             FileOperation.Header.Flags = 0;
             FileOperation.File = DstFile;
-            FileOperation.NumBytes = BytesToRead;
+            FileOperation.NumBytes = ByteCount;
             FileOperation.Buffer = Buffer;
 
-            if (WriteFile(&FileOperation) != BytesToRead) break;
+            if (WriteFile(&FileOperation) != ByteCount) break;
         }
     }
 
@@ -932,7 +1063,7 @@ static void CMD_edit(LPSHELLCONTEXT Context) {
     LPSTR Arguments[2];
     STR FileName[MAX_PATH_NAME];
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
@@ -988,7 +1119,7 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static void CMD_irq(LPSHELLCONTEXT Context) {
+static void CMD_pic(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
     ConsolePrint(TEXT("8259-1 RM mask : %08b\n"), KernelStartup.IRQMask_21_RM);
@@ -1001,9 +1132,9 @@ static void CMD_irq(LPSHELLCONTEXT Context) {
 
 static void CMD_outp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     Port = StringToU32(Context->Command);
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     Data = StringToU32(Context->Command);
     OutPortByte(Port, Data);
 }
@@ -1012,7 +1143,7 @@ static void CMD_outp(LPSHELLCONTEXT Context) {
 
 static void CMD_inp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
     Port = StringToU32(Context->Command);
     Data = InPortByte(Port);
     ConsolePrint(TEXT("Port %X = %X\n"), Port, Data);
@@ -1026,29 +1157,322 @@ static void CMD_reboot(LPSHELLCONTEXT Context) {
     Reboot();
 }
 
+/************************************************************************/
+
+/**
+ * @brief Shutdown command implementation.
+ * @param Context Shell context.
+ */
+static void CMD_shutdown(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
+    DEBUG(TEXT("[CMD_shutdown] Shutting down system"));
+    ConsolePrint(TEXT("Shutting down system...\n"));
+
+    ACPIShutdown();
+}
+
 /***************************************************************************/
 
-static void CMD_test(LPSHELLCONTEXT Context) {
+static void CMD_adduser(LPSHELLCONTEXT Context) {
+    STR UserName[MAX_USER_NAME];
+    STR Password[MAX_USER_NAME];
+    STR PrivilegeStr[16];
+    U32 Privilege = EXOS_PRIVILEGE_ADMIN;  // Default to admin for first user
+
+    DEBUG(TEXT("[CMD_adduser] Enter"));
+
+    ParseNextCommandLineComponent(Context);
+    if (StringLength(Context->Command) > 0) {
+        StringCopy(UserName, Context->Command);
+        DEBUG(TEXT("[CMD_adduser] Username from command: %s"), UserName);
+    } else {
+        ConsolePrint(TEXT("Enter username: "));
+        ConsoleGetString(UserName, MAX_USER_NAME - 1);
+        DEBUG(TEXT("[CMD_adduser] Username from input: %s"), UserName);
+        if (StringLength(UserName) == 0) {
+            ConsolePrint(TEXT("ERROR: Username cannot be empty\n"));
+            return;
+        }
+    }
+
+    ConsolePrint(TEXT("Password: "));
+    ReadCommandLine(Context, TRUE);
+    StringCopy(Password, Context->CommandLine);
+
+    DEBUG(TEXT("[CMD_adduser] Password entered (length: %d)"), StringLength(Password));
+
+    // Check if this is the first user (no users exist yet)
+    BOOL IsFirstUser = (Kernel.UserAccount == NULL || Kernel.UserAccount->First == NULL);
+    if (IsFirstUser) {
+        ConsolePrint(TEXT("Creating first admin user...\n"));
+        Privilege = EXOS_PRIVILEGE_ADMIN;
+    } else {
+        ConsolePrint(TEXT("Admin user? (y/n): "));
+        ConsoleGetString(PrivilegeStr, 15);
+
+        if (StringCompareNC(PrivilegeStr, TEXT("y")) == 0 || StringCompareNC(PrivilegeStr, TEXT("yes")) == 0) {
+            Privilege = EXOS_PRIVILEGE_ADMIN;
+        } else {
+            Privilege = EXOS_PRIVILEGE_USER;
+        }
+    }
+
+    DEBUG(TEXT("[CMD_adduser] Creating user with privilege %d"), Privilege);
+
+    LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
+    if (Account != NULL) {
+        ConsolePrint(
+            TEXT("SUCCESS: User '%s' created successfully as %s\n"), UserName,
+            Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("admin") : TEXT("user"));
+
+        DEBUG(TEXT("[CMD_adduser] Saving database"));
+        if (SaveUserDatabase()) {
+            DEBUG(TEXT("[CMD_adduser] Database saved successfully"));
+        } else {
+            DEBUG(TEXT("[CMD_adduser] Failed to save database"));
+            ConsolePrint(TEXT("WARNING: User created but database save failed\n"));
+        }
+    } else {
+        ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
+        DEBUG(TEXT("[CMD_adduser] CreateUserAccount returned NULL"));
+    }
+
+    DEBUG(TEXT("[CMD_adduser] Exit"));
+}
+
+/***************************************************************************/
+
+static void CMD_deluser(LPSHELLCONTEXT Context) {
+    STR UserName[MAX_USER_NAME];
+
+    ParseNextCommandLineComponent(Context);
+    if (StringLength(Context->Command) > 0) {
+        StringCopy(UserName, Context->Command);
+    } else {
+        ConsolePrint(TEXT("Username to delete: "));
+        ConsoleGetString(UserName, MAX_USER_NAME - 1);
+        if (StringLength(UserName) == 0) {
+            ConsolePrint(TEXT("Username cannot be empty\n"));
+            return;
+        }
+    }
+
+    LPUSERSESSION Session = GetCurrentSession();
+    if (Session != NULL) {
+        LPUSERACCOUNT CurrentAccount = FindUserAccountByID(Session->UserID);
+        if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
+            ConsolePrint(TEXT("Only admin users can delete accounts\n"));
+            return;
+        }
+    }
+
+    if (DeleteUserAccount(UserName)) {
+        ConsolePrint(TEXT("User '%s' deleted successfully\n"), UserName);
+        SaveUserDatabase();
+    } else {
+        ConsolePrint(TEXT("Failed to delete user '%s'\n"), UserName);
+    }
+}
+
+/***************************************************************************/
+
+static void CMD_login(LPSHELLCONTEXT Context) {
+    STR UserName[MAX_USER_NAME];
+    STR Password[MAX_USER_NAME];
+
+    DEBUG(TEXT("[CMD_login] Enter"));
+
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) > 0) {
+        StringCopy(UserName, Context->Command);
+        DEBUG(TEXT("[CMD_login] Username from command: %s"), UserName);
+    } else {
+        ConsolePrint(TEXT("Username: "));
+        ConsoleGetString(UserName, MAX_USER_NAME - 1);
+
+        DEBUG(TEXT("[CMD_login] Username from input: %s"), UserName);
+
+        if (StringLength(UserName) == 0) {
+            ConsolePrint(TEXT("ERROR: Username cannot be empty\n"));
+            DEBUG(TEXT("[CMD_login] Empty username entered"));
+            return;
+        }
+    }
+
+    ConsolePrint(TEXT("Password: "));
+    ReadCommandLine(Context, TRUE);
+    StringCopy(Password, Context->CommandLine);
+    DEBUG(TEXT("[CMD_login] Password entered (length: %d)"), StringLength(Password));
+
+    DEBUG(TEXT("[CMD_login] Looking for user '%s'"), UserName);
+    LPUSERACCOUNT Account = FindUserAccount(UserName);
+    if (Account == NULL) {
+        ConsolePrint(TEXT("ERROR: User '%s' not found\n"), UserName);
+        DEBUG(TEXT("[CMD_login] User not found"));
+        return;
+    }
+
+    DEBUG(TEXT("[CMD_login] User found, verifying password"));
+    if (!VerifyPassword(Password, Account->PasswordHash)) {
+        ConsolePrint(TEXT("ERROR: Invalid password\n"));
+        DEBUG(TEXT("[CMD_login] Password verification failed"));
+        return;
+    }
+
+    DEBUG(TEXT("[CMD_login] Password verified, creating session"));
+    LPUSERSESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
+    if (Session == NULL) {
+        ConsolePrint(TEXT("ERROR: Failed to create session\n"));
+        DEBUG(TEXT("[CMD_login] Session creation failed"));
+        return;
+    }
+
+    DEBUG(TEXT("[CMD_login] Session created, updating login time"));
+    GetLocalTime(&Account->LastLoginTime);
+
+    DEBUG(TEXT("[CMD_login] Setting current session"));
+    if (SetCurrentSession(Session)) {
+        DEBUG(TEXT("[CMD_login] Session set successfully"));
+    } else {
+        ConsolePrint(TEXT("ERROR: Failed to set session\n"));
+        DEBUG(TEXT("[CMD_login] Failed to set current session"));
+        DestroyUserSession(Session);
+    }
+
+    DEBUG(TEXT("[CMD_login] Exit"));
+}
+
+/***************************************************************************/
+
+static void CMD_logout(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    /*
-    TASKINFO TaskInfo;
+    LPUSERSESSION Session = GetCurrentSession();
+    if (Session == NULL) {
+        ConsolePrint(TEXT("No active session\n"));
+        return;
+    }
 
+    DestroyUserSession(Session);
+    SetCurrentSession(NULL);
+    ConsolePrint(TEXT("Logged out successfully\n"));
+}
+
+/***************************************************************************/
+
+static void CMD_whoami(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    KernelLogText(LOG_DEBUG, TEXT("[Shell] Creating test task : ClockTestTask"));
+    LPUSERSESSION Session = GetCurrentSession();
+    if (Session == NULL) {
+        ConsolePrint(TEXT("No active session\n"));
+        return;
+    }
 
-    TaskInfo.Header.Size = sizeof(TASKINFO);
-    TaskInfo.Header.Version = EXOS_ABI_VERSION;
-    TaskInfo.Header.Flags = 0;
-    TaskInfo.Func = ClockTestTask;
-    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
-    TaskInfo.Priority = TASK_PRIORITY_LOWEST;
-    TaskInfo.Flags = 0;
+    LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
+    if (Account == NULL) {
+        ConsolePrint(TEXT("Session user not found\n"));
+        return;
+    }
 
-    TaskInfo.Parameter = (LPVOID)(((U32)70 << 16) | 0);
-    CreateTask(&KernelProcess, &TaskInfo);
-    */
+    ConsolePrint(TEXT("Current user: %s\n"), Account->UserName);
+    ConsolePrint(TEXT("Privilege: %s\n"), Account->Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("Admin") : TEXT("User"));
+    ConsolePrint(
+        TEXT("Login time: %d/%d/%d %d:%d:%d\n"), Session->LoginTime.Day, Session->LoginTime.Month,
+        Session->LoginTime.Year, Session->LoginTime.Hour, Session->LoginTime.Minute, Session->LoginTime.Second);
+    ConsolePrint(TEXT("Session ID: %lld\n"), Session->SessionID);
+}
+
+/***************************************************************************/
+
+static void CMD_passwd(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+    STR OldPassword[MAX_PASSWORD];
+    STR NewPassword[MAX_PASSWORD];
+    STR ConfirmPassword[MAX_PASSWORD];
+
+    LPUSERSESSION Session = GetCurrentSession();
+    if (Session == NULL) {
+        ConsolePrint(TEXT("No active session\n"));
+        return;
+    }
+
+    LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
+    if (Account == NULL) {
+        ConsolePrint(TEXT("Session user not found\n"));
+        return;
+    }
+
+    ConsolePrint(TEXT("Password: "));
+    ReadCommandLine(Context, TRUE);
+    StringCopy(OldPassword, Context->CommandLine);
+
+    if (!VerifyPassword(OldPassword, Account->PasswordHash)) {
+        ConsolePrint(TEXT("Invalid current password\n"));
+        return;
+    }
+
+    ConsolePrint(TEXT("New password: "));
+    ReadCommandLine(Context, TRUE);
+    StringCopy(NewPassword, Context->CommandLine);
+
+    ConsolePrint(TEXT("Confirm password: "));
+    ReadCommandLine(Context, TRUE);
+    StringCopy(ConfirmPassword, Context->CommandLine);
+
+    if (StringCompare(NewPassword, ConfirmPassword) != 0) {
+        ConsolePrint(TEXT("Passwords do not match\n"));
+        return;
+    }
+
+    if (ChangeUserPassword(Account->UserName, OldPassword, NewPassword)) {
+        ConsolePrint(TEXT("Password changed successfully\n"));
+        SaveUserDatabase();
+    } else {
+        ConsolePrint(TEXT("Failed to change password\n"));
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Common function to spawn an executable.
+ *
+ * @param Context Shell context.
+ * @param CommandName Name of the command/executable to spawn.
+ * @param Background TRUE to run in background, FALSE for foreground.
+ */
+static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Background) {
+    STR QualifiedCommandLine[MAX_PATH_NAME];
+
+    if (QualifyCommandLine(Context, CommandName, QualifiedCommandLine)) {
+        if (Background) {
+            PROCESSINFO ProcessInfo;
+
+            MemorySet(&ProcessInfo, 0, sizeof(ProcessInfo));
+
+            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+            ProcessInfo.Header.Flags = 0;
+            ProcessInfo.Flags = 0;
+            StringCopy(ProcessInfo.CommandLine, QualifiedCommandLine);
+            ProcessInfo.StdOut = NULL;
+            ProcessInfo.StdIn = NULL;
+            ProcessInfo.StdErr = NULL;
+            ProcessInfo.Process = NULL;
+            ProcessInfo.Task = NULL;
+
+            if (CreateProcess(&ProcessInfo)) {
+                DEBUG(TEXT("Process started in background"));
+            }
+        } else {
+            return Spawn(QualifiedCommandLine);
+        }
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -1056,88 +1480,68 @@ static void CMD_test(LPSHELLCONTEXT Context) {
 /**
  * @brief Launch executables listed in the kernel configuration.
  *
- * Each [[Run]] item of exos.toml is checked and the executable is spawned
- * if present on disk.
+ * Each [[Run]] item of exos.toml is checked and the command is executed
+ * using the same pipeline as interactive shell commands.
  */
-static void RunConfiguredExecutables(void) {
+static void ExecuteStartupCommands(void) {
     U32 ConfigIndex = 0;
-    STR Key[0x100];
-    STR IndexText[0x10];
-    LPCSTR ExecutablePath;
-    FILEINFO FileInfo;
+    STR Key[MAX_USER_NAME];
+    LPCSTR CommandLine;
+    SHELLCONTEXT Context;
 
-    KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Enter"));
+    DEBUG(TEXT("[ExecuteStartupCommands] Enter"));
 
-    if (Kernel.Configuration == NULL) {
-        KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Exit"));
+    LPTOML Configuration = GetConfiguration();
+    if (Configuration == NULL) {
+        DEBUG(TEXT("[ExecuteStartupCommands] Exit"));
         return;
     }
 
+    InitShellContext(&Context);
+
     while (TRUE) {
-        U32ToString(ConfigIndex, IndexText);
-        StringCopy(Key, TEXT("Run."));
-        StringConcat(Key, IndexText);
-        StringConcat(Key, TEXT(".Path"));
-        ExecutablePath = TomlGet(Kernel.Configuration, Key);
-        if (ExecutablePath == NULL) break;
+        StringPrintFormat(Key, TEXT("Run.%u.Command"), ConfigIndex);
+        CommandLine = TomlGet(Configuration, Key);
+        if (CommandLine == NULL) break;
 
-        FileInfo.Size = sizeof(FILEINFO);
-        FileInfo.FileSystem = Kernel.SystemFS;
-        FileInfo.Attributes = MAX_U32;
-        StringCopy(FileInfo.Name, ExecutablePath);
-
-        if (Kernel.SystemFS->Driver->Command(DF_FS_FILEEXISTS, (U32)&FileInfo)) {
-            if (Spawn(ExecutablePath, NULL)) {
-                KernelLogText(LOG_VERBOSE, TEXT("[RunConfiguredExecutables] Spawned : %s"), ExecutablePath);
-            } else {
-                KernelLogText(LOG_VERBOSE, TEXT("[RunConfiguredExecutables] Could not spawn : %s"), ExecutablePath);
-            }
-        } else {
-            KernelLogText(LOG_WARNING, TEXT("[RunConfiguredExecutables] Executable not found : %s"), ExecutablePath);
-        }
+        DEBUG(TEXT("[ExecuteStartupCommands] Executing command: %s"), CommandLine);
+        ExecuteCommandLine(&Context, CommandLine);
 
         ConfigIndex++;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[RunConfiguredExecutables] Exit"));
+    DeinitShellContext(&Context);
+
+    DEBUG(TEXT("[ExecuteStartupCommands] Exit"));
 }
 
 /***************************************************************************/
 
 /**
- * @brief Parse and execute a single command line.
+ * @brief Execute a command line string.
  *
- * @param Context Shell context to fill and execute.
- * @return TRUE to continue the shell loop, FALSE otherwise.
+ * Parses and executes a command line, checking built-in commands first,
+ * then attempting to spawn executables if no built-in command matches.
+ *
+ * @param Context Shell context to use for execution
+ * @param CommandLine Command line string to execute
  */
-static BOOL ParseCommand(LPSHELLCONTEXT Context) {
-    U32 Length;
+static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
     U32 Index;
 
-    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Enter"));
+    DEBUG(TEXT("[ExecuteCommandLine] Executing: %s"), CommandLine);
 
-    ShowPrompt(Context);
-
-    Context->Component = 0;
-    Context->CommandChar = 0;
-    MemorySet(Context->CommandLine, 0, sizeof Context->CommandLine);
-
-    ReadCommandLine(Context);
-
-    if (Context->CommandLine[0] != STR_NULL) {
-        StringArrayAddUnique(&Context->History, Context->CommandLine);
-    }
+    // Set up the command line in context
+    StringCopy(Context->CommandLine, CommandLine);
 
     ClearOptions(Context);
 
     Context->Component = 0;
     Context->CommandChar = 0;
 
-    ParseNextComponent(Context);
+    ParseNextCommandLineComponent(Context);
 
-    Length = StringLength(Context->Command);
-
-    if (Length == 0) return TRUE;
+    if (StringLength(Context->Command) == 0) return;
 
     {
         STR CommandName[MAX_FILE_NAME];
@@ -1148,21 +1552,111 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
             if (StringCompareNC(CommandName, COMMANDS[Index].Name) == 0 ||
                 StringCompareNC(CommandName, COMMANDS[Index].AltName) == 0) {
                 COMMANDS[Index].Command(Context);
-                Found = 1;
-                break;
+                return;
             }
         }
+
         if (Found == 0) {
-            ConsolePrint(TEXT("Unknown command : %s\n"), CommandName);
+            if (SpawnExecutable(Context, Context->CommandLine, FALSE) == TRUE) {
+                return;
+            }
         }
+
+        DEBUG(TEXT("[ExecuteCommandLine] Unknown command : %s"), CommandName);
+        ConsolePrint(TEXT("Unknown command : %s\n"), CommandName);
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parse and execute a single command line from user input.
+ *
+ * @param Context Shell context to fill and execute.
+ * @return TRUE to continue the shell loop, FALSE otherwise.
+ */
+static BOOL ParseCommand(LPSHELLCONTEXT Context) {
+    DEBUG(TEXT("[ParseCommand] Enter"));
+
+    ShowPrompt(Context);
+
+    Context->Component = 0;
+    Context->CommandChar = 0;
+    MemorySet(Context->CommandLine, 0, sizeof Context->CommandLine);
+
+    ReadCommandLine(Context, FALSE);
+
+    if (Context->CommandLine[0] != STR_NULL) {
+        StringArrayMoveToEnd(&Context->History, Context->CommandLine);
+        ExecuteCommandLine(Context, Context->CommandLine);
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[ParseCommand] Exit"));
+    DEBUG(TEXT("[ParseCommand] Exit"));
 
     return TRUE;
 }
 
-/***************************************************************************/
+/************************************************************************/
+
+static BOOL HandleUserLoginProcess(void) {
+    // Check if any users exist
+    BOOL HasUsers = (Kernel.UserAccount != NULL && Kernel.UserAccount->First != NULL);
+
+    if (!HasUsers) {
+        // No users exist, prompt to create the first admin user
+        ConsolePrint(TEXT("No existing user account. You need to create the first admin user.\n"));
+
+        SHELLCONTEXT TempContext;
+        InitShellContext(&TempContext);
+        CMD_adduser(&TempContext);
+
+        // Check if user was created successfully
+        BOOL NewHasUsers = (Kernel.UserAccount != NULL && Kernel.UserAccount->First != NULL);
+        if (NewHasUsers) {
+            ConsolePrint(TEXT("\nFirst admin user created successfully!\n"));
+            ConsolePrint(TEXT("Please log in with your new account:\n\n"));
+        } else {
+            ConsolePrint(TEXT("\nERROR: Failed to create user account. System will exit.\n"));
+            return FALSE;
+        }
+    }
+
+    // Login loop - always required after user creation or if users exist
+    ConsolePrint(TEXT("Login\n"));
+    BOOL LoggedIn = FALSE;
+    U32 LoginAttempts = 0;
+
+    while (!LoggedIn && LoginAttempts < 5) {
+        LoginAttempts++;
+
+        SHELLCONTEXT TempContext;
+        InitShellContext(&TempContext);
+        CMD_login(&TempContext);
+
+        // Check if login was successful
+        LPUSERSESSION Session = GetCurrentSession();
+        if (Session != NULL) {
+            LoggedIn = TRUE;
+            LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
+            if (Account != NULL) {
+                ConsolePrint(TEXT("Logged in as: %s (%s)\n"), Account->UserName,
+                    Account->Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("Administrator") : TEXT("User")
+                    );
+            }
+        } else {
+            ConsolePrint(TEXT("Login failed. Please try again. (Attempt %d/5)\n\n"), LoginAttempts);
+        }
+    }
+
+    if (!LoggedIn) {
+        ConsolePrint(TEXT("Too many failed login attempts.\n"));
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
 
 /**
  * @brief Entry point for the interactive shell.
@@ -1179,24 +1673,23 @@ U32 Shell(LPVOID Param) {
     UNUSED(Param);
     SHELLCONTEXT Context;
 
-    KernelLogText(LOG_DEBUG, TEXT("[Shell] Enter"));
+    DEBUG(TEXT("[Shell] Enter"));
 
     InitShellContext(&Context);
 
-    RunConfiguredExecutables();
+    if (Kernel.DoLogin && !HandleUserLoginProcess()) { return 0; }
+
+    ExecuteStartupCommands();
 
     while (ParseCommand(&Context)) {
-        Sleep(20);
     }
 
     ConsolePrint(TEXT("Exiting shell\n"));
 
     DeinitShellContext(&Context);
 
-    KernelLogText(LOG_DEBUG, TEXT("[Shell] Exit"));
+    DEBUG(TEXT("[Shell] Exit"));
 
     TRACED_EPILOGUE("Shell");
     return 1;
 }
-
-/***************************************************************************/

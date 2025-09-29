@@ -28,8 +28,8 @@
 #include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
-#include "../include/System.h"
 #include "../include/Schedule.h"
+#include "../include/System.h"
 
 /************************************************************************\
 
@@ -88,7 +88,7 @@
     - PDE[1023]      -> PD itself (self-map)
 
 
-    Temporary mapping mechanism (MapPhysicalPage):
+    Temporary mapping mechanism (MapTempPhysicalPage):
     1) Two VAs reserved dynamically (e.g., G_TempLinear1, G_TempLinear2).
     2) To map a physical frame P into G_TempLinear1:
        - Compute dir/tab of G_TempLinear1
@@ -116,6 +116,51 @@
     Temporary physical access is done by remapping two reserved
     linear pages (G_TempLinear1, G_TempLinear2, G_TempLinear3) on demand.
 
+    =================================================================
+
+    PCI BAR mapping process (example: Intel E1000 NIC)
+
+    ┌───────────────────────────┐
+    │  PCI Configuration Space  │
+    │  (accessed via PCI config │
+    │   reads/writes)           │
+    └───────────┬───────────────┘
+                │
+                │ Read BAR0 (Base Address Register #0)
+                ▼
+    ┌────────────────────────────────┐
+    │ BAR0 value = Physical address  │
+    │ of device registers (MMIO)     │
+    │ + resource size                │
+    └───────────┬────────────────────┘
+                │
+                │ Map physical MMIO region into
+                │ kernel virtual space
+                │ (uncached for DMA safety)
+                ▼
+    ┌───────────────────────────┐
+    │ AllocRegion(Base=0,       │
+    │   Target=BAR0,            │
+    │   Size=MMIO size,         │
+    │   Flags=ALLOC_PAGES_COMMIT│
+    │         | ALLOC_PAGES_UC) │
+    └───────────┬───────────────┘
+                │
+                │ Returns Linear (VMA) address
+                │ where the driver can access MMIO
+                ▼
+    ┌───────────────────────────────┐
+    │ Driver reads/writes registers │
+    │ via *(volatile U32*)(VMA+ofs) │
+    │ Example: E1000_CTRL register  │
+    └───────────────────────────────┘
+
+    NOTES:
+    - MMIO (Memory-Mapped I/O) must be UNCACHED (UC) to avoid
+     stale data and incorrect ordering.
+    - BARs can also point to I/O port ranges instead of MMIO.
+    - PCI devices can have multiple BARs for different resources.
+
 \************************************************************************/
 
 // INTERNAL SELF-MAP + TEMP MAPPING ]
@@ -125,12 +170,17 @@
 #define PD_VA ((LINEAR)0xFFFFF000)      /* Page Directory linear alias */
 #define PT_BASE_VA ((LINEAR)0xFFC00000) /* Page Tables linear window   */
 
+// Uncomment below to mark BIOS memory pages "not present" in the page tables
+// #define PROTECT_BIOS
+#define PROTECTED_ZONE_START 0xC0000
+#define PROTECTED_ZONE_END 0xFFFFF
+
 // 3 on-demand temporary virtual pages, reserved at init.
 static LINEAR G_TempLinear1 = 0;
 static LINEAR G_TempLinear2 = 0;
 static LINEAR G_TempLinear3 = 0;
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Clip a 64-bit range to 32 bits.
@@ -158,7 +208,7 @@ static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
     return (*outLen != 0);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Mark a physical page as used or free in the PPB.
@@ -185,13 +235,14 @@ static void SetPhysicalPageMark(U32 Page, U32 Used) {
     UnlockMutex(MUTEX_MEMORY);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Query the usage mark of a physical page.
  * @param Page Page index.
  * @return Non-zero if page is used.
  */
+/*
 static U32 GetPhysicalPageMark(U32 Page) {
     U32 Offset = 0;
     U32 Value = 0;
@@ -210,8 +261,9 @@ static U32 GetPhysicalPageMark(U32 Page) {
 
     return RetVal;
 }
+*/
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Mark a range of physical pages as used or free.
@@ -220,13 +272,13 @@ static U32 GetPhysicalPageMark(U32 Page) {
  * @param Used Non-zero to mark used.
  */
 static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
-    KernelLogText(LOG_DEBUG, TEXT("[SetPhysicalPageRangeMark] Enter"));
+    DEBUG(TEXT("[SetPhysicalPageRangeMark] Enter"));
 
     U32 End = FirstPage + PageCount;
     if (FirstPage >= KernelStartup.PageCount) return;
     if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
 
-    KernelLogText(LOG_DEBUG, TEXT("[SetPhysicalPageRangeMark] Start, End : %X, %X"), FirstPage, End);
+    DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %X, %X"), FirstPage, End);
 
     for (U32 Page = FirstPage; Page < End; Page++) {
         U32 Byte = Page >> MUL_8;
@@ -252,11 +304,14 @@ static void MarkUsedPhysicalMemory(void) {
     // Derive total memory size and number of pages from the E820 map
     if (KernelStartup.E820_Count > 0) {
         U32 MaxAddress = 0;
+        U32 MaxUsableRAM = 0;
 
         for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
             const E820ENTRY* Entry = &KernelStartup.E820[i];
             U32 Base = 0;
             U32 Size = 0;
+
+            DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %x, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
 
             ClipTo32Bit(Entry->Base, Entry->Size, &Base, &Size);
 
@@ -265,21 +320,25 @@ static void MarkUsedPhysicalMemory(void) {
                 MaxAddress = End;
             }
 
-            if (Entry->Type != 1) {
+            if (Entry->Type == BIOS_E820_TYPE_USABLE) {
+                if (End > MaxUsableRAM) {
+                    MaxUsableRAM = End;
+                }
+            } else {
                 U32 FirstPage = (U32)(Base >> PAGE_SIZE_MUL);
                 U32 PageCount = (U32)((Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
                 SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
             }
         }
 
-        KernelStartup.MemorySize = (U32)MaxAddress;
+        KernelStartup.MemorySize = (U32)MaxUsableRAM;
         KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
 
-        KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Memory size = %X"), KernelStartup.MemorySize);
+        DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %x"), KernelStartup.MemorySize);
     }
 }
 
-/*********************************************************************/
+/************************************************************************/
 
 /**
  * @brief Allocate a free physical page.
@@ -290,7 +349,7 @@ PHYSICAL AllocPhysicalPage(void) {
     U32 StartPage, StartByte, MaxByte;
     PHYSICAL result = 0;
 
-    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Enter"));
+    // DEBUG(TEXT("[AllocPhysicalPage] Enter"));
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
@@ -318,7 +377,7 @@ PHYSICAL AllocPhysicalPage(void) {
     }
 
 Out:
-    // KernelLogText(LOG_DEBUG, TEXT("[AllocPhysicalPage] Exit"));
+    // DEBUG(TEXT("[AllocPhysicalPage] Exit"));
 
     UnlockMutex(MUTEX_MEMORY);
     return result;
@@ -334,7 +393,7 @@ void FreePhysicalPage(PHYSICAL Page) {
     U32 StartPage, PageIndex;
 
     if ((Page & (PAGE_SIZE - 1)) != 0) {
-        KernelLogText(LOG_ERROR, TEXT("[FreePhysicalPage] Physical address not page-aligned (%X)"), Page);
+        ERROR(TEXT("[FreePhysicalPage] Physical address not page-aligned (%X)"), Page);
         return;
     }
 
@@ -349,13 +408,13 @@ void FreePhysicalPage(PHYSICAL Page) {
 
     // Guard: never free page 0 (kept reserved on purpose)
     if (PageIndex == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[FreePhysicalPage] Attempt to free page 0"));
+        ERROR(TEXT("[FreePhysicalPage] Attempt to free page 0"));
         return;
     }
 
     // Bounds check
     if (PageIndex >= KernelStartup.PageCount) {
-        KernelLogText(LOG_ERROR, TEXT("[FreePhysicalPage] Page index out of range (%X)"), PageIndex);
+        ERROR(TEXT("[FreePhysicalPage] Page index out of range (%X)"), PageIndex);
         return;
     }
 
@@ -368,7 +427,7 @@ void FreePhysicalPage(PHYSICAL Page) {
     // If already free, nothing to do
     if ((Kernel_i386.PPB[ByteIndex] & mask) == 0) {
         UnlockMutex(MUTEX_MEMORY);
-        KernelLogText(LOG_DEBUG, TEXT("[FreePhysicalPage] Page already free (PA=%X)"), Page);
+        DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%X)"), Page);
         return;
     }
 
@@ -397,7 +456,6 @@ static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TAB
 static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
 
 /************************************************************************/
-
 // Self-map helpers (no public exposure)
 
 /**
@@ -431,8 +489,8 @@ static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
 }
 
 /************************************************************************/
-
 // Compose a raw 32-bit PTE value from fields + physical address.
+
 static inline U32 MakePageTableEntryValue(
     PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global, U32 Fixed) {
     U32 val = 0;
@@ -445,7 +503,7 @@ static inline U32 MakePageTableEntryValue(
 
     // Accessed (bit 5) / Dirty (bit 6) left to CPU
     if (Global) val |= (1u << 8);
-    if (Fixed) val |= (1u << 9);                // Your code uses this bit in PTE
+    if (Fixed) val |= (1u << 9);  // Your code uses this bit in PTE
 
     val |= (U32)(Physical & ~(PAGE_SIZE - 1));  // Frame address aligned
 
@@ -472,8 +530,8 @@ static inline U32 MakePageTableEntryValue(
 }
 
 /************************************************************************/
-
 // Map or remap a single virtual page by directly editing its PTE via the self-map.
+
 static inline void MapOnePage(
     LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
     U32 Fixed) {
@@ -482,7 +540,7 @@ static inline void MapOnePage(
     U32 dir = GetDirectoryEntry(Linear);
 
     if (!Directory[dir].Present) {
-        KernelLogText(LOG_ERROR, TEXT("[MapOnePage] PDE not present for VA %X (dir=%d)"), Linear, dir);
+        ERROR(TEXT("[MapOnePage] PDE not present for VA %X (dir=%d)"), Linear, dir);
         return;  // Or panic
     }
 
@@ -491,8 +549,8 @@ static inline void MapOnePage(
 }
 
 /************************************************************************/
-
 // Unmap (mark not-present) one virtual page.
+
 /**
  * @brief Unmap a single page from the current address space.
  * @param Linear Linear address to unmap.
@@ -530,17 +588,17 @@ BOOL IsValidMemory(LINEAR Pointer) {
     return TRUE;
 }
 
-/*************************************************************************/
-
+/************************************************************************/
 // Public temporary map #1
+
 /**
  * @brief Map a physical page to a temporary linear address.
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-LINEAR MapPhysicalPage(PHYSICAL Physical) {
+LINEAR MapTempPhysicalPage(PHYSICAL Physical) {
     if (G_TempLinear1 == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[MapPhysicalPage] Temp slot #1 not reserved"));
+        ERROR(TEXT("[MapTempPhysicalPage] Temp slot #1 not reserved"));
         return NULL;
     }
     MapOnePage(
@@ -549,15 +607,17 @@ LINEAR MapPhysicalPage(PHYSICAL Physical) {
     return G_TempLinear1;
 }
 
+/************************************************************************/
 // Internal temporary map #2
+
 /**
  * @brief Map a physical page to the second temporary linear address.
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
+static LINEAR MapTempPhysicalPage2(PHYSICAL Physical) {
     if (G_TempLinear2 == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[MapPhysicalPage2] Temp slot #2 not reserved"));
+        ERROR(TEXT("[MapTempPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
     }
     MapOnePage(
@@ -566,15 +626,17 @@ static LINEAR MapPhysicalPage2(PHYSICAL Physical) {
     return G_TempLinear2;
 }
 
+/************************************************************************/
 // Internal temporary map #3
+
 /**
  * @brief Map a physical page to the second temporary linear address.
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-static LINEAR MapPhysicalPage3(PHYSICAL Physical) {
+static LINEAR MapTempPhysicalPage3(PHYSICAL Physical) {
     if (G_TempLinear3 == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[MapPhysicalPage3] Temp slot #3 not reserved"));
+        ERROR(TEXT("[MapTempPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
     }
     MapOnePage(
@@ -608,11 +670,11 @@ PHYSICAL AllocPageDirectory(void) {
     LPPAGETABLE KernelTable = NULL;
     LPPAGETABLE TaskRunnerTable = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Enter"));
+    DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
-    U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
+    U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);           // 4MB directory slot for VMA_KERNEL
     U32 DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
-    U32 PhysBaseKernel = KernelStartup.StubAddress;          // Kernel physical base
+    U32 PhysBaseKernel = KernelStartup.StubAddress;                    // Kernel physical base
     U32 Index;
 
     // Allocate required physical pages (PD + 3 PTs)
@@ -622,20 +684,20 @@ PHYSICAL AllocPageDirectory(void) {
     PMA_TaskRunnerTable = AllocPhysicalPage();
 
     if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL || PMA_TaskRunnerTable == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] Out of physical pages"));
+        ERROR(TEXT("[AllocPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
 
     // Clear and prepare the Page Directory
-    LINEAR VMA_PD = MapPhysicalPage(PMA_Directory);
+    LINEAR VMA_PD = MapTempPhysicalPage(PMA_Directory);
     if (VMA_PD == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage failed on Directory"));
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage failed on Directory"));
         goto Out_Error;
     }
     Directory = (LPPAGEDIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Page directory cleared"));
+    DEBUG(TEXT("[AllocPageDirectory] Page directory cleared"));
 
     // Directory[0] -> identity map 0..4MB via PMA_LowTable
     Directory[0].Present = 1;
@@ -694,18 +756,25 @@ PHYSICAL AllocPageDirectory(void) {
     Directory[PD_RECURSIVE_SLOT].Address = (PMA_Directory >> PAGE_SIZE_MUL);
 
     // Fill identity-mapped low table (0..4MB)
-    LINEAR VMA_PT = MapPhysicalPage2(PMA_LowTable);
+    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
     if (VMA_PT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage2 failed on LowTable"));
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
     LowTable = (LPPAGETABLE)VMA_PT;
     MemorySet(LowTable, 0, PAGE_SIZE);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Low memory table cleared"));
+    DEBUG(TEXT("[AllocPageDirectory] Low memory table cleared"));
 
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        LowTable[Index].Present = 1;
+        #ifdef PROTECT_BIOS
+        LINEAR Physical = (U32)Index << 12;
+        BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
+        #else
+        BOOL Protected = FALSE;
+        #endif
+
+        LowTable[Index].Present = !Protected;
         LowTable[Index].ReadWrite = 1;
         LowTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
         LowTable[Index].WriteThrough = 0;
@@ -720,16 +789,16 @@ PHYSICAL AllocPageDirectory(void) {
     }
 
     // Fill kernel mapping table by copying the current kernel PT
-    VMA_PT = MapPhysicalPage2(PMA_KernelTable);
+    VMA_PT = MapTempPhysicalPage2(PMA_KernelTable);
     if (VMA_PT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage2 failed on KernelTable"));
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
     KernelTable = (LPPAGETABLE)VMA_PT;
 
     MemorySet(KernelTable, 0, PAGE_SIZE);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Kernel table cleared"));
+    DEBUG(TEXT("[AllocPageDirectory] Kernel table cleared"));
 
     U32 KernelFirstFrame = (PhysBaseKernel >> PAGE_SIZE_MUL);
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
@@ -748,23 +817,24 @@ PHYSICAL AllocPageDirectory(void) {
     }
 
     // Fill TaskRunner page table - only map the first page where TaskRunner is located
-    VMA_PT = MapPhysicalPage2(PMA_TaskRunnerTable);
+    VMA_PT = MapTempPhysicalPage2(PMA_TaskRunnerTable);
     if (VMA_PT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageDirectory] MapPhysicalPage2 failed on TaskRunnerTable"));
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on TaskRunnerTable"));
         goto Out_Error;
     }
     TaskRunnerTable = (LPPAGETABLE)VMA_PT;
     MemorySet(TaskRunnerTable, 0, PAGE_SIZE);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] TaskRunner table cleared"));
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner table cleared"));
 
     PHYSICAL TaskRunnerPhysical = PhysBaseKernel + ((U32)&__task_runner_start - VMA_KERNEL);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"),
-        (U32)PhysBaseKernel, (U32)&__task_runner_start, (U32)VMA_KERNEL, (U32)TaskRunnerPhysical);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"), (U32)PhysBaseKernel,
+        (U32)&__task_runner_start, (U32)VMA_KERNEL, (U32)TaskRunnerPhysical);
 
     U32 TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
-    
+
     TaskRunnerTable[TaskRunnerTableIndex].Present = 1;
     TaskRunnerTable[TaskRunnerTableIndex].ReadWrite = 0;  // Read-only for user
     TaskRunnerTable[TaskRunnerTableIndex].Privilege = PAGE_PRIVILEGE_USER;
@@ -785,12 +855,13 @@ PHYSICAL AllocPageDirectory(void) {
         LOG_DEBUG, TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[%u]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
         *(U32*)&Directory[768], DirTaskRunner, *(U32*)&Directory[DirTaskRunner], *(U32*)&Directory[1023]);
     KernelLogText(
-        LOG_DEBUG, TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X, TaskRunnerTable[%u]=%X"), 
-        *(U32*)&LowTable[0], *(U32*)&KernelTable[0], TaskRunnerTableIndex, *(U32*)&TaskRunnerTable[TaskRunnerTableIndex]);
+        LOG_DEBUG, TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X, TaskRunnerTable[%u]=%X"),
+        *(U32*)&LowTable[0], *(U32*)&KernelTable[0], TaskRunnerTableIndex,
+        *(U32*)&TaskRunnerTable[TaskRunnerTableIndex]);
     KernelLogText(
         LOG_DEBUG, TEXT("[AllocPageDirectory] TaskRunner VMA=%X -> Physical=%X"), VMA_TASK_RUNNER, TaskRunnerPhysical);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocPageDirectory] Exit"));
+    DEBUG(TEXT("[AllocPageDirectory] Exit"));
     return PMA_Directory;
 
 Out_Error:
@@ -817,13 +888,12 @@ PHYSICAL AllocUserPageDirectory(void) {
     LPPAGEDIRECTORY Directory = NULL;
     LPPAGETABLE LowTable = NULL;
     LPPAGETABLE KernelTable = NULL;
-    LPPAGETABLE UserTable = NULL;
     LPPAGEDIRECTORY CurrentPD = (LPPAGEDIRECTORY)PD_VA;
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Enter"));
+    DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
     U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
-    U32 PhysBaseKernel = KernelStartup.StubAddress;          // Kernel physical base
+    U32 PhysBaseKernel = KernelStartup.StubAddress;           // Kernel physical base
     U32 Index;
 
     // Allocate required physical pages (PD + 4 PTs)
@@ -832,20 +902,20 @@ PHYSICAL AllocUserPageDirectory(void) {
     PMA_KernelTable = AllocPhysicalPage();
 
     if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] Out of physical pages"));
+        ERROR(TEXT("[AllocUserPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
 
     // Clear and prepare the Page Directory
-    LINEAR VMA_PD = MapPhysicalPage(PMA_Directory);
+    LINEAR VMA_PD = MapTempPhysicalPage(PMA_Directory);
     if (VMA_PD == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage failed on Directory"));
+        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage failed on Directory"));
         goto Out_Error;
     }
     Directory = (LPPAGEDIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Page directory cleared"));
+    DEBUG(TEXT("[AllocUserPageDirectory] Page directory cleared"));
 
     // Directory[0] -> identity map 0..4MB via PMA_LowTable
     Directory[0].Present = 1;
@@ -875,12 +945,20 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[DirKernel].Fixed = 1;
     Directory[DirKernel].Address = (PMA_KernelTable >> PAGE_SIZE_MUL);
 
-    // Copy ALL present PDEs from current directory (simple approach)
-    U32 DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
-    for (Index = 1; Index < 1023; Index++) {  // Skip 0 (already done) and 1023 (self-map)
+    // Copy present PDEs from current directory, but skip user space (VMA_USER to VMA_LIBRARY-1)
+    // to allow new process to allocate its own region at VMA_USER
+    UNUSED(VMA_TASK_RUNNER);
+    U32 UserStartPDE = GetDirectoryEntry(VMA_USER);             // PDE index for VMA_USER
+    U32 UserEndPDE = GetDirectoryEntry(VMA_LIBRARY - 1) - 1;    // PDE index for VMA_LIBRARY-1, excluding TaskRunner space
+    for (Index = 1; Index < 1023; Index++) {                           // Skip 0 (already done) and 1023 (self-map)
         if (CurrentPD[Index].Present && Index != DirKernel) {
+            // Skip user space PDEs to avoid copying current process's user space
+            if (Index >= UserStartPDE && Index <= UserEndPDE) {
+                DEBUG(TEXT("[AllocUserPageDirectory] Skipped user space PDE[%d]"), Index);
+                continue;
+            }
             Directory[Index] = CurrentPD[Index];
-            KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Copied PDE[%d]"), Index);
+            DEBUG(TEXT("[AllocUserPageDirectory] Copied PDE[%d]"), Index);
         }
     }
 
@@ -899,17 +977,24 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[PD_RECURSIVE_SLOT].Address = (PMA_Directory >> PAGE_SIZE_MUL);
 
     // Fill identity-mapped low table (0..4MB) - manual setup like AllocPageDirectory
-    LINEAR VMA_PT = MapPhysicalPage2(PMA_LowTable);
+    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
     if (VMA_PT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on LowTable"));
+        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
     LowTable = (LPPAGETABLE)VMA_PT;
     MemorySet(LowTable, 0, PAGE_SIZE);
-    
+
     // Initialize identity mapping for 0..4MB (same as AllocPageDirectory)
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        LowTable[Index].Present = 1;
+        #ifdef PROTECT_BIOS
+        LINEAR Physical = (U32)Index << 12;
+        BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
+        #else
+        BOOL Protected = FALSE;
+        #endif
+
+        LowTable[Index].Present = !Protected;
         LowTable[Index].ReadWrite = 1;
         LowTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
         LowTable[Index].WriteThrough = 0;
@@ -923,21 +1008,21 @@ PHYSICAL AllocUserPageDirectory(void) {
         LowTable[Index].Address = Index;  // Identity mapping: page Index -> physical page Index
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
+    DEBUG(TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
 
     // Fill kernel mapping table by copying the current kernel PT
-    VMA_PT = MapPhysicalPage2(PMA_KernelTable);
+    VMA_PT = MapTempPhysicalPage2(PMA_KernelTable);
     if (VMA_PT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocUserPageDirectory] MapPhysicalPage2 failed on KernelTable"));
+        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
     KernelTable = (LPPAGETABLE)VMA_PT;
 
     // Create basic static kernel mapping instead of copying (for testing)
     MemorySet(KernelTable, 0, PAGE_SIZE);
-    
+
     U32 KernelFirstFrame = (PhysBaseKernel >> PAGE_SIZE_MUL);
-    
+
     // Map full 4MB kernel space (1024 pages)
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
         KernelTable[Index].Present = 1;
@@ -953,8 +1038,8 @@ PHYSICAL AllocUserPageDirectory(void) {
         KernelTable[Index].Fixed = 1;
         KernelTable[Index].Address = KernelFirstFrame + Index;
     }
-    
-    KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
 
     // TLB sync before returning
     FlushTLB();
@@ -966,7 +1051,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         LOG_DEBUG, TEXT("[AllocUserPageDirectory] LowTable[0]=%X, KernelTable[0]=%X"), *(U32*)&LowTable[0],
         *(U32*)&KernelTable[0]);
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocUserPageDirectory] Exit"));
+    DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
     return PMA_Directory;
 
 Out_Error:
@@ -996,7 +1081,7 @@ LINEAR AllocPageTable(LINEAR Base) {
     PHYSICAL PMA_Table = AllocPhysicalPage();
 
     if (PMA_Table == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[AllocPageTable] Out of physical pages"));
+        ERROR(TEXT("[AllocPageTable] Out of physical pages"));
         return NULL;
     }
 
@@ -1021,7 +1106,7 @@ LINEAR AllocPageTable(LINEAR Base) {
     Directory[DirEntry].Address = PMA_Table >> PAGE_SIZE_MUL;
 
     // Clear the new table by mapping its physical page temporarily.
-    LINEAR VMA_PT = MapPhysicalPage2(PMA_Table);
+    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_Table);
     MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
 
     // Flush the Translation Look-up Buffer of the CPU
@@ -1049,13 +1134,13 @@ LINEAR AllocPageTable(LINEAR Base) {
  * @return TRUE if region is free.
  */
 BOOL IsRegionFree(LINEAR Base, U32 Size) {
-    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Enter : %x; %x"), Base, Size);
+    // DEBUG(TEXT("[IsRegionFree] Enter : %x; %x"), Base, Size);
 
     U32 NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     LINEAR Current = Base;
 
-    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Traversing pages"));
+    // DEBUG(TEXT("[IsRegionFree] Traversing pages"));
 
     for (U32 i = 0; i < NumPages; i++) {
         U32 dir = GetDirectoryEntry(Current);
@@ -1069,7 +1154,7 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
         Current += PAGE_SIZE;
     }
 
-    // KernelLogText(LOG_DEBUG, TEXT("[IsRegionFree] Exit"));
+    // DEBUG(TEXT("[IsRegionFree] Exit"));
 
     return TRUE;
 }
@@ -1087,10 +1172,10 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
 static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     U32 Base = N_4MB;
 
-    KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Enter"));
+    DEBUG(TEXT("[FindFreeRegion] Enter"));
 
     if (StartBase >= Base) {
-        KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Starting at %X"), StartBase);
+        DEBUG(TEXT("[FindFreeRegion] Starting at %X"), StartBase);
         Base = StartBase;
     }
 
@@ -1099,29 +1184,9 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
         Base += PAGE_SIZE;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[FindFreeRegion] Exit"));
+    DEBUG(TEXT("[FindFreeRegion] Exit"));
 
     return NULL;
-}
-
-/*************************************************************************/
-// Checks if a physical memory range is free
-
-/**
- * @brief Check if a range of physical pages is free.
- * @param Target Starting physical page.
- * @param NumPages Number of pages.
- * @return TRUE if range is free.
- */
-static BOOL IsPhysicalRangeFree(PHYSICAL Target, U32 NumPages) {
-    U32 PageIndex = 0;
-
-    if ((Target & (PAGE_SIZE - 1)) != 0) return FALSE;
-    for (PageIndex = 0; PageIndex < NumPages; PageIndex++) {
-        U32 Page = (Target >> PAGE_SIZE_MUL) + PageIndex;
-        if (GetPhysicalPageMark(Page)) return FALSE;
-    }
-    return TRUE;
 }
 
 /*************************************************************************/
@@ -1160,11 +1225,9 @@ static void FreeEmptyPageTables(void) {
 }
 
 /*************************************************************************/
-/* Maps a linear address to its physical address (page-level granularity).
-   Returns 0 on failure. */
 
 /**
- * @brief Translate a linear address to its physical counterpart.
+ * @brief Translate a linear address to its physical counterpart (page-level granularity).
  * @param Address Linear address.
  * @return Physical page number or MAX_U32 on failure.
  */
@@ -1184,24 +1247,27 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
 
 /***************************************************************************\
 
-  AllocRegion is the most important memory management function.
-  It allocates a linear address memory region to the calling process
-  and sets up the page tables.
+    AllocRegion is the most important memory management function.
+    It allocates a linear address memory region to the calling process
+    and sets up the page tables.
 
-  If the user supplies a linear address as a base for the region,
-  AllocRegion returns NULL if the region is already allocated.
+    If the user supplies a linear address as a base for the region:
+        If the region is already allocated
+            If ALLOC_PAGES_AT_OR_OVER is specified, AllocRegion tries to find
+            a free region above the supplied linear address
+            Else AllocRegion returns NULL
 
-  If the user supplies a physical target address, AllocRegion returns
-  NULL if the physical region is not free.
+    If the user supplies a physical target address, AllocRegion returns
+    NULL if the physical region is not free.
 
-  The pages can be physically allocated if the flags include
-  ALLOC_PAGES_COMMIT or can be reserved (not present in physical
-  memory) with the ALLOC_PAGES_RESERVE flag.
+    The pages can be physically allocated if the flags include
+    ALLOC_PAGES_COMMIT or can be reserved (not present in physical
+    memory) with the ALLOC_PAGES_RESERVE flag.
 
 \***************************************************************************/
 
 /**
- * @brief Map a physical region into the linear address space.
+ * @brief Allocate and map a physical region into the linear address space.
  * @param Base Desired base address or 0.
  * @param Target Physical base address.
  * @param Size Size in bytes.
@@ -1219,10 +1285,11 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     U32 ReadWrite = 0;
     U32 Index = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Enter"));
+    DEBUG(TEXT("[AllocRegion] Enter: Base=%X Target=%X Size=%X Flags=%X"), Base, Target, Size, Flags);
 
     // Can't allocate more than 25% of total memory at once
     if (Size > KernelStartup.MemorySize / 4) {
+        ERROR(TEXT("[AllocRegion] Size %X exceeds 25%% of memory (%X)"), Size, KernelStartup.MemorySize / 4);
         return NULL;
     }
 
@@ -1242,12 +1309,12 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     // If an exact physical mapping is requested, validate inputs
     if (Target != 0 && (Flags & ALLOC_PAGES_IO) == 0) {
         if ((Target & (PAGE_SIZE - 1)) != 0) {
-            KernelLogText(LOG_ERROR, TEXT("[AllocRegion] Target not page-aligned (%X)"), Target);
+            ERROR(TEXT("[AllocRegion] Target not page-aligned (%X)"), Target);
             return NULL;
         }
 
         if ((Flags & ALLOC_PAGES_COMMIT) == 0) {
-            KernelLogText(LOG_ERROR, TEXT("[AllocRegion] Exact PMA mapping requires COMMIT"));
+            ERROR(TEXT("[AllocRegion] Exact PMA mapping requires COMMIT"));
             return NULL;
         }
         /* NOTE: Do not reject pages already marked used here.
@@ -1259,7 +1326,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
        see if the region is not already allocated. */
     if (Base != 0 && (Flags & ALLOC_PAGES_AT_OR_OVER) == 0) {
         if (IsRegionFree(Base, Size) == FALSE) {
-            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with specified base : %x"), Base);
+            DEBUG(TEXT("[AllocRegion] No free region found with specified base : %x"), Base);
             return NULL;
         }
     }
@@ -1268,24 +1335,24 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
        the region, try to find a region which is at least as large as
        the "Size" parameter. */
     if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
-        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Calling FindFreeRegion with base = %x and size = %x"), Base, Size);
+        DEBUG(TEXT("[AllocRegion] Calling FindFreeRegion with base = %x and size = %x"), Base, Size);
 
         LINEAR NewBase = FindFreeRegion(Base, Size);
 
         if (NewBase == NULL) {
-            KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] No free region found with unspecified base from %x"), Base);
+            DEBUG(TEXT("[AllocRegion] No free region found with unspecified base from %x"), Base);
             return NULL;
         }
 
         Base = NewBase;
 
-        KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] FindFreeRegion found with base = %x and size = %x"), Base, Size);
+        DEBUG(TEXT("[AllocRegion] FindFreeRegion found with base = %x and size = %x"), Base, Size);
     }
 
     // Set the return value to "Base".
     Pointer = Base;
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Allocating pages"));
+    DEBUG(TEXT("[AllocRegion] Allocating pages"));
 
     /* Allocate each page in turn. */
     for (Index = 0; Index < NumPages; Index++) {
@@ -1295,7 +1362,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
         if (Directory[DirEntry].Address == NULL) {
             if (AllocPageTable(Base) == NULL) {
                 FreeRegion(Pointer, (Index << PAGE_SIZE_MUL));
-                KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] AllocPageTable failed "));
+                DEBUG(TEXT("[AllocRegion] AllocPageTable failed "));
                 return NULL;
             }
         }
@@ -1337,7 +1404,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
                 Physical = AllocPhysicalPage();
 
                 if (Physical == NULL) {
-                    KernelLogText(LOG_ERROR, TEXT("[AllocRegion] AllocPhysicalPage failed"));
+                    ERROR(TEXT("[AllocRegion] AllocPhysicalPage failed"));
 
                     // Roll back pages mapped so far
                     FreeRegion(Pointer, (Index << PAGE_SIZE_MUL));
@@ -1357,7 +1424,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("[AllocRegion] Exit"));
+    DEBUG(TEXT("[AllocRegion] Exit"));
 
     return Pointer;
 }
@@ -1412,80 +1479,46 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
     return TRUE;
 }
 
-/***************************************************************************\
-
-  PCI BAR mapping process (example: Intel E1000 NIC)
-
-  ┌───────────────────────────┐
-  │  PCI Configuration Space  │
-  │  (accessed via PCI config │
-  │   reads/writes)           │
-  └─────────────┬─────────────┘
-                │
-                │ Read BAR0 (Base Address Register #0)
-                ▼
-       ┌────────────────────────────────┐
-       │ BAR0 value = Physical address  │
-       │ of device registers (MMIO)     │
-       │ + resource size                │
-       └─────────────┬──────────────────┘
-                     │
-                     │ Map physical MMIO region into
-                     │ kernel virtual space
-                     │ (uncached for DMA safety)
-                     │
-                     ▼
-         ┌───────────────────────────┐
-         │ AllocRegion(Base=0,       │
-         │   Target=BAR0,            │
-         │   Size=MMIO size,         │
-         │   Flags=ALLOC_PAGES_COMMIT│
-         │         | ALLOC_PAGES_UC) │
-         └─────────┬─────────────────┘
-                   │
-                   │ Returns Linear (VMA) address
-                   │ where the driver can access MMIO
-                   ▼
-       ┌───────────────────────────────┐
-       │ Driver reads/writes registers │
-       │ via *(volatile U32*)(VMA+ofs) │
-       │ Example: E1000_CTRL register  │
-       └───────────────────────────────┘
-
-  NOTES:
-   - MMIO (Memory-Mapped I/O) must be UNCACHED (UC) to avoid
-     stale data and incorrect ordering.
-   - BARs can also point to I/O port ranges instead of MMIO.
-   - PCI devices can have multiple BARs for different resources.
-
-\***************************************************************************/
-
 /**
  * @brief Map an I/O physical range into virtual memory.
  * @param PhysicalBase Physical base address.
  * @param Size Size in bytes.
  * @return Linear address or 0 on failure.
  */
-LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
+LINEAR MapIOMemory(PHYSICAL PhysicalBase, U32 Size) {
     // Basic parameter checks
     if (PhysicalBase == 0 || Size == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[MmMapIo] Invalid parameters (PA=%X Size=%X)"), PhysicalBase, Size);
+        ERROR(TEXT("[MapIOMemory] Invalid parameters (PA=%x Size=%x)"), PhysicalBase, Size);
         return NULL;
     }
 
-    if ((PhysicalBase & (PAGE_SIZE - 1)) != 0) {
-        KernelLogText(LOG_ERROR, TEXT("[MmMapIo] Physical base not page-aligned (%X)"), PhysicalBase);
-        return NULL;
-    }
+    // Calculate page-aligned base and adjusted size for non-aligned addresses
+    PHYSICAL PageOffset = PhysicalBase & (PAGE_SIZE - 1);
+    PHYSICAL AlignedPhysicalBase = PhysicalBase & ~(PAGE_SIZE - 1);
+    U32 AdjustedSize = ((Size + PageOffset + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+
+    DEBUG(TEXT("[MapIOMemory] Original: PA=%x Size=%x"), PhysicalBase, Size);
+    DEBUG(TEXT("[MapIOMemory] Aligned: PA=%x Size=%x Offset=%x"), AlignedPhysicalBase, AdjustedSize, PageOffset);
 
     // Map as Uncached, Read/Write, exact PMA mapping, IO semantics
-    return AllocRegion(
-        VMA_KERNEL,    // Start search in kernel space to avoid user space
-        PhysicalBase,  // Exact PMA (BAR)
-        Size,
+    LINEAR AlignedResult = AllocRegion(
+        VMA_KERNEL,          // Start search in kernel space to avoid user space
+        AlignedPhysicalBase, // Page-aligned PMA
+        AdjustedSize,        // Page-aligned size
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
-            ALLOC_PAGES_IO | ALLOC_PAGES_AT_OR_OVER                    // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
+            ALLOC_PAGES_IO |
+            ALLOC_PAGES_AT_OR_OVER  // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
     );
+
+    if (AlignedResult == NULL) {
+        DEBUG(TEXT("[MapIOMemory] AllocRegion failed"));
+        return NULL;
+    }
+
+    // Return the address adjusted for the original offset
+    LINEAR result = AlignedResult + PageOffset;
+    DEBUG(TEXT("[MapIOMemory] Mapped at aligned=%x, returning=%x"), AlignedResult, result);
+    return result;
 }
 
 /***************************************************************************/
@@ -1496,10 +1529,10 @@ LINEAR MmMapIo(PHYSICAL PhysicalBase, U32 Size) {
  * @param Size Size in bytes.
  * @return TRUE on success.
  */
-BOOL MmUnmapIo(LINEAR LinearBase, U32 Size) {
+BOOL UnMapIOMemory(LINEAR LinearBase, U32 Size) {
     // Basic parameter checks
     if (LinearBase == 0 || Size == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[MmUnmapIo] Invalid parameters (LA=%X Size=%X)"), LinearBase, Size);
+        ERROR(TEXT("[UnMapIOMemory] Invalid parameters (LA=%X Size=%X)"), LinearBase, Size);
         return FALSE;
     }
 
@@ -1527,7 +1560,7 @@ LINEAR AllocKernelRegion(PHYSICAL Target, U32 Size, U32 Flags) {
  * @brief Initialize the kernel memory manager.
  */
 void InitializeMemoryManager(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Enter"));
+    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
     // Place the physical page bitmap at 2MB (half of reserved low memory)
     Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
@@ -1544,64 +1577,62 @@ void InitializeMemoryManager(void) {
     G_TempLinear2 = 0xC0101000;  // next VA, same dir
     G_TempLinear3 = 0xC0102000;  // next VA, same dir
 
-    KernelLogText(
-        LOG_DEBUG, TEXT("[InitializeMemoryManager] Temp pages reserved: %x, %x, %x"), G_TempLinear1, G_TempLinear2, G_TempLinear3);
+    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %x, %x, %x"), G_TempLinear1, G_TempLinear2,
+        G_TempLinear3);
 
     // Allocate a page directory
     PHYSICAL NewPageDirectory = AllocPageDirectory();
 
     LogPageDirectory(NewPageDirectory);
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Page directory ready"));
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory ready"));
 
     if (NewPageDirectory == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
+        ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
         ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] New page directory: %X"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %X"), NewPageDirectory);
 
     // Switch to the new page directory first (it includes the recursive map).
     LoadPageDirectory(NewPageDirectory);
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Page directory set: %X"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %X"), NewPageDirectory);
 
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] TLB flushed"));
+    DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
 
     if (G_TempLinear1 == 0 || G_TempLinear2 == 0) {
-        KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] Failed to reserve temp linear pages"));
+        ERROR(TEXT("[InitializeMemoryManager] Failed to reserve temp linear pages"));
         ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
     // Allocate a permanent linear region for the GDT
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)AllocKernelRegion(
-        0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Kernel_i386.GDT == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
+        ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
         ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
     InitGlobalDescriptorTable(Kernel_i386.GDT);
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Loading GDT"));
+    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
 
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
     // Log GDT contents
     for (U32 i = 0; i < 10; i++) {
-        KernelLogText(
-            LOG_DEBUG, TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), i, ((U32*)(Kernel_i386.GDT))[i * 2 + 1],
+        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), i, ((U32*)(Kernel_i386.GDT))[i * 2 + 1],
             ((U32*)(Kernel_i386.GDT))[i * 2]);
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[InitializeMemoryManager] Exit"));
+    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }
 
 /************************************************************************/
@@ -1619,28 +1650,25 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
     PHYSICAL PhysicalAddress;
 
     // Map the physical page directory to a temporary virtual address
-    Directory = (LPPAGEDIRECTORY)MapPhysicalPage(DirectoryPhysical);
+    Directory = (LPPAGEDIRECTORY)MapTempPhysicalPage(DirectoryPhysical);
 
-    KernelLogText(LOG_DEBUG, TEXT("[LogPageDirectory] Page Directory PA=%x contents:"), DirectoryPhysical);
+    DEBUG(TEXT("[LogPageDirectory] Page Directory PA=%x contents:"), DirectoryPhysical);
 
     // Iterate through all 1024 directory entries
     for (DirEntry = 0; DirEntry < 1024; DirEntry++) {
         if (Directory[DirEntry].Present) {
-            VirtualAddress = DirEntry << 22; // Each PDE covers 4MB (22 bits)
+            VirtualAddress = DirEntry << 22;  // Each PDE covers 4MB (22 bits)
             PhysicalAddress = Directory[DirEntry].Address << 12;
 
-            KernelLogText(LOG_DEBUG, TEXT("[LogPageDirectory] PDE[%03u]: VA=%x-%x -> PT_PA=%x Present=%u RW=%u Priv=%u"),
-                DirEntry,
-                VirtualAddress,
+            DEBUG(TEXT("[LogPageDirectory] PDE[%03u]: VA=%x-%x -> PT_PA=%x Present=%u RW=%u Priv=%u"),
+                DirEntry, VirtualAddress,
                 VirtualAddress + 0x3FFFFF,  // 4MB - 1
-                PhysicalAddress,
-                Directory[DirEntry].Present,
-                Directory[DirEntry].ReadWrite,
+                PhysicalAddress, Directory[DirEntry].Present, Directory[DirEntry].ReadWrite,
                 Directory[DirEntry].Privilege);
 
             // Map the page table physically to read its contents
             PHYSICAL PageTablePhysical = Directory[DirEntry].Address << 12;
-            Table = (LPPAGETABLE)MapPhysicalPage2(PageTablePhysical);
+            Table = (LPPAGETABLE)MapTempPhysicalPage2(PageTablePhysical);
 
             // Count and display mapped pages in this table
             U32 MappedCount = 0;
@@ -1653,30 +1681,27 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
                         VirtualAddress = (DirEntry << 22) + (TabEntry << 12);
                         PhysicalAddress = Table[TabEntry].Address << 12;
 
-                        KernelLogText(LOG_DEBUG, TEXT("[LogPageDirectory]   PTE[%u]: VA=%x -> PA=%x Present=%u RW=%u Priv=%u Dirty=%u Fixed=%u"),
-                            TabEntry,
-                            VirtualAddress,
-                            PhysicalAddress,
-                            Table[TabEntry].Present,
-                            Table[TabEntry].ReadWrite,
-                            Table[TabEntry].Privilege,
-                            Table[TabEntry].Dirty,
+                        DEBUG(TEXT("[LogPageDirectory]   PTE[%u]: VA=%x -> PA=%x Present=%u RW=%u Priv=%u Dirty=%u "
+                                 "Fixed=%u"),
+                            TabEntry, VirtualAddress, PhysicalAddress, Table[TabEntry].Present,
+                            Table[TabEntry].ReadWrite, Table[TabEntry].Privilege, Table[TabEntry].Dirty,
                             Table[TabEntry].Fixed);
 
-                            U8* Memory = (U8*)MapPhysicalPage3(PhysicalAddress);
+                        U8* Memory = (U8*)MapTempPhysicalPage3(PhysicalAddress);
 
-                        LogMemoryLine16B(LOG_DEBUG, "[LogPageDirectory]     RAM: ", Memory);
+                        LogMemoryLine16B(LOG_DEBUG, (LPCSTR)"[LogPageDirectory]     RAM: ", Memory);
                     } else if (MappedCount == 4) {
-                        KernelLogText(LOG_DEBUG, TEXT("[LogPageDirectory]   ... (%u more mapped pages) ..."), 1024 - 6);
+                        DEBUG(TEXT("[LogPageDirectory]   ... (%u more mapped pages) ..."), 1024 - 6);
                     }
                 }
             }
 
             if (MappedCount > 0) {
-                KernelLogText(LOG_DEBUG, TEXT("[LogPageDirectory]   Total mapped pages in PDE[%u]: %u/1024"), DirEntry, MappedCount);
+                DEBUG(TEXT("[LogPageDirectory]   Total mapped pages in PDE[%u]: %u/1024"), DirEntry,
+                    MappedCount);
             }
         }
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[LogPageDirectory] End of page directory"));
+    DEBUG(TEXT("[LogPageDirectory] End of page directory"));
 }

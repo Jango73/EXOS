@@ -1,0 +1,7 @@
+
+Add DEBUG()s **(don't use "0x%08x", just "%x")** where needed.
+Use 4-5-build-debug.sh to build when you modify anything.
+If you don't see changes after build, use 4-2-clean-build-debug.sh.
+Use 5-1-start-qemu-ioapic-sata-e1000.sh to test.
+The script launches QEMU with EXOS which, in turn, launches netget via exos.toml to download "44.207.255.255"'s index.html.
+Wait for the end of the script (30 seconds) and parse ALL log/kernel.log to extract network and fault logs.

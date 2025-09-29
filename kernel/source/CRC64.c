@@ -38,7 +38,7 @@ static BOOL CRC64_TableInitialized = FALSE;
 
 void CRC64_InitTable(void) {
     if (CRC64_TableInitialized) return;
-    
+
     for (int TableIndex = 0; TableIndex < 256; TableIndex++) {
         U64 Crc = U64_FromU32(TableIndex);
         for (int BitIndex = 0; BitIndex < 8; BitIndex++) {
@@ -59,15 +59,15 @@ U64 CRC64_Hash(const void* Data, U32 Length) {
     if (!CRC64_TableInitialized) {
         CRC64_InitTable();
     }
-    
+
     U64 Crc = {0xFFFFFFFF, 0xFFFFFFFF};  // Initial value: all ones
     const U8* Bytes = (const U8*)Data;
-    
+
     for (U32 ByteIndex = 0; ByteIndex < Length; ByteIndex++) {
         U8 TableIndex = (U8)(Crc.LO ^ Bytes[ByteIndex]);
         Crc = U64_Xor(U64_ShiftRight8(Crc), CRC64_Table[TableIndex]);
     }
-    
+
     // Final XOR with all ones
     U64 FinalMask = {0xFFFFFFFF, 0xFFFFFFFF};
     return U64_Xor(Crc, FinalMask);
@@ -76,6 +76,4 @@ U64 CRC64_Hash(const void* Data, U32 Length) {
 /************************************************************************/
 
 // Helper to hash a username
-U64 HashString(const LPCSTR Text) {
-    return CRC64_Hash(Text, StringLength(Text));
-}
+U64 HashString(const LPCSTR Text) { return CRC64_Hash(Text, StringLength(Text)); }

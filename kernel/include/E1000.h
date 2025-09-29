@@ -21,6 +21,7 @@
     E1000
 
 \************************************************************************/
+
 #ifndef E1000_H_INCLUDED
 #define E1000_H_INCLUDED
 
@@ -34,7 +35,7 @@
 
 /***************************************************************************/
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /***************************************************************************/
 /* Driver-specific command IDs (>= DF_FIRSTFUNC)                           */
@@ -80,6 +81,7 @@
 /* Optional (MAC table) */
 #define E1000_REG_RAL0 0x5400 /* Receive Address Low 0 */
 #define E1000_REG_RAH0 0x5404 /* Receive Address High 0 */
+#define E1000_REG_MTA  0x5200 /* Multicast Table Array */
 
 /***************************************************************************/
 /* CTRL bits                                                               */
@@ -146,11 +148,18 @@
 #define E1000_TX_STA_DD 0x01
 
 /***************************************************************************/
+/* RX descriptor status bits                                               */
+
+#define E1000_RX_STA_DD 0x01   /* Descriptor Done */
+#define E1000_RX_STA_EOP 0x02  /* End of Packet */
+
+/***************************************************************************/
 /* Descriptor rings & sizes                                                */
 
 #define E1000_RX_DESC_COUNT 128U /* power of two preferred */
 #define E1000_TX_DESC_COUNT 128U
 #define E1000_RX_BUF_SIZE 2048U
+#define E1000_TX_BUF_SIZE 2048U /* same as RX for consistency */
 #define E1000_RING_ALIGN 16U /* descriptor alignment */
 #define E1000_PAGE_ALIGN 4096U
 
@@ -191,5 +200,7 @@ typedef struct tag_E1000_TXDESC {
     { E1000_VENDOR_INTEL, E1000_DEVICE_82540EM, PCI_CLASS_NETWORK, PCI_SUBCLASS_ETHERNET, PCI_ANY_CLASS }
 
 extern PCI_DRIVER E1000Driver;
+
+#pragma pack(pop)
 
 #endif /* E1000_H_INCLUDED */

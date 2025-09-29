@@ -359,24 +359,11 @@ Interrupt_Clock:
     push        ebp
     mov         ebp, esp
 
-    mov         al, INTERRUPT_DONE          ; Ack interrupt first
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI                     ; Send EOI to appropriate controller
 
     call        EnterKernel
 
-    ; Throttling logic: increment counter by 10, only proceed if >= 200
-;    mov         eax, [clock_throttle_counter]
-;    add         eax, 10
-;    mov         [clock_throttle_counter], eax
-;    cmp         eax, 1000
-;    jl          .ThrottleExit               ; Exit early if counter < 200
-;    mov         dword [clock_throttle_counter], 0  ; Reset counter to 0
-
     call        ClockHandler
-
-.ThrottleExit:
-    ; Early exit path when throttling - restore stack and return
-    ; Note: no INTERRUPT_FRAME_size to add since we never subtracted it
 
     pop         ebp
 
@@ -404,8 +391,7 @@ Interrupt_Keyboard :
 
     call        KeyboardHandler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs
@@ -431,8 +417,7 @@ Interrupt_PIC2 :
 
     call        PIC2Handler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs
@@ -458,8 +443,7 @@ Interrupt_COM2 :
 
     call        COM2Handler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs
@@ -485,8 +469,7 @@ Interrupt_COM1 :
 
     call        COM1Handler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs
@@ -510,20 +493,19 @@ Interrupt_Mouse :
 
     call        EnterKernel
 
-    mov         eax, 4
-    push        eax
-    call        DisableIRQ
-    add         esp, 4
+;    mov         eax, 4
+;    push        eax
+;    call        DisableIRQ
+;    add         esp, 4
 
     call        MouseHandler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
-    mov         eax, 4
-    push        eax
-    call        EnableIRQ
-    add         esp, 4
+;    mov         eax, 4
+;    push        eax
+;    call        EnableIRQ
+;    add         esp, 4
 
     pop         gs
     pop         fs
@@ -549,8 +531,7 @@ Interrupt_RTC :
 
     call        RTCHandler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs
@@ -576,8 +557,7 @@ Interrupt_PCI :
 
     call        PCIHandler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs
@@ -603,8 +583,7 @@ Interrupt_FPU :
 
     call        FPUHandler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs
@@ -630,8 +609,7 @@ Interrupt_HardDrive :
 
     call        HardDriveHandler
 
-    mov         al, INTERRUPT_DONE
-    out         INTERRUPT_CONTROL, al
+    call        SendEOI
 
     pop         gs
     pop         fs

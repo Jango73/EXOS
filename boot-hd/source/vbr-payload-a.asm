@@ -57,6 +57,10 @@ global MemorySet
 global MemoryCopy
 global StubJumpToImage
 global BiosGetMemoryMap
+global VESAGetModeInfo
+global VESASetMode
+global SetPixel24
+global EnableA20
 
 extern BootMain
 
@@ -327,6 +331,226 @@ BiosGetMemoryMap:
     ret
 
 ;-------------------------------------------------------------------------
+; VESAGetModeInfo
+; In : EBP+8 = mode number
+;      EBP+12 = buffer pointer (seg:ofs packed)
+; Out: EAX = 0 on success, 1 on failure
+;-------------------------------------------------------------------------
+
+VESAGetModeInfo:
+    push    ebp
+    mov     ebp, esp
+    push    esi
+    push    edi
+    push    ebx
+    push    ecx
+    push    edx
+
+    mov     cx, [ebp+8]             ; Mode number
+    mov     eax, [ebp+12]           ; Buffer address
+    mov     di, ax                  ; Offset
+    shr     eax, 16
+    mov     es, ax                  ; Segment
+
+    mov     ax, 0x4F01              ; VESA Get Mode Info
+    int     0x10                    ; BIOS interrupt
+
+    cmp     ax, 0x004F              ; Check for success
+    je      .success
+    mov     eax, 1                  ; Return failure
+    jmp     .done
+
+.success:
+    xor     eax, eax
+
+.done:
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     edi
+    pop     esi
+    pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
+; VESASetMode
+; In : EBP+8 = mode number (with flags)
+; Out: EAX = 0 on success, 1 on failure
+;-------------------------------------------------------------------------
+
+VESASetMode:
+    push    ebp
+    mov     ebp, esp
+    push    ebx
+
+    mov     bx, [ebp+8]             ; Mode number
+    mov     ax, 0x4F02              ; VESA Set Mode
+    int     0x10                    ; BIOS interrupt
+
+    cmp     ax, 0x004F              ; Check for success
+    je      .success
+    mov     eax, 1                  ; Return failure
+    jmp     .done
+
+.success:
+    xor     eax, eax
+
+.done:
+    pop     ebx
+    pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
+; SetPixel24
+; In : EBP+8 = x coordinate
+;      EBP+12 = y coordinate
+;      EBP+16 = color (24-bit RGB)
+;      EBP+20 = framebuffer base address
+; Out: none
+;-------------------------------------------------------------------------
+
+SetPixel24:
+    push    ebp
+    mov     ebp, esp
+    push    eax
+    push    ebx
+    push    ecx
+    push    edx
+    push    esi
+    push    edi
+    push    ds
+
+    ; Check bounds
+    mov     eax, [ebp+8]            ; x
+    cmp     eax, 640
+    jae     .done
+    mov     ebx, [ebp+12]           ; y
+    cmp     ebx, 480
+    jae     .done
+
+    ; Calculate offset: (y * 640 + x) * 3
+    mov     ecx, ebx                ; y
+    imul    ecx, 640                ; y * 640
+    add     ecx, eax                ; y * 640 + x
+    imul    ecx, 3                  ; (y * 640 + x) * 3
+
+    ; Get framebuffer address
+    mov     esi, [ebp+20]           ; framebuffer base
+    add     esi, ecx                ; add offset
+
+    ; Switch to unreal mode temporarily to access >1MB
+    push    eax
+    push    ebx
+
+    ; Save current DS
+    mov     ax, ds
+    push    ax
+
+    ; Enter protected mode briefly
+    cli
+    lgdt    [TempGDT]
+    mov     eax, cr0
+    or      al, 1
+    mov     cr0, eax
+
+    ; Load data segment with 4GB limit
+    mov     ax, 0x10
+    mov     ds, ax
+
+    ; Return to real mode but keep DS with 4GB limit
+    and     al, 0xFE
+    mov     cr0, eax
+
+    ; Restore segment registers except DS (keeps unreal mode)
+    pop     ax
+    ; Don't restore DS - it now has 4GB limit
+
+    pop     ebx
+    pop     eax
+
+    ; Get color
+    mov     eax, [ebp+16]           ; color
+
+    ; Write BGR (24-bit) using 32-bit addressing
+    mov     byte [esi], al          ; Blue
+    inc     esi
+    shr     eax, 8
+    mov     byte [esi], al          ; Green
+    inc     esi
+    shr     eax, 8
+    mov     byte [esi], al          ; Red
+
+    sti
+
+.done:
+    pop     ds
+    pop     edi
+    pop     esi
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     eax
+    pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
+; EnableA20 - Enable A20 line for access to high memory
+;-------------------------------------------------------------------------
+
+EnableA20:
+    push    eax
+    push    ecx
+
+    ; Method 1: Fast A20 (port 0x92)
+    in      al, 0x92
+    or      al, 2
+    out     0x92, al
+
+    ; Method 2: Keyboard controller
+    call    .wait_8042
+    mov     al, 0xAD        ; Disable keyboard
+    out     0x64, al
+
+    call    .wait_8042
+    mov     al, 0xD0        ; Read output port
+    out     0x64, al
+
+    call    .wait_8042_data
+    in      al, 0x60        ; Read current settings
+    push    eax
+
+    call    .wait_8042
+    mov     al, 0xD1        ; Write output port
+    out     0x64, al
+
+    call    .wait_8042
+    pop     eax
+    or      al, 2           ; Set A20 bit
+    out     0x60, al
+
+    call    .wait_8042
+    mov     al, 0xAE        ; Enable keyboard
+    out     0x64, al
+
+    call    .wait_8042
+
+    pop     ecx
+    pop     eax
+    ret
+
+.wait_8042:
+    in      al, 0x64
+    test    al, 2
+    jnz     .wait_8042
+    ret
+
+.wait_8042_data:
+    in      al, 0x64
+    test    al, 1
+    jz      .wait_8042_data
+    ret
+
+;-------------------------------------------------------------------------
 ; PrintChar
 ; In : AL = character to write
 ;-------------------------------------------------------------------------
@@ -460,6 +684,8 @@ PrintHex32Nibble:
 ; Param 1 : GDTR
 ; Param 2 : PageDirectory (physical)
 ; Param 3 : KernelEntryVA (virtual)
+; Param 4 : MultibootInfoPtr (physical address of multiboot_info_t)
+; Param 5 : MultibootMagic (0x2BADB002)
 ;-------------------------------------------------------------------------
 
 StubJumpToImage:
@@ -469,11 +695,6 @@ StubJumpToImage:
     cli
 
     DebugPrint  Text_JumpingToPM
-
-    xor         ebx, ebx                    ; Prepare EBX and select page 0
-    mov         ah, 0x03                    ; BIOS get cursor position
-    int         0x10
-    mov         bx, dx                      ; BL = X, BH = Y
 
     mov         eax, [ebp + 8]              ; GDTR
     lgdt        [eax]
@@ -503,11 +724,9 @@ ProtectedEntryPoint:
     mov         cr0, eax
     jmp         $+2                         ; Pipeline flush
 
-    mov         edi, 0x200000               ; Top of stack
+    mov         eax, [ebp + 24]             ; Multiboot magic (0x2BADB002)
+    mov         ebx, [ebp + 20]             ; Physical address of multiboot_info_t
     mov         edx, [ebp + 16]             ; KernelEntryVA
-    mov         esi, [ebp + 20]             ; E820 map pointer
-    mov         ecx, [ebp + 24]             ; E820 entry count
-    mov         eax, KERNEL_LOAD_ADDRESS
     jmp         edx
 
 .hang:
@@ -526,7 +745,7 @@ Text_Jumping: db "[VBR C Stub] Jumping to BootMain",10,13,0
 Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
 Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
-Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",0
+Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",10,13,10,13,0
 Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
 Text_E820Error: db "[VBR C Stub] E820 call failed",0
 Text_NewLine: db 10,13,0
@@ -546,3 +765,21 @@ DAP_Buffer_Offset : dw 0
 DAP_Buffer_Segment : dw 0
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
+
+; Temporary GDT for unreal mode
+align 16
+TempGDT:
+    dw TempGDTEnd - TempGDTStart - 1    ; Limit
+    dd TempGDTStart                     ; Base
+
+TempGDTStart:
+    ; Null descriptor
+    dd 0x00000000
+    dd 0x00000000
+    ; Code descriptor (not used)
+    dd 0x0000FFFF
+    dd 0x00CF9A00
+    ; Data descriptor (4GB, flat)
+    dd 0x0000FFFF
+    dd 0x00CF9200
+TempGDTEnd:

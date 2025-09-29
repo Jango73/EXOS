@@ -39,9 +39,9 @@
 BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
     FILEOPERATION FileOperation;
     U32 Signature;
-    U32 BytesRead;
+    U32 BytesTransferred;
 
-    KernelLogText(LOG_DEBUG, TEXT("[GetExecutableInfo] Enter"));
+    DEBUG(TEXT("[GetExecutableInfo] Enter"));
 
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
@@ -52,9 +52,9 @@ BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
     FileOperation.File = (HANDLE)File;
     FileOperation.NumBytes = sizeof(U32);
     FileOperation.Buffer = (LPVOID)&Signature;
-    BytesRead = ReadFile(&FileOperation);
+    BytesTransferred = ReadFile(&FileOperation);
 
-    if (BytesRead != sizeof(U32)) return FALSE;
+    if (BytesTransferred != sizeof(U32)) return FALSE;
 
     File->Position = 0;
 
@@ -64,7 +64,7 @@ BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
         return GetExecutableInfo_ELF(File, Info);
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[GetExecutableInfo] Unknown signature %X"), Signature);
+    DEBUG(TEXT("[GetExecutableInfo] Unknown signature %X"), Signature);
 
     return FALSE;
 }
@@ -79,9 +79,9 @@ BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
 BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
     FILEOPERATION FileOperation;
     U32 Signature;
-    U32 BytesRead;
+    U32 BytesTransferred;
 
-    KernelLogText(LOG_DEBUG, TEXT("[LoadExecutable] Enter"));
+    DEBUG(TEXT("[LoadExecutable] Enter"));
 
     if (Load == NULL) return FALSE;
     if (Load->File == NULL) return FALSE;
@@ -92,9 +92,9 @@ BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
     FileOperation.File = (HANDLE)Load->File;
     FileOperation.NumBytes = sizeof(U32);
     FileOperation.Buffer = (LPVOID)&Signature;
-    BytesRead = ReadFile(&FileOperation);
+    BytesTransferred = ReadFile(&FileOperation);
 
-    if (BytesRead != sizeof(U32)) return FALSE;
+    if (BytesTransferred != sizeof(U32)) return FALSE;
 
     Load->File->Position = 0;
 
@@ -104,9 +104,7 @@ BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
         return LoadExecutable_ELF(Load->File, Load->Info, Load->CodeBase, Load->DataBase, Load->BssBase);
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[LoadExecutable] Unknown signature %X"), Signature);
+    DEBUG(TEXT("[LoadExecutable] Unknown signature %X"), Signature);
 
     return FALSE;
 }
-
-/***************************************************************************/

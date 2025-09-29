@@ -27,6 +27,7 @@
 #include "../include/Base.h"
 #include "../include/Console.h"
 #include "../include/I386.h"
+#include "../include/InterruptController.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"
@@ -378,7 +379,7 @@ static void ScanCodeToKeyCode_E0(U32 ScanCode, LPKEYCODE KeyCode) {
     if (KeyCode->VirtualKey == VK_DELETE) {
         if (Keyboard.Status[SCAN_CONTROL] && Keyboard.Status[SCAN_ALT]) {
             X86REGS Regs;
-            RealModeCall(0xF000FFF0, &Regs);
+            // RealModeCall(0xF000FFF0, &Regs);
         }
     }
 }
@@ -412,7 +413,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     U32 Index;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Enter"));
+    DEBUG(TEXT("[SendKeyCodeToBuffer] Enter"));
 #endif
 
     if (KeyCode->VirtualKey != 0 || KeyCode->ASCIICode != 0) {
@@ -428,7 +429,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     }
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[SendKeyCodeToBuffer] Exit"));
+    DEBUG(TEXT("[SendKeyCodeToBuffer] Exit"));
 #endif
 }
 
@@ -479,7 +480,7 @@ static void HandleScanCode(U32 ScanCode) {
     static KEYCODE KeyCode;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Enter"));
+    DEBUG(TEXT("[HandleScanCode] Enter"));
 #endif
 
     if (ScanCode == 0) {
@@ -572,7 +573,7 @@ static void HandleScanCode(U32 ScanCode) {
     }
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[HandleScanCode] Exit"));
+    DEBUG(TEXT("[HandleScanCode] Exit"));
 #endif
 }
 
@@ -582,7 +583,7 @@ BOOL PeekChar(void) {
     U32 Result = FALSE;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Enter"));
+    DEBUG(TEXT("[PeekChar] Enter"));
 #endif
 
     LockMutex(&(Keyboard.Mutex), INFINITY);
@@ -593,7 +594,7 @@ BOOL PeekChar(void) {
     UnlockMutex(&(Keyboard.Mutex));
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[PeekChar] Exit"));
+    DEBUG(TEXT("[PeekChar] Exit"));
 #endif
 
     return Result;
@@ -705,12 +706,12 @@ void KeyboardHandler(void) {
     U32 Status, Code;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Enter"));
+    DEBUG(TEXT("[KeyboardHandler] Enter"));
 #endif
 
     if (Busy) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Busy, exiting"));
+        DEBUG(TEXT("[KeyboardHandler] Busy, exiting"));
 #endif
 
         return;
@@ -721,7 +722,10 @@ void KeyboardHandler(void) {
     Status = InPortByte(KEYBOARD_COMMAND);
 
     do {
-        if (Status & KSR_OUT_ERROR) break;
+        if (Status & KSR_OUT_ERROR) {
+            ERROR(TEXT("[KeyboardHandler] Keyboard error detected, breaking"));
+            break;
+        }
 
         Code = InPortByte(KEYBOARD_DATA);
 
@@ -735,7 +739,7 @@ void KeyboardHandler(void) {
     Busy = 0;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[KeyboardHandler] Exit"));
+    DEBUG(TEXT("[KeyboardHandler] Exit"));
 #endif
 }
 
@@ -772,7 +776,14 @@ static U32 InitializeKeyboard(void) {
     //-------------------------------------
     // Enable the keyboard's IRQ
 
-    EnableIRQ(KEYBOARD_IRQ);
+    DEBUG(TEXT("Keyboard: About to enable IRQ_KEYBOARD (%d)"), IRQ_KEYBOARD);
+    DEBUG(TEXT("Keyboard: Active interrupt controller type: %d"), GetActiveInterruptControllerType());
+
+    if (EnableInterrupt(IRQ_KEYBOARD)) {
+        DEBUG(TEXT("Keyboard: IRQ_KEYBOARD enabled successfully"));
+    } else {
+        DEBUG(TEXT("Keyboard: Failed to enable IRQ_KEYBOARD"));
+    }
 
     return DF_ERROR_SUCCESS;
 }

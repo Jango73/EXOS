@@ -23,10 +23,9 @@
 \************************************************************************/
 
 #include "../include/Clock.h"
+#include "../include/FAT.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
-
-#include "../include/FAT.h"
 
 /***************************************************************************/
 
@@ -63,7 +62,7 @@ typedef struct tag_RAMDISK {
 static LPRAMDISK NewRAMDisk(void) {
     LPRAMDISK This;
 
-    This = (LPRAMDISK)HeapAlloc(sizeof(RAMDISK));
+    This = (LPRAMDISK)KernelHeapAlloc(sizeof(RAMDISK));
 
     if (This == NULL) return NULL;
 
@@ -399,7 +398,7 @@ static U32 RAMDiskInitialize(void) {
     LPBOOTPARTITION Partition;
     LPRAMDISK Disk;
 
-    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Enter"));
+    DEBUG(TEXT("[RAMDiskInitialize] Enter"));
 
     Disk = NewRAMDisk();
     if (Disk == NULL) return DF_ERROR_NOMEMORY;
@@ -411,14 +410,14 @@ static U32 RAMDiskInitialize(void) {
         return DF_ERROR_NOMEMORY;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Memory allocated at %x"), Disk->Base);
+    DEBUG(TEXT("[RAMDiskInitialize] Memory allocated at %x"), Disk->Base);
 
     //-------------------------------------
     // Purge the disk
 
     MemorySet((LPVOID)Disk->Base, 0, Disk->Size);
 
-    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Disk purged"));
+    DEBUG(TEXT("[RAMDiskInitialize] Disk purged"));
 
     /*
       //-------------------------------------
@@ -464,7 +463,7 @@ static U32 RAMDiskInitialize(void) {
     Partition->LBA = 2;
     Partition->Size = (Disk->Size - (Partition->LBA * SECTOR_SIZE)) / SECTOR_SIZE;
 
-    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Partition created"));
+    DEBUG(TEXT("[RAMDiskInitialize] Partition created"));
 
     //-------------------------------------
     // Create an EXFS partition
@@ -480,7 +479,7 @@ static U32 RAMDiskInitialize(void) {
 
     EXFSDriver.Command(DF_FS_CREATEPARTITION, (U32)&Create);
 
-    KernelLogText(LOG_DEBUG, TEXT("[RAMDiskInitialize] Partition formated in EXFS"));
+    DEBUG(TEXT("[RAMDiskInitialize] Partition formated in EXFS"));
 
     //-------------------------------------
 
@@ -645,5 +644,3 @@ U32 RAMDiskCommands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-
-/***************************************************************************/

@@ -22,15 +22,13 @@
 
 \************************************************************************/
 
+#include "../include/Autotest.h"
+
 #include "../include/Base.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
-#include "../include/Autotest.h"
 
 /************************************************************************/
-
-// Test function signature
-typedef BOOL (*TestFunction)(void);
 
 // Test registry structure
 typedef struct {
@@ -44,12 +42,16 @@ typedef struct {
 
 // Test registry - add new tests here
 static TESTENTRY TestRegistry[] = {
-    { TEXT("TestCopyStack"), TestCopyStack },
-    { TEXT("TestRegex"), TestRegex },
-    { TEXT("TestI386Disassembler"), TestI386Disassembler },
+    {TEXT("TestCopyStack"), TestCopyStack},
+    {TEXT("TestRegex"), TestRegex},
+    {TEXT("TestI386Disassembler"), TestI386Disassembler},
+    {TEXT("TestBcrypt"), TestBcrypt},
+    {TEXT("TestIPv4"), TestIPv4},
+    {TEXT("TestMacros"), TestMacros},
+    {TEXT("TestTCP"), TestTCP},
     // Add new tests here following the same pattern
     // { TEXT("TestName"), TestFunctionName },
-    { NULL, NULL }  // End marker
+    {NULL, NULL}  // End marker
 };
 
 /************************************************************************/
@@ -61,11 +63,11 @@ static TESTENTRY TestRegistry[] = {
  */
 static U32 CountTests(void) {
     U32 Count = 0;
-    
+
     while (TestRegistry[Count].Name != NULL) {
         Count++;
     }
-    
+
     return Count;
 }
 
@@ -75,23 +77,22 @@ static U32 CountTests(void) {
  * @brief Runs a single test and reports the result.
  *
  * @param Entry Test registry entry containing name and function pointer
- * @return TRUE if test passed, FALSE if failed
+ * @param Results Pointer to TEST_RESULTS structure to be filled
  */
-static BOOL RunSingleTest(const TESTENTRY* Entry) {
-    BOOL Result;
-    
-    KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Running test: %s"), Entry->Name);
-    
+static void RunSingleTest(const TESTENTRY* Entry, TEST_RESULTS* Results) {
+    TEST_RESULTS TestResults = {0, 0};
+
+    DEBUG(TEXT("[Autotest] Running test: %s"), Entry->Name);
+
     // Run the test function
-    Result = Entry->Func();
-    
-    if (Result) {
-        KernelLogText(LOG_VERBOSE, TEXT("[Autotest] PASS: %s"), Entry->Name);
-    } else {
-        KernelLogText(LOG_ERROR, TEXT("[Autotest] FAIL: %s"), Entry->Name);
-    }
-    
-    return Result;
+    Entry->Func(&TestResults);
+
+    // Update overall results
+    Results->TestsRun += TestResults.TestsRun;
+    Results->TestsPassed += TestResults.TestsPassed;
+
+    // Log results
+    DEBUG(TEXT("[Autotest] %s: %u/%u passed"), Entry->Name, TestResults.TestsPassed, TestResults.TestsRun);
 }
 
 /************************************************************************/
@@ -106,44 +107,35 @@ static BOOL RunSingleTest(const TESTENTRY* Entry) {
  * @return TRUE if all tests passed, FALSE if any test failed
  */
 BOOL RunAllTests(void) {
-    U32 TotalTests = CountTests();
-    U32 PassedTests = 0;
-    U32 FailedTests = 0;
+    U32 TotalTestModules = CountTests();
     U32 Index = 0;
+    TEST_RESULTS OverallResults = {0, 0};
     BOOL AllPassed = TRUE;
-    
-    KernelLogText(LOG_VERBOSE, TEXT(""));
-    KernelLogText(LOG_VERBOSE, TEXT("========================================"));
-    KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Starting EXOS Test Suite"));
-    KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Found %u tests to run"), TotalTests);
-    KernelLogText(LOG_VERBOSE, TEXT("========================================"));
-    
+
+    DEBUG(TEXT("==========================================================================="));
+    DEBUG(TEXT("[Autotest] Starting Test Suite"));
+    DEBUG(TEXT("[Autotest] Found %u test modules to run"), TotalTestModules);
+
     // Run each test in the registry
     for (Index = 0; TestRegistry[Index].Name != NULL; Index++) {
-        if (RunSingleTest(&TestRegistry[Index])) {
-            PassedTests++;
-        } else {
-            FailedTests++;
-            AllPassed = FALSE;
-        }
+        RunSingleTest(&TestRegistry[Index], &OverallResults);
     }
-    
+
+    // Determine overall pass/fail status
+    AllPassed = (OverallResults.TestsRun == OverallResults.TestsPassed);
+
     // Print summary
-    KernelLogText(LOG_VERBOSE, TEXT(""));
-    KernelLogText(LOG_VERBOSE, TEXT("========================================"));
-    KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Test Suite Complete"));
-    KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Total: %u, Passed: %u, Failed: %u"), 
-                  TotalTests, PassedTests, FailedTests);
-    
+    DEBUG(TEXT("[Autotest] Test Suite Complete"));
+    DEBUG(TEXT("[Autotest] Tests Run: %u, Tests Passed: %u"), OverallResults.TestsRun, OverallResults.TestsPassed);
+
     if (AllPassed) {
-        KernelLogText(LOG_VERBOSE, TEXT("[Autotest] ALL TESTS PASSED"));
+        DEBUG(TEXT("[Autotest] ALL TESTS PASSED"));
     } else {
-        KernelLogText(LOG_ERROR, TEXT("[Autotest] SOME TESTS FAILED"));
+        DEBUG(TEXT("[Autotest] SOME TESTS FAILED (%u failures)"), OverallResults.TestsRun - OverallResults.TestsPassed);
     }
-    
-    KernelLogText(LOG_VERBOSE, TEXT("========================================"));
-    KernelLogText(LOG_VERBOSE, TEXT(""));
-    
+
+    DEBUG(TEXT("==========================================================================="));
+
     return AllPassed;
 }
 
@@ -160,23 +152,25 @@ BOOL RunAllTests(void) {
  */
 BOOL RunSingleTestByName(LPCSTR TestName) {
     U32 Index = 0;
-    
+    TEST_RESULTS TestResults = {0, 0};
+
     if (TestName == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[Autotest] Test name is NULL"));
+        DEBUG(TEXT("[Autotest] Test name is NULL"));
         return FALSE;
     }
-    
-    KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Looking for test: %s"), TestName);
-    
+
+    DEBUG(TEXT("[Autotest] Looking for test: %s"), TestName);
+
     // Search for the test in the registry
     for (Index = 0; TestRegistry[Index].Name != NULL; Index++) {
         if (StringCompare(TestRegistry[Index].Name, TestName) == 0) {
-            KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Found test: %s"), TestName);
-            return RunSingleTest(&TestRegistry[Index]);
+            DEBUG(TEXT("[Autotest] Found test: %s"), TestName);
+            RunSingleTest(&TestRegistry[Index], &TestResults);
+            return (TestResults.TestsRun == TestResults.TestsPassed);
         }
     }
-    
-    KernelLogText(LOG_ERROR, TEXT("[Autotest] Test not found: %s"), TestName);
+
+    DEBUG(TEXT("[Autotest] Test not found: %s"), TestName);
     return FALSE;
 }
 
@@ -190,10 +184,12 @@ BOOL RunSingleTestByName(LPCSTR TestName) {
 void ListAllTests(void) {
     U32 TotalTests = CountTests();
     U32 Index = 0;
-    
-    KernelLogText(LOG_VERBOSE, TEXT("[Autotest] Available tests (%u total):"), TotalTests);
-    
+
+    (void)TotalTests;
+
+    DEBUG(TEXT("[Autotest] Available tests (%u total):"), TotalTests);
+
     for (Index = 0; TestRegistry[Index].Name != NULL; Index++) {
-        KernelLogText(LOG_VERBOSE, TEXT("[Autotest]   %u. %s"), Index + 1, TestRegistry[Index].Name);
+        DEBUG(TEXT("[Autotest]   %u. %s"), Index + 1, TestRegistry[Index].Name);
     }
 }

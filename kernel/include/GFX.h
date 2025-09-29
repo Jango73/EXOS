@@ -21,6 +21,7 @@
     GFX
 
 \************************************************************************/
+
 #ifndef GFX_H_INCLUDED
 #define GFX_H_INCLUDED
 
@@ -117,14 +118,6 @@ typedef struct tag_GRAPHICSCONTEXT {
     LPFONT Font;
     LPBITMAP Bitmap;
 } GRAPHICSCONTEXT, *LPGRAPHICSCONTEXT;
-
-/***************************************************************************/
-
-typedef struct tag_GRAPHICSMODEINFO {
-    U32 Width;
-    U32 Height;
-    U32 BitsPerPixel;
-} GRAPHICSMODEINFO, *LPGRAPHICSMODEINFO;
 
 /***************************************************************************/
 

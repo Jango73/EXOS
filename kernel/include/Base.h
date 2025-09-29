@@ -25,13 +25,17 @@
 #ifndef BASE_H_INCLUDED
 #define BASE_H_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /***************************************************************************/
 
 #define __EXOS__
 
 /***************************************************************************/
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /***************************************************************************/
 // Storage classes
@@ -42,6 +46,8 @@
 #define EXOSAPI
 #define APIENTRY
 #define REGISTER register
+
+#define SECTION(a) __attribute__((section(a)))
 
 /***************************************************************************/
 // Basic types
@@ -54,6 +60,11 @@ typedef unsigned long U32;
 typedef signed long I32;
 typedef unsigned int UINT;
 typedef signed int INT;
+
+typedef float F32;
+typedef double F64;
+
+typedef U32 SIZE;
 
 typedef U32 LINEAR;        // A linear address, paged or not
 typedef U32 PHYSICAL;      // A physical address
@@ -68,29 +79,71 @@ typedef U8* LPPAGEBITMAP;  // A pointer to a page allocation bitmap
 
 /***************************************************************************/
 
-typedef struct __attribute__((packed)) tag_U64 {
+typedef struct tag_U48 {
+    U16 LO;
+    U32 HI;
+} U48;
+
+/***************************************************************************/
+
+typedef struct tag_U64 {
     U32 LO;
     U32 HI;
 } U64;
 
 /***************************************************************************/
 
-typedef struct __attribute__((packed)) tag_U128 {
+typedef struct tag_U80 {
+    U16 LO;
+    U64 HI;
+} U80;
+
+/***************************************************************************/
+
+typedef struct tag_U128 {
     U64 LO;
     U64 HI;
 } U128;
 
-/***************************************************************************/
+/************************************************************************/
+
+#ifdef __KERNEL__
+
+#if DEBUG_OUTPUT == 1
+    #define DEBUG(a, ...) KernelLogText(LOG_DEBUG, (a), ##__VA_ARGS__)
+#else
+    #define DEBUG(a, ...)
+#endif
+
+#define VERBOSE(a, ...) KernelLogText(LOG_VERBOSE, (a), ##__VA_ARGS__)
+#define WARNING(a, ...) KernelLogText(LOG_WARNING, (a), ##__VA_ARGS__)
+#define ERROR(a, ...) KernelLogText(LOG_ERROR, (a), ##__VA_ARGS__)
+
+#else
+
+#if DEBUG_OUTPUT == 1
+    #define DEBUG(a, ...) debug((a), ##__VA_ARGS__)
+#else
+    #define DEBUG(a, ...)
+#endif
+
+#define VERBOSE(a, ...)
+#define WARNING(a, ...)
+#define ERROR(a, ...)
+
+#endif
+
+/************************************************************************/
 
 typedef void* LPVOID;
 typedef const void* LPCVOID;
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef void (*VOIDFUNC)(void);
 typedef U32 (*TASKFUNC)(LPVOID Param);
 
-/***************************************************************************/
+/************************************************************************/
 // Boolean type
 
 typedef U32 BOOL;
@@ -103,17 +156,22 @@ typedef U32 BOOL;
 #define TRUE ((BOOL)1)
 #endif
 
-/***************************************************************************/
+/************************************************************************/
 // Utilities
 
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
-#define SAFE_USE_2(a,b) if ((a) != NULL && (b) != NULL)
-#define SAFE_USE_ID(a,i) if ((a) != NULL && (a->ID == i))
-#define SAFE_USE_ID_2(a,b,i) if ((a) != NULL && (a->ID == i) && (b) != NULL && (b->ID == i))
+#define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_ID(a, i) if ((a) != NULL && (a->ID == i))
+#define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->ID == i) && (b) != NULL && (b->ID == i))
 #define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
-#define SAFE_USE_VALID_2(a,b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
-#define SAFE_USE_VALID_ID(a,i) if ((a) != NULL && IsValidMemory((LINEAR)a) && (a->ID == i))
+#define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
+#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i))
+#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i) \
+        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->ID == i)))
+
+// This is called before dereferencing a user-provided pointer to a parameter structure
+#define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
 
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
 // Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
@@ -130,7 +188,7 @@ typedef U32 BOOL;
             : "memory");       \
     } while (0)
 
-/***************************************************************************/
+/************************************************************************/
 // NULL values
 
 #ifndef NULL
@@ -143,7 +201,7 @@ typedef U32 BOOL;
 #define NULL64 ((U64)0)
 #define NULL128 ((U128)0)
 
-/***************************************************************************/
+/************************************************************************/
 // Time values
 
 #define INFINITY 0xFFFFFFFF
@@ -265,7 +323,7 @@ typedef U32 BOOL;
 // of a specified size contains the specified member
 
 #define MEMBER_OFFSET(struc, member) ((U32)(&(((struc*)NULL)->member)))
-#define HAS_MEMBER(struc, member, struc_size) (MEMBER_OFFSET(struc, member)<struc_size)
+#define HAS_MEMBER(struc, member, struc_size) (MEMBER_OFFSET(struc, member) < struc_size)
 
 /***************************************************************************/
 // ASCII string types
@@ -328,7 +386,7 @@ typedef struct tag_OBJECT {
 
 /***************************************************************************/
 
-typedef struct tag_SYSTEMTIME {
+typedef struct tag_DATETIME {
     U32 Year : 22;
     U32 Month : 4;
     U32 Day : 6;
@@ -337,7 +395,7 @@ typedef struct tag_SYSTEMTIME {
     U32 Second : 6;
     U32 Milli : 10;
     U32 Unused : 4;
-} SYSTEMTIME, *LPSYSTEMTIME;
+} DATETIME, *LPDATETIME;
 
 /***************************************************************************
  * Handles - They are a pointer in reality, but called handles so that they
@@ -349,6 +407,7 @@ typedef U32 HANDLE;
 /***************************************************************************/
 // Maximum string lengths
 
+#define MAX_STRING_BUFFER 1024
 #define MAX_FS_LOGICAL_NAME 64
 #define MAX_COMMAND_LINE 1024
 #define MAX_PATH_NAME 1024
@@ -402,14 +461,6 @@ typedef U32 COLOR;
 #define COLOR_PURPLE ((COLOR)0x00FF00FF)
 #define COLOR_BROWN ((COLOR)0x00008080)
 #define COLOR_DARK_CYAN ((COLOR)0x00808000)
-
-/***************************************************************************/
-// Error codes
-
-#define SUCCESS 0x0000
-#define ERROR_NOT_IMPLEMENTED 0x0001
-#define ERROR_OUT_OF_MEMORY 0x0002
-#define ERROR_BAD_PARAMETER 0x0003
 
 /************************************************************************/
 // 64 bits math
@@ -471,9 +522,7 @@ static inline U64 U64_Xor(U64 A, U64 B) {
     return Result;
 }
 
-static inline BOOL U64_IsOdd(U64 Value) {
-    return (Value.LO & 1) != 0;
-}
+static inline BOOL U64_IsOdd(U64 Value) { return (Value.LO & 1) != 0; }
 
 static inline U64 U64_FromU32(U32 Value) {
     U64 Result;
@@ -491,4 +540,10 @@ static inline U64 U64_ShiftRight8(U64 Value) {
 
 /************************************************************************/
 
+#ifdef __cplusplus
+}
 #endif
+
+#pragma pack(pop)
+
+#endif  // BASE_H_INCLUDED

@@ -21,6 +21,7 @@
     Mutex
 
 \************************************************************************/
+
 #include "../include/Clock.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
@@ -28,82 +29,97 @@
 
 /***************************************************************************/
 
-MUTEX KernelMutex = {ID_MUTEX, 1, (LPLISTNODE)&LogMutex, NULL, NULL, NULL, 0};
-MUTEX LogMutex = {ID_MUTEX, 1, (LPLISTNODE)&MemoryMutex, (LPLISTNODE)&KernelMutex, NULL, NULL, 0};
-MUTEX MemoryMutex = {ID_MUTEX, 1, (LPLISTNODE)&ScheduleMutex, (LPLISTNODE)&LogMutex, NULL, NULL, 0};
-MUTEX ScheduleMutex = {ID_MUTEX, 1, (LPLISTNODE)&DesktopMutex, (LPLISTNODE)&MemoryMutex, NULL, NULL, 0};
-MUTEX DesktopMutex = {ID_MUTEX, 1, (LPLISTNODE)&ProcessMutex, (LPLISTNODE)&ScheduleMutex, NULL, NULL, 0};
-MUTEX ProcessMutex = {ID_MUTEX, 1, (LPLISTNODE)&TaskMutex, (LPLISTNODE)&DesktopMutex, NULL, NULL, 0};
-MUTEX TaskMutex = {ID_MUTEX, 1, (LPLISTNODE)&FileSystemMutex, (LPLISTNODE)&ProcessMutex, NULL, NULL, 0};
-MUTEX FileSystemMutex = {ID_MUTEX, 1, (LPLISTNODE)&FileMutex, (LPLISTNODE)&TaskMutex, NULL, NULL, 0};
-MUTEX FileMutex = {ID_MUTEX, 1, (LPLISTNODE)&ConsoleMutex, (LPLISTNODE)&FileSystemMutex, NULL, NULL, 0};
-MUTEX ConsoleMutex = {ID_MUTEX, 1, NULL, (LPLISTNODE)&FileMutex, NULL, NULL, 0};
+MUTEX KernelMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX LogMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX MemoryMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ScheduleMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&DesktopMutex, .Prev = (LPLISTNODE)&MemoryMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX DesktopMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ProcessMutex, .Prev = (LPLISTNODE)&ScheduleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ProcessMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX TaskMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX FileSystemMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX FileMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ConsoleMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX UserAccountMutex = {.ID = ID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX SessionMutex = {.ID = ID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, NULL, .Lock = 0};
 
 /***************************************************************************/
 
+/**
+ * @brief Initializes a mutex structure.
+ *
+ * @param This Pointer to the mutex to initialize.
+ */
 void InitMutex(LPMUTEX This) {
     if (This == NULL) return;
 
-    This->ID = ID_MUTEX;
-    This->References = 1;
-    This->Next = NULL;
-    This->Prev = NULL;
-    This->Process = NULL;
-    This->Task = NULL;
-    This->Lock = 0;
-}
-
-/***************************************************************************/
-
-LPMUTEX NewMutex(void) {
-    LPMUTEX This = (LPMUTEX)HeapAlloc(sizeof(MUTEX));
-
-    if (This == NULL) return NULL;
-
-    MemorySet(This, 0, sizeof(MUTEX));
-
-    This->ID = ID_MUTEX;
-    This->References = 1;
-    This->Process = NULL;
-    This->Task = NULL;
-    This->Lock = 0;
-
-    return This;
-}
-
-/***************************************************************************/
-
-LPMUTEX CreateMutex(void) {
-    LPMUTEX Mutex = NewMutex();
-
-    if (Mutex == NULL) return NULL;
-
-    ListAddItem(Kernel.Mutex, Mutex);
-
-    return Mutex;
-}
-
-/***************************************************************************/
-
-BOOL DeleteMutex(LPMUTEX Mutex) {
-    //-------------------------------------
-    // Check validity of parameters
-
-    if (Mutex == NULL) return 0;
-    if (Mutex->ID != ID_MUTEX) return 0;
-
-    if (Mutex->References) Mutex->References--;
-
-    if (Mutex->References == 0) {
-        Mutex->ID = ID_NONE;
-        ListEraseItem(Kernel.Mutex, Mutex);
+    // LISTNODE_FIELDS already initialized if created with CreateKernelObject
+    // Only initialize ID, References, Next, Prev if not already set
+    if (This->ID == 0) {
+        This->ID = ID_MUTEX;
+        This->References = 1;
+        This->OwnerProcess = GetCurrentProcess();
+        This->Next = NULL;
+        This->Prev = NULL;
     }
 
-    return 1;
+    This->Owner = NULL;
+    This->Process = NULL;
+    This->Task = NULL;
+    This->Lock = 0;
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Creates a new mutex and adds it to the kernel mutex list.
+ *
+ * @return Pointer to the new mutex, or NULL on failure.
+ */
+LPMUTEX CreateMutex(void) {
+    LPMUTEX Mutex = (LPMUTEX)CreateKernelObject(sizeof(MUTEX), ID_MUTEX);
+
+    SAFE_USE(Mutex) {
+        Mutex->Owner = NULL;
+        Mutex->Process = NULL;
+        Mutex->Task = NULL;
+        Mutex->Lock = 0;
+
+        ListAddItem(Kernel.Mutex, Mutex);
+
+        return Mutex;
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Deletes a mutex by decrementing its reference count.
+ *
+ * @param Mutex Pointer to the mutex to delete.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL DeleteMutex(LPMUTEX Mutex) {
+    SAFE_USE_VALID_ID(Mutex, ID_MUTEX) {
+        ReleaseKernelObject(Mutex);
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Acquires a mutex lock, blocking until available.
+ *
+ * If the mutex is already owned by the calling task, increments the lock count.
+ * Otherwise, waits until the mutex becomes available and then acquires it.
+ *
+ * @param Mutex Pointer to the mutex to lock.
+ * @param TimeOut Timeout value (currently unused).
+ * @return Lock count on success, 0 on failure.
+ */
 U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     UNUSED(TimeOut);
     LPPROCESS Process;
@@ -118,7 +134,6 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     // Check validity of parameters
 
     SAFE_USE_VALID_ID(Mutex, ID_MUTEX) {
-
         // Have at leat two tasks
         SAFE_USE_ID_2(Kernel.Task->First, Kernel.Task->First->Next, ID_TASK) {
             Task = GetCurrentTask();
@@ -133,6 +148,9 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                     } else {
                         //-------------------------------------
                         // Wait for mutex to be unlocked by its owner task
+
+                        U32 StartWaitTime = GetSystemTime();
+                        U32 LastDebugTime = StartWaitTime;
 
                         while (1) {
                             //-------------------------------------
@@ -151,6 +169,16 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                             }
 
                             //-------------------------------------
+                            // Periodic debug output every 2 seconds
+
+                            U32 CurrentTime = GetSystemTime();
+                            if (CurrentTime - LastDebugTime >= 2000) {
+                                DEBUG("[LockMutex] Task %p waiting for mutex %p (owned by task %p) for %u ms",
+                                      Task, Mutex, Mutex->Task, CurrentTime - StartWaitTime);
+                                LastDebugTime = CurrentTime;
+                            }
+
+                            //-------------------------------------
                             // Sleep with proper interrupt handling
 
                             Task->Status = TASK_STATUS_SLEEPING;
@@ -158,8 +186,8 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
 
                             // Keep interrupts disabled during critical section
                             while (Task->Status == TASK_STATUS_SLEEPING) {
-                                IdleCPU();              // IdleCPU enables interrupts
-                                DisableInterrupts();    // Disable immediately after
+                                IdleCPU();            // IdleCPU enables interrupts
+                                DisableInterrupts();  // Disable immediately after
                             }
                             // Continue loop with interrupts already disabled
                         }
@@ -185,6 +213,15 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
 
 /***************************************************************************/
 
+/**
+ * @brief Releases a mutex lock.
+ *
+ * Decrements the lock count and releases the mutex if count reaches zero.
+ * Only the task that owns the mutex can unlock it.
+ *
+ * @param Mutex Pointer to the mutex to unlock.
+ * @return TRUE on success, FALSE if the calling task doesn't own the mutex.
+ */
 BOOL UnlockMutex(LPMUTEX Mutex) {
     LPTASK Task = NULL;
     U32 Flags;
@@ -217,5 +254,3 @@ Out_Error:
     RestoreFlags(&Flags);
     return FALSE;
 }
-
-/***************************************************************************/

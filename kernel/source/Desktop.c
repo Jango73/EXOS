@@ -21,8 +21,10 @@
     Desktop
 
 \************************************************************************/
+
 #include "../include/GFX.h"
 #include "../include/Kernel.h"
+#include "../include/Log.h"
 #include "../include/Mouse.h"
 #include "../include/Process.h"
 
@@ -38,76 +40,78 @@ U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 
 /***************************************************************************/
 
-static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, HeapAlloc, HeapFree, NULL};
+static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelHeapAlloc, KernelHeapFree, NULL};
 
 /***************************************************************************/
 
 WINDOW MainDesktopWindow = {
-    ID_WINDOW,
-    1,  // ID, references
-    NULL,
-    NULL,                   // Next, previous
-    EMPTY_MUTEX,            // Window mutex
-    NULL,                   // Task
-    &DesktopWindowFunc,     // Function
-    NULL,                   // Parent
-    &MainDesktopChildren,   // Children
-    NULL,                   // Properties
-    {0, 0, 639, 479},       // Rect
-    {0, 0, 639, 479},       // ScreenRect
-    {0, 0, 0, 0},           // InvalidRect
-    0,                      // WindowID
-    0,                      // Style
-    WINDOW_STATUS_VISIBLE,  // Status
-    0,                      // Level
-    0                       // Order
+    .ID = ID_WINDOW,
+    .References = 1,
+    .OwnerProcess = &KernelProcess,
+    .Next = NULL,
+    .Prev = NULL,
+    .Mutex = EMPTY_MUTEX,
+    .Task = NULL,
+    .Function = &DesktopWindowFunc,
+    .Parent = NULL,
+    .Children = &MainDesktopChildren,
+    .Properties = NULL,
+    .Rect = {0, 0, 639, 479},
+    .ScreenRect = {0, 0, 639, 479},
+    .InvalidRect = {0, 0, 0, 0},
+    .WindowID = 0,
+    .Style = 0,
+    .Status = WINDOW_STATUS_VISIBLE,
+    .Level = 0,
+    .Order = 0
 };
 
 /***************************************************************************/
 
 DESKTOP MainDesktop = {
-    ID_DESKTOP,
-    1,  // ID, references
-    NULL,
-    NULL,                // Next, previous
-    EMPTY_MUTEX,         // Desktop mutex
-    NULL,                // This desktop's owner task
-    &VESADriver,         // This desktop's graphics driver
-    &MainDesktopWindow,  // Window
-    NULL,                // Capture
-    NULL,                // Focus
-    0                    // Order
+    .ID = ID_DESKTOP,
+    .References = 1,
+    .OwnerProcess = &KernelProcess,
+    .Next = NULL,
+    .Prev = NULL,
+    .Mutex = EMPTY_MUTEX,
+    .Task = NULL,
+    .Graphics = &VESADriver,
+    .Window = &MainDesktopWindow,
+    .Capture = NULL,
+    .Focus = NULL,
+    .Order = 0
 };
 
 /***************************************************************************/
 
-BRUSH Brush_Desktop = {ID_BRUSH, 1, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
-BRUSH Brush_High = {ID_BRUSH, 1, NULL, NULL, 0x00FFFFFF, MAX_U32};
-BRUSH Brush_Normal = {ID_BRUSH, 1, NULL, NULL, 0x00A0A0A0, MAX_U32};
-BRUSH Brush_HiShadow = {ID_BRUSH, 1, NULL, NULL, 0x00404040, MAX_U32};
-BRUSH Brush_LoShadow = {ID_BRUSH, 1, NULL, NULL, 0x00000000, MAX_U32};
-BRUSH Brush_Client = {ID_BRUSH, 1, NULL, NULL, COLOR_WHITE, MAX_U32};
-BRUSH Brush_Text_Normal = {ID_BRUSH, 1, NULL, NULL, COLOR_BLACK, MAX_U32};
-BRUSH Brush_Text_Select = {ID_BRUSH, 1, NULL, NULL, COLOR_WHITE, MAX_U32};
-BRUSH Brush_Selection = {ID_BRUSH, 1, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-BRUSH Brush_Title_Bar = {ID_BRUSH, 1, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-BRUSH Brush_Title_Bar_2 = {ID_BRUSH, 1, NULL, NULL, COLOR_CYAN, MAX_U32};
-BRUSH Brush_Title_Text = {ID_BRUSH, 1, NULL, NULL, COLOR_WHITE, MAX_U32};
+BRUSH Brush_Desktop = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
+BRUSH Brush_High = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
+BRUSH Brush_Normal = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
+BRUSH Brush_HiShadow = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
+BRUSH Brush_LoShadow = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
+BRUSH Brush_Client = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+BRUSH Brush_Text_Normal = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
+BRUSH Brush_Text_Select = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+BRUSH Brush_Selection = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+BRUSH Brush_Title_Bar = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+BRUSH Brush_Title_Bar_2 = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
+BRUSH Brush_Title_Text = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
 
 /***************************************************************************/
 
-PEN Pen_Desktop = {ID_PEN, 1, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
-PEN Pen_High = {ID_PEN, 1, NULL, NULL, 0x00FFFFFF, MAX_U32};
-PEN Pen_Normal = {ID_PEN, 1, NULL, NULL, 0x00A0A0A0, MAX_U32};
-PEN Pen_HiShadow = {ID_PEN, 1, NULL, NULL, 0x00404040, MAX_U32};
-PEN Pen_LoShadow = {ID_PEN, 1, NULL, NULL, 0x00000000, MAX_U32};
-PEN Pen_Client = {ID_PEN, 1, NULL, NULL, COLOR_WHITE, MAX_U32};
-PEN Pen_Text_Normal = {ID_PEN, 1, NULL, NULL, COLOR_BLACK, MAX_U32};
-PEN Pen_Text_Select = {ID_PEN, 1, NULL, NULL, COLOR_WHITE, MAX_U32};
-PEN Pen_Selection = {ID_PEN, 1, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-PEN Pen_Title_Bar = {ID_PEN, 1, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-PEN Pen_Title_Bar_2 = {ID_PEN, 1, NULL, NULL, COLOR_CYAN, MAX_U32};
-PEN Pen_Title_Text = {ID_PEN, 1, NULL, NULL, COLOR_WHITE, MAX_U32};
+PEN Pen_Desktop = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
+PEN Pen_High = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
+PEN Pen_Normal = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
+PEN Pen_HiShadow = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
+PEN Pen_LoShadow = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
+PEN Pen_Client = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+PEN Pen_Text_Normal = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
+PEN Pen_Text_Select = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+PEN Pen_Selection = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+PEN Pen_Title_Bar = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+PEN Pen_Title_Bar_2 = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
+PEN Pen_Title_Text = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
 
 /***************************************************************************/
 
@@ -190,7 +194,7 @@ LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
     WINDOWINFO WindowInfo;
 
-    This = (LPDESKTOP)HeapAlloc(sizeof(DESKTOP));
+    This = (LPDESKTOP)KernelHeapAlloc(sizeof(DESKTOP));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(DESKTOP));
@@ -217,7 +221,7 @@ LPDESKTOP CreateDesktop(void) {
     This->Window = CreateWindow(&WindowInfo);
 
     if (This->Window == NULL) {
-        HeapFree(This);
+        KernelHeapFree(This);
         return NULL;
     }
 
@@ -250,7 +254,7 @@ void DeleteDesktop(LPDESKTOP This) {
         DeleteWindow(This->Window);
     }
 
-    HeapFree(This);
+    KernelHeapFree(This);
 }
 
 /***************************************************************************/
@@ -291,9 +295,14 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     ListSort(Kernel.Desktop, SortDesktops_Order);
 
+    ModeInfo.Header.Size = sizeof(ModeInfo);
+    ModeInfo.Header.Version = EXOS_ABI_VERSION;
+    ModeInfo.Header.Flags = 0;
     ModeInfo.Width = 1024;
     ModeInfo.Height = 768;
     ModeInfo.BitsPerPixel = 24;
+
+    DEBUG(TEXT("[ShowDesktop] Setting gfx mode %ux%u"), ModeInfo.Width, ModeInfo.Height);
 
     This->Graphics->Command(DF_GFX_SETMODE, (U32)&ModeInfo);
 
@@ -315,7 +324,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
  * @return Pointer to the created window or NULL on failure.
  */
 LPWINDOW NewWindow(void) {
-    LPWINDOW This = (LPWINDOW)HeapAlloc(sizeof(WINDOW));
+    LPWINDOW This = (LPWINDOW)KernelHeapAlloc(sizeof(WINDOW));
     if (This == NULL) return NULL;
 
     MemorySet(This, 0, sizeof(WINDOW));
@@ -324,8 +333,8 @@ LPWINDOW NewWindow(void) {
 
     This->ID = ID_WINDOW;
     This->References = 1;
-    This->Properties = NewList(NULL, HeapAlloc, HeapFree);
-    This->Children = NewList(NULL, HeapAlloc, HeapFree);
+    This->Properties = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    This->Children = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
 
     return This;
 }
@@ -386,13 +395,7 @@ void DeleteWindow(LPWINDOW This) {
 
     UnlockMutex(&(This->Parent->Mutex));
 
-    //-------------------------------------
-    // Invalidate it's ID
-
-    This->ID = ID_NONE;
-    This->References = 0;
-
-    HeapFree(This);
+    ReleaseKernelObject(This);
 }
 
 /***************************************************************************/
@@ -968,7 +971,7 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
     //-------------------------------------
     // Add the property to the window
 
-    Prop = (LPPROPERTY)HeapAlloc(sizeof(PROPERTY));
+    Prop = (LPPROPERTY)KernelHeapAlloc(sizeof(PROPERTY));
 
     if (Prop != NULL) {
         StringCopy(Prop->Name, Name);
@@ -1301,7 +1304,7 @@ HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
 
     if (BrushInfo == NULL) return NULL;
 
-    Brush = (LPBRUSH)HeapAlloc(sizeof(BRUSH));
+    Brush = (LPBRUSH)KernelHeapAlloc(sizeof(BRUSH));
     if (Brush == NULL) return NULL;
 
     MemorySet(Brush, 0, sizeof(BRUSH));
@@ -1326,7 +1329,7 @@ HANDLE CreatePen(LPPENINFO PenInfo) {
 
     if (PenInfo == NULL) return NULL;
 
-    Pen = (LPPEN)HeapAlloc(sizeof(PEN));
+    Pen = (LPPEN)KernelHeapAlloc(sizeof(PEN));
     if (Pen == NULL) return NULL;
 
     MemorySet(Pen, 0, sizeof(PEN));
@@ -1744,5 +1747,3 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
     return 0;
 }
-
-/***************************************************************************/

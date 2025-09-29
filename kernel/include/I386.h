@@ -31,11 +31,11 @@
 
 /***************************************************************************/
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /***************************************************************************/
 
-typedef struct __attribute__((packed)) tag_INTEL386REGISTERS {
+typedef struct tag_INTEL386REGISTERS {
     U32 EFlags;
     U32 EAX, EBX, ECX, EDX;
     U32 ESI, EDI, ESP, EBP;
@@ -49,7 +49,19 @@ typedef struct __attribute__((packed)) tag_INTEL386REGISTERS {
 
 /***************************************************************************/
 
-typedef union __attribute__((packed)) tag_X86REGS {
+typedef struct tag_INTELFPUREGISTERS {
+    U16 Control;
+    U16 Status;
+    U16 Tag;
+    U48 IP;
+    U48 DP;
+    U80 ST0, ST1, ST2, ST3;
+    U80 ST4, ST5, ST6, ST7;
+} INTELFPUREGISTERS, *LPINTELFPUREGISTERS;
+
+/***************************************************************************/
+
+typedef union tag_X86REGS {
     struct {
         U16 DS;
         U16 ES;
@@ -107,7 +119,7 @@ typedef union __attribute__((packed)) tag_X86REGS {
 // The page directory entry
 // Size : 4 bytes
 
-typedef struct __attribute__((packed)) tag_PAGEDIRECTORY {
+typedef struct tag_PAGEDIRECTORY {
     U32 Present : 1;    // Is page present in RAM ?
     U32 ReadWrite : 1;  // Read-write access rights
     U32 Privilege : 1;  // Privilege level
@@ -126,7 +138,7 @@ typedef struct __attribute__((packed)) tag_PAGEDIRECTORY {
 // The page table entry
 // Size : 4 bytes
 
-typedef struct __attribute__((packed)) tag_PAGETABLE {
+typedef struct tag_PAGETABLE {
     U32 Present : 1;    // Is page present in RAM ?
     U32 ReadWrite : 1;  // Read-write access rights
     U32 Privilege : 1;  // Privilege level
@@ -145,7 +157,7 @@ typedef struct __attribute__((packed)) tag_PAGETABLE {
 // The segment descriptor
 // Size : 8 bytes
 
-typedef struct __attribute__((packed)) tag_SEGMENTDESCRIPTOR {
+typedef struct tag_SEGMENTDESCRIPTOR {
     U32 Limit_00_15 : 16;   // Bits 0-15 of segment limit
     U32 Base_00_15 : 16;    // Bits 0-15 of segment base
     U32 Base_16_23 : 8;     // Bits 16-23 of segment base
@@ -169,7 +181,7 @@ typedef struct __attribute__((packed)) tag_SEGMENTDESCRIPTOR {
 /***************************************************************************/
 // The Gate Descriptor
 
-typedef struct __attribute__((packed)) tag_GATEDESCRIPTOR {
+typedef struct tag_GATEDESCRIPTOR {
     U32 Offset_00_15 : 16;  // Bits 0-15 of entry point offset
     U32 Selector : 16;      // Selector for code segment
     U32 Reserved : 8;       // Reserved
@@ -182,7 +194,7 @@ typedef struct __attribute__((packed)) tag_GATEDESCRIPTOR {
 /***************************************************************************/
 // The TSS descriptor
 
-typedef struct __attribute__((packed)) tag_TSSDESCRIPTOR {
+typedef struct tag_TSSDESCRIPTOR {
     U32 Limit_00_15 : 16;  // Bits 0-15 of segment limit
     U32 Base_00_15 : 16;   // Bits 0-15 of segment base
     U32 Base_16_23 : 8;    // Bits 16-23 of segment base
@@ -200,7 +212,7 @@ typedef struct __attribute__((packed)) tag_TSSDESCRIPTOR {
 // The Task State Segment
 // It must be 256 bytes long
 
-typedef struct __attribute__((packed)) tag_TASKSTATESEGMENT {
+typedef struct tag_TASKSTATESEGMENT {
     U16 BackLink;  // TSS backlink
     U16 Res1;      // Reserved
     U32 ESP0;      // Stack 0 pointer (CPL = 0)
@@ -254,19 +266,21 @@ typedef struct __attribute__((packed)) tag_TASKSTATESEGMENT {
 
 /************************************************************************/
 // NOTE: fields not meaningful for a given trap are set to 0
+// !! Structure MUST BE IDENTICAL to STRUC INTERRUPT_FRAME in Kernel.inc !!
 
-typedef struct __attribute__((packed)) tag_INTERRUPTFRAME {
+typedef struct tag_INTERRUPTFRAME {
     INTEL386REGISTERS Registers;
-    U32 SS0;                        // SS in ring 0
-    U32 ESP0;                       // ESP in ring 0
-    U32 IntNo;                      // Interrupt / exception vector
-    U32 ErrCode;                    // CPU error code (0 for #UD)
+    INTELFPUREGISTERS FPURegisters;
+    U32 SS0;      // SS in ring 0
+    U32 ESP0;     // ESP in ring 0
+    U32 IntNo;    // Interrupt / exception vector
+    U32 ErrCode;  // CPU error code (0 for #UD)
 } INTERRUPTFRAME, *LPINTERRUPTFRAME;
 
 /************************************************************************/
 // The GDT register
 
-typedef struct __attribute__((packed)) {
+typedef struct {
     U16 Limit;
     U32 Base;
 } GDTREGISTER;
@@ -334,8 +348,8 @@ typedef struct __attribute__((packed)) {
 #define GATE_TYPE_386_TSS_AVAIL 0x09
 #define GATE_TYPE_386_TSS_BUSY 0x0B
 #define GATE_TYPE_386_CALL 0x0C
-#define GATE_TYPE_386_INT 0x0E              // This clears interrupt flag on entry
-#define GATE_TYPE_386_TRAP 0x0F             // This DOES NOT clear interrupt flag on entry
+#define GATE_TYPE_386_INT 0x0E   // This clears interrupt flag on entry
+#define GATE_TYPE_386_TRAP 0x0F  // This DOES NOT clear interrupt flag on entry
 
 /***************************************************************************/
 
@@ -564,6 +578,13 @@ typedef struct tag_FARPOINTER {
 #define MAX_IRQ 16
 
 /***************************************************************************/
+// IRQs
+
+#define IRQ_KEYBOARD 0x01
+#define IRQ_MOUSE 0x04
+#define IRQ_ATA 0x0E
+
+/***************************************************************************/
 // CMOS
 
 #define CMOS_COMMAND 0x0070
@@ -594,17 +615,15 @@ typedef struct tag_FARPOINTER {
 // Clock ports
 // 8253 chip
 
-#define CLOCK_DATA 0x0040
 #define CLOCK_COMMAND 0x0043
+#define CLOCK_DATA 0x0040
 
 /***************************************************************************/
 // Keyboard ports
 // 8042 chip
 
-#define KEYBOARD_IRQ 0x01
-
-#define KEYBOARD_DATA 0x0060     // Keyboard data port
 #define KEYBOARD_COMMAND 0x0064  // Keyboard command port
+#define KEYBOARD_DATA 0x0060     // Keyboard data port
 
 // Keyboard status register bit values
 
@@ -638,7 +657,7 @@ typedef struct tag_FARPOINTER {
 #define LOW_MEMORY_PAGE_1 0x1000  // Reserved by VBR system structures
 #define LOW_MEMORY_PAGE_2 0x2000  // Reserved by VBR system structures
 #define LOW_MEMORY_PAGE_3 0x3000  // Reserved by VBR system structures
-#define LOW_MEMORY_PAGE_4 0x4000  //
+#define LOW_MEMORY_PAGE_4 0x4000  // Reserved by VBR system structures
 #define LOW_MEMORY_PAGE_5 0x5000  // RMC code base
 #define LOW_MEMORY_PAGE_6 0x6000  // RMC buffers
 #define LOW_MEMORY_PAGE_7 0x7000
@@ -663,54 +682,53 @@ typedef struct tag_SEGMENTINFO {
 // Hardware debugging macros
 
 // Set execution breakpoint on specific address in DR0
-#define SET_HW_BREAKPOINT(addr) \
-    __asm__ volatile ( \
-        "mov %0, %%eax; mov %%eax, %%dr0\n" \
+#define SET_HW_BREAKPOINT(addr)                      \
+    __asm__ volatile(                                \
+        "mov %0, %%eax; mov %%eax, %%dr0\n"          \
         "mov $0x00000001, %%eax; mov %%eax, %%dr7\n" \
-        : : "r"(addr) : "eax" \
-    )
+        :                                            \
+        : "r"(addr)                                  \
+        : "eax")
 
 // Read debug register DR6 (debug status)
-#define READ_DR6(var) \
-    __asm__ volatile ("mov %%dr6, %%eax; mov %%eax, %0" : "=m" (var) : : "eax")
+#define READ_DR6(var) __asm__ volatile("mov %%dr6, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 
 // Read debug register DR0 (breakpoint address)
-#define READ_DR0(var) \
-    __asm__ volatile ("mov %%dr0, %%eax; mov %%eax, %0" : "=m" (var) : : "eax")
+#define READ_DR0(var) __asm__ volatile("mov %%dr0, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 
 // Read debug register DR7 (debug control)
-#define READ_DR7(var) \
-    __asm__ volatile ("mov %%dr7, %%eax; mov %%eax, %0" : "=m" (var) : : "eax")
+#define READ_DR7(var) __asm__ volatile("mov %%dr7, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 
 // Clear debug register DR6 (status)
-#define CLEAR_DR6() \
-    __asm__ volatile ("xor %%eax, %%eax; mov %%eax, %%dr6" : : : "eax")
+#define CLEAR_DR6() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr6" : : : "eax")
 
 // Clear debug register DR7 (disable all breakpoints)
-#define CLEAR_DR7() \
-    __asm__ volatile ("xor %%eax, %%eax; mov %%eax, %%dr7" : : : "eax")
+#define CLEAR_DR7() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr7" : : : "eax")
 
 // Clear all debug registers
 #define CLEAR_DEBUG_REGS() \
-    do { \
-        CLEAR_DR6(); \
-        CLEAR_DR7(); \
-    } while(0)
+    do {                   \
+        CLEAR_DR6();       \
+        CLEAR_DR7();       \
+    } while (0)
 
-#define GetCS(var) \
-    __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=m" (var) : : "eax")
+#define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 
-#define GetFS(var) \
-    __asm__ volatile("movw %%fs, %%ax; movl %%eax, %0" : "=m" (var) : : "eax")
+#define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 
-#define GetGS(var) \
-    __asm__ volatile("movw %%gs, %%ax; movl %%eax, %0" : "=m" (var) : : "eax")
+#define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 
-#define SetFS(var) \
-    __asm__ volatile("movl %0, %%eax; movw %%ax, %%fs" : "=m" (var) : : "eax")
+#define GetFS(var) __asm__ volatile("movw %%fs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 
-#define SetGS(var) \
-    __asm__ volatile("movl %0, %%eax; movw %%ax, %%gs" : "=m" (var) : : "eax")
+#define GetGS(var) __asm__ volatile("movw %%gs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+
+#define SetDS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%ds" : "=m"(var) : : "eax")
+
+#define SetES(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%es" : "=m"(var) : : "eax")
+
+#define SetFS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%fs" : "=m"(var) : : "eax")
+
+#define SetGS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%gs" : "=m"(var) : : "eax")
 
 /************************************************************************/
 
@@ -718,5 +736,7 @@ BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info);
 BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text);
 
 /************************************************************************/
+
+#pragma pack(pop)
 
 #endif

@@ -19,13 +19,14 @@
 *.gdbinit
 
 # AI agents
-CLAUDE.md
 .claude/*
 
 # Project
 temp
+build
 boot-hd/exos.toml
-tools/bin/*
+documentation/internal/kernel
+log/*
 
 # Node
 node_modules

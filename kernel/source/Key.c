@@ -455,7 +455,7 @@ LPKEYTRANS GetScanCodeToKeyCodeTable(LPCSTR Code) {
 
     for (Index = 0; Index < sizeof(ScanCodeToKeyCode) / sizeof(KEYBOARDLAYOUT); Index++) {
         if (StringCompare(ScanCodeToKeyCode[Index].Code, Code) == 0) {
-            KernelLogText(LOG_DEBUG, TEXT("[GetScanCodeToKeyCodeTable] Index = %u, code = %s"), Index, Code);
+            DEBUG(TEXT("[GetScanCodeToKeyCodeTable] Index = %u, code = %s"), Index, Code);
             return ScanCodeToKeyCode[Index].Table;
         }
     }
@@ -508,5 +508,5 @@ LPCSTR GetKeyName(U8 VirtualKey) {
         }
     }
 
-    return "";
+    return TEXT("");
 }

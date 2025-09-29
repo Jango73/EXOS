@@ -64,9 +64,9 @@ cs=$(
 )
 
 # Log to stderr (informational)
-printf 'checksum (dec): %s\n' "$cs" >&2
-printf 'checksum (hex): %08x\n' "$cs" >&2
-printf 'bytes counted:  %s / %s\n' "$len" "$size" >&2
+# printf 'checksum (dec): %s\n' "$cs" >&2
+# printf 'checksum (hex): %08x\n' "$cs" >&2
+# printf 'bytes counted:  %s / %s\n' "$len" "$size" >&2
 
 case "$mode" in
 	bin)

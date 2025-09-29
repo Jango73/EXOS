@@ -32,7 +32,7 @@
 BOOL StringArrayInit(LPSTRINGARRAY Array, U32 Capacity) {
     Array->Capacity = Capacity;
     Array->Count = 0;
-    Array->Items = (LPSTR *)HeapAlloc(sizeof(LPSTR) * Capacity);
+    Array->Items = (LPSTR *)KernelHeapAlloc(sizeof(LPSTR) * Capacity);
     if (Array->Items == NULL) return FALSE;
     return TRUE;
 }
@@ -43,9 +43,9 @@ void StringArrayDeinit(LPSTRINGARRAY Array) {
     U32 Index;
     if (Array->Items) {
         for (Index = 0; Index < Array->Count; Index++) {
-            if (Array->Items[Index]) HeapFree(Array->Items[Index]);
+            if (Array->Items[Index]) KernelHeapFree(Array->Items[Index]);
         }
-        HeapFree(Array->Items);
+        KernelHeapFree(Array->Items);
     }
     Array->Items = NULL;
     Array->Count = 0;
@@ -57,7 +57,7 @@ void StringArrayDeinit(LPSTRINGARRAY Array) {
 static void StringArrayShiftLeft(LPSTRINGARRAY Array) {
     U32 Index;
     if (Array->Count == 0) return;
-    if (Array->Items[0]) HeapFree(Array->Items[0]);
+    if (Array->Items[0]) KernelHeapFree(Array->Items[0]);
     for (Index = 1; Index < Array->Count; Index++) {
         Array->Items[Index - 1] = Array->Items[Index];
     }
@@ -80,9 +80,51 @@ BOOL StringArrayAddUnique(LPSTRINGARRAY Array, LPCSTR String) {
         StringArrayShiftLeft(Array);
     }
 
-    Array->Items[Array->Count] = (LPSTR)HeapAlloc(StringLength(String) + 1);
+    Array->Items[Array->Count] = (LPSTR)KernelHeapAlloc(StringLength(String) + 1);
     if (Array->Items[Array->Count] == NULL) return FALSE;
     StringCopy(Array->Items[Array->Count], String);
+    Array->Count++;
+    return TRUE;
+}
+
+/************************************************************************/
+
+BOOL StringArrayMoveToEnd(LPSTRINGARRAY Array, LPCSTR String) {
+    U32 Index;
+    LPSTR ExistingString = NULL;
+
+    if (Array->Items == NULL) return FALSE;
+
+    // Look for existing string
+    for (Index = 0; Index < Array->Count; Index++) {
+        if (StringCompare(Array->Items[Index], String) == 0) {
+            // Found existing string, save pointer and remove from current position
+            ExistingString = Array->Items[Index];
+            // Shift items down to fill the gap
+            for (U32 i = Index; i < Array->Count - 1; i++) {
+                Array->Items[i] = Array->Items[i + 1];
+            }
+            Array->Count--;
+            break;
+        }
+    }
+
+    // If array is at capacity and we didn't find existing string, remove first item
+    if (Array->Count == Array->Capacity && ExistingString == NULL) {
+        StringArrayShiftLeft(Array);
+    }
+
+    // Insert at end
+    if (ExistingString != NULL) {
+        // Reuse existing string
+        Array->Items[Array->Count] = ExistingString;
+    } else {
+        // Create new string
+        Array->Items[Array->Count] = (LPSTR)KernelHeapAlloc(StringLength(String) + 1);
+        if (Array->Items[Array->Count] == NULL) return FALSE;
+        StringCopy(Array->Items[Array->Count], String);
+    }
+
     Array->Count++;
     return TRUE;
 }

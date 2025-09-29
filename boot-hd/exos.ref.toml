@@ -3,27 +3,55 @@
 # FileSystem="<device name>"
 # Path="<some path to a node>"
 
+# [[NetworkInterface]]
+# DeviceIndex=<n>
+# LocalIP="<some IP>"
+# Netmask="<some IP mask>"
+# Gateway="<some IP>"
+
 # [[Run]]
 # This type of entry runs an executable at startup
 # Path="<path to an executable>"
 
 [General]
-Mono=0
+# You may force a monotask system below
+# Mono=1
 # You may force a quantum time using the entry below
 # Quantum=10
+# Enable or disable login sequence (1=enable, 0=disable)
+DoLogin=1
 
 [[SystemFS.Mount]]
 FileSystem="hd0p0"
-Path="/os"
+SourcePath="EXOS"
+Path="/system"
 
 [[SystemFS.Mount]]
-FileSystem="hd1p0"
-Path="/work"
+FileSystem="hd0p0"
+SourcePath="EXOS/USERS"
+Path="/users"
 
 [Keyboard]
 # Available layouts : de-DE, en-US, fr-FR
 Layout="en-US"
 
+[Network]
+# Global network configuration (fallback values)
+LocalIP="10.0.2.15"
+Netmask="255.255.255.0"
+Gateway="10.0.2.2"
+DefaultPort=8080
+
+[[NetworkInterface]]
+# Configuration for first E1000 device (by discovery order)
+DeviceIndex=0
+LocalIP="192.168.56.10"
+
+[TCP]
+# TCP configuration
+EphemeralPortStart=32768
+
 # Run section (specify an executable to run)
 # [[Run]]
-# Path="/os/HELLO.ELF"
+# Command="/system/APPS/PORTAL"
+# Command="/system/APPS/HELLO"

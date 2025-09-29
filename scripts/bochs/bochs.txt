@@ -3,13 +3,16 @@ megs: 128
 # clock: sync=slowdown
 romimage: file=/usr/share/bochs/BIOS-bochs-legacy
 vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
-ata0-master: type=disk, path="boot-hd/bin/exos.img", mode=flat
-ata0-slave: type=disk, path="boot-hd/bin/src.img", mode=flat
+
+# Enable ACPI and IOAPIC support (if supported by this Bochs version)
+cpu: count=1, ips=20000000, reset_on_triple_fault=1
+# Note: acpi/apic/ioapic directives may not be available in older Bochs versions
+ata0-master: type=disk, path="build/boot-hd/exos.img", mode=flat
 vga: extension=vbe, update_freq=20
 mouse: enabled=1, type=ps2
 boot: disk
 com1: enabled=1, mode=file, dev="log/debug-com1.log"
-com2: enabled=1, mode=file, dev="log/debug-com2.log"
+com2: enabled=1, mode=file, dev="log/kernel.log"
 log: log/bochs.log
 magic_break: enabled=1
 

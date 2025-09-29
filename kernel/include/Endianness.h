@@ -21,6 +21,7 @@
     Endianness
 
 \************************************************************************/
+
 #ifndef ENDIANNESS_H_INCLUDED
 #define ENDIANNESS_H_INCLUDED
 
@@ -42,6 +43,18 @@
 
 \************************************************************************/
 
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+
+static inline U16 Htons(U16 Value) { return Value; }
+
+static inline U16 Ntohs(U16 Value) { return Value; }
+
+static inline U32 Htonl(U32 Value) { return Value; }
+
+static inline U32 Ntohl(U32 Value) { return Value; }
+
+#elif defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+
 static inline U16 Htons(U16 Value) { return (U16)((Value << 8) | (Value >> 8)); }
 
 static inline U16 Ntohs(U16 Value) { return Htons(Value); }
@@ -52,6 +65,10 @@ static inline U32 Htonl(U32 Value) {
 }
 
 static inline U32 Ntohl(U32 Value) { return Htonl(Value); }
+
+#else
+    #error "Endianness not defined"
+#endif
 
 /************************************************************************/
 

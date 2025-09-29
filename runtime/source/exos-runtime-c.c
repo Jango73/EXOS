@@ -22,44 +22,183 @@
 
 \************************************************************************/
 
+#include "../../kernel/include/String.h"
 #include "../../kernel/include/User.h"
+#include "../../kernel/include/VarArg.h"
 #include "../include/exos-runtime.h"
+#include "../include/exos.h"
 
-/***************************************************************************/
+/************************************************************************/
 
-// User-facing structures now start with an ABI_HDR instead of a simple size
-// field. Always populate Hdr.Size with sizeof(struct), set Hdr.Version to
-// EXOS_ABI_VERSION, and clear Hdr.Flags before invoking system calls.
+// Global argc/argv for main function
+int _argc = 0;
+char** _argv = NULL;
 
+// Static storage for argv to avoid early malloc() issues
+char* _static_argv[16];                          // Support up to 16 arguments
+char _static_arg_storage[MAX_STRING_BUFFER];     // Storage for argument strings
+
+PROCESSINFO _ProcessInfo;
+
+/************************************************************************/
+
+// Suppress unused warnings for future use
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+static void __attribute__((unused)) suppress_unused_warnings(void) {
+    UNUSED(_static_argv);
+    UNUSED(_static_arg_storage);
+}
+#pragma GCC diagnostic pop
+
+/************************************************************************/
+
+int atoi(const char* str) { return (int)StringToU32((LPCSTR)str); }
+
+/************************************************************************/
+
+#ifndef __KERNEL__
+void debug(char* format, ...) {
+    char Buffer[MAX_STRING_BUFFER];
+    VarArgList Args;
+
+    VarArgStart(Args, format);
+    StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)format, Args);
+    VarArgEnd(Args);
+
+    exoscall(SYSCALL_Debug, (unsigned)Buffer);
+}
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
 void exit(int ErrorCode) { __exit__(ErrorCode); }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
+#ifdef __KERNEL__
+/* In kernel mode, use kernel heap functions directly */
+extern void* KernelHeapAlloc(unsigned long size);
+extern void KernelHeapFree(void* ptr);
+extern void* KernelHeapRealloc(void* ptr, unsigned long size);
+
+void* malloc(size_t s) { return KernelHeapAlloc(s); }
+#else
 void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, s); }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
+#ifdef __KERNEL__
+void free(void* p) { KernelHeapFree(p); }
+#else
 void free(void* p) { exoscall(SYSCALL_HeapFree, (unsigned)p); }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
+#ifdef __KERNEL__
+void* realloc(void* ptr, size_t size) { return KernelHeapRealloc(ptr, size); }
+#else
+void* realloc(void* ptr, size_t size) {
+    HEAPREALLOCINFO info;
+    info.Header.Size = sizeof(HEAPREALLOCINFO);
+    info.Header.Version = EXOS_ABI_VERSION;
+    info.Header.Flags = 0;
+    info.Pointer = ptr;
+    info.Size = (U32)size;
+    return (void*)exoscall(SYSCALL_HeapRealloc, (U32)&info);
+}
+#endif
+
+/************************************************************************/
+
+int memerror(void) {
+    /* Memory allocation error handler for bcrypt compatibility */
+    /* In user space, we can't do much except return error */
+    return -1;
+}
+
+/************************************************************************/
+
+int sprintf(char* str, const char* fmt, ...) {
+    VarArgList Args;
+    VarArgStart(Args, fmt);
+    StringPrintFormatArgs((LPSTR)str, (LPCSTR)fmt, Args);
+    VarArgEnd(Args);
+    return strlen(str);
+}
+
+/************************************************************************/
+
+#ifndef __KERNEL__
+int printf(const char* fmt, ...) {
+    char Buffer[MAX_STRING_BUFFER];
+    VarArgList Args;
+
+    VarArgStart(Args, fmt);
+    StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)fmt, Args);
+    VarArgEnd(Args);
+
+    exoscall(SYSCALL_ConsolePrint, (unsigned)Buffer);
+    return strlen(Buffer);
+}
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
+int fprintf(FILE* fp, const char* fmt, ...) {
+    char Buffer[MAX_STRING_BUFFER];
+    VarArgList Args;
+
+    if (!fp) return 0;
+
+    VarArgStart(Args, fmt);
+    StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)fmt, Args);
+    VarArgEnd(Args);
+
+    return fwrite(Buffer, 1, strlen(Buffer), fp);
+}
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
 int getch(void) {
     KEYCODE KeyCode;
 
     while (exoscall(SYSCALL_ConsolePeekKey, 0) == 0) {
+        sleep(10);
     }
 
     exoscall(SYSCALL_ConsoleGetKey, (U32)&KeyCode);
 
     return (int)KeyCode.ASCIICode;
 }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
-int printf(const char* fmt, ...) { return (int)exoscall(SYSCALL_ConsolePrint, (unsigned)fmt); }
+#ifndef __KERNEL__
+int getkey(void) {
+    KEYCODE KeyCode;
 
-/***************************************************************************/
+    while (exoscall(SYSCALL_ConsolePeekKey, 0) == 0) {
+        sleep(10);
+    }
 
+    exoscall(SYSCALL_ConsoleGetKey, (U32)&KeyCode);
+
+    return (int)KeyCode.VirtualKey;
+}
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
 int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
     TASKINFO TaskInfo;
 
@@ -68,7 +207,10 @@ int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_li
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wcast-function-type"
     TaskInfo.Func = (TASKFUNC)start_address;
+    #pragma GCC diagnostic pop
     TaskInfo.Parameter = (LPVOID)arg_list;
     TaskInfo.StackSize = (U32)stack_size;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
@@ -76,31 +218,42 @@ int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_li
 
     return (int)exoscall(SYSCALL_CreateTask, (unsigned)&TaskInfo);
 }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
 void _endthread(void) {}
 
-/***************************************************************************/
+/************************************************************************/
 
+#ifndef __KERNEL__
+void sleep(unsigned ms) { exoscall(SYSCALL_Sleep, (U32)ms); }
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
 int system(const char* __cmd) {
     PROCESSINFO ProcessInfo;
+
+    memset(&ProcessInfo, 0, sizeof(ProcessInfo));
 
     ProcessInfo.Header.Size = sizeof(PROCESSINFO);
     ProcessInfo.Header.Version = EXOS_ABI_VERSION;
     ProcessInfo.Header.Flags = 0;
-    ProcessInfo.FileName = NULL;
-    ProcessInfo.CommandLine = (LPCSTR)__cmd;
     ProcessInfo.Flags = 0;
+    StringCopyLimit(ProcessInfo.CommandLine, (LPCSTR)__cmd, MAX_PATH_NAME);
     ProcessInfo.StdOut = NULL;
     ProcessInfo.StdIn = NULL;
     ProcessInfo.StdErr = NULL;
 
     return (int)exoscall(SYSCALL_CreateProcess, (U32)&ProcessInfo);
 }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
+#ifndef __KERNEL__
 FILE* fopen(const char* __name, const char* __mode) {
     FILEOPENINFO info;
     FILE* __fp;
@@ -154,9 +307,11 @@ FILE* fopen(const char* __name, const char* __mode) {
 
     return NULL;
 }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
+#ifndef __KERNEL__
 int fclose(FILE* __fp) {
     if (__fp) {
         exoscall(SYSCALL_DeleteObject, __fp->_handle);
@@ -166,9 +321,11 @@ int fclose(FILE* __fp) {
     }
     return 0;
 }
+#endif
 
-/***************************************************************************/
+/************************************************************************/
 
+#ifndef __KERNEL__
 size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
     FILEOPERATION fileop;
 
@@ -184,17 +341,33 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
     return (size_t)exoscall(SYSCALL_ReadFile, (unsigned)&fileop);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
-    UNUSED(buf);
-    UNUSED(elsize);
-    UNUSED(num);
-    UNUSED(fp);
-    return 0;
+    FILEOPERATION fileop;
+
+    debug("[fwrite] Called with elsize=%u, num=%u, fp=%x", elsize, num, (unsigned)fp);
+
+    if (!fp) {
+        debug("[fwrite] NULL file pointer");
+        return 0;
+    }
+
+    fileop.Header.Size = sizeof(fileop);
+    fileop.Header.Version = EXOS_ABI_VERSION;
+    fileop.Header.Flags = 0;
+    fileop.File = (HANDLE)fp->_handle;
+    fileop.NumBytes = elsize * num;
+    fileop.Buffer = (void*)buf;
+
+    debug("[fwrite] Calling SYSCALL_WriteFile with %u bytes", fileop.NumBytes);
+    size_t result = (size_t)exoscall(SYSCALL_WriteFile, (unsigned)&fileop);
+    debug("[fwrite] SYSCALL_WriteFile returned: %u", result);
+
+    return result;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 int fseek(FILE* fp, long int pos, int whence) {
     UNUSED(fp);
@@ -203,32 +376,296 @@ int fseek(FILE* fp, long int pos, int whence) {
     return 0;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 long int ftell(FILE* fp) {
     UNUSED(fp);
     return 0;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 int feof(FILE* fp) {
     UNUSED(fp);
     return 0;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 int fflush(FILE* fp) {
     UNUSED(fp);
     return 0;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 int fgetc(FILE* fp) {
     UNUSED(fp);
     return 0;
 }
 
-/***************************************************************************/
+/************************************************************************/
+// Socket API implementations
+
+int socket(int domain, int type, int protocol) {
+    return (int)SocketCreate((U16)domain, (U16)type, (U16)protocol);
+}
+
+/************************************************************************/
+
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    SOCKET_ADDRESS kernelAddr;
+
+    if (!addr || addrlen < sizeof(struct sockaddr)) {
+        return -1;
+    }
+
+    kernelAddr.AddressFamily = addr->sa_family;
+    memcpy(kernelAddr.Data, addr->sa_data, sizeof(kernelAddr.Data));
+
+    return (int)SocketBind((U32)sockfd, &kernelAddr, (U32)addrlen);
+}
+
+/************************************************************************/
+
+int listen(int sockfd, int backlog) {
+    return (int)SocketListen((U32)sockfd, (U32)backlog);
+}
+
+/************************************************************************/
+
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+    SOCKET_ADDRESS kernelAddr;
+    U32 len = sizeof(kernelAddr);
+    int result = (int)SocketAccept((U32)sockfd, &kernelAddr, &len);
+
+    if (result >= 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
+        addr->sa_family = kernelAddr.AddressFamily;
+        memcpy(addr->sa_data, kernelAddr.Data, sizeof(addr->sa_data));
+        *addrlen = sizeof(struct sockaddr);
+    }
+
+    return result;
+}
+
+/************************************************************************/
+
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    SOCKET_ADDRESS kernelAddr;
+
+    if (!addr || addrlen < sizeof(struct sockaddr)) {
+        return -1;
+    }
+
+    kernelAddr.AddressFamily = addr->sa_family;
+    memcpy(kernelAddr.Data, addr->sa_data, sizeof(kernelAddr.Data));
+
+    return (int)SocketConnect((U32)sockfd, &kernelAddr, (U32)addrlen);
+}
+
+/************************************************************************/
+
+size_t send(int sockfd, const void *buf, size_t len, int flags) {
+    I32 result = SocketSend((U32)sockfd, (LPCVOID)buf, (U32)len, (U32)flags);
+    return (result >= 0) ? (size_t)result : 0;
+}
+
+/************************************************************************/
+
+size_t recv(int sockfd, void *buf, size_t len, int flags) {
+    static int timeoutCount = 0;
+    const int maxTimeouts = 3; // 3 timeouts * 3s = 9 seconds max
+
+    while (1) {
+        I32 result = SocketReceive((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags);
+        if (result >= 0) {
+            timeoutCount = 0; // Reset timeout counter on successful receive
+            return (size_t)result;
+        } else if (result == -7) { // SOCKET_ERROR_WOULDBLOCK
+            // No data available right now, wait a bit and retry
+            sleep(1);
+            continue;
+        } else if (result == -9) { // SOCKET_ERROR_TIMEOUT
+            // Socket timeout - count consecutive timeouts
+            timeoutCount++;
+            debug("[recv] Socket timeout %d/%d", timeoutCount, maxTimeouts);
+            if (timeoutCount >= maxTimeouts) {
+                debug("[recv] Too many consecutive timeouts, assuming connection closed");
+                timeoutCount = 0;
+                return 0; // EOF
+            }
+            sleep(1);
+            continue;
+        } else {
+            // Other error (connection closed, etc.)
+            timeoutCount = 0;
+            return 0;
+        }
+    }
+}
+
+/************************************************************************/
+
+size_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) {
+    SOCKET_ADDRESS kernelAddr;
+
+    if (!dest_addr || addrlen < sizeof(struct sockaddr)) {
+        return 0;
+    }
+
+    kernelAddr.AddressFamily = dest_addr->sa_family;
+    memcpy(kernelAddr.Data, dest_addr->sa_data, sizeof(kernelAddr.Data));
+
+    I32 result = SocketSendTo((U32)sockfd, (LPCVOID)buf, (U32)len, (U32)flags, &kernelAddr, (U32)addrlen);
+    return (result >= 0) ? (size_t)result : 0;
+}
+
+/************************************************************************/
+
+size_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
+    SOCKET_ADDRESS kernelAddr;
+    U32 addr_len = sizeof(kernelAddr);
+    I32 result = SocketReceiveFrom((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags, &kernelAddr, &addr_len);
+
+    if (result >= 0 && src_addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
+        src_addr->sa_family = kernelAddr.AddressFamily;
+        memcpy(src_addr->sa_data, kernelAddr.Data, sizeof(src_addr->sa_data));
+        *addrlen = sizeof(struct sockaddr);
+    }
+
+    return (result >= 0) ? (size_t)result : 0;
+}
+
+/************************************************************************/
+
+int shutdown(int sockfd, int how) {
+    return (int)SocketShutdown((U32)sockfd, (U32)how);
+}
+
+/************************************************************************/
+
+int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen) {
+    U32 opt_len = (optlen != NULL) ? *optlen : 0;
+    int result = (int)SocketGetOption((U32)sockfd, (U32)level, (U32)optname, (LPVOID)optval, &opt_len);
+    if (optlen != NULL) {
+        *optlen = opt_len;
+    }
+    return result;
+}
+
+/************************************************************************/
+
+int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen) {
+    return (int)SocketSetOption((U32)sockfd, (U32)level, (U32)optname, (LPCVOID)optval, (U32)optlen);
+}
+
+/************************************************************************/
+
+int getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+    SOCKET_ADDRESS kernelAddr;
+    U32 len = sizeof(kernelAddr);
+    int result = (int)SocketGetPeerName((U32)sockfd, &kernelAddr, &len);
+
+    if (result == 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
+        addr->sa_family = kernelAddr.AddressFamily;
+        memcpy(addr->sa_data, kernelAddr.Data, sizeof(addr->sa_data));
+        *addrlen = sizeof(struct sockaddr);
+    }
+
+    return result;
+}
+
+/************************************************************************/
+
+int getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+    SOCKET_ADDRESS kernelAddr;
+    U32 len = sizeof(kernelAddr);
+    int result = (int)SocketGetSocketName((U32)sockfd, &kernelAddr, &len);
+
+    if (result == 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
+        addr->sa_family = kernelAddr.AddressFamily;
+        memcpy(addr->sa_data, kernelAddr.Data, sizeof(addr->sa_data));
+        *addrlen = sizeof(struct sockaddr);
+    }
+
+    return result;
+}
+
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
+void _SetupArguments(void) {
+    char* Token;
+    int i;
+    char* StoragePtr;
+    char* p;
+    int InQuotes;
+
+    _argc = 0;
+    _argv = _static_argv;
+    StoragePtr = _static_arg_storage;
+
+    // Clear static arrays
+    for (i = 0; i < 16; i++) {
+        _static_argv[i] = NULL;
+    }
+
+    memset(&_ProcessInfo, 0, sizeof(_ProcessInfo));
+
+    // Get process information
+    _ProcessInfo.Header.Size = sizeof(_ProcessInfo);
+    _ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+    _ProcessInfo.Header.Flags = 0;
+    _ProcessInfo.Process = 0;
+
+    if (exoscall(SYSCALL_GetProcessInfo, (unsigned)&_ProcessInfo) != DF_ERROR_SUCCESS) {
+        return;
+    }
+
+    int CommandLineLen = strlen((const char*)_ProcessInfo.CommandLine);
+
+    if (CommandLineLen >= MAX_PATH_NAME || CommandLineLen + 16 >= MAX_STRING_BUFFER) {
+        // Not enough storage space - fallback
+        _argc = 1;
+        _static_argv[0] = "prog";
+        return;
+    }
+
+    // If empty command line, fallback
+    if (_ProcessInfo.CommandLine[0] == '\0') {
+        _argc = 1;
+        _static_argv[0] = "prog";
+        return;
+    }
+
+    // Parse CommandLine directly into argv
+    p = (char*)_ProcessInfo.CommandLine;
+    _argc = 0;
+
+    while (*p && _argc < 15) {
+        // Skip leading spaces
+        while (*p == ' ') p++;
+        if (*p == 0) break;
+
+        Token = StoragePtr;
+        _static_argv[_argc] = Token;
+        InQuotes = 0;
+
+        // Copy argument while parsing
+        while (*p && (InQuotes || *p != ' ')) {
+            if (*p == '"') {
+                InQuotes = !InQuotes;
+                p++;  // Skip quote, don't copy it
+            } else {
+                *StoragePtr++ = *p++;
+            }
+        }
+
+        // Null-terminate current argument
+        *StoragePtr++ = 0;
+        _argc++;
+    }
+}
+#endif

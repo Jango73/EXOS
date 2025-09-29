@@ -37,12 +37,11 @@
 // Prologue
 // DOES NOT modify the stack, reads ESP
 #if TRACE_STACK_USAGE == 1
-    #define TRACED_FUNCTION \
-        LINEAR __stack_start; \
-        __asm__ __volatile__ ( \
-            "movl %%esp, %0\n\t" : "=r" (__stack_start) : : )
+#define TRACED_FUNCTION   \
+    LINEAR __stack_start; \
+    __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__stack_start) : :)
 #else
-    #define TRACED_FUNCTION
+#define TRACED_FUNCTION
 #endif
 
 /************************************************************************/
@@ -50,28 +49,26 @@
 // Epilogue
 // DOES NOT modify the stack, reads ESP
 #if TRACE_STACK_USAGE == 1
-    #if SCHEDULING_DEBUG_OUTPUT == 1
-        #define TRACED_EPILOGUE(func_name) \
-            LINEAR __stack_end; \
-            __asm__ __volatile__ ( \
-                "movl %%esp, %0\n\t" : "=r" (__stack_end) : : ); \
-            LINEAR __stack_used = __stack_start - __stack_end; \
-            KernelLogText(LOG_DEBUG, TEXT("ESP in " #func_name " = %x"), __stack_end); \
-            if (__stack_used > STACK_TRACE_WARNING) { \
-                KernelLogText(LOG_WARNING, TEXT("Stack usage exceeds limit (%x) in " #func_name), __stack_used); \
-            }
-    #else
-        #define TRACED_EPILOGUE(func_name) \
-            LINEAR __stack_end; \
-            __asm__ __volatile__ ( \
-                "movl %%esp, %0\n\t" : "=r" (__stack_end) : : ); \
-            LINEAR __stack_used = __stack_start - __stack_end; \
-            if (__stack_used > STACK_TRACE_WARNING) { \
-                KernelLogText(LOG_WARNING, TEXT("Stack usage exceeds limit (%x) in " #func_name), __stack_used); \
-            }
-    #endif
+#if SCHEDULING_DEBUG_OUTPUT == 1
+#define TRACED_EPILOGUE(func_name)                                                      \
+    LINEAR __stack_end;                                                                 \
+    __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__stack_end) : :);                 \
+    LINEAR __stack_used = __stack_start - __stack_end;                                  \
+    DEBUG(TEXT("ESP in " #func_name " = %x"), __stack_end);                             \
+    if (__stack_used > STACK_TRACE_WARNING) {                                           \
+        WARNING(TEXT("Stack usage exceeds limit (%x) in " #func_name), __stack_used);   \
+    }
 #else
-    #define TRACED_EPILOGUE(func_name)
+#define TRACED_EPILOGUE(func_name)                                                      \
+    LINEAR __stack_end;                                                                 \
+    __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__stack_end) : :);                 \
+    LINEAR __stack_used = __stack_start - __stack_end;                                  \
+    if (__stack_used > STACK_TRACE_WARNING) {                                           \
+        WARNING(TEXT("Stack usage exceeds limit (%x) in " #func_name), __stack_used);   \
+    }
+#endif
+#else
+#define TRACED_EPILOGUE(func_name)
 #endif
 
 /************************************************************************/

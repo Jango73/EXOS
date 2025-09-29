@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    SYS Call
+    System call
 
 \************************************************************************/
 
@@ -27,18 +27,28 @@
 #include "../include/Console.h"
 #include "../include/File.h"
 #include "../include/Heap.h"
+#include "../include/Helpers.h"
 #include "../include/ID.h"
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
+#include "../include/Log.h"
 #include "../include/Memory.h"
 #include "../include/Mouse.h"
 #include "../include/Process.h"
-#include "../include/User.h"
 #include "../include/Schedule.h"
+#include "../include/User.h"
+#include "../include/UserAccount.h"
+#include "../include/UserSession.h"
+#include "../include/Security.h"
+#include "../include/Socket.h"
+#include "../include/SYSCall.h"
 
 /***************************************************************************/
 
-typedef U32 (*SYSCALLFUNC)(U32);
+U32 SysCall_Debug(U32 Parameter) {
+    DEBUG((LPCSTR)Parameter);
+    return 0;
+}
 
 /***************************************************************************/
 
@@ -67,8 +77,9 @@ U32 SysCall_GetSystemInfo(U32 Parameter) {
         Info->NumProcesses = Kernel.Process->NumItems;
         Info->NumTasks = Kernel.Task->NumItems;
 
-        StringCopy(Info->UserName, TEXT("Not implemented"));
-        StringCopy(Info->CompanyName, TEXT("Not implemented"));
+        LPUSERACCOUNT User = GetCurrentUser();
+
+        StringCopy(Info->UserName, User != NULL ? User->UserName : TEXT(""));
         StringCopy(Info->KeyboardLayout, Kernel.KeyboardCode);
 
         return TRUE;
@@ -101,7 +112,7 @@ U32 SysCall_GetSystemTime(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_GetLocalTime(U32 Parameter) {
-    LPSYSTEMTIME Time = (LPSYSTEMTIME)Parameter;
+    LPDATETIME Time = (LPDATETIME)Parameter;
     if (Time) return GetLocalTime(Time);
     return FALSE;
 }
@@ -110,7 +121,7 @@ U32 SysCall_GetLocalTime(U32 Parameter) {
 
 U32 SysCall_SetLocalTime(U32 Parameter) {
     UNUSED(Parameter);
-    // LPSYSTEMTIME Time = (LPSYSTEMTIME)Parameter;
+    // LPDATETIME Time = (LPDATETIME)Parameter;
     // if (Time) return SetLocalTime(Time);
     return FALSE;
 }
@@ -138,7 +149,12 @@ U32 SysCall_DeleteObject(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_CreateProcess(U32 Parameter) {
-    UNUSED(Parameter);
+    LPPROCESSINFO Info = (LPPROCESSINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, PROCESSINFO) {
+        return (U32)CreateProcess(Info);
+    }
+
     return 0;
 }
 
@@ -151,12 +167,44 @@ U32 SysCall_KillProcess(U32 Parameter) {
 
 /***************************************************************************/
 
+U32 SysCall_GetProcessInfo(U32 Parameter) {
+    LPPROCESSINFO Info = (LPPROCESSINFO)Parameter;
+    LPPROCESS CurrentProcess;
+
+    DEBUG(TEXT("[SysCall_GetProcessInfo] Enter, Parameter=%x"), Parameter);
+
+    SAFE_USE_INPUT_POINTER(Info, PROCESSINFO) {
+        if (Info->Process == (HANDLE)0) {
+            CurrentProcess = GetCurrentProcess();
+        } else {
+            CurrentProcess = (LPPROCESS)Info->Process;
+        }
+
+        SAFE_USE_VALID_ID(CurrentProcess, ID_PROCESS) {
+            DEBUG(TEXT("[SysCall_GetProcessInfo] Info->CommandLine = %s"), Info->CommandLine);
+            DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%x"), CurrentProcess);
+            DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
+
+            // Copy the command line
+            StringCopy(Info->CommandLine, CurrentProcess->CommandLine);
+
+            return DF_ERROR_SUCCESS;
+        }
+    }
+
+    return DF_ERROR_GENERIC;
+}
+
+/***************************************************************************/
+
 U32 SysCall_CreateTask(U32 Parameter) {
     LPTASKINFO TaskInfo = (LPTASKINFO)Parameter;
 
-    if (TaskInfo == NULL) return NULL;
+    SAFE_USE_INPUT_POINTER(TaskInfo, TASKINFO) {
+        return (U32)CreateTask(GetCurrentProcess(), TaskInfo);
+    }
 
-    return (U32)CreateTask(GetCurrentProcess(), TaskInfo);
+    return 0;
 }
 
 /***************************************************************************/
@@ -189,6 +237,22 @@ U32 SysCall_ResumeTask(U32 Parameter) {
 U32 SysCall_Sleep(U32 Parameter) {
     Sleep(Parameter);
     return TRUE;
+}
+
+/***************************************************************************/
+
+U32 SysCall_Wait(U32 Parameter) {
+    LPWAITINFO WaitInfo = (LPWAITINFO)Parameter;
+
+    if (WaitInfo == NULL || WaitInfo->Header.Size < sizeof(WAITINFO)) {
+        return WAIT_INVALID_PARAMETER;
+    }
+
+    if (WaitInfo->Count == 0 || WaitInfo->Count > WAITINFO_MAX_OBJECTS) {
+        return WAIT_INVALID_PARAMETER;
+    }
+
+    return Wait(WaitInfo);
 }
 
 /***************************************************************************/
@@ -296,6 +360,12 @@ U32 SysCall_FreeRegion(U32 Parameter) {
 
 /***************************************************************************/
 
+U32 SysCall_IsMemoryValid(U32 Parameter) {
+    return (U32)IsValidMemory((LINEAR)Parameter);
+}
+
+/***************************************************************************/
+
 U32 SysCall_GetProcessHeap(U32 Parameter) { return (U32)GetProcessHeap((LPPROCESS)Parameter); }
 
 /***************************************************************************/
@@ -307,6 +377,16 @@ U32 SysCall_HeapAlloc(U32 Parameter) { return (U32)HeapAlloc(Parameter); }
 U32 SysCall_HeapFree(U32 Parameter) {
     HeapFree((LPVOID)Parameter);
     return 0;
+}
+
+/***************************************************************************/
+
+U32 SysCall_HeapRealloc(U32 Parameter) {
+    LPHEAPREALLOCINFO Info = (LPHEAPREALLOCINFO)Parameter;
+
+    if (Info == NULL) return 0;
+
+    return (U32)HeapRealloc(Info->Pointer, Info->Size);
 }
 
 /***************************************************************************/
@@ -413,7 +493,18 @@ U32 SysCall_ConsoleGetString(U32 Parameter) {
 /***************************************************************************/
 
 U32 SysCall_ConsoleGotoXY(U32 Parameter) {
+    LPPOINT Point = (LPPOINT)Parameter;
+    if (Point) {
+        SetConsoleCursorPosition(Point->X, Point->Y);
+    }
+    return 0;
+}
+
+/***************************************************************************/
+
+U32 SysCall_ClearScreen(U32 Parameter) {
     UNUSED(Parameter);
+    ClearConsole();
     return 0;
 }
 
@@ -739,124 +830,342 @@ U32 SysCall_ReleaseMouse(U32 Parameter) {
 
 /***************************************************************************/
 
-#define MAX_SYSCALL 0x00000070
+U32 SysCall_Login(U32 Parameter) {
+    LPLOGIN_INFO LoginInfo = (LPLOGIN_INFO)Parameter;
+    if (LoginInfo == NULL || LoginInfo->Header.Size != sizeof(LOGIN_INFO)) {
+        return FALSE;
+    }
 
-SYSCALLFUNC SysCallTable[MAX_SYSCALL] = {
-    SysCall_GetVersion,            // 0x00000000
-    SysCall_GetSystemInfo,         // 0x00000001
-    SysCall_GetLastError,          // 0x00000002
-    SysCall_SetLastError,          // 0x00000003
-    SysCall_GetSystemTime,         // 0x00000004
-    SysCall_GetLocalTime,          // 0x00000005
-    SysCall_SetLocalTime,          // 0x00000006
-    SysCall_DeleteObject,          // 0x00000007
-    SysCall_CreateProcess,         // 0x00000008
-    SysCall_KillProcess,           // 0x00000009
-    SysCall_CreateTask,            // 0x0000000A
-    SysCall_KillTask,              // 0x0000000B
-    SysCall_SuspendTask,           // 0x0000000C
-    SysCall_ResumeTask,            // 0x0000000D
-    SysCall_Sleep,                 // 0x0000000E
-    SysCall_PostMessage,           // 0x0000000F
-    SysCall_SendMessage,           // 0x00000010
-    SysCall_PeekMessage,           // 0x00000011
-    SysCall_GetMessage,            // 0x00000012
-    SysCall_DispatchMessage,       // 0x00000013
-    SysCall_CreateMutex,           // 0x00000014
-    SysCall_LockMutex,             // 0x00000015
-    SysCall_UnlockMutex,           // 0x00000016
-    SysCall_AllocRegion,           // 0x00000017
-    SysCall_FreeRegion,            // 0x00000018
-    SysCall_GetProcessHeap,        // 0x00000019
-    SysCall_HeapAlloc,             // 0x0000001A
-    SysCall_HeapFree,              // 0x0000001B
-    SysCall_EnumVolumes,           // 0x0000001C
-    SysCall_GetVolumeInfo,         // 0x0000001D
-    SysCall_OpenFile,              // 0x0000001E
-    SysCall_ReadFile,              // 0x0000001F
-    SysCall_WriteFile,             // 0x00000020
-    SysCall_GetFileSize,           // 0x00000021
-    SysCall_GetFilePosition,       // 0x00000022
-    SysCall_SetFilePosition,       // 0x00000023
-    NULL,                          // 0x00000024
-    NULL,                          // 0x00000025
-    NULL,                          // 0x00000026
-    NULL,                          // 0x00000027
-    NULL,                          // 0x00000028
-    NULL,                          // 0x00000029
-    SysCall_ConsolePeekKey,        // 0x0000002A
-    SysCall_ConsoleGetKey,         // 0x0000002B
-    SysCall_ConsolePrint,          // 0x0000002C
-    SysCall_ConsoleGetString,      // 0x0000002D
-    SysCall_ConsoleGotoXY,         // 0x0000002E
-    SysCall_KillMe,                // 0x0000002F
-    NULL,                          // 0x00000030
-    NULL,                          // 0x00000031
-    NULL,                          // 0x00000032
-    NULL,                          // 0x00000033
-    NULL,                          // 0x00000034
-    NULL,                          // 0x00000035
-    NULL,                          // 0x00000036
-    NULL,                          // 0x00000037
-    NULL,                          // 0x00000038
-    NULL,                          // 0x00000039
-    NULL,                          // 0x0000003A
-    NULL,                          // 0x0000003B
-    NULL,                          // 0x0000003C
-    NULL,                          // 0x0000003D
-    NULL,                          // 0x0000003E
-    NULL,                          // 0x0000003F
-    SysCall_CreateDesktop,         // 0x00000040
-    SysCall_ShowDesktop,           // 0x00000041
-    SysCall_GetDesktopWindow,      // 0x00000042
-    SysCall_CreateWindow,          // 0x00000043
-    SysCall_ShowWindow,            // 0x00000044
-    SysCall_HideWindow,            // 0x00000045
-    SysCall_MoveWindow,            // 0x00000046
-    SysCall_SizeWindow,            // 0x00000047
-    SysCall_SetWindowFunc,         // 0x00000048
-    SysCall_GetWindowFunc,         // 0x00000049
-    SysCall_SetWindowStyle,        // 0x0000004A
-    SysCall_GetWindowStyle,        // 0x0000004B
-    SysCall_SetWindowProp,         // 0x0000004C
-    SysCall_GetWindowProp,         // 0x0000004D
-    SysCall_GetWindowRect,         // 0x0000004E
-    SysCall_InvalidateWindowRect,  // 0x0000004F
-    SysCall_GetWindowGC,           // 0x00000050
-    SysCall_ReleaseWindowGC,       // 0x00000051
-    SysCall_EnumWindows,           // 0x00000052
-    SysCall_DefWindowFunc,         // 0x00000053
-    SysCall_GetSystemBrush,        // 0x00000054
-    SysCall_GetSystemPen,          // 0x00000055
-    SysCall_CreateBrush,           // 0x00000056
-    SysCall_CreatePen,             // 0x00000057
-    SysCall_SelectBrush,           // 0x00000058
-    SysCall_SelectPen,             // 0x00000059
-    SysCall_SetPixel,              // 0x0000005A
-    SysCall_GetPixel,              // 0x0000005B
-    SysCall_Line,                  // 0x0000005C
-    SysCall_Rectangle,             // 0x0000005D
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    SysCall_GetMousePos,      // 0x00000062
-    SysCall_SetMousePos,      // 0x00000063
-    SysCall_GetMouseButtons,  // 0x00000064
-    SysCall_ShowMouse,        // 0x00000065
-    SysCall_HideMouse,        // 0x00000066
-    SysCall_ClipMouse,        // 0x00000067
-    SysCall_CaptureMouse,     // 0x00000068
-    SysCall_ReleaseMouse,     // 0x00000069
-};
+    LPUSERACCOUNT Account = FindUserAccount(LoginInfo->UserName);
+    if (Account == NULL) {
+        return FALSE;
+    }
+
+    if (!VerifyPassword(LoginInfo->Password, Account->PasswordHash)) {
+        return FALSE;
+    }
+
+    LPUSERSESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
+    if (Session == NULL) {
+        return FALSE;
+    }
+
+    GetLocalTime(&Account->LastLoginTime);
+    SetCurrentSession(Session);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+U32 SysCall_Logout(U32 Parameter) {
+    UNUSED(Parameter);
+    LPUSERSESSION Session = GetCurrentSession();
+    if (Session == NULL) {
+        return FALSE;
+    }
+
+    DestroyUserSession(Session);
+    SetCurrentSession(NULL);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+U32 SysCall_GetCurrentUser(U32 Parameter) {
+    LPCURRENT_USER_INFO UserInfo = (LPCURRENT_USER_INFO)Parameter;
+    if (UserInfo == NULL || UserInfo->Header.Size != sizeof(CURRENT_USER_INFO)) {
+        return FALSE;
+    }
+
+    LPUSERACCOUNT Account = GetCurrentUser();
+    if (Account == NULL) {
+        return FALSE;
+    }
+
+    LPUSERSESSION Session = GetCurrentSession();
+    if (Session == NULL) {
+        return FALSE;
+    }
+
+    StringCopy(UserInfo->UserName, Account->UserName);
+    UserInfo->Privilege = Account->Privilege;
+    // Use simple timestamp - set both LO and HI parts
+    UserInfo->LoginTime.LO = GetSystemTime();
+    UserInfo->LoginTime.HI = 0;
+    UserInfo->SessionID = Session->SessionID;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+U32 SysCall_ChangePassword(U32 Parameter) {
+    LPPASSWORD_CHANGE PasswordChange = (LPPASSWORD_CHANGE)Parameter;
+    if (PasswordChange == NULL || PasswordChange->Header.Size != sizeof(PASSWORD_CHANGE)) {
+        return FALSE;
+    }
+
+    LPUSERACCOUNT Account = GetCurrentUser();
+    if (Account == NULL) {
+        return FALSE;
+    }
+
+    return ChangeUserPassword(Account->UserName, PasswordChange->OldPassword, PasswordChange->NewPassword);
+}
+
+/***************************************************************************/
+
+U32 SysCall_CreateUser(U32 Parameter) {
+    LPUSER_CREATE_INFO CreateInfo = (LPUSER_CREATE_INFO)Parameter;
+    if (CreateInfo == NULL || CreateInfo->Header.Size != sizeof(USER_CREATE_INFO)) {
+        return FALSE;
+    }
+
+    LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+    if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
+        return FALSE;
+    }
+
+    LPUSERACCOUNT NewAccount = CreateUserAccount(CreateInfo->UserName, CreateInfo->Password, CreateInfo->Privilege);
+    return (NewAccount != NULL) ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+U32 SysCall_DeleteUser(U32 Parameter) {
+    LPUSER_DELETE_INFO DeleteInfo = (LPUSER_DELETE_INFO)Parameter;
+    if (DeleteInfo == NULL || DeleteInfo->Header.Size != sizeof(USER_DELETE_INFO)) {
+        return FALSE;
+    }
+
+    LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+    if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
+        return FALSE;
+    }
+
+    return DeleteUserAccount(DeleteInfo->UserName);
+}
+
+/***************************************************************************/
+
+U32 SysCall_ListUsers(U32 Parameter) {
+    LPUSER_LIST_INFO ListInfo = (LPUSER_LIST_INFO)Parameter;
+    if (ListInfo == NULL || ListInfo->Header.Size < sizeof(USER_LIST_INFO)) {
+        return FALSE;
+    }
+
+    LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+    if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
+        return FALSE;
+    }
+
+    ListInfo->UserCount = 0;
+    LPUSERACCOUNT Account = (LPUSERACCOUNT)Kernel.UserAccount->First;
+
+    while (Account != NULL && ListInfo->UserCount < ListInfo->MaxUsers) {
+        StringCopy(ListInfo->UserNames[ListInfo->UserCount], Account->UserName);
+        ListInfo->UserCount++;
+        Account = (LPUSERACCOUNT)Account->Next;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+// Socket syscalls
+
+U32 SysCall_SocketCreate(U32 Parameter) {
+    LPSOCKET_CREATE_INFO Info = (LPSOCKET_CREATE_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_CREATE_INFO) {
+        return SocketCreate(Info->AddressFamily, Info->SocketType, Info->Protocol);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketBind(U32 Parameter) {
+    LPSOCKET_BIND_INFO Info = (LPSOCKET_BIND_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_BIND_INFO) {
+        return SocketBind(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketListen(U32 Parameter) {
+    LPSOCKET_LISTEN_INFO Info = (LPSOCKET_LISTEN_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_LISTEN_INFO) {
+        return SocketListen(Info->SocketHandle, Info->Backlog);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketAccept(U32 Parameter) {
+    LPSOCKET_ACCEPT_INFO Info = (LPSOCKET_ACCEPT_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_ACCEPT_INFO) {
+        return SocketAccept(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketConnect(U32 Parameter) {
+    LPSOCKET_CONNECT_INFO Info = (LPSOCKET_CONNECT_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_CONNECT_INFO) {
+        return SocketConnect(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketSend(U32 Parameter) {
+    LPSOCKET_DATA_INFO Info = (LPSOCKET_DATA_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_DATA_INFO) {
+        return SocketSend(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketReceive(U32 Parameter) {
+    LPSOCKET_DATA_INFO Info = (LPSOCKET_DATA_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_DATA_INFO) {
+        return SocketReceive(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketSendTo(U32 Parameter) {
+    LPSOCKET_DATA_INFO Info = (LPSOCKET_DATA_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_DATA_INFO) {
+        return SocketSendTo(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketReceiveFrom(U32 Parameter) {
+    LPSOCKET_DATA_INFO Info = (LPSOCKET_DATA_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_DATA_INFO) {
+        return SocketReceiveFrom(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags, (LPSOCKET_ADDRESS)Info->AddressData, &Info->AddressLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketClose(U32 Parameter) {
+    U32 SocketHandle = Parameter;
+    return SocketClose(SocketHandle);
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketShutdown(U32 Parameter) {
+    LPSOCKET_SHUTDOWN_INFO Info = (LPSOCKET_SHUTDOWN_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_SHUTDOWN_INFO) {
+        return SocketShutdown(Info->SocketHandle, Info->How);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketGetOption(U32 Parameter) {
+    LPSOCKET_OPTION_INFO Info = (LPSOCKET_OPTION_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_OPTION_INFO) {
+        return SocketGetOption(Info->SocketHandle, Info->Level, Info->OptionName, Info->OptionValue, &Info->OptionLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketSetOption(U32 Parameter) {
+    LPSOCKET_OPTION_INFO Info = (LPSOCKET_OPTION_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_OPTION_INFO) {
+        return SocketSetOption(Info->SocketHandle, Info->Level, Info->OptionName, Info->OptionValue, Info->OptionLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketGetPeerName(U32 Parameter) {
+    LPSOCKET_ACCEPT_INFO Info = (LPSOCKET_ACCEPT_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_ACCEPT_INFO) {
+        return SocketGetPeerName(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
+
+/***************************************************************************/
+
+U32 SysCall_SocketGetSocketName(U32 Parameter) {
+    LPSOCKET_ACCEPT_INFO Info = (LPSOCKET_ACCEPT_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, SOCKET_ACCEPT_INFO) {
+        return SocketGetSocketName(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
+    }
+
+    return DF_ERROR_BADPARAM;
+}
 
 /***************************************************************************/
 
 U32 SystemCallHandler(U32 Function, U32 Parameter) {
-    if (Function < MAX_SYSCALL && SysCallTable[Function] != NULL) {
-        return SysCallTable[Function](Parameter);
+    if (Function >= SYSCALL_Last || SysCallTable[Function].Function == NULL) {
+        return 0;
     }
 
-    // return ERROR_INVALID_INDEX;
-    return 0;
+    LPUSERACCOUNT CurrentUser = GetCurrentUser();
+    U32 RequiredPrivilege = SysCallTable[Function].Privilege;
+
+    if (CurrentUser == NULL) {
+        if (RequiredPrivilege != EXOS_PRIVILEGE_USER) {
+            return 0;
+        }
+    } else {
+        if (CurrentUser->Privilege > RequiredPrivilege) {
+            return 0;
+        }
+    }
+
+    return SysCallTable[Function].Function(Parameter);
 }

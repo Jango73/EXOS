@@ -81,42 +81,9 @@
 #define PF_R 0x4
 
 /************************************************************************/
-// Minimal 32-bit ELF structures (packed)
-
-typedef struct __attribute__((packed)) tag_Elf32_Ehdr {
-    U8 e_ident[EI_NIDENT];
-    U16 e_type;
-    U16 e_machine;
-    U32 e_version;
-    U32 e_entry;
-    U32 e_phoff;
-    U32 e_shoff;
-    U32 e_flags;
-    U16 e_ehsize;
-    U16 e_phentsize;
-    U16 e_phnum;
-    U16 e_shentsize;
-    U16 e_shnum;
-    U16 e_shstrndx;
-} Elf32_Ehdr;
-
-typedef struct __attribute__((packed)) tag_Elf32_Phdr {
-    U32 p_type;
-    U32 p_offset;
-    U32 p_vaddr;
-    U32 p_paddr;
-    U32 p_filesz;
-    U32 p_memsz;
-    U32 p_flags;
-    U32 p_align;
-} Elf32_Phdr;
-
-/************************************************************************/
 // ELF-specific entry points (mirror the generic ones, with explicit bases)
 
 BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info);
 BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase);
-
-/************************************************************************/
 
 #endif

@@ -26,6 +26,7 @@
 
 #include "../include/Base.h"
 #include "../include/VarArg.h"
+#include "../include/Endianness.h"
 
 /***************************************************************************/
 
@@ -126,9 +127,9 @@ U32 StringLength(LPCSTR Src) {
     if (Src != NULL) {
         // Count characters until null terminator or safety limit
         for (Index = 0; Index < 8192; Index++) {
-            if (*Src == STR_NULL) break; // Found end of string
-            Src++; // Move to next character
-            Size++; // Count this character
+            if (*Src == STR_NULL) break;  // Found end of string
+            Src++;                        // Move to next character
+            Size++;                       // Count this character
         }
     }
 
@@ -152,8 +153,27 @@ void StringCopy(LPSTR Dst, LPCSTR Src) {
     if (Dst && Src) {
         // Copy characters until null terminator is found and copied
         for (Index = 0; Index < MAX_U32; Index++) {
-            Dst[Index] = Src[Index]; // Copy current character
-            if (Src[Index] == STR_NULL) break; // Stop after copying null terminator
+            Dst[Index] = Src[Index];            // Copy current character
+            if (Src[Index] == STR_NULL) break;  // Stop after copying null terminator
+        }
+    }
+}
+
+/***************************************************************************/
+
+void StringCopyLimit(LPSTR Dst, LPCSTR Src, U32 MaxLength) {
+    U32 Index;
+
+    if (Dst && Src) {
+        // Copy characters until null terminator is found and copied
+        // or until MaxLength is reached
+        for (Index = 0; Index < MAX_U32; Index++) {
+            if (Index >= MaxLength - 1) {
+                Dst[Index] = STR_NULL;
+                break;
+            }
+            Dst[Index] = Src[Index];            // Copy current character
+            if (Src[Index] == STR_NULL) break;  // Stop after copying null terminator
         }
     }
 }
@@ -198,8 +218,8 @@ void StringConcat(LPSTR Dst, LPCSTR Src) {
 
     if (Dst && Src) {
         SrcPtr = Src;
-        DstPtr = Dst + StringLength(Dst); // Find end of destination string
-        StringCopy(DstPtr, SrcPtr);       // Copy source to end of destination
+        DstPtr = Dst + StringLength(Dst);  // Find end of destination string
+        StringCopy(DstPtr, SrcPtr);        // Copy source to end of destination
     }
 }
 
@@ -219,9 +239,9 @@ I32 StringCompare(LPCSTR Text1, LPCSTR Text2) {
     REGISTER I8 Result;
 
     while (1) {
-        Result = *Text1 - *Text2;                           // Compare current characters
-        if (Result != 0 || *Text1 == STR_NULL) break;      // Stop if different or end reached
-        Text1++;                                            // Move to next character
+        Result = *Text1 - *Text2;                      // Compare current characters
+        if (Result != 0 || *Text1 == STR_NULL) break;  // Stop if different or end reached
+        Text1++;                                       // Move to next character
         Text2++;
     }
 
@@ -237,7 +257,7 @@ I32 StringCompare(LPCSTR Text1, LPCSTR Text2) {
  * to lowercase before comparison.
  *
  * @param Text1 First string to compare
- * @param Text2 Second string to compare  
+ * @param Text2 Second string to compare
  * @return 0 if equal, <0 if Text1 < Text2, >0 if Text1 > Text2
  */
 I32 StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
@@ -246,7 +266,7 @@ I32 StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
     while (1) {
         Result = CharToLower(*Text1) - CharToLower(*Text2);  // Compare lowercase versions
         if (Result != 0 || *Text1 == STR_NULL) break;        // Stop if different or end reached
-        Text1++;                                              // Move to next character
+        Text1++;                                             // Move to next character
         Text2++;
     }
 
@@ -299,10 +319,10 @@ LPSTR StringToUpper(LPSTR Src) {
 LPSTR StringFindChar(LPCSTR Text, STR Char) {
     // Scan through string until we find the character or reach end
     for (; *Text != Char; Text++) {
-        if (*Text == STR_NULL) return NULL; // End of string, not found
+        if (*Text == STR_NULL) return NULL;  // End of string, not found
     }
 
-    return (LPSTR)Text; // Found - return pointer to character
+    return (LPSTR)Text;  // Found - return pointer to character
 }
 
 /***************************************************************************/
@@ -323,10 +343,10 @@ LPSTR StringFindCharR(LPCSTR Text, STR Char) {
     LPCSTR Ptr = Text + StringLength(Text);
 
     do {
-        if (*Ptr == Char) return (LPSTR)Ptr; // Found character
-    } while (--Ptr >= Text); // Continue until start of string
+        if (*Ptr == Char) return (LPSTR)Ptr;  // Found character
+    } while (--Ptr >= Text);                  // Continue until start of string
 
-    return NULL; // Character not found
+    return NULL;  // Character not found
 }
 
 /***************************************************************************/
@@ -340,19 +360,19 @@ LPSTR StringFindCharR(LPCSTR Text, STR Char) {
  * @param Text String to reverse (modified in place)
  */
 void StringInvert(LPSTR Text) {
-    STR Temp[256]; // Temporary buffer for reversed string
+    STR Temp[256];  // Temporary buffer for reversed string
     U32 Length = StringLength(Text);
     U32 Index1 = 0;
     U32 Index2 = Length - 1;
 
     // Copy characters from end to beginning
     for (Index1 = 0; Index1 < Length;) {
-        Temp[Index1++] = Text[Index2--]; // Copy char from end to temp
+        Temp[Index1++] = Text[Index2--];  // Copy char from end to temp
     }
 
-    Temp[Index1] = STR_NULL; // Null-terminate reversed string
+    Temp[Index1] = STR_NULL;  // Null-terminate reversed string
 
-    StringCopy(Text, Temp); // Copy reversed string back to original
+    StringCopy(Text, Temp);  // Copy reversed string back to original
 }
 
 /***************************************************************************/
@@ -379,13 +399,13 @@ void U32ToString(U32 Number, LPSTR Text) {
 
     // Extract digits from right to left (reverse order)
     while (Number) {
-        Text[Index++] = (STR)'0' + (Number % 10); // Convert digit to ASCII
-        Number /= 10; // Move to next digit
+        Text[Index++] = (STR)'0' + (Number % 10);  // Convert digit to ASCII
+        Number /= 10;                              // Move to next digit
     }
 
-    Text[Index] = STR_NULL; // Null-terminate
+    Text[Index] = STR_NULL;  // Null-terminate
 
-    StringInvert(Text); // Reverse to get correct order
+    StringInvert(Text);  // Reverse to get correct order
 }
 
 /***************************************************************************/
@@ -412,18 +432,18 @@ static STR HexDigitHi[] = "0123456789ABCDEF";
 void U32ToHexString(U32 Number, LPSTR Text) {
     U32 Index = 0;
     U32 Value = 0;
-    U32 Shift = U32_NUM_DIGITS - 1; // Start with most significant digit
+    U32 Shift = U32_NUM_DIGITS - 1;  // Start with most significant digit
 
     if (Text == NULL) return;
 
     // Process each 4-bit nibble from most to least significant
     for (Index = 0; Index < U32_NUM_DIGITS; Index++) {
-        Value = (Number >> (Shift * U32_DIGIT_BITS)) & 0xF; // Extract 4 bits
-        Text[Index] = HexDigitHi[Value]; // Convert to uppercase hex digit
-        Shift--; // Move to next less significant nibble
+        Value = (Number >> (Shift * U32_DIGIT_BITS)) & 0xF;  // Extract 4 bits
+        Text[Index] = HexDigitHi[Value];                     // Convert to uppercase hex digit
+        Shift--;                                             // Move to next less significant nibble
     }
 
-    Text[Index] = STR_NULL; // Null-terminate result
+    Text[Index] = STR_NULL;  // Null-terminate result
 }
 
 /***************************************************************************/
@@ -445,32 +465,32 @@ U32 HexStringToU32(LPCSTR Text) {
     if (Text[0] != '0') return 0;
     if (Text[1] != 'x' && Text[1] != 'X') return 0;
 
-    Text += 2; // Skip "0x" prefix
+    Text += 2;  // Skip "0x" prefix
     Length = StringLength(Text);
-    if (Length == 0) return 0; // No hex digits after prefix
+    if (Length == 0) return 0;  // No hex digits after prefix
 
     // Process each hex digit from most to least significant
     for (c = 0, Value = 0, Shift = 4 * (Length - 1); c < Length; c++) {
         U32 FoundDigit = 0;
-        
+
         // Look up character in both lowercase and uppercase hex tables
         for (d = 0; d < 16; d++) {
-            if (Text[c] == HexDigitLo[d]) { // Check lowercase a-f
+            if (Text[c] == HexDigitLo[d]) {  // Check lowercase a-f
                 Temp = d;
                 FoundDigit = 1;
                 break;
             }
-            if (Text[c] == HexDigitHi[d]) { // Check uppercase A-F
+            if (Text[c] == HexDigitHi[d]) {  // Check uppercase A-F
                 Temp = d;
                 FoundDigit = 1;
                 break;
             }
         }
-        
-        if (FoundDigit == 0) return 0; // Invalid hex character
-        
-        Value += (Temp << Shift); // Add digit value at correct bit position
-        Shift -= 4; // Move to next less significant nibble
+
+        if (FoundDigit == 0) return 0;  // Invalid hex character
+
+        Value += (Temp << Shift);  // Add digit value at correct bit position
+        Shift -= 4;                // Move to next less significant nibble
     }
 
     return Value;
@@ -491,23 +511,23 @@ U32 HexStringToU32(LPCSTR Text) {
 I32 StringToI32(LPCSTR Text) {
     I32 Value = 0;
     U32 Index = 0;
-    U32 Power = 1; // Decimal place multiplier (1, 10, 100, etc.)
+    U32 Power = 1;  // Decimal place multiplier (1, 10, 100, etc.)
     STR Data = 0;
 
-    if (Text[0] == STR_NULL) return 0; // Empty string
+    if (Text[0] == STR_NULL) return 0;  // Empty string
 
-    Index = StringLength(Text) - 1; // Start from rightmost digit
+    Index = StringLength(Text) - 1;  // Start from rightmost digit
 
     // Process digits from right to left
     while (1) {
         Data = Text[Index];
-        if (IsNumeric(Data) == 0) return 0; // Invalid character found
-        
-        Value += (Data - (STR)'0') * Power; // Convert ASCII digit and add
-        Power *= 10; // Move to next decimal place
-        
-        if (Index == 0) break; // Processed all digits
-        Index--; // Move to next digit leftward
+        if (IsNumeric(Data) == 0) return 0;  // Invalid character found
+
+        Value += (Data - (STR)'0') * Power;  // Convert ASCII digit and add
+        Power *= 10;                         // Move to next decimal place
+
+        if (Index == 0) break;  // Processed all digits
+        Index--;                // Move to next digit leftward
     }
 
     return Value;
@@ -528,27 +548,27 @@ I32 StringToI32(LPCSTR Text) {
 U32 StringToU32(LPCSTR Text) {
     U32 Value = 0;
     U32 Index = 0;
-    U32 Power = 1; // Decimal place multiplier
+    U32 Power = 1;  // Decimal place multiplier
     STR Data = 0;
 
-    if (Text[0] == STR_NULL) return 0; // Empty string
+    if (Text[0] == STR_NULL) return 0;  // Empty string
 
     // Check for hexadecimal format
     if (Text[0] == '0' && Text[1] == 'x') return HexStringToU32(Text);
     if (Text[0] == '0' && Text[1] == 'X') return HexStringToU32(Text);
 
-    Index = StringLength(Text) - 1; // Start from rightmost digit
+    Index = StringLength(Text) - 1;  // Start from rightmost digit
 
     // Process decimal digits from right to left
     while (1) {
         Data = Text[Index];
-        if (IsNumeric(Data) == 0) break; // Stop at non-numeric character
-        
-        Value += (Data - (STR)'0') * Power; // Convert and accumulate
-        Power *= 10; // Move to next decimal place
-        
-        if (Index == 0) break; // Processed all digits
-        Index--; // Move to next digit leftward
+        if (IsNumeric(Data) == 0) break;  // Stop at non-numeric character
+
+        Value += (Data - (STR)'0') * Power;  // Convert and accumulate
+        Power *= 10;                         // Move to next decimal place
+
+        if (Index == 0) break;  // Processed all digits
+        Index--;                // Move to next digit leftward
     }
 
     return Value;
@@ -581,8 +601,8 @@ U32 StringToU32(LPCSTR Text) {
  * @return Pointer to end of formatted string
  */
 LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, I32 Type) {
-    STR c, Sign, Temp[66]; // Temp buffer for digits (max needed for base 2)
-    LPCSTR Digits = TEXT("0123456789abcdefghijklmnopqrstuvwxyz"); // Lowercase digits
+    STR c, Sign, Temp[66];                                         // Temp buffer for digits (max needed for base 2)
+    LPCSTR Digits = TEXT("0123456789abcdefghijklmnopqrstuvwxyz");  // Lowercase digits
     INT i;
 
     // Use uppercase digits if PF_LARGE flag is set
@@ -601,36 +621,35 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
     // Handle sign processing
     if (Type & PF_SIGN) {
         if (Number < 0) {
-            Sign = '-';           // Negative number
+            Sign = '-';  // Negative number
             Number = -Number;
-            Size--;              // Reserve space for sign
+            Size--;  // Reserve space for sign
         } else if (Type & PF_PLUS) {
-            Sign = '+';          // Force + for positive
+            Sign = '+';  // Force + for positive
             Size--;
         } else if (Type & PF_SPACE) {
-            Sign = ' ';          // Space for positive
+            Sign = ' ';  // Space for positive
             Size--;
         }
     }
 
     // Special prefixes ("0" for octal, "0x" for hex)
     if (Type & PF_SPECIAL) {
-        if (Base == 8)
-            Size--;              // Reserve space for "0"
+        if (Base == 8) Size--;  // Reserve space for "0"
     }
 
     i = 0;
 
     // Convert number to digits (stored in reverse order)
     if (Number == 0)
-        Temp[i++] = '0';         // Special case for zero
+        Temp[i++] = '0';  // Special case for zero
     else
         while (Number != 0) Temp[i++] = Digits[DoDiv(Number, Base)];
 
     // Ensure minimum precision (pad with zeros if needed)
     if (i > Precision) Precision = i;
 
-    Size -= Precision;           // Adjust remaining field width
+    Size -= Precision;  // Adjust remaining field width
 
     // Right-aligned: add leading spaces (if not zero-padded or left-aligned)
     if (!(Type & (PF_ZEROPAD | PF_LEFT))) {
@@ -643,9 +662,9 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
     // Add special base prefixes
     if (Type & PF_SPECIAL) {
         if (Base == 8)
-            *Text++ = '0';       // Octal prefix
+            *Text++ = '0';  // Octal prefix
         else if (Base == 16) {
-            *Text++ = '0';       // Hex prefix
+            *Text++ = '0';  // Hex prefix
             *Text++ = 'x';
         }
     }
@@ -657,16 +676,16 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
 
     // Add precision padding (leading zeros)
     while (i < Precision--) *Text++ = '0';
-    
+
     // Add the actual digits (reverse order from temp buffer)
     while (i-- > 0) *Text++ = Temp[i];
-    
+
     // Left-aligned: add trailing spaces
     while (Size-- > 0) *Text++ = STR_SPACE;
 
-    *Text++ = STR_NULL;          // Null-terminate result
+    *Text++ = STR_NULL;  // Null-terminate result
 
-    return Text;                 // Return pointer to end of string
+    return Text;  // Return pointer to end of string
 }
 
 /***************************************************************************/
@@ -686,8 +705,8 @@ static int SkipAToI(LPCSTR* Format) {
 
     // Parse decimal digits and build number
     while (IsNumeric(**Format)) {
-        Result = Result * 10 + (**Format - '0'); // Accumulate digit
-        (*Format)++; // Move to next character
+        Result = Result * 10 + (**Format - '0');  // Accumulate digit
+        (*Format)++;                              // Move to next character
     }
 
     return Result;
@@ -696,9 +715,67 @@ static int SkipAToI(LPCSTR* Format) {
 /***************************************************************************/
 
 /**
+ * @brief Converts a floating-point number to string representation with precision.
+ *
+ * Converts F32 floating-point values to decimal string format with specified
+ * precision. Handles sign, integer part, and fractional part. Uses simple
+ * integer arithmetic to avoid complex floating-point operations.
+ *
+ * @param Text Buffer to store resulting string
+ * @param Value F32 floating-point value to convert
+ * @param Precision Number of decimal places to display (default 6 if -1)
+ * @return Pointer to end of formatted string
+ */
+LPSTR FloatToString(LPSTR Text, F32 Value, I32 Precision) {
+    LPSTR Dst = Text;
+
+    // Set default precision
+    if (Precision < 0) Precision = 6;
+    if (Precision > 9) Precision = 9;  // Limit to avoid overflow
+
+    // Handle negative numbers
+    if (Value < 0.0f) {
+        *Dst++ = '-';
+        Value = -Value;
+    }
+
+    // Extract integer part
+    U32 IntegerPart = (U32)Value;
+    F32 FractionalPart = Value - (F32)IntegerPart;
+
+    // Convert integer part
+    if (IntegerPart == 0) {
+        *Dst++ = '0';
+    } else {
+        STR IntBuffer[16];
+        U32ToString(IntegerPart, IntBuffer);
+        LPCSTR IntPtr = IntBuffer;
+        while (*IntPtr) *Dst++ = *IntPtr++;
+    }
+
+    // Add decimal point and fractional part
+    if (Precision > 0) {
+        *Dst++ = '.';
+
+        // Convert fractional part by multiplying by powers of 10
+        for (I32 i = 0; i < Precision; i++) {
+            FractionalPart *= 10.0f;
+            U32 Digit = (U32)FractionalPart;
+            *Dst++ = '0' + (Digit % 10);
+            FractionalPart -= (F32)Digit;
+        }
+    }
+
+    *Dst = STR_NULL;
+    return Dst;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Core printf-style string formatting function with variable arguments.
  *
- * This is the main formatting engine that processes format strings with 
+ * This is the main formatting engine that processes format strings with
  * specifiers like %d, %s, %x, etc. Supports field width, precision, alignment,
  * padding, and various numeric bases. Used by StringPrintFormat and other
  * printf-style functions throughout the kernel.
@@ -711,7 +788,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     LPCSTR Text = NULL;
     long Number;
     int Flags, FieldWidth, Precision, Qualifier, Base, Length, i;
-    LPSTR Dst = Destination; // Output pointer
+    LPSTR Dst = Destination;  // Output pointer
 
     // Handle null format string gracefully
     if (Format == NULL) {
@@ -741,22 +818,22 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
         Format++;
         switch (*Format) {
             case '-':
-                Flags |= PF_LEFT;      // Left-align output
+                Flags |= PF_LEFT;  // Left-align output
                 goto Repeat;
             case '+':
-                Flags |= PF_PLUS;      // Show + for positive numbers
+                Flags |= PF_PLUS;  // Show + for positive numbers
                 goto Repeat;
             case ' ':
-                Flags |= PF_SPACE;     // Space for positive numbers
+                Flags |= PF_SPACE;  // Space for positive numbers
                 goto Repeat;
             case '#':
-                Flags |= PF_SPECIAL;   // Add base prefixes (0, 0x)
+                Flags |= PF_SPECIAL;  // Add base prefixes (0, 0x)
                 goto Repeat;
             case '0':
-                Flags |= PF_ZEROPAD;   // Pad with zeros instead of spaces
+                Flags |= PF_ZEROPAD;  // Pad with zeros instead of spaces
                 goto Repeat;
             case STR_NULL:
-                *Dst = STR_NULL;       // Premature end of format
+                *Dst = STR_NULL;  // Premature end of format
                 return;
         }
 
@@ -822,6 +899,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                     FieldWidth = 2 * sizeof(void*);
                     Flags |= PF_ZEROPAD | PF_LARGE;
                 }
+                Base = 16;
                 goto HandleNumber;
 
             case 'o':
@@ -845,6 +923,23 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 break;
             case 'u':
                 break;
+            case 'f':
+                {
+                    F32 FloatValue = (F32)VarArg(Args, double);
+                    STR FloatBuffer[64];
+                    FloatToString(FloatBuffer, FloatValue, Precision);
+
+                    // Handle field width and alignment
+                    Length = StringLength(FloatBuffer);
+                    if (!(Flags & PF_LEFT)) {
+                        while (Length < FieldWidth--) *Dst++ = STR_SPACE;
+                    }
+                    for (i = 0; i < Length && FloatBuffer[i] != STR_NULL; i++) {
+                        *Dst++ = FloatBuffer[i];
+                    }
+                    while (Length < FieldWidth--) *Dst++ = STR_SPACE;
+                }
+                continue;
             default:
                 if (*Format != '%') *Dst++ = '%';
                 if (*Format) {
@@ -858,20 +953,20 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     // Extract and format numeric value based on qualifier and flags
     HandleNumber:
         if (Qualifier == 'l') {
-            Number = VarArg(Args, long);          // Long integer
+            Number = VarArg(Args, long);  // Long integer
         } else if (Qualifier == 'h') {
             // Short integer (signed or unsigned based on PF_SIGN flag)
-            Number = (Flags & PF_SIGN) ? (short)VarArg(Args, int) : (unsigned short)VarArg(Args, int);
+            Number = (Flags & PF_SIGN) ? (short)VarArg(Args, int) : (unsigned short)VarArg(Args, unsigned int);
         } else {
             // Normal integer (signed or unsigned based on PF_SIGN flag)
-            Number = (Flags & PF_SIGN) ? VarArg(Args, int) : (unsigned int)VarArg(Args, unsigned int);
+            Number = (Flags & PF_SIGN) ? (int)VarArg(Args, int) : (unsigned int)VarArg(Args, unsigned int);
         }
 
         // Convert number to formatted string and copy to output
         STR Temp[128];
         NumberToString(Temp, Number, Base, FieldWidth, Precision, Flags);
         for (i = 0; Temp[i] != STR_NULL; i++) {
-            *Dst++ = Temp[i];                     // Copy formatted digits
+            *Dst++ = Temp[i];  // Copy formatted digits
         }
     }
 
@@ -894,9 +989,60 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
 void StringPrintFormat(LPSTR Destination, LPCSTR Format, ...) {
     VarArgList Args;
 
-    VarArgStart(Args, Format);                    // Initialize argument list
-    StringPrintFormatArgs(Destination, Format, Args); // Do the formatting
-    VarArgEnd(Args);                              // Clean up argument list
+    VarArgStart(Args, Format);                         // Initialize argument list
+    StringPrintFormatArgs(Destination, Format, Args);  // Do the formatting
+    VarArgEnd(Args);                                   // Clean up argument list
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parses an IPv4 address string and returns it in big-endian format.
+ *
+ * @param ipStr IPv4 address string in format "a.b.c.d" (e.g., "192.168.56.10")
+ * @return IPv4 address in big-endian format, or 0 if parsing failed
+ */
+U32 ParseIPAddress(LPCSTR ipStr) {
+    U32 octets[4] = {0};
+    U32 octetIndex = 0;
+    U32 currentOctet = 0;
+    U32 i = 0;
+
+    if (ipStr == NULL) return 0;
+
+    // Parse each character
+    while (ipStr[i] != '\0' && octetIndex < 4) {
+        STR c = ipStr[i];
+
+        if (c >= '0' && c <= '9') {
+            // Add digit to current octet
+            currentOctet = currentOctet * 10 + (c - '0');
+            if (currentOctet > 255) return 0; // Invalid octet value
+        } else if (c == '.') {
+            // End of current octet
+            octets[octetIndex] = currentOctet;
+            octetIndex++;
+            currentOctet = 0;
+        } else {
+            // Invalid character
+            return 0;
+        }
+        i++;
+    }
+
+    // Store the last octet
+    if (octetIndex == 3) {
+        octets[3] = currentOctet;
+    } else {
+        return 0; // Not enough octets
+    }
+
+    // Validate all octets are <= 255 and convert to big-endian
+    for (i = 0; i < 4; i++) {
+        if (octets[i] > 255) return 0;
+    }
+
+    return Htonl((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]);
 }
 
 /***************************************************************************/

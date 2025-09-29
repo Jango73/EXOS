@@ -21,15 +21,6 @@
     Edit
 
 \************************************************************************/
-// Edit.c
-
-/***************************************************************************\
-
-  EXOS Kernel
-  Copyright (c) 1999-2025 Jango73
-  All rights reserved
-
-\***************************************************************************/
 
 #include "../include/Base.h"
 #include "../include/Console.h"
@@ -333,7 +324,7 @@ void Render(LPEDITFILE File) {
 
     for (; Console.CursorY < MAX_LINES; Console.CursorY++) {
         Console.CursorX = 0;
-        for (Index = 0; Index < MAX_COLUMNS; Index++) {
+        for (Index = 0; Index < (I32)MAX_COLUMNS; Index++) {
             ConsolePrintChar(STR_SPACE);
         }
     }
@@ -518,7 +509,7 @@ static void AddCharacter(LPEDITFILE File, STR ASCIICode) {
     // Update the cursor
 
     File->Cursor.X++;
-    if (File->Cursor.X >= MAX_COLUMNS) {
+    if (File->Cursor.X >= (I32)MAX_COLUMNS) {
         File->Left++;
         File->Cursor.X--;
     }
@@ -916,5 +907,3 @@ U32 Edit(U32 NumArguments, LPCSTR* Arguments) {
 
     return 0;
 }
-
-/***************************************************************************/

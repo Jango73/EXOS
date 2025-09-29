@@ -21,6 +21,7 @@
     PCI
 
 \************************************************************************/
+
 #ifndef PCI_H_INCLUDED
 #define PCI_H_INCLUDED
 
@@ -28,10 +29,11 @@
 
 #include "Base.h"
 #include "Driver.h"
+#include "Device.h"
 
 /***************************************************************************/
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /***************************************************************************/
 // Common PCI constants and helpers
@@ -131,8 +133,7 @@ typedef struct tag_PCI_INFO {
 
 // Runtime description of a PCI device
 #define PCI_DEVICE_FIELDS \
-    LISTNODE_FIELDS       \
-    LPDRIVER Driver;      \
+    DEVICE_FIELDS         \
     PCI_INFO Info;        \
     U32 BARPhys[6];       \
     volatile void* BARMapped[6];
@@ -188,6 +189,6 @@ U8 PCI_FindCapability(U8 bus, U8 dev, U8 func, U8 capId);
 
 /***************************************************************************/
 
-/***************************************************************************/
+#pragma pack(pop)
 
-#endif /* PCI_H_INCLUDED */
+#endif  // PCI_H_INCLUDED

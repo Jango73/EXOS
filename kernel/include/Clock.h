@@ -33,8 +33,8 @@
 void InitializeClock(void);
 U32 GetSystemTime(void);
 void MilliSecondsToHMS(U32, LPSTR);
-BOOL GetLocalTime(LPSYSTEMTIME);
-BOOL SetLocalTime(LPSYSTEMTIME);
+BOOL GetLocalTime(LPDATETIME);
+BOOL SetLocalTime(LPDATETIME);
 
 /***************************************************************************/
 

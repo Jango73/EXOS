@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "../include/Clock.h"
+#include "../include/Console.h"
 #include "../include/I386.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
@@ -43,7 +44,7 @@
 static LPMESSAGE NewMessage(void) {
     LPMESSAGE This;
 
-    This = (LPMESSAGE)HeapAlloc(sizeof(MESSAGE));
+    This = (LPMESSAGE)KernelHeapAlloc(sizeof(MESSAGE));
 
     if (This == NULL) return NULL;
 
@@ -66,11 +67,11 @@ static LPMESSAGE NewMessage(void) {
  * @param This Pointer to message to delete, ignored if NULL
  */
 void DeleteMessage(LPMESSAGE This) {
-    if (This == NULL) return;
+    SAFE_USE(This) {
+        This->ID = ID_NONE;
 
-    This->ID = ID_NONE;
-
-    HeapFree(This);
+        KernelHeapFree(This);
+    }
 }
 
 /************************************************************************/
@@ -101,29 +102,35 @@ LPTASK NewTask(void) {
 
     LPTASK This = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Enter"));
+    DEBUG(TEXT("[NewTask] Enter"));
 
-    This = (LPTASK)HeapAlloc(sizeof(TASK));
+    This = (LPTASK)CreateKernelObject(sizeof(TASK), ID_TASK);
 
     if (This == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[NewTask] Could not allocate memory for task"));
+        ERROR(TEXT("[NewTask] Could not allocate memory for task"));
 
         TRACED_EPILOGUE("NewTask");
         return NULL;
     }
 
     if (IsValidMemory((LINEAR)This) == FALSE) {
-        KernelLogText(LOG_ERROR, TEXT("[NewTask] Allocated task is not a valid pointer"));
+        ERROR(TEXT("[NewTask] Allocated task is not a valid pointer"));
 
         TRACED_EPILOGUE("NewTask");
         return NULL;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
+    DEBUG(TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
 
-    *This = (TASK){.ID = ID_TASK, .References = 1, .Mutex = EMPTY_MUTEX, .MessageMutex = EMPTY_MUTEX, .Type = TASK_TYPE_NONE, .Status = TASK_STATUS_READY};
+    // Initialize task-specific fields (LISTNODE_FIELDS already initialized by CreateKernelObject)
+    InitMutex(&This->Mutex);
+    InitMutex(&This->MessageMutex);
+    This->Type = TASK_TYPE_NONE;
+    This->Status = TASK_STATUS_READY;
 
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Task initialized: Address=%X, Status=%X, TASK_STATUS_READY=%X"), (U32)This, This->Status, TASK_STATUS_READY);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[NewTask] Task initialized: Address=%x, Status=%x, TASK_STATUS_READY=%x"), (U32)This,
+        This->Status, TASK_STATUS_READY);
 
     InitMutex(&(This->Mutex));
     InitMutex(&(This->MessageMutex));
@@ -131,15 +138,15 @@ LPTASK NewTask(void) {
     //-------------------------------------
     // Initialize the message queue
 
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Initialize task message queue"));
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] MessageDestructor = %X"), (LINEAR)MessageDestructor);
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] HeapAlloc = %X"), (LINEAR)HeapAlloc);
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] HeapFree = %X"), (LINEAR)HeapFree);
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] EBP = %X"), (LINEAR)GetEBP());
+    DEBUG(TEXT("[NewTask] Initialize task message queue"));
+    DEBUG(TEXT("[NewTask] MessageDestructor = %x"), (LINEAR)MessageDestructor);
+    DEBUG(TEXT("[NewTask] KernelHeapAlloc = %x"), (LINEAR)KernelHeapAlloc);
+    DEBUG(TEXT("[NewTask] KernelHeapFree = %x"), (LINEAR)KernelHeapFree);
+    DEBUG(TEXT("[NewTask] EBP = %x"), (LINEAR)GetEBP());
 
-    This->Message = NewList(MessageDestructor, HeapAlloc, HeapFree);
+    This->Message = NewList(MessageDestructor, KernelHeapAlloc, KernelHeapFree);
 
-    KernelLogText(LOG_DEBUG, TEXT("[NewTask] Exit"));
+    DEBUG(TEXT("[NewTask] Exit"));
 
     TRACED_EPILOGUE("NewTask");
     return This;
@@ -162,82 +169,134 @@ void DeleteTask(LPTASK This) {
     LPLISTNODE Node = NULL;
     LPMUTEX Mutex = NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Enter"));
+    DEBUG(TEXT("[DeleteTask] Enter"));
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (This == NULL) return;
-    if (This->ID != ID_TASK) return;
+    SAFE_USE_VALID_ID(This, ID_TASK) {
+        // Lock kernel mutex for the entire operation
+        LockMutex(MUTEX_KERNEL, INFINITY);
 
-    //-------------------------------------
-    // Unlock all mutexs locked by this task
+        //-------------------------------------
+        // Unlock all mutexs locked by this task
 
-    for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
-        Mutex = (LPMUTEX)Node;
+        for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
+            Mutex = (LPMUTEX)Node;
 
-        if (Mutex->ID == ID_MUTEX && Mutex->Task == This) {
-            Mutex->Task = NULL;
-            Mutex->Lock = 0;
+            if (Mutex->ID == ID_MUTEX && Mutex->Task == This) {
+                Mutex->Task = NULL;
+                Mutex->Lock = 0;
+            }
         }
-    }
 
-    //-------------------------------------
-    // Delete the task's message queue
+        //-------------------------------------
+        // Delete the task's message queue
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting message queue"));
+        DEBUG(TEXT("[DeleteTask] Deleting message queue"));
 
-    if (This->Message != NULL) DeleteList(This->Message);
+        if (This->Message != NULL) DeleteList(This->Message);
 
-    //-------------------------------------
-    // Delete the task's stacks
+        //-------------------------------------
+        // Delete the task's stacks
 
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Deleting stacks"));
+        DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
-    if (This->SysStackBase != NULL) {
-        KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->SysStackBase, This->SysStackSize);
-        FreeRegion(This->SysStackBase, This->SysStackSize);
-    }
-
-    if (This->Process != NULL) {
-        if (This->StackBase != NULL) {
-            KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->StackBase, This->StackSize);
-            FreeRegion(This->StackBase, This->StackSize);
+        if (This->SysStackBase != NULL) {
+            DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->SysStackBase,
+                This->SysStackSize);
+            FreeRegion(This->SysStackBase, This->SysStackSize);
         }
-    }
 
-    //-------------------------------------
-    // Remove from global kernel task list before freeing
-    
-    LockMutex(MUTEX_KERNEL, INFINITY);
+        if (This->Process != NULL) {
+            if (This->StackBase != NULL) {
+                DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->StackBase, This->StackSize);
+                FreeRegion(This->StackBase, This->StackSize);
+            }
+        }
 
-    ListRemove(Kernel.Task, This);
+        //-------------------------------------
+        // Decrement process task count and check if process should be deleted
 
-    UnlockMutex(MUTEX_KERNEL);
+        if (This->Process != NULL && This->Process != &KernelProcess) {
+            LockMutex(MUTEX_PROCESS, INFINITY);
+            This->Process->TaskCount--;
 
-    //-------------------------------------
-    // Decrement process task count and check if process should be deleted
-    if (This->Process != NULL && This->Process != &KernelProcess) {
-        LockMutex(MUTEX_PROCESS, INFINITY);
-        This->Process->TaskCount--;
-        KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Process %s TaskCount decremented to %d"), This->Process->FileName, This->Process->TaskCount);
-        
-        if (This->Process->TaskCount == 0) {
-            KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Process %s has no more tasks, deleting process"), This->Process->FileName);
-            LPPROCESS ProcessToDelete = This->Process;
+            DEBUG(TEXT("[DeleteTask] Process %s TaskCount decremented to %d"), This->Process->FileName,
+                This->Process->TaskCount);
+
+            if (This->Process->TaskCount == 0) {
+                DEBUG(TEXT("[DeleteTask] Process %s has no more tasks, marking as DEAD"),
+                    This->Process->FileName);
+                This->Process->Status = PROCESS_STATUS_DEAD;
+
+                // Apply child process policy
+                if (This->Process->Flags & PROCESS_CREATE_KILL_CHILDREN_ON_DEATH) {
+                    DEBUG(TEXT("[DeleteTask] Process %s policy: killing all children"), This->Process->FileName);
+
+                    // Find and kill all child processes
+                    LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
+
+                    while (Current != NULL) {
+                        LPPROCESS Next = (LPPROCESS)Current->Next;
+
+                        SAFE_USE_VALID_ID(Current, ID_PROCESS) {
+                            if (Current->OwnerProcess == This->Process) {
+                                DEBUG(TEXT("[DeleteTask] Killing child process %s"), Current->FileName);
+
+                                // Kill all tasks of the child process
+                                LPTASK ChildTask = (LPTASK)Kernel.Task->First;
+
+                                while (ChildTask != NULL) {
+                                    LPTASK NextChildTask = (LPTASK)ChildTask->Next;
+
+                                    SAFE_USE_VALID_ID(ChildTask, ID_TASK) {
+                                        if (ChildTask->Process == Current) {
+                                            KillTask(ChildTask);
+                                        }
+                                    }
+                                    ChildTask = NextChildTask;
+                                }
+
+                                // Mark child process as DEAD
+                                Current->Status = PROCESS_STATUS_DEAD;
+                            }
+                        }
+                        Current = Next;
+                    }
+                } else {
+                    DEBUG(TEXT("[DeleteTask] Process %s policy: orphaning children"), This->Process->FileName);
+
+                    // Detach all child processes from parent
+                    LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
+
+                    while (Current != NULL) {
+                        LPPROCESS Next = (LPPROCESS)Current->Next;
+
+                        SAFE_USE_VALID_ID(Current, ID_PROCESS) {
+                            if (Current->OwnerProcess == This->Process) {
+                                Current->OwnerProcess = NULL;
+                                DEBUG(TEXT("[DeleteTask] Orphaned child process %s"), Current->FileName);
+                            }
+                        }
+                        Current = Next;
+                    }
+                }
+            }
+
             UnlockMutex(MUTEX_PROCESS);
-            DeleteProcess(ProcessToDelete);
-        } else {
-            UnlockMutex(MUTEX_PROCESS);
         }
+
+        //-------------------------------------
+        // Release the task structure using reference counting
+
+        ReleaseKernelObject(This);
+
+        // Unlock kernel mutex
+        UnlockMutex(MUTEX_KERNEL);
+
+        DEBUG(TEXT("[DeleteTask] Exit"));
     }
-
-    //-------------------------------------
-    // Free the task structure itself
-
-    HeapFree(This);
-
-    KernelLogText(LOG_DEBUG, TEXT("[DeleteTask] Exit"));
 
     TRACED_EPILOGUE("DeleteTask");
 }
@@ -265,14 +324,14 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     SELECTOR CodeSelector = 0;
     SELECTOR DataSelector = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Enter"));
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Process : %X"), Process);
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Info : %X"), Info);
+    DEBUG(TEXT("[CreateTask] Enter"));
+    DEBUG(TEXT("[CreateTask] Process : %X"), Process);
+    DEBUG(TEXT("[CreateTask] Info : %X"), Info);
 
     if (Info != NULL) {
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Func : %X"), Info->Func);
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Parameter : %X"), Info->Parameter);
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Flags : %X"), Info->Flags);
+        DEBUG(TEXT("[CreateTask] Func : %X"), Info->Func);
+        DEBUG(TEXT("[CreateTask] Parameter : %X"), Info->Parameter);
+        DEBUG(TEXT("[CreateTask] Flags : %X"), Info->Flags);
     }
 
     //-------------------------------------
@@ -292,7 +351,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     }
 
     if (IsValidMemory((LINEAR)Info->Func) == FALSE) {
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
+        DEBUG(TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
 
         TRACED_EPILOGUE("CreateTask");
         return NULL;
@@ -315,11 +374,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task = NewTask();
 
     if (Task == NULL) {
-        KernelLogText(LOG_ERROR, TEXT("[CreateTask] NewTask failed"));
+        ERROR(TEXT("[CreateTask] NewTask failed"));
         goto Out;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Task allocated at %X"), Task);
+    DEBUG(TEXT("[CreateTask] Task allocated at %X"), Task);
 
     //-------------------------------------
     // Setup the task
@@ -328,18 +387,20 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Priority = Info->Priority;
     Task->Function = Info->Func;
     Task->Parameter = Info->Parameter;
-    
+
     // Increment process task count
     if (Process != NULL) {
         LockMutex(MUTEX_PROCESS, INFINITY);
         Process->TaskCount++;
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Process %s TaskCount incremented to %d"), Process->FileName, Process->TaskCount);
+        KernelLogText(
+            LOG_DEBUG, TEXT("[CreateTask] Process %s TaskCount incremented to %d"), Process->FileName,
+            Process->TaskCount);
         UnlockMutex(MUTEX_PROCESS);
     }
     Task->Type = (Process->Privilege == PRIVILEGE_KERNEL) ? TASK_TYPE_KERNEL_OTHER : TASK_TYPE_USER;
 
     SetTaskWakeUpTime(Task, ComputeTaskQuantumTime(Task->Priority));
-    
+
     // Copy task name for debugging
     if (Info->Name[0] != STR_NULL) {
         StringCopy(Task->Name, Info->Name);
@@ -350,7 +411,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Allocate the stacks
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Allocating stack..."));
+    DEBUG(TEXT("[CreateTask] Allocating stack..."));
     KernelLogText(
         LOG_DEBUG, TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
     KernelLogText(
@@ -368,11 +429,12 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->StackSize = Info->StackSize;
     Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
 
-    Task->StackBase = AllocRegion(BaseVMA, 0, Task->StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Task->StackBase =
+        AllocRegion(BaseVMA, 0, Task->StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
     Task->SysStackBase = AllocKernelRegion(0, Task->SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-    
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Actually got StackBase=%X"), Task->StackBase);
+
+    DEBUG(TEXT("[CreateTask] BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
+    DEBUG(TEXT("[CreateTask] Actually got StackBase=%X"), Task->StackBase);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
         if (Task->StackBase != NULL) {
@@ -386,11 +448,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         DeleteTask(Task);
         Task = NULL;
 
-        KernelLogText(LOG_ERROR, TEXT("[CreateTask] Stack or system stack allocation failed"));
+        ERROR(TEXT("[CreateTask] Stack or system stack allocation failed"));
         goto Out;
     }
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Stack (%X bytes) allocated at %X"), Task->StackSize, Task->StackBase);
+    DEBUG(TEXT("[CreateTask] Stack (%X bytes) allocated at %X"), Task->StackSize, Task->StackBase);
     KernelLogText(
         LOG_DEBUG, TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize,
         Task->SysStackBase);
@@ -405,12 +467,12 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     // Setup privilege data
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Setting kernel privilege (ring 0)"));
+        DEBUG(TEXT("[CreateTask] Setting kernel privilege (ring 0)"));
 
         CodeSelector = SELECTOR_KERNEL_CODE;
         DataSelector = SELECTOR_KERNEL_DATA;
     } else {
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Setting user privilege (ring 3)"));
+        DEBUG(TEXT("[CreateTask] Setting user privilege (ring 3)"));
 
         CodeSelector = SELECTOR_USER_CODE;
         DataSelector = SELECTOR_USER_DATA;
@@ -454,17 +516,17 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         LINEAR ESP = GetESP();
         U32 StackUsed = (BootStackTop - ESP) + 256;
 
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] BootStackTop = %X"), BootStackTop);
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] StackTop = %X"), StackTop);
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] StackUsed = %X"), StackUsed);
-        KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Switching to new stack..."));
+        DEBUG(TEXT("[CreateTask] BootStackTop = %X"), BootStackTop);
+        DEBUG(TEXT("[CreateTask] StackTop = %X"), StackTop);
+        DEBUG(TEXT("[CreateTask] StackUsed = %X"), StackUsed);
+        DEBUG(TEXT("[CreateTask] Switching to new stack..."));
 
         if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
             Task->Context.Registers.ESP = 0;  // Not used for main task
             Task->Context.Registers.EBP = GetEBP();
-            KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Main task stack switched successfully"));
+            DEBUG(TEXT("[CreateTask] Main task stack switched successfully"));
         } else {
-            KernelLogText(LOG_ERROR, TEXT("[CreateTask] Stack switch failed"));
+            ERROR(TEXT("[CreateTask] Stack switch failed"));
         }
     }
 
@@ -490,7 +552,7 @@ Out:
     UnlockMutex(MUTEX_MEMORY);
     UnlockMutex(MUTEX_KERNEL);
 
-    KernelLogText(LOG_DEBUG, TEXT("[CreateTask] Exit"));
+    DEBUG(TEXT("[CreateTask] Exit"));
 
     return Task;
 }
@@ -509,37 +571,32 @@ Out:
  */
 BOOL KillTask(LPTASK Task) {
     SAFE_USE_VALID_ID(Task, ID_TASK) {
-        KernelLogText(LOG_DEBUG, TEXT("[KillTask] Enter"));
+        DEBUG(TEXT("[KillTask] Enter"));
 
         if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
-            KernelLogText(LOG_ERROR, TEXT("[KillTask] Can't kill kernel task, halting"));
+            ERROR(TEXT("[KillTask] Can't kill kernel task, halting"));
             DO_THE_SLEEPING_BEAUTY;
             return FALSE;
         }
 
-        KernelLogText(LOG_DEBUG, TEXT("Process : %X"), Task->Process);
-        KernelLogText(LOG_DEBUG, TEXT("Task : %X, func = %X"), Task, Task->Function);
-        KernelLogText(
-            LOG_DEBUG, TEXT("Message : %X"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
+        DEBUG(TEXT("[KillTask] Process : %x"), Task->Process);
+        DEBUG(TEXT("[KillTask] Task : %x"), Task);
+        DEBUG(TEXT("[KillTask] Func = %x"), Task->Function);
+        DEBUG(TEXT("[KillTask] Message : %x"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
 
         // Lock access to kernel data
         LockMutex(MUTEX_KERNEL, INFINITY);
 
-        Task->References = 0;
         SetTaskStatus(Task, TASK_STATUS_DEAD);
 
         // Dead task remains in scheduler queue until context switch
-        // This prevents silent CurrentIndex adjustments and phantom task changes
         // RemoveTaskFromQueue will be called during actual task switching
-
-        // Don't remove from global kernel task list - DeleteDeadTasks will do it
         // The task will be killed by the monitor a bit later
-        // Don't touch it for now
 
         // Unlock access to kernel data
         UnlockMutex(MUTEX_KERNEL);
 
-        KernelLogText(LOG_DEBUG, TEXT("[KillTask] Exit"));
+        DEBUG(TEXT("[KillTask] Exit"));
 
         return TRUE;
     }
@@ -550,16 +607,18 @@ BOOL KillTask(LPTASK Task) {
 /************************************************************************/
 
 /**
- * @brief Removes and deallocates all tasks marked as TASK_STATUS_DEAD.
+ * @brief Removes and deallocates all tasks and processes marked as DEAD.
  *
  * Iterates through the global task list and deletes any tasks that have been
- * marked as dead by KillTask(). This function is called periodically by the
- * kernel monitor thread to clean up terminated tasks.
+ * marked as dead by KillTask(). Also iterates through the process list and
+ * deletes any processes marked as DEAD. This function is called periodically
+ * by the kernel monitor thread to clean up terminated tasks and processes.
  *
- * @note This function locks MUTEX_KERNEL during operation
+ * @note This function locks MUTEX_KERNEL and MUTEX_PROCESS during operation
  */
 void DeleteDeadTasks(void) {
     LPTASK Task, NextTask;
+    LPPROCESS Process, NextProcess;
 
     // KernelLogText(LOG_VERBOSE, TEXT("[DeleteDeadTasks]"));
 
@@ -569,22 +628,54 @@ void DeleteDeadTasks(void) {
     Task = (LPTASK)Kernel.Task->First;
 
     while (Task != NULL) {
-        NextTask = (LPTASK)Task->Next;
+        SAFE_USE_VALID_ID(Task, ID_TASK) {
+            NextTask = (LPTASK)Task->Next;
 
-        if (Task->Status == TASK_STATUS_DEAD) {
-            KernelLogText(LOG_DEBUG, TEXT("[DeleteDeadTasks] About to delete task %x"), (U32)Task);
+            if (Task->Status == TASK_STATUS_DEAD) {
+                DEBUG(TEXT("[DeleteDeadTasks] About to delete task %x"), (U32)Task);
 
-            // DeleteTask will handle removing from list and cleanup
-            DeleteTask(Task);
+                // DeleteTask will handle removing from list and cleanup
+                DeleteTask(Task);
 
-            KernelLogText(LOG_DEBUG, TEXT("Deleted task %x"), (U32)Task);
+                DEBUG(TEXT("[DeleteDeadTasks] Deleted task %x"), (U32)Task);
+            }
+
+            Task = NextTask;
         }
-
-        Task = NextTask;
+        else {
+            ConsolePanic(TEXT("Corrupt task in task list : %x"), (U32)Task);
+        }
     }
 
     // Unlock access to kernel data
     UnlockMutex(MUTEX_KERNEL);
+
+    // Now handle DEAD processes
+    LockMutex(MUTEX_PROCESS, INFINITY);
+
+    Process = (LPPROCESS)Kernel.Process->First;
+
+    while (Process != NULL) {
+        SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+            NextProcess = (LPPROCESS)Process->Next;
+
+            if (Process->Status == PROCESS_STATUS_DEAD) {
+                DEBUG(TEXT("[DeleteDeadTasks] About to delete process %s"), Process->FileName);
+
+                // DeleteProcessCommit will handle removing from list and cleanup
+                DeleteProcessCommit(Process);
+
+                DEBUG(TEXT("[DeleteDeadTasks] Deleted process %s"), Process->FileName);
+            }
+
+            Process = NextProcess;
+        }
+        else {
+            ConsolePanic(TEXT("Corrupt process in process list : %x"), (U32)Process);
+        }
+    }
+
+    UnlockMutex(MUTEX_PROCESS);
 }
 
 /************************************************************************/
@@ -599,14 +690,14 @@ void DeleteDeadTasks(void) {
 U32 SetTaskPriority(LPTASK Task, U32 Priority) {
     U32 OldPriority = 0;
 
-    if (Task == NULL) return OldPriority;
+    SAFE_USE_VALID_ID(Task, ID_TASK) {
+        LockMutex(MUTEX_KERNEL, INFINITY);
 
-    LockMutex(MUTEX_KERNEL, INFINITY);
+        OldPriority = Task->Priority;
+        Task->Priority = Priority;
 
-    OldPriority = Task->Priority;
-    Task->Priority = Priority;
-
-    UnlockMutex(MUTEX_KERNEL);
+        UnlockMutex(MUTEX_KERNEL);
+    }
 
     return OldPriority;
 }
@@ -628,7 +719,7 @@ void Sleep(U32 MilliSeconds) {
     U32 Flags;
     SaveFlags(&Flags);
     DisableInterrupts();
-    // KernelLogText(LOG_DEBUG, TEXT("[Sleep] Enter : IF = %x"), Flags & 0x200);
+    // DEBUG(TEXT("[Sleep] Enter : IF = %x"), Flags & 0x200);
 
     // Lock the task mutex
     LockMutex(MUTEX_TASK, INFINITY);
@@ -660,14 +751,14 @@ void Sleep(U32 MilliSeconds) {
             DisableInterrupts();
         }
 
-        // KernelLogText(LOG_DEBUG, TEXT("[Sleep] Exit %x (%s)"), Task, Task->Name);
+        // DEBUG(TEXT("[Sleep] Exit %x (%s)"), Task, Task->Name);
         return;
     }
 
     UnlockMutex(MUTEX_TASK);
     RestoreFlags(&Flags);
 
-    // KernelLogText(LOG_DEBUG, TEXT("[Sleep] Exit"));
+    // DEBUG(TEXT("[Sleep] Exit"));
     return;
 }
 
@@ -682,13 +773,13 @@ void Sleep(U32 MilliSeconds) {
 U32 GetTaskStatus(LPTASK Task) {
     U32 Status = 0;
 
-    if (Task == NULL) return Status;
+    SAFE_USE_VALID_ID(Task, ID_TASK) {
+        LockMutex(&(Task->Mutex), INFINITY);
 
-    LockMutex(&(Task->Mutex), INFINITY);
+        Status = Task->Status;
 
-    Status = Task->Status;
-
-    UnlockMutex(&(Task->Mutex));
+        UnlockMutex(&(Task->Mutex));
+    }
 
     return Status;
 }
@@ -702,21 +793,22 @@ U32 GetTaskStatus(LPTASK Task) {
  * @param Status New status value to set
  */
 void SetTaskStatus(LPTASK Task, U32 Status) {
-    if (Task == NULL) return;
+    SAFE_USE_VALID_ID(Task, ID_TASK) {
+        U32 OldStatus = Task->Status;
+        UNUSED(OldStatus);
 
-    U32 OldStatus = Task->Status;
-    
-    LockMutex(&(Task->Mutex), INFINITY);
-    FreezeScheduler();
+        LockMutex(&(Task->Mutex), INFINITY);
+        FreezeScheduler();
 
-    Task->Status = Status;
-    
+        Task->Status = Status;
+
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[SetTaskStatus] Task %x (%s): %X -> %x"), Task, Task->Name, OldStatus, Status);
+        DEBUG(TEXT("[SetTaskStatus] Task %x (%s): %X -> %x"), Task, Task->Name, OldStatus, Status);
 #endif
 
-    UnfreezeScheduler();
-    UnlockMutex(&(Task->Mutex));
+        UnfreezeScheduler();
+        UnlockMutex(&(Task->Mutex));
+    }
 }
 
 /************************************************************************/
@@ -749,7 +841,9 @@ void SetTaskWakeUpTime(LPTASK Task, U32 WakeupTime) {
  */
 U32 ComputeTaskQuantumTime(U32 Priority) {
     U32 Time = (Priority & 0xFF) * 2;
-    return (Time < Kernel.MinimumQuantum) ? Kernel.MinimumQuantum : Time;
+    if (Time < Kernel.MinimumQuantum) Time = Kernel.MinimumQuantum;
+    if (Time > Kernel.MaximumQuantum) Time = Kernel.MaximumQuantum;
+    return Time;
 }
 
 /************************************************************************/

@@ -24,6 +24,10 @@
 
 #include "../include/Base.h"
 #include "../include/Kernel.h"
+#include "../include/SYSCall.h"
+#include "../include/LocalAPIC.h"
+#include "../include/InterruptController.h"
+#include "../include/System.h"
 
 // Functions in Int.asm
 
@@ -113,7 +117,7 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_HardDrive,          // 47  0x0F
 };
 
-GATEDESCRIPTOR IDT[IDT_SIZE / sizeof(GATEDESCRIPTOR)];
+GATEDESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATEDESCRIPTOR)];
 
 /***************************************************************************/
 
@@ -175,4 +179,23 @@ void InitializeInterrupts(void) {
     // Reset debug registers
 
     SetDR7(0);
+
+    //-------------------------------------
+    // Note: Interrupt controller initialization moved to Kernel.c after IOAPIC init
+
+    //-------------------------------------
+    // Initialize system calls
+
+    InitializeSystemCalls();
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Send End of Interrupt (EOI) signal.
+ *
+ * Sends EOI to the appropriate interrupt controller (Local APIC or PIC).
+ */
+void SendEOI(void) {
+    SendInterruptEOI();
 }

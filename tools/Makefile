@@ -1,11 +1,14 @@
+BUILD_DIR = ../build
+
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-BINDIR = bin
+BINDIR = $(BUILD_DIR)/tools
+SOURCEDIR = source
 
 all: $(BINDIR)/cycle
 
-$(BINDIR)/cycle: cycle.c | $(BINDIR)
-	$(CC) $(CFLAGS) -o $@ cycle.c
+$(BINDIR)/cycle: $(SOURCEDIR)/cycle.c | $(BINDIR)
+	$(CC) $(CFLAGS) -o $@ $(SOURCEDIR)/cycle.c
 
 $(BINDIR):
 	mkdir -p $(BINDIR)

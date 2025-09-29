@@ -27,6 +27,7 @@
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
 #include "../include/Log.h"
+#include "../include/Mutex.h"
 #include "../include/String.h"
 #include "../include/System.h"
 #include "../include/VKey.h"
@@ -41,7 +42,7 @@
 
 /***************************************************************************/
 
-ConsoleStruct Console = {
+CONSOLE_STRUCT Console = {
     .Width = 80,
     .Height = 25,
     .CursorX = 0,
@@ -71,6 +72,34 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     OutPortByte(Console.Port + CGA_DATA, (Position >> 8) & 0xFF);
     OutPortByte(Console.Port + CGA_REGISTER, 15);
     OutPortByte(Console.Port + CGA_DATA, (Position >> 0) & 0xFF);
+
+    UnlockMutex(MUTEX_CONSOLE);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Get the current console cursor position from hardware.
+ * @param CursorX Pointer to receive X coordinate of the cursor.
+ * @param CursorY Pointer to receive Y coordinate of the cursor.
+ */
+void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
+    U32 Position;
+    U8 PositionHigh, PositionLow;
+
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
+    OutPortByte(Console.Port + CGA_REGISTER, 14);
+    PositionHigh = InPortByte(Console.Port + CGA_DATA);
+    OutPortByte(Console.Port + CGA_REGISTER, 15);
+    PositionLow = InPortByte(Console.Port + CGA_DATA);
+
+    Position = ((U32)PositionHigh << 8) | (U32)PositionLow;
+
+    SAFE_USE_2(CursorX, CursorY) {
+        *CursorY = Position / Console.Width;
+        *CursorX = Position % Console.Width;
+    }
 
     UnlockMutex(MUTEX_CONSOLE);
 }
@@ -234,8 +263,8 @@ static void ConsolePrintString(LPCSTR Text) {
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
-    if (Text) {
-        for (Index = 0; Index < 0x10000; Index++) {
+    SAFE_USE_VALID(Text) {
+        for (Index = 0; Index < MAX_STRING_BUFFER; Index++) {
             if (Text[Index] == STR_NULL) break;
             ConsolePrintChar(Text[Index]);
         }
@@ -252,7 +281,7 @@ static void ConsolePrintString(LPCSTR Text) {
  * @return TRUE on success.
  */
 void ConsolePrint(LPCSTR Format, ...) {
-    STR Text[0x1000];
+    STR Text[MAX_STRING_BUFFER];
     VarArgList Args;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
@@ -287,7 +316,7 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
     U32 Index = 0;
     U32 Done = 0;
 
-    KernelLogText(LOG_DEBUG, TEXT("[ConsoleGetString] Enter"));
+    DEBUG(TEXT("[ConsoleGetString] Enter"));
 
     Buffer[0] = STR_NULL;
 
@@ -323,7 +352,7 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
 
     Buffer[Index] = STR_NULL;
 
-    KernelLogText(LOG_DEBUG, TEXT("[ConsoleGetString] Exit"));
+    DEBUG(TEXT("[ConsoleGetString] Exit"));
 
     return TRUE;
 }
@@ -353,18 +382,12 @@ void ConsolePanic(LPCSTR Format, ...) {
 
 /***************************************************************************/
 
-BOOL InitializeConsole(void) {
+void InitializeConsole(void) {
     Console.Width = 80;
     Console.Height = 25;
     Console.BackColor = 0;
     Console.ForeColor = 7;
 
-    Console.CursorX = KernelStartup.ConsoleX;
-    Console.CursorY = KernelStartup.ConsoleY;
-
+    GetConsoleCursorPosition(&Console.CursorX, &Console.CursorY);
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
-
-    return TRUE;
 }
-
-/***************************************************************************/

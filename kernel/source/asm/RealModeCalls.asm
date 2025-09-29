@@ -24,8 +24,9 @@
 
 %include "./Kernel.inc"
 
-extern KernelStartup
 extern Kernel_i386
+extern SwitchToPICForRealMode
+extern RestoreIOAPICAfterRealMode
 
 ;----------------------------------------------------------------------------
 
@@ -43,6 +44,9 @@ bits 32
 
     global RealModeCall
     global RealModeCallTest
+    global RMCJump1
+    global RMCJump16
+    global RMCIntCall
 
 ;--------------------------------------
 
@@ -54,6 +58,11 @@ bits 32
 
 FUNC_HEADER
 RealModeCall :
+
+    ;--------------------------------------
+    ; Disable interrupts
+
+    cli
 
     push    ebp
     mov     ebp, esp
@@ -74,20 +83,9 @@ RealModeCall :
     pushfd
 
     ;--------------------------------------
-    ; Disable interrupts
+    ; Switch to PIC mode for real mode call
 
-    cli
-
-    ;--------------------------------------
-    ; Mask all IRQs except the NMI (IRQ 2)
-
-    mov     al, 0xFB                   ; 8259-1
-    out     PIC1_DATA, al
-    call    Delay
-
-    mov     al, 0xFF                   ; 8259-2
-    out     PIC2_DATA, al
-    call    Delay
+    call    SwitchToPICForRealMode
 
     ;--------------------------------------
     ; Set the address of the RMC code
@@ -162,30 +160,6 @@ RealModeCall :
     add     dword [esi], ebx
 
     ;--------------------------------------
-    ; Set the 8259 PICs for real mode
-
-    call    SetupPIC_RM
-
-    ;--------------------------------------
-    ; Set the 8253 timer for real mode
-
-    call    SetupTimer_RM
-
-    ;--------------------------------------
-    ; Put the real mode IRQ masks in edx
-    ; Force masking of IRQ 0
-
-    xor     edx, edx
-
-    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_21_RM]
-;    or      eax, 0x01
-    shl     eax, 16
-    or      edx, eax
-
-    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_A1_RM]
-    or      edx, eax
-
-    ;--------------------------------------
     ; Setup arguments
 
     mov     eax, [ebp+(PBN+0)]
@@ -193,6 +167,8 @@ RealModeCall :
 
     ;--------------------------------------
     ; Jump to code at ebx
+
+RMCJump1:
 
     db      0xEA                       ; jmp far
 RelJmp :
@@ -202,25 +178,9 @@ RelJmp :
 RealModeCall_Back :
 
     ;--------------------------------------
-    ; Set the 8253 timer for real mode
+    ; Restore IOAPIC mode
 
-    call    SetupTimer_PM
-
-    ;--------------------------------------
-    ; Set the 8259 PICs for protected mode
-
-    call    SetupPIC_PM
-
-    ;--------------------------------------
-    ; Restore protected mode IRQs
-
-    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]         ; 8259-1
-    out     PIC1_DATA, al
-    call    Delay
-
-    mov     eax, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]         ; 8259-2
-    out     PIC2_DATA, al
-    call    Delay
+    call    RestoreIOAPICAfterRealMode
 
     ;--------------------------------------
     ; Restore all registers
@@ -271,8 +231,8 @@ GDT :
     dd 0, 0                            ; Real data
 
 Temp_IDT_Label :
-    dw 1023
-    dd 0
+    dw 1023                                ; Limit (1024 entries - 1)
+    dd 0x00000000                         ; Base address for real mode IVT
 
 Temp_GDT_Label :
     dw (8 * SEGMENT_DESCRIPTOR_SIZE) - 1
@@ -370,7 +330,8 @@ Start :
     mov     cr3, eax
 
     ;--------------------------------------
-    ; Load the temporary IDT
+    ; Load the real mode IDT (IVT at 0x0000:0x0000)
+    ; In real mode, the IVT is always at physical address 0
 
     mov     esi, ebx
     add     esi, Temp_IDT_Label - RMCSetup
@@ -385,6 +346,8 @@ Start :
 
     ;--------------------------------------
     ; Jump to next instruction with 16-bit code selector
+
+RMCJump16:
 
     db      0xEA                       ; jmp far
 Rel2 :
@@ -446,21 +409,6 @@ bits 16
     push    ebx
 
     ;--------------------------------------
-    ; Unmask real mode IRQs
-
-;    mov     esi, Save_IRQ - RMCSetup
-;    mov     edx, [esi]
-
-;    mov     eax, edx
-;    shr     eax, 16
-;    out     PIC1_DATA, al
-;    call    Delay_RM
-
-;    mov     eax, edx
-;    out     PIC2_DATA, al
-;    call    Delay_RM
-
-    ;--------------------------------------
     ; Clear the A20 line
 
     call    Clear_A20_Line
@@ -511,15 +459,11 @@ DoFarCall :
     mov     edi, [ebp+28]
     mov     ebp, esp
 
-    sti                                ; Enable interrupts
-
     db      0x9A                       ; call far
 
 FarAddress :
 
     dd      0x00000000                 ; Far 16-bit address
-
-    cli                                ; Disable interrupts
 
     ;--------------------------------------
     ; Write back registers
@@ -550,7 +494,7 @@ DoInterrupt :
 
     mov     esi, Save_INT - RMCSetup
     mov     eax, [esi]
-    mov     esi, (IntCall - RMCSetup) + 1
+    mov     esi, (RMCIntCall - RMCSetup) + 1
     mov     [esi], al
 
     ;--------------------------------------
@@ -575,12 +519,8 @@ DoInterrupt :
 
     mov     ebp, esp
 
-    sti                                ; Enable interrupts
-
-IntCall :
+RMCIntCall :
     int     0x00
-
-    cli                                ; Disable interrupts
 
     ;--------------------------------------
     ; Write back registers after interrupt is done
@@ -611,17 +551,6 @@ ReturnFromCall :
     ; Set the A20 line
 
     call    Set_A20_Line
-
-    ;--------------------------------------
-    ; Mask real mode IRQs
-
-;    mov     al, 0xFB
-;    out     PIC1_DATA, al
-;    call    Delay_RM
-
-;    mov     al, 0xFF
-;    out     PIC2_DATA, al
-;    call    Delay_RM
 
     ;--------------------------------------
     ; Get back our base address
@@ -831,136 +760,6 @@ Delay_RM_L2 : ret
     ;--------------------------------------
 
 RMCSetupEnd :
-
-;----------------------------------------------------------------------------
-
-bits 32
-
-FUNC_HEADER
-SetupPIC_RM :
-
-    push    eax
-
-    mov     al, ICW1_INIT + ICW1_ICW4
-    out     PIC1_CMD, al
-    call    Delay
-    mov     al, ICW1_INIT + ICW1_ICW4
-    out     PIC2_CMD, al
-    call    Delay
-
-    mov     al, 0x08
-    out     PIC1_DATA, al
-    call    Delay
-    mov     al, 0x70
-    out     PIC2_DATA, al
-    call    Delay
-
-    mov     al, 0x04
-    out     PIC1_DATA, al
-    call    Delay
-    mov     al, 0x02
-    out     PIC2_DATA, al
-    call    Delay
-
-    mov     al, ICW4_8086
-    out     PIC1_DATA, al
-    call    Delay
-    mov     al, ICW4_8086
-    out     PIC2_DATA, al
-    call    Delay
-
-    pop     eax
-    ret
-
-;----------------------------------------------------------------------------
-
-bits 32
-
-FUNC_HEADER
-SetupPIC_PM :
-
-    push    eax
-
-    mov  al, ICW1_INIT + ICW1_ICW4
-    out  PIC1_CMD, al
-    call Delay
-    mov  al, ICW1_INIT + ICW1_ICW4
-    out  PIC2_CMD, al
-    call Delay
-
-    mov  al, PIC1_VECTOR
-    out  PIC1_DATA, al
-    call Delay
-    mov  al, PIC2_VECTOR
-    out  PIC2_DATA, al
-    call Delay
-
-    mov     al, 0x04
-    out     PIC1_DATA, al
-    call    Delay
-    mov     al, 0x02
-    out     PIC2_DATA, al
-    call    Delay
-
-    mov     al, ICW4_8086
-    out     PIC1_DATA, al
-    call    Delay
-    mov     al, ICW4_8086
-    out     PIC2_DATA, al
-    call    Delay
-
-    pop     eax
-    ret
-
-;----------------------------------------------------------------------------
-
-bits 32
-
-FUNC_HEADER
-SetupTimer_RM :
-
-    push    eax
-
-    mov     eax, 0x36
-    out     CLOCK_COMMAND, al
-    call    Delay
-
-    mov     eax, CLOCK_18_2
-    out     CLOCK_DATA, al
-    call    Delay
-
-    mov     eax, CLOCK_18_2
-    shr     eax, 8
-    out     CLOCK_DATA, al
-    call    Delay
-
-    pop     eax
-    ret
-
-;----------------------------------------------------------------------------
-
-bits 32
-
-FUNC_HEADER
-SetupTimer_PM :
-
-    push    eax
-
-    mov     eax, 0x36
-    out     CLOCK_COMMAND, al
-    call    Delay
-
-    mov     eax, CLOCK_100
-    out     CLOCK_DATA, al
-    call    Delay
-
-    mov     eax, CLOCK_100
-    shr     eax, 8
-    out     CLOCK_DATA, al
-    call    Delay
-
-    pop     eax
-    ret
 
 ;----------------------------------------------------------------------------
 

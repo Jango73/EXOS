@@ -77,12 +77,8 @@ void SerialOut(U8 Which, U8 Char) {
 
 /************************************************************************/
 
-void COM2Handler(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[COM2Handler]"));
-}
+void COM2Handler(void) { DEBUG(TEXT("[COM2Handler]")); }
 
 /************************************************************************/
 
-void COM1Handler(void) {
-    KernelLogText(LOG_DEBUG, TEXT("[COM1Handler]"));
-}
+void COM1Handler(void) { DEBUG(TEXT("[COM1Handler]")); }

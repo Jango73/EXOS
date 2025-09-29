@@ -31,15 +31,28 @@
 
 /************************************************************************/
 
+// Test results structure
+typedef struct tag_TEST_RESULTS {
+    U32 TestsRun;         // Number of tests/assertions executed
+    U32 TestsPassed;      // Number of successful tests/assertions
+} TEST_RESULTS, *LPTEST_RESULTS;
+
 // Main testing functions
 BOOL RunAllTests(void);
 BOOL RunSingleTestByName(LPCSTR TestName);
 void ListAllTests(void);
 
-// Individual test function declarations
-BOOL TestCopyStack(void);
-BOOL TestRegex(void);
-BOOL TestI386Disassembler(void);
+// Individual test function declarations - new signature
+typedef void (*TestFunction)(TEST_RESULTS*);
+
+void TestCopyStack(TEST_RESULTS* Results);
+void TestRegex(TEST_RESULTS* Results);
+void TestI386Disassembler(TEST_RESULTS* Results);
+void TestBcrypt(TEST_RESULTS* Results);
+void TestE1000(TEST_RESULTS* Results);
+void TestIPv4(TEST_RESULTS* Results);
+void TestMacros(TEST_RESULTS* Results);
+void TestTCP(TEST_RESULTS* Results);
 
 /************************************************************************/
 

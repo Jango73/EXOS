@@ -22,25 +22,85 @@
 
 \************************************************************************/
 
+#include "../include/I386-MCI.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
-
+#include "../include/String.h"
+#include "../include/System.h"
 
 /************************************************************************/
 
+/**
+ * @brief Logs 16 bytes of memory in hexadecimal format
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param Prefix Text prefix to display before the memory dump
+ * @param Memory Pointer to the 16-byte memory buffer to log
+ *
+ * Displays memory contents as two groups of 8 bytes in hexadecimal format.
+ * Used for debugging memory structures and data inspection.
+ */
 void LogMemoryLine16B(U32 LogType, LPCSTR Prefix, const U8* Memory) {
-    KernelLogText(LogType, TEXT("%s %x %x %x %x %x %x %x %x : %x %x %x %x %x %x %x %x"),
-        Prefix,
-        (U32)Memory[0], (U32)Memory[1], (U32)Memory[2], (U32)Memory[3],
-        (U32)Memory[4], (U32)Memory[5], (U32)Memory[6], (U32)Memory[7],
-        (U32)Memory[8], (U32)Memory[9], (U32)Memory[10], (U32)Memory[11],
-        (U32)Memory[12], (U32)Memory[13], (U32)Memory[14], (U32)Memory[15]
-        );
+    KernelLogText(
+        LogType, TEXT("%s %x %x %x %x %x %x %x %x : %x %x %x %x %x %x %x %x"), Prefix, (U32)Memory[0], (U32)Memory[1],
+        (U32)Memory[2], (U32)Memory[3], (U32)Memory[4], (U32)Memory[5], (U32)Memory[6], (U32)Memory[7], (U32)Memory[8],
+        (U32)Memory[9], (U32)Memory[10], (U32)Memory[11], (U32)Memory[12], (U32)Memory[13], (U32)Memory[14],
+        (U32)Memory[15]);
 }
 
 /************************************************************************/
 
+/**
+ * @brief Logs a buffer of arbitrary length in hexadecimal format
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param Prefix Text prefix to display before each line
+ * @param Buffer Pointer to the buffer to log
+ * @param Length Size of the buffer in bytes
+ *
+ * Displays buffer contents as hexadecimal bytes, 16 bytes per line with spacing.
+ * Handles empty buffers gracefully and formats output for readability.
+ */
+void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length) {
+    if (Buffer == NULL || Length == 0) {
+        KernelLogText(LogType, TEXT("%s <empty buffer>"), Prefix);
+        return;
+    }
+
+    U8 LineBuffer[128];
+    U8 TempBuffer[8];
+    const U8* Pointer = Buffer;
+    U32 Counter = 0;
+    BOOL Space = FALSE;
+    LineBuffer[0] = 0;
+
+    while (TRUE) {
+
+        StringPrintFormat(TempBuffer, TEXT("%02x%s"), (U32)(*Pointer++), Space ? " " : "");
+        StringConcat(LineBuffer, TempBuffer);
+
+        Counter++;
+        Space = !Space;
+
+        if (Counter > 15 | Pointer >= Buffer + Length) {
+            Counter = 0;
+            KernelLogText(LogType, TEXT("%s %s"), Prefix, LineBuffer);
+            LineBuffer[0] = 0;
+        }
+
+        if (Pointer >= Buffer + Length) break;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Logs the complete state of i386 processor registers
+ * @param Regs Pointer to the register structure to log
+ *
+ * Displays all CPU registers including general-purpose, segment, control,
+ * and debug registers with their current values. Shows detailed debug
+ * register flags for comprehensive processor state analysis.
+ */
 void LogRegisters(LPINTEL386REGISTERS Regs) {
     KernelLogText(LOG_VERBOSE, TEXT("CS : %x DS : %x SS : %x "), Regs->CS, Regs->DS, Regs->SS);
     KernelLogText(LOG_VERBOSE, TEXT("ES : %x FS : %x GS : %x "), Regs->ES, Regs->FS, Regs->GS);
@@ -79,7 +139,7 @@ void LogFrame(LPTASK Task, LPINTERRUPTFRAME Frame) {
 
         SAFE_USE(Process) {
             KernelLogText(LOG_VERBOSE, TEXT("Task : %x (%s @ %s)"), Task, Task->Name, Process->FileName);
-            KernelLogText(LOG_VERBOSE, Text_Registers);
+            KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
             LogRegisters(&(Frame->Registers));
         }
     }
@@ -87,6 +147,15 @@ void LogFrame(LPTASK Task, LPINTERRUPTFRAME Frame) {
 
 /************************************************************************/
 
+/**
+ * @brief Logs the contents of the Global Descriptor Table (GDT)
+ * @param Table Pointer to the GDT array
+ * @param Size Number of entries in the GDT to log
+ *
+ * Iterates through GDT entries, converts each descriptor to human-readable
+ * format and logs the segment information. Used for debugging memory
+ * segmentation and privilege levels.
+ */
 void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
     U32 Index = 0;
 
@@ -97,13 +166,22 @@ void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
         for (Index = 0; Index < Size; Index++) {
             GetSegmentInfo(Table + Index, &Info);
             SegmentInfoToString(&Info, Text);
-            KernelLogText(LOG_DEBUG, Text);
+            DEBUG(Text);
         }
     }
 }
 
 /************************************************************************/
 
+/**
+ * @brief Logs the detailed contents of a page directory entry
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param PageDirectory Pointer to the page directory entry to log
+ *
+ * Displays all fields of a page directory entry including access permissions,
+ * caching attributes, and physical address. Used for debugging virtual memory
+ * management and page fault analysis.
+ */
 void LogPageDirectoryEntry(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
     KernelLogText(
         LogType,
@@ -128,6 +206,15 @@ void LogPageDirectoryEntry(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
 
 /***************************************************************************/
 
+/**
+ * @brief Logs the detailed contents of a page table entry
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param PageTable Pointer to the page table entry to log
+ *
+ * Displays all fields of a page table entry including access permissions,
+ * dirty bit, caching attributes, and physical address mapping. Essential
+ * for debugging page-level memory management issues.
+ */
 void LogPageTableEntry(U32 LogType, const PAGETABLE* PageTable) {
     KernelLogText(
         LogType,
@@ -151,6 +238,15 @@ void LogPageTableEntry(U32 LogType, const PAGETABLE* PageTable) {
 
 /***************************************************************************/
 
+/**
+ * @brief Logs the detailed contents of a segment descriptor
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param SegmentDescriptor Pointer to the segment descriptor to log
+ *
+ * Displays all fields of a segment descriptor including base address, limit,
+ * access rights, privilege level, and granularity. Used for debugging
+ * memory segmentation and privilege violations.
+ */
 void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescriptor) {
     KernelLogText(
         LogType,
@@ -181,6 +277,15 @@ void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescripto
 
 /***************************************************************************/
 
+/**
+ * @brief Logs page table entries referenced by a page directory entry
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param PageDirectoryEntry Pointer to the page directory entry
+ *
+ * Maps the page table from physical to virtual memory and logs the first
+ * 8 present entries. Used for debugging virtual memory layout and
+ * page table structure analysis.
+ */
 void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEntry) {
     if (!PageDirectoryEntry->Present) {
         KernelLogText(LogType, TEXT("Page table not present (Present=0), nothing to dump.\n"));
@@ -188,7 +293,7 @@ void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEn
     }
 
     PHYSICAL PageTablePhysicalAddress = PageDirectoryEntry->Address << PAGE_SIZE_MUL;
-    LINEAR PageTableVirtualAddress = MapPhysicalPage(PageTablePhysicalAddress);
+    LINEAR PageTableVirtualAddress = MapTempPhysicalPage(PageTablePhysicalAddress);
 
     KernelLogText(LogType, TEXT("\n8 first entries :"));
 
@@ -202,6 +307,15 @@ void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEn
 
 /***************************************************************************/
 
+/**
+ * @brief Logs all present page tables in a page directory
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param PageDirectory Pointer to the page directory (1024 entries)
+ *
+ * Iterates through all 1024 page directory entries and logs details
+ * of present page tables. Provides comprehensive view of virtual
+ * memory mapping for debugging memory management issues.
+ */
 void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
     KernelLogText(LogType, TEXT("Page Directory at %X"), PageDirectory);
     for (U32 PageDirectoryIndex = 0; PageDirectoryIndex < 1024; ++PageDirectoryIndex) {
@@ -214,6 +328,15 @@ void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
 
 /***************************************************************************/
 
+/**
+ * @brief Logs the contents of a Task State Segment descriptor
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param TssDescriptor Pointer to the TSS descriptor to log
+ *
+ * Displays both raw TSS descriptor fields and computed values including
+ * base address, effective limit, and size. Shows decoded view for easier
+ * debugging of task switching and privilege level changes.
+ */
 void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
     /* Compute base, raw/effective limit */
     const U32 Base = ((U32)TssDescriptor->Base_00_15) | (((U32)TssDescriptor->Base_16_23) << 16) |
@@ -255,6 +378,15 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
 
 /***************************************************************************/
 
+/**
+ * @brief Logs the complete contents of a Task State Segment
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param Tss Pointer to the TSS structure to log
+ *
+ * Displays all TSS fields including stack pointers for different privilege
+ * levels, register values, segment selectors, and I/O permission bitmap.
+ * Essential for debugging task switching and privilege transitions.
+ */
 void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
     KernelLogText(
         LogType,
@@ -298,6 +430,15 @@ void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
 
 /************************************************************************/
 
+/**
+ * @brief Logs the complete contents of a task structure
+ * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
+ * @param Task Pointer to the task structure to log
+ *
+ * Displays all task fields including name, process association, status,
+ * priority, function pointer, stack information, and timing data.
+ * Used for debugging task scheduling and memory allocation issues.
+ */
 void LogTask(U32 LogType, const LPTASK Task) {
     KernelLogText(
         LogType,
@@ -315,9 +456,133 @@ void LogTask(U32 LogType, const LPTASK Task) {
              "  SysStackBase : %x\n"
              "  SysStackSize : %x\n"
              "  WakeUpTime : %x"),
-        (LINEAR)Task, Task->Name, (U32)Task->Process, (Task->Process == Kernel.Process ? "K" : "U"),
-        (U32)Task->Type, (U32)Task->Status, (U32)Task->Priority,
-        (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ReturnValue, (U32)Task->StackBase, (U32)Task->StackSize,
-        (U32)Task->SysStackBase, (U32)Task->SysStackSize, (U32)Task->WakeUpTime
-        );
+        (LINEAR)Task, Task->Name, (U32)Task->Process, (Task->Process == &KernelProcess ? "K" : "U"), (U32)Task->Type,
+        (U32)Task->Status, (U32)Task->Priority, (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ReturnValue,
+        (U32)Task->StackBase, (U32)Task->StackSize, (U32)Task->SysStackBase, (U32)Task->SysStackSize,
+        (U32)Task->WakeUpTime);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Disassemble a few instructions at EIP for fault diagnosis.
+ * @param Buffer Output buffer.
+ * @param EIP Current instruction pointer.
+ * @param NumInstructions Number of instructions to disassemble (default 5).
+ */
+void Disassemble(LPSTR Buffer, U32 EIP, U32 NumInstructions) {
+    STR LineBuffer[128];
+    STR DisasmBuffer[64];
+    STR HexBuffer[64];
+
+    Buffer[0] = STR_NULL;
+
+    U8 *BasePtr = (U8 *)VMA_USER;
+    U8 *CodePtr = (U8 *)EIP;
+
+    if (EIP >= VMA_LIBRARY) BasePtr = (U8 *)VMA_LIBRARY;
+    if (EIP >= VMA_KERNEL) BasePtr = (U8 *)VMA_KERNEL;
+
+    if (IsValidMemory(EIP) && IsValidMemory(EIP + NumInstructions - 1)) {
+        if (EIP < 0xFFFFF) {
+            SetIntelAttributes(I16BIT, I16BIT);
+        } else {
+            SetIntelAttributes(I32BIT, I32BIT);
+        }
+
+        for (U32 i = 0; i < NumInstructions; i++) {
+            U32 InstrLength = Intel_MachineCodeToString((LPCSTR)BasePtr, (LPCSTR)CodePtr, DisasmBuffer);
+
+            if (InstrLength > 0 && InstrLength <= 20) {
+                StringPrintFormat(HexBuffer, TEXT("%x: "), CodePtr);
+
+                for (U32 j = 0; j < InstrLength && j < 8; j++) {
+                    STR ByteHex[24];
+                    StringPrintFormat(ByteHex, TEXT("%x "), CodePtr[j]);
+                    StringConcat(HexBuffer, ByteHex);
+                }
+
+                while (StringLength(HexBuffer) < 40) {
+                    StringConcat(HexBuffer, TEXT(" "));
+                }
+
+                StringPrintFormat(LineBuffer, TEXT("%s %s\n"), HexBuffer, DisasmBuffer);
+                StringConcat(Buffer, LineBuffer);
+
+                CodePtr += InstrLength;
+            } else {
+                break;
+            }
+        }
+    } else {
+        StringPrintFormat(LineBuffer, TEXT("Can't disassemble at %x (base %x)\n"), CodePtr, BasePtr);
+        StringConcat(Buffer, LineBuffer);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Performs a stack backtrace starting from a given EBP
+ * @param StartEbp Starting frame pointer (EBP)
+ * @param MaxFrames Maximum number of frames to trace
+ *
+ * Traces the call stack by following frame pointers and logging return addresses.
+ * Performs basic validation to detect corrupted stack frames.
+ */
+void BacktraceFrom(U32 StartEbp, U32 MaxFrames) {
+    U32 Depth = 0;
+    U32 Ebp = StartEbp;
+
+    KernelLogText(LOG_VERBOSE, TEXT("Backtrace (EBP=%x, max=%u)"), StartEbp, MaxFrames);
+
+    while (Ebp && Depth < MaxFrames) {
+        // Validate the current frame pointer
+        if (IsValidMemory(Ebp) == FALSE) {
+            KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%x  [stop: invalid/suspect frame]"), Depth, Ebp);
+            break;
+        }
+
+        /* Frame layout:
+           [EBP+0] = saved EBP (prev)
+           [EBP+4] = return address (EIP)
+           [EBP+8] = first argument (optional to print) */
+        U32* Fp = (U32*)Ebp;
+
+        // Safely fetch next and return PC.
+        U32 NextEbp = Fp[0];
+        U32 RetAddr = Fp[1];
+
+        if (RetAddr == 0) {
+            KernelLogText(LOG_VERBOSE, TEXT("#%u  EBP=%x  RET=? [null]"), Depth, Ebp);
+            break;
+        }
+
+        LPCSTR Sym = NULL;
+        // if (&SymbolLookup) Sym = SymbolLookup(RetAddr);
+
+        if (Sym && Sym[0]) {
+            KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%x  (%s)  EBP=%x"), Depth, RetAddr, Sym, Ebp);
+        } else {
+            KernelLogText(LOG_VERBOSE, TEXT("#%u  EIP=%x  EBP=%x"), Depth, RetAddr, Ebp);
+        }
+
+        /* Advance */
+        Ebp = NextEbp;
+        ++Depth;
+    }
+
+    KernelLogText(LOG_VERBOSE, TEXT("Backtrace end (frames=%u)"), Depth);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Performs a stack backtrace from current position
+ * @param MaxFrames Maximum number of frames to trace
+ *
+ * Gets current EBP and traces the call stack. Wrapper around BacktraceFrom.
+ */
+void BacktraceFromCurrent(U32 MaxFrames) {
+    BacktraceFrom(GetEBP(), MaxFrames);
 }

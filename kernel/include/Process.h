@@ -38,6 +38,12 @@
 #include "System.h"
 #include "Task.h"
 #include "User.h"
+#include "UserAccount.h"
+#include "UserSession.h"
+
+/***************************************************************************/
+
+#pragma pack(push, 1)
 
 /************************************************************************/
 
@@ -61,15 +67,17 @@ struct tag_PROCESS {
     MUTEX HeapMutex;         // This structure's mutex for heap allocation
     SECURITY Security;       // This process' security attributes
     LPDESKTOP Desktop;       // This process' desktop
-    LPPROCESS Parent;        // Parent process of this process
     U32 Privilege;           // This process' privilege level
+    U32 Status;              // Process status (alive/dead)
+    U32 Flags;               // Process creation flags
     PHYSICAL PageDirectory;  // This process' page directory
     LINEAR HeapBase;
     U32 HeapSize;
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
-    LPLIST Objects;  // Objects owned by this process
-    U32 TaskCount;   // Number of active tasks in this process
+    U32 TaskCount;           // Number of active tasks in this process
+    U64 UserID;              // Owner user
+    LPUSERSESSION Session;  // User session
 };
 
 /************************************************************************/
@@ -79,7 +87,7 @@ struct tag_MESSAGE {
     LISTNODE_FIELDS
     HANDLE Target;
     U32 Message;
-    SYSTEMTIME Time;
+    DATETIME Time;
     U32 Param1;
     U32 Param2;
 };
@@ -95,6 +103,11 @@ struct tag_MESSAGE {
 #define TASK_STATUS_WAITMESSAGE 0x05
 #define TASK_STATUS_DEAD 0xFF
 
+// Process status values
+
+#define PROCESS_STATUS_ALIVE 0x00
+#define PROCESS_STATUS_DEAD 0xFF
+
 // Miscellaneous task values
 
 #define TASK_MINIMUM_STACK_SIZE N_64KB
@@ -105,6 +118,10 @@ struct tag_MESSAGE {
 
 #define TASK_CREATE_SUSPENDED 0x00000001
 #define TASK_CREATE_MAIN_KERNEL 0x00000002
+
+// Process creation flags
+
+#define PROCESS_CREATE_KILL_CHILDREN_ON_DEATH 0x00000001
 
 /************************************************************************/
 // The window structure
@@ -156,32 +173,11 @@ struct tag_DESKTOP {
 };
 
 /************************************************************************/
-
-#define MUTEX_KERNEL (&KernelMutex)
-#define MUTEX_MEMORY (&MemoryMutex)
-#define MUTEX_SCHEDULE (&ScheduleMutex)
-#define MUTEX_DESKTOP (&DesktopMutex)
-#define MUTEX_PROCESS (&ProcessMutex)
-#define MUTEX_TASK (&TaskMutex)
-#define MUTEX_FILESYSTEM (&FileSystemMutex)
-#define MUTEX_FILE (&FileMutex)
-#define MUTEX_CONSOLE (&ConsoleMutex)
-
-/************************************************************************/
+// Global objects
 
 extern PROCESS KernelProcess;
 extern WINDOW MainDesktopWindow;
 extern DESKTOP MainDesktop;
-extern MUTEX KernelMutex;
-extern MUTEX LogMutex;
-extern MUTEX MemoryMutex;
-extern MUTEX ScheduleMutex;
-extern MUTEX DesktopMutex;
-extern MUTEX ProcessMutex;
-extern MUTEX TaskMutex;
-extern MUTEX FileSystemMutex;
-extern MUTEX FileMutex;
-extern MUTEX ConsoleMutex;
 
 /************************************************************************/
 // Functions in Process.c
@@ -189,19 +185,13 @@ extern MUTEX ConsoleMutex;
 void InitializeKernelProcess(void);
 LINEAR GetProcessHeap(LPPROCESS);
 void DumpProcess(LPPROCESS);
-void DeleteProcess(LPPROCESS);
+void KillProcess(LPPROCESS);
+void DeleteProcessCommit(LPPROCESS);
 void InitSecurity(LPSECURITY);
 BOOL CreateProcess(LPPROCESSINFO);
-BOOL Spawn(LPCSTR, LPCSTR);
-
-/************************************************************************/
-// Functions in Mutex.c
-
-void InitMutex(LPMUTEX);
-LPMUTEX CreateMutex(void);
-BOOL DeleteMutex(LPMUTEX);
-U32 LockMutex(LPMUTEX, U32);
-BOOL UnlockMutex(LPMUTEX);
+BOOL Spawn(LPCSTR);
+LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
+void ReleaseKernelObject(LPVOID Object);
 
 /************************************************************************/
 // Functions in Desktop.c
@@ -236,6 +226,8 @@ BOOL Line(LPLINEINFO);
 BOOL Rectangle(LPRECTINFO);
 U32 DefWindowFunc(HANDLE, U32, U32, U32);
 
-/************************************************************************/
+/***************************************************************************/
 
-#endif
+#pragma pack(pop)
+
+#endif  // PROCESS_H_INCLUDED

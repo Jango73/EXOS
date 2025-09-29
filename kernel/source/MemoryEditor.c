@@ -21,6 +21,7 @@
     Memory Editor
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/Console.h"
 #include "../include/Kernel.h"
@@ -51,18 +52,22 @@ static void PrintMemoryLine(U32 Base) {
 
     U32ToHexString(Base, Addr);
 
-    for (Index = 0; Index < 16; Index++) {
-        Data = Pointer[Index];
-        U32ToHexString(Data, Num);
-        StringConcat(Hexa, Num + 6);
-        StringConcat(Hexa, Text_Space);
-        if (Index == 7) StringConcat(Hexa, Text_Space);
+    if (IsValidMemory(Base)) {
+        for (Index = 0; Index < 16; Index++) {
+            Data = Pointer[Index];
+            U32ToHexString(Data, Num);
+            StringConcat(Hexa, Num + 6);
+            StringConcat(Hexa, Text_Space);
+            if (Index == 7) StringConcat(Hexa, Text_Space);
 
-        if (Data < STR_SPACE) Data = '.';
-        if (Data == '%') Data = '.';
-        Num[0] = Data;
-        Num[1] = STR_NULL;
-        StringConcat(ASCII, Num);
+            if (Data < STR_SPACE) Data = '.';
+            if (Data == '%') Data = '.';
+            Num[0] = Data;
+            Num[1] = STR_NULL;
+            StringConcat(ASCII, Num);
+        }
+    } else {
+        StringConcat(ASCII, TEXT("????????"));
     }
 
     ConsolePrint(Addr);
@@ -89,14 +94,10 @@ void PrintMemory(U32 Base, U32 Size) {
 /***************************************************************************/
 
 static void PrintMemoryPage(U32 Base, U32 Size) {
-    LockMutex(MUTEX_CONSOLE, INFINITY);
-
     Console.CursorX = 0;
     Console.CursorY = 0;
 
     PrintMemory(Base, Size);
-
-    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/
@@ -104,6 +105,7 @@ static void PrintMemoryPage(U32 Base, U32 Size) {
 void MemoryEditor(U32 Base) {
     KEYCODE KeyCode;
 
+    ClearConsole();
     PrintMemoryPage(Base, 24 * 16);
 
     while (1) {
@@ -134,7 +136,7 @@ void MemoryEditor(U32 Base) {
                 } break;
             }
         }
+
+        Sleep(5);
     }
 }
-
-/***************************************************************************/

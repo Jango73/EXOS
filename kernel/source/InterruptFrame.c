@@ -23,12 +23,12 @@
 --------------------------------------------------------------------------
 
     Trap entry stack for #DB, #DF, #TS, #NP, #SS, #GP, #PF, #AC
-   
+
 
     High addresses
          |
          v
-   
+
  E  +------------------+ <-- ESP before exception
  S  |                  |
  P  |   User Stack     |     (user data before exception)
@@ -61,12 +61,12 @@
 
     Trap entry stack for IRQs and #DE, #BR, #UD, #NM, #MF
     Just short of an error code
-   
+
 
     High addresses
          |
          v
-   
+
  E  +------------------+ <-- ESP before exception
  S  |                  |
  P  |   User Stack     |     (user data before exception)
@@ -143,11 +143,13 @@
 
 \************************************************************************/
 
+#include "../include/InterruptFrame.h"
+
 #include "../include/Base.h"
 #include "../include/I386.h"
-#include "../include/InterruptFrame.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
+#include "../include/String.h"
 #include "../include/System.h"
 
 /************************************************************************/
@@ -166,8 +168,8 @@
 #define INCOMING_EDX_INDEX 11
 #define INCOMING_ECX_INDEX 12
 #define INCOMING_EAX_INDEX 13
-#define INCOMING_ERROR_CODE_INDEX 14    // If present, the following indexes will be shifted up by 1 (+ HasErrorCode)
-#define INCOMING_EIP_INDEX 14           // Yes, it is the same index as INCOMING_ERROR_CODE_INDEX, don't touch this
+#define INCOMING_ERROR_CODE_INDEX 14  // If present, the following indexes will be shifted up by 1 (+ HasErrorCode)
+#define INCOMING_EIP_INDEX 14         // Yes, it is the same index as INCOMING_ERROR_CODE_INDEX, don't touch this
 #define INCOMING_CS_INDEX 15
 #define INCOMING_EFLAGS_INDEX 16
 #define INCOMING_R3_ESP_INDEX 17
@@ -175,35 +177,38 @@
 
 /************************************************************************/
 
-LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
-{
+LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
     LPINTERRUPTFRAME Frame;
     U32* Stack;
     U32 UserMode;
 
     if (HasErrorCode > 1) HasErrorCode = 1;
 
-    Frame = (LPINTERRUPTFRAME) ESP;
-    Stack = (U32*) (ESP + sizeof(INTERRUPTFRAME));
+    Frame = (LPINTERRUPTFRAME)ESP;
+    Stack = (U32*)(ESP + sizeof(INTERRUPTFRAME));
 
     if (IsValidMemory((LINEAR)Stack) == FALSE) {
-        KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Invalid stack computed : %x"), Stack);
+        DEBUG(TEXT("[BuildInterruptFrame] Invalid stack computed : %x"), Stack);
         DO_THE_SLEEPING_BEAUTY;
     }
 
     UserMode = (Stack[INCOMING_CS_INDEX + HasErrorCode] & SELECTOR_RPL_MASK) != 0;
 
     MemorySet(Frame, 0, sizeof(INTERRUPTFRAME));
-    
+
     Frame->Registers.EFlags = Stack[INCOMING_EFLAGS_INDEX + HasErrorCode];
     Frame->Registers.EIP = Stack[INCOMING_EIP_INDEX + HasErrorCode];
     Frame->Registers.CS = Stack[INCOMING_CS_INDEX + HasErrorCode] & MAX_U16;
-    
+
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"), intNo, HasErrorCode, UserMode);
-    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Stack at %x:"), Stack);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"), intNo,
+        HasErrorCode, UserMode);
+    DEBUG(TEXT("[BuildInterruptFrame] Stack at %x:"), Stack);
     KernelLogMem(LOG_DEBUG, (U32)Stack, 256);
-    KernelLogText(LOG_DEBUG, TEXT("[BuildInterruptFrame] Extracted: EIP=%x CS=%x EFlags=%x"), Frame->Registers.EIP, Frame->Registers.CS, Frame->Registers.EFlags);
+    KernelLogText(
+        LOG_DEBUG, TEXT("[BuildInterruptFrame] Extracted: EIP=%x CS=%x EFlags=%x"), Frame->Registers.EIP,
+        Frame->Registers.CS, Frame->Registers.EFlags);
 #endif
 
     Frame->Registers.EAX = Stack[INCOMING_EAX_INDEX];
@@ -254,19 +259,17 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP)
 
 /************************************************************************/
 
-void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
-{
+void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP) {
     U32* Stack;
     U32 UserMode;
     U32 HasErrorCode = 0;  // Timer interrupts don't have error codes
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Enter. ESP = %x"), ESP);
+    DEBUG(TEXT("[RestoreFromInterruptFrame] Enter. ESP = %x"), ESP);
 #endif
 
     SAFE_USE_VALID(NextFrame) {
-
-        Stack = (U32*) (ESP + sizeof(INTERRUPTFRAME));
+        Stack = (U32*)(ESP + sizeof(INTERRUPTFRAME));
         // For task switching via timer interrupt (32), HasErrorCode = 0
         UserMode = (NextFrame->Registers.CS & SELECTOR_RPL_MASK) != 0;
 
@@ -307,25 +310,35 @@ void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP)
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
 
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] CRITICAL DEBUG - Before Stack Restore"));
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] NextFrame: ESP=%x EIP=%x CS=%x"), NextFrame->Registers.ESP, NextFrame->Registers.EIP, NextFrame->Registers.CS);
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] NextFrame: CR3=%x (page dir)"), NextFrame->Registers.CR3);
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] UserMode=%d"), UserMode);
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] ==== Stack at NextFrame->Registers.ESP:"));
+        DEBUG(TEXT("[RestoreFromInterruptFrame] CRITICAL DEBUG - Before Stack Restore"));
+        KernelLogText(
+            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] NextFrame: ESP=%x EIP=%x CS=%x"), NextFrame->Registers.ESP,
+            NextFrame->Registers.EIP, NextFrame->Registers.CS);
+        KernelLogText(
+            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] NextFrame: CR3=%x (page dir)"), NextFrame->Registers.CR3);
+        DEBUG(TEXT("[RestoreFromInterruptFrame] UserMode=%d"), UserMode);
+        DEBUG(TEXT("[RestoreFromInterruptFrame] ==== Stack at NextFrame->Registers.ESP:"));
         KernelLogMem(LOG_DEBUG, NextFrame->Registers.ESP, 256);
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] ==== Current stack (ESP):"));
+        DEBUG(TEXT("[RestoreFromInterruptFrame] ==== Current stack (ESP):"));
         KernelLogMem(LOG_DEBUG, GetESP(), 256);
 
         // Debug the stack data we're about to restore
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] Stack data restore:"));
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] EIP index %d: %x"), INCOMING_EIP_INDEX + HasErrorCode, Stack[INCOMING_EIP_INDEX + HasErrorCode]);
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] CS index %d: %x"), INCOMING_CS_INDEX + HasErrorCode, Stack[INCOMING_CS_INDEX + HasErrorCode]);
-        KernelLogText(LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] EFLAGS index %d: %x"), INCOMING_EFLAGS_INDEX + HasErrorCode, Stack[INCOMING_EFLAGS_INDEX + HasErrorCode]);
+        DEBUG(TEXT("[RestoreFromInterruptFrame] Stack data restore:"));
+        KernelLogText(
+            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] EIP index %d: %x"), INCOMING_EIP_INDEX + HasErrorCode,
+            Stack[INCOMING_EIP_INDEX + HasErrorCode]);
+        KernelLogText(
+            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] CS index %d: %x"), INCOMING_CS_INDEX + HasErrorCode,
+            Stack[INCOMING_CS_INDEX + HasErrorCode]);
+        KernelLogText(
+            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] EFLAGS index %d: %x"), INCOMING_EFLAGS_INDEX + HasErrorCode,
+            Stack[INCOMING_EFLAGS_INDEX + HasErrorCode]);
 
-        KernelLogText(LOG_DEBUG, TEXT("\n"));
+        DEBUG(TEXT("\n"));
 
 #endif
-    } else {
-        KernelLogText(LOG_ERROR, TEXT("[RestoreFromInterruptFrame] Invalid frame %x"), NextFrame);
+    }
+    else {
+        ERROR(TEXT("[RestoreFromInterruptFrame] Invalid frame %x"), NextFrame);
     }
 }

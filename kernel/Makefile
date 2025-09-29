@@ -1,5 +1,7 @@
 SHELL   = /bin/bash
 
+BUILD_DIR = ../build
+
 BARE_METAL					?= 0
 DEBUG_OUTPUT    			?= 0
 SCHEDULING_DEBUG_OUTPUT    	?= 0
@@ -13,41 +15,50 @@ NASM    = nasm
 OBJCOPY = i686-elf-objcopy
 READELF = i686-elf-readelf
 
-CFLAGS  = -DNAME="__KERNEL__" -g -Wall -Wextra -O0 -falign-functions=16 \
+CFLAGS  = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
 	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
 	-Werror-implicit-function-declaration -Wstrict-prototypes \
-	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE)
+	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
+	-I../third/include -Iinclude -I../runtime/include
 
-AFLAGS  = -f elf -g -F dwarf -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
+AFLAGS  = -f elf -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
 
-LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker --verbose -Map=bin/exos.map
+LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
 
-KERNEL_ELF = bin/exos.elf
+KERNEL_ELF = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/test/*.c) \
-         $(wildcard source/autotest/*.c)
-SRC_S  = $(wildcard source/asm/*.asm)
+         $(wildcard source/autotest/*.c) \
+         ../third/bcrypt/blowfish.c \
+         ../third/bcrypt/wrapbf.c \
+         ../third/bcrypt/endian.c \
+         ../runtime/source/exos-runtime-c.c
+SRC_S  = $(wildcard source/asm/*.asm) \
+         ../runtime/source/exos-runtime-a.asm
 
-OBJ_C  = $(patsubst source/%.c, bin/%.o, $(SRC_C))
-OBJ_S  = $(patsubst source/asm/%.asm, bin/%.o, $(SRC_S))
+OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \
+         $(patsubst ../third/bcrypt/%.c, $(BUILD_DIR)/kernel/bcrypt_%.o, $(filter ../third/bcrypt/%.c, $(SRC_C))) \
+         $(patsubst ../runtime/source/%.c, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.c, $(SRC_C)))
+OBJ_S  = $(patsubst source/asm/%.asm, $(BUILD_DIR)/kernel/%.o, $(filter source/asm/%.asm, $(SRC_S))) \
+         $(patsubst ../runtime/source/%.asm, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.asm, $(SRC_S)))
 
 OBJS   = $(OBJ_S) $(OBJ_C)
 
 # Sections to extract (edit as needed)
-TEXT_BIN        = bin/text.bin
-SHARED_TEXT_BIN = bin/shared_text.bin
-DATA_BIN   		= bin/data.bin
-BSS_BIN    		= bin/bss.bin
-FINAL_IMG  		= bin/exos.bin
+TEXT_BIN        = $(BUILD_DIR)/kernel/text.bin
+SHARED_TEXT_BIN = $(BUILD_DIR)/kernel/shared_text.bin
+DATA_BIN   		= $(BUILD_DIR)/kernel/data.bin
+BSS_BIN    		= $(BUILD_DIR)/kernel/bss.bin
+FINAL_IMG  		= $(BUILD_DIR)/kernel/exos.bin
 
 ALIGN      		= 4096
 
 .PHONY: all check_magic clean check-nogot
 
-all: check_magic bin/exos.sym
+all: check_magic $(BUILD_DIR)/kernel/exos.sym
 
 $(KERNEL_ELF): $(OBJS) exos.ld
 	$(LD) $(LDFLAGS_ELF) -o $@ $(OBJS)
@@ -116,11 +127,23 @@ $(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 	printf "\x$$b4\x$$b3\x$$b2\x$$b1" >> "$@"; \
 	printf 'Checksum 0x%08X appended\n' $$cs
 
-bin/%.o: source/%.c
+$(BUILD_DIR)/kernel/%.o: source/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-bin/%.o: source/asm/%.asm
+$(BUILD_DIR)/kernel/%.o: source/asm/%.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $(AFLAGS) -o $@ $<
+
+$(BUILD_DIR)/kernel/bcrypt_%.o: ../third/bcrypt/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/kernel/runtime_%.o: ../runtime/source/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/kernel/runtime_%.o: ../runtime/source/%.asm
 	@mkdir -p $(dir $@)
 	$(NASM) $(AFLAGS) -o $@ $<
 
@@ -128,8 +151,7 @@ check_magic: $(FINAL_IMG)
 	@./check-exos-magic.sh $(FINAL_IMG)
 
 # Extract debug symbols for Bochs
-bin/exos.sym: $(KERNEL_ELF)
-	@echo "Extracting symbols for Bochs debugging"
+$(BUILD_DIR)/kernel/exos.sym: $(KERNEL_ELF)
 	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Optional sanity check to ensure the ELF has no GOT/PLT/DYNAMIC/INTERP sections
@@ -140,4 +162,4 @@ check-nogot: $(KERNEL_ELF)
 	  $(READELF) -S $(KERNEL_ELF) | egrep -i "(\\.(got(\\.|$$)|plt(\\.|$$)|dynamic|rela?)|interp)"; exit 1 )
 
 clean:
-	rm -rf bin/*.o bin/*/*.o bin/*.elf bin/*.bin bin/*.map bin/*.img bin/*.sym
+	rm -rf $(BUILD_DIR)/kernel/*.o $(BUILD_DIR)/kernel/*/*.o $(BUILD_DIR)/kernel/*.elf $(BUILD_DIR)/kernel/*.bin $(BUILD_DIR)/kernel/*.map $(BUILD_DIR)/kernel/*.img $(BUILD_DIR)/kernel/*.sym

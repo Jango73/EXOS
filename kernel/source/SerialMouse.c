@@ -21,8 +21,10 @@
     Serial Mouse
 
 \************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/GFX.h"
+#include "../include/InterruptController.h"
 #include "../include/Log.h"
 #include "../include/Mouse.h"
 #include "../include/Process.h"
@@ -153,7 +155,6 @@ static MOUSEDATA Mouse = {
 #define SERIAL_MSR_RI 0x40    // Ring Indicator
 #define SERIAL_MSR_DCD 0x80   // Data Carrier Detect
 
-#define MOUSE_IRQ 0x0004
 #define MOUSE_PORT 0x03F8
 #define MOUSE_TIMEOUT 0x4000
 
@@ -208,6 +209,9 @@ static BOOL WaitMouseData(U32 TimeOut) {
 static U32 MouseInitialize(void) {
     U32 Sig1, Sig2;
     U32 Byte, Index;
+    
+    UNUSED(Sig1);
+    UNUSED(Sig2);
 
     OutPortByte(LOGIMOUSE_CONFIG, 0);
 
@@ -305,12 +309,12 @@ static U32 MouseInitialize(void) {
     //-------------------------------------
     //
 
-    KernelLogText(LOG_VERBOSE, TEXT("[MouseInitialize] Mouse found on COM1: %c%c"), Sig1, Sig2);
+    DEBUG(TEXT("[MouseInitialize] Mouse found on COM1: %c%c"), Sig1, Sig2);
 
     //-------------------------------------
     // Enable the mouse's IRQ
 
-    EnableIRQ(MOUSE_IRQ);
+    EnableInterrupt(IRQ_MOUSE);
 
     return DF_ERROR_SUCCESS;
 }
@@ -369,6 +373,7 @@ static void DrawMouseCursor(I32 X, I32 Y) {
 
 /***************************************************************************/
 
+/*
 static void MouseHandler_Microsoft(void) {
     static U32 Buttons;
     static U32 DeltaX, DeltaY;
@@ -378,14 +383,6 @@ static void MouseHandler_Microsoft(void) {
     Buttons = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
     if ((Buttons & BIT_6) != BIT_6) {
-        // Visual clue
-        /*
-         *((U32*)0xA0000) = 0xFFFFFFFF;
-         *((U32*)0xA0004) = 0xFFFFFFFF;
-         *((U32*)0xA0008) = 0xFFFFFFFF;
-         *((U32*)0xA000B) = 0xFFFFFFFF;
-         */
-
         SendBreak();
 
         InPortByte(MOUSE_PORT + SERIAL_DATA);
@@ -429,6 +426,7 @@ static void MouseHandler_Microsoft(void) {
 
     // DrawMouseCursor(Mouse.DeltaX, Mouse.DeltaY);
 }
+*/
 
 /***************************************************************************/
 
@@ -465,7 +463,7 @@ Out:
 /***************************************************************************/
 
 void MouseHandler(void) {
-    KernelLogText(LOG_DEBUG, TEXT("MouseHandler"));
+    DEBUG(TEXT("[MouseHandler]"));
 
     // MouseHandler_Microsoft();
     // MouseHandler_MouseSystems();
@@ -493,5 +491,3 @@ U32 SerialMouseCommands(U32 Function, U32 Parameter) {
 
     return MAX_U32;
 }
-
-/***************************************************************************/

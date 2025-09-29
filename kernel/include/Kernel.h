@@ -28,20 +28,24 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "Database.h"
 #include "Heap.h"
 #include "I386.h"
 #include "ID.h"
 #include "List.h"
 #include "Memory.h"
+#include "Multiboot.h"
 #include "Process.h"
 #include "String.h"
 #include "TOML.h"
 #include "Text.h"
 #include "User.h"
+#include "UserAccount.h"
+#include "SystemFS.h"
 
 /***************************************************************************/
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /***************************************************************************/
 // Structure to receive CPU information
@@ -90,21 +94,25 @@ typedef struct tag_CPUINFORMATION {
 #define NUM_INTERRUPTS 48
 
 /***************************************************************************/
-// The EXOS interrupt for user functions
+// EXOS system calls
 
-#define EXOS_USER_CALL 0x80
+#define EXOS_USER_CALL 0x70
+#define EXOS_DRIVER_CALL 0x71
+
+typedef U32 (*SYSCALLFUNC)(U32);
+
+typedef struct tag_SYSCALLENTRY {
+    SYSCALLFUNC Function;
+    U32 Privilege;
+} SYSCALLENTRY, *LPSYSCALLENTRY;
 
 /***************************************************************************/
-// The EXOS interrupt for driver functions
-
-#define EXOS_DRIVER_CALL 0x81
-
-/***************************************************************************/
-
 // Global Kernel Data
 
 #define RESERVED_LOW_MEMORY N_4MB
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
+
+#define PATH_USERS_DATABASE TEXT("/system/data/users.database")
 
 typedef struct tag_E820ENTRY {
     U64 Base;
@@ -121,17 +129,14 @@ typedef struct tag_KERNELSTARTUPINFO {
     U32 IRQMask_A1_PM;
     U32 IRQMask_21_RM;
     U32 IRQMask_A1_RM;
-    U32 ConsoleX;
-    U32 ConsoleY;
     U32 MemorySize;  // Total memory size in bytes
     U32 PageCount;   // Total memory size in pages (4K)
     U32 E820_Count;  // BIOS E820 function entries
     E820ENTRY E820[N_4KB / sizeof(E820ENTRY)];
+    struct multiboot_info* MultibootInfo;  // Pointer to Multiboot information structure
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
 extern KERNELSTARTUPINFO KernelStartup;
-
-// These structures are allocated in Memory.c
 
 typedef struct tag_KERNELDATA_I386 {
     LPGATEDESCRIPTOR IDT;
@@ -153,12 +158,19 @@ typedef struct tag_KERNELDATA {
     LPLIST PCIDevice;
     LPLIST FileSystem;
     LPLIST File;
-    LPFILESYSTEM SystemFS;
+    LPLIST TCPConnection;
+    LPLIST Socket;
+    SYSTEMFSFILESYSTEM SystemFS;
     LPTOML Configuration;
     STR LanguageCode[8];
     STR KeyboardCode[8];
     CPUINFORMATION CPU;
-    U32 MinimumQuantum;  // Minimum quantum time in milliseconds (adjusted for emulation)
+    U32 MinimumQuantum;          // Minimum quantum time in milliseconds (adjusted for emulation)
+    U32 MaximumQuantum;          // Maximum quantum time in milliseconds (adjusted for emulation)
+    BOOL DoLogin;                // Enable/disable login sequence (TRUE=enable, FALSE=disable)
+    LPLIST UserSessions;         // List of active user sessions
+    LPLIST UserAccount;          // List of user accounts
+    DATABASE* UserDatabase;      // User accounts database
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
@@ -166,15 +178,14 @@ extern KERNELDATA Kernel;
 /***************************************************************************/
 // Functions in Kernel.c
 
-LPVOID HeapAlloc(U32);
-void HeapFree(LPVOID);
-BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR, LPSEGMENTINFO);
+void KernelObjectDestructor(LPVOID);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 void InitializeQuantumTime(void);
 U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
+BOOL ObjectExists(HANDLE Object);
 
 /***************************************************************************/
 // Functions in Segment.c
@@ -200,4 +211,6 @@ U32 Edit(U32, LPCSTR*);
 
 /***************************************************************************/
 
-#endif
+#pragma pack(pop)
+
+#endif  // KERNEL_H_INCLUDED

@@ -1,47 +1,59 @@
 # Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
-FINAL_IMG       = bin/exos.img
-SOURCE_IMG      = bin/src.img
+DEBUG_OUTPUT    ?= 0
+
+BUILD_DIR       = ../build
+
 IMG_SIZE_MB     = 64
-KERNEL_BIN      = ../kernel/bin/exos.bin
+RESERVED_SECTORS= 48		# Reserved sectors in partition
+VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
+
 KERNEL_CFG      = exos.toml
 KERNEL_CFG_REF  = exos.ref.toml
-PORTAL_ELF      = ../portal/bin/portal.elf
-HELLO_ELF       = ../hello/bin/hello.elf
 MTOOLS_CONF     = .mtoolsrc.tmp
-CUSTOM_MBR      = source/mbr.asm
-CUSTOM_MBR_BIN  = bin/mbr.bin
-
-DEBUG_OUTPUT    ?= 0
-RESERVED_SECTORS= 48
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+MBR_SOURCE      = source/mbr.asm
 
 VBR_SRC         = source/vbr.asm
-VBR_BIN         = bin/vbr.bin
-VBR_CODE_OFFSET = 0x5A      # Offset of code in VBR sector
-
 PAYLOAD_STUB    = source/vbr-payload-a.asm
-PAYLOAD_STUB_O  = bin/vbr-payload-a.o
 PAYLOAD_C       = source/vbr-payload-c.c
-PAYLOAD_C_O     = bin/vbr-payload-c.o
 PAYLOAD_STR_C   = ../kernel/source/String.c
-PAYLOAD_STR_O   = bin/String.o
+
+# Configurable payload source (can be overridden with make PAYLOAD_SOURCE=...)
+PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
+
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
-PAYLOAD_BIN     = bin/payload.bin
-PAYLOAD_ELF     = bin/payload.elf
-PAYLOAD_MAP     = bin/payload.map
 
-CFLAGS  = -m16 -g -Wall -Wextra -O0 \
-	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
-        -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
-        -fvisibility=hidden -mno-red-zone -fno-stack-protector \
-        -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
-        -Werror-implicit-function-declaration -Wstrict-prototypes \
-        -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+CFLAGS          = -m16 -g -Wall -Wextra -O0 \
+                  -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+                  -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+                  -fvisibility=hidden -mno-red-zone -fno-stack-protector \
+                  -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
+                  -Werror-implicit-function-declaration -Wstrict-prototypes \
+                  -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
+                  -DKERNEL_FILE="\"$(KERNEL_FILE)\"" \
+                  -Iinclude
+LD              = i686-elf-ld
+LDFLAGS         = -nostdlib -no-pie
 
-LD      		= i686-elf-ld
-LDFLAGS 		= -nostdlib -no-pie
+MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
+VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
+PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
+PAYLOAD_C_O     = $(BUILD_DIR)/boot-hd/vbr-payload-c.o
+PAYLOAD_STR_O   = $(BUILD_DIR)/boot-hd/String.o
+PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
+PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
+PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
+FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
+KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
+PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
+NETGET_ELF      = $(BUILD_DIR)/system/netget/netget
+HELLO_ELF       = $(BUILD_DIR)/system/hello/hello
+TICTACTOE_ELF	= $(BUILD_DIR)/system/tictactoe/tictactoe
+MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
+SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
+
 define CREATE_FAT32_IMAGE
         @echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
         dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB)
@@ -50,12 +62,10 @@ define CREATE_FAT32_IMAGE
         parted -s $1 set 1 boot on
         @{ \
                 PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-                echo "Partition offset is: $$PART_OFFSET"; \
                 if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
                         echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
                         exit 1; \
                 fi; \
-                echo "Formatting partition using mformat..."; \
                 MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
         }
 endef
@@ -72,19 +82,24 @@ define MTOOLS_OPERATION
         }
 endef
 
-.PHONY: all update update-src install-mbr install-vbr-payload clean check_tools hexdump-check rebuild-image
+.PHONY: all update install-mbr install-vbr-payload clean check_tools rebuild-image
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) update install-mbr install-vbr-payload bin/payload.sym $(SOURCE_IMG) update-src hexdump-check
+all: check_tools $(FINAL_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+
+check_tools:
+	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
+	@command -v mcopy >/dev/null 2>&1 || { echo "mtools is not installed. Please run: sudo apt install mtools"; exit 1; }
+	@command -v parted >/dev/null 2>&1 || { echo "parted is not installed. Please run: sudo apt install parted"; exit 1; }
+	@command -v i686-elf-gcc >/dev/null 2>&1 || { echo "i686-elf-gcc is not installed. Please install your cross toolchain."; exit 1; }
+	@command -v i686-elf-ld >/dev/null 2>&1 || { echo "i686-elf-ld is not installed. Please install your cross toolchain."; exit 1; }
 
 # Create image only if it does not exist
-$(FINAL_IMG):
+$(FINAL_IMG): check_tools
+	@mkdir -p $(dir $@)
 	$(call CREATE_FAT32_IMAGE,$@)
 
-$(SOURCE_IMG):
-	$(call CREATE_FAT32_IMAGE,$@)
-
-$(KERNEL_CFG):
+$(KERNEL_CFG): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
 
 # Force a full rebuild of the image (explicit call)
@@ -93,29 +108,29 @@ rebuild-image:
 	@rm -f $(FINAL_IMG)
 	$(MAKE) $(FINAL_IMG)
 
-update: $(FINAL_IMG) $(KERNEL_CFG)
+update: $(KERNEL_CFG) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/exos.bin; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/EXOS.BIN; \
 	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.toml; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/exos/portal.elf; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/exos/hello.elf;,\
+	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
+	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
+	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
+	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/EXOS/APPS/PORTAL; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(NETGET_ELF) z:/EXOS/APPS/NETGET; \
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/EXOS/APPS/HELLO;\
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(TICTACTOE_ELF) z:/EXOS/APPS/tictactoe;\
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(MASTER_ELF) z:/EXOS/APPS/TEST/MASTER;\
+	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(SLAVE_ELF) z:/EXOS/APPS/TEST/SLAVE;,\
 	        All files injected into image.)
 
-update-src: $(SOURCE_IMG)
-	$(call MTOOLS_OPERATION,$(SOURCE_IMG),Injecting sources using mtools,\
-                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/exos || true; \
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o -s ../kernel/source z:/exos/; \
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o -s ../kernel/include z:/exos/;,\
-                All source files injected into image.)
-
-install-mbr: $(FINAL_IMG) $(CUSTOM_MBR_BIN)
-	@echo "Installing custom MBR into image (assembled from $(CUSTOM_MBR))..."
-	dd if=$(CUSTOM_MBR_BIN) of=$(FINAL_IMG) bs=446 count=1 conv=notrunc
+install-mbr: update $(MBR_BIN) $(VBR_BIN)
+	@echo "Installing custom MBR into image (assembled from $(MBR_SOURCE))..."
+	dd if=$(MBR_BIN) of=$(FINAL_IMG) bs=446 count=1 conv=notrunc
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
-install-vbr-payload: $(FINAL_IMG) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
+install-vbr-payload: install-mbr $(PAYLOAD_BIN)
 	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload at the next sector..."
 	@{ \
 		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
@@ -126,9 +141,9 @@ install-vbr-payload: $(FINAL_IMG) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF)
 		echo "VBR code and payload injected."; \
 	}
 
-$(CUSTOM_MBR_BIN): $(CUSTOM_MBR)
+$(MBR_BIN): $(MBR_SOURCE)
 	@echo "Assembling custom MBR (NASM)..."
-	nasm $(NASMFLAGS) -f bin $(CUSTOM_MBR) -o $(CUSTOM_MBR_BIN)
+	nasm $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
 
 $(VBR_BIN): $(VBR_SRC)
 	@echo "Assembling VBR (NASM)..."
@@ -138,8 +153,8 @@ $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@echo "Assembling payload stub (NASM)..."
 	nasm $(NASMFLAGS) -f elf32 $< -o $@
 
-$(PAYLOAD_C_O): $(PAYLOAD_C)
-	@echo "Compiling payload C..."
+$(PAYLOAD_C_O): $(PAYLOAD_SOURCE)
+	@echo "Compiling payload C from $(PAYLOAD_SOURCE)..."
 	i686-elf-gcc $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
@@ -155,18 +170,11 @@ $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_
 	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
 
 # Extract payload symbols for Bochs debugging
-bin/payload.sym: $(PAYLOAD_ELF)
-	@echo "Extracting payload symbols for Bochs debugging"
+$(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
+	# @echo "Extracting payload symbols for Bochs debugging"
 	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
-check_tools:
-	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
-	@command -v mcopy >/dev/null 2>&1 || { echo "mtools is not installed. Please run: sudo apt install mtools"; exit 1; }
-	@command -v parted >/dev/null 2>&1 || { echo "parted is not installed. Please run: sudo apt install parted"; exit 1; }
-	@command -v i686-elf-gcc >/dev/null 2>&1 || { echo "i686-elf-gcc is not installed. Please install your cross toolchain."; exit 1; }
-	@command -v i686-elf-ld >/dev/null 2>&1 || { echo "i686-elf-ld is not installed. Please install your cross toolchain."; exit 1; }
-
-hexdump-check:
+hexdump-check: install-vbr-payload
 	@echo "--- [ MBR +0 (16 bytes) ] ---"
 	@hexdump -Cv -n 16 -s 0 $(FINAL_IMG)
 	@echo "--- [ MBR code ] ---"
@@ -199,4 +207,4 @@ hexdump-check:
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
 
 clean:
-	rm -f $(MTOOLS_CONF) $(CUSTOM_MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) bin/payload.sym
+	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(BUILD_DIR)/boot-hd/payload.sym

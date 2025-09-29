@@ -38,7 +38,7 @@ BOOL CheckPassword(LPCSTR, LPCSTR);
 
 /***************************************************************************/
 
-typedef struct _CRC32_CTX {
+typedef struct tag_CRC32_CTX {
     U32 State; /* running CRC (already includes init/final-xor handling) */
 } CRC32_CTX, *LPCRC32_CTX;
 
@@ -53,7 +53,7 @@ U32 CRC32(const void *Data, U32 Length);
 /***************************************************************************/
 // CRC-64 functions
 
-U64 CRC64_Hash(const void* data, U32 length);
+U64 CRC64_Hash(const void *data, U32 length);
 U64 HashString(LPCSTR Text);
 
 /***************************************************************************/

@@ -31,11 +31,21 @@
 
 /***************************************************************************/
 
+/**
+ * @brief Recursive QuickSort implementation.
+ *
+ * @param Base Pointer to the array being sorted.
+ * @param Left Left boundary index for the current partition.
+ * @param Rite Right boundary index for the current partition.
+ * @param ItemSize Size of each element in bytes.
+ * @param Func Comparison function.
+ * @param Buffer Temporary buffer for swapping elements.
+ */
 static void RecursiveSort(U8* Base, I32 Left, I32 Rite, U32 ItemSize, COMPAREFUNC Func, U8* Buffer) {
     I32 i = Left;
     I32 j = Rite;
 
-    U8* x = (U8*)HeapAlloc(ItemSize);
+    U8* x = (U8*)KernelHeapAlloc(ItemSize);
     if (x == NULL) return;
 
     MemoryCopy(x, Base + (((Left + Rite) / 2) * ItemSize), ItemSize);
@@ -56,7 +66,7 @@ static void RecursiveSort(U8* Base, I32 Left, I32 Rite, U32 ItemSize, COMPAREFUN
         }
     }
 
-    HeapFree(x);
+    KernelHeapFree(x);
 
     if (Left < j) RecursiveSort(Base, Left, j, ItemSize, Func, Buffer);
     if (i < Rite) RecursiveSort(Base, i, Rite, ItemSize, Func, Buffer);
@@ -64,6 +74,14 @@ static void RecursiveSort(U8* Base, I32 Left, I32 Rite, U32 ItemSize, COMPAREFUN
 
 /***************************************************************************/
 
+/**
+ * @brief Sorts an array using the QuickSort algorithm.
+ *
+ * @param Base Pointer to the array to be sorted.
+ * @param NumItems Number of elements in the array.
+ * @param ItemSize Size of each element in bytes.
+ * @param Func Comparison function that returns > 0 if first parameter is greater than second.
+ */
 void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
     U8* Buffer;
 
@@ -72,34 +90,40 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
     if (ItemSize == 0) return;
     if (Func == NULL) return;
 
-    Buffer = (U8*)HeapAlloc(ItemSize);
+    Buffer = (U8*)KernelHeapAlloc(ItemSize);
 
     RecursiveSort((U8*)Base, 0, NumItems - 1, ItemSize, Func, Buffer);
 
-    HeapFree(Buffer);
+    KernelHeapFree(Buffer);
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Creates a new doubly linked list.
+ *
+ * @param ItemDestructor Optional destructor function called when items are deleted.
+ * @param MemAlloc Memory allocation function (uses HeapAlloc if NULL).
+ * @param MemFree Memory deallocation function (uses HeapFree if NULL).
+ * @return Pointer to the new list, or NULL on failure.
+ */
 LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
     LPLIST This = NULL;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] Enter"));
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] HeapAlloc = %X"), (LINEAR)HeapAlloc);
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] HeapFree = %X"), (LINEAR)HeapFree);
+    DEBUG(TEXT("[NewList] Enter"));
+    DEBUG(TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
+    DEBUG(TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
+    DEBUG(TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
 #endif
 
-    if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)HeapAlloc;
-    if (MemFree == NULL) MemFree = (MEMFREEFUNC)HeapFree;
+    if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)KernelHeapAlloc;
+    if (MemFree == NULL) MemFree = (MEMFREEFUNC)KernelHeapFree;
 
     This = (LPLIST)MemAlloc(sizeof(LIST));
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] List pointer = %X"), (LINEAR)This);
+    DEBUG(TEXT("[NewList] List pointer = %X"), (LINEAR)This);
 #endif
 
     if (This == NULL) return NULL;
@@ -113,7 +137,7 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     This->Destructor = ItemDestructor;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(LOG_DEBUG, TEXT("[NewList] Exit"));
+    DEBUG(TEXT("[NewList] Exit"));
 #endif
 
     return This;
@@ -121,6 +145,12 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
 
 /*************************************************************************************************/
 
+/**
+ * @brief Deletes a list and all its items.
+ *
+ * @param This Pointer to the list to delete.
+ * @return TRUE on success.
+ */
 U32 DeleteList(LPLIST This) {
     ListReset(This);
     This->MemFreeFunc(This);
@@ -130,10 +160,23 @@ U32 DeleteList(LPLIST This) {
 
 /*************************************************************************************************/
 
+/**
+ * @brief Gets the number of items in the list.
+ *
+ * @param This Pointer to the list.
+ * @return Number of items in the list.
+ */
 U32 ListGetSize(LPLIST This) { return This->NumItems; }
 
 /*************************************************************************************************/
 
+/**
+ * @brief Adds an item at the end of the list.
+ *
+ * @param This Pointer to the list.
+ * @param Item Pointer to the item to add (must be castable to LPLISTNODE).
+ * @return TRUE on success, FALSE on failure.
+ */
 U32 ListAddItem(LPLIST This, LPVOID Item) {
     LPLISTNODE NewNode = (LPLISTNODE)Item;
 
@@ -160,6 +203,14 @@ U32 ListAddItem(LPLIST This, LPVOID Item) {
 
 /*************************************************************************************************/
 
+/**
+ * @brief Inserts an item before a reference item in the list.
+ *
+ * @param This Pointer to the list.
+ * @param RefItem Reference item to insert before.
+ * @param NewItem New item to insert.
+ * @return TRUE on success, FALSE on failure.
+ */
 U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
     LPLISTNODE CurNode = NULL;
     LPLISTNODE PrevNode = NULL;
@@ -202,6 +253,14 @@ U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
 
 /*************************************************************************************************/
 
+/**
+ * @brief Inserts an item after a reference item in the list.
+ *
+ * @param This Pointer to the list.
+ * @param RefItem Reference item to insert after.
+ * @param NewItem New item to insert.
+ * @return TRUE on success, FALSE on failure.
+ */
 U32 ListAddAfter(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
     LPLISTNODE PrevNode = NULL;
     LPLISTNODE NextNode = NULL;
@@ -237,14 +296,35 @@ U32 ListAddAfter(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
 
 /*************************************************************************************************/
 
+/**
+ * @brief Adds an item at the beginning of the list.
+ *
+ * @param This Pointer to the list.
+ * @param Item Item to add at the head.
+ * @return TRUE on success, FALSE on failure.
+ */
 U32 ListAddHead(LPLIST This, LPVOID Item) { return ListAddBefore(This, This->First, Item); }
 
 /*************************************************************************************************/
 
+/**
+ * @brief Adds an item at the end of the list.
+ *
+ * @param This Pointer to the list.
+ * @param Item Item to add at the tail.
+ * @return TRUE on success, FALSE on failure.
+ */
 U32 ListAddTail(LPLIST This, LPVOID Item) { return ListAddAfter(This, This->Last, Item); }
 
 /*************************************************************************************************/
 
+/**
+ * @brief Removes an item from the list without destroying it.
+ *
+ * @param This Pointer to the list.
+ * @param Item Item to remove from the list.
+ * @return Pointer to the removed item, or NULL if not found.
+ */
 LPVOID ListRemove(LPLIST This, LPVOID Item) {
     LPLISTNODE Temp;
     LPLISTNODE Node = (LPLISTNODE)Item;
@@ -296,7 +376,13 @@ LPVOID ListRemove(LPLIST This, LPVOID Item) {
 
 /*************************************************************************************************/
 
-U32 ListErase(LPLIST This, LPVOID Item) {
+/**
+ * @brief Removes and destroys an item from the list.
+ *
+ * @param This Pointer to the list.
+ * @param Item Item to erase from the list.
+ */
+void ListErase(LPLIST This, LPVOID Item) {
     Item = ListRemove(This, Item);
 
     // if (Item && This->MemFreeFunc) This->MemFreeFunc(Item);
@@ -304,12 +390,16 @@ U32 ListErase(LPLIST This, LPVOID Item) {
     if (Item && This->Destructor) {
         This->Destructor(Item);
     }
-
-    return TRUE;
 }
 
 /*************************************************************************************************/
 
+/**
+ * @brief Removes and destroys the last item in the list.
+ *
+ * @param This Pointer to the list.
+ * @return TRUE if an item was erased, FALSE if list was empty.
+ */
 U32 ListEraseLast(LPLIST This) {
     LPLISTNODE Node = NULL;
 
@@ -325,6 +415,13 @@ U32 ListEraseLast(LPLIST This) {
 
 /*************************************************************************************************/
 
+/**
+ * @brief Finds and erases a specific item from the list.
+ *
+ * @param This Pointer to the list.
+ * @param Item Item to find and erase.
+ * @return TRUE if item was found and erased, FALSE otherwise.
+ */
 U32 ListEraseItem(LPLIST This, LPVOID Item) {
     LPLISTNODE Node = NULL;
 
@@ -340,7 +437,12 @@ U32 ListEraseItem(LPLIST This, LPVOID Item) {
 
 /*************************************************************************************************/
 
-U32 ListReset(LPLIST This) {
+/**
+ * @brief Removes and destroys all items in the list.
+ *
+ * @param This Pointer to the list.
+ */
+void ListReset(LPLIST This) {
     LPLISTNODE Node = This->First;
 
     while (Node) {
@@ -358,12 +460,17 @@ U32 ListReset(LPLIST This) {
     This->Current = NULL;
     This->Last = NULL;
     This->NumItems = 0;
-
-    return 1;
 }
 
 /*************************************************************************************************/
 
+/**
+ * @brief Gets an item at a specific index in the list.
+ *
+ * @param This Pointer to the list.
+ * @param Index Zero-based index of the item to retrieve.
+ * @return Pointer to the item at the specified index, or NULL if index is out of bounds.
+ */
 LPVOID ListGetItem(LPLIST This, U32 Index) {
     LPLISTNODE Node = This->First;
     U32 Counter = 0;
@@ -383,6 +490,13 @@ LPVOID ListGetItem(LPLIST This, U32 Index) {
 
 /*************************************************************************************************/
 
+/**
+ * @brief Gets the index of a specific item in the list.
+ *
+ * @param This Pointer to the list.
+ * @param Item Item to find the index of.
+ * @return Index of the item, or MAX_U32 if not found.
+ */
 U32 ListGetItemIndex(LPLIST This, LPVOID Item) {
     LPLISTNODE Node = NULL;
     U32 Index = MAX_U32;
@@ -397,6 +511,13 @@ U32 ListGetItemIndex(LPLIST This, LPVOID Item) {
 
 /*************************************************************************************************/
 
+/**
+ * @brief Merges two lists by appending all items from the second list to the first.
+ *
+ * @param This Destination list to merge into.
+ * @param That Source list to merge from (will be deleted after merge).
+ * @return Pointer to the merged list (This).
+ */
 LPLIST ListMergeList(LPLIST This, LPLIST That) {
     LPLISTNODE Node = NULL;
 
@@ -411,7 +532,14 @@ LPLIST ListMergeList(LPLIST This, LPLIST That) {
 
 /*************************************************************************************************/
 
-U32 ListSort(LPLIST This, COMPAREFUNC Func) {
+/**
+ * @brief Sorts the list using a comparison function.
+ *
+ * @param This Pointer to the list to sort.
+ * @param Func Comparison function that returns > 0 if first parameter is greater than second.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL ListSort(LPLIST This, COMPAREFUNC Func) {
     LPLISTNODE Node = NULL;
     LPVOID* Data = NULL;
     U32 NumItems = 0;
@@ -422,7 +550,7 @@ U32 ListSort(LPLIST This, COMPAREFUNC Func) {
     NumItems = This->NumItems;
     Data = (LPVOID*)This->MemAllocFunc(sizeof(LPVOID) * NumItems);
 
-    if (Data == NULL) return 0;
+    if (Data == NULL) return FALSE;
 
     // Record all items in the list and clear nodes
 
@@ -449,5 +577,5 @@ U32 ListSort(LPLIST This, COMPAREFUNC Func) {
 
     This->MemFreeFunc(Data);
 
-    return 1;
+    return TRUE;
 }

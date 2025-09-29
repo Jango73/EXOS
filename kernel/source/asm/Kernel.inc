@@ -25,6 +25,9 @@
 ;-------------------------------------------------------------------------
 ; Useful constants
 
+EXOS_USER_CALL equ 0x70
+EXOS_DRIVER_CALL equ 0x71
+
 MAX_UINT    equ 0xFFFFFFFF
 U32_SIZE    equ 4
 
@@ -248,8 +251,7 @@ STRUC KernelStartupInfo
     .IRQMask_A1_PM      RESB 4
     .IRQMask_21_RM      RESB 4
     .IRQMask_A1_RM      RESB 4
-    .ConsoleX           RESB 4
-    .ConsoleY           RESB 4
+    ; Console cursor position now handled directly in InitializeConsole
     .MemorySize         RESB 4
     .PageCount          RESB 4
     .E820_Count         RESB 4
@@ -269,8 +271,10 @@ ENDSTRUC
 
 ;-------------------------------------------------------------------------
 ; Interrupt frame - MUST be synced with INTERRUPTFRAME in I386.h
+; /!\ Structure MUST BE IDENTICAL to struct INTERRUPTFRAME in I386.h /!\
 
 STRUC INTERRUPT_FRAME
+; CPU registers
     .EFlags             RESB 4
     .EAX                RESB 4
     .EBX                RESB 4
@@ -299,6 +303,31 @@ STRUC INTERRUPT_FRAME
     .DR5                RESB 4
     .DR6                RESB 4
     .DR7                RESB 4
+; FPU registers
+    .FPU_Control        RESB 2      ; FPU Control register
+    .FPU_Status         RESB 2      ; FPU Status register
+    .FPU_Tag            RESB 2      ; FPU Tag register
+    .FPU_IP_LO          RESB 2      ; FPU Instruction Pointer (low 16 bits)
+    .FPU_IP_HI          RESB 4      ; FPU Instruction Pointer (high 32 bits)
+    .FPU_DP_LO          RESB 2      ; FPU Data Pointer (low 16 bits)
+    .FPU_DP_HI          RESB 4      ; FPU Data Pointer (high 32 bits)
+    .FPU_ST0_LO         RESB 2      ; ST0 register (low 16 bits)
+    .FPU_ST0_HI         RESB 8      ; ST0 register (high 64 bits)
+    .FPU_ST1_LO         RESB 2      ; ST1 register (low 16 bits)
+    .FPU_ST1_HI         RESB 8      ; ST1 register (high 64 bits)
+    .FPU_ST2_LO         RESB 2      ; ST2 register (low 16 bits)
+    .FPU_ST2_HI         RESB 8      ; ST2 register (high 64 bits)
+    .FPU_ST3_LO         RESB 2      ; ST3 register (low 16 bits)
+    .FPU_ST3_HI         RESB 8      ; ST3 register (high 64 bits)
+    .FPU_ST4_LO         RESB 2      ; ST4 register (low 16 bits)
+    .FPU_ST4_HI         RESB 8      ; ST4 register (high 64 bits)
+    .FPU_ST5_LO         RESB 2      ; ST5 register (low 16 bits)
+    .FPU_ST5_HI         RESB 8      ; ST5 register (high 64 bits)
+    .FPU_ST6_LO         RESB 2      ; ST6 register (low 16 bits)
+    .FPU_ST6_HI         RESB 8      ; ST6 register (high 64 bits)
+    .FPU_ST7_LO         RESB 2      ; ST7 register (low 16 bits)
+    .FPU_ST7_HI         RESB 8      ; ST7 register (high 64 bits)
+; Fault data
     .SS0                RESB 4      ; SS in ring 0
     .ESP0               RESB 4      ; ESP in ring 0
     .IntNo              RESB 4      ; Interrupt / exception vector
@@ -347,6 +376,7 @@ extern MachineCheckHandler
 extern FloatingPointHandler
 
 extern ClockHandler
+extern SendEOI
 extern KeyboardHandler
 extern PIC2Handler
 extern COM2Handler

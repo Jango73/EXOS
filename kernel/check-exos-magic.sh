@@ -22,10 +22,10 @@ magic_2nd=$(read_u32le "$file" 4)
 magic_last=$(read_u32le "$file" $((size-8)))
 checksum_stored=$(read_u32le "$file" $((size-4)))
 
-printf "Binary magic:              0x%08X\n" "$MAGIC"
-printf "Binary 2nd u32:            0x%08X\n" "$magic_2nd"
-printf "Binary 2nd to last u32:    0x%08X\n" "$magic_last"
-printf "Binary checksum (stored):  0x%08X\n" "$checksum_stored"
+# printf "Binary magic:              0x%08X\n" "$MAGIC"
+# printf "Binary 2nd u32:            0x%08X\n" "$magic_2nd"
+# printf "Binary 2nd to last u32:    0x%08X\n" "$magic_last"
+# printf "Binary checksum (stored):  0x%08X\n" "$checksum_stored"
 
 # Recalculate checksum excluding the stored checksum (last 4 bytes)
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
@@ -35,7 +35,8 @@ checksum_recalc_dec=$("$script_dir/checksum.sh" --dec --size-adjust -4 "$file" 2
 case "$checksum_recalc_dec" in
 	*[!0-9]*|'') echo "ERROR: recalculated checksum is not a valid decimal: <$checksum_recalc_dec>" >&2; exit 1;;
 esac
-printf "Binary checksum (recalc):  0x%08X\n" "$checksum_recalc_dec"
+
+# printf "Binary checksum (recalc):  0x%08X\n" "$checksum_recalc_dec"
 
 # Magic check
 if [ "$magic_2nd" -eq "$MAGIC" ] && [ "$magic_last" -eq "$MAGIC" ]; then

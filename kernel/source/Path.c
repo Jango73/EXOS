@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -30,16 +31,38 @@
 
 /************************************************************************/
 
-static void PathComponentDestructor(LPVOID This) { HeapFree(This); }
+/**
+ * @brief Destructor function for path components.
+ *
+ * @param This Pointer to the path component to destroy.
+ */
+static void PathComponentDestructor(LPVOID This) { KernelHeapFree(This); }
 
 /************************************************************************/
 
+/**
+ * @brief Decomposes a file path into individual components.
+ *
+ * @param Path File path string to decompose.
+ * @return List of path components, or NULL on failure.
+ */
 LPLIST DecomposePath(LPCSTR Path) {
     STR Component[MAX_FILE_NAME];
     U32 PathIndex = 0;
     U32 ComponentIndex = 0;
-    LPLIST List = NewList(PathComponentDestructor, HeapAlloc, HeapFree);
+    LPLIST List = NULL;
     LPPATHNODE Node = NULL;
+
+    if (Path == NULL) {
+        ERROR(TEXT("[DecomposePath] Path is NULL"));
+        return NULL;
+    }
+
+    List = NewList(PathComponentDestructor, KernelHeapAlloc, KernelHeapFree);
+    if (List == NULL) {
+        ERROR(TEXT("[DecomposePath] Failed to create list"));
+        return NULL;
+    }
 
     while (1) {
         ComponentIndex = 0;
@@ -53,25 +76,44 @@ LPLIST DecomposePath(LPCSTR Path) {
                 Component[ComponentIndex] = STR_NULL;
                 break;
             } else {
+                if (ComponentIndex >= MAX_FILE_NAME - 1) {
+                    ERROR(TEXT("[DecomposePath] Component too long at index %u"), ComponentIndex);
+                    goto Error;
+                }
                 Component[ComponentIndex++] = Path[PathIndex++];
             }
         }
 
-        Node = HeapAlloc(sizeof(PATHNODE));
-        if (Node == NULL) goto Exit;
+        Node = KernelHeapAlloc(sizeof(PATHNODE));
+        if (Node == NULL) {
+            ERROR(TEXT("[DecomposePath] Failed to allocate node"));
+            goto Error;
+        }
         StringCopy(Node->Name, Component);
         ListAddItem(List, Node);
 
         if (Path[PathIndex] == STR_NULL) break;
     }
 
-Exit:
-
     return List;
+
+Error:
+    if (List != NULL) {
+        DeleteList(List);
+    }
+    DEBUG(TEXT("[DecomposePath] Error occurred, returning NULL"));
+    return NULL;
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Checks if a name starts with a given part (case-insensitive).
+ *
+ * @param Name The full name to check.
+ * @param Part The starting part to match.
+ * @return TRUE if Name starts with Part, FALSE otherwise.
+ */
 BOOL MatchStart(LPCSTR Name, LPCSTR Part) {
     U32 Index = 0;
     while (Part[Index] != STR_NULL) {
@@ -83,6 +125,12 @@ BOOL MatchStart(LPCSTR Name, LPCSTR Part) {
 
 /***************************************************************************/
 
+/**
+ * @brief Builds a list of path completion matches for a given path.
+ *
+ * @param Context Path completion context to store matches.
+ * @param Path Base path to find completions for.
+ */
 void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     STR Dir[MAX_PATH_NAME];
     STR Part[MAX_FILE_NAME];
@@ -115,21 +163,15 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     StringCopy(Find.Name, Pattern);
 
     if (Context->FileSystem == NULL) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem is NULL"));
-#endif
+        DEBUG(TEXT("[BuildMatches] CORRUPTION: Context->FileSystem is NULL"));
         return;
     }
     if (Context->FileSystem->Driver == NULL) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem->Driver is NULL"));
-#endif
-        return;  
+        DEBUG(TEXT("[BuildMatches] CORRUPTION: Context->FileSystem->Driver is NULL"));
+        return;
     }
     if (Context->FileSystem->Driver->Command == NULL) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem->Driver->Command is NULL"));
-#endif
+        DEBUG(TEXT("[BuildMatches] CORRUPTION: Context->FileSystem->Driver->Command is NULL"));
         return;
     }
 
@@ -143,38 +185,37 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
             StringConcat(Full, File->Name);
             StringArrayAddUnique(&Context->Matches, Full);
         }
-    } while (Context->FileSystem != NULL && 
-             Context->FileSystem->Driver != NULL && 
+    } while (Context->FileSystem != NULL && Context->FileSystem->Driver != NULL &&
              Context->FileSystem->Driver->Command != NULL &&
              Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
 
-    if (Context->FileSystem != NULL && 
-        Context->FileSystem->Driver != NULL && 
+    if (Context->FileSystem != NULL && Context->FileSystem->Driver != NULL &&
         Context->FileSystem->Driver->Command != NULL) {
         Context->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
     } else {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Path] CORRUPTION: Context->FileSystem corrupted during file operations"));
-#endif
+        DEBUG(TEXT("[BuildMatches] CORRUPTION: Context->FileSystem corrupted during file operations"));
     }
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Initializes a path completion context.
+ *
+ * @param Context Path completion context to initialize.
+ * @param FileSystem File system to use for path completion.
+ * @return TRUE on success, FALSE on failure.
+ */
 BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
     if (FileSystem == NULL) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Path] ERROR: PathCompletionInit called with NULL FileSystem"));
-#endif
+        ERROR(TEXT("[PathCompletionInit] PathCompletionInit called with NULL FileSystem"));
         return FALSE;
     }
     if (FileSystem->Driver == NULL) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(LOG_DEBUG, TEXT("[Path] ERROR: PathCompletionInit - FileSystem->Driver is NULL"));
-#endif
+        ERROR(TEXT("[PathCompletionInit] PathCompletionInit - FileSystem->Driver is NULL"));
         return FALSE;
     }
-    
+
     Context->FileSystem = FileSystem;
     Context->Base[0] = STR_NULL;
     Context->Index = 0;
@@ -183,15 +224,36 @@ BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
 
 /***************************************************************************/
 
+/**
+ * @brief Deinitializes a path completion context.
+ *
+ * @param Context Path completion context to deinitialize.
+ */
 void PathCompletionDeinit(LPPATHCOMPLETION Context) { StringArrayDeinit(&Context->Matches); }
 
 /***************************************************************************/
 
+/**
+ * @brief Gets the next path completion match for a given path.
+ *
+ * This function takes a path (which can be absolute or relative) and finds
+ * the next matching file or directory name for tab completion. The path
+ * is expected to be already processed according to the completion rules:
+ * - Empty string or no slash: complete in current directory
+ * - Starts with "/": absolute path completion
+ * - Contains slash: complete in the specified directory
+ *
+ * @param Context Path completion context containing matches and state.
+ * @param Path Directory path where completion should occur (already processed).
+ * @param Output Buffer to store the next completion match (full path).
+ * @return TRUE if a match was found, FALSE otherwise.
+ */
 BOOL PathCompletionNext(LPPATHCOMPLETION Context, LPCSTR Path, LPSTR Output) {
     U32 Index;
     BOOL SameStart = TRUE;
     U32 BaseLength = StringLength(Context->Base);
 
+    // Check if we're continuing with the same base path or starting fresh
     for (Index = 0; Index < BaseLength; Index++) {
         if (CharToLower(Path[Index]) != CharToLower(Context->Base[Index])) {
             SameStart = FALSE;
@@ -199,9 +261,12 @@ BOOL PathCompletionNext(LPPATHCOMPLETION Context, LPCSTR Path, LPSTR Output) {
         }
     }
 
+    // Build new matches if this is a new path or we have no matches yet
     if (Context->Matches.Count == 0 || SameStart == FALSE) {
         BuildMatches(Context, Path);
     } else {
+        // We're cycling through existing matches for the same base path
+        // Find the current match in our list and advance to the next one
         for (Index = 0; Index < Context->Matches.Count; Index++) {
             if (StringCompare(StringArrayGet(&Context->Matches, Index), Path) == 0) {
                 Context->Index = Index + 1;
@@ -209,18 +274,19 @@ BOOL PathCompletionNext(LPPATHCOMPLETION Context, LPCSTR Path, LPSTR Output) {
                 break;
             }
         }
+        // If we didn't find the current path in matches, rebuild
         if (Index == Context->Matches.Count) {
             BuildMatches(Context, Path);
         }
     }
 
+    // No matches found
     if (Context->Matches.Count == 0) return FALSE;
 
+    // Return the current match and advance index for next call
     StringCopy(Output, StringArrayGet(&Context->Matches, Context->Index));
     Context->Index++;
     if (Context->Index >= Context->Matches.Count) Context->Index = 0;
 
     return TRUE;
 }
-
-/***************************************************************************/

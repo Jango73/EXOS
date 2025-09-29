@@ -30,6 +30,10 @@
 #include "../../kernel/include/I386.h"
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
+#include "../include/Multiboot.h"
+#include "../include/SegOfs.h"
+
+/************************************************************************/
 
 __asm__(".code16gcc");
 
@@ -39,10 +43,12 @@ __asm__(".code16gcc");
 #define USABLE_RAM_END (ORIGIN - STACK_SIZE)
 #define USABLE_RAM_SIZE (USABLE_RAM_END - USABLE_RAM_START)
 
-#define SectorSize 512
-#define FileToLoad "EXOS    BIN"  // 8+3, no dot, padded
-#define LoadAddress_Seg 0x2000
-#define LoadAddress_Ofs 0x0000
+#define SECTORSIZE 512
+#ifndef KERNEL_FILE
+#error "KERNEL_FILE must be defined (e.g., -DFILETOLOAD=\"EXOS    BIN\")"
+#endif
+#define LOADADDRESS_SEG 0x2000
+#define LOADADDRESS_OFS 0x0000
 
 /************************************************************************/
 // FAT32 special values (masked to 28 bits)
@@ -54,24 +60,15 @@ __asm__(".code16gcc");
 /************************************************************************/
 // I386 values
 
-#define GDT_ADDRESS 0x500
 #define PAGE_DIRECTORY_ADDRESS LOW_MEMORY_PAGE_1
 #define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_2
 #define PAGE_TABLE_KERNEL_ADDRESS LOW_MEMORY_PAGE_3
+#define GDT_ADDRESS LOW_MEMORY_PAGE_4
+
+#define PROTECTED_ZONE_START 0xC0000
+#define PROTECTED_ZONE_END 0xFFFFF
 
 /************************************************************************/
-// Functions in vbr-payload-a.asm
-
-// BIOS sector read: Drive, LBA, Count, Dest (seg:ofs packed as 0xSSSSOOOO)
-extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
-extern void MemorySet(LPVOID Base, U32 What, U32 Size);
-extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
-extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
-extern void __attribute__((noreturn))
-StubJumpToImage(U32 GDTR, U32 PageDirectoryPA, U32 KernelEntryVA, U32 MapPtr, U32 MapCount);
-
-/************************************************************************/
-// Functions in this module
 
 static void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
@@ -107,21 +104,9 @@ static void WriteString(LPCSTR Str) {
 
 #define ErrorPrint(Str) WriteString(Str)
 
-static inline U32 PackSegOfs(U16 Seg, U16 Ofs) { return ((U32)Seg << 16) | (U32)Ofs; }
-
-static inline U32 SegOfsToLinear(U16 Seg, U16 Ofs) { return ((U32)Seg << 4) | (U32)Ofs; }
-
-// Build seg:ofs from a linear pointer. Aligns segment down to 16 bytes.
-static inline U32 MakeSegOfs(const void* Ptr) {
-    U32 Lin = (U32)Ptr;
-    U16 Seg = (U16)(Lin >> 4);
-    U16 Ofs = (U16)(Lin & 0xF);
-    return PackSegOfs(Seg, Ofs);
-}
-
 /************************************************************************/
 
-struct __attribute__((packed)) Fat32BootSector {
+typedef struct __attribute__((packed)) tag_FAT32_BOOT_SECTOR {
     U8 Jump[3];
     U8 Oem[8];
     U16 BytesPerSector;
@@ -151,9 +136,9 @@ struct __attribute__((packed)) Fat32BootSector {
     U8 FatName[8];
     U8 Code[420];
     U16 BiosMark;
-};
+} FAT32_BOOT_SECTOR;
 
-struct __attribute__((packed)) FatDirEntry {
+typedef struct __attribute__((packed)) tag_FAT_DIR_ENTRY {
     U8 Name[11];
     U8 Attributes;
     U8 NtReserved;
@@ -166,10 +151,10 @@ struct __attribute__((packed)) FatDirEntry {
     U16 WriteDate;
     U16 FirstClusterLow;
     U32 FileSize;
-};
+} FAT_DIR_ENTRY;
 
 // E820 memory map
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed)) tag_E820ENTRY {
     U64 Base;
     U64 Size;
     U32 Type;
@@ -189,14 +174,21 @@ static U32 E820_EntryCount = 0;
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
 static STR TempString[128];
 
-struct Fat32BootSector BootSector;
-static U8 FatBuffer[SectorSize];
+FAT32_BOOT_SECTOR BootSector;
+static U8 FatBuffer[SECTORSIZE];
 
 // static E820ENTRY* const E820_Map = (E820ENTRY*)(USABLE_RAM_START);
 // static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START + E820_SIZE);
 
 static E820ENTRY E820_Map[E820_MAX_ENTRIES];
 static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
+
+// Multiboot structures - placed at a safe memory location
+static multiboot_info_t MultibootInfo;
+static multiboot_memory_map_t MultibootMemMap[E820_MAX_ENTRIES];
+static multiboot_module_t KernelModule;
+static const char BootloaderName[] = "EXOS VBR";
+static const char KernelCmdLine[] = KERNEL_FILE;
 
 /************************************************************************/
 // Low-level I/O + A20
@@ -208,18 +200,6 @@ static inline U8 InPortByte(U16 Port) {
 }
 
 static inline void OutPortByte(U16 Port, U8 Val) { __asm__ __volatile__("outb %0, %1" ::"a"(Val), "Nd"(Port)); }
-
-/************************************************************************/
-
-static void EnableA20(void) {
-    // Fast A20 on port 0x92
-    U8 v = InPortByte(0x92);
-    if ((v & 0x02) == 0) {
-        v |= 0x02;
-        v &= ~0x01;
-        OutPortByte(0x92, v);
-    }
-}
 
 /************************************************************************/
 
@@ -276,21 +256,6 @@ static int MemCmp(const void* A, const void* B, int Len) {
 }
 
 /************************************************************************/
-
-void Hang(void) {
-    do {
-        __asm__ __volatile__(
-            "1:\n\t"
-            "cli\n\t"
-            "hlt\n\t"
-            "jmp 1b\n\t"
-            :
-            :
-            : "memory");
-    } while (0);
-}
-
-/************************************************************************/
 // Read a FAT32 entry for a given cluster with 1-sector cache.
 // Parameters:
 //   BootDrive, FatStartSector, Cluster, CurrentFatSector(in/out)
@@ -299,8 +264,8 @@ void Hang(void) {
 //   Caller must test for EOC/BAD/FREE.
 
 static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* CurrentFatSector) {
-    U32 FatSector = FatStartSector + ((Cluster * 4) / SectorSize);
-    U32 EntryOffset = (Cluster * 4) % SectorSize;
+    U32 FatSector = FatStartSector + ((Cluster * 4) / SECTORSIZE);
+    U32 EntryOffset = (Cluster * 4) % SECTORSIZE;
 
     if (*CurrentFatSector != FatSector) {
         if (BiosReadSectors(BootDrive, FatSector, 1, MakeSegOfs(FatBuffer))) {
@@ -316,20 +281,22 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 }
 
 /************************************************************************/
-
 // Helper function to read byte via far pointer to avoid segment limit issues
+
 static U8 ReadFarByte(U16 seg, U16 ofs) {
     U8 result;
     __asm__ __volatile__(
-        "push %%ds\n\t"
+        "pushw %%ds\n\t"
         "mov %1, %%ds\n\t"
         "movb (%%si), %%al\n\t"
-        "pop %%ds"
+        "popw %%ds"
         : "=a"(result)
         : "r"(seg), "S"(ofs)
         : "memory");
     return result;
 }
+
+/************************************************************************/
 
 static void RetrieveMemoryMap(void) {
     MemorySet((void*)E820_Map, 0, E820_SIZE);
@@ -346,7 +313,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
 
     RetrieveMemoryMap();
 
-    StringPrintFormat(TempString, TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"), LoadAddress_Seg, LoadAddress_Ofs);
+    StringPrintFormat(
+        TempString, TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"), LOADADDRESS_SEG, LOADADDRESS_OFS);
     DebugPrint(TempString);
 
     DebugPrint(TEXT("[VBR] Reading FAT32 VBR\r\n"));
@@ -401,8 +369,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     }
 
     /********************************************************************/
-    /* Scan ROOT directory chain to find the file                       */
-    /********************************************************************/
+    // Scan ROOT directory chain to find the file
+
     U8 Found = 0;
     U32 FileCluster = 0, FileSize = 0;
     U32 DirCluster = RootCluster;
@@ -427,8 +395,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         }
 
         // Scan 32-byte directory entries
-        for (U8* Ptr = ClusterBuffer; Ptr < ClusterBuffer + SectorsPerCluster * SectorSize; Ptr += 32) {
-            struct FatDirEntry* DirEntry = (struct FatDirEntry*)Ptr;
+        for (U8* Ptr = ClusterBuffer; Ptr < ClusterBuffer + SectorsPerCluster * SECTORSIZE; Ptr += 32) {
+            FAT_DIR_ENTRY* DirEntry = (FAT_DIR_ENTRY*)Ptr;
 
             if (DirEntry->Name[0] == 0x00) {
                 DirEnd = 1;
@@ -437,7 +405,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
             if (DirEntry->Name[0] == 0xE5) continue;
             if ((DirEntry->Attributes & 0x0F) == 0x0F) continue;
 
-            if (MemCmp(DirEntry->Name, FileToLoad, 11) == 0) {
+            if (MemCmp(DirEntry->Name, KERNEL_FILE, 11) == 0) {
                 FileCluster = ((U32)DirEntry->FirstClusterHigh << 16) | DirEntry->FirstClusterLow;
                 FileSize = DirEntry->FileSize;
                 Found = 1;
@@ -464,7 +432,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     }
 
     if (!Found) {
-        ErrorPrint(TEXT("[VBR] ERROR: EXOS.BIN not found in root directory. Halting.\r\n"));
+        StringPrintFormat(TempString, TEXT("[VBR] ERROR: Kernel image (%s) not found in root directory. Halting.\r\n"), KERNEL_FILE);
+        ErrorPrint(TempString);
         Hang();
     }
 
@@ -472,16 +441,16 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     DebugPrint(TempString);
 
     /********************************************************************/
-    /* Load the file by following its FAT chain                         */
-    /********************************************************************/
+    // Load the file by following its FAT chain
+
     U32 Remaining = FileSize;
-    U16 DestSeg = LoadAddress_Seg;
-    U16 DestOfs = LoadAddress_Ofs;
+    U16 DestSeg = LOADADDRESS_SEG;
+    U16 DestOfs = LOADADDRESS_OFS;
     U32 Cluster = FileCluster;
     int ClusterCount = 0;
     CurrentFatSector = 0xFFFFFFFF;
 
-    U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SectorSize;
+    U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SECTORSIZE;
     U32 MaxClusters = (FileSize + (ClusterBytes - 1)) / ClusterBytes;
 
     while (Remaining > 0 && Cluster >= 2 && Cluster < FAT32_EOC_MIN) {
@@ -516,7 +485,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         */
 
         // Advance destination pointer by cluster size
-        U32 AdvanceBytes = (U32)SectorsPerCluster * (U32)SectorSize;
+        U32 AdvanceBytes = (U32)SectorsPerCluster * (U32)SECTORSIZE;
         DestSeg += (AdvanceBytes >> 4);
         DestOfs += (U16)(AdvanceBytes & 0xF);
         if (DestOfs < (U16)(AdvanceBytes & 0xF)) {
@@ -551,10 +520,9 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     }
 
     /********************************************************************/
-    /* Verify checksum                                                  */
-    /********************************************************************/
-    U8* Loaded = (U8*)(((U32)LoadAddress_Seg << 4) + (U32)LoadAddress_Ofs);
+    // Verify checksum
 
+    U8* Loaded = (U8*)(((U32)LOADADDRESS_SEG << 4) + (U32)LOADADDRESS_OFS);
 
     // Sanity check before memory access
     if (FileSize < 8) {
@@ -565,7 +533,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     // Read last 8 bytes safely using far pointers to avoid segment limit issues
     U32 BaseAddr = (U32)Loaded;
     U32 LastBytes1 = 0, LastBytes2 = 0;
-    
+
     // Read bytes -8 to -5 (first U32)
     for (int i = 0; i < 4; i++) {
         U32 ByteAddr = BaseAddr + FileSize - 8 + i;
@@ -574,8 +542,8 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
         U8 Byte = ReadFarByte(Seg, Ofs);
         LastBytes1 |= ((U32)Byte) << (i * 8);
     }
-    
-    // Read bytes -4 to -1 (second U32) 
+
+    // Read bytes -4 to -1 (second U32)
     for (int i = 0; i < 4; i++) {
         U32 ByteAddr = BaseAddr + FileSize - 4 + i;
         U16 Seg = (U16)(ByteAddr >> 4);
@@ -628,10 +596,14 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
     Hang();
 }
 
+/************************************************************************/
+
 static LPPAGEDIRECTORY PageDirectory = (LPPAGEDIRECTORY)PAGE_DIRECTORY_ADDRESS;
 static LPPAGETABLE PageTableLow = (LPPAGETABLE)PAGE_TABLE_LOW_ADDRESS;
 static LPPAGETABLE PageTableKrn = (LPPAGETABLE)PAGE_TABLE_KERNEL_ADDRESS;
 static GDTREGISTER Gdtr;
+
+/************************************************************************/
 
 static void SetSegmentDescriptor(
     LPSEGMENTDESCRIPTOR D, U32 Base, U32 Limit, U32 Type /*0=data,1=code*/, U32 CanWrite, U32 Priv /*0*/,
@@ -655,31 +627,35 @@ static void SetSegmentDescriptor(
     D->Base_24_31 = (U8)((Base >> 24) & 0xFF);
 }
 
+/************************************************************************/
+
 static void BuildGdtFlat(void) {
     // Build in a real local array so the compiler knows the bounds.
     SEGMENTDESCRIPTOR GdtBuffer[3];
 
     DebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
 
-    /* Safe: compiler knows GdtBuf has exactly 3 entries */
+    // Safe: compiler knows GdtBuf has exactly 3 entries
     MemorySet(GdtBuffer, 0, sizeof(GdtBuffer));
 
-    /* Code segment: base=0, limit=0xFFFFF, type=code, RW=1, gran=4K, 32-bit */
+    // Code segment: base=0, limit=0xFFFFF, type=code, RW=1, gran=4K, 32-bit
     SetSegmentDescriptor(
         &GdtBuffer[1], 0x00000000, 0x000FFFFF, /*Type=*/1, /*RW=*/1,
         /*Conforming=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
 
-    /* Data segment: base=0, limit=0xFFFFF, type=data, RW=1, gran=4K, 32-bit */
+    // Data segment: base=0, limit=0xFFFFF, type=data, RW=1, gran=4K, 32-bit
     SetSegmentDescriptor(
         &GdtBuffer[2], 0x00000000, 0x000FFFFF, /*Type=*/0, /*RW=*/1,
         /*ExpandDown=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
 
-    /* Now copy to the physical location expected by your early boot */
+    // Now copy to the physical location expected by your early boot
     MemoryCopy((void*)GDT_ADDRESS, GdtBuffer, sizeof(GdtBuffer));
 
     Gdtr.Limit = (U16)(sizeof(GdtBuffer) - 1);
     Gdtr.Base = (U32)GDT_ADDRESS;
 }
+
+/************************************************************************/
 
 static void ClearPdPt(void) {
     MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
@@ -687,7 +663,9 @@ static void ClearPdPt(void) {
     MemorySet(PageTableKrn, 0, PAGE_TABLE_SIZE);
 }
 
-static void SetPde(LPPAGEDIRECTORY E, U32 PtPhys) {
+/************************************************************************/
+
+static void SetPageDirectoryEntry(LPPAGEDIRECTORY E, U32 PtPhys) {
     E->Present = 1;
     E->ReadWrite = 1;
     E->Privilege = 0;
@@ -702,8 +680,12 @@ static void SetPde(LPPAGEDIRECTORY E, U32 PtPhys) {
     E->Address = (PtPhys >> 12);  // top 20 bits
 }
 
-static void SetPte(LPPAGETABLE E, U32 Phys) {
-    E->Present = 1;
+/************************************************************************/
+
+static void SetPageTableEntry(LPPAGETABLE E, U32 Physical) {
+    BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
+
+    E->Present = !Protected;
     E->ReadWrite = 1;
     E->Privilege = 0;
     E->WriteThrough = 0;
@@ -714,48 +696,157 @@ static void SetPte(LPPAGETABLE E, U32 Phys) {
     E->Global = 0;
     E->User = 0;
     E->Fixed = 1;
-    E->Address = (Phys >> 12);  // top 20 bits
+    E->Address = (Physical >> 12);  // top 20 bits
 }
 
-static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
-    StringPrintFormat(TempString, TEXT("[VBR] BuildPaging (KernelPhysBase, KernelVirtBase, MapSize : %08X %08X %08X\r\n"), 
-                      KernelPhysBase, KernelVirtBase, MapSize);
-    DebugPrint(TempString);
+/************************************************************************/
 
+static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
     ClearPdPt();
 
     // Identity 0..4 MB
     for (U32 i = 0; i < 1024; ++i) {
-        SetPte(PageTableLow + i, i * 4096U);
+        SetPageTableEntry(PageTableLow + i, i * 4096U);
     }
-    SetPde(PageDirectory + 0, (U32)PageTableLow);
+
+    SetPageDirectoryEntry(PageDirectory + 0, (U32)PageTableLow);
 
     // High mapping: 0xC0000000 -> KernelPhysBase .. +MapSize
     const U32 PdiK = (KernelVirtBase >> 22) & 0x3FFU;  // 768 for 0xC0000000
-    SetPde(PageDirectory + PdiK, (U32)PageTableKrn);
+    SetPageDirectoryEntry(PageDirectory + PdiK, (U32)PageTableKrn);
 
     const U32 NumPages = (MapSize + 4095U) >> 12;
     for (U32 i = 0; i < NumPages && i < 1024U; ++i) {
-        SetPte(PageTableKrn + i, KernelPhysBase + (i << 12));
+        SetPageTableEntry(PageTableKrn + i, KernelPhysBase + (i << 12));
     }
 
-    SetPde(PageDirectory + 1023, (U32)PageDirectory);
-
-    StringPrintFormat(TempString, TEXT("[VBR] PDE[0], PDE[1], PDE[2], PDE[3], PDE[4], PDE[768], PDE[769] : %08X %08X %08X %08X %08X %08X %08X %08X %08X\r\n"), 
-                      ((U32*)PageDirectory)[0], ((U32*)PageDirectory)[1], ((U32*)PageDirectory)[2], 
-                      ((U32*)PageDirectory)[3], ((U32*)PageDirectory)[4], ((U32*)PageDirectory)[768], 
-                      ((U32*)PageDirectory)[769], ((U32*)PageDirectory)[770], ((U32*)PageDirectory)[1023]);
-    DebugPrint(TempString);
+    SetPageDirectoryEntry(PageDirectory + 1023, (U32)PageDirectory);
 }
 
+/************************************************************************/
+
+static U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
+    // Clear the multiboot info structure
+    MemorySet(&MultibootInfo, 0, sizeof(multiboot_info_t));
+    MemorySet(MultibootMemMap, 0, sizeof(MultibootMemMap));
+
+    // Set up multiboot flags
+    MultibootInfo.flags = MULTIBOOT_INFO_MEMORY | MULTIBOOT_INFO_MEM_MAP | MULTIBOOT_INFO_BOOT_LOADER_NAME | MULTIBOOT_INFO_MODS;
+
+    // Convert E820 map to Multiboot memory map format
+    U32 MmapLength = 0;
+    for (U32 i = 0; i < E820_EntryCount && i < E820_MAX_ENTRIES; i++) {
+        MultibootMemMap[i].size = sizeof(multiboot_memory_map_t) - sizeof(U32);
+        MultibootMemMap[i].addr_low = E820_Map[i].Base.LO;
+        MultibootMemMap[i].addr_high = E820_Map[i].Base.HI;
+        MultibootMemMap[i].len_low = E820_Map[i].Size.LO;
+        MultibootMemMap[i].len_high = E820_Map[i].Size.HI;
+
+        // Convert E820 types to Multiboot types
+        switch (E820_Map[i].Type) {
+            case E820_AVAILABLE:
+                MultibootMemMap[i].type = MULTIBOOT_MEMORY_AVAILABLE;
+                break;
+            case E820_RESERVED:
+                MultibootMemMap[i].type = MULTIBOOT_MEMORY_RESERVED;
+                break;
+            case E820_ACPI:
+                MultibootMemMap[i].type = MULTIBOOT_MEMORY_ACPI_RECLAIMABLE;
+                break;
+            case E820_NVS:
+                MultibootMemMap[i].type = MULTIBOOT_MEMORY_NVS;
+                break;
+            case E820_UNUSABLE:
+                MultibootMemMap[i].type = MULTIBOOT_MEMORY_BADRAM;
+                break;
+            default:
+                MultibootMemMap[i].type = MULTIBOOT_MEMORY_RESERVED;
+                break;
+        }
+        MmapLength += sizeof(multiboot_memory_map_t);
+    }
+
+    // Set memory map info
+    MultibootInfo.mmap_length = MmapLength;
+    MultibootInfo.mmap_addr = (U32)MultibootMemMap;
+
+    // Compute mem_lower and mem_upper from memory map
+    // mem_lower: available memory below 1MB in KB
+    // mem_upper: available memory above 1MB in KB
+    U32 LowerMem = 0;
+    U32 UpperMem = 0;
+
+    for (U32 i = 0; i < E820_EntryCount && i < E820_MAX_ENTRIES; i++) {
+        if (MultibootMemMap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            U32 StartLow = MultibootMemMap[i].addr_low;
+            U32 StartHigh = MultibootMemMap[i].addr_high;
+            U32 LengthLow = MultibootMemMap[i].len_low;
+            U32 LengthHigh = MultibootMemMap[i].len_high;
+
+            // For simplicity, only handle memory regions that fit in 32-bit space
+            if (StartHigh == 0 && LengthHigh == 0) {
+                U32 End = StartLow + LengthLow;
+
+                if (StartLow < 0x100000) { // Below 1MB
+                    U32 LowerEnd = (End > 0x100000) ? 0x100000 : End;
+                    U32 LowerSize = LowerEnd - StartLow;
+                    if (StartLow >= 0x1000) { // Exclude first 4KB
+                        LowerMem += LowerSize / 1024;
+                    }
+                }
+
+                if (End > 0x100000) { // Above 1MB
+                    U32 UpperStart = (StartLow < 0x100000) ? 0x100000 : StartLow;
+                    U32 UpperSize = End - UpperStart;
+                    UpperMem += UpperSize / 1024;
+                }
+            } else if (StartLow >= 0x100000) {
+                // Memory above 1MB - add what we can (up to 4GB)
+                U32 SizeToAdd = (LengthHigh == 0) ? LengthLow : 0xFFFFFFFF - StartLow;
+                UpperMem += SizeToAdd / 1024;
+            }
+        }
+    }
+
+    MultibootInfo.mem_lower = LowerMem;
+    MultibootInfo.mem_upper = UpperMem;
+
+    // Set bootloader name
+    MultibootInfo.boot_loader_name = (U32)BootloaderName;
+
+    // Set up kernel module
+    KernelModule.mod_start = KernelPhysBase;
+    KernelModule.mod_end = KernelPhysBase + FileSize;
+    KernelModule.cmdline = (U32)KernelCmdLine;
+    KernelModule.reserved = 0;
+
+    // Set module information in multiboot info
+    MultibootInfo.mods_count = 1;
+    MultibootInfo.mods_addr = (U32)&KernelModule;
+
+    // EXOS-specific extensions removed (cursor position now handled in Console module)
+
+    StringPrintFormat(TempString, TEXT("[VBR] Multiboot info at %x\r\n"), (U32)&MultibootInfo);
+    DebugPrint(TempString);
+    StringPrintFormat(TempString, TEXT("[VBR] mem_lower=%u KB, mem_upper=%u KB\r\n"), LowerMem, UpperMem);
+    DebugPrint(TempString);
+
+    return (U32)&MultibootInfo;
+}
+
+/************************************************************************/
+
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
-    const U32 KernelPhysBase = SegOfsToLinear(LoadAddress_Seg, LoadAddress_Ofs);
+    const U32 KernelPhysBase = SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
     const U32 KernelVirtBase = 0xC0000000U;
     const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
 
     EnableA20();
     BuildGdtFlat();
     BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);
+
+    // Build the multiboot information structure
+    U32 MultibootInfoPtr = BuildMultibootInfo(KernelPhysBase, FileSize);
 
     // Pass kernel entry VA as a normal C value
     const U32 KernelEntryVA = 0xC0000000;
@@ -764,7 +855,7 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
         __asm__ __volatile__("nop");
     }
 
-    StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA, (U32)E820_Map, E820_EntryCount);
+    StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 
     __builtin_unreachable();
 }

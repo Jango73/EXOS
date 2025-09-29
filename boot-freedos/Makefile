@@ -1,12 +1,14 @@
 # Makefile mtools - inject EXOS into a FreeDOS image with FAT32 partition
 
+BUILD_DIR = ../build
+
 LOADER_SRC     = source/loader.asm
 LOADER_LST     = source/loader.lst
-LOADER_COM     = bin/loader.com
-KERNEL_BIN     = ../kernel/bin/exos.bin
+LOADER_COM     = $(BUILD_DIR)/boot-freedos/loader.com
+KERNEL_BIN     = $(BUILD_DIR)/kernel/exos.bin
 BASE_IMG       = freedos/FD14FULL.img
-FINAL_IMG      = bin/exos_dos.img
-AUTOEXEC       = bin/AUTOEXEC.BAT
+FINAL_IMG      = $(BUILD_DIR)/boot-freedos/exos_dos.img
+AUTOEXEC       = $(BUILD_DIR)/boot-freedos/AUTOEXEC.BAT
 FD_AUTO_TMP    = ./FDAUTO_TMP.BAT
 MTOOLS_CONF    = .mtoolsrc.tmp
 
@@ -60,6 +62,7 @@ update_fdauto:
 	@rm -f $(FD_AUTO_TMP) $(MTOOLS_CONF)
 
 $(LOADER_COM): $(LOADER_SRC)
+	@mkdir -p $(dir $@)
 	@echo "Assembling loader..."
 	nasm -f bin $(LOADER_SRC) -l $(LOADER_LST) -o $(LOADER_COM)
 

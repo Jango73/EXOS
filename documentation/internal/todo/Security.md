@@ -10,47 +10,61 @@ EXOS already has a basic security infrastructure:
 - Shell with integrated command parsing
 - Mutex and synchronization system
 
+## Existing Strctures
+
+```c
+typedef struct tag_SECURITY {
+    LISTNODE_FIELDS
+    U64 Owner;  // Owner ID (hash)
+    U32 UserPermissionCount;
+    U32 DefaultPermissions;
+    struct {
+        U64 UserHash;  // User ID
+        U32 Permissions;
+    } UserPerms[MAX_SPECIFIC_PERMISSIONS];
+} SECURITY, *LPSECURITY;
+```
+
 ## Proposed Architecture
 
 ### Phase 1: User Data Structures
 
-#### 1.1 USER_ACCOUNT Structure
+#### 1.1 USERACCOUNT Structure
 ```c
-typedef struct tag_USER_ACCOUNT {
+typedef struct tag_USERACCOUNT {
     LISTNODE_FIELDS
     U64 UserID;                    // Unique user hash
     STR UserName[32];              // Username
     U64 PasswordHash;              // Password hash
     U32 Privilege;                 // Privilege level (0=user, 1=admin)
-    U32 GroupID;                   // Primary group
-    SYSTEMTIME CreatedTime;        // Creation date
-    SYSTEMTIME LastLoginTime;      // Last login
+    DATETIME CreationTime;         // Creation date
+    DATETIME LastLoginTime;        // Last login
     U32 Status;                    // Account status (active/suspended)
-} USER_ACCOUNT, *LPUSER_ACCOUNT;
+} USERACCOUNT, *LPUSERACCOUNT;
 ```
 
-#### 1.2 USER_SESSION Structure
+#### 1.2 USERSESSION Structure
 ```c
-typedef struct tag_USER_SESSION {
+typedef struct tag_USERSESSION {
+    LISTNODE_FIELDS
     U64 SessionID;                 // Unique session ID
     U64 UserID;                    // Logged in user
-    SYSTEMTIME LoginTime;          // Login time
-    SYSTEMTIME LastActivity;       // Last activity
-    LPTASK ShellTask;             // Associated shell task
-} USER_SESSION, *LPUSER_SESSION;
+    DATETIME LoginTime;            // Login time
+    DATETIME LastActivity;         // Last activity
+    LPTASK ShellTask;              // Associated shell task
+} USERSESSION, *LPUSERSESSION;
 ```
 
 #### 1.3 PROCESS Extension
 ```c
 // Add to struct tag_PROCESS:
 U64 UserID;                       // Owner user
-U32 GroupID;                      // Process group
-LPUSER_SESSION Session;           // User session
+LPUSERSESSION Session;           // User session
 ```
 
 #### 1.4 User Database
 - In-memory hash table for fast access
-- Persistent storage in `/system/users.dat`
+- Persistent storage in `/system/users.database`
 - `root` user created automatically at boot
 - Mutex for secure concurrent access
 
@@ -58,88 +72,95 @@ LPUSER_SESSION Session;           // User session
 
 #### 2.1 Hash Functions
 ```c
-U64 HashPassword(LPCSTR Password);
-BOOL VerifyPassword(LPCSTR Password, U64 StoredHash);
+U64 HashPassword(LPCSTR Password); -> calls BFEncrypt
+BOOL VerifyPassword(LPCSTR Password, U64 StoredHash); -> calls BFDecrypt
 U64 GenerateSessionID(void);
 ```
 
 #### 2.2 Session Management
+- In User.c
 ```c
-LPUSER_SESSION CreateUserSession(U64 UserID, LPTASK ShellTask);
-BOOL ValidateUserSession(U64 SessionID);
-void DestroyUserSession(U64 SessionID);
+LPUSERSESSION CreateUserSession(U64 UserID, LPTASK ShellTask);
+BOOL ValidateUserSession(LPUSERSESSION Session);
+void DestroyUserSession(LPUSERSESSION Session);
 void TimeoutInactiveSessions(void);
 ```
 
 #### 2.3 Global User Context
+- In KERNELDATA Kernel
 ```c
-extern USER_SESSION CurrentUserSession;
-extern LPUSER_ACCOUNT CurrentUser;
+LPLIST (of USERSESSION) UserSessions;
+LPUSERACCOUNT CurrentUser;
 ```
 
-### Phase 3: User Syscalls
+### Phase 3: Syscalls
 
 #### 3.1 New Syscalls (slots 0x30-0x36)
 ```c
-// 0x30
 U32 SysCall_Login(U32 Parameter);
-// 0x31  
 U32 SysCall_Logout(U32 Parameter);
-// 0x32
 U32 SysCall_GetCurrentUser(U32 Parameter);
-// 0x33
 U32 SysCall_ChangePassword(U32 Parameter);
-// 0x34
 U32 SysCall_CreateUser(U32 Parameter);
-// 0x35
 U32 SysCall_DeleteUser(U32 Parameter);
-// 0x36
 U32 SysCall_ListUsers(U32 Parameter);
 ```
 
 #### 3.2 Parameter Structures
 ```c
 typedef struct tag_LOGIN_INFO {
-    STR UserName[32];
-    STR Password[32];
+    ABI_HEADER;
+    STR UserName[MAX_USER_NAME];
+    STR Password[MAX_PASSWORD];
 } LOGIN_INFO, *LPLOGIN_INFO;
 
 typedef struct tag_PASSWORD_CHANGE {
-    STR OldPassword[32];
-    STR NewPassword[32];
+    ABI_HEADER;
+    STR OldPassword[MAX_PASSWORD];
+    STR NewPassword[MAX_PASSWORD];
 } PASSWORD_CHANGE, *LPPASSWORD_CHANGE;
 ```
 
 ### Phase 4: Shell Commands
+- On startup, the shell should do one of two things :
+  - if no user account exists, do the add user command
+  - if a user account exists, do the login command
 
-#### 4.1 CMD_login
+#### 4.1 CMD_adduser (name "adduser", alt "newuser")
 - Secure prompt for username and password
-- Password masking (asterisk display)
+- Password masking (asterisk display) : a specialized version of ConsolePrint that can take flags
+- User account creation
+
+#### 4.2 CMD_deluser (name "deluser", alt "deleteuser")
+- Secure prompt for username
+- User account deletion
+
+#### 4.3 CMD_login (name "login", alt "login")
+- Secure prompt for username and password
+- Password masking (asterisk display) : a specialized version of ConsolePrint that can take flags
 - Validation and session creation
 - Shell prompt update with username
 
-#### 4.2 CMD_logout
+#### 4.4 CMD_logout (name "logout", alt "logout")
 - Current session destruction
 - Return to login prompt
 - Resource cleanup
 
-#### 4.3 CMD_whoami
+#### 4.5 CMD_whoami (name "whoami", alt "who")
 - Display current user
 - Session information (login time, etc.)
 
-#### 4.4 CMD_passwd
+#### 4.6 CMD_passwd (name "pass", alt "setpassword")
 - Password change
 - Old password verification
 - New password validation
-
-#### 4.5 Administrator Commands (CMD_useradd, CMD_userdel)
-- User creation/deletion
-- Reserved for privileged users
+- Accept blank passwords
 
 ### Phase 5: Extended Security Model
 
 #### 5.1 Extended Permissions
 ```c
+#define PERMISSION_NONE         0x00000000
 #define PERMISSION_READ         0x00000001
 #define PERMISSION_WRITE        0x00000002
 #define PERMISSION_EXECUTE      0x00000004
@@ -184,7 +205,7 @@ typedef struct tag_PASSWORD_CHANGE {
 ### Initialization Sequence
 
 1. **Kernel boot**
-2. **User database loading** (`/system/users.dat`)
+2. **User database loading** (`/system/users.database`)
 3. **Root user creation** if first execution
 4. **Shell launch** with login prompt
 5. **Login loop** until valid authentication

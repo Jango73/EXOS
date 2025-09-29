@@ -2,8 +2,8 @@
 
 ## TL;DR
 
-Old operating system for i386.
-Currently booting in qemu.
+Operating system for i386.
+Currently booting in QEMU and Bochs.
 
 ## What it is
 
@@ -16,7 +16,9 @@ Because it is a very long work, it will probably never be finished.
 
 ### Setup dependencies
 
-./scripts/1-setup-deps.sh
+./scripts/1-1-setup-deps.sh
+
+./scripts/1-2-setup-qemu.sh		<- if you want a recent QEMU (9.0.2)
 
 ### Build
 
@@ -24,14 +26,21 @@ Because it is a very long work, it will probably never be finished.
 
 ( or ./scripts/4-1-clean-build.sh to later build from a clean repo )
 
-(Output is in log/make.log)
-
 ### Run
 
-./scripts/5-1-start-qemu-hd.sh
+./scripts/5-1-start-qemu-ioapic-sata-e1000.sh
 
-( or 5-2-debug-qemu-hd.sh to debug )  
-( or 6-1-start-qemu-hd-nogfx.sh on a pure TTY Debian)
+( or 5-2-debug-qemu-ioapic-sata-e1000.sh to debug )
+( or 5-5-start-bochs.sh to use Bochs )
+
+## Dependencies
+
+### C language (no headers)
+
+### bcrypt
+Used for password hashing. Sources in third/bcrypt (under Apache 2.0, see third/bcrypt/README and third/bcrypt/LICENSE).
+Compiled files in kernel: bcrypt.c, blowfish.c.
+bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
 
 ## Historical background
 
@@ -39,39 +48,26 @@ In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS b
 Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, aiming to create a complete 32-bit OS from scratch.
 
 This was a year-long solo project, developed the hard way:
-- On a Pentium, without any debugger or VM
-- Relying on endless print statements to trace bugs
+- On a Pentium, in DOS environment, without any debugger or VM
+- Relying on endless console print statements to trace bugs
 - Learning everything on the fly as the project grew
-
-I stopped development when I hit a wall: the scheduler was too slow, I lost motivation at that time.
 
 ## Things it does
 
-* Task management with scheduler
-* Virtual memory management
-* File system management : FAT, FAT32, EXFS (EXOS file system)
-* ATA Hard disk driver
-* Console management
-* Basic keyboard and mouse management
-* Primitive graphics using VESA standard
-* Heap management
-* Process spawning, task spawning, scheduling
-* Shell with minimal functionality
-* Virtual file system with mount points
-* TOML configuration file
-
-## Things to do
-
-* Kernel pointer masking and ASLR (Address Space Layout Randomization)
-* Load ELF executables
-* Minimal network drivers
-* Add buffers for filesystem drivers
-* Improve the scheduler
-* Implement some file systems
-* Add some drivers/managers (USB, PCIe, NVMe)
-* Destroy processes (they live infinitely now)
-* Implement Unicode
-* Implement I18n
-* Add keyboard layouts
-* Continue graphics UI
-* and all the rest....
+- Virtual memory management
+- Heap management
+- Process spawning, task spawning, scheduling
+- File system management : FAT16, FAT32, EXFS (EXOS file system)
+- PCI devices management
+- ATA Hard disk driver
+- SATA/AHCI Hard disk driver
+- I/O APIC management
+- Console management
+- Basic keyboard and mouse management
+- Primitive graphics using VESA standard
+- Virtual file system with mount points
+- Shell with minimal functionality (no scripting yet)
+- Configuration with TOML format
+- E1000 network driver
+- ARP/IPv4/TCP network layers
+- Minimal HTTP client

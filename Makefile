@@ -1,6 +1,9 @@
-.PHONY: all kernel runtime hello portal boot-qemu boot-hd tools clean
+.PHONY: all kernel runtime system boot-qemu boot-hd tools clean
 
-all: kernel runtime hello portal boot-hd tools
+all: log kernel runtime system boot-hd tools
+
+log:
+	@mkdir -p log
 
 kernel:
 	@echo "[ Building kernel ]"
@@ -10,15 +13,11 @@ runtime:
 	@echo "[ Building runtime ]"
 	@$(MAKE) -C runtime
 
-hello:
-	@echo "[ Building hello ]"
-	@$(MAKE) -C hello
+system: runtime
+	@echo "[ Building system programs ]"
+	@$(MAKE) -C system
 
-portal:
-	@echo "[ Building portal ]"
-	@$(MAKE) -C portal
-
-boot-hd:
+boot-hd: kernel system
 	@echo "[ Building Qemu HD image ]"
 	@$(MAKE) -C boot-hd
 
@@ -30,8 +29,7 @@ clean:
 	@echo "[ Cleaning all ]"
 	@$(MAKE) -C kernel clean
 	@$(MAKE) -C runtime clean
-	@$(MAKE) -C hello clean
-	@$(MAKE) -C portal clean
+	@$(MAKE) -C system clean
 	@$(MAKE) -C boot-freedos clean
 	@$(MAKE) -C boot-hd clean
 	@$(MAKE) -C tools clean
