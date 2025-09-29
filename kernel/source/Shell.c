@@ -46,6 +46,7 @@
 #include "../include/UserAccount.h"
 #include "../include/UserSession.h"
 #include "../include/VKey.h"
+#include "../include/Script.h"
 
 /***************************************************************************/
 
@@ -68,6 +69,7 @@ typedef struct tag_SHELLCONTEXT {
     STRINGARRAY History;
     STRINGARRAY Options;
     PATHCOMPLETION PathCompletion;
+    LPSCRIPT_CONTEXT ScriptContext;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
 /***************************************************************************/
@@ -76,6 +78,11 @@ typedef struct tag_SHELLCONTEXT {
 typedef void (*SHELLCOMMAND)(LPSHELLCONTEXT);
 
 static void CMD_commands(LPSHELLCONTEXT);
+static void ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script);
+static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
+static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
+static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
+static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 static void CMD_cls(LPSHELLCONTEXT);
 static void CMD_dir(LPSHELLCONTEXT);
 static void ClearOptions(LPSHELLCONTEXT);
@@ -179,6 +186,16 @@ static void InitShellContext(LPSHELLCONTEXT This) {
         StringCopy(This->CurrentFolder, Root);
     }
 
+    // Initialize persistent script context
+    SCRIPT_CALLBACKS Callbacks = {
+        ShellScriptOutput,
+        ShellScriptExecuteCommand,
+        ShellScriptResolveVariable,
+        ShellScriptCallFunction,
+        This
+    };
+    This->ScriptContext = ScriptCreateContext(&Callbacks);
+
     DEBUG(TEXT("[InitShellContext] Exit"));
 }
 
@@ -196,6 +213,12 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
     StringArrayDeinit(&This->History);
     StringArrayDeinit(&This->Options);
     PathCompletionDeinit(&This->PathCompletion);
+
+    // Cleanup persistent script context
+    if (This->ScriptContext) {
+        ScriptDestroyContext(This->ScriptContext);
+        This->ScriptContext = NULL;
+    }
 
     DEBUG(TEXT("[DeinitShellContext] Exit"));
 }
@@ -1468,7 +1491,8 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
                 DEBUG(TEXT("Process started in background"));
             }
         } else {
-            return Spawn(QualifiedCommandLine);
+            U32 ExitCode = Spawn(QualifiedCommandLine);
+            return (ExitCode != MAX_U32);
         }
     }
 
@@ -1530,6 +1554,13 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
     U32 Index;
 
     DEBUG(TEXT("[ExecuteCommandLine] Executing: %s"), CommandLine);
+
+    // NEW: Check if this is script syntax before normal command processing
+    if (ScriptIsScriptSyntax(CommandLine)) {
+        DEBUG(TEXT("[ExecuteCommandLine] Detected script syntax, executing script"));
+        ExecuteScript(Context, CommandLine);
+        return;
+    }
 
     // Set up the command line in context
     StringCopy(Context->CommandLine, CommandLine);
@@ -1594,6 +1625,105 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[ParseCommand] Exit"));
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shell callback for script output.
+ * @param Message Message to output
+ * @param UserData Shell context (unused)
+ */
+static void ShellScriptOutput(LPCSTR Message, LPVOID UserData) {
+    UNUSED(UserData);
+    DEBUG(TEXT("[ShellScriptOutput] %s"), Message);
+    ConsolePrint(Message);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shell callback for script command execution.
+ * @param Command Command to execute
+ * @param UserData Shell context
+ * @return TRUE if command executed successfully
+ */
+static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
+    LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
+    DEBUG(TEXT("[ShellScriptExecuteCommand] Executing: %s"), Command);
+    ExecuteCommandLine(Context, Command);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shell callback for script variable resolution.
+ * @param VarName Variable name to resolve
+ * @param UserData Shell context (unused)
+ * @return Variable value or NULL if not found
+ */
+static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData) {
+    UNUSED(UserData);
+    DEBUG(TEXT("[ShellScriptResolveVariable] Resolving: %s"), VarName);
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shell callback for script function calls.
+ * @param FuncName Function name to call
+ * @param Argument String argument for the function
+ * @param UserData Shell context
+ * @return Function result (U32)
+ */
+static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
+    LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
+    DEBUG(TEXT("[ShellScriptCallFunction] Calling: %s with arg: %s"), FuncName, Argument);
+
+    if (StringCompare(FuncName, TEXT("spawn")) == 0) {
+        STR QualifiedCommandLine[MAX_PATH_NAME];
+
+        if (QualifyCommandLine(Context, Argument, QualifiedCommandLine)) {
+            U32 ExitCode = Spawn(QualifiedCommandLine);
+            DEBUG(TEXT("[ShellScriptCallFunction] spawn returned: %u"), ExitCode);
+            return ExitCode;
+        }
+
+        DEBUG(TEXT("[ShellScriptCallFunction] Failed to qualify command line"));
+        return MAX_U32;
+    }
+
+    DEBUG(TEXT("[ShellScriptCallFunction] Unknown function: %s"), FuncName);
+    return MAX_U32;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Execute a script (multi-line support).
+ * @param Context Shell context
+ * @param Script Script text to execute
+ */
+static void ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script) {
+    DEBUG(TEXT("[ExecuteScript] Enter - Script: %s"), Script);
+
+    if (Context->ScriptContext) {
+        DEBUG(TEXT("[ExecuteScript] Using persistent script context"));
+        SCRIPT_ERROR Error = ScriptExecute(Context->ScriptContext, Script);
+        if (Error != SCRIPT_OK) {
+            DEBUG(TEXT("[ExecuteScript] Script error %d: %s"), Error, ScriptGetErrorMessage(Context->ScriptContext));
+            ConsolePrint(TEXT("Script error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+        } else {
+            DEBUG(TEXT("[ExecuteScript] Script executed successfully"));
+        }
+    } else {
+        DEBUG(TEXT("[ExecuteScript] No persistent script context available"));
+        ConsolePrint(TEXT("Script context not available\n"));
+    }
+
+    DEBUG(TEXT("[ExecuteScript] Exit"));
 }
 
 /************************************************************************/

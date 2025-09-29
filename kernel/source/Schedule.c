@@ -562,33 +562,58 @@ void Scheduler(void) {
 
 /************************************************************************/
 
-static BOOL IsObjectSignaled(HANDLE Object) {
+static BOOL MatchObject(LPVOID Data, LPVOID Context) {
+    LPOBJECT_TERMINATION_STATE State = (LPOBJECT_TERMINATION_STATE)Data;
+    return (State->Object == Context);
+}
+
+/************************************************************************/
+
+static BOOL IsObjectSignaled(LPVOID Object) {
     BOOL IsSignaled = FALSE;
 
-    // First check if object still exists in kernel lists
-    if (!ObjectExists(Object)) {
-        DEBUG("[IsObjectSignaled] Object %x no longer exists in kernel lists - marking as signaled", Object);
+    LockMutex(MUTEX_KERNEL, INFINITY);
+
+    // First check termination cache
+    LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)CacheFind(
+        &Kernel.ObjectTerminationCache,
+        MatchObject,
+        Object
+    );
+
+    if (TermState != NULL) {
+        DEBUG(TEXT("[IsObjectSignaled] Object %x found in termination cache - marking as signaled"), Object);
+        UnlockMutex(MUTEX_KERNEL);
         return TRUE;
     }
 
-    // Object exists, check its signaled state based on type
-    LPLISTNODE Item = (LPLISTNODE)Object;
-
-    if (Item->ID == ID_PROCESS) {
-        LPPROCESS Process = (LPPROCESS)Object;
-        if (Process->Status == PROCESS_STATUS_DEAD) {
-            DEBUG("[IsObjectSignaled] Process %x is dead - marking as signaled", Process);
-            IsSignaled = TRUE;
-        }
-    } else if (Item->ID == ID_TASK) {
-        LPTASK Task = (LPTASK)Object;
-        if (GetTaskStatus(Task) == TASK_STATUS_DEAD) {
-            DEBUG("[IsObjectSignaled] Task %x is dead - marking as signaled", Task);
-            IsSignaled = TRUE;
-        }
-    }
+    UnlockMutex(MUTEX_KERNEL);
 
     return IsSignaled;
+}
+
+/************************************************************************/
+
+static U32 GetObjectExitCode(LPVOID Object) {
+
+    LockMutex(MUTEX_KERNEL, INFINITY);
+
+    // First check termination cache
+    LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)CacheFind(
+        &Kernel.ObjectTerminationCache,
+        MatchObject,
+        Object
+    );
+
+    if (TermState != NULL) {
+        DEBUG(TEXT("[GetObjectExitCode] Object %x found in termination cache, ExitCode=%u"), Object, TermState->ExitCode);
+        UnlockMutex(MUTEX_KERNEL);
+        return TermState->ExitCode;
+    }
+
+    UnlockMutex(MUTEX_KERNEL);
+
+    return MAX_U32;
 }
 
 /************************************************************************/
@@ -613,14 +638,25 @@ U32 Wait(LPWAITINFO WaitInfo) {
     while (TRUE) {
         U32 SignaledCount = 0;
 
+        // Count signaled objects
+        for (Index = 0; Index < WaitInfo->Count; Index++) {
+            if (IsObjectSignaled((LPVOID)WaitInfo->Objects[Index])) {
+                SignaledCount++;
+            }
+        }
+
         if (WaitInfo->Flags & WAIT_FLAG_ALL) {
             if (SignaledCount == WaitInfo->Count) {
+                for (Index = 0; Index < WaitInfo->Count; Index++) {
+                    WaitInfo->ExitCodes[Index] = GetObjectExitCode((LPVOID)WaitInfo->Objects[Index]);
+                }
                 return WAIT_OBJECT_0;
             }
         } else {
             if (SignaledCount > 0) {
                 for (Index = 0; Index < WaitInfo->Count; Index++) {
-                    if (IsObjectSignaled(WaitInfo->Objects[Index])) {
+                    if (IsObjectSignaled((LPVOID)WaitInfo->Objects[Index])) {
+                        WaitInfo->ExitCodes[Index] = GetObjectExitCode((LPVOID)WaitInfo->Objects[Index]);
                         return WAIT_OBJECT_0 + Index;
                     }
                 }
@@ -637,7 +673,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
 
         // Periodic debug output every 2 seconds
         if (CurrentTime - LastDebugTime >= 2000) {
-            DEBUG("[Wait] Task %x waiting for %u objects for %u ms",
+            DEBUG(TEXT("[Wait] Task %x waiting for %u objects for %u ms"),
                   CurrentTask, WaitInfo->Count, CurrentTime - StartTime);
             LastDebugTime = CurrentTime;
         }
@@ -646,4 +682,6 @@ U32 Wait(LPWAITINFO WaitInfo) {
         Sleep(50);
         SetTaskStatus(CurrentTask, TASK_STATUS_RUNNING);
     }
+
+    return WAIT_TIMEOUT;
 }

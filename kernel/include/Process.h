@@ -73,11 +73,12 @@ struct tag_PROCESS {
     PHYSICAL PageDirectory;  // This process' page directory
     LINEAR HeapBase;
     U32 HeapSize;
+    U32 ExitCode;            // This process' exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
     U32 TaskCount;           // Number of active tasks in this process
     U64 UserID;              // Owner user
-    LPUSERSESSION Session;  // User session
+    LPUSERSESSION Session;   // User session
 };
 
 /************************************************************************/
@@ -183,13 +184,14 @@ extern DESKTOP MainDesktop;
 // Functions in Process.c
 
 void InitializeKernelProcess(void);
-LINEAR GetProcessHeap(LPPROCESS);
 void DumpProcess(LPPROCESS);
 void KillProcess(LPPROCESS);
 void DeleteProcessCommit(LPPROCESS);
 void InitSecurity(LPSECURITY);
 BOOL CreateProcess(LPPROCESSINFO);
-BOOL Spawn(LPCSTR);
+U32 Spawn(LPCSTR);
+void SetProcessStatus(LPPROCESS Process, U32 Status);
+LINEAR GetProcessHeap(LPPROCESS);
 LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
 

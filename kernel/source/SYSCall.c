@@ -213,9 +213,10 @@ U32 SysCall_KillTask(U32 Parameter) { return (U32)KillTask((LPTASK)Parameter); }
 
 /***************************************************************************/
 
-U32 SysCall_KillMe(U32 Parameter) {
-    UNUSED(Parameter);
-    return (U32)KillTask(GetCurrentTask());
+U32 SysCall_Exit(U32 Parameter) {
+    LPTASK Task = GetCurrentTask();
+    SetTaskExitCode(Task, Parameter);
+    return (U32)KillTask(Task);
 }
 
 /***************************************************************************/

@@ -25,6 +25,7 @@ Plan to integrate minimal scripting capabilities into Shell.c for EXOS. This wil
 - **Block Delimiters**: Parse `{` and `}` for command grouping
 - **Nested Blocks**: Support for nested block structures
 - **Block Execution**: Sequential execution of commands within blocks
+- **Variable scope**: Scope concept : a block (even the root block) accesses variables within its scope and parent scopes
 - **Error Handling**: Proper error reporting for malformed blocks
 
 ### 4. Control Flow Structures
@@ -58,29 +59,45 @@ Plan to integrate minimal scripting capabilities into Shell.c for EXOS. This wil
 ## Implementation Phases
 
 ### Phase 1: Basic Variables and Expressions
-1. Implement variable storage system
-2. Create basic tokenizer for expressions
-3. Add support for assignment operator (`=`)
-4. Implement arithmetic operations (`+`, `-`, `*`, `/`)
-5. Add parentheses support for expression grouping
+1. [X] Implement variable storage system
+2. [X] Create basic tokenizer for expressions
+3. [X] Add support for assignment operator (`=`)
+4. [X] Implement arithmetic operations (`+`, `-`, `*`, `/`)
+5. [X] Add parentheses support for expression grouping
 
 ### Phase 2: Comparisons and Arrays
-1. Implement comparison operators (`<`, `<=`, `>`, `>=`, `==`)
-2. Add array variable support with indexing
-3. Extend tokenizer to handle array syntax
-4. Test variable resolution in existing shell commands
+1. [X] Implement comparison operators (`<`, `<=`, `>`, `>=`, `==`)
+2. [X] Add array variable support with indexing
+3. [X] Extend tokenizer to handle array syntax
+4. [X] Test variable resolution in existing shell commands
 
 ### Phase 3: Control Flow
-1. Implement command block parsing (`{`, `}`)
-2. Add if statement support with condition evaluation
-3. Create for loop implementation
-4. Add nested block support
+1. [X] Implement command block parsing (`{`, `}`)
+2. [X] Add if statement support with condition evaluation
+3. [X] Create for loop implementation
+4. [X] Add nested block support with proper variable scoping
 
 ### Phase 4: Integration and Polish
-1. Integrate scripting with existing shell functionality
-2. Add comprehensive error handling and reporting
-3. Implement memory cleanup and resource management
-4. Performance optimization and testing
+1. [X] Integrate scripting with existing shell functionality
+2. [ ] Add comprehensive error handling and reporting
+3. [X] Implement memory cleanup and resource management
+4. [ ] Performance optimization and testing
+
+### Phase 5: Program Return Value Capture
+1. [X] Add U32 ExitCode field to TASK and PROCESS structures
+2. [X] TaskRunner calls SYSCALL_Exit with exit code
+3. [X] Modify Spawn() to return actual exit code instead of BOOL
+4. [X] Add spawn() function support in scripting syntax
+5. [X] Update ShellScriptExecuteCommand to handle return values
+6. [X ] Test program return value capture in scripts
+
+### Phase 6: Robust signaling mechanism (GetObjectExitCode can miss the code if data is deleted)
+
+1. [X] Add a module to manage a dynamic array in which each element has a TTL (time to live)
+2. [X] Use the module to store the finished state and exit code of each object (task, process, ...) with a 1 min TTL
+3. [X] Put the TTL signal array in a dedicated field (ObjectTerminationState) in KernelData and use the kernel monitor to update TTL arrays
+4. [X] Processes and tasks must store their exit code in Kernel.ObjectTerminationState
+5. [X] Use the Kernel.ObjectTerminationState to get finished state and object exit codes in IsObjectSignaled()
 
 ## Syntax Examples
 
@@ -109,6 +126,18 @@ for (i = 0; i < 10; i = i + 1) {
 }
 ```
 
+### Program Execution with Return Values
+```bash
+// Execute program and capture return value
+result = spawn("/system/APPS/HELLO");
+if (result == 0) {
+    success = 1;
+}
+
+// Use return value in expressions
+total = spawn("/system/APPS/CALC") + 10;
+```
+
 ## Technical Considerations
 
 ### Memory Management
@@ -130,6 +159,14 @@ for (i = 0; i < 10; i = i + 1) {
 - Preserve existing shell command functionality
 - Ensure scripting features don't interfere with normal operation
 - Maintain backward compatibility with current shell usage
+
+### Program Return Value Implementation
+- **Process Structure**: Add U32 ExitCode field to PROCESS structure
+- **Runtime Integration**: Modify runtime/__start__ to capture eax from exosmain() return
+- **Main Task Detection**: If terminating task is main task, set process exit code
+- **Spawn Function**: Modify Spawn() to return I32 exit code instead of BOOL success
+- **Script Integration**: Add spawn() as built-in function in expression parser
+- **Command Execution**: Update ShellScriptExecuteCommand to handle spawn() calls
 
 ## Testing Strategy
 1. Unit tests for individual components (tokenizer, parser, evaluator)

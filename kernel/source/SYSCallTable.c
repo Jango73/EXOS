@@ -76,6 +76,7 @@ void InitializeSystemCalls(void) {
     // Threading Services
     SysCallTable[SYSCALL_CreateTask] = (SYSCALLENTRY){SysCall_CreateTask, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_KillTask] = (SYSCALLENTRY){SysCall_KillTask, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_Exit] = (SYSCALLENTRY){SysCall_Exit, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_SuspendTask] = (SYSCALLENTRY){SysCall_SuspendTask, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ResumeTask] = (SYSCALLENTRY){SysCall_ResumeTask, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_Sleep] = (SYSCALLENTRY){SysCall_Sleep, EXOS_PRIVILEGE_USER};
@@ -114,7 +115,6 @@ void InitializeSystemCalls(void) {
     SysCallTable[SYSCALL_ConsolePrint] = (SYSCALLENTRY){SysCall_ConsolePrint, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGetString] = (SYSCALLENTRY){SysCall_ConsoleGetString, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGotoXY] = (SYSCALLENTRY){SysCall_ConsoleGotoXY, EXOS_PRIVILEGE_USER};
-    SysCallTable[SYSCALL_KillMe] = (SYSCALLENTRY){SysCall_KillMe, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ClearScreen] = (SYSCALLENTRY){SysCall_ClearScreen, EXOS_PRIVILEGE_USER};
 
     // Authentication Services

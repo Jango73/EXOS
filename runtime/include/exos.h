@@ -47,7 +47,7 @@ typedef struct tag_MESSAGE {
 
 HANDLE CreateTask(LPTASKINFO);
 BOOL KillTask(HANDLE);
-void KillMe(void);
+void Exit(void);
 void Sleep(U32);
 U32 Wait(LPWAITINFO);
 BOOL GetMessage(HANDLE, LPMESSAGE, U32, U32);

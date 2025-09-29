@@ -308,8 +308,7 @@ void KillProcess(LPPROCESS This) {
                     }
 
                     // Mark the child process as DEAD
-                    ChildProcess->Status = PROCESS_STATUS_DEAD;
-                    DEBUG(TEXT("[KillProcess] Marked child process %s as DEAD"), ChildProcess->FileName);
+                    SetProcessStatus(ChildProcess, PROCESS_STATUS_DEAD);
                 }
             }
         } else {
@@ -344,8 +343,7 @@ void KillProcess(LPPROCESS This) {
         }
 
         // Mark the target process as DEAD
-        This->Status = PROCESS_STATUS_DEAD;
-        DEBUG(TEXT("[KillProcess] Marked target process %s as DEAD"), This->FileName);
+        SetProcessStatus(This, PROCESS_STATUS_DEAD);
 
         // Finally unlock the process mutex
         UnlockMutex(MUTEX_PROCESS);
@@ -356,7 +354,7 @@ void KillProcess(LPPROCESS This) {
     TRACED_EPILOGUE("KillProcess");
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Create a new process from an executable file.
@@ -662,12 +660,12 @@ Out:
 /***************************************************************************/
 
 /**
- * @brief Create a new process using a full command line.
+ * @brief Create a new process using a full command line and wait for it to complete.
  *
  * @param CommandLine Full command line including executable name and arguments.
- * @return TRUE on success, FALSE otherwise.
+ * @return The process exit code on success, MAX_U32 on failure.
  */
-BOOL Spawn(LPCSTR CommandLine) {
+U32 Spawn(LPCSTR CommandLine) {
     DEBUG(TEXT("[Spawn] Launching : %s"), CommandLine);
 
     PROCESSINFO ProcessInfo;
@@ -686,7 +684,7 @@ BOOL Spawn(LPCSTR CommandLine) {
     StringCopy(ProcessInfo.CommandLine, CommandLine);
 
     if (!CreateProcess(&ProcessInfo) || ProcessInfo.Process == NULL) {
-        return FALSE;
+        return MAX_U32;
     }
 
     // Wait for the process to complete
@@ -701,14 +699,31 @@ BOOL Spawn(LPCSTR CommandLine) {
 
     if (Result == WAIT_TIMEOUT) {
         DEBUG(TEXT("[Spawn] Process wait timed out"));
-        return FALSE;
+        return MAX_U32;
     } else if (Result != WAIT_OBJECT_0) {
         DEBUG(TEXT("[Spawn] Process wait failed: %d"), Result);
-        return FALSE;
+        return MAX_U32;
     }
 
-    DEBUG(TEXT("[Spawn] Process completed successfully"));
-    return TRUE;
+    DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %d"), WaitInfo.ExitCodes[0]);
+    return WaitInfo.ExitCodes[0];
+}
+
+/************************************************************************/
+
+void SetProcessStatus(LPPROCESS This, U32 Status) {
+    LockMutex(MUTEX_PROCESS, INFINITY);
+
+    SAFE_USE_VALID_ID(This, ID_PROCESS) {
+        This->Status = PROCESS_STATUS_DEAD;
+
+        DEBUG(TEXT("[SetProcessStatus] Marked process %s as DEAD"), This->FileName);
+
+        // Store termination state in cache before process is destroyed
+        StoreObjectTerminationState(This, This->ExitCode);
+    }
+
+    UnlockMutex(MUTEX_PROCESS);
 }
 
 /***************************************************************************/

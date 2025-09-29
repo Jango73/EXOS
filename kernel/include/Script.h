@@ -1,0 +1,186 @@
+/************************************************************************\
+
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    Script Engine - Phase 1: Variables and Expressions
+
+\************************************************************************/
+
+#pragma once
+
+#include "Base.h"
+#include "List.h"
+
+/************************************************************************/
+
+#define MAX_VAR_NAME 64
+#define MAX_TOKEN_LENGTH 128
+#define MAX_ERROR_MESSAGE 256
+#define SCRIPT_VAR_HASH_SIZE 32
+
+/************************************************************************/
+
+typedef enum {
+    SCRIPT_VAR_STRING,
+    SCRIPT_VAR_INTEGER,
+    SCRIPT_VAR_FLOAT,
+    SCRIPT_VAR_ARRAY
+} SCRIPT_VAR_TYPE;
+
+typedef struct {
+    LPVOID* Elements;
+    SCRIPT_VAR_TYPE* ElementTypes;
+    U32 Size;
+    U32 Capacity;
+} SCRIPT_ARRAY, *LPSCRIPT_ARRAY;
+
+typedef union {
+    LPSTR String;
+    I32 Integer;
+    F32 Float;
+    LPSCRIPT_ARRAY Array;
+} SCRIPT_VAR_VALUE;
+
+typedef struct tag_SCRIPT_VARIABLE {
+    LISTNODE_FIELDS;
+    STR Name[MAX_VAR_NAME];
+    SCRIPT_VAR_TYPE Type;
+    SCRIPT_VAR_VALUE Value;
+    U32 RefCount;
+} SCRIPT_VARIABLE, *LPSCRIPT_VARIABLE;
+
+typedef struct tag_SCRIPT_SCOPE {
+    LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
+    U32 Count;
+    struct tag_SCRIPT_SCOPE* Parent;
+    U32 ScopeLevel;
+} SCRIPT_SCOPE, *LPSCRIPT_SCOPE;
+
+typedef struct {
+    LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
+    U32 Count;
+} SCRIPT_VAR_TABLE, *LPSCRIPT_VAR_TABLE;
+
+/************************************************************************/
+
+typedef enum {
+    TOKEN_EOF,
+    TOKEN_IDENTIFIER,
+    TOKEN_NUMBER,
+    TOKEN_STRING,
+    TOKEN_OPERATOR,
+    TOKEN_LPAREN,
+    TOKEN_RPAREN,
+    TOKEN_LBRACKET,
+    TOKEN_RBRACKET,
+    TOKEN_SEMICOLON,
+    TOKEN_COMPARISON,
+    TOKEN_LBRACE,
+    TOKEN_RBRACE,
+    TOKEN_IF,
+    TOKEN_ELSE,
+    TOKEN_FOR
+} TOKEN_TYPE;
+
+typedef struct {
+    TOKEN_TYPE Type;
+    STR Value[MAX_TOKEN_LENGTH];
+    F32 NumValue;
+    U32 Position;
+} SCRIPT_TOKEN, *LPSCRIPT_TOKEN;
+
+/************************************************************************/
+
+typedef enum {
+    SCRIPT_OK = 0,
+    SCRIPT_ERROR_SYNTAX,
+    SCRIPT_ERROR_UNDEFINED_VAR,
+    SCRIPT_ERROR_TYPE_MISMATCH,
+    SCRIPT_ERROR_DIVISION_BY_ZERO,
+    SCRIPT_ERROR_OUT_OF_MEMORY,
+    SCRIPT_ERROR_UNMATCHED_BRACE
+} SCRIPT_ERROR;
+
+/************************************************************************/
+
+typedef void (*SCRIPT_OUTPUT_CALLBACK)(LPCSTR Message, LPVOID UserData);
+typedef BOOL (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
+typedef LPCSTR (*SCRIPT_VARIABLE_RESOLVER)(LPCSTR VarName, LPVOID UserData);
+typedef U32 (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+
+typedef struct {
+    SCRIPT_OUTPUT_CALLBACK Output;
+    SCRIPT_COMMAND_CALLBACK ExecuteCommand;
+    SCRIPT_VARIABLE_RESOLVER ResolveVariable;
+    SCRIPT_FUNCTION_CALLBACK CallFunction;
+    LPVOID UserData;
+} SCRIPT_CALLBACKS, *LPSCRIPT_CALLBACKS;
+
+/************************************************************************/
+
+typedef struct {
+    LPCSTR Input;
+    U32 Position;
+    SCRIPT_TOKEN CurrentToken;
+    LPSCRIPT_VAR_TABLE Variables;
+    LPSCRIPT_CALLBACKS Callbacks;
+    LPSCRIPT_SCOPE CurrentScope;
+} SCRIPT_PARSER, *LPSCRIPT_PARSER;
+
+typedef struct {
+    SCRIPT_VAR_TABLE Variables;
+    SCRIPT_CALLBACKS Callbacks;
+    LPVOID HeapBase;
+    SCRIPT_ERROR ErrorCode;
+    STR ErrorMessage[MAX_ERROR_MESSAGE];
+    LPSCRIPT_SCOPE GlobalScope;
+    LPSCRIPT_SCOPE CurrentScope;
+} SCRIPT_CONTEXT, *LPSCRIPT_CONTEXT;
+
+/************************************************************************/
+
+LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks);
+void ScriptDestroyContext(LPSCRIPT_CONTEXT Context);
+
+SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script);
+BOOL ScriptIsScriptSyntax(LPCSTR Line);
+
+LPSCRIPT_VARIABLE ScriptSetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
+LPSCRIPT_VARIABLE ScriptGetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);
+void ScriptDeleteVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);
+
+SCRIPT_ERROR ScriptGetLastError(LPSCRIPT_CONTEXT Context);
+LPCSTR ScriptGetErrorMessage(LPSCRIPT_CONTEXT Context);
+
+// Array support functions
+LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity);
+void ScriptDestroyArray(LPSCRIPT_ARRAY Array);
+SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
+SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value);
+LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
+LPSCRIPT_VARIABLE ScriptGetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index);
+
+// Scope management functions
+LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_SCOPE Parent);
+void ScriptDestroyScope(LPSCRIPT_SCOPE Scope);
+LPSCRIPT_SCOPE ScriptPushScope(LPSCRIPT_CONTEXT Context);
+void ScriptPopScope(LPSCRIPT_CONTEXT Context);
+LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, BOOL SearchParents);
+LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
+
+/************************************************************************/

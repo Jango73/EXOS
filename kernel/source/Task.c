@@ -228,7 +228,11 @@ void DeleteTask(LPTASK This) {
             if (This->Process->TaskCount == 0) {
                 DEBUG(TEXT("[DeleteTask] Process %s has no more tasks, marking as DEAD"),
                     This->Process->FileName);
-                This->Process->Status = PROCESS_STATUS_DEAD;
+
+                // Set process exit code to last task's exit code
+                This->Process->ExitCode = This->ExitCode;
+
+                SetProcessStatus(This->Process, PROCESS_STATUS_DEAD);
 
                 // Apply child process policy
                 if (This->Process->Flags & PROCESS_CREATE_KILL_CHILDREN_ON_DEATH) {
@@ -259,7 +263,7 @@ void DeleteTask(LPTASK This) {
                                 }
 
                                 // Mark child process as DEAD
-                                Current->Status = PROCESS_STATUS_DEAD;
+                                SetProcessStatus(Current, PROCESS_STATUS_DEAD);
                             }
                         }
                         Current = Next;
@@ -397,7 +401,10 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
             Process->TaskCount);
         UnlockMutex(MUTEX_PROCESS);
     }
-    Task->Type = (Process->Privilege == PRIVILEGE_KERNEL) ? TASK_TYPE_KERNEL_OTHER : TASK_TYPE_USER;
+
+    Task->Type = (Process->Privilege == PRIVILEGE_KERNEL) ?
+        TASK_TYPE_KERNEL_OTHER :
+        Process->TaskCount == 0 ? TASK_TYPE_USER_MAIN : TASK_TYPE_USER_OTHER;
 
     SetTaskWakeUpTime(Task, ComputeTaskQuantumTime(Task->Priority));
 
@@ -606,6 +613,28 @@ BOOL KillTask(LPTASK Task) {
 
 /************************************************************************/
 
+BOOL SetTaskExitCode(LPTASK Task, U32 Code) {
+    SAFE_USE_VALID_ID(Task, ID_TASK) {
+        LockMutex(MUTEX_KERNEL, INFINITY);
+
+        Task->ExitCode = Code;
+
+        if (Task->Type == TASK_TYPE_USER_MAIN) {
+            SAFE_USE_VALID_ID(Task->Process, ID_PROCESS) {
+                Task->Process->ExitCode = Code;
+            }
+        }
+
+        UnlockMutex(MUTEX_KERNEL);
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Removes and deallocates all tasks and processes marked as DEAD.
  *
@@ -801,6 +830,11 @@ void SetTaskStatus(LPTASK Task, U32 Status) {
         FreezeScheduler();
 
         Task->Status = Status;
+
+        if (Task->Status == TASK_STATUS_DEAD) {
+            // Store termination state in cache before task is destroyed
+            StoreObjectTerminationState(Task, Task->ExitCode);
+        }
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
         DEBUG(TEXT("[SetTaskStatus] Task %x (%s): %X -> %x"), Task, Task->Name, OldStatus, Status);
@@ -1399,23 +1433,21 @@ Out:
 void DumpTask(LPTASK Task) {
     LockMutex(&(Task->Mutex), INFINITY);
 
-    KernelLogText(LOG_VERBOSE, TEXT("Address         : %X"), Task);
+    KernelLogText(LOG_VERBOSE, TEXT("Address         : %x"), Task);
     KernelLogText(LOG_VERBOSE, TEXT("Task Name       : %s"), Task->Name);
     KernelLogText(LOG_VERBOSE, TEXT("References      : %d"), Task->References);
-    KernelLogText(LOG_VERBOSE, TEXT("Process         : %X"), Task->Process);
-    KernelLogText(LOG_VERBOSE, TEXT("Status          : %X"), Task->Status);
-    KernelLogText(LOG_VERBOSE, TEXT("Priority        : %X"), Task->Priority);
-    KernelLogText(LOG_VERBOSE, TEXT("Function        : %X"), Task->Function);
-    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %X"), Task->Parameter);
-    KernelLogText(LOG_VERBOSE, TEXT("ReturnValue     : %X"), Task->ReturnValue);
-    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %X"), Task->StackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %X"), Task->StackSize);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %X"), Task->SysStackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %X"), Task->SysStackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("Process         : %x"), Task->Process);
+    KernelLogText(LOG_VERBOSE, TEXT("Status          : %x"), Task->Status);
+    KernelLogText(LOG_VERBOSE, TEXT("Priority        : %x"), Task->Priority);
+    KernelLogText(LOG_VERBOSE, TEXT("Function        : %x"), Task->Function);
+    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %x"), Task->Parameter);
+    KernelLogText(LOG_VERBOSE, TEXT("ExitCode        : %x"), Task->ExitCode);
+    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %x"), Task->StackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %x"), Task->StackSize);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %x"), Task->SysStackBase);
+    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %x"), Task->SysStackSize);
     KernelLogText(LOG_VERBOSE, TEXT("WakeUpTime      : %d"), Task->WakeUpTime);
     KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d"), Task->Message->NumItems);
 
     UnlockMutex(&(Task->Mutex));
 }
-
-/************************************************************************/

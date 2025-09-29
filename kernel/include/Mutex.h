@@ -27,6 +27,10 @@
 
 /************************************************************************/
 
+#include "List.h"
+
+/************************************************************************/
+
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 

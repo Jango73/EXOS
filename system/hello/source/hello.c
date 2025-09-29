@@ -30,6 +30,7 @@
 int exosmain(int argc, char** argv) {
     UNUSED(argc);
     UNUSED(argv);
+
     printf("Shall I compare thee to a summer's day?\n");
     printf("Thou art more lovely and more temperate:\n");
     printf("Rough winds do shake the darling buds of May,\n");
@@ -55,7 +56,7 @@ int exosmain(int argc, char** argv) {
     printf("So long lives this, and this gives life to thee.\n\n");
     printf("-- William Shakespeare, Sonnet 18\n\n");
 
-    return 0;
+    return 0xDEAD;
 }
 
 /***************************************************************************/

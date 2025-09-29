@@ -57,7 +57,7 @@ U32 SysCall_KillProcess(U32 Parameter);
 U32 SysCall_GetProcessInfo(U32 Parameter);
 U32 SysCall_CreateTask(U32 Parameter);
 U32 SysCall_KillTask(U32 Parameter);
-U32 SysCall_KillMe(U32 Parameter);
+U32 SysCall_Exit(U32 Parameter);
 U32 SysCall_SuspendTask(U32 Parameter);
 U32 SysCall_ResumeTask(U32 Parameter);
 U32 SysCall_Sleep(U32 Parameter);

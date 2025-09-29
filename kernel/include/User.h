@@ -105,6 +105,7 @@ typedef struct tag_ABI_HEADER {
 
 #define SYSCALL_CreateTask 0x0000000B
 #define SYSCALL_KillTask 0x0000000C
+#define SYSCALL_Exit 0x00000033
 #define SYSCALL_SuspendTask 0x0000000D
 #define SYSCALL_ResumeTask 0x0000000E
 #define SYSCALL_Sleep 0x0000000F
@@ -155,7 +156,6 @@ typedef struct tag_ABI_HEADER {
 #define SYSCALL_ConsolePrint 0x00000030
 #define SYSCALL_ConsoleGetString 0x00000031
 #define SYSCALL_ConsoleGotoXY 0x00000032
-#define SYSCALL_KillMe 0x00000033
 #define SYSCALL_ClearScreen 0x00000034
 
 /************************************************************************/
@@ -243,6 +243,11 @@ typedef struct tag_ABI_HEADER {
 #define SYSCALL_Last 0x00000077
 
 /************************************************************************/
+// Structure limits
+
+#define WAITINFO_MAX_OBJECTS 32
+
+/************************************************************************/
 // ABI Data Structures
 
 // A function for a thread entry
@@ -301,13 +306,6 @@ typedef struct tag_TASKINFO {
     STR Name[MAX_USER_NAME];
 } TASKINFO, *LPTASKINFO;
 
-#define TASK_PRIORITY_LOWEST 0x00
-#define TASK_PRIORITY_LOWER 0x04
-#define TASK_PRIORITY_MEDIUM 0x08
-#define TASK_PRIORITY_HIGHER 0x0C
-#define TASK_PRIORITY_HIGHEST 0x10
-#define TASK_PRIORITY_CRITICAL 0xFF
-
 typedef struct tag_MESSAGEINFO {
     ABI_HEADER Header;
     DATETIME Time;
@@ -326,22 +324,14 @@ typedef struct tag_MUTEXINFO {
     U32 MilliSeconds;
 } MUTEXINFO, *LPMUTEXINFO;
 
-#define WAITINFO_MAX_OBJECTS 8
-
 typedef struct tag_WAITINFO {
     ABI_HEADER Header;
     U32 Count;
     U32 MilliSeconds;
     U32 Flags;
     HANDLE Objects[WAITINFO_MAX_OBJECTS];
+    U32 ExitCodes[WAITINFO_MAX_OBJECTS];
 } WAITINFO, *LPWAITINFO;
-
-#define WAIT_FLAG_ANY 0x00000000
-#define WAIT_FLAG_ALL 0x00000001
-
-#define WAIT_INVALID_PARAMETER 0xFFFFFFFF
-#define WAIT_TIMEOUT 0x00000102
-#define WAIT_OBJECT_0 0x00000000
 
 typedef struct tag_ALLOCREGIONINFO {
     ABI_HEADER Header;
@@ -356,15 +346,6 @@ typedef struct tag_HEAPREALLOCINFO {
     LPVOID Pointer;  // Pointer to existing memory block, or NULL
     U32 Size;        // New size of memory block in bytes
 } HEAPREALLOCINFO, *LPHEAPREALLOCINFO;
-
-#define ALLOC_PAGES_RESERVE 0x00000000
-#define ALLOC_PAGES_COMMIT 0x00000001
-#define ALLOC_PAGES_READONLY 0x00000000
-#define ALLOC_PAGES_READWRITE 0x00000002
-#define ALLOC_PAGES_UC 0x00000004          // Uncached (for MMIO/BAR mappings)
-#define ALLOC_PAGES_WC 0x00000008          // Write-combining (rare; mostly for framebuffers)
-#define ALLOC_PAGES_IO 0x00000010          // Exact PMA mapping for IO (BAR) -> do not touch RAM bitmap
-#define ALLOC_PAGES_AT_OR_OVER 0x00000020  // If a linear address is specified, can allocate anywhere above it
 
 typedef struct tag_ENUMVOLUMESINFO {
     ABI_HEADER Header;
@@ -548,51 +529,6 @@ typedef struct tag_CURRENT_USER_INFO {
 } CURRENT_USER_INFO, *LPCURRENT_USER_INFO;
 
 /************************************************************************/
-// Socket Constants
-
-// Socket Address Family
-#define SOCKET_AF_UNSPEC    0
-#define SOCKET_AF_INET      2
-#define SOCKET_AF_INET6     10
-
-// Socket Type
-#define SOCKET_TYPE_STREAM     1  // TCP
-#define SOCKET_TYPE_DGRAM      2  // UDP
-#define SOCKET_TYPE_RAW        3  // Raw socket
-
-// Socket Protocol
-#define SOCKET_PROTOCOL_IP     0
-#define SOCKET_PROTOCOL_TCP    6
-#define SOCKET_PROTOCOL_UDP    17
-
-// Socket States
-#define SOCKET_STATE_CLOSED       0
-#define SOCKET_STATE_CREATED      1
-#define SOCKET_STATE_BOUND        2
-#define SOCKET_STATE_LISTENING    3
-#define SOCKET_STATE_CONNECTING   4
-#define SOCKET_STATE_CONNECTED    5
-#define SOCKET_STATE_CLOSING      6
-
-// Socket Error Codes
-#define SOCKET_ERROR_NONE         0
-#define SOCKET_ERROR_INVALID      -1
-#define SOCKET_ERROR_NOMEM        -2
-#define SOCKET_ERROR_INUSE        -3
-#define SOCKET_ERROR_NOTBOUND     -4
-#define SOCKET_ERROR_NOTLISTENING -5
-#define SOCKET_ERROR_NOTCONNECTED -6
-#define SOCKET_ERROR_WOULDBLOCK   -7
-#define SOCKET_ERROR_CONNREFUSED  -8
-#define SOCKET_ERROR_TIMEOUT      -9
-#define SOCKET_ERROR_MSGSIZE      -10
-
-// Socket Shutdown Types
-#define SOCKET_SHUTDOWN_READ      0
-#define SOCKET_SHUTDOWN_WRITE     1
-#define SOCKET_SHUTDOWN_BOTH      2
-
-/************************************************************************/
 // Socket Syscall Structures
 
 typedef struct tag_SOCKET_CREATE_INFO {
@@ -670,7 +606,30 @@ typedef struct tag_SOCKET_ADDRESS_INET {
 } SOCKET_ADDRESS_INET, *LPSOCKET_ADDRESS_INET;
 
 /************************************************************************/
-// File flags
+// Flags
+
+#define TASK_PRIORITY_LOWEST 0x00
+#define TASK_PRIORITY_LOWER 0x04
+#define TASK_PRIORITY_MEDIUM 0x08
+#define TASK_PRIORITY_HIGHER 0x0C
+#define TASK_PRIORITY_HIGHEST 0x10
+#define TASK_PRIORITY_CRITICAL 0xFF
+
+#define WAIT_FLAG_ANY 0x00000000
+#define WAIT_FLAG_ALL 0x00000001
+
+#define WAIT_INVALID_PARAMETER 0xFFFFFFFF
+#define WAIT_TIMEOUT 0x00000102
+#define WAIT_OBJECT_0 0x00000000
+
+#define ALLOC_PAGES_RESERVE 0x00000000
+#define ALLOC_PAGES_COMMIT 0x00000001
+#define ALLOC_PAGES_READONLY 0x00000000
+#define ALLOC_PAGES_READWRITE 0x00000002
+#define ALLOC_PAGES_UC 0x00000004          // Uncached (for MMIO/BAR mappings)
+#define ALLOC_PAGES_WC 0x00000008          // Write-combining (rare; mostly for framebuffers)
+#define ALLOC_PAGES_IO 0x00000010          // Exact PMA mapping for IO (BAR) -> do not touch RAM bitmap
+#define ALLOC_PAGES_AT_OR_OVER 0x00000020  // If a linear address is specified, can allocate anywhere above it
 
 #define FILE_OPEN_READ 0x00000001
 #define FILE_OPEN_WRITE 0x00000002
@@ -780,6 +739,51 @@ typedef struct tag_SOCKET_ADDRESS_INET {
 #define MB_LEFT 0x0001
 #define MB_RIGHT 0x0002
 #define MB_MIDDLE 0x0004
+
+/************************************************************************/
+// Socket Constants
+
+// Socket Address Family
+#define SOCKET_AF_UNSPEC    0
+#define SOCKET_AF_INET      2
+#define SOCKET_AF_INET6     10
+
+// Socket Type
+#define SOCKET_TYPE_STREAM     1  // TCP
+#define SOCKET_TYPE_DGRAM      2  // UDP
+#define SOCKET_TYPE_RAW        3  // Raw socket
+
+// Socket Protocol
+#define SOCKET_PROTOCOL_IP     0
+#define SOCKET_PROTOCOL_TCP    6
+#define SOCKET_PROTOCOL_UDP    17
+
+// Socket States
+#define SOCKET_STATE_CLOSED       0
+#define SOCKET_STATE_CREATED      1
+#define SOCKET_STATE_BOUND        2
+#define SOCKET_STATE_LISTENING    3
+#define SOCKET_STATE_CONNECTING   4
+#define SOCKET_STATE_CONNECTED    5
+#define SOCKET_STATE_CLOSING      6
+
+// Socket Error Codes
+#define SOCKET_ERROR_NONE         0
+#define SOCKET_ERROR_INVALID      -1
+#define SOCKET_ERROR_NOMEM        -2
+#define SOCKET_ERROR_INUSE        -3
+#define SOCKET_ERROR_NOTBOUND     -4
+#define SOCKET_ERROR_NOTLISTENING -5
+#define SOCKET_ERROR_NOTCONNECTED -6
+#define SOCKET_ERROR_WOULDBLOCK   -7
+#define SOCKET_ERROR_CONNREFUSED  -8
+#define SOCKET_ERROR_TIMEOUT      -9
+#define SOCKET_ERROR_MSGSIZE      -10
+
+// Socket Shutdown Types
+#define SOCKET_SHUTDOWN_READ      0
+#define SOCKET_SHUTDOWN_WRITE     1
+#define SOCKET_SHUTDOWN_BOTH      2
 
 #ifdef __cplusplus
 }

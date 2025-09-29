@@ -42,7 +42,8 @@
 #define TASK_TYPE_NONE 0
 #define TASK_TYPE_KERNEL_MAIN 1
 #define TASK_TYPE_KERNEL_OTHER 2
-#define TASK_TYPE_USER 3
+#define TASK_TYPE_USER_MAIN 3
+#define TASK_TYPE_USER_OTHER 4
 
 /************************************************************************/
 // The Task structure
@@ -57,16 +58,16 @@ struct tag_TASK {
     U32 Priority;             // Current priority of this task
     TASKFUNC Function;        // Start address of this task
     LPVOID Parameter;         // Parameter passed to the function
-    U32 ReturnValue;
-    U32 Flags;               // Task creation flags
-    INTERRUPTFRAME Context;  // Saved context for software switching
-    LINEAR StackBase;        // This task's stack in the heap
-    U32 StackSize;           // This task's stack size
+    U32 ExitCode;             // This task's exit code
+    U32 Flags;                // Task creation flags
+    INTERRUPTFRAME Context;   // Saved context for software switching
+    LINEAR StackBase;         // This task's stack in the heap
+    U32 StackSize;            // This task's stack size
     LINEAR SysStackBase;
     U32 SysStackSize;
-    U32 WakeUpTime;      // System time at which to wake up the task
-    MUTEX MessageMutex;  // Mutex to access message queue
-    LPLIST Message;      // This task's message queue
+    U32 WakeUpTime;           // System time at which to wake up the task
+    MUTEX MessageMutex;       // Mutex to access message queue
+    LPLIST Message;           // This task's message queue
 };
 
 typedef struct tag_TASK TASK, *LPTASK;
@@ -75,7 +76,8 @@ typedef struct tag_TASK TASK, *LPTASK;
 
 BOOL InitKernelTask(void);
 LPTASK CreateTask(LPPROCESS, LPTASKINFO);
-BOOL KillTask(LPTASK);
+BOOL KillTask(LPTASK Task);
+BOOL SetTaskExitCode(LPTASK Task, U32 Code);
 void DeleteDeadTasks(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);

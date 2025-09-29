@@ -1251,22 +1251,6 @@ bits 32
 FUNC_HEADER
 TaskRunner :
 
-    ;--------------------------------------
-    ; Log EAX and EBX values for debugging
-
-;    push        eax
-;    push        ebx
-
-;    push        ebx                        ; EBX value as parameter
-;    push        eax                        ; EAX value as parameter
-;    push        TaskRunnerLogMsg           ; Format string
-;    push        0x0001                     ; LOG_DEBUG
-;    call        KernelLogText
-;    add         esp, 16                    ; Clean up 4 parameters
-
-;    pop         ebx
-;    pop         eax
-
     ; Clear registers
     xor         ecx, ecx
     xor         edx, edx
@@ -1279,16 +1263,16 @@ TaskRunner :
     ; EAX contains the parameter
 
     cmp         ebx, 0
-    je          _TaskRunner_KillMe
+    je          _TaskRunner_Exit
 
     push        eax                         ; Argument for task function
     call        ebx                         ; Call task function
     add         esp, U32_SIZE               ; Adjust stack
 
-_TaskRunner_KillMe :
+_TaskRunner_Exit :
 
-    mov         eax, 0x33                   ; SYSCALL_KillMe
-    xor         ebx, ebx
+    mov         ebx, eax                    ; Task exit code in ebx
+    mov         eax, 0x33                   ; SYSCALL_Exit
     int         EXOS_USER_CALL
 
     ;--------------------------------------

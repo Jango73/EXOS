@@ -519,6 +519,7 @@ U32 MonitorKernel(LPVOID Parameter) {
     while (TRUE) {
         DeleteDeadTasks();
         DeleteUnreferencedObjects();
+        CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
 
         LogCounter++;
         if (LogCounter >= 10) {  // 10 * 500ms = 5 seconds
@@ -533,14 +534,25 @@ U32 MonitorKernel(LPVOID Parameter) {
 /************************************************************************/
 
 /**
- * @brief Checks if an object handle exists in any of the kernel object lists.
- *
- * Searches through all kernel object lists to verify that the given handle
- * points to a valid object that is still managed by the kernel.
- *
- * @param Object Handle to check (pointer to object with LISTNODE_FIELDS)
- * @return TRUE if object exists in any kernel list, FALSE otherwise
+ * @brief Store object termination state in cache.
+ * @param Object Handle of the terminated object
+ * @param ExitCode Exit code of the object
  */
+void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
+    LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)
+        KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
+
+    SAFE_USE(TermState) {
+        TermState->Object = Object;
+        TermState->ExitCode = ExitCode;
+        CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
+
+        DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ExitCode=%u"), Object, ExitCode);
+    }
+}
+
+/************************************************************************/
+
 BOOL ObjectExists(HANDLE Object) {
     if (Object == NULL) return FALSE;
 
@@ -698,6 +710,13 @@ void InitializeKernel(void) {
     InitializeKernelProcess();
 
     DEBUG(TEXT("[InitializeKernel] Kernel process and task initialized"));
+
+    //-------------------------------------
+    // Initialize object termination cache
+
+    CacheInit(&Kernel.ObjectTerminationCache, CACHE_DEFAULT_CAPACITY);
+
+    DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
 
     //-------------------------------------
     // Run auto tests

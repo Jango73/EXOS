@@ -38,6 +38,7 @@
 #include "Process.h"
 #include "String.h"
 #include "TOML.h"
+#include "Cache.h"
 #include "Text.h"
 #include "User.h"
 #include "UserAccount.h"
@@ -109,6 +110,8 @@ typedef struct tag_SYSCALLENTRY {
 /***************************************************************************/
 // Global Kernel Data
 
+#define OBJECT_TERMINATION_TTL_MS 60000  // 1 minute
+
 #define RESERVED_LOW_MEMORY N_4MB
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
 
@@ -149,6 +152,11 @@ extern KERNELDATA_I386 Kernel_i386;
 
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 
+typedef struct {
+    LPVOID Object;
+    U32 ExitCode;
+} OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
+
 typedef struct tag_KERNELDATA {
     LPLIST Desktop;
     LPLIST Process;
@@ -171,6 +179,7 @@ typedef struct tag_KERNELDATA {
     LPLIST UserSessions;         // List of active user sessions
     LPLIST UserAccount;          // List of user accounts
     DATABASE* UserDatabase;      // User accounts database
+    TEMPORARY_CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
@@ -185,6 +194,7 @@ U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
+void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
 BOOL ObjectExists(HANDLE Object);
 
 /***************************************************************************/
