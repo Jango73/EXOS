@@ -179,7 +179,7 @@ typedef struct tag_KERNELDATA {
     LPLIST UserSessions;         // List of active user sessions
     LPLIST UserAccount;          // List of user accounts
     DATABASE* UserDatabase;      // User accounts database
-    TEMPORARY_CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
+    CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;

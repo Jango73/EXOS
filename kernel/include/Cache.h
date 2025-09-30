@@ -41,22 +41,22 @@ typedef struct {
     LPVOID Data;
     U32 ExpirationTime;
     BOOL Valid;
-} TEMPORARY_CACHE_ENTRY, *LPTEMPORARY_CACHE_ENTRY;
+} CACHE_ENTRY, *LPCACHE_ENTRY;
 
 typedef struct {
-    LPTEMPORARY_CACHE_ENTRY Entries;
+    LPCACHE_ENTRY Entries;
     U32 Capacity;
     U32 Count;
     MUTEX Mutex;
-} TEMPORARY_CACHE, *LPTEMPORARY_CACHE;
+} CACHE, *LPCACHE;
 
 /************************************************************************/
 
-void CacheInit(LPTEMPORARY_CACHE Cache, U32 Capacity);
-void CacheDeinit(LPTEMPORARY_CACHE Cache);
-BOOL CacheAdd(LPTEMPORARY_CACHE Cache, LPVOID Data, U32 TTL_MS);
-LPVOID CacheFind(LPTEMPORARY_CACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context);
-void CacheCleanup(LPTEMPORARY_CACHE Cache, U32 CurrentTime);
+void CacheInit(LPCACHE Cache, U32 Capacity);
+void CacheDeinit(LPCACHE Cache);
+BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS);
+LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context);
+void CacheCleanup(LPCACHE Cache, U32 CurrentTime);
 
 /************************************************************************/
 
