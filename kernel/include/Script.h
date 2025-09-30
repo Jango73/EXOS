@@ -184,7 +184,7 @@ typedef struct tag_AST_NODE {
             struct tag_AST_NODE* ArrayIndexExpr;
             BOOL IsFunctionCall;
             STR Argument[MAX_TOKEN_LENGTH];
-            struct tag_AST_NODE* Left;   // Left operand for binary operations
+            struct tag_AST_NODE* Left;   // Left operand for binary operations, or function argument expression
             struct tag_AST_NODE* Right;  // Right operand for binary operations
         } Expression;
     } Data;
@@ -218,7 +218,6 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks);
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context);
 
 SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script);
-BOOL ScriptIsScriptSyntax(LPCSTR Line);
 
 LPSCRIPT_VARIABLE ScriptSetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
 LPSCRIPT_VARIABLE ScriptGetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);

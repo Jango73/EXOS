@@ -48,13 +48,13 @@
 #include "../include/VKey.h"
 #include "../include/Script.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 #define SHELL_NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
 #define HISTORY_SIZE 20
 
-/***************************************************************************/
+/************************************************************************/
 // The shell context
 
 typedef struct tag_SHELLCONTEXT {
@@ -72,13 +72,13 @@ typedef struct tag_SHELLCONTEXT {
     LPSCRIPT_CONTEXT ScriptContext;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
-/***************************************************************************/
+/************************************************************************/
 // The shell command functions
 
 typedef void (*SHELLCOMMAND)(LPSHELLCONTEXT);
 
 static void CMD_commands(LPSHELLCONTEXT);
-static void ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script);
+static BOOL ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script);
 static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
 static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
@@ -120,7 +120,7 @@ static void ExecuteStartupCommands(void);
 static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine);
 static BOOL SpawnExecutable(LPSHELLCONTEXT, LPCSTR, BOOL);
 
-/***************************************************************************/
+/************************************************************************/
 // The shell command table
 
 static struct {
@@ -161,7 +161,7 @@ static struct {
     {"", "", "", NULL},
 };
 
-/***************************************************************************/
+/************************************************************************/
 
 static void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
@@ -1555,10 +1555,8 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
 
     DEBUG(TEXT("[ExecuteCommandLine] Executing: %s"), CommandLine);
 
-    // NEW: Check if this is script syntax before normal command processing
-    if (ScriptIsScriptSyntax(CommandLine)) {
-        DEBUG(TEXT("[ExecuteCommandLine] Detected script syntax, executing script"));
-        ExecuteScript(Context, CommandLine);
+    // Check if scriptable
+    if (ExecuteScript(Context, CommandLine)) {
         return;
     }
 
@@ -1593,8 +1591,10 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
             }
         }
 
-        DEBUG(TEXT("[ExecuteCommandLine] Unknown command : %s"), CommandName);
-        ConsolePrint(TEXT("Unknown command : %s\n"), CommandName);
+        ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+
+        // DEBUG(TEXT("[ExecuteCommandLine] Unknown command : %s"), CommandName);
+        // ConsolePrint(TEXT("Unknown command : %s\n"), CommandName);
     }
 }
 
@@ -1682,17 +1682,20 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
     DEBUG(TEXT("[ShellScriptCallFunction] Calling: %s with arg: %s"), FuncName, Argument);
 
-    if (StringCompare(FuncName, TEXT("spawn")) == 0) {
+    if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
         STR QualifiedCommandLine[MAX_PATH_NAME];
 
         if (QualifyCommandLine(Context, Argument, QualifiedCommandLine)) {
             U32 ExitCode = Spawn(QualifiedCommandLine);
-            DEBUG(TEXT("[ShellScriptCallFunction] spawn returned: %u"), ExitCode);
+            DEBUG(TEXT("[ShellScriptCallFunction] exec returned: %u"), ExitCode);
             return ExitCode;
         }
 
         DEBUG(TEXT("[ShellScriptCallFunction] Failed to qualify command line"));
         return MAX_U32;
+    } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
+        ConsolePrint(Argument);
+        return 0;
     }
 
     DEBUG(TEXT("[ShellScriptCallFunction] Unknown function: %s"), FuncName);
@@ -1706,24 +1709,24 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
  * @param Context Shell context
  * @param Script Script text to execute
  */
-static void ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script) {
-    DEBUG(TEXT("[ExecuteScript] Enter - Script: %s"), Script);
-
+static BOOL ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script) {
     if (Context->ScriptContext) {
         DEBUG(TEXT("[ExecuteScript] Using persistent script context"));
         SCRIPT_ERROR Error = ScriptExecute(Context->ScriptContext, Script);
+
         if (Error != SCRIPT_OK) {
             DEBUG(TEXT("[ExecuteScript] Script error %d: %s"), Error, ScriptGetErrorMessage(Context->ScriptContext));
-            ConsolePrint(TEXT("Script error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+            return FALSE;
         } else {
             DEBUG(TEXT("[ExecuteScript] Script executed successfully"));
         }
     } else {
         DEBUG(TEXT("[ExecuteScript] No persistent script context available"));
         ConsolePrint(TEXT("Script context not available\n"));
+        return FALSE;
     }
 
-    DEBUG(TEXT("[ExecuteScript] Exit"));
+    return TRUE;
 }
 
 /************************************************************************/

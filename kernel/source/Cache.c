@@ -85,8 +85,6 @@ void CacheDeinit(LPTEMPORARY_CACHE Cache) {
  * @return TRUE if added successfully, FALSE otherwise
  */
 BOOL CacheAdd(LPTEMPORARY_CACHE Cache, LPVOID Data, U32 TTL_MS) {
-    DEBUG(TEXT("[CacheAdd] TTL: %u ms, Data=%x"), TTL_MS, Data);
-
     LockMutex(&Cache->Mutex, INFINITY);
 
     U32 CurrentTime = GetSystemTime();
@@ -111,8 +109,6 @@ BOOL CacheAdd(LPTEMPORARY_CACHE Cache, LPVOID Data, U32 TTL_MS) {
     Cache->Entries[FreeIndex].Valid = TRUE;
     Cache->Count++;
 
-    DEBUG(TEXT("[CacheAdd] Added at index %u, expires at %u"), FreeIndex, Cache->Entries[FreeIndex].ExpirationTime);
-
     UnlockMutex(&Cache->Mutex);
     return TRUE;
 }
@@ -127,8 +123,6 @@ BOOL CacheAdd(LPTEMPORARY_CACHE Cache, LPVOID Data, U32 TTL_MS) {
  * @return Pointer to data if found, NULL otherwise
  */
 LPVOID CacheFind(LPTEMPORARY_CACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context) {
-    DEBUG(TEXT("[CacheFind] Enter"));
-
     LockMutex(&Cache->Mutex, INFINITY);
 
     U32 CurrentTime = GetSystemTime();
@@ -149,7 +143,6 @@ LPVOID CacheFind(LPTEMPORARY_CACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Co
         }
     }
 
-    DEBUG(TEXT("[CacheFind] Not found"));
     UnlockMutex(&Cache->Mutex);
     return NULL;
 }

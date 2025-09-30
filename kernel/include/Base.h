@@ -188,6 +188,8 @@ typedef U32 BOOL;
             : "memory");       \
     } while (0)
 
+#define STRINGS_EQUAL(a,b) (StringCompare(a,b)==0)
+
 /************************************************************************/
 // NULL values
 

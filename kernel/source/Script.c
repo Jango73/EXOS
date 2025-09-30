@@ -214,53 +214,6 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 /************************************************************************/
 
 /**
- * @brief Check if a line contains script syntax.
- * @param Line Line to check
- * @return TRUE if line contains script syntax
- */
-BOOL ScriptIsScriptSyntax(LPCSTR Line) {
-    if (Line == NULL) return FALSE;
-
-    // Skip whitespace
-    while (*Line == ' ' || *Line == '\t') Line++;
-    if (*Line == STR_NULL) return FALSE;
-
-    // Check for control flow keywords at the beginning
-    if ((Line[0] == 'i' && Line[1] == 'f' && (Line[2] == ' ' || Line[2] == '(')) ||
-        (Line[0] == 'f' && Line[1] == 'o' && Line[2] == 'r' && (Line[3] == ' ' || Line[3] == '(')) ||
-        (Line[0] == 'e' && Line[1] == 'l' && Line[2] == 's' && Line[3] == 'e')) {
-        return TRUE;
-    }
-
-    // Look for braces (block syntax)
-    LPCSTR Pos = Line;
-    while (*Pos != STR_NULL) {
-        if (*Pos == '{' || *Pos == '}') {
-            return TRUE;
-        }
-        if (*Pos == '[' || *Pos == ']') {
-            return TRUE;
-        }
-        if (*Pos == '=' && Pos > Line && Pos[-1] != '=' && Pos[1] != '=') {
-            return TRUE;
-        }
-        // Look for comparison operators
-        if ((*Pos == '<' || *Pos == '>' || *Pos == '!') &&
-            (Pos[1] == '=' || (*Pos != '!' && Pos[1] != STR_NULL))) {
-            return TRUE;
-        }
-        if (*Pos == '=' && Pos[1] == '=') {
-            return TRUE;
-        }
-        Pos++;
-    }
-
-    return FALSE;
-}
-
-/************************************************************************/
-
-/**
  * @brief Set a variable value in the script context.
  * @param Context Script context
  * @param Name Variable name
@@ -930,26 +883,29 @@ static LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Err
         // Check for function call
         if (Parser->CurrentToken.Type == TOKEN_LPAREN) {
             Node->Data.Expression.IsFunctionCall = TRUE;
+            Node->Data.Expression.Left = NULL;
             ScriptNextToken(Parser);
 
-            // Parse string argument
-            if (Parser->CurrentToken.Type != TOKEN_STRING) {
-                DEBUG(TEXT("[ScriptParseFactorAST] Expected STRING, got type %d (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
-                *Error = SCRIPT_ERROR_SYNTAX;
-                ScriptDestroyAST(Node);
-                return NULL;
+            // Parse argument as expression (allows nested function calls, variables, numbers, strings)
+            if (Parser->CurrentToken.Type == TOKEN_RPAREN) {
+                // No argument - empty parentheses
+                ScriptNextToken(Parser);
+            } else {
+                // Parse argument expression - store in Left field
+                Node->Data.Expression.Left = ScriptParseComparisonAST(Parser, Error);
+                if (*Error != SCRIPT_OK || Node->Data.Expression.Left == NULL) {
+                    ScriptDestroyAST(Node);
+                    return NULL;
+                }
+
+                if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
+                    DEBUG(TEXT("[ScriptParseFactorAST] Expected RPAREN, got type %d (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
+                    *Error = SCRIPT_ERROR_SYNTAX;
+                    ScriptDestroyAST(Node);
+                    return NULL;
+                }
+                ScriptNextToken(Parser);
             }
-
-            StringCopy(Node->Data.Expression.Argument, Parser->CurrentToken.Value);
-            ScriptNextToken(Parser);
-
-            if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
-                DEBUG(TEXT("[ScriptParseFactorAST] Expected RPAREN, got type %d (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
-                *Error = SCRIPT_ERROR_SYNTAX;
-                ScriptDestroyAST(Node);
-                return NULL;
-            }
-            ScriptNextToken(Parser);
         }
         // Check for array access
         else if (Parser->CurrentToken.Type == TOKEN_LBRACKET) {
@@ -971,6 +927,20 @@ static LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Err
             ScriptNextToken(Parser);
         }
 
+        return Node;
+    }
+
+    // STRING
+    if (Parser->CurrentToken.Type == TOKEN_STRING) {
+        LPAST_NODE Node = ScriptCreateASTNode(AST_EXPRESSION);
+        if (Node == NULL) {
+            *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+            return NULL;
+        }
+
+        Node->Data.Expression.TokenType = TOKEN_STRING;
+        StringCopy(Node->Data.Expression.Value, Parser->CurrentToken.Value);
+        ScriptNextToken(Parser);
         return Node;
     }
 
@@ -1261,9 +1231,31 @@ static F32 ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, SCR
         // Function call
         if (Expr->Data.Expression.IsFunctionCall) {
             if (Parser->Callbacks && Parser->Callbacks->CallFunction) {
+                LPCSTR ArgString = TEXT("");
+                STR ArgBuffer[MAX_TOKEN_LENGTH];
+
+                // Evaluate argument if present
+                if (Expr->Data.Expression.Left) {
+                    // Check if argument is a string literal
+                    if (Expr->Data.Expression.Left->Data.Expression.TokenType == TOKEN_STRING) {
+                        ArgString = Expr->Data.Expression.Left->Data.Expression.Value;
+                    } else {
+                        // Evaluate as expression and convert to string
+                        F32 ArgValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
+                        if (*Error != SCRIPT_OK) return 0.0f;
+
+                        if (IsInteger(ArgValue)) {
+                            StringPrintFormat(ArgBuffer, TEXT("%d"), (I32)ArgValue);
+                        } else {
+                            StringPrintFormat(ArgBuffer, TEXT("%f"), ArgValue);
+                        }
+                        ArgString = ArgBuffer;
+                    }
+                }
+
                 U32 Result = Parser->Callbacks->CallFunction(
                     Expr->Data.Expression.Value,
-                    Expr->Data.Expression.Argument,
+                    ArgString,
                     Parser->Callbacks->UserData
                 );
                 return (F32)Result;
@@ -1521,9 +1513,12 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
             return SCRIPT_OK;
         }
 
-        case AST_EXPRESSION:
-            // Standalone expression (shouldn't happen in well-formed code)
-            return SCRIPT_OK;
+        case AST_EXPRESSION: {
+            // Standalone expression - evaluate it (for function calls)
+            SCRIPT_ERROR Error = SCRIPT_OK;
+            ScriptEvaluateExpression(Parser, Node, &Error);
+            return Error;
+        }
 
         default:
             return SCRIPT_ERROR_SYNTAX;
@@ -1546,7 +1541,30 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
     } else if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
         return ScriptParseBlockAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_IDENTIFIER) {
-        return ScriptParseAssignmentAST(Parser, Error);
+        // Could be assignment or expression statement (function call)
+        // We need to look ahead to see if there's an assignment operator
+        U32 SavedPosition = Parser->Position;
+        SCRIPT_TOKEN SavedToken = Parser->CurrentToken;
+
+        ScriptNextToken(Parser);
+
+        // Check if it's an assignment (= or [)
+        if (Parser->CurrentToken.Type == TOKEN_OPERATOR && Parser->CurrentToken.Value[0] == '=') {
+            // Restore and parse as assignment
+            Parser->Position = SavedPosition;
+            Parser->CurrentToken = SavedToken;
+            return ScriptParseAssignmentAST(Parser, Error);
+        } else if (Parser->CurrentToken.Type == TOKEN_LBRACKET) {
+            // Array access assignment
+            Parser->Position = SavedPosition;
+            Parser->CurrentToken = SavedToken;
+            return ScriptParseAssignmentAST(Parser, Error);
+        } else {
+            // Not an assignment, parse as expression statement
+            Parser->Position = SavedPosition;
+            Parser->CurrentToken = SavedToken;
+            return ScriptParseComparisonAST(Parser, Error);
+        }
     }
 
     *Error = SCRIPT_ERROR_SYNTAX;
