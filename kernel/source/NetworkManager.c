@@ -26,6 +26,9 @@
 
 #include "../include/ARP.h"
 #include "../include/IPv4.h"
+#include "../include/UDP.h"
+#include "../include/DHCP.h"
+#include "../include/DHCPContext.h"
 #include "../include/TCP.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
@@ -278,6 +281,21 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing IPv4 layer"));
             IPv4_Initialize((LPDEVICE)Device, LocalIPv4_Be);
 
+            // Initialize UDP subsystem for this device
+            DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing UDP layer"));
+            UDP_Initialize((LPDEVICE)Device);
+
+            // Initialize DHCP subsystem if enabled in configuration
+            LPCSTR UseDHCP = GetConfigurationValue(TEXT(CONFIG_NETWORK_USE_DHCP));
+            if (UseDHCP != NULL && STRINGS_EQUAL(UseDHCP, TEXT("1"))) {
+                DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing DHCP layer"));
+                DHCP_Initialize((LPDEVICE)Device);
+                DHCP_Start((LPDEVICE)Device);
+                DEBUG(TEXT("[NetworkManager_InitializeDevice] DHCP started for device %s"), Device->Driver->Product);
+            } else {
+                DEBUG(TEXT("[NetworkManager_InitializeDevice] DHCP disabled, using static IP configuration"));
+            }
+
             // Configure network settings from TOML configuration (per-device with global fallback)
             U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(0xFFFFFF00));
             U32 GatewayBe = NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(0xC0A83801));
@@ -353,6 +371,7 @@ U32 NetworkManagerTask(LPVOID param) {
                     SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
                         if (Ctx->IsInitialized) {
                             ARP_Tick((LPDEVICE)Ctx->Device);
+                            DHCP_Tick((LPDEVICE)Ctx->Device);
                         }
                     }
                 }

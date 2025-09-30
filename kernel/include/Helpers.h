@@ -39,6 +39,7 @@
 #define CONFIG_NETWORK_NETMASK      "Network.Netmask"
 #define CONFIG_NETWORK_GATEWAY      "Network.Gateway"
 #define CONFIG_NETWORK_DEFAULT_PORT "Network.DefaultPort"
+#define CONFIG_NETWORK_USE_DHCP     "Network.UseDHCP"
 #define CONFIG_TCP_EPHEMERAL_START  "TCP.EphemeralPortStart"
 
 // Per-device network interface configuration

@@ -37,6 +37,7 @@ Layout="en-US"
 
 [Network]
 # Global network configuration (fallback values)
+UseDHCP=1
 LocalIP="10.0.2.15"
 Netmask="255.255.255.0"
 Gateway="10.0.2.2"

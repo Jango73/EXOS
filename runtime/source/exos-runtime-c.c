@@ -490,9 +490,9 @@ size_t recv(int sockfd, void *buf, size_t len, int flags) {
             timeoutCount++;
             debug("[recv] Socket timeout %d/%d", timeoutCount, maxTimeouts);
             if (timeoutCount >= maxTimeouts) {
-                debug("[recv] Too many consecutive timeouts, assuming connection closed");
+                debug("[recv] ERROR: Too many consecutive timeouts (%d), no response from server", maxTimeouts);
                 timeoutCount = 0;
-                return 0; // EOF
+                return -1; // Return error instead of EOF
             }
             sleep(1);
             continue;

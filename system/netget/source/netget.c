@@ -127,9 +127,27 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
         received = recv(connection->SocketHandle, buffer, sizeof(buffer), 0);
 
         if (received < 0) {
+            printf("\nError: recv() failed - ");
+            if (received == -1) {
+                printf("timeout waiting for server response\n");
+            } else {
+                printf("connection error (code %d)\n", received);
+            }
             if (file) fclose(file);
             return HTTP_ERROR_CONNECTION_FAILED;
         } else if (received == 0) {
+            // Connection closed by peer
+            if (!headersParsed) {
+                printf("Error: Connection closed before headers received\n");
+                if (file) fclose(file);
+                return HTTP_ERROR_CONNECTION_FAILED;
+            }
+            if (contentLength > 0 && bodyBytesReceived < contentLength) {
+                printf("Error: Connection closed before all data received (%u of %u bytes)\n",
+                       bodyBytesReceived, contentLength);
+                if (file) fclose(file);
+                return HTTP_ERROR_CONNECTION_FAILED;
+            }
             break;
         }
 
