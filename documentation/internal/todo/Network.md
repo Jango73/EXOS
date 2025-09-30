@@ -7,9 +7,30 @@
   - `0x0806 = ARP`  
 
 ## ARP
-- [X] IPv4 address → MAC address resolution  
-- [X] ARP cache with expiration  
-- [X] Reply to incoming ARP requests for local IP  
+- [X] IPv4 address → MAC address resolution
+- [X] ARP cache with expiration
+- [X] Reply to incoming ARP requests for local IP
+
+## DHCP
+- [ ] DHCP client implementation
+  - DISCOVER, OFFER, REQUEST, ACK sequence
+  - Automatic IP address acquisition
+  - Subnet mask, gateway, DNS server configuration
+- [ ] Lease management
+  - Lease expiration tracking
+  - Automatic renewal (T1/T2 timers)
+  - DHCP RELEASE on shutdown
+- [ ] DHCP options parsing
+  - Option 1: Subnet mask
+  - Option 3: Router (default gateway)
+  - Option 6: DNS servers
+  - Option 51: IP address lease time
+  - Option 53: DHCP message type
+  - Option 54: DHCP server identifier
+- [ ] Basic error handling
+  - Retransmission on timeout
+  - Fallback to static IP if DHCP fails
+  - Handle DHCP NAK responses
 
 ## IPv4
 - [X] Header parsing: version, IHL, total length, TTL, protocol, checksum
