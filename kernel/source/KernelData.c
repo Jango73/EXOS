@@ -70,6 +70,17 @@ static LIST PciDeviceList = {
 
 /************************************************************************/
 
+static LIST NetworkDeviceList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST FileSystemList = {
     .First = NULL,
     .Last = NULL,
@@ -134,6 +145,7 @@ KERNELDATA SECTION(".data") Kernel = {
     .Mutex = &MutexList,
     .Disk = &DiskList,
     .PCIDevice = &PciDeviceList,
+    .NetworkDevice = &NetworkDeviceList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,

@@ -40,6 +40,16 @@
 
 /************************************************************************/
 
+typedef struct tag_NETWORK_DEVICE_CONTEXT {
+    LISTNODE_FIELDS
+    LPPCI_DEVICE Device;
+    U32 LocalIPv4_Be;
+    BOOL IsInitialized;
+    NT_RXCB OriginalCallback;
+} NETWORK_DEVICE_CONTEXT, *LPNETWORK_DEVICE_CONTEXT;
+
+/************************************************************************/
+
 // Helper function to get network configuration from TOML with fallback
 static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
     LPCSTR configValue = GetConfigurationValue(configPath);
@@ -52,6 +62,8 @@ static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
     return fallbackValue;
 }
 
+/************************************************************************/
+
 // Helper function to get per-device network configuration
 // For now, fall back to global configuration since TOML array access is complex
 // TODO: Implement proper per-device configuration when TOML API is enhanced
@@ -60,7 +72,7 @@ static U32 NetworkManager_GetDeviceConfigIP(U32 deviceIndex, LPCSTR configKey, L
     if (fallbackGlobalKey != NULL) {
         U32 baseIP = NetworkManager_GetConfigIP(fallbackGlobalKey, fallbackValue);
         // If this is LocalIP, offset by device index to avoid conflicts
-        if (StringCompare(configKey, TEXT("LocalIP")) == 0) {
+        if (STRINGS_EQUAL(configKey, TEXT("LocalIP"))) {
             U32 hostPart = Ntohl(baseIP) + deviceIndex;
             DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %u: %s = base + %u"), deviceIndex, configKey, deviceIndex);
             return Htonl(hostPart);
@@ -73,107 +85,34 @@ static U32 NetworkManager_GetDeviceConfigIP(U32 deviceIndex, LPCSTR configKey, L
     return fallbackValue;
 }
 
-// Maximum number of network devices we can manage
-#define MAX_NETWORK_DEVICES 8
-
-/************************************************************************/
-
-typedef struct tag_NETWORK_DEVICE_CONTEXT {
-    LPPCI_DEVICE Device;
-    U32 LocalIPv4_Be;
-    BOOL IsInitialized;
-    NT_RXCB OriginalCallback;
-} NETWORK_DEVICE_CONTEXT, *LPNETWORK_DEVICE_CONTEXT;
-
-static NETWORK_DEVICE_CONTEXT NetworkDevices[MAX_NETWORK_DEVICES];
-static U32 NetworkDeviceCount = 0;
-
 /************************************************************************/
 
 // Forward declaration
-static void NetworkManager_RxCallback(LPDEVICE Device, const U8 *Frame, U32 Length);
-
-/**
- * @brief Frame reception callback wrapper for a specific device.
- *
- * These callbacks are created dynamically for each device to maintain device context.
- */
-static void NetworkManager_RxCallback_Device0(const U8 *Frame, U32 Length) {
-    DEBUG(TEXT("[NetworkManager_RxCallback_Device0] ENTRY Frame=%X Length=%u"), (U32)Frame, Length);
-    if (NetworkDeviceCount > 0 && NetworkDevices[0].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[0].Device, Frame, Length);
-    } else {
-        DEBUG(TEXT("[NetworkManager_RxCallback_Device0] ERROR: Device not initialized"));
-    }
-}
-
-static void NetworkManager_RxCallback_Device1(const U8 *Frame, U32 Length) {
-    if (NetworkDeviceCount > 1 && NetworkDevices[1].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[1].Device, Frame, Length);
-    }
-}
-
-static void NetworkManager_RxCallback_Device2(const U8 *Frame, U32 Length) {
-    if (NetworkDeviceCount > 2 && NetworkDevices[2].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[2].Device, Frame, Length);
-    }
-}
-
-static void NetworkManager_RxCallback_Device3(const U8 *Frame, U32 Length) {
-    if (NetworkDeviceCount > 3 && NetworkDevices[3].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[3].Device, Frame, Length);
-    }
-}
-
-static void NetworkManager_RxCallback_Device4(const U8 *Frame, U32 Length) {
-    if (NetworkDeviceCount > 4 && NetworkDevices[4].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[4].Device, Frame, Length);
-    }
-}
-
-static void NetworkManager_RxCallback_Device5(const U8 *Frame, U32 Length) {
-    if (NetworkDeviceCount > 5 && NetworkDevices[5].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[5].Device, Frame, Length);
-    }
-}
-
-static void NetworkManager_RxCallback_Device6(const U8 *Frame, U32 Length) {
-    if (NetworkDeviceCount > 6 && NetworkDevices[6].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[6].Device, Frame, Length);
-    }
-}
-
-static void NetworkManager_RxCallback_Device7(const U8 *Frame, U32 Length) {
-    if (NetworkDeviceCount > 7 && NetworkDevices[7].IsInitialized) {
-        NetworkManager_RxCallback((LPDEVICE)NetworkDevices[7].Device, Frame, Length);
-    }
-}
-
-static NT_RXCB DeviceCallbacks[MAX_NETWORK_DEVICES] = {
-    NetworkManager_RxCallback_Device0,
-    NetworkManager_RxCallback_Device1,
-    NetworkManager_RxCallback_Device2,
-    NetworkManager_RxCallback_Device3,
-    NetworkManager_RxCallback_Device4,
-    NetworkManager_RxCallback_Device5,
-    NetworkManager_RxCallback_Device6,
-    NetworkManager_RxCallback_Device7
-};
+static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserData);
 
 /**
  * @brief Internal frame reception handler that dispatches to protocol layers.
  *
- * @param Device Pointer to the device that received the frame
  * @param Frame Pointer to the received ethernet frame
  * @param Length Length of the frame in bytes
+ * @param UserData Pointer to the NETWORK_DEVICE_CONTEXT
  */
-static void NetworkManager_RxCallback(LPDEVICE Device, const U8 *Frame, U32 Length) {
-    DEBUG(TEXT("[NetworkManager_RxCallback] Entry Device=%X Frame=%X Length=%u"), (U32)Device, (U32)Frame, Length);
+static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserData) {
+    LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)UserData;
+    LPDEVICE Device = NULL;
+
+    DEBUG(TEXT("[NetworkManager_RxCallback] Entry Context=%X Frame=%X Length=%u"), (U32)Context, (U32)Frame, Length);
+
+    SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+        Device = (LPDEVICE)Context->Device;
+    }
 
     if (!Device || !Frame || Length < 14U) {
         DEBUG(TEXT("[NetworkManager_RxCallback] Bad parameters or frame too short"));
         return;
     }
+
+    DEBUG(TEXT("[NetworkManager_RxCallback] Device=%X"), (U32)Device);
 
     U16 EthType = (U16)((Frame[12] << 8) | Frame[13]);
     DEBUG(TEXT("[NetworkManager_RxCallback] Frame len=%u, ethType=%X"), Length, EthType);
@@ -217,18 +156,30 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
     SAFE_USE(Kernel.PCIDevice) {
         SAFE_USE_VALID_ID(Kernel.PCIDevice->First, ID_PCIDEVICE) {
-            for (Node = Kernel.PCIDevice->First; Node && Count < MAX_NETWORK_DEVICES; Node = Node->Next) {
+            for (Node = Kernel.PCIDevice->First; Node != NULL; Node = Node->Next) {
                 LPPCI_DEVICE Device = (LPPCI_DEVICE)Node;
                 SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
                     SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
                         if (Device->Driver->Type == DRIVER_TYPE_NETWORK) {
-                            NetworkDevices[Count].Device = Device;
-                            // Use per-device configuration with fallback to global config
-                            NetworkDevices[Count].LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Count, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(0xC0A8380AU + Count));
-                            NetworkDevices[Count].IsInitialized = FALSE;
-                            NetworkDevices[Count].OriginalCallback = NULL;
-                            Count++;
-                            DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found network device %u: %s with IP fallback base+%u"), Count-1, Device->Driver->Product, Count-1);
+                            // Allocate a new network device context
+                            LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)CreateKernelObject(sizeof(NETWORK_DEVICE_CONTEXT), ID_NETWORKDEVICE);
+                            if (Context != NULL) {
+                                Context->Device = Device;
+                                // Use per-device configuration with fallback to global config
+                                Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Count, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(0xC0A8380AU + Count));
+                                Context->IsInitialized = FALSE;
+                                Context->OriginalCallback = NULL;
+
+                                // Add to kernel network device list (thread-safe with MUTEX_KERNEL)
+                                LockMutex(MUTEX_KERNEL, INFINITY);
+                                ListAddTail(Kernel.NetworkDevice, (LPVOID)Context);
+                                UnlockMutex(MUTEX_KERNEL);
+
+                                Count++;
+                                DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found network device %u: %s with IP fallback base+%u"), Count-1, Device->Driver->Product, Count-1);
+                            } else {
+                                ERROR(TEXT("[NetworkManager_FindNetworkDevices] Failed to allocate network device context"));
+                            }
                         }
                     }
                 }
@@ -240,8 +191,8 @@ static U32 NetworkManager_FindNetworkDevices(void) {
         ERROR(TEXT("[NetworkManager_FindNetworkDevices] Kernel.PCIDevice is NULL"));
     }
 
-    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found %u network devices"), Count);
-    return Count;
+    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found %u network devices"), Kernel.NetworkDevice->NumItems);
+    return Kernel.NetworkDevice->NumItems;
 }
 
 /************************************************************************/
@@ -249,24 +200,25 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 void InitializeNetwork(void) {
     DEBUG(TEXT("[InitializeNetwork] Enter"));
 
-    // Clear device list
-    MemorySet(NetworkDevices, 0, sizeof(NetworkDevices));
-    NetworkDeviceCount = 0;
-
     // Find all network devices
-    NetworkDeviceCount = NetworkManager_FindNetworkDevices();
+    NetworkManager_FindNetworkDevices();
 
-    if (NetworkDeviceCount == 0) {
+    if (Kernel.NetworkDevice->NumItems == 0) {
         WARNING(TEXT("[InitializeNetwork] No network devices found"));
         return;
     }
 
     // Initialize each network device
-    for (U32 i = 0; i < NetworkDeviceCount; i++) {
-        NetworkManager_InitializeDevice(NetworkDevices[i].Device, NetworkDevices[i].LocalIPv4_Be);
+    SAFE_USE(Kernel.NetworkDevice) {
+        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
+            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                NetworkManager_InitializeDevice(Ctx->Device, Ctx->LocalIPv4_Be);
+            }
+        }
     }
 
-    DEBUG(TEXT("[InitializeNetwork] Initialized %u network devices"), NetworkDeviceCount);
+    DEBUG(TEXT("[InitializeNetwork] Initialized %u network devices"), Kernel.NetworkDevice->NumItems);
 }
 
 /************************************************************************/
@@ -278,6 +230,27 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
         SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
             if (Device->Driver->Type != DRIVER_TYPE_NETWORK) {
                 ERROR(TEXT("[NetworkManager_InitializeDevice] Device is not a network device"));
+                return;
+            }
+
+            // Find device context in the network device list
+            LPNETWORK_DEVICE_CONTEXT DeviceContext = NULL;
+            U32 DeviceIndex = 0;
+            SAFE_USE(Kernel.NetworkDevice) {
+                for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+                    LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
+                    SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                        if (Ctx->Device == Device) {
+                            DeviceContext = Ctx;
+                            break;
+                        }
+                    }
+                    DeviceIndex++;
+                }
+            }
+
+            if (DeviceContext == NULL) {
+                ERROR(TEXT("[NetworkManager_InitializeDevice] Device %X not found in network device list!"), (U32)Device);
                 return;
             }
 
@@ -305,22 +278,9 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing IPv4 layer"));
             IPv4_Initialize((LPDEVICE)Device, LocalIPv4_Be);
 
-            // Find device index to get device-specific configuration
-            U32 DeviceIndex = MAX_NETWORK_DEVICES;
-            for (U32 i = 0; i < NetworkDeviceCount; i++) {
-                if (NetworkDevices[i].Device == Device) {
-                    DeviceIndex = i;
-                    break;
-                }
-            }
-
             // Configure network settings from TOML configuration (per-device with global fallback)
-            U32 NetmaskBe = (DeviceIndex < MAX_NETWORK_DEVICES) ?
-                NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(0xFFFFFF00)) :
-                NetworkManager_GetConfigIP(CONFIG_NETWORK_NETMASK, Htonl(0xFFFFFF00));
-            U32 GatewayBe = (DeviceIndex < MAX_NETWORK_DEVICES) ?
-                NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(0xC0A83801)) :
-                NetworkManager_GetConfigIP(CONFIG_NETWORK_GATEWAY, Htonl(0xC0A83801));
+            U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(0xFFFFFF00));
+            U32 GatewayBe = NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(0xC0A83801));
             IPv4_SetNetworkConfig((LPDEVICE)Device, LocalIPv4_Be, NetmaskBe, GatewayBe);
 
             // Initialize TCP subsystem (global for all devices)
@@ -331,25 +291,14 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
                 TCPInitialized = TRUE;
             }
 
-            // Install RX callback - use device index found earlier
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] Using device index %u for RX callback"), DeviceIndex);
-
-            if (DeviceIndex < MAX_NETWORK_DEVICES) {
-                NETWORKSETRXCB SetRxCb = {.Device = Device, .Callback = DeviceCallbacks[DeviceIndex]};
-                DEBUG(TEXT("[NetworkManager_InitializeDevice] Installing RX callback %X for device index %u"), (U32)DeviceCallbacks[DeviceIndex], DeviceIndex);
-                U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCb);
-                DEBUG(TEXT("[NetworkManager_InitializeDevice] RX callback installation result: %u"), Result);
-            } else {
-                ERROR(TEXT("[NetworkManager_InitializeDevice] Device %X not found in device list!"), (U32)Device);
-            }
+            // Install RX callback with device context as UserData
+            NETWORKSETRXCB SetRxCb = {.Device = Device, .Callback = NetworkManager_RxCallback, .UserData = (LPVOID)DeviceContext};
+            DEBUG(TEXT("[NetworkManager_InitializeDevice] Installing RX callback %X with UserData %X"), (U32)NetworkManager_RxCallback, (U32)DeviceContext);
+            U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCb);
+            DEBUG(TEXT("[NetworkManager_InitializeDevice] RX callback installation result: %u"), Result);
 
             // Mark device as initialized
-            for (U32 i = 0; i < NetworkDeviceCount; i++) {
-                if (NetworkDevices[i].Device == Device) {
-                    NetworkDevices[i].IsInitialized = TRUE;
-                    break;
-                }
-            }
+            DeviceContext->IsInitialized = TRUE;
 
             // Register TCP protocol handler now that device is initialized
             IPv4_RegisterProtocolHandler((LPDEVICE)Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
@@ -379,12 +328,17 @@ U32 NetworkManagerTask(LPVOID param) {
 
     while (1) {
         // Poll all network devices for received packets
-        for (U32 i = 0; i < NetworkDeviceCount; i++) {
-            if (NetworkDevices[i].IsInitialized) {
-                SAFE_USE_VALID_ID(NetworkDevices[i].Device, ID_PCIDEVICE) {
-                    SAFE_USE_VALID_ID(NetworkDevices[i].Device->Driver, ID_DRIVER) {
-                        NETWORKPOLL poll = {.Device = NetworkDevices[i].Device};
-                        NetworkDevices[i].Device->Driver->Command(DF_NT_POLL, (U32)(LPVOID)&poll);
+        SAFE_USE(Kernel.NetworkDevice) {
+            for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+                LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
+                SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                    if (Ctx->IsInitialized) {
+                        SAFE_USE_VALID_ID(Ctx->Device, ID_PCIDEVICE) {
+                            SAFE_USE_VALID_ID(Ctx->Device->Driver, ID_DRIVER) {
+                                NETWORKPOLL poll = {.Device = Ctx->Device};
+                                Ctx->Device->Driver->Command(DF_NT_POLL, (U32)(LPVOID)&poll);
+                            }
+                        }
                     }
                 }
             }
@@ -393,9 +347,14 @@ U32 NetworkManagerTask(LPVOID param) {
         // Update ARP cache and TCP timers every 100 polls (approximately 1 second)
         if ((tickCount % 100) == 0) {
             // Update ARP cache for each device
-            for (U32 i = 0; i < NetworkDeviceCount; i++) {
-                if (NetworkDevices[i].IsInitialized) {
-                    ARP_Tick((LPDEVICE)NetworkDevices[i].Device);
+            SAFE_USE(Kernel.NetworkDevice) {
+                for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+                    LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
+                    SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                        if (Ctx->IsInitialized) {
+                            ARP_Tick((LPDEVICE)Ctx->Device);
+                        }
+                    }
                 }
             }
             TCP_Update();
@@ -414,9 +373,14 @@ U32 NetworkManagerTask(LPVOID param) {
 
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
     // Return the first initialized network device
-    for (U32 i = 0; i < NetworkDeviceCount; i++) {
-        if (NetworkDevices[i].IsInitialized) {
-            return NetworkDevices[i].Device;
+    SAFE_USE(Kernel.NetworkDevice) {
+        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
+            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                if (Ctx->IsInitialized) {
+                    return Ctx->Device;
+                }
+            }
         }
     }
     return NULL;

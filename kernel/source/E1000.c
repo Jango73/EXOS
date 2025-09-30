@@ -171,6 +171,7 @@ typedef struct tag_E1000DEVICE {
 
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
+    LPVOID RxUserData;
 } E1000DEVICE, *LPE1000DEVICE;
 
 /************************************************************************/
@@ -870,7 +871,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
                   Length, Frame[12], Frame[13], (U32)Device->RxCallback);
             if (Device->RxCallback) {
                 DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %x"), (U32)Device->RxCallback);
-                Device->RxCallback(Frame, (U32)Length);
+                Device->RxCallback(Frame, (U32)Length, Device->RxUserData);
                 DEBUG(TEXT("[E1000_ReceivePoll] RxCallback returned"));
             } else {
                 DEBUG(TEXT("[E1000_ReceivePoll] No RX callback registered!"));
@@ -978,7 +979,8 @@ static U32 E1000_OnSetReceiveCallback(const NETWORKSETRXCB *Set) {
     }
     LPE1000DEVICE Device = (LPE1000DEVICE)Set->Device;
     Device->RxCallback = Set->Callback;
-    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Callback set to %X for device %X"), (U32)Set->Callback, (U32)Device);
+    Device->RxUserData = Set->UserData;
+    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Callback set to %X with UserData %X for device %X"), (U32)Set->Callback, (U32)Set->UserData, (U32)Device);
     return DF_ERROR_SUCCESS;
 }
 

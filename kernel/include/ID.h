@@ -49,10 +49,11 @@
 #define ID_BITMAP 0x504D5442            // "BTMP"
 #define ID_USERACCOUNT 0x52455355       // "USER"
 #define ID_USERSESSION 0x53534553       // "SESS"
+#define ID_NETWORKDEVICE 0x4454454E     // "NETD"
 #define ID_SOCKET 0x4B434F53            // "SOCK"
 #define ID_ARP 0x5F505241               // "ARP_"
 #define ID_IPV4 0x34565049              // "IPV4"
-#define ID_TCP 0x34565049               // "TCP_"
+#define ID_TCP 0x5F504354               // "TCP_"
 
 /***************************************************************************/
 

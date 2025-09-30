@@ -31,7 +31,7 @@
 
 /***************************************************************************/
 
-typedef void (*NT_RXCB)(const U8 *Frame, U32 Length);
+typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 
 #define PROTOCOL_NONE 0x00000000
 #define PROTOCOL_EXOS 0x00000001
@@ -77,6 +77,7 @@ typedef struct tag_NETWORKGETINFO {
 typedef struct tag_NETWORKSETRXCB {
     LPPCI_DEVICE Device;
     NT_RXCB Callback;
+    LPVOID UserData;
 } NETWORKSETRXCB, *LPNETWORKSETRXCB;
 
 typedef struct tag_NETWORKSEND {

@@ -164,6 +164,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Mutex;
     LPLIST Disk;
     LPLIST PCIDevice;
+    LPLIST NetworkDevice;
     LPLIST FileSystem;
     LPLIST File;
     LPLIST TCPConnection;
