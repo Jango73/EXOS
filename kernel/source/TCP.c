@@ -320,7 +320,8 @@ static void TCP_OnEnterEstablished(STATE_MACHINE* SM) {
     DEBUG(TEXT("[TCP_OnEnterEstablished] Connection established"));
 
     // Notify upper layers that connection is established
-    if (Conn->NotificationContext != NULL) {
+    // Only send notification if we're coming from another state (not a re-entry)
+    if (Conn->NotificationContext != NULL && SM->PreviousState != TCP_STATE_ESTABLISHED) {
         Notification_Send(Conn->NotificationContext, NOTIF_EVENT_TCP_CONNECTED, NULL, 0);
         DEBUG(TEXT("[TCP_OnEnterEstablished] Sent TCP_CONNECTED notification"));
     }

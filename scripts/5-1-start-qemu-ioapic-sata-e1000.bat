@@ -9,6 +9,8 @@ if not exist "%IMG_1_PATH%" (
     exit /b 1
 )
 
+"%QEMU%" --version
+
 echo Starting QEMU with images : %IMG_1_PATH%
 echo ACPI support enabled for IOAPIC testing with kernel-irqchip=split
 "%QEMU%" ^

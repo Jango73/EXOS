@@ -878,8 +878,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
             }
         }
 
-        // Clear descriptor status and advance head
-        Ring[NextIndex].Status = 0;
+        // Advance head
         Device->RxHead = (NextIndex + 1) % Device->RxRingCount;
 
         // RDT must point to the last descriptor that the hardware can use
@@ -888,6 +887,9 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         E1000_WriteReg32(Device->MmioBase, E1000_REG_RDT, NextIndex);
 
         DEBUG(TEXT("[E1000_ReceivePoll] Updated RDT to %u (processed descriptor available for reuse)"), NextIndex);
+
+        // Clear descriptor status AFTER updating RDT to avoid race condition
+        Ring[NextIndex].Status = 0;
 
         Count++;
     }
