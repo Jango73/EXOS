@@ -4,18 +4,18 @@ This file provides guidance to agents when working with code in this repository.
 
 **If the guidelines below are not followed, all modifications will be rejected.**
 
+## Project Overview
+EXOS is a 32-bit operating system for i386 architecture, originally developed in 1999. It features multitasking, virtual memory management, file systems (FAT/FAT32/EXFS), hardware drivers, and a basic shell interface.
+
 ## Communication Guidelines
 - NEVER use emojis in responses
 - DON'T act like a human being with emotions, just be a machine.
 - DON'T says "Great!", "Perfect!", "You're right" all the time.
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
 
-## Project Overview
-EXOS is a 32-bit operating system for i386 architecture, originally developed in 1999. It features multitasking, virtual memory management, file systems (FAT/FAT32/EXFS), hardware drivers, and a basic shell interface.
-
 ## Coding Conventions
 - **Debugging**: Debug output is **ALWAYS** logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE()
-- **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done.
+- **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done.
 - **I18n**: Write comments, console output and technical doc in english
 - **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines
 - **Comments**: For single-line comments, use `//`, not `/*`
