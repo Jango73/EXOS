@@ -115,8 +115,6 @@ typedef struct tag_SYSCALLENTRY {
 #define RESERVED_LOW_MEMORY N_4MB
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
 
-#define PATH_USERS_DATABASE TEXT("/system/data/users.database")
-
 typedef struct tag_E820ENTRY {
     U64 Base;
     U64 Size;
@@ -184,6 +182,7 @@ typedef struct tag_KERNELDATA {
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
+
 
 /***************************************************************************/
 // Functions in Kernel.c

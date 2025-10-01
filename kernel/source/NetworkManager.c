@@ -65,7 +65,7 @@ static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey,
     // Try to find the device in [[NetworkInterface]] sections
     while (index < LOOP_LIMIT) {
         // Check if this NetworkInterface has a DeviceName that matches
-        StringPrintFormat(path, TEXT("NetworkInterface.%u.DeviceName"), index);
+        StringPrintFormat(path, TEXT(CONFIG_NETWORK_INTERFACE_DEVICE_NAME_FMT), index);
 
         LPCSTR configDeviceName = GetConfigurationValue(path);
         if (configDeviceName == NULL) break; // No more NetworkInterface entries
@@ -73,7 +73,7 @@ static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey,
         // Check if this is the device we're looking for
         if (STRINGS_EQUAL(configDeviceName, deviceName)) {
             // Found the device, get the requested config value
-            StringPrintFormat(path, TEXT("NetworkInterface.%u.%s"), index, configKey);
+            StringPrintFormat(path, TEXT(CONFIG_NETWORK_INTERFACE_CONFIG_FMT), index, configKey);
 
             LPCSTR configValue = GetConfigurationValue(path);
             SAFE_USE(configValue) {

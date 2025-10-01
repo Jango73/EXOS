@@ -42,11 +42,12 @@
 #define CONFIG_NETWORK_USE_DHCP     "Network.UseDHCP"
 #define CONFIG_TCP_EPHEMERAL_START  "TCP.EphemeralPortStart"
 
-// Per-device network interface configuration
-#define CONFIG_NETWORK_INTERFACE_DEVICE_INDEX "NetworkInterface.DeviceIndex"
-#define CONFIG_NETWORK_INTERFACE_LOCAL_IP     "NetworkInterface.LocalIP"
-#define CONFIG_NETWORK_INTERFACE_NETMASK      "NetworkInterface.Netmask"
-#define CONFIG_NETWORK_INTERFACE_GATEWAY      "NetworkInterface.Gateway"
+// Per-device network interface configuration (format strings for dynamic paths)
+#define CONFIG_NETWORK_INTERFACE_DEVICE_NAME_FMT  "NetworkInterface.%u.DeviceName"
+#define CONFIG_NETWORK_INTERFACE_CONFIG_FMT       "NetworkInterface.%u.%s"
+
+// System paths
+#define PATH_USERS_DATABASE "/system/data/users.database"
 
 /***************************************************************************/
 
