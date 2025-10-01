@@ -28,6 +28,258 @@
 
 static unsigned int HTTPDefaultReceiveTimeoutMs = 10000; // 10 seconds by default
 
+static char HTTP_ToLowerChar(char Character) {
+    if (Character >= 'A' && Character <= 'Z') {
+        return (char)(Character - 'A' + 'a');
+    }
+
+    return Character;
+}
+
+static int HTTP_StringEqualsIgnoreCaseN(const char* Text, const char* Sample, size_t SampleLength) {
+    size_t index;
+
+    for (index = 0; index < SampleLength; ++index) {
+        if (Text[index] == '\0' || Text[index] == '\r' || Text[index] == '\n') {
+            return 0;
+        }
+
+        if (HTTP_ToLowerChar(Text[index]) != HTTP_ToLowerChar(Sample[index])) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+/***************************************************************************/
+
+int HTTP_ReceiveResponseStream(HTTP_CONNECTION* Connection,
+                               const HTTP_RESPONSE_STREAM_CALLBACKS* Callbacks,
+                               void* Context) {
+    char buffer[1024];
+    char headerBuffer[4096];
+    unsigned int headerBufferUsed = 0;
+    unsigned int bodyBytesReceived = 0;
+    int headersParsed = 0;
+    HTTP_RESPONSE response;
+    int received;
+
+    if (!Connection || !Callbacks) {
+        debug("[HTTP_ReceiveResponseStream] Invalid parameters");
+        return HTTP_ERROR_INVALID_RESPONSE;
+    }
+
+    memset(&response, 0, sizeof(response));
+    memset(headerBuffer, 0, sizeof(headerBuffer));
+    Connection->ReceiveBufferUsed = 0;
+
+    debug("[HTTP_ReceiveResponseStream] Starting stream receive");
+
+    while (1) {
+        received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
+        debug("[HTTP_ReceiveResponseStream] recv() returned %d bytes", received);
+
+        if (received < 0) {
+            debug("[HTTP_ReceiveResponseStream] recv() failed with %d", received);
+            return HTTP_ERROR_CONNECTION_FAILED;
+        }
+
+        if (received == 0) {
+            if (!headersParsed) {
+                debug("[HTTP_ReceiveResponseStream] Connection closed before headers");
+                return HTTP_ERROR_CONNECTION_FAILED;
+            }
+
+            if (response.ContentLength > 0 && bodyBytesReceived < response.ContentLength) {
+                debug("[HTTP_ReceiveResponseStream] Connection closed before body complete (%u/%u)",
+                      bodyBytesReceived, response.ContentLength);
+                return HTTP_ERROR_CONNECTION_FAILED;
+            }
+
+            debug("[HTTP_ReceiveResponseStream] Stream completed after %u bytes", bodyBytesReceived);
+            break;
+        }
+
+        if (!headersParsed) {
+            if (headerBufferUsed + (unsigned int)received >= sizeof(headerBuffer)) {
+                debug("[HTTP_ReceiveResponseStream] Header buffer overflow");
+                return HTTP_ERROR_INVALID_RESPONSE;
+            }
+
+            memcpy(headerBuffer + headerBufferUsed, buffer, (size_t)received);
+            headerBufferUsed += (unsigned int)received;
+            headerBuffer[headerBufferUsed] = '\0';
+
+            if (Connection->ReceiveBufferUsed + (unsigned int)received < sizeof(Connection->ReceiveBuffer)) {
+                memcpy(Connection->ReceiveBuffer + Connection->ReceiveBufferUsed, buffer, (size_t)received);
+                Connection->ReceiveBufferUsed += (unsigned int)received;
+            }
+
+            char* headerEnd = strstr(headerBuffer, "\r\n\r\n");
+            if (!headerEnd) {
+                continue;
+            }
+
+            unsigned int headerLength = (unsigned int)((headerEnd + 4) - headerBuffer);
+            char* statusLineEnd = strstr(headerBuffer, "\r\n");
+
+            if (!statusLineEnd) {
+                debug("[HTTP_ReceiveResponseStream] Invalid status line");
+                return HTTP_ERROR_INVALID_RESPONSE;
+            }
+
+            size_t statusLineLength = (size_t)(statusLineEnd - headerBuffer);
+            char statusLine[128];
+
+            if (statusLineLength >= sizeof(statusLine)) {
+                statusLineLength = sizeof(statusLine) - 1;
+            }
+
+            memcpy(statusLine, headerBuffer, statusLineLength);
+            statusLine[statusLineLength] = '\0';
+
+            const char* cursor = statusLine;
+            const char* spacePosition = strchr(cursor, ' ');
+
+            if (!spacePosition) {
+                debug("[HTTP_ReceiveResponseStream] Could not find status code in status line");
+                return HTTP_ERROR_INVALID_RESPONSE;
+            }
+
+            size_t versionLength = (size_t)(spacePosition - cursor);
+
+            if (versionLength >= sizeof(response.Version)) {
+                versionLength = sizeof(response.Version) - 1;
+            }
+
+            memcpy(response.Version, cursor, versionLength);
+            response.Version[versionLength] = '\0';
+
+            cursor = spacePosition;
+            while (*cursor == ' ') {
+                ++cursor;
+            }
+
+            unsigned int statusCode = 0;
+            while (*cursor >= '0' && *cursor <= '9') {
+                statusCode = statusCode * 10 + (unsigned int)(*cursor - '0');
+                ++cursor;
+            }
+            response.StatusCode = (unsigned short)statusCode;
+
+            while (*cursor == ' ') {
+                ++cursor;
+            }
+
+            size_t reasonLength = 0;
+            while (cursor[reasonLength] != '\0' && cursor[reasonLength] != '\r' &&
+                   reasonLength < sizeof(response.ReasonPhrase) - 1) {
+                response.ReasonPhrase[reasonLength] = cursor[reasonLength];
+                ++reasonLength;
+            }
+            response.ReasonPhrase[reasonLength] = '\0';
+
+            response.ContentLength = 0;
+            response.BodyLength = 0;
+            response.Body = NULL;
+            response.ChunkedEncoding = 0;
+
+            unsigned int headerCopyLength = headerLength;
+            if (headerCopyLength >= sizeof(response.Headers)) {
+                headerCopyLength = sizeof(response.Headers) - 1;
+            }
+            memcpy(response.Headers, headerBuffer, headerCopyLength);
+            response.Headers[headerCopyLength] = '\0';
+
+            char* contentLengthString = strstr(headerBuffer, "Content-Length:");
+            if (contentLengthString) {
+                const char* numberStart = contentLengthString + 15;
+
+                while (*numberStart == ' ' || *numberStart == '\t') {
+                    ++numberStart;
+                }
+
+                while (*numberStart >= '0' && *numberStart <= '9') {
+                    response.ContentLength = response.ContentLength * 10 +
+                                             (unsigned int)(*numberStart - '0');
+                    ++numberStart;
+                }
+            }
+
+            char* transferEncodingString = strstr(headerBuffer, "Transfer-Encoding:");
+            if (transferEncodingString) {
+                const char* valueStart = transferEncodingString + 18;
+
+                while (*valueStart == ' ' || *valueStart == '\t') {
+                    ++valueStart;
+                }
+
+                const char* iterator = valueStart;
+                while (*iterator != '\0' && *iterator != '\r' && *iterator != '\n') {
+                    if (HTTP_ToLowerChar(*iterator) == 'c' &&
+                        HTTP_StringEqualsIgnoreCaseN(iterator, "chunked", 7)) {
+                        response.ChunkedEncoding = 1;
+                        break;
+                    }
+                    ++iterator;
+                }
+            }
+
+            headersParsed = 1;
+
+            if (Callbacks->OnHeaders) {
+                int callbackResult = Callbacks->OnHeaders(&response, Context);
+                if (callbackResult != HTTP_SUCCESS) {
+                    debug("[HTTP_ReceiveResponseStream] Header callback returned %d", callbackResult);
+                    return callbackResult;
+                }
+            }
+
+            unsigned int bodyDataInBuffer = headerBufferUsed - headerLength;
+            if (bodyDataInBuffer > 0 && Callbacks->OnBodyData) {
+                int callbackResult = Callbacks->OnBodyData(
+                    (const unsigned char*)(headerBuffer + headerLength),
+                    bodyDataInBuffer,
+                    Context);
+                if (callbackResult != HTTP_SUCCESS) {
+                    debug("[HTTP_ReceiveResponseStream] Body callback returned %d", callbackResult);
+                    return callbackResult;
+                }
+                bodyBytesReceived += bodyDataInBuffer;
+            }
+
+            if (response.ContentLength > 0 && bodyBytesReceived >= response.ContentLength) {
+                debug("[HTTP_ReceiveResponseStream] Completed after buffered data (%u bytes)",
+                      bodyBytesReceived);
+                break;
+            }
+
+            continue;
+        }
+
+        if (Callbacks->OnBodyData) {
+            int callbackResult = Callbacks->OnBodyData((const unsigned char*)buffer,
+                                                       (unsigned int)received,
+                                                       Context);
+            if (callbackResult != HTTP_SUCCESS) {
+                debug("[HTTP_ReceiveResponseStream] Body callback returned %d", callbackResult);
+                return callbackResult;
+            }
+        }
+
+        bodyBytesReceived += (unsigned int)received;
+
+        if (headersParsed && response.ContentLength > 0 &&
+            bodyBytesReceived >= response.ContentLength) {
+            debug("[HTTP_ReceiveResponseStream] Completed after %u bytes", bodyBytesReceived);
+            break;
+        }
+    }
+
+    return HTTP_SUCCESS;
+}
+
 /***************************************************************************/
 
 void HTTP_SetDefaultReceiveTimeout(unsigned int TimeoutMs) {

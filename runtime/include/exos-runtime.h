@@ -190,7 +190,7 @@ int     listen(int sockfd, int backlog);
 int     accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 int     connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 size_t  send(int sockfd, const void *buf, size_t len, int flags);
-size_t  recv(int sockfd, void *buf, size_t len, int flags);
+int     recv(int sockfd, void *buf, size_t len, int flags);
 size_t  sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 size_t  recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 int     shutdown(int sockfd, int how);

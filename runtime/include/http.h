@@ -193,6 +193,18 @@ const char* HTTP_GetHeader(const HTTP_RESPONSE* Response, const char* HeaderName
 const char* HTTP_GetStatusString(unsigned short StatusCode);
 
 /***************************************************************************/
+// HTTP Streaming Callbacks
+
+typedef struct tag_HTTP_RESPONSE_STREAM_CALLBACKS {
+    int (*OnHeaders)(const HTTP_RESPONSE* Response, void* Context);
+    int (*OnBodyData)(const unsigned char* Data, unsigned int Length, void* Context);
+} HTTP_RESPONSE_STREAM_CALLBACKS;
+
+int HTTP_ReceiveResponseStream(HTTP_CONNECTION* Connection,
+                               const HTTP_RESPONSE_STREAM_CALLBACKS* Callbacks,
+                               void* Context);
+
+/***************************************************************************/
 
 #pragma pack(pop)
 
