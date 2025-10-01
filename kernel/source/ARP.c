@@ -39,18 +39,13 @@
 
 LPARP_CONTEXT ARP_GetContext(LPDEVICE Device) {
     LPARP_CONTEXT Context = NULL;
-    BOOL DeviceLocked = FALSE;
 
-    if (Device == NULL) goto Out;
+    if (Device == NULL) return NULL;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    DeviceLocked = TRUE;
     Context = (LPARP_CONTEXT)GetDeviceContext(Device, ID_ARP);
+    UnlockMutex(&(Device->Mutex));
 
-Out:
-    if (DeviceLocked) {
-        UnlockMutex(&(Device->Mutex));
-    }
     return Context;
 }
 
@@ -263,7 +258,6 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
 static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
     NETWORKSEND Send;
     LPDEVICE Device;
-    BOOL DeviceLocked = FALSE;
     int Result = 0;
 
     if (Context == NULL || Context->Device == NULL) return 0;
@@ -277,7 +271,6 @@ static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
     Device = Context->Device;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    DeviceLocked = TRUE;
 
     Send.Device = (LPPCI_DEVICE)Device;
     Send.Data = Data;
@@ -288,10 +281,7 @@ static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
         }
     }
 
-Out:
-    if (DeviceLocked) {
-        UnlockMutex(&(Device->Mutex));
-    }
+    UnlockMutex(&(Device->Mutex));
     return Result;
 }
 
@@ -519,7 +509,6 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
 void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     LPARP_CONTEXT Context;
     U32 Index;
-    BOOL DeviceLocked = FALSE;
     BOOL Success = FALSE;
     BOOL MacRetrieved = FALSE;
 
@@ -553,7 +542,6 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     GetInfo.Info = &Info;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    DeviceLocked = TRUE;
 
     GetInfo.Device = (LPPCI_DEVICE)Device;
 
@@ -590,16 +578,16 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     }
 
     if (!MacRetrieved) {
+        UnlockMutex(&(Device->Mutex));
         goto Out;
     }
 
     SetDeviceContext(Device, ID_ARP, Context);
     Success = TRUE;
 
+    UnlockMutex(&(Device->Mutex));
+
 Out:
-    if (DeviceLocked) {
-        UnlockMutex(&(Device->Mutex));
-    }
     if (!Success) {
         if (Context->NotificationContext) {
             Notification_DestroyContext(Context->NotificationContext);
@@ -633,21 +621,15 @@ void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
 
 void ARP_Destroy(LPDEVICE Device) {
     LPARP_CONTEXT Context;
-    BOOL DeviceLocked = FALSE;
 
     if (Device == NULL) return;
 
     Context = ARP_GetContext(Device);
-    if (Context == NULL) goto Out;
+    if (Context == NULL) return;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    DeviceLocked = TRUE;
     RemoveDeviceContext(Device, ID_ARP);
-
-Out:
-    if (DeviceLocked) {
-        UnlockMutex(&(Device->Mutex));
-    }
+    UnlockMutex(&(Device->Mutex));
 
     SAFE_USE(Context) {
         if (Context->NotificationContext) {
