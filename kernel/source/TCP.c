@@ -460,28 +460,67 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
     if (Event && Event->Payload && Event->PayloadLength > 0) {
         DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of data"), Event->PayloadLength);
 
-        // Check for receive buffer overflow protection
-        if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
-            WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, dropping packet"));
+        U32 OriginalSeq = Ntohl(Event->Header->SequenceNumber);
+        U32 ExpectedSeq = Conn->RecvNext;
+
+        if (OriginalSeq > ExpectedSeq) {
+            DEBUG(TEXT("[TCP_ActionProcessData] Out-of-order segment (seq %u expected %u), requesting retransmission"),
+                  OriginalSeq, ExpectedSeq);
+            TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
             return;
         }
 
-        // Add data to receive buffer
-        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
-        U32 CopyLength = (Event->PayloadLength > SpaceAvailable) ? SpaceAvailable : Event->PayloadLength;
-
-        if (CopyLength > 0) {
-            MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, Event->Payload, CopyLength);
-            Conn->RecvBufferUsed += CopyLength;
-
-            // Notify socket layer of received data
-            SocketTCPReceiveCallback(Conn, Event->Payload, CopyLength);
+        U32 SkipBytes = (ExpectedSeq > OriginalSeq) ? (ExpectedSeq - OriginalSeq) : 0;
+        if (SkipBytes >= Event->PayloadLength) {
+            DEBUG(TEXT("[TCP_ActionProcessData] Duplicate segment fully received previously, reinforcing ACK"));
+            TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+            return;
         }
 
-        // Update receive sequence number
-        Conn->RecvNext = Ntohl(Event->Header->SequenceNumber) + Event->PayloadLength;
+        const U8* PayloadPtr = Event->Payload + SkipBytes;
+        U32 RemainingLength = Event->PayloadLength - SkipBytes;
+        U32 SeqNum = OriginalSeq + SkipBytes;
 
-        // Send ACK (normal TCP behavior)
+        if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
+            WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, cannot accept new data"));
+            TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+            return;
+        }
+
+        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
+        U32 ProcessLength = (RemainingLength > SpaceAvailable) ? SpaceAvailable : RemainingLength;
+
+        if (ProcessLength == 0) {
+            WARNING(TEXT("[TCP_ActionProcessData] No space available for incoming data, advertising current window"));
+            TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+            return;
+        }
+
+        U32 BufferedBytes = SocketTCPReceiveCallback(Conn, PayloadPtr, ProcessLength);
+        if (BufferedBytes == 0) {
+            WARNING(TEXT("[TCP_ActionProcessData] Socket receive buffer full, deferring ACK advance"));
+            TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+            return;
+        }
+
+        if (BufferedBytes < ProcessLength) {
+            WARNING(TEXT("[TCP_ActionProcessData] Only buffered %u of %u bytes due to socket buffer pressure"),
+                    BufferedBytes, ProcessLength);
+        }
+
+        MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, PayloadPtr, BufferedBytes);
+        Conn->RecvBufferUsed += BufferedBytes;
+
+        U32 NewRecvNext = SeqNum + BufferedBytes;
+        if (NewRecvNext > Conn->RecvNext) {
+            Conn->RecvNext = NewRecvNext;
+        }
+
+        if (BufferedBytes < RemainingLength) {
+            WARNING(TEXT("[TCP_ActionProcessData] Dropped %u trailing bytes, expecting retransmission"),
+                    RemainingLength - BufferedBytes);
+        }
+
         int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
         if (SendResult < 0) {
             ERROR(TEXT("[TCP_ActionProcessData] Failed to send ACK packet"));
@@ -565,12 +604,23 @@ static BOOL TCP_ConditionValidAck(STATE_MACHINE* SM, LPVOID EventData) {
 
     // For SYN+ACK, accept any sequence number and update RecvNext
     BOOL ValidSeq;
+    BOOL HasPayload = Event->PayloadLength > 0;
+    BOOL HasControlFlags = (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) != 0;
+
     if ((Flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) == (TCP_FLAG_SYN | TCP_FLAG_ACK)) {
         ValidSeq = TRUE;
         Conn->RecvNext = SeqNum + 1;
         DEBUG(TEXT("[TCP_ConditionValidAck] SYN+ACK: Updated RecvNext to %u"), Conn->RecvNext);
+    } else if (!HasPayload && !HasControlFlags) {
+        U32 WindowStart = Conn->RecvNext - Conn->RecvWindow;
+        U16 WindowSize = (Conn->RecvWindow < 0xFFFF) ? (Conn->RecvWindow + 1) : Conn->RecvWindow;
+        ValidSeq = TCP_IsSequenceInWindow(SeqNum, WindowStart, WindowSize);
+        if (!ValidSeq) {
+            DEBUG(TEXT("[TCP_ConditionValidAck] Duplicate ACK sequence %u outside relaxed window [%u, %u)"),
+                  SeqNum, WindowStart, WindowStart + WindowSize);
+        }
     } else {
-        // Regular ACK - validate sequence number is within receive window
+        // Regular ACK with data/control flags - validate sequence number is within receive window
         ValidSeq = TCP_IsSequenceInWindow(SeqNum, Conn->RecvNext, Conn->RecvWindow);
         if (!ValidSeq) {
             DEBUG(TEXT("[TCP_ConditionValidAck] Sequence number %u outside receive window [%u, %u)"),
@@ -1304,4 +1354,37 @@ BOOL TCP_ShouldSendWindowUpdate(LPTCP_CONNECTION Connection) {
         return ShouldSend;
     }
     return FALSE;
+}
+
+/************************************************************************/
+
+void TCP_HandleSocketDataConsumed(LPTCP_CONNECTION Connection, U32 BytesConsumed) {
+    if (!Connection || BytesConsumed == 0) {
+        return;
+    }
+
+    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+        if (BytesConsumed > Connection->RecvBufferUsed) {
+            BytesConsumed = Connection->RecvBufferUsed;
+        }
+
+        if (BytesConsumed == 0) {
+            return;
+        }
+
+        if (BytesConsumed < Connection->RecvBufferUsed) {
+            MemoryMove(Connection->RecvBuffer,
+                       Connection->RecvBuffer + BytesConsumed,
+                       Connection->RecvBufferUsed - BytesConsumed);
+        }
+
+        Connection->RecvBufferUsed -= BytesConsumed;
+
+        TCP_ProcessDataConsumption(Connection, BytesConsumed);
+
+        if (TCP_ShouldSendWindowUpdate(Connection)) {
+            DEBUG(TEXT("[TCP_HandleSocketDataConsumed] Sending window update ACK"));
+            TCP_SendPacket(Connection, TCP_FLAG_ACK, NULL, 0);
+        }
+    }
 }
