@@ -549,7 +549,7 @@ void DHCP_Tick(LPDEVICE Device) {
                 if (ElapsedTicks > DHCP_RETRY_TIMEOUT_TICKS) {
                     Context->RetryCount++;
                     if (Context->RetryCount >= DHCP_MAX_RETRIES) {
-                        ERROR(TEXT("[DHCP_Tick] DHCP failed after %u retries"), Context->RetryCount);
+                        DEBUG(TEXT("[DHCP_Tick] DHCP failed after %u retries"), Context->RetryCount);
                         Context->State = DHCP_STATE_FAILED;
                     } else {
                         WARNING(TEXT("[DHCP_Tick] DHCP timeout, retry %u/%u"), Context->RetryCount, DHCP_MAX_RETRIES);
@@ -585,5 +585,3 @@ void DHCP_Tick(LPDEVICE Device) {
         }
     }
 }
-
-/************************************************************************/

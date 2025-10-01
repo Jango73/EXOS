@@ -417,6 +417,7 @@ typedef U32 HANDLE;
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
 #define MAX_PASSWORD 64
+#define LOOP_LIMIT 500
 
 /***************************************************************************/
 

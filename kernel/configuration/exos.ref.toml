@@ -4,7 +4,7 @@
 # Path="<some path to a node>"
 
 # [[NetworkInterface]]
-# DeviceIndex=<n>
+# DeviceName="<device name, e.g. eth0>"
 # LocalIP="<some IP>"
 # Netmask="<some IP mask>"
 # Gateway="<some IP>"
@@ -44,8 +44,8 @@ Gateway="10.0.2.2"
 DefaultPort=8080
 
 [[NetworkInterface]]
-# Configuration for first E1000 device (by discovery order)
-DeviceIndex=0
+# Configuration for first E1000 device
+DeviceName="eth0"
 LocalIP="192.168.56.10"
 
 [TCP]

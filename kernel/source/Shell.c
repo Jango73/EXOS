@@ -26,18 +26,22 @@
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
+#include "../include/Disk.h"
+#include "../include/Endianness.h"
 #include "../include/File.h"
 #include "../include/FileSystem.h"
 #include "../include/GFX.h"
-#include "../include/Disk.h"
 #include "../include/Heap.h"
 #include "../include/Helpers.h"
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
 #include "../include/List.h"
 #include "../include/Log.h"
+#include "../include/Network.h"
+#include "../include/NetworkManager.h"
 #include "../include/Path.h"
 #include "../include/Process.h"
+#include "../include/Script.h"
 #include "../include/StackTrace.h"
 #include "../include/String.h"
 #include "../include/StringArray.h"
@@ -46,7 +50,6 @@
 #include "../include/UserAccount.h"
 #include "../include/UserSession.h"
 #include "../include/VKey.h"
-#include "../include/Script.h"
 
 /************************************************************************/
 
@@ -78,16 +81,8 @@ typedef struct tag_SHELLCONTEXT {
 typedef void (*SHELLCOMMAND)(LPSHELLCONTEXT);
 
 static void CMD_commands(LPSHELLCONTEXT);
-static BOOL ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script);
-static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
-static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
-static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
-static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 static void CMD_cls(LPSHELLCONTEXT);
 static void CMD_dir(LPSHELLCONTEXT);
-static void ClearOptions(LPSHELLCONTEXT);
-static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
-static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
 static void CMD_cd(LPSHELLCONTEXT);
 static void CMD_md(LPSHELLCONTEXT);
 static void CMD_run(LPSHELLCONTEXT);
@@ -103,6 +98,7 @@ static void CMD_copy(LPSHELLCONTEXT);
 static void CMD_edit(LPSHELLCONTEXT);
 static void CMD_hd(LPSHELLCONTEXT);
 static void CMD_filesystem(LPSHELLCONTEXT);
+static void CMD_network(LPSHELLCONTEXT);
 static void CMD_pic(LPSHELLCONTEXT);
 static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
@@ -114,6 +110,15 @@ static void CMD_login(LPSHELLCONTEXT);
 static void CMD_logout(LPSHELLCONTEXT);
 static void CMD_whoami(LPSHELLCONTEXT);
 static void CMD_passwd(LPSHELLCONTEXT);
+
+static BOOL ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script);
+static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
+static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
+static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
+static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+static void ClearOptions(LPSHELLCONTEXT);
+static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
+static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
 static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
 static BOOL QualifyCommandLine(LPSHELLCONTEXT, LPCSTR, LPSTR);
 static void ExecuteStartupCommands(void);
@@ -147,6 +152,7 @@ static struct {
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
     {"fs", "filesystem", "", CMD_filesystem},
+    {"net", "network", "", CMD_network},
     {"pic", "pic", "", CMD_pic},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
@@ -1137,6 +1143,56 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("Manufacturer : %s\n"), FileSystem->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), FileSystem->Driver->Product);
         ConsolePrint(TEXT("\n"));
+    }
+}
+
+/***************************************************************************/
+
+static void CMD_network(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
+    LPLISTNODE Node;
+
+    SAFE_USE(Kernel.NetworkDevice) {
+        for (Node = Kernel.NetworkDevice->First; Node; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
+
+            SAFE_USE_VALID_ID(NetContext, ID_NETWORKDEVICE) {
+                LPPCI_DEVICE Device = NetContext->Device;
+
+                SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+                    SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
+                        // Get device info
+                        NETWORKINFO Info;
+                        MemorySet(&Info, 0, sizeof(Info));
+                        NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
+                        Device->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo);
+
+                        // Convert IP from network to host byte order
+                        U32 IpHost = Ntohl(NetContext->LocalIPv4_Be);
+                        U8 Ip1 = (IpHost >> 24) & 0xFF;
+                        U8 Ip2 = (IpHost >> 16) & 0xFF;
+                        U8 Ip3 = (IpHost >> 8) & 0xFF;
+                        U8 Ip4 = IpHost & 0xFF;
+
+                        ConsolePrint(TEXT("Name         : %s\n"), Device->Name);
+                        ConsolePrint(TEXT("Designer     : %s\n"), Device->Driver->Designer);
+                        ConsolePrint(TEXT("Manufacturer : %s\n"), Device->Driver->Manufacturer);
+                        ConsolePrint(TEXT("Product      : %s\n"), Device->Driver->Product);
+                        ConsolePrint(TEXT("MAC          : %x:%x:%x:%x:%x:%x\n"),
+                                    Info.MAC[0], Info.MAC[1], Info.MAC[2],
+                                    Info.MAC[3], Info.MAC[4], Info.MAC[5]);
+                        ConsolePrint(TEXT("IP Address   : %u.%u.%u.%u\n"), Ip1, Ip2, Ip3, Ip4);
+                        ConsolePrint(TEXT("Link         : %s\n"), Info.LinkUp ? TEXT("UP") : TEXT("DOWN"));
+                        ConsolePrint(TEXT("Speed        : %u Mbps\n"), Info.SpeedMbps);
+                        ConsolePrint(TEXT("Duplex       : %s\n"), Info.DuplexFull ? TEXT("FULL") : TEXT("HALF"));
+                        ConsolePrint(TEXT("MTU          : %u\n"), Info.MTU);
+                        ConsolePrint(TEXT("Initialized  : %s\n"), NetContext->IsInitialized ? TEXT("YES") : TEXT("NO"));
+                        ConsolePrint(TEXT("\n"));
+                    }
+                }
+            }
+        }
     }
 }
 

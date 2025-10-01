@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -20,6 +21,7 @@
     Device
 
 \************************************************************************/
+
 #ifndef DEVICE_H_INCLUDED
 #define DEVICE_H_INCLUDED
 
@@ -34,7 +36,8 @@
 #define DEVICE_FIELDS       \
     LISTNODE_FIELDS         \
     LPDRIVER Driver;        \
-    LIST Contexts;
+    LIST Contexts;          \
+    STR Name[MAX_FS_LOGICAL_NAME];
 
 typedef struct tag_DEVICE {
     DEVICE_FIELDS
@@ -42,10 +45,11 @@ typedef struct tag_DEVICE {
 
 /***************************************************************************/
 
+BOOL GetDefaultDeviceName(LPSTR Name, LPDEVICE Device, U32 DeviceType);
 LPVOID GetDeviceContext(LPDEVICE Device, U32 ID);
 U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context);
 U32 RemoveDeviceContext(LPDEVICE Device, U32 ID);
 
 /***************************************************************************/
 
-#endif /* DEVICE_H_INCLUDED */
+#endif  // DEVICE_H_INCLUDED

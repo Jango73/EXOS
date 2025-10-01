@@ -43,16 +43,6 @@
 
 /************************************************************************/
 
-typedef struct tag_NETWORK_DEVICE_CONTEXT {
-    LISTNODE_FIELDS
-    LPPCI_DEVICE Device;
-    U32 LocalIPv4_Be;
-    BOOL IsInitialized;
-    NT_RXCB OriginalCallback;
-} NETWORK_DEVICE_CONTEXT, *LPNETWORK_DEVICE_CONTEXT;
-
-/************************************************************************/
-
 // Helper function to get network configuration from TOML with fallback
 static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
     LPCSTR configValue = GetConfigurationValue(configPath);
@@ -68,24 +58,44 @@ static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
 /************************************************************************/
 
 // Helper function to get per-device network configuration
-// For now, fall back to global configuration since TOML array access is complex
-// TODO: Implement proper per-device configuration when TOML API is enhanced
-static U32 NetworkManager_GetDeviceConfigIP(U32 deviceIndex, LPCSTR configKey, LPCSTR fallbackGlobalKey, U32 fallbackValue) {
-    // For now, just use global configuration with device index as IP offset
-    SAFE_USE(fallbackGlobalKey) {
-        U32 baseIP = NetworkManager_GetConfigIP(fallbackGlobalKey, fallbackValue);
+static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey, LPCSTR fallbackGlobalKey, U32 fallbackValue) {
+    STR path[128];
+    U32 index = 0;
 
-        // If this is LocalIP, offset by device index to avoid conflicts
-        if (STRINGS_EQUAL(configKey, TEXT("LocalIP"))) {
-            U32 hostPart = Ntohl(baseIP) + deviceIndex;
-            DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %u: %s = base + %u"), deviceIndex, configKey, deviceIndex);
-            return Htonl(hostPart);
+    // Try to find the device in [[NetworkInterface]] sections
+    while (index < LOOP_LIMIT) {
+        // Check if this NetworkInterface has a DeviceName that matches
+        StringPrintFormat(path, TEXT("NetworkInterface.%u.DeviceName"), index);
+
+        LPCSTR configDeviceName = GetConfigurationValue(path);
+        if (configDeviceName == NULL) break; // No more NetworkInterface entries
+
+        // Check if this is the device we're looking for
+        if (STRINGS_EQUAL(configDeviceName, deviceName)) {
+            // Found the device, get the requested config value
+            StringPrintFormat(path, TEXT("NetworkInterface.%u.%s"), index, configKey);
+
+            LPCSTR configValue = GetConfigurationValue(path);
+            SAFE_USE(configValue) {
+                U32 parsedIP = ParseIPAddress(configValue);
+                if (parsedIP != 0) {
+                    DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: %s = %s"), deviceName, configKey, configValue);
+                    return parsedIP;
+                }
+            }
+            break;
         }
-        DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %u: %s = global"), deviceIndex, configKey);
-        return baseIP;
+        index++;
     }
 
-    DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %u: Using fallback value for %s"), deviceIndex, configKey);
+    // Fall back to global configuration
+    SAFE_USE(fallbackGlobalKey) {
+        U32 globalIP = NetworkManager_GetConfigIP(fallbackGlobalKey, fallbackValue);
+        DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: %s = global"), deviceName, configKey);
+        return globalIP;
+    }
+
+    DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: Using fallback value for %s"), deviceName, configKey);
     return fallbackValue;
 }
 
@@ -174,8 +184,12 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
                             SAFE_USE(Context) {
                                 Context->Device = Device;
+
+                                // Generate device name
+                                GetDefaultDeviceName(Device->Name, (LPDEVICE)Device, DRIVER_TYPE_NETWORK);
+
                                 // Use per-device configuration with fallback to global config
-                                Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Count, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(0xC0A8380AU + Count));
+                                Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(0xC0A8380AU + Count));
                                 Context->IsInitialized = FALSE;
                                 Context->OriginalCallback = NULL;
 
@@ -244,7 +258,6 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Find device context in the network device list
             LPNETWORK_DEVICE_CONTEXT DeviceContext = NULL;
-            U32 DeviceIndex = 0;
             SAFE_USE(Kernel.NetworkDevice) {
                 for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
                     LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
@@ -254,7 +267,6 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
                             break;
                         }
                     }
-                    DeviceIndex++;
                 }
             }
 
@@ -303,8 +315,8 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             }
 
             // Configure network settings from TOML configuration (per-device with global fallback)
-            U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(0xFFFFFF00));
-            U32 GatewayBe = NetworkManager_GetDeviceConfigIP(DeviceIndex, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(0xC0A83801));
+            U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(0xFFFFFF00));
+            U32 GatewayBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(0xC0A83801));
             IPv4_SetNetworkConfig((LPDEVICE)Device, LocalIPv4_Be, NetmaskBe, GatewayBe);
 
             // Initialize TCP subsystem (global for all devices)

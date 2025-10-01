@@ -25,8 +25,25 @@
 #ifndef NETWORKMANAGER_H_INCLUDED
 #define NETWORKMANAGER_H_INCLUDED
 
+/************************************************************************/
+
+#pragma pack(push, 1)
+
+/************************************************************************/
+
 #include "../include/Base.h"
 #include "../include/PCI.h"
+#include "../include/Network.h"
+
+/************************************************************************/
+
+typedef struct tag_NETWORK_DEVICE_CONTEXT {
+    LISTNODE_FIELDS
+    LPPCI_DEVICE Device;
+    U32 LocalIPv4_Be;
+    BOOL IsInitialized;
+    NT_RXCB OriginalCallback;
+} NETWORK_DEVICE_CONTEXT, *LPNETWORK_DEVICE_CONTEXT;
 
 /************************************************************************/
 
@@ -63,4 +80,8 @@ U32 NetworkManagerTask(LPVOID param);
  */
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void);
 
-#endif // NETWORKMANAGER_H_INCLUDED
+/************************************************************************/
+
+#pragma pack(pop)
+
+#endif  // NETWORKMANAGER_H_INCLUDED

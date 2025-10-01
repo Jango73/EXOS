@@ -37,4 +37,5 @@ const STR Text_Clk[] = "Clk";
 const STR Text_Rd[] = "rd";
 const STR Text_Fd[] = "fd";
 const STR Text_Hd[] = "hd";
+const STR Text_Eth[] = "eth";
 const STR Text_Separator[] = "================\n";
