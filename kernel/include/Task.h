@@ -78,7 +78,7 @@ BOOL InitKernelTask(void);
 LPTASK CreateTask(LPPROCESS, LPTASKINFO);
 BOOL KillTask(LPTASK Task);
 BOOL SetTaskExitCode(LPTASK Task, U32 Code);
-void DeleteDeadTasks(void);
+void DeleteDeadTasksAndProcesses(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
 U32 GetTaskStatus(LPTASK Task);

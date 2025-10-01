@@ -645,11 +645,11 @@ BOOL SetTaskExitCode(LPTASK Task, U32 Code) {
  *
  * @note This function locks MUTEX_KERNEL and MUTEX_PROCESS during operation
  */
-void DeleteDeadTasks(void) {
+void DeleteDeadTasksAndProcesses(void) {
     LPTASK Task, NextTask;
     LPPROCESS Process, NextProcess;
 
-    // KernelLogText(LOG_VERBOSE, TEXT("[DeleteDeadTasks]"));
+    // KernelLogText(LOG_VERBOSE, TEXT("[DeleteDeadTasksAndProcesses]"));
 
     // Lock access to kernel data
     LockMutex(MUTEX_KERNEL, INFINITY);
@@ -661,12 +661,12 @@ void DeleteDeadTasks(void) {
             NextTask = (LPTASK)Task->Next;
 
             if (Task->Status == TASK_STATUS_DEAD) {
-                DEBUG(TEXT("[DeleteDeadTasks] About to delete task %x"), (U32)Task);
+                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] About to delete task %x"), (U32)Task);
 
                 // DeleteTask will handle removing from list and cleanup
                 DeleteTask(Task);
 
-                DEBUG(TEXT("[DeleteDeadTasks] Deleted task %x"), (U32)Task);
+                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] Deleted task %x"), (U32)Task);
             }
 
             Task = NextTask;
@@ -689,12 +689,12 @@ void DeleteDeadTasks(void) {
             NextProcess = (LPPROCESS)Process->Next;
 
             if (Process->Status == PROCESS_STATUS_DEAD) {
-                DEBUG(TEXT("[DeleteDeadTasks] About to delete process %s"), Process->FileName);
+                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] About to delete process %s"), Process->FileName);
 
                 // DeleteProcessCommit will handle removing from list and cleanup
                 DeleteProcessCommit(Process);
 
-                DEBUG(TEXT("[DeleteDeadTasks] Deleted process %s"), Process->FileName);
+                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] Deleted process %s"), Process->FileName);
             }
 
             Process = NextProcess;

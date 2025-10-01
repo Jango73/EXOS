@@ -408,7 +408,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 **1. Task Termination:**
 - When a task terminates, `KillTask()` marks it as `TASK_STATUS_DEAD`
 - The task remains in the scheduler queue until the next context switch
-- `DeleteDeadTasks()` (called periodically) removes dead tasks from lists
+- `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
 **2. Process Termination via Task Count:**
 - When `DeleteTask()` processes a dead task:
@@ -427,7 +427,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
   - Marks the target process as `PROCESS_STATUS_DEAD`
 
 **4. Final Cleanup:**
-- `DeleteDeadTasks()` is called periodically by the kernel monitor
+- `DeleteDeadTasksAndProcesses()` is called periodically by the kernel monitor
 - First phase: Processes all `TASK_STATUS_DEAD` tasks
   - Calls `DeleteTask()` which frees stacks, message queues, etc.
   - Updates process task counts and marks processes dead if needed
@@ -439,7 +439,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 
 **Deferred Deletion:**
 - Neither tasks nor processes are immediately freed when killed
-- They are marked as DEAD and cleaned up later by `DeleteDeadTasks()`
+- They are marked as DEAD and cleaned up later by `DeleteDeadTasksAndProcesses()`
 - This prevents race conditions and ensures consistent state
 
 **Hierarchical Process Management:**

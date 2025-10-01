@@ -517,7 +517,7 @@ U32 MonitorKernel(LPVOID Parameter) {
     U32 LogCounter = 0;
 
     while (TRUE) {
-        DeleteDeadTasks();
+        DeleteDeadTasksAndProcesses();
         DeleteUnreferencedObjects();
         CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
 
