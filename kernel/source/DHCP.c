@@ -22,7 +22,6 @@
 \************************************************************************/
 
 #include "../include/DHCP.h"
-#include "../include/DHCPContext.h"
 #include "../include/UDP.h"
 #include "../include/UDPContext.h"
 #include "../include/IPv4.h"

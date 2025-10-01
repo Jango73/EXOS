@@ -28,7 +28,6 @@
 #include "../include/IPv4.h"
 #include "../include/UDP.h"
 #include "../include/DHCP.h"
-#include "../include/DHCPContext.h"
 #include "../include/TCP.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
