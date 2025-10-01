@@ -3,5 +3,6 @@ T0> WARNING > [ATAWaitNotBusy] Time-out in ATA port 0x1f0
 T0> WARNING > [ATAWaitNotBusy] Time-out in ATA port 0x170
 T0> WARNING > [ATAWaitNotBusy] Time-out in ATA port 0x170
 T0> ERROR > [VESAInitialize] Call to VESA information failed
-T120> WARNING > [DHCP_Tick] DHCP timeout, retry 1/5
-T6060> WARNING > [SocketTCPReceiveCallback] Receive buffer full for socket 0xc043edc0
+T40320> WARNING > [DHCP_Tick] DHCP timeout, retry 1/5
+T100260> WARNING > [TCP_ActionProcessData] Only buffered 992 of 1440 bytes due to socket buffer pressure
+T100260> WARNING > [TCP_ActionProcessData] Dropped 448 trailing bytes, expecting retransmission
