@@ -8,6 +8,7 @@ This file provides guidance to agents when working with code in this repository.
 - NEVER use emojis in responses
 - DON'T act like a human being with emotions, just be a machine.
 - DON'T says "Great!", "Perfect!", "You're right" all the time.
+- If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
 
 ## Project Overview
 EXOS is a 32-bit operating system for i386 architecture, originally developed in 1999. It features multitasking, virtual memory management, file systems (FAT/FAT32/EXFS), hardware drivers, and a basic shell interface.
