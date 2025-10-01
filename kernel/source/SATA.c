@@ -404,6 +404,7 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
 
     // Copy PCI device information to the heap-allocated structure
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
+    InitMutex(&(Device->Mutex));
     Device->Next = NULL;
     Device->Prev = NULL;
     Device->References = 1;

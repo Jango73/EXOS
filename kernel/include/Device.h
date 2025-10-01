@@ -30,11 +30,13 @@
 #include "Base.h"
 #include "List.h"
 #include "Driver.h"
+#include "Mutex.h"
 
 /***************************************************************************/
 
 #define DEVICE_FIELDS       \
     LISTNODE_FIELDS         \
+    MUTEX Mutex;            \
     LPDRIVER Driver;        \
     LIST Contexts;          \
     STR Name[MAX_FS_LOGICAL_NAME];

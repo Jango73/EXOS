@@ -507,12 +507,13 @@ The network stack is organized in five main layers with per-device context manag
 
 **Location:** `kernel/include/Device.h`, `kernel/source/Device.c`
 
-The network stack uses a device-based architecture where all network devices inherit from a common `DEVICE` structure that supports context storage and management.
+The network stack uses a device-based architecture where all network devices inherit from a common `DEVICE` structure that supports context storage and management. Every device embeds a mutex used to serialize access to shared state; drivers must call `InitMutex()` on the device instance before exposing it to other subsystems.
 
 **Device Structure:**
 ```c
 #define DEVICE_FIELDS       \
     LISTNODE_FIELDS         \
+    MUTEX Mutex;            \
     LPDRIVER Driver;        \
     LIST Contexts;
 

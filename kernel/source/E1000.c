@@ -665,6 +665,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
 
     MemorySet(Device, 0, sizeof(E1000DEVICE));
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
+    InitMutex(&(Device->Mutex));
 
     DEBUG(TEXT("[E1000_Attach] Device=%x, ID=%x, PciDevice->ID=%x"), Device, Device->ID, PciDevice->ID);
 

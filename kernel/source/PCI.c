@@ -444,6 +444,7 @@ void PCI_ScanBus(void) {
                     (U32)PciInfo.VendorID, (U32)PciInfo.DeviceID);
 
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
+                InitMutex(&(PciDevice.Mutex));
                 PciDevice.ID = ID_PCIDEVICE;
                 PciDevice.References = 1;
                 PciDevice.Driver = NULL;
