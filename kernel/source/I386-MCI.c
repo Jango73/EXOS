@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -94,7 +94,7 @@ U32 Intel_GetOperandSize(LPINTEL_INSTRUCTION Instruction, LPCSTR Prototype) {
         long Reg = 0;
 
         for (c = 0; c < INTEL_REG_LAST; c++) {
-            if (StringCompare(Intel_RegNames[c], Prototype + 1) == 0) {
+            if (STRINGS_EQUAL(Intel_RegNames[c], Prototype + 1)) {
                 Reg = c;
                 break;
             }
@@ -337,7 +337,7 @@ U32 Intel_Decode_ModRM_Addressing_32(
     //-------------------------------------
     // Check if we have a displacement value
     if (Instruction->ModR_M.Bits.Mod == 0x01) {
-        Operand->BISD.Displace = *((I8*)InstPtr);  // Changé de U8 à I8 pour gérer le signe
+        Operand->BISD.Displace = *((I8*)InstPtr);  // ChangÃ© de U8 Ã  I8 pour gÃ©rer le signe
         InstPtr += sizeof(I8);
     }
     if (Instruction->ModR_M.Bits.Mod == 0x02) {
@@ -475,7 +475,7 @@ U32 Intel_Decode_Operand(LPINTEL_INSTRUCTION Instruction, LPINTEL_OPERAND Operan
         LPCSTR RegName = Prototype + 1;
 
         for (c = 0; c < INTEL_REG_LAST; c++) {
-            if (StringCompare(RegName, Intel_RegNames[c]) == 0) {
+            if (STRINGS_EQUAL(RegName, Intel_RegNames[c])) {
                 DirectReg = c;
                 break;
             }
@@ -1658,10 +1658,10 @@ U32 Intel_StructureToMachineCode(LPINTEL_INSTRUCTION Instruction, LPINTEL_MACHIN
         // Point to the current prototype
         OpTblPtr = Opcode_Table + c;
 
-        if ((StringCompare(OpTblPtr->Name, Prototype.Name) == 0) &&
-            (StringCompare(OpTblPtr->Operand[0], Prototype.Operand[0]) == 0) &&
-            (StringCompare(OpTblPtr->Operand[1], Prototype.Operand[1]) == 0) &&
-            (StringCompare(OpTblPtr->Operand[2], Prototype.Operand[2]) == 0)) {
+        if ((STRINGS_EQUAL(OpTblPtr->Name, Prototype.Name)) &&
+            (STRINGS_EQUAL(OpTblPtr->Operand[0], Prototype.Operand[0])) &&
+            (STRINGS_EQUAL(OpTblPtr->Operand[1], Prototype.Operand[1])) &&
+            (STRINGS_EQUAL(OpTblPtr->Operand[2], Prototype.Operand[2]))) {
             FoundPrototype = 1;
 
             if (c < 256) {
@@ -1816,3 +1816,4 @@ int SetIntelAttributes(long OperandSize, long AddressSize) {
 
     return 1;
 }
+

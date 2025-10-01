@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -117,7 +117,7 @@ static LPSYSTEMFSFILE FindChild(LPSYSTEMFSFILE Parent, LPCSTR Name) {
 
     for (Node = Parent->Children->First; Node; Node = Node->Next) {
         Child = (LPSYSTEMFSFILE)Node;
-        if (StringCompare(Child->Name, Name) == 0) return Child;
+        if (STRINGS_EQUAL(Child->Name, Name)) return Child;
     }
 
     return NULL;
@@ -491,7 +491,7 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
         if (FS == &Kernel.SystemFS.Header) continue;
-        if (StringCompare(FS->Name, FileSystem) == 0) {
+        if (STRINGS_EQUAL(FS->Name, FileSystem)) {
             FileSystemFound = TRUE;
 
             // Check if SourcePath exists in the filesystem
@@ -897,3 +897,4 @@ U32 SystemFSCommands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
+

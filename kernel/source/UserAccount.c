@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -218,7 +218,7 @@ LPUSERACCOUNT FindUserAccount(LPCSTR UserName) {
     U32 Count = ListGetSize(Kernel.UserAccount);
     for (U32 i = 0; i < Count; i++) {
         LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(Kernel.UserAccount, i);
-        if (User != NULL && StringCompare(User->UserName, UserName) == 0) {
+        if (User != NULL && STRINGS_EQUAL(User->UserName, UserName)) {
             return User;
         }
     }
@@ -425,3 +425,4 @@ U64 GenerateSessionID(void) {
 
     return U64_Add(SessionID, TimeHash);
 }
+

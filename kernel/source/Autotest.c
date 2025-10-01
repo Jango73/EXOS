@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -164,7 +164,7 @@ BOOL RunSingleTestByName(LPCSTR TestName) {
 
     // Search for the test in the registry
     for (Index = 0; TestRegistry[Index].Name != NULL; Index++) {
-        if (StringCompare(TestRegistry[Index].Name, TestName) == 0) {
+        if (STRINGS_EQUAL(TestRegistry[Index].Name, TestName)) {
             DEBUG(TEXT("[Autotest] Found test: %s"), TestName);
             RunSingleTest(&TestRegistry[Index], &TestResults);
             return (TestResults.TestsRun == TestResults.TestsPassed);
@@ -194,3 +194,4 @@ void ListAllTests(void) {
         DEBUG(TEXT("[Autotest]   %u. %s"), Index + 1, TestRegistry[Index].Name);
     }
 }
+

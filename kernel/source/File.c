@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -64,7 +64,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
-        if (StringCompare(AlreadyOpen->Name, Info->Name) == 0) {
+        if (STRINGS_EQUAL(AlreadyOpen->Name, Info->Name)) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
                 if (AlreadyOpen->OpenFlags == Info->Flags) {
                     File = AlreadyOpen;
@@ -441,3 +441,4 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
 }
 
 /***************************************************************************/
+

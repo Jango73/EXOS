@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -256,7 +256,7 @@ void ScriptDeleteVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name) {
 
     // Only delete from current scope, not parent scopes
     for (LPSCRIPT_VARIABLE Variable = (LPSCRIPT_VARIABLE)Bucket->First; Variable; Variable = (LPSCRIPT_VARIABLE)Variable->Next) {
-        if (StringCompare(Variable->Name, Name) == 0) {
+        if (STRINGS_EQUAL(Variable->Name, Name)) {
             ListRemove(Bucket, Variable);
             ScriptFreeVariable(Variable);
             Context->CurrentScope->Count--;
@@ -1919,7 +1919,7 @@ LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, B
 
     // Search in current scope
     for (LPSCRIPT_VARIABLE Variable = (LPSCRIPT_VARIABLE)Bucket->First; Variable; Variable = (LPSCRIPT_VARIABLE)Variable->Next) {
-        if (StringCompare(Variable->Name, Name) == 0) {
+        if (STRINGS_EQUAL(Variable->Name, Name)) {
             return Variable;
         }
     }
@@ -1999,3 +1999,4 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
 
     return Variable;
 }
+

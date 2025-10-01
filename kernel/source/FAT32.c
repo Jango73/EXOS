@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -1001,7 +1001,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || STRINGS_EQUAL(Component, Name)) {
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = (((U32)DirEntry->ClusterLow) | (((U32)DirEntry->ClusterHigh) << 16));
 
@@ -1185,7 +1185,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompare(Component, TEXT("*")) == 0 || StringCompare(Component, Name) == 0) {
+                if (StringCompare(Component, TEXT("*")) == 0 || STRINGS_EQUAL(Component, Name)) {
                     if (IsLastComponent) {
                         // Found existing item with same name
                         if (IsFolder && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {
@@ -1258,7 +1258,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                                 (DirEntry->Name[0] != 0xE5)) {
                                 DecodeFileName(DirEntry, Name);
                 
-                                if (StringCompare(Component, Name) == 0 && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {
+                                if (STRINGS_EQUAL(Component, Name) && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {
                                     U32 NextDir = (U32)DirEntry->ClusterLow | (((U32)DirEntry->ClusterHigh) << 16);
                                     FileLoc.FolderCluster = NextDir;
                                     FileLoc.FileCluster = NextDir;
@@ -1819,3 +1819,4 @@ U32 FAT32Commands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
+
