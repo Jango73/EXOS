@@ -217,6 +217,11 @@ static U16 TCP_GetNextEphemeralPort(U32 localIP) {
 /************************************************************************/
 
 static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U32 PayloadLength) {
+    if (Conn == NULL || Conn->Device == NULL) {
+        DEBUG(TEXT("[TCP_SendPacket] Invalid connection or device"));
+        return -1;
+    }
+
     TCP_HEADER Header;
     U8 Options[4] = {0}; // MSS option: 4 bytes
     U32 OptionsLength = 0;
@@ -270,7 +275,9 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
           TcpHdr->Flags, Ntohs(TcpHdr->WindowSize), Ntohs(TcpHdr->Checksum), HeaderLength);
 
     // Send via IPv4 through connection's network device
+    LockMutex(&Conn->Device->Mutex, INFINITY);
     int SendResult = IPv4_Send(Conn->Device, Conn->RemoteIP, IPV4_PROTOCOL_TCP, Packet, HeaderLength + PayloadLength);
+    UnlockMutex(&Conn->Device->Mutex);
 
     // Update sequence number if data was sent
     if (PayloadLength > 0 || (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN))) {
@@ -844,6 +851,11 @@ static void TCP_SendRstToUnknownConnection(LPDEVICE Device, U32 LocalIP, U16 Loc
 
     DEBUG(TEXT("[TCP_SendRstToUnknownConnection] Sending RST to unknown connection"));
 
+    if (Device == NULL) {
+        DEBUG(TEXT("[TCP_SendRstToUnknownConnection] Device is NULL"));
+        return;
+    }
+
     // Fill TCP header for RST response
     Header.SourcePort = LocalPort;       // Already in network byte order
     Header.DestinationPort = RemotePort; // Already in network byte order
@@ -863,7 +875,9 @@ static void TCP_SendRstToUnknownConnection(LPDEVICE Device, U32 LocalIP, U16 Loc
         NULL, 0, LocalIP, RemoteIP);
 
     // Send via IPv4 through specified network device
+    LockMutex(&Device->Mutex, INFINITY);
     IPv4_Send(Device, RemoteIP, IPV4_PROTOCOL_TCP, Packet, sizeof(TCP_HEADER));
+    UnlockMutex(&Device->Mutex);
 }
 
 /************************************************************************/
@@ -901,7 +915,10 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     // Set connection parameters - resolve LocalIP if it's 0 (any address)
     if (LocalIP == 0) {
         // Use device's local IP address
-        LPIPV4_CONTEXT IPv4Context = IPv4_GetContext(Device);
+        LPIPV4_CONTEXT IPv4Context;
+
+        LockMutex(&Device->Mutex, INFINITY);
+        IPv4Context = IPv4_GetContext(Device);
 
         SAFE_USE(IPv4Context) {
             Conn->LocalIP = IPv4Context->LocalIPv4_Be;
@@ -912,6 +929,8 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
             Conn->LocalIP = 0;
             DEBUG(TEXT("[TCP_CreateConnection] Warning: No IPv4 context found for device"));
         }
+
+        UnlockMutex(&Device->Mutex);
     } else {
         Conn->LocalIP = LocalIP;
     }
@@ -936,8 +955,10 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     DEBUG(TEXT("[TCP_CreateConnection] Created notification context %X for connection %X"), (U32)Conn->NotificationContext, (U32)Conn);
 
     // Register for IPv4 packet sent events on the connection's network device
+    LockMutex(&Conn->Device->Mutex, INFINITY);
     IPv4_RegisterNotification(Conn->Device, NOTIF_EVENT_IPV4_PACKET_SENT,
                              TCP_IPv4PacketSentCallback, Conn);
+    UnlockMutex(&Conn->Device->Mutex);
 
     // Initialize state machine
     SM_Initialize(&Conn->StateMachine, TCP_Transitions,
