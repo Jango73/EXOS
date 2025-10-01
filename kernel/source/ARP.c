@@ -249,6 +249,8 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
 
 static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
     NETWORKSEND Send;
+    LPDEVICE Device;
+    int Result = 0;
 
     if (Context == NULL || Context->Device == NULL) return 0;
 
@@ -258,15 +260,22 @@ static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
         return 0;
     }
 
-    Send.Device = (LPPCI_DEVICE)Context->Device;
+    Device = Context->Device;
+    Send.Device = (LPPCI_DEVICE)Device;
     Send.Data = Data;
     Send.Length = Length;
-    SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Context->Device)->Driver, ID_DRIVER) {
-            return (((LPPCI_DEVICE)Context->Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
+
+    LockMutex(&Device->Mutex, INFINITY);
+
+    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
         }
     }
-    return 0;
+
+    UnlockMutex(&Device->Mutex);
+
+    return Result;
 }
 
 /************************************************************************/
@@ -441,7 +450,7 @@ static void ArpHandlePacket(LPARP_CONTEXT Context, const ARP_PACKET* Packet) {
  */
 
 void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
-    LPARP_CONTEXT Context;
+    LPARP_CONTEXT Context = NULL;
 
     DEBUG(TEXT("[ARP_OnEthernetFrame] Entry called Device=%x Frame=%x Length=%u"), (U32)Device, (U32)Frame, Length);
 
@@ -449,15 +458,19 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
         DEBUG(TEXT("[ARP_OnEthernetFrame] NULL parameter: Device=%x Frame=%x"), (U32)Device, (U32)Frame);
         return;
     }
+
     if (Length < sizeof(ETHERNET_HEADER)) {
         DEBUG(TEXT("[ARP_OnEthernetFrame] Frame too short: %u < %u"), Length, (U32)sizeof(ETHERNET_HEADER));
         return;
     }
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = ARP_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
+
     if (Context == NULL) {
         DEBUG(TEXT("[ARP_OnEthernetFrame] No ARP context for device %x"), (U32)Device);
-        return;
+        goto out;
     }
 
     const LPETHERNET_HEADER Ethernet = (const LPETHERNET_HEADER)Frame;
@@ -473,18 +486,21 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
 
     if (EthType != ETHTYPE_ARP) {
         DEBUG(TEXT("[ARP_OnEthernetFrame] Not ARP packet, ignoring (EthType=%x)"), EthType);
-        return;
+        goto out;
     }
 
     DEBUG(TEXT("[ARP_OnEthernetFrame] Processing ARP packet"));
 
     if (Length < (U32)(sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET))) {
         DEBUG(TEXT("[ARP_OnEthernetFrame] ARP packet too short: %u < %u"), Length, (U32)(sizeof(ETHERNET_HEADER) + sizeof(ARP_PACKET)));
-        return;
+        goto out;
     }
 
     const LPARP_PACKET Packet = (const LPARP_PACKET)(Frame + sizeof(ETHERNET_HEADER));
     ArpHandlePacket(Context, Packet);
+
+out:
+    return;
 }
 
 /************************************************************************/
@@ -493,6 +509,7 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
 void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     LPARP_CONTEXT Context;
     U32 Index;
+    BOOL InitializationFailed = FALSE;
 
     if (Device == NULL) return;
 
@@ -524,6 +541,8 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &Info;
 
+    LockMutex(&Device->Mutex, INFINITY);
+
     SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
@@ -536,54 +555,49 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
                 Context->LocalMacAddress[3] = Info.MAC[3];
                 Context->LocalMacAddress[4] = Info.MAC[4];
                 Context->LocalMacAddress[5] = Info.MAC[5];
-            } else {
-                // GetInfo failed - clean up and return to prevent memory leak
-                DEBUG(TEXT("[ARP_Initialize] DF_NT_GETINFO failed"));
-                if (Context->NotificationContext) {
-                    Notification_DestroyContext(Context->NotificationContext);
-                }
-                KernelHeapFree(Context);
-                return;
-            }
 
-            /* NOTE: Do not register RX callback directly - NetworkManager handles this */
-            /* NETWORKSETRXCB SetRxCallback;
-            SetRxCallback.Device = (LPPCI_DEVICE)Device;
-            SetRxCallback.Callback = ARP_OnEthernetFrame;
-            DEBUG(TEXT("[ARP_Initialize] Registering RX callback %x for device %x"), (U32)ARP_OnEthernetFrame, (U32)Device);
-            U32 Result = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCallback);
-            DEBUG(TEXT("[ARP_Initialize] RX callback registration result: %u"), Result); */
-            DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
-        } else {
-            // Driver not valid - clean up and return to prevent memory leak
-            DEBUG(TEXT("[ARP_Initialize] Device driver not valid"));
-            if (Context->NotificationContext) {
-                Notification_DestroyContext(Context->NotificationContext);
+                DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
+            } else {
+                DEBUG(TEXT("[ARP_Initialize] DF_NT_GETINFO failed"));
+                InitializationFailed = TRUE;
             }
-            KernelHeapFree(Context);
-            return;
+        } else {
+            DEBUG(TEXT("[ARP_Initialize] Device driver not valid"));
+            InitializationFailed = TRUE;
         }
     } else {
-        // Device not valid - clean up and return to prevent memory leak
         DEBUG(TEXT("[ARP_Initialize] Device not valid"));
-        if (Context->NotificationContext) {
-            Notification_DestroyContext(Context->NotificationContext);
-        }
-        KernelHeapFree(Context);
-        return;
+        InitializationFailed = TRUE;
     }
 
+    UnlockMutex(&Device->Mutex);
+
+    if (InitializationFailed) {
+        goto cleanup;
+    }
+
+    LockMutex(&Device->Mutex, INFINITY);
     SetDeviceContext(Device, ID_ARP, Context);
+    UnlockMutex(&Device->Mutex);
+    return;
+
+cleanup:
+    if (Context->NotificationContext) {
+        Notification_DestroyContext(Context->NotificationContext);
+    }
+    KernelHeapFree(Context);
 }
 
 /************************************************************************/
 
 void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
-    LPARP_CONTEXT Context;
+    LPARP_CONTEXT Context = NULL;
 
     if (Device == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = ARP_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (Context == NULL) return;
 
     Context->LocalIPv4_Be = LocalIPv4_Be;
@@ -599,16 +613,21 @@ void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
 /************************************************************************/
 
 void ARP_Destroy(LPDEVICE Device) {
-    LPARP_CONTEXT Context;
+    LPARP_CONTEXT Context = NULL;
 
     if (Device == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = ARP_GetContext(Device);
+    if (Context != NULL) {
+        RemoveDeviceContext(Device, ID_ARP);
+    }
+    UnlockMutex(&Device->Mutex);
+
     SAFE_USE(Context) {
         if (Context->NotificationContext) {
             Notification_DestroyContext(Context->NotificationContext);
         }
-        RemoveDeviceContext(Device, ID_ARP);
         KernelHeapFree(Context);
     }
 }
@@ -616,15 +635,15 @@ void ARP_Destroy(LPDEVICE Device) {
 /************************************************************************/
 
 void ARP_Tick(LPDEVICE Device) {
-    LPARP_CONTEXT Context;
+    LPARP_CONTEXT Context = NULL;
     U32 Index;
 
     if (Device == NULL) return;
 
-    Context = ARP_GetContext(Device);
-    if (Context == NULL) return;
-
     LockMutex(&Device->Mutex, INFINITY);
+    Context = ARP_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
+    if (Context == NULL) return;
 
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
         LPARP_CACHE_ENTRY Entry = &Context->Cache[Index];
@@ -658,20 +677,21 @@ void ARP_Tick(LPDEVICE Device) {
             }
         }
     }
-
-    UnlockMutex(&Device->Mutex);
 }
 
 /************************************************************************/
 
 int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
-    LPARP_CONTEXT Context;
-    LPARP_CACHE_ENTRY Entry;
+    LPARP_CONTEXT Context = NULL;
+    LPARP_CACHE_ENTRY Entry = NULL;
+    int Result = 0;
 
     if (Device == NULL || OutMacAddress == NULL) return 0;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = ARP_GetContext(Device);
-    if (Context == NULL) return 0;
+    UnlockMutex(&Device->Mutex);
+    if (Context == NULL) goto out;
 
     U32 TargetIPHost = Ntohl(TargetIPv4_Be);
     DEBUG(TEXT("[ARP_Resolve] Resolving %u.%u.%u.%u"),
@@ -684,7 +704,8 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
               Entry->MacAddress[0], Entry->MacAddress[1], Entry->MacAddress[2],
               Entry->MacAddress[3], Entry->MacAddress[4], Entry->MacAddress[5]);
         MacCopy(OutMacAddress, Entry->MacAddress);
-        return 1;
+        Result = 1;
+        goto out;
     }
 
     if (!Entry) {
@@ -715,27 +736,29 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
                 DEBUG(TEXT("[ARP_Resolve] Max attempts reached, giving up"));
                 Entry->IsProbing = 0;
                 AdaptiveDelay_Reset(&Entry->DelayState);
-                return 0;
             }
         } else {
             DEBUG(TEXT("[ARP_Resolve] No more retries allowed"));
             Entry->IsProbing = 0;
             AdaptiveDelay_Reset(&Entry->DelayState);
-            return 0;
         }
     }
-    return 0;
+
+out:
+    return Result;
 }
 
 /************************************************************************/
 
 void ARP_DumpCache(LPDEVICE Device) {
-    LPARP_CONTEXT Context;
+    LPARP_CONTEXT Context = NULL;
     U32 Index;
 
     if (Device == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = ARP_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (Context == NULL) return;
 
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
@@ -762,14 +785,20 @@ void ARP_DumpCache(LPDEVICE Device) {
  * @return 1 on success, 0 on failure.
  */
 U32 ARP_RegisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData) {
-    LPARP_CONTEXT Context;
+    LPARP_CONTEXT Context = NULL;
+    U32 Result = 0;
 
     if (!Device || !Callback) return 0;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = ARP_GetContext(Device);
-    if (!Context || !Context->NotificationContext) return 0;
+    UnlockMutex(&Device->Mutex);
+    if (!Context || !Context->NotificationContext) goto out;
 
-    return Notification_Register(Context->NotificationContext, EventID, Callback, UserData);
+    Result = Notification_Register(Context->NotificationContext, EventID, Callback, UserData);
+
+out:
+    return Result;
 }
 
 /************************************************************************/
@@ -783,12 +812,18 @@ U32 ARP_RegisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK
  * @return 1 on success, 0 on failure.
  */
 U32 ARP_UnregisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData) {
-    LPARP_CONTEXT Context;
+    LPARP_CONTEXT Context = NULL;
+    U32 Result = 0;
 
     if (!Device || !Callback) return 0;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = ARP_GetContext(Device);
-    if (!Context || !Context->NotificationContext) return 0;
+    UnlockMutex(&Device->Mutex);
+    if (!Context || !Context->NotificationContext) goto out;
 
-    return Notification_Unregister(Context->NotificationContext, EventID, Callback, UserData);
+    Result = Notification_Unregister(Context->NotificationContext, EventID, Callback, UserData);
+
+out:
+    return Result;
 }
