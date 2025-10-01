@@ -188,7 +188,7 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
                         statusCode = (unsigned short)code;
                     }
 
-                    printf("HTTP %s %s\n", version, HTTP_GetStatusString(statusCode));
+                    printf("%s %s\n", version, HTTP_GetStatusString(statusCode));
 
                     // Check status code
                     if (statusCode != 200) {

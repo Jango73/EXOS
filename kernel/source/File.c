@@ -165,7 +165,6 @@ U32 CloseFile(LPFILE File) {
     // Call filesystem-specific close function
     File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
 
-    // Release reference - DeleteUnreferencedObjects will handle cleanup
     ReleaseKernelObject(File);
 
     UnlockMutex(&(File->Mutex));

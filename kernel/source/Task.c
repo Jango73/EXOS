@@ -128,8 +128,7 @@ LPTASK NewTask(void) {
     This->Type = TASK_TYPE_NONE;
     This->Status = TASK_STATUS_READY;
 
-    KernelLogText(
-        LOG_DEBUG, TEXT("[NewTask] Task initialized: Address=%x, Status=%x, TASK_STATUS_READY=%x"), (U32)This,
+    DEBUG(TEXT("[NewTask] Task initialized: Address=%x, Status=%x, TASK_STATUS_READY=%x"), (U32)This,
         This->Status, TASK_STATUS_READY);
 
     InitMutex(&(This->Mutex));
@@ -396,8 +395,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     SAFE_USE(Process) {
         LockMutex(MUTEX_PROCESS, INFINITY);
         Process->TaskCount++;
-        KernelLogText(
-            LOG_DEBUG, TEXT("[CreateTask] Process %s TaskCount incremented to %d"), Process->FileName,
+        DEBUG(TEXT("[CreateTask] Process %s TaskCount incremented to %d"), Process->FileName,
             Process->TaskCount);
         UnlockMutex(MUTEX_PROCESS);
     }
@@ -419,13 +417,10 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     // Allocate the stacks
 
     DEBUG(TEXT("[CreateTask] Allocating stack..."));
-    KernelLogText(
-        LOG_DEBUG, TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase,
+    DEBUG(TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
+    DEBUG(TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase,
         KernelProcess.HeapSize);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
+    DEBUG(TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
     LINEAR BaseVMA = VMA_KERNEL;
 
@@ -460,8 +455,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     }
 
     DEBUG(TEXT("[CreateTask] Stack (%X bytes) allocated at %X"), Task->StackSize, Task->StackBase);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize,
+    DEBUG(TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize,
         Task->SysStackBase);
 
     //-------------------------------------
@@ -649,7 +643,7 @@ void DeleteDeadTasksAndProcesses(void) {
     LPTASK Task, NextTask;
     LPPROCESS Process, NextProcess;
 
-    // KernelLogText(LOG_VERBOSE, TEXT("[DeleteDeadTasksAndProcesses]"));
+    // DEBUG(TEXT("[DeleteDeadTasksAndProcesses]"));
 
     // Lock access to kernel data
     LockMutex(MUTEX_KERNEL, INFINITY);
@@ -1433,21 +1427,21 @@ Out:
 void DumpTask(LPTASK Task) {
     LockMutex(&(Task->Mutex), INFINITY);
 
-    KernelLogText(LOG_VERBOSE, TEXT("Address         : %x"), Task);
-    KernelLogText(LOG_VERBOSE, TEXT("Task Name       : %s"), Task->Name);
-    KernelLogText(LOG_VERBOSE, TEXT("References      : %d"), Task->References);
-    KernelLogText(LOG_VERBOSE, TEXT("Process         : %x"), Task->Process);
-    KernelLogText(LOG_VERBOSE, TEXT("Status          : %x"), Task->Status);
-    KernelLogText(LOG_VERBOSE, TEXT("Priority        : %x"), Task->Priority);
-    KernelLogText(LOG_VERBOSE, TEXT("Function        : %x"), Task->Function);
-    KernelLogText(LOG_VERBOSE, TEXT("Parameter       : %x"), Task->Parameter);
-    KernelLogText(LOG_VERBOSE, TEXT("ExitCode        : %x"), Task->ExitCode);
-    KernelLogText(LOG_VERBOSE, TEXT("StackBase       : %x"), Task->StackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("StackSize       : %x"), Task->StackSize);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackBase    : %x"), Task->SysStackBase);
-    KernelLogText(LOG_VERBOSE, TEXT("SysStackSize    : %x"), Task->SysStackSize);
-    KernelLogText(LOG_VERBOSE, TEXT("WakeUpTime      : %d"), Task->WakeUpTime);
-    KernelLogText(LOG_VERBOSE, TEXT("Queued messages : %d"), Task->Message->NumItems);
+    VERBOSE(TEXT("Address         : %x"), Task);
+    VERBOSE(TEXT("Task Name       : %s"), Task->Name);
+    VERBOSE(TEXT("References      : %d"), Task->References);
+    VERBOSE(TEXT("Process         : %x"), Task->Process);
+    VERBOSE(TEXT("Status          : %x"), Task->Status);
+    VERBOSE(TEXT("Priority        : %x"), Task->Priority);
+    VERBOSE(TEXT("Function        : %x"), Task->Function);
+    VERBOSE(TEXT("Parameter       : %x"), Task->Parameter);
+    VERBOSE(TEXT("ExitCode        : %x"), Task->ExitCode);
+    VERBOSE(TEXT("StackBase       : %x"), Task->StackBase);
+    VERBOSE(TEXT("StackSize       : %x"), Task->StackSize);
+    VERBOSE(TEXT("SysStackBase    : %x"), Task->SysStackBase);
+    VERBOSE(TEXT("SysStackSize    : %x"), Task->SysStackSize);
+    VERBOSE(TEXT("WakeUpTime      : %d"), Task->WakeUpTime);
+    VERBOSE(TEXT("Queued messages : %d"), Task->Message->NumItems);
 
     UnlockMutex(&(Task->Mutex));
 }

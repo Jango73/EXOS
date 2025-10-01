@@ -68,72 +68,6 @@ extern void StartTestNetworkTask(void);
 
 /************************************************************************/
 
-static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
-    SAFE_USE(List) {
-        LPLISTNODE Node = List->First;
-
-        while (Node != NULL) {
-            LPLISTNODE NextNode = Node->Next;
-
-            SAFE_USE_VALID(Node) {
-                if (Node->OwnerProcess == Process) {
-                    DEBUG(TEXT("[ReleaseProcessKernelObjects] Releasing object %p (ID=%x) owned by %s"),
-                          Node,
-                          Node->ID,
-                          Process->FileName);
-
-                    ReleaseKernelObject(Node);
-                }
-            }
-
-            Node = NextNode;
-        }
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Releases references held by a process on all kernel lists.
- *
- * Iterates every kernel-maintained list defined in KernelData.c and calls
- * ReleaseKernelObject() for each object owned by the specified process.
- * The caller must hold MUTEX_KERNEL to ensure list consistency while this
- * routine walks the structures.
- *
- * @param Process Process whose owned kernel objects must be released.
- */
-void ReleaseProcessKernelObjects(LPPROCESS Process) {
-    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
-        if (Process == &KernelProcess) {
-            return;
-        }
-
-        LPLIST Lists[] = {
-            Kernel.Desktop,
-            Kernel.Process,
-            Kernel.Task,
-            Kernel.Mutex,
-            Kernel.Disk,
-            Kernel.PCIDevice,
-            Kernel.NetworkDevice,
-            Kernel.FileSystem,
-            Kernel.File,
-            Kernel.TCPConnection,
-            Kernel.Socket,
-            Kernel.UserAccount,
-        };
-
-        U32 ListCount = sizeof(Lists) / sizeof(Lists[0]);
-
-        for (U32 Index = 0; Index < ListCount; Index++) {
-            ReleaseProcessObjectsFromList(Process, Lists[Index]);
-        }
-    }
-}
-
-/************************************************************************/
-
 U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
 
 /************************************************************************/
@@ -287,8 +221,7 @@ U32 ClockTestTask(LPVOID Param) {
 
 void DumpCriticalInformation(void) {
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
-        KernelLogText(
-            LOG_DEBUG, TEXT("E820 entry %X : %X, %X, %X"), Index, (U32)KernelStartup.E820[Index].Base.LO,
+        DEBUG(TEXT("E820 entry %X : %X, %X, %X"), Index, (U32)KernelStartup.E820[Index].Base.LO,
             (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
     }
 
@@ -358,6 +291,123 @@ static void Welcome(void) {
 */
 
     SetConsoleBackColor(0);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Delete unreferenced kernel objects from all kernel lists.
+ *
+ * This function traverses all kernel object lists and removes objects
+ * with a reference count of 0, setting their ID to ID_NONE and freeing
+ * their memory with KernelHeapFree.
+ */
+void DeleteUnreferencedObjects(void) {
+    U32 DeletedCount = 0;
+
+    // Helper function to process a single list
+    auto void ProcessList(LPLIST List, LPCSTR ListName) {
+        UNUSED(ListName);   // To avoid warnings in release
+
+        if (List == NULL) return;
+
+        LPLISTNODE Current = (LPLISTNODE)List->First;
+
+        while (Current != NULL) {
+            LPLISTNODE Next = (LPLISTNODE)Current->Next;
+
+            // Check if object has no references
+            if (Current->References == 0) {
+                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->ID);
+
+                // Remove from list first
+                ListRemove(List, Current);
+
+                // Mark as deleted and free memory
+                Current->ID = ID_NONE;
+                KernelHeapFree(Current);
+
+                DeletedCount++;
+            }
+
+            Current = Next;
+        }
+    }
+
+    LockMutex(MUTEX_KERNEL, INFINITY);
+
+    // Process all kernel object lists
+    ProcessList(Kernel.Desktop, "Desktop");
+    ProcessList(Kernel.Process, "Process");
+    ProcessList(Kernel.Task, "Task");
+    ProcessList(Kernel.Mutex, "Mutex");
+    ProcessList(Kernel.Disk, "Disk");
+    ProcessList(Kernel.PCIDevice, "PCIDevice");
+    ProcessList(Kernel.NetworkDevice, "NetworkDevice");
+    ProcessList(Kernel.FileSystem, "FileSystem");
+    ProcessList(Kernel.File, "File");
+    ProcessList(Kernel.TCPConnection, "TCPConnection");
+    ProcessList(Kernel.Socket, "Socket");
+
+    UnlockMutex(MUTEX_KERNEL);
+}
+
+/************************************************************************/
+
+static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
+    SAFE_USE(List) {
+        LPLISTNODE Node = List->First;
+
+        while (Node != NULL) {
+            LPLISTNODE NextNode = Node->Next;
+
+            SAFE_USE_VALID(Node) {
+                if (Node->OwnerProcess == Process) {
+                    DEBUG(TEXT("[ReleaseProcessKernelObjects] Releasing object %p (ID=%x) owned by %s"),
+                          Node,
+                          Node->ID,
+                          Process->FileName);
+
+                    ReleaseKernelObject(Node);
+                }
+            }
+
+            Node = NextNode;
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Releases references held by a process on all kernel lists.
+ *
+ * Iterates every kernel-maintained list defined in KernelData.c and calls
+ * ReleaseKernelObject() for each object owned by the specified process.
+ * The caller must hold MUTEX_KERNEL to ensure list consistency while this
+ * routine walks the structures.
+ *
+ * @param Process Process whose owned kernel objects must be released.
+ */
+void ReleaseProcessKernelObjects(LPPROCESS Process) {
+    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+        if (Process == &KernelProcess) {
+            return;
+        }
+
+        // Process all kernel object lists
+        ReleaseProcessObjectsFromList(Process, Kernel.Desktop);
+        ReleaseProcessObjectsFromList(Process, Kernel.Process);
+        ReleaseProcessObjectsFromList(Process, Kernel.Task);
+        ReleaseProcessObjectsFromList(Process, Kernel.Mutex);
+        ReleaseProcessObjectsFromList(Process, Kernel.Disk);
+        ReleaseProcessObjectsFromList(Process, Kernel.PCIDevice);
+        ReleaseProcessObjectsFromList(Process, Kernel.NetworkDevice);
+        ReleaseProcessObjectsFromList(Process, Kernel.FileSystem);
+        ReleaseProcessObjectsFromList(Process, Kernel.File);
+        ReleaseProcessObjectsFromList(Process, Kernel.TCPConnection);
+        ReleaseProcessObjectsFromList(Process, Kernel.Socket);
+    }
 }
 
 /************************************************************************/
@@ -516,64 +566,6 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
         }
         Driver->Command(DF_LOAD, 0);
     }
-}
-
-/************************************************************************/
-
-/**
- * @brief Delete unreferenced kernel objects from all kernel lists.
- *
- * This function traverses all kernel object lists and removes objects
- * with a reference count of 0, setting their ID to ID_NONE and freeing
- * their memory with KernelHeapFree.
- */
-void DeleteUnreferencedObjects(void) {
-    U32 DeletedCount = 0;
-
-    // Helper function to process a single list
-    auto void ProcessList(LPLIST List, LPCSTR ListName) {
-        if (List == NULL) return;
-
-        LPLISTNODE Current = (LPLISTNODE)List->First;
-
-        while (Current != NULL) {
-            LPLISTNODE Next = (LPLISTNODE)Current->Next;
-
-            // Check if object has no references
-            if (Current->References == 0) {
-                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->ID);
-
-                // Remove from list first
-                ListRemove(List, Current);
-
-                // Mark as deleted and free memory
-                Current->ID = ID_NONE;
-                KernelHeapFree(Current);
-
-                DeletedCount++;
-            }
-
-            Current = Next;
-        }
-    }
-
-    LockMutex(MUTEX_KERNEL, INFINITY);
-
-    // Process all kernel object lists
-    ProcessList(Kernel.Desktop, "Desktop");
-    ProcessList(Kernel.Process, "Process");
-    ProcessList(Kernel.Task, "Task");
-    ProcessList(Kernel.Mutex, "Mutex");
-    ProcessList(Kernel.Disk, "Disk");
-    ProcessList(Kernel.PCIDevice, "PCIDevice");
-    ProcessList(Kernel.FileSystem, "FileSystem");
-    ProcessList(Kernel.File, "File");
-    ProcessList(Kernel.TCPConnection, "TCPConnection");
-    ProcessList(Kernel.Socket, "Socket");
-    ProcessList(Kernel.UserSessions, "UserSession");
-    ProcessList(Kernel.UserAccount, "UserAccount");
-
-    UnlockMutex(MUTEX_KERNEL);
 }
 
 /************************************************************************/

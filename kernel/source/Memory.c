@@ -829,8 +829,7 @@ PHYSICAL AllocPageDirectory(void) {
 
     PHYSICAL TaskRunnerPhysical = PhysBaseKernel + ((U32)&__task_runner_start - VMA_KERNEL);
 
-    KernelLogText(
-        LOG_DEBUG, TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"), (U32)PhysBaseKernel,
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"), (U32)PhysBaseKernel,
         (U32)&__task_runner_start, (U32)VMA_KERNEL, (U32)TaskRunnerPhysical);
 
     U32 TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
@@ -851,15 +850,12 @@ PHYSICAL AllocPageDirectory(void) {
     // TLB sync before returning
     FlushTLB();
 
-    KernelLogText(
-        LOG_DEBUG, TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[%u]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
+    DEBUG(TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[%u]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
         *(U32*)&Directory[768], DirTaskRunner, *(U32*)&Directory[DirTaskRunner], *(U32*)&Directory[1023]);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X, TaskRunnerTable[%u]=%X"),
+    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X, TaskRunnerTable[%u]=%X"),
         *(U32*)&LowTable[0], *(U32*)&KernelTable[0], TaskRunnerTableIndex,
         *(U32*)&TaskRunnerTable[TaskRunnerTableIndex]);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[AllocPageDirectory] TaskRunner VMA=%X -> Physical=%X"), VMA_TASK_RUNNER, TaskRunnerPhysical);
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%X -> Physical=%X"), VMA_TASK_RUNNER, TaskRunnerPhysical);
 
     DEBUG(TEXT("[AllocPageDirectory] Exit"));
     return PMA_Directory;
@@ -1044,11 +1040,9 @@ PHYSICAL AllocUserPageDirectory(void) {
     // TLB sync before returning
     FlushTLB();
 
-    KernelLogText(
-        LOG_DEBUG, TEXT("[AllocUserPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
+    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
         *(U32*)&Directory[768], *(U32*)&Directory[1023]);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[AllocUserPageDirectory] LowTable[0]=%X, KernelTable[0]=%X"), *(U32*)&LowTable[0],
+    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%X, KernelTable[0]=%X"), *(U32*)&LowTable[0],
         *(U32*)&KernelTable[0]);
 
     DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
@@ -1689,7 +1683,9 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
 
                         U8* Memory = (U8*)MapTempPhysicalPage3(PhysicalAddress);
 
+                        #if DEBUG_OUTPUT == 1
                         LogMemoryLine16B(LOG_DEBUG, (LPCSTR)"[LogPageDirectory]     RAM: ", Memory);
+                        #endif
                     } else if (MappedCount == 4) {
                         DEBUG(TEXT("[LogPageDirectory]   ... (%u more mapped pages) ..."), 1024 - 6);
                     }
