@@ -303,6 +303,8 @@ void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32
     Context->NetmaskBe = NetmaskBe;
     Context->DefaultGatewayBe = DefaultGatewayBe;
 
+    ARP_SetLocalAddress(Device, LocalIPv4_Be);
+
     U32 IP = Ntohl(LocalIPv4_Be);
     U32 Mask = Ntohl(NetmaskBe);
     U32 Gateway = Ntohl(DefaultGatewayBe);

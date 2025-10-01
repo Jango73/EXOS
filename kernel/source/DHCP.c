@@ -413,6 +413,13 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                                 LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
                                 SAFE_USE_VALID_ID(NetCtx, ID_NETWORKDEVICE) {
                                     if ((LPDEVICE)NetCtx->Device == g_DHCPDevice) {
+                                        NetCtx->LocalIPv4_Be = Context->OfferedIP_Be;
+                                        U32 AssignedHost = Ntohl(Context->OfferedIP_Be);
+                                        DEBUG(TEXT("[DHCP_OnUDPPacket] Updated network context IP to %u.%u.%u.%u"),
+                                              (AssignedHost >> 24) & 0xFF,
+                                              (AssignedHost >> 16) & 0xFF,
+                                              (AssignedHost >> 8) & 0xFF,
+                                              AssignedHost & 0xFF);
                                         NetCtx->IsReady = TRUE;
                                         DEBUG(TEXT("[DHCP_OnUDPPacket] Network device marked as ready"));
                                         break;

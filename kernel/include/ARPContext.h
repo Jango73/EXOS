@@ -73,6 +73,7 @@ void ARP_Tick(LPDEVICE Device);
 int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]);
 void ARP_DumpCache(LPDEVICE Device);
 void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length);
+void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be);
 U32 ARP_RegisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData);
 U32 ARP_UnregisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData);
 

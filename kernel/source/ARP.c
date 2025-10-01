@@ -578,6 +578,26 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
 
 /************************************************************************/
 
+void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
+    LPARP_CONTEXT Context;
+
+    if (Device == NULL) return;
+
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) return;
+
+    Context->LocalIPv4_Be = LocalIPv4_Be;
+
+    U32 IpHost = Ntohl(LocalIPv4_Be);
+    DEBUG(TEXT("[ARP_SetLocalAddress] Local IPv4 updated to %u.%u.%u.%u"),
+          (IpHost >> 24) & 0xFF,
+          (IpHost >> 16) & 0xFF,
+          (IpHost >> 8) & 0xFF,
+          IpHost & 0xFF);
+}
+
+/************************************************************************/
+
 void ARP_Destroy(LPDEVICE Device) {
     LPARP_CONTEXT Context;
 
