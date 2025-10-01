@@ -410,7 +410,9 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     char* headerEnd;
     char* statusLine;
     int retryCount = 0;
+    int timeoutCount = 0;
     const int maxRetries = 50; // Allow up to 50 attempts with small delays
+    const int maxTimeoutsBeforeStateCheck = 3;
 
     debug("[HTTP_ReceiveResponse] Starting to receive response");
     char* contentLengthStr;
@@ -451,17 +453,62 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
         received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
         debug("[HTTP_ReceiveResponse] recv() returned %d bytes", received);
 
-        if (received < 0) {
+        if (received >= 0) {
+            if (received == 0) {
+                debug("[HTTP_ReceiveResponse] recv() returned 0 - connection closed by server after %d bytes", totalReceived);
+                break;
+            }
+
+            // Reset retry counters on successful receive
+            retryCount = 0;
+            timeoutCount = 0;
+
+        } else if (received == SOCKET_ERROR_WOULDBLOCK) {
+            retryCount++;
+            if (retryCount >= maxRetries) {
+                debug("[HTTP_ReceiveResponse] recv() would block after %d retries", retryCount);
+                break;
+            }
+
+            debug("[HTTP_ReceiveResponse] recv() would block, retry %d/%d", retryCount, maxRetries);
+            sleep(1);
+            continue;
+
+        } else if (received == SOCKET_ERROR_TIMEOUT) {
+            retryCount++;
+            timeoutCount++;
+            debug("[HTTP_ReceiveResponse] recv() timeout %d (retry %d/%d)", timeoutCount, retryCount, maxRetries);
+
+            if (timeoutCount >= maxTimeoutsBeforeStateCheck) {
+                struct sockaddr_in peerAddr;
+                socklen_t peerAddrLen = sizeof(peerAddr);
+                int peerStatus = getpeername(Connection->SocketHandle, (struct sockaddr*)&peerAddr, &peerAddrLen);
+
+                if (peerStatus == 0) {
+                    debug("[HTTP_ReceiveResponse] Connection alive after %d timeouts, continuing", timeoutCount);
+                    timeoutCount = 0;
+                } else if (peerStatus == SOCKET_ERROR_NOTCONNECTED) {
+                    debug("[HTTP_ReceiveResponse] Connection lost while waiting for data");
+                    received = 0;
+                    break;
+                } else {
+                    debug("[HTTP_ReceiveResponse] Failed to verify connection state (%d)", peerStatus);
+                    break;
+                }
+            }
+
+            if (retryCount >= maxRetries) {
+                debug("[HTTP_ReceiveResponse] Maximum retries reached after timeout");
+                break;
+            }
+
+            sleep(1);
+            continue;
+
+        } else {
             debug("[HTTP_ReceiveResponse] recv() error: %d", received);
             break;
-        } else if (received == 0) {
-            // Connection closed by server
-            debug("[HTTP_ReceiveResponse] recv() returned 0 - connection closed by server after %d bytes", totalReceived);
-            break;
         }
-
-        // Reset retry count on successful receive
-        retryCount = 0;
 
         // Expand allData buffer if needed
         if (allDataSize + received > allDataCapacity) {
