@@ -56,7 +56,7 @@ typedef struct tag_NETWORK_DEVICE_CONTEXT {
 // Helper function to get network configuration from TOML with fallback
 static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
     LPCSTR configValue = GetConfigurationValue(configPath);
-    if (configValue != NULL) {
+    SAFE_USE(configValue) {
         U32 parsedIP = ParseIPAddress(configValue);
         if (parsedIP != 0) {
             return parsedIP;
@@ -72,8 +72,9 @@ static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
 // TODO: Implement proper per-device configuration when TOML API is enhanced
 static U32 NetworkManager_GetDeviceConfigIP(U32 deviceIndex, LPCSTR configKey, LPCSTR fallbackGlobalKey, U32 fallbackValue) {
     // For now, just use global configuration with device index as IP offset
-    if (fallbackGlobalKey != NULL) {
+    SAFE_USE(fallbackGlobalKey) {
         U32 baseIP = NetworkManager_GetConfigIP(fallbackGlobalKey, fallbackValue);
+
         // If this is LocalIP, offset by device index to avoid conflicts
         if (STRINGS_EQUAL(configKey, TEXT("LocalIP"))) {
             U32 hostPart = Ntohl(baseIP) + deviceIndex;
@@ -159,14 +160,19 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
     SAFE_USE(Kernel.PCIDevice) {
         SAFE_USE_VALID_ID(Kernel.PCIDevice->First, ID_PCIDEVICE) {
+
             for (Node = Kernel.PCIDevice->First; Node != NULL; Node = Node->Next) {
                 LPPCI_DEVICE Device = (LPPCI_DEVICE)Node;
+
                 SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
                     SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
+
                         if (Device->Driver->Type == DRIVER_TYPE_NETWORK) {
                             // Allocate a new network device context
-                            LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)CreateKernelObject(sizeof(NETWORK_DEVICE_CONTEXT), ID_NETWORKDEVICE);
-                            if (Context != NULL) {
+                            LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)
+                                CreateKernelObject(sizeof(NETWORK_DEVICE_CONTEXT), ID_NETWORKDEVICE);
+
+                            SAFE_USE(Context) {
                                 Context->Device = Device;
                                 // Use per-device configuration with fallback to global config
                                 Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Count, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(0xC0A8380AU + Count));

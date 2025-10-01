@@ -59,14 +59,15 @@ BOOL InitializeSessionSystem(void) {
  * @brief Shutdown the session management system.
  */
 void ShutdownSessionSystem(void) {
-    if (Kernel.UserSessions != NULL) {
+    SAFE_USE(Kernel.UserSessions) {
         // Clean up all active sessions
         LockMutex(MUTEX_SESSION, INFINITY);
 
         U32 Count = ListGetSize(Kernel.UserSessions);
         for (U32 i = 0; i < Count; i++) {
             LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(Kernel.UserSessions, i);
-            if (Session != NULL) {
+
+            SAFE_USE(Session) {
                 KernelLogText(
                     LOG_VERBOSE, TEXT("Cleaning up session for user ID: %08X%08X"), Session->UserID.HI,
                     Session->UserID.LO);
@@ -120,7 +121,8 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
 
     // Update user's last login time
     LPUSERACCOUNT User = FindUserAccountByID(UserID);
-    if (User != NULL) {
+
+    SAFE_USE(User) {
         User->LastLoginTime = NewSession->LoginTime;
     }
 
@@ -291,7 +293,7 @@ BOOL SetCurrentSession(LPUSERSESSION Session) {
     }
 
     // Find the session in the session list first
-    if (Session != NULL) {
+    SAFE_USE(Session) {
         LPUSERSESSION Found = (LPUSERSESSION)Kernel.UserSessions->First;
         BOOL SessionExists = FALSE;
 

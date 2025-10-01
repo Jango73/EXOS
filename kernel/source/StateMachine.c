@@ -230,7 +230,7 @@ BOOL SM_IsInState(STATE_MACHINE* SM, SM_STATE State)
  */
 void SM_Enable(STATE_MACHINE* SM)
 {
-    if (SM != NULL) {
+    SAFE_USE(SM) {
         SM->Enabled = TRUE;
     }
 }
@@ -243,7 +243,7 @@ void SM_Enable(STATE_MACHINE* SM)
  */
 void SM_Disable(STATE_MACHINE* SM)
 {
-    if (SM != NULL) {
+    SAFE_USE(SM) {
         SM->Enabled = FALSE;
     }
 }
@@ -304,7 +304,7 @@ LPVOID SM_GetContext(STATE_MACHINE* SM)
  */
 void SM_SetContext(STATE_MACHINE* SM, LPVOID Context)
 {
-    if (SM != NULL) {
+    SAFE_USE(SM) {
         SM->Context = Context;
     }
 }

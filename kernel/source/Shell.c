@@ -1244,7 +1244,8 @@ static void CMD_adduser(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[CMD_adduser] Creating user with privilege %d"), Privilege);
 
     LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
-    if (Account != NULL) {
+
+    SAFE_USE(Account) {
         ConsolePrint(
             TEXT("SUCCESS: User '%s' created successfully as %s\n"), UserName,
             Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("admin") : TEXT("user"));
@@ -1282,8 +1283,10 @@ static void CMD_deluser(LPSHELLCONTEXT Context) {
     }
 
     LPUSERSESSION Session = GetCurrentSession();
-    if (Session != NULL) {
+
+    SAFE_USE(Session) {
         LPUSERACCOUNT CurrentAccount = FindUserAccountByID(Session->UserID);
+
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             ConsolePrint(TEXT("Only admin users can delete accounts\n"));
             return;
@@ -1773,10 +1776,12 @@ static BOOL HandleUserLoginProcess(void) {
 
         // Check if login was successful
         LPUSERSESSION Session = GetCurrentSession();
-        if (Session != NULL) {
+
+        SAFE_USE(Session) {
             LoggedIn = TRUE;
             LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
-            if (Account != NULL) {
+
+            SAFE_USE (Account) {
                 ConsolePrint(TEXT("Logged in as: %s (%s)\n"), Account->UserName,
                     Account->Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("Administrator") : TEXT("User")
                     );

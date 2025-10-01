@@ -115,7 +115,7 @@ BOOL StringArrayMoveToEnd(LPSTRINGARRAY Array, LPCSTR String) {
     }
 
     // Insert at end
-    if (ExistingString != NULL) {
+    SAFE_USE(ExistingString) {
         // Reuse existing string
         Array->Items[Array->Count] = ExistingString;
     } else {

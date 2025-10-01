@@ -123,7 +123,7 @@ LPACPI_RSDP FindRSDP(void) {
         Rsdp = SearchRSDPInRange(0xE0000, 0x20000);  // 128KB range
     }
 
-    if (Rsdp != NULL) {
+    SAFE_USE(Rsdp) {
         DEBUG(TEXT("[FindRSDP] RSDP found at 0x%08X, revision %d"), (U32)Rsdp, Rsdp->Revision);
 
         // For ACPI 2.0+, validate extended checksum
@@ -176,7 +176,7 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
     }
 
     // Prefer XSDT if available (ACPI 2.0+)
-    if (G_XSDT != NULL) {
+    SAFE_USE(G_XSDT) {
         U32 EntryCount = (G_XSDT->Header.Length - sizeof(ACPI_TABLE_HEADER)) / sizeof(U64);
         DEBUG(TEXT("[FindACPITable] Searching XSDT with %d entries"), EntryCount);
 
@@ -222,7 +222,7 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
     }
 
     // Search RSDT if XSDT is not available or didn't contain the table
-    if (G_RSDT != NULL) {
+    SAFE_USE(G_RSDT) {
         U32 EntryCount = (G_RSDT->Header.Length - sizeof(ACPI_TABLE_HEADER)) / sizeof(U32);
         DEBUG(TEXT("[FindACPITable] Searching RSDT with %d entries"), EntryCount);
 
@@ -404,7 +404,7 @@ BOOL InitializeACPI(void) {
             }
         }
 
-        if (G_RSDT != NULL) {
+        SAFE_USE(G_RSDT) {
             if (!IsValidMemory((LINEAR)G_RSDT)) {
                 DEBUG(TEXT("[InitializeACPI] RSDT not accessible in virtual memory"));
                 G_RSDT = NULL;
@@ -438,7 +438,7 @@ BOOL InitializeACPI(void) {
             }
         }
 
-        if (G_XSDT != NULL) {
+        SAFE_USE(G_XSDT) {
             if (!IsValidMemory((LINEAR)G_XSDT)) {
                 DEBUG(TEXT("[InitializeACPI] XSDT not accessible in virtual memory"));
                 G_XSDT = NULL;

@@ -124,7 +124,7 @@ U32 StringLength(LPCSTR Src) {
     U32 Index = 0;
     U32 Size = 0;
 
-    if (Src != NULL) {
+    SAFE_USE(Src) {
         // Count characters until null terminator or safety limit
         for (Index = 0; Index < 8192; Index++) {
             if (*Src == STR_NULL) break;  // Found end of string

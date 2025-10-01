@@ -1947,7 +1947,8 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
 
     // First check if variable exists in current or parent scopes
     LPSCRIPT_VARIABLE ExistingVar = ScriptFindVariableInScope(Scope, Name, TRUE);
-    if (ExistingVar != NULL) {
+
+    SAFE_USE(ExistingVar) {
         // Update existing variable in whichever scope it was found
         if (ExistingVar->Type == SCRIPT_VAR_STRING && ExistingVar->Value.String) {
             HeapFree(ExistingVar->Value.String);

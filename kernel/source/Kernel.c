@@ -312,14 +312,14 @@ static void ReadKernelConfiguration(void) {
     if (Buffer == NULL) {
         Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
 
-        if (Buffer != NULL) {
+        SAFE_USE(Buffer) {
             DEBUG(TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
         }
     } else {
         DEBUG(TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
     }
 
-    if (Buffer != NULL) {
+    SAFE_USE(Buffer) {
         Kernel.Configuration = TomlParse((LPCSTR)Buffer);
         KernelHeapFree(Buffer);
     }
@@ -438,7 +438,7 @@ U32 GetPhysicalMemoryUsed(void) {
  */
 
 void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
-    if (Driver != NULL) {
+    SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), Name, Driver);
 
         if (Driver->ID != ID_DRIVER) {

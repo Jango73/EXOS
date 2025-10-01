@@ -260,7 +260,8 @@ void IPv4_Destroy(LPDEVICE Device) {
     if (Device == NULL) return;
 
     Context = IPv4_GetContext(Device);
-    if (Context != NULL) {
+
+    SAFE_USE(Context) {
         if (Context->NotificationContext) {
             Notification_DestroyContext(Context->NotificationContext);
         }

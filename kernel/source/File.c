@@ -94,7 +94,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
-        if (File != NULL) {
+        SAFE_USE(File) {
             LockMutex(MUTEX_FILE, INFINITY);
 
             File->OwnerTask = GetCurrentTask();
@@ -125,7 +125,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
-        if (File != NULL) {
+        SAFE_USE(File) {
             DEBUG(TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
 
             LockMutex(MUTEX_FILE, INFINITY);
@@ -375,7 +375,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
         *Size = GetFileSize(File);
         Buffer = KernelHeapAlloc(*Size + 1);
 
-        if (Buffer != NULL) {
+        SAFE_USE(Buffer) {
             FileOp.Header.Size = sizeof(FILEOPERATION);
             FileOp.File = (HANDLE)File;
             FileOp.Buffer = Buffer;

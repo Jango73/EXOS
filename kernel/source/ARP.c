@@ -207,7 +207,7 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
         }
     }
 
-    if (Entry != NULL) {
+    SAFE_USE(Entry) {
         WasProbing = Entry->IsProbing;
         DEBUG(TEXT("[ArpCacheUpdate] Entry=%x, WasProbing=%u MacChanged=%u before update"), (U32)Entry, WasProbing, MacChanged);
         MacCopy(Entry->MacAddress, MacAddress);
@@ -584,7 +584,7 @@ void ARP_Destroy(LPDEVICE Device) {
     if (Device == NULL) return;
 
     Context = ARP_GetContext(Device);
-    if (Context != NULL) {
+    SAFE_USE(Context) {
         if (Context->NotificationContext) {
             Notification_DestroyContext(Context->NotificationContext);
         }

@@ -844,7 +844,8 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     if (LocalIP == 0) {
         // Use device's local IP address
         LPIPV4_CONTEXT IPv4Context = IPv4_GetContext(Device);
-        if (IPv4Context != NULL) {
+
+        SAFE_USE(IPv4Context) {
             Conn->LocalIP = IPv4Context->LocalIPv4_Be;
             DEBUG(TEXT("[TCP_CreateConnection] Using device IP for LocalIP=0: %d.%d.%d.%d"),
                   (Ntohl(Conn->LocalIP) >> 24) & 0xFF, (Ntohl(Conn->LocalIP) >> 16) & 0xFF,
@@ -906,7 +907,7 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         SM_Destroy(&Connection->StateMachine);
 
         // Destroy notification context
-        if (Connection->NotificationContext != NULL) {
+        SAFE_USE (Connection->NotificationContext) {
             Notification_DestroyContext(Connection->NotificationContext);
             Connection->NotificationContext = NULL;
             DEBUG(TEXT("[TCP_DestroyConnection] Destroyed notification context for connection %X"), (U32)Connection);
@@ -1187,7 +1188,7 @@ void TCP_Update(void) {
                 Conn->RetransmitCount = 0;
 
                 // Notify upper layers of connection failure
-                if (Conn->NotificationContext != NULL) {
+                SAFE_USE(Conn->NotificationContext) {
                     Notification_Send(Conn->NotificationContext, NOTIF_EVENT_TCP_FAILED, NULL, 0);
                 }
 

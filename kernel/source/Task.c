@@ -195,21 +195,21 @@ void DeleteTask(LPTASK This) {
 
         DEBUG(TEXT("[DeleteTask] Deleting message queue"));
 
-        if (This->Message != NULL) DeleteList(This->Message);
+        SAFE_USE(This->Message) DeleteList(This->Message);
 
         //-------------------------------------
         // Delete the task's stacks
 
         DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
-        if (This->SysStackBase != NULL) {
+        SAFE_USE(This->SysStackBase) {
             DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->SysStackBase,
                 This->SysStackSize);
             FreeRegion(This->SysStackBase, This->SysStackSize);
         }
 
-        if (This->Process != NULL) {
-            if (This->StackBase != NULL) {
+        SAFE_USE(This->Process) {
+            SAFE_USE(This->StackBase) {
                 DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->StackBase, This->StackSize);
                 FreeRegion(This->StackBase, This->StackSize);
             }
@@ -332,7 +332,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     DEBUG(TEXT("[CreateTask] Process : %X"), Process);
     DEBUG(TEXT("[CreateTask] Info : %X"), Info);
 
-    if (Info != NULL) {
+    SAFE_USE(Info) {
         DEBUG(TEXT("[CreateTask] Func : %X"), Info->Func);
         DEBUG(TEXT("[CreateTask] Parameter : %X"), Info->Parameter);
         DEBUG(TEXT("[CreateTask] Flags : %X"), Info->Flags);
@@ -393,7 +393,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     Task->Parameter = Info->Parameter;
 
     // Increment process task count
-    if (Process != NULL) {
+    SAFE_USE(Process) {
         LockMutex(MUTEX_PROCESS, INFINITY);
         Process->TaskCount++;
         KernelLogText(
@@ -444,11 +444,11 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     DEBUG(TEXT("[CreateTask] Actually got StackBase=%X"), Task->StackBase);
 
     if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
-        if (Task->StackBase != NULL) {
+        SAFE_USE(Task->StackBase) {
             FreeRegion(Task->StackBase, Task->StackSize);
         }
 
-        if (Task->SysStackBase != NULL) {
+        SAFE_USE(Task->SysStackBase) {
             FreeRegion(Task->SysStackBase, Task->SysStackSize);
         }
 
@@ -1032,7 +1032,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Post message to window if found
 
-    if (Win != NULL) {
+    SAFE_USE_VALID_ID(Win, ID_WINDOW) {
         //-------------------------------------
         // If the message is EWM_DRAW, do not post it if
         // window already has one. Instead, put the existing
@@ -1153,7 +1153,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     // Send message to window if found
 
     if (Window != NULL && Window->ID == ID_WINDOW) {
-        if (Window->Function != NULL) {
+        SAFE_USE(Window->Function) {
             LockMutex(&(Window->Mutex), INFINITY);
             Result = Window->Function(Target, Msg, Param1, Param2);
             UnlockMutex(&(Window->Mutex));
@@ -1327,7 +1327,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     LockMutex(&(Window->Mutex), INFINITY);
 
     if (Message->Target == (HANDLE)Window) {
-        if (Window->Function != NULL) {
+        SAFE_USE(Window->Function) {
             // Call the window function with the parameters
 
             Window->Function(Message->Target, Message->Message, Message->Param1, Message->Param2);

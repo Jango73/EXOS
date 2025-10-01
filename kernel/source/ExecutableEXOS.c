@@ -219,7 +219,7 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LI
                     ItemAddress = NULL;
                 }
 
-                if (ItemAddress != NULL) {
+                SAFE_USE(ItemAddress) {
                     if (Fixup.Section & EXOS_FIXUP_DEST_CODE) {
                         *((U32*)ItemAddress) += CodeOffset;
                     } else if (Fixup.Section & EXOS_FIXUP_DEST_DATA) {

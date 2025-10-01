@@ -581,7 +581,7 @@ static BOOL IsObjectSignaled(LPVOID Object) {
         Object
     );
 
-    if (TermState != NULL) {
+    SAFE_USE(TermState) {
         DEBUG(TEXT("[IsObjectSignaled] Object %x found in termination cache - marking as signaled"), Object);
         UnlockMutex(MUTEX_KERNEL);
         return TRUE;
@@ -605,7 +605,7 @@ static U32 GetObjectExitCode(LPVOID Object) {
         Object
     );
 
-    if (TermState != NULL) {
+    SAFE_USE(TermState) {
         DEBUG(TEXT("[GetObjectExitCode] Object %x found in termination cache, ExitCode=%u"), Object, TermState->ExitCode);
         UnlockMutex(MUTEX_KERNEL);
         return TermState->ExitCode;

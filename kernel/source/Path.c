@@ -98,7 +98,7 @@ LPLIST DecomposePath(LPCSTR Path) {
     return List;
 
 Error:
-    if (List != NULL) {
+    SAFE_USE(List) {
         DeleteList(List);
     }
     DEBUG(TEXT("[DecomposePath] Error occurred, returning NULL"));
