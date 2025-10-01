@@ -115,6 +115,10 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
     char headerBuffer[4096] = {0};
     unsigned int headerBufferUsed = 0;
 
+    const unsigned int receiveTimeoutMs = 5000;
+    const unsigned int pollIntervalMs = 10;
+    unsigned int idleTimeMs = 0;
+
     if (!connection || !filename) {
         return HTTP_ERROR_INVALID_RESPONSE;
     }
@@ -127,6 +131,25 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
         received = recv(connection->SocketHandle, buffer, sizeof(buffer), 0);
 
         if (received < 0) {
+            if (received == SOCKET_ERROR_WOULDBLOCK) {
+                Sleep(pollIntervalMs);
+                idleTimeMs += pollIntervalMs;
+
+                if (idleTimeMs >= receiveTimeoutMs) {
+                    printf("\nError: recv() timeout waiting for server response\n");
+                    if (file) fclose(file);
+                    return HTTP_ERROR_TIMEOUT;
+                }
+
+                continue;
+            }
+
+            if (received == SOCKET_ERROR_TIMEOUT) {
+                printf("\nError: recv() timed out\n");
+                if (file) fclose(file);
+                return HTTP_ERROR_TIMEOUT;
+            }
+
             printf("\nError: recv() failed - ");
             if (received == -1) {
                 printf("timeout waiting for server response\n");
@@ -152,6 +175,9 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
         }
 
         totalReceived += received;
+        if (received > 0) {
+            idleTimeMs = 0;
+        }
 
         if (!headersParsed) {
             // Still receiving headers
