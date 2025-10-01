@@ -601,15 +601,17 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
 
         // Wait for network to be ready with timeout
         U32 WaitStartMillis = GetSystemTime();
-        U32 TimeoutMs = 30000; // 30 seconds timeout
+        U32 TimeoutMs = 60000; // 60 seconds timeout
         while (!NetworkManager_IsDeviceReady(NetworkDevice)) {
             U32 ElapsedMs = GetSystemTime() - WaitStartMillis;
+
             if (ElapsedMs > TimeoutMs) {
                 ERROR(TEXT("[SocketConnect] Timeout waiting for network to be ready"));
                 return SOCKET_ERROR_TIMEOUT;
             }
+
             DEBUG(TEXT("[SocketConnect] Waiting for network to be ready..."));
-            DoSystemCall(SYSCALL_Sleep, 100);
+            DoSystemCall(SYSCALL_Sleep, 1000);
         }
 
         // Create TCP connection
