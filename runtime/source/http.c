@@ -26,6 +26,8 @@
 #include "../include/http.h"
 #include "../../kernel/include/User.h"
 
+#include <string.h>
+
 static unsigned int HTTPDefaultReceiveTimeoutMs = 10000; // 10 seconds by default
 
 static char HTTP_ToLowerChar(char Character) {
