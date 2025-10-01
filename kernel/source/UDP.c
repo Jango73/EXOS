@@ -83,12 +83,8 @@ U16 UDP_CalculateChecksum(U32 SourceIP, U32 DestinationIP, const UDP_HEADER* Hea
         Accumulator = NetworkChecksum_Calculate_Accumulate(Payload, PayloadLength, Accumulator);
     }
 
-    // Fold to 16 bits
-    while (Accumulator >> 16) {
-        Accumulator = (Accumulator & 0xFFFF) + (Accumulator >> 16);
-    }
-
-    U16 Checksum = (U16)(~Accumulator);
+    // Finalize checksum
+    U16 Checksum = NetworkChecksum_Finalize(Accumulator);
 
     // UDP checksum of 0x0000 is special (means checksum disabled), convert to 0xFFFF
     if (Checksum == 0) {
@@ -349,9 +345,10 @@ void UDP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
             U16 CalculatedChecksum = UDP_CalculateChecksum(SourceIP, DestinationIP, UDPHeader,
                                                             Payload + sizeof(UDP_HEADER),
                                                             Length - sizeof(UDP_HEADER));
-            if (CalculatedChecksum != UDPHeader->Checksum) {
+            CalculatedChecksum = Ntohs(CalculatedChecksum);
+            if (CalculatedChecksum != Checksum) {
                 ERROR(TEXT("[UDP_OnIPv4Packet] Invalid UDP checksum: expected %x, got %x"),
-                      Ntohs(CalculatedChecksum), Checksum);
+                      CalculatedChecksum, Checksum);
                 return;
             }
         }

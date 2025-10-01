@@ -184,7 +184,9 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
     }
 
     // Check if packet is for us (simple routing)
-    if (Packet->DestinationAddress != Context->LocalIPv4_Be) {
+    // Accept packets destined to our IP or broadcast
+    if (Packet->DestinationAddress != Context->LocalIPv4_Be &&
+        Packet->DestinationAddress != Htonl(0xFFFFFFFF)) {
         // Not for us, drop (could implement forwarding here)
         U32 DstIP = Ntohl(Packet->DestinationAddress);
         DEBUG(TEXT("[IPv4_HandlePacket] Packet not for us: %u.%u.%u.%u"),

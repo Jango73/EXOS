@@ -21,7 +21,7 @@ echo ACPI support enabled for IOAPIC testing with kernel-irqchip=split
 -device ide-hd,drive=drive0,bus=ahci.0 ^
 -netdev user,id=net0 ^
 -device e1000,netdev=net0 ^
--object filter-dump,id=dump0,netdev=net0,file=log/exos-netget.pcap ^
+-object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap ^
 -monitor telnet:127.0.0.1:4444,server,nowait ^
 -serial file:"log/debug-com1.log" ^
 -serial file:"log/kernel.log" ^

@@ -343,7 +343,8 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
     Context = DHCP_GetContext(g_DHCPDevice);
     SAFE_USE(Context) {
         SAFE_USE_2(Context, Payload) {
-            if (PayloadLength < sizeof(DHCP_MESSAGE)) {
+            // Minimum DHCP packet size: fixed fields up to MagicCookie
+            if (PayloadLength < DHCP_FIXED_FIELDS_SIZE) {
                 ERROR(TEXT("[DHCP_OnUDPPacket] Packet too small: %u bytes"), PayloadLength);
                 return;
             }
@@ -364,8 +365,9 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                 return;
             }
 
-            // Parse options
-            if (!DHCP_ParseOptions(Context, Message->Options, sizeof(Message->Options), &MessageType)) {
+            // Parse options (actual options length = total payload - fixed fields)
+            U32 OptionsLength = PayloadLength - DHCP_FIXED_FIELDS_SIZE;
+            if (!DHCP_ParseOptions(Context, Message->Options, OptionsLength, &MessageType)) {
                 ERROR(TEXT("[DHCP_OnUDPPacket] Failed to parse options"));
                 return;
             }

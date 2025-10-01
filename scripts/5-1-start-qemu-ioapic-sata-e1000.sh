@@ -22,7 +22,7 @@ qemu-system-i386 \
 -device ide-hd,drive=drive0,bus=ahci.0 \
 -netdev user,id=net0 \
 -device e1000,netdev=net0 \
--object filter-dump,id=dump0,netdev=net0,file=log/exos-netget.pcap \
+-object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
 -serial file:"log/debug-com1.log" \
 -serial file:"log/kernel.log" \
 -no-reboot \
@@ -31,5 +31,5 @@ qemu-system-i386 \
 # -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 # -d int 2>&1 | build/tools/cycle -o log/qemu.log -s 20000
 
-sleep 30
+sleep 60
 killall qemu-system-i386

@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -95,6 +96,9 @@ typedef struct tag_DHCP_MESSAGE {
     U8 Options[312];    // Options (variable length)
 } DHCP_MESSAGE, *LPDHCP_MESSAGE;
 
+// Fixed fields size (up to and including MagicCookie)
+#define DHCP_FIXED_FIELDS_SIZE MEMBER_OFFSET(DHCP_MESSAGE, Options)
+
 /************************************************************************/
 // Per-device DHCP API
 #include "DHCPContext.h"
@@ -103,4 +107,4 @@ typedef struct tag_DHCP_MESSAGE {
 
 #pragma pack(pop)
 
-#endif // DHCP_H_INCLUDED
+#endif  // DHCP_H_INCLUDED
