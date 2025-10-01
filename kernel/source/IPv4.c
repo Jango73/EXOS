@@ -50,7 +50,15 @@ static U16 NextID = 1; // IPv4 packet identification counter
 // Global state
 
 LPIPV4_CONTEXT IPv4_GetContext(LPDEVICE Device) {
-    return (LPIPV4_CONTEXT)GetDeviceContext(Device, ID_IPV4);
+    LPIPV4_CONTEXT Context = NULL;
+
+    if (Device == NULL) return NULL;
+
+    LockMutex(&(Device->Mutex), INFINITY);
+    Context = (LPIPV4_CONTEXT)GetDeviceContext(Device, ID_IPV4);
+    UnlockMutex(&(Device->Mutex));
+
+    return Context;
 }
 
 /************************************************************************/
@@ -112,18 +120,26 @@ int IPv4_ValidateChecksum(IPV4_HEADER* Header) {
  */
 static int IPv4_SendEthernetFrame(LPIPV4_CONTEXT Context, const U8* Data, U32 Length) {
     NETWORKSEND Send;
+    LPDEVICE Device;
+    int Result = 0;
 
     if (Context == NULL || Context->Device == NULL) return 0;
 
-    Send.Device = (LPPCI_DEVICE)Context->Device;
+    Device = Context->Device;
+
+    LockMutex(&(Device->Mutex), INFINITY);
+
+    Send.Device = (LPPCI_DEVICE)Device;
     Send.Data = Data;
     Send.Length = Length;
-    SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Context->Device)->Driver, ID_DRIVER) {
-            return (((LPPCI_DEVICE)Context->Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
+    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
         }
     }
-    return 0;
+
+    UnlockMutex(&(Device->Mutex));
+    return Result;
 }
 
 /************************************************************************/
@@ -245,7 +261,9 @@ void IPv4_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     // Create notification context like ARP does
     Context->NotificationContext = Notification_CreateContext();
 
+    LockMutex(&(Device->Mutex), INFINITY);
     SetDeviceContext(Device, ID_IPV4, Context);
+    UnlockMutex(&(Device->Mutex));
 
     U32 IP = Ntohl(LocalIPv4_Be);
     DEBUG(TEXT("[IPv4_Initialize] Initialized for %u.%u.%u.%u"),
@@ -262,11 +280,15 @@ void IPv4_Destroy(LPDEVICE Device) {
 
     Context = IPv4_GetContext(Device);
 
+    LockMutex(&(Device->Mutex), INFINITY);
+    RemoveDeviceContext(Device, ID_IPV4);
+    UnlockMutex(&(Device->Mutex));
+
     SAFE_USE(Context) {
         if (Context->NotificationContext) {
             Notification_DestroyContext(Context->NotificationContext);
+            Context->NotificationContext = NULL;
         }
-        RemoveDeviceContext(Device, ID_IPV4);
         KernelHeapFree(Context);
     }
 }
@@ -395,23 +417,33 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
     // Get our MAC address from network device
     NETWORKGETINFO GetInfo;
     NETWORKINFO NetInfo;
+    BOOL MacRetrieved = FALSE;
     MemorySet(&GetInfo, 0, sizeof(GetInfo));
     MemorySet(&NetInfo, 0, sizeof(NetInfo));
     GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &NetInfo;
 
+    LockMutex(&(Device->Mutex), INFINITY);
+
     SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[IPv4_Send] Failed to get network info"));
-                return 0;
+                goto Out;
             }
+            MacRetrieved = TRUE;
         } else {
             DEBUG(TEXT("[IPv4_Send] Invalid network device driver"));
-            return 0;
+            goto Out;
         }
     } else {
         DEBUG(TEXT("[IPv4_Send] Invalid network device"));
+        goto Out;
+    }
+
+Out:
+    UnlockMutex(&(Device->Mutex));
+    if (!MacRetrieved) {
         return 0;
     }
 
@@ -483,11 +515,15 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
 static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHopIP, U8 Protocol, const U8* Payload, U32 PayloadLength) {
     // NextID is now global static variable
     U8 DestinationMAC[6];
+    LPDEVICE Device;
 
     if (Context == NULL || Payload == NULL) return 0;
 
+    Device = Context->Device;
+    if (Device == NULL) return 0;
+
     // Resolve NextHop MAC address (should be in cache now)
-    if (!ARP_Resolve(Context->Device, NextHopIP, DestinationMAC)) {
+    if (!ARP_Resolve(Device, NextHopIP, DestinationMAC)) {
         DEBUG(TEXT("[IPv4_SendDirect] ARP resolution failed for NextHop %x"), Ntohl(NextHopIP));
         return 0;
     }
@@ -511,23 +547,33 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
     // Get our MAC address from network device
     NETWORKGETINFO GetInfo;
     NETWORKINFO NetInfo;
+    BOOL MacRetrieved = FALSE;
     MemorySet(&GetInfo, 0, sizeof(GetInfo));
     MemorySet(&NetInfo, 0, sizeof(NetInfo));
-    GetInfo.Device = (LPPCI_DEVICE)Context->Device;
+    GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &NetInfo;
 
-    SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Context->Device)->Driver, ID_DRIVER) {
-            if (((LPPCI_DEVICE)Context->Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
+    LockMutex(&(Device->Mutex), INFINITY);
+
+    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[IPv4_SendDirect] Failed to get network info"));
-                return 0;
+                goto Out;
             }
+            MacRetrieved = TRUE;
         } else {
             DEBUG(TEXT("[IPv4_SendDirect] Invalid network device driver"));
-            return 0;
+            goto Out;
         }
     } else {
         DEBUG(TEXT("[IPv4_SendDirect] Invalid network device"));
+        goto Out;
+    }
+
+Out:
+    UnlockMutex(&(Device->Mutex));
+    if (!MacRetrieved) {
         return 0;
     }
 
