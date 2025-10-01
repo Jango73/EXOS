@@ -26,6 +26,21 @@
 #include "../include/http.h"
 #include "../../kernel/include/User.h"
 
+static unsigned int HTTPDefaultReceiveTimeoutMs = 10000; // 10 seconds by default
+
+/***************************************************************************/
+
+void HTTP_SetDefaultReceiveTimeout(unsigned int TimeoutMs) {
+    HTTPDefaultReceiveTimeoutMs = TimeoutMs;
+    debug("[HTTP_SetDefaultReceiveTimeout] Timeout set to %u ms", HTTPDefaultReceiveTimeoutMs);
+}
+
+/***************************************************************************/
+
+unsigned int HTTP_GetDefaultReceiveTimeout(void) {
+    return HTTPDefaultReceiveTimeoutMs;
+}
+
 /***************************************************************************/
 
 /**
@@ -227,10 +242,16 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     serverAddr.sin_port = htons(Port);
     serverAddr.sin_addr = htonl(connection->RemoteIP);
 
-    // Set receive timeout to 1 second
-    unsigned int timeoutMs = 1000;
-    if (setsockopt(connection->SocketHandle, SOL_SOCKET, SO_RCVTIMEO, &timeoutMs, sizeof(timeoutMs)) != 0) {
-        debug("[HTTP_CreateConnection] Failed to set receive timeout");
+    // Apply configured receive timeout (0 disables the timeout)
+    unsigned int timeoutMs = HTTPDefaultReceiveTimeoutMs;
+    if (timeoutMs > 0) {
+        if (setsockopt(connection->SocketHandle, SOL_SOCKET, SO_RCVTIMEO, &timeoutMs, sizeof(timeoutMs)) != 0) {
+            debug("[HTTP_CreateConnection] Failed to set receive timeout");
+        } else {
+            debug("[HTTP_CreateConnection] Receive timeout set to %u ms", timeoutMs);
+        }
+    } else {
+        debug("[HTTP_CreateConnection] Receive timeout disabled");
     }
 
     // Connect to server

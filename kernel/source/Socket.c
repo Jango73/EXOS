@@ -741,7 +741,7 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
                 U32 BytesToCopy = CircularBuffer_Read(&Socket->ReceiveBuffer, (U8*)Buffer, Length);
 
                 Socket->BytesReceived += BytesToCopy;
-                Socket->ReceiveTimeoutStartTime = 0; // Reset timeout for next operation
+                Socket->ReceiveTimeoutStartTime = 0; // Reset timeout so user space can continue waiting after new data arrives
 
                 // NOTE: TCP window is now calculated automatically based on TCP buffer usage
 
@@ -761,6 +761,7 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
                     if ((CurrentTime - Socket->ReceiveTimeoutStartTime) >= Socket->ReceiveTimeout) {
                         Socket->ReceiveTimeoutStartTime = 0; // Reset for next operation
                         DEBUG(TEXT("[SocketReceive] Receive timeout (%u ms) exceeded for socket %x"), Socket->ReceiveTimeout, SocketHandle);
+                        DEBUG(TEXT("[SocketReceive] User space may retry if the connection is still alive"));
                         return SOCKET_ERROR_TIMEOUT;
                     }
                 }

@@ -102,6 +102,21 @@ typedef struct tag_HTTP_CONNECTION {
 // HTTP API Functions
 
 /**
+ * @brief Configure the default receive timeout for HTTP sockets
+ * @param TimeoutMs Timeout in milliseconds (0 disables the timeout)
+ */
+void HTTP_SetDefaultReceiveTimeout(unsigned int TimeoutMs);
+
+/**
+ * @brief Retrieve the current default receive timeout for HTTP sockets
+ * @return Timeout in milliseconds (0 means no timeout)
+ */
+unsigned int HTTP_GetDefaultReceiveTimeout(void);
+
+/***************************************************************************/
+// HTTP Core Operations
+
+/**
  * @brief Parse a URL string into components
  * @param URLString The URL string to parse
  * @param ParsedURL Output structure to store parsed components
