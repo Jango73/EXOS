@@ -915,6 +915,7 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     } else {
         Conn->LocalIP = LocalIP;
     }
+
     Conn->LocalPort = (LocalPort == 0) ? Htons(TCP_GetNextEphemeralPort(Conn->LocalIP)) : LocalPort;
     Conn->RemoteIP = RemoteIP;
     Conn->RemotePort = RemotePort; // RemotePort should already be in network byte order from socket layer
@@ -1197,8 +1198,12 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 void TCP_Update(void) {
     U32 CurrentTime = GetSystemTime();
 
+    // Get the first connection
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)Kernel.TCPConnection->First;
+
     while (Conn != NULL) {
+        LockMutex(&Conn->Device->Mutex, INFINITY);
+
         LPTCP_CONNECTION Next = (LPTCP_CONNECTION)Conn->Next;
         SM_STATE CurrentState = SM_GetCurrentState(&Conn->StateMachine);
 
@@ -1257,6 +1262,8 @@ void TCP_Update(void) {
 
         // Update state machine
         SM_Update(&Conn->StateMachine);
+
+        UnlockMutex(&Conn->Device->Mutex);
 
         Conn = Next;
     }

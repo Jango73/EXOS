@@ -815,9 +815,11 @@ LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
     if (Object == NULL) {
-        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object"));
+        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);
         return NULL;
     }
+
+    MemorySet(Object, 0, Size);
 
     // Initialize LISTNODE_FIELDS
     Object->ID = ObjectTypeID;

@@ -235,9 +235,9 @@ void InitializeNetwork(void) {
     // Initialize each network device
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-            LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
-                NetworkManager_InitializeDevice(Ctx->Device, Ctx->LocalIPv4_Be);
+            LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)Node;
+            SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+                NetworkManager_InitializeDevice(Context->Device, Context->LocalIPv4_Be);
             }
         }
     }
@@ -259,12 +259,13 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Find device context in the network device list
             LPNETWORK_DEVICE_CONTEXT DeviceContext = NULL;
+
             SAFE_USE(Kernel.NetworkDevice) {
                 for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-                    LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                    SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
-                        if (Ctx->Device == Device) {
-                            DeviceContext = Ctx;
+                    LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)Node;
+                    SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+                        if (Context->Device == Device) {
+                            DeviceContext = Context;
                             break;
                         }
                     }
@@ -366,17 +367,20 @@ U32 NetworkManagerTask(LPVOID param) {
 
     U32 tickCount = 0;
 
-    while (1) {
+    while (TRUE) {
+        LockMutex(MUTEX_KERNEL, INFINITY);
+
         // Poll all network devices for received packets
         SAFE_USE(Kernel.NetworkDevice) {
             for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-                LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
-                    if (Ctx->IsInitialized) {
-                        SAFE_USE_VALID_ID(Ctx->Device, ID_PCIDEVICE) {
-                            SAFE_USE_VALID_ID(Ctx->Device->Driver, ID_DRIVER) {
-                                NETWORKPOLL poll = {.Device = Ctx->Device};
-                                Ctx->Device->Driver->Command(DF_NT_POLL, (U32)(LPVOID)&poll);
+                LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)Node;
+
+                SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+                    if (Context->IsInitialized) {
+                        SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
+                            SAFE_USE_VALID_ID(Context->Device->Driver, ID_DRIVER) {
+                                NETWORKPOLL poll = { .Device = Context->Device };
+                                Context->Device->Driver->Command(DF_NT_POLL, (U32)(LPVOID)&poll);
                             }
                         }
                     }
@@ -389,18 +393,24 @@ U32 NetworkManagerTask(LPVOID param) {
             // Update ARP cache for each device
             SAFE_USE(Kernel.NetworkDevice) {
                 for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-                    LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                    SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
-                        if (Ctx->IsInitialized) {
-                            ARP_Tick((LPDEVICE)Ctx->Device);
-                            DHCP_Tick((LPDEVICE)Ctx->Device);
+                    LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)Node;
+
+                    SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+                        if (Context->IsInitialized) {
+                            SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
+                                ARP_Tick((LPDEVICE)Context->Device);
+                                DHCP_Tick((LPDEVICE)Context->Device);
+                            }
                         }
                     }
                 }
             }
+
             TCP_Update();
             SocketUpdate();
         }
+
+        UnlockMutex(MUTEX_KERNEL);
 
         tickCount++;
 
@@ -413,32 +423,43 @@ U32 NetworkManagerTask(LPVOID param) {
 /************************************************************************/
 
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
-    // Return the first initialized network device
+    LockMutex(MUTEX_KERNEL, INFINITY);
+
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-            LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
-                if (Ctx->IsInitialized) {
-                    return Ctx->Device;
+            LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)Node;
+
+            SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+                if (Context->IsInitialized) {
+                    UnlockMutex(MUTEX_KERNEL);
+                    return Context->Device;
                 }
             }
         }
     }
+
+    UnlockMutex(MUTEX_KERNEL);
     return NULL;
 }
 
 /************************************************************************/
 
 BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
+    LockMutex(MUTEX_KERNEL, INFINITY);
+
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-            LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
-                if ((LPDEVICE)Ctx->Device == Device) {
-                    return Ctx->IsReady;
+            LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)Node;
+
+            SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+                if ((LPDEVICE)Context->Device == Device) {
+                    UnlockMutex(MUTEX_KERNEL);
+                    return Context->IsReady;
                 }
             }
         }
     }
+
+    UnlockMutex(MUTEX_KERNEL);
     return FALSE;
 }

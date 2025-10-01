@@ -160,12 +160,17 @@ typedef U32 BOOL;
 // Utilities
 
 #define UNUSED(x) (void)(x)
+
 #define SAFE_USE(a) if ((a) != NULL)
 #define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_3(a, b, c) if ((a) != NULL && (b) != NULL && (c) != NULL)
+
 #define SAFE_USE_ID(a, i) if ((a) != NULL && (a->ID == i))
 #define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->ID == i) && (b) != NULL && (b->ID == i))
+
 #define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
 #define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
+
 #define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i))
 #define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i) \
         && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->ID == i)))

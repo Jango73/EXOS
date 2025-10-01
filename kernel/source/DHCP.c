@@ -564,7 +564,10 @@ void DHCP_Tick(LPDEVICE Device) {
     if (Device == NULL) return;
 
     Context = DHCP_GetContext(Device);
+
     SAFE_USE(Context) {
+        LockMutex(&Device->Mutex, INFINITY);
+
         CurrentMillis = GetSystemTime();
 
         switch (Context->State) {
@@ -609,5 +612,7 @@ void DHCP_Tick(LPDEVICE Device) {
             default:
                 break;
         }
+
+        UnlockMutex(&Device->Mutex);
     }
 }

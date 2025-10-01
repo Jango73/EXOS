@@ -31,9 +31,9 @@
 
 /************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/PCI.h"
-#include "../include/Network.h"
+#include "Base.h"
+#include "PCI.h"
+#include "Network.h"
 
 /************************************************************************/
 

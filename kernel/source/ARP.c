@@ -624,6 +624,8 @@ void ARP_Tick(LPDEVICE Device) {
     Context = ARP_GetContext(Device);
     if (Context == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
+
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
         LPARP_CACHE_ENTRY Entry = &Context->Cache[Index];
 
@@ -656,6 +658,8 @@ void ARP_Tick(LPDEVICE Device) {
             }
         }
     }
+
+    UnlockMutex(&Device->Mutex);
 }
 
 /************************************************************************/

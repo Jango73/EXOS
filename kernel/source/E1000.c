@@ -660,11 +660,12 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
     DEBUG(TEXT("[E1000_Attach] New device %x:%x.%u"), (U32)PciDevice->Info.Bus, (U32)PciDevice->Info.Dev,
         (U32)PciDevice->Info.Func);
 
-    LPE1000DEVICE Device = (LPE1000DEVICE)KernelHeapAlloc(sizeof(E1000DEVICE));
+    LPE1000DEVICE Device = (LPE1000DEVICE)CreateKernelObject(sizeof(E1000DEVICE), ID_NETWORKDEVICE);
     if (Device == NULL) return NULL;
 
-    MemorySet(Device, 0, sizeof(E1000DEVICE));
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
+
+    Device->ID = ID_NETWORKDEVICE;
 
     DEBUG(TEXT("[E1000_Attach] Device=%x, ID=%x, PciDevice->ID=%x"), Device, Device->ID, PciDevice->ID);
 
@@ -712,6 +713,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
         if (Device->MmioBase) {
             UnMapIOMemory(Device->MmioBase, Device->MmioSize);
         }
+
         KernelHeapFree(Device);
         return NULL;
     }

@@ -290,11 +290,13 @@ U32 PCI_GetBARSize(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
         /* Memory BAR, may be 64-bit */
         U32 Type = (Original >> 1) & 0x3U;
         U32 Mask = Probed & PCI_BAR_MEM_MASK;
+
         if (Type == 0x2U) {
             /* 64-bit BAR: also probe high dword */
             U16 OffsetHigh = (U16)(Offset + 4);
             U32 OriginalHigh = PCI_Read32(Bus, Device, Function, OffsetHigh);
             PCI_Write32(Bus, Device, Function, OffsetHigh, 0xFFFFFFFFU);
+
             U32 ProbedHigh = PCI_Read32(Bus, Device, Function, OffsetHigh);
             PCI_Write32(Bus, Device, Function, OffsetHigh, OriginalHigh);
 
@@ -450,6 +452,8 @@ void PCI_ScanBus(void) {
                 PciDevice.Info = PciInfo;
                 PciDecodeBARs(&PciInfo, &PciDevice);
 
+                InitMutex(&PciDevice.Mutex);
+
                 for (DriverIndex = 0; DriverIndex < PciDriverCount; DriverIndex++) {
                     LPPCI_DRIVER PciDriver = PciDriverTable[DriverIndex];
 
@@ -462,6 +466,7 @@ void PCI_ScanBus(void) {
                                     (U32)Device, (U32)Function);
 
                                 U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
+
                                 if (Result == DF_ERROR_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
@@ -471,7 +476,9 @@ void PCI_ScanBus(void) {
 
                                         if (NewDev) {
                                             DEBUG(TEXT("[PCI] Adding device %x (ID=%x) to list"), NewDev, NewDev->ID);
+
                                             ListAddItem(Kernel.PCIDevice, NewDev);
+
                                             DEBUG(TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
                                                 (U32)Bus, (U32)Device, (U32)Function);
 

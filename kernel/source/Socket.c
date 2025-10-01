@@ -290,7 +290,9 @@ void SocketUpdate(void) {
     while (Socket) {
         LPSOCKET NextSocket = (LPSOCKET)Socket->Next;
 
-        SAFE_USE(Socket) {
+        SAFE_USE_3(Socket, Socket->TCPConnection, Socket->TCPConnection->Device) {
+            LockMutex(&Socket->TCPConnection->Device->Mutex, INFINITY);
+
             // Handle timeouts and state transitions
             if (Socket->SocketType == SOCKET_TYPE_STREAM && Socket->TCPConnection != NULL) {
                 SM_STATE TCPState = TCP_GetState(Socket->TCPConnection);
@@ -311,6 +313,8 @@ void SocketUpdate(void) {
                         break;
                 }
             }
+
+            UnlockMutex(&Socket->TCPConnection->Device->Mutex);
         }
 
         Socket = NextSocket;
@@ -594,6 +598,7 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
 
         // Get network device and check if ready
         LPDEVICE NetworkDevice = (LPDEVICE)NetworkManager_GetPrimaryDevice();
+
         if (NetworkDevice == NULL) {
             ERROR(TEXT("[SocketConnect] No network device available"));
             return SOCKET_ERROR_INVALID;
@@ -602,6 +607,7 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
         // Wait for network to be ready with timeout
         U32 WaitStartTicks = GetSystemTime();
         U32 TimeoutMs = 30000; // 30 seconds timeout
+
         while (!NetworkManager_IsDeviceReady(NetworkDevice)) {
             U32 ElapsedMs = GetSystemTime() - WaitStartTicks;
             if (ElapsedMs > TimeoutMs) {
