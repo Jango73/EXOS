@@ -112,18 +112,27 @@ int IPv4_ValidateChecksum(IPV4_HEADER* Header) {
  */
 static int IPv4_SendEthernetFrame(LPIPV4_CONTEXT Context, const U8* Data, U32 Length) {
     NETWORKSEND Send;
+    LPDEVICE Device;
+    int Result = 0;
 
     if (Context == NULL || Context->Device == NULL) return 0;
 
-    Send.Device = (LPPCI_DEVICE)Context->Device;
+    Device = Context->Device;
+    Send.Device = (LPPCI_DEVICE)Device;
     Send.Data = Data;
     Send.Length = Length;
-    SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Context->Device)->Driver, ID_DRIVER) {
-            return (((LPPCI_DEVICE)Context->Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
+
+    LockMutex(&Device->Mutex, INFINITY);
+
+    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
         }
     }
-    return 0;
+
+    UnlockMutex(&Device->Mutex);
+
+    return Result;
 }
 
 /************************************************************************/
@@ -245,7 +254,9 @@ void IPv4_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     // Create notification context like ARP does
     Context->NotificationContext = Notification_CreateContext();
 
+    LockMutex(&Device->Mutex, INFINITY);
     SetDeviceContext(Device, ID_IPV4, Context);
+    UnlockMutex(&Device->Mutex);
 
     U32 IP = Ntohl(LocalIPv4_Be);
     DEBUG(TEXT("[IPv4_Initialize] Initialized for %u.%u.%u.%u"),
@@ -260,15 +271,19 @@ void IPv4_Destroy(LPDEVICE Device) {
 
     if (Device == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = IPv4_GetContext(Device);
-
-    SAFE_USE(Context) {
-        if (Context->NotificationContext) {
-            Notification_DestroyContext(Context->NotificationContext);
-        }
+    if (Context != NULL) {
         RemoveDeviceContext(Device, ID_IPV4);
-        KernelHeapFree(Context);
     }
+    UnlockMutex(&Device->Mutex);
+
+    if (Context == NULL) return;
+
+    if (Context->NotificationContext) {
+        Notification_DestroyContext(Context->NotificationContext);
+    }
+    KernelHeapFree(Context);
 }
 
 /************************************************************************/
@@ -278,7 +293,9 @@ void IPv4_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
 
     if (Device == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = IPv4_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (Context == NULL) return;
 
     Context->LocalIPv4_Be = LocalIPv4_Be;
@@ -296,7 +313,9 @@ void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32
 
     if (Device == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = IPv4_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (Context == NULL) return;
 
     Context->LocalIPv4_Be = LocalIPv4_Be;
@@ -321,7 +340,9 @@ void IPv4_RegisterProtocolHandler(LPDEVICE Device, U8 Protocol, IPv4_ProtocolHan
 
     if (Device == NULL) return;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = IPv4_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (Context == NULL) return;
 
     Context->ProtocolHandlers[Protocol] = Handler;
@@ -342,9 +363,12 @@ void IPv4_RegisterProtocolHandler(LPDEVICE Device, U8 Protocol, IPv4_ProtocolHan
 int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload, U32 PayloadLength) {
     LPIPV4_CONTEXT Context;
     U8 DestinationMAC[6];
+    int InfoSuccess;
     if (Device == NULL) return 0;
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = IPv4_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (Context == NULL) return 0;
 
     // Simple routing: use gateway for non-local addresses
@@ -400,20 +424,28 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
     GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &NetInfo;
 
+    InfoSuccess = 1;
+
+    LockMutex(&Device->Mutex, INFINITY);
+
     SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[IPv4_Send] Failed to get network info"));
-                return 0;
+                InfoSuccess = 0;
             }
         } else {
             DEBUG(TEXT("[IPv4_Send] Invalid network device driver"));
-            return 0;
+            InfoSuccess = 0;
         }
     } else {
         DEBUG(TEXT("[IPv4_Send] Invalid network device"));
-        return 0;
+        InfoSuccess = 0;
     }
+
+    UnlockMutex(&Device->Mutex);
+
+    if (!InfoSuccess) return 0;
 
     MemoryCopy(EthHeader->Source, NetInfo.MAC, 6);
     EthHeader->EthType = Htons(ETHTYPE_IPV4);
@@ -483,11 +515,16 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
 static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHopIP, U8 Protocol, const U8* Payload, U32 PayloadLength) {
     // NextID is now global static variable
     U8 DestinationMAC[6];
+    LPDEVICE Device;
+    int InfoSuccess;
 
     if (Context == NULL || Payload == NULL) return 0;
 
+    Device = Context->Device;
+    if (Device == NULL) return 0;
+
     // Resolve NextHop MAC address (should be in cache now)
-    if (!ARP_Resolve(Context->Device, NextHopIP, DestinationMAC)) {
+    if (!ARP_Resolve(Device, NextHopIP, DestinationMAC)) {
         DEBUG(TEXT("[IPv4_SendDirect] ARP resolution failed for NextHop %x"), Ntohl(NextHopIP));
         return 0;
     }
@@ -513,23 +550,31 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
     NETWORKINFO NetInfo;
     MemorySet(&GetInfo, 0, sizeof(GetInfo));
     MemorySet(&NetInfo, 0, sizeof(NetInfo));
-    GetInfo.Device = (LPPCI_DEVICE)Context->Device;
+    GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &NetInfo;
 
-    SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Context->Device)->Driver, ID_DRIVER) {
-            if (((LPPCI_DEVICE)Context->Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
+    InfoSuccess = 1;
+
+    LockMutex(&Device->Mutex, INFINITY);
+
+    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[IPv4_SendDirect] Failed to get network info"));
-                return 0;
+                InfoSuccess = 0;
             }
         } else {
             DEBUG(TEXT("[IPv4_SendDirect] Invalid network device driver"));
-            return 0;
+            InfoSuccess = 0;
         }
     } else {
         DEBUG(TEXT("[IPv4_SendDirect] Invalid network device"));
-        return 0;
+        InfoSuccess = 0;
     }
+
+    UnlockMutex(&Device->Mutex);
+
+    if (!InfoSuccess) return 0;
 
     MemoryCopy(EthHeader->Source, NetInfo.MAC, 6);
     EthHeader->EthType = Htons(ETHTYPE_IPV4);
@@ -586,7 +631,9 @@ void IPv4_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
         return;
     }
 
+    LockMutex(&Device->Mutex, INFINITY);
     Context = IPv4_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (Context == NULL) {
         DEBUG(TEXT("[IPv4_OnEthernetFrame] No IPv4 context for device"));
         return;
@@ -745,7 +792,13 @@ void IPv4_ProcessPendingPackets(LPIPV4_CONTEXT Context, U32 ResolvedIP) {
  * @brief Registers for IPv4 notifications on a specific device
  */
 U32 IPv4_RegisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData) {
-    LPIPV4_CONTEXT Context = IPv4_GetContext(Device);
+    LPIPV4_CONTEXT Context;
+
+    if (Device == NULL) return 0;
+
+    LockMutex(&Device->Mutex, INFINITY);
+    Context = IPv4_GetContext(Device);
+    UnlockMutex(&Device->Mutex);
     if (!Context || !Context->NotificationContext) {
         return 0; // Not initialized yet
     }
