@@ -205,6 +205,7 @@ void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed);
 
 // Check if window update ACK should be sent based on hysteresis
 BOOL TCP_ShouldSendWindowUpdate(LPTCP_CONNECTION Connection);
+void TCP_HandleSocketDataConsumed(LPTCP_CONNECTION Connection, U32 BytesConsumed);
 
 // Utility functions
 U16 TCP_CalculateChecksum(TCP_HEADER* Header, const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP);
