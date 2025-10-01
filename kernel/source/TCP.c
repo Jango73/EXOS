@@ -37,6 +37,7 @@
 #include "../include/String.h"
 #include "../include/NetworkChecksum.h"
 #include "../include/Hysteresis.h"
+#include "../include/Device.h"
 
 /************************************************************************/
 // Configuration
@@ -270,7 +271,16 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
           TcpHdr->Flags, Ntohs(TcpHdr->WindowSize), Ntohs(TcpHdr->Checksum), HeaderLength);
 
     // Send via IPv4 through connection's network device
-    int SendResult = IPv4_Send(Conn->Device, Conn->RemoteIP, IPV4_PROTOCOL_TCP, Packet, HeaderLength + PayloadLength);
+    int SendResult = 0;
+    LPDEVICE Device = Conn->Device;
+
+    if (Device == NULL) {
+        return 0;
+    }
+
+    LockMutex(&(Device->Mutex), INFINITY);
+    SendResult = IPv4_Send(Device, Conn->RemoteIP, IPV4_PROTOCOL_TCP, Packet, HeaderLength + PayloadLength);
+    UnlockMutex(&(Device->Mutex));
 
     // Update sequence number if data was sent
     if (PayloadLength > 0 || (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN))) {
@@ -804,7 +814,13 @@ static void TCP_SendRstToUnknownConnection(LPDEVICE Device, U32 LocalIP, U16 Loc
         NULL, 0, LocalIP, RemoteIP);
 
     // Send via IPv4 through specified network device
+    if (Device == NULL) {
+        return;
+    }
+
+    LockMutex(&(Device->Mutex), INFINITY);
     IPv4_Send(Device, RemoteIP, IPV4_PROTOCOL_TCP, Packet, sizeof(TCP_HEADER));
+    UnlockMutex(&(Device->Mutex));
 }
 
 /************************************************************************/
@@ -876,8 +892,10 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     DEBUG(TEXT("[TCP_CreateConnection] Created notification context %X for connection %X"), (U32)Conn->NotificationContext, (U32)Conn);
 
     // Register for IPv4 packet sent events on the connection's network device
+    LockMutex(&(Conn->Device->Mutex), INFINITY);
     IPv4_RegisterNotification(Conn->Device, NOTIF_EVENT_IPV4_PACKET_SENT,
                              TCP_IPv4PacketSentCallback, Conn);
+    UnlockMutex(&(Conn->Device->Mutex));
 
     // Initialize state machine
     SM_Initialize(&Conn->StateMachine, TCP_Transitions,
