@@ -413,11 +413,20 @@ static void TCP_ActionSendAck(STATE_MACHINE* SM, LPVOID EventData) {
     if (Event && Event->Header) {
         U32 SeqNum = Ntohl(Event->Header->SequenceNumber);
         U8 Flags = Event->Header->Flags;
+        U32 AckAdvance = SeqNum + Event->PayloadLength;
+        SM_STATE CurrentState = SM_GetCurrentState(SM);
 
-        // Calculate expected next sequence number
-        Conn->RecvNext = SeqNum + Event->PayloadLength;
         if (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) {
-            Conn->RecvNext++;
+            AckAdvance++;
+        }
+
+        if (SeqNum <= Conn->RecvNext || CurrentState == TCP_STATE_SYN_SENT) {
+            if (AckAdvance > Conn->RecvNext) {
+                Conn->RecvNext = AckAdvance;
+            }
+        } else {
+            DEBUG(TEXT("[TCP_ActionSendAck] Out-of-order control segment (seq %u expected %u), not advancing ACK"),
+                  SeqNum, Conn->RecvNext);
         }
     }
 
