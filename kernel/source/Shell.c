@@ -1119,7 +1119,6 @@ static void CMD_hd(LPSHELLCONTEXT Context) {
         DiskInfo.Disk = Disk;
         Disk->Driver->Command(DF_DISK_GETINFO, (U32)&DiskInfo);
 
-        ConsolePrint(TEXT("Designer     : %s\n"), Disk->Driver->Designer);
         ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
         ConsolePrint(TEXT("Sectors      : %d\n"), DiskInfo.NumSectors);
@@ -1139,7 +1138,6 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
         FileSystem = (LPFILESYSTEM)Node;
 
         ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
-        ConsolePrint(TEXT("Designer     : %s\n"), FileSystem->Driver->Designer);
         ConsolePrint(TEXT("Manufacturer : %s\n"), FileSystem->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), FileSystem->Driver->Product);
         ConsolePrint(TEXT("\n"));
@@ -1176,7 +1174,6 @@ static void CMD_network(LPSHELLCONTEXT Context) {
                         U8 Ip4 = IpHost & 0xFF;
 
                         ConsolePrint(TEXT("Name         : %s\n"), Device->Name);
-                        ConsolePrint(TEXT("Designer     : %s\n"), Device->Driver->Designer);
                         ConsolePrint(TEXT("Manufacturer : %s\n"), Device->Driver->Manufacturer);
                         ConsolePrint(TEXT("Product      : %s\n"), Device->Driver->Product);
                         ConsolePrint(TEXT("MAC          : %x:%x:%x:%x:%x:%x\n"),

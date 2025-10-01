@@ -25,7 +25,7 @@
 #include "../include/DHCPContext.h"
 #include "../include/UDP.h"
 #include "../include/UDPContext.h"
-#include "../include/IPv4Context.h"
+#include "../include/IPv4.h"
 #include "../include/Device.h"
 #include "../include/Heap.h"
 #include "../include/ID.h"
@@ -34,6 +34,8 @@
 #include "../include/String.h"
 #include "../include/System.h"
 #include "../include/Clock.h"
+#include "../include/NetworkManager.h"
+#include "../include/Kernel.h"
 
 /************************************************************************/
 // Global device pointer
@@ -404,6 +406,20 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                         // Calculate renewal times (T1 = 50% of lease, T2 = 87.5% of lease)
                         Context->RenewalTime = Context->LeaseTime / 2;
                         Context->RebindTime = (Context->LeaseTime * 7) / 8;
+
+                        // Mark network device as ready
+                        SAFE_USE(Kernel.NetworkDevice) {
+                            for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+                                LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
+                                SAFE_USE_VALID_ID(NetCtx, ID_NETWORKDEVICE) {
+                                    if ((LPDEVICE)NetCtx->Device == g_DHCPDevice) {
+                                        NetCtx->IsReady = TRUE;
+                                        DEBUG(TEXT("[DHCP_OnUDPPacket] Network device marked as ready"));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
 
                         DEBUG(TEXT("[DHCP_OnUDPPacket] DHCP configuration complete"));
                     } else if (MessageType == DHCP_NAK) {

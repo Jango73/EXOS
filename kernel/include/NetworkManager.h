@@ -42,6 +42,7 @@ typedef struct tag_NETWORK_DEVICE_CONTEXT {
     LPPCI_DEVICE Device;
     U32 LocalIPv4_Be;
     BOOL IsInitialized;
+    BOOL IsReady;
     NT_RXCB OriginalCallback;
 } NETWORK_DEVICE_CONTEXT, *LPNETWORK_DEVICE_CONTEXT;
 
@@ -79,6 +80,16 @@ U32 NetworkManagerTask(LPVOID param);
  * @return Pointer to the primary network device or NULL if none available
  */
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void);
+
+/**
+ * @brief Check if a specific network device is ready for use.
+ *
+ * Returns TRUE if static configuration is used or if DHCP has completed.
+ *
+ * @param Device Pointer to the network device
+ * @return TRUE if network device is ready, FALSE otherwise
+ */
+BOOL NetworkManager_IsDeviceReady(LPDEVICE Device);
 
 /************************************************************************/
 

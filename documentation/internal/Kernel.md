@@ -625,7 +625,7 @@ typedef struct ArpCacheEntryTag {
 
 ### IPv4 Internet Protocol
 
-**Location:** `kernel/source/IPv4.c`, `kernel/include/IPv4.h`, `kernel/include/IPv4Context.h`
+**Location:** `kernel/source/IPv4.c`, `kernel/include/IPv4.h`
 
 IPv4 layer provides packet parsing, routing, and protocol multiplexing with per-device protocol handler registration.
 

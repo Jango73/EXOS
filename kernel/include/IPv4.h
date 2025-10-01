@@ -27,9 +27,10 @@
 
 #include "Base.h"
 #include "Driver.h"
-#include "Network.h"
-#include "PCI.h"
 #include "Endianness.h"
+#include "Network.h"
+#include "Notification.h"
+#include "PCI.h"
 
 /************************************************************************/
 
@@ -49,6 +50,21 @@
 #define IPV4_FRAGMENT_OFFSET_MASK 0x1FFF
 
 /************************************************************************/
+
+#define IPV4_MAX_PROTOCOLS 256
+#define IPV4_MAX_PENDING_PACKETS 16
+
+// IPv4_Send return codes
+#define IPV4_SEND_FAILED 0
+#define IPV4_SEND_PENDING 1
+#define IPV4_SEND_IMMEDIATE 2
+
+/************************************************************************/
+// Callback type for protocol handlers
+
+typedef void (*IPv4_ProtocolHandler)(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP);
+
+/************************************************************************/
 // Words are in network byte order
 
 typedef struct tag_IPV4_HEADER {
@@ -65,15 +81,41 @@ typedef struct tag_IPV4_HEADER {
 } IPV4_HEADER, *LPIPV4_HEADER;
 
 /************************************************************************/
-// Callback type for protocol handlers
 
-typedef void (*IPv4_ProtocolHandler)(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP);
+typedef struct tag_IPV4_PENDING_PACKET {
+    U32 DestinationIP;
+    U32 NextHopIP;
+    U8 Protocol;
+    U8 Payload[1500];  // Maximum Ethernet payload
+    U32 PayloadLength;
+    U32 IsValid;
+} IPV4_PENDING_PACKET, *LPIPV4_PENDING_PACKET;
+
+typedef struct tag_IPV4_CONTEXT {
+    LPDEVICE Device;
+    U32 LocalIPv4_Be;
+    U32 NetmaskBe;
+    U32 DefaultGatewayBe;
+    IPv4_ProtocolHandler ProtocolHandlers[IPV4_MAX_PROTOCOLS];
+    IPV4_PENDING_PACKET PendingPackets[IPV4_MAX_PENDING_PACKETS];
+    U32 ARPCallbackRegistered;
+    LPNOTIFICATION_CONTEXT NotificationContext;
+} IPV4_CONTEXT, *LPIPV4_CONTEXT;
 
 /************************************************************************/
-// Per-device IPv4 API
-#include "IPv4Context.h"
 
-// Utility functions
+LPIPV4_CONTEXT IPv4_GetContext(LPDEVICE Device);
+void IPv4_Initialize(LPDEVICE Device, U32 LocalIPv4_Be);
+void IPv4_Destroy(LPDEVICE Device);
+void IPv4_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be);
+void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32 DefaultGatewayBe);
+void IPv4_RegisterProtocolHandler(LPDEVICE Device, U8 Protocol, IPv4_ProtocolHandler Handler);
+int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload, U32 PayloadLength);
+void IPv4_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length);
+void IPv4_ARPResolvedCallback(LPNOTIFICATION_DATA NotificationData, LPVOID UserData);
+int IPv4_AddPendingPacket(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHopIP, U8 Protocol, const U8* Payload, U32 PayloadLength);
+void IPv4_ProcessPendingPackets(LPIPV4_CONTEXT Context, U32 ResolvedIP);
+U32 IPv4_RegisterNotification(LPDEVICE Device, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData);
 U16 IPv4_CalculateChecksum(IPV4_HEADER* Header);
 int IPv4_ValidateChecksum(IPV4_HEADER* Header);
 

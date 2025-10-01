@@ -191,6 +191,7 @@ static U32 NetworkManager_FindNetworkDevices(void) {
                                 // Use per-device configuration with fallback to global config
                                 Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(0xC0A8380AU + Count));
                                 Context->IsInitialized = FALSE;
+                                Context->IsReady = FALSE;
                                 Context->OriginalCallback = NULL;
 
                                 // Add to kernel network device list (thread-safe with MUTEX_KERNEL)
@@ -310,8 +311,11 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
                 DHCP_Initialize((LPDEVICE)Device);
                 DHCP_Start((LPDEVICE)Device);
                 DEBUG(TEXT("[NetworkManager_InitializeDevice] DHCP started for device %s"), Device->Driver->Product);
+                // Network will be marked ready when DHCP completes
             } else {
                 DEBUG(TEXT("[NetworkManager_InitializeDevice] DHCP disabled, using static IP configuration"));
+                // Mark network as ready immediately for static configuration
+                DeviceContext->IsReady = TRUE;
             }
 
             // Configure network settings from TOML configuration (per-device with global fallback)
@@ -421,4 +425,20 @@ LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
         }
     }
     return NULL;
+}
+
+/************************************************************************/
+
+BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
+    SAFE_USE(Kernel.NetworkDevice) {
+        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
+            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                if ((LPDEVICE)Ctx->Device == Device) {
+                    return Ctx->IsReady;
+                }
+            }
+        }
+    }
+    return FALSE;
 }

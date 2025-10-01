@@ -27,7 +27,6 @@
 #include "../../include/Log.h"
 #include "../../include/Memory.h"
 #include "../../include/IPv4.h"
-#include "../../include/IPv4Context.h"
 #include "../../include/String.h"
 #include "../../include/Endianness.h"
 

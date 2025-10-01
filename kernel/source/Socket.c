@@ -37,21 +37,6 @@
 #include "../include/CircularBuffer.h"
 
 /************************************************************************/
-
-static LPTCP_CONNECTION SocketGetConnection(LPSOCKET Socket) {
-    return Socket->TCPConnection;
-}
-
-/************************************************************************/
-
-static LPDEVICE SocketGetNetworkDevice(LPSOCKET Socket) {
-    LPTCP_CONNECTION Connection = SocketGetConnection(Socket);
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
-        return Connection->Device;
-    }
-}
-
-/************************************************************************/
 // Global socket management
 
 /**
@@ -447,7 +432,7 @@ U32 SocketListen(U32 SocketHandle, U32 Backlog) {
 
         // Create TCP connection for listening
         Socket->TCPConnection = TCP_CreateConnection(
-            NetworkManager_GetPrimaryDevice(),
+            (LPDEVICE)NetworkManager_GetPrimaryDevice(),
             Socket->LocalAddress.Address,
             Socket->LocalAddress.Port,
             0, 0);
@@ -607,9 +592,29 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
         // Store remote address
         MemoryCopy(&Socket->RemoteAddress, &RemoteAddress, sizeof(SOCKET_ADDRESS_INET));
 
+        // Get network device and check if ready
+        LPDEVICE NetworkDevice = (LPDEVICE)NetworkManager_GetPrimaryDevice();
+        if (NetworkDevice == NULL) {
+            ERROR(TEXT("[SocketConnect] No network device available"));
+            return SOCKET_ERROR_INVALID;
+        }
+
+        // Wait for network to be ready with timeout
+        U32 WaitStartTicks = GetSystemTime();
+        U32 TimeoutMs = 30000; // 30 seconds timeout
+        while (!NetworkManager_IsDeviceReady(NetworkDevice)) {
+            U32 ElapsedMs = GetSystemTime() - WaitStartTicks;
+            if (ElapsedMs > TimeoutMs) {
+                ERROR(TEXT("[SocketConnect] Timeout waiting for network to be ready"));
+                return SOCKET_ERROR_TIMEOUT;
+            }
+            DEBUG(TEXT("[SocketConnect] Waiting for network to be ready..."));
+            DoSystemCall(SYSCALL_Sleep, 100);
+        }
+
         // Create TCP connection
         Socket->TCPConnection = TCP_CreateConnection(
-            NetworkManager_GetPrimaryDevice(),
+            NetworkDevice,
             Socket->LocalAddress.Address,
             Socket->LocalAddress.Port,
             RemoteAddress.Address,

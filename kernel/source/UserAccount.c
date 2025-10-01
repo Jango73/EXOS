@@ -28,6 +28,7 @@
 #include "../include/Crypt.h"
 #include "../include/Database.h"
 #include "../include/Heap.h"
+#include "../include/Helpers.h"
 #include "../include/Kernel.h"
 #include "../include/List.h"
 #include "../include/Log.h"

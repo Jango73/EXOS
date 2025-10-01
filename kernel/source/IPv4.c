@@ -23,7 +23,6 @@
 \************************************************************************/
 
 #include "../include/IPv4.h"
-#include "../include/IPv4Context.h"
 #include "../include/ARPContext.h"
 #include "../include/Device.h"
 #include "../include/Heap.h"
