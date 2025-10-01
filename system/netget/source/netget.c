@@ -24,6 +24,239 @@
 
 #include "../../../runtime/include/exos.h"
 #include "../../../runtime/include/http.h"
+#include <ctype.h>
+
+/************************************************************************/
+
+typedef enum {
+    CHUNK_STATE_READ_SIZE = 0,
+    CHUNK_STATE_READ_DATA,
+    CHUNK_STATE_READ_DATA_CRLF,
+    CHUNK_STATE_READ_TRAILERS,
+    CHUNK_STATE_FINISHED
+} HTTP_CHUNK_STATE;
+
+typedef struct {
+    HTTP_CHUNK_STATE State;
+    unsigned int CurrentChunkSize;
+    unsigned int BytesRemainingInChunk;
+    unsigned int TotalBytesWritten;
+    char SizeBuffer[32];
+    unsigned int SizeBufferUsed;
+    unsigned int CrLfBytesNeeded;
+    int PendingCR;
+    int TrailerLineHasData;
+} HTTP_CHUNK_PARSER;
+
+/************************************************************************/
+
+static void HTTP_ChunkParserInit(HTTP_CHUNK_PARSER* parser) {
+    if (!parser) {
+        return;
+    }
+
+    parser->State = CHUNK_STATE_READ_SIZE;
+    parser->CurrentChunkSize = 0;
+    parser->BytesRemainingInChunk = 0;
+    parser->TotalBytesWritten = 0;
+    parser->SizeBufferUsed = 0;
+    parser->CrLfBytesNeeded = 0;
+    parser->PendingCR = 0;
+    parser->TrailerLineHasData = 0;
+}
+
+/************************************************************************/
+
+static unsigned int HTTP_ParseChunkSizeValue(const char* value) {
+    unsigned int result = 0;
+    const char* p = value;
+
+    while (*p != '\0') {
+        char c = *p;
+        unsigned int digit;
+
+        if (c >= '0' && c <= '9') {
+            digit = (unsigned int)(c - '0');
+        } else if (c >= 'a' && c <= 'f') {
+            digit = (unsigned int)(c - 'a' + 10U);
+        } else if (c >= 'A' && c <= 'F') {
+            digit = (unsigned int)(c - 'A' + 10U);
+        } else {
+            break;
+        }
+
+        result = (result << 4) | digit;
+        p++;
+    }
+
+    return result;
+}
+
+/************************************************************************/
+
+static int HTTP_ChunkParserProcess(HTTP_CHUNK_PARSER* parser,
+                                   const unsigned char* data,
+                                   unsigned int length,
+                                   FILE* file,
+                                   unsigned int* bytesWritten) {
+    unsigned int offset = 0;
+    unsigned int writtenThisCall = 0;
+
+    if (!parser || !data || length == 0 || !file) {
+        if (bytesWritten) {
+            *bytesWritten = 0;
+        }
+        return HTTP_SUCCESS;
+    }
+
+    while (offset < length && parser->State != CHUNK_STATE_FINISHED) {
+        switch (parser->State) {
+            case CHUNK_STATE_READ_SIZE: {
+                unsigned char c = data[offset++];
+
+                if (c == '\n') {
+                    if (parser->SizeBufferUsed > 0 &&
+                        parser->SizeBuffer[parser->SizeBufferUsed - 1] == '\r') {
+                        parser->SizeBufferUsed--;
+                    }
+                    parser->SizeBuffer[parser->SizeBufferUsed] = '\0';
+
+                    if (parser->SizeBufferUsed == 0) {
+                        printf("Error: Invalid chunk size line\n");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+
+                    char* semicolon = strchr(parser->SizeBuffer, ';');
+                    if (semicolon) {
+                        *semicolon = '\0';
+                    }
+
+                    parser->CurrentChunkSize = HTTP_ParseChunkSizeValue(parser->SizeBuffer);
+                    parser->BytesRemainingInChunk = parser->CurrentChunkSize;
+                    parser->SizeBufferUsed = 0;
+
+                    if (parser->CurrentChunkSize == 0U) {
+                        parser->State = CHUNK_STATE_READ_TRAILERS;
+                        parser->PendingCR = 0;
+                        parser->TrailerLineHasData = 0;
+                    } else {
+                        parser->State = CHUNK_STATE_READ_DATA;
+                    }
+                } else {
+                    if (parser->SizeBufferUsed >= sizeof(parser->SizeBuffer) - 1U) {
+                        printf("Error: Chunk size line too long\n");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+                    parser->SizeBuffer[parser->SizeBufferUsed++] = (char)c;
+                }
+                break;
+            }
+
+            case CHUNK_STATE_READ_DATA: {
+                unsigned int available = length - offset;
+                unsigned int toWrite = parser->BytesRemainingInChunk;
+
+                if (toWrite > available) {
+                    toWrite = available;
+                }
+
+                if (toWrite > 0U) {
+                    if (SaveDataChunkToFile(file, data + offset, toWrite) != 0) {
+                        return HTTP_ERROR_MEMORY_ERROR;
+                    }
+                    offset += toWrite;
+                    parser->BytesRemainingInChunk -= toWrite;
+                    parser->TotalBytesWritten += toWrite;
+                    writtenThisCall += toWrite;
+                }
+
+                if (parser->BytesRemainingInChunk == 0U) {
+                    parser->State = CHUNK_STATE_READ_DATA_CRLF;
+                    parser->CrLfBytesNeeded = 2U;
+                }
+                break;
+            }
+
+            case CHUNK_STATE_READ_DATA_CRLF: {
+                unsigned char c = data[offset++];
+
+                if ((parser->CrLfBytesNeeded == 2U && c != '\r') ||
+                    (parser->CrLfBytesNeeded == 1U && c != '\n')) {
+                    printf("Error: Invalid chunk delimiter\n");
+                    return HTTP_ERROR_PROTOCOL_ERROR;
+                }
+
+                parser->CrLfBytesNeeded--;
+                if (parser->CrLfBytesNeeded == 0U) {
+                    parser->State = CHUNK_STATE_READ_SIZE;
+                }
+                break;
+            }
+
+            case CHUNK_STATE_READ_TRAILERS: {
+                unsigned char c = data[offset++];
+
+                if (parser->PendingCR) {
+                    if (c != '\n') {
+                        printf("Error: Invalid trailer line ending\n");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+
+                    parser->PendingCR = 0;
+                    if (parser->TrailerLineHasData == 0) {
+                        parser->State = CHUNK_STATE_FINISHED;
+                    } else {
+                        parser->TrailerLineHasData = 0;
+                    }
+                    break;
+                }
+
+                if (c == '\r') {
+                    parser->PendingCR = 1;
+                } else {
+                    parser->TrailerLineHasData = 1;
+                }
+                break;
+            }
+
+            case CHUNK_STATE_FINISHED:
+            default:
+                break;
+        }
+    }
+
+    if (bytesWritten) {
+        *bytesWritten = writtenThisCall;
+    }
+
+    return HTTP_SUCCESS;
+}
+
+/************************************************************************/
+
+static int HTTP_StringContainsChunked(const char* value) {
+    const char* p = value;
+
+    while (p && *p) {
+        const char* candidate = p;
+        const char* keyword = "chunked";
+        while (*candidate && *keyword &&
+               (char)tolower((unsigned char)*candidate) == (char)tolower((unsigned char)*keyword)) {
+            candidate++;
+            keyword++;
+        }
+
+        if (*keyword == '\0') {
+            return 1;
+        }
+
+        p++;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
 
 /************************************************************************/
 
@@ -110,6 +343,8 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
     char version[16] = {0};
     unsigned int bodyBytesReceived = 0;
     unsigned int headerLength = 0;
+    int isChunked = 0;
+    HTTP_CHUNK_PARSER chunkParser;
 
     // Buffer to accumulate headers
     char headerBuffer[4096] = {0};
@@ -222,16 +457,42 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
                         return statusCode;
                     }
 
-                    // Parse Content-Length
-                    char* contentLengthStr = strstr(headerBuffer, "Content-Length:");
-                    if (contentLengthStr) {
-                        const char* numStart = contentLengthStr + 16; // Skip "Content-Length: "
-                        contentLength = 0;
-                        while (*numStart >= '0' && *numStart <= '9') {
-                            contentLength = contentLength * 10 + (*numStart - '0');
-                            numStart++;
+                    // Detect Transfer-Encoding: chunked
+                    char* transferEncodingStr = strstr(headerBuffer, "Transfer-Encoding:");
+                    if (transferEncodingStr) {
+                        const char* valueStart = transferEncodingStr + 18; // Skip "Transfer-Encoding:"
+                        while (*valueStart == ' ' || *valueStart == '\t') {
+                            valueStart++;
                         }
-                        printf("Receiving %u bytes", contentLength);
+
+                        char encodingValue[64] = {0};
+                        unsigned int encodingIndex = 0;
+                        while (*valueStart && *valueStart != '\r' && *valueStart != '\n' &&
+                               encodingIndex < (sizeof(encodingValue) - 1U)) {
+                            encodingValue[encodingIndex++] = *valueStart;
+                            valueStart++;
+                        }
+                        encodingValue[encodingIndex] = '\0';
+
+                        if (HTTP_StringContainsChunked(encodingValue)) {
+                            isChunked = 1;
+                            HTTP_ChunkParserInit(&chunkParser);
+                            printf("Receiving chunked data");
+                        }
+                    }
+
+                    // Parse Content-Length
+                    if (!isChunked) {
+                        char* contentLengthStr = strstr(headerBuffer, "Content-Length:");
+                        if (contentLengthStr) {
+                            const char* numStart = contentLengthStr + 16; // Skip "Content-Length: "
+                            contentLength = 0;
+                            while (*numStart >= '0' && *numStart <= '9') {
+                                contentLength = contentLength * 10 + (*numStart - '0');
+                                numStart++;
+                            }
+                            printf("Receiving %u bytes", contentLength);
+                        }
                     }
 
                     // Open output file
@@ -245,11 +506,27 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
                     unsigned int bodyDataInBuffer = headerBufferUsed - headerLength;
                     if (bodyDataInBuffer > 0) {
                         unsigned char* bodyStart = (unsigned char*)(headerBuffer + headerLength);
-                        if (SaveDataChunkToFile(file, bodyStart, bodyDataInBuffer) != 0) {
-                            fclose(file);
-                            return HTTP_ERROR_MEMORY_ERROR;
+                        if (isChunked) {
+                            unsigned int chunkWritten = 0;
+                            int chunkResult = HTTP_ChunkParserProcess(&chunkParser, bodyStart, bodyDataInBuffer, file, &chunkWritten);
+                            if (chunkResult != HTTP_SUCCESS) {
+                                fclose(file);
+                                return chunkResult;
+                            }
+                            bodyBytesReceived += chunkWritten;
+                            if (chunkWritten > 0) {
+                                printf(".");
+                            }
+                            if (chunkParser.State == CHUNK_STATE_FINISHED) {
+                                break;
+                            }
+                        } else {
+                            if (SaveDataChunkToFile(file, bodyStart, bodyDataInBuffer) != 0) {
+                                fclose(file);
+                                return HTTP_ERROR_MEMORY_ERROR;
+                            }
+                            bodyBytesReceived += bodyDataInBuffer;
                         }
-                        bodyBytesReceived += bodyDataInBuffer;
                     }
                 }
             } else {
@@ -259,22 +536,46 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
             }
         } else {
             // Headers already parsed, this is body data
-            if (SaveDataChunkToFile(file, (unsigned char*)buffer, received) != 0) {
-                fclose(file);
-                return HTTP_ERROR_MEMORY_ERROR;
+            if (isChunked) {
+                unsigned int chunkWritten = 0;
+                int chunkResult = HTTP_ChunkParserProcess(&chunkParser, (unsigned char*)buffer, (unsigned int)received, file, &chunkWritten);
+                if (chunkResult != HTTP_SUCCESS) {
+                    fclose(file);
+                    return chunkResult;
+                }
+                bodyBytesReceived += chunkWritten;
+                if (chunkWritten > 0) {
+                    printf(".");
+                }
+            } else {
+                if (SaveDataChunkToFile(file, (unsigned char*)buffer, received) != 0) {
+                    fclose(file);
+                    return HTTP_ERROR_MEMORY_ERROR;
+                }
+                bodyBytesReceived += received;
             }
-            bodyBytesReceived += received;
         }
 
         // Check if we have received all expected content
-        if (headersParsed && contentLength > 0 && bodyBytesReceived >= contentLength) {
-            break;
+        if (headersParsed) {
+            if (!isChunked && contentLength > 0 && bodyBytesReceived >= contentLength) {
+                break;
+            }
+            if (isChunked && chunkParser.State == CHUNK_STATE_FINISHED) {
+                break;
+            }
         }
 
         // Show progress
-        if (headersParsed && contentLength > 0) {
+        if (headersParsed && !isChunked && contentLength > 0) {
             printf(".");
         }
+    }
+
+    if (received == 0 && isChunked && chunkParser.State != CHUNK_STATE_FINISHED) {
+        printf("Error: Connection closed before terminating chunk received\n");
+        if (file) fclose(file);
+        return HTTP_ERROR_CONNECTION_FAILED;
     }
 
     if (file) {
