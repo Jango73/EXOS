@@ -401,7 +401,7 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                         IPv4_SetNetworkConfig(g_DHCPDevice, Context->OfferedIP_Be, Context->SubnetMask_Be, Context->Gateway_Be);
 
                         Context->State = DHCP_STATE_BOUND;
-                        Context->LeaseStartTicks = GetSystemTime();
+                        Context->LeaseStartMillis = GetSystemTime();
 
                         // Calculate renewal times (T1 = 50% of lease, T2 = 87.5% of lease)
                         Context->RenewalTime = Context->LeaseTime / 2;
@@ -557,22 +557,23 @@ void DHCP_Start(LPDEVICE Device) {
 
 void DHCP_Tick(LPDEVICE Device) {
     LPDHCP_CONTEXT Context;
-    U32 CurrentTicks;
-    U32 ElapsedTicks;
+    U32 CurrentMillis;
+    U32 ElapsedMillis;
     U32 ElapsedSeconds;
 
     if (Device == NULL) return;
 
     Context = DHCP_GetContext(Device);
     SAFE_USE(Context) {
-        CurrentTicks = GetSystemTime();
+        CurrentMillis = GetSystemTime();
 
         switch (Context->State) {
             case DHCP_STATE_SELECTING:
             case DHCP_STATE_REQUESTING:
-                ElapsedTicks = CurrentTicks - Context->StartTicks;
-                if (ElapsedTicks > DHCP_RETRY_TIMEOUT_TICKS) {
+                ElapsedMillis = CurrentMillis - Context->StartTicks;
+                if (ElapsedMillis > DHCP_RETRY_TIMEOUT_MILLIS) {
                     Context->RetryCount++;
+
                     if (Context->RetryCount >= DHCP_MAX_RETRIES) {
                         DEBUG(TEXT("[DHCP_Tick] DHCP failed after %u retries"), Context->RetryCount);
                         Context->State = DHCP_STATE_FAILED;
@@ -588,8 +589,8 @@ void DHCP_Tick(LPDEVICE Device) {
                 break;
 
             case DHCP_STATE_BOUND:
-                ElapsedTicks = CurrentTicks - Context->LeaseStartTicks;
-                ElapsedSeconds = ElapsedTicks;
+                ElapsedMillis = CurrentMillis - Context->LeaseStartMillis;
+                ElapsedSeconds = ElapsedMillis / 1000;
 
                 if (ElapsedSeconds >= Context->LeaseTime) {
                     WARNING(TEXT("[DHCP_Tick] Lease expired, restarting DHCP"));

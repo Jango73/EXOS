@@ -1571,11 +1571,6 @@ static void ExecuteStartupCommands(void) {
 
     DEBUG(TEXT("[ExecuteStartupCommands] Enter"));
 
-    // Wait 2 seconds for network stack to stabilize (ARP, etc.)
-    DEBUG(TEXT("[ExecuteStartupCommands] Waiting 2000ms for network initialization"));
-    Sleep(2000);
-    DEBUG(TEXT("[ExecuteStartupCommands] Wait complete, starting commands"));
-
     LPTOML Configuration = GetConfiguration();
     if (Configuration == NULL) {
         DEBUG(TEXT("[ExecuteStartupCommands] Exit"));

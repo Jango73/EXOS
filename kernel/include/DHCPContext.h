@@ -47,7 +47,7 @@
 /************************************************************************/
 // Configuration
 
-#define DHCP_RETRY_TIMEOUT_TICKS 30  // 30 seconds for retry
+#define DHCP_RETRY_TIMEOUT_MILLIS (30 * 1000)  // 30 seconds for retry
 #define DHCP_MAX_RETRIES 5
 
 /************************************************************************/
@@ -74,7 +74,7 @@ typedef struct tag_DHCP_CONTEXT {
     U32 RebindTime;     // T2 (seconds)
 
     // Lease management
-    U32 LeaseStartTicks;
+    U32 LeaseStartMillis;
 } DHCP_CONTEXT, *LPDHCP_CONTEXT;
 
 /************************************************************************/
@@ -90,4 +90,4 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
 
 #pragma pack(pop)
 
-#endif // DHCPCONTEXT_H_INCLUDED
+#endif  // DHCPCONTEXT_H_INCLUDED

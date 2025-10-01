@@ -112,7 +112,7 @@ BOOL Hysteresis_Update(LPHYSTERESIS This, U32 NewValue) {
         }
 
         if (!StateChanged) {
-            VERBOSE(TEXT("[Hysteresis_Update] Value=%u, State=%d (no change)"), NewValue, This->State);
+            DEBUG(TEXT("[Hysteresis_Update] Value=%u, State=%d (no change)"), NewValue, This->State);
         }
 
         return StateChanged;
