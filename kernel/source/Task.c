@@ -676,10 +676,7 @@ void DeleteDeadTasksAndProcesses(void) {
         }
     }
 
-    // Unlock access to kernel data
-    UnlockMutex(MUTEX_KERNEL);
-
-    // Now handle DEAD processes
+    // Now handle DEAD processes - keep MUTEX_KERNEL locked to preserve lock order
     LockMutex(MUTEX_PROCESS, INFINITY);
 
     Process = (LPPROCESS)Kernel.Process->First;
@@ -690,6 +687,8 @@ void DeleteDeadTasksAndProcesses(void) {
 
             if (Process->Status == PROCESS_STATUS_DEAD) {
                 DEBUG(TEXT("[DeleteDeadTasksAndProcesses] About to delete process %s"), Process->FileName);
+
+                ReleaseProcessKernelObjects(Process);
 
                 // DeleteProcessCommit will handle removing from list and cleanup
                 DeleteProcessCommit(Process);
@@ -705,6 +704,7 @@ void DeleteDeadTasksAndProcesses(void) {
     }
 
     UnlockMutex(MUTEX_PROCESS);
+    UnlockMutex(MUTEX_KERNEL);
 }
 
 /************************************************************************/

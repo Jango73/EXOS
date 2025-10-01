@@ -68,6 +68,72 @@ extern void StartTestNetworkTask(void);
 
 /************************************************************************/
 
+static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
+    SAFE_USE(List) {
+        LPLISTNODE Node = List->First;
+
+        while (Node != NULL) {
+            LPLISTNODE NextNode = Node->Next;
+
+            SAFE_USE_VALID(Node) {
+                if (Node->OwnerProcess == Process) {
+                    DEBUG(TEXT("[ReleaseProcessKernelObjects] Releasing object %p (ID=%x) owned by %s"),
+                          Node,
+                          Node->ID,
+                          Process->FileName);
+
+                    ReleaseKernelObject(Node);
+                }
+            }
+
+            Node = NextNode;
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Releases references held by a process on all kernel lists.
+ *
+ * Iterates every kernel-maintained list defined in KernelData.c and calls
+ * ReleaseKernelObject() for each object owned by the specified process.
+ * The caller must hold MUTEX_KERNEL to ensure list consistency while this
+ * routine walks the structures.
+ *
+ * @param Process Process whose owned kernel objects must be released.
+ */
+void ReleaseProcessKernelObjects(LPPROCESS Process) {
+    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+        if (Process == &KernelProcess) {
+            return;
+        }
+
+        LPLIST Lists[] = {
+            Kernel.Desktop,
+            Kernel.Process,
+            Kernel.Task,
+            Kernel.Mutex,
+            Kernel.Disk,
+            Kernel.PCIDevice,
+            Kernel.NetworkDevice,
+            Kernel.FileSystem,
+            Kernel.File,
+            Kernel.TCPConnection,
+            Kernel.Socket,
+            Kernel.UserAccount,
+        };
+
+        U32 ListCount = sizeof(Lists) / sizeof(Lists[0]);
+
+        for (U32 Index = 0; Index < ListCount; Index++) {
+            ReleaseProcessObjectsFromList(Process, Lists[Index]);
+        }
+    }
+}
+
+/************************************************************************/
+
 U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
 
 /************************************************************************/

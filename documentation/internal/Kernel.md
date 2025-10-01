@@ -432,6 +432,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
   - Calls `DeleteTask()` which frees stacks, message queues, etc.
   - Updates process task counts and marks processes dead if needed
 - Second phase: Processes all `PROCESS_STATUS_DEAD` processes
+  - Calls `ReleaseProcessKernelObjects()` to drop references held by the process on every kernel-managed list
   - Calls `DeleteProcessCommit()` which frees page directories, heaps, etc.
   - Removes process from global process list
 
@@ -452,6 +453,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 **Mutex Protection:**
 - Process list operations are protected by `MUTEX_PROCESS`
 - Task list operations are protected by `MUTEX_KERNEL`
+- `ReleaseProcessKernelObjects()` requires `MUTEX_KERNEL` to be locked while iterating kernel lists
 - Task count updates are atomic to prevent race conditions
 
 **Resource Cleanup Order:**

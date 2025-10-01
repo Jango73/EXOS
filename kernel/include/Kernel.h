@@ -196,6 +196,7 @@ void TestProcess(void);
 void InitializeKernel(void);
 void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
 BOOL ObjectExists(HANDLE Object);
+void ReleaseProcessKernelObjects(LPPROCESS Process);
 
 /***************************************************************************/
 // Functions in Segment.c
