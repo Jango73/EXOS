@@ -112,6 +112,7 @@ extern void memcpy(void*, const void*, int);
 extern void* memmove(void*, const void*, int);
 extern unsigned strlen(const char*);
 extern char* strcpy(char*, const char*);
+extern char* strchr(const char*, int);
 
 // Command line arguments
 extern int _argc;

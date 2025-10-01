@@ -82,6 +82,7 @@ section .text
     global strncpy
     global strcat
     global strcmp
+    global strchr
     global strstr
 
 ;-------------------------------------------------------------------------
@@ -444,6 +445,38 @@ strcmp :
 .end:
     pop     ebx
     pop     edi
+    pop     esi
+    pop     ebp
+    ret
+
+;----------------------------------------------------------------------------
+
+strchr :
+
+    push    ebp
+    mov     ebp, esp
+    push    esi
+
+    mov     esi, [ebp+(PBN+0)]     ; esi = string pointer
+    mov     edx, [ebp+(PBN+4)]     ; edx = character to find
+
+.loop:
+    mov     al, [esi]
+    cmp     al, dl
+    je      .found
+    test    al, al
+    je      .not_found
+    inc     esi
+    jmp     .loop
+
+.found:
+    mov     eax, esi
+    pop     esi
+    pop     ebp
+    ret
+
+.not_found:
+    xor     eax, eax
     pop     esi
     pop     ebp
     ret
