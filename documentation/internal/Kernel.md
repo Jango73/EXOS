@@ -736,7 +736,7 @@ typedef struct TCPConnectionTag {
 - `TCP_Close(ConnectionID)`: Close connection
 - `TCP_GetState(ConnectionID)`: Get current connection state
 - `TCP_Update()`: Process timers and retransmissions
-- `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
+- `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler). Data segments are processed once per packet, and the ACK for freshly enqueued payload is emitted immediately with the updated receive window while pure ACK packets are acknowledged logically without transmitting another ACK.
 
 ### Layer Interactions
 

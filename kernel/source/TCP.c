@@ -468,37 +468,64 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
     LPTCP_PACKET_EVENT Event = (LPTCP_PACKET_EVENT)EventData;
 
-    if (Event && Event->Payload && Event->PayloadLength > 0) {
-        DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of data"), Event->PayloadLength);
+    if (!Event || !Event->Header || !Event->Payload || Event->PayloadLength == 0) {
+        return;
+    }
 
-        // Check for receive buffer overflow protection
-        if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
-            WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, dropping packet"));
-            return;
-        }
+    DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of data"), Event->PayloadLength);
 
-        // Add data to receive buffer
-        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
-        U32 CopyLength = (Event->PayloadLength > SpaceAvailable) ? SpaceAvailable : Event->PayloadLength;
+    U32 SeqNum = Ntohl(Event->Header->SequenceNumber);
 
-        if (CopyLength > 0) {
-            MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, Event->Payload, CopyLength);
-            Conn->RecvBufferUsed += CopyLength;
+    // Reject out-of-order data and immediately advertise the current window
+    if (SeqNum != Conn->RecvNext) {
+        DEBUG(TEXT("[TCP_ActionProcessData] Out-of-order segment Seq=%u expected=%u"), SeqNum, Conn->RecvNext);
 
-            // Notify socket layer of received data
-            CONSOLE_DEBUG(TEXT("[TCP] %u | "), CopyLength);
-            SocketTCPReceiveCallback(Conn, Event->Payload, CopyLength);
-        }
-
-        // Update receive sequence number
-        Conn->RecvNext = Ntohl(Event->Header->SequenceNumber) + Event->PayloadLength;
-
-        // Send ACK (normal TCP behavior)
-        int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
-        if (SendResult < 0) {
-            ERROR(TEXT("[TCP_ActionProcessData] Failed to send ACK packet"));
+        int AckResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+        if (AckResult == IPV4_SEND_FAILED) {
+            ERROR(TEXT("[TCP_ActionProcessData] Failed to send corrective ACK for out-of-order data"));
             SM_ProcessEvent(SM, TCP_EVENT_RCV_RST, NULL);
         }
+        return;
+    }
+
+    // Ensure receive window status is reflected even if we cannot accept more data
+    if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
+        WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, advertising zero window"));
+
+        int AckResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+        if (AckResult == IPV4_SEND_FAILED) {
+            ERROR(TEXT("[TCP_ActionProcessData] Failed to send zero-window ACK"));
+            SM_ProcessEvent(SM, TCP_EVENT_RCV_RST, NULL);
+        }
+        return;
+    }
+
+    // Allow the ACK condition helper to clear retransmit timers for piggybacked ACKs
+    if ((Event->Header->Flags & TCP_FLAG_ACK) != 0) {
+        TCP_ConditionValidAck(SM, Event);
+    }
+
+    // Add data to receive buffer
+    U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
+    U32 CopyLength = (Event->PayloadLength > SpaceAvailable) ? SpaceAvailable : Event->PayloadLength;
+
+    if (CopyLength > 0) {
+        MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, Event->Payload, CopyLength);
+        Conn->RecvBufferUsed += CopyLength;
+
+        // Notify socket layer of received data
+        CONSOLE_DEBUG(TEXT("[TCP] %u | "), CopyLength);
+        SocketTCPReceiveCallback(Conn, Event->Payload, CopyLength);
+    }
+
+    // Advance receive sequence to cover the full payload length
+    Conn->RecvNext = SeqNum + Event->PayloadLength;
+
+    // Send ACK immediately so the peer sees the fresh window state
+    int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+    if (SendResult == IPV4_SEND_FAILED) {
+        ERROR(TEXT("[TCP_ActionProcessData] Failed to send ACK packet"));
+        SM_ProcessEvent(SM, TCP_EVENT_RCV_RST, NULL);
     }
 }
 
@@ -1119,38 +1146,45 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 
     // Determine event type based on flags and data length
     U8 Flags = Header->Flags;
-    SM_EVENT EventType = TCP_EVENT_RCV_DATA;
-    BOOL ProcessResult = FALSE;
+    BOOL EventProcessed = FALSE;
 
     if (DataLength > 0) {
-        // Process data
-        EventType = TCP_EVENT_RCV_DATA;
         DEBUG(TEXT("[TCP_OnIPv4Packet] Processing DATA event (%d bytes)"), DataLength);
-        ProcessResult = SM_ProcessEvent(&Conn->StateMachine, EventType, &Event);
+        BOOL ProcessResult = SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_RCV_DATA, &Event);
         DEBUG(TEXT("[TCP_OnIPv4Packet] State machine DATA processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
+        EventProcessed = TRUE;
     }
 
     if (Flags & TCP_FLAG_RST) {
-        EventType = TCP_EVENT_RCV_RST;
         DEBUG(TEXT("[TCP_OnIPv4Packet] Processing RST event"));
+        BOOL ProcessResult = SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_RCV_RST, &Event);
+        DEBUG(TEXT("[TCP_OnIPv4Packet] RST processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
+        EventProcessed = TRUE;
     } else if ((Flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) == (TCP_FLAG_SYN | TCP_FLAG_ACK)) {
-        EventType = TCP_EVENT_RCV_ACK;
         DEBUG(TEXT("[TCP_OnIPv4Packet] Processing SYN+ACK event"));
+        BOOL ProcessResult = SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_RCV_ACK, &Event);
+        DEBUG(TEXT("[TCP_OnIPv4Packet] SYN+ACK processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
+        EventProcessed = TRUE;
     } else if (Flags & TCP_FLAG_SYN) {
-        EventType = TCP_EVENT_RCV_SYN;
         DEBUG(TEXT("[TCP_OnIPv4Packet] Processing SYN event"));
+        BOOL ProcessResult = SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_RCV_SYN, &Event);
+        DEBUG(TEXT("[TCP_OnIPv4Packet] SYN processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
+        EventProcessed = TRUE;
     } else if (Flags & TCP_FLAG_FIN) {
-        EventType = TCP_EVENT_RCV_FIN;
         DEBUG(TEXT("[TCP_OnIPv4Packet] Processing FIN event"));
-    } else if (Flags & TCP_FLAG_ACK) {
-        EventType = TCP_EVENT_RCV_ACK;
+        BOOL ProcessResult = SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_RCV_FIN, &Event);
+        DEBUG(TEXT("[TCP_OnIPv4Packet] FIN processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
+        EventProcessed = TRUE;
+    } else if ((Flags & TCP_FLAG_ACK) && DataLength == 0) {
         DEBUG(TEXT("[TCP_OnIPv4Packet] Processing ACK event"));
+        BOOL ProcessResult = SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_RCV_ACK, &Event);
+        DEBUG(TEXT("[TCP_OnIPv4Packet] ACK processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
+        EventProcessed = TRUE;
     }
 
-    DEBUG(TEXT("[TCP_OnIPv4Packet] Processing event (%d bytes)"), DataLength);
-    ProcessResult = SM_ProcessEvent(&Conn->StateMachine, EventType, &Event);
-
-    DEBUG(TEXT("[TCP_OnIPv4Packet] State machine processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
+    if (!EventProcessed) {
+        DEBUG(TEXT("[TCP_OnIPv4Packet] Packet did not match any TCP event"));
+    }
 }
 
 /************************************************************************/
