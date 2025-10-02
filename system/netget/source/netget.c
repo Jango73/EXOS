@@ -28,6 +28,55 @@
 /************************************************************************/
 
 /************************************************************************/
+typedef struct tag_NETGET_PROGRESS_STATE {
+    int StatusPrinted;
+    int BodyChunksPrinted;
+} NETGET_PROGRESS_STATE;
+
+/************************************************************************/
+static void NetGetStatusCallback(const HTTP_RESPONSE* Response, void* Context) {
+    NETGET_PROGRESS_STATE* State = (NETGET_PROGRESS_STATE*)Context;
+
+    if (!State || !Response) {
+        return;
+    }
+
+    if (State->StatusPrinted) {
+        return;
+    }
+
+    if (Response->Version[0] != '\0') {
+        printf("%s %s\n", Response->Version, HTTP_GetStatusString(Response->StatusCode));
+    } else {
+        printf("HTTP %u\n", (unsigned int)Response->StatusCode);
+    }
+
+    if (Response->ChunkedEncoding) {
+        printf("Receiving chunked data\n");
+    } else if (Response->ContentLength > 0U) {
+        printf("Receiving %u bytes\n", Response->ContentLength);
+    } else {
+        printf("Receiving data\n");
+    }
+
+    State->StatusPrinted = 1;
+}
+
+/************************************************************************/
+static void NetGetBodyCallback(unsigned int Bytes, void* Context) {
+    NETGET_PROGRESS_STATE* State = (NETGET_PROGRESS_STATE*)Context;
+
+    if (!State || Bytes == 0U) {
+        return;
+    }
+
+    State->BodyChunksPrinted++;
+    printf(".");
+    fflush(stdout);
+}
+
+/************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Print command line usage information
@@ -76,6 +125,8 @@ const char* ExtractFilename(const char* path) {
 int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* filename) {
     HTTP_RESPONSE responseInfo;
     unsigned int bytesWritten = 0;
+    NETGET_PROGRESS_STATE progressState;
+    HTTP_PROGRESS_CALLBACKS callbacks;
     int result;
 
     if (!connection || !filename) {
@@ -83,21 +134,27 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
     }
 
     memset(&responseInfo, 0, sizeof(responseInfo));
+    memset(&progressState, 0, sizeof(progressState));
 
-    result = HTTP_DownloadToFile(connection, filename, &responseInfo, &bytesWritten);
+    callbacks.OnStatusLine = NetGetStatusCallback;
+    callbacks.OnBodyData = NetGetBodyCallback;
+    callbacks.Context = &progressState;
 
-    if (responseInfo.Version[0] != '\0') {
-        printf("%s %s\n", responseInfo.Version, HTTP_GetStatusString(responseInfo.StatusCode));
+    result = HTTP_DownloadToFile(connection, filename, &responseInfo, &bytesWritten, &callbacks);
+
+    if (!progressState.StatusPrinted && responseInfo.Version[0] != '\0') {
+        NetGetStatusCallback(&responseInfo, &progressState);
     }
 
     if (result != HTTP_SUCCESS) {
+        if (progressState.BodyChunksPrinted > 0) {
+            printf("\n");
+        }
         return result;
     }
 
-    if (responseInfo.ChunkedEncoding) {
-        printf("Receiving chunked data\n");
-    } else if (responseInfo.ContentLength > 0U) {
-        printf("Receiving %u bytes\n", responseInfo.ContentLength);
+    if (progressState.BodyChunksPrinted > 0) {
+        printf("\n");
     }
 
     printf("Finished (%u bytes)\n", bytesWritten);
@@ -114,6 +171,21 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
  * @param errorCode The HTTP error code to translate
  */
 void PrintHttpError(int errorCode) {
+    const char* lastError = HTTP_GetLastErrorMessage();
+
+    if (errorCode >= 100 && errorCode < 600) {
+        printf("Error: %s\n", HTTP_GetStatusString((unsigned short)errorCode));
+        if (lastError && lastError[0] != '\0') {
+            printf("Detail: %s\n", lastError);
+        }
+        return;
+    }
+
+    if (lastError && lastError[0] != '\0') {
+        printf("Error: %s (code %d)\n", lastError, errorCode);
+        return;
+    }
+
     switch (errorCode) {
         case HTTP_ERROR_INVALID_URL:
             printf("Error: Invalid URL format\n");
@@ -163,6 +235,10 @@ int exosmain(int argc, char* argv[]) {
         // Parse URL to extract filename
         if (!HTTP_ParseURL(urlString, &parsedUrl)) {
             printf("Error: Could not parse URL '%s'\n", urlString);
+            const char* detail = HTTP_GetLastErrorMessage();
+            if (detail && detail[0] != '\0') {
+                printf("Detail: %s\n", detail);
+            }
             return 1;
         }
         outputFile = ExtractFilename(parsedUrl.Path);
@@ -174,11 +250,19 @@ int exosmain(int argc, char* argv[]) {
     if (!HTTP_ParseURL(urlString, &parsedUrl)) {
         printf("Error: Invalid URL format\n");
         printf("URL must be in format: http://host[:port]/path\n");
+        const char* detail = HTTP_GetLastErrorMessage();
+        if (detail && detail[0] != '\0') {
+            printf("Detail: %s\n", detail);
+        }
         return 1;
     }
 
     if (!parsedUrl.Valid) {
         printf("Error: URL validation failed\n");
+        const char* detail = HTTP_GetLastErrorMessage();
+        if (detail && detail[0] != '\0') {
+            printf("Detail: %s\n", detail);
+        }
         return 1;
     }
 
@@ -188,6 +272,10 @@ int exosmain(int argc, char* argv[]) {
     connection = HTTP_CreateConnection(parsedUrl.Host, parsedUrl.Port);
     if (!connection) {
         printf("Could not connect to %s:%d\n", parsedUrl.Host, parsedUrl.Port);
+        const char* detail = HTTP_GetLastErrorMessage();
+        if (detail && detail[0] != '\0') {
+            printf("Detail: %s\n", detail);
+        }
         return 1;
     }
 
@@ -210,7 +298,8 @@ int exosmain(int argc, char* argv[]) {
     if (result == HTTP_SUCCESS) {
         return 0;
     } else {
-        printf("\nDownload failed\n");
+        PrintHttpError(result);
+        printf("Download failed\n");
         return 1;
     }
 }

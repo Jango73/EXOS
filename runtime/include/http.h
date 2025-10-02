@@ -99,6 +99,18 @@ typedef struct tag_HTTP_CONNECTION {
 } HTTP_CONNECTION;
 
 /***************************************************************************/
+// HTTP Progress Callback Types
+
+typedef void (*HTTP_ResponseProgressCallback)(const HTTP_RESPONSE* Response, void* Context);
+typedef void (*HTTP_BodyProgressCallback)(unsigned int Bytes, void* Context);
+
+typedef struct tag_HTTP_PROGRESS_CALLBACKS {
+    HTTP_ResponseProgressCallback OnStatusLine;
+    HTTP_BodyProgressCallback OnBodyData;
+    void* Context;
+} HTTP_PROGRESS_CALLBACKS;
+
+/***************************************************************************/
 // HTTP API Functions
 
 /**
@@ -165,10 +177,12 @@ int HTTP_Post(HTTP_CONNECTION* Connection, const char* Path, const unsigned char
  * @param Filename The destination filename where the body will be written
  * @param ResponseMetadata Optional pointer that receives parsed response metadata
  * @param BytesWritten Optional pointer that receives the number of payload bytes written
+ * @param ProgressCallbacks Optional callbacks invoked to report progress while downloading
  * @return HTTP_SUCCESS on success, error code or HTTP status code otherwise
  */
 int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
-                        HTTP_RESPONSE* ResponseMetadata, unsigned int* BytesWritten);
+                        HTTP_RESPONSE* ResponseMetadata, unsigned int* BytesWritten,
+                        const HTTP_PROGRESS_CALLBACKS* ProgressCallbacks);
 
 /**
  * @brief Free response data
@@ -202,6 +216,12 @@ const char* HTTP_GetHeader(const HTTP_RESPONSE* Response, const char* HeaderName
  * @return Pointer to status description string
  */
 const char* HTTP_GetStatusString(unsigned short StatusCode);
+
+/**
+ * @brief Retrieve a descriptive string for the last HTTP runtime error
+ * @return Pointer to a statically stored error description string
+ */
+const char* HTTP_GetLastErrorMessage(void);
 
 /***************************************************************************/
 
