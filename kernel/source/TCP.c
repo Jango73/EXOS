@@ -471,29 +471,38 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
     if (Event && Event->Payload && Event->PayloadLength > 0) {
         DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of data"), Event->PayloadLength);
 
-        // Check for receive buffer overflow protection
-        if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
-            WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, dropping packet"));
+        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
+        if (SpaceAvailable == 0) {
+            DEBUG(TEXT("[TCP_ActionProcessData] Receive buffer full, advertising zero window"));
+
+            int ZeroWindowResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+            if (ZeroWindowResult < 0) {
+                ERROR(TEXT("[TCP_ActionProcessData] Failed to send zero-window ACK"));
+                SM_ProcessEvent(SM, TCP_EVENT_RCV_RST, NULL);
+            }
             return;
         }
 
-        // Add data to receive buffer
-        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
-        U32 CopyLength = (Event->PayloadLength > SpaceAvailable) ? SpaceAvailable : Event->PayloadLength;
+        U32 Accepted = (Event->PayloadLength > SpaceAvailable) ? SpaceAvailable : Event->PayloadLength;
 
-        if (CopyLength > 0) {
-            MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, Event->Payload, CopyLength);
-            Conn->RecvBufferUsed += CopyLength;
+        if (Accepted > 0) {
+            MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, Event->Payload, Accepted);
+            Conn->RecvBufferUsed += Accepted;
 
             // Notify socket layer of received data
-            CONSOLE_DEBUG(TEXT("[TCP] %u | "), CopyLength);
-            SocketTCPReceiveCallback(Conn, Event->Payload, CopyLength);
+            CONSOLE_DEBUG(TEXT("[TCP] %u | "), Accepted);
+            SocketTCPReceiveCallback(Conn, Event->Payload, Accepted);
+
+            // Update receive sequence number based on accepted data only
+            Conn->RecvNext = Ntohl(Event->Header->SequenceNumber) + Accepted;
+
+            if (Accepted < Event->PayloadLength) {
+                DEBUG(TEXT("[TCP_ActionProcessData] Partial payload accepted (%u/%u bytes)"),
+                      Accepted, Event->PayloadLength);
+            }
         }
 
-        // Update receive sequence number
-        Conn->RecvNext = Ntohl(Event->Header->SequenceNumber) + Event->PayloadLength;
-
-        // Send ACK (normal TCP behavior)
+        // Send ACK reflecting the updated receive window
         int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
         if (SendResult < 0) {
             ERROR(TEXT("[TCP_ActionProcessData] Failed to send ACK packet"));
@@ -1002,10 +1011,14 @@ int TCP_Receive(LPTCP_CONNECTION Connection, U8* Buffer, U32 BufferSize) {
         // Process data consumption for window management
         TCP_ProcessDataConsumption(Connection, CopyLength);
 
-        // Check if we should send a window update
-        if (TCP_ShouldSendWindowUpdate(Connection)) {
+        BOOL WindowUpdatePending = TCP_ShouldSendWindowUpdate(Connection);
+        if (WindowUpdatePending) {
             DEBUG(TEXT("[TCP_Receive] Sending window update ACK"));
-            TCP_SendPacket(Connection, TCP_FLAG_ACK, NULL, 0);
+        }
+
+        int AckResult = TCP_SendPacket(Connection, TCP_FLAG_ACK, NULL, 0);
+        if (AckResult < 0) {
+            ERROR(TEXT("[TCP_Receive] Failed to send window update ACK"));
         }
 
         return CopyLength;
