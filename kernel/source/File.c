@@ -29,6 +29,68 @@
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"
+#include "../include/String.h"
+
+/***************************************************************************/
+
+BOOL QualifyFileName(LPCSTR BaseFolder, LPCSTR RawName, LPSTR FileName) {
+    STR Sep[2] = {PATH_SEP, STR_NULL};
+    STR Temp[MAX_PATH_NAME];
+    LPSTR Ptr;
+    LPSTR Token;
+    U32 Length;
+    STR Save;
+
+    if (RawName == NULL || FileName == NULL) return FALSE;
+
+    if (RawName[0] == PATH_SEP) {
+        StringCopy(Temp, RawName);
+    } else {
+        if (BaseFolder != NULL && BaseFolder[0] != STR_NULL) {
+            StringCopy(Temp, BaseFolder);
+        } else {
+            Temp[0] = PATH_SEP;
+            Temp[1] = STR_NULL;
+        }
+
+        if (Temp[StringLength(Temp) - 1] != PATH_SEP) StringConcat(Temp, Sep);
+        StringConcat(Temp, TEXT(RawName));
+    }
+
+    FileName[0] = PATH_SEP;
+    FileName[1] = STR_NULL;
+
+    Ptr = Temp;
+    if (Ptr[0] == PATH_SEP) Ptr++;
+
+    while (*Ptr) {
+        Token = Ptr;
+        while (*Ptr && *Ptr != PATH_SEP) Ptr++;
+        Length = Ptr - Token;
+
+        if (Length == 1 && Token[0] == STR_DOT) {
+            // Skip current directory component
+        } else if (Length == 2 && Token[0] == STR_DOT && Token[1] == STR_DOT) {
+            LPSTR Slash = StringFindCharR(FileName, PATH_SEP);
+            if (Slash) {
+                if (Slash != FileName)
+                    *Slash = STR_NULL;
+                else
+                    FileName[1] = STR_NULL;
+            }
+        } else if (Length > 0) {
+            if (StringLength(FileName) > 1) StringConcat(FileName, Sep);
+            Save = Token[Length];
+            Token[Length] = STR_NULL;
+            StringConcat(FileName, Token);
+            Token[Length] = Save;
+        }
+
+        if (*Ptr == PATH_SEP) Ptr++;
+    }
+
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -43,11 +105,30 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
+    STR QualifiedName[MAX_PATH_NAME];
+    LPCSTR TargetName = NULL;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (Info == NULL) return NULL;
+
+    TargetName = Info->Name;
+
+    if (TargetName == NULL) return NULL;
+
+    if (TargetName[0] != PATH_SEP) {
+        LPPROCESS CurrentProcess = GetCurrentProcess();
+        LPCSTR BaseFolder = NULL;
+
+        SAFE_USE_VALID_ID(CurrentProcess, ID_PROCESS) { BaseFolder = CurrentProcess->WorkFolder; }
+
+        if (!QualifyFileName(BaseFolder, TargetName, QualifiedName)) {
+            return NULL;
+        }
+
+        TargetName = QualifiedName;
+    }
 
     //-------------------------------------
     // Lock access to file systems
@@ -64,7 +145,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
-        if (STRINGS_EQUAL(AlreadyOpen->Name, Info->Name)) {
+        if (STRINGS_EQUAL(AlreadyOpen->Name, TargetName)) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
                 if (AlreadyOpen->OpenFlags == Info->Flags) {
                     File = AlreadyOpen;
@@ -85,12 +166,12 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     //-------------------------------------
     // Use SystemFS if an absolute path is provided
 
-    if (Info->Name[0] == PATH_SEP) {
+    if (TargetName[0] == PATH_SEP) {
         Find.Size = sizeof Find;
         Find.FileSystem = GetSystemFS();
         Find.Attributes = MAX_U32;
         Find.Flags = Info->Flags;
-        StringCopy(Find.Name, Info->Name);
+        StringCopy(Find.Name, TargetName);
 
         File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
@@ -112,7 +193,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     // Get the name of the volume in which the file
     // is supposed to be located
 
-    DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), Info->Name);
+    DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), TargetName);
 
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
@@ -121,12 +202,12 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.FileSystem = FileSystem;
         Find.Attributes = MAX_U32;
         Find.Flags = Info->Flags;
-        StringCopy(Find.Name, Info->Name);
+        StringCopy(Find.Name, TargetName);
 
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
         SAFE_USE(File) {
-            DEBUG(TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
+            DEBUG(TEXT("[OpenFile] Found %s in %s"), TargetName, FileSystem->Driver->Product);
 
             LockMutex(MUTEX_FILE, INFINITY);
 

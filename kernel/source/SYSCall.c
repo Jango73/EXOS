@@ -186,6 +186,7 @@ U32 SysCall_GetProcessInfo(U32 Parameter) {
 
             // Copy the command line
             StringCopy(Info->CommandLine, CurrentProcess->CommandLine);
+            StringCopy(Info->WorkFolder, CurrentProcess->WorkFolder);
 
             return DF_ERROR_SUCCESS;
         }

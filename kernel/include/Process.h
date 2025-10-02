@@ -76,6 +76,7 @@ struct tag_PROCESS {
     U32 ExitCode;            // This process' exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
+    STR WorkFolder[MAX_PATH_NAME];
     U32 TaskCount;           // Number of active tasks in this process
     U64 UserID;              // Owner user
     LPUSERSESSION Session;   // User session

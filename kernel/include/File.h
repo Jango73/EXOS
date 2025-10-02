@@ -54,6 +54,7 @@ U32 GetFileSize(LPFILE File);
 U32 DeleteFile(LPFILEOPENINFO FileOpenInfo);
 U32 CreateFolder(LPFILEOPENINFO FileOpenInfo);
 U32 DeleteFolder(LPFILEOPENINFO FileOpenInfo);
+BOOL QualifyFileName(LPCSTR BaseFolder, LPCSTR RawName, LPSTR FileName);
 
 LPVOID FileReadAll(LPCSTR, U32 *);
 U32 FileWriteAll(LPCSTR, LPCVOID, U32);

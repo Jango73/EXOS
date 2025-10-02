@@ -119,7 +119,6 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
 static void ClearOptions(LPSHELLCONTEXT);
 static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
 static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
-static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
 static BOOL QualifyCommandLine(LPSHELLCONTEXT, LPCSTR, LPSTR);
 static void ExecuteStartupCommands(void);
 static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine);
@@ -416,7 +415,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
                         StringCopy(Full, Token);
                     } else {
                         // Relative path
-                        QualifyFileName(Context, Token, Full);
+                        QualifyFileName(Context->CurrentFolder, Token, Full);
                     }
 
                     if (PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
@@ -469,60 +468,6 @@ static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
 
 /***************************************************************************/
 
-static BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
-    STR Sep[2] = {PATH_SEP, STR_NULL};
-    STR Temp[MAX_PATH_NAME];
-    LPSTR Ptr;
-    LPSTR Token;
-    U32 Length;
-    STR Save;
-
-    if (RawName[0] == PATH_SEP) {
-        StringCopy(Temp, RawName);
-    } else {
-        StringCopy(Temp, Context->CurrentFolder);
-        if (Temp[StringLength(Temp) - 1] != PATH_SEP) StringConcat(Temp, Sep);
-        StringConcat(Temp, TEXT(RawName));
-    }
-
-    FileName[0] = PATH_SEP;
-    FileName[1] = STR_NULL;
-
-    Ptr = Temp;
-    if (Ptr[0] == PATH_SEP) Ptr++;
-
-    while (*Ptr) {
-        Token = Ptr;
-        while (*Ptr && *Ptr != PATH_SEP) Ptr++;
-        Length = Ptr - Token;
-
-        if (Length == 1 && Token[0] == STR_DOT) {
-            // Skip current directory component
-        } else if (Length == 2 && Token[0] == STR_DOT && Token[1] == STR_DOT) {
-            // Remove previous component while preserving root
-            LPSTR Slash = StringFindCharR(FileName, PATH_SEP);
-            if (Slash) {
-                if (Slash != FileName)
-                    *Slash = STR_NULL;
-                else
-                    FileName[1] = STR_NULL;
-            }
-        } else if (Length > 0) {
-            if (StringLength(FileName) > 1) StringConcat(FileName, Sep);
-            Save = Token[Length];
-            Token[Length] = STR_NULL;
-            StringConcat(FileName, Token);
-            Token[Length] = Save;
-        }
-
-        if (*Ptr == PATH_SEP) Ptr++;
-    }
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
 static BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LPSTR QualifiedCommandLine) {
     U32 Quotes = 0;
     U32 s = 0;  // source index
@@ -564,7 +509,7 @@ static BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LP
     ExecutableName[e] = STR_NULL;
 
     // Qualify the executable name
-    if (!QualifyFileName(Context, ExecutableName, QualifiedPath)) {
+    if (!QualifyFileName(Context->CurrentFolder, ExecutableName, QualifiedPath)) {
         return FALSE;
     }
 
@@ -597,7 +542,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
         return;
     }
 
-    if (QualifyFileName(Context, Context->Command, NewPath) == 0) return;
+    if (QualifyFileName(Context->CurrentFolder, Context->Command, NewPath) == 0) return;
 
     Control.CurrentFolder[0] = STR_NULL;
     StringCopy(Control.SubFolder, NewPath);
@@ -626,7 +571,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
     FileSystem = GetSystemFS();
     if (FileSystem == NULL) return;
 
-    if (QualifyFileName(Context, Context->Command, FileName)) {
+    if (QualifyFileName(Context->CurrentFolder, Context->Command, FileName)) {
         FileInfo.Size = sizeof(FILEINFO);
         FileInfo.FileSystem = FileSystem;
         FileInfo.Attributes = MAX_U32;
@@ -800,7 +745,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     // Parse all command line components (including options) first
     ParseNextCommandLineComponent(Context);
     if (StringLength(Context->Command)) {
-        QualifyFileName(Context, Context->Command, Target);
+        QualifyFileName(Context->CurrentFolder, Context->Command, Target);
     }
 
     // Continue parsing any remaining components to capture all options
@@ -975,7 +920,7 @@ static void CMD_cat(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command)) {
-        if (QualifyFileName(Context, Context->Command, FileName)) {
+        if (QualifyFileName(Context->CurrentFolder, Context->Command, FileName)) {
             FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
             FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
             FileOpenInfo.Header.Flags = 0;
@@ -1027,10 +972,10 @@ static void CMD_copy(LPSHELLCONTEXT Context) {
     U32 Index;
 
     ParseNextCommandLineComponent(Context);
-    if (QualifyFileName(Context, Context->Command, SrcName) == 0) return;
+    if (QualifyFileName(Context->CurrentFolder, Context->Command, SrcName) == 0) return;
 
     ParseNextCommandLineComponent(Context);
-    if (QualifyFileName(Context, Context->Command, DstName) == 0) return;
+    if (QualifyFileName(Context->CurrentFolder, Context->Command, DstName) == 0) return;
 
     ConsolePrint(TEXT("%s %s\n"), SrcName, DstName);
 
@@ -1095,7 +1040,7 @@ static void CMD_edit(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command)) {
-        if (QualifyFileName(Context, Context->Command, FileName)) {
+        if (QualifyFileName(Context->CurrentFolder, Context->Command, FileName)) {
             Arguments[0] = FileName;
             Edit(1, (LPCSTR*)Arguments);
         }
@@ -1537,6 +1482,7 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
             ProcessInfo.Header.Flags = 0;
             ProcessInfo.Flags = 0;
             StringCopy(ProcessInfo.CommandLine, QualifiedCommandLine);
+            StringCopy(ProcessInfo.WorkFolder, Context->CurrentFolder);
             ProcessInfo.StdOut = NULL;
             ProcessInfo.StdIn = NULL;
             ProcessInfo.StdErr = NULL;

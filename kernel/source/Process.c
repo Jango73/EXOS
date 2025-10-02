@@ -31,6 +31,7 @@
 #include "../include/List.h"
 #include "../include/Log.h"
 #include "../include/StackTrace.h"
+#include "../include/String.h"
 
 /***************************************************************************/
 
@@ -52,6 +53,7 @@ PROCESS SECTION(".data") KernelProcess = {
     .HeapSize = 0,                  // Heap size
     .FileName = "EXOS",             // File name
     .CommandLine = "",              // Command line
+    .WorkFolder = "/",             // Working folder
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
 
@@ -482,6 +484,21 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         Process->CommandLine[0] = STR_NULL;  // Empty string
     }
 
+    if (Info->WorkFolder[0] != STR_NULL) {
+        StringCopy(Process->WorkFolder, Info->WorkFolder);
+    } else {
+        LPPROCESS ParentProcess = GetCurrentProcess();
+
+        SAFE_USE_VALID_ID(ParentProcess, ID_PROCESS) {
+            StringCopy(Process->WorkFolder, ParentProcess->WorkFolder);
+        }
+
+        if (Process->WorkFolder[0] == STR_NULL) {
+            Process->WorkFolder[0] = PATH_SEP;
+            Process->WorkFolder[1] = STR_NULL;
+        }
+    }
+
     // Copy process creation flags
     Process->Flags = Info->Flags;
 
@@ -680,6 +697,14 @@ U32 Spawn(LPCSTR CommandLine) {
     ProcessInfo.StdIn = NULL;
     ProcessInfo.StdErr = NULL;
     ProcessInfo.Process = NULL;
+
+    ProcessInfo.WorkFolder[0] = STR_NULL;
+
+    LPPROCESS CurrentProcess = GetCurrentProcess();
+
+    SAFE_USE_VALID_ID(CurrentProcess, ID_PROCESS) {
+        StringCopy(ProcessInfo.WorkFolder, CurrentProcess->WorkFolder);
+    }
 
     StringCopy(ProcessInfo.CommandLine, CommandLine);
 

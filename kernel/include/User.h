@@ -287,6 +287,7 @@ typedef struct tag_PROCESSINFO {
     ABI_HEADER Header;
     U32 Flags;
     STR CommandLine[MAX_PATH_NAME];
+    STR WorkFolder[MAX_PATH_NAME];
     HANDLE StdOut;
     HANDLE StdIn;
     HANDLE StdErr;
