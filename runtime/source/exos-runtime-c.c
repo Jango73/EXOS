@@ -264,23 +264,51 @@ FILE* fopen(const char* __name, const char* __mode) {
     info.Header.Flags = 0;
     info.Flags = 0;
     info.Name = (LPCSTR)__name;
-    info.Flags = 0;
 
-    if (strstr(__mode, "r+")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_EXISTING;
-    } else if (strstr(__mode, "r")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_EXISTING;
-    } else if (strstr(__mode, "w+")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
-    } else if (strstr(__mode, "w")) {
-        info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
-    } else if (strstr(__mode, "a+")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
-    } else if (strstr(__mode, "a")) {
-        info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
-    } else {
-        // Unknown mode
+    char PrimaryMode = 0;
+    int HasPlus = 0;
+
+    for (const char* ModeChar = __mode; ModeChar && *ModeChar; ++ModeChar) {
+        switch (*ModeChar) {
+            case 'r':
+            case 'w':
+            case 'a':
+                if (PrimaryMode != 0 && PrimaryMode != *ModeChar) {
+                    return NULL;
+                }
+                PrimaryMode = *ModeChar;
+                break;
+            case '+':
+                HasPlus = 1;
+                break;
+            case 'b':
+            case 't':
+                break;
+            default:
+                return NULL;
+        }
+    }
+
+    if (PrimaryMode == 0) {
         return NULL;
+    }
+
+    switch (PrimaryMode) {
+        case 'r':
+            info.Flags |= FILE_OPEN_READ | FILE_OPEN_EXISTING;
+            break;
+        case 'w':
+            info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+            break;
+        case 'a':
+            info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
+            break;
+        default:
+            return NULL;
+    }
+
+    if (HasPlus) {
+        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE;
     }
 
     handle = exoscall(SYSCALL_OpenFile, (unsigned)&info);
@@ -366,6 +394,46 @@ size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
 
     return result;
 }
+
+/************************************************************************/
+#ifndef __KERNEL__
+static void __attribute__((unused)) RuntimeVerifyRbPlusMode(void) {
+    const char* TestPath = "rbplus-test.bin";
+    const unsigned char SeedBytes[4] = { 0xCA, 0xFE, 0xBA, 0xBE };
+    FILE* File = fopen(TestPath, "wb");
+
+    if (!File) {
+        debug("[RuntimeVerifyRbPlusMode] Failed to create seed file");
+        return;
+    }
+
+    if (fwrite(SeedBytes, 1, sizeof(SeedBytes), File) != sizeof(SeedBytes)) {
+        debug("[RuntimeVerifyRbPlusMode] Failed to seed test file");
+        fclose(File);
+        return;
+    }
+
+    fclose(File);
+
+    File = fopen(TestPath, "rb+");
+
+    if (!File) {
+        debug("[RuntimeVerifyRbPlusMode] Failed to reopen file with rb+");
+        return;
+    }
+
+    size_t Requested = sizeof(SeedBytes);
+    size_t Written = fwrite(SeedBytes, 1, Requested, File);
+
+    if (Written != Requested) {
+        debug("[RuntimeVerifyRbPlusMode] fwrite wrote %u bytes instead of %u", (unsigned)Written, (unsigned)Requested);
+    } else {
+        debug("[RuntimeVerifyRbPlusMode] fwrite wrote expected %u bytes", (unsigned)Written);
+    }
+
+    fclose(File);
+}
+#endif
 
 /************************************************************************/
 
