@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "../include/TCP.h"
+#include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/System.h"
@@ -485,7 +486,7 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
             Conn->RecvBufferUsed += CopyLength;
 
             // Notify socket layer of received data
-            VERBOSE(TEXT("[TCP_ActionProcessData] %u"), CopyLength);
+            CONSOLE_DEBUG(TEXT("[TCP_ActionProcessData] %u | "), CopyLength);
             SocketTCPReceiveCallback(Conn, Event->Payload, CopyLength);
         }
 

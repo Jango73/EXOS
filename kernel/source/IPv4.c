@@ -24,6 +24,7 @@
 
 #include "../include/IPv4.h"
 #include "../include/ARPContext.h"
+#include "../include/Console.h"
 #include "../include/Device.h"
 #include "../include/Heap.h"
 #include "../include/ID.h"
@@ -224,7 +225,7 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
     // Dispatch to protocol handler
     IPv4_ProtocolHandler Handler = Context->ProtocolHandlers[Packet->Protocol];
     if (Handler) {
-        VERBOSE(TEXT("[IPv4_HandlePacket] %u"), PayloadLength);
+        CONSOLE_DEBUG(TEXT("[IPv4_HandlePacket] %u | "), PayloadLength);
         Handler(Payload, PayloadLength, Packet->SourceAddress, Packet->DestinationAddress);
     } else {
         DEBUG(TEXT("[IPv4_HandlePacket] No handler for protocol %u"), (U32)Packet->Protocol);
