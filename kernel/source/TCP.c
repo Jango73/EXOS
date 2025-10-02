@@ -471,29 +471,31 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
     if (Event && Event->Payload && Event->PayloadLength > 0) {
         DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of data"), Event->PayloadLength);
 
-        // Check for receive buffer overflow protection
-        if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
-            WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, dropping packet"));
+        U32 Seq = Ntohl(Event->Header->SequenceNumber);
+        U32 PayloadLen = Event->PayloadLength;
+        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
+
+        if (Seq != Conn->RecvNext) {
+            DEBUG(TEXT("[TCP_ActionProcessData] Out-of-order segment (seq=%u, expected=%u)"), Seq, Conn->RecvNext);
+            int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+            if (SendResult < 0) {
+                ERROR(TEXT("[TCP_ActionProcessData] Failed to send duplicate ACK packet"));
+                SM_ProcessEvent(SM, TCP_EVENT_RCV_RST, NULL);
+            }
             return;
         }
 
-        // Add data to receive buffer
-        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
-        U32 CopyLength = (Event->PayloadLength > SpaceAvailable) ? SpaceAvailable : Event->PayloadLength;
+        U32 Accepted = (PayloadLen <= SpaceAvailable) ? PayloadLen : SpaceAvailable;
+        if (Accepted > 0) {
+            MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, Event->Payload, Accepted);
+            Conn->RecvBufferUsed += Accepted;
 
-        if (CopyLength > 0) {
-            MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, Event->Payload, CopyLength);
-            Conn->RecvBufferUsed += CopyLength;
-
-            // Notify socket layer of received data
-            CONSOLE_DEBUG(TEXT("[TCP] %u | "), CopyLength);
-            SocketTCPReceiveCallback(Conn, Event->Payload, CopyLength);
+            CONSOLE_DEBUG(TEXT("[TCP] %u | "), Accepted);
+            SocketTCPReceiveCallback(Conn, Event->Payload, Accepted);
         }
 
-        // Update receive sequence number
-        Conn->RecvNext = Ntohl(Event->Header->SequenceNumber) + Event->PayloadLength;
+        Conn->RecvNext += Accepted;
 
-        // Send ACK (normal TCP behavior)
         int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
         if (SendResult < 0) {
             ERROR(TEXT("[TCP_ActionProcessData] Failed to send ACK packet"));
