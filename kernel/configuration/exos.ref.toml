@@ -51,6 +51,8 @@ LocalIP="192.168.56.10"
 [TCP]
 # TCP configuration
 EphemeralPortStart=32768
+SendBufferSize=32768
+ReceiveBufferSize=32768
 
 # Run section (specify an executable to run)
 # [[Run]]

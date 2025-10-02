@@ -689,6 +689,7 @@ TCP provides reliable connection-oriented communication using a state machine-ba
 - RFC 793 compliant state machine (CLOSED, LISTEN, SYN_SENT, ESTABLISHED, etc.)
 - Connection management with unique 4-tuple identification
 - Send/receive buffers with flow control
+- Configurable buffer sizes through `TCP.SendBufferSize` and `TCP.ReceiveBufferSize`
 - Sequence number management
 - Timer-based retransmission and TIME_WAIT handling
 - Checksum validation with IPv4 pseudo-header
@@ -714,8 +715,10 @@ typedef struct TCPConnectionTag {
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
     U32 SendBufferUsed;
+    U32 SendBufferCapacity;
     U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
     U32 RecvBufferUsed;
+    U32 RecvBufferCapacity;
 
     // State machine
     STATE_MACHINE StateMachine;
@@ -737,6 +740,8 @@ typedef struct TCPConnectionTag {
 - `TCP_GetState(ConnectionID)`: Get current connection state
 - `TCP_Update()`: Process timers and retransmissions
 - `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
+
+The buffer capacities default to 32768 bytes each when the configuration entries are absent.
 
 ### Layer Interactions
 

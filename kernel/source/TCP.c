@@ -58,10 +58,35 @@ static U16 TCP_GetEphemeralPortStart(void) {
 }
 
 /************************************************************************/
+// Helper to read buffer sizes from configuration with fallback
+static U32 TCP_GetConfiguredBufferSize(LPCSTR configKey, U32 fallback, U32 maxLimit) {
+    LPCSTR configValue = GetConfigurationValue(configKey);
+
+    SAFE_USE(configValue) {
+        U32 parsedValue = StringToU32(configValue);
+        if (parsedValue > 0) {
+            if (parsedValue > maxLimit) {
+                WARNING(TEXT("[TCP_GetConfiguredBufferSize] %s=%u exceeds maximum %u, clamping"),
+                        configKey, parsedValue, maxLimit);
+                return maxLimit;
+            }
+            return parsedValue;
+        }
+
+        WARNING(TEXT("[TCP_GetConfiguredBufferSize] %s has invalid value '%s', using fallback"),
+                configKey, configValue);
+    }
+
+    return fallback;
+}
+
+/************************************************************************/
 // Global TCP state
 
 typedef struct tag_TCP_GLOBAL_STATE {
     U16 NextEphemeralPort;
+    U32 SendBufferSize;
+    U32 ReceiveBufferSize;
 } TCP_GLOBAL_STATE, *LPTCP_GLOBAL_STATE;
 
 TCP_GLOBAL_STATE GlobalTCP;
@@ -244,7 +269,9 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
     Header.DataOffset = ((HeaderLength / 4) << 4); // Data offset in 4-byte words, shifted to upper nibble
     Header.Flags = Flags;
     // Always calculate window based on actual TCP buffer space, not cached value
-    U32 AvailableSpace = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
+    U32 AvailableSpace = (Conn->RecvBufferCapacity > Conn->RecvBufferUsed)
+                         ? (Conn->RecvBufferCapacity - Conn->RecvBufferUsed)
+                         : 0;
     U16 ActualWindow = (AvailableSpace > 0xFFFF) ? 0xFFFF : (U16)AvailableSpace;
     Header.WindowSize = Htons(ActualWindow);
     Header.UrgentPointer = 0;
@@ -511,7 +538,7 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
 
         DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of in-order data"), PayloadLength);
 
-        if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
+        if (Conn->RecvBufferUsed >= Conn->RecvBufferCapacity) {
             WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, advertising zero window"));
 
             int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
@@ -522,7 +549,9 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
             return;
         }
 
-        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
+        U32 SpaceAvailable = (Conn->RecvBufferCapacity > Conn->RecvBufferUsed)
+                             ? (Conn->RecvBufferCapacity - Conn->RecvBufferUsed)
+                             : 0;
         U32 CopyLength = (PayloadLength > SpaceAvailable) ? SpaceAvailable : PayloadLength;
 
         if (CopyLength > 0) {
@@ -894,11 +923,18 @@ static void TCP_SendRstToUnknownConnection(LPDEVICE Device, U32 LocalIP, U16 Loc
 void TCP_Initialize(void) {
     MemorySet(&GlobalTCP, 0, sizeof(TCP_GLOBAL_STATE));
     GlobalTCP.NextEphemeralPort = TCP_GetEphemeralPortStart();
+    GlobalTCP.SendBufferSize = TCP_GetConfiguredBufferSize(TEXT(CONFIG_TCP_SEND_BUFFER_SIZE),
+                                                          TCP_SEND_BUFFER_SIZE,
+                                                          TCP_SEND_BUFFER_SIZE);
+    GlobalTCP.ReceiveBufferSize = TCP_GetConfiguredBufferSize(TEXT(CONFIG_TCP_RECEIVE_BUFFER_SIZE),
+                                                             TCP_RECV_BUFFER_SIZE,
+                                                             TCP_RECV_BUFFER_SIZE);
 
 
     // TCP protocol handler will be registered later when devices are initialized
 
-    DEBUG(TEXT("[TCP_Initialize] Done"));
+    DEBUG(TEXT("[TCP_Initialize] Done (send buffer=%u bytes, receive buffer=%u bytes, next ephemeral port=%u)"),
+          GlobalTCP.SendBufferSize, GlobalTCP.ReceiveBufferSize, GlobalTCP.NextEphemeralPort);
 }
 
 /************************************************************************/
@@ -940,7 +976,10 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     Conn->LocalPort = (LocalPort == 0) ? Htons(TCP_GetNextEphemeralPort(Conn->LocalIP)) : LocalPort;
     Conn->RemoteIP = RemoteIP;
     Conn->RemotePort = RemotePort; // RemotePort should already be in network byte order from socket layer
-    Conn->RecvWindow = TCP_RECV_BUFFER_SIZE;
+    Conn->SendBufferCapacity = GlobalTCP.SendBufferSize;
+    Conn->RecvBufferCapacity = GlobalTCP.ReceiveBufferSize;
+    Conn->SendWindow = (Conn->SendBufferCapacity > 0xFFFFU) ? 0xFFFFU : (U16)Conn->SendBufferCapacity;
+    Conn->RecvWindow = (Conn->RecvBufferCapacity > 0xFFFFU) ? 0xFFFFU : (U16)Conn->RecvBufferCapacity;
     Conn->RetransmitTimer = 0;
     Conn->RetransmitCount = 0;
 
@@ -1037,10 +1076,27 @@ int TCP_Send(LPTCP_CONNECTION Connection, const U8* Data, U32 Length) {
             return -1;
         }
 
-        // Simple implementation: send immediately
-        TCP_SendPacket(Connection, TCP_FLAG_PSH | TCP_FLAG_ACK, Data, Length);
+        U32 MaxChunk = Connection->SendBufferCapacity;
+        if (MaxChunk == 0) {
+            MaxChunk = TCP_SEND_BUFFER_SIZE;
+        }
 
-        return Length;
+        const U8* CurrentData = Data;
+        U32 Remaining = Length;
+
+        while (Remaining > 0) {
+            U32 ChunkSize = (Remaining > MaxChunk) ? MaxChunk : Remaining;
+            int SendResult = TCP_SendPacket(Connection, TCP_FLAG_PSH | TCP_FLAG_ACK, CurrentData, ChunkSize);
+            if (SendResult < 0) {
+                ERROR(TEXT("[TCP_Send] Failed to send %u bytes chunk"), ChunkSize);
+                return -1;
+            }
+
+            CurrentData += ChunkSize;
+            Remaining -= ChunkSize;
+        }
+
+        return (int)Length;
     }
     return -1;
 }
@@ -1314,7 +1370,10 @@ U32 TCP_RegisterCallback(LPTCP_CONNECTION Connection, U32 Event, NOTIFICATION_CA
  */
 void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
     SAFE_USE_VALID_ID(Connection, ID_TCP) {
-        U32 MaxWindow = TCP_RECV_BUFFER_SIZE;
+        U32 MaxWindow = Connection->RecvBufferCapacity;
+        if (MaxWindow == 0) {
+            MaxWindow = TCP_RECV_BUFFER_SIZE;
+        }
         U32 LowThreshold = MaxWindow / 3;      // 1/3 threshold
         U32 HighThreshold = (MaxWindow * 2) / 3; // 2/3 threshold
 
@@ -1335,7 +1394,9 @@ void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
 void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed) {
     SAFE_USE_VALID_ID(Connection, ID_TCP) {
         // NOTE: RecvBufferUsed is already updated by caller, just calculate window
-        U32 AvailableSpace = TCP_RECV_BUFFER_SIZE - Connection->RecvBufferUsed;
+        U32 AvailableSpace = (Connection->RecvBufferCapacity > Connection->RecvBufferUsed)
+                             ? (Connection->RecvBufferCapacity - Connection->RecvBufferUsed)
+                             : 0;
         U16 NewWindow = (AvailableSpace > 0xFFFF) ? 0xFFFF : (U16)AvailableSpace;
 
         // Update hysteresis with new window size
@@ -1404,7 +1465,8 @@ void TCP_HandleApplicationRead(LPTCP_CONNECTION Connection, U32 BytesConsumed) {
         TCP_ProcessDataConsumption(Connection, BytesConsumed);
 
         BOOL ShouldSend = TCP_ShouldSendWindowUpdate(Connection);
-        if (!ShouldSend && PreviousUsed == TCP_RECV_BUFFER_SIZE && Connection->RecvBufferUsed < TCP_RECV_BUFFER_SIZE) {
+        if (!ShouldSend && PreviousUsed == Connection->RecvBufferCapacity &&
+            Connection->RecvBufferUsed < Connection->RecvBufferCapacity) {
             ShouldSend = TRUE;
         }
 

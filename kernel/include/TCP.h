@@ -102,8 +102,8 @@ typedef struct tag_TCP_HEADER {
 /************************************************************************/
 // TCP Connection Block
 
-#define TCP_SEND_BUFFER_SIZE 2048
-#define TCP_RECV_BUFFER_SIZE 2048
+#define TCP_SEND_BUFFER_SIZE 32768
+#define TCP_RECV_BUFFER_SIZE 32768
 
 typedef struct tag_TCP_CONNECTION {
     LISTNODE_FIELDS
@@ -128,8 +128,10 @@ typedef struct tag_TCP_CONNECTION {
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
     U32 SendBufferUsed;
+    U32 SendBufferCapacity;
     U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
     U32 RecvBufferUsed;
+    U32 RecvBufferCapacity;
 
     // State machine
     STATE_MACHINE StateMachine;
