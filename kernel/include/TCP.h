@@ -152,6 +152,7 @@ typedef struct tag_TCP_PACKET_EVENT {
     U32 PayloadLength;
     U32 SourceIP;
     U32 DestinationIP;
+    BOOL AckSent;            // Indicates if an ACK was already transmitted for this segment
 } TCP_PACKET_EVENT, *LPTCP_PACKET_EVENT;
 
 /************************************************************************/

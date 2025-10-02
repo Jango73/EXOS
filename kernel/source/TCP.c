@@ -421,15 +421,28 @@ static void TCP_ActionSendAck(STATE_MACHINE* SM, LPVOID EventData) {
     LPTCP_PACKET_EVENT Event = (LPTCP_PACKET_EVENT)EventData;
 
     DEBUG(TEXT("[TCP_ActionSendAck] Sending ACK"));
+    BOOL ShouldSendAck = TRUE;
     if (Event && Event->Header) {
         U32 SeqNum = Ntohl(Event->Header->SequenceNumber);
         U8 Flags = Event->Header->Flags;
 
         // Calculate expected next sequence number
-        Conn->RecvNext = SeqNum + Event->PayloadLength;
+        U32 UpdatedRecvNext = SeqNum + Event->PayloadLength;
         if (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) {
-            Conn->RecvNext++;
+            UpdatedRecvNext++;
         }
+        if (UpdatedRecvNext > Conn->RecvNext) {
+            Conn->RecvNext = UpdatedRecvNext;
+        }
+        if (Event->AckSent) {
+            ShouldSendAck = FALSE;
+        }
+    } else if (Event && Event->AckSent) {
+        ShouldSendAck = FALSE;
+    }
+
+    if (!ShouldSendAck) {
+        return;
     }
 
     int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
@@ -491,13 +504,21 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
         }
 
         // Update receive sequence number
-        Conn->RecvNext = Ntohl(Event->Header->SequenceNumber) + Event->PayloadLength;
+        U32 SeqNum = Ntohl(Event->Header->SequenceNumber);
+        U32 UpdatedRecvNext = SeqNum + Event->PayloadLength;
+        if (Event->Header->Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) {
+            UpdatedRecvNext++;
+        }
+        if (UpdatedRecvNext > Conn->RecvNext) {
+            Conn->RecvNext = UpdatedRecvNext;
+        }
 
-        // Send ACK (normal TCP behavior)
-        int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
-        if (SendResult < 0) {
-            ERROR(TEXT("[TCP_ActionProcessData] Failed to send ACK packet"));
-            SM_ProcessEvent(SM, TCP_EVENT_RCV_RST, NULL);
+        if (!Event->AckSent) {
+            int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+            if (SendResult < 0) {
+                ERROR(TEXT("[TCP_ActionProcessData] Failed to send ACK packet"));
+                SM_ProcessEvent(SM, TCP_EVENT_RCV_RST, NULL);
+            }
         }
     }
 }
@@ -1055,6 +1076,7 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 
     const U8* Data = Payload + HeaderLength;
     U32 DataLength = PayloadLength - HeaderLength;
+    U8 Flags = Header->Flags;
 
     // Parse TCP options if present
     TCP_OPTIONS ParsedOptions;
@@ -1109,6 +1131,24 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
         return;
     }
 
+    BOOL ImmediateAckSent = FALSE;
+    U32 SequenceNumber = Ntohl(Header->SequenceNumber);
+    U32 NextExpected = SequenceNumber + DataLength;
+    if (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) {
+        NextExpected++;
+    }
+
+    if (NextExpected > Conn->RecvNext) {
+        Conn->RecvNext = NextExpected;
+    }
+
+    int ImmediateAckResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
+    if (ImmediateAckResult < 0) {
+        ERROR(TEXT("[TCP_OnIPv4Packet] Failed to send immediate ACK"));
+    } else {
+        ImmediateAckSent = TRUE;
+    }
+
     // Create event data
     TCP_PACKET_EVENT Event;
     Event.Header = Header;
@@ -1116,9 +1156,9 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
     Event.PayloadLength = DataLength;
     Event.SourceIP = SourceIP;
     Event.DestinationIP = DestinationIP;
+    Event.AckSent = ImmediateAckSent;
 
     // Determine event type based on flags and data length
-    U8 Flags = Header->Flags;
     SM_EVENT EventType = TCP_EVENT_RCV_DATA;
     BOOL ProcessResult = FALSE;
 
