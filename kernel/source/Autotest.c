@@ -133,7 +133,7 @@ BOOL RunAllTests(void) {
     if (AllPassed) {
         DEBUG(TEXT("[Autotest] ALL TESTS PASSED"));
     } else {
-        DEBUG(TEXT("[Autotest] SOME TESTS FAILED (%u failures)"), OverallResults.TestsRun - OverallResults.TestsPassed);
+        WARNING(TEXT("[Autotest] SOME TESTS FAILED (%u failures)"), OverallResults.TestsRun - OverallResults.TestsPassed);
     }
 
     DEBUG(TEXT("==========================================================================="));

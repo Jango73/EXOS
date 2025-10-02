@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -29,9 +30,11 @@
 #include "../../include/String.h"
 
 /************************************************************************/
+
 #define CANARY_VALUE ((U32)0xC1A5C0DE)
 
 /************************************************************************/
+
 static void FillPattern(U8* Buffer, U32 Length, U32* State) {
     if (!Buffer || !State) {
         return;
@@ -49,6 +52,7 @@ static void FillPattern(U8* Buffer, U32 Length, U32* State) {
 }
 
 /************************************************************************/
+
 static BOOL CheckCanaries(const U32* Front, const U32* Back, LPCSTR Context) {
     if (!Front || !Back) {
         return FALSE;
@@ -63,6 +67,7 @@ static BOOL CheckCanaries(const U32* Front, const U32* Back, LPCSTR Context) {
 }
 
 /************************************************************************/
+
 void TestCircularBuffer(TEST_RESULTS* Results) {
     if (!Results) {
         return;
@@ -113,7 +118,7 @@ void TestCircularBuffer(TEST_RESULTS* Results) {
             CheckCanaries(&Output.FrontCanary, &Output.BackCanary, TEXT("basic output"))) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestCircularBuffer] Basic write/read failed (written=%u read=%u data=%u/%u)"),
+            ERROR(TEXT("[TestCircularBuffer] Basic write/read failed (written=%u read=%u data=%u/%u)"),
                   Written,
                   Read,
                   AvailableAfterWrite,
@@ -186,7 +191,7 @@ void TestCircularBuffer(TEST_RESULTS* Results) {
             CheckCanaries(&Output.FrontCanary, &Output.BackCanary, TEXT("wrap output"))) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestCircularBuffer] Wrap-around failed (W1=%u R1=%u W2=%u avail=%u R2=%u valid=%u)"),
+            ERROR(TEXT("[TestCircularBuffer] Wrap-around failed (W1=%u R1=%u W2=%u avail=%u R2=%u valid=%u)"),
                   FirstWrite,
                   FirstRead,
                   SecondWrite,
@@ -240,7 +245,7 @@ void TestCircularBuffer(TEST_RESULTS* Results) {
             CheckCanaries(&Output.FrontCanary, &Output.BackCanary, TEXT("growth output"))) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestCircularBuffer] Growth failed (written=%u read=%u size=%u alloc=%u valid=%u)"),
+            ERROR(TEXT("[TestCircularBuffer] Growth failed (written=%u read=%u size=%u alloc=%u valid=%u)"),
                   Written,
                   Read,
                   SizeAfterGrowth,
@@ -295,7 +300,7 @@ void TestCircularBuffer(TEST_RESULTS* Results) {
             CheckCanaries(&Input.FrontCanary, &Input.BackCanary, TEXT("overflow input"))) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestCircularBuffer] Overflow/reset failed (written=%u overflow=%u flag=%u length=%u)"),
+            ERROR(TEXT("[TestCircularBuffer] Overflow/reset failed (written=%u overflow=%u flag=%u length=%u)"),
                   Written,
                   OverflowAttempt,
                   OverflowFlagged,
@@ -431,7 +436,7 @@ void TestCircularBuffer(TEST_RESULTS* Results) {
             CheckCanaries(&ReadChunk.FrontCanary, &ReadChunk.BackCanary, TEXT("final stress read"))) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestCircularBuffer] Stress scenario failed (pending=%u available=%u iteration=%u)"),
+            ERROR(TEXT("[TestCircularBuffer] Stress scenario failed (pending=%u available=%u iteration=%u)"),
                   Pending,
                   CircularBuffer_GetAvailableData(&Buffer),
                   Iteration);
@@ -445,5 +450,3 @@ void TestCircularBuffer(TEST_RESULTS* Results) {
         }
     }
 }
-
-/************************************************************************/

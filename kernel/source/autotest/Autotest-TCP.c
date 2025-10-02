@@ -66,7 +66,7 @@ void TestTCPChecksum(TEST_RESULTS* Results) {
     if (Checksum != 0) {
         Results->TestsPassed++;
     } else {
-        DEBUG(TEXT("[TestTCPChecksum] TCP checksum is zero for valid header"));
+        ERROR(TEXT("[TestTCPChecksum] TCP checksum is zero for valid header"));
     }
 
     // Test 2: TCP header with small payload
@@ -76,7 +76,7 @@ void TestTCPChecksum(TEST_RESULTS* Results) {
     if (ChecksumWithPayload != 0 && ChecksumWithPayload != Checksum) {
         Results->TestsPassed++;
     } else {
-        DEBUG(TEXT("[TestTCPChecksum] TCP checksum with payload failed: %x vs %x"), ChecksumWithPayload, Checksum);
+        ERROR(TEXT("[TestTCPChecksum] TCP checksum with payload failed: %x vs %x"), ChecksumWithPayload, Checksum);
     }
 
     // Test 3: Checksum validation (correct)
@@ -86,7 +86,7 @@ void TestTCPChecksum(TEST_RESULTS* Results) {
     if (ValidationResult == 1) {
         Results->TestsPassed++;
     } else {
-        DEBUG(TEXT("[TestTCPChecksum] Valid checksum validation failed"));
+        ERROR(TEXT("[TestTCPChecksum] Valid checksum validation failed"));
     }
 
     // Test 4: Checksum validation (incorrect)
@@ -96,7 +96,7 @@ void TestTCPChecksum(TEST_RESULTS* Results) {
     if (ValidationResult == 0) {
         Results->TestsPassed++;
     } else {
-        DEBUG(TEXT("[TestTCPChecksum] Invalid checksum validation should have failed"));
+        ERROR(TEXT("[TestTCPChecksum] Invalid checksum validation should have failed"));
     }
 
     // Test 5: Zero payload length
@@ -106,7 +106,7 @@ void TestTCPChecksum(TEST_RESULTS* Results) {
     if (ZeroPayloadChecksum != 0) {
         Results->TestsPassed++;
     } else {
-        DEBUG(TEXT("[TestTCPChecksum] Zero payload checksum is zero"));
+        ERROR(TEXT("[TestTCPChecksum] Zero payload checksum is zero"));
     }
 
     // Test 6: Known TCP frame checksum verification
@@ -156,7 +156,7 @@ void TestTCPChecksum(TEST_RESULTS* Results) {
     if (CalculatedChecksum == ExpectedChecksum) {
         Results->TestsPassed++;
     } else {
-        DEBUG(TEXT("[TestTCPChecksum] Known frame test FAILED: calculated=%x expected=%x"), CalculatedChecksum, ExpectedChecksum);
+        ERROR(TEXT("[TestTCPChecksum] Known frame test FAILED: calculated=%x expected=%x"), CalculatedChecksum, ExpectedChecksum);
     }
 }
 

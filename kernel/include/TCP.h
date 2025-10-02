@@ -102,8 +102,8 @@ typedef struct tag_TCP_HEADER {
 /************************************************************************/
 // TCP Connection Block
 
-#define TCP_SEND_BUFFER_SIZE 8192
-#define TCP_RECV_BUFFER_SIZE 32768
+#define TCP_SEND_BUFFER_SIZE 2048
+#define TCP_RECV_BUFFER_SIZE 2048
 
 typedef struct tag_TCP_CONNECTION {
     LISTNODE_FIELDS
