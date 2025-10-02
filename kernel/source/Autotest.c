@@ -43,6 +43,7 @@ typedef struct {
 // Test registry - add new tests here
 static TESTENTRY TestRegistry[] = {
     {TEXT("TestCopyStack"), TestCopyStack},
+    {TEXT("TestCircularBuffer"), TestCircularBuffer},
     {TEXT("TestRegex"), TestRegex},
     {TEXT("TestI386Disassembler"), TestI386Disassembler},
     {TEXT("TestBcrypt"), TestBcrypt},
