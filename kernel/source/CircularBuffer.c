@@ -128,13 +128,10 @@ U32 CircularBuffer_Write(LPCIRCULAR_BUFFER Buffer, const U8* Data, U32 Length) {
     U32 AvailableSpace = Buffer->Size - Buffer->DataLength;
 
     if (Length > AvailableSpace) {
-        U32 Needed = Length - AvailableSpace;
-        if (Needed > 0) {
-            if (CircularBuffer_TryGrow(Buffer, Needed)) {
-                AvailableSpace = Buffer->Size - Buffer->DataLength;
-            } else {
-                Buffer->Overflowed = TRUE;
-            }
+        if (CircularBuffer_TryGrow(Buffer, Length)) {
+            AvailableSpace = Buffer->Size - Buffer->DataLength;
+        } else {
+            Buffer->Overflowed = TRUE;
         }
     }
 
