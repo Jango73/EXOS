@@ -160,6 +160,17 @@ int HTTP_Post(HTTP_CONNECTION* Connection, const char* Path, const unsigned char
               unsigned int BodyLength, HTTP_RESPONSE* Response);
 
 /**
+ * @brief Receive an HTTP response and stream the body directly to a file
+ * @param Connection The HTTP connection
+ * @param Filename The destination filename where the body will be written
+ * @param ResponseMetadata Optional pointer that receives parsed response metadata
+ * @param BytesWritten Optional pointer that receives the number of payload bytes written
+ * @return HTTP_SUCCESS on success, error code or HTTP status code otherwise
+ */
+int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
+                        HTTP_RESPONSE* ResponseMetadata, unsigned int* BytesWritten);
+
+/**
  * @brief Free response data
  * @param Response The response to free
  */

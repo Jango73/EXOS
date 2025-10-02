@@ -29,6 +29,285 @@
 static unsigned int HTTPDefaultReceiveTimeoutMs = 10000; // 10 seconds by default
 
 /***************************************************************************/
+typedef enum {
+    HTTP_CHUNK_STATE_READ_SIZE = 0,
+    HTTP_CHUNK_STATE_READ_DATA,
+    HTTP_CHUNK_STATE_READ_DATA_CRLF,
+    HTTP_CHUNK_STATE_READ_TRAILERS,
+    HTTP_CHUNK_STATE_FINISHED
+} HTTP_CHUNK_STATE;
+
+typedef struct tag_HTTP_CHUNK_PARSER {
+    HTTP_CHUNK_STATE State;
+    unsigned int CurrentChunkSize;
+    unsigned int BytesRemainingInChunk;
+    unsigned int TotalBytesWritten;
+    char SizeBuffer[32];
+    unsigned int SizeBufferUsed;
+    unsigned int CrLfBytesNeeded;
+    int PendingCR;
+    int TrailerLineHasData;
+} HTTP_CHUNK_PARSER;
+
+/***************************************************************************/
+static void HTTP_ChunkParserInit(HTTP_CHUNK_PARSER* Parser) {
+    if (!Parser) {
+        return;
+    }
+
+    Parser->State = HTTP_CHUNK_STATE_READ_SIZE;
+    Parser->CurrentChunkSize = 0;
+    Parser->BytesRemainingInChunk = 0;
+    Parser->TotalBytesWritten = 0;
+    Parser->SizeBufferUsed = 0;
+    Parser->CrLfBytesNeeded = 0;
+    Parser->PendingCR = 0;
+    Parser->TrailerLineHasData = 0;
+}
+
+/***************************************************************************/
+static unsigned int HTTP_ParseChunkSizeValue(const char* Value) {
+    unsigned int Result = 0;
+    const char* Current = Value;
+
+    while (*Current != '\0') {
+        char Character = *Current;
+        unsigned int Digit;
+
+        if (Character >= '0' && Character <= '9') {
+            Digit = (unsigned int)(Character - '0');
+        } else if (Character >= 'a' && Character <= 'f') {
+            Digit = (unsigned int)(Character - 'a' + 10U);
+        } else if (Character >= 'A' && Character <= 'F') {
+            Digit = (unsigned int)(Character - 'A' + 10U);
+        } else {
+            break;
+        }
+
+        Result = (Result << 4) | Digit;
+        Current++;
+    }
+
+    return Result;
+}
+
+/***************************************************************************/
+static int HTTP_WriteBodyData(FILE* File, const unsigned char* Data, unsigned int Length) {
+    size_t Written;
+
+    if (!File || !Data || Length == 0) {
+        return HTTP_SUCCESS;
+    }
+
+    Written = fwrite(Data, 1, Length, File);
+    if (Written != Length) {
+        debug("[HTTP_WriteBodyData] Failed to write %u bytes (only %u written)", Length, (unsigned int)Written);
+        return HTTP_ERROR_MEMORY_ERROR;
+    }
+
+    return HTTP_SUCCESS;
+}
+
+/***************************************************************************/
+static int HTTP_ChunkParserProcess(HTTP_CHUNK_PARSER* Parser, const unsigned char* Data,
+                                   unsigned int Length, FILE* File, unsigned int* BytesWritten) {
+    unsigned int Offset = 0;
+    unsigned int WrittenThisCall = 0;
+
+    if (!Parser || !Data || Length == 0 || !File) {
+        if (BytesWritten) {
+            *BytesWritten = 0;
+        }
+        return HTTP_SUCCESS;
+    }
+
+    while (Offset < Length && Parser->State != HTTP_CHUNK_STATE_FINISHED) {
+        switch (Parser->State) {
+            case HTTP_CHUNK_STATE_READ_SIZE: {
+                unsigned char Character = Data[Offset++];
+
+                if (Character == '\n') {
+                    if (Parser->SizeBufferUsed > 0 &&
+                        Parser->SizeBuffer[Parser->SizeBufferUsed - 1] == '\r') {
+                        Parser->SizeBufferUsed--;
+                    }
+
+                    Parser->SizeBuffer[Parser->SizeBufferUsed] = '\0';
+
+                    if (Parser->SizeBufferUsed == 0) {
+                        debug("[HTTP_ChunkParserProcess] Empty chunk size line");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+
+                    char* Semicolon = strchr(Parser->SizeBuffer, ';');
+                    if (Semicolon) {
+                        *Semicolon = '\0';
+                    }
+
+                    Parser->CurrentChunkSize = HTTP_ParseChunkSizeValue(Parser->SizeBuffer);
+                    Parser->BytesRemainingInChunk = Parser->CurrentChunkSize;
+                    Parser->SizeBufferUsed = 0;
+
+                    if (Parser->CurrentChunkSize == 0U) {
+                        Parser->State = HTTP_CHUNK_STATE_READ_TRAILERS;
+                        Parser->PendingCR = 0;
+                        Parser->TrailerLineHasData = 0;
+                    } else {
+                        Parser->State = HTTP_CHUNK_STATE_READ_DATA;
+                    }
+                } else {
+                    if (Parser->SizeBufferUsed >= sizeof(Parser->SizeBuffer) - 1U) {
+                        debug("[HTTP_ChunkParserProcess] Chunk size line too long");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+                    Parser->SizeBuffer[Parser->SizeBufferUsed++] = (char)Character;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_READ_DATA: {
+                unsigned int Available = Length - Offset;
+                unsigned int ToWrite = Parser->BytesRemainingInChunk;
+
+                if (ToWrite > Available) {
+                    ToWrite = Available;
+                }
+
+                if (ToWrite > 0U) {
+                    int WriteResult = HTTP_WriteBodyData(File, Data + Offset, ToWrite);
+                    if (WriteResult != HTTP_SUCCESS) {
+                        return WriteResult;
+                    }
+
+                    Offset += ToWrite;
+                    Parser->BytesRemainingInChunk -= ToWrite;
+                    Parser->TotalBytesWritten += ToWrite;
+                    WrittenThisCall += ToWrite;
+                }
+
+                if (Parser->BytesRemainingInChunk == 0U) {
+                    Parser->State = HTTP_CHUNK_STATE_READ_DATA_CRLF;
+                    Parser->CrLfBytesNeeded = 2U;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_READ_DATA_CRLF: {
+                unsigned char Character = Data[Offset++];
+
+                if ((Parser->CrLfBytesNeeded == 2U && Character != '\r') ||
+                    (Parser->CrLfBytesNeeded == 1U && Character != '\n')) {
+                    debug("[HTTP_ChunkParserProcess] Invalid chunk delimiter");
+                    return HTTP_ERROR_PROTOCOL_ERROR;
+                }
+
+                Parser->CrLfBytesNeeded--;
+                if (Parser->CrLfBytesNeeded == 0U) {
+                    Parser->State = HTTP_CHUNK_STATE_READ_SIZE;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_READ_TRAILERS: {
+                unsigned char Character = Data[Offset++];
+
+                if (Parser->PendingCR) {
+                    if (Character != '\n') {
+                        debug("[HTTP_ChunkParserProcess] Invalid trailer line ending");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+
+                    Parser->PendingCR = 0;
+                    if (Parser->TrailerLineHasData == 0) {
+                        Parser->State = HTTP_CHUNK_STATE_FINISHED;
+                    } else {
+                        Parser->TrailerLineHasData = 0;
+                    }
+                    break;
+                }
+
+                if (Character == '\r') {
+                    Parser->PendingCR = 1;
+                } else {
+                    Parser->TrailerLineHasData = 1;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_FINISHED:
+            default:
+                break;
+        }
+    }
+
+    if (BytesWritten) {
+        *BytesWritten = WrittenThisCall;
+    }
+
+    return HTTP_SUCCESS;
+}
+
+/***************************************************************************/
+static char HTTP_ToLowerChar(char Character) {
+    if (Character >= 'A' && Character <= 'Z') {
+        return (char)(Character + ('a' - 'A'));
+    }
+    return Character;
+}
+
+/***************************************************************************/
+static int HTTP_HeaderValueContainsToken(const char* Value, const char* Token) {
+    unsigned int TokenLength;
+    const char* Current;
+
+    if (!Value || !Token) {
+        return 0;
+    }
+
+    TokenLength = (unsigned int)strlen(Token);
+    if (TokenLength == 0U) {
+        return 0;
+    }
+
+    Current = Value;
+    while (*Current) {
+        while (*Current == ' ' || *Current == '\t' || *Current == ',') {
+            Current++;
+        }
+
+        if (*Current == '\0') {
+            break;
+        }
+
+        unsigned int Matched = 0;
+        const char* Segment = Current;
+        while (Segment[Matched] && Segment[Matched] != ',' && Segment[Matched] != ';' &&
+               Matched < TokenLength &&
+               HTTP_ToLowerChar(Segment[Matched]) == HTTP_ToLowerChar(Token[Matched])) {
+            Matched++;
+        }
+
+        if (Matched == TokenLength) {
+            char Terminator = Segment[Matched];
+            if (Terminator == '\0' || Terminator == ',' || Terminator == ';' || Terminator == ' ' ||
+                Terminator == '\t') {
+                return 1;
+            }
+        }
+
+        while (*Current && *Current != ',') {
+            Current++;
+        }
+
+        if (*Current == ',') {
+            Current++;
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************/
 
 void HTTP_SetDefaultReceiveTimeout(unsigned int TimeoutMs) {
     HTTPDefaultReceiveTimeoutMs = TimeoutMs;
@@ -726,6 +1005,317 @@ int HTTP_Post(HTTP_CONNECTION* Connection, const char* Path, const unsigned char
     }
 
     return HTTP_ReceiveResponse(Connection, Response);
+}
+
+/***************************************************************************/
+
+int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
+                        HTTP_RESPONSE* ResponseMetadata, unsigned int* BytesWritten) {
+    char buffer[1024];
+    int received;
+    char* headerEnd;
+    char* statusLine;
+    FILE* file = NULL;
+    int headersParsed = 0;
+    unsigned int contentLength = 0;
+    unsigned short statusCode = 0;
+    char version[16] = {0};
+    unsigned int bodyBytesReceived = 0;
+    unsigned int headerLength = 0;
+    int isChunked = 0;
+    HTTP_CHUNK_PARSER chunkParser;
+    unsigned int idleTimeMs = 0;
+    unsigned int receiveTimeoutMs;
+    const unsigned int pollIntervalMs = 10;
+    char headerBuffer[4096];
+    unsigned int headerBufferUsed = 0;
+    int responseComplete = 0;
+    int connectionClosed = 0;
+    int result = HTTP_SUCCESS;
+
+    if (BytesWritten) {
+        *BytesWritten = 0;
+    }
+
+    if (ResponseMetadata) {
+        memset(ResponseMetadata, 0, sizeof(HTTP_RESPONSE));
+    }
+
+    if (!Connection || !Filename) {
+        return HTTP_ERROR_INVALID_RESPONSE;
+    }
+
+    receiveTimeoutMs = HTTP_GetDefaultReceiveTimeout();
+    if (receiveTimeoutMs == 0U) {
+        receiveTimeoutMs = 10000U;
+    }
+
+    headerBuffer[0] = '\0';
+    HTTP_ChunkParserInit(&chunkParser);
+
+    Connection->ReceiveBufferUsed = 0;
+
+    while (!responseComplete) {
+        received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
+
+        if (received < 0) {
+            if (received == SOCKET_ERROR_WOULDBLOCK) {
+                Sleep(pollIntervalMs);
+                idleTimeMs += pollIntervalMs;
+
+                if (idleTimeMs >= receiveTimeoutMs) {
+                    result = HTTP_ERROR_TIMEOUT;
+                    goto cleanup;
+                }
+
+                continue;
+            }
+
+            if (received == SOCKET_ERROR_TIMEOUT) {
+                result = HTTP_ERROR_TIMEOUT;
+                goto cleanup;
+            }
+
+            result = HTTP_ERROR_CONNECTION_FAILED;
+            goto cleanup;
+        }
+
+        if (received == 0) {
+            connectionClosed = 1;
+            break;
+        }
+
+        idleTimeMs = 0;
+
+        if (!headersParsed) {
+            unsigned int receivedUnsigned = (unsigned int)received;
+
+            if (headerBufferUsed + receivedUnsigned >= sizeof(headerBuffer)) {
+                result = HTTP_ERROR_INVALID_RESPONSE;
+                goto cleanup;
+            }
+
+            memcpy(headerBuffer + headerBufferUsed, buffer, receivedUnsigned);
+            headerBufferUsed += receivedUnsigned;
+            headerBuffer[headerBufferUsed] = '\0';
+
+            headerEnd = strstr(headerBuffer, "\r\n\r\n");
+            if (!headerEnd) {
+                continue;
+            }
+
+            headersParsed = 1;
+            headerLength = (unsigned int)((headerEnd + 4) - headerBuffer);
+            statusLine = headerBuffer;
+
+            const char* codeStart = NULL;
+            if (strncmp(statusLine, "HTTP/1.1", 8) == 0 && statusLine[8] == ' ') {
+                strcpy(version, "HTTP/1.1");
+                codeStart = statusLine + 9;
+            } else if (strncmp(statusLine, "HTTP/1.0", 8) == 0 && statusLine[8] == ' ') {
+                strcpy(version, "HTTP/1.0");
+                codeStart = statusLine + 9;
+            } else {
+                result = HTTP_ERROR_INVALID_RESPONSE;
+                goto cleanup;
+            }
+
+            unsigned int codeValue = 0;
+            while (codeStart && *codeStart >= '0' && *codeStart <= '9') {
+                codeValue = codeValue * 10U + (unsigned int)(*codeStart - '0');
+                codeStart++;
+            }
+
+            if (codeValue > 65535U) {
+                result = HTTP_ERROR_INVALID_RESPONSE;
+                goto cleanup;
+            }
+
+            statusCode = (unsigned short)codeValue;
+
+            if (ResponseMetadata) {
+                strcpy(ResponseMetadata->Version, version);
+                ResponseMetadata->StatusCode = statusCode;
+            }
+
+            const char* reasonStart = codeStart;
+            while (reasonStart && *reasonStart == ' ') {
+                reasonStart++;
+            }
+            const char* reasonEnd = strstr(reasonStart, "\r\n");
+            if (!reasonEnd) {
+                reasonEnd = reasonStart;
+            }
+            unsigned int reasonLength = (unsigned int)(reasonEnd - reasonStart);
+            if (ResponseMetadata && reasonLength > 0U) {
+                if (reasonLength >= sizeof(ResponseMetadata->ReasonPhrase)) {
+                    reasonLength = sizeof(ResponseMetadata->ReasonPhrase) - 1U;
+                }
+                memcpy(ResponseMetadata->ReasonPhrase, reasonStart, reasonLength);
+                ResponseMetadata->ReasonPhrase[reasonLength] = '\0';
+            }
+
+            if (ResponseMetadata) {
+                unsigned int headerCopyLength = headerLength;
+                if (headerCopyLength >= sizeof(ResponseMetadata->Headers)) {
+                    headerCopyLength = sizeof(ResponseMetadata->Headers) - 1U;
+                }
+                memcpy(ResponseMetadata->Headers, headerBuffer, headerCopyLength);
+                ResponseMetadata->Headers[headerCopyLength] = '\0';
+            }
+
+            char* transferEncodingStr = strstr(headerBuffer, "Transfer-Encoding:");
+            if (transferEncodingStr) {
+                const char* valueStart = transferEncodingStr + 18;
+                while (*valueStart == ' ' || *valueStart == '\t') {
+                    valueStart++;
+                }
+
+                char encodingValue[64];
+                unsigned int encodingIndex = 0;
+                while (*valueStart && *valueStart != '\r' && *valueStart != '\n' &&
+                       encodingIndex < (sizeof(encodingValue) - 1U)) {
+                    encodingValue[encodingIndex++] = *valueStart;
+                    valueStart++;
+                }
+                encodingValue[encodingIndex] = '\0';
+
+                if (HTTP_HeaderValueContainsToken(encodingValue, "chunked")) {
+                    isChunked = 1;
+                    HTTP_ChunkParserInit(&chunkParser);
+                }
+            }
+
+            if (!isChunked) {
+                char* contentLengthStr = strstr(headerBuffer, "Content-Length:");
+                if (contentLengthStr) {
+                    const char* numStart = contentLengthStr + 16;
+                    contentLength = 0;
+                    while (*numStart >= '0' && *numStart <= '9') {
+                        contentLength = contentLength * 10U + (unsigned int)(*numStart - '0');
+                        numStart++;
+                    }
+                }
+            }
+
+            if (ResponseMetadata) {
+                ResponseMetadata->ContentLength = contentLength;
+                ResponseMetadata->ChunkedEncoding = isChunked;
+            }
+
+            if (statusCode != 200) {
+                result = (int)statusCode;
+                goto cleanup;
+            }
+
+            file = fopen(Filename, "wb");
+            if (!file) {
+                result = HTTP_ERROR_MEMORY_ERROR;
+                goto cleanup;
+            }
+
+            unsigned int bodyDataInBuffer = headerBufferUsed - headerLength;
+            if (bodyDataInBuffer > 0U) {
+                const unsigned char* bodyStart = (const unsigned char*)(headerBuffer + headerLength);
+
+                if (isChunked) {
+                    result = HTTP_ChunkParserProcess(&chunkParser, bodyStart, bodyDataInBuffer, file, NULL);
+                    if (result != HTTP_SUCCESS) {
+                        goto cleanup;
+                    }
+
+                    if (chunkParser.State == HTTP_CHUNK_STATE_FINISHED) {
+                        responseComplete = 1;
+                    }
+                } else {
+                    result = HTTP_WriteBodyData(file, bodyStart, bodyDataInBuffer);
+                    if (result != HTTP_SUCCESS) {
+                        goto cleanup;
+                    }
+
+                    bodyBytesReceived += bodyDataInBuffer;
+                    if (contentLength > 0U && bodyBytesReceived >= contentLength) {
+                        responseComplete = 1;
+                    }
+                }
+            }
+
+            continue;
+        }
+
+        if (isChunked) {
+            result = HTTP_ChunkParserProcess(&chunkParser, (const unsigned char*)buffer,
+                                             (unsigned int)received, file, NULL);
+            if (result != HTTP_SUCCESS) {
+                goto cleanup;
+            }
+
+            if (chunkParser.State == HTTP_CHUNK_STATE_FINISHED) {
+                responseComplete = 1;
+            }
+        } else {
+            result = HTTP_WriteBodyData(file, (const unsigned char*)buffer, (unsigned int)received);
+            if (result != HTTP_SUCCESS) {
+                goto cleanup;
+            }
+
+            bodyBytesReceived += (unsigned int)received;
+            if (contentLength > 0U && bodyBytesReceived >= contentLength) {
+                responseComplete = 1;
+            }
+        }
+    }
+
+    if (result != HTTP_SUCCESS) {
+        goto cleanup;
+    }
+
+    if (!responseComplete) {
+        if (!headersParsed) {
+            result = HTTP_ERROR_CONNECTION_FAILED;
+            goto cleanup;
+        }
+
+        if (isChunked) {
+            if (chunkParser.State != HTTP_CHUNK_STATE_FINISHED) {
+                result = HTTP_ERROR_CONNECTION_FAILED;
+                goto cleanup;
+            }
+        } else if (contentLength > 0U && bodyBytesReceived < contentLength) {
+            result = HTTP_ERROR_CONNECTION_FAILED;
+            goto cleanup;
+        } else if (!connectionClosed) {
+            responseComplete = 1;
+        }
+    }
+
+cleanup:
+    if (file) {
+        fclose(file);
+    }
+
+    if (result == HTTP_SUCCESS) {
+        if (BytesWritten) {
+            if (isChunked) {
+                *BytesWritten = chunkParser.TotalBytesWritten;
+            } else {
+                *BytesWritten = bodyBytesReceived;
+            }
+        }
+
+        if (ResponseMetadata) {
+            strcpy(ResponseMetadata->Version, version);
+            ResponseMetadata->StatusCode = statusCode;
+            ResponseMetadata->ContentLength = contentLength;
+            ResponseMetadata->ChunkedEncoding = isChunked;
+        }
+    } else {
+        if (BytesWritten) {
+            *BytesWritten = 0;
+        }
+    }
+
+    return result;
 }
 
 /***************************************************************************/
