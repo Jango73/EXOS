@@ -225,7 +225,7 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
     // Dispatch to protocol handler
     IPv4_ProtocolHandler Handler = Context->ProtocolHandlers[Packet->Protocol];
     if (Handler) {
-        CONSOLE_DEBUG(TEXT("[IPv4_HandlePacket] %u | "), PayloadLength);
+        CONSOLE_DEBUG(TEXT("[IPv4] %u | "), PayloadLength);
         Handler(Payload, PayloadLength, Packet->SourceAddress, Packet->DestinationAddress);
     } else {
         DEBUG(TEXT("[IPv4_HandlePacket] No handler for protocol %u"), (U32)Packet->Protocol);

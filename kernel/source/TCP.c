@@ -486,7 +486,7 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
             Conn->RecvBufferUsed += CopyLength;
 
             // Notify socket layer of received data
-            CONSOLE_DEBUG(TEXT("[TCP_ActionProcessData] %u | "), CopyLength);
+            CONSOLE_DEBUG(TEXT("[TCP] %u | "), CopyLength);
             SocketTCPReceiveCallback(Conn, Event->Payload, CopyLength);
         }
 
