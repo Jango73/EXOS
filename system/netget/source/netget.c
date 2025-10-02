@@ -204,6 +204,9 @@ void PrintHttpError(int errorCode) {
         case HTTP_ERROR_PROTOCOL_ERROR:
             printf("Error: HTTP protocol error\n");
             break;
+        case HTTP_ERROR_SOCKET_OVERFLOW:
+            printf("Error: Socket receive buffer overflow\n");
+            break;
         default:
             printf("Error: Unknown error (%d)\n", errorCode);
             break;
