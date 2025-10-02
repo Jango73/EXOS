@@ -560,8 +560,6 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
             if (BytesAccepted > 0) {
                 MemoryCopy(Conn->RecvBuffer + Conn->RecvBufferUsed, PayloadPtr, BytesAccepted);
                 Conn->RecvBufferUsed += BytesAccepted;
-
-                CONSOLE_DEBUG(TEXT("[TCP] %u | "), BytesAccepted);
             }
         }
 
