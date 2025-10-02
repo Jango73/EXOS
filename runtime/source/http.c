@@ -1091,6 +1091,7 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
     HTTP_RESPONSE localMetadata;
     HTTP_RESPONSE* metadataOut;
     int statusCallbackInvoked = 0;
+    int responseStarted = 0;
 
     if (BytesWritten) {
         *BytesWritten = 0;
@@ -1133,21 +1134,28 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
 
             if (received == SOCKET_ERROR_WOULDBLOCK) {
                 Sleep(pollIntervalMs);
-                idleTimeMs += pollIntervalMs;
 
-                if (idleTimeMs >= receiveTimeoutMs) {
-                    result = HTTP_ERROR_TIMEOUT;
-                    HTTP_SetLastErrorMessage("Timed out waiting for HTTP response data");
-                    goto cleanup;
+                if (responseStarted) {
+                    idleTimeMs += pollIntervalMs;
+
+                    if (idleTimeMs >= receiveTimeoutMs) {
+                        result = HTTP_ERROR_TIMEOUT;
+                        HTTP_SetLastErrorMessage("Timed out waiting for HTTP response data");
+                        goto cleanup;
+                    }
                 }
 
                 continue;
             }
 
             if (received == SOCKET_ERROR_TIMEOUT) {
-                result = HTTP_ERROR_TIMEOUT;
-                HTTP_SetLastErrorMessage("Socket timeout while waiting for HTTP response data");
-                goto cleanup;
+                if (responseStarted) {
+                    result = HTTP_ERROR_TIMEOUT;
+                    HTTP_SetLastErrorMessage("Socket timeout while waiting for HTTP response data");
+                    goto cleanup;
+                }
+
+                continue;
             }
 
             result = HTTP_ERROR_CONNECTION_FAILED;
@@ -1161,6 +1169,7 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
         }
 
         idleTimeMs = 0;
+        responseStarted = 1;
 
         if (!headersParsed) {
             unsigned int receivedUnsigned = (unsigned int)received;

@@ -179,7 +179,7 @@ U32 SocketAddressGenericToInet(LPSOCKET_ADDRESS GenericAddress, LPSOCKET_ADDRESS
 
 // Internal functions
 void SocketTCPNotificationCallback(LPNOTIFICATION_DATA NotificationData, LPVOID UserData);
-void SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength);
+U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength);
 void SocketDestructor(LPVOID Item);
 
 /************************************************************************/

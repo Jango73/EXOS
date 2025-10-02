@@ -768,7 +768,9 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
                 Socket->BytesReceived += BytesToCopy;
                 Socket->ReceiveTimeoutStartTime = 0; // Reset timeout so user space can continue waiting after new data arrives
 
-                // NOTE: TCP window is now calculated automatically based on TCP buffer usage
+                if (Socket->TCPConnection != NULL && BytesToCopy > 0) {
+                    TCP_HandleApplicationRead(Socket->TCPConnection, BytesToCopy);
+                }
 
                 DEBUG(TEXT("[SocketReceive] Received %d bytes from socket %x"),BytesToCopy, SocketHandle);
                 return BytesToCopy;
@@ -892,8 +894,10 @@ void SocketTCPNotificationCallback(LPNOTIFICATION_DATA NotificationData, LPVOID 
     }
 }
 
-void SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength) {
-    if (!Data || DataLength == 0) return;
+U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength) {
+    if (!Data || DataLength == 0) {
+        return 0;
+    }
 
     LPSOCKET Socket = (LPSOCKET)Kernel.Socket->First;
     while (Socket) {
@@ -919,13 +923,15 @@ void SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U3
 
                 // NOTE: TCP window is now calculated automatically based on TCP buffer usage
 
-                break;
+                return BytesToCopy;
             }
             Socket = (LPSOCKET)Socket->Next;
         } else {
-            break;
+            return 0;
         }
     }
+
+    return 0;
 }
 
 /************************************************************************/
