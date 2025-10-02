@@ -12,5 +12,5 @@ echo.
 
 REM --- Start Python HTTP server ---
 echo Starting Python HTTP server on port 8000...
-python -m http.server 8000
+python -m http.server 8000 --directory www
 pause
