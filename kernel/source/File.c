@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -64,7 +64,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
-        if (StringCompare(AlreadyOpen->Name, Info->Name) == 0) {
+        if (STRINGS_EQUAL(AlreadyOpen->Name, Info->Name)) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
                 if (AlreadyOpen->OpenFlags == Info->Flags) {
                     File = AlreadyOpen;
@@ -94,7 +94,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
-        if (File != NULL) {
+        SAFE_USE(File) {
             LockMutex(MUTEX_FILE, INFINITY);
 
             File->OwnerTask = GetCurrentTask();
@@ -125,7 +125,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
 
-        if (File != NULL) {
+        SAFE_USE(File) {
             DEBUG(TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
 
             LockMutex(MUTEX_FILE, INFINITY);
@@ -165,7 +165,6 @@ U32 CloseFile(LPFILE File) {
     // Call filesystem-specific close function
     File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
 
-    // Release reference - DeleteUnreferencedObjects will handle cleanup
     ReleaseKernelObject(File);
 
     UnlockMutex(&(File->Mutex));
@@ -375,7 +374,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
         *Size = GetFileSize(File);
         Buffer = KernelHeapAlloc(*Size + 1);
 
-        if (Buffer != NULL) {
+        SAFE_USE(Buffer) {
             FileOp.Header.Size = sizeof(FILEOPERATION);
             FileOp.File = (HANDLE)File;
             FileOp.Buffer = Buffer;
@@ -441,3 +440,4 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
 }
 
 /***************************************************************************/
+

@@ -135,6 +135,10 @@ typedef struct tag_U128 {
 
 /************************************************************************/
 
+#define CONSOLE_DEBUG(a, ...) { STR __Buf[128]; StringPrintFormat(__Buf, a, ##__VA_ARGS__); ConsolePrint(__Buf); }
+
+/************************************************************************/
+
 typedef void* LPVOID;
 typedef const void* LPCVOID;
 
@@ -187,6 +191,8 @@ typedef U32 BOOL;
             :                  \
             : "memory");       \
     } while (0)
+
+#define STRINGS_EQUAL(a,b) (StringCompare(a,b)==0)
 
 /************************************************************************/
 // NULL values
@@ -415,6 +421,7 @@ typedef U32 HANDLE;
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
 #define MAX_PASSWORD 64
+#define LOOP_LIMIT 500
 
 /***************************************************************************/
 

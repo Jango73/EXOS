@@ -24,6 +24,7 @@
 
 #include "../include/ARP.h"
 #include "../include/ARPContext.h"
+#include "../include/Console.h"
 #include "../include/Device.h"
 #include "../include/Heap.h"
 #include "../include/ID.h"
@@ -38,7 +39,15 @@
 // Helper functions
 
 LPARP_CONTEXT ARP_GetContext(LPDEVICE Device) {
-    return (LPARP_CONTEXT)GetDeviceContext(Device, ID_ARP);
+    LPARP_CONTEXT Context = NULL;
+
+    if (Device == NULL) return NULL;
+
+    LockMutex(&(Device->Mutex), INFINITY);
+    Context = (LPARP_CONTEXT)GetDeviceContext(Device, ID_ARP);
+    UnlockMutex(&(Device->Mutex));
+
+    return Context;
 }
 
 /************************************************************************/
@@ -207,7 +216,7 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
         }
     }
 
-    if (Entry != NULL) {
+    SAFE_USE(Entry) {
         WasProbing = Entry->IsProbing;
         DEBUG(TEXT("[ArpCacheUpdate] Entry=%x, WasProbing=%u MacChanged=%u before update"), (U32)Entry, WasProbing, MacChanged);
         MacCopy(Entry->MacAddress, MacAddress);
@@ -249,6 +258,8 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
 
 static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
     NETWORKSEND Send;
+    LPDEVICE Device;
+    int Result = 0;
 
     if (Context == NULL || Context->Device == NULL) return 0;
 
@@ -258,15 +269,21 @@ static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
         return 0;
     }
 
-    Send.Device = (LPPCI_DEVICE)Context->Device;
+    Device = Context->Device;
+
+    LockMutex(&(Device->Mutex), INFINITY);
+
+    Send.Device = (LPPCI_DEVICE)Device;
     Send.Data = Data;
     Send.Length = Length;
-    SAFE_USE_VALID_ID(Context->Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Context->Device)->Driver, ID_DRIVER) {
-            return (((LPPCI_DEVICE)Context->Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
+    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
         }
     }
-    return 0;
+
+    UnlockMutex(&(Device->Mutex));
+    return Result;
 }
 
 /************************************************************************/
@@ -493,6 +510,8 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
 void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     LPARP_CONTEXT Context;
     U32 Index;
+    BOOL Success = FALSE;
+    BOOL MacRetrieved = FALSE;
 
     if (Device == NULL) return;
 
@@ -504,8 +523,7 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     Context->NotificationContext = Notification_CreateContext();
     if (Context->NotificationContext == NULL) {
         DEBUG(TEXT("[ARP_Initialize] Failed to create notification context"));
-        KernelHeapFree(Context);
-        return;
+        goto Out;
     }
 
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
@@ -521,8 +539,12 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     NETWORKINFO Info;
     MemorySet(&GetInfo, 0, sizeof(GetInfo));
     MemorySet(&Info, 0, sizeof(Info));
-    GetInfo.Device = (LPPCI_DEVICE)Device;
+    GetInfo.Device = NULL;
     GetInfo.Info = &Info;
+
+    LockMutex(&(Device->Mutex), INFINITY);
+
+    GetInfo.Device = (LPPCI_DEVICE)Device;
 
     SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
@@ -536,44 +558,64 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
                 Context->LocalMacAddress[3] = Info.MAC[3];
                 Context->LocalMacAddress[4] = Info.MAC[4];
                 Context->LocalMacAddress[5] = Info.MAC[5];
-            } else {
-                // GetInfo failed - clean up and return to prevent memory leak
-                DEBUG(TEXT("[ARP_Initialize] DF_NT_GETINFO failed"));
-                if (Context->NotificationContext) {
-                    Notification_DestroyContext(Context->NotificationContext);
-                }
-                KernelHeapFree(Context);
-                return;
-            }
+                MacRetrieved = TRUE;
 
-            /* NOTE: Do not register RX callback directly - NetworkManager handles this */
-            /* NETWORKSETRXCB SetRxCallback;
-            SetRxCallback.Device = (LPPCI_DEVICE)Device;
-            SetRxCallback.Callback = ARP_OnEthernetFrame;
-            DEBUG(TEXT("[ARP_Initialize] Registering RX callback %x for device %x"), (U32)ARP_OnEthernetFrame, (U32)Device);
-            U32 Result = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCallback);
-            DEBUG(TEXT("[ARP_Initialize] RX callback registration result: %u"), Result); */
-            DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
-        } else {
-            // Driver not valid - clean up and return to prevent memory leak
-            DEBUG(TEXT("[ARP_Initialize] Device driver not valid"));
-            if (Context->NotificationContext) {
-                Notification_DestroyContext(Context->NotificationContext);
+                /* NOTE: Do not register RX callback directly - NetworkManager handles this */
+                /* NETWORKSETRXCB SetRxCallback;
+                SetRxCallback.Device = (LPPCI_DEVICE)Device;
+                SetRxCallback.Callback = ARP_OnEthernetFrame;
+                DEBUG(TEXT("[ARP_Initialize] Registering RX callback %x for device %x"), (U32)ARP_OnEthernetFrame, (U32)Device);
+                U32 Result = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCallback);
+                DEBUG(TEXT("[ARP_Initialize] RX callback registration result: %u"), Result); */
+                DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
+            } else {
+                DEBUG(TEXT("[ARP_Initialize] DF_NT_GETINFO failed"));
             }
-            KernelHeapFree(Context);
-            return;
+        } else {
+            DEBUG(TEXT("[ARP_Initialize] Device driver not valid"));
         }
     } else {
-        // Device not valid - clean up and return to prevent memory leak
         DEBUG(TEXT("[ARP_Initialize] Device not valid"));
-        if (Context->NotificationContext) {
-            Notification_DestroyContext(Context->NotificationContext);
-        }
-        KernelHeapFree(Context);
-        return;
+    }
+
+    if (!MacRetrieved) {
+        UnlockMutex(&(Device->Mutex));
+        goto Out;
     }
 
     SetDeviceContext(Device, ID_ARP, Context);
+    Success = TRUE;
+
+    UnlockMutex(&(Device->Mutex));
+
+Out:
+    if (!Success) {
+        if (Context->NotificationContext) {
+            Notification_DestroyContext(Context->NotificationContext);
+            Context->NotificationContext = NULL;
+        }
+        KernelHeapFree(Context);
+    }
+}
+
+/************************************************************************/
+
+void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
+    LPARP_CONTEXT Context;
+
+    if (Device == NULL) return;
+
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) return;
+
+    Context->LocalIPv4_Be = LocalIPv4_Be;
+
+    U32 IpHost = Ntohl(LocalIPv4_Be);
+    DEBUG(TEXT("[ARP_SetLocalAddress] Local IPv4 updated to %u.%u.%u.%u"),
+          (IpHost >> 24) & 0xFF,
+          (IpHost >> 16) & 0xFF,
+          (IpHost >> 8) & 0xFF,
+          IpHost & 0xFF);
 }
 
 /************************************************************************/
@@ -584,11 +626,17 @@ void ARP_Destroy(LPDEVICE Device) {
     if (Device == NULL) return;
 
     Context = ARP_GetContext(Device);
-    if (Context != NULL) {
+    if (Context == NULL) return;
+
+    LockMutex(&(Device->Mutex), INFINITY);
+    RemoveDeviceContext(Device, ID_ARP);
+    UnlockMutex(&(Device->Mutex));
+
+    SAFE_USE(Context) {
         if (Context->NotificationContext) {
             Notification_DestroyContext(Context->NotificationContext);
+            Context->NotificationContext = NULL;
         }
-        RemoveDeviceContext(Device, ID_ARP);
         KernelHeapFree(Context);
     }
 }
@@ -650,6 +698,19 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
     if (Context == NULL) return 0;
 
     U32 TargetIPHost = Ntohl(TargetIPv4_Be);
+
+    // Special-case: broadcast 255.255.255.255
+    if (TargetIPHost == 0xFFFFFFFF) {
+        // Return broadcast MAC immediately
+        U8 BroadcastMac[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+        MemoryCopy(OutMacAddress, BroadcastMac, 6);
+        return 1;
+    }
+
+    // Ignore 0.0.0.0
+    if (TargetIPHost == 0x00000000) {
+        return 0;
+    }
     DEBUG(TEXT("[ARP_Resolve] Resolving %u.%u.%u.%u"),
           (TargetIPHost >> 24) & 0xFF, (TargetIPHost >> 16) & 0xFF,
           (TargetIPHost >> 8) & 0xFF, TargetIPHost & 0xFF);
@@ -660,6 +721,7 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
               Entry->MacAddress[0], Entry->MacAddress[1], Entry->MacAddress[2],
               Entry->MacAddress[3], Entry->MacAddress[4], Entry->MacAddress[5]);
         MacCopy(OutMacAddress, Entry->MacAddress);
+        CONSOLE_DEBUG(TEXT("[ARP] %u | "), (U32)6);
         return 1;
     }
 

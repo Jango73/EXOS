@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -371,7 +371,7 @@ static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC F
 
             if (FileRec->ClusterTable > 0 && FileRec->ClusterTable != EXFS_CLUSTER_END) {
                 if (StringCompare(Component->Name, TEXT("*")) == 0 ||
-                    StringCompare(Component->Name, FileRec->Name) == 0) {
+                    STRINGS_EQUAL(Component->Name, FileRec->Name)) {
                     if (Component->Next == NULL) {
                         FileLoc->DataCluster = FileRec->ClusterTable;
                         goto Out_Success;
@@ -903,3 +903,4 @@ U32 EXFSCommands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
+

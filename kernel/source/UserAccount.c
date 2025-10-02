@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -28,6 +28,7 @@
 #include "../include/Crypt.h"
 #include "../include/Database.h"
 #include "../include/Heap.h"
+#include "../include/Helpers.h"
 #include "../include/Kernel.h"
 #include "../include/List.h"
 #include "../include/Log.h"
@@ -75,12 +76,12 @@ BOOL InitializeUserSystem(void) {
  * @brief Shutdown the user account system.
  */
 void ShutdownUserSystem(void) {
-    if (Kernel.UserAccount != NULL) {
+    SAFE_USE(Kernel.UserAccount) {
         SaveUserDatabase();
         ListReset(Kernel.UserAccount);
     }
 
-    if (Kernel.UserDatabase != NULL) {
+    SAFE_USE(Kernel.UserDatabase) {
         DatabaseFree(Kernel.UserDatabase);
         Kernel.UserDatabase = NULL;
     }
@@ -114,6 +115,7 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
 
     // Check if user already exists
     DEBUG(TEXT("[CreateUserAccount] Checking if user exists"));
+
     if (FindUserAccount(UserName) != NULL) {
         DEBUG(TEXT("[CreateUserAccount] User already exists"));
         UnlockMutex(MUTEX_ACCOUNTS);
@@ -153,7 +155,7 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
     }
 
     DEBUG(TEXT("[CreateUserAccount] Adding to database"));
-    if (Kernel.UserDatabase != NULL) {
+    SAFE_USE(Kernel.UserDatabase) {
         DatabaseAdd(Kernel.UserDatabase, NewUser);
     } else {
         DEBUG(TEXT("[CreateUserAccount] UserDatabase is NULL"));
@@ -191,7 +193,7 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
         return FALSE;
     }
 
-    if (Kernel.UserDatabase != NULL) {
+    SAFE_USE(Kernel.UserDatabase) {
         DatabaseDelete(Kernel.UserDatabase, (I32)U64_ToU32_Clip(User->UserID));
     }
 
@@ -218,7 +220,7 @@ LPUSERACCOUNT FindUserAccount(LPCSTR UserName) {
     U32 Count = ListGetSize(Kernel.UserAccount);
     for (U32 i = 0; i < Count; i++) {
         LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(Kernel.UserAccount, i);
-        if (User != NULL && StringCompare(User->UserName, UserName) == 0) {
+        if (User != NULL && STRINGS_EQUAL(User->UserName, UserName)) {
             return User;
         }
     }
@@ -309,7 +311,8 @@ BOOL LoadUserDatabase(void) {
     for (U32 i = 0; i < Kernel.UserDatabase->Count; i++) {
         LPUSERACCOUNT User = (LPUSERACCOUNT)((U8*)Kernel.UserDatabase->Records + i * Kernel.UserDatabase->RecordSize);
         LPUSERACCOUNT NewUser = (LPUSERACCOUNT)KernelHeapAlloc(sizeof(USERACCOUNT));
-        if (NewUser != NULL) {
+
+        SAFE_USE(NewUser) {
             MemoryCopy(NewUser, User, sizeof(USERACCOUNT));
             NewUser->Next = NULL;
             NewUser->Prev = NULL;
@@ -347,11 +350,12 @@ BOOL SaveUserDatabase(void) {
         Kernel.UserDatabase->Index[i].Index = 0;
     }
 
-    if (Kernel.UserAccount != NULL) {
+    SAFE_USE(Kernel.UserAccount) {
         U32 Count = ListGetSize(Kernel.UserAccount);
         for (U32 i = 0; i < Count && Kernel.UserDatabase->Count < Kernel.UserDatabase->Capacity; i++) {
             LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(Kernel.UserAccount, i);
-            if (User != NULL) {
+
+            SAFE_USE(User) {
                 DatabaseAdd(Kernel.UserDatabase, User);
             }
         }
@@ -425,3 +429,4 @@ U64 GenerateSessionID(void) {
 
     return U64_Add(SessionID, TimeHash);
 }
+

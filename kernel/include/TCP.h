@@ -102,7 +102,7 @@ typedef struct tag_TCP_HEADER {
 /************************************************************************/
 // TCP Connection Block
 
-#define TCP_SEND_BUFFER_SIZE 8192
+#define TCP_SEND_BUFFER_SIZE 32768
 #define TCP_RECV_BUFFER_SIZE 32768
 
 typedef struct tag_TCP_CONNECTION {
@@ -128,8 +128,10 @@ typedef struct tag_TCP_CONNECTION {
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
     U32 SendBufferUsed;
+    U32 SendBufferCapacity;
     U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
     U32 RecvBufferUsed;
+    U32 RecvBufferCapacity;
 
     // State machine
     STATE_MACHINE StateMachine;
@@ -205,6 +207,9 @@ void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed);
 
 // Check if window update ACK should be sent based on hysteresis
 BOOL TCP_ShouldSendWindowUpdate(LPTCP_CONNECTION Connection);
+
+// Notify TCP stack that application consumed bytes from receive buffer
+void TCP_HandleApplicationRead(LPTCP_CONNECTION Connection, U32 BytesConsumed);
 
 // Utility functions
 U16 TCP_CalculateChecksum(TCP_HEADER* Header, const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP);

@@ -408,7 +408,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 **1. Task Termination:**
 - When a task terminates, `KillTask()` marks it as `TASK_STATUS_DEAD`
 - The task remains in the scheduler queue until the next context switch
-- `DeleteDeadTasks()` (called periodically) removes dead tasks from lists
+- `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
 **2. Process Termination via Task Count:**
 - When `DeleteTask()` processes a dead task:
@@ -427,11 +427,12 @@ EXOS implements a lifecycle management system for both processes and tasks that 
   - Marks the target process as `PROCESS_STATUS_DEAD`
 
 **4. Final Cleanup:**
-- `DeleteDeadTasks()` is called periodically by the kernel monitor
+- `DeleteDeadTasksAndProcesses()` is called periodically by the kernel monitor
 - First phase: Processes all `TASK_STATUS_DEAD` tasks
   - Calls `DeleteTask()` which frees stacks, message queues, etc.
   - Updates process task counts and marks processes dead if needed
 - Second phase: Processes all `PROCESS_STATUS_DEAD` processes
+  - Calls `ReleaseProcessKernelObjects()` to drop references held by the process on every kernel-managed list
   - Calls `DeleteProcessCommit()` which frees page directories, heaps, etc.
   - Removes process from global process list
 
@@ -439,7 +440,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 
 **Deferred Deletion:**
 - Neither tasks nor processes are immediately freed when killed
-- They are marked as DEAD and cleaned up later by `DeleteDeadTasks()`
+- They are marked as DEAD and cleaned up later by `DeleteDeadTasksAndProcesses()`
 - This prevents race conditions and ensures consistent state
 
 **Hierarchical Process Management:**
@@ -452,6 +453,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 **Mutex Protection:**
 - Process list operations are protected by `MUTEX_PROCESS`
 - Task list operations are protected by `MUTEX_KERNEL`
+- `ReleaseProcessKernelObjects()` requires `MUTEX_KERNEL` to be locked while iterating kernel lists
 - Task count updates are atomic to prevent race conditions
 
 **Resource Cleanup Order:**
@@ -505,12 +507,13 @@ The network stack is organized in five main layers with per-device context manag
 
 **Location:** `kernel/include/Device.h`, `kernel/source/Device.c`
 
-The network stack uses a device-based architecture where all network devices inherit from a common `DEVICE` structure that supports context storage and management.
+The network stack uses a device-based architecture where all network devices inherit from a common `DEVICE` structure that supports context storage and management. Every device embeds a mutex used to serialize access to shared state; drivers must call `InitMutex()` on the device instance before exposing it to other subsystems.
 
 **Device Structure:**
 ```c
 #define DEVICE_FIELDS       \
     LISTNODE_FIELDS         \
+    MUTEX Mutex;            \
     LPDRIVER Driver;        \
     LIST Contexts;
 
@@ -625,7 +628,7 @@ typedef struct ArpCacheEntryTag {
 
 ### IPv4 Internet Protocol
 
-**Location:** `kernel/source/IPv4.c`, `kernel/include/IPv4.h`, `kernel/include/IPv4Context.h`
+**Location:** `kernel/source/IPv4.c`, `kernel/include/IPv4.h`
 
 IPv4 layer provides packet parsing, routing, and protocol multiplexing with per-device protocol handler registration.
 
@@ -686,6 +689,7 @@ TCP provides reliable connection-oriented communication using a state machine-ba
 - RFC 793 compliant state machine (CLOSED, LISTEN, SYN_SENT, ESTABLISHED, etc.)
 - Connection management with unique 4-tuple identification
 - Send/receive buffers with flow control
+- Configurable buffer sizes through `TCP.SendBufferSize` and `TCP.ReceiveBufferSize`
 - Sequence number management
 - Timer-based retransmission and TIME_WAIT handling
 - Checksum validation with IPv4 pseudo-header
@@ -711,8 +715,10 @@ typedef struct TCPConnectionTag {
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
     U32 SendBufferUsed;
+    U32 SendBufferCapacity;
     U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
     U32 RecvBufferUsed;
+    U32 RecvBufferCapacity;
 
     // State machine
     STATE_MACHINE StateMachine;
@@ -734,6 +740,8 @@ typedef struct TCPConnectionTag {
 - `TCP_GetState(ConnectionID)`: Get current connection state
 - `TCP_Update()`: Process timers and retransmissions
 - `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
+
+The buffer capacities default to 32768 bytes each when the configuration entries are absent.
 
 ### Layer Interactions
 

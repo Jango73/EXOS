@@ -250,7 +250,7 @@ void DeleteDesktop(LPDESKTOP This) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    if (This->Window != NULL) {
+    SAFE_USE_VALID_ID(This->Window, ID_WINDOW) {
         DeleteWindow(This->Window);
     }
 
@@ -465,7 +465,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
 
     Parent = (LPWINDOW)Info->Parent;
 
-    if (Parent != NULL) {
+    SAFE_USE(Parent) {
         if (Parent->ID != ID_WINDOW) return NULL;
     }
 
@@ -486,10 +486,10 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->InvalidRect = This->Rect;
 
     if (This->Parent == NULL) {
-        if (Desktop != NULL) This->Parent = Desktop->Window;
+        SAFE_USE(Desktop) This->Parent = Desktop->Window;
     }
 
-    if (This->Parent != NULL) {
+    SAFE_USE(This->Parent) {
         LockMutex(&(This->Parent->Mutex), INFINITY);
 
         This->ScreenRect.X1 = This->Parent->ScreenRect.X1 + This->Rect.X1;
@@ -543,9 +543,11 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
     Task = This->Task;
     if (Task != NULL && Task->ID == ID_TASK) {
         Process = Task->Process;
-        if (Process != NULL && Process->ID == ID_PROCESS) {
+
+        SAFE_USE_VALID_ID(Process, ID_PROCESS) {
             Desktop = Process->Desktop;
-            if (Desktop != NULL) {
+
+            SAFE_USE(Desktop) {
                 if (Desktop->ID != ID_DESKTOP) Desktop = NULL;
             }
         }
@@ -695,7 +697,7 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    if (Src != NULL) {
+    SAFE_USE(Src) {
         WindowRectToScreenRect(Handle, Src, &Rect);
 
         if (Rect.X1 < This->InvalidRect.X1) This->InvalidRect.X1 = Rect.X1;
@@ -973,7 +975,7 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
 
     Prop = (LPPROPERTY)KernelHeapAlloc(sizeof(PROPERTY));
 
-    if (Prop != NULL) {
+    SAFE_USE(Prop) {
         StringCopy(Prop->Name, Name);
         Prop->Value = Value;
         ListAddItem(This->Properties, Prop);
@@ -1695,7 +1697,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             // POINT Position;
             HANDLE GC = GC = GetWindowGC(Window);
 
-            if (GC != NULL) {
+            SAFE_USE(GC) {
                 // DrawMouseCursor(GC, SIGNED(OldMouseX), SIGNED(OldMouseY),
                 // FALSE); DrawMouseCursor(GC, MouseX, MouseY, TRUE);
                 ReleaseWindowGC(GC);
@@ -1707,7 +1709,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
               Target = (LPWINDOW) WindowHitTest(Window, &Position);
 
-              if (Target != NULL)
+              SAFE_USE(Target)
               {
                 Position.X = SIGNED(Param1) - Target->ScreenRect.X1;
                 Position.Y = SIGNED(Param2) - Target->ScreenRect.Y1;

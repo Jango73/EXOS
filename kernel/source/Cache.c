@@ -36,12 +36,12 @@
  * @param Cache Cache structure to initialize
  * @param Capacity Maximum number of entries
  */
-void CacheInit(LPTEMPORARY_CACHE Cache, U32 Capacity) {
+void CacheInit(LPCACHE Cache, U32 Capacity) {
     DEBUG(TEXT("[CacheInit] Capacity: %u"), Capacity);
 
     Cache->Capacity = Capacity;
     Cache->Count = 0;
-    Cache->Entries = (LPTEMPORARY_CACHE_ENTRY)KernelHeapAlloc(Capacity * sizeof(TEMPORARY_CACHE_ENTRY));
+    Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(Capacity * sizeof(CACHE_ENTRY));
     Cache->Mutex = (MUTEX)EMPTY_MUTEX;
 
     for (U32 Index = 0; Index < Capacity; Index++) {
@@ -57,7 +57,7 @@ void CacheInit(LPTEMPORARY_CACHE Cache, U32 Capacity) {
  * @brief Deinitialize a temporary cache.
  * @param Cache Cache structure to deinitialize
  */
-void CacheDeinit(LPTEMPORARY_CACHE Cache) {
+void CacheDeinit(LPCACHE Cache) {
     DEBUG(TEXT("[CacheDeinit] Enter"));
 
     LockMutex(&Cache->Mutex, INFINITY);
@@ -84,9 +84,7 @@ void CacheDeinit(LPTEMPORARY_CACHE Cache) {
  * @param TTL_MS Time to live in milliseconds
  * @return TRUE if added successfully, FALSE otherwise
  */
-BOOL CacheAdd(LPTEMPORARY_CACHE Cache, LPVOID Data, U32 TTL_MS) {
-    DEBUG(TEXT("[CacheAdd] TTL: %u ms, Data=%x"), TTL_MS, Data);
-
+BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
     LockMutex(&Cache->Mutex, INFINITY);
 
     U32 CurrentTime = GetSystemTime();
@@ -111,8 +109,6 @@ BOOL CacheAdd(LPTEMPORARY_CACHE Cache, LPVOID Data, U32 TTL_MS) {
     Cache->Entries[FreeIndex].Valid = TRUE;
     Cache->Count++;
 
-    DEBUG(TEXT("[CacheAdd] Added at index %u, expires at %u"), FreeIndex, Cache->Entries[FreeIndex].ExpirationTime);
-
     UnlockMutex(&Cache->Mutex);
     return TRUE;
 }
@@ -126,9 +122,7 @@ BOOL CacheAdd(LPTEMPORARY_CACHE Cache, LPVOID Data, U32 TTL_MS) {
  * @param Context Context passed to matcher
  * @return Pointer to data if found, NULL otherwise
  */
-LPVOID CacheFind(LPTEMPORARY_CACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context) {
-    DEBUG(TEXT("[CacheFind] Enter"));
-
+LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context) {
     LockMutex(&Cache->Mutex, INFINITY);
 
     U32 CurrentTime = GetSystemTime();
@@ -149,7 +143,6 @@ LPVOID CacheFind(LPTEMPORARY_CACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Co
         }
     }
 
-    DEBUG(TEXT("[CacheFind] Not found"));
     UnlockMutex(&Cache->Mutex);
     return NULL;
 }
@@ -161,7 +154,7 @@ LPVOID CacheFind(LPTEMPORARY_CACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Co
  * @param Cache Cache structure
  * @param CurrentTime Current system time
  */
-void CacheCleanup(LPTEMPORARY_CACHE Cache, U32 CurrentTime) {
+void CacheCleanup(LPCACHE Cache, U32 CurrentTime) {
     LockMutex(&Cache->Mutex, INFINITY);
 
     U32 RemovedCount = 0;

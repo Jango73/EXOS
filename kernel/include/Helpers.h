@@ -39,13 +39,17 @@
 #define CONFIG_NETWORK_NETMASK      "Network.Netmask"
 #define CONFIG_NETWORK_GATEWAY      "Network.Gateway"
 #define CONFIG_NETWORK_DEFAULT_PORT "Network.DefaultPort"
-#define CONFIG_TCP_EPHEMERAL_START  "TCP.EphemeralPortStart"
+#define CONFIG_NETWORK_USE_DHCP     "Network.UseDHCP"
+#define CONFIG_TCP_EPHEMERAL_START      "TCP.EphemeralPortStart"
+#define CONFIG_TCP_SEND_BUFFER_SIZE     "TCP.SendBufferSize"
+#define CONFIG_TCP_RECEIVE_BUFFER_SIZE  "TCP.ReceiveBufferSize"
 
-// Per-device network interface configuration
-#define CONFIG_NETWORK_INTERFACE_DEVICE_INDEX "NetworkInterface.DeviceIndex"
-#define CONFIG_NETWORK_INTERFACE_LOCAL_IP     "NetworkInterface.LocalIP"
-#define CONFIG_NETWORK_INTERFACE_NETMASK      "NetworkInterface.Netmask"
-#define CONFIG_NETWORK_INTERFACE_GATEWAY      "NetworkInterface.Gateway"
+// Per-device network interface configuration (format strings for dynamic paths)
+#define CONFIG_NETWORK_INTERFACE_DEVICE_NAME_FMT  "NetworkInterface.%u.DeviceName"
+#define CONFIG_NETWORK_INTERFACE_CONFIG_FMT       "NetworkInterface.%u.%s"
+
+// System paths
+#define PATH_USERS_DATABASE "/system/data/users.database"
 
 /***************************************************************************/
 

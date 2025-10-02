@@ -50,7 +50,7 @@ static void KernelPrintChar(STR Char) { SerialOut(LOG_COM_INDEX, Char); }
 /************************************************************************/
 
 static void KernelPrintString(LPCSTR Text) {
-    if (Text != NULL) {
+    SAFE_USE(Text) {
         for (U32 Index = 0; Index < 0x1000; Index++) {
             if (Text[Index] == STR_NULL) break;
             KernelPrintChar(Text[Index]);

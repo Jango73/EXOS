@@ -115,8 +115,6 @@ typedef struct tag_SYSCALLENTRY {
 #define RESERVED_LOW_MEMORY N_4MB
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
 
-#define PATH_USERS_DATABASE TEXT("/system/data/users.database")
-
 typedef struct tag_E820ENTRY {
     U64 Base;
     U64 Size;
@@ -164,6 +162,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Mutex;
     LPLIST Disk;
     LPLIST PCIDevice;
+    LPLIST NetworkDevice;
     LPLIST FileSystem;
     LPLIST File;
     LPLIST TCPConnection;
@@ -179,10 +178,11 @@ typedef struct tag_KERNELDATA {
     LPLIST UserSessions;         // List of active user sessions
     LPLIST UserAccount;          // List of user accounts
     DATABASE* UserDatabase;      // User accounts database
-    TEMPORARY_CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
+    CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
+
 
 /***************************************************************************/
 // Functions in Kernel.c
@@ -196,6 +196,7 @@ void TestProcess(void);
 void InitializeKernel(void);
 void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
 BOOL ObjectExists(HANDLE Object);
+void ReleaseProcessKernelObjects(LPPROCESS Process);
 
 /***************************************************************************/
 // Functions in Segment.c

@@ -24,7 +24,7 @@
 # Project
 temp
 build
-boot-hd/exos.toml
+kernel/configuration/exos.toml
 documentation/internal/kernel
 log/*
 

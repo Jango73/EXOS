@@ -78,6 +78,7 @@
 #define SOCKET_ERROR_CONNREFUSED  -8
 #define SOCKET_ERROR_TIMEOUT      -9
 #define SOCKET_ERROR_MSGSIZE      -10
+#define SOCKET_ERROR_OVERFLOW     -11
 
 /************************************************************************/
 // Socket Options
@@ -96,6 +97,7 @@
 // Socket Buffer Structure
 
 #define SOCKET_BUFFER_SIZE 8192
+#define SOCKET_MAXIMUM_BUFFER_SIZE (SOCKET_BUFFER_SIZE * 4)
 
 /************************************************************************/
 // Socket Control Block
@@ -123,6 +125,8 @@ typedef struct tag_SOCKET {
     U8 ReceiveBufferData[SOCKET_BUFFER_SIZE];
     CIRCULAR_BUFFER SendBuffer;
     U8 SendBufferData[SOCKET_BUFFER_SIZE];
+
+    BOOL ReceiveOverflow;
 
     // Socket options
     BOOL ReuseAddress;
@@ -175,7 +179,7 @@ U32 SocketAddressGenericToInet(LPSOCKET_ADDRESS GenericAddress, LPSOCKET_ADDRESS
 
 // Internal functions
 void SocketTCPNotificationCallback(LPNOTIFICATION_DATA NotificationData, LPVOID UserData);
-void SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength);
+U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength);
 void SocketDestructor(LPVOID Item);
 
 /************************************************************************/

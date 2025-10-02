@@ -102,6 +102,8 @@ typedef struct {
     STR Value[MAX_TOKEN_LENGTH];
     F32 NumValue;
     U32 Position;
+    U32 Line;
+    U32 Column;
 } SCRIPT_TOKEN, *LPSCRIPT_TOKEN;
 
 /************************************************************************/
@@ -133,6 +135,64 @@ typedef struct {
 
 /************************************************************************/
 
+// AST Node Types
+typedef enum {
+    AST_ASSIGNMENT,     // var = expr
+    AST_IF,             // if (cond) then [else]
+    AST_FOR,            // for (init; cond; inc) body
+    AST_BLOCK,          // { statements }
+    AST_EXPRESSION      // standalone expr
+} AST_NODE_TYPE;
+
+// Forward declaration
+struct tag_AST_NODE;
+
+// AST Node structure
+typedef struct tag_AST_NODE {
+    AST_NODE_TYPE Type;
+    union {
+        struct {
+            STR VarName[MAX_VAR_NAME];
+            struct tag_AST_NODE* Expression;
+            BOOL IsArrayAccess;
+            U32 ArrayIndex;
+            struct tag_AST_NODE* ArrayIndexExpr;
+        } Assignment;
+        struct {
+            struct tag_AST_NODE* Condition;
+            struct tag_AST_NODE* Then;
+            struct tag_AST_NODE* Else;
+        } If;
+        struct {
+            struct tag_AST_NODE* Init;
+            struct tag_AST_NODE* Condition;
+            struct tag_AST_NODE* Increment;
+            struct tag_AST_NODE* Body;
+        } For;
+        struct {
+            struct tag_AST_NODE** Statements;
+            U32 Count;
+            U32 Capacity;
+        } Block;
+        struct {
+            TOKEN_TYPE TokenType;
+            STR Value[MAX_TOKEN_LENGTH];
+            F32 NumValue;
+            BOOL IsVariable;
+            BOOL IsArrayAccess;
+            U32 ArrayIndex;
+            struct tag_AST_NODE* ArrayIndexExpr;
+            BOOL IsFunctionCall;
+            STR Argument[MAX_TOKEN_LENGTH];
+            struct tag_AST_NODE* Left;   // Left operand for binary operations, or function argument expression
+            struct tag_AST_NODE* Right;  // Right operand for binary operations
+        } Expression;
+    } Data;
+    struct tag_AST_NODE* Next;
+} AST_NODE, *LPAST_NODE;
+
+/************************************************************************/
+
 typedef struct {
     LPCSTR Input;
     U32 Position;
@@ -158,7 +218,6 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks);
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context);
 
 SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script);
-BOOL ScriptIsScriptSyntax(LPCSTR Line);
 
 LPSCRIPT_VARIABLE ScriptSetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
 LPSCRIPT_VARIABLE ScriptGetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);
@@ -182,5 +241,10 @@ LPSCRIPT_SCOPE ScriptPushScope(LPSCRIPT_CONTEXT Context);
 void ScriptPopScope(LPSCRIPT_CONTEXT Context);
 LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, BOOL SearchParents);
 LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
+
+// AST management functions
+LPAST_NODE ScriptCreateASTNode(AST_NODE_TYPE Type);
+void ScriptDestroyAST(LPAST_NODE Node);
+SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 
 /************************************************************************/

@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,44 +17,45 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Autotest Manager - Unit Testing Framework Header
+    User Datagram Protocol (UDP)
 
 \************************************************************************/
 
-#ifndef AUTOTEST_H
-#define AUTOTEST_H
-
-/************************************************************************/
+#ifndef UDP_H_INCLUDED
+#define UDP_H_INCLUDED
 
 #include "Base.h"
+#include "Device.h"
+#include "Network.h"
+#include "Endianness.h"
 
 /************************************************************************/
 
-// Test results structure
-typedef struct tag_TEST_RESULTS {
-    U32 TestsRun;         // Number of tests/assertions executed
-    U32 TestsPassed;      // Number of successful tests/assertions
-} TEST_RESULTS, *LPTEST_RESULTS;
-
-// Main testing functions
-BOOL RunAllTests(void);
-BOOL RunSingleTestByName(LPCSTR TestName);
-void ListAllTests(void);
-
-// Individual test function declarations - new signature
-typedef void (*TestFunction)(TEST_RESULTS*);
-
-void TestCopyStack(TEST_RESULTS* Results);
-void TestCircularBuffer(TEST_RESULTS* Results);
-void TestRegex(TEST_RESULTS* Results);
-void TestI386Disassembler(TEST_RESULTS* Results);
-void TestBcrypt(TEST_RESULTS* Results);
-void TestE1000(TEST_RESULTS* Results);
-void TestIPv4(TEST_RESULTS* Results);
-void TestMacros(TEST_RESULTS* Results);
-void TestTCP(TEST_RESULTS* Results);
-void TestScript(TEST_RESULTS* Results);
+#pragma pack(push, 1)
 
 /************************************************************************/
 
-#endif
+typedef struct tag_UDP_HEADER {
+    U16 SourcePort;      // Big-endian
+    U16 DestinationPort; // Big-endian
+    U16 Length;          // Big-endian (header + data)
+    U16 Checksum;        // Big-endian (0 = disabled)
+} UDP_HEADER, *LPUDP_HEADER;
+
+/************************************************************************/
+// UDP Callback type for port handlers
+
+typedef void (*UDP_PortHandler)(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U8* Payload, U32 PayloadLength);
+
+/************************************************************************/
+// Per-device UDP API
+#include "UDPContext.h"
+
+// Utility functions
+U16 UDP_CalculateChecksum(U32 SourceIP, U32 DestinationIP, const UDP_HEADER* Header, const U8* Payload, U32 PayloadLength);
+
+/************************************************************************/
+
+#pragma pack(pop)
+
+#endif // UDP_H_INCLUDED

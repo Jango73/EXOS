@@ -30,10 +30,15 @@
 
 typedef struct tag_CIRCULAR_BUFFER {
     U8* Data;
+    U8* InitialData;
+    U8* AllocatedData;
     U32 Size;
+    U32 InitialSize;
+    U32 MaximumSize;
     U32 WriteOffset;
     U32 ReadOffset;
     U32 DataLength;
+    BOOL Overflowed;
 } CIRCULAR_BUFFER, *LPCIRCULAR_BUFFER;
 
 /************************************************************************/
@@ -44,7 +49,7 @@ typedef struct tag_CIRCULAR_BUFFER {
  * @param Data Pointer to the data array
  * @param Size Size of the data array
  */
-void CircularBuffer_Initialize(LPCIRCULAR_BUFFER Buffer, U8* Data, U32 Size);
+void CircularBuffer_Initialize(LPCIRCULAR_BUFFER Buffer, U8* Data, U32 Size, U32 MaximumSize);
 
 /**
  * @brief Write data to the circular buffer

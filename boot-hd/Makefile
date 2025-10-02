@@ -8,8 +8,8 @@ IMG_SIZE_MB     = 64
 RESERVED_SECTORS= 48		# Reserved sectors in partition
 VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
 
-KERNEL_CFG      = exos.toml
-KERNEL_CFG_REF  = exos.ref.toml
+KERNEL_CFG      = ../kernel/configuration/exos.toml
+KERNEL_CFG_REF  = ../kernel/configuration/exos.ref.toml
 MTOOLS_CONF     = .mtoolsrc.tmp
 MBR_SOURCE      = source/mbr.asm
 

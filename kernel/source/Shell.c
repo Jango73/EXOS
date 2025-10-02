@@ -26,18 +26,22 @@
 #include "../include/Base.h"
 #include "../include/Clock.h"
 #include "../include/Console.h"
+#include "../include/Disk.h"
+#include "../include/Endianness.h"
 #include "../include/File.h"
 #include "../include/FileSystem.h"
 #include "../include/GFX.h"
-#include "../include/Disk.h"
 #include "../include/Heap.h"
 #include "../include/Helpers.h"
 #include "../include/Kernel.h"
 #include "../include/Keyboard.h"
 #include "../include/List.h"
 #include "../include/Log.h"
+#include "../include/Network.h"
+#include "../include/NetworkManager.h"
 #include "../include/Path.h"
 #include "../include/Process.h"
+#include "../include/Script.h"
 #include "../include/StackTrace.h"
 #include "../include/String.h"
 #include "../include/StringArray.h"
@@ -46,15 +50,14 @@
 #include "../include/UserAccount.h"
 #include "../include/UserSession.h"
 #include "../include/VKey.h"
-#include "../include/Script.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 #define SHELL_NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
 #define HISTORY_SIZE 20
 
-/***************************************************************************/
+/************************************************************************/
 // The shell context
 
 typedef struct tag_SHELLCONTEXT {
@@ -72,22 +75,14 @@ typedef struct tag_SHELLCONTEXT {
     LPSCRIPT_CONTEXT ScriptContext;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
 
-/***************************************************************************/
+/************************************************************************/
 // The shell command functions
 
 typedef void (*SHELLCOMMAND)(LPSHELLCONTEXT);
 
 static void CMD_commands(LPSHELLCONTEXT);
-static void ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script);
-static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
-static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
-static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
-static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 static void CMD_cls(LPSHELLCONTEXT);
 static void CMD_dir(LPSHELLCONTEXT);
-static void ClearOptions(LPSHELLCONTEXT);
-static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
-static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
 static void CMD_cd(LPSHELLCONTEXT);
 static void CMD_md(LPSHELLCONTEXT);
 static void CMD_run(LPSHELLCONTEXT);
@@ -103,6 +98,7 @@ static void CMD_copy(LPSHELLCONTEXT);
 static void CMD_edit(LPSHELLCONTEXT);
 static void CMD_hd(LPSHELLCONTEXT);
 static void CMD_filesystem(LPSHELLCONTEXT);
+static void CMD_network(LPSHELLCONTEXT);
 static void CMD_pic(LPSHELLCONTEXT);
 static void CMD_outp(LPSHELLCONTEXT);
 static void CMD_inp(LPSHELLCONTEXT);
@@ -114,13 +110,22 @@ static void CMD_login(LPSHELLCONTEXT);
 static void CMD_logout(LPSHELLCONTEXT);
 static void CMD_whoami(LPSHELLCONTEXT);
 static void CMD_passwd(LPSHELLCONTEXT);
+
+static BOOL ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script);
+static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
+static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
+static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
+static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+static void ClearOptions(LPSHELLCONTEXT);
+static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
+static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
 static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
 static BOOL QualifyCommandLine(LPSHELLCONTEXT, LPCSTR, LPSTR);
 static void ExecuteStartupCommands(void);
 static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine);
 static BOOL SpawnExecutable(LPSHELLCONTEXT, LPCSTR, BOOL);
 
-/***************************************************************************/
+/************************************************************************/
 // The shell command table
 
 static struct {
@@ -147,6 +152,7 @@ static struct {
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
     {"fs", "filesystem", "", CMD_filesystem},
+    {"net", "network", "", CMD_network},
     {"pic", "pic", "", CMD_pic},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
@@ -161,7 +167,7 @@ static struct {
     {"", "", "", NULL},
 };
 
-/***************************************************************************/
+/************************************************************************/
 
 static void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
@@ -1113,7 +1119,6 @@ static void CMD_hd(LPSHELLCONTEXT Context) {
         DiskInfo.Disk = Disk;
         Disk->Driver->Command(DF_DISK_GETINFO, (U32)&DiskInfo);
 
-        ConsolePrint(TEXT("Designer     : %s\n"), Disk->Driver->Designer);
         ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
         ConsolePrint(TEXT("Sectors      : %d\n"), DiskInfo.NumSectors);
@@ -1133,10 +1138,58 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
         FileSystem = (LPFILESYSTEM)Node;
 
         ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
-        ConsolePrint(TEXT("Designer     : %s\n"), FileSystem->Driver->Designer);
         ConsolePrint(TEXT("Manufacturer : %s\n"), FileSystem->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), FileSystem->Driver->Product);
         ConsolePrint(TEXT("\n"));
+    }
+}
+
+/***************************************************************************/
+
+static void CMD_network(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
+    LPLISTNODE Node;
+
+    SAFE_USE(Kernel.NetworkDevice) {
+        for (Node = Kernel.NetworkDevice->First; Node; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
+
+            SAFE_USE_VALID_ID(NetContext, ID_NETWORKDEVICE) {
+                LPPCI_DEVICE Device = NetContext->Device;
+
+                SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
+                    SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
+                        // Get device info
+                        NETWORKINFO Info;
+                        MemorySet(&Info, 0, sizeof(Info));
+                        NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
+                        Device->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo);
+
+                        // Convert IP from network to host byte order
+                        U32 IpHost = Ntohl(NetContext->LocalIPv4_Be);
+                        U8 Ip1 = (IpHost >> 24) & 0xFF;
+                        U8 Ip2 = (IpHost >> 16) & 0xFF;
+                        U8 Ip3 = (IpHost >> 8) & 0xFF;
+                        U8 Ip4 = IpHost & 0xFF;
+
+                        ConsolePrint(TEXT("Name         : %s\n"), Device->Name);
+                        ConsolePrint(TEXT("Manufacturer : %s\n"), Device->Driver->Manufacturer);
+                        ConsolePrint(TEXT("Product      : %s\n"), Device->Driver->Product);
+                        ConsolePrint(TEXT("MAC          : %x:%x:%x:%x:%x:%x\n"),
+                                    Info.MAC[0], Info.MAC[1], Info.MAC[2],
+                                    Info.MAC[3], Info.MAC[4], Info.MAC[5]);
+                        ConsolePrint(TEXT("IP Address   : %u.%u.%u.%u\n"), Ip1, Ip2, Ip3, Ip4);
+                        ConsolePrint(TEXT("Link         : %s\n"), Info.LinkUp ? TEXT("UP") : TEXT("DOWN"));
+                        ConsolePrint(TEXT("Speed        : %u Mbps\n"), Info.SpeedMbps);
+                        ConsolePrint(TEXT("Duplex       : %s\n"), Info.DuplexFull ? TEXT("FULL") : TEXT("HALF"));
+                        ConsolePrint(TEXT("MTU          : %u\n"), Info.MTU);
+                        ConsolePrint(TEXT("Initialized  : %s\n"), NetContext->IsInitialized ? TEXT("YES") : TEXT("NO"));
+                        ConsolePrint(TEXT("\n"));
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1244,7 +1297,8 @@ static void CMD_adduser(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[CMD_adduser] Creating user with privilege %d"), Privilege);
 
     LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
-    if (Account != NULL) {
+
+    SAFE_USE(Account) {
         ConsolePrint(
             TEXT("SUCCESS: User '%s' created successfully as %s\n"), UserName,
             Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("admin") : TEXT("user"));
@@ -1282,8 +1336,10 @@ static void CMD_deluser(LPSHELLCONTEXT Context) {
     }
 
     LPUSERSESSION Session = GetCurrentSession();
-    if (Session != NULL) {
+
+    SAFE_USE(Session) {
         LPUSERACCOUNT CurrentAccount = FindUserAccountByID(Session->UserID);
+
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             ConsolePrint(TEXT("Only admin users can delete accounts\n"));
             return;
@@ -1515,6 +1571,11 @@ static void ExecuteStartupCommands(void) {
 
     DEBUG(TEXT("[ExecuteStartupCommands] Enter"));
 
+    // Wait 2 seconds for network stack to stabilize (ARP, etc.)
+    DEBUG(TEXT("[ExecuteStartupCommands] Waiting 2000ms for network initialization"));
+    Sleep(2000);
+    DEBUG(TEXT("[ExecuteStartupCommands] Wait complete, starting commands"));
+
     LPTOML Configuration = GetConfiguration();
     if (Configuration == NULL) {
         DEBUG(TEXT("[ExecuteStartupCommands] Exit"));
@@ -1555,10 +1616,8 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
 
     DEBUG(TEXT("[ExecuteCommandLine] Executing: %s"), CommandLine);
 
-    // NEW: Check if this is script syntax before normal command processing
-    if (ScriptIsScriptSyntax(CommandLine)) {
-        DEBUG(TEXT("[ExecuteCommandLine] Detected script syntax, executing script"));
-        ExecuteScript(Context, CommandLine);
+    // Check if scriptable
+    if (ExecuteScript(Context, CommandLine)) {
         return;
     }
 
@@ -1593,8 +1652,10 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
             }
         }
 
-        DEBUG(TEXT("[ExecuteCommandLine] Unknown command : %s"), CommandName);
-        ConsolePrint(TEXT("Unknown command : %s\n"), CommandName);
+        ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+
+        // DEBUG(TEXT("[ExecuteCommandLine] Unknown command : %s"), CommandName);
+        // ConsolePrint(TEXT("Unknown command : %s\n"), CommandName);
     }
 }
 
@@ -1682,17 +1743,20 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
     DEBUG(TEXT("[ShellScriptCallFunction] Calling: %s with arg: %s"), FuncName, Argument);
 
-    if (StringCompare(FuncName, TEXT("spawn")) == 0) {
+    if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
         STR QualifiedCommandLine[MAX_PATH_NAME];
 
         if (QualifyCommandLine(Context, Argument, QualifiedCommandLine)) {
             U32 ExitCode = Spawn(QualifiedCommandLine);
-            DEBUG(TEXT("[ShellScriptCallFunction] spawn returned: %u"), ExitCode);
+            DEBUG(TEXT("[ShellScriptCallFunction] exec returned: %u"), ExitCode);
             return ExitCode;
         }
 
         DEBUG(TEXT("[ShellScriptCallFunction] Failed to qualify command line"));
         return MAX_U32;
+    } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
+        ConsolePrint(Argument);
+        return 0;
     }
 
     DEBUG(TEXT("[ShellScriptCallFunction] Unknown function: %s"), FuncName);
@@ -1706,24 +1770,24 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
  * @param Context Shell context
  * @param Script Script text to execute
  */
-static void ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script) {
-    DEBUG(TEXT("[ExecuteScript] Enter - Script: %s"), Script);
-
+static BOOL ExecuteScript(LPSHELLCONTEXT Context, LPCSTR Script) {
     if (Context->ScriptContext) {
         DEBUG(TEXT("[ExecuteScript] Using persistent script context"));
         SCRIPT_ERROR Error = ScriptExecute(Context->ScriptContext, Script);
+
         if (Error != SCRIPT_OK) {
             DEBUG(TEXT("[ExecuteScript] Script error %d: %s"), Error, ScriptGetErrorMessage(Context->ScriptContext));
-            ConsolePrint(TEXT("Script error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+            return FALSE;
         } else {
             DEBUG(TEXT("[ExecuteScript] Script executed successfully"));
         }
     } else {
         DEBUG(TEXT("[ExecuteScript] No persistent script context available"));
         ConsolePrint(TEXT("Script context not available\n"));
+        return FALSE;
     }
 
-    DEBUG(TEXT("[ExecuteScript] Exit"));
+    return TRUE;
 }
 
 /************************************************************************/
@@ -1765,10 +1829,12 @@ static BOOL HandleUserLoginProcess(void) {
 
         // Check if login was successful
         LPUSERSESSION Session = GetCurrentSession();
-        if (Session != NULL) {
+
+        SAFE_USE(Session) {
             LoggedIn = TRUE;
             LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
-            if (Account != NULL) {
+
+            SAFE_USE (Account) {
                 ConsolePrint(TEXT("Logged in as: %s (%s)\n"), Account->UserName,
                     Account->Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("Administrator") : TEXT("User")
                     );

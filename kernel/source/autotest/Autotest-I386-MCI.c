@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -92,7 +92,7 @@ void TestI386Disassembler(TEST_RESULTS* Results) {
         BOOL LengthOK = (Length == Test->Length);
 
         // Check if assembly string matches expected
-        BOOL AssemblyOK = (StringCompare(ResultBuffer, Test->ExpectedAsm) == 0);
+        BOOL AssemblyOK = (STRINGS_EQUAL(ResultBuffer, Test->ExpectedAsm));
 
         Results->TestsRun++;
         if (LengthOK && AssemblyOK) {
@@ -108,3 +108,4 @@ void TestI386Disassembler(TEST_RESULTS* Results) {
         }
     }
 }
+

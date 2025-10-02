@@ -449,7 +449,7 @@ void ListReset(LPLIST This) {
         This->Current = Node;
         Node = This->Current->Next;
 
-        if (This->Destructor != NULL) {
+        SAFE_USE(This->Destructor) {
             This->Destructor(This->Current);
         } else {
             // This->MemFreeFunc(This->Current);

@@ -128,7 +128,7 @@ void Die(void) {
 
     Task = GetCurrentTask();
 
-    if (Task != NULL) {
+    SAFE_USE(Task) {
         LockMutex(MUTEX_KERNEL, INFINITY);
         LockMutex(MUTEX_MEMORY, INFINITY);
         LockMutex(MUTEX_CONSOLE, INFINITY);

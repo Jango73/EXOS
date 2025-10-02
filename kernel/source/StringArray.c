@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -71,7 +71,7 @@ BOOL StringArrayAddUnique(LPSTRINGARRAY Array, LPCSTR String) {
     if (Array->Items == NULL) return FALSE;
 
     for (Index = 0; Index < Array->Count; Index++) {
-        if (StringCompare(Array->Items[Index], String) == 0) {
+        if (STRINGS_EQUAL(Array->Items[Index], String)) {
             return FALSE;
         }
     }
@@ -97,7 +97,7 @@ BOOL StringArrayMoveToEnd(LPSTRINGARRAY Array, LPCSTR String) {
 
     // Look for existing string
     for (Index = 0; Index < Array->Count; Index++) {
-        if (StringCompare(Array->Items[Index], String) == 0) {
+        if (STRINGS_EQUAL(Array->Items[Index], String)) {
             // Found existing string, save pointer and remove from current position
             ExistingString = Array->Items[Index];
             // Shift items down to fill the gap
@@ -115,7 +115,7 @@ BOOL StringArrayMoveToEnd(LPSTRINGARRAY Array, LPCSTR String) {
     }
 
     // Insert at end
-    if (ExistingString != NULL) {
+    SAFE_USE(ExistingString) {
         // Reuse existing string
         Array->Items[Array->Count] = ExistingString;
     } else {
@@ -135,3 +135,4 @@ LPCSTR StringArrayGet(LPSTRINGARRAY Array, U32 Index) {
     if (Index >= Array->Count) return NULL;
     return Array->Items[Index];
 }
+

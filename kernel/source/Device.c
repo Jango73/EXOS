@@ -26,6 +26,9 @@
 #include "../include/Heap.h"
 #include "../include/ID.h"
 #include "../include/Memory.h"
+#include "../include/String.h"
+#include "../include/Text.h"
+#include "../include/Kernel.h"
 
 /************************************************************************/
 
@@ -34,6 +37,56 @@ typedef struct tag_DEVICE_CONTEXT {
     U32 ContextID;
     LPVOID Context;
 } DEVICE_CONTEXT, *LPDEVICE_CONTEXT;
+
+/************************************************************************/
+
+/**
+ * @brief Get the default name for a device based on its type
+ *
+ * @param Name Buffer to receive the device name
+ * @param Device Pointer to the device
+ * @param DeviceType Type of device (DRIVER_TYPE_*)
+ * @return TRUE if successful, FALSE otherwise
+ */
+BOOL GetDefaultDeviceName(LPSTR Name, LPDEVICE Device, U32 DeviceType) {
+    STR Temp[12];
+    LPLISTNODE Node;
+    LPDEVICE CurrentDevice;
+    U32 DeviceIndex = 0;
+
+    if (Name == NULL || Device == NULL) return FALSE;
+
+    // Count devices of the same type to find this device's index
+    SAFE_USE(Kernel.PCIDevice) {
+        for (Node = Kernel.PCIDevice->First; Node; Node = Node->Next) {
+            CurrentDevice = (LPDEVICE)Node;
+            SAFE_USE_VALID_ID(CurrentDevice, ID_PCIDEVICE) {
+                SAFE_USE_VALID_ID(CurrentDevice->Driver, ID_DRIVER) {
+                    if (CurrentDevice->Driver->Type == DeviceType) {
+                        if (CurrentDevice == Device) break;
+                        DeviceIndex++;
+                    }
+                }
+            }
+        }
+    }
+
+    // Select prefix based on device type
+    switch (DeviceType) {
+        case DRIVER_TYPE_NETWORK:
+            StringCopy(Name, Text_Eth);
+            break;
+        default:
+            StringCopy(Name, TEXT("dev"));
+            break;
+    }
+
+    // Append device index
+    U32ToString(DeviceIndex, Temp);
+    StringConcat(Name, Temp);
+
+    return TRUE;
+}
 
 /************************************************************************/
 

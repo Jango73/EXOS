@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -43,12 +43,14 @@ typedef struct {
 // Test registry - add new tests here
 static TESTENTRY TestRegistry[] = {
     {TEXT("TestCopyStack"), TestCopyStack},
+    {TEXT("TestCircularBuffer"), TestCircularBuffer},
     {TEXT("TestRegex"), TestRegex},
     {TEXT("TestI386Disassembler"), TestI386Disassembler},
     {TEXT("TestBcrypt"), TestBcrypt},
     {TEXT("TestIPv4"), TestIPv4},
     {TEXT("TestMacros"), TestMacros},
     {TEXT("TestTCP"), TestTCP},
+    {TEXT("TestScript"), TestScript},
     // Add new tests here following the same pattern
     // { TEXT("TestName"), TestFunctionName },
     {NULL, NULL}  // End marker
@@ -131,7 +133,7 @@ BOOL RunAllTests(void) {
     if (AllPassed) {
         DEBUG(TEXT("[Autotest] ALL TESTS PASSED"));
     } else {
-        DEBUG(TEXT("[Autotest] SOME TESTS FAILED (%u failures)"), OverallResults.TestsRun - OverallResults.TestsPassed);
+        WARNING(TEXT("[Autotest] SOME TESTS FAILED (%u failures)"), OverallResults.TestsRun - OverallResults.TestsPassed);
     }
 
     DEBUG(TEXT("==========================================================================="));
@@ -163,7 +165,7 @@ BOOL RunSingleTestByName(LPCSTR TestName) {
 
     // Search for the test in the registry
     for (Index = 0; TestRegistry[Index].Name != NULL; Index++) {
-        if (StringCompare(TestRegistry[Index].Name, TestName) == 0) {
+        if (STRINGS_EQUAL(TestRegistry[Index].Name, TestName)) {
             DEBUG(TEXT("[Autotest] Found test: %s"), TestName);
             RunSingleTest(&TestRegistry[Index], &TestResults);
             return (TestResults.TestsRun == TestResults.TestsPassed);
@@ -193,3 +195,4 @@ void ListAllTests(void) {
         DEBUG(TEXT("[Autotest]   %u. %s"), Index + 1, TestRegistry[Index].Name);
     }
 }
+

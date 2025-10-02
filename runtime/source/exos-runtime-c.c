@@ -473,35 +473,7 @@ size_t send(int sockfd, const void *buf, size_t len, int flags) {
 /************************************************************************/
 
 size_t recv(int sockfd, void *buf, size_t len, int flags) {
-    static int timeoutCount = 0;
-    const int maxTimeouts = 3; // 3 timeouts * 3s = 9 seconds max
-
-    while (1) {
-        I32 result = SocketReceive((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags);
-        if (result >= 0) {
-            timeoutCount = 0; // Reset timeout counter on successful receive
-            return (size_t)result;
-        } else if (result == -7) { // SOCKET_ERROR_WOULDBLOCK
-            // No data available right now, wait a bit and retry
-            sleep(1);
-            continue;
-        } else if (result == -9) { // SOCKET_ERROR_TIMEOUT
-            // Socket timeout - count consecutive timeouts
-            timeoutCount++;
-            debug("[recv] Socket timeout %d/%d", timeoutCount, maxTimeouts);
-            if (timeoutCount >= maxTimeouts) {
-                debug("[recv] Too many consecutive timeouts, assuming connection closed");
-                timeoutCount = 0;
-                return 0; // EOF
-            }
-            sleep(1);
-            continue;
-        } else {
-            // Other error (connection closed, etc.)
-            timeoutCount = 0;
-            return 0;
-        }
-    }
+    return (size_t)SocketReceive((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags);
 }
 
 /************************************************************************/

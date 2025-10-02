@@ -4,7 +4,7 @@
 # Path="<some path to a node>"
 
 # [[NetworkInterface]]
-# DeviceIndex=<n>
+# DeviceName="<device name, e.g. eth0>"
 # LocalIP="<some IP>"
 # Netmask="<some IP mask>"
 # Gateway="<some IP>"
@@ -37,19 +37,22 @@ Layout="en-US"
 
 [Network]
 # Global network configuration (fallback values)
+UseDHCP=1
 LocalIP="10.0.2.15"
 Netmask="255.255.255.0"
 Gateway="10.0.2.2"
 DefaultPort=8080
 
 [[NetworkInterface]]
-# Configuration for first E1000 device (by discovery order)
-DeviceIndex=0
+# Configuration for first E1000 device
+DeviceName="eth0"
 LocalIP="192.168.56.10"
 
 [TCP]
 # TCP configuration
 EphemeralPortStart=32768
+SendBufferSize=32768
+ReceiveBufferSize=32768
 
 # Run section (specify an executable to run)
 # [[Run]]

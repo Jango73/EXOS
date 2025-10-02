@@ -1,4 +1,4 @@
-
+﻿
 /************************************************************************\
 
     EXOS Kernel
@@ -112,7 +112,7 @@ LPTOML TomlParse(LPCSTR Source) {
 
             if (Array) {
                 // Handle array of tables: [[servers]] creates servers.0, servers.1, etc.
-                if (StringCompare(SectionBase, Ptr) == 0) {
+                if (STRINGS_EQUAL(SectionBase, Ptr)) {
                     SectionIndex++;  // Same section, increment index
                 } else {
                     StringCopy(SectionBase, Ptr);  // New section
@@ -230,7 +230,7 @@ LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
 
     // Search through linked list for matching key
     for (Item = Toml->First; Item; Item = Item->Next) {
-        if (StringCompare(Item->Key, Path) == 0) {
+        if (STRINGS_EQUAL(Item->Key, Path)) {
             DEBUG(TEXT("[TomlGet] Exit"));
             return Item->Value;  // Found matching key
         }
@@ -276,3 +276,4 @@ void TomlFree(LPTOML Toml) {
 
     DEBUG(TEXT("[TomlFree] Exit"));
 }
+

@@ -27,6 +27,56 @@
 
 /************************************************************************/
 
+/************************************************************************/
+typedef struct tag_NETGET_PROGRESS_STATE {
+    int StatusPrinted;
+    int BodyChunksPrinted;
+} NETGET_PROGRESS_STATE;
+
+/************************************************************************/
+static void NetGetStatusCallback(const HTTP_RESPONSE* Response, void* Context) {
+    NETGET_PROGRESS_STATE* State = (NETGET_PROGRESS_STATE*)Context;
+
+    if (!State || !Response) {
+        return;
+    }
+
+    if (State->StatusPrinted) {
+        return;
+    }
+
+    if (Response->Version[0] != '\0') {
+        printf("%s %s\n", Response->Version, HTTP_GetStatusString(Response->StatusCode));
+    } else {
+        printf("HTTP %u\n", (unsigned int)Response->StatusCode);
+    }
+
+    if (Response->ChunkedEncoding) {
+        printf("Receiving chunked data\n");
+    } else if (Response->ContentLength > 0U) {
+        printf("Receiving %u bytes\n", Response->ContentLength);
+    } else {
+        printf("Receiving data\n");
+    }
+
+    State->StatusPrinted = 1;
+}
+
+/************************************************************************/
+static void NetGetBodyCallback(unsigned int Bytes, void* Context) {
+    NETGET_PROGRESS_STATE* State = (NETGET_PROGRESS_STATE*)Context;
+
+    if (!State || Bytes == 0U) {
+        return;
+    }
+
+    State->BodyChunksPrinted++;
+    printf(".");
+}
+
+/************************************************************************/
+/************************************************************************/
+
 /**
  * @brief Print command line usage information
  */
@@ -66,180 +116,52 @@ const char* ExtractFilename(const char* path) {
 /************************************************************************/
 
 /**
- * @brief Save a data chunk to file
- * @param file The file handle to write to
- * @param data The data buffer to write
- * @param dataLength The number of bytes to write
- * @return 0 on success, -1 on error
- */
-int SaveDataChunkToFile(FILE* file, const unsigned char* data, unsigned int dataLength) {
-    size_t written;
-
-    if (!file || !data || dataLength == 0) {
-        return 0;
-    }
-
-    written = fwrite(data, 1, dataLength, file);
-    if (written != dataLength) {
-        printf("Error: Could not write chunk to file (wrote %u of %u bytes)\n",
-               (unsigned int)written, dataLength);
-        return -1;
-    }
-
-    return 0;
-}
-
-/************************************************************************/
-
-/**
  * @brief Receive HTTP response progressively and write to file
  * @param connection The HTTP connection
  * @param filename The output filename to save the response body
  * @return HTTP_SUCCESS on success, error code otherwise
  */
 int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* filename) {
-    char buffer[1024];
-    int received;
-    int totalReceived = 0;
-    char* headerEnd;
-    char* statusLine;
-    FILE* file = NULL;
-    int headersParsed = 0;
-    unsigned int contentLength = 0;
-    unsigned short statusCode = 0;
-    char version[16] = {0};
-    unsigned int bodyBytesReceived = 0;
-    unsigned int headerLength = 0;
-
-    // Buffer to accumulate headers
-    char headerBuffer[4096] = {0};
-    unsigned int headerBufferUsed = 0;
+    HTTP_RESPONSE responseInfo;
+    unsigned int bytesWritten = 0;
+    NETGET_PROGRESS_STATE progressState;
+    HTTP_PROGRESS_CALLBACKS callbacks;
+    int result;
 
     if (!connection || !filename) {
         return HTTP_ERROR_INVALID_RESPONSE;
     }
 
-    // Reset receive buffer
-    connection->ReceiveBufferUsed = 0;
+    memset(&responseInfo, 0, sizeof(responseInfo));
+    memset(&progressState, 0, sizeof(progressState));
 
-    // Receive response progressively
-    while (1) {
-        received = recv(connection->SocketHandle, buffer, sizeof(buffer), 0);
+    callbacks.OnStatusLine = NetGetStatusCallback;
+    callbacks.OnBodyData = NetGetBodyCallback;
+    callbacks.Context = &progressState;
 
-        if (received < 0) {
-            if (file) fclose(file);
-            return HTTP_ERROR_CONNECTION_FAILED;
-        } else if (received == 0) {
-            break;
-        }
+    result = HTTP_DownloadToFile(connection, filename, &responseInfo, &bytesWritten, &callbacks);
 
-        totalReceived += received;
-
-        if (!headersParsed) {
-            // Still receiving headers
-            if (headerBufferUsed + received < sizeof(headerBuffer) - 1) {
-                memcpy(headerBuffer + headerBufferUsed, buffer, received);
-                headerBufferUsed += received;
-                headerBuffer[headerBufferUsed] = '\0';
-
-                // Look for end of headers
-                headerEnd = strstr(headerBuffer, "\r\n\r\n");
-                if (headerEnd) {
-                    headersParsed = 1;
-                    headerLength = (headerEnd + 4) - headerBuffer;
-
-                    // Parse status line
-                    statusLine = headerBuffer;
-                    if (strstr(statusLine, "HTTP/1.1") == statusLine) {
-                        strcpy(version, "HTTP/1.1");
-                        const char* codeStart = statusLine + 9; // Skip "HTTP/1.1 "
-                        unsigned int code = 0;
-                        while (*codeStart >= '0' && *codeStart <= '9') {
-                            code = code * 10 + (*codeStart - '0');
-                            codeStart++;
-                        }
-                        statusCode = (unsigned short)code;
-                    } else if (strstr(statusLine, "HTTP/1.0") == statusLine) {
-                        strcpy(version, "HTTP/1.0");
-                        const char* codeStart = statusLine + 9; // Skip "HTTP/1.0 "
-                        unsigned int code = 0;
-                        while (*codeStart >= '0' && *codeStart <= '9') {
-                            code = code * 10 + (*codeStart - '0');
-                            codeStart++;
-                        }
-                        statusCode = (unsigned short)code;
-                    }
-
-                    printf("HTTP %s %s\n", version, HTTP_GetStatusString(statusCode));
-
-                    // Check status code
-                    if (statusCode != 200) {
-                        if (file) fclose(file);
-                        return statusCode;
-                    }
-
-                    // Parse Content-Length
-                    char* contentLengthStr = strstr(headerBuffer, "Content-Length:");
-                    if (contentLengthStr) {
-                        const char* numStart = contentLengthStr + 16; // Skip "Content-Length: "
-                        contentLength = 0;
-                        while (*numStart >= '0' && *numStart <= '9') {
-                            contentLength = contentLength * 10 + (*numStart - '0');
-                            numStart++;
-                        }
-                        printf("Receiving %u bytes", contentLength);
-                    }
-
-                    // Open output file
-                    file = fopen(filename, "wb");
-                    if (!file) {
-                        printf("Error: Could not create file '%s'\n", filename);
-                        return HTTP_ERROR_MEMORY_ERROR;
-                    }
-
-                    // Process any body data that was received with headers
-                    unsigned int bodyDataInBuffer = headerBufferUsed - headerLength;
-                    if (bodyDataInBuffer > 0) {
-                        unsigned char* bodyStart = (unsigned char*)(headerBuffer + headerLength);
-                        if (SaveDataChunkToFile(file, bodyStart, bodyDataInBuffer) != 0) {
-                            fclose(file);
-                            return HTTP_ERROR_MEMORY_ERROR;
-                        }
-                        bodyBytesReceived += bodyDataInBuffer;
-                    }
-                }
-            } else {
-                // Header buffer overflow
-                printf("Error: HTTP headers too large\n");
-                return HTTP_ERROR_INVALID_RESPONSE;
-            }
-        } else {
-            // Headers already parsed, this is body data
-            if (SaveDataChunkToFile(file, (unsigned char*)buffer, received) != 0) {
-                fclose(file);
-                return HTTP_ERROR_MEMORY_ERROR;
-            }
-            bodyBytesReceived += received;
-        }
-
-        // Check if we have received all expected content
-        if (headersParsed && contentLength > 0 && bodyBytesReceived >= contentLength) {
-            break;
-        }
-
-        // Show progress
-        if (headersParsed && contentLength > 0) {
-            printf(".");
-        }
+    if (!progressState.StatusPrinted && responseInfo.Version[0] != '\0') {
+        NetGetStatusCallback(&responseInfo, &progressState);
     }
 
-    if (file) {
-        fclose(file);
-        printf("Finished\n");
+    if (result != HTTP_SUCCESS) {
+        if (progressState.BodyChunksPrinted > 0) {
+            printf("\n");
+        }
+        return result;
     }
 
-    return (statusCode == 200) ? HTTP_SUCCESS : statusCode;
+    if (progressState.BodyChunksPrinted > 0) {
+        printf("\n");
+    }
+
+    printf("Finished (%u bytes)\n", bytesWritten);
+
+    return HTTP_SUCCESS;
 }
+
+
 
 /************************************************************************/
 
@@ -248,6 +170,21 @@ int HTTP_ReceiveResponseProgressive(HTTP_CONNECTION* connection, const char* fil
  * @param errorCode The HTTP error code to translate
  */
 void PrintHttpError(int errorCode) {
+    const char* lastError = HTTP_GetLastErrorMessage();
+
+    if (errorCode >= 100 && errorCode < 600) {
+        printf("Error: %s\n", HTTP_GetStatusString((unsigned short)errorCode));
+        if (lastError && lastError[0] != '\0') {
+            printf("Detail: %s\n", lastError);
+        }
+        return;
+    }
+
+    if (lastError && lastError[0] != '\0') {
+        printf("Error: %s (code %d)\n", lastError, errorCode);
+        return;
+    }
+
     switch (errorCode) {
         case HTTP_ERROR_INVALID_URL:
             printf("Error: Invalid URL format\n");
@@ -266,6 +203,9 @@ void PrintHttpError(int errorCode) {
             break;
         case HTTP_ERROR_PROTOCOL_ERROR:
             printf("Error: HTTP protocol error\n");
+            break;
+        case HTTP_ERROR_SOCKET_OVERFLOW:
+            printf("Error: Socket receive buffer overflow\n");
             break;
         default:
             printf("Error: Unknown error (%d)\n", errorCode);
@@ -297,6 +237,10 @@ int exosmain(int argc, char* argv[]) {
         // Parse URL to extract filename
         if (!HTTP_ParseURL(urlString, &parsedUrl)) {
             printf("Error: Could not parse URL '%s'\n", urlString);
+            const char* detail = HTTP_GetLastErrorMessage();
+            if (detail && detail[0] != '\0') {
+                printf("Detail: %s\n", detail);
+            }
             return 1;
         }
         outputFile = ExtractFilename(parsedUrl.Path);
@@ -308,11 +252,19 @@ int exosmain(int argc, char* argv[]) {
     if (!HTTP_ParseURL(urlString, &parsedUrl)) {
         printf("Error: Invalid URL format\n");
         printf("URL must be in format: http://host[:port]/path\n");
+        const char* detail = HTTP_GetLastErrorMessage();
+        if (detail && detail[0] != '\0') {
+            printf("Detail: %s\n", detail);
+        }
         return 1;
     }
 
     if (!parsedUrl.Valid) {
         printf("Error: URL validation failed\n");
+        const char* detail = HTTP_GetLastErrorMessage();
+        if (detail && detail[0] != '\0') {
+            printf("Detail: %s\n", detail);
+        }
         return 1;
     }
 
@@ -322,6 +274,10 @@ int exosmain(int argc, char* argv[]) {
     connection = HTTP_CreateConnection(parsedUrl.Host, parsedUrl.Port);
     if (!connection) {
         printf("Could not connect to %s:%d\n", parsedUrl.Host, parsedUrl.Port);
+        const char* detail = HTTP_GetLastErrorMessage();
+        if (detail && detail[0] != '\0') {
+            printf("Detail: %s\n", detail);
+        }
         return 1;
     }
 
@@ -344,7 +300,8 @@ int exosmain(int argc, char* argv[]) {
     if (result == HTTP_SUCCESS) {
         return 0;
     } else {
-        printf("\nDownload failed\n");
+        PrintHttpError(result);
+        printf("Download failed\n");
         return 1;
     }
 }

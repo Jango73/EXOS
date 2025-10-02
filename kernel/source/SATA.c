@@ -404,12 +404,13 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
 
     // Copy PCI device information to the heap-allocated structure
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
+    InitMutex(&(Device->Mutex));
     Device->Next = NULL;
     Device->Prev = NULL;
     Device->References = 1;
 
     // Check if AHCI is already initialized
-    if (AHCIState.Base != NULL) {
+    SAFE_USE(AHCIState.Base) {
         DEBUG(TEXT("[AHCIAttach] AHCI already initialized, skipping duplicate controller"));
         return Device; // Return heap-allocated device but don't reinitialize
     }
@@ -502,7 +503,8 @@ static U32 InitializeAHCIController(void) {
     for (U32 i = 0; i < nports && i < AHCI_MAX_PORTS; i++) {
         if (AHCIState.PortsImplemented & (1 << i)) {
             LPAHCI_PORT AHCIPort = NewAHCIPort();
-            if (AHCIPort != NULL) {
+
+            SAFE_USE(AHCIPort) {
                 if (InitializeAHCIPort(AHCIPort, i)) {
                     ListAddItem(Kernel.Disk, AHCIPort);
                     DEBUG(TEXT("[InitializeAHCIController] Port %u added to disk list"), i);

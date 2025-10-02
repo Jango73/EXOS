@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,46 +17,51 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Generic Temporary Cache with TTL
+    UDP Context - Per-device UDP context
 
 \************************************************************************/
 
-#ifndef CACHE_H_INCLUDED
-#define CACHE_H_INCLUDED
-
-/************************************************************************/
+#ifndef UDPCONTEXT_H_INCLUDED
+#define UDPCONTEXT_H_INCLUDED
 
 #include "Base.h"
-#include "List.h"
-#include "Mutex.h"
+#include "Device.h"
+#include "UDP.h"
+#include "Endianness.h"
 
 /************************************************************************/
 
-#define CACHE_DEFAULT_CAPACITY 256
+#pragma pack(push, 1)
 
 /************************************************************************/
 
-typedef struct {
-    LPVOID Data;
-    U32 ExpirationTime;
-    BOOL Valid;
-} CACHE_ENTRY, *LPCACHE_ENTRY;
-
-typedef struct {
-    LPCACHE_ENTRY Entries;
-    U32 Capacity;
-    U32 Count;
-    MUTEX Mutex;
-} CACHE, *LPCACHE;
+#define UDP_MAX_PORTS 16
 
 /************************************************************************/
 
-void CacheInit(LPCACHE Cache, U32 Capacity);
-void CacheDeinit(LPCACHE Cache);
-BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS);
-LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context);
-void CacheCleanup(LPCACHE Cache, U32 CurrentTime);
+typedef struct tag_UDP_PORT_BINDING {
+    U16 Port;
+    UDP_PortHandler Handler;
+    U32 IsValid;
+} UDP_PORT_BINDING, *LPUDP_PORT_BINDING;
+
+typedef struct tag_UDP_CONTEXT {
+    LPDEVICE Device;
+    UDP_PORT_BINDING PortBindings[UDP_MAX_PORTS];
+} UDP_CONTEXT, *LPUDP_CONTEXT;
 
 /************************************************************************/
 
-#endif  // CACHE_H_INCLUDED
+LPUDP_CONTEXT UDP_GetContext(LPDEVICE Device);
+void UDP_Initialize(LPDEVICE Device);
+void UDP_Destroy(LPDEVICE Device);
+void UDP_RegisterPortHandler(LPDEVICE Device, U16 Port, UDP_PortHandler Handler);
+void UDP_UnregisterPortHandler(LPDEVICE Device, U16 Port);
+int UDP_Send(LPDEVICE Device, U32 DestinationIP, U16 SourcePort, U16 DestinationPort, const U8* Payload, U32 PayloadLength);
+void UDP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP);
+
+/************************************************************************/
+
+#pragma pack(pop)
+
+#endif // UDPCONTEXT_H_INCLUDED

@@ -22,24 +22,97 @@
 \************************************************************************/
 
 #include "../include/CircularBuffer.h"
+#include "../include/Heap.h"
 #include "../include/Memory.h"
 #include "../include/String.h"
+
+/************************************************************************/
+static BOOL CircularBuffer_TryGrow(LPCIRCULAR_BUFFER Buffer, U32 AdditionalBytes) {
+    if (!Buffer || AdditionalBytes == 0) {
+        return FALSE;
+    }
+
+    if (Buffer->MaximumSize <= Buffer->Size) {
+        return FALSE;
+    }
+
+    U32 RequiredSize = Buffer->DataLength + AdditionalBytes;
+    U32 NewSize = Buffer->Size;
+
+    if (RequiredSize <= NewSize) {
+        return TRUE;
+    }
+
+    while (NewSize < RequiredSize && NewSize < Buffer->MaximumSize) {
+        if (NewSize > (Buffer->MaximumSize >> 1)) {
+            NewSize = Buffer->MaximumSize;
+        } else {
+            NewSize <<= 1;
+        }
+    }
+
+    if (NewSize > Buffer->MaximumSize) {
+        NewSize = Buffer->MaximumSize;
+    }
+
+    if (NewSize < RequiredSize) {
+        return FALSE;
+    }
+
+    U8* NewData = (U8*)KernelHeapAlloc(NewSize);
+    if (!NewData) {
+        return FALSE;
+    }
+
+    if (Buffer->DataLength > 0) {
+        U32 ReadPos = Buffer->ReadOffset % Buffer->Size;
+        U32 FirstChunk = Buffer->Size - ReadPos;
+        if (FirstChunk > Buffer->DataLength) {
+            FirstChunk = Buffer->DataLength;
+        }
+
+        MemoryCopy(NewData, &Buffer->Data[ReadPos], FirstChunk);
+
+        if (Buffer->DataLength > FirstChunk) {
+            MemoryCopy(NewData + FirstChunk, &Buffer->Data[0], Buffer->DataLength - FirstChunk);
+        }
+    }
+
+    U8* OldAllocated = Buffer->AllocatedData;
+
+    Buffer->Data = NewData;
+    Buffer->AllocatedData = NewData;
+    Buffer->Size = NewSize;
+    Buffer->ReadOffset = 0;
+    Buffer->WriteOffset = Buffer->DataLength;
+
+    if (OldAllocated) {
+        KernelHeapFree(OldAllocated);
+    }
+
+    return TRUE;
+}
 
 /************************************************************************/
 
 /**
  * @brief Initialize a circular buffer
  */
-void CircularBuffer_Initialize(LPCIRCULAR_BUFFER Buffer, U8* Data, U32 Size) {
+void CircularBuffer_Initialize(LPCIRCULAR_BUFFER Buffer, U8* Data, U32 Size, U32 MaximumSize) {
     if (!Buffer || !Data || Size == 0) {
         return;
     }
 
     Buffer->Data = Data;
+    Buffer->InitialData = Data;
+    Buffer->AllocatedData = NULL;
     Buffer->Size = Size;
+    Buffer->InitialSize = Size;
+    Buffer->MaximumSize = (MaximumSize < Size) ? Size : MaximumSize;
     Buffer->WriteOffset = 0;
     Buffer->ReadOffset = 0;
     Buffer->DataLength = 0;
+    Buffer->Overflowed = FALSE;
 }
 
 /************************************************************************/
@@ -52,11 +125,22 @@ U32 CircularBuffer_Write(LPCIRCULAR_BUFFER Buffer, const U8* Data, U32 Length) {
         return 0;
     }
 
-    // Calculate available space
     U32 AvailableSpace = Buffer->Size - Buffer->DataLength;
+
+    if (Length > AvailableSpace) {
+        if (CircularBuffer_TryGrow(Buffer, Length)) {
+            AvailableSpace = Buffer->Size - Buffer->DataLength;
+        } else {
+            Buffer->Overflowed = TRUE;
+        }
+    }
+
     U32 BytesToWrite = (Length < AvailableSpace) ? Length : AvailableSpace;
 
     if (BytesToWrite == 0) {
+        if (Length > 0) {
+            Buffer->Overflowed = TRUE;
+        }
         return 0;
     }
 
@@ -75,6 +159,10 @@ U32 CircularBuffer_Write(LPCIRCULAR_BUFFER Buffer, const U8* Data, U32 Length) {
 
     Buffer->WriteOffset += BytesToWrite;
     Buffer->DataLength += BytesToWrite;
+
+    if (BytesToWrite < Length) {
+        Buffer->Overflowed = TRUE;
+    }
 
     return BytesToWrite;
 }
@@ -158,4 +246,5 @@ void CircularBuffer_Reset(LPCIRCULAR_BUFFER Buffer) {
     Buffer->WriteOffset = 0;
     Buffer->ReadOffset = 0;
     Buffer->DataLength = 0;
+    Buffer->Overflowed = FALSE;
 }

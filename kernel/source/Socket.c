@@ -37,21 +37,6 @@
 #include "../include/CircularBuffer.h"
 
 /************************************************************************/
-
-static LPTCP_CONNECTION SocketGetConnection(LPSOCKET Socket) {
-    return Socket->TCPConnection;
-}
-
-/************************************************************************/
-
-static LPDEVICE SocketGetNetworkDevice(LPSOCKET Socket) {
-    LPTCP_CONNECTION Connection = SocketGetConnection(Socket);
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
-        return Connection->Device;
-    }
-}
-
-/************************************************************************/
 // Global socket management
 
 /**
@@ -73,6 +58,20 @@ void SocketDestructor(LPVOID Item) {
 
         if (Socket->TCPConnection != NULL && Socket->SocketType == SOCKET_TYPE_STREAM) {
             TCP_DestroyConnection(Socket->TCPConnection);
+        }
+
+        if (Socket->ReceiveBuffer.AllocatedData) {
+            KernelHeapFree(Socket->ReceiveBuffer.AllocatedData);
+            Socket->ReceiveBuffer.AllocatedData = NULL;
+            Socket->ReceiveBuffer.Data = Socket->ReceiveBuffer.InitialData;
+            Socket->ReceiveBuffer.Size = Socket->ReceiveBuffer.InitialSize;
+        }
+
+        if (Socket->SendBuffer.AllocatedData) {
+            KernelHeapFree(Socket->SendBuffer.AllocatedData);
+            Socket->SendBuffer.AllocatedData = NULL;
+            Socket->SendBuffer.Data = Socket->SendBuffer.InitialData;
+            Socket->SendBuffer.Size = Socket->SendBuffer.InitialSize;
         }
     }
 }
@@ -127,8 +126,9 @@ U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     Socket->ReceiveTimeoutStartTime = 0;
 
     // Initialize buffers
-    CircularBuffer_Initialize(&Socket->ReceiveBuffer, Socket->ReceiveBufferData, SOCKET_BUFFER_SIZE);
-    CircularBuffer_Initialize(&Socket->SendBuffer, Socket->SendBufferData, SOCKET_BUFFER_SIZE);
+    CircularBuffer_Initialize(&Socket->ReceiveBuffer, Socket->ReceiveBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
+    CircularBuffer_Initialize(&Socket->SendBuffer, Socket->SendBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
+    Socket->ReceiveOverflow = FALSE;
 
     // Add to socket list
     if (ListAddTail(Kernel.Socket, Socket) == 0) {
@@ -447,7 +447,7 @@ U32 SocketListen(U32 SocketHandle, U32 Backlog) {
 
         // Create TCP connection for listening
         Socket->TCPConnection = TCP_CreateConnection(
-            NetworkManager_GetPrimaryDevice(),
+            (LPDEVICE)NetworkManager_GetPrimaryDevice(),
             Socket->LocalAddress.Address,
             Socket->LocalAddress.Port,
             0, 0);
@@ -607,9 +607,31 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
         // Store remote address
         MemoryCopy(&Socket->RemoteAddress, &RemoteAddress, sizeof(SOCKET_ADDRESS_INET));
 
+        // Get network device and check if ready
+        LPDEVICE NetworkDevice = (LPDEVICE)NetworkManager_GetPrimaryDevice();
+        if (NetworkDevice == NULL) {
+            ERROR(TEXT("[SocketConnect] No network device available"));
+            return SOCKET_ERROR_INVALID;
+        }
+
+        // Wait for network to be ready with timeout
+        U32 WaitStartMillis = GetSystemTime();
+        U32 TimeoutMs = 60000; // 60 seconds timeout
+        while (!NetworkManager_IsDeviceReady(NetworkDevice)) {
+            U32 ElapsedMs = GetSystemTime() - WaitStartMillis;
+
+            if (ElapsedMs > TimeoutMs) {
+                ERROR(TEXT("[SocketConnect] Timeout waiting for network to be ready"));
+                return SOCKET_ERROR_TIMEOUT;
+            }
+
+            DEBUG(TEXT("[SocketConnect] Waiting for network to be ready..."));
+            DoSystemCall(SYSCALL_Sleep, 1000);
+        }
+
         // Create TCP connection
         Socket->TCPConnection = TCP_CreateConnection(
-            NetworkManager_GetPrimaryDevice(),
+            NetworkDevice,
             Socket->LocalAddress.Address,
             Socket->LocalAddress.Port,
             RemoteAddress.Address,
@@ -730,15 +752,25 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
         }
 
         if (Socket->SocketType == SOCKET_TYPE_STREAM && Socket->TCPConnection != NULL) {
+            if (Socket->ReceiveOverflow || Socket->ReceiveBuffer.Overflowed) {
+                if (Socket->ReceiveOverflow) {
+                    WARNING(TEXT("[SocketReceive] Receive buffer overflow detected on socket %x"), SocketHandle);
+                    Socket->ReceiveOverflow = FALSE;
+                }
+                return SOCKET_ERROR_OVERFLOW;
+            }
+
             // Check receive buffer first
             U32 AvailableData = CircularBuffer_GetAvailableData(&Socket->ReceiveBuffer);
             if (AvailableData > 0) {
                 U32 BytesToCopy = CircularBuffer_Read(&Socket->ReceiveBuffer, (U8*)Buffer, Length);
 
                 Socket->BytesReceived += BytesToCopy;
-                Socket->ReceiveTimeoutStartTime = 0; // Reset timeout for next operation
+                Socket->ReceiveTimeoutStartTime = 0; // Reset timeout so user space can continue waiting after new data arrives
 
-                // NOTE: TCP window is now calculated automatically based on TCP buffer usage
+                if (Socket->TCPConnection != NULL && BytesToCopy > 0) {
+                    TCP_HandleApplicationRead(Socket->TCPConnection, BytesToCopy);
+                }
 
                 DEBUG(TEXT("[SocketReceive] Received %d bytes from socket %x"),BytesToCopy, SocketHandle);
                 return BytesToCopy;
@@ -756,6 +788,7 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
                     if ((CurrentTime - Socket->ReceiveTimeoutStartTime) >= Socket->ReceiveTimeout) {
                         Socket->ReceiveTimeoutStartTime = 0; // Reset for next operation
                         DEBUG(TEXT("[SocketReceive] Receive timeout (%u ms) exceeded for socket %x"), Socket->ReceiveTimeout, SocketHandle);
+                        DEBUG(TEXT("[SocketReceive] User space may retry if the connection is still alive"));
                         return SOCKET_ERROR_TIMEOUT;
                     }
                 }
@@ -861,8 +894,10 @@ void SocketTCPNotificationCallback(LPNOTIFICATION_DATA NotificationData, LPVOID 
     }
 }
 
-void SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength) {
-    if (!Data || DataLength == 0) return;
+U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32 DataLength) {
+    if (!Data || DataLength == 0) {
+        return 0;
+    }
 
     LPSOCKET Socket = (LPSOCKET)Kernel.Socket->First;
     while (Socket) {
@@ -874,19 +909,29 @@ void SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U3
                 if (BytesToCopy > 0) {
                     Socket->PacketsReceived++;
                     DEBUG(TEXT("[SocketTCPReceiveCallback] Buffered %d bytes for socket %x"),BytesToCopy, Socket);
-                } else {
-                    WARNING(TEXT("[SocketTCPReceiveCallback] Receive buffer full for socket %x"),Socket);
+                }
+
+                if (BytesToCopy < DataLength) {
+                    Socket->ReceiveOverflow = TRUE;
+                    WARNING(TEXT("[SocketTCPReceiveCallback] Receive buffer overflow for socket %x (%u/%u bytes stored, size=%u, max=%u)"),
+                            Socket,
+                            BytesToCopy,
+                            DataLength,
+                            Socket->ReceiveBuffer.Size,
+                            Socket->ReceiveBuffer.MaximumSize);
                 }
 
                 // NOTE: TCP window is now calculated automatically based on TCP buffer usage
 
-                break;
+                return BytesToCopy;
             }
             Socket = (LPSOCKET)Socket->Next;
         } else {
-            break;
+            return 0;
         }
     }
+
+    return 0;
 }
 
 /************************************************************************/

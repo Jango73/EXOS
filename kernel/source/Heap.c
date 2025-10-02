@@ -337,7 +337,7 @@ LPVOID HeapRealloc_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer, U32 Size)
 
     // Need to allocate new block
     LPVOID NewPointer = HeapAlloc_HBHS(HeapBase, HeapSize, Size);
-    if (NewPointer != NULL) {
+    SAFE_USE(NewPointer) {
         // Copy old data to new location
         MemoryCopy(NewPointer, Pointer, OldDataSize < Size ? OldDataSize : Size);
         // Free old block

@@ -26,6 +26,323 @@
 #include "../include/http.h"
 #include "../../kernel/include/User.h"
 
+static unsigned int HTTPDefaultReceiveTimeoutMs = 10000; // 10 seconds by default
+static char HTTP_LastErrorMessage[128] = "Success";
+
+/***************************************************************************/
+static void HTTP_SetLastErrorMessage(const char* Message) {
+    unsigned int Index = 0;
+
+    if (!Message) {
+        HTTP_LastErrorMessage[0] = '\0';
+        return;
+    }
+
+    while (Message[Index] != '\0' && Index < (sizeof(HTTP_LastErrorMessage) - 1U)) {
+        HTTP_LastErrorMessage[Index] = Message[Index];
+        Index++;
+    }
+
+    HTTP_LastErrorMessage[Index] = '\0';
+}
+
+/***************************************************************************/
+const char* HTTP_GetLastErrorMessage(void) {
+    return HTTP_LastErrorMessage;
+}
+
+/***************************************************************************/
+typedef enum {
+    HTTP_CHUNK_STATE_READ_SIZE = 0,
+    HTTP_CHUNK_STATE_READ_DATA,
+    HTTP_CHUNK_STATE_READ_DATA_CRLF,
+    HTTP_CHUNK_STATE_READ_TRAILERS,
+    HTTP_CHUNK_STATE_FINISHED
+} HTTP_CHUNK_STATE;
+
+typedef struct tag_HTTP_CHUNK_PARSER {
+    HTTP_CHUNK_STATE State;
+    unsigned int CurrentChunkSize;
+    unsigned int BytesRemainingInChunk;
+    unsigned int TotalBytesWritten;
+    char SizeBuffer[32];
+    unsigned int SizeBufferUsed;
+    unsigned int CrLfBytesNeeded;
+    int PendingCR;
+    int TrailerLineHasData;
+} HTTP_CHUNK_PARSER;
+
+/***************************************************************************/
+static void HTTP_ChunkParserInit(HTTP_CHUNK_PARSER* Parser) {
+    if (!Parser) {
+        return;
+    }
+
+    Parser->State = HTTP_CHUNK_STATE_READ_SIZE;
+    Parser->CurrentChunkSize = 0;
+    Parser->BytesRemainingInChunk = 0;
+    Parser->TotalBytesWritten = 0;
+    Parser->SizeBufferUsed = 0;
+    Parser->CrLfBytesNeeded = 0;
+    Parser->PendingCR = 0;
+    Parser->TrailerLineHasData = 0;
+}
+
+/***************************************************************************/
+static unsigned int HTTP_ParseChunkSizeValue(const char* Value) {
+    unsigned int Result = 0;
+    const char* Current = Value;
+
+    while (*Current != '\0') {
+        char Character = *Current;
+        unsigned int Digit;
+
+        if (Character >= '0' && Character <= '9') {
+            Digit = (unsigned int)(Character - '0');
+        } else if (Character >= 'a' && Character <= 'f') {
+            Digit = (unsigned int)(Character - 'a' + 10U);
+        } else if (Character >= 'A' && Character <= 'F') {
+            Digit = (unsigned int)(Character - 'A' + 10U);
+        } else {
+            break;
+        }
+
+        Result = (Result << 4) | Digit;
+        Current++;
+    }
+
+    return Result;
+}
+
+/***************************************************************************/
+static int HTTP_WriteBodyData(FILE* File, const unsigned char* Data, unsigned int Length) {
+    size_t Written;
+
+    if (!File || !Data || Length == 0) {
+        return HTTP_SUCCESS;
+    }
+
+    Written = fwrite(Data, 1, Length, File);
+    if (Written != Length) {
+        debug("[HTTP_WriteBodyData] Failed to write %u bytes (only %u written)", Length, (unsigned int)Written);
+        return HTTP_ERROR_MEMORY_ERROR;
+    }
+
+    return HTTP_SUCCESS;
+}
+
+/***************************************************************************/
+static int HTTP_ChunkParserProcess(HTTP_CHUNK_PARSER* Parser, const unsigned char* Data,
+                                   unsigned int Length, FILE* File, unsigned int* BytesWritten) {
+    unsigned int Offset = 0;
+    unsigned int WrittenThisCall = 0;
+
+    if (!Parser || !Data || Length == 0 || !File) {
+        if (BytesWritten) {
+            *BytesWritten = 0;
+        }
+        return HTTP_SUCCESS;
+    }
+
+    while (Offset < Length && Parser->State != HTTP_CHUNK_STATE_FINISHED) {
+        switch (Parser->State) {
+            case HTTP_CHUNK_STATE_READ_SIZE: {
+                unsigned char Character = Data[Offset++];
+
+                if (Character == '\n') {
+                    if (Parser->SizeBufferUsed > 0 &&
+                        Parser->SizeBuffer[Parser->SizeBufferUsed - 1] == '\r') {
+                        Parser->SizeBufferUsed--;
+                    }
+
+                    Parser->SizeBuffer[Parser->SizeBufferUsed] = '\0';
+
+                    if (Parser->SizeBufferUsed == 0) {
+                        debug("[HTTP_ChunkParserProcess] Empty chunk size line");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+
+                    char* Semicolon = strchr(Parser->SizeBuffer, ';');
+                    if (Semicolon) {
+                        *Semicolon = '\0';
+                    }
+
+                    Parser->CurrentChunkSize = HTTP_ParseChunkSizeValue(Parser->SizeBuffer);
+                    Parser->BytesRemainingInChunk = Parser->CurrentChunkSize;
+                    Parser->SizeBufferUsed = 0;
+
+                    if (Parser->CurrentChunkSize == 0U) {
+                        Parser->State = HTTP_CHUNK_STATE_READ_TRAILERS;
+                        Parser->PendingCR = 0;
+                        Parser->TrailerLineHasData = 0;
+                    } else {
+                        Parser->State = HTTP_CHUNK_STATE_READ_DATA;
+                    }
+                } else {
+                    if (Parser->SizeBufferUsed >= sizeof(Parser->SizeBuffer) - 1U) {
+                        debug("[HTTP_ChunkParserProcess] Chunk size line too long");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+                    Parser->SizeBuffer[Parser->SizeBufferUsed++] = (char)Character;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_READ_DATA: {
+                unsigned int Available = Length - Offset;
+                unsigned int ToWrite = Parser->BytesRemainingInChunk;
+
+                if (ToWrite > Available) {
+                    ToWrite = Available;
+                }
+
+                if (ToWrite > 0U) {
+                    int WriteResult = HTTP_WriteBodyData(File, Data + Offset, ToWrite);
+                    if (WriteResult != HTTP_SUCCESS) {
+                        return WriteResult;
+                    }
+
+                    Offset += ToWrite;
+                    Parser->BytesRemainingInChunk -= ToWrite;
+                    Parser->TotalBytesWritten += ToWrite;
+                    WrittenThisCall += ToWrite;
+                }
+
+                if (Parser->BytesRemainingInChunk == 0U) {
+                    Parser->State = HTTP_CHUNK_STATE_READ_DATA_CRLF;
+                    Parser->CrLfBytesNeeded = 2U;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_READ_DATA_CRLF: {
+                unsigned char Character = Data[Offset++];
+
+                if ((Parser->CrLfBytesNeeded == 2U && Character != '\r') ||
+                    (Parser->CrLfBytesNeeded == 1U && Character != '\n')) {
+                    debug("[HTTP_ChunkParserProcess] Invalid chunk delimiter");
+                    return HTTP_ERROR_PROTOCOL_ERROR;
+                }
+
+                Parser->CrLfBytesNeeded--;
+                if (Parser->CrLfBytesNeeded == 0U) {
+                    Parser->State = HTTP_CHUNK_STATE_READ_SIZE;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_READ_TRAILERS: {
+                unsigned char Character = Data[Offset++];
+
+                if (Parser->PendingCR) {
+                    if (Character != '\n') {
+                        debug("[HTTP_ChunkParserProcess] Invalid trailer line ending");
+                        return HTTP_ERROR_PROTOCOL_ERROR;
+                    }
+
+                    Parser->PendingCR = 0;
+                    if (Parser->TrailerLineHasData == 0) {
+                        Parser->State = HTTP_CHUNK_STATE_FINISHED;
+                    } else {
+                        Parser->TrailerLineHasData = 0;
+                    }
+                    break;
+                }
+
+                if (Character == '\r') {
+                    Parser->PendingCR = 1;
+                } else {
+                    Parser->TrailerLineHasData = 1;
+                }
+                break;
+            }
+
+            case HTTP_CHUNK_STATE_FINISHED:
+            default:
+                break;
+        }
+    }
+
+    if (BytesWritten) {
+        *BytesWritten = WrittenThisCall;
+    }
+
+    return HTTP_SUCCESS;
+}
+
+/***************************************************************************/
+static char HTTP_ToLowerChar(char Character) {
+    if (Character >= 'A' && Character <= 'Z') {
+        return (char)(Character + ('a' - 'A'));
+    }
+    return Character;
+}
+
+/***************************************************************************/
+static int HTTP_HeaderValueContainsToken(const char* Value, const char* Token) {
+    unsigned int TokenLength;
+    const char* Current;
+
+    if (!Value || !Token) {
+        return 0;
+    }
+
+    TokenLength = (unsigned int)strlen(Token);
+    if (TokenLength == 0U) {
+        return 0;
+    }
+
+    Current = Value;
+    while (*Current) {
+        while (*Current == ' ' || *Current == '\t' || *Current == ',') {
+            Current++;
+        }
+
+        if (*Current == '\0') {
+            break;
+        }
+
+        unsigned int Matched = 0;
+        const char* Segment = Current;
+        while (Segment[Matched] && Segment[Matched] != ',' && Segment[Matched] != ';' &&
+               Matched < TokenLength &&
+               HTTP_ToLowerChar(Segment[Matched]) == HTTP_ToLowerChar(Token[Matched])) {
+            Matched++;
+        }
+
+        if (Matched == TokenLength) {
+            char Terminator = Segment[Matched];
+            if (Terminator == '\0' || Terminator == ',' || Terminator == ';' || Terminator == ' ' ||
+                Terminator == '\t') {
+                return 1;
+            }
+        }
+
+        while (*Current && *Current != ',') {
+            Current++;
+        }
+
+        if (*Current == ',') {
+            Current++;
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************/
+
+void HTTP_SetDefaultReceiveTimeout(unsigned int TimeoutMs) {
+    HTTPDefaultReceiveTimeoutMs = TimeoutMs;
+    debug("[HTTP_SetDefaultReceiveTimeout] Timeout set to %u ms", HTTPDefaultReceiveTimeoutMs);
+}
+
+/***************************************************************************/
+
+unsigned int HTTP_GetDefaultReceiveTimeout(void) {
+    return HTTPDefaultReceiveTimeoutMs;
+}
+
 /***************************************************************************/
 
 /**
@@ -45,6 +362,7 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
 
     if (!URLString || !ParsedURL) {
         debug("[HTTP_ParseURL] At least one input parameters is NULL");
+        HTTP_SetLastErrorMessage("URL parser received invalid parameters");
         return 0;
     }
 
@@ -62,11 +380,13 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
     schemeEnd = strstr(current, "://");
     if (!schemeEnd) {
         debug("[HTTP_ParseURL] Could not find scheme end");
+        HTTP_SetLastErrorMessage("URL missing scheme separator");
         return 0;
     }
 
     // Extract scheme
     if ((unsigned long)(schemeEnd - current) >= (unsigned long)sizeof(ParsedURL->Scheme)) {
+        HTTP_SetLastErrorMessage("URL scheme is too long");
         return 0;
     }
 
@@ -84,6 +404,11 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
 
     // Extract host
     if ((unsigned long)(hostEnd - hostStart) >= (unsigned long)sizeof(ParsedURL->Host)) {
+        HTTP_SetLastErrorMessage("URL host component is too long");
+        return 0;
+    }
+    if (hostEnd == hostStart) {
+        HTTP_SetLastErrorMessage("URL host component is empty");
         return 0;
     }
     memcpy(ParsedURL->Host, hostStart, hostEnd - hostStart);
@@ -98,6 +423,7 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
         while (*current >= '0' && *current <= '9' && *current != '/' && *current != '?') {
             portValue = portValue * 10 + (*current - '0');
             if (portValue > 65535) {
+                HTTP_SetLastErrorMessage("URL port value exceeds 65535");
                 return 0;
             }
             current++;
@@ -116,6 +442,7 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
         if (queryStart) {
             // Extract path without query
             if ((queryStart - pathStart) >= sizeof(ParsedURL->Path)) {
+                HTTP_SetLastErrorMessage("URL path component is too long");
                 return 0;
             }
             memcpy(ParsedURL->Path, pathStart, queryStart - pathStart);
@@ -131,6 +458,7 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
             if (strlen(pathStart) < sizeof(ParsedURL->Path)) {
                 strcpy(ParsedURL->Path, pathStart);
             } else {
+                HTTP_SetLastErrorMessage("URL path component exceeds buffer");
                 return 0;
             }
         }
@@ -141,16 +469,19 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
         if (strcmp(ParsedURL->Scheme, "http") == 0) {
             ParsedURL->Port = 80;
         } else {
+            HTTP_SetLastErrorMessage("Unsupported URL scheme");
             return 0; // Only HTTP supported
         }
     }
 
     // Validate scheme (currently only support HTTP)
     if (strcmp(ParsedURL->Scheme, "http") != 0) {
+        HTTP_SetLastErrorMessage("Only HTTP scheme is supported");
         return 0;
     }
 
     ParsedURL->Valid = 1;
+    HTTP_SetLastErrorMessage("Success");
     return 1;
 }
 
@@ -168,15 +499,18 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     int result;
 
     debug("[HTTP_CreateConnection] Host=%s, Port=%d", Host, Port);
+    HTTP_SetLastErrorMessage("Success");
 
     if (!Host || Port == 0) {
         debug("[HTTP_CreateConnection] Invalid parameters");
+        HTTP_SetLastErrorMessage("Connection parameters are invalid");
         return NULL;
     }
 
     // Allocate connection structure
     connection = (HTTP_CONNECTION*)malloc(sizeof(HTTP_CONNECTION));
     if (!connection) {
+        HTTP_SetLastErrorMessage("Out of memory while creating connection");
         return NULL;
     }
 
@@ -192,6 +526,7 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     connection->SocketHandle = socket(SOCKET_AF_INET, SOCKET_TYPE_STREAM, SOCKET_PROTOCOL_TCP);
     if (connection->SocketHandle == 0) {
         free(connection);
+        HTTP_SetLastErrorMessage("Failed to create TCP socket");
         return NULL;
     }
 
@@ -216,6 +551,7 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
         debug("[HTTP_CreateConnection] Failed to parse IP address");
         // For now, we don't support hostname resolution
         free(connection);
+        HTTP_SetLastErrorMessage("Failed to parse remote IP address");
         return NULL;
     }
 
@@ -227,10 +563,16 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     serverAddr.sin_port = htons(Port);
     serverAddr.sin_addr = htonl(connection->RemoteIP);
 
-    // Set receive timeout to 1 second
-    unsigned int timeoutMs = 1000;
-    if (setsockopt(connection->SocketHandle, SOL_SOCKET, SO_RCVTIMEO, &timeoutMs, sizeof(timeoutMs)) != 0) {
-        debug("[HTTP_CreateConnection] Failed to set receive timeout");
+    // Apply configured receive timeout (0 disables the timeout)
+    unsigned int timeoutMs = HTTPDefaultReceiveTimeoutMs;
+    if (timeoutMs > 0) {
+        if (setsockopt(connection->SocketHandle, SOL_SOCKET, SO_RCVTIMEO, &timeoutMs, sizeof(timeoutMs)) != 0) {
+            debug("[HTTP_CreateConnection] Failed to set receive timeout");
+        } else {
+            debug("[HTTP_CreateConnection] Receive timeout set to %u ms", timeoutMs);
+        }
+    } else {
+        debug("[HTTP_CreateConnection] Receive timeout disabled");
     }
 
     // Connect to server
@@ -240,6 +582,7 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
         debug("[HTTP_CreateConnection] connect failed");
         shutdown(connection->SocketHandle, SOCKET_SHUTDOWN_BOTH);
         free(connection);
+        HTTP_SetLastErrorMessage("connect() failed to initiate handshake");
         return NULL;
     }
 
@@ -263,6 +606,7 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
             debug("[HTTP_CreateConnection] connection established after %d attempts", connection->DelayState.AttemptCount);
             connection->Connected = 1;
             AdaptiveDelay_OnSuccess(&(connection->DelayState));
+            HTTP_SetLastErrorMessage("Success");
             return connection;
         }
 
@@ -278,6 +622,7 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     debug("[HTTP_CreateConnection] connection timeout after %d attempts", connection->DelayState.AttemptCount);
     shutdown(connection->SocketHandle, SOCKET_SHUTDOWN_BOTH);
     free(connection);
+    HTTP_SetLastErrorMessage("Timed out waiting for TCP handshake");
     return NULL;
 }
 
@@ -321,9 +666,11 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
 
     debug("[HTTP_SendRequest] Method=%s, Path=%s", Method, Path);
     debug("[HTTP_SendRequest] Connection=%x, RemoteIP=%x, RemotePort=%d", (unsigned int)Connection, Connection->RemoteIP, Connection->RemotePort);
+    HTTP_SetLastErrorMessage("Success");
 
     if (!Connection || !Connection->Connected || !Method || !Path) {
         debug("[HTTP_SendRequest] Invalid parameters");
+        HTTP_SetLastErrorMessage("HTTP_SendRequest received invalid parameters");
         return HTTP_ERROR_INVALID_URL;
     }
 
@@ -365,6 +712,7 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
     sent = send(Connection->SocketHandle, request, requestLen, 0);
     if (sent != requestLen) {
         debug("[HTTP_SendRequest] Send failed: sent=%d, expected=%d", sent, requestLen);
+        HTTP_SetLastErrorMessage("Failed to transmit HTTP request headers");
         return HTTP_ERROR_CONNECTION_FAILED;
     }
     debug("[HTTP_SendRequest] Headers sent successfully");
@@ -373,10 +721,12 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
     if (Body && BodyLength > 0) {
         sent = send(Connection->SocketHandle, Body, BodyLength, 0);
         if (sent != (int)BodyLength) {
+            HTTP_SetLastErrorMessage("Failed to transmit HTTP request body");
             return HTTP_ERROR_CONNECTION_FAILED;
         }
     }
 
+    HTTP_SetLastErrorMessage("Success");
     return HTTP_SUCCESS;
 }
 
@@ -389,7 +739,9 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     char* headerEnd;
     char* statusLine;
     int retryCount = 0;
+    int timeoutCount = 0;
     const int maxRetries = 50; // Allow up to 50 attempts with small delays
+    const int maxTimeoutsBeforeStateCheck = 3;
 
     debug("[HTTP_ReceiveResponse] Starting to receive response");
     char* contentLengthStr;
@@ -430,17 +782,67 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
         received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
         debug("[HTTP_ReceiveResponse] recv() returned %d bytes", received);
 
-        if (received < 0) {
+        if (received >= 0) {
+            if (received == 0) {
+                debug("[HTTP_ReceiveResponse] recv() returned 0 - connection closed by server after %d bytes", totalReceived);
+                break;
+            }
+
+            // Reset retry counters on successful receive
+            retryCount = 0;
+            timeoutCount = 0;
+
+        } else if (received == SOCKET_ERROR_OVERFLOW) {
+            debug("[HTTP_ReceiveResponse] recv() overflow reported after %d bytes", totalReceived);
+            free(allData);
+            HTTP_SetLastErrorMessage("Socket receive buffer overflow detected");
+            return HTTP_ERROR_SOCKET_OVERFLOW;
+        } else if (received == SOCKET_ERROR_WOULDBLOCK) {
+            retryCount++;
+            if (retryCount >= maxRetries) {
+                debug("[HTTP_ReceiveResponse] recv() would block after %d retries", retryCount);
+                break;
+            }
+
+            debug("[HTTP_ReceiveResponse] recv() would block, retry %d/%d", retryCount, maxRetries);
+            sleep(1);
+            continue;
+
+        } else if (received == SOCKET_ERROR_TIMEOUT) {
+            retryCount++;
+            timeoutCount++;
+            debug("[HTTP_ReceiveResponse] recv() timeout %d (retry %d/%d)", timeoutCount, retryCount, maxRetries);
+
+            if (timeoutCount >= maxTimeoutsBeforeStateCheck) {
+                struct sockaddr_in peerAddr;
+                socklen_t peerAddrLen = sizeof(peerAddr);
+                int peerStatus = getpeername(Connection->SocketHandle, (struct sockaddr*)&peerAddr, &peerAddrLen);
+
+                if (peerStatus == 0) {
+                    debug("[HTTP_ReceiveResponse] Connection alive after %d timeouts, continuing", timeoutCount);
+                    timeoutCount = 0;
+                } else if (peerStatus == SOCKET_ERROR_NOTCONNECTED) {
+                    debug("[HTTP_ReceiveResponse] Connection lost while waiting for data");
+                    received = 0;
+                    break;
+                } else {
+                    debug("[HTTP_ReceiveResponse] Failed to verify connection state (%d)", peerStatus);
+                    break;
+                }
+            }
+
+            if (retryCount >= maxRetries) {
+                debug("[HTTP_ReceiveResponse] Maximum retries reached after timeout");
+                break;
+            }
+
+            sleep(1);
+            continue;
+
+        } else {
             debug("[HTTP_ReceiveResponse] recv() error: %d", received);
             break;
-        } else if (received == 0) {
-            // Connection closed by server
-            debug("[HTTP_ReceiveResponse] recv() returned 0 - connection closed by server after %d bytes", totalReceived);
-            break;
         }
-
-        // Reset retry count on successful receive
-        retryCount = 0;
 
         // Expand allData buffer if needed
         if (allDataSize + received > allDataCapacity) {
@@ -658,6 +1060,379 @@ int HTTP_Post(HTTP_CONNECTION* Connection, const char* Path, const unsigned char
     }
 
     return HTTP_ReceiveResponse(Connection, Response);
+}
+
+/***************************************************************************/
+
+int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
+                        HTTP_RESPONSE* ResponseMetadata, unsigned int* BytesWritten,
+                        const HTTP_PROGRESS_CALLBACKS* ProgressCallbacks) {
+    char buffer[1024];
+    int received;
+    char* headerEnd;
+    char* statusLine;
+    FILE* file = NULL;
+    int headersParsed = 0;
+    unsigned int contentLength = 0;
+    unsigned short statusCode = 0;
+    char version[16] = {0};
+    unsigned int bodyBytesReceived = 0;
+    unsigned int headerLength = 0;
+    int isChunked = 0;
+    HTTP_CHUNK_PARSER chunkParser;
+    unsigned int idleTimeMs = 0;
+    unsigned int receiveTimeoutMs;
+    const unsigned int pollIntervalMs = 10;
+    char headerBuffer[4096];
+    unsigned int headerBufferUsed = 0;
+    int responseComplete = 0;
+    int connectionClosed = 0;
+    int result = HTTP_SUCCESS;
+    HTTP_RESPONSE localMetadata;
+    HTTP_RESPONSE* metadataOut;
+    int statusCallbackInvoked = 0;
+    int responseStarted = 0;
+
+    if (BytesWritten) {
+        *BytesWritten = 0;
+    }
+
+    if (ResponseMetadata) {
+        memset(ResponseMetadata, 0, sizeof(HTTP_RESPONSE));
+        metadataOut = ResponseMetadata;
+    } else {
+        memset(&localMetadata, 0, sizeof(HTTP_RESPONSE));
+        metadataOut = &localMetadata;
+    }
+
+    if (!Connection || !Filename) {
+        HTTP_SetLastErrorMessage("HTTP_DownloadToFile received invalid parameters");
+        return HTTP_ERROR_INVALID_RESPONSE;
+    }
+
+    HTTP_SetLastErrorMessage("Success");
+
+    receiveTimeoutMs = HTTP_GetDefaultReceiveTimeout();
+    if (receiveTimeoutMs == 0U) {
+        receiveTimeoutMs = 10000U;
+    }
+
+    headerBuffer[0] = '\0';
+    HTTP_ChunkParserInit(&chunkParser);
+
+    Connection->ReceiveBufferUsed = 0;
+
+    while (!responseComplete) {
+        received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
+
+        if (received < 0) {
+            if (received == SOCKET_ERROR_OVERFLOW) {
+                result = HTTP_ERROR_SOCKET_OVERFLOW;
+                HTTP_SetLastErrorMessage("Socket receive buffer overflow detected");
+                goto cleanup;
+            }
+
+            if (received == SOCKET_ERROR_WOULDBLOCK) {
+                Sleep(pollIntervalMs);
+
+                if (responseStarted) {
+                    idleTimeMs += pollIntervalMs;
+
+                    if (idleTimeMs >= receiveTimeoutMs) {
+                        result = HTTP_ERROR_TIMEOUT;
+                        HTTP_SetLastErrorMessage("Timed out waiting for HTTP response data");
+                        goto cleanup;
+                    }
+                }
+
+                continue;
+            }
+
+            if (received == SOCKET_ERROR_TIMEOUT) {
+                if (responseStarted) {
+                    result = HTTP_ERROR_TIMEOUT;
+                    HTTP_SetLastErrorMessage("Socket timeout while waiting for HTTP response data");
+                    goto cleanup;
+                }
+
+                continue;
+            }
+
+            result = HTTP_ERROR_CONNECTION_FAILED;
+            HTTP_SetLastErrorMessage("Socket error while receiving HTTP response data");
+            goto cleanup;
+        }
+
+        if (received == 0) {
+            connectionClosed = 1;
+            break;
+        }
+
+        idleTimeMs = 0;
+        responseStarted = 1;
+
+        if (!headersParsed) {
+            unsigned int receivedUnsigned = (unsigned int)received;
+
+            if (headerBufferUsed + receivedUnsigned >= sizeof(headerBuffer)) {
+                result = HTTP_ERROR_INVALID_RESPONSE;
+                HTTP_SetLastErrorMessage("HTTP headers exceed internal buffer size");
+                goto cleanup;
+            }
+
+            memcpy(headerBuffer + headerBufferUsed, buffer, receivedUnsigned);
+            headerBufferUsed += receivedUnsigned;
+            headerBuffer[headerBufferUsed] = '\0';
+
+            headerEnd = strstr(headerBuffer, "\r\n\r\n");
+            if (!headerEnd) {
+                continue;
+            }
+
+            headersParsed = 1;
+            headerLength = (unsigned int)((headerEnd + 4) - headerBuffer);
+            statusLine = headerBuffer;
+
+            const char* codeStart = NULL;
+            if (strncmp(statusLine, "HTTP/1.1", 8) == 0 && statusLine[8] == ' ') {
+                strcpy(version, "HTTP/1.1");
+                codeStart = statusLine + 9;
+            } else if (strncmp(statusLine, "HTTP/1.0", 8) == 0 && statusLine[8] == ' ') {
+                strcpy(version, "HTTP/1.0");
+                codeStart = statusLine + 9;
+            } else {
+                result = HTTP_ERROR_INVALID_RESPONSE;
+                HTTP_SetLastErrorMessage("Received invalid HTTP status line");
+                goto cleanup;
+            }
+
+            unsigned int codeValue = 0;
+            while (codeStart && *codeStart >= '0' && *codeStart <= '9') {
+                codeValue = codeValue * 10U + (unsigned int)(*codeStart - '0');
+                codeStart++;
+            }
+
+            if (codeValue > 65535U) {
+                result = HTTP_ERROR_INVALID_RESPONSE;
+                HTTP_SetLastErrorMessage("HTTP status code value is out of range");
+                goto cleanup;
+            }
+
+            statusCode = (unsigned short)codeValue;
+
+            strcpy(metadataOut->Version, version);
+            metadataOut->StatusCode = statusCode;
+
+            const char* reasonStart = codeStart;
+            while (reasonStart && *reasonStart == ' ') {
+                reasonStart++;
+            }
+            const char* reasonEnd = strstr(reasonStart, "\r\n");
+            if (!reasonEnd) {
+                reasonEnd = reasonStart;
+            }
+            unsigned int reasonLength = (unsigned int)(reasonEnd - reasonStart);
+            if (reasonLength > 0U) {
+                if (reasonLength >= sizeof(metadataOut->ReasonPhrase)) {
+                    reasonLength = sizeof(metadataOut->ReasonPhrase) - 1U;
+                }
+                memcpy(metadataOut->ReasonPhrase, reasonStart, reasonLength);
+                metadataOut->ReasonPhrase[reasonLength] = '\0';
+            }
+
+            unsigned int headerCopyLength = headerLength;
+            if (headerCopyLength >= sizeof(metadataOut->Headers)) {
+                headerCopyLength = sizeof(metadataOut->Headers) - 1U;
+            }
+            memcpy(metadataOut->Headers, headerBuffer, headerCopyLength);
+            metadataOut->Headers[headerCopyLength] = '\0';
+
+            char* transferEncodingStr = strstr(headerBuffer, "Transfer-Encoding:");
+            if (transferEncodingStr) {
+                const char* valueStart = transferEncodingStr + 18;
+                while (*valueStart == ' ' || *valueStart == '\t') {
+                    valueStart++;
+                }
+
+                char encodingValue[64];
+                unsigned int encodingIndex = 0;
+                while (*valueStart && *valueStart != '\r' && *valueStart != '\n' &&
+                       encodingIndex < (sizeof(encodingValue) - 1U)) {
+                    encodingValue[encodingIndex++] = *valueStart;
+                    valueStart++;
+                }
+                encodingValue[encodingIndex] = '\0';
+
+                if (HTTP_HeaderValueContainsToken(encodingValue, "chunked")) {
+                    isChunked = 1;
+                    HTTP_ChunkParserInit(&chunkParser);
+                }
+            }
+
+            if (!isChunked) {
+                char* contentLengthStr = strstr(headerBuffer, "Content-Length:");
+                if (contentLengthStr) {
+                    const char* numStart = contentLengthStr + 16;
+                    contentLength = 0;
+                    while (*numStart >= '0' && *numStart <= '9') {
+                        contentLength = contentLength * 10U + (unsigned int)(*numStart - '0');
+                        numStart++;
+                    }
+                }
+            }
+
+            metadataOut->ContentLength = contentLength;
+            metadataOut->ChunkedEncoding = isChunked;
+
+            if (!statusCallbackInvoked) {
+                statusCallbackInvoked = 1;
+                if (ProgressCallbacks && ProgressCallbacks->OnStatusLine) {
+                    ProgressCallbacks->OnStatusLine(metadataOut, ProgressCallbacks->Context);
+                }
+            }
+
+            if (statusCode != 200) {
+                char statusMessage[64];
+                sprintf(statusMessage, "Server responded with HTTP %u", (unsigned int)statusCode);
+                HTTP_SetLastErrorMessage(statusMessage);
+                result = (int)statusCode;
+                goto cleanup;
+            }
+
+            file = fopen(Filename, "wb");
+            if (!file) {
+                result = HTTP_ERROR_MEMORY_ERROR;
+                HTTP_SetLastErrorMessage("Failed to open destination file for writing");
+                goto cleanup;
+            }
+
+            unsigned int bodyDataInBuffer = headerBufferUsed - headerLength;
+            if (bodyDataInBuffer > 0U) {
+                const unsigned char* bodyStart = (const unsigned char*)(headerBuffer + headerLength);
+
+                if (isChunked) {
+                    unsigned int chunkBytesWritten = 0U;
+                    result = HTTP_ChunkParserProcess(&chunkParser, bodyStart, bodyDataInBuffer, file, &chunkBytesWritten);
+                    if (result != HTTP_SUCCESS) {
+                        HTTP_SetLastErrorMessage("Chunk decoder reported an error while processing buffered data");
+                        goto cleanup;
+                    }
+
+                    if (chunkBytesWritten > 0U && ProgressCallbacks && ProgressCallbacks->OnBodyData) {
+                        ProgressCallbacks->OnBodyData(chunkBytesWritten, ProgressCallbacks->Context);
+                    }
+
+                    if (chunkParser.State == HTTP_CHUNK_STATE_FINISHED) {
+                        responseComplete = 1;
+                    }
+                } else {
+                    result = HTTP_WriteBodyData(file, bodyStart, bodyDataInBuffer);
+                    if (result != HTTP_SUCCESS) {
+                        HTTP_SetLastErrorMessage("Failed to write buffered response body to file");
+                        goto cleanup;
+                    }
+
+                    bodyBytesReceived += bodyDataInBuffer;
+                    if (bodyDataInBuffer > 0U && ProgressCallbacks && ProgressCallbacks->OnBodyData) {
+                        ProgressCallbacks->OnBodyData(bodyDataInBuffer, ProgressCallbacks->Context);
+                    }
+                    if (contentLength > 0U && bodyBytesReceived >= contentLength) {
+                        responseComplete = 1;
+                    }
+                }
+            }
+
+            continue;
+        }
+
+        if (isChunked) {
+            unsigned int chunkBytesWritten = 0U;
+            result = HTTP_ChunkParserProcess(&chunkParser, (const unsigned char*)buffer,
+                                             (unsigned int)received, file, &chunkBytesWritten);
+            if (result != HTTP_SUCCESS) {
+                HTTP_SetLastErrorMessage("Chunk decoder reported an error while processing response data");
+                goto cleanup;
+            }
+
+            if (chunkBytesWritten > 0U && ProgressCallbacks && ProgressCallbacks->OnBodyData) {
+                ProgressCallbacks->OnBodyData(chunkBytesWritten, ProgressCallbacks->Context);
+            }
+
+            if (chunkParser.State == HTTP_CHUNK_STATE_FINISHED) {
+                responseComplete = 1;
+            }
+        } else {
+            result = HTTP_WriteBodyData(file, (const unsigned char*)buffer, (unsigned int)received);
+            if (result != HTTP_SUCCESS) {
+                HTTP_SetLastErrorMessage("Failed to write response body to file");
+                goto cleanup;
+            }
+
+            bodyBytesReceived += (unsigned int)received;
+            if ((unsigned int)received > 0U && ProgressCallbacks && ProgressCallbacks->OnBodyData) {
+                ProgressCallbacks->OnBodyData((unsigned int)received, ProgressCallbacks->Context);
+            }
+            if (contentLength > 0U && bodyBytesReceived >= contentLength) {
+                responseComplete = 1;
+            }
+        }
+    }
+
+    if (result != HTTP_SUCCESS) {
+        goto cleanup;
+    }
+
+    if (!responseComplete) {
+        if (!headersParsed) {
+            result = HTTP_ERROR_CONNECTION_FAILED;
+            HTTP_SetLastErrorMessage("Connection closed before HTTP headers were received");
+            goto cleanup;
+        }
+
+        if (isChunked) {
+            if (chunkParser.State != HTTP_CHUNK_STATE_FINISHED) {
+                result = HTTP_ERROR_CONNECTION_FAILED;
+                HTTP_SetLastErrorMessage("Connection closed before final chunk terminator");
+                goto cleanup;
+            }
+        } else if (contentLength > 0U && bodyBytesReceived < contentLength) {
+            result = HTTP_ERROR_CONNECTION_FAILED;
+            HTTP_SetLastErrorMessage("Connection closed before expected body length was received");
+            goto cleanup;
+        } else if (!connectionClosed) {
+            responseComplete = 1;
+        }
+    }
+
+cleanup:
+    if (file) {
+        fclose(file);
+    }
+
+    if (result == HTTP_SUCCESS) {
+        if (BytesWritten) {
+            if (isChunked) {
+                *BytesWritten = chunkParser.TotalBytesWritten;
+            } else {
+                *BytesWritten = bodyBytesReceived;
+            }
+        }
+
+        if (ResponseMetadata) {
+            strcpy(ResponseMetadata->Version, version);
+            ResponseMetadata->StatusCode = statusCode;
+            ResponseMetadata->ContentLength = contentLength;
+            ResponseMetadata->ChunkedEncoding = isChunked;
+        }
+
+        HTTP_SetLastErrorMessage("Success");
+    } else {
+        if (BytesWritten) {
+            *BytesWritten = 0;
+        }
+    }
+
+    return result;
 }
 
 /***************************************************************************/

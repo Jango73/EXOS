@@ -25,6 +25,7 @@
 #include "../include/E1000.h"
 
 #include "../include/Base.h"
+#include "../include/Console.h"
 #include "../include/Driver.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
@@ -171,6 +172,7 @@ typedef struct tag_E1000DEVICE {
 
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
+    LPVOID RxUserData;
 } E1000DEVICE, *LPE1000DEVICE;
 
 /************************************************************************/
@@ -664,6 +666,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
 
     MemorySet(Device, 0, sizeof(E1000DEVICE));
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
+    InitMutex(&(Device->Mutex));
 
     DEBUG(TEXT("[E1000_Attach] Device=%x, ID=%x, PciDevice->ID=%x"), Device, Device->ID, PciDevice->ID);
 
@@ -870,15 +873,15 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
                   Length, Frame[12], Frame[13], (U32)Device->RxCallback);
             if (Device->RxCallback) {
                 DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %x"), (U32)Device->RxCallback);
-                Device->RxCallback(Frame, (U32)Length);
+                CONSOLE_DEBUG(TEXT("[E1000] %u | "), (U32)Length);
+                Device->RxCallback(Frame, (U32)Length, Device->RxUserData);
                 DEBUG(TEXT("[E1000_ReceivePoll] RxCallback returned"));
             } else {
                 DEBUG(TEXT("[E1000_ReceivePoll] No RX callback registered!"));
             }
         }
 
-        // Clear descriptor status and advance head
-        Ring[NextIndex].Status = 0;
+        // Advance head
         Device->RxHead = (NextIndex + 1) % Device->RxRingCount;
 
         // RDT must point to the last descriptor that the hardware can use
@@ -887,6 +890,9 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         E1000_WriteReg32(Device->MmioBase, E1000_REG_RDT, NextIndex);
 
         DEBUG(TEXT("[E1000_ReceivePoll] Updated RDT to %u (processed descriptor available for reuse)"), NextIndex);
+
+        // Clear descriptor status AFTER updating RDT to avoid race condition
+        Ring[NextIndex].Status = 0;
 
         Count++;
     }
@@ -978,7 +984,8 @@ static U32 E1000_OnSetReceiveCallback(const NETWORKSETRXCB *Set) {
     }
     LPE1000DEVICE Device = (LPE1000DEVICE)Set->Device;
     Device->RxCallback = Set->Callback;
-    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Callback set to %X for device %X"), (U32)Set->Callback, (U32)Device);
+    Device->RxUserData = Set->UserData;
+    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Callback set to %X with UserData %X for device %X"), (U32)Set->Callback, (U32)Set->UserData, (U32)Device);
     return DF_ERROR_SUCCESS;
 }
 
