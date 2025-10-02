@@ -396,46 +396,6 @@ size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
 }
 
 /************************************************************************/
-#ifndef __KERNEL__
-static void __attribute__((unused)) RuntimeVerifyRbPlusMode(void) {
-    const char* TestPath = "rbplus-test.bin";
-    const unsigned char SeedBytes[4] = { 0xCA, 0xFE, 0xBA, 0xBE };
-    FILE* File = fopen(TestPath, "wb");
-
-    if (!File) {
-        debug("[RuntimeVerifyRbPlusMode] Failed to create seed file");
-        return;
-    }
-
-    if (fwrite(SeedBytes, 1, sizeof(SeedBytes), File) != sizeof(SeedBytes)) {
-        debug("[RuntimeVerifyRbPlusMode] Failed to seed test file");
-        fclose(File);
-        return;
-    }
-
-    fclose(File);
-
-    File = fopen(TestPath, "rb+");
-
-    if (!File) {
-        debug("[RuntimeVerifyRbPlusMode] Failed to reopen file with rb+");
-        return;
-    }
-
-    size_t Requested = sizeof(SeedBytes);
-    size_t Written = fwrite(SeedBytes, 1, Requested, File);
-
-    if (Written != Requested) {
-        debug("[RuntimeVerifyRbPlusMode] fwrite wrote %u bytes instead of %u", (unsigned)Written, (unsigned)Requested);
-    } else {
-        debug("[RuntimeVerifyRbPlusMode] fwrite wrote expected %u bytes", (unsigned)Written);
-    }
-
-    fclose(File);
-}
-#endif
-
-/************************************************************************/
 
 int fseek(FILE* fp, long int pos, int whence) {
     UNUSED(fp);
