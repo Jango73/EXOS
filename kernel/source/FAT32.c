@@ -1628,6 +1628,10 @@ static U32 WriteFile(LPFATFILE File) {
     BytesRemaining = File->Header.ByteCount;
     File->Header.BytesTransferred = 0;
 
+    if (ByteCount > BytesRemaining) {
+        ByteCount = BytesRemaining;
+    }
+
     Cluster = File->Location.DataCluster;
     LastValidCluster = Cluster;
 
@@ -1645,7 +1649,7 @@ static U32 WriteFile(LPFATFILE File) {
         LastValidCluster = Cluster;
     }
 
-    while (1) {
+    while (BytesRemaining > 0) {
         //-------------------------------------
         // Read the current data cluster
 
@@ -1656,8 +1660,14 @@ static U32 WriteFile(LPFATFILE File) {
         //-------------------------------------
         // Copy the user buffer
 
-        MemoryCopy(
-            FileSystem->IOBuffer + OffsetInCluster, ((U8*)File->Header.Buffer) + File->Header.BytesTransferred, ByteCount);
+        U32 BytesToTransfer = ByteCount;
+
+        if (BytesToTransfer > BytesRemaining) {
+            BytesToTransfer = BytesRemaining;
+        }
+
+        MemoryCopy(FileSystem->IOBuffer + OffsetInCluster,
+                   ((U8*)File->Header.Buffer) + File->Header.BytesTransferred, BytesToTransfer);
 
         //-------------------------------------
         // Write the current data cluster
@@ -1666,21 +1676,25 @@ static U32 WriteFile(LPFATFILE File) {
             return DF_ERROR_IO;
         }
 
-        ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
-        if (ByteCount > BytesRemaining) ByteCount = BytesRemaining;
-
         //-------------------------------------
         // Update counters
 
+        File->Header.BytesTransferred += BytesToTransfer;
+        File->Header.Position += BytesToTransfer;
+        BytesRemaining -= BytesToTransfer;
+
+        if (BytesRemaining == 0) {
+            break;
+        }
+
         OffsetInCluster = 0;
-        BytesRemaining -= ByteCount;
-        File->Header.BytesTransferred += ByteCount;
-        File->Header.Position += ByteCount;
+        ByteCount = FileSystem->BytesPerCluster;
 
-        //-------------------------------------
-        // Check if we wrote all data
+        if (ByteCount > BytesRemaining) {
+            ByteCount = BytesRemaining;
+        }
 
-        if (BytesRemaining == 0) break;
+        LastValidCluster = Cluster;
 
         //-------------------------------------
         // Get the next cluster in the chain
