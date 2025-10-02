@@ -72,7 +72,6 @@ static void NetGetBodyCallback(unsigned int Bytes, void* Context) {
 
     State->BodyChunksPrinted++;
     printf(".");
-    fflush(stdout);
 }
 
 /************************************************************************/
