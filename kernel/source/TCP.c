@@ -245,7 +245,12 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
     Header.Flags = Flags;
     // Always calculate window based on actual TCP buffer space, not cached value
     U32 AvailableSpace = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
-    U16 ActualWindow = (AvailableSpace > 0xFFFF) ? 0xFFFF : (U16)AvailableSpace;
+    // Advertise only 75% of the actual free buffer space to absorb stack latency
+    U32 AdvertisedSpace = (AvailableSpace * 3) / 4;
+    if (AvailableSpace > 0 && AdvertisedSpace == 0) {
+        AdvertisedSpace = 1;
+    }
+    U16 ActualWindow = (AdvertisedSpace > 0xFFFF) ? 0xFFFF : (U16)AdvertisedSpace;
     Header.WindowSize = Htons(ActualWindow);
     Header.UrgentPointer = 0;
     Header.Checksum = 0;
