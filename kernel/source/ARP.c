@@ -698,6 +698,19 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
     if (Context == NULL) return 0;
 
     U32 TargetIPHost = Ntohl(TargetIPv4_Be);
+
+    // Special-case: broadcast 255.255.255.255
+    if (TargetIPHost == 0xFFFFFFFF) {
+        // Return broadcast MAC immediately
+        U8 BroadcastMac[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+        MemoryCopy(OutMacAddress, BroadcastMac, 6);
+        return 1;
+    }
+
+    // Ignore 0.0.0.0
+    if (TargetIPHost == 0x00000000) {
+        return 0;
+    }
     DEBUG(TEXT("[ARP_Resolve] Resolving %u.%u.%u.%u"),
           (TargetIPHost >> 24) & 0xFF, (TargetIPHost >> 16) & 0xFF,
           (TargetIPHost >> 8) & 0xFF, TargetIPHost & 0xFF);

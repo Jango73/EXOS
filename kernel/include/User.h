@@ -779,6 +779,7 @@ typedef struct tag_SOCKET_ADDRESS_INET {
 #define SOCKET_ERROR_CONNREFUSED  -8
 #define SOCKET_ERROR_TIMEOUT      -9
 #define SOCKET_ERROR_MSGSIZE      -10
+#define SOCKET_ERROR_OVERFLOW     -11
 
 // Socket Shutdown Types
 #define SOCKET_SHUTDOWN_READ      0
