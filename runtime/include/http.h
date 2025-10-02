@@ -42,6 +42,7 @@
 #define HTTP_ERROR_INVALID_RESPONSE 4
 #define HTTP_ERROR_MEMORY_ERROR     5
 #define HTTP_ERROR_PROTOCOL_ERROR   6
+#define HTTP_ERROR_SOCKET_OVERFLOW  7
 
 /***************************************************************************/
 // URL Structure

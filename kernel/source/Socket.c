@@ -59,6 +59,20 @@ void SocketDestructor(LPVOID Item) {
         if (Socket->TCPConnection != NULL && Socket->SocketType == SOCKET_TYPE_STREAM) {
             TCP_DestroyConnection(Socket->TCPConnection);
         }
+
+        if (Socket->ReceiveBuffer.AllocatedData) {
+            KernelHeapFree(Socket->ReceiveBuffer.AllocatedData);
+            Socket->ReceiveBuffer.AllocatedData = NULL;
+            Socket->ReceiveBuffer.Data = Socket->ReceiveBuffer.InitialData;
+            Socket->ReceiveBuffer.Size = Socket->ReceiveBuffer.InitialSize;
+        }
+
+        if (Socket->SendBuffer.AllocatedData) {
+            KernelHeapFree(Socket->SendBuffer.AllocatedData);
+            Socket->SendBuffer.AllocatedData = NULL;
+            Socket->SendBuffer.Data = Socket->SendBuffer.InitialData;
+            Socket->SendBuffer.Size = Socket->SendBuffer.InitialSize;
+        }
     }
 }
 
@@ -112,8 +126,9 @@ U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     Socket->ReceiveTimeoutStartTime = 0;
 
     // Initialize buffers
-    CircularBuffer_Initialize(&Socket->ReceiveBuffer, Socket->ReceiveBufferData, SOCKET_BUFFER_SIZE);
-    CircularBuffer_Initialize(&Socket->SendBuffer, Socket->SendBufferData, SOCKET_BUFFER_SIZE);
+    CircularBuffer_Initialize(&Socket->ReceiveBuffer, Socket->ReceiveBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
+    CircularBuffer_Initialize(&Socket->SendBuffer, Socket->SendBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
+    Socket->ReceiveOverflow = FALSE;
 
     // Add to socket list
     if (ListAddTail(Kernel.Socket, Socket) == 0) {
@@ -737,6 +752,14 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
         }
 
         if (Socket->SocketType == SOCKET_TYPE_STREAM && Socket->TCPConnection != NULL) {
+            if (Socket->ReceiveOverflow || Socket->ReceiveBuffer.Overflowed) {
+                if (Socket->ReceiveOverflow) {
+                    WARNING(TEXT("[SocketReceive] Receive buffer overflow detected on socket %x"), SocketHandle);
+                    Socket->ReceiveOverflow = FALSE;
+                }
+                return SOCKET_ERROR_OVERFLOW;
+            }
+
             // Check receive buffer first
             U32 AvailableData = CircularBuffer_GetAvailableData(&Socket->ReceiveBuffer);
             if (AvailableData > 0) {
@@ -882,8 +905,16 @@ void SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U3
                 if (BytesToCopy > 0) {
                     Socket->PacketsReceived++;
                     DEBUG(TEXT("[SocketTCPReceiveCallback] Buffered %d bytes for socket %x"),BytesToCopy, Socket);
-                } else {
-                    WARNING(TEXT("[SocketTCPReceiveCallback] Receive buffer full for socket %x"),Socket);
+                }
+
+                if (BytesToCopy < DataLength) {
+                    Socket->ReceiveOverflow = TRUE;
+                    WARNING(TEXT("[SocketTCPReceiveCallback] Receive buffer overflow for socket %x (%u/%u bytes stored, size=%u, max=%u)"),
+                            Socket,
+                            BytesToCopy,
+                            DataLength,
+                            Socket->ReceiveBuffer.Size,
+                            Socket->ReceiveBuffer.MaximumSize);
                 }
 
                 // NOTE: TCP window is now calculated automatically based on TCP buffer usage

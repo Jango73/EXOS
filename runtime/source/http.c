@@ -792,6 +792,11 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
             retryCount = 0;
             timeoutCount = 0;
 
+        } else if (received == SOCKET_ERROR_OVERFLOW) {
+            debug("[HTTP_ReceiveResponse] recv() overflow reported after %d bytes", totalReceived);
+            free(allData);
+            HTTP_SetLastErrorMessage("Socket receive buffer overflow detected");
+            return HTTP_ERROR_SOCKET_OVERFLOW;
         } else if (received == SOCKET_ERROR_WOULDBLOCK) {
             retryCount++;
             if (retryCount >= maxRetries) {
@@ -1120,6 +1125,12 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
         received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
 
         if (received < 0) {
+            if (received == SOCKET_ERROR_OVERFLOW) {
+                result = HTTP_ERROR_SOCKET_OVERFLOW;
+                HTTP_SetLastErrorMessage("Socket receive buffer overflow detected");
+                goto cleanup;
+            }
+
             if (received == SOCKET_ERROR_WOULDBLOCK) {
                 Sleep(pollIntervalMs);
                 idleTimeMs += pollIntervalMs;
