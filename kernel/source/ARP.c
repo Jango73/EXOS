@@ -24,7 +24,6 @@
 
 #include "../include/ARP.h"
 #include "../include/ARPContext.h"
-#include "../include/Console.h"
 #include "../include/Device.h"
 #include "../include/Heap.h"
 #include "../include/ID.h"

@@ -131,16 +131,15 @@ U32 SysCall_SetLocalTime(U32 Parameter) {
 U32 SysCall_DeleteObject(U32 Parameter) {
     LPOBJECT Object = (LPOBJECT)Parameter;
 
-    switch (Object->ID) {
-        case ID_FILE:
-            CloseFile((LPFILE)Object);
-            break;
-        case ID_DESKTOP:
-            DeleteDesktop((LPDESKTOP)Object);
-            break;
-        case ID_WINDOW:
-            DeleteWindow((LPWINDOW)Object);
-            break;
+    SAFE_USE_VALID(Object) {
+        switch (Object->ID) {
+            case ID_FILE:
+                return (U32)CloseFile((LPFILE)Object);
+            case ID_DESKTOP:
+                return (U32)DeleteDesktop((LPDESKTOP)Object);
+            case ID_WINDOW:
+                return (U32)DeleteWindow((LPWINDOW)Object);
+        }
     }
 
     return 0;
@@ -445,7 +444,9 @@ U32 SysCall_ReadFile(U32 Parameter) { return ReadFile((LPFILEOPERATION)Parameter
 
 /***************************************************************************/
 
-U32 SysCall_WriteFile(U32 Parameter) { return WriteFile((LPFILEOPERATION)Parameter); }
+U32 SysCall_WriteFile(U32 Parameter) {
+    return WriteFile((LPFILEOPERATION)Parameter);
+}
 
 /***************************************************************************/
 

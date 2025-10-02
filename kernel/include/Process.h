@@ -199,10 +199,10 @@ void ReleaseKernelObject(LPVOID Object);
 // Functions in Desktop.c
 
 LPDESKTOP CreateDesktop(void);
-void DeleteDesktop(LPDESKTOP);
+BOOL DeleteDesktop(LPDESKTOP);
 BOOL ShowDesktop(LPDESKTOP);
 LPWINDOW CreateWindow(LPWINDOWINFO);
-void DeleteWindow(LPWINDOW);
+BOOL DeleteWindow(LPWINDOW);
 LPWINDOW FindWindow(LPWINDOW, LPWINDOW);
 LPDESKTOP GetWindowDesktop(LPWINDOW);
 BOOL InvalidateWindowRect(HANDLE, LPRECT);

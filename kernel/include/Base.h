@@ -135,10 +135,6 @@ typedef struct tag_U128 {
 
 /************************************************************************/
 
-#define CONSOLE_DEBUG(a, ...) { STR __Buf[128]; StringPrintFormat(__Buf, a, ##__VA_ARGS__); ConsolePrint(__Buf); }
-
-/************************************************************************/
-
 typedef void* LPVOID;
 typedef const void* LPCVOID;
 
@@ -347,6 +343,14 @@ typedef CONST STR* LPCSTR;
 typedef U16 USTR;
 typedef USTR* LPUSTR;
 typedef CONST USTR* LPCUSTR;
+
+
+/************************************************************************/
+
+#ifdef __KERNEL__
+extern void ConsolePrint(LPCSTR Format, ...);
+#define CONSOLE_DEBUG(a, ...) { STR __Buf[128]; StringPrintFormat(__Buf, a, ##__VA_ARGS__); ConsolePrint(__Buf); }
+#endif
 
 /***************************************************************************/
 // Common ASCII character values

@@ -25,7 +25,6 @@
 #include "../include/E1000.h"
 
 #include "../include/Base.h"
-#include "../include/Console.h"
 #include "../include/Driver.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"

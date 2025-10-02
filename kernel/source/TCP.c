@@ -23,7 +23,6 @@
 \************************************************************************/
 
 #include "../include/TCP.h"
-#include "../include/Console.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/System.h"
@@ -32,7 +31,6 @@
 #include "../include/Socket.h"
 #include "../include/Memory.h"
 #include "../include/Heap.h"
-#include "../include/NetworkManager.h"
 #include "../include/Notification.h"
 #include "../include/Helpers.h"
 #include "../include/String.h"

@@ -35,7 +35,7 @@ extern GRAPHICSCONTEXT VESAContext;
 /***************************************************************************/
 
 LPWINDOW NewWindow(void);
-void DeleteWindow(LPWINDOW);
+BOOL DeleteWindow(LPWINDOW);
 U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 
 /***************************************************************************/
@@ -245,8 +245,8 @@ LPDESKTOP CreateDesktop(void) {
  * @brief Delete a desktop and release its resources.
  * @param This Desktop to delete.
  */
-void DeleteDesktop(LPDESKTOP This) {
-    if (This == NULL) return;
+BOOL DeleteDesktop(LPDESKTOP This) {
+    if (This == NULL) return FALSE;
 
     LockMutex(&(This->Mutex), INFINITY);
 
@@ -254,7 +254,9 @@ void DeleteDesktop(LPDESKTOP This) {
         DeleteWindow(This->Window);
     }
 
-    KernelHeapFree(This);
+    ReleaseKernelObject(This);
+
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -345,7 +347,7 @@ LPWINDOW NewWindow(void) {
  * @brief Delete a window and its children.
  * @param This Window to delete.
  */
-void DeleteWindow(LPWINDOW This) {
+BOOL DeleteWindow(LPWINDOW This) {
     LPPROCESS Process;
     LPTASK Task;
     LPDESKTOP Desktop;
@@ -354,15 +356,15 @@ void DeleteWindow(LPWINDOW This) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (This->ID != ID_WINDOW) return;
-    if (This->Parent == NULL) return;
+    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->Parent == NULL) return FALSE;
 
     Task = This->Task;
-    if (Task == NULL) return;
+    if (Task == NULL) return FALSE;
     Process = Task->Process;
-    if (Process == NULL) return;
+    if (Process == NULL) return FALSE;
     Desktop = Process->Desktop;
-    if (Desktop == NULL) return;
+    if (Desktop == NULL) return FALSE;
 
     //-------------------------------------
     // Release desktop related resources
@@ -396,6 +398,8 @@ void DeleteWindow(LPWINDOW This) {
     UnlockMutex(&(This->Parent->Mutex));
 
     ReleaseKernelObject(This);
+
+    return TRUE;
 }
 
 /***************************************************************************/
