@@ -187,7 +187,6 @@ extern KERNELDATA Kernel;
 /***************************************************************************/
 // Functions in Kernel.c
 
-void KernelObjectDestructor(LPVOID);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 void InitializeQuantumTime(void);
 U32 ClockTestTask(LPVOID);
@@ -195,7 +194,10 @@ U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
 void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
-BOOL ObjectExists(HANDLE Object);
+
+void KernelObjectDestructor(LPVOID);
+LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
+void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(LPPROCESS Process);
 
 /***************************************************************************/

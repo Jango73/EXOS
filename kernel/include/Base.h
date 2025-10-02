@@ -370,6 +370,8 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define STR_MINUS ((STR)'-')
 #define PATH_SEP STR_SLASH
 
+#define ROOT "/"
+
 /***************************************************************************/
 // Common Unicode character values
 

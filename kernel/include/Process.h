@@ -192,8 +192,6 @@ BOOL CreateProcess(LPPROCESSINFO);
 U32 Spawn(LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
-void ReleaseKernelObject(LPVOID Object);
 
 /************************************************************************/
 // Functions in Desktop.c

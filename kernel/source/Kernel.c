@@ -72,17 +72,6 @@ U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
 
 /************************************************************************/
 
-void KernelObjectDestructor(LPVOID Object) {
-    SAFE_USE_VALID(Object) {
-        LPLISTNODE Node = (LPLISTNODE)Object;
-        switch (Node->ID) {
-        case ID_MUTEX: DeleteMutex((LPMUTEX)Node);
-        }
-    }
-}
-
-/************************************************************************/
-
 /**
  * @brief Checks that the DeadBeef sentinel retains its expected value.
  *
@@ -295,6 +284,72 @@ static void Welcome(void) {
 
 /************************************************************************/
 
+void KernelObjectDestructor(LPVOID Object) {
+    SAFE_USE_VALID(Object) {
+        LPLISTNODE Node = (LPLISTNODE)Object;
+        switch (Node->ID) {
+        case ID_MUTEX: DeleteMutex((LPMUTEX)Node);
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Create a kernel object with standard LISTNODE_FIELDS initialization.
+ *
+ * This function allocates memory for a kernel object and initializes its
+ * LISTNODE_FIELDS with the specified ID, References = 1, current process
+ * as parent, and NULL for Next/Prev pointers.
+ *
+ * @param Size Size of the object to allocate (e.g., sizeof(TASK))
+ * @param ObjectTypeID ID from ID.h to identify the object type
+ * @return Pointer to the allocated and initialized object, or NULL on failure
+ */
+LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
+    LPLISTNODE Object;
+
+    DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
+
+    Object = (LPLISTNODE)KernelHeapAlloc(Size);
+
+    if (Object == NULL) {
+        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);
+        return NULL;
+    }
+
+    // Initialize LISTNODE_FIELDS
+    Object->ID = ObjectTypeID;
+    Object->References = 1;
+    Object->OwnerProcess = GetCurrentProcess();
+    Object->Next = NULL;
+    Object->Prev = NULL;
+
+    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"),
+          (U32)Object, (U32)Object->OwnerProcess);
+
+    return Object;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Destroy a kernel object.
+ *
+ * This function sets the object's ID to ID_NONE and frees its memory.
+ *
+ * @param Object Pointer to the kernel object to destroy
+ */
+void ReleaseKernelObject(LPVOID Object) {
+    LPLISTNODE Node = (LPLISTNODE)Object;
+
+    SAFE_USE(Node) {
+        if (Node->References) Node->References--;
+    }
+}
+
+/************************************************************************/
+
 /**
  * @brief Delete unreferenced kernel objects from all kernel lists.
  *
@@ -413,6 +468,26 @@ void ReleaseProcessKernelObjects(LPPROCESS Process) {
 /************************************************************************/
 
 /**
+ * @brief Store object termination state in cache.
+ * @param Object Handle of the terminated object
+ * @param ExitCode Exit code of the object
+ */
+void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
+    LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)
+        KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
+
+    SAFE_USE(TermState) {
+        TermState->Object = Object;
+        TermState->ExitCode = ExitCode;
+        CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
+
+        DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ExitCode=%u"), Object, ExitCode);
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Loads and parses the kernel configuration file.
  *
  * Attempts to read "exos.toml" (case insensitive) and stores the resulting
@@ -452,7 +527,7 @@ static void ReadKernelConfiguration(void) {
  * SelectKeyboard.
  */
 
-void UseConfiguration(void) {
+static void UseConfiguration(void) {
     DEBUG(TEXT("[UseConfiguration] Enter"));
 
     SAFE_USE(Kernel.Configuration) {
@@ -504,7 +579,7 @@ void UseConfiguration(void) {
  * @brief Initializes PCI subsystem by registering drivers and scanning the bus.
  */
 
-void InitializePCI(void) {
+static void InitializePCI(void) {
     extern PCI_DRIVER AHCIPCIDriver;
 
     PCI_RegisterDriver(&E1000Driver);
@@ -570,7 +645,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /************************************************************************/
 
-U32 MonitorKernel(LPVOID Parameter) {
+static U32 MonitorKernel(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
 
@@ -587,65 +662,8 @@ U32 MonitorKernel(LPVOID Parameter) {
 
         Sleep(500);
     }
-}
 
-/************************************************************************/
-
-/**
- * @brief Store object termination state in cache.
- * @param Object Handle of the terminated object
- * @param ExitCode Exit code of the object
- */
-void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
-    LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)
-        KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
-
-    SAFE_USE(TermState) {
-        TermState->Object = Object;
-        TermState->ExitCode = ExitCode;
-        CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
-
-        DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ExitCode=%u"), Object, ExitCode);
-    }
-}
-
-/************************************************************************/
-
-BOOL ObjectExists(HANDLE Object) {
-    if (Object == NULL) return FALSE;
-
-    LPLISTNODE Node = (LPLISTNODE)Object;
-
-    // Check all kernel object lists
-    LPLIST Lists[] = {
-        Kernel.Desktop,
-        Kernel.Process,
-        Kernel.Task,
-        Kernel.Mutex,
-        Kernel.Disk,
-        Kernel.PCIDevice,
-        Kernel.FileSystem,
-        Kernel.File,
-        Kernel.TCPConnection,
-        Kernel.Socket,
-        Kernel.UserSessions,
-        Kernel.UserAccount,
-        NULL  // Sentinel
-    };
-
-    for (U32 ListIndex = 0; Lists[ListIndex] != NULL; ListIndex++) {
-        LPLIST List = Lists[ListIndex];
-        LPLISTNODE Current = List->First;
-
-        while (Current != NULL) {
-            if (Current == Node) {
-                return TRUE;  // Found object in this list
-            }
-            Current = Current->Next;
-        }
-    }
-
-    return FALSE;  // Object not found in any list
+    return 0;
 }
 
 /************************************************************************/

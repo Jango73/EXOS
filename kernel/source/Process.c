@@ -715,12 +715,14 @@ void SetProcessStatus(LPPROCESS This, U32 Status) {
     LockMutex(MUTEX_PROCESS, INFINITY);
 
     SAFE_USE_VALID_ID(This, ID_PROCESS) {
-        This->Status = PROCESS_STATUS_DEAD;
+        This->Status = Status;
 
-        DEBUG(TEXT("[SetProcessStatus] Marked process %s as DEAD"), This->FileName);
+        DEBUG(TEXT("[SetProcessStatus] Marked process %s as %d"), This->FileName, Status);
 
-        // Store termination state in cache before process is destroyed
-        StoreObjectTerminationState(This, This->ExitCode);
+        if (Status == PROCESS_STATUS_DEAD) {
+            // Store termination state in cache before process is destroyed
+            StoreObjectTerminationState(This, This->ExitCode);
+        }
     }
 
     UnlockMutex(MUTEX_PROCESS);
@@ -791,60 +793,5 @@ void InitSecurity(LPSECURITY This) {
         This->Owner = U64_Make(0, 0);
         This->UserPermissionCount = 0;
         This->DefaultPermissions = PERMISSION_NONE;
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Create a kernel object with standard LISTNODE_FIELDS initialization.
- *
- * This function allocates memory for a kernel object and initializes its
- * LISTNODE_FIELDS with the specified ID, References = 1, current process
- * as parent, and NULL for Next/Prev pointers.
- *
- * @param Size Size of the object to allocate (e.g., sizeof(TASK))
- * @param ObjectTypeID ID from ID.h to identify the object type
- * @return Pointer to the allocated and initialized object, or NULL on failure
- */
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
-    LPLISTNODE Object;
-
-    DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
-
-    Object = (LPLISTNODE)KernelHeapAlloc(Size);
-
-    if (Object == NULL) {
-        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object"));
-        return NULL;
-    }
-
-    // Initialize LISTNODE_FIELDS
-    Object->ID = ObjectTypeID;
-    Object->References = 1;
-    Object->OwnerProcess = GetCurrentProcess();
-    Object->Next = NULL;
-    Object->Prev = NULL;
-
-    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"),
-          (U32)Object, (U32)Object->OwnerProcess);
-
-    return Object;
-}
-
-/************************************************************************/
-
-/**
- * @brief Destroy a kernel object.
- *
- * This function sets the object's ID to ID_NONE and frees its memory.
- *
- * @param Object Pointer to the kernel object to destroy
- */
-void ReleaseKernelObject(LPVOID Object) {
-    LPLISTNODE Node = (LPLISTNODE)Object;
-
-    SAFE_USE(Node) {
-        if (Node->References) Node->References--;
     }
 }
