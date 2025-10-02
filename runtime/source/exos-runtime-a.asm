@@ -82,7 +82,9 @@ section .text
     global strncpy
     global strcat
     global strcmp
+    global strncmp
     global strstr
+    global strchr
 
 ;-------------------------------------------------------------------------
 ; __start__ is the entry point of an executable's main thread
@@ -444,6 +446,85 @@ strcmp :
 .end:
     pop     ebx
     pop     edi
+    pop     esi
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+strncmp :
+
+    push    ebp
+    mov     ebp, esp
+    push    esi
+    push    edi
+    push    ecx
+
+    mov     esi, [ebp+(PBN+0)]  ; str1
+    mov     edi, [ebp+(PBN+4)]  ; str2
+    mov     ecx, [ebp+(PBN+8)]  ; length
+
+    test    ecx, ecx
+    jz      .equal
+
+.loop:
+    mov     al, [esi]
+    mov     dl, [edi]
+    cmp     al, dl
+    jne     .diff
+    test    al, al
+    je      .equal
+    inc     esi
+    inc     edi
+    dec     ecx
+    jz      .equal
+    jmp     .loop
+
+.diff:
+    movzx   eax, al
+    movzx   edx, dl
+    sub     eax, edx
+    jmp     .end
+
+.equal:
+    xor     eax, eax
+
+.end:
+    pop     ecx
+    pop     edi
+    pop     esi
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+strchr :
+
+    push    ebp
+    mov     ebp, esp
+    push    esi
+
+    mov     esi, [ebp+(PBN+0)]  ; string pointer
+    mov     edx, [ebp+(PBN+4)]  ; character value
+    and     edx, 0xFF
+
+.scan:
+    mov     al, [esi]
+    cmp     al, dl
+    je      .found
+    test    al, al
+    je      .not_found
+    inc     esi
+    jmp     .scan
+
+.found:
+    mov     eax, esi
+    pop     esi
+    pop     ebp
+    ret
+
+.not_found:
+    xor     eax, eax
     pop     esi
     pop     ebp
     ret
