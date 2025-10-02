@@ -707,6 +707,7 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
               Entry->MacAddress[0], Entry->MacAddress[1], Entry->MacAddress[2],
               Entry->MacAddress[3], Entry->MacAddress[4], Entry->MacAddress[5]);
         MacCopy(OutMacAddress, Entry->MacAddress);
+        VERBOSE(TEXT("[ARP_Resolve] %u"), (U32)6);
         return 1;
     }
 

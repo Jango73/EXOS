@@ -872,6 +872,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
                   Length, Frame[12], Frame[13], (U32)Device->RxCallback);
             if (Device->RxCallback) {
                 DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %x"), (U32)Device->RxCallback);
+                VERBOSE(TEXT("[E1000_ReceivePoll] %u"), (U32)Length);
                 Device->RxCallback(Frame, (U32)Length, Device->RxUserData);
                 DEBUG(TEXT("[E1000_ReceivePoll] RxCallback returned"));
             } else {
