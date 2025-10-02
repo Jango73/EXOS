@@ -692,6 +692,8 @@ TCP provides reliable connection-oriented communication using a state machine-ba
 - Sequence number management
 - Timer-based retransmission and TIME_WAIT handling
 - Checksum validation with IPv4 pseudo-header
+- Zero-window protection that keeps `RecvNext` unchanged while the receive buffer is full
+- Immediate window update ACKs emitted when the application consumes buffered data
 
 **Connection Structure:**
 ```c

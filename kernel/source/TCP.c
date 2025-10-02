@@ -478,6 +478,8 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
     U32 BytesAccepted = 0;
     const U8* PayloadPtr = Event->Payload;
     U32 PayloadLength = Event->PayloadLength;
+    U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
+    BOOL AllowSequenceAdvance = (SpaceAvailable > 0);
 
     if (PayloadLength > 0 && PayloadPtr) {
         if (SeqNum < Conn->RecvNext) {
@@ -511,8 +513,8 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
 
         DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of in-order data"), PayloadLength);
 
-        if (Conn->RecvBufferUsed >= TCP_RECV_BUFFER_SIZE) {
-            WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, advertising zero window"));
+        if (!AllowSequenceAdvance) {
+            WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, advertising zero window without advancing ACK"));
 
             int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
             if (SendResult < 0) {
@@ -522,7 +524,6 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
             return;
         }
 
-        U32 SpaceAvailable = TCP_RECV_BUFFER_SIZE - Conn->RecvBufferUsed;
         U32 CopyLength = (PayloadLength > SpaceAvailable) ? SpaceAvailable : PayloadLength;
 
         if (CopyLength > 0) {
@@ -533,6 +534,7 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
                 Conn->RecvBufferUsed += BytesAccepted;
 
                 CONSOLE_DEBUG(TEXT("[TCP] %u | "), BytesAccepted);
+                AllowSequenceAdvance = TRUE;
             }
         }
 
@@ -548,13 +550,13 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
         }
     }
 
-    if ((Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) != 0) {
+    if (AllowSequenceAdvance && (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) != 0) {
         if (PayloadLength == 0 || BytesAccepted == PayloadLength) {
             AckTarget++;
         }
     }
 
-    if (AckTarget > Conn->RecvNext) {
+    if (AllowSequenceAdvance && AckTarget > Conn->RecvNext) {
         Conn->RecvNext = AckTarget;
     }
 
@@ -1403,13 +1405,14 @@ void TCP_HandleApplicationRead(LPTCP_CONNECTION Connection, U32 BytesConsumed) {
 
         TCP_ProcessDataConsumption(Connection, BytesConsumed);
 
-        BOOL ShouldSend = TCP_ShouldSendWindowUpdate(Connection);
-        if (!ShouldSend && PreviousUsed == TCP_RECV_BUFFER_SIZE && Connection->RecvBufferUsed < TCP_RECV_BUFFER_SIZE) {
-            ShouldSend = TRUE;
-        }
+        BOOL TransitionPending = TCP_ShouldSendWindowUpdate(Connection);
+        BOOL WasZeroWindow = (PreviousUsed == TCP_RECV_BUFFER_SIZE);
+        BOOL HasAdvertisableWindow = (Connection->RecvBufferUsed < TCP_RECV_BUFFER_SIZE);
+        BOOL ShouldSend = TransitionPending || WasZeroWindow || HasAdvertisableWindow;
 
         if (ShouldSend) {
-            DEBUG(TEXT("[TCP_HandleApplicationRead] Sending window update ACK after consuming %u bytes"), BytesConsumed);
+            DEBUG(TEXT("[TCP_HandleApplicationRead] Sending window update ACK after consuming %u bytes (buffer used=%u)"),
+                  BytesConsumed, Connection->RecvBufferUsed);
             if (TCP_SendPacket(Connection, TCP_FLAG_ACK, NULL, 0) < 0) {
                 ERROR(TEXT("[TCP_HandleApplicationRead] Failed to transmit window update ACK"));
             }
