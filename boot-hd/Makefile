@@ -55,19 +55,23 @@ MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 
 define CREATE_FAT32_IMAGE
-        @echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
-        dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB)
-        parted -s $1 mklabel msdos
-        parted -s $1 mkpart primary fat32 2048s 100%
-        parted -s $1 set 1 boot on
-        @{ \
-                PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-                if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
-                        echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
-                        exit 1; \
-                fi; \
-                MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
-        }
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB); \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary fat32 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
+		}; \
+	fi
 endef
 
 define MTOOLS_OPERATION
@@ -83,24 +87,24 @@ define MTOOLS_OPERATION
 endef
 
 define MCOPY_IF_NEEDED
-        if ! MTOOLSRC=$(MTOOLS_CONF) mdir "$(2)" >/dev/null 2>&1; then \
-                echo "Copying $(1) -> $(2) (destination missing)"; \
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
-        else \
-                SRC_MTIME=$$(stat -c %Y "$(1)"); \
-                DST_INFO=$$(MTOOLSRC=$(MTOOLS_CONF) mdir -/ "$(2)" 2>/dev/null | awk 'NF>=7 {print $$6" "$$7; exit}'); \
-                DST_EPOCH=$$(date -d "$$DST_INFO" +%s 2>/dev/null || echo ""); \
-                if [ -z "$$DST_EPOCH" ] || [ $$SRC_MTIME -gt $$DST_EPOCH ]; then \
-                        if [ -z "$$DST_EPOCH" ]; then \
-                                echo "Copying $(1) -> $(2) (destination timestamp unavailable)"; \
-                        else \
-                                echo "Updating $(2) from $(1) (source newer)"; \
-                        fi; \
-                        MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
-                else \
-                        echo "Skipping $(2) (destination up-to-date)"; \
-                fi; \
-        fi;
+	TMPFILE=$$(mktemp 2>/dev/null || mktemp /tmp/mcopy.XXXXXX 2>/dev/null || echo ""); \
+	if [ -z "$$TMPFILE" ]; then \
+		echo "Copying $(1) -> $(2) (temporary file unavailable, forcing copy)"; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+	else \
+		if MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(2)" $$TMPFILE >/dev/null 2>&1; then \
+			if cmp -s "$(1)" $$TMPFILE; then \
+				echo "Skipping $(2) (destination up-to-date)"; \
+			else \
+				echo "Updating $(2) from $(1) (content changed)"; \
+				MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+			fi; \
+		else \
+			echo "Copying $(1) -> $(2) (destination missing)"; \
+			MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+		fi; \
+		rm -f $$TMPFILE; \
+	fi;
 endef
 
 .PHONY: all update install-mbr install-vbr-payload clean check_tools rebuild-image
