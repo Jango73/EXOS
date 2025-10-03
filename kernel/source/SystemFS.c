@@ -67,13 +67,6 @@ DRIVER SystemFSDriver = {
     .Product = "Virtual Computer File System",
     .Command = SystemFSCommands};
 
-/***************************************************************************/
-
-static LPSYSFSFILE OpenFile(LPFILEINFO Find);
-static U32 CloseFile(LPSYSFSFILE File);
-static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR SourcePath);
-
-
 /************************************************************************/
 
 static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
@@ -390,22 +383,6 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Node->Mounted->Driver->Command(DF_FS_CLOSEFILE, (U32)Mounted);
 
     return Result;
-}
-
-/************************************************************************/
-
-static BOOL FileExists(LPFILEINFO Info) {
-    LPSYSFSFILE File;
-
-    SAFE_USE(Info) {
-        File = OpenFile(Info);
-        if (File == NULL) return FALSE;
-
-        CloseFile(File);
-        return TRUE;
-    }
-
-    return FALSE;
 }
 
 /***************************************************************************/
@@ -837,6 +814,23 @@ BOOL MountUserNodes(void) {
             ConfigIndex++;
         }
 
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL FileExists(LPFILEINFO Info) {
+    LPSYSFSFILE File;
+
+    SAFE_USE(Info) {
+
+        File = OpenFile(Info);
+        if (File == NULL) return FALSE;
+
+        CloseFile(File);
         return TRUE;
     }
 
