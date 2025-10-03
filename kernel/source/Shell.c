@@ -335,92 +335,167 @@ static BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName)
 
 /***************************************************************************/
 
+/**
+ * @brief Position the console cursor relative to the command input start.
+ * @param StartX Prompt start X coordinate.
+ * @param StartY Prompt start Y coordinate.
+ * @param CursorPos Cursor offset inside the command buffer.
+ */
+static void UpdateInputCursor(U32 StartX, U32 StartY, U32 CursorPos) {
+    U32 TargetX = StartX + CursorPos;
+    U32 TargetY = StartY;
+
+    if (Console.Width != 0) {
+        TargetY += TargetX / Console.Width;
+        TargetX %= Console.Width;
+    }
+
+    SetConsoleCursorPosition(TargetX, TargetY);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Redraw the entire command line after edits.
+ * @param Context Shell context owning the command buffer.
+ * @param StartX Prompt start X coordinate.
+ * @param StartY Prompt start Y coordinate.
+ * @param Length Current length of the command.
+ * @param PreviousLength Previously displayed length of the command.
+ * @param CursorPos Cursor offset inside the command buffer.
+ * @param MaskCharacters TRUE to display '*' instead of actual characters.
+ */
+static void RefreshInputDisplay(
+    LPSHELLCONTEXT Context, U32 StartX, U32 StartY, U32 Length, U32 PreviousLength, U32 CursorPos, BOOL MaskCharacters) {
+    U32 Index;
+
+    SetConsoleCursorPosition(StartX, StartY);
+
+    for (Index = 0; Index < Length; Index++) {
+        if (MaskCharacters) {
+            ConsolePrintChar('*');
+        } else {
+            ConsolePrintChar(Context->CommandLine[Index]);
+        }
+    }
+
+    for (Index = Length; Index < PreviousLength; Index++) {
+        ConsolePrintChar(STR_SPACE);
+    }
+
+    UpdateInputCursor(StartX, StartY, CursorPos);
+}
+
+/***************************************************************************/
+
 static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
     KEYCODE KeyCode;
-    U32 Index = 0;
+    U32 CursorPos = 0;
+    U32 Length = 0;
+    U32 DisplayedLength = 0;
     U32 HistoryPos = Context->History.Count;
+    U32 StartX = 0;
+    U32 StartY = 0;
 
     DEBUG(TEXT("[ReadCommandLine] Enter"));
 
     Context->CommandLine[0] = STR_NULL;
+    GetConsoleCursorPosition(&StartX, &StartY);
 
     FOREVER {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 
             if (KeyCode.VirtualKey == VK_ESCAPE) {
-                while (Index) {
-                    Index--;
-                    ConsoleBackSpace();
-                }
+                Length = 0;
+                CursorPos = 0;
                 Context->CommandLine[0] = STR_NULL;
+                RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                DisplayedLength = Length;
             } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
-                if (Index) {
-                    Index--;
-                    ConsoleBackSpace();
-                    Context->CommandLine[Index] = STR_NULL;
+                if (CursorPos > 0) {
+                    MemoryMove(Context->CommandLine + CursorPos - 1, Context->CommandLine + CursorPos, (Length - CursorPos) + 1);
+                    CursorPos--;
+                    Length--;
+                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    DisplayedLength = Length;
                 }
+            } else if (KeyCode.VirtualKey == VK_DELETE) {
+                if (CursorPos < Length) {
+                    MemoryMove(Context->CommandLine + CursorPos, Context->CommandLine + CursorPos + 1, (Length - CursorPos));
+                    Length--;
+                    Context->CommandLine[Length] = STR_NULL;
+                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    DisplayedLength = Length;
+                }
+            } else if (KeyCode.VirtualKey == VK_LEFT) {
+                if (CursorPos > 0) {
+                    CursorPos--;
+                    UpdateInputCursor(StartX, StartY, CursorPos);
+                }
+            } else if (KeyCode.VirtualKey == VK_RIGHT) {
+                if (CursorPos < Length) {
+                    CursorPos++;
+                    UpdateInputCursor(StartX, StartY, CursorPos);
+                }
+            } else if (KeyCode.VirtualKey == VK_HOME) {
+                CursorPos = 0;
+                UpdateInputCursor(StartX, StartY, CursorPos);
+            } else if (KeyCode.VirtualKey == VK_END) {
+                CursorPos = Length;
+                UpdateInputCursor(StartX, StartY, CursorPos);
             } else if (KeyCode.VirtualKey == VK_ENTER) {
                 ConsolePrintChar(STR_NEWLINE);
-                Context->CommandLine[Index] = STR_NULL;
+                Context->CommandLine[Length] = STR_NULL;
                 DEBUG(
                     TEXT("[ReadCommandLine] ENTER pressed, final buffer: '%s', length=%d"), Context->CommandLine,
-                    Index);
+                    Length);
                 return;
             } else if (KeyCode.VirtualKey == VK_UP) {
                 if (HistoryPos > 0) {
                     HistoryPos--;
-                    while (Index) {
-                        Index--;
-                        ConsoleBackSpace();
-                    }
                     StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
-                    ConsolePrint(Context->CommandLine);
-                    Index = StringLength(Context->CommandLine);
+                    Length = StringLength(Context->CommandLine);
+                    CursorPos = Length;
+                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    DisplayedLength = Length;
                 }
             } else if (KeyCode.VirtualKey == VK_DOWN) {
                 if (HistoryPos < Context->History.Count) HistoryPos++;
-                while (Index) {
-                    Index--;
-                    ConsoleBackSpace();
-                }
                 if (HistoryPos == Context->History.Count) {
                     Context->CommandLine[0] = STR_NULL;
-                    Index = 0;
+                    Length = 0;
+                    CursorPos = 0;
                 } else {
                     StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
-                    ConsolePrint(Context->CommandLine);
-                    Index = StringLength(Context->CommandLine);
+                    Length = StringLength(Context->CommandLine);
+                    CursorPos = Length;
                 }
+                RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                DisplayedLength = Length;
             } else if (KeyCode.VirtualKey == VK_TAB) {
-                if (Index < BUFFER_SIZE - 1) {
+                if (Length < BUFFER_SIZE - 1) {
                     STR Token[MAX_PATH_NAME];
                     STR Full[MAX_PATH_NAME];
                     STR Completed[MAX_PATH_NAME];
                     STR Display[MAX_PATH_NAME];
                     STR Temp[MAX_PATH_NAME];
-                    U32 Start = Index;
+                    U32 Start = CursorPos;
 
-                    // Find start of current token
                     while (Start && Context->CommandLine[Start - 1] != STR_SPACE) {
                         Start--;
                     }
 
-                    // Extract token to complete
-                    StringCopyNum(Token, Context->CommandLine + Start, Index - Start);
-                    Token[Index - Start] = STR_NULL;
+                    StringCopyNum(Token, Context->CommandLine + Start, CursorPos - Start);
+                    Token[CursorPos - Start] = STR_NULL;
 
-                    // Apply completion rules:
                     if (Token[0] == PATH_SEP) {
-                        // Absolute path
                         StringCopy(Full, Token);
                     } else {
-                        // Relative path
                         QualifyFileName(Context, Token, Full);
                     }
 
                     if (PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
-                        // Determine display format
                         if (Token[0] == PATH_SEP) {
                             StringCopy(Display, Completed);
                         } else {
@@ -436,27 +511,39 @@ static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
                             }
                         }
 
-                        // Replace token
-                        while (Index > Start) {
-                            Index--;
-                            ConsoleBackSpace();
+                        {
+                            U32 TokenLength = CursorPos - Start;
+                            U32 DisplayLength = StringLength(Display);
+                            U32 TailLength = Length - CursorPos;
+                            U32 NewLength = Length - TokenLength + DisplayLength;
+
+                            if (NewLength < BUFFER_SIZE) {
+                                MemoryMove(
+                                    Context->CommandLine + Start + DisplayLength,
+                                    Context->CommandLine + CursorPos,
+                                    TailLength + 1);
+                                MemoryCopy(Context->CommandLine + Start, Display, DisplayLength);
+                                Length = NewLength;
+                                CursorPos = Start + DisplayLength;
+                                RefreshInputDisplay(
+                                    Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                                DisplayedLength = Length;
+                            }
                         }
-                        StringCopy(Context->CommandLine + Start, Display);
-                        ConsolePrint(Display);
-                        Index = Start + StringLength(Display);
-                        Context->CommandLine[Index] = STR_NULL;
                     }
                 }
             } else if (KeyCode.ASCIICode >= STR_SPACE) {
-                if (Index < BUFFER_SIZE - 1) {
-                    if (MaskCharacters) {
-                        ConsolePrintChar('*');
-                    } else {
-                        ConsolePrintChar(KeyCode.ASCIICode);
-                    }
-                    Context->CommandLine[Index++] = KeyCode.ASCIICode;
-                    Context->CommandLine[Index] = STR_NULL;
-                    // Test: no KernelLogText calls at all during character processing
+                if (Length < BUFFER_SIZE - 1) {
+                    MemoryMove(
+                        Context->CommandLine + CursorPos + 1,
+                        Context->CommandLine + CursorPos,
+                        (Length - CursorPos) + 1);
+                    Context->CommandLine[CursorPos] = KeyCode.ASCIICode;
+                    CursorPos++;
+                    Length++;
+                    Context->CommandLine[Length] = STR_NULL;
+                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    DisplayedLength = Length;
                 }
             }
         }
