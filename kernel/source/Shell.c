@@ -1135,7 +1135,8 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
     LPFILESYSTEM FileSystem;
 
     ConsolePrint(TEXT("General information\n"));
-    if (Kernel.FileSystemInfo.ActivePartitionName[0] != '\0') {
+
+    if (StringEmpty(Kernel.FileSystemInfo.ActivePartitionName) == FALSE) {
         ConsolePrint(TEXT("Active partition : %s\n"), Kernel.FileSystemInfo.ActivePartitionName);
     } else {
         ConsolePrint(TEXT("Active partition : <none>\n"));

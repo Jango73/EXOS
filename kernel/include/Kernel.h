@@ -165,11 +165,11 @@ typedef struct tag_KERNELDATA {
     LPLIST PCIDevice;
     LPLIST NetworkDevice;
     LPLIST FileSystem;
-    FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     LPLIST File;
     LPLIST TCPConnection;
     LPLIST Socket;
     SYSTEMFSFILESYSTEM SystemFS;
+    FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     LPTOML Configuration;
     STR LanguageCode[8];
     STR KeyboardCode[8];

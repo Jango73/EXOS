@@ -249,7 +249,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
-    Kernel.FileSystemInfo.ActivePartitionName[0] = '\0';
+    StringClear(Kernel.FileSystemInfo.ActivePartitionName);
 
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);

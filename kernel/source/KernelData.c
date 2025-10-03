@@ -147,7 +147,6 @@ KERNELDATA SECTION(".data") Kernel = {
     .PCIDevice = &PciDeviceList,
     .NetworkDevice = &NetworkDeviceList,
     .FileSystem = &FileSystemList,
-    .FileSystemInfo = {.ActivePartitionName = ""},
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,
     .Socket = &SocketList,
@@ -163,6 +162,7 @@ KERNELDATA SECTION(".data") Kernel = {
         },
         .Root = NULL
     },
+    .FileSystemInfo = {.ActivePartitionName = ""},
     .UserAccount = &UserAccountList,
     .UserSessions = NULL,
     .Configuration = NULL,
