@@ -100,7 +100,7 @@ define MCOPY_IF_NEEDED
                 else \
                         echo "Skipping $(2) (destination up-to-date)"; \
                 fi; \
-        fi; \
+        fi;
 endef
 
 .PHONY: all update install-mbr install-vbr-payload clean check_tools rebuild-image
@@ -130,7 +130,7 @@ rebuild-image:
 	$(MAKE) $(FINAL_IMG)
 
 update: $(KERNEL_CFG) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
-        $(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
+	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG),z:/exos.toml) \
                 MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \

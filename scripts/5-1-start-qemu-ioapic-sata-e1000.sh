@@ -23,13 +23,7 @@ qemu-system-i386 \
 -netdev user,id=net0 \
 -device e1000,netdev=net0 \
 -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
+-monitor telnet:127.0.0.1:4444,server,nowait \
 -serial file:"log/debug-com1.log" \
 -serial file:"log/kernel.log" \
--no-reboot \
--nographic &
-
-# -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
-# -d int 2>&1 | build/tools/cycle -o log/qemu.log -s 20000
-
-sleep 60
-killall qemu-system-i386
+-no-reboot &
