@@ -1537,6 +1537,7 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
             ProcessInfo.Header.Flags = 0;
             ProcessInfo.Flags = 0;
             StringCopy(ProcessInfo.CommandLine, QualifiedCommandLine);
+            StringCopy(ProcessInfo.WorkFolder, Context->CurrentFolder);
             ProcessInfo.StdOut = NULL;
             ProcessInfo.StdIn = NULL;
             ProcessInfo.StdErr = NULL;
@@ -1547,7 +1548,7 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
                 DEBUG(TEXT("Process started in background"));
             }
         } else {
-            U32 ExitCode = Spawn(QualifiedCommandLine);
+            U32 ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
             return (ExitCode != MAX_U32);
         }
     }
@@ -1747,7 +1748,7 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
         STR QualifiedCommandLine[MAX_PATH_NAME];
 
         if (QualifyCommandLine(Context, Argument, QualifiedCommandLine)) {
-            U32 ExitCode = Spawn(QualifiedCommandLine);
+            U32 ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
             DEBUG(TEXT("[ShellScriptCallFunction] exec returned: %u"), ExitCode);
             return ExitCode;
         }

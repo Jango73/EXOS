@@ -30,6 +30,7 @@
 #include "../include/Kernel.h"
 #include "../include/List.h"
 #include "../include/Log.h"
+#include "../include/String.h"
 #include "../include/StackTrace.h"
 
 /***************************************************************************/
@@ -52,6 +53,7 @@ PROCESS SECTION(".data") KernelProcess = {
     .HeapSize = 0,                  // Heap size
     .FileName = "EXOS",             // File name
     .CommandLine = "",              // Command line
+    .WorkFolder = "/",             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
 
@@ -369,6 +371,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     TASKINFO TaskInfo;
     FILEOPENINFO FileOpenInfo;
     LPPROCESS Process = NULL;
+    LPPROCESS ParentProcess = NULL;
     LPTASK Task = NULL;
     LPFILE File = NULL;
     PHYSICAL PageDirectory = NULL;
@@ -481,6 +484,21 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     } else {
         Process->CommandLine[0] = STR_NULL;  // Empty string
     }
+
+    // Initialize WorkFolder from PROCESSINFO or inherit from parent
+    if (!StringEmpty(Info->WorkFolder)) {
+        StringCopy(Process->WorkFolder, Info->WorkFolder);
+    } else {
+        ParentProcess = GetCurrentProcess();
+        SAFE_USE_VALID_ID(ParentProcess, ID_PROCESS) {
+            StringCopy(Process->WorkFolder, ParentProcess->WorkFolder);
+        } else {
+            Process->WorkFolder[0] = STR_NULL;
+        }
+    }
+
+    // Update returned PROCESSINFO with effective WorkFolder
+    StringCopy(Info->WorkFolder, Process->WorkFolder);
 
     // Copy process creation flags
     Process->Flags = Info->Flags;
@@ -663,15 +681,18 @@ Out:
  * @brief Create a new process using a full command line and wait for it to complete.
  *
  * @param CommandLine Full command line including executable name and arguments.
+ * @param WorkFolder Working directory to use, or empty/NULL to inherit from parent.
  * @return The process exit code on success, MAX_U32 on failure.
  */
-U32 Spawn(LPCSTR CommandLine) {
+U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     DEBUG(TEXT("[Spawn] Launching : %s"), CommandLine);
 
     PROCESSINFO ProcessInfo;
     WAITINFO WaitInfo;
     U32 Result;
+    LPPROCESS ParentProcess = NULL;
 
+    MemorySet(&ProcessInfo, 0, sizeof(PROCESSINFO));
     ProcessInfo.Header.Size = sizeof(PROCESSINFO);
     ProcessInfo.Header.Version = EXOS_ABI_VERSION;
     ProcessInfo.Header.Flags = 0;
@@ -682,6 +703,15 @@ U32 Spawn(LPCSTR CommandLine) {
     ProcessInfo.Process = NULL;
 
     StringCopy(ProcessInfo.CommandLine, CommandLine);
+
+    if ((WorkFolder != NULL) && !StringEmpty(WorkFolder)) {
+        StringCopy(ProcessInfo.WorkFolder, WorkFolder);
+    } else {
+        ParentProcess = GetCurrentProcess();
+        SAFE_USE_VALID_ID(ParentProcess, ID_PROCESS) {
+            StringCopy(ProcessInfo.WorkFolder, ParentProcess->WorkFolder);
+        }
+    }
 
     if (!CreateProcess(&ProcessInfo) || ProcessInfo.Process == NULL) {
         return MAX_U32;
