@@ -452,7 +452,7 @@ static U32 RAMDiskInitialize(void) {
 
     Partition = (LPBOOTPARTITION)(Disk->Base + MBR_PARTITION_START);
 
-    Partition->Disk = 0x80;
+    Partition->Disk = 0x00;
     Partition->StartCHS.Head = 0;
     Partition->StartCHS.Cylinder = 0;
     Partition->StartCHS.Sector = 0;
