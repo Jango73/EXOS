@@ -75,36 +75,36 @@ define CREATE_FAT32_IMAGE
 endef
 
 define MTOOLS_OPERATION
-        @rm -f $(MTOOLS_CONF)
-        @{ \
-                PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-                echo "drive z: file=\"$1\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
-                echo "$2 at offset $$PART_OFFSET"; \
-                $3 \
-                rm -f $(MTOOLS_CONF); \
-                echo "$4"; \
-        }
+	@rm -f $(MTOOLS_CONF)
+	@{ \
+		PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+		echo "drive z: file=\"$1\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
+		echo "$2 at offset $$PART_OFFSET"; \
+		$3 \
+		rm -f $(MTOOLS_CONF); \
+		echo "$4"; \
+	}
 endef
 
 define MCOPY_IF_NEEDED
-        if ! MTOOLSRC=$(MTOOLS_CONF) mdir "$(2)" >/dev/null 2>&1; then \
-                echo "Copying $(1) -> $(2) (destination missing)"; \
-                MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
-        else \
-                SRC_MTIME=$$(stat -c %Y "$(1)"); \
-                DST_INFO=$$(MTOOLSRC=$(MTOOLS_CONF) mdir -/ "$(2)" 2>/dev/null | awk 'NF>=7 {print $$6" "$$7; exit}'); \
-                DST_EPOCH=$$(date -d "$$DST_INFO" +%s 2>/dev/null || echo ""); \
-                if [ -z "$$DST_EPOCH" ] || [ $$SRC_MTIME -gt $$DST_EPOCH ]; then \
-                        if [ -z "$$DST_EPOCH" ]; then \
-                                echo "Copying $(1) -> $(2) (destination timestamp unavailable)"; \
-                        else \
-                                echo "Updating $(2) from $(1) (source newer)"; \
-                        fi; \
-                        MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
-                else \
-                        echo "Skipping $(2) (destination up-to-date)"; \
-                fi; \
-        fi;
+	if ! MTOOLSRC=$(MTOOLS_CONF) mdir "$(2)" >/dev/null 2>&1; then \
+		echo "Copying $(1) -> $(2) (destination missing)"; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+	else \
+		SRC_MTIME=$$(stat -c %Y "$(1)"); \
+		DST_INFO=$$(MTOOLSRC=$(MTOOLS_CONF) mdir -/ "$(2)" 2>/dev/null | awk 'NF>=7 {print $$6" "$$7; exit}'); \
+		DST_EPOCH=$$(date -d "$$DST_INFO" +%s 2>/dev/null || echo ""); \
+		if [ -z "$$DST_EPOCH" ] || [ $$SRC_MTIME -gt $$DST_EPOCH ]; then \
+			if [ -z "$$DST_EPOCH" ]; then \
+				echo "Copying $(1) -> $(2) (destination timestamp unavailable)"; \
+			else \
+				echo "Updating $(2) from $(1) (source newer)"; \
+			fi; \
+			MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+		else \
+			echo "Skipping $(2) (destination up-to-date)"; \
+		fi; \
+	fi;
 endef
 
 .PHONY: all update install-mbr install-vbr-payload clean check_tools rebuild-image
@@ -137,17 +137,17 @@ update: $(KERNEL_CFG) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(T
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG),z:/exos.toml) \
-                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
-                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
-                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
-                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
 		$(call MCOPY_IF_NEEDED,$(PORTAL_ELF),z:/EXOS/APPS/PORTAL) \
 		$(call MCOPY_IF_NEEDED,$(NETGET_ELF),z:/EXOS/APPS/NETGET) \
 		$(call MCOPY_IF_NEEDED,$(HELLO_ELF),z:/EXOS/APPS/HELLO)\
 		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
-                All files injected into image.)
+		All files injected into image.)
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	@echo "Installing custom MBR into image (assembled from $(MBR_SOURCE))..."
