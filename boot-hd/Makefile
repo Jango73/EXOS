@@ -82,6 +82,27 @@ define MTOOLS_OPERATION
         }
 endef
 
+define MCOPY_IF_NEEDED
+        if ! MTOOLSRC=$(MTOOLS_CONF) mdir "$(2)" >/dev/null 2>&1; then \
+                echo "Copying $(1) -> $(2) (destination missing)"; \
+                MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+        else \
+                SRC_MTIME=$$(stat -c %Y "$(1)"); \
+                DST_INFO=$$(MTOOLSRC=$(MTOOLS_CONF) mdir -/ "$(2)" 2>/dev/null | awk 'NF>=7 {print $$6" "$$7; exit}'); \
+                DST_EPOCH=$$(date -d "$$DST_INFO" +%s 2>/dev/null || echo ""); \
+                if [ -z "$$DST_EPOCH" ] || [ $$SRC_MTIME -gt $$DST_EPOCH ]; then \
+                        if [ -z "$$DST_EPOCH" ]; then \
+                                echo "Copying $(1) -> $(2) (destination timestamp unavailable)"; \
+                        else \
+                                echo "Updating $(2) from $(1) (source newer)"; \
+                        fi; \
+                        MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+                else \
+                        echo "Skipping $(2) (destination up-to-date)"; \
+                fi; \
+        fi; \
+endef
+
 .PHONY: all update install-mbr install-vbr-payload clean check_tools rebuild-image
 
 # Default: build tools, ensure images exist (create once), then update contents
@@ -109,20 +130,20 @@ rebuild-image:
 	$(MAKE) $(FINAL_IMG)
 
 update: $(KERNEL_CFG) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
-	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/EXOS.BIN; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.toml; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/EXOS/APPS/PORTAL; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(NETGET_ELF) z:/EXOS/APPS/NETGET; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/EXOS/APPS/HELLO;\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(TICTACTOE_ELF) z:/EXOS/APPS/tictactoe;\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(MASTER_ELF) z:/EXOS/APPS/TEST/MASTER;\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(SLAVE_ELF) z:/EXOS/APPS/TEST/SLAVE;,\
-	        All files injected into image.)
+        $(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
+		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
+		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG),z:/exos.toml) \
+                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
+                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
+                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
+                MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
+		$(call MCOPY_IF_NEEDED,$(PORTAL_ELF),z:/EXOS/APPS/PORTAL) \
+		$(call MCOPY_IF_NEEDED,$(NETGET_ELF),z:/EXOS/APPS/NETGET) \
+		$(call MCOPY_IF_NEEDED,$(HELLO_ELF),z:/EXOS/APPS/HELLO)\
+		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
+		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
+		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
+                All files injected into image.)
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	@echo "Installing custom MBR into image (assembled from $(MBR_SOURCE))..."
