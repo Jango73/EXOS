@@ -27,10 +27,9 @@
 
 /************************************************************************/
 
-// Type definitions
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
+#include "Base.h"
+
+/************************************************************************/
 
 // Multiboot magic number
 #define MULTIBOOT_BOOTLOADER_MAGIC 0x2BADB002
@@ -50,16 +49,6 @@ typedef unsigned int uint32_t;
 #define MULTIBOOT_INFO_VBE_INFO       0x00000800
 #define MULTIBOOT_INFO_FRAMEBUFFER_INFO 0x00001000
 
-// Multiboot memory map entry
-typedef struct {
-    uint32_t size;
-    uint32_t addr_low;
-    uint32_t addr_high;
-    uint32_t len_low;
-    uint32_t len_high;
-    uint32_t type;
-} __attribute__((packed)) multiboot_memory_map_t;
-
 // Multiboot memory map entry types
 #define MULTIBOOT_MEMORY_AVAILABLE    1
 #define MULTIBOOT_MEMORY_RESERVED     2
@@ -67,59 +56,62 @@ typedef struct {
 #define MULTIBOOT_MEMORY_NVS          4
 #define MULTIBOOT_MEMORY_BADRAM       5
 
-// Main Multiboot information structure
+// Multiboot memory map structure
 typedef struct {
-    uint32_t flags;           // +0   : Field presence flags
-    uint32_t mem_lower;       // +4   : Lower memory in KB (if flags[0])
-    uint32_t mem_upper;       // +8   : Upper memory in KB (if flags[0])
-    uint32_t boot_device;     // +12  : Boot device (if flags[1])
-    uint32_t cmdline;         // +16  : Command line (if flags[2])
-    uint32_t mods_count;      // +20  : Number of modules (if flags[3])
-    uint32_t mods_addr;       // +24  : Modules address (if flags[3])
-    uint32_t syms[4];         // +28-40 : Symbols (if flags[4] or flags[5])
-    uint32_t mmap_length;     // +44  : Memory map length (if flags[6])
-    uint32_t mmap_addr;       // +48  : Memory map address (if flags[6])
-    uint32_t drives_length;   // +52  : Drive info length (if flags[7])
-    uint32_t drives_addr;     // +56  : Drive info address (if flags[7])
-    uint32_t config_table;    // +60  : ROM config table (if flags[8])
-    uint32_t boot_loader_name;// +64  : Bootloader name (if flags[9])
-    uint32_t apm_table;       // +68  : APM table (if flags[10])
-
-    // VBE info (if flags[11])
-    uint32_t vbe_control_info; // +72
-    uint32_t vbe_mode_info;    // +76
-    uint16_t vbe_mode;         // +80
-    uint16_t vbe_interface_seg;// +82
-    uint16_t vbe_interface_off;// +84
-    uint16_t vbe_interface_len;// +86
-
-    // Framebuffer info (if flags[12])
-    uint32_t framebuffer_addr_low;  // +88
-    uint32_t framebuffer_addr_high; // +92
-    uint32_t framebuffer_pitch;     // +96
-    uint32_t framebuffer_width;     // +100
-    uint32_t framebuffer_height;    // +104
-    uint8_t  framebuffer_bpp;       // +108
-    uint8_t  framebuffer_type;      // +109
-    uint8_t  color_info[6];         // +110-115
-} __attribute__((packed)) multiboot_info_t;
+    U32 size;
+    U32 addr_low;
+    U32 addr_high;
+    U32 len_low;
+    U32 len_high;
+    U32 type;
+} __attribute__((packed)) multiboot_memory_map_t;
 
 // Multiboot module structure
 typedef struct {
-    uint32_t mod_start;     // Physical start address of module in RAM
-    uint32_t mod_end;       // Physical end address of module
-    uint32_t cmdline;       // Physical address of ASCII string (module arguments, null-terminated)
-    uint32_t reserved;      // Always 0 (padding for alignment)
+    U32 mod_start;     // Physical start address of module in RAM
+    U32 mod_end;       // Physical end address of module
+    U32 cmdline;       // Physical address of ASCII string (module arguments, null-terminated)
+    U32 reserved;      // Always 0 (padding for alignment)
 } __attribute__((packed)) multiboot_module_t;
 
-// E820 memory map entry structure (for conversion) - renamed to avoid conflict
+// Main Multiboot information structure
 typedef struct {
-    uint32_t BaseAddrLow;
-    uint32_t BaseAddrHigh;
-    uint32_t LengthLow;
-    uint32_t LengthHigh;
-    uint32_t Type;
-} __attribute__((packed)) MULTIBOOT_E820ENTRY;
+    U32 flags;           // +0   : Field presence flags
+    U32 mem_lower;       // +4   : Lower memory in KB (if flags[0])
+    U32 mem_upper;       // +8   : Upper memory in KB (if flags[0])
+    U32 boot_device;     // +12  : Boot device (if flags[1])
+    U32 cmdline;         // +16  : Command line (if flags[2])
+    U32 mods_count;      // +20  : Number of modules (if flags[3])
+    U32 mods_addr;       // +24  : Modules address (if flags[3])
+    U32 syms[4];         // +28-40 : Symbols (if flags[4] or flags[5])
+    U32 mmap_length;     // +44  : Memory map length (if flags[6])
+    U32 mmap_addr;       // +48  : Memory map address (if flags[6])
+    U32 drives_length;   // +52  : Drive info length (if flags[7])
+    U32 drives_addr;     // +56  : Drive info address (if flags[7])
+    U32 config_table;    // +60  : ROM config table (if flags[8])
+    U32 boot_loader_name;// +64  : Bootloader name (if flags[9])
+    U32 apm_table;       // +68  : APM table (if flags[10])
+
+    // VBE info (if flags[11])
+    U32 vbe_control_info; // +72
+    U32 vbe_mode_info;    // +76
+    U16 vbe_mode;         // +80
+    U16 vbe_interface_seg;// +82
+    U16 vbe_interface_off;// +84
+    U16 vbe_interface_len;// +86
+
+    // Framebuffer info (if flags[12])
+    U32 framebuffer_addr_low;  // +88
+    U32 framebuffer_addr_high; // +92
+    U32 framebuffer_pitch;     // +96
+    U32 framebuffer_width;     // +100
+    U32 framebuffer_height;    // +104
+    U8  framebuffer_bpp;       // +108
+    U8  framebuffer_type;      // +109
+    U8  color_info[6];         // +110-115
+} __attribute__((packed)) multiboot_info_t;
+
+/************************************************************************/
 
 // E820 memory types
 #define E820_AVAILABLE    1
@@ -128,6 +120,15 @@ typedef struct {
 #define E820_NVS          4
 #define E820_UNUSABLE     5
 
+// E820 memory map entry structure (for conversion) - renamed to avoid conflict
+typedef struct {
+    U32 BaseAddrLow;
+    U32 BaseAddrHigh;
+    U32 LengthLow;
+    U32 LengthHigh;
+    U32 Type;
+} __attribute__((packed)) MULTIBOOT_E820ENTRY;
+
 /************************************************************************/
 
-#endif // MULTIBOOT_H_INCLUDED
+#endif  // MULTIBOOT_H_INCLUDED
