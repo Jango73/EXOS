@@ -55,19 +55,23 @@ MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 
 define CREATE_FAT32_IMAGE
-        @echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
-        dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB)
-        parted -s $1 mklabel msdos
-        parted -s $1 mkpart primary fat32 2048s 100%
-        parted -s $1 set 1 boot on
-        @{ \
-                PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-                if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
-                        echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
-                        exit 1; \
-                fi; \
-                MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
-        }
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB); \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary fat32 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
+		}; \
+	fi
 endef
 
 define MTOOLS_OPERATION
