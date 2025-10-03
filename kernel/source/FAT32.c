@@ -221,12 +221,7 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     //-------------------------------------
     // Update global information and register the file system
 
-    if ((Partition->Disk & 0x80) != 0) {
-        FileSystemSetActivePartition((LPFILESYSTEM)FileSystem);
-    }
-
     ListAddItem(Kernel.FileSystem, FileSystem);
-
 
     return TRUE;
 }

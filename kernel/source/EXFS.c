@@ -238,10 +238,6 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     //-------------------------------------
     // Update global information and register the file system
 
-    if ((Partition->Disk & 0x80) != 0) {
-        FileSystemSetActivePartition((LPFILESYSTEM)FileSystem);
-    }
-
     ListAddItem(Kernel.FileSystem, FileSystem);
 
     return TRUE;

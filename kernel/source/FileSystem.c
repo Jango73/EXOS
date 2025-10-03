@@ -190,6 +190,10 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
     for (Index = 0; Index < MBR_PARTITION_COUNT; Index++) {
         if (Partition[Index].LBA != 0) {
+            BOOL PartitionMounted = FALSE;
+            BOOL PartitionIsActive = ((Partition[Index].Disk & 0x80) != 0);
+            LPFILESYSTEM PreviousLast = (LPFILESYSTEM)Kernel.FileSystem->Last;
+
             switch (Partition[Index].Type) {
                 case FSID_NONE:
                     break;
@@ -201,24 +205,35 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
                     DEBUG(TEXT("[MountDiskPartitions] Mounting FAT16 partition"));
-                    MountPartition_FAT16(Disk, Partition + Index, Base, Index);
+                    PartitionMounted =
+                        MountPartition_FAT16(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
                     DEBUG(TEXT("[MountDiskPartitions] Mounting FAT32 partition"));
-                    MountPartition_FAT32(Disk, Partition + Index, Base, Index);
+                    PartitionMounted =
+                        MountPartition_FAT32(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_EXOS: {
                     DEBUG(TEXT("[MountDiskPartitions] Mounting EXFS partition"));
-                    MountPartition_EXFS(Disk, Partition + Index, Base, Index);
+                    PartitionMounted =
+                        MountPartition_EXFS(Disk, Partition + Index, Base, Index);
                 } break;
 
                 default: {
                     WARNING(TEXT("[MountDiskPartitions] Partition type %X not implemented\n"),
                         (U32)Partition[Index].Type);
                 } break;
+            }
+
+            if (PartitionMounted && PartitionIsActive) {
+                LPFILESYSTEM MountedFileSystem = (LPFILESYSTEM)Kernel.FileSystem->Last;
+
+                if (MountedFileSystem != NULL && MountedFileSystem != PreviousLast) {
+                    FileSystemSetActivePartition(MountedFileSystem);
+                }
             }
         }
     }
