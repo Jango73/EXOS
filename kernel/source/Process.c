@@ -53,7 +53,7 @@ PROCESS SECTION(".data") KernelProcess = {
     .HeapSize = 0,                  // Heap size
     .FileName = "EXOS",             // File name
     .CommandLine = "",              // Command line
-    .WorkFolder = "/",             // Working directory
+    .WorkFolder = ROOT,             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
 
@@ -479,10 +479,10 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     StringCopy(Process->FileName, FileName);
 
     // Initialize CommandLine (could be empty if not provided)
-    if (Info->CommandLine[0] != STR_NULL) {
+    if (StringEmpty(Info->CommandLine) == FALSE) {
         StringCopy(Process->CommandLine, Info->CommandLine);
     } else {
-        Process->CommandLine[0] = STR_NULL;  // Empty string
+        StringClear(Process->CommandLine);
     }
 
     // Initialize WorkFolder from PROCESSINFO or inherit from parent
@@ -490,10 +490,11 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         StringCopy(Process->WorkFolder, Info->WorkFolder);
     } else {
         ParentProcess = GetCurrentProcess();
+
         SAFE_USE_VALID_ID(ParentProcess, ID_PROCESS) {
             StringCopy(Process->WorkFolder, ParentProcess->WorkFolder);
         } else {
-            Process->WorkFolder[0] = STR_NULL;
+            StringCopy(Process->WorkFolder, ROOT);
         }
     }
 
@@ -704,7 +705,7 @@ U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
 
     StringCopy(ProcessInfo.CommandLine, CommandLine);
 
-    if ((WorkFolder != NULL) && !StringEmpty(WorkFolder)) {
+    if (StringEmpty(WorkFolder) == FALSE) {
         StringCopy(ProcessInfo.WorkFolder, WorkFolder);
     } else {
         ParentProcess = GetCurrentProcess();

@@ -138,6 +138,14 @@ U32 StringLength(LPCSTR Src) {
 
 /***************************************************************************/
 
+void StringClear(LPSTR Str) {
+    SAFE_USE(Str) {
+        Str[0] = STR_NULL;
+    }
+}
+
+/***************************************************************************/
+
 /**
  * @brief Copies a null-terminated string from source to destination.
  *
