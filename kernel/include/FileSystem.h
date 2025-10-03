@@ -127,6 +127,13 @@ typedef struct tag_FILESYSTEM {
 } FILESYSTEM, *LPFILESYSTEM;
 
 /***************************************************************************/
+// Global file system state shared across the kernel
+
+typedef struct tag_FILESYSTEM_GLOBAL_INFO {
+    STR ActivePartitionName[MAX_FS_LOGICAL_NAME];
+} FILESYSTEM_GLOBAL_INFO, *LPFILESYSTEM_GLOBAL_INFO;
+
+/***************************************************************************/
 // The structure used by the folder commands
 // and the file open command
 
@@ -208,6 +215,7 @@ BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
 BOOL MountSystemFS(void);
 BOOL MountUserNodes(void);
 void InitializeFileSystems(void);
+void FileSystemSetActivePartition(LPFILESYSTEM FileSystem);
 
 /***************************************************************************/
 

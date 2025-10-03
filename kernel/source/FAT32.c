@@ -219,7 +219,11 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     FileSystem->DataStart = FileSystem->FATStart + (FileSystem->Master.NumFATs * FileSystem->Master.NumSectorsPerFAT);
 
     //-------------------------------------
-    // Register the file system
+    // Update global information and register the file system
+
+    if ((Partition->Disk & 0x80) != 0) {
+        FileSystemSetActivePartition((LPFILESYSTEM)FileSystem);
+    }
 
     ListAddItem(Kernel.FileSystem, FileSystem);
 

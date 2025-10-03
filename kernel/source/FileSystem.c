@@ -97,6 +97,23 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
 /***************************************************************************/
 
 /**
+ * @brief Stores the logical name of the active partition.
+ *
+ * Updates the kernel-wide file system information so that higher level
+ * components can retrieve the currently active partition name.
+ *
+ * @param FileSystem Mounted file system flagged as active in the MBR.
+ */
+void FileSystemSetActivePartition(LPFILESYSTEM FileSystem) {
+    SAFE_USE(FileSystem) {
+        StringCopy(Kernel.FileSystemInfo.ActivePartitionName, FileSystem->Name);
+        DEBUG(TEXT("[FileSystemSetActivePartition] Active partition name set to %s"), FileSystem->Name);
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Mounts extended partitions from a disk.
  *
  * Reads and processes extended partition table entries to discover
@@ -216,6 +233,8 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
+
+    Kernel.FileSystemInfo.ActivePartitionName[0] = '\0';
 
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);

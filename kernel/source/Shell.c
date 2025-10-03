@@ -1134,6 +1134,16 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
     LPLISTNODE Node;
     LPFILESYSTEM FileSystem;
 
+    ConsolePrint(TEXT("General information\n"));
+    if (Kernel.FileSystemInfo.ActivePartitionName[0] != '\0') {
+        ConsolePrint(TEXT("Active partition : %s\n"), Kernel.FileSystemInfo.ActivePartitionName);
+    } else {
+        ConsolePrint(TEXT("Active partition : <none>\n"));
+    }
+
+    ConsolePrint(TEXT("\n"));
+    ConsolePrint(TEXT("Mounted file systems\n"));
+
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
 

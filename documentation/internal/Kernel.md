@@ -10,6 +10,15 @@ Be aware that it generates A LOT of COM2 output, the scheduler is called every 1
 
 To be completed.
 
+### File system globals
+
+The kernel tracks shared file system information in `Kernel.FileSystemInfo`.
+It currently stores the logical name of the partition flagged as active while
+MBR partitions are mounted. Disk drivers report an active partition through
+`FileSystemSetActivePartition`, which copies the mounted file system name into
+`Kernel.FileSystemInfo.ActivePartitionName` for later use (for example, in the
+shell).
+
 ## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
 Everything in this sequence runs in 16-bit real mode on i386+ processors.

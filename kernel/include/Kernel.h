@@ -29,6 +29,7 @@
 
 #include "Base.h"
 #include "Database.h"
+#include "FileSystem.h"
 #include "Heap.h"
 #include "I386.h"
 #include "ID.h"
@@ -164,6 +165,7 @@ typedef struct tag_KERNELDATA {
     LPLIST PCIDevice;
     LPLIST NetworkDevice;
     LPLIST FileSystem;
+    FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     LPLIST File;
     LPLIST TCPConnection;
     LPLIST Socket;
