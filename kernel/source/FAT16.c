@@ -419,7 +419,7 @@ static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
         return FALSE;
     }
 
-    while (1) {
+    FOREVER {
         //-------------------------------------
         // Parse the next component to look for
 
@@ -427,7 +427,7 @@ static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
 
         CompIndex = 0;
 
-        while (1) {
+        FOREVER {
             if (Path[PathIndex] == STR_SLASH) {
                 Component[CompIndex] = STR_NULL;
                 PathIndex++;
@@ -443,7 +443,7 @@ static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
         //-------------------------------------
         // Loop through all directory entries
 
-        while (1) {
+        FOREVER {
             DirEntry = (LPFATDIRENTRY)(FileSystem->IOBuffer + FileLoc->Offset);
 
             if ((DirEntry->Cluster) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 && (DirEntry->Name[0] != 0xE5)) {
@@ -547,7 +547,7 @@ static U32 OpenNext(LPFATFILE File) {
 
     if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_ERROR_IO;
 
-    while (1) {
+    FOREVER {
         File->Location.Offset += sizeof(FATDIRENTRY);
 
         if (File->Location.Offset >= FileSystem->BytesPerCluster) {
@@ -656,7 +656,7 @@ static U32 ReadFile(LPFATFILE File) {
         }
     }
 
-    while (1) {
+    FOREVER {
         //-------------------------------------
         // Read the current data cluster
 
@@ -726,7 +726,7 @@ static CLUSTER ChainNewCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster) {
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    while (1) {
+    FOREVER {
         Control.SectorLow = FileSystem->FATStart + CurrentSector;
         Control.SectorHigh = 0;
         Control.NumSectors = 1;

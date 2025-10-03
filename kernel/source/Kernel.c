@@ -182,7 +182,7 @@ U32 ClockTestTask(LPVOID Param) {
     U32 Time = 0;
     U32 OldTime = 0;
 
-    while (1) {
+    FOREVER {
         Time = DoSystemCall(SYSCALL_GetSystemTime, 0);
 
         if (Time - OldTime >= 1000) {
@@ -649,7 +649,7 @@ static U32 MonitorKernel(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
 
-    while (TRUE) {
+    FOREVER {
         DeleteDeadTasksAndProcesses();
         DeleteUnreferencedObjects();
         CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
@@ -669,7 +669,7 @@ static U32 MonitorKernel(LPVOID Parameter) {
 /************************************************************************/
 
 void KernelIdle(void) {
-    while (TRUE) {
+    FOREVER {
         Sleep(4000);
     }
 }

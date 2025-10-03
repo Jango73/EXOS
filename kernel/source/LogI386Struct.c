@@ -73,7 +73,7 @@ void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length) {
     BOOL Space = FALSE;
     LineBuffer[0] = 0;
 
-    while (TRUE) {
+    FOREVER {
 
         StringPrintFormat(TempBuffer, TEXT("%02x%s"), (U32)(*Pointer++), Space ? " " : "");
         StringConcat(LineBuffer, TempBuffer);

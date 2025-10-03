@@ -365,7 +365,7 @@ U32 NetworkManagerTask(LPVOID param) {
 
     U32 tickCount = 0;
 
-    while (1) {
+    FOREVER {
         // Poll all network devices for received packets
         SAFE_USE(Kernel.NetworkDevice) {
             for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {

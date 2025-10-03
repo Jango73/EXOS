@@ -108,7 +108,7 @@ void MemoryEditor(U32 Base) {
     ClearConsole();
     PrintMemoryPage(Base, 24 * 16);
 
-    while (1) {
+    FOREVER {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 

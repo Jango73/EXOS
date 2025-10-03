@@ -1173,7 +1173,7 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
         Base = StartBase;
     }
 
-    while (1) {
+    FOREVER {
         if (IsRegionFree(Base, Size) == TRUE) return Base;
         Base += PAGE_SIZE;
     }

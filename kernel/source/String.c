@@ -246,7 +246,7 @@ void StringConcat(LPSTR Dst, LPCSTR Src) {
 I32 StringCompare(LPCSTR Text1, LPCSTR Text2) {
     REGISTER I8 Result;
 
-    while (1) {
+    FOREVER {
         Result = *Text1 - *Text2;                      // Compare current characters
         if (Result != 0 || *Text1 == STR_NULL) break;  // Stop if different or end reached
         Text1++;                                       // Move to next character
@@ -271,7 +271,7 @@ I32 StringCompare(LPCSTR Text1, LPCSTR Text2) {
 I32 StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
     REGISTER I8 Result;
 
-    while (1) {
+    FOREVER {
         Result = CharToLower(*Text1) - CharToLower(*Text2);  // Compare lowercase versions
         if (Result != 0 || *Text1 == STR_NULL) break;        // Stop if different or end reached
         Text1++;                                             // Move to next character
@@ -527,7 +527,7 @@ I32 StringToI32(LPCSTR Text) {
     Index = StringLength(Text) - 1;  // Start from rightmost digit
 
     // Process digits from right to left
-    while (1) {
+    FOREVER {
         Data = Text[Index];
         if (IsNumeric(Data) == 0) return 0;  // Invalid character found
 
@@ -568,7 +568,7 @@ U32 StringToU32(LPCSTR Text) {
     Index = StringLength(Text) - 1;  // Start from rightmost digit
 
     // Process decimal digits from right to left
-    while (1) {
+    FOREVER {
         Data = Text[Index];
         if (IsNumeric(Data) == 0) break;  // Stop at non-numeric character
 

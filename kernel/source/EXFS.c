@@ -362,7 +362,7 @@ static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC F
         //-------------------------------------
         // Loop through all directory entries
 
-        while (1) {
+        FOREVER {
             FileRec = (LPEXFSFILEREC)(FileSystem->IOBuffer + FileLoc->FileOffset);
 
             if (FileRec->ClusterTable == EXFS_CLUSTER_END) {
@@ -766,7 +766,7 @@ static U32 OpenNext(LPEXFSFILE File) {
 
     if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return FALSE;
 
-    while (1) {
+    FOREVER {
         File->Location.FileOffset += sizeof(EXFSFILEREC);
 
         if (File->Location.FileOffset >= FileSystem->BytesPerCluster) {

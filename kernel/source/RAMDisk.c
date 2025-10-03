@@ -163,7 +163,7 @@ static U32 CreateFATDirEntry(LINEAR Buffer, LPCSTR Name, U32 Attributes,
     Index = 0;
     Ordinal = 1;
 
-    while (1) {
+    FOREVER {
         LFNEntry--;
 
         LFNEntry->Ordinal = Ordinal++;

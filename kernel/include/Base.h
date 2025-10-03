@@ -173,9 +173,10 @@ typedef U32 BOOL;
 // This is called before dereferencing a user-provided pointer to a parameter structure
 #define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
 
+// Do an infinite loop
+#define FOREVER while(1)
+
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
-// Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
-// clobber.
 #define DO_THE_SLEEPING_BEAUTY \
     do {                       \
         __asm__ __volatile__(  \

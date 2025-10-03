@@ -805,7 +805,7 @@ BOOL MountUserNodes(void) {
     if (Configuration) {
         U32 ConfigIndex = 0;
 
-        while (1) {
+        FOREVER {
             STR Key[0x100];
             STR IndexText[0x10];
             LPCSTR FsName;

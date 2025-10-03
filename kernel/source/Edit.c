@@ -693,7 +693,7 @@ static I32 Loop(LPEDITCONTEXT Context) {
 
     Render(Context->Current);
 
-    while (1) {
+    FOREVER {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 

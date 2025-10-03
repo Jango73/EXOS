@@ -278,7 +278,7 @@ static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
         Context->CommandChar++;
     }
 
-    while (1) {
+    FOREVER {
         if (Context->CommandLine[Context->CommandChar] == STR_NULL) {
             break;
         } else if (Context->CommandLine[Context->CommandChar] <= STR_SPACE) {
@@ -344,7 +344,7 @@ static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
 
     Context->CommandLine[0] = STR_NULL;
 
-    while (1) {
+    FOREVER {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 
@@ -1585,7 +1585,7 @@ static void ExecuteStartupCommands(void) {
 
     InitShellContext(&Context);
 
-    while (TRUE) {
+    FOREVER {
         StringPrintFormat(Key, TEXT("Run.%u.Command"), ConfigIndex);
         CommandLine = TomlGet(Configuration, Key);
         if (CommandLine == NULL) break;

@@ -64,10 +64,10 @@ LPLIST DecomposePath(LPCSTR Path) {
         return NULL;
     }
 
-    while (1) {
+    FOREVER {
         ComponentIndex = 0;
 
-        while (1) {
+        FOREVER {
             if (Path[PathIndex] == STR_SLASH) {
                 Component[ComponentIndex] = STR_NULL;
                 PathIndex++;

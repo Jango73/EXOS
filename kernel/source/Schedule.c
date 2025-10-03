@@ -635,7 +635,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
     StartTime = GetSystemTime();
     U32 LastDebugTime = StartTime;
 
-    while (TRUE) {
+    FOREVER {
         U32 SignaledCount = 0;
 
         // Count signaled objects

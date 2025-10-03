@@ -387,7 +387,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
     CurrentSector = 0;
 
 
-    while (1) {
+    FOREVER {
         Control.SectorLow = FileSystem->FATStart + CurrentSector;
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
@@ -479,7 +479,7 @@ static BOOL FindFreeFATEntry(LPFAT32FILESYSTEM FileSystem, U32* Sector,
     NumEntriesPerSector = SECTOR_SIZE / sizeof(U32);
     CurrentSector = 0;
 
-    while (1) {
+    FOREVER {
         Control.ID = ID_IOCONTROL;
         Control.Disk = FileSystem->Disk;
         Control.SectorLow = FileSystem->FATStart + CurrentSector;
@@ -598,7 +598,7 @@ static BOOL SetDirEntry(LPVOID Buffer, LPSTR Name, CLUSTER Cluster, U32 Attribut
     Index = 0;
     Ordinal = 1;
 
-    while (1) {
+    FOREVER {
         LFNEntry--;
 
         LFNEntry->Ordinal = Ordinal++;
@@ -728,7 +728,7 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, 
 
     CurrentCluster = FolderCluster;
 
-    while (1) {
+    FOREVER {
         if (!ReadCluster(FileSystem, CurrentCluster, FileSystem->IOBuffer)) {
             return FALSE;
         }
@@ -737,7 +737,7 @@ static BOOL CreateDirEntry(LPFAT32FILESYSTEM FileSystem, CLUSTER FolderCluster, 
         FreeEntries = 0;
         CurrentOffset = 0;
 
-        while (1) {
+        FOREVER {
             DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + CurrentOffset);
 
             if (DirEntry->Name[0] == 0 && DirEntry->Name[1] == 0) {
@@ -816,7 +816,7 @@ static CLUSTER ChainNewCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    while (1) {
+    FOREVER {
         Control.SectorLow = FileSystem->FATStart + CurrentSector;
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
@@ -911,7 +911,7 @@ static void DecodeFileName(LPFATDIRENTRY_EXT DirEntry, LPSTR Name) {
 
     LFNEntry = (LPFATDIRENTRY_LFN)DirEntry;
 
-    while (1) {
+    FOREVER {
         LFNEntry--;
         if (LFNEntry->Checksum != Checksum) break;
 
@@ -963,7 +963,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
         return FALSE;
     }
 
-    while (1) {
+    FOREVER {
         //-------------------------------------
         // Parse the next component to look for
 
@@ -971,7 +971,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
 
         CompIndex = 0;
 
-        while (1) {
+        FOREVER {
             if (Path[PathIndex] == STR_SLASH) {
                 Component[CompIndex] = STR_NULL;
                 PathIndex++;
@@ -994,7 +994,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
         //-------------------------------------
         // Loop through all directory entries
 
-        while (1) {
+        FOREVER {
             DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc->Offset);
 
             if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
@@ -1151,7 +1151,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
         return DF_ERROR_IO;
     }
 
-    while (1) {
+    FOREVER {
         //-------------------------------------
         // Parse the next component to look for
 
@@ -1159,7 +1159,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
 
         CompIndex = 0;
 
-        while (1) {
+        FOREVER {
             if (File->Name[PathIndex] == STR_SLASH) {
                 Component[CompIndex] = STR_NULL;
                 PathIndex++;
@@ -1178,7 +1178,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
         //-------------------------------------
         // Loop through all directory entries
 
-        while (1) {
+        FOREVER {
             DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc.Offset);
 
             if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
@@ -1251,7 +1251,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                         }
 
                         // Search for the newly created directory
-                        while (1) {
+                        FOREVER {
                             DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + FileLoc.Offset);
 
                             if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
@@ -1433,7 +1433,7 @@ static U32 OpenNext(LPFATFILE File) {
 
     if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_ERROR_IO;
 
-    while (1) {
+    FOREVER {
         File->Location.Offset += sizeof(FATDIRENTRY_EXT);
 
         if (File->Location.Offset >= FileSystem->BytesPerCluster) {
@@ -1547,7 +1547,7 @@ static U32 ReadFile(LPFATFILE File) {
         }
     }
 
-    while (1) {
+    FOREVER {
         //-------------------------------------
         // Read the current data cluster
 

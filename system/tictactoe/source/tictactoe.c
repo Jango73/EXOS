@@ -253,7 +253,7 @@ int PlayGame(void) {
     gameState.cursorX = 1;
     gameState.cursorY = 1;
 
-    while (1) {
+    FOREVER {
         DisplayFullScreen();
 
         int key = getkey();
@@ -327,7 +327,7 @@ int exosmain(int argc, char** argv) {
 
     ClearScreen();
 
-    while (1) {
+    FOREVER {
         if (!PlayGame()) {
             ClearScreen();
             GotoCursor(0, 0);

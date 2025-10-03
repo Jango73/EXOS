@@ -152,7 +152,7 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                         U32 StartWaitTime = GetSystemTime();
                         U32 LastDebugTime = StartWaitTime;
 
-                        while (1) {
+                        FOREVER {
                             //-------------------------------------
                             // Check if a process deleted this mutex
 
