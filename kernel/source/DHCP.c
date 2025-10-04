@@ -44,7 +44,7 @@ static LPDEVICE g_DHCPDevice = NULL;
 /************************************************************************/
 
 LPDHCP_CONTEXT DHCP_GetContext(LPDEVICE Device) {
-    return (LPDHCP_CONTEXT)GetDeviceContext(Device, ID_DHCP);
+    return (LPDHCP_CONTEXT)GetDeviceContext(Device, KOID_DHCP);
 }
 
 /************************************************************************/
@@ -410,7 +410,7 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                         SAFE_USE(Kernel.NetworkDevice) {
                             for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
                                 LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                                SAFE_USE_VALID_ID(NetCtx, ID_NETWORKDEVICE) {
+                                SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
                                     if ((LPDEVICE)NetCtx->Device == g_DHCPDevice) {
                                         NetCtx->LocalIPv4_Be = Context->OfferedIP_Be;
                                         U32 AssignedHost = Ntohl(Context->OfferedIP_Be);
@@ -475,8 +475,8 @@ void DHCP_Initialize(LPDEVICE Device) {
     GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &Info;
 
-    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
                 MemoryCopy(Context->LocalMacAddress, Info.MAC, 6);
                 DEBUG(TEXT("[DHCP_Initialize] MAC: %x:%x:%x:%x:%x:%x"),
@@ -490,7 +490,7 @@ void DHCP_Initialize(LPDEVICE Device) {
         }
     }
 
-    SetDeviceContext(Device, ID_DHCP, (LPVOID)Context);
+    SetDeviceContext(Device, KOID_DHCP, (LPVOID)Context);
 
     // Store global device reference
     g_DHCPDevice = Device;
@@ -518,7 +518,7 @@ void DHCP_Destroy(LPDEVICE Device) {
     SAFE_USE(Context) {
         UDP_UnregisterPortHandler(Device, DHCP_CLIENT_PORT);
         KernelHeapFree(Context);
-        SetDeviceContext(Device, ID_DHCP, NULL);
+        SetDeviceContext(Device, KOID_DHCP, NULL);
         DEBUG(TEXT("[DHCP_Destroy] DHCP context destroyed"));
     }
 }

@@ -49,7 +49,7 @@
 U32 SATADiskCommands(U32, U32);
 
 DRIVER SATADiskDriver = {
-    .ID = ID_DRIVER,
+    .ID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -114,7 +114,7 @@ static const DRIVER_MATCH AHCIMatches[] = {
 };
 
 PCI_DRIVER AHCIPCIDriver = {
-    .ID = ID_DRIVER,
+    .ID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -141,7 +141,7 @@ static LPAHCI_PORT NewAHCIPort(void) {
 
     MemorySet(This, 0, sizeof(AHCI_PORT));
 
-    This->Header.ID = ID_DISK;
+    This->Header.ID = KOID_DISK;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -633,7 +633,7 @@ static U32 Read(LPIOCONTROL Control) {
     if (AHCIPort == NULL) return DF_ERROR_BADPARAM;
 
     // Check validity of parameters
-    if (AHCIPort->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (AHCIPort->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
 
     for (Current = 0; Current < Control->NumSectors; Current++) {
         // Let's see if we already have this sector
@@ -684,7 +684,7 @@ static U32 Write(LPIOCONTROL Control) {
     if (AHCIPort == NULL) return DF_ERROR_BADPARAM;
 
     // Check validity of parameters
-    if (AHCIPort->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (AHCIPort->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
 
     // Check access permissions
     if (AHCIPort->Access & DISK_ACCESS_READONLY) return DF_ERROR_NOPERM;
@@ -732,7 +732,7 @@ static U32 GetInfo(LPDISKINFO Info) {
     if (AHCIPort == NULL) return DF_ERROR_BADPARAM;
 
     // Check validity of parameters
-    if (AHCIPort->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (AHCIPort->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
 
     Info->Type = DRIVER_TYPE_HARDDISK;
     Info->Removable = 0;
@@ -754,7 +754,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
     if (AHCIPort == NULL) return DF_ERROR_BADPARAM;
 
     // Check validity of parameters
-    if (AHCIPort->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (AHCIPort->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
 
     AHCIPort->Access = Access->Access;
 

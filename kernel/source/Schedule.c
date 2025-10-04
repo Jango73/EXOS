@@ -187,7 +187,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     FreezeScheduler();
 
     // Check validity of parameters
-    SAFE_USE_VALID_ID(NewTask, ID_TASK) {
+    SAFE_USE_VALID_ID(NewTask, KOID_TASK) {
         // Check if task queue is full
         if (TaskList.NumTasks >= NUM_TASKS) {
             ERROR(TEXT("[AddTaskToQueue] Cannot add %x, too many tasks"), NewTask);
@@ -375,7 +375,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
         return;
     }
 
-    // SAFE_USE_VALID_ID_2(CurrentTask, NextTask, ID_TASK) {
+    // SAFE_USE_VALID_ID_2(CurrentTask, NextTask, KOID_TASK) {
         // __asm__ __volatile__("xchg %%bx,%%bx" : : );     // A breakpoint
         SwitchToNextTask_2(CurrentTask, NextTask);
     // }

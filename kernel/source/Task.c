@@ -37,7 +37,7 @@
  * @brief Allocates and initializes a new message structure.
  *
  * Creates a new message object with default values and reference count of 1.
- * The message ID is set to ID_MESSAGE for validation purposes.
+ * The message ID is set to KOID_MESSAGE for validation purposes.
  *
  * @return Pointer to newly allocated message, or NULL on allocation failure
  */
@@ -50,7 +50,7 @@ static LPMESSAGE NewMessage(void) {
 
     MemorySet(This, 0, sizeof(MESSAGE));
 
-    This->ID = ID_MESSAGE;
+    This->ID = KOID_MESSAGE;
     This->References = 1;
 
     return This;
@@ -62,13 +62,13 @@ static LPMESSAGE NewMessage(void) {
  * @brief Deallocates a message structure.
  *
  * Clears the message ID and frees the memory allocated for the message.
- * The ID is set to ID_NONE to prevent use-after-free bugs.
+ * The ID is set to KOID_NONE to prevent use-after-free bugs.
  *
  * @param This Pointer to message to delete, ignored if NULL
  */
 void DeleteMessage(LPMESSAGE This) {
     SAFE_USE(This) {
-        This->ID = ID_NONE;
+        This->ID = KOID_NONE;
 
         KernelHeapFree(This);
     }
@@ -92,7 +92,7 @@ void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
  * @brief Allocates and initializes a new task structure.
  *
  * Creates a new task object with default values, initializes mutexes,
- * and sets up the message queue. The task ID is set to ID_TASK for validation.
+ * and sets up the message queue. The task ID is set to KOID_TASK for validation.
  * Memory is validated before use to detect corruption.
  *
  * @return Pointer to newly allocated task, or NULL on allocation failure
@@ -104,7 +104,7 @@ LPTASK NewTask(void) {
 
     DEBUG(TEXT("[NewTask] Enter"));
 
-    This = (LPTASK)CreateKernelObject(sizeof(TASK), ID_TASK);
+    This = (LPTASK)CreateKernelObject(sizeof(TASK), KOID_TASK);
 
     if (This == NULL) {
         ERROR(TEXT("[NewTask] Could not allocate memory for task"));
@@ -173,7 +173,7 @@ void DeleteTask(LPTASK This) {
     //-------------------------------------
     // Check validity of parameters
 
-    SAFE_USE_VALID_ID(This, ID_TASK) {
+    SAFE_USE_VALID_ID(This, KOID_TASK) {
         // Lock kernel mutex for the entire operation
         LockMutex(MUTEX_KERNEL, INFINITY);
 
@@ -183,7 +183,7 @@ void DeleteTask(LPTASK This) {
         for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
             Mutex = (LPMUTEX)Node;
 
-            if (Mutex->ID == ID_MUTEX && Mutex->Task == This) {
+            if (Mutex->ID == KOID_MUTEX && Mutex->Task == This) {
                 Mutex->Task = NULL;
                 Mutex->Lock = 0;
             }
@@ -243,7 +243,7 @@ void DeleteTask(LPTASK This) {
                     while (Current != NULL) {
                         LPPROCESS Next = (LPPROCESS)Current->Next;
 
-                        SAFE_USE_VALID_ID(Current, ID_PROCESS) {
+                        SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
                             if (Current->OwnerProcess == This->Process) {
                                 DEBUG(TEXT("[DeleteTask] Killing child process %s"), Current->FileName);
 
@@ -253,7 +253,7 @@ void DeleteTask(LPTASK This) {
                                 while (ChildTask != NULL) {
                                     LPTASK NextChildTask = (LPTASK)ChildTask->Next;
 
-                                    SAFE_USE_VALID_ID(ChildTask, ID_TASK) {
+                                    SAFE_USE_VALID_ID(ChildTask, KOID_TASK) {
                                         if (ChildTask->Process == Current) {
                                             KillTask(ChildTask);
                                         }
@@ -276,7 +276,7 @@ void DeleteTask(LPTASK This) {
                     while (Current != NULL) {
                         LPPROCESS Next = (LPPROCESS)Current->Next;
 
-                        SAFE_USE_VALID_ID(Current, ID_PROCESS) {
+                        SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
                             if (Current->OwnerProcess == This->Process) {
                                 Current->OwnerProcess = NULL;
                                 DEBUG(TEXT("[DeleteTask] Orphaned child process %s"), Current->FileName);
@@ -571,7 +571,7 @@ Out:
  * @return TRUE if task was successfully killed, FALSE if invalid or main task
  */
 BOOL KillTask(LPTASK Task) {
-    SAFE_USE_VALID_ID(Task, ID_TASK) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
         DEBUG(TEXT("[KillTask] Enter"));
 
         if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
@@ -608,13 +608,13 @@ BOOL KillTask(LPTASK Task) {
 /************************************************************************/
 
 BOOL SetTaskExitCode(LPTASK Task, U32 Code) {
-    SAFE_USE_VALID_ID(Task, ID_TASK) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LockMutex(MUTEX_KERNEL, INFINITY);
 
         Task->ExitCode = Code;
 
         if (Task->Type == TASK_TYPE_USER_MAIN) {
-            SAFE_USE_VALID_ID(Task->Process, ID_PROCESS) {
+            SAFE_USE_VALID_ID(Task->Process, KOID_PROCESS) {
                 Task->Process->ExitCode = Code;
             }
         }
@@ -651,7 +651,7 @@ void DeleteDeadTasksAndProcesses(void) {
     Task = (LPTASK)Kernel.Task->First;
 
     while (Task != NULL) {
-        SAFE_USE_VALID_ID(Task, ID_TASK) {
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
             NextTask = (LPTASK)Task->Next;
 
             if (Task->Status == TASK_STATUS_DEAD) {
@@ -676,7 +676,7 @@ void DeleteDeadTasksAndProcesses(void) {
     Process = (LPPROCESS)Kernel.Process->First;
 
     while (Process != NULL) {
-        SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
             NextProcess = (LPPROCESS)Process->Next;
 
             if (Process->Status == PROCESS_STATUS_DEAD) {
@@ -713,7 +713,7 @@ void DeleteDeadTasksAndProcesses(void) {
 U32 SetTaskPriority(LPTASK Task, U32 Priority) {
     U32 OldPriority = 0;
 
-    SAFE_USE_VALID_ID(Task, ID_TASK) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LockMutex(MUTEX_KERNEL, INFINITY);
 
         OldPriority = Task->Priority;
@@ -749,7 +749,7 @@ void Sleep(U32 MilliSeconds) {
 
     Task = GetCurrentTask();
 
-    SAFE_USE_VALID_ID(Task, ID_TASK) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
         if (Task->Status == TASK_STATUS_DEAD) {
             UnlockMutex(MUTEX_TASK);
             return;
@@ -762,7 +762,7 @@ void Sleep(U32 MilliSeconds) {
 
         // Block here until scheduler wakes us up
         while (GetTaskStatus(Task) == TASK_STATUS_SLEEPING) {
-            if (Task->ID != ID_TASK) {
+            if (Task->ID != KOID_TASK) {
                 return;
             }
 
@@ -796,7 +796,7 @@ void Sleep(U32 MilliSeconds) {
 U32 GetTaskStatus(LPTASK Task) {
     U32 Status = 0;
 
-    SAFE_USE_VALID_ID(Task, ID_TASK) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LockMutex(&(Task->Mutex), INFINITY);
 
         Status = Task->Status;
@@ -816,7 +816,7 @@ U32 GetTaskStatus(LPTASK Task) {
  * @param Status New status value to set
  */
 void SetTaskStatus(LPTASK Task, U32 Status) {
-    SAFE_USE_VALID_ID(Task, ID_TASK) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
         U32 OldStatus = Task->Status;
         UNUSED(OldStatus);
 
@@ -1006,7 +1006,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     Desktop = GetCurrentProcess()->Desktop;
 
     if (Desktop == NULL) goto Out_Error;
-    if (Desktop->ID != ID_DESKTOP) goto Out_Error;
+    if (Desktop->ID != KOID_DESKTOP) goto Out_Error;
 
     //-------------------------------------
     // Lock access to the desktop
@@ -1026,7 +1026,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Post message to window if found
 
-    SAFE_USE_VALID_ID(Win, ID_WINDOW) {
+    SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
         //-------------------------------------
         // If the message is EWM_DRAW, do not post it if
         // window already has one. Instead, put the existing
@@ -1126,7 +1126,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     Desktop = GetCurrentProcess()->Desktop;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != ID_DESKTOP) return 0;
+    if (Desktop->ID != KOID_DESKTOP) return 0;
 
     //-------------------------------------
     // Lock access to the desktop
@@ -1146,7 +1146,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Send message to window if found
 
-    if (Window != NULL && Window->ID == ID_WINDOW) {
+    if (Window != NULL && Window->ID == KOID_WINDOW) {
         SAFE_USE(Window->Function) {
             LockMutex(&(Window->Mutex), INFINITY);
             Result = Window->Function(Target, Msg, Param1, Param2);
@@ -1313,7 +1313,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     if (Message->Target == NULL) return FALSE;
 
     if (Window == NULL) return FALSE;
-    if (Window->ID != ID_WINDOW) return FALSE;
+    if (Window->ID != KOID_WINDOW) return FALSE;
 
     //-------------------------------------
     // Lock access to the window
@@ -1392,11 +1392,11 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
 
     Process = GetCurrentProcess();
     if (Process == NULL) goto Out;
-    if (Process->ID != ID_PROCESS) goto Out;
+    if (Process->ID != KOID_PROCESS) goto Out;
 
     Desktop = Process->Desktop;
     if (Desktop == NULL) goto Out;
-    if (Desktop->ID != ID_DESKTOP) goto Out;
+    if (Desktop->ID != KOID_DESKTOP) goto Out;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 

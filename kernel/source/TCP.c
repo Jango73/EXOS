@@ -941,7 +941,7 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
         return NULL;
     }
 
-    LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)CreateKernelObject(sizeof(TCP_CONNECTION), ID_TCP);
+    LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)CreateKernelObject(sizeof(TCP_CONNECTION), KOID_TCP);
     if (Conn == NULL) {
         DEBUG(TEXT("[TCP_CreateConnection] Failed to allocate TCP connection"));
         return NULL;
@@ -1020,7 +1020,7 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
 /************************************************************************/
 
 void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         SM_Destroy(&Connection->StateMachine);
 
         // Destroy notification context
@@ -1034,7 +1034,7 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         ListRemove(Kernel.TCPConnection, Connection);
 
         // Mark ID
-        Connection->ID = ID_NONE;
+        Connection->ID = KOID_NONE;
 
         // Free the connection memory
         KernelHeapFree(Connection);
@@ -1046,7 +1046,7 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
 /************************************************************************/
 
 int TCP_Connect(LPTCP_CONNECTION Connection) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         return SM_ProcessEvent(&Connection->StateMachine, TCP_EVENT_CONNECT, NULL) ? 0 : -1;
     }
     return -1;
@@ -1055,7 +1055,7 @@ int TCP_Connect(LPTCP_CONNECTION Connection) {
 /************************************************************************/
 
 int TCP_Listen(LPTCP_CONNECTION Connection) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         return SM_ProcessEvent(&Connection->StateMachine, TCP_EVENT_LISTEN, NULL) ? 0 : -1;
     }
     return -1;
@@ -1066,7 +1066,7 @@ int TCP_Listen(LPTCP_CONNECTION Connection) {
 int TCP_Send(LPTCP_CONNECTION Connection, const U8* Data, U32 Length) {
     if (!Data || Length == 0) return -1;
 
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         if (SM_GetCurrentState(&Connection->StateMachine) != TCP_STATE_ESTABLISHED) {
             DEBUG(TEXT("[TCP_Send] Cannot send data, connection not established"));
             return -1;
@@ -1102,7 +1102,7 @@ int TCP_Send(LPTCP_CONNECTION Connection, const U8* Data, U32 Length) {
 int TCP_Receive(LPTCP_CONNECTION Connection, U8* Buffer, U32 BufferSize) {
     if (!Buffer || BufferSize == 0) return -1;
 
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         if (Connection->RecvBufferUsed == 0) return 0;
 
         U32 CopyLength = (Connection->RecvBufferUsed > BufferSize) ? BufferSize : Connection->RecvBufferUsed;
@@ -1123,7 +1123,7 @@ int TCP_Receive(LPTCP_CONNECTION Connection, U8* Buffer, U32 BufferSize) {
 /************************************************************************/
 
 int TCP_Close(LPTCP_CONNECTION Connection) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         DEBUG(TEXT("[TCP_Close] Closing connection %X, current state=%d"), (U32)Connection, SM_GetCurrentState(&Connection->StateMachine));
         BOOL result = SM_ProcessEvent(&Connection->StateMachine, TCP_EVENT_CLOSE, NULL);
         DEBUG(TEXT("[TCP_Close] Close event processed, result=%d, new state=%d"), result, SM_GetCurrentState(&Connection->StateMachine));
@@ -1137,7 +1137,7 @@ int TCP_Close(LPTCP_CONNECTION Connection) {
 /************************************************************************/
 
 SM_STATE TCP_GetState(LPTCP_CONNECTION Connection) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         return SM_GetCurrentState(&Connection->StateMachine);
     }
     return SM_INVALID_STATE;
@@ -1333,7 +1333,7 @@ void TCP_Update(void) {
 /************************************************************************/
 
 void TCP_SetNotificationContext(LPTCP_CONNECTION Connection, LPNOTIFICATION_CONTEXT Context) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         Connection->NotificationContext = Context;
         DEBUG(TEXT("[TCP_SetNotificationContext] Set notification context %X for connection %X"), (U32)Context, (U32)Connection);
     }
@@ -1365,7 +1365,7 @@ U32 TCP_RegisterCallback(LPTCP_CONNECTION Connection, U32 Event, NOTIFICATION_CA
  * @param Connection The TCP connection to initialize
  */
 void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         U32 MaxWindow = Connection->RecvBufferCapacity;
         if (MaxWindow == 0) {
             MaxWindow = TCP_RECV_BUFFER_SIZE;
@@ -1388,7 +1388,7 @@ void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
  * @param DataConsumed Amount of data consumed by application
  */
 void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         // NOTE: RecvBufferUsed is already updated by caller, just calculate window
         U32 AvailableSpace = (Connection->RecvBufferCapacity > Connection->RecvBufferUsed)
                              ? (Connection->RecvBufferCapacity - Connection->RecvBufferUsed)
@@ -1419,7 +1419,7 @@ void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed) {
  * @return TRUE if window update should be sent, FALSE otherwise
  */
 BOOL TCP_ShouldSendWindowUpdate(LPTCP_CONNECTION Connection) {
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         BOOL ShouldSend = Hysteresis_IsTransitionPending(&Connection->WindowHysteresis);
 
         if (ShouldSend) {
@@ -1445,7 +1445,7 @@ void TCP_HandleApplicationRead(LPTCP_CONNECTION Connection, U32 BytesConsumed) {
         return;
     }
 
-    SAFE_USE_VALID_ID(Connection, ID_TCP) {
+    SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         U32 PreviousUsed = Connection->RecvBufferUsed;
 
         if (BytesConsumed > PreviousUsed) {

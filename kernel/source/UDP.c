@@ -41,7 +41,7 @@ static LPDEVICE g_UDPDevice = NULL;
 /************************************************************************/
 
 LPUDP_CONTEXT UDP_GetContext(LPDEVICE Device) {
-    return (LPUDP_CONTEXT)GetDeviceContext(Device, ID_UDP);
+    return (LPUDP_CONTEXT)GetDeviceContext(Device, KOID_UDP);
 }
 
 /************************************************************************/
@@ -121,7 +121,7 @@ void UDP_Initialize(LPDEVICE Device) {
         Context->PortBindings[Index].IsValid = 0;
     }
 
-    SetDeviceContext(Device, ID_UDP, (LPVOID)Context);
+    SetDeviceContext(Device, KOID_UDP, (LPVOID)Context);
 
     // Store global device reference
     g_UDPDevice = Device;
@@ -148,7 +148,7 @@ void UDP_Destroy(LPDEVICE Device) {
     Context = UDP_GetContext(Device);
     SAFE_USE(Context) {
         KernelHeapFree(Context);
-        SetDeviceContext(Device, ID_UDP, NULL);
+        SetDeviceContext(Device, KOID_UDP, NULL);
         DEBUG(TEXT("[UDP_Destroy] UDP context destroyed"));
     }
 }

@@ -133,11 +133,11 @@ U32 SysCall_DeleteObject(U32 Parameter) {
 
     SAFE_USE_VALID(Object) {
         switch (Object->ID) {
-            case ID_FILE:
+            case KOID_FILE:
                 return (U32)CloseFile((LPFILE)Object);
-            case ID_DESKTOP:
+            case KOID_DESKTOP:
                 return (U32)DeleteDesktop((LPDESKTOP)Object);
-            case ID_WINDOW:
+            case KOID_WINDOW:
                 return (U32)DeleteWindow((LPWINDOW)Object);
         }
     }
@@ -179,7 +179,7 @@ U32 SysCall_GetProcessInfo(U32 Parameter) {
             CurrentProcess = (LPPROCESS)Info->Process;
         }
 
-        SAFE_USE_VALID_ID(CurrentProcess, ID_PROCESS) {
+        SAFE_USE_VALID_ID(CurrentProcess, KOID_PROCESS) {
             DEBUG(TEXT("[SysCall_GetProcessInfo] Info->CommandLine = %s"), Info->CommandLine);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%x"), CurrentProcess);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
@@ -424,7 +424,7 @@ U32 SysCall_GetVolumeInfo(U32 Parameter) {
 
     FileSystem = (LPFILESYSTEM)Info->Volume;
     if (FileSystem == NULL) return 0;
-    if (FileSystem->ID != ID_FILESYSTEM) return 0;
+    if (FileSystem->ID != KOID_FILESYSTEM) return 0;
 
     LockMutex(&(FileSystem->Mutex), INFINITY);
 
@@ -524,7 +524,7 @@ U32 SysCall_ShowDesktop(U32 Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)Parameter;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != ID_DESKTOP) return 0;
+    if (Desktop->ID != KOID_DESKTOP) return 0;
 
     return (U32)ShowDesktop(Desktop);
 }
@@ -536,7 +536,7 @@ U32 SysCall_GetDesktopWindow(U32 Parameter) {
     LPWINDOW Window = NULL;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != ID_DESKTOP) return 0;
+    if (Desktop->ID != KOID_DESKTOP) return 0;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 

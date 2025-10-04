@@ -129,7 +129,7 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32
     IOCONTROL Control;
     U32 Result;
 
-    Control.ID = ID_IOCONTROL;
+    Control.ID = KOID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = Partition->LBA;
     Control.SectorHigh = 0;
@@ -171,7 +171,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     DEBUG(TEXT("[MountDiskPartitions] Disk = %x, Partition = %x, Base = %x"), Disk, Partition, Base);
 
     if (Partition == NULL) {
-        Control.ID = ID_IOCONTROL;
+        Control.ID = KOID_IOCONTROL;
         Control.Disk = Disk;
         Control.SectorLow = 0;
         Control.SectorHigh = 0;

@@ -182,7 +182,7 @@ static DRIVER_MATCH E1000_MatchTable[] = {E1000_MATCH_DEFAULT};
 static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev);
 
 PCI_DRIVER E1000Driver = {
-    .ID = ID_DRIVER,
+    .ID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,

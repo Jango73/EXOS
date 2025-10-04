@@ -1114,11 +1114,11 @@ static void CMD_network(LPSHELLCONTEXT Context) {
         for (Node = Kernel.NetworkDevice->First; Node; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
 
-            SAFE_USE_VALID_ID(NetContext, ID_NETWORKDEVICE) {
+            SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
                 LPPCI_DEVICE Device = NetContext->Device;
 
-                SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-                    SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
+                SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+                    SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
                         // Get device info
                         NETWORKINFO Info;
                         MemorySet(&Info, 0, sizeof(Info));

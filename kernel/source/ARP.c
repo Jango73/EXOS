@@ -43,7 +43,7 @@ LPARP_CONTEXT ARP_GetContext(LPDEVICE Device) {
     if (Device == NULL) return NULL;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    Context = (LPARP_CONTEXT)GetDeviceContext(Device, ID_ARP);
+    Context = (LPARP_CONTEXT)GetDeviceContext(Device, KOID_ARP);
     UnlockMutex(&(Device->Mutex));
 
     return Context;
@@ -275,8 +275,8 @@ static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
     Send.Device = (LPPCI_DEVICE)Device;
     Send.Data = Data;
     Send.Length = Length;
-    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
         }
     }
@@ -545,8 +545,8 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
 
     GetInfo.Device = (LPPCI_DEVICE)Device;
 
-    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"), (U32)Info.MAC[0], (U32)Info.MAC[1],
                       (U32)Info.MAC[2], (U32)Info.MAC[3], (U32)Info.MAC[4], (U32)Info.MAC[5]);
@@ -582,7 +582,7 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
         goto Out;
     }
 
-    SetDeviceContext(Device, ID_ARP, Context);
+    SetDeviceContext(Device, KOID_ARP, Context);
     Success = TRUE;
 
     UnlockMutex(&(Device->Mutex));
@@ -628,7 +628,7 @@ void ARP_Destroy(LPDEVICE Device) {
     if (Context == NULL) return;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    RemoveDeviceContext(Device, ID_ARP);
+    RemoveDeviceContext(Device, KOID_ARP);
     UnlockMutex(&(Device->Mutex));
 
     SAFE_USE(Context) {

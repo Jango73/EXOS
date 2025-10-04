@@ -47,7 +47,7 @@
 U32 VESACommands(U32, U32);
 
 DRIVER VESADriver = {
-    .ID = ID_DRIVER,
+    .ID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -186,7 +186,7 @@ VIDEOMODESPECS VESAModeSpecs[] = {
     }
 
 VESA_CONTEXT VESAContext = {
-    .Header = {.ID = ID_GRAPHICSCONTEXT, .References = 1, .Mutex = EMPTY_MUTEX, .Driver = &VESADriver}};
+    .Header = {.ID = KOID_GRAPHICSCONTEXT, .References = 1, .Mutex = EMPTY_MUTEX, .Driver = &VESADriver}};
 
 /***************************************************************************/
 
@@ -200,7 +200,7 @@ static U32 VESAInitialize(void) {
 
     VESAContext = (VESA_CONTEXT){
         .Header =
-            {.ID = ID_GRAPHICSCONTEXT,
+            {.ID = KOID_GRAPHICSCONTEXT,
              .References = 1,
              .Mutex = EMPTY_MUTEX,
              .Driver = &VESADriver,
@@ -869,7 +869,7 @@ static U32 Line16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     COLOR Color;
 
     if (Context->Header.Pen == NULL) return MAX_U32;
-    if (Context->Header.Pen->ID != ID_PEN) return MAX_U32;
+    if (Context->Header.Pen->ID != KOID_PEN) return MAX_U32;
 
     Color = Context->Header.Pen->Color;
     Pattern = Context->Header.Pen->Pattern;
@@ -944,7 +944,7 @@ static U32 Line24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     COLOR Color;
 
     if (Context->Header.Pen == NULL) return MAX_U32;
-    if (Context->Header.Pen->ID != ID_PEN) return MAX_U32;
+    if (Context->Header.Pen->ID != KOID_PEN) return MAX_U32;
 
     Color = Context->Header.Pen->Color;
     Pattern = Context->Header.Pen->Pattern;
@@ -1130,7 +1130,7 @@ static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         Y2 = Temp;
     }
 
-    if (Context->Header.Brush != NULL && Context->Header.Brush->ID == ID_BRUSH) {
+    if (Context->Header.Brush != NULL && Context->Header.Brush->ID == KOID_BRUSH) {
         Color = Context->Header.Brush->Color;
 
         for (Y = Y1; Y <= Y2; Y++) {
@@ -1140,7 +1140,7 @@ static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         }
     }
 
-    if (Context->Header.Pen != NULL && Context->Header.Pen->ID == ID_PEN) {
+    if (Context->Header.Pen != NULL && Context->Header.Pen->ID == KOID_PEN) {
         Context->ModeSpecs.Line(Context, X1, Y1, X2, Y1);
         Context->ModeSpecs.Line(Context, X2, Y1, X2, Y2);
         Context->ModeSpecs.Line(Context, X2, Y2, X1, Y2);
@@ -1176,7 +1176,7 @@ static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         Y2 = Temp;
     }
 
-    if (Context->Header.Brush != NULL && Context->Header.Brush->ID == ID_BRUSH) {
+    if (Context->Header.Brush != NULL && Context->Header.Brush->ID == KOID_BRUSH) {
         Color = Context->Header.Brush->Color;
 
         Color = 0;
@@ -1272,7 +1272,7 @@ static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
     // Draw borders
 
-    if (Context->Header.Pen != NULL && Context->Header.Pen->ID == ID_PEN) {
+    if (Context->Header.Pen != NULL && Context->Header.Pen->ID == KOID_PEN) {
         Context->ModeSpecs.Line(Context, X1, Y1, X2, Y1);
         Context->ModeSpecs.Line(Context, X2, Y1, X2, Y2);
         Context->ModeSpecs.Line(Context, X2, Y2, X1, Y2);
@@ -1294,7 +1294,7 @@ static LPBRUSH VESA_CreateBrush(LPBRUSHINFO Info) {
 
     MemorySet(Brush, 0, sizeof(BRUSH));
 
-    Brush->ID = ID_BRUSH;
+    Brush->ID = KOID_BRUSH;
     Brush->References = 1;
     Brush->Color = Info->Color;
     Brush->Pattern = Info->Pattern;
@@ -1314,7 +1314,7 @@ static LPPEN VESA_CreatePen(LPPENINFO Info) {
 
     MemorySet(Pen, 0, sizeof(PEN));
 
-    Pen->ID = ID_BRUSH;
+    Pen->ID = KOID_BRUSH;
     Pen->References = 1;
     Pen->Color = Info->Color;
     Pen->Pattern = Info->Pattern;
@@ -1332,7 +1332,7 @@ static U32 VESA_SetPixel(LPPIXELINFO Info) {
     Context = (LPVESA_CONTEXT)Info->GC;
 
     if (Context == NULL) return 0;
-    if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
+    if (Context->Header.ID != KOID_GRAPHICSCONTEXT) return 0;
 
     LockMutex(&(Context->Header.Mutex), INFINITY);
 
@@ -1353,7 +1353,7 @@ static U32 VESA_GetPixel(LPPIXELINFO Info) {
     Context = (LPVESA_CONTEXT)Info->GC;
 
     if (Context == NULL) return 0;
-    if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
+    if (Context->Header.ID != KOID_GRAPHICSCONTEXT) return 0;
 
     LockMutex(&(Context->Header.Mutex), INFINITY);
 
@@ -1375,7 +1375,7 @@ static U32 VESA_Line(LPLINEINFO Info) {
 
     // if (Context == NULL) return 0;
     if (Context == NULL) Context = &VESAContext;
-    if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
+    if (Context->Header.ID != KOID_GRAPHICSCONTEXT) return 0;
 
     // LockMutex(&(Context->Header.Mutex), INFINITY);
 
@@ -1396,7 +1396,7 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
     Context = (LPVESA_CONTEXT)Info->GC;
 
     if (Context == NULL) return 0;
-    if (Context->Header.ID != ID_GRAPHICSCONTEXT) return 0;
+    if (Context->Header.ID != KOID_GRAPHICSCONTEXT) return 0;
 
     LockMutex(&(Context->Header.Mutex), INFINITY);
 

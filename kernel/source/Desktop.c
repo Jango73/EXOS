@@ -45,7 +45,7 @@ static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelHeapAlloc, KernelH
 /***************************************************************************/
 
 WINDOW MainDesktopWindow = {
-    .ID = ID_WINDOW,
+    .ID = KOID_WINDOW,
     .References = 1,
     .OwnerProcess = &KernelProcess,
     .Next = NULL,
@@ -69,7 +69,7 @@ WINDOW MainDesktopWindow = {
 /***************************************************************************/
 
 DESKTOP MainDesktop = {
-    .ID = ID_DESKTOP,
+    .ID = KOID_DESKTOP,
     .References = 1,
     .OwnerProcess = &KernelProcess,
     .Next = NULL,
@@ -85,33 +85,33 @@ DESKTOP MainDesktop = {
 
 /***************************************************************************/
 
-BRUSH Brush_Desktop = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
-BRUSH Brush_High = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
-BRUSH Brush_Normal = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
-BRUSH Brush_HiShadow = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
-BRUSH Brush_LoShadow = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
-BRUSH Brush_Client = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-BRUSH Brush_Text_Normal = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
-BRUSH Brush_Text_Select = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-BRUSH Brush_Selection = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-BRUSH Brush_Title_Bar = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-BRUSH Brush_Title_Bar_2 = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
-BRUSH Brush_Title_Text = {ID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+BRUSH Brush_Desktop = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
+BRUSH Brush_High = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
+BRUSH Brush_Normal = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
+BRUSH Brush_HiShadow = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
+BRUSH Brush_LoShadow = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
+BRUSH Brush_Client = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+BRUSH Brush_Text_Normal = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
+BRUSH Brush_Text_Select = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+BRUSH Brush_Selection = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+BRUSH Brush_Title_Bar = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+BRUSH Brush_Title_Bar_2 = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
+BRUSH Brush_Title_Text = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
 
 /***************************************************************************/
 
-PEN Pen_Desktop = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
-PEN Pen_High = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
-PEN Pen_Normal = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
-PEN Pen_HiShadow = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
-PEN Pen_LoShadow = {ID_PEN, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
-PEN Pen_Client = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-PEN Pen_Text_Normal = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
-PEN Pen_Text_Select = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-PEN Pen_Selection = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-PEN Pen_Title_Bar = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-PEN Pen_Title_Bar_2 = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
-PEN Pen_Title_Text = {ID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+PEN Pen_Desktop = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
+PEN Pen_High = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
+PEN Pen_Normal = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
+PEN Pen_HiShadow = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
+PEN Pen_LoShadow = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
+PEN Pen_Client = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+PEN Pen_Text_Normal = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
+PEN Pen_Text_Select = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+PEN Pen_Selection = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+PEN Pen_Title_Bar = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
+PEN Pen_Title_Bar_2 = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
+PEN Pen_Title_Text = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
 
 /***************************************************************************/
 
@@ -125,7 +125,7 @@ BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_GRAPHICSCONTEXT) return FALSE;
+    if (This->ID != KOID_GRAPHICSCONTEXT) return FALSE;
 
     //-------------------------------------
     // Lock access to the context
@@ -201,8 +201,8 @@ LPDESKTOP CreateDesktop(void) {
 
     InitMutex(&(This->Mutex));
 
-    This->ID = ID_DESKTOP;
-    This->References = ID_DESKTOP;
+    This->ID = KOID_DESKTOP;
+    This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
     This->Graphics = &VESADriver;
 
@@ -250,7 +250,7 @@ BOOL DeleteDesktop(LPDESKTOP This) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    SAFE_USE_VALID_ID(This->Window, ID_WINDOW) {
+    SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) {
         DeleteWindow(This->Window);
     }
 
@@ -276,7 +276,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_DESKTOP) return FALSE;
+    if (This->ID != KOID_DESKTOP) return FALSE;
 
     //-------------------------------------
     // Lock access to resources
@@ -333,7 +333,7 @@ LPWINDOW NewWindow(void) {
 
     InitMutex(&(This->Mutex));
 
-    This->ID = ID_WINDOW;
+    This->ID = KOID_WINDOW;
     This->References = 1;
     This->Properties = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     This->Children = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
@@ -356,7 +356,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
     if (This->Parent == NULL) return FALSE;
 
     Task = This->Task;
@@ -416,10 +416,10 @@ LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
     LPWINDOW Child = NULL;
 
     if (Start == NULL) return NULL;
-    if (Start->ID != ID_WINDOW) return NULL;
+    if (Start->ID != KOID_WINDOW) return NULL;
 
     if (Target == NULL) return NULL;
-    if (Target->ID != ID_WINDOW) return NULL;
+    if (Target->ID != KOID_WINDOW) return NULL;
 
     if (Start == Target) return Start;
 
@@ -470,7 +470,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     Parent = (LPWINDOW)Info->Parent;
 
     SAFE_USE(Parent) {
-        if (Parent->ID != ID_WINDOW) return NULL;
+        if (Parent->ID != KOID_WINDOW) return NULL;
     }
 
     This = NewWindow();
@@ -540,19 +540,19 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     LockMutex(&(This->Mutex), INFINITY);
 
     Task = This->Task;
-    if (Task != NULL && Task->ID == ID_TASK) {
+    if (Task != NULL && Task->ID == KOID_TASK) {
         Process = Task->Process;
 
-        SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
             Desktop = Process->Desktop;
 
             SAFE_USE(Desktop) {
-                if (Desktop->ID != ID_DESKTOP) Desktop = NULL;
+                if (Desktop->ID != KOID_DESKTOP) Desktop = NULL;
             }
         }
     }
@@ -576,7 +576,7 @@ BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     LPLISTNODE Node;
 
     if (This == NULL) return NULL;
-    if (This->ID != ID_WINDOW) return NULL;
+    if (This->ID != KOID_WINDOW) return NULL;
 
     LockMutex(&(This->Mutex), INFINITY);
 
@@ -634,7 +634,7 @@ BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
     LPWINDOW This = (LPWINDOW)Handle;
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     if (Src == NULL) return FALSE;
     if (Dst == NULL) return FALSE;
@@ -664,7 +664,7 @@ BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
     LPWINDOW This = (LPWINDOW)Handle;
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     if (Src == NULL) return FALSE;
     if (Dst == NULL) return FALSE;
@@ -694,7 +694,7 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     RECT Rect;
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     //-------------------------------------
     // Lock access to resources
@@ -743,7 +743,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     //-------------------------------------
     // Lock access to resources
@@ -808,7 +808,7 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     //-------------------------------------
     // Send appropriate messages to the window
@@ -854,7 +854,7 @@ BOOL GetWindowRect(HANDLE Handle, LPRECT Rect) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     if (Rect == NULL) return FALSE;
 
@@ -891,7 +891,7 @@ BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     if (Position == NULL) return FALSE;
 
@@ -913,7 +913,7 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     if (Size == NULL) return FALSE;
 
@@ -934,7 +934,7 @@ HANDLE GetWindowParent(HANDLE Handle) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     return (HANDLE)This->Parent;
 }
@@ -958,7 +958,7 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
     // Check validity of parameters
 
     if (This == NULL) return 0;
-    if (This->ID != ID_WINDOW) return 0;
+    if (This->ID != KOID_WINDOW) return 0;
 
     //-------------------------------------
     // Lock access to resources
@@ -1013,7 +1013,7 @@ U32 GetWindowProp(HANDLE Handle, LPCSTR Name) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_WINDOW) return FALSE;
+    if (This->ID != KOID_WINDOW) return FALSE;
 
     //-------------------------------------
     // Lock access to resources
@@ -1056,7 +1056,7 @@ HANDLE GetWindowGC(HANDLE Handle) {
     // Check validity of parameters
 
     if (This == NULL) return NULL;
-    if (This->ID != ID_WINDOW) return NULL;
+    if (This->ID != KOID_WINDOW) return NULL;
 
     Context = &VESAContext;
 
@@ -1096,7 +1096,7 @@ BOOL ReleaseWindowGC(HANDLE Handle) {
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
-    if (This->ID != ID_GRAPHICSCONTEXT) return FALSE;
+    if (This->ID != KOID_GRAPHICSCONTEXT) return FALSE;
 
     return TRUE;
 }
@@ -1116,7 +1116,7 @@ HANDLE BeginWindowDraw(HANDLE Handle) {
     // Check validity of parameters
 
     if (This == NULL) return NULL;
-    if (This->ID != ID_WINDOW) return NULL;
+    if (This->ID != KOID_WINDOW) return NULL;
 
     //-------------------------------------
     // Lock access to resources
@@ -1147,7 +1147,7 @@ BOOL EndWindowDraw(HANDLE Handle) {
     // Check validity of parameters
 
     if (This == NULL) return NULL;
-    if (This->ID != ID_WINDOW) return NULL;
+    if (This->ID != KOID_WINDOW) return NULL;
 
     //-------------------------------------
     // Lock access to resources
@@ -1256,7 +1256,7 @@ HANDLE SelectBrush(HANDLE GC, HANDLE Brush) {
     Context = (LPGRAPHICSCONTEXT)GC;
     NewBrush = (LPBRUSH)Brush;
 
-    if (Context->ID != ID_GRAPHICSCONTEXT) return NULL;
+    if (Context->ID != KOID_GRAPHICSCONTEXT) return NULL;
 
     LockMutex(&(Context->Mutex), INFINITY);
 
@@ -1286,7 +1286,7 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
     Context = (LPGRAPHICSCONTEXT)GC;
     NewPen = (LPPEN)Pen;
 
-    if (Context->ID != ID_GRAPHICSCONTEXT) return NULL;
+    if (Context->ID != KOID_GRAPHICSCONTEXT) return NULL;
 
     LockMutex(&(Context->Mutex), INFINITY);
 
@@ -1315,7 +1315,7 @@ HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
 
     MemorySet(Brush, 0, sizeof(BRUSH));
 
-    Brush->ID = ID_BRUSH;
+    Brush->ID = KOID_BRUSH;
     Brush->References = 1;
     Brush->Color = BrushInfo->Color;
     Brush->Pattern = BrushInfo->Pattern;
@@ -1340,7 +1340,7 @@ HANDLE CreatePen(LPPENINFO PenInfo) {
 
     MemorySet(Pen, 0, sizeof(PEN));
 
-    Pen->ID = ID_PEN;
+    Pen->ID = KOID_PEN;
     Pen->References = 1;
     Pen->Color = PenInfo->Color;
     Pen->Pattern = PenInfo->Pattern;
@@ -1366,7 +1366,7 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
     Context = (LPGRAPHICSCONTEXT)PixelInfo->GC;
 
     if (Context == NULL) return FALSE;
-    if (Context->ID != ID_GRAPHICSCONTEXT) return FALSE;
+    if (Context->ID != KOID_GRAPHICSCONTEXT) return FALSE;
 
     PixelInfo->X = Context->Origin.X + PixelInfo->X;
     PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
@@ -1394,7 +1394,7 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
     Context = (LPGRAPHICSCONTEXT)PixelInfo->GC;
 
     if (Context == NULL) return FALSE;
-    if (Context->ID != ID_GRAPHICSCONTEXT) return FALSE;
+    if (Context->ID != KOID_GRAPHICSCONTEXT) return FALSE;
 
     PixelInfo->X = Context->Origin.X + PixelInfo->X;
     PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
@@ -1423,7 +1423,7 @@ BOOL Line(LPLINEINFO LineInfo) {
     Context = (LPGRAPHICSCONTEXT)LineInfo->GC;
 
     if (Context == NULL) return FALSE;
-    if (Context->ID != ID_GRAPHICSCONTEXT) return FALSE;
+    if (Context->ID != KOID_GRAPHICSCONTEXT) return FALSE;
 
     LineInfo->X1 = Context->Origin.X + LineInfo->X1;
     LineInfo->Y1 = Context->Origin.Y + LineInfo->Y1;
@@ -1454,7 +1454,7 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
     Context = (LPGRAPHICSCONTEXT)RectInfo->GC;
 
     if (Context == NULL) return FALSE;
-    if (Context->ID != ID_GRAPHICSCONTEXT) return FALSE;
+    if (Context->ID != KOID_GRAPHICSCONTEXT) return FALSE;
 
     RectInfo->X1 = Context->Origin.X + RectInfo->X1;
     RectInfo->Y1 = Context->Origin.Y + RectInfo->Y1;
@@ -1483,7 +1483,7 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     // Check validity of parameters
 
     if (This == NULL) return NULL;
-    if (This->ID != ID_WINDOW) return NULL;
+    if (This->ID != KOID_WINDOW) return NULL;
 
     //-------------------------------------
     // Lock access to resources

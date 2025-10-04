@@ -60,8 +60,8 @@ BOOL GetDefaultDeviceName(LPSTR Name, LPDEVICE Device, U32 DeviceType) {
     SAFE_USE(Kernel.PCIDevice) {
         for (Node = Kernel.PCIDevice->First; Node; Node = Node->Next) {
             CurrentDevice = (LPDEVICE)Node;
-            SAFE_USE_VALID_ID(CurrentDevice, ID_PCIDEVICE) {
-                SAFE_USE_VALID_ID(CurrentDevice->Driver, ID_DRIVER) {
+            SAFE_USE_VALID_ID(CurrentDevice, KOID_PCIDEVICE) {
+                SAFE_USE_VALID_ID(CurrentDevice->Driver, KOID_DRIVER) {
                     if (CurrentDevice->Driver->Type == DeviceType) {
                         if (CurrentDevice == Device) break;
                         DeviceIndex++;
@@ -125,7 +125,7 @@ U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context) {
     DeviceContext = (LPDEVICE_CONTEXT)KernelHeapAlloc(sizeof(DEVICE_CONTEXT));
     if (DeviceContext == NULL) return 0;
 
-    DeviceContext->ID = ID_NONE;
+    DeviceContext->ID = KOID_NONE;
     DeviceContext->References = 1;
     DeviceContext->Next = NULL;
     DeviceContext->Prev = NULL;

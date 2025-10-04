@@ -51,7 +51,7 @@
 void SocketDestructor(LPVOID Item) {
     LPSOCKET Socket = (LPSOCKET)Item;
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->PendingConnections) {
             DeleteList(Socket->PendingConnections);
         }
@@ -104,7 +104,7 @@ U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     }
 
     // Allocate socket control block
-    LPSOCKET Socket = (LPSOCKET)CreateKernelObject(sizeof(SOCKET), ID_SOCKET);
+    LPSOCKET Socket = (LPSOCKET)CreateKernelObject(sizeof(SOCKET), KOID_SOCKET);
     if (!Socket) {
         ERROR(TEXT("[SocketCreate] Failed to allocate socket control block"));
         return SOCKET_ERROR_NOMEM;
@@ -157,9 +157,9 @@ U32 SocketClose(U32 SocketHandle) {
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         // Close TCP connection if exists
-        SAFE_USE_VALID_ID(Socket->TCPConnection, ID_TCP) {
+        SAFE_USE_VALID_ID(Socket->TCPConnection, KOID_TCP) {
             if (Socket->SocketType == SOCKET_TYPE_STREAM) {
                 TCP_Close(Socket->TCPConnection);
             }
@@ -196,7 +196,7 @@ U32 SocketShutdown(U32 SocketHandle, U32 How) {
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         DEBUG(TEXT("[SocketShutdown] Socket state=%d, type=%d, TCPConnection=%x"), Socket->State, Socket->SocketType, Socket->TCPConnection);
 
         // Allow shutdown on connecting sockets too (not just connected ones)
@@ -355,7 +355,7 @@ U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
         return SOCKET_ERROR_INVALID;
     }
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CREATED) {
             ERROR(TEXT("[SocketBind] Socket %x already bound or in invalid state"), SocketHandle);
             return SOCKET_ERROR_INUSE;
@@ -425,7 +425,7 @@ U32 SocketListen(U32 SocketHandle, U32 Backlog) {
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_BOUND) {
             ERROR(TEXT("[SocketListen] Socket %x not bound"), SocketHandle);
             return SOCKET_ERROR_NOTBOUND;
@@ -493,7 +493,7 @@ U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength)
 
     LPSOCKET ListenSocket = (LPSOCKET)SocketHandle;
 
-    SAFE_USE_VALID_ID(ListenSocket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(ListenSocket, KOID_SOCKET) {
         if (ListenSocket->State != SOCKET_STATE_LISTENING) {
             ERROR(TEXT("[SocketAccept] Socket %x not listening"), SocketHandle);
             return SOCKET_ERROR_NOTLISTENING;
@@ -526,7 +526,7 @@ U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength)
 
         LPSOCKET NewSocket = (LPSOCKET)NewSocketDescriptor;
 
-        SAFE_USE_VALID_ID(NewSocket, ID_SOCKET) {
+        SAFE_USE_VALID_ID(NewSocket, KOID_SOCKET) {
             // Copy connection information
             MemoryCopy(&NewSocket->LocalAddress, &ListenSocket->LocalAddress, sizeof(SOCKET_ADDRESS_INET));
             MemoryCopy(&NewSocket->RemoteAddress, &PendingSocket->RemoteAddress, sizeof(SOCKET_ADDRESS_INET));
@@ -578,7 +578,7 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
         return SOCKET_ERROR_INVALID;
     }
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CREATED && Socket->State != SOCKET_STATE_BOUND) {
             ERROR(TEXT("[SocketConnect] Socket %x in invalid state for connect"), SocketHandle);
             return SOCKET_ERROR_INVALID;
@@ -698,7 +698,7 @@ I32 SocketSend(U32 SocketHandle, const void* Buffer, U32 Length, U32 Flags) {
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CONNECTED) {
             ERROR(TEXT("[SocketSend] Socket %x not connected"), SocketHandle);
             return SOCKET_ERROR_NOTCONNECTED;
@@ -745,7 +745,7 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CONNECTED && Socket->State != SOCKET_STATE_CLOSED) {
             ERROR(TEXT("[SocketReceive] Socket %x not connected (state=%d)"), SocketHandle, Socket->State);
             return SOCKET_ERROR_NOTCONNECTED;
@@ -959,7 +959,7 @@ U32 SocketGetOption(U32 SocketHandle, U32 Level, U32 OptionName, void* OptionVal
         return SOCKET_ERROR_INVALID;
     }
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         // TODO: Implement socket options
         ERROR(TEXT("[SocketGetOption] SocketGetOption not implemented yet"));
         return SOCKET_ERROR_INVALID;
@@ -994,7 +994,7 @@ U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, const void* Opt
         return SOCKET_ERROR_INVALID;
     }
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Level == SOL_SOCKET) {
             switch (OptionName) {
                 case SO_RCVTIMEO: {
@@ -1041,7 +1041,7 @@ U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLe
         return SOCKET_ERROR_INVALID;
     }
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CONNECTED) {
             DEBUG(TEXT("[SocketGetPeerName] Socket %x not connected"), SocketHandle);
             return SOCKET_ERROR_NOTCONNECTED;
@@ -1082,7 +1082,7 @@ U32 SocketGetSocketName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* Address
         return SOCKET_ERROR_INVALID;
     }
 
-    SAFE_USE_VALID_ID(Socket, ID_SOCKET) {
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State < SOCKET_STATE_BOUND) {
             ERROR(TEXT("[SocketGetSocketName] Socket %x not bound"), SocketHandle);
             return SOCKET_ERROR_NOTBOUND;

@@ -158,7 +158,7 @@ U32 CloseFile(LPFILE File) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (File->ID != ID_FILE) return 0;
+    if (File->ID != KOID_FILE) return 0;
 
     LockMutex(&(File->Mutex), INFINITY);
 
@@ -182,7 +182,7 @@ U32 CloseFile(LPFILE File) {
 U32 GetFilePosition(LPFILE File) {
     U32 Position = 0;
 
-    SAFE_USE_VALID_ID(File, ID_FILE) {
+    SAFE_USE_VALID_ID(File, KOID_FILE) {
         //-------------------------------------
         // Lock access to the file
 
@@ -210,7 +210,7 @@ U32 SetFilePosition(LPFILEOPERATION Operation) {
     SAFE_USE_VALID(Operation) {
         LPFILE File = (LPFILE)Operation->File;
 
-        SAFE_USE_VALID_ID(File, ID_FILE) {
+        SAFE_USE_VALID_ID(File, KOID_FILE) {
             //-------------------------------------
             // Lock access to the file
 
@@ -249,7 +249,7 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
     if (FileOp->File == NULL) return 0;
 
     File = (LPFILE)FileOp->File;
-    if (File->ID != ID_FILE) return 0;
+    if (File->ID != KOID_FILE) return 0;
 
     if ((File->OpenFlags & FILE_OPEN_READ) == 0) return 0;
 
@@ -291,7 +291,7 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
     if (FileOp->File == NULL) return 0;
 
     File = (LPFILE)FileOp->File;
-    if (File->ID != ID_FILE) return 0;
+    if (File->ID != KOID_FILE) return 0;
 
     if ((File->OpenFlags & FILE_OPEN_WRITE) == 0) return 0;
 
@@ -328,7 +328,7 @@ U32 GetFileSize(LPFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return 0;
-    if (File->ID != ID_FILE) return 0;
+    if (File->ID != KOID_FILE) return 0;
 
     LockMutex(&(File->Mutex), INFINITY);
 

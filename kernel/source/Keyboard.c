@@ -41,7 +41,7 @@
 U32 StdKeyboardCommands(U32, U32);
 
 DRIVER StdKeyboardDriver = {
-    .ID = ID_DRIVER,
+    .ID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,

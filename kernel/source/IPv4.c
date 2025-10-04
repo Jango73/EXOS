@@ -56,7 +56,7 @@ LPIPV4_CONTEXT IPv4_GetContext(LPDEVICE Device) {
     if (Device == NULL) return NULL;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    Context = (LPIPV4_CONTEXT)GetDeviceContext(Device, ID_IPV4);
+    Context = (LPIPV4_CONTEXT)GetDeviceContext(Device, KOID_IPV4);
     UnlockMutex(&(Device->Mutex));
 
     return Context;
@@ -133,8 +133,8 @@ static int IPv4_SendEthernetFrame(LPIPV4_CONTEXT Context, const U8* Data, U32 Le
     Send.Device = (LPPCI_DEVICE)Device;
     Send.Data = Data;
     Send.Length = Length;
-    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
         }
     }
@@ -263,7 +263,7 @@ void IPv4_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     Context->NotificationContext = Notification_CreateContext();
 
     LockMutex(&(Device->Mutex), INFINITY);
-    SetDeviceContext(Device, ID_IPV4, Context);
+    SetDeviceContext(Device, KOID_IPV4, Context);
     UnlockMutex(&(Device->Mutex));
 
     U32 IP = Ntohl(LocalIPv4_Be);
@@ -282,7 +282,7 @@ void IPv4_Destroy(LPDEVICE Device) {
     Context = IPv4_GetContext(Device);
 
     LockMutex(&(Device->Mutex), INFINITY);
-    RemoveDeviceContext(Device, ID_IPV4);
+    RemoveDeviceContext(Device, KOID_IPV4);
     UnlockMutex(&(Device->Mutex));
 
     SAFE_USE(Context) {
@@ -426,8 +426,8 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
 
     LockMutex(&(Device->Mutex), INFINITY);
 
-    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[IPv4_Send] Failed to get network info"));
                 goto Out;
@@ -556,8 +556,8 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
 
     LockMutex(&(Device->Mutex), INFINITY);
 
-    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, ID_DRIVER) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[IPv4_SendDirect] Failed to get network info"));
                 goto Out;

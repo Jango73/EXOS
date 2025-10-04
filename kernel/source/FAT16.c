@@ -34,7 +34,7 @@
 U32 FAT16Commands(U32, U32);
 
 DRIVER FAT16Driver = {
-    .ID = ID_DRIVER,
+    .ID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,
     .Next = NULL,
@@ -81,7 +81,7 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
 
     MemorySet(This, 0, sizeof(FAT16FILESYSTEM));
 
-    This->Header.ID = ID_FILESYSTEM;
+    This->Header.ID = KOID_FILESYSTEM;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -108,7 +108,7 @@ static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
     MemorySet(This, 0, sizeof(FATFILE));
 
-    This->Header.ID = ID_FILE;
+    This->Header.ID = KOID_FILE;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -134,7 +134,7 @@ BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     LPFAT16FILESYSTEM FileSystem;
     U32 Result;
 
-    Control.ID = ID_IOCONTROL;
+    Control.ID = KOID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = Base + Partition->LBA;
     Control.SectorHigh = 0;
@@ -236,7 +236,7 @@ static BOOL ReadCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
         return FALSE;
     }
 
-    Control.ID = ID_IOCONTROL;
+    Control.ID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = Sector;
     Control.SectorHigh = 0;
@@ -280,7 +280,7 @@ static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
         return FALSE;
     }
 
-    Control.ID = ID_IOCONTROL;
+    Control.ID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = Sector;
     Control.SectorHigh = 0;
@@ -312,7 +312,7 @@ static CLUSTER GetNextClusterInChain(LPFAT16FILESYSTEM FileSystem, CLUSTER Clust
     Sector = Cluster / NumEntriesPerSector;
     Offset = Cluster % NumEntriesPerSector;
 
-    Control.ID = ID_IOCONTROL;
+    Control.ID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = FileSystem->FATStart + Sector;
     Control.SectorHigh = 0;
@@ -535,7 +535,7 @@ static U32 OpenNext(LPFATFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return DF_ERROR_BADPARAM;
-    if (File->Header.ID != ID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.ID != KOID_FILE) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
     // Get the associated file system
@@ -631,7 +631,7 @@ static U32 ReadFile(LPFATFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return DF_ERROR_BADPARAM;
-    if (File->Header.ID != ID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.ID != KOID_FILE) return DF_ERROR_BADPARAM;
     if (File->Header.Buffer == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
@@ -721,7 +721,7 @@ static CLUSTER ChainNewCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster) {
     NumEntriesPerSector = SECTOR_SIZE / sizeof(U16);
     CurrentSector = 0;
     NewCluster = 0;
-    Control.ID = ID_IOCONTROL;
+    Control.ID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
@@ -802,7 +802,7 @@ static U32 WriteFile(LPFATFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return DF_ERROR_BADPARAM;
-    if (File->Header.ID != ID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.ID != KOID_FILE) return DF_ERROR_BADPARAM;
     if (File->Header.Buffer == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------

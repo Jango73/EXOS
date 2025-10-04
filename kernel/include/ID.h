@@ -25,38 +25,39 @@
 #ifndef ID_H_INCLUDED
 #define ID_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
+// Kernel object type identifiers
 
-#define ID_NONE 0x00000000
-#define ID_PROCESS 0x434F5250           // "PROC"
-#define ID_TASK 0x4B534154              // "TASK"
-#define ID_MUTEX 0x4D555458             // "MUTX"
-#define ID_SECURITY 0x55434553          // "SECU"
-#define ID_MESSAGE 0x4753534D           // "MSSG"
-#define ID_HEAP 0x50414548              // "HEAP"
-#define ID_DRIVER 0x52565244            // "DRVR"
-#define ID_PCIDEVICE 0x44494350         // "PCID"
-#define ID_DISK 0x4B534944              // "DISK"
-#define ID_IOCONTROL 0x54434F49         // "IOCT"
-#define ID_FILESYSTEM 0x53595346        // "FSYS"
-#define ID_FILE 0x454C4946              // "FILE"
-#define ID_GRAPHICSCONTEXT 0x43584647   // "GFXC"
-#define ID_DESKTOP 0x544B5344           // "DSKT"
-#define ID_WINDOW 0x444E4957            // "WIND"
-#define ID_BRUSH 0x48535242             // "BRSH"
-#define ID_PEN 0x5F4E4550               // "PEN_"
-#define ID_FONT 0x544E4F46              // "FONT"
-#define ID_BITMAP 0x504D5442            // "BTMP"
-#define ID_USERACCOUNT 0x52455355       // "USER"
-#define ID_USERSESSION 0x53534553       // "SESS"
-#define ID_NETWORKDEVICE 0x4454454E     // "NETD"
-#define ID_SOCKET 0x4B434F53            // "SOCK"
-#define ID_ARP 0x5F505241               // "ARP_"
-#define ID_IPV4 0x34565049              // "IPV4"
-#define ID_UDP 0x5F504455               // "UDP_"
-#define ID_DHCP 0x50434844              // "DHCP"
-#define ID_TCP 0x5F504354               // "TCP_"
+#define KOID_NONE 0x00000000
+#define KOID_PROCESS 0x434F5250           // "PROC"
+#define KOID_TASK 0x4B534154              // "TASK"
+#define KOID_MUTEX 0x4D555458             // "MUTX"
+#define KOID_SECURITY 0x55434553          // "SECU"
+#define KOID_MESSAGE 0x4753534D           // "MSSG"
+#define KOID_HEAP 0x50414548              // "HEAP"
+#define KOID_DRIVER 0x52565244            // "DRVR"
+#define KOID_PCIDEVICE 0x44494350         // "PCID"
+#define KOID_DISK 0x4B534944              // "DISK"
+#define KOID_IOCONTROL 0x54434F49         // "IOCT"
+#define KOID_FILESYSTEM 0x53595346        // "FSYS"
+#define KOID_FILE 0x454C4946              // "FILE"
+#define KOID_GRAPHICSCONTEXT 0x43584647   // "GFXC"
+#define KOID_DESKTOP 0x544B5344           // "DSKT"
+#define KOID_WINDOW 0x444E4957            // "WIND"
+#define KOID_BRUSH 0x48535242             // "BRSH"
+#define KOID_PEN 0x5F4E4550               // "PEN_"
+#define KOID_FONT 0x544E4F46              // "FONT"
+#define KOID_BITMAP 0x504D5442            // "BTMP"
+#define KOID_USERACCOUNT 0x52455355       // "USER"
+#define KOID_USERSESSION 0x53534553       // "SESS"
+#define KOID_NETWORKDEVICE 0x4454454E     // "NETD"
+#define KOID_SOCKET 0x4B434F53            // "SOCK"
+#define KOID_ARP 0x5F505241               // "ARP_"
+#define KOID_IPV4 0x34565049              // "IPV4"
+#define KOID_UDP 0x5F504455               // "UDP_"
+#define KOID_DHCP 0x50434844              // "DHCP"
+#define KOID_TCP 0x5F504354               // "TCP_"
 
-/***************************************************************************/
+/************************************************************************/
 
 #endif  // ID_H_INCLUDED

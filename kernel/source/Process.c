@@ -36,7 +36,7 @@
 /***************************************************************************/
 
 PROCESS SECTION(".data") KernelProcess = {
-    .ID = ID_PROCESS,  // ID
+    .ID = KOID_PROCESS,  // ID
     .References = 1,   // References
     .OwnerProcess = NULL, // OwnerProcess (from LISTNODE_FIELDS)
     .Next = NULL,
@@ -136,7 +136,7 @@ LPPROCESS NewProcess(void) {
 
     DEBUG(TEXT("[NewProcess] Enter"));
 
-    This = (LPPROCESS)CreateKernelObject(sizeof(PROCESS), ID_PROCESS);
+    This = (LPPROCESS)CreateKernelObject(sizeof(PROCESS), KOID_PROCESS);
 
     if (This == NULL) {
         TRACED_EPILOGUE("NewProcess");
@@ -154,7 +154,7 @@ LPPROCESS NewProcess(void) {
     This->Session = NULL;
 
     // Inherit session from parent process
-    SAFE_USE_VALID_ID(This->OwnerProcess, ID_PROCESS) {
+    SAFE_USE_VALID_ID(This->OwnerProcess, KOID_PROCESS) {
         This->Session = This->OwnerProcess->Session;
     }
 
@@ -185,7 +185,7 @@ LPPROCESS NewProcess(void) {
 void DeleteProcessCommit(LPPROCESS This) {
     TRACED_FUNCTION;
 
-    SAFE_USE_VALID_ID(This, ID_PROCESS) {
+    SAFE_USE_VALID_ID(This, KOID_PROCESS) {
         if (This == &KernelProcess) {
             ERROR(TEXT("[DeleteProcessCommit] Cannot delete kernel process"));
             TRACED_EPILOGUE("DeleteProcessCommit");
@@ -221,7 +221,7 @@ void DeleteProcessCommit(LPPROCESS This) {
 void KillProcess(LPPROCESS This) {
     TRACED_FUNCTION;
 
-    SAFE_USE_VALID_ID(This, ID_PROCESS) {
+    SAFE_USE_VALID_ID(This, KOID_PROCESS) {
         if (This == &KernelProcess) {
             ERROR(TEXT("[KillProcess] Cannot delete kernel process"));
             TRACED_EPILOGUE("KillProcess");
@@ -252,7 +252,7 @@ void KillProcess(LPPROCESS This) {
             LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
 
             while (Current != NULL) {
-                SAFE_USE_VALID_ID(Current, ID_PROCESS) {
+                SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
                     // Check if this process has a parent in our check list
                     for (U32 i = 0; i < ListGetSize(ProcessesToCheck); i++) {
                         LPPROCESS ParentToCheck = (LPPROCESS)ListGetItem(ProcessesToCheck, i);
@@ -293,14 +293,14 @@ void KillProcess(LPPROCESS This) {
 
             for (U32 i = 0; i < ChildCount; i++) {
                 LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, i);
-                SAFE_USE_VALID_ID(ChildProcess, ID_PROCESS) {
+                SAFE_USE_VALID_ID(ChildProcess, KOID_PROCESS) {
                     DEBUG(TEXT("[KillProcess] Killing tasks of child process %s"), ChildProcess->FileName);
 
                     // Kill all tasks of this child process
                     LPTASK Task = (LPTASK)Kernel.Task->First;
                     while (Task != NULL) {
                         LPTASK NextTask = (LPTASK)Task->Next;
-                        SAFE_USE_VALID_ID(Task, ID_TASK) {
+                        SAFE_USE_VALID_ID(Task, KOID_TASK) {
                             if (Task->Process == ChildProcess) {
                                 DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
                                 KillTask(Task);
@@ -318,7 +318,7 @@ void KillProcess(LPPROCESS This) {
 
             for (U32 i = 0; i < ChildCount; i++) {
                 LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, i);
-                SAFE_USE_VALID_ID(ChildProcess, ID_PROCESS) {
+                SAFE_USE_VALID_ID(ChildProcess, KOID_PROCESS) {
                     // Detach child from parent (make it orphan)
                     ChildProcess->OwnerProcess = NULL;
                     DEBUG(TEXT("[KillProcess] Detached child process %s from parent"), ChildProcess->FileName);
@@ -335,7 +335,7 @@ void KillProcess(LPPROCESS This) {
         LPTASK Task = (LPTASK)Kernel.Task->First;
         while (Task != NULL) {
             LPTASK NextTask = (LPTASK)Task->Next;
-            SAFE_USE_VALID_ID(Task, ID_TASK) {
+            SAFE_USE_VALID_ID(Task, KOID_TASK) {
                 if (Task->Process == This) {
                     DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
                     KillTask(Task);
@@ -491,7 +491,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     } else {
         ParentProcess = GetCurrentProcess();
 
-        SAFE_USE_VALID_ID(ParentProcess, ID_PROCESS) {
+        SAFE_USE_VALID_ID(ParentProcess, KOID_PROCESS) {
             StringCopy(Process->WorkFolder, ParentProcess->WorkFolder);
         } else {
             StringCopy(Process->WorkFolder, ROOT);
@@ -709,7 +709,7 @@ U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
         StringCopy(ProcessInfo.WorkFolder, WorkFolder);
     } else {
         ParentProcess = GetCurrentProcess();
-        SAFE_USE_VALID_ID(ParentProcess, ID_PROCESS) {
+        SAFE_USE_VALID_ID(ParentProcess, KOID_PROCESS) {
             StringCopy(ProcessInfo.WorkFolder, ParentProcess->WorkFolder);
         }
     }
@@ -745,7 +745,7 @@ U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
 void SetProcessStatus(LPPROCESS This, U32 Status) {
     LockMutex(MUTEX_PROCESS, INFINITY);
 
-    SAFE_USE_VALID_ID(This, ID_PROCESS) {
+    SAFE_USE_VALID_ID(This, KOID_PROCESS) {
         This->Status = Status;
 
         DEBUG(TEXT("[SetProcessStatus] Marked process %s as %d"), This->FileName, Status);
@@ -772,7 +772,7 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
 
     if (Process == NULL) Process = GetCurrentProcess();
 
-    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         LockMutex(&(Process->Mutex), INFINITY);
 
         HeapBase = Process->HeapBase;
@@ -791,7 +791,7 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
  * @param Process Process to dump. Nothing is logged if NULL.
  */
 void DumpProcess(LPPROCESS Process) {
-    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         LockMutex(&(Process->Mutex), INFINITY);
 
         DEBUG(TEXT("Address        : %p\n"), Process);
@@ -816,7 +816,7 @@ void DumpProcess(LPPROCESS Process) {
  */
 void InitSecurity(LPSECURITY This) {
     SAFE_USE(This) {
-        This->ID = ID_SECURITY;
+        This->ID = KOID_SECURITY;
         This->References = 1;
         This->OwnerProcess = GetCurrentProcess();
         This->Next = NULL;

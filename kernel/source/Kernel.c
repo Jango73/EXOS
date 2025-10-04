@@ -288,7 +288,7 @@ void KernelObjectDestructor(LPVOID Object) {
     SAFE_USE_VALID(Object) {
         LPLISTNODE Node = (LPLISTNODE)Object;
         switch (Node->ID) {
-        case ID_MUTEX: DeleteMutex((LPMUTEX)Node);
+        case KOID_MUTEX: DeleteMutex((LPMUTEX)Node);
         }
     }
 }
@@ -336,7 +336,7 @@ LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
 /**
  * @brief Destroy a kernel object.
  *
- * This function sets the object's ID to ID_NONE and frees its memory.
+ * This function sets the object's ID to KOID_NONE and frees its memory.
  *
  * @param Object Pointer to the kernel object to destroy
  */
@@ -354,7 +354,7 @@ void ReleaseKernelObject(LPVOID Object) {
  * @brief Delete unreferenced kernel objects from all kernel lists.
  *
  * This function traverses all kernel object lists and removes objects
- * with a reference count of 0, setting their ID to ID_NONE and freeing
+ * with a reference count of 0, setting their ID to KOID_NONE and freeing
  * their memory with KernelHeapFree.
  */
 void DeleteUnreferencedObjects(void) {
@@ -379,7 +379,7 @@ void DeleteUnreferencedObjects(void) {
                 ListRemove(List, Current);
 
                 // Mark as deleted and free memory
-                Current->ID = ID_NONE;
+                Current->ID = KOID_NONE;
                 KernelHeapFree(Current);
 
                 DeletedCount++;
@@ -445,7 +445,7 @@ static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
  * @param Process Process whose owned kernel objects must be released.
  */
 void ReleaseProcessKernelObjects(LPPROCESS Process) {
-    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         if (Process == &KernelProcess) {
             return;
         }
@@ -632,7 +632,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), Name, Driver);
 
-        if (Driver->ID != ID_DRIVER) {
+        if (Driver->ID != KOID_DRIVER) {
             KernelLogText(
                 LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->ID);
 

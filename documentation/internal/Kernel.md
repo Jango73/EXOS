@@ -546,10 +546,6 @@ typedef struct DeviceTag {
 - `SetDeviceContext(Device, ID, Context)`: Store context for device
 - `RemoveDeviceContext(Device, ID)`: Remove and free context
 
-**Context IDs:**
-- `ID_ARP (0x5F505241)`: ARP protocol context
-- `ID_IPV4 (0x34565049)`: IPv4 protocol context
-
 ### Network Manager
 
 **Location:** `kernel/source/NetworkManager.c`, `kernel/include/NetworkManager.h`

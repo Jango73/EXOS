@@ -35,7 +35,7 @@
 U32 RAMDiskCommands(U32, U32);
 
 DRIVER RAMDiskDriver = {
-    .ID = ID_DRIVER,
+    .ID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -68,7 +68,7 @@ static LPRAMDISK NewRAMDisk(void) {
 
     MemorySet(This, 0, sizeof(RAMDISK));
 
-    This->Header.ID = ID_DISK;
+    This->Header.ID = KOID_DISK;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -502,7 +502,7 @@ static U32 Read(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->Base == NULL) return DF_ERROR_BADPARAM;
     if (Disk->Size == 0) return DF_ERROR_BADPARAM;
 
@@ -538,7 +538,7 @@ static U32 Write(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->Base == NULL) return DF_ERROR_BADPARAM;
     if (Disk->Size == 0) return DF_ERROR_BADPARAM;
 
@@ -579,7 +579,7 @@ static U32 GetInfo(LPDISKINFO Info) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->Base == NULL) return DF_ERROR_BADPARAM;
     if (Disk->Size == 0) return DF_ERROR_BADPARAM;
 
@@ -609,7 +609,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != ID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->Base == NULL) return DF_ERROR_BADPARAM;
     if (Disk->Size == 0) return DF_ERROR_BADPARAM;
 
