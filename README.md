@@ -7,10 +7,9 @@ Currently booting in QEMU and Bochs.
 
 ## What it is
 
-This was an attempt, around 1999, to create an operating system.
-It is work in progress.
-
-Because it is a very long work, it will probably never be finished.
+This is an ongoing OS dev project that was abandoned in late 1999.
+Back then, it compiled with gcc and nasm, but linked with jloc.
+Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
 
 ## Debian compile & run
 
