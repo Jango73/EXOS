@@ -10,6 +10,16 @@ Be aware that it generates A LOT of COM2 output, the scheduler is called every 1
 
 To be completed.
 
+### Command line editing
+
+Interactive editing of shell command lines is implemented in
+`kernel/source/CommandLineEditor.c`. The module processes keyboard input,
+maintains an in-memory history, refreshes the console display, and relies on
+callbacks to retrieve completion suggestions. The shell owns an input state
+structure that embeds the editor instance and provides the shell-specific
+completion callback so the component remains agnostic of higher level shell
+logic.
+
 ### File system globals
 
 The kernel tracks shared file system information in `Kernel.FileSystemInfo`.

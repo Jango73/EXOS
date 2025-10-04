@@ -25,6 +25,7 @@
 #include "../include/ACPI.h"
 #include "../include/Base.h"
 #include "../include/Clock.h"
+#include "../include/CommandLineEditor.h"
 #include "../include/Console.h"
 #include "../include/Disk.h"
 #include "../include/Endianness.h"
@@ -58,18 +59,25 @@
 #define HISTORY_SIZE 20
 
 /************************************************************************/
+// Shell input state
+
+typedef struct tag_SHELLINPUTSTATE {
+    STR CommandLine[MAX_PATH_NAME];
+    COMMANDLINEEDITOR Editor;
+} SHELLINPUTSTATE, *LPSHELLINPUTSTATE;
+
+/************************************************************************/
 // The shell context
 
 typedef struct tag_SHELLCONTEXT {
     U32 Component;
     U32 CommandChar;
-    STR CommandLine[MAX_PATH_NAME];
+    SHELLINPUTSTATE Input;
     STR Command[256];
     STR CurrentFolder[MAX_PATH_NAME];
     LPVOID BufferBase;
     U32 BufferSize;
     LPSTR Buffer[SHELL_NUM_BUFFERS];
-    STRINGARRAY History;
     STRINGARRAY Options;
     PATHCOMPLETION PathCompletion;
     LPSCRIPT_CONTEXT ScriptContext;
@@ -116,6 +124,10 @@ static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
 static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
 static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+static BOOL ShellCommandLineCompletion(
+    const COMMANDLINE_COMPLETION_CONTEXT* CompletionContext,
+    LPSTR Output,
+    U32 OutputSize);
 static void ClearOptions(LPSHELLCONTEXT);
 static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
 static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
@@ -179,7 +191,11 @@ static void InitShellContext(LPSHELLCONTEXT This) {
     This->Component = 0;
     This->CommandChar = 0;
 
-    StringArrayInit(&This->History, HISTORY_SIZE);
+    CommandLineEditorInit(&This->Input.Editor, HISTORY_SIZE);
+    CommandLineEditorSetCompletionCallback(
+        &This->Input.Editor,
+        ShellCommandLineCompletion,
+        This);
     StringArrayInit(&This->Options, 8);
     PathCompletionInit(&This->PathCompletion, GetSystemFS());
 
@@ -216,7 +232,7 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
         if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
     }
 
-    StringArrayDeinit(&This->History);
+    CommandLineEditorDeinit(&This->Input.Editor);
     StringArrayDeinit(&This->Options);
     PathCompletionDeinit(&This->PathCompletion);
 
@@ -250,7 +266,7 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
             MemoryCopy(This->Buffer[Index - 1], This->Buffer[Index],
                        BUFFER_SIZE);
         }
-        MemoryCopy(This->Buffer[SHELL_NUM_BUFFERS - 1], This->CommandLine,
+        MemoryCopy(This->Buffer[SHELL_NUM_BUFFERS - 1], This->Input.CommandLine,
                    BUFFER_SIZE);
     }
 }
@@ -271,22 +287,22 @@ static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
 
     Context->Command[d] = STR_NULL;
 
-    if (Context->CommandLine[Context->CommandChar] == STR_NULL) return TRUE;
+    if (Context->Input.CommandLine[Context->CommandChar] == STR_NULL) return TRUE;
 
-    while (Context->CommandLine[Context->CommandChar] != STR_NULL &&
-           Context->CommandLine[Context->CommandChar] <= STR_SPACE) {
+    while (Context->Input.CommandLine[Context->CommandChar] != STR_NULL &&
+           Context->Input.CommandLine[Context->CommandChar] <= STR_SPACE) {
         Context->CommandChar++;
     }
 
     FOREVER {
-        if (Context->CommandLine[Context->CommandChar] == STR_NULL) {
+        if (Context->Input.CommandLine[Context->CommandChar] == STR_NULL) {
             break;
-        } else if (Context->CommandLine[Context->CommandChar] <= STR_SPACE) {
+        } else if (Context->Input.CommandLine[Context->CommandChar] <= STR_SPACE) {
             if (Quotes == 0) {
                 Context->CommandChar++;
                 break;
             }
-        } else if (Context->CommandLine[Context->CommandChar] == STR_QUOTE) {
+        } else if (Context->Input.CommandLine[Context->CommandChar] == STR_QUOTE) {
             Context->CommandChar++;
             if (Quotes == 0)
                 Quotes = 1;
@@ -294,7 +310,7 @@ static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
                 break;
         }
 
-        Context->Command[d] = Context->CommandLine[Context->CommandChar];
+        Context->Command[d] = Context->Input.CommandLine[Context->CommandChar];
 
         Context->CommandChar++;
         d++;
@@ -336,222 +352,67 @@ static BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName)
 /***************************************************************************/
 
 /**
- * @brief Position the console cursor relative to the command input start.
- * @param StartX Prompt start X coordinate.
- * @param StartY Prompt start Y coordinate.
- * @param CursorPos Cursor offset inside the command buffer.
+ * @brief Provide path-based completion for the command line editor.
+ * @param CompletionContext Details about the token to complete.
+ * @param Output Buffer receiving the replacement token.
+ * @param OutputSize Size of the output buffer in characters.
+ * @return TRUE when a completion was produced, FALSE otherwise.
  */
-static void UpdateInputCursor(U32 StartX, U32 StartY, U32 CursorPos) {
-    U32 TargetX = StartX + CursorPos;
-    U32 TargetY = StartY;
+static BOOL ShellCommandLineCompletion(
+    const COMMANDLINE_COMPLETION_CONTEXT* CompletionContext,
+    LPSTR Output,
+    U32 OutputSize) {
+    LPSHELLCONTEXT Context;
+    STR Token[MAX_PATH_NAME];
+    STR Full[MAX_PATH_NAME];
+    STR Completed[MAX_PATH_NAME];
+    STR Display[MAX_PATH_NAME];
+    STR Temp[MAX_PATH_NAME];
+    U32 DisplayLength;
 
-    if (Console.Width != 0) {
-        TargetY += TargetX / Console.Width;
-        TargetX %= Console.Width;
+    if (CompletionContext == NULL) return FALSE;
+    if (Output == NULL) return FALSE;
+    if (OutputSize == 0) return FALSE;
+
+    Context = (LPSHELLCONTEXT)CompletionContext->UserData;
+    if (Context == NULL) return FALSE;
+
+    if (CompletionContext->TokenLength >= MAX_PATH_NAME) return FALSE;
+
+    StringCopyNum(Token, CompletionContext->Token, CompletionContext->TokenLength);
+    Token[CompletionContext->TokenLength] = STR_NULL;
+
+    if (Token[0] == PATH_SEP) {
+        StringCopy(Full, Token);
+    } else {
+        if (!QualifyFileName(Context, Token, Full)) return FALSE;
     }
 
-    SetConsoleCursorPosition(TargetX, TargetY);
-}
+    if (!PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
+        return FALSE;
+    }
 
-/***************************************************************************/
-
-/**
- * @brief Redraw the entire command line after edits.
- * @param Context Shell context owning the command buffer.
- * @param StartX Prompt start X coordinate.
- * @param StartY Prompt start Y coordinate.
- * @param Length Current length of the command.
- * @param PreviousLength Previously displayed length of the command.
- * @param CursorPos Cursor offset inside the command buffer.
- * @param MaskCharacters TRUE to display '*' instead of actual characters.
- */
-static void RefreshInputDisplay(
-    LPSHELLCONTEXT Context, U32 StartX, U32 StartY, U32 Length, U32 PreviousLength, U32 CursorPos, BOOL MaskCharacters) {
-    U32 Index;
-
-    SetConsoleCursorPosition(StartX, StartY);
-
-    for (Index = 0; Index < Length; Index++) {
-        if (MaskCharacters) {
-            ConsolePrintChar('*');
+    if (Token[0] == PATH_SEP) {
+        StringCopy(Display, Completed);
+    } else {
+        U32 FolderLength = StringLength(Context->CurrentFolder);
+        StringCopyNum(Temp, Completed, FolderLength);
+        Temp[FolderLength] = STR_NULL;
+        if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
+            STR* DisplayPtr = Completed + FolderLength;
+            if (DisplayPtr[0] == PATH_SEP) DisplayPtr++;
+            StringCopy(Display, DisplayPtr);
         } else {
-            ConsolePrintChar(Context->CommandLine[Index]);
+            StringCopy(Display, Completed);
         }
     }
 
-    for (Index = Length; Index < PreviousLength; Index++) {
-        ConsolePrintChar(STR_SPACE);
-    }
+    DisplayLength = StringLength(Display);
+    if (DisplayLength >= OutputSize) return FALSE;
 
-    UpdateInputCursor(StartX, StartY, CursorPos);
-}
+    StringCopy(Output, Display);
 
-/***************************************************************************/
-
-static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
-    KEYCODE KeyCode;
-    U32 CursorPos = 0;
-    U32 Length = 0;
-    U32 DisplayedLength = 0;
-    U32 HistoryPos = Context->History.Count;
-    U32 StartX = 0;
-    U32 StartY = 0;
-
-    DEBUG(TEXT("[ReadCommandLine] Enter"));
-
-    Context->CommandLine[0] = STR_NULL;
-    GetConsoleCursorPosition(&StartX, &StartY);
-
-    FOREVER {
-        if (PeekChar()) {
-            GetKeyCode(&KeyCode);
-
-            if (KeyCode.VirtualKey == VK_ESCAPE) {
-                Length = 0;
-                CursorPos = 0;
-                Context->CommandLine[0] = STR_NULL;
-                RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                DisplayedLength = Length;
-            } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
-                if (CursorPos > 0) {
-                    MemoryMove(Context->CommandLine + CursorPos - 1, Context->CommandLine + CursorPos, (Length - CursorPos) + 1);
-                    CursorPos--;
-                    Length--;
-                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            } else if (KeyCode.VirtualKey == VK_DELETE) {
-                if (CursorPos < Length) {
-                    MemoryMove(Context->CommandLine + CursorPos, Context->CommandLine + CursorPos + 1, (Length - CursorPos));
-                    Length--;
-                    Context->CommandLine[Length] = STR_NULL;
-                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            } else if (KeyCode.VirtualKey == VK_LEFT) {
-                if (CursorPos > 0) {
-                    CursorPos--;
-                    UpdateInputCursor(StartX, StartY, CursorPos);
-                }
-            } else if (KeyCode.VirtualKey == VK_RIGHT) {
-                if (CursorPos < Length) {
-                    CursorPos++;
-                    UpdateInputCursor(StartX, StartY, CursorPos);
-                }
-            } else if (KeyCode.VirtualKey == VK_HOME) {
-                CursorPos = 0;
-                UpdateInputCursor(StartX, StartY, CursorPos);
-            } else if (KeyCode.VirtualKey == VK_END) {
-                CursorPos = Length;
-                UpdateInputCursor(StartX, StartY, CursorPos);
-            } else if (KeyCode.VirtualKey == VK_ENTER) {
-                ConsolePrintChar(STR_NEWLINE);
-                Context->CommandLine[Length] = STR_NULL;
-                DEBUG(
-                    TEXT("[ReadCommandLine] ENTER pressed, final buffer: '%s', length=%d"), Context->CommandLine,
-                    Length);
-                return;
-            } else if (KeyCode.VirtualKey == VK_UP) {
-                if (HistoryPos > 0) {
-                    HistoryPos--;
-                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
-                    Length = StringLength(Context->CommandLine);
-                    CursorPos = Length;
-                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            } else if (KeyCode.VirtualKey == VK_DOWN) {
-                if (HistoryPos < Context->History.Count) HistoryPos++;
-                if (HistoryPos == Context->History.Count) {
-                    Context->CommandLine[0] = STR_NULL;
-                    Length = 0;
-                    CursorPos = 0;
-                } else {
-                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
-                    Length = StringLength(Context->CommandLine);
-                    CursorPos = Length;
-                }
-                RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                DisplayedLength = Length;
-            } else if (KeyCode.VirtualKey == VK_TAB) {
-                if (Length < BUFFER_SIZE - 1) {
-                    STR Token[MAX_PATH_NAME];
-                    STR Full[MAX_PATH_NAME];
-                    STR Completed[MAX_PATH_NAME];
-                    STR Display[MAX_PATH_NAME];
-                    STR Temp[MAX_PATH_NAME];
-                    U32 Start = CursorPos;
-
-                    while (Start && Context->CommandLine[Start - 1] != STR_SPACE) {
-                        Start--;
-                    }
-
-                    StringCopyNum(Token, Context->CommandLine + Start, CursorPos - Start);
-                    Token[CursorPos - Start] = STR_NULL;
-
-                    if (Token[0] == PATH_SEP) {
-                        StringCopy(Full, Token);
-                    } else {
-                        QualifyFileName(Context, Token, Full);
-                    }
-
-                    if (PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
-                        if (Token[0] == PATH_SEP) {
-                            StringCopy(Display, Completed);
-                        } else {
-                            U32 FolderLength = StringLength(Context->CurrentFolder);
-                            StringCopyNum(Temp, Completed, FolderLength);
-                            Temp[FolderLength] = STR_NULL;
-                            if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
-                                STR* DisplayPtr = Completed + FolderLength;
-                                if (DisplayPtr[0] == PATH_SEP) DisplayPtr++;
-                                StringCopy(Display, DisplayPtr);
-                            } else {
-                                StringCopy(Display, Completed);
-                            }
-                        }
-
-                        {
-                            U32 TokenLength = CursorPos - Start;
-                            U32 DisplayLength = StringLength(Display);
-                            U32 TailLength = Length - CursorPos;
-                            U32 NewLength = Length - TokenLength + DisplayLength;
-
-                            if (NewLength < BUFFER_SIZE) {
-                                MemoryMove(
-                                    Context->CommandLine + Start + DisplayLength,
-                                    Context->CommandLine + CursorPos,
-                                    TailLength + 1);
-                                MemoryCopy(Context->CommandLine + Start, Display, DisplayLength);
-                                Length = NewLength;
-                                CursorPos = Start + DisplayLength;
-                                RefreshInputDisplay(
-                                    Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                                DisplayedLength = Length;
-                            }
-                        }
-                    }
-                }
-            } else if (KeyCode.ASCIICode >= STR_SPACE) {
-                if (Length < BUFFER_SIZE - 1) {
-                    MemoryMove(
-                        Context->CommandLine + CursorPos + 1,
-                        Context->CommandLine + CursorPos,
-                        (Length - CursorPos) + 1);
-                    Context->CommandLine[CursorPos] = KeyCode.ASCIICode;
-                    CursorPos++;
-                    Length++;
-                    Context->CommandLine[Length] = STR_NULL;
-                    RefreshInputDisplay(Context, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            }
-        }
-
-        Sleep(10);
-    }
-
-    DEBUG(TEXT("[ReadCommandLine] Exit"));
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -891,7 +752,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     }
 
     // Continue parsing any remaining components to capture all options
-    while (Context->CommandLine[Context->CommandChar] != STR_NULL) {
+    while (Context->Input.CommandLine[Context->CommandChar] != STR_NULL) {
         ParseNextCommandLineComponent(Context);
     }
 
@@ -1371,8 +1232,8 @@ static void CMD_adduser(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("Password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(Password, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(Password, Context->Input.CommandLine);
 
     DEBUG(TEXT("[CMD_adduser] Password entered (length: %d)"), StringLength(Password));
 
@@ -1479,8 +1340,8 @@ static void CMD_login(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("Password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(Password, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(Password, Context->Input.CommandLine);
     DEBUG(TEXT("[CMD_login] Password entered (length: %d)"), StringLength(Password));
 
     DEBUG(TEXT("[CMD_login] Looking for user '%s'"), UserName);
@@ -1583,8 +1444,8 @@ static void CMD_passwd(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("Password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(OldPassword, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(OldPassword, Context->Input.CommandLine);
 
     if (!VerifyPassword(OldPassword, Account->PasswordHash)) {
         ConsolePrint(TEXT("Invalid current password\n"));
@@ -1592,12 +1453,12 @@ static void CMD_passwd(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("New password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(NewPassword, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(NewPassword, Context->Input.CommandLine);
 
     ConsolePrint(TEXT("Confirm password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(ConfirmPassword, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(ConfirmPassword, Context->Input.CommandLine);
 
     if (StringCompare(NewPassword, ConfirmPassword) != 0) {
         ConsolePrint(TEXT("Passwords do not match\n"));
@@ -1721,7 +1582,7 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
     }
 
     // Set up the command line in context
-    StringCopy(Context->CommandLine, CommandLine);
+    StringCopy(Context->Input.CommandLine, CommandLine);
 
     ClearOptions(Context);
 
@@ -1746,7 +1607,7 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
         }
 
         if (Found == 0) {
-            if (SpawnExecutable(Context, Context->CommandLine, FALSE) == TRUE) {
+            if (SpawnExecutable(Context, Context->Input.CommandLine, FALSE) == TRUE) {
                 return;
             }
         }
@@ -1773,13 +1634,13 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     Context->Component = 0;
     Context->CommandChar = 0;
-    MemorySet(Context->CommandLine, 0, sizeof Context->CommandLine);
+    MemorySet(Context->Input.CommandLine, 0, sizeof Context->Input.CommandLine);
 
-    ReadCommandLine(Context, FALSE);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, FALSE);
 
-    if (Context->CommandLine[0] != STR_NULL) {
-        StringArrayMoveToEnd(&Context->History, Context->CommandLine);
-        ExecuteCommandLine(Context, Context->CommandLine);
+    if (Context->Input.CommandLine[0] != STR_NULL) {
+        CommandLineEditorRemember(&Context->Input.Editor, Context->Input.CommandLine);
+        ExecuteCommandLine(Context, Context->Input.CommandLine);
     }
 
     DEBUG(TEXT("[ParseCommand] Exit"));
