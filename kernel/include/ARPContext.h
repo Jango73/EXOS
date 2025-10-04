@@ -30,7 +30,7 @@
 #include "Network.h"
 #include "Endianness.h"
 #include "Notification.h"
-#include "AdaptiveDelay.h"
+#include "utils/AdaptiveDelay.h"
 
 /************************************************************************/
 

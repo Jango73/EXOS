@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/AdaptiveDelay.h"
+#include "utils/AdaptiveDelay.h"
 
 #ifdef __KERNEL__
-#include "../include/Log.h"
+#include "Log.h"
 #endif
 
 /************************************************************************/

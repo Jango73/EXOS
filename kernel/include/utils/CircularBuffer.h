@@ -24,7 +24,7 @@
 #ifndef CIRCULARBUFFER_H_INCLUDED
 #define CIRCULARBUFFER_H_INCLUDED
 
-#include "../include/Base.h"
+#include "Base.h"
 
 /************************************************************************/
 

@@ -22,15 +22,15 @@
 
 \************************************************************************/
 
-#include "../include/CommandLineEditor.h"
+#include "utils/CommandLineEditor.h"
 
-#include "../include/Console.h"
-#include "../include/Heap.h"
-#include "../include/Keyboard.h"
-#include "../include/Log.h"
-#include "../include/String.h"
-#include "../include/Task.h"
-#include "../include/VKey.h"
+#include "Console.h"
+#include "Heap.h"
+#include "Keyboard.h"
+#include "Log.h"
+#include "String.h"
+#include "Task.h"
+#include "VKey.h"
 
 /***************************************************************************/
 

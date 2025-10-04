@@ -32,7 +32,7 @@
 #include "Network.h"
 #include "System.h"
 #include "Notification.h"
-#include "AdaptiveDelay.h"
+#include "utils/AdaptiveDelay.h"
 
 /************************************************************************/
 // Helper functions

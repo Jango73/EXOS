@@ -26,7 +26,7 @@
 #define TCP_H_INCLUDED
 
 #include "Base.h"
-#include "StateMachine.h"
+#include "utils/StateMachine.h"
 #include "IPv4.h"
 #include "Notification.h"
 #include "List.h"

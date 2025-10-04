@@ -25,7 +25,7 @@
 #define COMMANDLINEEDITOR_H_INCLUDED
 
 #include "Base.h"
-#include "StringArray.h"
+#include "utils/StringArray.h"
 
 /***************************************************************************/
 

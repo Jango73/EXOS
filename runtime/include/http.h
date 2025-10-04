@@ -26,7 +26,7 @@
 #define HTTP_H_INCLUDED
 
 #include "../include/exos-runtime.h"
-#include "../../kernel/include/AdaptiveDelay.h"
+#include "../../kernel/include/utils/AdaptiveDelay.h"
 
 /************************************************************************/
 

@@ -34,7 +34,7 @@
 #include "../include/NetworkManager.h"
 #include "../include/System.h"
 #include "network/TCP.h"
-#include "../include/CircularBuffer.h"
+#include "../include/utils/CircularBuffer.h"
 
 /************************************************************************/
 // Global socket management

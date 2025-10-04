@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/StringArray.h"
+#include "utils/StringArray.h"
 
-#include "../include/Heap.h"
-#include "../include/String.h"
+#include "Heap.h"
+#include "String.h"
 
 /************************************************************************/
 

@@ -23,12 +23,18 @@ for new objects.
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in
-`kernel/source/CommandLineEditor.c`. The module processes keyboard input,
+`kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input,
 maintains an in-memory history, refreshes the console display, and relies on
 callbacks to retrieve completion suggestions. The shell owns an input state
 structure that embeds the editor instance and provides the shell-specific
 completion callback so the component remains agnostic of higher level shell
 logic.
+
+All reusable helpers—such as the command line editor, adaptive delay, string
+containers, and CRC utilities—now live under `kernel/source/utils` with their
+public headers in `kernel/include/utils`. This keeps generic infrastructure
+separated from core subsystems and makes it easier to share common code across
+the kernel.
 
 ### ACPI services
 

@@ -21,10 +21,10 @@
 
 \************************************************************************/
 
-#include "../include/CircularBuffer.h"
-#include "../include/Heap.h"
-#include "../include/Memory.h"
-#include "../include/String.h"
+#include "utils/CircularBuffer.h"
+#include "Heap.h"
+#include "Memory.h"
+#include "String.h"
 
 /************************************************************************/
 static BOOL CircularBuffer_TryGrow(LPCIRCULAR_BUFFER Buffer, U32 AdditionalBytes) {

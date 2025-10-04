@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/Crypt.h"
+#include "utils/Crypt.h"
 
-#include "../include/String.h"
-#include "../include/System.h"
+#include "String.h"
+#include "System.h"
 
 /***************************************************************************/
 
