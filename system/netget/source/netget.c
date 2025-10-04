@@ -27,13 +27,24 @@
 
 /************************************************************************/
 
+/**
+ * @brief Print command line usage information
+ */
+static void PrintUsage(void) {
+    printf("Usage: netget <URL> [output_file]\n");
+    printf("  URL         : HTTP URL to download (e.g., http://192.168.1.100/file.txt)\n");
+    printf("  output_file : Optional output filename (default: extracted from URL)\n");
+}
+
 /************************************************************************/
+
 typedef struct tag_NETGET_PROGRESS_STATE {
     int StatusPrinted;
     int BodyChunksPrinted;
 } NETGET_PROGRESS_STATE;
 
 /************************************************************************/
+
 static void NetGetStatusCallback(const HTTP_RESPONSE* Response, void* Context) {
     NETGET_PROGRESS_STATE* State = (NETGET_PROGRESS_STATE*)Context;
 
@@ -63,6 +74,7 @@ static void NetGetStatusCallback(const HTTP_RESPONSE* Response, void* Context) {
 }
 
 /************************************************************************/
+
 static void NetGetBodyCallback(unsigned int Bytes, void* Context) {
     NETGET_PROGRESS_STATE* State = (NETGET_PROGRESS_STATE*)Context;
 
@@ -72,18 +84,6 @@ static void NetGetBodyCallback(unsigned int Bytes, void* Context) {
 
     State->BodyChunksPrinted++;
     printf(".");
-}
-
-/************************************************************************/
-/************************************************************************/
-
-/**
- * @brief Print command line usage information
- */
-static void PrintUsage(void) {
-    printf("Usage: netget <URL> [output_file]\n");
-    printf("  URL         : HTTP URL to download (e.g., http://192.168.1.100/file.txt)\n");
-    printf("  output_file : Optional output filename (default: extracted from URL)\n");
 }
 
 /************************************************************************/
