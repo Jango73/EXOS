@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../include/I386-MCI.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/String.h"
-#include "../include/System.h"
+#include "../../include/arch/i386/I386-MCI.h"
+#include "../../include/Kernel.h"
+#include "../../include/Log.h"
+#include "../../include/Memory.h"
+#include "../../include/String.h"
+#include "../../include/System.h"
 
 /************************************************************************/
 

@@ -31,7 +31,7 @@
 #include "utils/Database.h"
 #include "FileSystem.h"
 #include "Heap.h"
-#include "I386.h"
+#include "arch/i386/I386.h"
 #include "ID.h"
 #include "List.h"
 #include "Memory.h"

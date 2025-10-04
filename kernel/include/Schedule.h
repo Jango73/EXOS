@@ -28,7 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "I386.h"
+#include "arch/i386/I386.h"
 
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;

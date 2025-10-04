@@ -22,11 +22,11 @@
 
 \************************************************************************/
 
-#include "../include/I386.h"
+#include "../../include/arch/i386/I386.h"
 
-#include "../include/Log.h"
-#include "../include/String.h"
-#include "../include/Text.h"
+#include "../../include/Log.h"
+#include "../../include/String.h"
+#include "../../include/Text.h"
 
 /************************************************************************/
 

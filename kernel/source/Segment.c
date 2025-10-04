@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "../include/Base.h"
-#include "../include/I386.h"
+#include "../include/arch/i386/I386.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/String.h"
