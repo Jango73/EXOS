@@ -31,6 +31,16 @@ FileSystem="hd0p0"
 SourcePath="EXOS/USERS"
 Path="/users"
 
+[[SystemFS.Mount]]
+FileSystem="hd0p0"
+SourcePath="EXOS/APPS"
+Path="/apps"
+
+[[SystemFS.Mount]]
+FileSystem="hd0p0"
+SourcePath="EXOS/TEMP"
+Path="/temp"
+
 [Keyboard]
 # Available layouts : de-DE, en-US, fr-FR
 Layout="en-US"
