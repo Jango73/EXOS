@@ -1163,7 +1163,7 @@ static void CMD_pic(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), KernelStartup.IRQMask_A1_PM);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_outp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
@@ -1174,7 +1174,7 @@ static void CMD_outp(LPSHELLCONTEXT Context) {
     OutPortByte(Port, Data);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_inp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
@@ -1184,12 +1184,15 @@ static void CMD_inp(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("Port %X = %X\n"), Port, Data);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_reboot(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    Reboot();
+    DEBUG(TEXT("[CMD_shutdown] Rebooting system"));
+    ConsolePrint(TEXT("Rebooting system...\n"));
+
+    ACPIReboot();
 }
 
 /************************************************************************/
@@ -1207,7 +1210,7 @@ static void CMD_shutdown(LPSHELLCONTEXT Context) {
     ACPIShutdown();
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_adduser(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
