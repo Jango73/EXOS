@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/GFX.h"
-#include "../include/I386.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
+#include "GFX.h"
+#include "I386.h"
+#include "Kernel.h"
+#include "Log.h"
 
 /************************************************************************/
 

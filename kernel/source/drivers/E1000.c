@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "network/E1000.h"
+#include "drivers/E1000.h"
 
 #include "Base.h"
 #include "Driver.h"
@@ -30,7 +30,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Network.h"
-#include "PCI.h"
+#include "drivers/PCI.h"
 #include "String.h"
 #include "User.h"
 

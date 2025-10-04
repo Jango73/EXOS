@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
-#include "../include/FAT.h"
-#include "../include/FileSystem.h"
-#include "../include/Kernel.h"
+#include "FAT.h"
+#include "FileSystem.h"
+#include "Kernel.h"
 
 /***************************************************************************/
 

@@ -22,16 +22,16 @@
 
 \************************************************************************/
 
-#include "../include/Keyboard.h"
+#include "drivers/Keyboard.h"
 
-#include "../include/Base.h"
-#include "../include/Console.h"
-#include "../include/I386.h"
-#include "../include/InterruptController.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Process.h"
-#include "../include/VKey.h"
+#include "Base.h"
+#include "Console.h"
+#include "I386.h"
+#include "InterruptController.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "Process.h"
+#include "VKey.h"
 
 /***************************************************************************/
 

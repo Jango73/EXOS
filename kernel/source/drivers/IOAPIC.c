@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Base.h"
-#include "IOAPIC.h"
+#include "drivers/IOAPIC.h"
 #include "ACPI.h"
 #include "InterruptController.h"
 #include "Memory.h"

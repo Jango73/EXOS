@@ -22,13 +22,13 @@
 
 \************************************************************************/
 
-#include "../include/SATA.h"
+#include "drivers/SATA.h"
 
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/PCI.h"
-#include "../include/User.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "Memory.h"
+#include "drivers/PCI.h"
+#include "User.h"
 
 /***************************************************************************/
 // Version

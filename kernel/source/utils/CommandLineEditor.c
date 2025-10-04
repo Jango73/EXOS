@@ -26,7 +26,7 @@
 
 #include "Console.h"
 #include "Heap.h"
-#include "Keyboard.h"
+#include "drivers/Keyboard.h"
 #include "Log.h"
 #include "String.h"
 #include "Task.h"

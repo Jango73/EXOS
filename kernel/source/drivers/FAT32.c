@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/FAT.h"
-#include "../include/FileSystem.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
+#include "FAT.h"
+#include "FileSystem.h"
+#include "Kernel.h"
+#include "Log.h"
 
 /***************************************************************************/
 

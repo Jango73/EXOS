@@ -37,6 +37,14 @@ support, regex, hysteresis control, and network checksum helpers—now live unde
 keeps generic infrastructure separated from core subsystems and makes it easier
 to share common code across the kernel.
 
+Hardware-facing components are grouped under `kernel/source/drivers` with their
+headers in `kernel/include/drivers`. The directory hosts the keyboard, serial
+mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
+and SATA), graphics (VGA, VESA, and mode tables), and file system backends
+(FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery
+from the build system and clarifies the separation between reusable utilities
+and hardware support code.
+
 ### ACPI services
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The

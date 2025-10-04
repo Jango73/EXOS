@@ -30,7 +30,7 @@
 #include "Endianness.h"
 #include "Network.h"
 #include "utils/Notification.h"
-#include "PCI.h"
+#include "drivers/PCI.h"
 
 /************************************************************************/
 

@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../include/PCI.h"
+#include "drivers/PCI.h"
 
-#include "../include/Base.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/String.h"
+#include "Base.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "String.h"
 
 /***************************************************************************/
 // PCI config mechanism #1 (0xCF8/0xCFC)

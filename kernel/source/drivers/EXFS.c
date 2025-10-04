@@ -21,12 +21,12 @@
     EXFS
 
 \************************************************************************/
-#include "../include/EXFS.h"
+#include "drivers/EXFS.h"
 
-#include "../include/FileSystem.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/utils/Path.h"
+#include "FileSystem.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "utils/Path.h"
 
 /************************************************************************/
 

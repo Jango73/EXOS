@@ -22,11 +22,11 @@
 
 \************************************************************************/
 
-#include "../include/ATA.h"
+#include "drivers/ATA.h"
 
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/InterruptController.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "InterruptController.h"
 
 /***************************************************************************/
 // Version

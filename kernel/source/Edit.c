@@ -26,7 +26,7 @@
 #include "../include/Console.h"
 #include "../include/Heap.h"
 #include "../include/Kernel.h"
-#include "../include/Keyboard.h"
+#include "drivers/Keyboard.h"
 #include "../include/List.h"
 #include "../include/Log.h"
 #include "../include/User.h"

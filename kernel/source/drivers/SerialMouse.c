@@ -22,14 +22,14 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/GFX.h"
-#include "../include/InterruptController.h"
-#include "../include/Log.h"
-#include "../include/Mouse.h"
-#include "../include/Process.h"
-#include "../include/String.h"
-#include "../include/User.h"
+#include "Base.h"
+#include "GFX.h"
+#include "InterruptController.h"
+#include "Log.h"
+#include "Mouse.h"
+#include "Process.h"
+#include "String.h"
+#include "User.h"
 
 /***************************************************************************/
 

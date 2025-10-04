@@ -30,7 +30,7 @@
 #include "../include/utils/Helpers.h"
 #include "../include/ID.h"
 #include "../include/Kernel.h"
-#include "../include/Keyboard.h"
+#include "drivers/Keyboard.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
 #include "../include/Mouse.h"
