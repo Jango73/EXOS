@@ -30,6 +30,7 @@ LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BU
 KERNEL_ELF = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/network/*.c) \
          $(wildcard source/test/*.c) \
          $(wildcard source/autotest/*.c) \
          ../third/bcrypt/blowfish.c \

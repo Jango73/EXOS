@@ -26,7 +26,7 @@
 #include "../../include/Base.h"
 #include "../../include/Log.h"
 #include "../../include/Memory.h"
-#include "../../include/IPv4.h"
+#include "network/IPv4.h"
 #include "../../include/String.h"
 #include "../../include/Endianness.h"
 

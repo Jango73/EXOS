@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -17,16 +18,18 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    UDP Context - Per-device UDP context
+    Address Resolution Protocol (ARP)
 
 \************************************************************************/
 
-#ifndef UDPCONTEXT_H_INCLUDED
-#define UDPCONTEXT_H_INCLUDED
+#ifndef ARP_H_INCLUDED
+#define ARP_H_INCLUDED
 
 #include "Base.h"
-#include "Device.h"
-#include "network/UDP.h"
+#include "Driver.h"
+#include "Network.h"
+#include "PCI.h"
+#include "String.h"
 #include "Endianness.h"
 
 /************************************************************************/
@@ -34,34 +37,45 @@
 #pragma pack(push, 1)
 
 /************************************************************************/
+// EtherTypes
+#define ETHTYPE_IPV4 0x0800
+#define ETHTYPE_ARP 0x0806
 
-#define UDP_MAX_PORTS 16
-
-/************************************************************************/
-
-typedef struct tag_UDP_PORT_BINDING {
-    U16 Port;
-    UDP_PortHandler Handler;
-    U32 IsValid;
-} UDP_PORT_BINDING, *LPUDP_PORT_BINDING;
-
-typedef struct tag_UDP_CONTEXT {
-    LPDEVICE Device;
-    UDP_PORT_BINDING PortBindings[UDP_MAX_PORTS];
-} UDP_CONTEXT, *LPUDP_CONTEXT;
+// ARP constants
+#define ARP_HTYPE_ETH 0x0001
+#define ARP_PTYPE_IPV4 0x0800
+#define ARP_HLEN_ETH 6
+#define ARP_PLEN_IPV4 4
+#define ARP_OP_REQUEST 1
+#define ARP_OP_REPLY 2
 
 /************************************************************************/
 
-LPUDP_CONTEXT UDP_GetContext(LPDEVICE Device);
-void UDP_Initialize(LPDEVICE Device);
-void UDP_Destroy(LPDEVICE Device);
-void UDP_RegisterPortHandler(LPDEVICE Device, U16 Port, UDP_PortHandler Handler);
-void UDP_UnregisterPortHandler(LPDEVICE Device, U16 Port);
-int UDP_Send(LPDEVICE Device, U32 DestinationIP, U16 SourcePort, U16 DestinationPort, const U8* Payload, U32 PayloadLength);
-void UDP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP);
+typedef struct tag_ETHERNET_HEADER {
+    U8 Destination[6];
+    U8 Source[6];
+    U16 EthType;  // Big-endian on the wire
+} ETHERNET_HEADER, *LPETHERNET_HEADER;
+
+typedef struct tag_ARP_PACKET {
+    U16 HardwareType;   // 1 = Ethernet (be)
+    U16 ProtocolType;   /// 0x0800 = IPv4 (be)
+    U8 HardwareLength;  // 6
+    U8 ProtocolLength;  // 4
+    U16 Operation;      // 1 = request, 2 = reply (be)
+
+    U8 SenderHardwareAddress[6];  // MAC
+    U32 SenderProtocolAddress;    // IPv4 (be)
+
+    U8 TargetHardwareAddress[6];  // MAC
+    U32 TargetProtocolAddress;    // IPv4 (be)
+} ARP_PACKET, *LPARP_PACKET;
+
+// Per-device ARP API
+#include "ARPContext.h"
 
 /************************************************************************/
 
 #pragma pack(pop)
 
-#endif // UDPCONTEXT_H_INCLUDED
+#endif  // ARP_H_INCLUDED

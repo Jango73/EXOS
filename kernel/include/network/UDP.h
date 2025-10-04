@@ -17,16 +17,16 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    UDP Context - Per-device UDP context
+    User Datagram Protocol (UDP)
 
 \************************************************************************/
 
-#ifndef UDPCONTEXT_H_INCLUDED
-#define UDPCONTEXT_H_INCLUDED
+#ifndef UDP_H_INCLUDED
+#define UDP_H_INCLUDED
 
 #include "Base.h"
 #include "Device.h"
-#include "network/UDP.h"
+#include "Network.h"
 #include "Endianness.h"
 
 /************************************************************************/
@@ -35,33 +35,27 @@
 
 /************************************************************************/
 
-#define UDP_MAX_PORTS 16
+typedef struct tag_UDP_HEADER {
+    U16 SourcePort;      // Big-endian
+    U16 DestinationPort; // Big-endian
+    U16 Length;          // Big-endian (header + data)
+    U16 Checksum;        // Big-endian (0 = disabled)
+} UDP_HEADER, *LPUDP_HEADER;
 
 /************************************************************************/
+// UDP Callback type for port handlers
 
-typedef struct tag_UDP_PORT_BINDING {
-    U16 Port;
-    UDP_PortHandler Handler;
-    U32 IsValid;
-} UDP_PORT_BINDING, *LPUDP_PORT_BINDING;
-
-typedef struct tag_UDP_CONTEXT {
-    LPDEVICE Device;
-    UDP_PORT_BINDING PortBindings[UDP_MAX_PORTS];
-} UDP_CONTEXT, *LPUDP_CONTEXT;
+typedef void (*UDP_PortHandler)(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U8* Payload, U32 PayloadLength);
 
 /************************************************************************/
+// Per-device UDP API
+#include "UDPContext.h"
 
-LPUDP_CONTEXT UDP_GetContext(LPDEVICE Device);
-void UDP_Initialize(LPDEVICE Device);
-void UDP_Destroy(LPDEVICE Device);
-void UDP_RegisterPortHandler(LPDEVICE Device, U16 Port, UDP_PortHandler Handler);
-void UDP_UnregisterPortHandler(LPDEVICE Device, U16 Port);
-int UDP_Send(LPDEVICE Device, U32 DestinationIP, U16 SourcePort, U16 DestinationPort, const U8* Payload, U32 PayloadLength);
-void UDP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP);
+// Utility functions
+U16 UDP_CalculateChecksum(U32 SourceIP, U32 DestinationIP, const UDP_HEADER* Header, const U8* Payload, U32 PayloadLength);
 
 /************************************************************************/
 
 #pragma pack(pop)
 
-#endif // UDPCONTEXT_H_INCLUDED
+#endif // UDP_H_INCLUDED

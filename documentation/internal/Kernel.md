@@ -600,7 +600,7 @@ void InitializeNetworkManager(void) {
 
 ### E1000 Ethernet Driver
 
-**Location:** `kernel/source/E1000.c`
+**Location:** `kernel/source/network/E1000.c`
 
 The E1000 driver provides the hardware abstraction layer for Intel 82540EM network cards. It implements the standard EXOS driver interface with network-specific function IDs.
 
@@ -621,7 +621,7 @@ The E1000 driver provides the hardware abstraction layer for Intel 82540EM netwo
 
 ### ARP (Address Resolution Protocol)
 
-**Location:** `kernel/source/ARP.c`, `kernel/include/ARP.h`, `kernel/include/ARPContext.h`
+**Location:** `kernel/source/network/ARP.c`, `kernel/include/network/ARP.h`, `kernel/include/ARPContext.h`
 
 ARP handles IPv4-to-MAC address resolution with per-device cache management and automatic request generation.
 
@@ -663,7 +663,7 @@ typedef struct ArpCacheEntryTag {
 
 ### IPv4 Internet Protocol
 
-**Location:** `kernel/source/IPv4.c`, `kernel/include/IPv4.h`
+**Location:** `kernel/source/network/IPv4.c`, `kernel/include/network/IPv4.h`
 
 IPv4 layer provides packet parsing, routing, and protocol multiplexing with per-device protocol handler registration.
 
@@ -716,7 +716,7 @@ typedef struct IPv4HeaderTag {
 
 ### TCP (Transmission Control Protocol)
 
-**Location:** `kernel/source/TCP.c`, `kernel/include/TCP.h`
+**Location:** `kernel/source/network/TCP.c`, `kernel/include/network/TCP.h`
 
 TCP provides reliable connection-oriented communication using a state machine-based implementation.
 

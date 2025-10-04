@@ -32,7 +32,7 @@
 #include "../include/Clock.h"
 #include "../include/Console.h"
 #include "../include/Driver.h"
-#include "../include/E1000.h"
+#include "network/E1000.h"
 #include "../include/File.h"
 #include "../include/FileSystem.h"
 #include "../include/ATA.h"
