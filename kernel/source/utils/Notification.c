@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "../include/Notification.h"
+#include "../include/utils/Notification.h"
 #include "../include/Heap.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"

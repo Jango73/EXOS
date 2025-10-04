@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "../include/Path.h"
+#include "../include/utils/Path.h"
 
 #include "../include/Heap.h"
 #include "../include/List.h"

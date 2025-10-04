@@ -31,7 +31,7 @@
 #include "Memory.h"
 #include "Network.h"
 #include "System.h"
-#include "Notification.h"
+#include "utils/Notification.h"
 #include "utils/AdaptiveDelay.h"
 
 /************************************************************************/

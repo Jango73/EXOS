@@ -32,9 +32,9 @@
 #include "Log.h"
 #include "Memory.h"
 #include "System.h"
-#include "Notification.h"
+#include "utils/Notification.h"
 #include "Clock.h"
-#include "NetworkChecksum.h"
+#include "utils/NetworkChecksum.h"
 
 /************************************************************************/
 // Global variables

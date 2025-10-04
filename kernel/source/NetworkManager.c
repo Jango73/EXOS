@@ -36,9 +36,9 @@
 #include "../include/Driver.h"
 #include "../include/Endianness.h"
 #include "../include/Socket.h"
-#include "../include/Helpers.h"
+#include "../include/utils/Helpers.h"
 #include "../include/String.h"
-#include "../include/TOML.h"
+#include "../include/utils/TOML.h"
 
 /************************************************************************/
 

@@ -47,11 +47,11 @@
 #include "../include/StackTrace.h"
 #include "../include/System.h"
 #include "../include/SystemFS.h"
-#include "../include/TOML.h"
+#include "../include/utils/TOML.h"
 #include "../include/UserAccount.h"
 #include "../include/UserSession.h"
 #include "../include/NetworkManager.h"
-#include "../include/UUID.h"
+#include "../include/utils/UUID.h"
 
 /************************************************************************/
 

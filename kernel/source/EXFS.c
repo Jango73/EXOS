@@ -26,7 +26,7 @@
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
-#include "../include/Path.h"
+#include "../include/utils/Path.h"
 
 /************************************************************************/
 

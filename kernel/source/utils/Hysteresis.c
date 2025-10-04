@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "../include/Hysteresis.h"
+#include "../include/utils/Hysteresis.h"
 #include "../include/Log.h"
 #include "../include/String.h"
 

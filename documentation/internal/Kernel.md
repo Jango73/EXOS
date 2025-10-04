@@ -31,10 +31,11 @@ completion callback so the component remains agnostic of higher level shell
 logic.
 
 All reusable helpers—such as the command line editor, adaptive delay, string
-containers, and CRC utilities—now live under `kernel/source/utils` with their
-public headers in `kernel/include/utils`. This keeps generic infrastructure
-separated from core subsystems and makes it easier to share common code across
-the kernel.
+containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
+support, regex, hysteresis control, and network checksum helpers—now live under
+`kernel/source/utils` with their public headers in `kernel/include/utils`. This
+keeps generic infrastructure separated from core subsystems and makes it easier
+to share common code across the kernel.
 
 ### ACPI services
 

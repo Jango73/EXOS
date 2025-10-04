@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "../include/NetworkChecksum.h"
+#include "../include/utils/NetworkChecksum.h"
 #include "../include/Endianness.h"
 #include "../include/Log.h"
 

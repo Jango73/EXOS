@@ -22,6 +22,7 @@
 
 \************************************************************************/
 
+#include "../include/utils/Helpers.h"
 #include "Kernel.h"
 #include "SystemFS.h"
 #include "Schedule.h"

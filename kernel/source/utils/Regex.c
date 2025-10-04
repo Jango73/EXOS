@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "../include/Regex.h"
+#include "../include/utils/Regex.h"
 
 #include "../include/Base.h"
 #include "../include/String.h"

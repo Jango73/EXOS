@@ -38,13 +38,13 @@
 #include "../include/SystemFS.h"
 
 #include "../include/Clock.h"
-#include "../include/Helpers.h"
+#include "../include/utils/Helpers.h"
 #include "../include/Kernel.h"
 #include "../include/List.h"
 #include "../include/Log.h"
-#include "../include/Path.h"
+#include "../include/utils/Path.h"
 #include "../include/String.h"
-#include "../include/TOML.h"
+#include "../include/utils/TOML.h"
 #include "../include/User.h"
 
 /***************************************************************************/

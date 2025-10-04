@@ -31,7 +31,7 @@
 #include "Memory.h"
 #include "String.h"
 #include "System.h"
-#include "NetworkChecksum.h"
+#include "utils/NetworkChecksum.h"
 
 /************************************************************************/
 // Global device pointer (single network device assumption)

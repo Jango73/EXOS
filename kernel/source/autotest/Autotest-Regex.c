@@ -25,7 +25,7 @@
 #include "../../include/Autotest.h"
 #include "../../include/Base.h"
 #include "../../include/Log.h"
-#include "../../include/Regex.h"
+#include "../../include/utils/Regex.h"
 #include "../../include/String.h"
 
 /************************************************************************/

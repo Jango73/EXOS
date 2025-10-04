@@ -31,11 +31,11 @@
 #include "Socket.h"
 #include "Memory.h"
 #include "Heap.h"
-#include "Notification.h"
-#include "Helpers.h"
+#include "utils/Notification.h"
+#include "utils/Helpers.h"
 #include "String.h"
-#include "NetworkChecksum.h"
-#include "Hysteresis.h"
+#include "utils/NetworkChecksum.h"
+#include "utils/Hysteresis.h"
 #include "Device.h"
 
 /************************************************************************/

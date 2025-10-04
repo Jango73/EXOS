@@ -28,9 +28,9 @@
 #include "Base.h"
 #include "utils/StateMachine.h"
 #include "IPv4.h"
-#include "Notification.h"
+#include "utils/Notification.h"
 #include "List.h"
-#include "Hysteresis.h"
+#include "utils/Hysteresis.h"
 #include "Endianness.h"
 
 /************************************************************************/

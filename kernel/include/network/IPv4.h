@@ -29,7 +29,7 @@
 #include "Driver.h"
 #include "Endianness.h"
 #include "Network.h"
-#include "Notification.h"
+#include "utils/Notification.h"
 #include "PCI.h"
 
 /************************************************************************/
