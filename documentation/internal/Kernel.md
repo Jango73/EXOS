@@ -30,6 +30,16 @@ structure that embeds the editor instance and provides the shell-specific
 completion callback so the component remains agnostic of higher level shell
 logic.
 
+### ACPI services
+
+Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
+module discovers ACPI tables, exposes the parsed configuration, and offers
+helpers for platform control. `ACPIShutdown()` enters the S5 soft-off state and
+falls back to legacy power-off sequences when the ACPI path fails. The new
+`ACPIReboot()` companion performs a warm reboot by first using the ACPI reset
+register (when present) and then chaining to legacy reset controllers to ensure
+the machine restarts even on older chipsets.
+
 ### File system globals
 
 The kernel tracks shared file system information in `Kernel.FileSystemInfo`.

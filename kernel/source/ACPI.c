@@ -599,3 +599,71 @@ void ACPIShutdown(void) {
 
     DEBUG(TEXT("[ACPIShutdown] All shutdown methods failed"));
 }
+
+/************************************************************************/
+
+/**
+ * @brief Reboot the system using ACPI.
+ * This function attempts to perform a warm reboot through the ACPI reset register.
+ */
+void ACPIReboot(void) {
+    DEBUG(TEXT("[ACPIReboot] Enter"));
+
+    if (!G_AcpiConfig.Valid) {
+        DEBUG(TEXT("[ACPIReboot] ACPI not available"));
+    } else {
+        if (G_FADT == NULL) {
+            G_FADT = (LPACPI_FADT)FindACPITable(TEXT("FACP"));
+            if (G_FADT == NULL) {
+                DEBUG(TEXT("[ACPIReboot] FADT table not found"));
+            } else {
+                DEBUG(TEXT("[ACPIReboot] FADT found at 0x%08X"), (U32)G_FADT);
+            }
+        }
+
+        if (G_FADT != NULL) {
+            if (G_FADT->Header.Length >= sizeof(ACPI_FADT)
+                && (G_FADT->ResetReg.AddressLow != 0 || G_FADT->ResetReg.AddressHigh != 0)) {
+                if (G_FADT->ResetReg.AddressSpaceId == ACPI_ADDRESS_SPACE_SYSTEM_IO) {
+                    if ((G_FADT->ResetReg.AccessSize == 0 || G_FADT->ResetReg.AccessSize == 1)
+                        && G_FADT->ResetReg.RegisterBitWidth == 8
+                        && G_FADT->ResetReg.RegisterBitOffset == 0) {
+                        if (G_FADT->ResetReg.AddressHigh == 0) {
+                            U16 ResetPort = (U16)G_FADT->ResetReg.AddressLow;
+                            DEBUG(TEXT("[ACPIReboot] Writing 0x%02X to ACPI reset register at port 0x%04X"),
+                                  G_FADT->ResetValue, ResetPort);
+                            OutPortByte(ResetPort, G_FADT->ResetValue);
+                            (void)InPortByte(0x80);
+                            (void)InPortByte(0x80);
+                        } else {
+                            DEBUG(TEXT("[ACPIReboot] 64-bit reset port unsupported (high 0x%08X)"),
+                                  G_FADT->ResetReg.AddressHigh);
+                        }
+                    } else {
+                        DEBUG(TEXT("[ACPIReboot] Unsupported reset register width %u, offset %u or access size %u"),
+                              G_FADT->ResetReg.RegisterBitWidth,
+                              G_FADT->ResetReg.RegisterBitOffset,
+                              G_FADT->ResetReg.AccessSize);
+                    }
+                } else {
+                    DEBUG(TEXT("[ACPIReboot] Unsupported reset register space %u"),
+                          G_FADT->ResetReg.AddressSpaceId);
+                }
+            } else {
+                DEBUG(TEXT("[ACPIReboot] ACPI reset register not available"));
+            }
+        }
+    }
+
+    DEBUG(TEXT("[ACPIReboot] Using legacy warm reboot sequence"));
+
+    DEBUG(TEXT("[ACPIReboot] Writing warm reset sequence to port 0xCF9"));
+    OutPortByte(0xCF9, 0x02);
+    (void)InPortByte(0x80);
+    OutPortByte(0xCF9, 0x06);
+    (void)InPortByte(0x80);
+
+    DEBUG(TEXT("[ACPIReboot] Triggering keyboard controller reset"));
+    Reboot();
+    return;
+}

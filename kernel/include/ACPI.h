@@ -34,6 +34,24 @@
 #pragma pack(push, 1)
 
 /***************************************************************************/
+// ACPI address space identifiers
+
+#define ACPI_ADDRESS_SPACE_SYSTEM_MEMORY 0x00
+#define ACPI_ADDRESS_SPACE_SYSTEM_IO     0x01
+
+/***************************************************************************/
+// Generic Address Structure
+
+typedef struct tag_ACPI_GENERIC_ADDRESS {
+    U8  AddressSpaceId;       // Address space where the register resides
+    U8  RegisterBitWidth;     // Size in bits of the register
+    U8  RegisterBitOffset;    // Bit offset within the register
+    U8  AccessSize;           // Access size (BYTE, WORD, DWORD, QWORD)
+    U32 AddressLow;           // Low 32 bits of the address
+    U32 AddressHigh;          // High 32 bits of the address
+} ACPI_GENERIC_ADDRESS, *LPACPI_GENERIC_ADDRESS;
+
+/***************************************************************************/
 // ACPI Table Header
 
 typedef struct tag_ACPI_TABLE_HEADER {
@@ -242,6 +260,9 @@ typedef struct tag_ACPI_FADT {
     U16 BootArchitectureFlags;     // IA-PC Boot Architecture Flags
     U8  Reserved2;                 // Reserved field
     U32 Flags;                     // Fixed feature flags
+    ACPI_GENERIC_ADDRESS ResetReg; // Reset register descriptor (ACPI 2.0+)
+    U8  ResetValue;                // Value to write to reset register
+    U8  Reserved3[3];              // Reserved field
 } ACPI_FADT, *LPACPI_FADT;
 
 /***************************************************************************/
@@ -279,6 +300,9 @@ U32 MapInterrupt(U8 IRQ);
 
 // Shutdown the system using ACPI
 void ACPIShutdown(void);
+
+// Reboot the system using ACPI
+void ACPIReboot(void);
 
 /***************************************************************************/
 
