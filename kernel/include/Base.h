@@ -33,6 +33,12 @@ extern "C" {
 
 #define __EXOS__
 
+#if __SIZEOF_POINTER__ == 8
+    #define __EXOS_64__
+#else
+    #define __EXOS_32__
+#endif
+
 /***************************************************************************/
 
 #pragma pack(push, 1)
@@ -86,10 +92,30 @@ typedef struct tag_U48 {
 
 /***************************************************************************/
 
+#ifdef __EXOS_32__
+
 typedef struct tag_U64 {
     U32 LO;
     U32 HI;
 } U64;
+
+typedef struct tag_I64 {
+    U32 LO;
+    I32 HI;
+} I64;
+
+#define U64_0 { .LO = 0, .HI = 0 }
+#define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
+
+#else
+
+typedef unsigned long long  U64;
+typedef signed long long    I64;
+
+#define U64_0 0
+#define U64_EQUAL(a, b) (a == b)
+
+#endif
 
 /***************************************************************************/
 
@@ -400,8 +426,8 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 #define OBJECT_FIELDS       \
     U32 TypeID;             \
     U32 References;         \
+    U64 ID;                 \
     LPPROCESS OwnerProcess; \
-    U64 ID;
 
 typedef struct tag_OBJECT {
     OBJECT_FIELDS

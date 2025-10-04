@@ -310,7 +310,7 @@ void KernelObjectDestructor(LPVOID Object) {
 LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
     LPLISTNODE Object;
     U8 Identifier[UUID_BINARY_SIZE];
-    U64 ObjectID = 0;
+    U64 ObjectID = U64_0;
     U32 Index;
 
     DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
@@ -324,10 +324,7 @@ LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
 
     // Initialize LISTNODE_FIELDS
     UUID_Generate(Identifier);
-
-    for (Index = 0; Index < sizeof(ObjectID); ++Index) {
-        ObjectID = (ObjectID << 8) | (U64)Identifier[Index];
-    }
+    ObjectID = UUID_ToU64(Identifier);
 
     Object->TypeID = ObjectTypeID;
     Object->References = 1;
@@ -403,17 +400,17 @@ void DeleteUnreferencedObjects(void) {
     LockMutex(MUTEX_KERNEL, INFINITY);
 
     // Process all kernel object lists
-    ProcessList(Kernel.Desktop, "Desktop");
-    ProcessList(Kernel.Process, "Process");
-    ProcessList(Kernel.Task, "Task");
-    ProcessList(Kernel.Mutex, "Mutex");
-    ProcessList(Kernel.Disk, "Disk");
-    ProcessList(Kernel.PCIDevice, "PCIDevice");
-    ProcessList(Kernel.NetworkDevice, "NetworkDevice");
-    ProcessList(Kernel.FileSystem, "FileSystem");
-    ProcessList(Kernel.File, "File");
-    ProcessList(Kernel.TCPConnection, "TCPConnection");
-    ProcessList(Kernel.Socket, "Socket");
+    ProcessList(Kernel.Desktop, TEXT("Desktop"));
+    ProcessList(Kernel.Process, TEXT("Process"));
+    ProcessList(Kernel.Task, TEXT("Task"));
+    ProcessList(Kernel.Mutex, TEXT("Mutex"));
+    ProcessList(Kernel.Disk, TEXT("Disk"));
+    ProcessList(Kernel.PCIDevice, TEXT("PCIDevice"));
+    ProcessList(Kernel.NetworkDevice, TEXT("NetworkDevice"));
+    ProcessList(Kernel.FileSystem, TEXT("FileSystem"));
+    ProcessList(Kernel.File, TEXT("File"));
+    ProcessList(Kernel.TCPConnection, TEXT("TCPConnection"));
+    ProcessList(Kernel.Socket, TEXT("Socket"));
 
     UnlockMutex(MUTEX_KERNEL);
 }
@@ -491,8 +488,8 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
             KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
 
         SAFE_USE(TermState) {
-            U32 IdHigh = (U32)(KernelObject->ID >> 32);
-            U32 IdLow = (U32)(KernelObject->ID & 0xFFFFFFFFU);
+            U32 IdHigh = KernelObject->ID.HI;
+            U32 IdLow = KernelObject->ID.LO;
 
             TermState->Object = KernelObject;
             TermState->ExitCode = ExitCode;

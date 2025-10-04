@@ -73,6 +73,30 @@ void UUID_Generate(U8* Out)
 
 /***************************************************************************/
 
+U64 UUID_ToU64(const U8* uuid)
+{
+    U64 result;
+    U32 i;
+
+    result.LO = 0;
+    result.HI = 0;
+
+    // Accumule les 8 premiers octets
+    for (i = 0; i < 8; ++i)
+        result.LO = (result.LO << 8) | uuid[i];
+
+    // XOR avec les 8 derniers
+    for (i = 8; i < 16; ++i)
+        result.HI = (result.HI << 8) | uuid[i];
+
+    result.LO ^= result.HI;
+    result.HI = 0; // optionnel, selon ta convention
+
+    return result;
+}
+
+/***************************************************************************/
+
 /**
  * @brief Convert a binary UUID into its textual representation.
  *
