@@ -10,6 +10,16 @@ Be aware that it generates A LOT of COM2 output, the scheduler is called every 1
 
 To be completed.
 
+### Kernel object identifiers
+
+Kernel objects now embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
+is assigned when `CreateKernelObject` allocates the structure and is derived
+from a randomly generated UUID. This value travels with the object for its
+entire lifetime and is persisted in the termination cache through
+`OBJECT_TERMINATION_STATE.ID`. Scheduler lookups rely on the shared identifier
+instead of raw pointers, eliminating accidental matches when memory is reused
+for new objects.
+
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in

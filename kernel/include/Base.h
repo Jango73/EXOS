@@ -400,7 +400,8 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 #define OBJECT_FIELDS       \
     U32 TypeID;             \
     U32 References;         \
-    LPPROCESS OwnerProcess;
+    LPPROCESS OwnerProcess; \
+    U64 ID;
 
 typedef struct tag_OBJECT {
     OBJECT_FIELDS

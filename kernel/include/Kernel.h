@@ -154,6 +154,7 @@ typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 typedef struct {
     LPVOID Object;
     U32 ExitCode;
+    U64 ID;
 } OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
 
 typedef struct tag_KERNELDATA {

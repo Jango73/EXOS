@@ -51,6 +51,7 @@
 #include "../include/UserAccount.h"
 #include "../include/UserSession.h"
 #include "../include/NetworkManager.h"
+#include "../include/UUID.h"
 
 /************************************************************************/
 
@@ -308,6 +309,9 @@ void KernelObjectDestructor(LPVOID Object) {
  */
 LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
     LPLISTNODE Object;
+    U8 Identifier[UUID_BINARY_SIZE];
+    U64 ObjectID = 0;
+    U32 Index;
 
     DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
 
@@ -319,9 +323,16 @@ LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
     }
 
     // Initialize LISTNODE_FIELDS
+    UUID_Generate(Identifier);
+
+    for (Index = 0; Index < sizeof(ObjectID); ++Index) {
+        ObjectID = (ObjectID << 8) | (U64)Identifier[Index];
+    }
+
     Object->TypeID = ObjectTypeID;
     Object->References = 1;
     Object->OwnerProcess = GetCurrentProcess();
+    Object->ID = ObjectID;
     Object->Next = NULL;
     Object->Prev = NULL;
 
@@ -473,16 +484,32 @@ void ReleaseProcessKernelObjects(LPPROCESS Process) {
  * @param ExitCode Exit code of the object
  */
 void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
-    LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)
-        KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
+    LPOBJECT KernelObject = (LPOBJECT)Object;
 
-    SAFE_USE(TermState) {
-        TermState->Object = Object;
-        TermState->ExitCode = ExitCode;
-        CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
+    SAFE_USE_VALID(KernelObject) {
+        LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)
+            KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
 
-        DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ExitCode=%u"), Object, ExitCode);
+        SAFE_USE(TermState) {
+            U32 IdHigh = (U32)(KernelObject->ID >> 32);
+            U32 IdLow = (U32)(KernelObject->ID & 0xFFFFFFFFU);
+
+            TermState->Object = KernelObject;
+            TermState->ExitCode = ExitCode;
+            TermState->ID = KernelObject->ID;
+            CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
+
+            DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%u"),
+                  KernelObject,
+                  IdHigh,
+                  IdLow,
+                  ExitCode);
+        }
+
+        return;
     }
+
+    WARNING(TEXT("[StoreObjectTerminationState] Invalid kernel object pointer %x"), Object);
 }
 
 /************************************************************************/

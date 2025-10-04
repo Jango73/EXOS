@@ -564,7 +564,17 @@ void Scheduler(void) {
 
 static BOOL MatchObject(LPVOID Data, LPVOID Context) {
     LPOBJECT_TERMINATION_STATE State = (LPOBJECT_TERMINATION_STATE)Data;
-    return (State->Object == Context);
+    LPOBJECT KernelObject = (LPOBJECT)Context;
+
+    if (State == NULL) {
+        return FALSE;
+    }
+
+    SAFE_USE_VALID(KernelObject) {
+        return (State->ID == KernelObject->ID);
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
