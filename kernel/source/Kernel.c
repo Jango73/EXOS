@@ -287,7 +287,7 @@ static void Welcome(void) {
 void KernelObjectDestructor(LPVOID Object) {
     SAFE_USE_VALID(Object) {
         LPLISTNODE Node = (LPLISTNODE)Object;
-        switch (Node->ID) {
+        switch (Node->TypeID) {
         case KOID_MUTEX: DeleteMutex((LPMUTEX)Node);
         }
     }
@@ -319,7 +319,7 @@ LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
     }
 
     // Initialize LISTNODE_FIELDS
-    Object->ID = ObjectTypeID;
+    Object->TypeID = ObjectTypeID;
     Object->References = 1;
     Object->OwnerProcess = GetCurrentProcess();
     Object->Next = NULL;
@@ -373,13 +373,13 @@ void DeleteUnreferencedObjects(void) {
 
             // Check if object has no references
             if (Current->References == 0) {
-                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->ID);
+                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->TypeID);
 
                 // Remove from list first
                 ListRemove(List, Current);
 
                 // Mark as deleted and free memory
-                Current->ID = KOID_NONE;
+                Current->TypeID = KOID_NONE;
                 KernelHeapFree(Current);
 
                 DeletedCount++;
@@ -420,7 +420,7 @@ static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
                 if (Node->OwnerProcess == Process) {
                     DEBUG(TEXT("[ReleaseProcessKernelObjects] Releasing object %p (ID=%x) owned by %s"),
                           Node,
-                          Node->ID,
+                          Node->TypeID,
                           Process->FileName);
 
                     ReleaseKernelObject(Node);
@@ -632,9 +632,9 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), Name, Driver);
 
-        if (Driver->ID != KOID_DRIVER) {
+        if (Driver->TypeID != KOID_DRIVER) {
             KernelLogText(
-                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->ID);
+                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->TypeID);
 
             // Wait forever
             DO_THE_SLEEPING_BEAUTY;

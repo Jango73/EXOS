@@ -1034,7 +1034,7 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         ListRemove(Kernel.TCPConnection, Connection);
 
         // Mark ID
-        Connection->ID = KOID_NONE;
+        Connection->TypeID = KOID_NONE;
 
         // Free the connection memory
         KernelHeapFree(Connection);

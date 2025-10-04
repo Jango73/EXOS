@@ -50,7 +50,7 @@ static LPMESSAGE NewMessage(void) {
 
     MemorySet(This, 0, sizeof(MESSAGE));
 
-    This->ID = KOID_MESSAGE;
+    This->TypeID = KOID_MESSAGE;
     This->References = 1;
 
     return This;
@@ -68,7 +68,7 @@ static LPMESSAGE NewMessage(void) {
  */
 void DeleteMessage(LPMESSAGE This) {
     SAFE_USE(This) {
-        This->ID = KOID_NONE;
+        This->TypeID = KOID_NONE;
 
         KernelHeapFree(This);
     }
@@ -183,7 +183,7 @@ void DeleteTask(LPTASK This) {
         for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
             Mutex = (LPMUTEX)Node;
 
-            if (Mutex->ID == KOID_MUTEX && Mutex->Task == This) {
+            if (Mutex->TypeID == KOID_MUTEX && Mutex->Task == This) {
                 Mutex->Task = NULL;
                 Mutex->Lock = 0;
             }
@@ -762,7 +762,7 @@ void Sleep(U32 MilliSeconds) {
 
         // Block here until scheduler wakes us up
         while (GetTaskStatus(Task) == TASK_STATUS_SLEEPING) {
-            if (Task->ID != KOID_TASK) {
+            if (Task->TypeID != KOID_TASK) {
                 return;
             }
 
@@ -1006,7 +1006,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     Desktop = GetCurrentProcess()->Desktop;
 
     if (Desktop == NULL) goto Out_Error;
-    if (Desktop->ID != KOID_DESKTOP) goto Out_Error;
+    if (Desktop->TypeID != KOID_DESKTOP) goto Out_Error;
 
     //-------------------------------------
     // Lock access to the desktop
@@ -1126,7 +1126,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     Desktop = GetCurrentProcess()->Desktop;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != KOID_DESKTOP) return 0;
+    if (Desktop->TypeID != KOID_DESKTOP) return 0;
 
     //-------------------------------------
     // Lock access to the desktop
@@ -1146,7 +1146,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Send message to window if found
 
-    if (Window != NULL && Window->ID == KOID_WINDOW) {
+    if (Window != NULL && Window->TypeID == KOID_WINDOW) {
         SAFE_USE(Window->Function) {
             LockMutex(&(Window->Mutex), INFINITY);
             Result = Window->Function(Target, Msg, Param1, Param2);
@@ -1313,7 +1313,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     if (Message->Target == NULL) return FALSE;
 
     if (Window == NULL) return FALSE;
-    if (Window->ID != KOID_WINDOW) return FALSE;
+    if (Window->TypeID != KOID_WINDOW) return FALSE;
 
     //-------------------------------------
     // Lock access to the window
@@ -1392,11 +1392,11 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
 
     Process = GetCurrentProcess();
     if (Process == NULL) goto Out;
-    if (Process->ID != KOID_PROCESS) goto Out;
+    if (Process->TypeID != KOID_PROCESS) goto Out;
 
     Desktop = Process->Desktop;
     if (Desktop == NULL) goto Out;
-    if (Desktop->ID != KOID_DESKTOP) goto Out;
+    if (Desktop->TypeID != KOID_DESKTOP) goto Out;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 

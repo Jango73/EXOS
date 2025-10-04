@@ -31,19 +31,12 @@
 
 /***************************************************************************/
 
-// Forward declaration to avoid circular dependencies
-typedef struct tag_PROCESS PROCESS, *LPPROCESS;
-
-/***************************************************************************/
-
 #pragma pack(push, 1)
 
 /***************************************************************************/
 
 #define LISTNODE_FIELDS     \
-    U32 ID;                 \
-    U32 References;         \
-    LPPROCESS OwnerProcess; \
+    OBJECT_FIELDS           \
     LPLISTNODE Next;        \
     LPLISTNODE Prev;
 

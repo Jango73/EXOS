@@ -90,7 +90,7 @@ U32 Notification_Register(LPNOTIFICATION_CONTEXT Context, U32 EventID, NOTIFICAT
     }
 
     static U32 NextID = 1;
-    Entry->ID = NextID++;
+    Entry->TypeID = NextID++;
     Entry->References = 1;
     Entry->Next = NULL;
     Entry->Prev = NULL;

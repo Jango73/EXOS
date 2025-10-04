@@ -133,7 +133,7 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
 
     // Initialize user account
     MemorySet(NewUser, 0, sizeof(USERACCOUNT));
-    NewUser->ID = KOID_USERACCOUNT;
+    NewUser->TypeID = KOID_USERACCOUNT;
     NewUser->References = 1;
 
     StringCopy(NewUser->UserName, UserName);
@@ -317,7 +317,7 @@ BOOL LoadUserDatabase(void) {
             NewUser->Next = NULL;
             NewUser->Prev = NULL;
             NewUser->References = 1;
-            NewUser->ID = KOID_USERACCOUNT;
+            NewUser->TypeID = KOID_USERACCOUNT;
 
             if (ListAddTail(Kernel.UserAccount, NewUser) == 0) {
                 KernelHeapFree(NewUser);

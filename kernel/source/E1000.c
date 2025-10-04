@@ -182,7 +182,7 @@ static DRIVER_MATCH E1000_MatchTable[] = {E1000_MATCH_DEFAULT};
 static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev);
 
 PCI_DRIVER E1000Driver = {
-    .ID = KOID_DRIVER,
+    .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -667,7 +667,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
     InitMutex(&(Device->Mutex));
 
-    DEBUG(TEXT("[E1000_Attach] Device=%x, ID=%x, PciDevice->ID=%x"), Device, Device->ID, PciDevice->ID);
+    DEBUG(TEXT("[E1000_Attach] Device=%x, ID=%x, PciDevice->TypeID=%x"), Device, Device->TypeID, PciDevice->TypeID);
 
     U32 Bar0Phys = PCI_GetBARBase(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
     U32 Bar0Size = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);

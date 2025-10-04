@@ -36,7 +36,7 @@
 U32 EXFSCommands(U32, U32);
 
 DRIVER EXFSDriver = {
-    .ID = KOID_DRIVER,
+    .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -88,7 +88,7 @@ static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
 
     MemorySet(This, 0, sizeof(EXFSFILESYSTEM));
 
-    This->Header.ID = KOID_FILESYSTEM;
+    This->Header.TypeID = KOID_FILESYSTEM;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -118,7 +118,7 @@ static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc
 
     MemorySet(This, 0, sizeof(EXFSFILE));
 
-    This->Header.ID = KOID_FILE;
+    This->Header.TypeID = KOID_FILE;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -157,7 +157,7 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     //-------------------------------------
     // Read the Master Boot Record
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = Base + Partition->LBA;
     Control.SectorHigh = 0;
@@ -172,7 +172,7 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     //-------------------------------------
     // Read the Superblock
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = (Base + Partition->LBA) + 2;
     Control.SectorHigh = 0;
@@ -263,7 +263,7 @@ static BOOL ReadCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buf
         return FALSE;
     }
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = Sector;
     Control.SectorHigh = 0;
@@ -295,7 +295,7 @@ static BOOL WriteCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster,
         return FALSE;
     }
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = Sector;
     Control.SectorHigh = 0;
@@ -461,7 +461,7 @@ static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPV
     IOCONTROL Control;
     U32 Result;
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = Sector;
     Control.SectorHigh = 0;
@@ -754,7 +754,7 @@ static U32 OpenNext(LPEXFSFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return DF_ERROR_BADPARAM;
-    if (File->Header.ID != KOID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
     // Get the associated file system

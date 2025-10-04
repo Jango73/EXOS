@@ -445,7 +445,7 @@ void PCI_ScanBus(void) {
 
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
                 InitMutex(&(PciDevice.Mutex));
-                PciDevice.ID = KOID_PCIDEVICE;
+                PciDevice.TypeID = KOID_PCIDEVICE;
                 PciDevice.References = 1;
                 PciDevice.Driver = NULL;
                 PciDevice.Info = PciInfo;
@@ -471,7 +471,7 @@ void PCI_ScanBus(void) {
                                         LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
 
                                         if (NewDev) {
-                                            DEBUG(TEXT("[PCI] Adding device %x (ID=%x) to list"), NewDev, NewDev->ID);
+                                            DEBUG(TEXT("[PCI] Adding device %x (ID=%x) to list"), NewDev, NewDev->TypeID);
                                             ListAddItem(Kernel.PCIDevice, NewDev);
                                             DEBUG(TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
                                                 (U32)Bus, (U32)Device, (U32)Function);

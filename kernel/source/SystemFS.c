@@ -55,7 +55,7 @@
 U32 SystemFSCommands(U32, U32);
 
 DRIVER SystemFSDriver = {
-    .ID = KOID_DRIVER,
+    .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -74,7 +74,7 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
     if (Node == NULL) return NULL;
 
     *Node = (SYSTEMFSFILE){
-        .ID = KOID_FILE,
+        .TypeID = KOID_FILE,
         .References = 1,
         .Next = NULL,
         .Prev = NULL,
@@ -329,7 +329,7 @@ static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
     if (File == NULL) return NULL;
 
     *File = (SYSFSFILE){0};
-    File->Header.ID = KOID_FILE;
+    File->Header.TypeID = KOID_FILE;
     File->Header.FileSystem = GetSystemFS();
     File->Parent = Parent;
     File->MountedFile = Mounted;
@@ -629,7 +629,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             if (File == NULL) return NULL;
 
             *File = (SYSFSFILE){0};
-            File->Header.ID = KOID_FILE;
+            File->Header.TypeID = KOID_FILE;
             File->Header.FileSystem = GetSystemFS();
             File->Parent = Node;
             File->MountedFile = NULL;
@@ -659,7 +659,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         if (File == NULL) return NULL;
 
         *File = (SYSFSFILE){0};
-        File->Header.ID = KOID_FILE;
+        File->Header.TypeID = KOID_FILE;
         File->Header.FileSystem = GetSystemFS();
         File->SystemFile = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
         File->Parent = Node->Parent;

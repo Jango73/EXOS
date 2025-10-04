@@ -29,18 +29,18 @@
 
 /***************************************************************************/
 
-MUTEX KernelMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX LogMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX MemoryMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ScheduleMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&DesktopMutex, .Prev = (LPLISTNODE)&MemoryMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX DesktopMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ProcessMutex, .Prev = (LPLISTNODE)&ScheduleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ProcessMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX TaskMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX FileSystemMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX FileMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ConsoleMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX UserAccountMutex = {.ID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX SessionMutex = {.ID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, NULL, .Lock = 0};
+MUTEX KernelMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX LogMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX MemoryMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ScheduleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&DesktopMutex, .Prev = (LPLISTNODE)&MemoryMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX DesktopMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ProcessMutex, .Prev = (LPLISTNODE)&ScheduleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ProcessMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX TaskMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX FileSystemMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ConsoleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX SessionMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, NULL, .Lock = 0};
 
 /***************************************************************************/
 
@@ -54,8 +54,8 @@ void InitMutex(LPMUTEX This) {
 
     // LISTNODE_FIELDS already initialized if created with CreateKernelObject
     // Only initialize ID, References, Next, Prev if not already set
-    if (This->ID == 0) {
-        This->ID = KOID_MUTEX;
+    if (This->TypeID == 0) {
+        This->TypeID = KOID_MUTEX;
         This->References = 1;
         This->OwnerProcess = GetCurrentProcess();
         This->Next = NULL;
@@ -156,7 +156,7 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                             //-------------------------------------
                             // Check if a process deleted this mutex
 
-                            if (Mutex->ID != KOID_MUTEX) {
+                            if (Mutex->TypeID != KOID_MUTEX) {
                                 RestoreFlags(&Flags);
                                 return 0;
                             }
@@ -230,7 +230,7 @@ BOOL UnlockMutex(LPMUTEX Mutex) {
     // Check validity of parameters
 
     if (Mutex == NULL) return 0;
-    if (Mutex->ID != KOID_MUTEX) return 0;
+    if (Mutex->TypeID != KOID_MUTEX) return 0;
 
     SaveFlags(&Flags);
     DisableInterrupts();

@@ -100,7 +100,7 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     }
 
     // Initialize session
-    NewSession->ID = KOID_USERSESSION;
+    NewSession->TypeID = KOID_USERSESSION;
     NewSession->References = 1;
     NewSession->Next = NULL;
     NewSession->Prev = NULL;
@@ -139,7 +139,7 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
  * @return TRUE if session is valid, FALSE otherwise.
  */
 BOOL ValidateUserSession(LPUSERSESSION Session) {
-    if (Session == NULL || Session->ID != KOID_USERSESSION) {
+    if (Session == NULL || Session->TypeID != KOID_USERSESSION) {
         return FALSE;
     }
 

@@ -39,7 +39,7 @@
 U32 ATADiskCommands(U32, U32);
 
 DRIVER ATADiskDriver = {
-    .ID = KOID_DRIVER,
+    .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,
     .Next = NULL,
@@ -78,7 +78,7 @@ static LPATADISK NewATADisk(void) {
 
     MemorySet(This, 0, sizeof(ATADISK));
 
-    This->Header.ID = KOID_DISK;
+    This->Header.TypeID = KOID_DISK;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -325,7 +325,7 @@ static U32 Read(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
     if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
 
@@ -397,7 +397,7 @@ static U32 Write(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
     if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
 
@@ -464,7 +464,7 @@ static U32 GetInfo(LPDISKINFO Info) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
     if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
 
@@ -494,7 +494,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.ID != KOID_DISK) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
     if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
     if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
 

@@ -35,7 +35,7 @@
 U32 FAT32Commands(U32, U32);
 
 DRIVER FAT32Driver = {
-    .ID = KOID_DRIVER,
+    .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,
     .Next = NULL,
@@ -86,7 +86,7 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
 
     MemorySet(This, 0, sizeof(FAT32FILESYSTEM));
 
-    This->Header.ID = KOID_FILESYSTEM;
+    This->Header.TypeID = KOID_FILESYSTEM;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -119,7 +119,7 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
     MemorySet(This, 0, sizeof(FATFILE));
 
-    This->Header.ID = KOID_FILE;
+    This->Header.TypeID = KOID_FILE;
     This->Header.References = 1;
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
@@ -154,7 +154,7 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     U32 Result;
 
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = Base + Partition->LBA;
     Control.SectorHigh = 0;
@@ -267,7 +267,7 @@ static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
         return FALSE;
     }
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = Sector;
     Control.SectorHigh = 0;
@@ -303,7 +303,7 @@ static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID B
         return FALSE;
     }
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = Sector;
     Control.SectorHigh = 0;
@@ -341,7 +341,7 @@ static CLUSTER GetNextClusterInChain(LPFAT32FILESYSTEM FileSystem, CLUSTER Clust
     Sector = Cluster / NumEntriesPerSector;
     Offset = Cluster % NumEntriesPerSector;
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.SectorLow = FileSystem->FATStart + Sector;
     Control.SectorHigh = 0;
@@ -378,7 +378,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
     //-------------------------------------
     // Setup variables
 
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
@@ -479,7 +479,7 @@ static BOOL FindFreeFATEntry(LPFAT32FILESYSTEM FileSystem, U32* Sector,
     CurrentSector = 0;
 
     FOREVER {
-        Control.ID = KOID_IOCONTROL;
+        Control.TypeID = KOID_IOCONTROL;
         Control.Disk = FileSystem->Disk;
         Control.SectorLow = FileSystem->FATStart + CurrentSector;
         Control.SectorHigh = 0;
@@ -810,7 +810,7 @@ static CLUSTER ChainNewCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
     NumEntriesPerSector = SECTOR_SIZE / sizeof(U32);
     CurrentSector = 0;
     NewCluster = 0;
-    Control.ID = KOID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = FileSystem->Disk;
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
@@ -1420,7 +1420,7 @@ static U32 OpenNext(LPFATFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return DF_ERROR_BADPARAM;
-    if (File->Header.ID != KOID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
     // Get the associated file system
@@ -1521,7 +1521,7 @@ static U32 ReadFile(LPFATFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return DF_ERROR_BADPARAM;
-    if (File->Header.ID != KOID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
     if (File->Header.Buffer == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------
@@ -1610,7 +1610,7 @@ static U32 WriteFile(LPFATFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return DF_ERROR_BADPARAM;
-    if (File->Header.ID != KOID_FILE) return DF_ERROR_BADPARAM;
+    if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
     if (File->Header.Buffer == NULL) return DF_ERROR_BADPARAM;
 
     //-------------------------------------

@@ -125,7 +125,7 @@ U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context) {
     DeviceContext = (LPDEVICE_CONTEXT)KernelHeapAlloc(sizeof(DEVICE_CONTEXT));
     if (DeviceContext == NULL) return 0;
 
-    DeviceContext->ID = KOID_NONE;
+    DeviceContext->TypeID = KOID_NONE;
     DeviceContext->References = 1;
     DeviceContext->Next = NULL;
     DeviceContext->Prev = NULL;

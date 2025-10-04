@@ -43,7 +43,7 @@
 /***************************************************************************/
 
 typedef struct tag_HEAPBLOCKHEADER {
-    U32 ID;
+    U32 TypeID;
     U32 Size;
     struct tag_HEAPBLOCKHEADER* Next;
     struct tag_HEAPBLOCKHEADER* Prev;
@@ -52,7 +52,7 @@ typedef struct tag_HEAPBLOCKHEADER {
 /***************************************************************************/
 
 typedef struct tag_HEAPCONTROLBLOCK {
-    U32 ID;
+    U32 TypeID;
     LINEAR HeapBase;
     U32 HeapSize;
     LPHEAPBLOCKHEADER FreeLists[HEAP_NUM_SIZE_CLASSES];

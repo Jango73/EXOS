@@ -158,7 +158,7 @@ U32 CloseFile(LPFILE File) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (File->ID != KOID_FILE) return 0;
+    if (File->TypeID != KOID_FILE) return 0;
 
     LockMutex(&(File->Mutex), INFINITY);
 
@@ -249,7 +249,7 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
     if (FileOp->File == NULL) return 0;
 
     File = (LPFILE)FileOp->File;
-    if (File->ID != KOID_FILE) return 0;
+    if (File->TypeID != KOID_FILE) return 0;
 
     if ((File->OpenFlags & FILE_OPEN_READ) == 0) return 0;
 
@@ -291,7 +291,7 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
     if (FileOp->File == NULL) return 0;
 
     File = (LPFILE)FileOp->File;
-    if (File->ID != KOID_FILE) return 0;
+    if (File->TypeID != KOID_FILE) return 0;
 
     if ((File->OpenFlags & FILE_OPEN_WRITE) == 0) return 0;
 
@@ -328,7 +328,7 @@ U32 GetFileSize(LPFILE File) {
     // Check validity of parameters
 
     if (File == NULL) return 0;
-    if (File->ID != KOID_FILE) return 0;
+    if (File->TypeID != KOID_FILE) return 0;
 
     LockMutex(&(File->Mutex), INFINITY);
 

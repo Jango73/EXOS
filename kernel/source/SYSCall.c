@@ -132,7 +132,7 @@ U32 SysCall_DeleteObject(U32 Parameter) {
     LPOBJECT Object = (LPOBJECT)Parameter;
 
     SAFE_USE_VALID(Object) {
-        switch (Object->ID) {
+        switch (Object->TypeID) {
             case KOID_FILE:
                 return (U32)CloseFile((LPFILE)Object);
             case KOID_DESKTOP:
@@ -424,7 +424,7 @@ U32 SysCall_GetVolumeInfo(U32 Parameter) {
 
     FileSystem = (LPFILESYSTEM)Info->Volume;
     if (FileSystem == NULL) return 0;
-    if (FileSystem->ID != KOID_FILESYSTEM) return 0;
+    if (FileSystem->TypeID != KOID_FILESYSTEM) return 0;
 
     LockMutex(&(FileSystem->Mutex), INFINITY);
 
@@ -524,7 +524,7 @@ U32 SysCall_ShowDesktop(U32 Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)Parameter;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != KOID_DESKTOP) return 0;
+    if (Desktop->TypeID != KOID_DESKTOP) return 0;
 
     return (U32)ShowDesktop(Desktop);
 }
@@ -536,7 +536,7 @@ U32 SysCall_GetDesktopWindow(U32 Parameter) {
     LPWINDOW Window = NULL;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != KOID_DESKTOP) return 0;
+    if (Desktop->TypeID != KOID_DESKTOP) return 0;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 

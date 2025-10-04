@@ -36,7 +36,7 @@
 /***************************************************************************/
 
 PROCESS SECTION(".data") KernelProcess = {
-    .ID = KOID_PROCESS,  // ID
+    .TypeID = KOID_PROCESS,  // ID
     .References = 1,   // References
     .OwnerProcess = NULL, // OwnerProcess (from LISTNODE_FIELDS)
     .Next = NULL,
@@ -816,7 +816,7 @@ void DumpProcess(LPPROCESS Process) {
  */
 void InitSecurity(LPSECURITY This) {
     SAFE_USE(This) {
-        This->ID = KOID_SECURITY;
+        This->TypeID = KOID_SECURITY;
         This->References = 1;
         This->OwnerProcess = GetCurrentProcess();
         This->Next = NULL;

@@ -162,13 +162,13 @@ typedef U32 BOOL;
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
 #define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
-#define SAFE_USE_ID(a, i) if ((a) != NULL && (a->ID == i))
-#define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->ID == i) && (b) != NULL && (b->ID == i))
+#define SAFE_USE_ID(a, i) if ((a) != NULL && (a->TypeID == i))
+#define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->TypeID == i) && (b) != NULL && (b->TypeID == i))
 #define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
 #define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
-#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i))
-#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i) \
-        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->ID == i)))
+#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i))
+#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i) \
+        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->TypeID == i)))
 
 // This is called before dereferencing a user-provided pointer to a parameter structure
 #define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
@@ -392,9 +392,18 @@ extern void ConsolePrint(LPCSTR Format, ...);
 
 /***************************************************************************/
 
+// Forward declaration to avoid circular dependencies
+typedef struct tag_PROCESS PROCESS, *LPPROCESS;
+
+/***************************************************************************/
+
+#define OBJECT_FIELDS       \
+    U32 TypeID;             \
+    U32 References;         \
+    LPPROCESS OwnerProcess;
+
 typedef struct tag_OBJECT {
-    U32 ID;
-    U32 References;
+    OBJECT_FIELDS
 } OBJECT, *LPOBJECT;
 
 /***************************************************************************/

@@ -39,7 +39,7 @@
 U32 SerialMouseCommands(U32, U32);
 
 DRIVER SerialMouseDriver = {
-    .ID = KOID_DRIVER,
+    .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
