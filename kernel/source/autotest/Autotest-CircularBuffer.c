@@ -25,7 +25,7 @@
 #include "../../include/Autotest.h"
 #include "../../include/Base.h"
 #include "../../include/Log.h"
-#include "../../include/CircularBuffer.h"
+#include "../include/utils/CircularBuffer.h"
 #include "../../include/Heap.h"
 #include "../../include/String.h"
 

@@ -27,7 +27,7 @@
 #include "../../include/Endianness.h"
 #include "../../include/Log.h"
 #include "../../include/Memory.h"
-#include "../../include/TCP.h"
+#include "network/TCP.h"
 #include "../../include/String.h"
 
 /************************************************************************/

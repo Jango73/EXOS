@@ -24,11 +24,11 @@
 
 #include "../include/NetworkManager.h"
 
-#include "../include/ARP.h"
-#include "../include/IPv4.h"
-#include "../include/UDP.h"
-#include "../include/DHCP.h"
-#include "../include/TCP.h"
+#include "network/ARP.h"
+#include "network/IPv4.h"
+#include "network/UDP.h"
+#include "network/DHCP.h"
+#include "network/TCP.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
@@ -36,9 +36,9 @@
 #include "../include/Driver.h"
 #include "../include/Endianness.h"
 #include "../include/Socket.h"
-#include "../include/Helpers.h"
+#include "../include/utils/Helpers.h"
 #include "../include/String.h"
-#include "../include/TOML.h"
+#include "../include/utils/TOML.h"
 
 /************************************************************************/
 

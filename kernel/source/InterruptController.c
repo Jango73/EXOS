@@ -27,7 +27,7 @@
 #include "../include/InterruptController.h"
 #include "../include/LocalAPIC.h"
 #include "../include/Log.h"
-#include "../include/IOAPIC.h"
+#include "drivers/IOAPIC.h"
 #include "../include/ACPI.h"
 #include "../include/System.h"
 

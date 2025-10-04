@@ -25,7 +25,7 @@
 #include "../include/File.h"
 
 #include "../include/Heap.h"
-#include "../include/Helpers.h"
+#include "../include/utils/Helpers.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Process.h"

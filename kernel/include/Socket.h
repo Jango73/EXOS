@@ -28,9 +28,9 @@
 #include "Base.h"
 #include "List.h"
 #include "Network.h"
-#include "TCP.h"
+#include "network/TCP.h"
 #include "ID.h"
-#include "CircularBuffer.h"
+#include "utils/CircularBuffer.h"
 
 /************************************************************************/
 // Socket Address Family

@@ -27,14 +27,14 @@
 #include "../include/Clock.h"
 #include "../include/Heap.h"
 #include "../include/ID.h"
-#include "../include/IPv4.h"
+#include "network/IPv4.h"
 #include "../include/Kernel.h"
 #include "../include/Log.h"
 #include "../include/Memory.h"
 #include "../include/NetworkManager.h"
 #include "../include/System.h"
-#include "../include/TCP.h"
-#include "../include/CircularBuffer.h"
+#include "network/TCP.h"
+#include "../include/utils/CircularBuffer.h"
 
 /************************************************************************/
 // Global socket management

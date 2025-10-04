@@ -23,12 +23,27 @@ for new objects.
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in
-`kernel/source/CommandLineEditor.c`. The module processes keyboard input,
+`kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input,
 maintains an in-memory history, refreshes the console display, and relies on
 callbacks to retrieve completion suggestions. The shell owns an input state
 structure that embeds the editor instance and provides the shell-specific
 completion callback so the component remains agnostic of higher level shell
 logic.
+
+All reusable helpers—such as the command line editor, adaptive delay, string
+containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
+support, regex, hysteresis control, and network checksum helpers—now live under
+`kernel/source/utils` with their public headers in `kernel/include/utils`. This
+keeps generic infrastructure separated from core subsystems and makes it easier
+to share common code across the kernel.
+
+Hardware-facing components are grouped under `kernel/source/drivers` with their
+headers in `kernel/include/drivers`. The directory hosts the keyboard, serial
+mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
+and SATA), graphics (VGA, VESA, and mode tables), and file system backends
+(FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery
+from the build system and clarifies the separation between reusable utilities
+and hardware support code.
 
 ### ACPI services
 
@@ -600,7 +615,7 @@ void InitializeNetworkManager(void) {
 
 ### E1000 Ethernet Driver
 
-**Location:** `kernel/source/E1000.c`
+**Location:** `kernel/source/network/E1000.c`
 
 The E1000 driver provides the hardware abstraction layer for Intel 82540EM network cards. It implements the standard EXOS driver interface with network-specific function IDs.
 
@@ -621,7 +636,7 @@ The E1000 driver provides the hardware abstraction layer for Intel 82540EM netwo
 
 ### ARP (Address Resolution Protocol)
 
-**Location:** `kernel/source/ARP.c`, `kernel/include/ARP.h`, `kernel/include/ARPContext.h`
+**Location:** `kernel/source/network/ARP.c`, `kernel/include/network/ARP.h`, `kernel/include/ARPContext.h`
 
 ARP handles IPv4-to-MAC address resolution with per-device cache management and automatic request generation.
 
@@ -663,7 +678,7 @@ typedef struct ArpCacheEntryTag {
 
 ### IPv4 Internet Protocol
 
-**Location:** `kernel/source/IPv4.c`, `kernel/include/IPv4.h`
+**Location:** `kernel/source/network/IPv4.c`, `kernel/include/network/IPv4.h`
 
 IPv4 layer provides packet parsing, routing, and protocol multiplexing with per-device protocol handler registration.
 
@@ -716,7 +731,7 @@ typedef struct IPv4HeaderTag {
 
 ### TCP (Transmission Control Protocol)
 
-**Location:** `kernel/source/TCP.c`, `kernel/include/TCP.h`
+**Location:** `kernel/source/network/TCP.c`, `kernel/include/network/TCP.h`
 
 TCP provides reliable connection-oriented communication using a state machine-based implementation.
 

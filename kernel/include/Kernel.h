@@ -28,7 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "Database.h"
+#include "utils/Database.h"
 #include "FileSystem.h"
 #include "Heap.h"
 #include "I386.h"
@@ -38,7 +38,7 @@
 #include "Multiboot.h"
 #include "Process.h"
 #include "String.h"
-#include "TOML.h"
+#include "utils/TOML.h"
 #include "Cache.h"
 #include "Text.h"
 #include "User.h"
