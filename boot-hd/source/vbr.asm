@@ -56,8 +56,18 @@ PAYLOAD_OFFSET equ 0x8000
     db          'VBR1'
 
 Start:
-    mov         [DAP_Start_LBA_Low], eax    ; Save Partition Start LBA
-    add         dword [DAP_Start_LBA_Low], 1
+    mov         [PartitionStartLBA], eax    ; Save Partition Start LBA
+
+    xor         ecx, ecx
+    mov         cx, [DAP_NumSectors]
+    cmp         eax, ecx
+    jae         .payload_ok
+    jmp         BootFailed
+
+.payload_ok:
+    sub         eax, ecx
+    mov         [DAP_Start_LBA_Low], eax    ; Read payload from the gap before the partition
+    mov         dword [DAP_Start_LBA_High], 0
 
     cli                                     ; Disable interrupts
     xor         ax, ax
@@ -83,9 +93,8 @@ Start:
 
     DebugPrint  Text_Jumping
 
-    ; Jump to loaded sector at PAYLOAD_OFFSET
-    mov         eax, [DAP_Start_LBA_Low]
-    sub         eax, 1                      ; We added a 1 sector offset before
+    ; Jump to loaded sector at PAYLOAD_OFFSET with partition start in EAX
+    mov         eax, [PartitionStartLBA]
     jmp         PAYLOAD_OFFSET
 
 BootFailed:
@@ -154,6 +163,8 @@ DAP_Buffer_Offset : dw PAYLOAD_OFFSET
 DAP_Buffer_Segment : dw 0x0000
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
+
+PartitionStartLBA : dd 0
 
 Text_Loading: db "Loading payload...",13,10,0
 Text_Jumping: db "Jumping to VBR-2 code...",13,10,0

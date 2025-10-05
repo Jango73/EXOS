@@ -7,6 +7,7 @@ KERNEL_FILE     ?= exos.bin
 BUILD_DIR       = ../build
 
 IMG_SIZE_MB     = 64
+PAYLOAD_SECTORS = 48            # Number of sectors reserved for the stage-2 payload
 RESERVED_SECTORS= 48		# Reserved sectors in partition
 VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
 
@@ -252,14 +253,27 @@ install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
-install-vbr-payload: install-mbr $(PAYLOAD_BIN)
-	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload at the next sector..."
+install-vbr-payload: install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
+        @echo "Injecting VBR code at offset 0x5A in VBR sector, and payload into the pre-partition gap..."
 	@{ \
 		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 		VBR_SIZE=$$(stat -c %s $(VBR_BIN)); \
+		PART_SECTOR=$$((PART_OFFSET / 512)); \
+		PAYLOAD_SIZE=$$(stat -c %s $(PAYLOAD_BIN)); \
+		PAYLOAD_SECTORS_ACTUAL=$$(( (PAYLOAD_SIZE + 511) / 512 )); \
+		if [ $$PAYLOAD_SECTORS_ACTUAL -gt $(PAYLOAD_SECTORS) ]; then \
+			echo "ERROR: Payload uses $$PAYLOAD_SECTORS_ACTUAL sectors but only $(PAYLOAD_SECTORS) are reserved."; \
+			exit 1; \
+		fi; \
+		PAYLOAD_START=$$((PART_SECTOR - $(PAYLOAD_SECTORS))); \
+		if [ $$PAYLOAD_START -lt 1 ]; then \
+			echo "ERROR: Not enough gap before partition to store payload."; \
+			exit 1; \
+		fi; \
+		dd if=/dev/zero of=$(FINAL_IMG) bs=512 seek=$$PAYLOAD_START count=$(PAYLOAD_SECTORS) conv=notrunc; \
+		dd if=$(PAYLOAD_BIN) of=$(FINAL_IMG) bs=1 seek=$$((PAYLOAD_START * 512)) conv=notrunc; \
 		dd if=$(VBR_BIN) of=$(FINAL_IMG) bs=1 seek=$$((PART_OFFSET + $(VBR_CODE_OFFSET))) count=$$VBR_SIZE conv=notrunc; \
-		SECTOR_NUM=$$((PART_OFFSET / 512 + 1)); \
-		dd if=$(PAYLOAD_BIN) of=$(FINAL_IMG) bs=512 seek=$$SECTOR_NUM conv=notrunc; \
+		printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=$$((PART_OFFSET + 510)) count=2 conv=notrunc; \
 		echo "VBR code and payload injected."; \
 	}
 
@@ -288,11 +302,13 @@ hexdump-check: install-vbr-payload
 
 	@echo "--- [ Payload sector +0 (64 bytes) ] ---"
 	@PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-	PAYLOAD_OFF=$$((PART_OFFSET + 512)); \
+	PAYLOAD_SECTOR_START=$$((PART_OFFSET / 512 - $(PAYLOAD_SECTORS))); \
+	PAYLOAD_OFF=$$((PAYLOAD_SECTOR_START * 512)); \
 	hexdump -Cv -n 64 -s $$PAYLOAD_OFF $(FINAL_IMG)
 	@echo "--- [ Payload code ] ---"
 	@PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-	PAYLOAD_OFF=$$((PART_OFFSET + 512)); \
+	PAYLOAD_SECTOR_START=$$((PART_OFFSET / 512 - $(PAYLOAD_SECTORS))); \
+	PAYLOAD_OFF=$$((PAYLOAD_SECTOR_START * 512)); \
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
 
 clean:
