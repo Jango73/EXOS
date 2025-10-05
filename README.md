@@ -57,16 +57,17 @@ This was a year-long solo project, developed the hard way:
 - Heap management
 - Process spawning, task spawning, scheduling
 - File system management : FAT16, FAT32, EXFS (EXOS file system)
-- PCI devices management
+- PCI device management
 - ATA Hard disk driver
 - SATA/AHCI Hard disk driver
 - I/O APIC management
+- ACPI Shutdown/reboot
 - Console management
 - Basic keyboard and mouse management
 - Primitive graphics using VESA standard
 - Virtual file system with mount points
-- Shell with minimal functionality (no scripting yet)
+- Scripted shell
 - Configuration with TOML format
 - E1000 network driver
-- ARP/IPv4/TCP network layers
+- ARP/IPv4/DHCP/UDP/TCP network layers
 - Minimal HTTP client
