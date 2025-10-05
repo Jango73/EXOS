@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Operating system for i386.
+Multi-threaded operating system for i386 (soon x86_64).
 Currently booting in QEMU and Bochs.
 
 ## What it is
