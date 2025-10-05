@@ -73,6 +73,45 @@ static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 
+static char Fat32ToUpperChar(char C) {
+    if (C >= 'a' && C <= 'z') {
+        return (char)(C - 'a' + 'A');
+    }
+    return C;
+}
+
+/************************************************************************/
+
+static void Fat32BuildShortName(const char* KernelFile, char Out[12]) {
+    for (U32 i = 0; i < 11U; ++i) {
+        Out[i] = ' ';
+    }
+    Out[11] = '\0';
+
+    const char* FileName = BootGetFileName(KernelFile);
+
+    U32 BaseIndex = 0;
+    const char* Ptr = FileName;
+    while (*Ptr != '\0' && *Ptr != '.' && BaseIndex < 8U) {
+        Out[BaseIndex++] = Fat32ToUpperChar(*Ptr++);
+    }
+
+    if (*Ptr == '.') {
+        ++Ptr;
+    }
+
+    U32 ExtIndex = 0;
+    while (*Ptr != '\0' && ExtIndex < 3U) {
+        if (*Ptr == '.') {
+            break;
+        }
+        Out[8U + ExtIndex] = Fat32ToUpperChar(*Ptr++);
+        ++ExtIndex;
+    }
+}
+
+/************************************************************************/
+
 static int MemCmp(const void* A, const void* B, int Len) {
     const U8* X = (const U8*)A;
     const U8* Y = (const U8*)B;
@@ -110,6 +149,9 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
         BootErrorPrint(TEXT("[VBR] VBR read failed. Halting.\r\n"));
         Hang();
     }
+
+    char KernelShortName[12];
+    Fat32BuildShortName(KernelFile, KernelShortName);
 
     if (BootSector.BiosMark != 0xAA55 || BootSector.BytesPerSector != SECTORSIZE) {
         return FALSE;
@@ -154,7 +196,7 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
             if (DirEntry->Name[0] == 0xE5) continue;
             if ((DirEntry->Attributes & 0x0F) == 0x0F) continue;
 
-            if (MemCmp(DirEntry->Name, KernelFile, 11) == 0) {
+            if (MemCmp(DirEntry->Name, KernelShortName, 11) == 0) {
                 FileCluster = ((U32)DirEntry->FirstClusterHigh << 16) | DirEntry->FirstClusterLow;
                 FileSize = DirEntry->FileSize;
                 Found = TRUE;

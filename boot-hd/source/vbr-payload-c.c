@@ -35,7 +35,7 @@
 __asm__(".code16gcc");
 
 #ifndef KERNEL_FILE
-#error "KERNEL_FILE must be defined (e.g., -DFILETOLOAD=\"EXOS    BIN\")"
+#error "KERNEL_FILE must be defined (e.g., -DKERNEL_FILE=\"exos.bin\")"
 #endif
 
 /************************************************************************/
@@ -114,6 +114,23 @@ void BootErrorPrint(LPCSTR Str) { WriteString(Str); }
 
 /************************************************************************/
 
+const char* BootGetFileName(const char* Path) {
+    if (Path == NULL) {
+        return "";
+    }
+
+    const char* Result = Path;
+    for (const char* Ptr = Path; *Ptr != '\0'; ++Ptr) {
+        if (*Ptr == '/' || *Ptr == '\\') {
+            Result = Ptr + 1;
+        }
+    }
+
+    return Result;
+}
+
+/************************************************************************/
+
 static char ToLowerChar(char C) {
     if (C >= 'A' && C <= 'Z') {
         return (char)(C - 'A' + 'a');
@@ -124,38 +141,18 @@ static char ToLowerChar(char C) {
 /************************************************************************/
 
 static void BuildKernelExt2Name(char* Out, U32 OutSize) {
-    if (OutSize == 0) return;
+    if (Out == NULL || OutSize == 0U) {
+        return;
+    }
 
+    const char* FileName = BootGetFileName(KERNEL_FILE);
     U32 Pos = 0;
-    const char* FatName = KERNEL_FILE;
 
-    for (U32 i = 0; i < 8 && FatName[i] != '\0'; ++i) {
-        if (FatName[i] == ' ') continue;
-        if (Pos + 1 < OutSize) {
-            Out[Pos++] = ToLowerChar(FatName[i]);
-        }
+    for (const char* Ptr = FileName; *Ptr != '\0' && Pos + 1U < OutSize; ++Ptr) {
+        Out[Pos++] = ToLowerChar(*Ptr);
     }
 
-    BOOL HasExtension = FALSE;
-    for (U32 i = 8; i < 11; ++i) {
-        if (FatName[i] != ' ' && FatName[i] != '\0') {
-            HasExtension = TRUE;
-            break;
-        }
-    }
-
-    if (HasExtension && Pos + 1 < OutSize) {
-        Out[Pos++] = '.';
-    }
-
-    for (U32 i = 8; i < 11 && FatName[i] != '\0'; ++i) {
-        if (FatName[i] == ' ') continue;
-        if (Pos + 1 < OutSize) {
-            Out[Pos++] = ToLowerChar(FatName[i]);
-        }
-    }
-
-    Out[(Pos < OutSize) ? Pos : (OutSize - 1)] = '\0';
+    Out[Pos] = '\0';
 }
 
 /************************************************************************/

@@ -48,6 +48,7 @@ extern STR TempString[128];
 
 void BootDebugPrint(LPCSTR Str);
 void BootErrorPrint(LPCSTR Str);
+const char* BootGetFileName(const char* Path);
 
 /************************************************************************/
 // Functions in vbr-payload-a.asm

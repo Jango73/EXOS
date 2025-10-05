@@ -1,3 +1,3 @@
 #!/bin/bash
-export KERNEL_FILE="EXOS    BIN"
+export KERNEL_FILE="exos.bin"
 make -j$(nproc)
