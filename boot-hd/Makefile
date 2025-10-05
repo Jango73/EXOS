@@ -27,7 +27,7 @@ PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
