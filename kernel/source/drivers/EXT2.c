@@ -40,6 +40,13 @@
 #define EXT2_MODE_DIRECTORY 0x4000
 #define EXT2_MODE_REGULAR 0x8000
 #define EXT2_DIRECT_BLOCKS 12
+#define EXT2_DIR_ENTRY_HEADER_SIZE (sizeof(U32) + sizeof(U16) + sizeof(U8) + sizeof(U8))
+#define EXT2_MODE_USER_WRITE 0x0080
+#define EXT2_MODE_GROUP_WRITE 0x0010
+#define EXT2_MODE_OTHER_WRITE 0x0002
+#define EXT2_MODE_USER_EXECUTE 0x0040
+#define EXT2_MODE_GROUP_EXECUTE 0x0008
+#define EXT2_MODE_OTHER_EXECUTE 0x0001
 
 /************************************************************************/
 
@@ -63,18 +70,28 @@ typedef struct tag_EXT2FILESYSTEM {
 
 /************************************************************************/
 
-typedef struct tag_EXT2FILE {
-    FILE Header;
-    EXT2FILELOC Location;
-} EXT2FILE, *LPEXT2FILE;
-
-/************************************************************************/
-
 typedef struct tag_EXT2BLOCKCACHE {
     U32* Single;
     U32 SingleSourceBlock;
     U32* Double;
 } EXT2BLOCKCACHE, *LPEXT2BLOCKCACHE;
+
+/************************************************************************/
+
+typedef struct tag_EXT2FILE {
+    FILE Header;
+    EXT2FILELOC Location;
+    BOOL IsDirectory;
+    BOOL Enumerate;
+    EXT2INODE DirectoryInode;
+    U32 DirectoryInodeIndex;
+    U32 DirectoryBlockIndex;
+    U32 DirectoryBlockOffset;
+    EXT2BLOCKCACHE DirectoryCache;
+    U8* DirectoryBlock;
+    BOOL DirectoryBlockValid;
+    STR Pattern[MAX_FILE_NAME];
+} EXT2FILE, *LPEXT2FILE;
 
 /************************************************************************/
 
@@ -84,6 +101,10 @@ static BOOL EnsureFileTableCapacity(LPEXT2FILESYSTEM FileSystem);
 static LPEXT2FILEREC FindFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name);
 static LPEXT2FILEREC CreateFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name);
 static BOOL EnsureRecordCapacity(LPEXT2FILEREC Record, U32 RequiredSize);
+static BOOL HasWildcard(LPCSTR Path);
+static void ExtractBaseName(LPCSTR Path, LPSTR Name);
+static void ReleaseDirectoryResources(LPEXT2FILE File);
+static BOOL MatchPattern(LPCSTR Name, LPCSTR Pattern);
 static BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVOID Buffer);
 static BOOL ReadBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPVOID Buffer);
 static BOOL LoadGroupDescriptors(LPEXT2FILESYSTEM FileSystem);
@@ -97,15 +118,339 @@ static BOOL ResolvePath(
 static BOOL ReadFileContent(
     LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U8** Data, U32* Size);
 static LPEXT2FILEREC LoadFileRecordFromDisk(LPEXT2FILESYSTEM FileSystem, LPCSTR Name);
+static BOOL LoadDirectoryInode(
+    LPEXT2FILESYSTEM FileSystem, LPCSTR Path, LPEXT2INODE Inode, U32* InodeIndex);
+static void FillFileHeaderFromInode(LPEXT2FILE File, LPCSTR Name, LPEXT2INODE Inode);
+static BOOL SetupDirectoryHandle(
+    LPEXT2FILE File,
+    LPEXT2FILESYSTEM FileSystem,
+    LPEXT2INODE Directory,
+    U32 InodeIndex,
+    BOOL Enumerate,
+    LPCSTR Pattern);
+static BOOL LoadNextDirectoryEntry(LPEXT2FILE File);
 
 static U32 Initialize(void);
 static LPEXT2FILE OpenFile(LPFILEINFO Info);
+static U32 OpenNext(LPEXT2FILE File);
 static U32 CloseFile(LPEXT2FILE File);
 static U32 ReadFile(LPEXT2FILE File);
 static U32 WriteFile(LPEXT2FILE File);
 
 BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
 U32 EXT2Commands(U32 Function, U32 Parameter);
+
+/************************************************************************/
+
+static BOOL HasWildcard(LPCSTR Path) {
+    if (STRING_EMPTY(Path)) return FALSE;
+
+    if (StringFindChar(Path, '*') != NULL) return TRUE;
+    if (StringFindChar(Path, '?') != NULL) return TRUE;
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static void ExtractBaseName(LPCSTR Path, LPSTR Name) {
+    STR Buffer[MAX_PATH_NAME];
+    LPSTR Slash;
+    U32 Length;
+
+    if (Name == NULL) return;
+
+    Name[0] = STR_NULL;
+
+    if (STRING_EMPTY(Path)) {
+        StringCopy(Name, TEXT("/"));
+        return;
+    }
+
+    StringCopy(Buffer, Path);
+
+    Length = StringLength(Buffer);
+    while (Length > 0 && Buffer[Length - 1] == PATH_SEP) {
+        Buffer[Length - 1] = STR_NULL;
+        Length--;
+    }
+
+    if (Length == 0) {
+        StringCopy(Name, TEXT("/"));
+        return;
+    }
+
+    Slash = StringFindCharR(Buffer, PATH_SEP);
+    if (Slash != NULL) {
+        StringCopy(Name, Slash + 1);
+    } else {
+        StringCopy(Name, Buffer);
+    }
+}
+
+/************************************************************************/
+
+static void ReleaseDirectoryResources(LPEXT2FILE File) {
+    if (File == NULL) return;
+
+    if (File->DirectoryCache.Single != NULL) {
+        KernelHeapFree(File->DirectoryCache.Single);
+        File->DirectoryCache.Single = NULL;
+    }
+
+    if (File->DirectoryCache.Double != NULL) {
+        KernelHeapFree(File->DirectoryCache.Double);
+        File->DirectoryCache.Double = NULL;
+    }
+
+    if (File->DirectoryBlock != NULL) {
+        KernelHeapFree(File->DirectoryBlock);
+        File->DirectoryBlock = NULL;
+    }
+
+    File->DirectoryBlockValid = FALSE;
+    File->DirectoryCache.SingleSourceBlock = MAX_U32;
+}
+
+/************************************************************************/
+
+static BOOL MatchPattern(LPCSTR Name, LPCSTR Pattern) {
+    if (Pattern == NULL) return FALSE;
+    if (Name == NULL) return FALSE;
+
+    if (Pattern[0] == STR_NULL) return Name[0] == STR_NULL;
+
+    if (Pattern[0] == '*') {
+        while (*Pattern == '*') Pattern++;
+        if (*Pattern == STR_NULL) return TRUE;
+
+        while (*Name != STR_NULL) {
+            if (MatchPattern(Name, Pattern)) return TRUE;
+            Name++;
+        }
+
+        return MatchPattern(Name, Pattern);
+    }
+
+    if (Pattern[0] == '?') {
+        if (*Name == STR_NULL) return FALSE;
+        return MatchPattern(Name + 1, Pattern + 1);
+    }
+
+    if (*Name != *Pattern) return FALSE;
+
+    if (*Name == STR_NULL) return TRUE;
+
+    return MatchPattern(Name + 1, Pattern + 1);
+}
+
+/************************************************************************/
+
+static BOOL LoadDirectoryInode(
+    LPEXT2FILESYSTEM FileSystem, LPCSTR Path, LPEXT2INODE Inode, U32* InodeIndex) {
+    STR Normalized[MAX_PATH_NAME];
+    U32 Length;
+
+    if (FileSystem == NULL || Inode == NULL) return FALSE;
+
+    if (STRING_EMPTY(Path)) {
+        if (ReadInode(FileSystem, EXT2_ROOT_INODE, Inode) == FALSE) return FALSE;
+        if (InodeIndex != NULL) *InodeIndex = EXT2_ROOT_INODE;
+        return (Inode->Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_DIRECTORY;
+    }
+
+    StringCopy(Normalized, Path);
+
+    Length = StringLength(Normalized);
+    while (Length > 0 && Normalized[Length - 1] == PATH_SEP) {
+        Normalized[Length - 1] = STR_NULL;
+        Length--;
+    }
+
+    if (Length == 0) {
+        if (ReadInode(FileSystem, EXT2_ROOT_INODE, Inode) == FALSE) return FALSE;
+        if (InodeIndex != NULL) *InodeIndex = EXT2_ROOT_INODE;
+    } else {
+        if (ResolvePath(FileSystem, Normalized, Inode, InodeIndex) == FALSE) return FALSE;
+    }
+
+    if ((Inode->Mode & EXT2_MODE_TYPE_MASK) != EXT2_MODE_DIRECTORY) return FALSE;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static void FillFileHeaderFromInode(LPEXT2FILE File, LPCSTR Name, LPEXT2INODE Inode) {
+    if (File == NULL || Inode == NULL) return;
+
+    if (Name != NULL && Name[0] != STR_NULL) {
+        StringCopy(File->Header.Name, Name);
+    } else {
+        File->Header.Name[0] = STR_NULL;
+    }
+
+    File->Header.Attributes = 0;
+
+    if ((Inode->Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_DIRECTORY) {
+        File->Header.Attributes |= FS_ATTR_FOLDER;
+    }
+
+    if ((Inode->Mode & (EXT2_MODE_USER_WRITE | EXT2_MODE_GROUP_WRITE | EXT2_MODE_OTHER_WRITE)) == 0) {
+        File->Header.Attributes |= FS_ATTR_READONLY;
+    }
+
+    if ((Inode->Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_REGULAR) {
+        if (Inode->Mode & (EXT2_MODE_USER_EXECUTE | EXT2_MODE_GROUP_EXECUTE | EXT2_MODE_OTHER_EXECUTE)) {
+            File->Header.Attributes |= FS_ATTR_EXECUTABLE;
+        }
+    }
+
+    File->Header.SizeLow = Inode->Size;
+    File->Header.SizeHigh = 0;
+
+    MemorySet(&(File->Header.Creation), 0, sizeof(DATETIME));
+    MemorySet(&(File->Header.Accessed), 0, sizeof(DATETIME));
+    MemorySet(&(File->Header.Modified), 0, sizeof(DATETIME));
+}
+
+/************************************************************************/
+
+static BOOL SetupDirectoryHandle(
+    LPEXT2FILE File,
+    LPEXT2FILESYSTEM FileSystem,
+    LPEXT2INODE Directory,
+    U32 InodeIndex,
+    BOOL Enumerate,
+    LPCSTR Pattern) {
+    if (File == NULL || FileSystem == NULL || Directory == NULL) return FALSE;
+
+    File->IsDirectory = TRUE;
+    File->Enumerate = Enumerate;
+    MemoryCopy(&(File->DirectoryInode), Directory, sizeof(EXT2INODE));
+    File->DirectoryInodeIndex = InodeIndex;
+    File->DirectoryBlockIndex = 0;
+    File->DirectoryBlockOffset = 0;
+    File->DirectoryBlockValid = FALSE;
+    MemorySet(&(File->DirectoryCache), 0, sizeof(EXT2BLOCKCACHE));
+    File->DirectoryCache.SingleSourceBlock = MAX_U32;
+    File->DirectoryBlock = NULL;
+    File->Pattern[0] = STR_NULL;
+
+    if (Pattern != NULL && Pattern[0] != STR_NULL) {
+        StringCopy(File->Pattern, Pattern);
+    } else {
+        StringCopy(File->Pattern, TEXT("*"));
+    }
+
+    if (Enumerate) {
+        if (FileSystem->BlockSize == 0) return FALSE;
+
+        File->DirectoryBlock = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (File->DirectoryBlock == NULL) return FALSE;
+
+        if (LoadNextDirectoryEntry(File) == FALSE) {
+            ReleaseDirectoryResources(File);
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
+    LPEXT2FILESYSTEM FileSystem;
+    U32 BlockCount;
+
+    if (File == NULL) return FALSE;
+
+    FileSystem = (LPEXT2FILESYSTEM)File->Header.FileSystem;
+    if (FileSystem == NULL) return FALSE;
+
+    if (FileSystem->BlockSize == 0) return FALSE;
+
+    BlockCount = (File->DirectoryInode.Size + FileSystem->BlockSize - 1) / FileSystem->BlockSize;
+    if (BlockCount == 0) {
+        BlockCount = 1;
+    }
+
+    while (File->DirectoryBlockIndex < BlockCount) {
+        if (File->DirectoryBlockValid == FALSE) {
+            U32 BlockNumber;
+
+            if (GetInodeBlockNumber(
+                    FileSystem, &(File->DirectoryInode), File->DirectoryBlockIndex, &(File->DirectoryCache), &BlockNumber) ==
+                FALSE) {
+                return FALSE;
+            }
+
+            if (BlockNumber == 0) {
+                File->DirectoryBlockIndex++;
+                File->DirectoryBlockOffset = 0;
+                File->DirectoryBlockValid = FALSE;
+                continue;
+            }
+
+            if (ReadBlock(FileSystem, BlockNumber, File->DirectoryBlock) == FALSE) {
+                return FALSE;
+            }
+
+            File->DirectoryBlockValid = TRUE;
+            File->DirectoryBlockOffset = 0;
+        }
+
+        while (File->DirectoryBlockOffset + EXT2_DIR_ENTRY_HEADER_SIZE <= FileSystem->BlockSize) {
+            U32 Offset;
+            LPEXT2DIRECTORYENTRY Entry;
+            U16 EntryLength;
+            U8 NameLength;
+            STR EntryName[MAX_FILE_NAME];
+            EXT2INODE EntryInode;
+
+            Offset = File->DirectoryBlockOffset;
+            Entry = (LPEXT2DIRECTORYENTRY)(File->DirectoryBlock + Offset);
+            EntryLength = Entry->RecordLength;
+            NameLength = Entry->NameLength;
+
+            if (EntryLength < EXT2_DIR_ENTRY_HEADER_SIZE) {
+                File->DirectoryBlockOffset = FileSystem->BlockSize;
+                break;
+            }
+
+            if (Offset + EntryLength > FileSystem->BlockSize) {
+                File->DirectoryBlockOffset = FileSystem->BlockSize;
+                break;
+            }
+
+            File->DirectoryBlockOffset += EntryLength;
+
+            if (Entry->Inode == 0 || NameLength == 0) continue;
+
+            if (NameLength >= MAX_FILE_NAME) {
+                NameLength = MAX_FILE_NAME - 1;
+            }
+
+            MemorySet(EntryName, 0, sizeof(EntryName));
+            MemoryCopy(EntryName, Entry->Name, NameLength);
+
+            if (MatchPattern(EntryName, File->Pattern) == FALSE) continue;
+
+            if (ReadInode(FileSystem, Entry->Inode, &EntryInode) == FALSE) continue;
+
+            FillFileHeaderFromInode(File, EntryName, &EntryInode);
+
+            return TRUE;
+        }
+
+        File->DirectoryBlockIndex++;
+        File->DirectoryBlockOffset = 0;
+        File->DirectoryBlockValid = FALSE;
+    }
+
+    return FALSE;
+}
 
 /************************************************************************/
 
@@ -900,6 +1245,7 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     LPEXT2FILESYSTEM FileSystem;
     LPEXT2FILEREC Record;
     LPEXT2FILE File;
+    BOOL Wildcard;
 
     if (Info == NULL || STRING_EMPTY(Info->Name)) return NULL;
 
@@ -907,6 +1253,51 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     if (FileSystem == NULL) return NULL;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
+
+    Wildcard = HasWildcard(Info->Name);
+
+    if (Wildcard) {
+        STR DirectoryPath[MAX_PATH_NAME];
+        STR Pattern[MAX_FILE_NAME];
+        LPSTR Slash;
+        EXT2INODE DirectoryInode;
+        U32 DirectoryIndex;
+
+        StringCopy(DirectoryPath, Info->Name);
+        Slash = StringFindCharR(DirectoryPath, PATH_SEP);
+
+        if (Slash != NULL) {
+            StringCopy(Pattern, Slash + 1);
+            *Slash = STR_NULL;
+        } else {
+            DirectoryPath[0] = STR_NULL;
+            StringCopy(Pattern, Info->Name);
+        }
+
+        if (LoadDirectoryInode(FileSystem, DirectoryPath, &DirectoryInode, &DirectoryIndex) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return NULL;
+        }
+
+        File = NewEXT2File(FileSystem, NULL);
+        if (File == NULL) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return NULL;
+        }
+
+        if (SetupDirectoryHandle(File, FileSystem, &DirectoryInode, DirectoryIndex, TRUE, Pattern) == FALSE) {
+            ReleaseDirectoryResources(File);
+            KernelHeapFree(File);
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return NULL;
+        }
+
+        File->Header.OpenFlags = Info->Flags;
+
+        UnlockMutex(&(FileSystem->FilesMutex));
+
+        return File;
+    }
 
     Record = FindFileRecord(FileSystem, Info->Name);
     if (Record == NULL && (Info->Flags & FILE_OPEN_CREATE_ALWAYS)) {
@@ -918,8 +1309,38 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     }
 
     if (Record == NULL) {
+        EXT2INODE DirectoryInode;
+        U32 DirectoryIndex;
+
+        if (LoadDirectoryInode(FileSystem, Info->Name, &DirectoryInode, &DirectoryIndex) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return NULL;
+        }
+
+        File = NewEXT2File(FileSystem, NULL);
+        if (File == NULL) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return NULL;
+        }
+
+        if (SetupDirectoryHandle(File, FileSystem, &DirectoryInode, DirectoryIndex, FALSE, NULL) == FALSE) {
+            ReleaseDirectoryResources(File);
+            KernelHeapFree(File);
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return NULL;
+        }
+
+        {
+            STR BaseName[MAX_FILE_NAME];
+            ExtractBaseName(Info->Name, BaseName);
+            FillFileHeaderFromInode(File, BaseName, &DirectoryInode);
+        }
+
+        File->Header.OpenFlags = Info->Flags;
+
         UnlockMutex(&(FileSystem->FilesMutex));
-        return NULL;
+
+        return File;
     }
 
     if (Info->Flags & FILE_OPEN_TRUNCATE) {
@@ -950,6 +1371,20 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
 
 /************************************************************************/
 
+static U32 OpenNext(LPEXT2FILE File) {
+    if (File == NULL) return DF_ERROR_BADPARAM;
+    if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
+
+    if (File->IsDirectory == FALSE) return DF_ERROR_GENERIC;
+    if (File->Enumerate == FALSE) return DF_ERROR_GENERIC;
+
+    if (LoadNextDirectoryEntry(File) == FALSE) return DF_ERROR_GENERIC;
+
+    return DF_ERROR_SUCCESS;
+}
+
+/************************************************************************/
+
 /**
  * @brief Closes an EXT2 file handle and releases its memory.
  * @param File File handle to close.
@@ -958,6 +1393,10 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
 static U32 CloseFile(LPEXT2FILE File) {
     if (File == NULL) return DF_ERROR_BADPARAM;
     if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
+
+    if (File->IsDirectory) {
+        ReleaseDirectoryResources(File);
+    }
 
     KernelHeapFree(File);
 
@@ -1185,6 +1624,8 @@ U32 EXT2Commands(U32 Function, U32 Parameter) {
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_FS_OPENFILE:
             return (U32)OpenFile((LPFILEINFO)Parameter);
+        case DF_FS_OPENNEXT:
+            return OpenNext((LPEXT2FILE)Parameter);
         case DF_FS_CLOSEFILE:
             return CloseFile((LPEXT2FILE)Parameter);
         case DF_FS_READ:

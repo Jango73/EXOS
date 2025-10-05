@@ -233,17 +233,17 @@ update-fat32: $(FINAL_IMG) $(KERNEL_CFG)
 update-ext2: $(FINAL_IMG) $(KERNEL_CFG)
 	@echo "Preparing EXT2 staging directory at $(EXT2_STAGING_DIR)"
 	@rm -rf $(EXT2_STAGING_DIR)
-	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
-	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
-	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
+	@mkdir -p $(EXT2_STAGING_DIR)/EXOS/APPS/TEST
+	@mkdir -p $(EXT2_STAGING_DIR)/EXOS/TEMP
+	@mkdir -p $(EXT2_STAGING_DIR)/EXOS/USERS
 	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
 	@cp $(KERNEL_CFG) $(EXT2_STAGING_DIR)/exos.toml
-	@cp $(PORTAL_ELF) $(EXT2_STAGING_DIR)/exos/apps/portal
-	@cp $(NETGET_ELF) $(EXT2_STAGING_DIR)/exos/apps/netget
-	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
-	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
-	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
-	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
+	@cp $(PORTAL_ELF) $(EXT2_STAGING_DIR)/EXOS/APPS/PORTAL
+	@cp $(NETGET_ELF) $(EXT2_STAGING_DIR)/EXOS/APPS/NETGET
+	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/EXOS/APPS/HELLO
+	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/EXOS/APPS/tictactoe
+	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/EXOS/APPS/TEST/MASTER
+	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/EXOS/APPS/TEST/SLAVE
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)
