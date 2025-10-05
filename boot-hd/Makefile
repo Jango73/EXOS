@@ -2,7 +2,7 @@
 
 DEBUG_OUTPUT    ?= 0
 FILESYSTEM      ?= ext2
-KERNEL_FILE     ?= "exos.bin"
+KERNEL_FILE     ?= exos.bin
 
 BUILD_DIR       = ../build
 
@@ -34,7 +34,7 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
-                  -DKERNEL_FILE=$(KERNEL_FILE) \
+                  -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
                   -Iinclude -I../kernel/include
 LD              = i686-elf-ld
 LDFLAGS         = -nostdlib -no-pie
