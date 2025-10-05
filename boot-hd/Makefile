@@ -41,7 +41,8 @@ LDFLAGS         = -nostdlib -no-pie
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
-PAYLOAD_C_O     = $(BUILD_DIR)/boot-hd/vbr-payload-c.o
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
+PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(sort $(PAYLOAD_C_SOURCES)))
 PAYLOAD_STR_O   = $(BUILD_DIR)/boot-hd/String.o
 PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
 PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
@@ -179,8 +180,8 @@ $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	nasm $(NASMFLAGS) -f elf32 $< -o $@
 
-$(PAYLOAD_C_O): $(PAYLOAD_SOURCE)
-	@echo "Compiling payload C from $(PAYLOAD_SOURCE)..."
+$(BUILD_DIR)/boot-hd/%.o: source/%.c
+	@echo "Compiling payload C from $<..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	i686-elf-gcc $(CFLAGS) -c $< -o $@
 
@@ -189,13 +190,13 @@ $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	i686-elf-gcc $(CFLAGS) -c $< -o $@
 
-$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
+$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
-	$(LD) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+	$(LD) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O)
 
-$(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
+$(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
 	@echo "Linking payload stub + C into elf binary..."
-	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O)
 
 $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	# @echo "Extracting payload symbols for Bochs debugging"
@@ -294,4 +295,4 @@ hexdump-check: install-vbr-payload
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
 
 clean:
-	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym
+	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym
