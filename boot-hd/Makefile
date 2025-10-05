@@ -7,8 +7,8 @@ KERNEL_FILE     ?= exos.bin
 BUILD_DIR       = ../build
 
 IMG_SIZE_MB     = 64
-PAYLOAD_SECTORS = 48            # Number of sectors reserved for the stage-2 payload
-RESERVED_SECTORS= 48		# Reserved sectors in partition
+PAYLOAD_SECTORS = 64        # Number of sectors reserved for the stage-2 payload
+RESERVED_SECTORS= 64		# Reserved sectors in partition
 VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
 
 KERNEL_CFG      = ../kernel/configuration/exos.toml
@@ -254,7 +254,7 @@ install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	@echo "Custom MBR written."
 
 install-vbr-payload: install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
-        @echo "Injecting VBR code at offset 0x5A in VBR sector, and payload into the pre-partition gap..."
+	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload into the pre-partition gap..."
 	@{ \
 		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 		VBR_SIZE=$$(stat -c %s $(VBR_BIN)); \

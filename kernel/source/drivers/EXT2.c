@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -17,9 +18,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    EXT2 (minimal in-memory implementation)
+    EXT2
 
 \************************************************************************/
+
 #include "drivers/EXT2.h"
 
 #include "Kernel.h"
@@ -512,5 +514,3 @@ U32 EXT2Commands(U32 Function, U32 Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-
-/************************************************************************/
