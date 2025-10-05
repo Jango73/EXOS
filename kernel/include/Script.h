@@ -121,7 +121,7 @@ typedef enum {
 /************************************************************************/
 
 typedef void (*SCRIPT_OUTPUT_CALLBACK)(LPCSTR Message, LPVOID UserData);
-typedef BOOL (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
+typedef U32 (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
 typedef LPCSTR (*SCRIPT_VARIABLE_RESOLVER)(LPCSTR VarName, LPVOID UserData);
 typedef U32 (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 
@@ -141,7 +141,8 @@ typedef enum {
     AST_IF,             // if (cond) then [else]
     AST_FOR,            // for (init; cond; inc) body
     AST_BLOCK,          // { statements }
-    AST_EXPRESSION      // standalone expr
+    AST_EXPRESSION,     // standalone expr
+    AST_SHELL_COMMAND   // shell command statement
 } AST_NODE_TYPE;
 
 // Forward declaration
@@ -187,6 +188,9 @@ typedef struct tag_AST_NODE {
             struct tag_AST_NODE* Left;   // Left operand for binary operations, or function argument expression
             struct tag_AST_NODE* Right;  // Right operand for binary operations
         } Expression;
+        struct {
+            LPSTR CommandLine;
+        } ShellCommand;
     } Data;
     struct tag_AST_NODE* Next;
 } AST_NODE, *LPAST_NODE;

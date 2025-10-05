@@ -28,6 +28,7 @@
 #include "Log.h"
 #include "String.h"
 #include "Script.h"
+#include "User.h"
 
 /************************************************************************/
 
@@ -44,6 +45,8 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
 static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseIfStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
+static LPAST_NODE ScriptParseShellCommandAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
+static BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser);
 static BOOL ScriptIsKeyword(LPCSTR Str);
 static F32 ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, SCRIPT_ERROR* Error);
 static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
@@ -204,7 +207,9 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
     ScriptDestroyAST(Root);
 
     if (Error != SCRIPT_OK) {
-        StringCopy(Context->ErrorMessage, TEXT("Execution error"));
+        if (Context->ErrorMessage[0] == STR_NULL) {
+            StringCopy(Context->ErrorMessage, TEXT("Execution error"));
+        }
         Context->ErrorCode = Error;
     }
 
@@ -372,6 +377,12 @@ void ScriptDestroyAST(LPAST_NODE Node) {
             }
             if (Node->Data.Expression.Right) {
                 ScriptDestroyAST(Node->Data.Expression.Right);
+            }
+            break;
+
+        case AST_SHELL_COMMAND:
+            if (Node->Data.ShellCommand.CommandLine) {
+                HeapFree(Node->Data.ShellCommand.CommandLine);
             }
             break;
 
@@ -1520,6 +1531,47 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
             return Error;
         }
 
+        case AST_SHELL_COMMAND: {
+            if (Parser->Callbacks && Parser->Callbacks->ExecuteCommand) {
+                U32 Result = Parser->Callbacks->ExecuteCommand(
+                    Node->Data.ShellCommand.CommandLine,
+                    Parser->Callbacks->UserData);
+
+                if (Result == DF_ERROR_SUCCESS) {
+                    return SCRIPT_OK;
+                }
+
+                LPSCRIPT_CONTEXT Context = (LPSCRIPT_CONTEXT)((U8*)Parser->Variables -
+                    ((U8*)&((LPSCRIPT_CONTEXT)0)->Variables - (U8*)0));
+
+                if (Context) {
+                    Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
+                    if (Context->ErrorMessage[0] == STR_NULL) {
+                        StringPrintFormat(
+                            Context->ErrorMessage,
+                            TEXT("Command failed (0x%08X)"),
+                            Result);
+                    }
+                }
+
+                return SCRIPT_ERROR_SYNTAX;
+            }
+
+            {
+                LPSCRIPT_CONTEXT Context = (LPSCRIPT_CONTEXT)((U8*)Parser->Variables -
+                    ((U8*)&((LPSCRIPT_CONTEXT)0)->Variables - (U8*)0));
+
+                if (Context) {
+                    Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
+                    if (Context->ErrorMessage[0] == STR_NULL) {
+                        StringCopy(Context->ErrorMessage, TEXT("No command callback registered"));
+                    }
+                }
+            }
+
+            return SCRIPT_ERROR_SYNTAX;
+        }
+
         default:
             return SCRIPT_ERROR_SYNTAX;
     }
@@ -1540,9 +1592,10 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
         return ScriptParseForStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
         return ScriptParseBlockAST(Parser, Error);
+    } else if (Parser->CurrentToken.Type == TOKEN_STRING) {
+        return ScriptParseShellCommandAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_IDENTIFIER) {
-        // Could be assignment or expression statement (function call)
-        // We need to look ahead to see if there's an assignment operator
+        // Could be assignment, expression statement (function call) or shell command
         U32 SavedPosition = Parser->Position;
         SCRIPT_TOKEN SavedToken = Parser->CurrentToken;
 
@@ -1550,25 +1603,137 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
 
         // Check if it's an assignment (= or [)
         if (Parser->CurrentToken.Type == TOKEN_OPERATOR && Parser->CurrentToken.Value[0] == '=') {
-            // Restore and parse as assignment
             Parser->Position = SavedPosition;
             Parser->CurrentToken = SavedToken;
             return ScriptParseAssignmentAST(Parser, Error);
         } else if (Parser->CurrentToken.Type == TOKEN_LBRACKET) {
-            // Array access assignment
             Parser->Position = SavedPosition;
             Parser->CurrentToken = SavedToken;
             return ScriptParseAssignmentAST(Parser, Error);
-        } else {
-            // Not an assignment, parse as expression statement
+        } else if (Parser->CurrentToken.Type == TOKEN_LPAREN) {
             Parser->Position = SavedPosition;
             Parser->CurrentToken = SavedToken;
             return ScriptParseComparisonAST(Parser, Error);
         }
+
+        Parser->Position = SavedPosition;
+        Parser->CurrentToken = SavedToken;
+
+        if (ScriptShouldParseShellCommand(Parser)) {
+            return ScriptParseShellCommandAST(Parser, Error);
+        }
+
+        return ScriptParseComparisonAST(Parser, Error);
     }
 
     *Error = SCRIPT_ERROR_SYNTAX;
     return NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Determine if the current token sequence should be parsed as a shell command.
+ * @param Parser Parser state
+ * @return TRUE if the statement should be handled as a shell command
+ */
+static BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser) {
+    if (Parser == NULL) return FALSE;
+
+    if (Parser->CurrentToken.Type == TOKEN_STRING) {
+        return TRUE;
+    }
+
+    if (Parser->CurrentToken.Type != TOKEN_IDENTIFIER) {
+        return FALSE;
+    }
+
+    LPCSTR Input = Parser->Input;
+    U32 Pos = Parser->Position;
+
+    while (Input[Pos] == ' ' || Input[Pos] == '\t') {
+        Pos++;
+    }
+
+    if (Input[Pos] == '(') {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Parse a shell command statement and build AST node.
+ * @param Parser Parser state
+ * @param Error Pointer to error code
+ * @return AST node or NULL on failure
+ */
+static LPAST_NODE ScriptParseShellCommandAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    if (Parser == NULL || Error == NULL) {
+        return NULL;
+    }
+
+    LPCSTR Input = Parser->Input;
+    U32 Start = Parser->CurrentToken.Position;
+    U32 Scan = Start;
+    BOOL InQuotes = FALSE;
+    STR QuoteChar = STR_NULL;
+
+    while (Input[Scan] != STR_NULL) {
+        STR Ch = Input[Scan];
+
+        if (!InQuotes && (Ch == ';' || Ch == '\n' || Ch == '\r')) {
+            break;
+        }
+
+        if (Ch == '"' || Ch == '\'') {
+            if (InQuotes && Ch == QuoteChar) {
+                InQuotes = FALSE;
+                QuoteChar = STR_NULL;
+            } else if (!InQuotes) {
+                InQuotes = TRUE;
+                QuoteChar = Ch;
+            }
+        }
+
+        Scan++;
+    }
+
+    U32 End = Scan;
+
+    while (End > Start && (Input[End - 1] == ' ' || Input[End - 1] == '\t')) {
+        End--;
+    }
+
+    if (End <= Start) {
+        *Error = SCRIPT_ERROR_SYNTAX;
+        return NULL;
+    }
+
+    LPAST_NODE Node = ScriptCreateASTNode(AST_SHELL_COMMAND);
+    if (Node == NULL) {
+        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+
+    U32 Length = End - Start;
+    Node->Data.ShellCommand.CommandLine = (LPSTR)HeapAlloc(Length + 1);
+    if (Node->Data.ShellCommand.CommandLine == NULL) {
+        ScriptDestroyAST(Node);
+        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+
+    MemoryCopy(Node->Data.ShellCommand.CommandLine, &Input[Start], Length);
+    Node->Data.ShellCommand.CommandLine[Length] = STR_NULL;
+
+    Parser->Position = Scan;
+    ScriptNextToken(Parser);
+
+    *Error = SCRIPT_OK;
+    return Node;
 }
 
 /************************************************************************/
