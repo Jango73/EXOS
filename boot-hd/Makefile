@@ -1,6 +1,7 @@
 # Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
 DEBUG_OUTPUT    ?= 0
+FILESYSTEM      ?= ext2
 
 BUILD_DIR       = ../build
 
@@ -53,6 +54,8 @@ HELLO_ELF       = $(BUILD_DIR)/system/hello/hello
 TICTACTOE_ELF	= $(BUILD_DIR)/system/tictactoe/tictactoe
 MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
+EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
+EXT2_LABEL      ?= exos
 
 define CREATE_FAT32_IMAGE
 	@if [ -f $1 ]; then \
@@ -73,6 +76,48 @@ define CREATE_FAT32_IMAGE
 		}; \
 	fi
 endef
+
+define CREATE_EXT2_IMAGE
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $(IMG_SIZE_MB)MiB image with partition table and EXT2 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB); \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary ext2 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			mke2fs -F -t ext2 -q -L $(EXT2_LABEL) -E offset=$$PART_OFFSET $1; \
+		}; \
+	fi
+endef
+
+define POPULATE_EXT2_IMAGE
+	@{ \
+		PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+		if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+			echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+			exit 1; \
+		fi; \
+		echo "Populating EXT2 filesystem at offset $$PART_OFFSET from $2"; \
+		mke2fs -F -t ext2 -q -L $(EXT2_LABEL) -d $2 -E offset=$$PART_OFFSET $1; \
+	}
+endef
+
+ifeq ($(FILESYSTEM),ext2)
+CREATE_IMAGE_MACRO = CREATE_EXT2_IMAGE
+UPDATE_TARGET      = update-ext2
+FS_SPECIFIC_CHECK  = @command -v mke2fs >/dev/null 2>&1 || { echo "mke2fs is not installed. Please run: sudo apt install e2fsprogs"; exit 1; }
+else
+CREATE_IMAGE_MACRO = CREATE_FAT32_IMAGE
+UPDATE_TARGET      = update-fat32
+FS_SPECIFIC_CHECK  = @command -v mcopy >/dev/null 2>&1 || { echo "mtools is not installed. Please run: sudo apt install mtools"; exit 1; }
+endif
 
 define MTOOLS_OPERATION
 	@rm -f $(MTOOLS_CONF)
@@ -107,17 +152,17 @@ define MCOPY_IF_NEEDED
 	fi;
 endef
 
-.PHONY: all update install-mbr install-vbr-payload clean check_tools rebuild-image
+.PHONY: all update update-fat32 update-ext2 install-mbr install-vbr-payload clean check_tools rebuild-image
 
 # Default: build tools, ensure images exist (create once), then update contents
 all: check_tools $(FINAL_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 check_tools:
 	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
-	@command -v mcopy >/dev/null 2>&1 || { echo "mtools is not installed. Please run: sudo apt install mtools"; exit 1; }
 	@command -v parted >/dev/null 2>&1 || { echo "parted is not installed. Please run: sudo apt install parted"; exit 1; }
 	@command -v i686-elf-gcc >/dev/null 2>&1 || { echo "i686-elf-gcc is not installed. Please install your cross toolchain."; exit 1; }
 	@command -v i686-elf-ld >/dev/null 2>&1 || { echo "i686-elf-ld is not installed. Please install your cross toolchain."; exit 1; }
+	$(FS_SPECIFIC_CHECK)
 
 $(MBR_BIN): $(MBR_SOURCE)
 	@echo "Assembling custom MBR (NASM)..."
@@ -159,12 +204,14 @@ $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 # Create image only if it does not exist
 $(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
 	@mkdir -p $(dir $@)
-	$(call CREATE_FAT32_IMAGE,$@)
+	$(call $(CREATE_IMAGE_MACRO),$@)
 
 $(KERNEL_CFG): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
 
-update: $(FINAL_IMG) $(KERNEL_CFG)
+update: $(UPDATE_TARGET)
+
+update-fat32: $(FINAL_IMG) $(KERNEL_CFG)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG),z:/exos.toml) \
@@ -180,6 +227,22 @@ update: $(FINAL_IMG) $(KERNEL_CFG)
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
 		All files injected into image.)
+
+update-ext2: $(FINAL_IMG) $(KERNEL_CFG)
+	@echo "Preparing EXT2 staging directory at $(EXT2_STAGING_DIR)"
+	@rm -rf $(EXT2_STAGING_DIR)
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
+	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
+	@cp $(KERNEL_CFG) $(EXT2_STAGING_DIR)/exos.toml
+	@cp $(PORTAL_ELF) $(EXT2_STAGING_DIR)/exos/apps/portal
+	@cp $(NETGET_ELF) $(EXT2_STAGING_DIR)/exos/apps/netget
+	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
+	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
+	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
+	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
+	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	@echo "Installing custom MBR into image (assembled from $(MBR_SOURCE))..."
