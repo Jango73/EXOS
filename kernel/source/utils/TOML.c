@@ -222,8 +222,6 @@ LPTOML TomlParse(LPCSTR Source) {
 LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
     LPTOMLITEM Item = NULL;
 
-    DEBUG(TEXT("[TomlGet] Enter"));
-
     // Validate parameters
     if (Toml == NULL) return NULL;
     if (Path == NULL) return NULL;
@@ -231,12 +229,9 @@ LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
     // Search through linked list for matching key
     for (Item = Toml->First; Item; Item = Item->Next) {
         if (STRINGS_EQUAL(Item->Key, Path)) {
-            DEBUG(TEXT("[TomlGet] Exit"));
             return Item->Value;  // Found matching key
         }
     }
-
-    DEBUG(TEXT("[TomlGet] Exit"));
 
     return NULL;
 }

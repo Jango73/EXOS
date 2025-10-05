@@ -847,8 +847,8 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
                     U32 RDH = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDH);
                     U32 RDT = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDT);
                     U32 RCTL = E1000_ReadReg32(Device->MmioBase, E1000_REG_RCTL);
-                    DEBUG(TEXT("[E1000_ReceivePoll] No packets: RxHead=%u NextIndex=%u Status=%x RDH=%u RDT=%u RCTL=%x"),
-                          Device->RxHead, NextIndex, Status, RDH, RDT, RCTL);
+                    //DEBUG(TEXT("[E1000_ReceivePoll] No packets: RxHead=%u NextIndex=%u Status=%x RDH=%u RDT=%u RCTL=%x"),
+                    //      Device->RxHead, NextIndex, Status, RDH, RDT, RCTL);
                 }
                 break;
             }
@@ -868,14 +868,14 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         if ((Status & E1000_RX_STA_EOP) != 0) {
             U16 Length = Ring[NextIndex].Length;
             const U8 *Frame = (const U8 *)Device->RxBufLinear[NextIndex];
-            DEBUG(TEXT("[E1000_ReceivePoll] Frame length=%u, EthType=%x%x, RxCallback=%x"),
-                  Length, Frame[12], Frame[13], (U32)Device->RxCallback);
+            // DEBUG(TEXT("[E1000_ReceivePoll] Frame length=%u, EthType=%x%x, RxCallback=%x"),
+            //       Length, Frame[12], Frame[13], (U32)Device->RxCallback);
             if (Device->RxCallback) {
-                DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %x"), (U32)Device->RxCallback);
+                // DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %x"), (U32)Device->RxCallback);
                 Device->RxCallback(Frame, (U32)Length, Device->RxUserData);
-                DEBUG(TEXT("[E1000_ReceivePoll] RxCallback returned"));
+                // DEBUG(TEXT("[E1000_ReceivePoll] RxCallback returned"));
             } else {
-                DEBUG(TEXT("[E1000_ReceivePoll] No RX callback registered!"));
+                // DEBUG(TEXT("[E1000_ReceivePoll] No RX callback registered!"));
             }
         }
 
@@ -887,7 +887,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         Device->RxTail = NextIndex;
         E1000_WriteReg32(Device->MmioBase, E1000_REG_RDT, NextIndex);
 
-        DEBUG(TEXT("[E1000_ReceivePoll] Updated RDT to %u (processed descriptor available for reuse)"), NextIndex);
+        // DEBUG(TEXT("[E1000_ReceivePoll] Updated RDT to %u (processed descriptor available for reuse)"), NextIndex);
 
         // Clear descriptor status AFTER updating RDT to avoid race condition
         Ring[NextIndex].Status = 0;
