@@ -7,8 +7,8 @@ KERNEL_FILE     ?= exos.bin
 BUILD_DIR       = ../build
 
 IMG_SIZE_MB     = 64
-PAYLOAD_SECTORS = 64        # Number of sectors reserved for the stage-2 payload
-RESERVED_SECTORS= 64		# Reserved sectors in partition
+RESERVED_SECTORS= 64		# Reserved sectors inside the FAT32 partition
+PAYLOAD_SECTORS ?= $(RESERVED_SECTORS) # Stage-2 payload gap before the partition
 VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
 
 KERNEL_CFG      = ../kernel/configuration/exos.toml
