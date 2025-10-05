@@ -108,6 +108,7 @@ extern DRIVER StdHardDiskDriver;
 extern DRIVER RAMDiskDriver;
 extern DRIVER VESADriver;
 extern DRIVER EXFSDriver;
+extern DRIVER EXT2Driver;
 
 /***************************************************************************/
 

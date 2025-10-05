@@ -34,23 +34,35 @@
 #pragma pack(push, 1)
 
 /***************************************************************************/
-// EXT4 Super Block
+// EXT2 Super Block
 
 typedef struct tag_EXT2SUPER {
-    // TODO
+    U32 Magic;
+    U32 Revision;
+    U32 BlockSize;
+    U32 InodeCount;
+    U32 BlockCount;
+    U32 FreeInodes;
+    U32 FreeBlocks;
 } EXT2SUPER, *LPEXT2SUPER;
 
 /***************************************************************************/
-// EXT4 File Record
+// EXT2 File Record
 
 typedef struct tag_EXT2FILEREC {
-    // TODO
+    STR Name[MAX_FILE_NAME];
+    U32 Attributes;
+    U32 Size;
+    U32 Capacity;
+    U8* Data;
 } EXT2FILEREC, *LPEXT2FILEREC;
 
 /***************************************************************************/
-// EXT4 File location
+// EXT2 File location
 
 typedef struct tag_EXT2FILELOC {
+    LPEXT2FILEREC Record;
+    U32 Offset;
 } EXT2FILELOC, *LPEXT2FILELOC;
 
 /***************************************************************************/
