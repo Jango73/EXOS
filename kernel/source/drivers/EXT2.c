@@ -24,35 +24,42 @@
 
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
+#include "String.h"
 
 /************************************************************************/
 
 #define VER_MAJOR 0
 #define VER_MINOR 1
 
-#define EXT2_SUPER_MAGIC 0xEF53
 #define EXT2_DEFAULT_BLOCK_SIZE 1024
 #define EXT2_INITIAL_FILE_CAPACITY 4
 
+/************************************************************************/
+
 typedef struct tag_EXT2FILESYSTEM {
     FILESYSTEM Header;
+    LPPHYSICALDISK Disk;
     EXT2SUPER Super;
+    SECTOR PartitionStart;
+    U32 PartitionSize;
+    U32 BlockSize;
     MUTEX FilesMutex;
     LPEXT2FILEREC* FileTable;
     U32 FileCount;
     U32 FileCapacity;
 } EXT2FILESYSTEM, *LPEXT2FILESYSTEM;
 
+/************************************************************************/
+
 typedef struct tag_EXT2FILE {
     FILE Header;
     EXT2FILELOC Location;
 } EXT2FILE, *LPEXT2FILE;
 
-static LPEXT2FILESYSTEM GlobalFileSystem = NULL;
-
 /************************************************************************/
 
-static LPEXT2FILESYSTEM NewEXT2FileSystem(void);
+static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk);
 static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem, LPEXT2FILEREC Record);
 static BOOL EnsureFileTableCapacity(LPEXT2FILESYSTEM FileSystem);
 static LPEXT2FILEREC FindFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name);
@@ -65,6 +72,7 @@ static U32 CloseFile(LPEXT2FILE File);
 static U32 ReadFile(LPEXT2FILE File);
 static U32 WriteFile(LPEXT2FILE File);
 
+BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
 U32 EXT2Commands(U32 Function, U32 Parameter);
 
 /************************************************************************/
@@ -72,6 +80,7 @@ U32 EXT2Commands(U32 Function, U32 Parameter);
 DRIVER EXT2Driver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
+    .OwnerProcess = &KernelProcess,
     .Next = NULL,
     .Prev = NULL,
     .Type = DRIVER_TYPE_FILESYSTEM,
@@ -84,7 +93,7 @@ DRIVER EXT2Driver = {
 
 /************************************************************************/
 
-static LPEXT2FILESYSTEM NewEXT2FileSystem(void) {
+static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk) {
     LPEXT2FILESYSTEM FileSystem;
 
     FileSystem = (LPEXT2FILESYSTEM)KernelHeapAlloc(sizeof(EXT2FILESYSTEM));
@@ -97,22 +106,16 @@ static LPEXT2FILESYSTEM NewEXT2FileSystem(void) {
     FileSystem->Header.Next = NULL;
     FileSystem->Header.Prev = NULL;
     FileSystem->Header.Driver = &EXT2Driver;
-    StringCopy(FileSystem->Header.Name, TEXT("ext2"));
-
-    InitMutex(&(FileSystem->Header.Mutex));
-    InitMutex(&(FileSystem->FilesMutex));
-
+    FileSystem->Disk = Disk;
+    FileSystem->PartitionStart = 0;
+    FileSystem->PartitionSize = 0;
+    FileSystem->BlockSize = EXT2_DEFAULT_BLOCK_SIZE;
     FileSystem->FileTable = NULL;
     FileSystem->FileCount = 0;
     FileSystem->FileCapacity = 0;
 
-    FileSystem->Super.Magic = EXT2_SUPER_MAGIC;
-    FileSystem->Super.Revision = 1;
-    FileSystem->Super.BlockSize = EXT2_DEFAULT_BLOCK_SIZE;
-    FileSystem->Super.InodeCount = 0;
-    FileSystem->Super.BlockCount = 0;
-    FileSystem->Super.FreeInodes = 0;
-    FileSystem->Super.FreeBlocks = 0;
+    InitMutex(&(FileSystem->Header.Mutex));
+    InitMutex(&(FileSystem->FilesMutex));
 
     return FileSystem;
 }
@@ -216,11 +219,6 @@ static LPEXT2FILEREC CreateFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name) 
 
     FileSystem->FileTable[FileSystem->FileCount++] = Record;
 
-    FileSystem->Super.InodeCount++;
-    if (FileSystem->Super.FreeInodes > 0) {
-        FileSystem->Super.FreeInodes--;
-    }
-
     return Record;
 }
 
@@ -264,19 +262,7 @@ static BOOL EnsureRecordCapacity(LPEXT2FILEREC Record, U32 RequiredSize) {
 
 /************************************************************************/
 
-static U32 Initialize(void) {
-    if (GlobalFileSystem != NULL) return DF_ERROR_SUCCESS;
-
-    GlobalFileSystem = NewEXT2FileSystem();
-    if (GlobalFileSystem == NULL) {
-        ERROR(TEXT("[EXT2.Initialize] Failed to allocate file system"));
-        return DF_ERROR_NOMEMORY;
-    }
-
-    DEBUG(TEXT("[EXT2.Initialize] Minimal EXT2 file system ready"));
-
-    return DF_ERROR_SUCCESS;
-}
+static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /************************************************************************/
 
@@ -288,16 +274,6 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     if (Info == NULL || STRING_EMPTY(Info->Name)) return NULL;
 
     FileSystem = (LPEXT2FILESYSTEM)Info->FileSystem;
-    if (FileSystem == NULL) {
-        if (GlobalFileSystem == NULL) {
-            if (Initialize() != DF_ERROR_SUCCESS) {
-                return NULL;
-            }
-        }
-
-        FileSystem = GlobalFileSystem;
-    }
-
     if (FileSystem == NULL) return NULL;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
@@ -326,19 +302,12 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     }
 
     StringCopy(File->Header.Name, Record->Name);
-    File->Header.FileSystem = (LPFILESYSTEM)FileSystem;
     File->Header.OpenFlags = Info->Flags;
     File->Header.Attributes = Record->Attributes;
     File->Header.SizeLow = Record->Size;
     File->Header.SizeHigh = 0;
-    File->Header.Position = 0;
+    File->Header.Position = (Info->Flags & FILE_OPEN_APPEND) ? Record->Size : 0;
     File->Header.BytesTransferred = 0;
-
-    if (Info->Flags & (FILE_OPEN_APPEND | FILE_OPEN_SEEK_END)) {
-        File->Header.Position = Record->Size;
-    }
-
-    Info->FileSystem = (LPFILESYSTEM)FileSystem;
 
     UnlockMutex(&(FileSystem->FilesMutex));
 
@@ -348,27 +317,10 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
 /************************************************************************/
 
 static U32 CloseFile(LPEXT2FILE File) {
-    LPEXT2FILESYSTEM FileSystem;
-    LPEXT2FILEREC Record;
-
     if (File == NULL) return DF_ERROR_BADPARAM;
     if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
 
-    FileSystem = (LPEXT2FILESYSTEM)File->Header.FileSystem;
-    if (FileSystem == NULL) return DF_ERROR_BADPARAM;
-
-    Record = File->Location.Record;
-    if (Record == NULL) return DF_ERROR_BADPARAM;
-
-    LockMutex(&(FileSystem->FilesMutex), INFINITY);
-
-    if (File->Header.SizeLow > Record->Size) {
-        Record->Size = File->Header.SizeLow;
-    }
-
-    UnlockMutex(&(FileSystem->FilesMutex));
-
-    ReleaseKernelObject(File);
+    KernelHeapFree(File);
 
     return DF_ERROR_SUCCESS;
 }
@@ -484,6 +436,62 @@ static U32 WriteFile(LPEXT2FILE File) {
 
 /************************************************************************/
 
+BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+    U8 Buffer[SECTOR_SIZE * 2];
+    IOCONTROL Control;
+    LPEXT2SUPER Super;
+    LPEXT2FILESYSTEM FileSystem;
+    U32 Result;
+    SECTOR PartitionStart;
+
+    if (Disk == NULL || Partition == NULL) return FALSE;
+
+    PartitionStart = Base + Partition->LBA;
+
+    Control.TypeID = KOID_IOCONTROL;
+    Control.Disk = Disk;
+    Control.SectorLow = PartitionStart + 2;
+    Control.SectorHigh = 0;
+    Control.NumSectors = 2;
+    Control.Buffer = (LPVOID)Buffer;
+    Control.BufferSize = sizeof(Buffer);
+
+    Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+
+    if (Result != DF_ERROR_SUCCESS) return FALSE;
+
+    Super = (LPEXT2SUPER)Buffer;
+
+    if (Super->Magic != EXT2_SUPER_MAGIC) {
+        DEBUG(TEXT("[MountPartition_EXT2] Invalid superblock magic: %04X"), Super->Magic);
+        return FALSE;
+    }
+
+    FileSystem = NewEXT2FileSystem(Disk);
+    if (FileSystem == NULL) return FALSE;
+
+    MemoryCopy(&(FileSystem->Super), Super, sizeof(EXT2SUPER));
+
+    FileSystem->PartitionStart = PartitionStart;
+    FileSystem->PartitionSize = Partition->Size;
+    FileSystem->BlockSize = EXT2_DEFAULT_BLOCK_SIZE;
+
+    if (Super->LogBlockSize <= 4) {
+        FileSystem->BlockSize = EXT2_DEFAULT_BLOCK_SIZE << Super->LogBlockSize;
+    }
+
+    GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
+
+    ListAddItem(Kernel.FileSystem, FileSystem);
+
+    DEBUG(TEXT("[MountPartition_EXT2] Mounted EXT2 volume %s (block size %u)"),
+        FileSystem->Header.Name, FileSystem->BlockSize);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
 U32 EXT2Commands(U32 Function, U32 Parameter) {
     switch (Function) {
         case DF_LOAD:
@@ -505,3 +513,4 @@ U32 EXT2Commands(U32 Function, U32 Parameter) {
     return DF_ERROR_NOTIMPL;
 }
 
+/************************************************************************/

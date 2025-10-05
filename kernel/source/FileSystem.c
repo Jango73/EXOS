@@ -34,6 +34,7 @@ extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_NTFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_EXFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_EXT2(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 
 /***************************************************************************/
 
@@ -198,7 +199,8 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 case FSID_NONE:
                     break;
 
-                case FSID_EXTENDED: {
+                case FSID_EXTENDED:
+                case FSID_LINUX_EXTENDED: {
                     MountPartition_Extended(Disk, Partition + Index, Base);
                 } break;
 
@@ -220,6 +222,22 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                     DEBUG(TEXT("[MountDiskPartitions] Mounting EXFS partition"));
                     PartitionMounted =
                         MountPartition_EXFS(Disk, Partition + Index, Base, Index);
+                } break;
+
+                case FSID_LINUX_EXT2:
+#if FSID_LINUX_EXT3 != FSID_LINUX_EXT2
+                case FSID_LINUX_EXT3:
+#endif
+#if FSID_LINUX_EXT4 != FSID_LINUX_EXT2
+                case FSID_LINUX_EXT4:
+#endif
+#if FSID_LINUXNATIVE != FSID_LINUX_EXT2
+                case FSID_LINUXNATIVE:
+#endif
+                {
+                    DEBUG(TEXT("[MountDiskPartitions] Mounting EXT2 partition"));
+                    PartitionMounted =
+                        MountPartition_EXT2(Disk, Partition + Index, Base, Index);
                 } break;
 
                 default: {
