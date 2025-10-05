@@ -141,8 +141,7 @@ typedef enum {
     AST_IF,             // if (cond) then [else]
     AST_FOR,            // for (init; cond; inc) body
     AST_BLOCK,          // { statements }
-    AST_EXPRESSION,     // standalone expr
-    AST_SHELL_COMMAND   // shell command statement
+    AST_EXPRESSION      // standalone expr
 } AST_NODE_TYPE;
 
 // Forward declaration
@@ -187,10 +186,9 @@ typedef struct tag_AST_NODE {
             STR Argument[MAX_TOKEN_LENGTH];
             struct tag_AST_NODE* Left;   // Left operand for binary operations, or function argument expression
             struct tag_AST_NODE* Right;  // Right operand for binary operations
-        } Expression;
-        struct {
+            BOOL IsShellCommand;
             LPSTR CommandLine;
-        } ShellCommand;
+        } Expression;
     } Data;
     struct tag_AST_NODE* Next;
 } AST_NODE, *LPAST_NODE;
