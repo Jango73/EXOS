@@ -188,6 +188,7 @@ typedef U32 BOOL;
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
 #define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_3(a, b, c) if ((a) != NULL && (b) != NULL && (c) != NULL)
 #define SAFE_USE_ID(a, i) if ((a) != NULL && (a->TypeID == i))
 #define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->TypeID == i) && (b) != NULL && (b->TypeID == i))
 #define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))

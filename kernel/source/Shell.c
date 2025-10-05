@@ -1628,28 +1628,22 @@ static void ExecuteStartupCommands(void) {
 /**
  * @brief Execute a command line string.
  *
- * Parses and executes a command line, checking built-in commands first,
- * then attempting to spawn executables if no built-in command matches.
+ * Parses and executes a command line
  *
  * @param Context Shell context to use for execution
  * @param CommandLine Command line string to execute
  */
 static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
-    DEBUG(TEXT("[ExecuteCommandLine] Executing: %s"), CommandLine);
+    SAFE_USE_3(Context, Context->ScriptContext, CommandLine) {
+        DEBUG(TEXT("[ExecuteCommandLine] Executing: %s"), CommandLine);
 
-    if (Context == NULL || CommandLine == NULL) {
-        return;
-    }
+        SCRIPT_ERROR Error = ScriptExecute(Context->ScriptContext, CommandLine);
 
-    if (Context->ScriptContext == NULL) {
-        DEBUG(TEXT("[ExecuteCommandLine] Script context not available"));
-        ConsolePrint(TEXT("Script context not available\n"));
-        return;
-    }
-
-    SCRIPT_ERROR Error = ScriptExecute(Context->ScriptContext, CommandLine);
-    if (Error != SCRIPT_OK) {
-        ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+        if (Error != SCRIPT_OK) {
+            ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+        }
+    } else {
+        ERROR(TEXT("[ExecuteCommandLine] Null pointer\n"));
     }
 }
 
@@ -1799,6 +1793,8 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
     DEBUG(TEXT("[ShellScriptCallFunction] Unknown function: %s"), FuncName);
     return MAX_U32;
 }
+
+/************************************************************************/
 
 static BOOL HandleUserLoginProcess(void) {
     // Check if any users exist
