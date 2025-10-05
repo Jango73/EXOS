@@ -61,6 +61,7 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
 static void InitDebug(void);
 static void OutputChar(U8 Char);
 static void WriteString(LPCSTR Str);
+static U8 ReadFarByte(U16 Seg, U16 Ofs);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
@@ -302,17 +303,9 @@ void SerialOut(U8 Which, U8 Char) {
 
 // Helper function to read byte via far pointer to avoid segment limit issues
 
-static U8 ReadFarByte(U16 seg, U16 ofs) {
-    U8 result;
-    __asm__ __volatile__(
-        "pushw %%ds\n\t"
-        "mov %1, %%ds\n\t"
-        "movb (%%si), %%al\n\t"
-        "popw %%ds"
-        : "=a"(result)
-        : "r"(seg), "S"(ofs)
-        : "memory");
-    return result;
+static U8 ReadFarByte(U16 Seg, U16 Ofs) {
+    U32 Linear = SegOfsToLinear(Seg, Ofs);
+    return *((U8*)Linear);
 }
 
 /************************************************************************/
@@ -330,8 +323,10 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     RetrieveMemoryMap();
 
     StringPrintFormat(
-        TempString, TEXT("[VBR] Loading and running binary OS at %08X:%08X
-"), LOADADDRESS_SEG, LOADADDRESS_OFS);
+        TempString,
+        TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"),
+        LOADADDRESS_SEG,
+        LOADADDRESS_OFS);
     BootDebugPrint(TempString);
 
     char Ext2KernelName[32];
@@ -345,23 +340,19 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     } else if (LoadKernelExt2(BootDrive, PartitionLba, Ext2KernelName, &FileSize)) {
         LoadedFs = "EXT2";
     } else {
-        BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.
-"));
+        BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.\r\n"));
         Hang();
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s
-"), LoadedFs);
+    StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
     BootDebugPrint(TempString);
 
     VerifyKernelImage(FileSize);
 
-    StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x
-"), (U32)E820_Map);
+    StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
     BootDebugPrint(TempString);
 
-    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X
-"), E820_EntryCount);
+    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
     BootDebugPrint(TempString);
 
     EnterProtectedPagingAndJump(FileSize);
