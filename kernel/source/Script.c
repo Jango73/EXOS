@@ -206,6 +206,10 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
     ScriptDestroyAST(Root);
 
+    if (Error == SCRIPT_OK && Context->ErrorCode != SCRIPT_OK) {
+        Error = Context->ErrorCode;
+    }
+
     if (Error != SCRIPT_OK) {
         if (Context->ErrorMessage[0] == STR_NULL) {
             StringCopy(Context->ErrorMessage, TEXT("Execution error"));

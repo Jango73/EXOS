@@ -1782,16 +1782,15 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
     DEBUG(TEXT("[ShellScriptCallFunction] Calling: %s with arg: %s"), FuncName, Argument);
 
     if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
-        STR QualifiedCommandLine[MAX_PATH_NAME];
-
-        if (QualifyCommandLine(Context, Argument, QualifiedCommandLine)) {
-            U32 ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
-            DEBUG(TEXT("[ShellScriptCallFunction] exec returned: %u"), ExitCode);
-            return ExitCode;
+        if (Context == NULL || Argument == NULL) {
+            DEBUG(TEXT("[ShellScriptCallFunction] Missing context or argument for exec"));
+            return DF_ERROR_BADPARAM;
         }
 
-        DEBUG(TEXT("[ShellScriptCallFunction] Failed to qualify command line"));
-        return MAX_U32;
+        // Execute the provided command line using the standard shell command flow
+        U32 Result = ShellScriptExecuteCommand(Argument, Context);
+        DEBUG(TEXT("[ShellScriptCallFunction] exec returned: %u"), Result);
+        return Result;
     } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
         ConsolePrint(Argument);
         return 0;
