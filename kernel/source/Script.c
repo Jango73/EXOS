@@ -1645,22 +1645,29 @@ static BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser) {
         return TRUE;
     }
 
-    if (Parser->CurrentToken.Type != TOKEN_IDENTIFIER) {
-        return FALSE;
+    if (Parser->CurrentToken.Type == TOKEN_IDENTIFIER) {
+        LPCSTR Input = Parser->Input;
+        U32 Pos = Parser->Position;
+
+        while (Input[Pos] == ' ' || Input[Pos] == '\t') {
+            Pos++;
+        }
+
+        if (Input[Pos] == '(') {
+            return FALSE;
+        }
+
+        return TRUE;
     }
 
-    LPCSTR Input = Parser->Input;
-    U32 Pos = Parser->Position;
-
-    while (Input[Pos] == ' ' || Input[Pos] == '\t') {
-        Pos++;
+    if (Parser->CurrentToken.Type == TOKEN_OPERATOR) {
+        STR FirstChar = Parser->CurrentToken.Value[0];
+        if (FirstChar == PATH_SEP || FirstChar == STR_DOT) {
+            return TRUE;
+        }
     }
 
-    if (Input[Pos] == '(') {
-        return FALSE;
-    }
-
-    return TRUE;
+    return FALSE;
 }
 
 /************************************************************************/
