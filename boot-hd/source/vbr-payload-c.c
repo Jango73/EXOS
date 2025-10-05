@@ -27,7 +27,7 @@
 // It won't load large files, you'll get critical errors if you try to.
 // It is meant for small kernels, up to 500KB in size.
 
-#include "../../kernel/include/I386.h"
+#include "../../kernel/include/arch/i386/I386.h"
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
 #include "../include/Multiboot.h"

@@ -26,7 +26,7 @@
 #define INTERRUPTFRAME_H_INCLUDED
 
 #include "Base.h"
-#include "I386.h"
+#include "arch/i386/I386.h"
 
 LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP);
 void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP);

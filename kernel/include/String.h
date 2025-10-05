@@ -54,6 +54,7 @@ STR CharToLower(STR);
 STR CharToUpper(STR);
 BOOL StringEmpty(LPCSTR);
 U32 StringLength(LPCSTR);
+void StringClear(LPSTR Str);                                // Clears Str
 void StringCopy(LPSTR Dst, LPCSTR Src);                     // Copies Src to Dst
 void StringCopyLimit(LPSTR Dst, LPCSTR Src, U32 MaxLength); // Copies Src to Dst, limiting length to Length
 void StringCopyNum(LPSTR Dst, LPCSTR Src, U32 Length);      // Copies Src to Dst using Length

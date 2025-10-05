@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Heap.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/String.h"
-#include "../include/Script.h"
+#include "Base.h"
+#include "Heap.h"
+#include "List.h"
+#include "Log.h"
+#include "String.h"
+#include "Script.h"
 
 /************************************************************************/
 

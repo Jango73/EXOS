@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/SerialPort.h"
+#include "SerialPort.h"
 
-#include "../include/Log.h"
-#include "../include/System.h"
+#include "Log.h"
+#include "System.h"
 
 /************************************************************************/
 

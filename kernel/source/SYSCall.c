@@ -22,26 +22,26 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Clock.h"
-#include "../include/Console.h"
-#include "../include/File.h"
-#include "../include/Heap.h"
-#include "../include/Helpers.h"
-#include "../include/ID.h"
-#include "../include/Kernel.h"
-#include "../include/Keyboard.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/Mouse.h"
-#include "../include/Process.h"
-#include "../include/Schedule.h"
-#include "../include/User.h"
-#include "../include/UserAccount.h"
-#include "../include/UserSession.h"
-#include "../include/Security.h"
-#include "../include/Socket.h"
-#include "../include/SYSCall.h"
+#include "Base.h"
+#include "Clock.h"
+#include "Console.h"
+#include "File.h"
+#include "Heap.h"
+#include "utils/Helpers.h"
+#include "ID.h"
+#include "Kernel.h"
+#include "drivers/Keyboard.h"
+#include "Log.h"
+#include "Memory.h"
+#include "Mouse.h"
+#include "Process.h"
+#include "Schedule.h"
+#include "User.h"
+#include "UserAccount.h"
+#include "UserSession.h"
+#include "Security.h"
+#include "Socket.h"
+#include "SYSCall.h"
 
 /***************************************************************************/
 
@@ -131,16 +131,15 @@ U32 SysCall_SetLocalTime(U32 Parameter) {
 U32 SysCall_DeleteObject(U32 Parameter) {
     LPOBJECT Object = (LPOBJECT)Parameter;
 
-    switch (Object->ID) {
-        case ID_FILE:
-            CloseFile((LPFILE)Object);
-            break;
-        case ID_DESKTOP:
-            DeleteDesktop((LPDESKTOP)Object);
-            break;
-        case ID_WINDOW:
-            DeleteWindow((LPWINDOW)Object);
-            break;
+    SAFE_USE_VALID(Object) {
+        switch (Object->TypeID) {
+            case KOID_FILE:
+                return (U32)CloseFile((LPFILE)Object);
+            case KOID_DESKTOP:
+                return (U32)DeleteDesktop((LPDESKTOP)Object);
+            case KOID_WINDOW:
+                return (U32)DeleteWindow((LPWINDOW)Object);
+        }
     }
 
     return 0;
@@ -180,13 +179,14 @@ U32 SysCall_GetProcessInfo(U32 Parameter) {
             CurrentProcess = (LPPROCESS)Info->Process;
         }
 
-        SAFE_USE_VALID_ID(CurrentProcess, ID_PROCESS) {
+        SAFE_USE_VALID_ID(CurrentProcess, KOID_PROCESS) {
             DEBUG(TEXT("[SysCall_GetProcessInfo] Info->CommandLine = %s"), Info->CommandLine);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%x"), CurrentProcess);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
 
             // Copy the command line
             StringCopy(Info->CommandLine, CurrentProcess->CommandLine);
+            StringCopy(Info->WorkFolder, CurrentProcess->WorkFolder);
 
             return DF_ERROR_SUCCESS;
         }
@@ -424,7 +424,7 @@ U32 SysCall_GetVolumeInfo(U32 Parameter) {
 
     FileSystem = (LPFILESYSTEM)Info->Volume;
     if (FileSystem == NULL) return 0;
-    if (FileSystem->ID != ID_FILESYSTEM) return 0;
+    if (FileSystem->TypeID != KOID_FILESYSTEM) return 0;
 
     LockMutex(&(FileSystem->Mutex), INFINITY);
 
@@ -445,7 +445,9 @@ U32 SysCall_ReadFile(U32 Parameter) { return ReadFile((LPFILEOPERATION)Parameter
 
 /***************************************************************************/
 
-U32 SysCall_WriteFile(U32 Parameter) { return WriteFile((LPFILEOPERATION)Parameter); }
+U32 SysCall_WriteFile(U32 Parameter) {
+    return WriteFile((LPFILEOPERATION)Parameter);
+}
 
 /***************************************************************************/
 
@@ -522,7 +524,7 @@ U32 SysCall_ShowDesktop(U32 Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)Parameter;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != ID_DESKTOP) return 0;
+    if (Desktop->TypeID != KOID_DESKTOP) return 0;
 
     return (U32)ShowDesktop(Desktop);
 }
@@ -534,7 +536,7 @@ U32 SysCall_GetDesktopWindow(U32 Parameter) {
     LPWINDOW Window = NULL;
 
     if (Desktop == NULL) return 0;
-    if (Desktop->ID != ID_DESKTOP) return 0;
+    if (Desktop->TypeID != KOID_DESKTOP) return 0;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 

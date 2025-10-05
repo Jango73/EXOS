@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/Disk.h"
+#include "Disk.h"
 
-#include "../include/Kernel.h"
-#include "../include/Log.h"
+#include "Kernel.h"
+#include "Log.h"
 
 /***************************************************************************/
 

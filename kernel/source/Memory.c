@@ -22,14 +22,14 @@
 
 \************************************************************************/
 
-#include "../include/Memory.h"
+#include "Memory.h"
 
-#include "../include/Base.h"
-#include "../include/Console.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Schedule.h"
-#include "../include/System.h"
+#include "Base.h"
+#include "Console.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "Schedule.h"
+#include "System.h"
 
 /************************************************************************\
 
@@ -1173,7 +1173,7 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
         Base = StartBase;
     }
 
-    while (1) {
+    FOREVER {
         if (IsRegionFree(Base, Size) == TRUE) return Base;
         Base += PAGE_SIZE;
     }

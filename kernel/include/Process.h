@@ -29,7 +29,7 @@
 
 #include "Base.h"
 #include "Driver.h"
-#include "I386.h"
+#include "arch/i386/I386.h"
 #include "ID.h"
 #include "List.h"
 #include "Mutex.h"
@@ -76,6 +76,7 @@ struct tag_PROCESS {
     U32 ExitCode;            // This process' exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
+    STR WorkFolder[MAX_PATH_NAME];
     U32 TaskCount;           // Number of active tasks in this process
     U64 UserID;              // Owner user
     LPUSERSESSION Session;   // User session
@@ -189,20 +190,18 @@ void KillProcess(LPPROCESS);
 void DeleteProcessCommit(LPPROCESS);
 void InitSecurity(LPSECURITY);
 BOOL CreateProcess(LPPROCESSINFO);
-U32 Spawn(LPCSTR);
+U32 Spawn(LPCSTR, LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
-void ReleaseKernelObject(LPVOID Object);
 
 /************************************************************************/
 // Functions in Desktop.c
 
 LPDESKTOP CreateDesktop(void);
-void DeleteDesktop(LPDESKTOP);
+BOOL DeleteDesktop(LPDESKTOP);
 BOOL ShowDesktop(LPDESKTOP);
 LPWINDOW CreateWindow(LPWINDOWINFO);
-void DeleteWindow(LPWINDOW);
+BOOL DeleteWindow(LPWINDOW);
 LPWINDOW FindWindow(LPWINDOW, LPWINDOW);
 LPDESKTOP GetWindowDesktop(LPWINDOW);
 BOOL InvalidateWindowRect(HANDLE, LPRECT);

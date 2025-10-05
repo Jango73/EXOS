@@ -22,16 +22,16 @@
 
 \************************************************************************/
 
-#include "../include/Clock.h"
+#include "Clock.h"
 
-#include "../include/I386.h"
-#include "../include/InterruptController.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Schedule.h"
-#include "../include/String.h"
-#include "../include/System.h"
-#include "../include/Text.h"
+#include "arch/i386/I386.h"
+#include "InterruptController.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "Schedule.h"
+#include "String.h"
+#include "System.h"
+#include "Text.h"
 
 /************************************************************************/
 // Timer resolution

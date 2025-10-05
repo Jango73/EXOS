@@ -10,6 +10,60 @@ Be aware that it generates A LOT of COM2 output, the scheduler is called every 1
 
 To be completed.
 
+### Kernel object identifiers
+
+Kernel objects now embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
+is assigned when `CreateKernelObject` allocates the structure and is derived
+from a randomly generated UUID. This value travels with the object for its
+entire lifetime and is persisted in the termination cache through
+`OBJECT_TERMINATION_STATE.ID`. Scheduler lookups rely on the shared identifier
+instead of raw pointers, eliminating accidental matches when memory is reused
+for new objects.
+
+### Command line editing
+
+Interactive editing of shell command lines is implemented in
+`kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input,
+maintains an in-memory history, refreshes the console display, and relies on
+callbacks to retrieve completion suggestions. The shell owns an input state
+structure that embeds the editor instance and provides the shell-specific
+completion callback so the component remains agnostic of higher level shell
+logic.
+
+All reusable helpers—such as the command line editor, adaptive delay, string
+containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
+support, regex, hysteresis control, and network checksum helpers—now live under
+`kernel/source/utils` with their public headers in `kernel/include/utils`. This
+keeps generic infrastructure separated from core subsystems and makes it easier
+to share common code across the kernel.
+
+Hardware-facing components are grouped under `kernel/source/drivers` with their
+headers in `kernel/include/drivers`. The directory hosts the keyboard, serial
+mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
+and SATA), graphics (VGA, VESA, and mode tables), and file system backends
+(FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery
+from the build system and clarifies the separation between reusable utilities
+and hardware support code.
+
+### ACPI services
+
+Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
+module discovers ACPI tables, exposes the parsed configuration, and offers
+helpers for platform control. `ACPIShutdown()` enters the S5 soft-off state and
+falls back to legacy power-off sequences when the ACPI path fails. The new
+`ACPIReboot()` companion performs a warm reboot by first using the ACPI reset
+register (when present) and then chaining to legacy reset controllers to ensure
+the machine restarts even on older chipsets.
+
+### File system globals
+
+The kernel tracks shared file system information in `Kernel.FileSystemInfo`.
+It currently stores the logical name of the partition flagged as active while
+MBR partitions are mounted. `MountDiskPartitions` identifies the active entry
+directly from the MBR, then calls `FileSystemSetActivePartition` to copy the
+mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName` for
+later use (for example, in the shell).
+
 ## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
 Everything in this sequence runs in 16-bit real mode on i386+ processors.
@@ -527,10 +581,6 @@ typedef struct DeviceTag {
 - `SetDeviceContext(Device, ID, Context)`: Store context for device
 - `RemoveDeviceContext(Device, ID)`: Remove and free context
 
-**Context IDs:**
-- `ID_ARP (0x5F505241)`: ARP protocol context
-- `ID_IPV4 (0x34565049)`: IPv4 protocol context
-
 ### Network Manager
 
 **Location:** `kernel/source/NetworkManager.c`, `kernel/include/NetworkManager.h`
@@ -565,7 +615,7 @@ void InitializeNetworkManager(void) {
 
 ### E1000 Ethernet Driver
 
-**Location:** `kernel/source/E1000.c`
+**Location:** `kernel/source/network/E1000.c`
 
 The E1000 driver provides the hardware abstraction layer for Intel 82540EM network cards. It implements the standard EXOS driver interface with network-specific function IDs.
 
@@ -586,7 +636,7 @@ The E1000 driver provides the hardware abstraction layer for Intel 82540EM netwo
 
 ### ARP (Address Resolution Protocol)
 
-**Location:** `kernel/source/ARP.c`, `kernel/include/ARP.h`, `kernel/include/ARPContext.h`
+**Location:** `kernel/source/network/ARP.c`, `kernel/include/network/ARP.h`, `kernel/include/ARPContext.h`
 
 ARP handles IPv4-to-MAC address resolution with per-device cache management and automatic request generation.
 
@@ -628,7 +678,7 @@ typedef struct ArpCacheEntryTag {
 
 ### IPv4 Internet Protocol
 
-**Location:** `kernel/source/IPv4.c`, `kernel/include/IPv4.h`
+**Location:** `kernel/source/network/IPv4.c`, `kernel/include/network/IPv4.h`
 
 IPv4 layer provides packet parsing, routing, and protocol multiplexing with per-device protocol handler registration.
 
@@ -681,7 +731,7 @@ typedef struct IPv4HeaderTag {
 
 ### TCP (Transmission Control Protocol)
 
-**Location:** `kernel/source/TCP.c`, `kernel/include/TCP.h`
+**Location:** `kernel/source/network/TCP.c`, `kernel/include/network/TCP.h`
 
 TCP provides reliable connection-oriented communication using a state machine-based implementation.
 

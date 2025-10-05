@@ -22,23 +22,23 @@
 
 \************************************************************************/
 
-#include "../include/NetworkManager.h"
+#include "NetworkManager.h"
 
-#include "../include/ARP.h"
-#include "../include/IPv4.h"
-#include "../include/UDP.h"
-#include "../include/DHCP.h"
-#include "../include/TCP.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/Network.h"
-#include "../include/Driver.h"
-#include "../include/Endianness.h"
-#include "../include/Socket.h"
-#include "../include/Helpers.h"
-#include "../include/String.h"
-#include "../include/TOML.h"
+#include "network/ARP.h"
+#include "network/IPv4.h"
+#include "network/UDP.h"
+#include "network/DHCP.h"
+#include "network/TCP.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "Memory.h"
+#include "Network.h"
+#include "Driver.h"
+#include "Endianness.h"
+#include "Socket.h"
+#include "utils/Helpers.h"
+#include "String.h"
+#include "utils/TOML.h"
 
 /************************************************************************/
 
@@ -116,7 +116,7 @@ static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserDa
 
     DEBUG(TEXT("[NetworkManager_RxCallback] Entry Context=%X Frame=%X Length=%u"), (U32)Context, (U32)Frame, Length);
 
-    SAFE_USE_VALID_ID(Context, ID_NETWORKDEVICE) {
+    SAFE_USE_VALID_ID(Context, KOID_NETWORKDEVICE) {
         Device = (LPDEVICE)Context->Device;
     }
 
@@ -168,18 +168,18 @@ static U32 NetworkManager_FindNetworkDevices(void) {
     DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Enter"));
 
     SAFE_USE(Kernel.PCIDevice) {
-        SAFE_USE_VALID_ID(Kernel.PCIDevice->First, ID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(Kernel.PCIDevice->First, KOID_PCIDEVICE) {
 
             for (Node = Kernel.PCIDevice->First; Node != NULL; Node = Node->Next) {
                 LPPCI_DEVICE Device = (LPPCI_DEVICE)Node;
 
-                SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-                    SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
+                SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+                    SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
 
                         if (Device->Driver->Type == DRIVER_TYPE_NETWORK) {
                             // Allocate a new network device context
                             LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)
-                                CreateKernelObject(sizeof(NETWORK_DEVICE_CONTEXT), ID_NETWORKDEVICE);
+                                CreateKernelObject(sizeof(NETWORK_DEVICE_CONTEXT), KOID_NETWORKDEVICE);
 
                             SAFE_USE(Context) {
                                 Context->Device = Device;
@@ -235,7 +235,7 @@ void InitializeNetwork(void) {
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+            SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 NetworkManager_InitializeDevice(Ctx->Device, Ctx->LocalIPv4_Be);
             }
         }
@@ -249,8 +249,8 @@ void InitializeNetwork(void) {
 void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
     DEBUG(TEXT("[NetworkManager_InitializeDevice] Enter for device %s"), Device->Driver->Product);
 
-    SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
             if (Device->Driver->Type != DRIVER_TYPE_NETWORK) {
                 ERROR(TEXT("[NetworkManager_InitializeDevice] Device is not a network device"));
                 return;
@@ -261,7 +261,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             SAFE_USE(Kernel.NetworkDevice) {
                 for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
                     LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                    SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                    SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                         if (Ctx->Device == Device) {
                             DeviceContext = Ctx;
                             break;
@@ -365,15 +365,15 @@ U32 NetworkManagerTask(LPVOID param) {
 
     U32 tickCount = 0;
 
-    while (1) {
+    FOREVER {
         // Poll all network devices for received packets
         SAFE_USE(Kernel.NetworkDevice) {
             for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
                 LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                     if (Ctx->IsInitialized) {
-                        SAFE_USE_VALID_ID(Ctx->Device, ID_PCIDEVICE) {
-                            SAFE_USE_VALID_ID(Ctx->Device->Driver, ID_DRIVER) {
+                        SAFE_USE_VALID_ID(Ctx->Device, KOID_PCIDEVICE) {
+                            SAFE_USE_VALID_ID(Ctx->Device->Driver, KOID_DRIVER) {
                                 NETWORKPOLL poll = {.Device = Ctx->Device};
                                 Ctx->Device->Driver->Command(DF_NT_POLL, (U32)(LPVOID)&poll);
                             }
@@ -389,7 +389,7 @@ U32 NetworkManagerTask(LPVOID param) {
             SAFE_USE(Kernel.NetworkDevice) {
                 for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
                     LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                    SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+                    SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                         if (Ctx->IsInitialized) {
                             ARP_Tick((LPDEVICE)Ctx->Device);
                             DHCP_Tick((LPDEVICE)Ctx->Device);
@@ -416,7 +416,7 @@ LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+            SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 if (Ctx->IsInitialized) {
                     return Ctx->Device;
                 }
@@ -432,7 +432,7 @@ BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(Ctx, ID_NETWORKDEVICE) {
+            SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 if ((LPDEVICE)Ctx->Device == Device) {
                     return Ctx->IsReady;
                 }

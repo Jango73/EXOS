@@ -264,23 +264,51 @@ FILE* fopen(const char* __name, const char* __mode) {
     info.Header.Flags = 0;
     info.Flags = 0;
     info.Name = (LPCSTR)__name;
-    info.Flags = 0;
 
-    if (strstr(__mode, "r+")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_EXISTING;
-    } else if (strstr(__mode, "r")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_EXISTING;
-    } else if (strstr(__mode, "w+")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
-    } else if (strstr(__mode, "w")) {
-        info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
-    } else if (strstr(__mode, "a+")) {
-        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
-    } else if (strstr(__mode, "a")) {
-        info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
-    } else {
-        // Unknown mode
+    char PrimaryMode = 0;
+    int HasPlus = 0;
+
+    for (const char* ModeChar = __mode; ModeChar && *ModeChar; ++ModeChar) {
+        switch (*ModeChar) {
+            case 'r':
+            case 'w':
+            case 'a':
+                if (PrimaryMode != 0 && PrimaryMode != *ModeChar) {
+                    return NULL;
+                }
+                PrimaryMode = *ModeChar;
+                break;
+            case '+':
+                HasPlus = 1;
+                break;
+            case 'b':
+            case 't':
+                break;
+            default:
+                return NULL;
+        }
+    }
+
+    if (PrimaryMode == 0) {
         return NULL;
+    }
+
+    switch (PrimaryMode) {
+        case 'r':
+            info.Flags |= FILE_OPEN_READ | FILE_OPEN_EXISTING;
+            break;
+        case 'w':
+            info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
+            break;
+        case 'a':
+            info.Flags |= FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_SEEK_END;
+            break;
+        default:
+            return NULL;
+    }
+
+    if (HasPlus) {
+        info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE;
     }
 
     handle = exoscall(SYSCALL_OpenFile, (unsigned)&info);

@@ -33,7 +33,7 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
                   -DKERNEL_FILE="\"$(KERNEL_FILE)\"" \
-                  -Iinclude
+                  -Iinclude -I../kernel/include
 LD              = i686-elf-ld
 LDFLAGS         = -nostdlib -no-pie
 
@@ -55,31 +55,56 @@ MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 
 define CREATE_FAT32_IMAGE
-        @echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."
-        dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB)
-        parted -s $1 mklabel msdos
-        parted -s $1 mkpart primary fat32 2048s 100%
-        parted -s $1 set 1 boot on
-        @{ \
-                PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-                if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
-                        echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
-                        exit 1; \
-                fi; \
-                MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
-        }
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $(IMG_SIZE_MB)MiB image with partition table and FAT32 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$(IMG_SIZE_MB); \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary fat32 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
+		}; \
+	fi
 endef
 
 define MTOOLS_OPERATION
-        @rm -f $(MTOOLS_CONF)
-        @{ \
-                PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-                echo "drive z: file=\"$1\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
-                echo "$2 at offset $$PART_OFFSET"; \
-                $3 \
-                rm -f $(MTOOLS_CONF); \
-                echo "$4"; \
-        }
+	@rm -f $(MTOOLS_CONF)
+	@{ \
+		PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+		echo "drive z: file=\"$1\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
+		echo "$2 at offset $$PART_OFFSET"; \
+		$3 \
+		rm -f $(MTOOLS_CONF); \
+		echo "$4"; \
+	}
+endef
+
+define MCOPY_IF_NEEDED
+	if ! MTOOLSRC=$(MTOOLS_CONF) mdir "$(2)" >/dev/null 2>&1; then \
+		echo "Copying $(1) -> $(2) (destination missing)"; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+	else \
+		SRC_MTIME=$$(stat -c %Y "$(1)"); \
+		DST_INFO=$$(MTOOLSRC=$(MTOOLS_CONF) mdir -/ "$(2)" 2>/dev/null | awk 'NF>=7 {print $$6" "$$7; exit}'); \
+		DST_EPOCH=$$(date -d "$$DST_INFO" +%s 2>/dev/null || echo ""); \
+		if [ -z "$$DST_EPOCH" ] || [ $$SRC_MTIME -gt $$DST_EPOCH ]; then \
+			if [ -z "$$DST_EPOCH" ]; then \
+				echo "Copying $(1) -> $(2) (destination timestamp unavailable)"; \
+			else \
+				echo "Updating $(2) from $(1) (source newer)"; \
+			fi; \
+			MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+		else \
+			echo "Skipping $(2) (destination up-to-date)"; \
+		fi; \
+	fi;
 endef
 
 .PHONY: all update install-mbr install-vbr-payload clean check_tools rebuild-image
@@ -94,35 +119,67 @@ check_tools:
 	@command -v i686-elf-gcc >/dev/null 2>&1 || { echo "i686-elf-gcc is not installed. Please install your cross toolchain."; exit 1; }
 	@command -v i686-elf-ld >/dev/null 2>&1 || { echo "i686-elf-ld is not installed. Please install your cross toolchain."; exit 1; }
 
+$(MBR_BIN): $(MBR_SOURCE)
+	@echo "Assembling custom MBR (NASM)..."
+	@mkdir -p $(BUILD_DIR)/boot-hd
+	nasm $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
+
+$(VBR_BIN): $(VBR_SRC)
+	@echo "Assembling VBR (NASM)..."
+	@mkdir -p $(BUILD_DIR)/boot-hd
+	nasm $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
+
+$(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
+	@echo "Assembling payload stub (NASM)..."
+	@mkdir -p $(BUILD_DIR)/boot-hd
+	nasm $(NASMFLAGS) -f elf32 $< -o $@
+
+$(PAYLOAD_C_O): $(PAYLOAD_SOURCE)
+	@echo "Compiling payload C from $(PAYLOAD_SOURCE)..."
+	@mkdir -p $(BUILD_DIR)/boot-hd
+	i686-elf-gcc $(CFLAGS) -c $< -o $@
+
+$(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
+	@echo "Compiling String from $(PAYLOAD_STR_C)..."
+	@mkdir -p $(BUILD_DIR)/boot-hd
+	i686-elf-gcc $(CFLAGS) -c $< -o $@
+
+$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
+	@echo "Linking payload stub + C into flat binary..."
+	$(LD) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+
+$(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
+	@echo "Linking payload stub + C into elf binary..."
+	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
+
+$(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
+	# @echo "Extracting payload symbols for Bochs debugging"
+	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+
 # Create image only if it does not exist
-$(FINAL_IMG): check_tools
+$(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
 	@mkdir -p $(dir $@)
 	$(call CREATE_FAT32_IMAGE,$@)
 
 $(KERNEL_CFG): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
 
-# Force a full rebuild of the image (explicit call)
-rebuild-image:
-	@echo "Forcing full image rebuild..."
-	@rm -f $(FINAL_IMG)
-	$(MAKE) $(FINAL_IMG)
-
-update: $(KERNEL_CFG) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
+update: $(FINAL_IMG) $(KERNEL_CFG)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_BIN) z:/EXOS.BIN; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(KERNEL_CFG) z:/exos.toml; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(PORTAL_ELF) z:/EXOS/APPS/PORTAL; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(NETGET_ELF) z:/EXOS/APPS/NETGET; \
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(HELLO_ELF) z:/EXOS/APPS/HELLO;\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(TICTACTOE_ELF) z:/EXOS/APPS/tictactoe;\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(MASTER_ELF) z:/EXOS/APPS/TEST/MASTER;\
-	        MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(SLAVE_ELF) z:/EXOS/APPS/TEST/SLAVE;,\
-	        All files injected into image.)
+		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
+		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG),z:/exos.toml) \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/TEMP || true; \
+		$(call MCOPY_IF_NEEDED,$(PORTAL_ELF),z:/EXOS/APPS/PORTAL) \
+		$(call MCOPY_IF_NEEDED,$(NETGET_ELF),z:/EXOS/APPS/NETGET) \
+		$(call MCOPY_IF_NEEDED,$(HELLO_ELF),z:/EXOS/APPS/HELLO)\
+		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
+		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
+		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
+		All files injected into image.)
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	@echo "Installing custom MBR into image (assembled from $(MBR_SOURCE))..."
@@ -140,39 +197,6 @@ install-vbr-payload: install-mbr $(PAYLOAD_BIN)
 		dd if=$(PAYLOAD_BIN) of=$(FINAL_IMG) bs=512 seek=$$SECTOR_NUM conv=notrunc; \
 		echo "VBR code and payload injected."; \
 	}
-
-$(MBR_BIN): $(MBR_SOURCE)
-	@echo "Assembling custom MBR (NASM)..."
-	nasm $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
-
-$(VBR_BIN): $(VBR_SRC)
-	@echo "Assembling VBR (NASM)..."
-	nasm $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
-
-$(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
-	@echo "Assembling payload stub (NASM)..."
-	nasm $(NASMFLAGS) -f elf32 $< -o $@
-
-$(PAYLOAD_C_O): $(PAYLOAD_SOURCE)
-	@echo "Compiling payload C from $(PAYLOAD_SOURCE)..."
-	i686-elf-gcc $(CFLAGS) -c $< -o $@
-
-$(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
-	@echo "Compiling String..."
-	i686-elf-gcc -ffreestanding -m16 -nostdlib -fno-pic -fno-builtin -c $< -o $@
-
-$(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
-	@echo "Linking payload stub + C into flat binary..."
-	$(LD) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
-
-$(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
-	@echo "Linking payload stub + C into elf binary..."
-	$(LD) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O)
-
-# Extract payload symbols for Bochs debugging
-$(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
-	# @echo "Extracting payload symbols for Bochs debugging"
-	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 hexdump-check: install-vbr-payload
 	@echo "--- [ MBR +0 (16 bytes) ] ---"
@@ -207,4 +231,4 @@ hexdump-check: install-vbr-payload
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
 
 clean:
-	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(BUILD_DIR)/boot-hd/payload.sym
+	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_O) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym

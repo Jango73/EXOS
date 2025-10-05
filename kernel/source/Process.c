@@ -22,20 +22,21 @@
 
 \************************************************************************/
 
-#include "../include/Process.h"
+#include "Process.h"
 
-#include "../include/Console.h"
-#include "../include/Executable.h"
-#include "../include/File.h"
-#include "../include/Kernel.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/StackTrace.h"
+#include "Console.h"
+#include "Executable.h"
+#include "File.h"
+#include "Kernel.h"
+#include "List.h"
+#include "Log.h"
+#include "String.h"
+#include "StackTrace.h"
 
 /***************************************************************************/
 
 PROCESS SECTION(".data") KernelProcess = {
-    .ID = ID_PROCESS,  // ID
+    .TypeID = KOID_PROCESS,  // ID
     .References = 1,   // References
     .OwnerProcess = NULL, // OwnerProcess (from LISTNODE_FIELDS)
     .Next = NULL,
@@ -52,6 +53,7 @@ PROCESS SECTION(".data") KernelProcess = {
     .HeapSize = 0,                  // Heap size
     .FileName = "EXOS",             // File name
     .CommandLine = "",              // Command line
+    .WorkFolder = ROOT,             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
 
@@ -134,7 +136,7 @@ LPPROCESS NewProcess(void) {
 
     DEBUG(TEXT("[NewProcess] Enter"));
 
-    This = (LPPROCESS)CreateKernelObject(sizeof(PROCESS), ID_PROCESS);
+    This = (LPPROCESS)CreateKernelObject(sizeof(PROCESS), KOID_PROCESS);
 
     if (This == NULL) {
         TRACED_EPILOGUE("NewProcess");
@@ -152,7 +154,7 @@ LPPROCESS NewProcess(void) {
     This->Session = NULL;
 
     // Inherit session from parent process
-    SAFE_USE_VALID_ID(This->OwnerProcess, ID_PROCESS) {
+    SAFE_USE_VALID_ID(This->OwnerProcess, KOID_PROCESS) {
         This->Session = This->OwnerProcess->Session;
     }
 
@@ -183,7 +185,7 @@ LPPROCESS NewProcess(void) {
 void DeleteProcessCommit(LPPROCESS This) {
     TRACED_FUNCTION;
 
-    SAFE_USE_VALID_ID(This, ID_PROCESS) {
+    SAFE_USE_VALID_ID(This, KOID_PROCESS) {
         if (This == &KernelProcess) {
             ERROR(TEXT("[DeleteProcessCommit] Cannot delete kernel process"));
             TRACED_EPILOGUE("DeleteProcessCommit");
@@ -219,7 +221,7 @@ void DeleteProcessCommit(LPPROCESS This) {
 void KillProcess(LPPROCESS This) {
     TRACED_FUNCTION;
 
-    SAFE_USE_VALID_ID(This, ID_PROCESS) {
+    SAFE_USE_VALID_ID(This, KOID_PROCESS) {
         if (This == &KernelProcess) {
             ERROR(TEXT("[KillProcess] Cannot delete kernel process"));
             TRACED_EPILOGUE("KillProcess");
@@ -250,7 +252,7 @@ void KillProcess(LPPROCESS This) {
             LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
 
             while (Current != NULL) {
-                SAFE_USE_VALID_ID(Current, ID_PROCESS) {
+                SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
                     // Check if this process has a parent in our check list
                     for (U32 i = 0; i < ListGetSize(ProcessesToCheck); i++) {
                         LPPROCESS ParentToCheck = (LPPROCESS)ListGetItem(ProcessesToCheck, i);
@@ -291,14 +293,14 @@ void KillProcess(LPPROCESS This) {
 
             for (U32 i = 0; i < ChildCount; i++) {
                 LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, i);
-                SAFE_USE_VALID_ID(ChildProcess, ID_PROCESS) {
+                SAFE_USE_VALID_ID(ChildProcess, KOID_PROCESS) {
                     DEBUG(TEXT("[KillProcess] Killing tasks of child process %s"), ChildProcess->FileName);
 
                     // Kill all tasks of this child process
                     LPTASK Task = (LPTASK)Kernel.Task->First;
                     while (Task != NULL) {
                         LPTASK NextTask = (LPTASK)Task->Next;
-                        SAFE_USE_VALID_ID(Task, ID_TASK) {
+                        SAFE_USE_VALID_ID(Task, KOID_TASK) {
                             if (Task->Process == ChildProcess) {
                                 DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
                                 KillTask(Task);
@@ -316,7 +318,7 @@ void KillProcess(LPPROCESS This) {
 
             for (U32 i = 0; i < ChildCount; i++) {
                 LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, i);
-                SAFE_USE_VALID_ID(ChildProcess, ID_PROCESS) {
+                SAFE_USE_VALID_ID(ChildProcess, KOID_PROCESS) {
                     // Detach child from parent (make it orphan)
                     ChildProcess->OwnerProcess = NULL;
                     DEBUG(TEXT("[KillProcess] Detached child process %s from parent"), ChildProcess->FileName);
@@ -333,7 +335,7 @@ void KillProcess(LPPROCESS This) {
         LPTASK Task = (LPTASK)Kernel.Task->First;
         while (Task != NULL) {
             LPTASK NextTask = (LPTASK)Task->Next;
-            SAFE_USE_VALID_ID(Task, ID_TASK) {
+            SAFE_USE_VALID_ID(Task, KOID_TASK) {
                 if (Task->Process == This) {
                     DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
                     KillTask(Task);
@@ -369,6 +371,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     TASKINFO TaskInfo;
     FILEOPENINFO FileOpenInfo;
     LPPROCESS Process = NULL;
+    LPPROCESS ParentProcess = NULL;
     LPTASK Task = NULL;
     LPFILE File = NULL;
     PHYSICAL PageDirectory = NULL;
@@ -476,11 +479,27 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     StringCopy(Process->FileName, FileName);
 
     // Initialize CommandLine (could be empty if not provided)
-    if (Info->CommandLine[0] != STR_NULL) {
+    if (StringEmpty(Info->CommandLine) == FALSE) {
         StringCopy(Process->CommandLine, Info->CommandLine);
     } else {
-        Process->CommandLine[0] = STR_NULL;  // Empty string
+        StringClear(Process->CommandLine);
     }
+
+    // Initialize WorkFolder from PROCESSINFO or inherit from parent
+    if (!StringEmpty(Info->WorkFolder)) {
+        StringCopy(Process->WorkFolder, Info->WorkFolder);
+    } else {
+        ParentProcess = GetCurrentProcess();
+
+        SAFE_USE_VALID_ID(ParentProcess, KOID_PROCESS) {
+            StringCopy(Process->WorkFolder, ParentProcess->WorkFolder);
+        } else {
+            StringCopy(Process->WorkFolder, ROOT);
+        }
+    }
+
+    // Update returned PROCESSINFO with effective WorkFolder
+    StringCopy(Info->WorkFolder, Process->WorkFolder);
 
     // Copy process creation flags
     Process->Flags = Info->Flags;
@@ -663,15 +682,18 @@ Out:
  * @brief Create a new process using a full command line and wait for it to complete.
  *
  * @param CommandLine Full command line including executable name and arguments.
+ * @param WorkFolder Working directory to use, or empty/NULL to inherit from parent.
  * @return The process exit code on success, MAX_U32 on failure.
  */
-U32 Spawn(LPCSTR CommandLine) {
+U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     DEBUG(TEXT("[Spawn] Launching : %s"), CommandLine);
 
     PROCESSINFO ProcessInfo;
     WAITINFO WaitInfo;
     U32 Result;
+    LPPROCESS ParentProcess = NULL;
 
+    MemorySet(&ProcessInfo, 0, sizeof(PROCESSINFO));
     ProcessInfo.Header.Size = sizeof(PROCESSINFO);
     ProcessInfo.Header.Version = EXOS_ABI_VERSION;
     ProcessInfo.Header.Flags = 0;
@@ -682,6 +704,15 @@ U32 Spawn(LPCSTR CommandLine) {
     ProcessInfo.Process = NULL;
 
     StringCopy(ProcessInfo.CommandLine, CommandLine);
+
+    if (StringEmpty(WorkFolder) == FALSE) {
+        StringCopy(ProcessInfo.WorkFolder, WorkFolder);
+    } else {
+        ParentProcess = GetCurrentProcess();
+        SAFE_USE_VALID_ID(ParentProcess, KOID_PROCESS) {
+            StringCopy(ProcessInfo.WorkFolder, ParentProcess->WorkFolder);
+        }
+    }
 
     if (!CreateProcess(&ProcessInfo) || ProcessInfo.Process == NULL) {
         return MAX_U32;
@@ -714,13 +745,15 @@ U32 Spawn(LPCSTR CommandLine) {
 void SetProcessStatus(LPPROCESS This, U32 Status) {
     LockMutex(MUTEX_PROCESS, INFINITY);
 
-    SAFE_USE_VALID_ID(This, ID_PROCESS) {
-        This->Status = PROCESS_STATUS_DEAD;
+    SAFE_USE_VALID_ID(This, KOID_PROCESS) {
+        This->Status = Status;
 
-        DEBUG(TEXT("[SetProcessStatus] Marked process %s as DEAD"), This->FileName);
+        DEBUG(TEXT("[SetProcessStatus] Marked process %s as %d"), This->FileName, Status);
 
-        // Store termination state in cache before process is destroyed
-        StoreObjectTerminationState(This, This->ExitCode);
+        if (Status == PROCESS_STATUS_DEAD) {
+            // Store termination state in cache before process is destroyed
+            StoreObjectTerminationState(This, This->ExitCode);
+        }
     }
 
     UnlockMutex(MUTEX_PROCESS);
@@ -739,7 +772,7 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
 
     if (Process == NULL) Process = GetCurrentProcess();
 
-    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         LockMutex(&(Process->Mutex), INFINITY);
 
         HeapBase = Process->HeapBase;
@@ -758,7 +791,7 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
  * @param Process Process to dump. Nothing is logged if NULL.
  */
 void DumpProcess(LPPROCESS Process) {
-    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         LockMutex(&(Process->Mutex), INFINITY);
 
         DEBUG(TEXT("Address        : %p\n"), Process);
@@ -783,7 +816,7 @@ void DumpProcess(LPPROCESS Process) {
  */
 void InitSecurity(LPSECURITY This) {
     SAFE_USE(This) {
-        This->ID = ID_SECURITY;
+        This->TypeID = KOID_SECURITY;
         This->References = 1;
         This->OwnerProcess = GetCurrentProcess();
         This->Next = NULL;
@@ -791,60 +824,5 @@ void InitSecurity(LPSECURITY This) {
         This->Owner = U64_Make(0, 0);
         This->UserPermissionCount = 0;
         This->DefaultPermissions = PERMISSION_NONE;
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Create a kernel object with standard LISTNODE_FIELDS initialization.
- *
- * This function allocates memory for a kernel object and initializes its
- * LISTNODE_FIELDS with the specified ID, References = 1, current process
- * as parent, and NULL for Next/Prev pointers.
- *
- * @param Size Size of the object to allocate (e.g., sizeof(TASK))
- * @param ObjectTypeID ID from ID.h to identify the object type
- * @return Pointer to the allocated and initialized object, or NULL on failure
- */
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
-    LPLISTNODE Object;
-
-    DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
-
-    Object = (LPLISTNODE)KernelHeapAlloc(Size);
-
-    if (Object == NULL) {
-        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object"));
-        return NULL;
-    }
-
-    // Initialize LISTNODE_FIELDS
-    Object->ID = ObjectTypeID;
-    Object->References = 1;
-    Object->OwnerProcess = GetCurrentProcess();
-    Object->Next = NULL;
-    Object->Prev = NULL;
-
-    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"),
-          (U32)Object, (U32)Object->OwnerProcess);
-
-    return Object;
-}
-
-/************************************************************************/
-
-/**
- * @brief Destroy a kernel object.
- *
- * This function sets the object's ID to ID_NONE and frees its memory.
- *
- * @param Object Pointer to the kernel object to destroy
- */
-void ReleaseKernelObject(LPVOID Object) {
-    LPLISTNODE Node = (LPLISTNODE)Object;
-
-    SAFE_USE(Node) {
-        if (Node->References) Node->References--;
     }
 }

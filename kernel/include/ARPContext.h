@@ -29,8 +29,8 @@
 #include "Device.h"
 #include "Network.h"
 #include "Endianness.h"
-#include "Notification.h"
-#include "AdaptiveDelay.h"
+#include "utils/Notification.h"
+#include "utils/AdaptiveDelay.h"
 
 /************************************************************************/
 

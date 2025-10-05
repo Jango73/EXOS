@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Console.h"
-#include "../include/Kernel.h"
-#include "../include/Keyboard.h"
-#include "../include/String.h"
-#include "../include/VKey.h"
+#include "Base.h"
+#include "Console.h"
+#include "Kernel.h"
+#include "drivers/Keyboard.h"
+#include "String.h"
+#include "VKey.h"
 
 /***************************************************************************/
 
@@ -108,7 +108,7 @@ void MemoryEditor(U32 Base) {
     ClearConsole();
     PrintMemoryPage(Base, 24 * 16);
 
-    while (1) {
+    FOREVER {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 

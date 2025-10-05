@@ -22,11 +22,11 @@
 
 \************************************************************************/
 
-#include "../include/Autotest.h"
+#include "Autotest.h"
 
-#include "../include/Base.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
+#include "Base.h"
+#include "Kernel.h"
+#include "Log.h"
 
 /************************************************************************/
 

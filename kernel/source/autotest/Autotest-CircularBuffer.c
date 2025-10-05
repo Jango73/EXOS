@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../../include/Autotest.h"
-#include "../../include/Base.h"
-#include "../../include/Log.h"
-#include "../../include/CircularBuffer.h"
-#include "../../include/Heap.h"
-#include "../../include/String.h"
+#include "Autotest.h"
+#include "Base.h"
+#include "Log.h"
+#include "utils/CircularBuffer.h"
+#include "Heap.h"
+#include "String.h"
 
 /************************************************************************/
 

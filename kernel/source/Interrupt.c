@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Kernel.h"
-#include "../include/SYSCall.h"
-#include "../include/LocalAPIC.h"
-#include "../include/InterruptController.h"
-#include "../include/System.h"
+#include "Base.h"
+#include "Kernel.h"
+#include "SYSCall.h"
+#include "drivers/LocalAPIC.h"
+#include "InterruptController.h"
+#include "System.h"
 
 // Functions in Int.asm
 

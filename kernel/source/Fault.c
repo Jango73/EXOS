@@ -22,16 +22,16 @@
 
 \************************************************************************/
 
-#include "../include/Console.h"
-#include "../include/Heap.h"
-#include "../include/I386.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/Process.h"
-#include "../include/String.h"
-#include "../include/System.h"
-#include "../include/Text.h"
+#include "Console.h"
+#include "Heap.h"
+#include "arch/i386/I386.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "Memory.h"
+#include "Process.h"
+#include "String.h"
+#include "System.h"
+#include "Text.h"
 
 /************************************************************************/
 // Fault logging helpers
@@ -108,7 +108,7 @@ static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackH
 void LogCPUState(LPINTERRUPTFRAME Frame) {
     STR DisasmBuffer[MAX_STRING_BUFFER];
     LPTASK Task = GetCurrentTask();
-    SAFE_USE_VALID_ID(Task, ID_TASK) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LogFrame(Task, Frame);
         Disassemble(DisasmBuffer, Frame->Registers.EIP, 5);
         ERROR(TEXT("Code at EIP:\n%s"), DisasmBuffer);

@@ -22,18 +22,18 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Clock.h"
-#include "../include/ID.h"
-#include "../include/Kernel.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/Process.h"
-#include "../include/Stack.h"
-#include "../include/StackTrace.h"
-#include "../include/System.h"
-#include "../include/Task.h"
+#include "Base.h"
+#include "Clock.h"
+#include "ID.h"
+#include "Kernel.h"
+#include "List.h"
+#include "Log.h"
+#include "Memory.h"
+#include "Process.h"
+#include "Stack.h"
+#include "StackTrace.h"
+#include "System.h"
+#include "Task.h"
 
 /***************************************************************************/
 
@@ -187,7 +187,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     FreezeScheduler();
 
     // Check validity of parameters
-    SAFE_USE_VALID_ID(NewTask, ID_TASK) {
+    SAFE_USE_VALID_ID(NewTask, KOID_TASK) {
         // Check if task queue is full
         if (TaskList.NumTasks >= NUM_TASKS) {
             ERROR(TEXT("[AddTaskToQueue] Cannot add %x, too many tasks"), NewTask);
@@ -375,7 +375,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
         return;
     }
 
-    // SAFE_USE_VALID_ID_2(CurrentTask, NextTask, ID_TASK) {
+    // SAFE_USE_VALID_ID_2(CurrentTask, NextTask, KOID_TASK) {
         // __asm__ __volatile__("xchg %%bx,%%bx" : : );     // A breakpoint
         SwitchToNextTask_2(CurrentTask, NextTask);
     // }
@@ -564,7 +564,17 @@ void Scheduler(void) {
 
 static BOOL MatchObject(LPVOID Data, LPVOID Context) {
     LPOBJECT_TERMINATION_STATE State = (LPOBJECT_TERMINATION_STATE)Data;
-    return (State->Object == Context);
+    LPOBJECT KernelObject = (LPOBJECT)Context;
+
+    if (State == NULL) {
+        return FALSE;
+    }
+
+    SAFE_USE_VALID(KernelObject) {
+        return U64_EQUAL(State->ID, KernelObject->ID);
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
@@ -635,7 +645,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
     StartTime = GetSystemTime();
     U32 LastDebugTime = StartTime;
 
-    while (TRUE) {
+    FOREVER {
         U32 SignaledCount = 0;
 
         // Count signaled objects

@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
-#include "../include/ExecutableEXOS.h"
+#include "ExecutableEXOS.h"
 
-#include "../include/Log.h"
+#include "Log.h"
 
 /************************************************************************/
 
@@ -60,7 +60,7 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
         goto Out_Error;
     }
 
-    while (1) {
+    FOREVER {
         FileOperation.NumBytes = sizeof(EXOSCHUNK);
         FileOperation.Buffer = (LPVOID)&Chunk;
         BytesTransferred = ReadFile(&FileOperation);
@@ -154,7 +154,7 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LI
         goto Out_Error;
     }
 
-    while (1) {
+    FOREVER {
         FileOperation.NumBytes = sizeof(EXOSCHUNK);
         FileOperation.Buffer = (LPVOID)&Chunk;
         BytesTransferred = ReadFile(&FileOperation);

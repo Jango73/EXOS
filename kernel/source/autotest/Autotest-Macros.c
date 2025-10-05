@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
-#include "../../include/Autotest.h"
-#include "../../include/Base.h"
-#include "../../include/Log.h"
+#include "Autotest.h"
+#include "Base.h"
+#include "Log.h"
 
 /************************************************************************/
 

@@ -35,17 +35,17 @@
 
 \************************************************************************/
 
-#include "../include/SystemFS.h"
+#include "SystemFS.h"
 
-#include "../include/Clock.h"
-#include "../include/Helpers.h"
-#include "../include/Kernel.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/Path.h"
-#include "../include/String.h"
-#include "../include/TOML.h"
-#include "../include/User.h"
+#include "Clock.h"
+#include "utils/Helpers.h"
+#include "Kernel.h"
+#include "List.h"
+#include "Log.h"
+#include "utils/Path.h"
+#include "String.h"
+#include "utils/TOML.h"
+#include "User.h"
 
 /***************************************************************************/
 
@@ -55,7 +55,7 @@
 U32 SystemFSCommands(U32, U32);
 
 DRIVER SystemFSDriver = {
-    .ID = ID_DRIVER,
+    .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
@@ -67,13 +67,6 @@ DRIVER SystemFSDriver = {
     .Product = "Virtual Computer File System",
     .Command = SystemFSCommands};
 
-/***************************************************************************/
-
-static LPSYSFSFILE OpenFile(LPFILEINFO Find);
-static U32 CloseFile(LPSYSFSFILE File);
-static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR SourcePath);
-
-
 /************************************************************************/
 
 static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
@@ -81,7 +74,7 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
     if (Node == NULL) return NULL;
 
     *Node = (SYSTEMFSFILE){
-        .ID = ID_FILE,
+        .TypeID = KOID_FILE,
         .References = 1,
         .Next = NULL,
         .Prev = NULL,
@@ -336,7 +329,7 @@ static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
     if (File == NULL) return NULL;
 
     *File = (SYSFSFILE){0};
-    File->Header.ID = ID_FILE;
+    File->Header.TypeID = KOID_FILE;
     File->Header.FileSystem = GetSystemFS();
     File->Parent = Parent;
     File->MountedFile = Mounted;
@@ -390,22 +383,6 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Node->Mounted->Driver->Command(DF_FS_CLOSEFILE, (U32)Mounted);
 
     return Result;
-}
-
-/************************************************************************/
-
-static BOOL FileExists(LPFILEINFO Info) {
-    LPSYSFSFILE File;
-
-    SAFE_USE(Info) {
-        File = OpenFile(Info);
-        if (File == NULL) return FALSE;
-
-        CloseFile(File);
-        return TRUE;
-    }
-
-    return FALSE;
 }
 
 /***************************************************************************/
@@ -652,7 +629,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             if (File == NULL) return NULL;
 
             *File = (SYSFSFILE){0};
-            File->Header.ID = ID_FILE;
+            File->Header.TypeID = KOID_FILE;
             File->Header.FileSystem = GetSystemFS();
             File->Parent = Node;
             File->MountedFile = NULL;
@@ -682,7 +659,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         if (File == NULL) return NULL;
 
         *File = (SYSFSFILE){0};
-        File->Header.ID = ID_FILE;
+        File->Header.TypeID = KOID_FILE;
         File->Header.FileSystem = GetSystemFS();
         File->SystemFile = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
         File->Parent = Node->Parent;
@@ -805,7 +782,7 @@ BOOL MountUserNodes(void) {
     if (Configuration) {
         U32 ConfigIndex = 0;
 
-        while (1) {
+        FOREVER {
             STR Key[0x100];
             STR IndexText[0x10];
             LPCSTR FsName;
@@ -837,6 +814,23 @@ BOOL MountUserNodes(void) {
             ConfigIndex++;
         }
 
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL FileExists(LPFILEINFO Info) {
+    LPSYSFSFILE File;
+
+    SAFE_USE(Info) {
+
+        File = OpenFile(Info);
+        if (File == NULL) return FALSE;
+
+        CloseFile(File);
         return TRUE;
     }
 

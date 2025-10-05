@@ -25,7 +25,7 @@
 #ifndef SEGOFS_H_INCLUDED
 #define SEGOFS_H_INCLUDED
 
-#include "../../kernel/include/I386.h"
+#include "arch/i386/I386.h"
 
 /************************************************************************/
 // Functions in vbr-payload-a.asm

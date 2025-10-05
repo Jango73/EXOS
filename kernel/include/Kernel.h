@@ -28,17 +28,18 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "Database.h"
+#include "utils/Cache.h"
+#include "utils/Database.h"
+#include "utils/TOML.h"
+#include "FileSystem.h"
 #include "Heap.h"
-#include "I386.h"
+#include "arch/i386/I386.h"
 #include "ID.h"
 #include "List.h"
 #include "Memory.h"
 #include "Multiboot.h"
 #include "Process.h"
 #include "String.h"
-#include "TOML.h"
-#include "Cache.h"
 #include "Text.h"
 #include "User.h"
 #include "UserAccount.h"
@@ -152,6 +153,7 @@ typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 
 typedef struct {
     LPVOID Object;
+    U64 ID;
     U32 ExitCode;
 } OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
 
@@ -168,6 +170,7 @@ typedef struct tag_KERNELDATA {
     LPLIST TCPConnection;
     LPLIST Socket;
     SYSTEMFSFILESYSTEM SystemFS;
+    FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     LPTOML Configuration;
     STR LanguageCode[8];
     STR KeyboardCode[8];
@@ -187,7 +190,6 @@ extern KERNELDATA Kernel;
 /***************************************************************************/
 // Functions in Kernel.c
 
-void KernelObjectDestructor(LPVOID);
 BOOL GetCPUInformation(LPCPUINFORMATION);
 void InitializeQuantumTime(void);
 U32 ClockTestTask(LPVOID);
@@ -195,7 +197,10 @@ U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
 void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
-BOOL ObjectExists(HANDLE Object);
+
+void KernelObjectDestructor(LPVOID);
+LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
+void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(LPPROCESS Process);
 
 /***************************************************************************/

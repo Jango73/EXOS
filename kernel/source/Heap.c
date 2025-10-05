@@ -22,11 +22,11 @@
 
 \************************************************************************/
 
-#include "../include/Heap.h"
+#include "Heap.h"
 
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/Process.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "Process.h"
 
 /************************************************************************/
 
@@ -145,7 +145,7 @@ void HeapInit(LINEAR HeapBase, U32 HeapSize) {
     MemorySet((LPVOID)HeapBase, 0, HeapSize);
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
-    ControlBlock->ID = ID_HEAP;
+    ControlBlock->TypeID = KOID_HEAP;
     ControlBlock->HeapBase = HeapBase;
     ControlBlock->HeapSize = HeapSize;
 
@@ -182,7 +182,7 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
 
     // Check validity of parameters
     if (ControlBlock == NULL) return NULL;
-    if (ControlBlock->ID != ID_HEAP) return NULL;
+    if (ControlBlock->TypeID != KOID_HEAP) return NULL;
     if (Size == 0) return NULL;
 
     // DEBUG("[HeapAlloc_HBHS] Allocating size %x", Size);
@@ -204,7 +204,7 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     if (SizeClass != 0xFF) {
         // Small block - check exact size class first
         Block = ControlBlock->FreeLists[SizeClass];
-        if (Block != NULL && Block->ID == ID_HEAP && Block->Size >= TotalSize) {
+        if (Block != NULL && Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
             RemoveFromFreeList(ControlBlock, Block, SizeClass);
             // DEBUG("[HeapAlloc_HBHS] Found block in size class %x at %x", SizeClass, Block);
             return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
@@ -213,7 +213,7 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
         // Try larger size classes
         for (U32 i = SizeClass + 1; i < HEAP_NUM_SIZE_CLASSES; i++) {
             Block = ControlBlock->FreeLists[i];
-            if (Block != NULL && Block->ID == ID_HEAP && Block->Size >= TotalSize) {
+            if (Block != NULL && Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
                 RemoveFromFreeList(ControlBlock, Block, i);
 
                 // Split the block if it's significantly larger
@@ -221,7 +221,7 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
                     U32 RemainingSize = Block->Size - TotalSize;
                     if (RemainingSize >= sizeof(HEAPBLOCKHEADER) + HEAP_MIN_BLOCK_SIZE) {
                     LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
-                    SplitBlock->ID = ID_HEAP;
+                    SplitBlock->TypeID = KOID_HEAP;
                     SplitBlock->Size = RemainingSize;
                     SplitBlock->Next = NULL;
                     SplitBlock->Prev = NULL;
@@ -241,7 +241,7 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
         // Large block - search large freelist
         Block = ControlBlock->LargeFreeList;
         while (Block != NULL) {
-            if (Block->ID == ID_HEAP && Block->Size >= TotalSize) {
+            if (Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
                 RemoveFromFreeList(ControlBlock, Block, 0xFF);
 
                 // Split if significantly larger
@@ -249,7 +249,7 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
                     U32 RemainingSize = Block->Size - TotalSize;
                     if (RemainingSize >= sizeof(HEAPBLOCKHEADER) + HEAP_MIN_BLOCK_SIZE) {
                     LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
-                    SplitBlock->ID = ID_HEAP;
+                    SplitBlock->TypeID = KOID_HEAP;
                     SplitBlock->Size = RemainingSize;
                     SplitBlock->Next = NULL;
                     SplitBlock->Prev = NULL;
@@ -275,7 +275,7 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     }
 
     Block = (LPHEAPBLOCKHEADER)NewBlockAddr;
-    Block->ID = ID_HEAP;
+    Block->TypeID = KOID_HEAP;
     Block->Size = TotalSize;
     Block->Next = NULL;
     Block->Prev = NULL;
@@ -313,13 +313,13 @@ LPVOID HeapRealloc_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer, U32 Size)
     }
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
-    if (ControlBlock == NULL || ControlBlock->ID != ID_HEAP) return NULL;
+    if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) return NULL;
 
     DEBUG("[HeapRealloc_HBHS] Reallocating pointer %x to size %x", Pointer, Size);
 
     // Get the block header
     LPHEAPBLOCKHEADER Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
-    if (Block->ID != ID_HEAP) {
+    if (Block->TypeID != KOID_HEAP) {
         ERROR("[HeapRealloc_HBHS] Invalid block header ID");
         return NULL;
     }
@@ -366,13 +366,13 @@ void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer) {
     U32 SizeClass = 0;
 
     if (Pointer == NULL) return;
-    if (ControlBlock == NULL || ControlBlock->ID != ID_HEAP) return;
+    if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) return;
 
     // DEBUG("[HeapFree_HBHS] Freeing pointer %x", Pointer);
 
     // Get the block header
     Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
-    if (Block->ID != ID_HEAP) {
+    if (Block->TypeID != KOID_HEAP) {
         ERROR("[HeapFree_HBHS] Invalid block header ID");
         return;
     }

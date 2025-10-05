@@ -22,34 +22,35 @@
 
 \************************************************************************/
 
-#include "../include/ACPI.h"
-#include "../include/Base.h"
-#include "../include/Clock.h"
-#include "../include/Console.h"
-#include "../include/Disk.h"
-#include "../include/Endianness.h"
-#include "../include/File.h"
-#include "../include/FileSystem.h"
-#include "../include/GFX.h"
-#include "../include/Heap.h"
-#include "../include/Helpers.h"
-#include "../include/Kernel.h"
-#include "../include/Keyboard.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/Network.h"
-#include "../include/NetworkManager.h"
-#include "../include/Path.h"
-#include "../include/Process.h"
-#include "../include/Script.h"
-#include "../include/StackTrace.h"
-#include "../include/String.h"
-#include "../include/StringArray.h"
-#include "../include/System.h"
-#include "../include/User.h"
-#include "../include/UserAccount.h"
-#include "../include/UserSession.h"
-#include "../include/VKey.h"
+#include "drivers/ACPI.h"
+#include "Base.h"
+#include "Clock.h"
+#include "utils/CommandLineEditor.h"
+#include "Console.h"
+#include "Disk.h"
+#include "Endianness.h"
+#include "File.h"
+#include "FileSystem.h"
+#include "GFX.h"
+#include "Heap.h"
+#include "utils/Helpers.h"
+#include "Kernel.h"
+#include "drivers/Keyboard.h"
+#include "List.h"
+#include "Log.h"
+#include "Network.h"
+#include "NetworkManager.h"
+#include "utils/Path.h"
+#include "Process.h"
+#include "Script.h"
+#include "StackTrace.h"
+#include "String.h"
+#include "utils/StringArray.h"
+#include "System.h"
+#include "User.h"
+#include "UserAccount.h"
+#include "UserSession.h"
+#include "VKey.h"
 
 /************************************************************************/
 
@@ -58,18 +59,25 @@
 #define HISTORY_SIZE 20
 
 /************************************************************************/
+// Shell input state
+
+typedef struct tag_SHELLINPUTSTATE {
+    STR CommandLine[MAX_PATH_NAME];
+    COMMANDLINEEDITOR Editor;
+} SHELLINPUTSTATE, *LPSHELLINPUTSTATE;
+
+/************************************************************************/
 // The shell context
 
 typedef struct tag_SHELLCONTEXT {
     U32 Component;
     U32 CommandChar;
-    STR CommandLine[MAX_PATH_NAME];
+    SHELLINPUTSTATE Input;
     STR Command[256];
     STR CurrentFolder[MAX_PATH_NAME];
     LPVOID BufferBase;
     U32 BufferSize;
     LPSTR Buffer[SHELL_NUM_BUFFERS];
-    STRINGARRAY History;
     STRINGARRAY Options;
     PATHCOMPLETION PathCompletion;
     LPSCRIPT_CONTEXT ScriptContext;
@@ -116,6 +124,10 @@ static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static BOOL ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
 static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
 static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+static BOOL ShellCommandLineCompletion(
+    const COMMANDLINE_COMPLETION_CONTEXT* CompletionContext,
+    LPSTR Output,
+    U32 OutputSize);
 static void ClearOptions(LPSHELLCONTEXT);
 static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
 static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
@@ -179,7 +191,11 @@ static void InitShellContext(LPSHELLCONTEXT This) {
     This->Component = 0;
     This->CommandChar = 0;
 
-    StringArrayInit(&This->History, HISTORY_SIZE);
+    CommandLineEditorInit(&This->Input.Editor, HISTORY_SIZE);
+    CommandLineEditorSetCompletionCallback(
+        &This->Input.Editor,
+        ShellCommandLineCompletion,
+        This);
     StringArrayInit(&This->Options, 8);
     PathCompletionInit(&This->PathCompletion, GetSystemFS());
 
@@ -216,7 +232,7 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
         if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
     }
 
-    StringArrayDeinit(&This->History);
+    CommandLineEditorDeinit(&This->Input.Editor);
     StringArrayDeinit(&This->Options);
     PathCompletionDeinit(&This->PathCompletion);
 
@@ -250,7 +266,7 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
             MemoryCopy(This->Buffer[Index - 1], This->Buffer[Index],
                        BUFFER_SIZE);
         }
-        MemoryCopy(This->Buffer[SHELL_NUM_BUFFERS - 1], This->CommandLine,
+        MemoryCopy(This->Buffer[SHELL_NUM_BUFFERS - 1], This->Input.CommandLine,
                    BUFFER_SIZE);
     }
 }
@@ -271,22 +287,22 @@ static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
 
     Context->Command[d] = STR_NULL;
 
-    if (Context->CommandLine[Context->CommandChar] == STR_NULL) return TRUE;
+    if (Context->Input.CommandLine[Context->CommandChar] == STR_NULL) return TRUE;
 
-    while (Context->CommandLine[Context->CommandChar] != STR_NULL &&
-           Context->CommandLine[Context->CommandChar] <= STR_SPACE) {
+    while (Context->Input.CommandLine[Context->CommandChar] != STR_NULL &&
+           Context->Input.CommandLine[Context->CommandChar] <= STR_SPACE) {
         Context->CommandChar++;
     }
 
-    while (1) {
-        if (Context->CommandLine[Context->CommandChar] == STR_NULL) {
+    FOREVER {
+        if (Context->Input.CommandLine[Context->CommandChar] == STR_NULL) {
             break;
-        } else if (Context->CommandLine[Context->CommandChar] <= STR_SPACE) {
+        } else if (Context->Input.CommandLine[Context->CommandChar] <= STR_SPACE) {
             if (Quotes == 0) {
                 Context->CommandChar++;
                 break;
             }
-        } else if (Context->CommandLine[Context->CommandChar] == STR_QUOTE) {
+        } else if (Context->Input.CommandLine[Context->CommandChar] == STR_QUOTE) {
             Context->CommandChar++;
             if (Quotes == 0)
                 Quotes = 1;
@@ -294,7 +310,7 @@ static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
                 break;
         }
 
-        Context->Command[d] = Context->CommandLine[Context->CommandChar];
+        Context->Command[d] = Context->Input.CommandLine[Context->CommandChar];
 
         Context->CommandChar++;
         d++;
@@ -335,136 +351,68 @@ static BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName)
 
 /***************************************************************************/
 
-static void ReadCommandLine(LPSHELLCONTEXT Context, BOOL MaskCharacters) {
-    KEYCODE KeyCode;
-    U32 Index = 0;
-    U32 HistoryPos = Context->History.Count;
+/**
+ * @brief Provide path-based completion for the command line editor.
+ * @param CompletionContext Details about the token to complete.
+ * @param Output Buffer receiving the replacement token.
+ * @param OutputSize Size of the output buffer in characters.
+ * @return TRUE when a completion was produced, FALSE otherwise.
+ */
+static BOOL ShellCommandLineCompletion(
+    const COMMANDLINE_COMPLETION_CONTEXT* CompletionContext,
+    LPSTR Output,
+    U32 OutputSize) {
+    LPSHELLCONTEXT Context;
+    STR Token[MAX_PATH_NAME];
+    STR Full[MAX_PATH_NAME];
+    STR Completed[MAX_PATH_NAME];
+    STR Display[MAX_PATH_NAME];
+    STR Temp[MAX_PATH_NAME];
+    U32 DisplayLength;
 
-    DEBUG(TEXT("[ReadCommandLine] Enter"));
+    if (CompletionContext == NULL) return FALSE;
+    if (Output == NULL) return FALSE;
+    if (OutputSize == 0) return FALSE;
 
-    Context->CommandLine[0] = STR_NULL;
+    Context = (LPSHELLCONTEXT)CompletionContext->UserData;
+    if (Context == NULL) return FALSE;
 
-    while (1) {
-        if (PeekChar()) {
-            GetKeyCode(&KeyCode);
+    if (CompletionContext->TokenLength >= MAX_PATH_NAME) return FALSE;
 
-            if (KeyCode.VirtualKey == VK_ESCAPE) {
-                while (Index) {
-                    Index--;
-                    ConsoleBackSpace();
-                }
-                Context->CommandLine[0] = STR_NULL;
-            } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
-                if (Index) {
-                    Index--;
-                    ConsoleBackSpace();
-                    Context->CommandLine[Index] = STR_NULL;
-                }
-            } else if (KeyCode.VirtualKey == VK_ENTER) {
-                ConsolePrintChar(STR_NEWLINE);
-                Context->CommandLine[Index] = STR_NULL;
-                DEBUG(
-                    TEXT("[ReadCommandLine] ENTER pressed, final buffer: '%s', length=%d"), Context->CommandLine,
-                    Index);
-                return;
-            } else if (KeyCode.VirtualKey == VK_UP) {
-                if (HistoryPos > 0) {
-                    HistoryPos--;
-                    while (Index) {
-                        Index--;
-                        ConsoleBackSpace();
-                    }
-                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
-                    ConsolePrint(Context->CommandLine);
-                    Index = StringLength(Context->CommandLine);
-                }
-            } else if (KeyCode.VirtualKey == VK_DOWN) {
-                if (HistoryPos < Context->History.Count) HistoryPos++;
-                while (Index) {
-                    Index--;
-                    ConsoleBackSpace();
-                }
-                if (HistoryPos == Context->History.Count) {
-                    Context->CommandLine[0] = STR_NULL;
-                    Index = 0;
-                } else {
-                    StringCopy(Context->CommandLine, StringArrayGet(&Context->History, HistoryPos));
-                    ConsolePrint(Context->CommandLine);
-                    Index = StringLength(Context->CommandLine);
-                }
-            } else if (KeyCode.VirtualKey == VK_TAB) {
-                if (Index < BUFFER_SIZE - 1) {
-                    STR Token[MAX_PATH_NAME];
-                    STR Full[MAX_PATH_NAME];
-                    STR Completed[MAX_PATH_NAME];
-                    STR Display[MAX_PATH_NAME];
-                    STR Temp[MAX_PATH_NAME];
-                    U32 Start = Index;
+    StringCopyNum(Token, CompletionContext->Token, CompletionContext->TokenLength);
+    Token[CompletionContext->TokenLength] = STR_NULL;
 
-                    // Find start of current token
-                    while (Start && Context->CommandLine[Start - 1] != STR_SPACE) {
-                        Start--;
-                    }
-
-                    // Extract token to complete
-                    StringCopyNum(Token, Context->CommandLine + Start, Index - Start);
-                    Token[Index - Start] = STR_NULL;
-
-                    // Apply completion rules:
-                    if (Token[0] == PATH_SEP) {
-                        // Absolute path
-                        StringCopy(Full, Token);
-                    } else {
-                        // Relative path
-                        QualifyFileName(Context, Token, Full);
-                    }
-
-                    if (PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
-                        // Determine display format
-                        if (Token[0] == PATH_SEP) {
-                            StringCopy(Display, Completed);
-                        } else {
-                            U32 FolderLength = StringLength(Context->CurrentFolder);
-                            StringCopyNum(Temp, Completed, FolderLength);
-                            Temp[FolderLength] = STR_NULL;
-                            if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
-                                STR* DisplayPtr = Completed + FolderLength;
-                                if (DisplayPtr[0] == PATH_SEP) DisplayPtr++;
-                                StringCopy(Display, DisplayPtr);
-                            } else {
-                                StringCopy(Display, Completed);
-                            }
-                        }
-
-                        // Replace token
-                        while (Index > Start) {
-                            Index--;
-                            ConsoleBackSpace();
-                        }
-                        StringCopy(Context->CommandLine + Start, Display);
-                        ConsolePrint(Display);
-                        Index = Start + StringLength(Display);
-                        Context->CommandLine[Index] = STR_NULL;
-                    }
-                }
-            } else if (KeyCode.ASCIICode >= STR_SPACE) {
-                if (Index < BUFFER_SIZE - 1) {
-                    if (MaskCharacters) {
-                        ConsolePrintChar('*');
-                    } else {
-                        ConsolePrintChar(KeyCode.ASCIICode);
-                    }
-                    Context->CommandLine[Index++] = KeyCode.ASCIICode;
-                    Context->CommandLine[Index] = STR_NULL;
-                    // Test: no KernelLogText calls at all during character processing
-                }
-            }
-        }
-
-        Sleep(10);
+    if (Token[0] == PATH_SEP) {
+        StringCopy(Full, Token);
+    } else {
+        if (!QualifyFileName(Context, Token, Full)) return FALSE;
     }
 
-    DEBUG(TEXT("[ReadCommandLine] Exit"));
+    if (!PathCompletionNext(&Context->PathCompletion, Full, Completed)) {
+        return FALSE;
+    }
+
+    if (Token[0] == PATH_SEP) {
+        StringCopy(Display, Completed);
+    } else {
+        U32 FolderLength = StringLength(Context->CurrentFolder);
+        StringCopyNum(Temp, Completed, FolderLength);
+        Temp[FolderLength] = STR_NULL;
+        if (StringCompareNC(Temp, Context->CurrentFolder) == 0) {
+            STR* DisplayPtr = Completed + FolderLength;
+            if (DisplayPtr[0] == PATH_SEP) DisplayPtr++;
+            StringCopy(Display, DisplayPtr);
+        } else {
+            StringCopy(Display, Completed);
+        }
+    }
+
+    DisplayLength = StringLength(Display);
+    if (DisplayLength >= OutputSize) return FALSE;
+
+    StringCopy(Output, Display);
+
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -804,7 +752,7 @@ static void CMD_dir(LPSHELLCONTEXT Context) {
     }
 
     // Continue parsing any remaining components to capture all options
-    while (Context->CommandLine[Context->CommandChar] != STR_NULL) {
+    while (Context->Input.CommandLine[Context->CommandChar] != STR_NULL) {
         ParseNextCommandLineComponent(Context);
     }
 
@@ -1134,6 +1082,17 @@ static void CMD_filesystem(LPSHELLCONTEXT Context) {
     LPLISTNODE Node;
     LPFILESYSTEM FileSystem;
 
+    ConsolePrint(TEXT("General information\n"));
+
+    if (StringEmpty(Kernel.FileSystemInfo.ActivePartitionName) == FALSE) {
+        ConsolePrint(TEXT("Active partition : %s\n"), Kernel.FileSystemInfo.ActivePartitionName);
+    } else {
+        ConsolePrint(TEXT("Active partition : <none>\n"));
+    }
+
+    ConsolePrint(TEXT("\n"));
+    ConsolePrint(TEXT("Mounted file systems\n"));
+
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
 
@@ -1155,11 +1114,11 @@ static void CMD_network(LPSHELLCONTEXT Context) {
         for (Node = Kernel.NetworkDevice->First; Node; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
 
-            SAFE_USE_VALID_ID(NetContext, ID_NETWORKDEVICE) {
+            SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
                 LPPCI_DEVICE Device = NetContext->Device;
 
-                SAFE_USE_VALID_ID(Device, ID_PCIDEVICE) {
-                    SAFE_USE_VALID_ID(Device->Driver, ID_DRIVER) {
+                SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+                    SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
                         // Get device info
                         NETWORKINFO Info;
                         MemorySet(&Info, 0, sizeof(Info));
@@ -1204,7 +1163,7 @@ static void CMD_pic(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), KernelStartup.IRQMask_A1_PM);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_outp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
@@ -1215,7 +1174,7 @@ static void CMD_outp(LPSHELLCONTEXT Context) {
     OutPortByte(Port, Data);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_inp(LPSHELLCONTEXT Context) {
     U32 Port, Data;
@@ -1225,12 +1184,15 @@ static void CMD_inp(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("Port %X = %X\n"), Port, Data);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_reboot(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    Reboot();
+    DEBUG(TEXT("[CMD_shutdown] Rebooting system"));
+    ConsolePrint(TEXT("Rebooting system...\n"));
+
+    ACPIReboot();
 }
 
 /************************************************************************/
@@ -1248,7 +1210,7 @@ static void CMD_shutdown(LPSHELLCONTEXT Context) {
     ACPIShutdown();
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void CMD_adduser(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
@@ -1273,8 +1235,8 @@ static void CMD_adduser(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("Password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(Password, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(Password, Context->Input.CommandLine);
 
     DEBUG(TEXT("[CMD_adduser] Password entered (length: %d)"), StringLength(Password));
 
@@ -1381,8 +1343,8 @@ static void CMD_login(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("Password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(Password, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(Password, Context->Input.CommandLine);
     DEBUG(TEXT("[CMD_login] Password entered (length: %d)"), StringLength(Password));
 
     DEBUG(TEXT("[CMD_login] Looking for user '%s'"), UserName);
@@ -1485,8 +1447,8 @@ static void CMD_passwd(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("Password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(OldPassword, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(OldPassword, Context->Input.CommandLine);
 
     if (!VerifyPassword(OldPassword, Account->PasswordHash)) {
         ConsolePrint(TEXT("Invalid current password\n"));
@@ -1494,12 +1456,12 @@ static void CMD_passwd(LPSHELLCONTEXT Context) {
     }
 
     ConsolePrint(TEXT("New password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(NewPassword, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(NewPassword, Context->Input.CommandLine);
 
     ConsolePrint(TEXT("Confirm password: "));
-    ReadCommandLine(Context, TRUE);
-    StringCopy(ConfirmPassword, Context->CommandLine);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
+    StringCopy(ConfirmPassword, Context->Input.CommandLine);
 
     if (StringCompare(NewPassword, ConfirmPassword) != 0) {
         ConsolePrint(TEXT("Passwords do not match\n"));
@@ -1537,6 +1499,7 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
             ProcessInfo.Header.Flags = 0;
             ProcessInfo.Flags = 0;
             StringCopy(ProcessInfo.CommandLine, QualifiedCommandLine);
+            StringCopy(ProcessInfo.WorkFolder, Context->CurrentFolder);
             ProcessInfo.StdOut = NULL;
             ProcessInfo.StdIn = NULL;
             ProcessInfo.StdErr = NULL;
@@ -1547,7 +1510,7 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
                 DEBUG(TEXT("Process started in background"));
             }
         } else {
-            U32 ExitCode = Spawn(QualifiedCommandLine);
+            U32 ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
             return (ExitCode != MAX_U32);
         }
     }
@@ -1584,7 +1547,7 @@ static void ExecuteStartupCommands(void) {
 
     InitShellContext(&Context);
 
-    while (TRUE) {
+    FOREVER {
         StringPrintFormat(Key, TEXT("Run.%u.Command"), ConfigIndex);
         CommandLine = TomlGet(Configuration, Key);
         if (CommandLine == NULL) break;
@@ -1622,7 +1585,7 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
     }
 
     // Set up the command line in context
-    StringCopy(Context->CommandLine, CommandLine);
+    StringCopy(Context->Input.CommandLine, CommandLine);
 
     ClearOptions(Context);
 
@@ -1647,7 +1610,7 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
         }
 
         if (Found == 0) {
-            if (SpawnExecutable(Context, Context->CommandLine, FALSE) == TRUE) {
+            if (SpawnExecutable(Context, Context->Input.CommandLine, FALSE) == TRUE) {
                 return;
             }
         }
@@ -1674,13 +1637,13 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     Context->Component = 0;
     Context->CommandChar = 0;
-    MemorySet(Context->CommandLine, 0, sizeof Context->CommandLine);
+    MemorySet(Context->Input.CommandLine, 0, sizeof Context->Input.CommandLine);
 
-    ReadCommandLine(Context, FALSE);
+    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, FALSE);
 
-    if (Context->CommandLine[0] != STR_NULL) {
-        StringArrayMoveToEnd(&Context->History, Context->CommandLine);
-        ExecuteCommandLine(Context, Context->CommandLine);
+    if (Context->Input.CommandLine[0] != STR_NULL) {
+        CommandLineEditorRemember(&Context->Input.Editor, Context->Input.CommandLine);
+        ExecuteCommandLine(Context, Context->Input.CommandLine);
     }
 
     DEBUG(TEXT("[ParseCommand] Exit"));
@@ -1747,7 +1710,7 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
         STR QualifiedCommandLine[MAX_PATH_NAME];
 
         if (QualifyCommandLine(Context, Argument, QualifiedCommandLine)) {
-            U32 ExitCode = Spawn(QualifiedCommandLine);
+            U32 ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
             DEBUG(TEXT("[ShellScriptCallFunction] exec returned: %u"), ExitCode);
             return ExitCode;
         }

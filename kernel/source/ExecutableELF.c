@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "../include/ExecutableELF.h"
+#include "ExecutableELF.h"
 
-#include "../include/Log.h"
-#include "../include/String.h"
+#include "Log.h"
+#include "String.h"
 
 /************************************************************************/
 

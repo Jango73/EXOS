@@ -33,6 +33,12 @@ extern "C" {
 
 #define __EXOS__
 
+#if __SIZEOF_POINTER__ == 8
+    #define __EXOS_64__
+#else
+    #define __EXOS_32__
+#endif
+
 /***************************************************************************/
 
 #pragma pack(push, 1)
@@ -86,10 +92,30 @@ typedef struct tag_U48 {
 
 /***************************************************************************/
 
+#ifdef __EXOS_32__
+
 typedef struct tag_U64 {
     U32 LO;
     U32 HI;
 } U64;
+
+typedef struct tag_I64 {
+    U32 LO;
+    I32 HI;
+} I64;
+
+#define U64_0 { .LO = 0, .HI = 0 }
+#define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
+
+#else
+
+typedef unsigned long long  U64;
+typedef signed long long    I64;
+
+#define U64_0 0
+#define U64_EQUAL(a, b) (a == b)
+
+#endif
 
 /***************************************************************************/
 
@@ -135,10 +161,6 @@ typedef struct tag_U128 {
 
 /************************************************************************/
 
-#define CONSOLE_DEBUG(a, ...) { STR __Buf[128]; StringPrintFormat(__Buf, a, ##__VA_ARGS__); ConsolePrint(__Buf); }
-
-/************************************************************************/
-
 typedef void* LPVOID;
 typedef const void* LPCVOID;
 
@@ -166,20 +188,21 @@ typedef U32 BOOL;
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
 #define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
-#define SAFE_USE_ID(a, i) if ((a) != NULL && (a->ID == i))
-#define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->ID == i) && (b) != NULL && (b->ID == i))
+#define SAFE_USE_ID(a, i) if ((a) != NULL && (a->TypeID == i))
+#define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->TypeID == i) && (b) != NULL && (b->TypeID == i))
 #define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
 #define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
-#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i))
-#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->ID == i) \
-        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->ID == i)))
+#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i))
+#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i) \
+        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->TypeID == i)))
 
 // This is called before dereferencing a user-provided pointer to a parameter structure
 #define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
 
+// Do an infinite loop
+#define FOREVER while(1)
+
 // Put CPU to sleep forever: disable IRQs, halt, and loop.
-// Works with GCC/Clang (AT&T syntax). Uses a local numeric label and a memory
-// clobber.
 #define DO_THE_SLEEPING_BEAUTY \
     do {                       \
         __asm__ __volatile__(  \
@@ -348,6 +371,14 @@ typedef U16 USTR;
 typedef USTR* LPUSTR;
 typedef CONST USTR* LPCUSTR;
 
+
+/************************************************************************/
+
+#ifdef __KERNEL__
+extern void ConsolePrint(LPCSTR Format, ...);
+#define CONSOLE_DEBUG(a, ...) { STR __Buf[128]; StringPrintFormat(__Buf, a, ##__VA_ARGS__); ConsolePrint(__Buf); }
+#endif
+
 /***************************************************************************/
 // Common ASCII character values
 
@@ -365,6 +396,8 @@ typedef CONST USTR* LPCUSTR;
 #define STR_PLUS ((STR)'+')
 #define STR_MINUS ((STR)'-')
 #define PATH_SEP STR_SLASH
+
+#define ROOT "/"
 
 /***************************************************************************/
 // Common Unicode character values
@@ -385,9 +418,19 @@ typedef CONST USTR* LPCUSTR;
 
 /***************************************************************************/
 
+// Forward declaration to avoid circular dependencies
+typedef struct tag_PROCESS PROCESS, *LPPROCESS;
+
+/***************************************************************************/
+
+#define OBJECT_FIELDS       \
+    U32 TypeID;             \
+    U32 References;         \
+    U64 ID;                 \
+    LPPROCESS OwnerProcess; \
+
 typedef struct tag_OBJECT {
-    U32 ID;
-    U32 References;
+    OBJECT_FIELDS
 } OBJECT, *LPOBJECT;
 
 /***************************************************************************/

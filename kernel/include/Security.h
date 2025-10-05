@@ -63,7 +63,7 @@ typedef struct tag_SECURITY {
 // Macro to initialize a security
 
 #define EMPTY_SECURITY \
-    { .ID = ID_SECURITY, .References = 1, .Next = NULL, .Prev = NULL, .Owner = 0, .UserPermissionCount = 0, .DefaultPermissions = PERMISSION_NONE }
+    { .TypeID = KOID_SECURITY, .References = 1, .Next = NULL, .Prev = NULL, .Owner = 0, .UserPermissionCount = 0, .DefaultPermissions = PERMISSION_NONE }
 
 /************************************************************************/
 

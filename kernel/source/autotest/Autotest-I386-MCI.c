@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../../include/Autotest.h"
-#include "../../include/Base.h"
-#include "../../include/Heap.h"
-#include "../../include/I386-MCI.h"
-#include "../../include/Log.h"
-#include "../../include/String.h"
+#include "Autotest.h"
+#include "Base.h"
+#include "Heap.h"
+#include "arch/i386/I386-MCI.h"
+#include "Log.h"
+#include "String.h"
 
 /************************************************************************/
 

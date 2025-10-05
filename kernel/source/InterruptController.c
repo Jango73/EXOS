@@ -22,14 +22,14 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Kernel.h"
-#include "../include/InterruptController.h"
-#include "../include/LocalAPIC.h"
-#include "../include/Log.h"
-#include "../include/IOAPIC.h"
-#include "../include/ACPI.h"
-#include "../include/System.h"
+#include "Base.h"
+#include "Kernel.h"
+#include "drivers/ACPI.h"
+#include "InterruptController.h"
+#include "drivers/IOAPIC.h"
+#include "drivers/LocalAPIC.h"
+#include "Log.h"
+#include "System.h"
 
 /************************************************************************/
 // Global interrupt controller configuration

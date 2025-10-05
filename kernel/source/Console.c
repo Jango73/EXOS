@@ -22,16 +22,16 @@
 
 \************************************************************************/
 
-#include "../include/Console.h"
+#include "Console.h"
 
-#include "../include/Kernel.h"
-#include "../include/Keyboard.h"
-#include "../include/Log.h"
-#include "../include/Mutex.h"
-#include "../include/String.h"
-#include "../include/System.h"
-#include "../include/VKey.h"
-#include "../include/VarArg.h"
+#include "Kernel.h"
+#include "drivers/Keyboard.h"
+#include "Log.h"
+#include "Mutex.h"
+#include "String.h"
+#include "System.h"
+#include "VKey.h"
+#include "VarArg.h"
 
 /***************************************************************************/
 

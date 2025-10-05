@@ -778,7 +778,7 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     // Receive response with retry logic
     debug("[HTTP_ReceiveResponse] Starting receive loop");
 
-    while (1) {  // Continue until we have complete response
+    FOREVER {  // Continue until we have complete response
         received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
         debug("[HTTP_ReceiveResponse] recv() returned %d bytes", received);
 

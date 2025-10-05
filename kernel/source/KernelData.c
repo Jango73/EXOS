@@ -1,6 +1,6 @@
 
-#include "../include/Kernel.h"
-#include "../include/Socket.h"
+#include "Kernel.h"
+#include "Socket.h"
 
 /************************************************************************/
 
@@ -152,7 +152,7 @@ KERNELDATA SECTION(".data") Kernel = {
     .Socket = &SocketList,
     .SystemFS = {
         .Header = {
-            .ID = ID_FILESYSTEM,
+            .TypeID = KOID_FILESYSTEM,
             .References = 1,
             .Next = NULL,
             .Prev = NULL,
@@ -162,6 +162,7 @@ KERNELDATA SECTION(".data") Kernel = {
         },
         .Root = NULL
     },
+    .FileSystemInfo = {.ActivePartitionName = ""},
     .UserAccount = &UserAccountList,
     .UserSessions = NULL,
     .Configuration = NULL,

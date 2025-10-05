@@ -22,15 +22,15 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Console.h"
-#include "../include/Heap.h"
-#include "../include/Kernel.h"
-#include "../include/Keyboard.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/User.h"
-#include "../include/VKey.h"
+#include "Base.h"
+#include "Console.h"
+#include "Heap.h"
+#include "Kernel.h"
+#include "drivers/Keyboard.h"
+#include "List.h"
+#include "Log.h"
+#include "User.h"
+#include "VKey.h"
 
 /***************************************************************************/
 
@@ -693,7 +693,7 @@ static I32 Loop(LPEDITCONTEXT Context) {
 
     Render(Context->Current);
 
-    while (1) {
+    FOREVER {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
 

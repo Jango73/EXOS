@@ -21,7 +21,7 @@ CFLAGS  = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
 	-fvisibility=hidden -mno-red-zone \
 	-Werror-implicit-function-declaration -Wstrict-prototypes \
 	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
-	-I../third/include -Iinclude -I../runtime/include
+	-Iinclude -I../third/include -I../runtime/include
 
 AFLAGS  = -f elf -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
 
@@ -30,6 +30,10 @@ LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BU
 KERNEL_ELF = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/arch/i386/*.c) \
+         $(wildcard source/network/*.c) \
+         $(wildcard source/drivers/*.c) \
+         $(wildcard source/utils/*.c) \
          $(wildcard source/test/*.c) \
          $(wildcard source/autotest/*.c) \
          ../third/bcrypt/blowfish.c \

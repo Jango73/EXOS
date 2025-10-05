@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Driver.h"
-#include "../include/Process.h"
+#include "Base.h"
+#include "Driver.h"
+#include "Process.h"
 
 /***************************************************************************/
 

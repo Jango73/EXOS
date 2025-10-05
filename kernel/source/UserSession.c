@@ -22,19 +22,19 @@
 
 \************************************************************************/
 
-#include "../include/UserSession.h"
+#include "UserSession.h"
 
-#include "../include/Clock.h"
-#include "../include/Heap.h"
-#include "../include/Helpers.h"
-#include "../include/Kernel.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/Mutex.h"
-#include "../include/Schedule.h"
-#include "../include/Task.h"
-#include "../include/UserAccount.h"
+#include "Clock.h"
+#include "Heap.h"
+#include "utils/Helpers.h"
+#include "Kernel.h"
+#include "List.h"
+#include "Log.h"
+#include "Memory.h"
+#include "Mutex.h"
+#include "Schedule.h"
+#include "Task.h"
+#include "UserAccount.h"
 
 /************************************************************************/
 
@@ -100,7 +100,7 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     }
 
     // Initialize session
-    NewSession->ID = ID_USERSESSION;
+    NewSession->TypeID = KOID_USERSESSION;
     NewSession->References = 1;
     NewSession->Next = NULL;
     NewSession->Prev = NULL;
@@ -139,7 +139,7 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
  * @return TRUE if session is valid, FALSE otherwise.
  */
 BOOL ValidateUserSession(LPUSERSESSION Session) {
-    if (Session == NULL || Session->ID != ID_USERSESSION) {
+    if (Session == NULL || Session->TypeID != KOID_USERSESSION) {
         return FALSE;
     }
 

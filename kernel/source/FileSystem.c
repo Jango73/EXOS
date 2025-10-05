@@ -22,13 +22,13 @@
 
 \************************************************************************/
 
-#include "../include/FileSystem.h"
+#include "FileSystem.h"
 
-#include "../include/Console.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/String.h"
-#include "../include/Text.h"
+#include "Console.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "String.h"
+#include "Text.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
@@ -97,6 +97,23 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
 /***************************************************************************/
 
 /**
+ * @brief Stores the logical name of the active partition.
+ *
+ * Updates the kernel-wide file system information so that higher level
+ * components can retrieve the currently active partition name.
+ *
+ * @param FileSystem Mounted file system flagged as active in the MBR.
+ */
+void FileSystemSetActivePartition(LPFILESYSTEM FileSystem) {
+    SAFE_USE(FileSystem) {
+        StringCopy(Kernel.FileSystemInfo.ActivePartitionName, FileSystem->Name);
+        DEBUG(TEXT("[FileSystemSetActivePartition] Active partition name set to %s"), FileSystem->Name);
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Mounts extended partitions from a disk.
  *
  * Reads and processes extended partition table entries to discover
@@ -112,7 +129,7 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32
     IOCONTROL Control;
     U32 Result;
 
-    Control.ID = ID_IOCONTROL;
+    Control.TypeID = KOID_IOCONTROL;
     Control.Disk = Disk;
     Control.SectorLow = Partition->LBA;
     Control.SectorHigh = 0;
@@ -154,7 +171,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     DEBUG(TEXT("[MountDiskPartitions] Disk = %x, Partition = %x, Base = %x"), Disk, Partition, Base);
 
     if (Partition == NULL) {
-        Control.ID = ID_IOCONTROL;
+        Control.TypeID = KOID_IOCONTROL;
         Control.Disk = Disk;
         Control.SectorLow = 0;
         Control.SectorHigh = 0;
@@ -173,6 +190,10 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
     for (Index = 0; Index < MBR_PARTITION_COUNT; Index++) {
         if (Partition[Index].LBA != 0) {
+            BOOL PartitionMounted = FALSE;
+            BOOL PartitionIsActive = ((Partition[Index].Disk & 0x80) != 0);
+            LPFILESYSTEM PreviousLast = (LPFILESYSTEM)Kernel.FileSystem->Last;
+
             switch (Partition[Index].Type) {
                 case FSID_NONE:
                     break;
@@ -184,24 +205,35 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
                     DEBUG(TEXT("[MountDiskPartitions] Mounting FAT16 partition"));
-                    MountPartition_FAT16(Disk, Partition + Index, Base, Index);
+                    PartitionMounted =
+                        MountPartition_FAT16(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
                     DEBUG(TEXT("[MountDiskPartitions] Mounting FAT32 partition"));
-                    MountPartition_FAT32(Disk, Partition + Index, Base, Index);
+                    PartitionMounted =
+                        MountPartition_FAT32(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_EXOS: {
                     DEBUG(TEXT("[MountDiskPartitions] Mounting EXFS partition"));
-                    MountPartition_EXFS(Disk, Partition + Index, Base, Index);
+                    PartitionMounted =
+                        MountPartition_EXFS(Disk, Partition + Index, Base, Index);
                 } break;
 
                 default: {
                     WARNING(TEXT("[MountDiskPartitions] Partition type %X not implemented\n"),
                         (U32)Partition[Index].Type);
                 } break;
+            }
+
+            if (PartitionMounted && PartitionIsActive) {
+                LPFILESYSTEM MountedFileSystem = (LPFILESYSTEM)Kernel.FileSystem->Last;
+
+                if (MountedFileSystem != NULL && MountedFileSystem != PreviousLast) {
+                    FileSystemSetActivePartition(MountedFileSystem);
+                }
             }
         }
     }
@@ -216,6 +248,8 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
+
+    StringClear(Kernel.FileSystemInfo.ActivePartitionName);
 
     for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);

@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "../include/Lang.h"
+#include "Lang.h"
 
-#include "../include/Kernel.h"
-#include "../include/Keyboard.h"
-#include "../include/Log.h"
-#include "../include/String.h"
+#include "Kernel.h"
+#include "drivers/Keyboard.h"
+#include "Log.h"
+#include "String.h"
 
 /***************************************************************************/
 

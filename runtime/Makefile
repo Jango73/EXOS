@@ -11,7 +11,8 @@ CFLAGS  = -g -Wall -Wextra -O0 \
 	-ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
-	-Werror-implicit-function-declaration -Wstrict-prototypes
+	-Werror-implicit-function-declaration -Wstrict-prototypes \
+	-I../kernel/include
 
 CXXFLAGS = -g -Wall -Wextra -O0 -std=c++11 \
 	-ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
@@ -25,7 +26,7 @@ LDFLAGS = -T linker.ld -nostdlib -Map=$(BUILD_DIR)/runtime/exos-runtime.map
 
 RUNTIME_LIB = $(BUILD_DIR)/runtime/libexos.a
 
-SRC_C   = $(wildcard source/*.c) ../kernel/source/String.c ../kernel/source/AdaptiveDelay.c
+SRC_C   = $(wildcard source/*.c) ../kernel/source/String.c ../kernel/source/utils/AdaptiveDelay.c
 SRC_CXX = $(wildcard source/*.cpp)
 SRC_S   = $(wildcard source/*.asm)
 

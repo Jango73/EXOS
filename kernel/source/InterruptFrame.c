@@ -143,14 +143,14 @@
 
 \************************************************************************/
 
-#include "../include/InterruptFrame.h"
+#include "InterruptFrame.h"
 
-#include "../include/Base.h"
-#include "../include/I386.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/String.h"
-#include "../include/System.h"
+#include "Base.h"
+#include "arch/i386/I386.h"
+#include "Log.h"
+#include "Memory.h"
+#include "String.h"
+#include "System.h"
 
 /************************************************************************/
 

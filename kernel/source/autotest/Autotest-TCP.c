@@ -22,13 +22,13 @@
 
 \************************************************************************/
 
-#include "../../include/Autotest.h"
-#include "../../include/Base.h"
-#include "../../include/Endianness.h"
-#include "../../include/Log.h"
-#include "../../include/Memory.h"
-#include "../../include/TCP.h"
-#include "../../include/String.h"
+#include "Autotest.h"
+#include "Base.h"
+#include "Endianness.h"
+#include "Log.h"
+#include "Memory.h"
+#include "network/TCP.h"
+#include "String.h"
 
 /************************************************************************/
 

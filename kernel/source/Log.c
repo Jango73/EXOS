@@ -22,16 +22,16 @@
 
 \************************************************************************/
 
-#include "../include/Log.h"
+#include "Log.h"
 
-#include "../include/Clock.h"
-#include "../include/Console.h"
-#include "../include/Memory.h"
-#include "../include/Process.h"
-#include "../include/SerialPort.h"
-#include "../include/String.h"
-#include "../include/Text.h"
-#include "../include/VarArg.h"
+#include "Clock.h"
+#include "Console.h"
+#include "Memory.h"
+#include "Process.h"
+#include "SerialPort.h"
+#include "String.h"
+#include "Text.h"
+#include "VarArg.h"
 
 /************************************************************************/
 

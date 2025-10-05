@@ -22,35 +22,36 @@
 
 \************************************************************************/
 
-#include "../include/Kernel.h"
+#include "Kernel.h"
 
-#include "../include/ACPI.h"
-#include "../include/LocalAPIC.h"
-#include "../include/IOAPIC.h"
-#include "../include/InterruptController.h"
-#include "../include/Autotest.h"
-#include "../include/Clock.h"
-#include "../include/Console.h"
-#include "../include/Driver.h"
-#include "../include/E1000.h"
-#include "../include/File.h"
-#include "../include/FileSystem.h"
-#include "../include/ATA.h"
-#include "../include/SATA.h"
-#include "../include/Interrupt.h"
-#include "../include/Keyboard.h"
-#include "../include/Lang.h"
-#include "../include/Log.h"
-#include "../include/Mouse.h"
-#include "../include/PCI.h"
-#include "../include/Stack.h"
-#include "../include/StackTrace.h"
-#include "../include/System.h"
-#include "../include/SystemFS.h"
-#include "../include/TOML.h"
-#include "../include/UserAccount.h"
-#include "../include/UserSession.h"
-#include "../include/NetworkManager.h"
+#include "drivers/ACPI.h"
+#include "drivers/LocalAPIC.h"
+#include "drivers/IOAPIC.h"
+#include "InterruptController.h"
+#include "Autotest.h"
+#include "Clock.h"
+#include "Console.h"
+#include "Driver.h"
+#include "drivers/E1000.h"
+#include "File.h"
+#include "FileSystem.h"
+#include "drivers/ATA.h"
+#include "drivers/SATA.h"
+#include "Interrupt.h"
+#include "drivers/Keyboard.h"
+#include "Lang.h"
+#include "Log.h"
+#include "Mouse.h"
+#include "drivers/PCI.h"
+#include "Stack.h"
+#include "StackTrace.h"
+#include "System.h"
+#include "SystemFS.h"
+#include "utils/TOML.h"
+#include "UserAccount.h"
+#include "UserSession.h"
+#include "NetworkManager.h"
+#include "utils/UUID.h"
 
 /************************************************************************/
 
@@ -69,17 +70,6 @@ extern void StartTestNetworkTask(void);
 /************************************************************************/
 
 U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
-
-/************************************************************************/
-
-void KernelObjectDestructor(LPVOID Object) {
-    SAFE_USE_VALID(Object) {
-        LPLISTNODE Node = (LPLISTNODE)Object;
-        switch (Node->ID) {
-        case ID_MUTEX: DeleteMutex((LPMUTEX)Node);
-        }
-    }
-}
 
 /************************************************************************/
 
@@ -193,7 +183,7 @@ U32 ClockTestTask(LPVOID Param) {
     U32 Time = 0;
     U32 OldTime = 0;
 
-    while (1) {
+    FOREVER {
         Time = DoSystemCall(SYSCALL_GetSystemTime, 0);
 
         if (Time - OldTime >= 1000) {
@@ -295,11 +285,84 @@ static void Welcome(void) {
 
 /************************************************************************/
 
+void KernelObjectDestructor(LPVOID Object) {
+    SAFE_USE_VALID(Object) {
+        LPLISTNODE Node = (LPLISTNODE)Object;
+        switch (Node->TypeID) {
+        case KOID_MUTEX: DeleteMutex((LPMUTEX)Node);
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Create a kernel object with standard LISTNODE_FIELDS initialization.
+ *
+ * This function allocates memory for a kernel object and initializes its
+ * LISTNODE_FIELDS with the specified ID, References = 1, current process
+ * as parent, and NULL for Next/Prev pointers.
+ *
+ * @param Size Size of the object to allocate (e.g., sizeof(TASK))
+ * @param ObjectTypeID ID from ID.h to identify the object type
+ * @return Pointer to the allocated and initialized object, or NULL on failure
+ */
+LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
+    LPLISTNODE Object;
+    U8 Identifier[UUID_BINARY_SIZE];
+    U64 ObjectID = U64_0;
+    U32 Index;
+
+    DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
+
+    Object = (LPLISTNODE)KernelHeapAlloc(Size);
+
+    if (Object == NULL) {
+        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);
+        return NULL;
+    }
+
+    // Initialize LISTNODE_FIELDS
+    UUID_Generate(Identifier);
+    ObjectID = UUID_ToU64(Identifier);
+
+    Object->TypeID = ObjectTypeID;
+    Object->References = 1;
+    Object->OwnerProcess = GetCurrentProcess();
+    Object->ID = ObjectID;
+    Object->Next = NULL;
+    Object->Prev = NULL;
+
+    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"),
+          (U32)Object, (U32)Object->OwnerProcess);
+
+    return Object;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Destroy a kernel object.
+ *
+ * This function sets the object's ID to KOID_NONE and frees its memory.
+ *
+ * @param Object Pointer to the kernel object to destroy
+ */
+void ReleaseKernelObject(LPVOID Object) {
+    LPLISTNODE Node = (LPLISTNODE)Object;
+
+    SAFE_USE(Node) {
+        if (Node->References) Node->References--;
+    }
+}
+
+/************************************************************************/
+
 /**
  * @brief Delete unreferenced kernel objects from all kernel lists.
  *
  * This function traverses all kernel object lists and removes objects
- * with a reference count of 0, setting their ID to ID_NONE and freeing
+ * with a reference count of 0, setting their ID to KOID_NONE and freeing
  * their memory with KernelHeapFree.
  */
 void DeleteUnreferencedObjects(void) {
@@ -318,13 +381,13 @@ void DeleteUnreferencedObjects(void) {
 
             // Check if object has no references
             if (Current->References == 0) {
-                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->ID);
+                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->TypeID);
 
                 // Remove from list first
                 ListRemove(List, Current);
 
                 // Mark as deleted and free memory
-                Current->ID = ID_NONE;
+                Current->TypeID = KOID_NONE;
                 KernelHeapFree(Current);
 
                 DeletedCount++;
@@ -337,17 +400,17 @@ void DeleteUnreferencedObjects(void) {
     LockMutex(MUTEX_KERNEL, INFINITY);
 
     // Process all kernel object lists
-    ProcessList(Kernel.Desktop, "Desktop");
-    ProcessList(Kernel.Process, "Process");
-    ProcessList(Kernel.Task, "Task");
-    ProcessList(Kernel.Mutex, "Mutex");
-    ProcessList(Kernel.Disk, "Disk");
-    ProcessList(Kernel.PCIDevice, "PCIDevice");
-    ProcessList(Kernel.NetworkDevice, "NetworkDevice");
-    ProcessList(Kernel.FileSystem, "FileSystem");
-    ProcessList(Kernel.File, "File");
-    ProcessList(Kernel.TCPConnection, "TCPConnection");
-    ProcessList(Kernel.Socket, "Socket");
+    ProcessList(Kernel.Desktop, TEXT("Desktop"));
+    ProcessList(Kernel.Process, TEXT("Process"));
+    ProcessList(Kernel.Task, TEXT("Task"));
+    ProcessList(Kernel.Mutex, TEXT("Mutex"));
+    ProcessList(Kernel.Disk, TEXT("Disk"));
+    ProcessList(Kernel.PCIDevice, TEXT("PCIDevice"));
+    ProcessList(Kernel.NetworkDevice, TEXT("NetworkDevice"));
+    ProcessList(Kernel.FileSystem, TEXT("FileSystem"));
+    ProcessList(Kernel.File, TEXT("File"));
+    ProcessList(Kernel.TCPConnection, TEXT("TCPConnection"));
+    ProcessList(Kernel.Socket, TEXT("Socket"));
 
     UnlockMutex(MUTEX_KERNEL);
 }
@@ -365,7 +428,7 @@ static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
                 if (Node->OwnerProcess == Process) {
                     DEBUG(TEXT("[ReleaseProcessKernelObjects] Releasing object %p (ID=%x) owned by %s"),
                           Node,
-                          Node->ID,
+                          Node->TypeID,
                           Process->FileName);
 
                     ReleaseKernelObject(Node);
@@ -390,7 +453,7 @@ static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
  * @param Process Process whose owned kernel objects must be released.
  */
 void ReleaseProcessKernelObjects(LPPROCESS Process) {
-    SAFE_USE_VALID_ID(Process, ID_PROCESS) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         if (Process == &KernelProcess) {
             return;
         }
@@ -408,6 +471,42 @@ void ReleaseProcessKernelObjects(LPPROCESS Process) {
         ReleaseProcessObjectsFromList(Process, Kernel.TCPConnection);
         ReleaseProcessObjectsFromList(Process, Kernel.Socket);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Store object termination state in cache.
+ * @param Object Handle of the terminated object
+ * @param ExitCode Exit code of the object
+ */
+void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
+    LPOBJECT KernelObject = (LPOBJECT)Object;
+
+    SAFE_USE_VALID(KernelObject) {
+        LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)
+            KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
+
+        SAFE_USE(TermState) {
+            U32 IdHigh = KernelObject->ID.HI;
+            U32 IdLow = KernelObject->ID.LO;
+
+            TermState->Object = KernelObject;
+            TermState->ExitCode = ExitCode;
+            TermState->ID = KernelObject->ID;
+            CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
+
+            DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%u"),
+                  KernelObject,
+                  IdHigh,
+                  IdLow,
+                  ExitCode);
+        }
+
+        return;
+    }
+
+    WARNING(TEXT("[StoreObjectTerminationState] Invalid kernel object pointer %x"), Object);
 }
 
 /************************************************************************/
@@ -452,7 +551,7 @@ static void ReadKernelConfiguration(void) {
  * SelectKeyboard.
  */
 
-void UseConfiguration(void) {
+static void UseConfiguration(void) {
     DEBUG(TEXT("[UseConfiguration] Enter"));
 
     SAFE_USE(Kernel.Configuration) {
@@ -504,7 +603,7 @@ void UseConfiguration(void) {
  * @brief Initializes PCI subsystem by registering drivers and scanning the bus.
  */
 
-void InitializePCI(void) {
+static void InitializePCI(void) {
     extern PCI_DRIVER AHCIPCIDriver;
 
     PCI_RegisterDriver(&E1000Driver);
@@ -557,9 +656,9 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
     SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), Name, Driver);
 
-        if (Driver->ID != ID_DRIVER) {
+        if (Driver->TypeID != KOID_DRIVER) {
             KernelLogText(
-                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->ID);
+                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->TypeID);
 
             // Wait forever
             DO_THE_SLEEPING_BEAUTY;
@@ -570,11 +669,11 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /************************************************************************/
 
-U32 MonitorKernel(LPVOID Parameter) {
+static U32 MonitorKernel(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
 
-    while (TRUE) {
+    FOREVER {
         DeleteDeadTasksAndProcesses();
         DeleteUnreferencedObjects();
         CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
@@ -587,71 +686,14 @@ U32 MonitorKernel(LPVOID Parameter) {
 
         Sleep(500);
     }
-}
 
-/************************************************************************/
-
-/**
- * @brief Store object termination state in cache.
- * @param Object Handle of the terminated object
- * @param ExitCode Exit code of the object
- */
-void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
-    LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)
-        KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
-
-    SAFE_USE(TermState) {
-        TermState->Object = Object;
-        TermState->ExitCode = ExitCode;
-        CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
-
-        DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ExitCode=%u"), Object, ExitCode);
-    }
-}
-
-/************************************************************************/
-
-BOOL ObjectExists(HANDLE Object) {
-    if (Object == NULL) return FALSE;
-
-    LPLISTNODE Node = (LPLISTNODE)Object;
-
-    // Check all kernel object lists
-    LPLIST Lists[] = {
-        Kernel.Desktop,
-        Kernel.Process,
-        Kernel.Task,
-        Kernel.Mutex,
-        Kernel.Disk,
-        Kernel.PCIDevice,
-        Kernel.FileSystem,
-        Kernel.File,
-        Kernel.TCPConnection,
-        Kernel.Socket,
-        Kernel.UserSessions,
-        Kernel.UserAccount,
-        NULL  // Sentinel
-    };
-
-    for (U32 ListIndex = 0; Lists[ListIndex] != NULL; ListIndex++) {
-        LPLIST List = Lists[ListIndex];
-        LPLISTNODE Current = List->First;
-
-        while (Current != NULL) {
-            if (Current == Node) {
-                return TRUE;  // Found object in this list
-            }
-            Current = Current->Next;
-        }
-    }
-
-    return FALSE;  // Object not found in any list
+    return 0;
 }
 
 /************************************************************************/
 
 void KernelIdle(void) {
-    while (TRUE) {
+    FOREVER {
         Sleep(4000);
     }
 }

@@ -22,11 +22,11 @@
 
 \************************************************************************/
 
-#include "../include/Base.h"
-#include "../include/Keyboard.h"
-#include "../include/Log.h"
-#include "../include/String.h"
-#include "../include/VKey.h"
+#include "Base.h"
+#include "drivers/Keyboard.h"
+#include "Log.h"
+#include "String.h"
+#include "VKey.h"
 
 /************************************************************************/
 
@@ -48,16 +48,16 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 0
     {{VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}},           // 1
     {{VK_NONE, '&', 0}, {VK_1, '1', 0}, {VK_NONE, 0, 0}},                // 2
-    {{VK_NONE, 'È', 0}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},              // 3
+    {{VK_NONE, '√©', 0}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},              // 3
     {{VK_NONE, '"', 0}, {VK_3, '3', 0}, {VK_NONE, '#', 0}},              // 4
     {{VK_NONE, '\'', 0}, {VK_4, '4', 0}, {VK_NONE, '{', 0}},             // 5
     {{VK_NONE, '(', 0}, {VK_5, '5', 0}, {VK_NONE, '[', 0}},              // 6
     {{VK_MINUS, '-', 0}, {VK_6, '6', 0}, {VK_NONE, '|', 0}},             // 7
-    {{VK_NONE, 'Ë', 0}, {VK_7, '7', 0}, {VK_NONE, '`', 0}},              // 8
+    {{VK_NONE, '√®', 0}, {VK_7, '7', 0}, {VK_NONE, '`', 0}},              // 8
     {{VK_UNDERSCORE, '_', 0}, {VK_8, '8', 0}, {VK_BACKSLASH, '\\', 0}},  // 9
     {{VK_NONE, '_', 0}, {VK_9, '9', 0}, {VK_NONE, '^', 0}},              // 10
-    {{VK_NONE, 'Á', 0}, {VK_0, '0', 0}, {VK_AT, '@', 0}},                // 11
-    {{VK_NONE, ')', 0}, {VK_NONE, '¯', 0}, {VK_NONE, ']', 0}},           // 12
+    {{VK_NONE, '√ß', 0}, {VK_0, '0', 0}, {VK_AT, '@', 0}},                // 11
+    {{VK_NONE, ')', 0}, {VK_NONE, '√∏', 0}, {VK_NONE, ']', 0}},           // 12
     {{VK_EQUAL, '=', 0}, {VK_PLUS, '+', 0}, {VK_NONE, '}', 0}},          // 13
     {{VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}},  // 14
     {{VK_TAB, 0, 0}, {VK_TAB, 0, 0}, {VK_TAB, 0, 0}},                    // 15
@@ -72,7 +72,7 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_O, 'o', 0}, {VK_O, 'O', 0}, {VK_O, 'o', 0}},                    // 24
     {{VK_P, 'p', 0}, {VK_P, 'P', 0}, {VK_P, 'p', 0}},                    // 25
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 26
-    {{VK_DOLLAR, '$', 0}, {VK_NONE, 'ú', 0}, {VK_NONE, 'œ', 0}},         // 27
+    {{VK_DOLLAR, '$', 0}, {VK_NONE, '≈ì', 0}, {VK_NONE, '√è', 0}},         // 27
     {{VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}},           // 28
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 29
     {{VK_Q, 'q', 0}, {VK_Q, 'Q', 0}, {VK_Q, 'q', 0}},                    // 30
@@ -85,7 +85,7 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_K, 'k', 0}, {VK_K, 'K', 0}, {VK_K, 'k', 0}},                    // 37
     {{VK_L, 'l', 0}, {VK_L, 'L', 0}, {VK_L, 'l', 0}},                    // 38
     {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_M, 'm', 0}},                    // 39
-    {{VK_NONE, '˘', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},          // 40
+    {{VK_NONE, '√π', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},          // 40
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 41
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 42
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 43
@@ -98,7 +98,7 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_COMMA, ',', 0}, {VK_QUESTION, '?', 0}, {VK_NONE, 0, 0}},        // 50
     {{VK_NONE, ';', 0}, {VK_DOT, '.', 0}, {VK_NONE, 0, 0}},              // 51
     {{VK_COLON, ':', 0}, {VK_SLASH, '/', 0}, {VK_NONE, 0, 0}},           // 52
-    {{VK_EXCL, '!', 0}, {VK_NONE, 'ı', 0}, {VK_NONE, 0, 0}},             // 53
+    {{VK_EXCL, '!', 0}, {VK_NONE, '√µ', 0}, {VK_NONE, 0, 0}},             // 53
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 54
     {{VK_STAR, '*', 0}, {VK_STAR, '*', 0}, {VK_STAR, '*', 0}},           // 55
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 56
@@ -315,7 +315,7 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}},            // 1
     {{VK_1, '1', 0}, {VK_EXCL, '!', 0}, {VK_NONE, 0, 0}},                 // 2
     {{VK_2, '2', 0}, {VK_NONE, '"', 0}, {VK_NONE, 0, 0}},                 // 3
-    {{VK_3, '3', 0}, {VK_NONE, 'ß', 0}, {VK_NONE, 0, 0}},                 // 4
+    {{VK_3, '3', 0}, {VK_NONE, '¬ß', 0}, {VK_NONE, 0, 0}},                 // 4
     {{VK_4, '4', 0}, {VK_DOLLAR, '$', 0}, {VK_NONE, 0, 0}},               // 5
     {{VK_5, '5', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},              // 6
     {{VK_6, '6', 0}, {VK_NONE, '&', 0}, {VK_NONE, 0, 0}},                 // 7
@@ -323,8 +323,8 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_8, '8', 0}, {VK_NONE, '(', 0}, {VK_NONE, '[', 0}},               // 9
     {{VK_9, '9', 0}, {VK_NONE, ')', 0}, {VK_NONE, ']', 0}},               // 10
     {{VK_0, '0', 0}, {VK_EQUAL, '=', 0}, {VK_NONE, '}', 0}},              // 11
-    {{VK_NONE, 'ﬂ', 0}, {VK_QUESTION, '?', 0}, {VK_BACKSLASH, '\\', 0}},  // 12
-    {{VK_NONE, '¥', 0}, {VK_NONE, '`', 0}, {VK_NONE, 0, 0}},              // 13
+    {{VK_NONE, '√ü', 0}, {VK_QUESTION, '?', 0}, {VK_BACKSLASH, '\\', 0}},  // 12
+    {{VK_NONE, '¬¥', 0}, {VK_NONE, '`', 0}, {VK_NONE, 0, 0}},              // 13
     {{VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}},   // 14
     {{VK_TAB, 0, 0}, {VK_TAB, 0, 0}, {VK_TAB, 0, 0}},                     // 15
     {{VK_Q, 'q', 0}, {VK_Q, 'Q', 0}, {VK_AT, '@', 0}},                    // 16
@@ -337,7 +337,7 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_I, 'i', 0}, {VK_I, 'I', 0}, {VK_NONE, 0, 0}},                    // 23
     {{VK_O, 'o', 0}, {VK_O, 'O', 0}, {VK_NONE, 0, 0}},                    // 24
     {{VK_P, 'p', 0}, {VK_P, 'P', 0}, {VK_NONE, 0, 0}},                    // 25
-    {{VK_NONE, '¸', 0}, {VK_NONE, '‹', 0}, {VK_NONE, 0, 0}},              // 26
+    {{VK_NONE, '√º', 0}, {VK_NONE, '√ú', 0}, {VK_NONE, 0, 0}},              // 26
     {{VK_PLUS, '+', 0}, {VK_STAR, '*', 0}, {VK_NONE, '~', 0}},            // 27
     {{VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}},            // 28
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                  // 29
@@ -350,9 +350,9 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_J, 'j', 0}, {VK_J, 'J', 0}, {VK_NONE, 0, 0}},                    // 36
     {{VK_K, 'k', 0}, {VK_K, 'K', 0}, {VK_NONE, 0, 0}},                    // 37
     {{VK_L, 'l', 0}, {VK_L, 'L', 0}, {VK_NONE, 0, 0}},                    // 38
-    {{VK_NONE, 'ˆ', 0}, {VK_NONE, '÷', 0}, {VK_NONE, 0, 0}},              // 39
-    {{VK_NONE, '‰', 0}, {VK_NONE, 'ƒ', 0}, {VK_NONE, 0, 0}},              // 40
-    {{VK_NONE, '^', 0}, {VK_NONE, '∞', 0}, {VK_NONE, 0, 0}},              // 41
+    {{VK_NONE, '√∂', 0}, {VK_NONE, '√ñ', 0}, {VK_NONE, 0, 0}},              // 39
+    {{VK_NONE, '√§', 0}, {VK_NONE, '√Ñ', 0}, {VK_NONE, 0, 0}},              // 40
+    {{VK_NONE, '^', 0}, {VK_NONE, '¬∞', 0}, {VK_NONE, 0, 0}},              // 41
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                  // 42
     {{VK_NONE, '#', 0}, {VK_NONE, '\'', 0}, {VK_NONE, '|', 0}},           // 43
     {{VK_Y, 'y', 0}, {VK_Y, 'Y', 0}, {VK_NONE, 0, 0}},                    // 44
@@ -361,7 +361,7 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_V, 'v', 0}, {VK_V, 'V', 0}, {VK_NONE, 0, 0}},                    // 47
     {{VK_B, 'b', 0}, {VK_B, 'B', 0}, {VK_NONE, 0, 0}},                    // 48
     {{VK_N, 'n', 0}, {VK_N, 'N', 0}, {VK_NONE, 0, 0}},                    // 49
-    {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_NONE, 'µ', 0}},                  // 50
+    {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_NONE, '¬µ', 0}},                  // 50
     {{VK_COMMA, ',', 0}, {VK_COMMA, ';', 0}, {VK_NONE, 0, 0}},            // 51
     {{VK_DOT, '.', 0}, {VK_DOT, ':', 0}, {VK_NONE, 0, 0}},                // 52
     {{VK_MINUS, '-', 0}, {VK_UNDERSCORE, '_', 0}, {VK_NONE, 0, 0}},       // 53

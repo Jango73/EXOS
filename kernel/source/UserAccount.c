@@ -22,20 +22,20 @@
 
 \************************************************************************/
 
-#include "../include/UserAccount.h"
+#include "UserAccount.h"
 
-#include "../include/Clock.h"
-#include "../include/Crypt.h"
-#include "../include/Database.h"
-#include "../include/Heap.h"
-#include "../include/Helpers.h"
-#include "../include/Kernel.h"
-#include "../include/List.h"
-#include "../include/Log.h"
-#include "../include/Memory.h"
-#include "../include/Mutex.h"
-#include "../include/String.h"
-#include "../include/System.h"
+#include "Clock.h"
+#include "utils/Crypt.h"
+#include "utils/Database.h"
+#include "Heap.h"
+#include "utils/Helpers.h"
+#include "Kernel.h"
+#include "List.h"
+#include "Log.h"
+#include "Memory.h"
+#include "Mutex.h"
+#include "String.h"
+#include "System.h"
 
 /************************************************************************/
 
@@ -133,7 +133,7 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
 
     // Initialize user account
     MemorySet(NewUser, 0, sizeof(USERACCOUNT));
-    NewUser->ID = ID_USERACCOUNT;
+    NewUser->TypeID = KOID_USERACCOUNT;
     NewUser->References = 1;
 
     StringCopy(NewUser->UserName, UserName);
@@ -317,7 +317,7 @@ BOOL LoadUserDatabase(void) {
             NewUser->Next = NULL;
             NewUser->Prev = NULL;
             NewUser->References = 1;
-            NewUser->ID = ID_USERACCOUNT;
+            NewUser->TypeID = KOID_USERACCOUNT;
 
             if (ListAddTail(Kernel.UserAccount, NewUser) == 0) {
                 KernelHeapFree(NewUser);

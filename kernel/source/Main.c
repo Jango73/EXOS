@@ -22,11 +22,11 @@
 
 \************************************************************************/
 
-#include "../include/Console.h"
-#include "../include/Kernel.h"
-#include "../include/Log.h"
-#include "../include/System.h"
-#include "../include/Multiboot.h"
+#include "Console.h"
+#include "Kernel.h"
+#include "Log.h"
+#include "System.h"
+#include "Multiboot.h"
 
 /************************************************************************/
 
