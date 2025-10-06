@@ -217,6 +217,7 @@ typedef U32 BOOL;
     } while (0)
 
 #define STRINGS_EQUAL(a,b) (StringCompare(a,b)==0)
+#define STRINGS_EQUAL_NO_CASE(a,b) (StringCompareNC(a,b)==0)
 
 /************************************************************************/
 // NULL values

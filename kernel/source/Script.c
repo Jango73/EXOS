@@ -197,7 +197,6 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
         // Semicolon is mandatory after assignments, optional after blocks/if/for
         if (Statement->Type == AST_ASSIGNMENT) {
             if (Parser.CurrentToken.Type != TOKEN_SEMICOLON && Parser.CurrentToken.Type != TOKEN_EOF) {
-                DEBUG(TEXT("[ScriptExecute] Expected semicolon after assignment, got token type %d (l:%d,c:%d)"), Parser.CurrentToken.Type, Parser.CurrentToken.Line, Parser.CurrentToken.Column);
                 StringPrintFormat(Context->ErrorMessage, TEXT("Expected semicolon (l:%d,c:%d)"), Parser.CurrentToken.Line, Parser.CurrentToken.Column);
                 Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
                 ScriptDestroyAST(Root);
@@ -324,7 +323,7 @@ LPCSTR ScriptGetErrorMessage(LPSCRIPT_CONTEXT Context) {
 LPAST_NODE ScriptCreateASTNode(AST_NODE_TYPE Type) {
     LPAST_NODE Node = (LPAST_NODE)HeapAlloc(sizeof(AST_NODE));
     if (Node == NULL) {
-        DEBUG(TEXT("[ScriptCreateASTNode] Failed to allocate AST node"));
+        ERROR(TEXT("[ScriptCreateASTNode] Failed to allocate AST node"));
         return NULL;
     }
 
@@ -899,7 +898,6 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
  */
 static LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
     if (Parser->CurrentToken.Type != TOKEN_IDENTIFIER) {
-        DEBUG(TEXT("[ScriptParseAssignmentAST] Expected identifier, got type %d (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
         *Error = SCRIPT_ERROR_SYNTAX;
         return NULL;
     }
@@ -929,7 +927,6 @@ static LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
         }
 
         if (Parser->CurrentToken.Type != TOKEN_RBRACKET) {
-            DEBUG(TEXT("[ScriptParseAssignmentAST] Expected ], got type %d (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
             *Error = SCRIPT_ERROR_SYNTAX;
             ScriptDestroyAST(Node);
             return NULL;
@@ -938,7 +935,6 @@ static LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
     }
 
     if (Parser->CurrentToken.Type != TOKEN_OPERATOR || Parser->CurrentToken.Value[0] != '=') {
-        DEBUG(TEXT("[ScriptParseAssignmentAST] Expected =, got type %d value '%s' (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Value, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
         *Error = SCRIPT_ERROR_SYNTAX;
         ScriptDestroyAST(Node);
         return NULL;
@@ -1136,7 +1132,6 @@ static LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Err
                 }
 
                 if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
-                    DEBUG(TEXT("[ScriptParseFactorAST] Expected RPAREN, got type %d (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
                     *Error = SCRIPT_ERROR_SYNTAX;
                     ScriptDestroyAST(Node);
                     return NULL;
@@ -2386,7 +2381,7 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
             }
 
             if (LoopCount >= MAX_ITERATIONS) {
-                DEBUG(TEXT("[ScriptExecuteAST] Loop exceeded maximum iterations"));
+                ERROR(TEXT("[ScriptExecuteAST] Loop exceeded maximum iterations"));
             }
 
             return SCRIPT_OK;
@@ -2676,7 +2671,6 @@ static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
         // Semicolon is mandatory after assignments, optional after blocks/if/for
         if (Statement->Type == AST_ASSIGNMENT) {
             if (Parser->CurrentToken.Type != TOKEN_SEMICOLON && Parser->CurrentToken.Type != TOKEN_RBRACE) {
-                DEBUG(TEXT("[ScriptParseBlockAST] Expected semicolon or }, got token type %d (l:%d,c:%d)"), Parser->CurrentToken.Type, Parser->CurrentToken.Line, Parser->CurrentToken.Column);
                 *Error = SCRIPT_ERROR_SYNTAX;
                 ScriptDestroyAST(BlockNode);
                 return NULL;

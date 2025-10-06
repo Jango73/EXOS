@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -17,11 +18,11 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Shell Script Host Exposure Helpers
+    Script Exposure Helpers
 
 \************************************************************************/
 
-#include "ShellExposed.h"
+#include "Exposed.h"
 
 #include "Base.h"
 #include "List.h"
@@ -31,17 +32,18 @@
 
 /************************************************************************/
 
-#define SHELL_PROCESS_BIND_INTEGER(PropertyName) \
+#define PROCESS_BIND_INTEGER(ExposedName, PropertyName) \
     do { \
-        if (StringCompareNC(Property, TEXT(#PropertyName)) == 0) { \
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT(#ExposedName))) { \
             OutValue->Type = SCRIPT_VAR_INTEGER; \
             OutValue->Value.Integer = (I32)Process->PropertyName; \
             return SCRIPT_OK; \
         } \
     } while (0)
-#define SHELL_PROCESS_BIND_STRING(PropertyName) \
+
+#define PROCESS_BIND_STRING(ExposedName, PropertyName) \
     do { \
-        if (StringCompareNC(Property, TEXT(#PropertyName)) == 0) { \
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT(#ExposedName))) { \
             OutValue->Type = SCRIPT_VAR_STRING; \
             OutValue->Value.String = Process->PropertyName; \
             OutValue->OwnsValue = FALSE; \
@@ -59,7 +61,7 @@
  * @param OutValue Output holder for the property value
  * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
  */
-SCRIPT_ERROR ShellProcessGetProperty(
+SCRIPT_ERROR ProcessGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
     LPCSTR Property,
@@ -76,12 +78,12 @@ SCRIPT_ERROR ShellProcessGetProperty(
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         MemorySet(OutValue, 0, sizeof(SCRIPT_VALUE));
 
-        SHELL_PROCESS_BIND_INTEGER(Status);
-        SHELL_PROCESS_BIND_INTEGER(Flags);
-        SHELL_PROCESS_BIND_INTEGER(ExitCode);
-        SHELL_PROCESS_BIND_STRING(FileName);
-        SHELL_PROCESS_BIND_STRING(CommandLine);
-        SHELL_PROCESS_BIND_STRING(WorkFolder);
+        PROCESS_BIND_INTEGER(status, Status);
+        PROCESS_BIND_INTEGER(flags, Flags);
+        PROCESS_BIND_INTEGER(exitCode, ExitCode);
+        PROCESS_BIND_STRING(fileName, FileName);
+        PROCESS_BIND_STRING(commandLine, CommandLine);
+        PROCESS_BIND_STRING(workFolder, WorkFolder);
 
         return SCRIPT_ERROR_UNDEFINED_VAR;
     }
@@ -99,7 +101,7 @@ SCRIPT_ERROR ShellProcessGetProperty(
  * @param OutValue Output holder for the resulting process handle
  * @return SCRIPT_OK when the process exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
  */
-SCRIPT_ERROR ShellProcessArrayGetElement(
+SCRIPT_ERROR ProcessArrayGetElement(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
     U32 Index,
@@ -126,7 +128,7 @@ SCRIPT_ERROR ShellProcessArrayGetElement(
         MemorySet(OutValue, 0, sizeof(SCRIPT_VALUE));
         OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
         OutValue->Value.HostHandle = Process;
-        OutValue->HostDescriptor = &ShellProcessDescriptor;
+        OutValue->HostDescriptor = &ProcessDescriptor;
         OutValue->HostContext = NULL;
         OutValue->OwnsValue = FALSE;
         return SCRIPT_OK;
@@ -137,23 +139,23 @@ SCRIPT_ERROR ShellProcessArrayGetElement(
 
 /************************************************************************/
 
-const SCRIPT_HOST_DESCRIPTOR ShellProcessDescriptor = {
-    ShellProcessGetProperty,
+const SCRIPT_HOST_DESCRIPTOR ProcessDescriptor = {
+    ProcessGetProperty,
     NULL,
     NULL,
     NULL
 };
 
-const SCRIPT_HOST_DESCRIPTOR ShellProcessArrayDescriptor = {
+const SCRIPT_HOST_DESCRIPTOR ProcessArrayDescriptor = {
     NULL,
-    ShellProcessArrayGetElement,
+    ProcessArrayGetElement,
     NULL,
     NULL
 };
 
 /************************************************************************/
 
-#undef SHELL_PROCESS_BIND_INTEGER
-#undef SHELL_PROCESS_BIND_STRING
+#undef PROCESS_BIND_INTEGER
+#undef PROCESS_BIND_STRING
 
 /************************************************************************/

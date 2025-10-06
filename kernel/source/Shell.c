@@ -29,6 +29,7 @@
 #include "Console.h"
 #include "Disk.h"
 #include "Endianness.h"
+#include "Exposed.h"
 #include "File.h"
 #include "FileSystem.h"
 #include "GFX.h"
@@ -42,7 +43,6 @@
 #include "NetworkManager.h"
 #include "utils/Path.h"
 #include "Process.h"
-#include "ShellExposed.h"
 #include "Script.h"
 #include "StackTrace.h"
 #include "String.h"
@@ -194,7 +194,7 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
                 TEXT("process"),
                 SCRIPT_HOST_SYMBOL_ARRAY,
                 Kernel.Process,
-                &ShellProcessArrayDescriptor,
+                &ProcessArrayDescriptor,
                 NULL)) {
             DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register process host symbol"));
         }
