@@ -1291,7 +1291,6 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     // Check if this is the first user (no users exist yet)
     BOOL IsFirstUser = (Kernel.UserAccount == NULL || Kernel.UserAccount->First == NULL);
     if (IsFirstUser) {
-        ConsolePrint(TEXT("Creating first admin user...\n"));
         Privilege = EXOS_PRIVILEGE_ADMIN;
     } else {
         ConsolePrint(TEXT("Admin user? (y/n): "));
@@ -1309,17 +1308,7 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
 
     SAFE_USE(Account) {
-        ConsolePrint(
-            TEXT("SUCCESS: User '%s' created successfully as %s\n"), UserName,
-            Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("admin") : TEXT("user"));
-
-        DEBUG(TEXT("[CMD_adduser] Saving database"));
-        if (SaveUserDatabase()) {
-            DEBUG(TEXT("[CMD_adduser] Database saved successfully"));
-        } else {
-            DEBUG(TEXT("[CMD_adduser] Failed to save database"));
-            ConsolePrint(TEXT("WARNING: User created but database save failed\n"));
-        }
+        ConsolePrint(TEXT("User created\n"));
     } else {
         ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
         DEBUG(TEXT("[CMD_adduser] CreateUserAccount returned NULL"));
@@ -1810,11 +1799,9 @@ static BOOL HandleUserLoginProcess(void) {
 
         // Check if user was created successfully
         BOOL NewHasUsers = (Kernel.UserAccount != NULL && Kernel.UserAccount->First != NULL);
-        if (NewHasUsers) {
-            ConsolePrint(TEXT("\nFirst admin user created successfully!\n"));
-            ConsolePrint(TEXT("Please log in with your new account:\n\n"));
-        } else {
-            ConsolePrint(TEXT("\nERROR: Failed to create user account. System will exit.\n"));
+
+        if (NewHasUsers == FALSE) {
+            ConsolePrint(TEXT("ERROR: Failed to create user account. System will exit.\n"));
             return FALSE;
         }
     }
