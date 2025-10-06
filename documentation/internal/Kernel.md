@@ -137,17 +137,6 @@ However, the code uses 32 bit registers when appropriate.
 | **ZFS** | COW, pools, checksums, RAID-Z, snapshots | 7 | 10 | Includes volume mgmt; very large scope. |
 | **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
 
-### EXT2 driver status
-
-The in-kernel EXT2 driver now handles write operations in addition to the
-existing read path. It allocates inodes and data blocks, updates the superblock
-and group descriptors, and grows regular files using the twelve direct block
-slots provided by the EXT2 layout. Directory creation mirrors the FAT32 helper:
-intermediate path components are created automatically when requested so that
-`mkdir -p` semantics are available across the virtual file system. Newly created
-directories initialize their `.` and `..` entries, bump the parent link count,
-and flush metadata back to disk immediately to keep the on-disk state coherent.
-
 ## EXOS File System - EXFS
 
 ### Notations used in this document
