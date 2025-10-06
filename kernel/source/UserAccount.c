@@ -284,7 +284,7 @@ BOOL LoadUserDatabase(void) {
         return FALSE;
     }
 
-    I32 Result = DatabaseLoad(Database, PATH_USERS_DATABASE);
+    I32 Result = DatabaseLoad(Database, TEXT(PATH_USERS_DATABASE));
     if (Result != 0) {
         DatabaseFree(Database);
         return FALSE;
@@ -348,7 +348,7 @@ BOOL SaveUserDatabase(void) {
     UnlockMutex(MUTEX_ACCOUNTS);
 
     U32 SavedCount = Database->Count;
-    I32 Result = DatabaseSave(Database, PATH_USERS_DATABASE);
+    I32 Result = DatabaseSave(Database, TEXT(PATH_USERS_DATABASE));
 
     DatabaseFree(Database);
 

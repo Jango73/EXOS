@@ -11,7 +11,8 @@ VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
 
 BUILD_DIR       = ../build
 
-KERNEL_CFG      = ../kernel/configuration/exos.toml
+KERNEL_CFG_FAT32= ../kernel/configuration/exos.fat32.toml
+KERNEL_CFG_EXT2 = ../kernel/configuration/exos.ext2.toml
 KERNEL_CFG_REF  = ../kernel/configuration/exos.ref.toml
 MTOOLS_CONF     = .mtoolsrc.tmp
 MBR_SOURCE      = source/mbr.asm
@@ -209,15 +210,18 @@ $(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(P
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
 
-$(KERNEL_CFG): $(FINAL_IMG)
+$(KERNEL_CFG_FAT32): $(FINAL_IMG)
+	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
+
+$(KERNEL_CFG_EXT2): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
 
 update: $(UPDATE_TARGET)
 
-update-fat32: $(FINAL_IMG) $(KERNEL_CFG)
+update-fat32: $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
-		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG),z:/exos.toml) \
+		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/exos.toml) \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
@@ -231,14 +235,15 @@ update-fat32: $(FINAL_IMG) $(KERNEL_CFG)
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
 		All files injected into image.)
 
-update-ext2: $(FINAL_IMG) $(KERNEL_CFG)
+update-ext2: $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@echo "Preparing EXT2 staging directory at $(EXT2_STAGING_DIR)"
 	@rm -rf $(EXT2_STAGING_DIR)
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
-	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
 	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
-	@cp $(KERNEL_CFG) $(EXT2_STAGING_DIR)/exos.toml
+	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/exos.toml
 	@cp $(PORTAL_ELF) $(EXT2_STAGING_DIR)/exos/apps/portal
 	@cp $(NETGET_ELF) $(EXT2_STAGING_DIR)/exos/apps/netget
 	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
