@@ -146,6 +146,10 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
+    if (!SaveUserDatabase()) {
+        ERROR(TEXT("[CreateUserAccount] Failed to save user database after creating user %s"), UserName);
+    }
+
     DEBUG(TEXT("[CreateUserAccount] User created successfully"));
     KernelLogText(LOG_VERBOSE, TEXT("Created user account: %s"), UserName);
     return NewUser;
