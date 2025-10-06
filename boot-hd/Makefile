@@ -1,22 +1,20 @@
 # Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
 DEBUG_OUTPUT    ?= 0
-FILESYSTEM      ?= ext2
+
+IMG_SIZE_MB     ?= 64
+FILE_SYSTEM     ?= ext2
+EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
-
-BUILD_DIR       = ../build
-
-IMG_SIZE_MB     = 64
 RESERVED_SECTORS= 64		# Reserved sectors for VBR payload
 VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
+
+BUILD_DIR       = ../build
 
 KERNEL_CFG      = ../kernel/configuration/exos.toml
 KERNEL_CFG_REF  = ../kernel/configuration/exos.ref.toml
 MTOOLS_CONF     = .mtoolsrc.tmp
 MBR_SOURCE      = source/mbr.asm
-
-# EXT2 layout configuration
-EXT2_BLOCK_SIZE ?= 4096
 
 VBR_SRC         = source/vbr.asm
 PAYLOAD_STUB    = source/vbr-payload-a.asm
@@ -114,7 +112,7 @@ define POPULATE_EXT2_IMAGE
 	}
 endef
 
-ifeq ($(FILESYSTEM),ext2)
+ifeq ($(FILE_SYSTEM),ext2)
 CREATE_IMAGE_MACRO = CREATE_EXT2_IMAGE
 UPDATE_TARGET      = update-ext2
 FS_SPECIFIC_CHECK  = @command -v mke2fs >/dev/null 2>&1 || { echo "mke2fs is not installed. Please run: sudo apt install e2fsprogs"; exit 1; }
