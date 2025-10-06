@@ -80,6 +80,18 @@ typedef struct {
 
 /************************************************************************/
 
+typedef enum {
+    SCRIPT_OK = 0,
+    SCRIPT_ERROR_SYNTAX,
+    SCRIPT_ERROR_UNDEFINED_VAR,
+    SCRIPT_ERROR_TYPE_MISMATCH,
+    SCRIPT_ERROR_DIVISION_BY_ZERO,
+    SCRIPT_ERROR_OUT_OF_MEMORY,
+    SCRIPT_ERROR_UNMATCHED_BRACE
+} SCRIPT_ERROR;
+
+/************************************************************************/
+
 typedef LPVOID SCRIPT_HOST_HANDLE;
 
 struct tag_SCRIPT_VALUE;
@@ -154,18 +166,6 @@ typedef struct {
     U32 Line;
     U32 Column;
 } SCRIPT_TOKEN, *LPSCRIPT_TOKEN;
-
-/************************************************************************/
-
-typedef enum {
-    SCRIPT_OK = 0,
-    SCRIPT_ERROR_SYNTAX,
-    SCRIPT_ERROR_UNDEFINED_VAR,
-    SCRIPT_ERROR_TYPE_MISMATCH,
-    SCRIPT_ERROR_DIVISION_BY_ZERO,
-    SCRIPT_ERROR_OUT_OF_MEMORY,
-    SCRIPT_ERROR_UNMATCHED_BRACE
-} SCRIPT_ERROR;
 
 /************************************************************************/
 

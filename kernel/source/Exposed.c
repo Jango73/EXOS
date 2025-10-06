@@ -25,6 +25,7 @@
 
 #include "Base.h"
 #include "List.h"
+#include "Memory.h"
 #include "Process.h"
 #include "String.h"
 
