@@ -127,6 +127,20 @@ static BOOL ShellCommandLineCompletion(
     const COMMANDLINE_COMPLETION_CONTEXT* CompletionContext,
     LPSTR Output,
     U32 OutputSize);
+static SCRIPT_ERROR ShellProcessGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+static SCRIPT_ERROR ShellProcessArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context);
+
+static const SCRIPT_HOST_DESCRIPTOR ShellProcessDescriptor;
+static const SCRIPT_HOST_DESCRIPTOR ShellProcessArrayDescriptor;
 static void ClearOptions(LPSHELLCONTEXT);
 static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
 static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
@@ -180,6 +194,145 @@ static struct {
 
 /************************************************************************/
 
+static SCRIPT_ERROR ShellProcessGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    if (OutValue == NULL || Parent == NULL || Property == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    LPPROCESS Process = (LPPROCESS)Parent;
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        MemorySet(OutValue, 0, sizeof(SCRIPT_VALUE));
+
+        if (StringCompareNC(Property, TEXT("Status")) == 0) {
+            OutValue->Type = SCRIPT_VAR_INTEGER;
+            OutValue->Value.Integer = (I32)Process->Status;
+            return SCRIPT_OK;
+        }
+
+        if (StringCompareNC(Property, TEXT("Flags")) == 0) {
+            OutValue->Type = SCRIPT_VAR_INTEGER;
+            OutValue->Value.Integer = (I32)Process->Flags;
+            return SCRIPT_OK;
+        }
+
+        if (StringCompareNC(Property, TEXT("ExitCode")) == 0) {
+            OutValue->Type = SCRIPT_VAR_INTEGER;
+            OutValue->Value.Integer = (I32)Process->ExitCode;
+            return SCRIPT_OK;
+        }
+
+        if (StringCompareNC(Property, TEXT("FileName")) == 0) {
+            OutValue->Type = SCRIPT_VAR_STRING;
+            OutValue->Value.String = Process->FileName;
+            OutValue->OwnsValue = FALSE;
+            return SCRIPT_OK;
+        }
+
+        if (StringCompareNC(Property, TEXT("CommandLine")) == 0) {
+            OutValue->Type = SCRIPT_VAR_STRING;
+            OutValue->Value.String = Process->CommandLine;
+            OutValue->OwnsValue = FALSE;
+            return SCRIPT_OK;
+        }
+
+        if (StringCompareNC(Property, TEXT("WorkFolder")) == 0) {
+            OutValue->Type = SCRIPT_VAR_STRING;
+            OutValue->Value.String = Process->WorkFolder;
+            OutValue->OwnsValue = FALSE;
+            return SCRIPT_OK;
+        }
+
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+static SCRIPT_ERROR ShellProcessArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    if (OutValue == NULL || Parent == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    LPLIST ProcessList = (LPLIST)Parent;
+    if (ProcessList == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    if (Index >= ListGetSize(ProcessList)) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    LPPROCESS Process = (LPPROCESS)ListGetItem(ProcessList, Index);
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        MemorySet(OutValue, 0, sizeof(SCRIPT_VALUE));
+        OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
+        OutValue->Value.HostHandle = Process;
+        OutValue->HostDescriptor = &ShellProcessDescriptor;
+        OutValue->HostContext = NULL;
+        OutValue->OwnsValue = FALSE;
+        return SCRIPT_OK;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
+
+    if (Context == NULL || Context->ScriptContext == NULL) {
+        return;
+    }
+
+    SAFE_USE(Kernel.Process) {
+        if (!ScriptRegisterHostSymbol(
+                Context->ScriptContext,
+                TEXT("process"),
+                SCRIPT_HOST_SYMBOL_ARRAY,
+                Kernel.Process,
+                &ShellProcessArrayDescriptor,
+                NULL)) {
+            DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register process host symbol"));
+        }
+    }
+}
+
+/************************************************************************/
+
+static const SCRIPT_HOST_DESCRIPTOR ShellProcessDescriptor = {
+    ShellProcessGetProperty,
+    NULL,
+    NULL,
+    NULL
+};
+
+static const SCRIPT_HOST_DESCRIPTOR ShellProcessArrayDescriptor = {
+    NULL,
+    ShellProcessArrayGetElement,
+    NULL,
+    NULL
+};
+
+/************************************************************************/
+
 static void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
@@ -216,6 +369,8 @@ static void InitShellContext(LPSHELLCONTEXT This) {
         This
     };
     This->ScriptContext = ScriptCreateContext(&Callbacks);
+
+    ShellRegisterScriptHostObjects(This);
 
     DEBUG(TEXT("[InitShellContext] Exit"));
 }

@@ -45,6 +45,17 @@ and SATA), graphics (VGA, VESA, and mode tables), and file system backends
 from the build system and clarifies the separation between reusable utilities
 and hardware support code.
 
+### Shell scripting integration
+
+The interactive shell keeps a persistent script interpreter context to run
+automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol`
+so scripts can inspect kernel state without bypassing the interpreter API. The
+shell now publishes the kernel process list under the global identifier
+`process`. Scripts can iterate over the list (`process[0]`, `process[1]`, ...)
+and query per-process properties such as `Status`, `Flags`, `ExitCode`,
+`FileName`, `CommandLine`, and `WorkFolder`, enabling diagnostics like
+`process[0].CommandLine` directly from the scripting language.
+
 ### ACPI services
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
