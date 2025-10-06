@@ -20,7 +20,7 @@ EXOS is a 32-bit operating system for i386 architecture, originally developed in
 - **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines
 - **Comments**: For single-line comments, use `//`, not `/*`
 - **Style**: 4-space indentation, follow `.clang-format` rules
-- **Numbers**: Hexadecimal for constant numbers, except for graphic points/sizes and time
+- **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors and time
 - **Documentation**: Update `documentation/internal/Kernel.md` when adding/modifying kernel components
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed)
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only
