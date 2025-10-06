@@ -40,7 +40,7 @@
 /************************************************************************/
 
 static U32 NextSessionID = 1;
-static const U32 USER_DATABASE_CAPACITY = 0x3E8;
+static const U32 USER_DATABASE_CAPACITY = 1000;
 
 /************************************************************************/
 
