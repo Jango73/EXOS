@@ -35,7 +35,6 @@
 #define VER_MINOR 1
 
 #define EXT2_DEFAULT_BLOCK_SIZE 1024
-#define EXT2_INITIAL_FILE_CAPACITY 4
 #define EXT2_MODE_TYPE_MASK 0xF000
 #define EXT2_MODE_DIRECTORY 0x4000
 #define EXT2_MODE_REGULAR 0x8000
@@ -63,31 +62,19 @@ typedef struct tag_EXT2FILESYSTEM {
     U32 InodeSize;
     U32 InodesPerBlock;
     MUTEX FilesMutex;
-    LPEXT2FILEREC* FileTable;
-    U32 FileCount;
-    U32 FileCapacity;
+    U8* IOBuffer;
 } EXT2FILESYSTEM, *LPEXT2FILESYSTEM;
-
-/************************************************************************/
-
-typedef struct tag_EXT2BLOCKCACHE {
-    U32* Single;
-    U32 SingleSourceBlock;
-    U32* Double;
-} EXT2BLOCKCACHE, *LPEXT2BLOCKCACHE;
 
 /************************************************************************/
 
 typedef struct tag_EXT2FILE {
     FILE Header;
-    EXT2FILELOC Location;
+    EXT2INODE Inode;
+    U32 InodeIndex;
     BOOL IsDirectory;
     BOOL Enumerate;
-    EXT2INODE DirectoryInode;
-    U32 DirectoryInodeIndex;
     U32 DirectoryBlockIndex;
     U32 DirectoryBlockOffset;
-    EXT2BLOCKCACHE DirectoryCache;
     U8* DirectoryBlock;
     BOOL DirectoryBlockValid;
     STR Pattern[MAX_FILE_NAME];
@@ -96,28 +83,22 @@ typedef struct tag_EXT2FILE {
 /************************************************************************/
 
 static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk);
-static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem, LPEXT2FILEREC Record);
-static BOOL EnsureFileTableCapacity(LPEXT2FILESYSTEM FileSystem);
-static LPEXT2FILEREC FindFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name);
-static LPEXT2FILEREC CreateFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name);
-static BOOL EnsureRecordCapacity(LPEXT2FILEREC Record, U32 RequiredSize);
+static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem);
 static BOOL HasWildcard(LPCSTR Path);
 static void ExtractBaseName(LPCSTR Path, LPSTR Name);
 static void ReleaseDirectoryResources(LPEXT2FILE File);
 static BOOL MatchPattern(LPCSTR Name, LPCSTR Pattern);
 static BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVOID Buffer);
 static BOOL ReadBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPVOID Buffer);
+static BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPCVOID Buffer);
+static BOOL WriteBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPCVOID Buffer);
 static BOOL LoadGroupDescriptors(LPEXT2FILESYSTEM FileSystem);
 static BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
-static BOOL GetInodeBlockNumber(
-    LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, LPEXT2BLOCKCACHE Cache, U32* BlockNumber);
+static BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, U32* BlockNumber);
 static BOOL FindInodeInDirectory(
     LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Directory, LPCSTR Name, U32* InodeIndex);
 static BOOL ResolvePath(
     LPEXT2FILESYSTEM FileSystem, LPCSTR Path, LPEXT2INODE Inode, U32* InodeIndex);
-static BOOL ReadFileContent(
-    LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U8** Data, U32* Size);
-static LPEXT2FILEREC LoadFileRecordFromDisk(LPEXT2FILESYSTEM FileSystem, LPCSTR Name);
 static BOOL LoadDirectoryInode(
     LPEXT2FILESYSTEM FileSystem, LPCSTR Path, LPEXT2INODE Inode, U32* InodeIndex);
 static void FillFileHeaderFromInode(LPEXT2FILE File, LPCSTR Name, LPEXT2INODE Inode);
@@ -193,23 +174,12 @@ static void ExtractBaseName(LPCSTR Path, LPSTR Name) {
 static void ReleaseDirectoryResources(LPEXT2FILE File) {
     if (File == NULL) return;
 
-    if (File->DirectoryCache.Single != NULL) {
-        KernelHeapFree(File->DirectoryCache.Single);
-        File->DirectoryCache.Single = NULL;
-    }
-
-    if (File->DirectoryCache.Double != NULL) {
-        KernelHeapFree(File->DirectoryCache.Double);
-        File->DirectoryCache.Double = NULL;
-    }
-
     if (File->DirectoryBlock != NULL) {
         KernelHeapFree(File->DirectoryBlock);
         File->DirectoryBlock = NULL;
     }
 
     File->DirectoryBlockValid = FALSE;
-    File->DirectoryCache.SingleSourceBlock = MAX_U32;
 }
 
 /************************************************************************/
@@ -327,13 +297,11 @@ static BOOL SetupDirectoryHandle(
 
     File->IsDirectory = TRUE;
     File->Enumerate = Enumerate;
-    MemoryCopy(&(File->DirectoryInode), Directory, sizeof(EXT2INODE));
-    File->DirectoryInodeIndex = InodeIndex;
+    MemoryCopy(&(File->Inode), Directory, sizeof(EXT2INODE));
+    File->InodeIndex = InodeIndex;
     File->DirectoryBlockIndex = 0;
     File->DirectoryBlockOffset = 0;
     File->DirectoryBlockValid = FALSE;
-    MemorySet(&(File->DirectoryCache), 0, sizeof(EXT2BLOCKCACHE));
-    File->DirectoryCache.SingleSourceBlock = MAX_U32;
     File->DirectoryBlock = NULL;
     File->Pattern[0] = STR_NULL;
 
@@ -371,7 +339,7 @@ static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
 
     if (FileSystem->BlockSize == 0) return FALSE;
 
-    BlockCount = (File->DirectoryInode.Size + FileSystem->BlockSize - 1) / FileSystem->BlockSize;
+    BlockCount = (File->Inode.Size + FileSystem->BlockSize - 1) / FileSystem->BlockSize;
     if (BlockCount == 0) {
         BlockCount = 1;
     }
@@ -380,9 +348,7 @@ static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
         if (File->DirectoryBlockValid == FALSE) {
             U32 BlockNumber;
 
-            if (GetInodeBlockNumber(
-                    FileSystem, &(File->DirectoryInode), File->DirectoryBlockIndex, &(File->DirectoryCache), &BlockNumber) ==
-                FALSE) {
+            if (GetInodeBlockNumber(FileSystem, &(File->Inode), File->DirectoryBlockIndex, &BlockNumber) == FALSE) {
                 return FALSE;
             }
 
@@ -514,6 +480,35 @@ static BOOL ReadBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPVOID Buffer) {
 
 /************************************************************************/
 
+static BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPCVOID Buffer) {
+    IOCONTROL Control;
+
+    if (FileSystem == NULL || FileSystem->Disk == NULL) return FALSE;
+    if (Buffer == NULL || Count == 0) return FALSE;
+
+    Control.TypeID = KOID_IOCONTROL;
+    Control.Disk = FileSystem->Disk;
+    Control.SectorLow = FileSystem->PartitionStart + Sector;
+    Control.SectorHigh = 0;
+    Control.NumSectors = Count;
+    Control.Buffer = (LPVOID)Buffer;
+    Control.BufferSize = Count * SECTOR_SIZE;
+
+    return FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control) == DF_ERROR_SUCCESS;
+}
+
+/************************************************************************/
+
+static BOOL WriteBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPCVOID Buffer) {
+    if (FileSystem == NULL) return FALSE;
+    if (Buffer == NULL) return FALSE;
+    if (FileSystem->SectorsPerBlock == 0) return FALSE;
+
+    return WriteSectors(FileSystem, Block * FileSystem->SectorsPerBlock, FileSystem->SectorsPerBlock, Buffer);
+}
+
+/************************************************************************/
+
 /**
  * @brief Loads block group descriptors from disk into memory.
  * @param FileSystem Pointer to the EXT2 file system instance.
@@ -641,16 +636,13 @@ static BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE I
  * @param FileSystem Pointer to the EXT2 file system instance.
  * @param Inode Pointer to the inode describing the file.
  * @param BlockIndex Zero-based data block index within the file.
- * @param Cache Cache structure used to reuse indirect block reads.
  * @param BlockNumber Receives the resolved block number (0 if sparse).
  * @return TRUE if the block number could be determined, FALSE otherwise.
  */
-static BOOL GetInodeBlockNumber(
-    LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, LPEXT2BLOCKCACHE Cache, U32* BlockNumber) {
-    U32 SingleEntries;
-    U32 SingleSource;
+static BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, U32* BlockNumber) {
+    U32 EntriesPerBlock;
 
-    if (FileSystem == NULL || Inode == NULL || Cache == NULL || BlockNumber == NULL) return FALSE;
+    if (FileSystem == NULL || Inode == NULL || BlockNumber == NULL) return FALSE;
 
     if (BlockIndex < EXT2_DIRECT_BLOCKS) {
         *BlockNumber = Inode->Block[BlockIndex];
@@ -659,81 +651,87 @@ static BOOL GetInodeBlockNumber(
 
     if (FileSystem->BlockSize == 0) return FALSE;
 
+    EntriesPerBlock = FileSystem->BlockSize / sizeof(U32);
+    if (EntriesPerBlock == 0) return FALSE;
+
     BlockIndex -= EXT2_DIRECT_BLOCKS;
 
-    SingleEntries = FileSystem->BlockSize / sizeof(U32);
-    if (SingleEntries == 0) return FALSE;
+    if (BlockIndex < EntriesPerBlock) {
+        U32 SingleBlock = Inode->Block[EXT2_DIRECT_BLOCKS];
+        U32* Indirect;
 
-    if (BlockIndex < SingleEntries) {
-        SingleSource = Inode->Block[EXT2_DIRECT_BLOCKS];
-
-        if (SingleSource == 0) {
+        if (SingleBlock == 0) {
             *BlockNumber = 0;
             return TRUE;
         }
 
-        if (Cache->Single == NULL) {
-            Cache->Single = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
-            if (Cache->Single == NULL) return FALSE;
+        Indirect = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (Indirect == NULL) return FALSE;
+
+        if (ReadBlock(FileSystem, SingleBlock, Indirect) == FALSE) {
+            KernelHeapFree(Indirect);
+            return FALSE;
         }
 
-        if (Cache->SingleSourceBlock != SingleSource) {
-            if (ReadBlock(FileSystem, SingleSource, Cache->Single) == FALSE) {
-                return FALSE;
-            }
-            Cache->SingleSourceBlock = SingleSource;
-        }
-
-        *BlockNumber = Cache->Single[BlockIndex];
+        *BlockNumber = Indirect[BlockIndex];
+        KernelHeapFree(Indirect);
         return TRUE;
     }
 
-    BlockIndex -= SingleEntries;
+    BlockIndex -= EntriesPerBlock;
 
     if (Inode->Block[EXT2_DIRECT_BLOCKS + 1] == 0) {
         *BlockNumber = 0;
         return TRUE;
     }
 
-    if (Cache->Double == NULL) {
-        Cache->Double = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
-        if (Cache->Double == NULL) return FALSE;
-        if (ReadBlock(FileSystem, Inode->Block[EXT2_DIRECT_BLOCKS + 1], Cache->Double) == FALSE) {
-            KernelHeapFree(Cache->Double);
-            Cache->Double = NULL;
+    {
+        U32* DoubleBuffer;
+        U32 DoubleEntries = EntriesPerBlock;
+        U32 DoubleIndex;
+        U32 SingleIndex;
+        U32 SingleBlock;
+        U32* SingleBuffer;
+
+        DoubleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (DoubleBuffer == NULL) return FALSE;
+
+        if (ReadBlock(FileSystem, Inode->Block[EXT2_DIRECT_BLOCKS + 1], DoubleBuffer) == FALSE) {
+            KernelHeapFree(DoubleBuffer);
             return FALSE;
         }
-    }
 
-    {
-        U32 DoubleEntries = SingleEntries;
-        U32 DoubleIndex = BlockIndex / SingleEntries;
-        U32 SingleIndex = BlockIndex % SingleEntries;
+        DoubleIndex = BlockIndex / EntriesPerBlock;
+        SingleIndex = BlockIndex % EntriesPerBlock;
 
         if (DoubleIndex >= DoubleEntries) {
+            KernelHeapFree(DoubleBuffer);
             return FALSE;
         }
 
-        SingleSource = Cache->Double[DoubleIndex];
+        SingleBlock = DoubleBuffer[DoubleIndex];
 
-        if (SingleSource == 0) {
+        if (SingleBlock == 0) {
             *BlockNumber = 0;
+            KernelHeapFree(DoubleBuffer);
             return TRUE;
         }
 
-        if (Cache->Single == NULL) {
-            Cache->Single = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
-            if (Cache->Single == NULL) return FALSE;
+        SingleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (SingleBuffer == NULL) {
+            KernelHeapFree(DoubleBuffer);
+            return FALSE;
         }
 
-        if (Cache->SingleSourceBlock != SingleSource) {
-            if (ReadBlock(FileSystem, SingleSource, Cache->Single) == FALSE) {
-                return FALSE;
-            }
-            Cache->SingleSourceBlock = SingleSource;
+        if (ReadBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
+            KernelHeapFree(SingleBuffer);
+            KernelHeapFree(DoubleBuffer);
+            return FALSE;
         }
 
-        *BlockNumber = Cache->Single[SingleIndex];
+        *BlockNumber = SingleBuffer[SingleIndex];
+        KernelHeapFree(SingleBuffer);
+        KernelHeapFree(DoubleBuffer);
         return TRUE;
     }
 }
@@ -755,7 +753,6 @@ static BOOL FindInodeInDirectory(
     U32 NameLength;
     U8* BlockBuffer;
     BOOL Found;
-    EXT2BLOCKCACHE Cache;
 
     if (FileSystem == NULL || Directory == NULL || InodeIndex == NULL) return FALSE;
     if (STRING_EMPTY(Name)) return FALSE;
@@ -765,8 +762,6 @@ static BOOL FindInodeInDirectory(
     NameLength = StringLength(Name);
     BlockCount = 0;
     Found = FALSE;
-    MemorySet(&Cache, 0, sizeof(Cache));
-    Cache.SingleSourceBlock = MAX_U32;
 
     if (FileSystem->BlockSize == 0) return FALSE;
 
@@ -780,7 +775,7 @@ static BOOL FindInodeInDirectory(
     for (BlockIndex = 0; BlockIndex < BlockCount && Found == FALSE; BlockIndex++) {
         U32 BlockNumber;
 
-        if (GetInodeBlockNumber(FileSystem, Directory, BlockIndex, &Cache, &BlockNumber) == FALSE) break;
+        if (GetInodeBlockNumber(FileSystem, Directory, BlockIndex, &BlockNumber) == FALSE) break;
         if (BlockNumber == 0) continue;
 
         if (ReadBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) break;
@@ -810,9 +805,6 @@ static BOOL FindInodeInDirectory(
             Offset += EntryLength;
         }
     }
-
-    if (Cache.Single != NULL) KernelHeapFree(Cache.Single);
-    if (Cache.Double != NULL) KernelHeapFree(Cache.Double);
 
     KernelHeapFree(BlockBuffer);
 
@@ -881,145 +873,6 @@ static BOOL ResolvePath(
     return TRUE;
 }
 
-/************************************************************************/
-
-/**
- * @brief Reads the complete content of an inode into memory.
- * @param FileSystem Pointer to the EXT2 file system instance.
- * @param Inode Pointer to the inode describing the file.
- * @param Data Receives the allocated buffer containing file data.
- * @param Size Receives the file size in bytes.
- * @return TRUE on success, FALSE otherwise.
- */
-static BOOL ReadFileContent(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U8** Data, U32* Size) {
-    U8* BlockBuffer;
-    U8* Output;
-    U32 Remaining;
-    U32 BlockIndex;
-    U32 BlockCount;
-    EXT2BLOCKCACHE Cache;
-
-    if (FileSystem == NULL || Inode == NULL || Data == NULL || Size == NULL) return FALSE;
-
-    *Data = NULL;
-    *Size = Inode->Size;
-
-    if (Inode->Size == 0) return TRUE;
-
-    Output = (U8*)KernelHeapAlloc(Inode->Size);
-    if (Output == NULL) return FALSE;
-
-    BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
-    if (BlockBuffer == NULL) {
-        KernelHeapFree(Output);
-        return FALSE;
-    }
-
-    BlockCount = (Inode->Size + FileSystem->BlockSize - 1) / FileSystem->BlockSize;
-    Remaining = Inode->Size;
-    MemorySet(&Cache, 0, sizeof(Cache));
-    Cache.SingleSourceBlock = MAX_U32;
-
-    for (BlockIndex = 0; BlockIndex < BlockCount; BlockIndex++) {
-        U32 BlockNumber;
-        U32 CopySize;
-
-        if (GetInodeBlockNumber(FileSystem, Inode, BlockIndex, &Cache, &BlockNumber) == FALSE) {
-            KernelHeapFree(BlockBuffer);
-            KernelHeapFree(Output);
-            if (Cache.Single != NULL) KernelHeapFree(Cache.Single);
-            if (Cache.Double != NULL) KernelHeapFree(Cache.Double);
-            return FALSE;
-        }
-
-        if (BlockNumber == 0) {
-            MemorySet(BlockBuffer, 0, FileSystem->BlockSize);
-        } else if (ReadBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
-            KernelHeapFree(BlockBuffer);
-            KernelHeapFree(Output);
-            if (Cache.Single != NULL) KernelHeapFree(Cache.Single);
-            if (Cache.Double != NULL) KernelHeapFree(Cache.Double);
-            return FALSE;
-        }
-
-        CopySize = FileSystem->BlockSize;
-        if (CopySize > Remaining) {
-            CopySize = Remaining;
-        }
-
-        MemoryCopy(Output + (BlockIndex * FileSystem->BlockSize), BlockBuffer, CopySize);
-
-        Remaining -= CopySize;
-    }
-
-    if (Cache.Single != NULL) KernelHeapFree(Cache.Single);
-    if (Cache.Double != NULL) KernelHeapFree(Cache.Double);
-
-    KernelHeapFree(BlockBuffer);
-
-    *Data = Output;
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Loads a file from disk and caches it in memory.
- * @param FileSystem Pointer to the EXT2 file system instance.
- * @param Name Path of the file to load.
- * @return Pointer to the cached file record, or NULL on failure.
- */
-static LPEXT2FILEREC LoadFileRecordFromDisk(LPEXT2FILESYSTEM FileSystem, LPCSTR Name) {
-    EXT2INODE Inode;
-    U32 InodeIndex;
-    U8* Data;
-    U32 Size;
-    LPEXT2FILEREC Record;
-
-    if (FileSystem == NULL || STRING_EMPTY(Name)) return NULL;
-
-    if (ResolvePath(FileSystem, Name, &Inode, &InodeIndex) == FALSE) return NULL;
-    UNUSED(InodeIndex);
-
-    if ((Inode.Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_DIRECTORY) {
-        return NULL;
-    }
-
-    if ((Inode.Mode & EXT2_MODE_TYPE_MASK) != EXT2_MODE_REGULAR) {
-        return NULL;
-    }
-
-    Data = NULL;
-    Size = 0;
-
-    if (ReadFileContent(FileSystem, &Inode, &Data, &Size) == FALSE) {
-        if (Data != NULL) {
-            KernelHeapFree(Data);
-        }
-        return NULL;
-    }
-
-    Record = CreateFileRecord(FileSystem, Name);
-    if (Record == NULL) {
-        if (Data != NULL) {
-            KernelHeapFree(Data);
-        }
-        return NULL;
-    }
-
-    Record->Attributes = 0;
-    Record->Size = Size;
-    Record->Capacity = Size;
-    Record->Data = Data;
-
-    DEBUG(TEXT("[LoadFileRecordFromDisk] Loaded %s (%u bytes)"), Name, Size);
-
-    return Record;
-}
-
-/************************************************************************/
-
 /**
  * @brief Allocates and initializes a new EXT2 filesystem structure.
  * @param Disk Pointer to the physical disk hosting the filesystem.
@@ -1047,9 +900,7 @@ static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk) {
     FileSystem->SectorsPerBlock = 0;
     FileSystem->InodeSize = 0;
     FileSystem->InodesPerBlock = 0;
-    FileSystem->FileTable = NULL;
-    FileSystem->FileCount = 0;
-    FileSystem->FileCapacity = 0;
+    FileSystem->IOBuffer = NULL;
 
     InitMutex(&(FileSystem->Header.Mutex));
     InitMutex(&(FileSystem->FilesMutex));
@@ -1060,12 +911,11 @@ static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk) {
 /************************************************************************/
 
 /**
- * @brief Allocates a new file object bound to an EXT2 file record.
+ * @brief Allocates a new EXT2 file handle.
  * @param FileSystem Owning EXT2 filesystem instance.
- * @param Record Cached file record backing the file handle.
  * @return Newly allocated file handle, or NULL on failure.
  */
-static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem, LPEXT2FILEREC Record) {
+static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem) {
     LPEXT2FILE File;
 
     File = (LPEXT2FILE)KernelHeapAlloc(sizeof(EXT2FILE));
@@ -1082,151 +932,14 @@ static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem, LPEXT2FILEREC Record)
     InitMutex(&(File->Header.Mutex));
     InitSecurity(&(File->Header.Security));
 
-    File->Location.Record = Record;
-    File->Location.Offset = 0;
+    File->InodeIndex = 0;
+    File->DirectoryBlockIndex = 0;
+    File->DirectoryBlockOffset = 0;
+    File->DirectoryBlock = NULL;
+    File->DirectoryBlockValid = FALSE;
 
     return File;
 }
-
-/************************************************************************/
-
-/**
- * @brief Ensures the file table has room for at least one additional entry.
- * @param FileSystem EXT2 filesystem whose cache should be expanded.
- * @return TRUE when capacity is sufficient or successfully expanded, FALSE otherwise.
- */
-static BOOL EnsureFileTableCapacity(LPEXT2FILESYSTEM FileSystem) {
-    LPEXT2FILEREC* NewTable;
-    U32 NewCapacity;
-    U32 CopySize;
-
-    if (FileSystem->FileCount < FileSystem->FileCapacity) return TRUE;
-
-    if (FileSystem->FileCapacity == 0) {
-        NewCapacity = EXT2_INITIAL_FILE_CAPACITY;
-    } else {
-        NewCapacity = FileSystem->FileCapacity * 2;
-    }
-
-    CopySize = sizeof(LPEXT2FILEREC) * FileSystem->FileCapacity;
-
-    NewTable = (LPEXT2FILEREC*)KernelHeapAlloc(sizeof(LPEXT2FILEREC) * NewCapacity);
-    if (NewTable == NULL) return FALSE;
-
-    MemorySet(NewTable, 0, sizeof(LPEXT2FILEREC) * NewCapacity);
-
-    if (FileSystem->FileTable != NULL && FileSystem->FileCapacity != 0) {
-        MemoryCopy(NewTable, FileSystem->FileTable, CopySize);
-        KernelHeapFree(FileSystem->FileTable);
-    }
-
-    FileSystem->FileTable = NewTable;
-    FileSystem->FileCapacity = NewCapacity;
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Searches the cached file table for a file record by name.
- * @param FileSystem EXT2 filesystem that owns the cache.
- * @param Name File name to search for.
- * @return Pointer to the cached record if found, NULL otherwise.
- */
-static LPEXT2FILEREC FindFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name) {
-    U32 Index;
-
-    if (FileSystem == NULL || Name == NULL) return NULL;
-
-    for (Index = 0; Index < FileSystem->FileCount; Index++) {
-        LPEXT2FILEREC Record = FileSystem->FileTable[Index];
-        if (Record == NULL) continue;
-
-        if (StringCompare(Record->Name, Name) == 0) {
-            return Record;
-        }
-    }
-
-    return NULL;
-}
-
-/************************************************************************/
-
-/**
- * @brief Allocates and stores a new in-memory file record.
- * @param FileSystem EXT2 filesystem that owns the record table.
- * @param Name Name of the file to associate with the record.
- * @return Newly created file record, or NULL on allocation failure.
- */
-static LPEXT2FILEREC CreateFileRecord(LPEXT2FILESYSTEM FileSystem, LPCSTR Name) {
-    LPEXT2FILEREC Record;
-
-    if (FileSystem == NULL || STRING_EMPTY(Name)) return NULL;
-
-    if (EnsureFileTableCapacity(FileSystem) == FALSE) return NULL;
-
-    Record = (LPEXT2FILEREC)KernelHeapAlloc(sizeof(EXT2FILEREC));
-    if (Record == NULL) return NULL;
-
-    MemorySet(Record, 0, sizeof(EXT2FILEREC));
-
-    StringCopyLimit(Record->Name, Name, MAX_FILE_NAME - 1);
-    Record->Attributes = 0;
-    Record->Size = 0;
-    Record->Capacity = 0;
-    Record->Data = NULL;
-
-    FileSystem->FileTable[FileSystem->FileCount++] = Record;
-
-    return Record;
-}
-
-/************************************************************************/
-
-/**
- * @brief Ensures the in-memory buffer backing a file record can store a given size.
- * @param Record File record to grow.
- * @param RequiredSize Minimum capacity requested in bytes.
- * @return TRUE when the record has enough space or growth succeeded, FALSE otherwise.
- */
-static BOOL EnsureRecordCapacity(LPEXT2FILEREC Record, U32 RequiredSize) {
-    U32 NewCapacity;
-    U8* NewData;
-
-    if (Record == NULL) return FALSE;
-    if (RequiredSize <= Record->Capacity) return TRUE;
-
-    if (Record->Capacity == 0) {
-        NewCapacity = EXT2_DEFAULT_BLOCK_SIZE;
-    } else {
-        NewCapacity = Record->Capacity;
-    }
-
-    while (NewCapacity < RequiredSize) {
-        NewCapacity *= 2;
-    }
-
-    NewData = (U8*)KernelHeapAlloc(NewCapacity);
-    if (NewData == NULL) return FALSE;
-
-    MemorySet(NewData, 0, NewCapacity);
-
-    if (Record->Data != NULL) {
-        if (Record->Size > 0) {
-            MemoryCopy(NewData, Record->Data, Record->Size);
-        }
-
-        KernelHeapFree(Record->Data);
-    }
-
-    Record->Data = NewData;
-    Record->Capacity = NewCapacity;
-
-    return TRUE;
-}
-
-/************************************************************************/
 
 /**
  * @brief Initializes the EXT2 driver when it is loaded by the kernel.
@@ -1243,7 +956,6 @@ static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
  */
 static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     LPEXT2FILESYSTEM FileSystem;
-    LPEXT2FILEREC Record;
     LPEXT2FILE File;
     BOOL Wildcard;
 
@@ -1253,6 +965,11 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     if (FileSystem == NULL) return NULL;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
+
+    if (Info->Flags & (FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE)) {
+        UnlockMutex(&(FileSystem->FilesMutex));
+        return NULL;
+    }
 
     Wildcard = HasWildcard(Info->Name);
 
@@ -1279,7 +996,7 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
             return NULL;
         }
 
-        File = NewEXT2File(FileSystem, NULL);
+        File = NewEXT2File(FileSystem);
         if (File == NULL) {
             UnlockMutex(&(FileSystem->FilesMutex));
             return NULL;
@@ -1299,32 +1016,46 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
         return File;
     }
 
-    Record = FindFileRecord(FileSystem, Info->Name);
-    if (Record == NULL && (Info->Flags & FILE_OPEN_CREATE_ALWAYS)) {
-        Record = CreateFileRecord(FileSystem, Info->Name);
-    }
+    {
+        EXT2INODE Inode;
+        U32 InodeIndex;
 
-    if (Record == NULL && (Info->Flags & (FILE_OPEN_READ | FILE_OPEN_WRITE | FILE_OPEN_APPEND))) {
-        Record = LoadFileRecordFromDisk(FileSystem, Info->Name);
-    }
-
-    if (Record == NULL) {
-        EXT2INODE DirectoryInode;
-        U32 DirectoryIndex;
-
-        if (LoadDirectoryInode(FileSystem, Info->Name, &DirectoryInode, &DirectoryIndex) == FALSE) {
+        if (ResolvePath(FileSystem, Info->Name, &Inode, &InodeIndex) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
             return NULL;
         }
 
-        File = NewEXT2File(FileSystem, NULL);
+        File = NewEXT2File(FileSystem);
         if (File == NULL) {
             UnlockMutex(&(FileSystem->FilesMutex));
             return NULL;
         }
 
-        if (SetupDirectoryHandle(File, FileSystem, &DirectoryInode, DirectoryIndex, FALSE, NULL) == FALSE) {
-            ReleaseDirectoryResources(File);
+        MemoryCopy(&(File->Inode), &Inode, sizeof(EXT2INODE));
+        File->InodeIndex = InodeIndex;
+
+        if ((Inode.Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_DIRECTORY) {
+            if (SetupDirectoryHandle(File, FileSystem, &Inode, InodeIndex, FALSE, NULL) == FALSE) {
+                ReleaseDirectoryResources(File);
+                KernelHeapFree(File);
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return NULL;
+            }
+
+            {
+                STR BaseName[MAX_FILE_NAME];
+                ExtractBaseName(Info->Name, BaseName);
+                FillFileHeaderFromInode(File, BaseName, &Inode);
+            }
+
+            File->Header.OpenFlags = Info->Flags;
+
+            UnlockMutex(&(FileSystem->FilesMutex));
+
+            return File;
+        }
+
+        if ((Inode.Mode & EXT2_MODE_TYPE_MASK) != EXT2_MODE_REGULAR) {
             KernelHeapFree(File);
             UnlockMutex(&(FileSystem->FilesMutex));
             return NULL;
@@ -1333,40 +1064,21 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
         {
             STR BaseName[MAX_FILE_NAME];
             ExtractBaseName(Info->Name, BaseName);
-            FillFileHeaderFromInode(File, BaseName, &DirectoryInode);
+            FillFileHeaderFromInode(File, BaseName, &Inode);
         }
 
+        File->IsDirectory = FALSE;
+        File->Enumerate = FALSE;
         File->Header.OpenFlags = Info->Flags;
+        File->Header.SizeLow = Inode.Size;
+        File->Header.SizeHigh = 0;
+        File->Header.Position = (Info->Flags & FILE_OPEN_APPEND) ? Inode.Size : 0;
+        File->Header.BytesTransferred = 0;
 
         UnlockMutex(&(FileSystem->FilesMutex));
 
         return File;
     }
-
-    if (Info->Flags & FILE_OPEN_TRUNCATE) {
-        Record->Size = 0;
-        if (Record->Data != NULL) {
-            MemorySet(Record->Data, 0, Record->Capacity);
-        }
-    }
-
-    File = NewEXT2File(FileSystem, Record);
-    if (File == NULL) {
-        UnlockMutex(&(FileSystem->FilesMutex));
-        return NULL;
-    }
-
-    StringCopy(File->Header.Name, Record->Name);
-    File->Header.OpenFlags = Info->Flags;
-    File->Header.Attributes = Record->Attributes;
-    File->Header.SizeLow = Record->Size;
-    File->Header.SizeHigh = 0;
-    File->Header.Position = (Info->Flags & FILE_OPEN_APPEND) ? Record->Size : 0;
-    File->Header.BytesTransferred = 0;
-
-    UnlockMutex(&(FileSystem->FilesMutex));
-
-    return File;
 }
 
 /************************************************************************/
@@ -1412,9 +1124,7 @@ static U32 CloseFile(LPEXT2FILE File) {
  */
 static U32 ReadFile(LPEXT2FILE File) {
     LPEXT2FILESYSTEM FileSystem;
-    LPEXT2FILEREC Record;
-    U32 Available;
-    U32 ToTransfer;
+    U32 Remaining;
 
     if (File == NULL) return DF_ERROR_BADPARAM;
     if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
@@ -1424,31 +1134,66 @@ static U32 ReadFile(LPEXT2FILE File) {
         return DF_ERROR_NOPERM;
     }
 
+    if (File->IsDirectory) {
+        return DF_ERROR_GENERIC;
+    }
+
     FileSystem = (LPEXT2FILESYSTEM)File->Header.FileSystem;
     if (FileSystem == NULL) return DF_ERROR_BADPARAM;
-
-    Record = File->Location.Record;
-    if (Record == NULL) return DF_ERROR_BADPARAM;
+    if (FileSystem->BlockSize == 0 || FileSystem->IOBuffer == NULL) return DF_ERROR_IO;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
     File->Header.BytesTransferred = 0;
 
-    if (File->Header.Position >= Record->Size) {
+    if (File->Header.Position >= File->Inode.Size) {
         UnlockMutex(&(FileSystem->FilesMutex));
         return DF_ERROR_SUCCESS;
     }
 
-    Available = Record->Size - File->Header.Position;
-    ToTransfer = File->Header.ByteCount;
-    if (ToTransfer > Available) {
-        ToTransfer = Available;
+    if (File->Header.ByteCount == 0) {
+        UnlockMutex(&(FileSystem->FilesMutex));
+        return DF_ERROR_SUCCESS;
     }
 
-    if (ToTransfer > 0) {
-        MemoryCopy(File->Header.Buffer, Record->Data + File->Header.Position, ToTransfer);
-        File->Header.Position += ToTransfer;
-        File->Header.BytesTransferred = ToTransfer;
+    Remaining = File->Inode.Size - File->Header.Position;
+    if (Remaining > File->Header.ByteCount) {
+        Remaining = File->Header.ByteCount;
+    }
+
+    while (Remaining > 0) {
+        U32 BlockIndex;
+        U32 OffsetInBlock;
+        U32 BlockNumber;
+        U32 Chunk;
+
+        BlockIndex = File->Header.Position / FileSystem->BlockSize;
+        OffsetInBlock = File->Header.Position % FileSystem->BlockSize;
+
+        if (GetInodeBlockNumber(FileSystem, &(File->Inode), BlockIndex, &BlockNumber) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_IO;
+        }
+
+        if (BlockNumber == 0) {
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+        } else if (ReadBlock(FileSystem, BlockNumber, FileSystem->IOBuffer) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_IO;
+        }
+
+        Chunk = FileSystem->BlockSize - OffsetInBlock;
+        if (Chunk > Remaining) {
+            Chunk = Remaining;
+        }
+
+        MemoryCopy(((U8*)File->Header.Buffer) + File->Header.BytesTransferred,
+            FileSystem->IOBuffer + OffsetInBlock,
+            Chunk);
+
+        File->Header.Position += Chunk;
+        File->Header.BytesTransferred += Chunk;
+        Remaining -= Chunk;
     }
 
     UnlockMutex(&(FileSystem->FilesMutex));
@@ -1459,14 +1204,14 @@ static U32 ReadFile(LPEXT2FILE File) {
 /************************************************************************/
 
 /**
- * @brief Writes buffered data into an EXT2 file record.
+ * @brief Writes buffered data to an EXT2 file block by block.
  * @param File File handle describing the write request.
  * @return DF_ERROR_SUCCESS on success or an error code on failure.
  */
 static U32 WriteFile(LPEXT2FILE File) {
     LPEXT2FILESYSTEM FileSystem;
-    LPEXT2FILEREC Record;
-    U32 RequiredSize;
+    U32 Remaining;
+    U32 EndPosition;
 
     if (File == NULL) return DF_ERROR_BADPARAM;
     if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
@@ -1476,16 +1221,18 @@ static U32 WriteFile(LPEXT2FILE File) {
         return DF_ERROR_NOPERM;
     }
 
+    if (File->IsDirectory) {
+        return DF_ERROR_GENERIC;
+    }
+
     FileSystem = (LPEXT2FILESYSTEM)File->Header.FileSystem;
     if (FileSystem == NULL) return DF_ERROR_BADPARAM;
-
-    Record = File->Location.Record;
-    if (Record == NULL) return DF_ERROR_BADPARAM;
+    if (FileSystem->BlockSize == 0 || FileSystem->IOBuffer == NULL) return DF_ERROR_IO;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
     if (File->Header.OpenFlags & FILE_OPEN_APPEND) {
-        File->Header.Position = Record->Size;
+        File->Header.Position = File->Inode.Size;
     }
 
     File->Header.BytesTransferred = 0;
@@ -1495,27 +1242,67 @@ static U32 WriteFile(LPEXT2FILE File) {
         return DF_ERROR_SUCCESS;
     }
 
-    RequiredSize = File->Header.Position + File->Header.ByteCount;
+    EndPosition = File->Header.Position + File->Header.ByteCount;
 
-    if (EnsureRecordCapacity(Record, RequiredSize) == FALSE) {
+    if (EndPosition > File->Inode.Size) {
         UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_ERROR_NOMEMORY;
+        return DF_ERROR_NOTIMPL;
     }
 
-    if (File->Header.Position > Record->Size) {
-        MemorySet(Record->Data + Record->Size, 0, File->Header.Position - Record->Size);
+    Remaining = File->Header.ByteCount;
+
+    while (Remaining > 0) {
+        U32 BlockIndex;
+        U32 OffsetInBlock;
+        U32 BlockNumber;
+        U32 Chunk;
+        U8* Source;
+
+        BlockIndex = File->Header.Position / FileSystem->BlockSize;
+        OffsetInBlock = File->Header.Position % FileSystem->BlockSize;
+
+        if (GetInodeBlockNumber(FileSystem, &(File->Inode), BlockIndex, &BlockNumber) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_IO;
+        }
+
+        if (BlockNumber == 0) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_NOTIMPL;
+        }
+
+        Chunk = FileSystem->BlockSize - OffsetInBlock;
+        if (Chunk > Remaining) {
+            Chunk = Remaining;
+        }
+
+        Source = ((U8*)File->Header.Buffer) + File->Header.BytesTransferred;
+
+        if (Chunk != FileSystem->BlockSize || OffsetInBlock != 0) {
+            if (ReadBlock(FileSystem, BlockNumber, FileSystem->IOBuffer) == FALSE) {
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return DF_ERROR_IO;
+            }
+
+            MemoryCopy(FileSystem->IOBuffer + OffsetInBlock, Source, Chunk);
+
+            if (WriteBlock(FileSystem, BlockNumber, FileSystem->IOBuffer) == FALSE) {
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return DF_ERROR_IO;
+            }
+        } else {
+            if (WriteBlock(FileSystem, BlockNumber, Source) == FALSE) {
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return DF_ERROR_IO;
+            }
+        }
+
+        File->Header.Position += Chunk;
+        File->Header.BytesTransferred += Chunk;
+        Remaining -= Chunk;
     }
 
-    MemoryCopy(Record->Data + File->Header.Position, File->Header.Buffer, File->Header.ByteCount);
-
-    File->Header.Position += File->Header.ByteCount;
-    File->Header.BytesTransferred = File->Header.ByteCount;
-
-    if (File->Header.Position > Record->Size) {
-        Record->Size = File->Header.Position;
-    }
-
-    File->Header.SizeLow = Record->Size;
+    File->Header.SizeLow = File->Inode.Size;
 
     UnlockMutex(&(FileSystem->FilesMutex));
 
@@ -1594,6 +1381,13 @@ BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     }
 
     if (LoadGroupDescriptors(FileSystem) == FALSE) {
+        KernelHeapFree(FileSystem);
+        return FALSE;
+    }
+
+    FileSystem->IOBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (FileSystem->IOBuffer == NULL) {
+        KernelHeapFree(FileSystem->Groups);
         KernelHeapFree(FileSystem);
         return FALSE;
     }

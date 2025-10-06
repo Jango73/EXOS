@@ -130,25 +130,6 @@ typedef struct tag_EXT2DIRECTORYENTRY {
 } EXT2DIRECTORYENTRY, *LPEXT2DIRECTORYENTRY;
 
 /***************************************************************************/
-// EXT2 File Record (in-memory representation)
-
-typedef struct tag_EXT2FILEREC {
-    STR Name[MAX_FILE_NAME];
-    U32 Attributes;
-    U32 Size;
-    U32 Capacity;
-    U8* Data;
-} EXT2FILEREC, *LPEXT2FILEREC;
-
-/***************************************************************************/
-// EXT2 File location
-
-typedef struct tag_EXT2FILELOC {
-    LPEXT2FILEREC Record;
-    U32 Offset;
-} EXT2FILELOC, *LPEXT2FILELOC;
-
-/***************************************************************************/
 
 #pragma pack(pop)
 
