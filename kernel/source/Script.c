@@ -1735,34 +1735,41 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 if (Parser->Callbacks && Parser->Callbacks->CallFunction) {
                     LPCSTR ArgString = TEXT("");
                     STR ArgBuffer[MAX_TOKEN_LENGTH];
+                    SCRIPT_VALUE ArgValue;
+                    BOOL HasEvaluatedArg = FALSE;
 
                     if (Expr->Data.Expression.Left) {
                         if (Expr->Data.Expression.Left->Data.Expression.TokenType == TOKEN_STRING) {
                             ArgString = Expr->Data.Expression.Left->Data.Expression.Value;
                         } else {
-                            SCRIPT_VALUE ArgValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
+                            ArgValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
+                            HasEvaluatedArg = TRUE;
+
                             if (Error && *Error != SCRIPT_OK) {
                                 ScriptValueRelease(&ArgValue);
                                 return Result;
                             }
 
-                            F32 ArgNumeric;
-                            if (!ScriptValueToFloat(&ArgValue, &ArgNumeric)) {
-                                if (Error) {
-                                    *Error = SCRIPT_ERROR_TYPE_MISMATCH;
-                                }
-                                ScriptValueRelease(&ArgValue);
-                                return Result;
-                            }
-
-                            if (IsInteger(ArgNumeric)) {
-                                StringPrintFormat(ArgBuffer, TEXT("%d"), (I32)ArgNumeric);
+                            if (ArgValue.Type == SCRIPT_VAR_STRING) {
+                                ArgString = ArgValue.Value.String ? ArgValue.Value.String : TEXT("");
                             } else {
-                                StringPrintFormat(ArgBuffer, TEXT("%f"), ArgNumeric);
-                            }
+                                F32 ArgNumeric;
+                                if (!ScriptValueToFloat(&ArgValue, &ArgNumeric)) {
+                                    if (Error) {
+                                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                                    }
+                                    ScriptValueRelease(&ArgValue);
+                                    return Result;
+                                }
 
-                            ArgString = ArgBuffer;
-                            ScriptValueRelease(&ArgValue);
+                                if (IsInteger(ArgNumeric)) {
+                                    StringPrintFormat(ArgBuffer, TEXT("%d"), (I32)ArgNumeric);
+                                } else {
+                                    StringPrintFormat(ArgBuffer, TEXT("%f"), ArgNumeric);
+                                }
+
+                                ArgString = ArgBuffer;
+                            }
                         }
                     }
 
@@ -1770,6 +1777,10 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         Expr->Data.Expression.Value,
                         ArgString,
                         Parser->Callbacks->UserData);
+
+                    if (HasEvaluatedArg) {
+                        ScriptValueRelease(&ArgValue);
+                    }
 
                     Result.Type = SCRIPT_VAR_FLOAT;
                     Result.Value.Float = (F32)Status;
