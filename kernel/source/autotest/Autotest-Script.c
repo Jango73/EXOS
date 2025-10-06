@@ -30,6 +30,190 @@
 
 /************************************************************************/
 
+typedef struct {
+    STR Name[16];
+    I32 Value;
+} TEST_HOST_ITEM;
+
+typedef struct {
+    TEST_HOST_ITEM* Items;
+    U32 Count;
+} TEST_HOST_ARRAY;
+
+typedef struct {
+    I32 Value;
+} TEST_HOST_PROPERTY;
+
+static const SCRIPT_HOST_DESCRIPTOR TestHostObjectDescriptor;
+static const SCRIPT_HOST_DESCRIPTOR TestHostArrayDescriptor;
+static const SCRIPT_HOST_DESCRIPTOR TestHostValueDescriptor;
+
+/************************************************************************/
+/**
+ * @brief Populate the static host items used by the exposure unit tests.
+ * @param Items Array of host items to initialize
+ * @param Count Number of elements available in the array
+ */
+static void TestHostPopulateItems(TEST_HOST_ITEM* Items, U32 Count) {
+    if (Items == NULL) {
+        return;
+    }
+
+    if (Count > 0) {
+        StringCopy(Items[0].Name, TEXT("Alpha"));
+        Items[0].Value = 100;
+    }
+
+    if (Count > 1) {
+        StringCopy(Items[1].Name, TEXT("Beta"));
+        Items[1].Value = 200;
+    }
+
+    if (Count > 2) {
+        StringCopy(Items[2].Name, TEXT("Gamma"));
+        Items[2].Value = 300;
+    }
+}
+
+/************************************************************************/
+/**
+ * @brief Host object property accessor for the script exposure tests.
+ * @param Context Callback context (unused)
+ * @param Parent Handle to the requested host item
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the resulting value
+ * @return SCRIPT_OK on success, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+static SCRIPT_ERROR TestHostObjectGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    if (OutValue == NULL || Parent == NULL || Property == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    TEST_HOST_ITEM* Item = (TEST_HOST_ITEM*)Parent;
+
+    if (StringCompareNC(Property, TEXT("value")) == 0) {
+        OutValue->Type = SCRIPT_VAR_INTEGER;
+        OutValue->Value.Integer = Item->Value;
+        OutValue->OwnsValue = FALSE;
+        OutValue->HostDescriptor = NULL;
+        OutValue->HostContext = NULL;
+        return SCRIPT_OK;
+    }
+
+    if (StringCompareNC(Property, TEXT("name")) == 0) {
+        OutValue->Type = SCRIPT_VAR_STRING;
+        OutValue->Value.String = Item->Name;
+        OutValue->OwnsValue = FALSE;
+        OutValue->HostDescriptor = NULL;
+        OutValue->HostContext = NULL;
+        return SCRIPT_OK;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+/**
+ * @brief Host array accessor for the script exposure tests.
+ * @param Context Callback context (unused)
+ * @param Parent Handle to the array exposed to the script engine
+ * @param Index Requested index inside the host array
+ * @param OutValue Output holder for the resulting host handle
+ * @return SCRIPT_OK when the element exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+static SCRIPT_ERROR TestHostArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    if (OutValue == NULL || Parent == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    TEST_HOST_ARRAY* Array = (TEST_HOST_ARRAY*)Parent;
+    if (Array->Items == NULL || Index >= Array->Count) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    TEST_HOST_ITEM* Item = &Array->Items[Index];
+
+    OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
+    OutValue->Value.HostHandle = Item;
+    OutValue->HostDescriptor = &TestHostObjectDescriptor;
+    OutValue->HostContext = NULL;
+    OutValue->OwnsValue = FALSE;
+
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+/**
+ * @brief Host property accessor returning scalar values for exposure tests.
+ * @param Context Callback context (unused)
+ * @param Parent Handle to the scalar value container
+ * @param Property Property name requested by the script (unused)
+ * @param OutValue Output holder for the resulting scalar value
+ * @return SCRIPT_OK on success, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+static SCRIPT_ERROR TestHostValueGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+    UNUSED(Property);
+
+    if (OutValue == NULL || Parent == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    TEST_HOST_PROPERTY* Value = (TEST_HOST_PROPERTY*)Parent;
+
+    OutValue->Type = SCRIPT_VAR_INTEGER;
+    OutValue->Value.Integer = Value->Value;
+    OutValue->OwnsValue = FALSE;
+    OutValue->HostDescriptor = NULL;
+    OutValue->HostContext = NULL;
+
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+static const SCRIPT_HOST_DESCRIPTOR TestHostObjectDescriptor = {
+    TestHostObjectGetProperty,
+    NULL,
+    NULL,
+    NULL
+};
+
+static const SCRIPT_HOST_DESCRIPTOR TestHostArrayDescriptor = {
+    NULL,
+    TestHostArrayGetElement,
+    NULL,
+    NULL
+};
+
+static const SCRIPT_HOST_DESCRIPTOR TestHostValueDescriptor = {
+    TestHostValueGetProperty,
+    NULL,
+    NULL,
+    NULL
+};
+
+/************************************************************************/
+
 /**
  * @brief Test simple arithmetic expression.
  *
@@ -593,6 +777,140 @@ void TestScriptArrays(TEST_RESULTS* Results) {
 /************************************************************************/
 
 /**
+ * @brief Test host-exposed variables and properties.
+ *
+ * This function validates property symbols, array element bindings, and
+ * assignment guards for host data exposed to the script engine.
+ *
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results
+ */
+void TestScriptHostExposure(TEST_RESULTS* Results) {
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    // Test 1: Property symbol returns integer value
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT PropertyContext = ScriptCreateContext(NULL);
+    if (PropertyContext == NULL) {
+        DEBUG(TEXT("[TestScriptHostExposure] Failed to create context for property test"));
+        return;
+    }
+
+    TEST_HOST_PROPERTY HostProperty = {42};
+    if (!ScriptRegisterHostSymbol(
+            PropertyContext,
+            TEXT("hostValue"),
+            SCRIPT_HOST_SYMBOL_PROPERTY,
+            &HostProperty,
+            &TestHostValueDescriptor,
+            NULL)) {
+        DEBUG(TEXT("[TestScriptHostExposure] Failed to register hostValue property symbol"));
+    } else {
+        SCRIPT_ERROR Error = ScriptExecute(PropertyContext, TEXT("result = hostValue;"));
+        if (Error == SCRIPT_OK) {
+            LPSCRIPT_VARIABLE Var = ScriptGetVariable(PropertyContext, TEXT("result"));
+            if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 42) {
+                Results->TestsPassed++;
+            } else {
+                DEBUG(TEXT("[TestScriptHostExposure] Property test failed: result = %d (expected 42)"),
+                      Var ? Var->Value.Integer : -1);
+            }
+        } else {
+            DEBUG(TEXT("[TestScriptHostExposure] Property test failed with error %d"), Error);
+        }
+    }
+
+    ScriptDestroyContext(PropertyContext);
+
+    // Tests 2 & 3: Host array exposes handles and string properties
+    Results->TestsRun++;
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT ArrayContext = ScriptCreateContext(NULL);
+    if (ArrayContext == NULL) {
+        DEBUG(TEXT("[TestScriptHostExposure] Failed to create context for array tests"));
+        return;
+    }
+
+    TEST_HOST_ITEM Items[3];
+    TestHostPopulateItems(Items, 3);
+    TEST_HOST_ARRAY Array = {Items, 3};
+
+    if (!ScriptRegisterHostSymbol(
+            ArrayContext,
+            TEXT("hosts"),
+            SCRIPT_HOST_SYMBOL_ARRAY,
+            &Array,
+            &TestHostArrayDescriptor,
+            NULL)) {
+        DEBUG(TEXT("[TestScriptHostExposure] Failed to register hosts array symbol"));
+    } else {
+        SCRIPT_ERROR Error = ScriptExecute(ArrayContext, TEXT("value = hosts[1].value;"));
+        if (Error == SCRIPT_OK) {
+            LPSCRIPT_VARIABLE Var = ScriptGetVariable(ArrayContext, TEXT("value"));
+            if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 200) {
+                Results->TestsPassed++;
+            } else {
+                DEBUG(TEXT("[TestScriptHostExposure] Array value test failed: value = %d (expected 200)"),
+                      Var ? Var->Value.Integer : -1);
+            }
+        } else {
+            DEBUG(TEXT("[TestScriptHostExposure] Array value test failed with error %d"), Error);
+        }
+
+        Error = ScriptExecute(ArrayContext, TEXT("name = hosts[2].name;"));
+        if (Error == SCRIPT_OK) {
+            LPSCRIPT_VARIABLE Var = ScriptGetVariable(ArrayContext, TEXT("name"));
+            if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+                StringCompare(Var->Value.String, TEXT("Gamma")) == 0) {
+                Results->TestsPassed++;
+            } else {
+                DEBUG(TEXT("[TestScriptHostExposure] Array string test failed: name = %s (expected Gamma)"),
+                      (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+            }
+        } else {
+            DEBUG(TEXT("[TestScriptHostExposure] Array string test failed with error %d"), Error);
+        }
+    }
+
+    ScriptDestroyContext(ArrayContext);
+
+    // Test 4: Guard against assigning to host symbols
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT GuardContext = ScriptCreateContext(NULL);
+    if (GuardContext == NULL) {
+        DEBUG(TEXT("[TestScriptHostExposure] Failed to create context for guard test"));
+        return;
+    }
+
+    TEST_HOST_PROPERTY GuardProperty = {55};
+    if (!ScriptRegisterHostSymbol(
+            GuardContext,
+            TEXT("hostValue"),
+            SCRIPT_HOST_SYMBOL_PROPERTY,
+            &GuardProperty,
+            &TestHostValueDescriptor,
+            NULL)) {
+        DEBUG(TEXT("[TestScriptHostExposure] Failed to register hostValue for guard test"));
+    } else {
+        SCRIPT_ERROR Error = ScriptExecute(GuardContext, TEXT("hostValue = 99;"));
+        if (Error == SCRIPT_ERROR_SYNTAX) {
+            LPSCRIPT_VARIABLE Var = ScriptGetVariable(GuardContext, TEXT("hostValue"));
+            if (Var == NULL) {
+                Results->TestsPassed++;
+            } else {
+                DEBUG(TEXT("[TestScriptHostExposure] Guard test failed: hostValue variable should not exist"));
+            }
+        } else {
+            DEBUG(TEXT("[TestScriptHostExposure] Guard test failed with error %d (expected syntax error)"), Error);
+        }
+    }
+
+    ScriptDestroyContext(GuardContext);
+}
+
+/************************************************************************/
+
+/**
  * @brief Test complex script with multiple features.
  *
  * This function tests a complex script combining loops, conditionals,
@@ -846,6 +1164,11 @@ void TestScript(TEST_RESULTS* Results) {
 
     // Run array tests
     TestScriptArrays(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
+    // Run host exposure tests
+    TestScriptHostExposure(&SubResults);
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 
