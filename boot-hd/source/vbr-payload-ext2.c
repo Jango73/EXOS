@@ -194,37 +194,95 @@ static void Ext2ReadInode(const EXT2_CONTEXT* Ctx, U32 InodeNumber, EXT2_INODE* 
 
 /************************************************************************/
 
-static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, const char* Name) {
-    U32 TargetLen = Ext2StringLength(Name);
+typedef struct tag_EXT2_DIR_SEARCH {
+    const char* Name;
+    U32 TargetLen;
+    U32 ResultInode;
+} EXT2_DIR_SEARCH;
 
-    for (U32 i = 0; i < 12; ++i) {
-        U32 Block = Dir->Block[i];
-        if (Block == 0) continue;
+/************************************************************************/
 
-        Ext2ReadBlock(Ctx, Block, MakeSegOfs(Ext2Scratch));
-
-        U32 Offset = 0;
-        while (Offset + sizeof(EXT2_DIR_ENTRY) <= Ctx->BlockSize) {
-            EXT2_DIR_ENTRY* Entry = (EXT2_DIR_ENTRY*)(Ext2Scratch + Offset);
-            if (Entry->RecLen == 0) break;
-            if (Entry->RecLen < sizeof(EXT2_DIR_ENTRY)) break;
-
-            if (Entry->Inode != 0) {
-                U32 NameAvail = Entry->RecLen - (U32)sizeof(EXT2_DIR_ENTRY);
-                if (Entry->NameLen <= NameAvail) {
-                    U8* EntryName = Ext2Scratch + Offset + sizeof(EXT2_DIR_ENTRY);
-                    if (Ext2NamesEqual(EntryName, Entry->NameLen, Name, TargetLen)) {
-                        return Entry->Inode;
-                    }
-                }
-            }
-
-            Offset += Entry->RecLen;
-            if (Offset >= Ctx->BlockSize) break;
-        }
+static void Ext2ScanDirectoryBlock(const EXT2_CONTEXT* Ctx, U32 BlockNumber, EXT2_DIR_SEARCH* Search) {
+    if (BlockNumber == 0 || Search->ResultInode != 0) {
+        return;
     }
 
-    return 0;
+    Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
+
+    U32 Offset = 0;
+    while (Offset + sizeof(EXT2_DIR_ENTRY) <= Ctx->BlockSize) {
+        EXT2_DIR_ENTRY* Entry = (EXT2_DIR_ENTRY*)(Ext2Scratch + Offset);
+        if (Entry->RecLen == 0 || Entry->RecLen < sizeof(EXT2_DIR_ENTRY)) {
+            break;
+        }
+
+        if (Entry->Inode != 0U) {
+            U32 NameAvail = Entry->RecLen - (U32)sizeof(EXT2_DIR_ENTRY);
+            if (Entry->NameLen <= NameAvail) {
+                U8* EntryName = Ext2Scratch + Offset + sizeof(EXT2_DIR_ENTRY);
+                if (Ext2NamesEqual(EntryName, Entry->NameLen, Search->Name, Search->TargetLen)) {
+                    Search->ResultInode = Entry->Inode;
+                    return;
+                }
+            }
+        }
+
+        Offset += Entry->RecLen;
+        if (Offset >= Ctx->BlockSize) {
+            break;
+        }
+    }
+}
+
+/************************************************************************/
+
+static void Ext2ScanDirectoryIndirect(const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, EXT2_DIR_SEARCH* Search) {
+    if (BlockNumber == 0 || Search->ResultInode != 0) {
+        return;
+    }
+
+    Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
+    U32* Entries = (U32*)Ext2Scratch;
+
+    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && Search->ResultInode == 0; ++Index) {
+        U32 Child = Entries[Index];
+        if (Child == 0) {
+            continue;
+        }
+
+        if (Level == 1) {
+            Ext2ScanDirectoryBlock(Ctx, Child, Search);
+        } else {
+            Ext2ScanDirectoryIndirect(Ctx, Child, Level - 1U, Search);
+        }
+    }
+}
+
+/************************************************************************/
+
+static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, const char* Name) {
+    EXT2_DIR_SEARCH Search;
+    Search.Name = Name;
+    Search.TargetLen = Ext2StringLength(Name);
+    Search.ResultInode = 0U;
+
+    for (U32 i = 0; i < 12 && Search.ResultInode == 0U; ++i) {
+        Ext2ScanDirectoryBlock(Ctx, Dir->Block[i], &Search);
+    }
+
+    if (Search.ResultInode == 0U && Dir->Block[12] != 0U) {
+        Ext2ScanDirectoryIndirect(Ctx, Dir->Block[12], 1U, &Search);
+    }
+
+    if (Search.ResultInode == 0U && Dir->Block[13] != 0U) {
+        Ext2ScanDirectoryIndirect(Ctx, Dir->Block[13], 2U, &Search);
+    }
+
+    if (Search.ResultInode == 0U && Dir->Block[14] != 0U) {
+        Ext2ScanDirectoryIndirect(Ctx, Dir->Block[14], 3U, &Search);
+    }
+
+    return Search.ResultInode;
 }
 
 /************************************************************************/
