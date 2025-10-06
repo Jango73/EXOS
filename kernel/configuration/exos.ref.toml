@@ -23,22 +23,22 @@ DoLogin=1
 
 [[SystemFS.Mount]]
 FileSystem="hd0p0"
-SourcePath="EXOS"
+SourcePath="exos"
 Path="/system"
 
 [[SystemFS.Mount]]
 FileSystem="hd0p0"
-SourcePath="EXOS/USERS"
+SourcePath="exos/users"
 Path="/users"
 
 [[SystemFS.Mount]]
 FileSystem="hd0p0"
-SourcePath="EXOS/APPS"
+SourcePath="exos/apps"
 Path="/apps"
 
 [[SystemFS.Mount]]
 FileSystem="hd0p0"
-SourcePath="EXOS/TEMP"
+SourcePath="exos/temp"
 Path="/temp"
 
 [Keyboard]
