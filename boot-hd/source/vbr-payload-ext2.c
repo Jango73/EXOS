@@ -119,7 +119,19 @@ typedef struct tag_EXT2_CONTEXT {
 
 /************************************************************************/
 
+enum {
+    EXT2_DIRECT_BLOCK_COUNT = 12,
+    EXT2_SINGLE_INDIRECT_INDEX = EXT2_DIRECT_BLOCK_COUNT,
+    EXT2_DOUBLE_INDIRECT_INDEX = EXT2_SINGLE_INDIRECT_INDEX + 1,
+    EXT2_TRIPLE_INDIRECT_INDEX = EXT2_DOUBLE_INDIRECT_INDEX + 1,
+    EXT2_MAX_BLOCK_SIZE = 4096U,
+    EXT2_MAX_POINTERS_PER_BLOCK = EXT2_MAX_BLOCK_SIZE / sizeof(U32)
+};
+
+/************************************************************************/
+
 static U8* const Ext2Scratch = (U8*)(USABLE_RAM_START);
+static U32 Ext2PointerScratch[3][EXT2_MAX_POINTERS_PER_BLOCK];
 
 /************************************************************************/
 
@@ -202,6 +214,14 @@ typedef struct tag_EXT2_DIR_SEARCH {
 
 /************************************************************************/
 
+typedef struct tag_EXT2_LOAD_STATE {
+    U16 DestSeg;
+    U16 DestOfs;
+    U32 Remaining;
+} EXT2_LOAD_STATE;
+
+/************************************************************************/
+
 static void Ext2ScanDirectoryBlock(const EXT2_CONTEXT* Ctx, U32 BlockNumber, EXT2_DIR_SEARCH* Search) {
     if (BlockNumber == 0 || Search->ResultInode != 0) {
         return;
@@ -236,26 +256,87 @@ static void Ext2ScanDirectoryBlock(const EXT2_CONTEXT* Ctx, U32 BlockNumber, EXT
 
 /************************************************************************/
 
-static void Ext2ScanDirectoryIndirect(const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, EXT2_DIR_SEARCH* Search) {
-    if (BlockNumber == 0 || Search->ResultInode != 0) {
-        return;
+typedef BOOL (*EXT2_BLOCK_VISITOR)(const EXT2_CONTEXT* Ctx, U32 BlockNumber, void* UserData);
+
+/************************************************************************/
+
+static BOOL Ext2VisitIndirectBlocks(
+    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, EXT2_BLOCK_VISITOR Visitor, void* UserData) {
+    if (BlockNumber == 0U) {
+        return TRUE;
     }
 
     Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
-    U32* Entries = (U32*)Ext2Scratch;
+    U32 EntryCount = Ctx->EntriesPerBlock;
+    if (EntryCount > EXT2_MAX_POINTERS_PER_BLOCK) {
+        EntryCount = EXT2_MAX_POINTERS_PER_BLOCK;
+    }
 
-    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && Search->ResultInode == 0; ++Index) {
+    U32 LevelIndex = (Level == 0U) ? 0U : (Level - 1U);
+    if (LevelIndex >= 3U) {
+        LevelIndex = 2U;
+    }
+
+    MemoryCopy(Ext2PointerScratch[LevelIndex], Ext2Scratch, EntryCount * sizeof(U32));
+    U32* Entries = Ext2PointerScratch[LevelIndex];
+
+    for (U32 Index = 0; Index < EntryCount; ++Index) {
         U32 Child = Entries[Index];
-        if (Child == 0) {
+        if (Child == 0U) {
             continue;
         }
 
-        if (Level == 1) {
-            Ext2ScanDirectoryBlock(Ctx, Child, Search);
+        BOOL Continue = FALSE;
+        if (Level == 1U) {
+            Continue = Visitor(Ctx, Child, UserData);
         } else {
-            Ext2ScanDirectoryIndirect(Ctx, Child, Level - 1U, Search);
+            Continue = Ext2VisitIndirectBlocks(Ctx, Child, Level - 1U, Visitor, UserData);
+        }
+
+        if (!Continue) {
+            return FALSE;
         }
     }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL Ext2VisitInodeBlocks(
+    const EXT2_CONTEXT* Ctx, const EXT2_INODE* Inode, EXT2_BLOCK_VISITOR Visitor, void* UserData) {
+    for (U32 Index = 0; Index < EXT2_DIRECT_BLOCK_COUNT; ++Index) {
+        U32 BlockNumber = Inode->Block[Index];
+        if (BlockNumber == 0U) {
+            continue;
+        }
+
+        if (!Visitor(Ctx, BlockNumber, UserData)) {
+            return FALSE;
+        }
+    }
+
+    if (!Ext2VisitIndirectBlocks(Ctx, Inode->Block[EXT2_SINGLE_INDIRECT_INDEX], 1U, Visitor, UserData)) {
+        return FALSE;
+    }
+
+    if (!Ext2VisitIndirectBlocks(Ctx, Inode->Block[EXT2_DOUBLE_INDIRECT_INDEX], 2U, Visitor, UserData)) {
+        return FALSE;
+    }
+
+    if (!Ext2VisitIndirectBlocks(Ctx, Inode->Block[EXT2_TRIPLE_INDIRECT_INDEX], 3U, Visitor, UserData)) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL Ext2DirectoryVisitor(const EXT2_CONTEXT* Ctx, U32 BlockNumber, void* UserData) {
+    EXT2_DIR_SEARCH* Search = (EXT2_DIR_SEARCH*)UserData;
+    Ext2ScanDirectoryBlock(Ctx, BlockNumber, Search);
+    return (Search->ResultInode == 0U);
 }
 
 /************************************************************************/
@@ -266,21 +347,7 @@ static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, c
     Search.TargetLen = Ext2StringLength(Name);
     Search.ResultInode = 0U;
 
-    for (U32 i = 0; i < 12 && Search.ResultInode == 0U; ++i) {
-        Ext2ScanDirectoryBlock(Ctx, Dir->Block[i], &Search);
-    }
-
-    if (Search.ResultInode == 0U && Dir->Block[12] != 0U) {
-        Ext2ScanDirectoryIndirect(Ctx, Dir->Block[12], 1U, &Search);
-    }
-
-    if (Search.ResultInode == 0U && Dir->Block[13] != 0U) {
-        Ext2ScanDirectoryIndirect(Ctx, Dir->Block[13], 2U, &Search);
-    }
-
-    if (Search.ResultInode == 0U && Dir->Block[14] != 0U) {
-        Ext2ScanDirectoryIndirect(Ctx, Dir->Block[14], 3U, &Search);
-    }
+    Ext2VisitInodeBlocks(Ctx, Dir, Ext2DirectoryVisitor, &Search);
 
     return Search.ResultInode;
 }
@@ -314,23 +381,14 @@ static void Ext2LoadBlockToDestination(
 
 /************************************************************************/
 
-static void Ext2LoadIndirect(
-    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, U16* DestSeg, U16* DestOfs, U32* Remaining) {
-    if (BlockNumber == 0 || *Remaining == 0) return;
-
-    Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
-    U32* Entries = (U32*)Ext2Scratch;
-
-    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && *Remaining > 0; ++Index) {
-        U32 Child = Entries[Index];
-        if (Child == 0) continue;
-
-        if (Level == 1) {
-            Ext2LoadBlockToDestination(Ctx, Child, DestSeg, DestOfs, Remaining);
-        } else {
-            Ext2LoadIndirect(Ctx, Child, Level - 1, DestSeg, DestOfs, Remaining);
-        }
+static BOOL Ext2FileLoadVisitor(const EXT2_CONTEXT* Ctx, U32 BlockNumber, void* UserData) {
+    EXT2_LOAD_STATE* State = (EXT2_LOAD_STATE*)UserData;
+    if (State->Remaining == 0U) {
+        return FALSE;
     }
+
+    Ext2LoadBlockToDestination(Ctx, BlockNumber, &State->DestSeg, &State->DestOfs, &State->Remaining);
+    return (State->Remaining > 0U);
 }
 
 /************************************************************************/
@@ -352,6 +410,11 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     Ctx.BootDrive = BootDrive;
     Ctx.PartitionLba = PartitionLba;
     Ctx.BlockSize = 1024U << Super->LogBlockSize;
+    if (Ctx.BlockSize == 0U || Ctx.BlockSize > EXT2_MAX_BLOCK_SIZE) {
+        BootErrorPrint(TEXT("[VBR] EXT2 block size unsupported. Halting.\r\n"));
+        Hang();
+    }
+
     Ctx.SectorsPerBlock = Ctx.BlockSize / SECTORSIZE;
     if (Ctx.SectorsPerBlock == 0) {
         BootErrorPrint(TEXT("[VBR] EXT2 block size invalid. Halting.\r\n"));
@@ -363,6 +426,10 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     Ctx.FirstDataBlock = Super->FirstDataBlock;
     Ctx.BgdtBlock = Super->FirstDataBlock + 1U;
     Ctx.EntriesPerBlock = Ctx.BlockSize / sizeof(U32);
+    if (Ctx.EntriesPerBlock == 0U || Ctx.EntriesPerBlock > EXT2_MAX_POINTERS_PER_BLOCK) {
+        BootErrorPrint(TEXT("[VBR] EXT2 pointer block unsupported. Halting.\r\n"));
+        Hang();
+    }
 
     EXT2_INODE RootInode;
     Ext2ReadInode(&Ctx, 2U, &RootInode);
@@ -382,27 +449,14 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     StringPrintFormat(TempString, TEXT("[VBR] EXT2 kernel size %08X bytes\r\n"), FileSize);
     BootDebugPrint(TempString);
 
-    U16 DestSeg = LOADADDRESS_SEG;
-    U16 DestOfs = LOADADDRESS_OFS;
-    U32 Remaining = FileSize;
+    EXT2_LOAD_STATE LoadState;
+    LoadState.DestSeg = LOADADDRESS_SEG;
+    LoadState.DestOfs = LOADADDRESS_OFS;
+    LoadState.Remaining = FileSize;
 
-    for (U32 i = 0; i < 12 && Remaining > 0; ++i) {
-        Ext2LoadBlockToDestination(&Ctx, KernelInode.Block[i], &DestSeg, &DestOfs, &Remaining);
-    }
+    Ext2VisitInodeBlocks(&Ctx, &KernelInode, Ext2FileLoadVisitor, &LoadState);
 
-    if (Remaining > 0 && KernelInode.Block[12] != 0) {
-        Ext2LoadIndirect(&Ctx, KernelInode.Block[12], 1, &DestSeg, &DestOfs, &Remaining);
-    }
-
-    if (Remaining > 0 && KernelInode.Block[13] != 0) {
-        Ext2LoadIndirect(&Ctx, KernelInode.Block[13], 2, &DestSeg, &DestOfs, &Remaining);
-    }
-
-    if (Remaining > 0 && KernelInode.Block[14] != 0) {
-        Ext2LoadIndirect(&Ctx, KernelInode.Block[14], 3, &DestSeg, &DestOfs, &Remaining);
-    }
-
-    if (Remaining > 0) {
+    if (LoadState.Remaining > 0) {
         BootErrorPrint(TEXT("[VBR] EXT2 kernel load incomplete. Halting.\r\n"));
         Hang();
     }
