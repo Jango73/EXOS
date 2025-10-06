@@ -131,7 +131,20 @@ enum {
 /************************************************************************/
 
 static U8* const Ext2Scratch = (U8*)(USABLE_RAM_START);
-static U32 Ext2PointerScratch[3][EXT2_MAX_POINTERS_PER_BLOCK];
+
+/************************************************************************/
+
+static U32* Ext2GetPointerScratch(U32 LevelIndex) {
+    // LevelIndex 0, 1 and 2 map to three non-overlapping 4 KiB regions that
+    // sit right after the main scratch block. This avoids using large BSS
+    // allocations while still keeping the copied pointer tables intact.
+    if (LevelIndex >= 3U) {
+        LevelIndex = 2U;
+    }
+
+    U32 Offset = (LevelIndex + 1U) * EXT2_MAX_BLOCK_SIZE;
+    return (U32*)((U8*)Ext2Scratch + Offset);
+}
 
 /************************************************************************/
 
@@ -273,12 +286,8 @@ static BOOL Ext2VisitIndirectBlocks(
     }
 
     U32 LevelIndex = (Level == 0U) ? 0U : (Level - 1U);
-    if (LevelIndex >= 3U) {
-        LevelIndex = 2U;
-    }
-
-    MemoryCopy(Ext2PointerScratch[LevelIndex], Ext2Scratch, EntryCount * sizeof(U32));
-    U32* Entries = Ext2PointerScratch[LevelIndex];
+    U32* Entries = Ext2GetPointerScratch(LevelIndex);
+    MemoryCopy(Entries, Ext2Scratch, EntryCount * sizeof(U32));
 
     for (U32 Index = 0; Index < EntryCount; ++Index) {
         U32 Child = Entries[Index];
