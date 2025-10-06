@@ -247,6 +247,10 @@ typedef struct tag_AST_NODE {
 
 /************************************************************************/
 
+struct tag_SCRIPT_CONTEXT;
+typedef struct tag_SCRIPT_CONTEXT SCRIPT_CONTEXT;
+typedef struct tag_SCRIPT_CONTEXT* LPSCRIPT_CONTEXT;
+
 typedef struct {
     LPCSTR Input;
     U32 Position;
@@ -254,10 +258,10 @@ typedef struct {
     LPSCRIPT_VAR_TABLE Variables;
     LPSCRIPT_CALLBACKS Callbacks;
     LPSCRIPT_SCOPE CurrentScope;
-    struct tag_SCRIPT_CONTEXT* Context;
+    LPSCRIPT_CONTEXT Context;
 } SCRIPT_PARSER, *LPSCRIPT_PARSER;
 
-typedef struct {
+struct tag_SCRIPT_CONTEXT {
     SCRIPT_VAR_TABLE Variables;
     SCRIPT_CALLBACKS Callbacks;
     LPVOID HeapBase;
@@ -266,7 +270,7 @@ typedef struct {
     LPSCRIPT_SCOPE GlobalScope;
     LPSCRIPT_SCOPE CurrentScope;
     SCRIPT_HOST_REGISTRY HostRegistry;
-} SCRIPT_CONTEXT, *LPSCRIPT_CONTEXT;
+};
 
 /************************************************************************/
 

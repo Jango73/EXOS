@@ -51,6 +51,14 @@
 
 /************************************************************************/
 
+/**
+ * @brief Retrieve a property value from a process exposed to the script engine.
+ * @param Context Host callback context (unused for process exposure)
+ * @param Parent  Handle to the process instance requested by the script
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the property value
+ * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
 SCRIPT_ERROR ShellProcessGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
@@ -83,6 +91,14 @@ SCRIPT_ERROR ShellProcessGetProperty(
 
 /************************************************************************/
 
+/**
+ * @brief Retrieve a process from the exposed kernel process array.
+ * @param Context Host callback context (unused for process exposure)
+ * @param Parent Handle to the process list exposed by the kernel
+ * @param Index Array index requested by the script
+ * @param OutValue Output holder for the resulting process handle
+ * @return SCRIPT_OK when the process exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
 SCRIPT_ERROR ShellProcessArrayGetElement(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
