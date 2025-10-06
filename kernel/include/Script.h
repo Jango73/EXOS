@@ -39,7 +39,8 @@ typedef enum {
     SCRIPT_VAR_STRING,
     SCRIPT_VAR_INTEGER,
     SCRIPT_VAR_FLOAT,
-    SCRIPT_VAR_ARRAY
+    SCRIPT_VAR_ARRAY,
+    SCRIPT_VAR_HOST_HANDLE
 } SCRIPT_VAR_TYPE;
 
 typedef struct {
@@ -54,6 +55,7 @@ typedef union {
     I32 Integer;
     F32 Float;
     LPSCRIPT_ARRAY Array;
+    LPVOID HostHandle;
 } SCRIPT_VAR_VALUE;
 
 typedef struct tag_SCRIPT_VARIABLE {
@@ -75,6 +77,52 @@ typedef struct {
     LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
     U32 Count;
 } SCRIPT_VAR_TABLE, *LPSCRIPT_VAR_TABLE;
+
+/************************************************************************/
+
+typedef LPVOID SCRIPT_HOST_HANDLE;
+
+struct tag_SCRIPT_VALUE;
+struct tag_SCRIPT_HOST_DESCRIPTOR;
+
+typedef enum {
+    SCRIPT_HOST_SYMBOL_PROPERTY,
+    SCRIPT_HOST_SYMBOL_ARRAY,
+    SCRIPT_HOST_SYMBOL_OBJECT
+} SCRIPT_HOST_SYMBOL_KIND;
+
+typedef SCRIPT_ERROR (*SCRIPT_HOST_GET_PROPERTY)(LPVOID Context, SCRIPT_HOST_HANDLE Parent, LPCSTR Property, struct tag_SCRIPT_VALUE* OutValue);
+typedef SCRIPT_ERROR (*SCRIPT_HOST_GET_ELEMENT)(LPVOID Context, SCRIPT_HOST_HANDLE Parent, U32 Index, struct tag_SCRIPT_VALUE* OutValue);
+typedef void (*SCRIPT_HOST_RELEASE_HANDLE)(LPVOID Context, SCRIPT_HOST_HANDLE Handle);
+
+typedef struct tag_SCRIPT_HOST_DESCRIPTOR {
+    SCRIPT_HOST_GET_PROPERTY GetProperty;
+    SCRIPT_HOST_GET_ELEMENT GetElement;
+    SCRIPT_HOST_RELEASE_HANDLE ReleaseHandle;
+    LPVOID Context;
+} SCRIPT_HOST_DESCRIPTOR, *LPSCRIPT_HOST_DESCRIPTOR;
+
+typedef struct tag_SCRIPT_VALUE {
+    SCRIPT_VAR_TYPE Type;
+    SCRIPT_VAR_VALUE Value;
+    const SCRIPT_HOST_DESCRIPTOR* HostDescriptor;
+    BOOL OwnsValue;
+    LPVOID HostContext;
+} SCRIPT_VALUE, *LPSCRIPT_VALUE;
+
+typedef struct tag_SCRIPT_HOST_SYMBOL {
+    LISTNODE_FIELDS;
+    STR Name[MAX_VAR_NAME];
+    SCRIPT_HOST_SYMBOL_KIND Kind;
+    SCRIPT_HOST_HANDLE Handle;
+    const SCRIPT_HOST_DESCRIPTOR* Descriptor;
+    LPVOID Context;
+} SCRIPT_HOST_SYMBOL, *LPSCRIPT_HOST_SYMBOL;
+
+typedef struct {
+    LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
+    U32 Count;
+} SCRIPT_HOST_REGISTRY, *LPSCRIPT_HOST_REGISTRY;
 
 /************************************************************************/
 
@@ -183,6 +231,9 @@ typedef struct tag_AST_NODE {
             BOOL IsArrayAccess;
             U32 ArrayIndex;
             struct tag_AST_NODE* ArrayIndexExpr;
+            struct tag_AST_NODE* BaseExpression;
+            BOOL IsPropertyAccess;
+            STR PropertyName[MAX_TOKEN_LENGTH];
             BOOL IsFunctionCall;
             STR Argument[MAX_TOKEN_LENGTH];
             struct tag_AST_NODE* Left;   // Left operand for binary operations, or function argument expression
@@ -203,6 +254,7 @@ typedef struct {
     LPSCRIPT_VAR_TABLE Variables;
     LPSCRIPT_CALLBACKS Callbacks;
     LPSCRIPT_SCOPE CurrentScope;
+    struct tag_SCRIPT_CONTEXT* Context;
 } SCRIPT_PARSER, *LPSCRIPT_PARSER;
 
 typedef struct {
@@ -213,6 +265,7 @@ typedef struct {
     STR ErrorMessage[MAX_ERROR_MESSAGE];
     LPSCRIPT_SCOPE GlobalScope;
     LPSCRIPT_SCOPE CurrentScope;
+    SCRIPT_HOST_REGISTRY HostRegistry;
 } SCRIPT_CONTEXT, *LPSCRIPT_CONTEXT;
 
 /************************************************************************/
@@ -236,6 +289,11 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
 SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value);
 LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
 LPSCRIPT_VARIABLE ScriptGetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index);
+
+// Host object registration
+BOOL ScriptRegisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_HOST_SYMBOL_KIND Kind, SCRIPT_HOST_HANDLE Handle, const SCRIPT_HOST_DESCRIPTOR* Descriptor, LPVOID ContextPointer);
+void ScriptUnregisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name);
+void ScriptClearHostSymbols(LPSCRIPT_CONTEXT Context);
 
 // Scope management functions
 LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_SCOPE Parent);
