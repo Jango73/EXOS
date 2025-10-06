@@ -157,6 +157,11 @@ U32 EXT2Commands(U32 Function, U32 Parameter);
 
 /************************************************************************/
 
+/**
+ * @brief Checks whether a path contains wildcard characters.
+ * @param Path Null-terminated path string to inspect.
+ * @return TRUE if '*' or '?' is found in the path, FALSE otherwise.
+ */
 static BOOL HasWildcard(LPCSTR Path) {
     if (STRING_EMPTY(Path)) return FALSE;
 
@@ -168,6 +173,11 @@ static BOOL HasWildcard(LPCSTR Path) {
 
 /************************************************************************/
 
+/**
+ * @brief Extracts the last component of a path.
+ * @param Path Input path string that may contain separators.
+ * @param Name Destination buffer receiving the extracted component.
+ */
 static void ExtractBaseName(LPCSTR Path, LPSTR Name) {
     STR Buffer[MAX_PATH_NAME];
     LPSTR Slash;
@@ -205,6 +215,10 @@ static void ExtractBaseName(LPCSTR Path, LPSTR Name) {
 
 /************************************************************************/
 
+/**
+ * @brief Releases directory-specific buffers owned by a file handle.
+ * @param File Directory handle whose cached resources must be freed.
+ */
 static void ReleaseDirectoryResources(LPEXT2FILE File) {
     if (File == NULL) return;
 
@@ -218,6 +232,12 @@ static void ReleaseDirectoryResources(LPEXT2FILE File) {
 
 /************************************************************************/
 
+/**
+ * @brief Compares a name against a wildcard pattern.
+ * @param Name File name to evaluate.
+ * @param Pattern Wildcard expression supporting '*' and '?'.
+ * @return TRUE when the name matches the pattern, FALSE otherwise.
+ */
 static BOOL MatchPattern(LPCSTR Name, LPCSTR Pattern) {
     if (Pattern == NULL) return FALSE;
     if (Name == NULL) return FALSE;
@@ -250,6 +270,14 @@ static BOOL MatchPattern(LPCSTR Name, LPCSTR Pattern) {
 
 /************************************************************************/
 
+/**
+ * @brief Locates and validates the inode for a directory path.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Path Directory path that should be resolved.
+ * @param Inode Receives the inode data for the directory.
+ * @param InodeIndex Receives the inode index when provided.
+ * @return TRUE if the directory inode was found, FALSE otherwise.
+ */
 static BOOL LoadDirectoryInode(
     LPEXT2FILESYSTEM FileSystem, LPCSTR Path, LPEXT2INODE Inode, U32* InodeIndex) {
     STR Normalized[MAX_PATH_NAME];
@@ -285,6 +313,12 @@ static BOOL LoadDirectoryInode(
 
 /************************************************************************/
 
+/**
+ * @brief Populates a FILE header from an EXT2 inode description.
+ * @param File Target file handle to update.
+ * @param Name Optional file name to assign.
+ * @param Inode Source inode containing metadata.
+ */
 static void FillFileHeaderFromInode(LPEXT2FILE File, LPCSTR Name, LPEXT2INODE Inode) {
     if (File == NULL || Inode == NULL) return;
 
@@ -320,6 +354,16 @@ static void FillFileHeaderFromInode(LPEXT2FILE File, LPCSTR Name, LPEXT2INODE In
 
 /************************************************************************/
 
+/**
+ * @brief Configures an EXT2 directory handle for enumeration or access.
+ * @param File File object being configured.
+ * @param FileSystem Owning file system instance.
+ * @param Directory Inode describing the directory.
+ * @param InodeIndex Index of the directory inode.
+ * @param Enumerate TRUE to prepare for enumeration, FALSE otherwise.
+ * @param Pattern Wildcard pattern used when enumerating entries.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL SetupDirectoryHandle(
     LPEXT2FILE File,
     LPEXT2FILESYSTEM FileSystem,
@@ -362,6 +406,11 @@ static BOOL SetupDirectoryHandle(
 
 /************************************************************************/
 
+/**
+ * @brief Loads the next directory entry matching the current pattern.
+ * @param File Directory handle being enumerated.
+ * @return TRUE when an entry is loaded, FALSE when no more entries exist.
+ */
 static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
     LPEXT2FILESYSTEM FileSystem;
     U32 BlockCount;
@@ -454,12 +503,22 @@ static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
 
 /************************************************************************/
 
+/**
+ * @brief Aligns a directory entry name length to the EXT2 record boundary.
+ * @param Length Raw name length in bytes.
+ * @return Length rounded up to the nearest valid directory record size.
+ */
 static U32 AlignDirectoryNameLength(U32 Length) {
     return (Length + (EXT2_DIR_ENTRY_ALIGN - 1)) & ~(EXT2_DIR_ENTRY_ALIGN - 1);
 }
 
 /************************************************************************/
 
+/**
+ * @brief Writes the in-memory superblock back to disk.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL FlushSuperBlock(LPEXT2FILESYSTEM FileSystem) {
     U8 Buffer[SECTOR_SIZE * 2];
 
@@ -473,6 +532,12 @@ static BOOL FlushSuperBlock(LPEXT2FILESYSTEM FileSystem) {
 
 /************************************************************************/
 
+/**
+ * @brief Persists a block group descriptor to disk.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param GroupIndex Index of the block group descriptor to flush.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL FlushGroupDescriptor(LPEXT2FILESYSTEM FileSystem, U32 GroupIndex) {
     U32 DescriptorsPerBlock;
     U32 TargetBlock;
@@ -513,6 +578,13 @@ static BOOL FlushGroupDescriptor(LPEXT2FILESYSTEM FileSystem, U32 GroupIndex) {
 
 /************************************************************************/
 
+/**
+ * @brief Writes an inode structure back to disk.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param InodeIndex Index of the inode to update.
+ * @param Inode Source inode data to persist.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
     LPEXT2BLOCKGROUP Group;
     U32 GroupIndex;
@@ -564,6 +636,12 @@ static BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE 
 
 /************************************************************************/
 
+/**
+ * @brief Allocates a free data block and marks it as used.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param BlockNumber Receives the allocated block number on success.
+ * @return TRUE when a block is allocated, FALSE otherwise.
+ */
 static BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber) {
     U8* Bitmap;
     U32 GroupIndex;
@@ -651,6 +729,12 @@ static BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber) {
 
 /************************************************************************/
 
+/**
+ * @brief Releases a data block back to the free list.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param BlockNumber Block number to free.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL FreeBlock(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber) {
     U8* Bitmap;
     U32 GroupIndex;
@@ -707,6 +791,15 @@ static BOOL FreeBlock(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber) {
 
 /************************************************************************/
 
+/**
+ * @brief Allocates a free inode and initializes its metadata.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Directory TRUE when allocating a directory inode.
+ * @param InodeIndex Receives the index of the allocated inode.
+ * @param Inode Receives the initialized inode contents.
+ * @param GroupIndexOut Optionally receives the block group index.
+ * @return TRUE when an inode is allocated, FALSE otherwise.
+ */
 static BOOL AllocateInode(
     LPEXT2FILESYSTEM FileSystem, BOOL Directory, U32* InodeIndex, LPEXT2INODE Inode, U32* GroupIndexOut) {
     U8* Bitmap;
@@ -782,6 +875,13 @@ static BOOL AllocateInode(
 
 /************************************************************************/
 
+/**
+ * @brief Releases an inode and updates allocation metadata.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param InodeIndex Index of the inode to release.
+ * @param Directory TRUE if the inode represents a directory.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Directory) {
     U8* Bitmap;
     U32 GroupIndex;
@@ -841,6 +941,12 @@ static BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Director
 
 /************************************************************************/
 
+/**
+ * @brief Releases all blocks referenced by an inode and resets its size.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Inode Inode to truncate.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL TruncateInode(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode) {
     U32 Index;
 
@@ -861,6 +967,16 @@ static BOOL TruncateInode(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode) {
 
 /************************************************************************/
 
+/**
+ * @brief Inserts a directory entry into a directory inode.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Directory Directory inode that will receive the entry.
+ * @param DirectoryIndex Index of the directory inode on disk.
+ * @param ChildInodeIndex Index of the child inode to reference.
+ * @param Name Name of the entry to create.
+ * @param FileType EXT2 file type identifier for the entry.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL AddDirectoryEntry(
     LPEXT2FILESYSTEM FileSystem,
     LPEXT2INODE Directory,
@@ -1000,6 +1116,16 @@ static BOOL AddDirectoryEntry(
 
 /************************************************************************/
 
+/**
+ * @brief Creates a new directory under a parent inode.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Parent Parent directory inode in memory.
+ * @param ParentIndex Index of the parent inode on disk.
+ * @param Name Name of the directory to create.
+ * @param NewInodeIndex Optionally receives the created inode index.
+ * @param NewInode Optionally receives the created inode contents.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL CreateDirectoryInternal(
     LPEXT2FILESYSTEM FileSystem,
     LPEXT2INODE Parent,
@@ -1095,6 +1221,15 @@ static BOOL CreateDirectoryInternal(
 
 /************************************************************************/
 
+/**
+ * @brief Ensures that the parent directory of a path exists.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Path Full path whose parent should be located or created.
+ * @param Parent Receives the parent directory inode.
+ * @param ParentIndex Receives the parent inode index.
+ * @param FinalComponent Receives the last component of the path.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL EnsureParentDirectory(
     LPEXT2FILESYSTEM FileSystem,
     LPCSTR Path,
@@ -1195,6 +1330,12 @@ static BOOL EnsureParentDirectory(
 
 /************************************************************************/
 
+/**
+ * @brief Creates a file or directory node represented by FILEINFO.
+ * @param Info Kernel-provided file information structure.
+ * @param Directory TRUE to create a directory, FALSE for a file.
+ * @return Driver error code indicating the operation result.
+ */
 static U32 CreateNode(LPFILEINFO Info, BOOL Directory) {
     LPEXT2FILESYSTEM FileSystem;
     EXT2INODE ParentInode;
@@ -1329,6 +1470,14 @@ static BOOL ReadBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPVOID Buffer) {
 
 /************************************************************************/
 
+/**
+ * @brief Writes raw sectors relative to the partition start.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Sector Sector index relative to the partition start.
+ * @param Count Number of sectors to write.
+ * @param Buffer Source buffer containing the data to write.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPCVOID Buffer) {
     IOCONTROL Control;
 
@@ -1348,6 +1497,13 @@ static BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPC
 
 /************************************************************************/
 
+/**
+ * @brief Writes a complete EXT2 block from the provided buffer.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Block Block index to write.
+ * @param Buffer Source buffer sized to hold one block.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL WriteBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPCVOID Buffer) {
     if (FileSystem == NULL) return FALSE;
     if (Buffer == NULL) return FALSE;
@@ -1959,6 +2115,11 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
 
 /************************************************************************/
 
+/**
+ * @brief Advances to the next entry when enumerating a directory.
+ * @param File Directory enumeration handle.
+ * @return DF_ERROR_SUCCESS on success or an error code otherwise.
+ */
 static U32 OpenNext(LPEXT2FILE File) {
     if (File == NULL) return DF_ERROR_BADPARAM;
     if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
