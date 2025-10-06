@@ -81,6 +81,7 @@ typedef struct {
 typedef enum {
     TOKEN_EOF,
     TOKEN_IDENTIFIER,
+    TOKEN_PATH,
     TOKEN_NUMBER,
     TOKEN_STRING,
     TOKEN_OPERATOR,

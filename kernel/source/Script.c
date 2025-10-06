@@ -597,6 +597,75 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
         if (Input[*Pos] == '\'') (*Pos)++; // Skip closing quote
 
+    } else if (Ch == '/') {
+        BOOL TreatAsPath = TRUE;
+
+        if (Input[*Pos + 1] == STR_NULL ||
+            Input[*Pos + 1] == ' ' || Input[*Pos + 1] == '\t' ||
+            Input[*Pos + 1] == '\n' || Input[*Pos + 1] == '\r') {
+            TreatAsPath = FALSE;
+        } else if (Input[*Pos + 1] == '/') {
+            TreatAsPath = FALSE;
+        }
+
+        if (TreatAsPath) {
+            BOOL HasValidStart = FALSE;
+
+            if (*Pos == 0) {
+                HasValidStart = TRUE;
+            } else {
+                I32 Prev = (I32)(*Pos) - 1;
+                while (Prev >= 0) {
+                    STR PrevCh = Input[Prev];
+                    if (PrevCh == ' ' || PrevCh == '\t' || PrevCh == '\r') {
+                        Prev--;
+                        continue;
+                    }
+
+                    if (PrevCh == '\n' || PrevCh == ';' || PrevCh == '{' || PrevCh == '}') {
+                        HasValidStart = TRUE;
+                    } else {
+                        HasValidStart = FALSE;
+                    }
+                    break;
+                }
+
+                if (Prev < 0) {
+                    HasValidStart = TRUE;
+                }
+            }
+
+            if (!HasValidStart) {
+                TreatAsPath = FALSE;
+            }
+        }
+
+        if (TreatAsPath) {
+            Parser->CurrentToken.Type = TOKEN_PATH;
+            U32 Start = *Pos;
+            (*Pos)++;
+
+            while (Input[*Pos] != STR_NULL) {
+                STR Current = Input[*Pos];
+                if (Current == ' ' || Current == '\t' || Current == '\n' ||
+                    Current == '\r' || Current == ';') {
+                    break;
+                }
+                (*Pos)++;
+            }
+
+            U32 Len = *Pos - Start;
+            if (Len >= MAX_TOKEN_LENGTH) Len = MAX_TOKEN_LENGTH - 1;
+
+            MemoryCopy(Parser->CurrentToken.Value, &Input[Start], Len);
+            Parser->CurrentToken.Value[Len] = STR_NULL;
+        } else {
+            Parser->CurrentToken.Type = TOKEN_OPERATOR;
+            Parser->CurrentToken.Value[0] = Ch;
+            Parser->CurrentToken.Value[1] = STR_NULL;
+            (*Pos)++;
+        }
+
     } else if (Ch == '(' || Ch == ')') {
         Parser->CurrentToken.Type = (Ch == '(') ? TOKEN_LPAREN : TOKEN_RPAREN;
         Parser->CurrentToken.Value[0] = Ch;
@@ -1239,7 +1308,8 @@ static F32 ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, SCR
     }
 
     // IDENTIFIER (variable, function call, or array access)
-    if (Expr->Data.Expression.TokenType == TOKEN_IDENTIFIER) {
+    if (Expr->Data.Expression.TokenType == TOKEN_IDENTIFIER ||
+        Expr->Data.Expression.TokenType == TOKEN_PATH) {
         // Function call
         if (Expr->Data.Expression.IsFunctionCall) {
             if (Expr->Data.Expression.IsShellCommand) {
@@ -1279,6 +1349,11 @@ static F32 ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, SCR
                     }
                 }
 
+                *Error = SCRIPT_ERROR_SYNTAX;
+                return 0.0f;
+            }
+
+            if (Expr->Data.Expression.TokenType == TOKEN_PATH) {
                 *Error = SCRIPT_ERROR_SYNTAX;
                 return 0.0f;
             }
@@ -1593,6 +1668,8 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
         return ScriptParseForStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
         return ScriptParseBlockAST(Parser, Error);
+    } else if (Parser->CurrentToken.Type == TOKEN_PATH) {
+        return ScriptParseShellCommandExpression(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_STRING) {
         return ScriptParseShellCommandExpression(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_IDENTIFIER) {
@@ -1645,6 +1722,10 @@ static BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser) {
         return TRUE;
     }
 
+    if (Parser->CurrentToken.Type == TOKEN_PATH) {
+        return TRUE;
+    }
+
     if (Parser->CurrentToken.Type != TOKEN_IDENTIFIER) {
         return FALSE;
     }
@@ -1681,6 +1762,7 @@ static LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRI
     U32 Scan = Start;
     BOOL InQuotes = FALSE;
     STR QuoteChar = STR_NULL;
+    TOKEN_TYPE InitialTokenType = Parser->CurrentToken.Type;
 
     while (Input[Scan] != STR_NULL) {
         STR Ch = Input[Scan];
@@ -1730,7 +1812,7 @@ static LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRI
     MemoryCopy(Node->Data.Expression.CommandLine, &Input[Start], Length);
     Node->Data.Expression.CommandLine[Length] = STR_NULL;
 
-    Node->Data.Expression.TokenType = TOKEN_IDENTIFIER;
+    Node->Data.Expression.TokenType = (InitialTokenType == TOKEN_PATH) ? TOKEN_PATH : TOKEN_IDENTIFIER;
     Node->Data.Expression.IsVariable = FALSE;
     Node->Data.Expression.IsFunctionCall = TRUE;
     Node->Data.Expression.IsShellCommand = TRUE;

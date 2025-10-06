@@ -15,6 +15,9 @@ KERNEL_CFG_REF  = ../kernel/configuration/exos.ref.toml
 MTOOLS_CONF     = .mtoolsrc.tmp
 MBR_SOURCE      = source/mbr.asm
 
+# EXT2 layout configuration
+EXT2_BLOCK_SIZE ?= 4096
+
 VBR_SRC         = source/vbr.asm
 PAYLOAD_STUB    = source/vbr-payload-a.asm
 PAYLOAD_C       = source/vbr-payload-c.c
@@ -94,7 +97,7 @@ define CREATE_EXT2_IMAGE
 				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
 				exit 1; \
 			fi; \
-			mke2fs -F -t ext2 -q -L $(EXT2_LABEL) -E offset=$$PART_OFFSET $1; \
+                        mke2fs -F -t ext2 -b $(EXT2_BLOCK_SIZE) -q -L $(EXT2_LABEL) -E offset=$$PART_OFFSET $1; \
 		}; \
 	fi
 endef
@@ -107,7 +110,7 @@ define POPULATE_EXT2_IMAGE
 			exit 1; \
 		fi; \
 		echo "Populating EXT2 filesystem at offset $$PART_OFFSET from $2"; \
-		mke2fs -F -t ext2 -q -L $(EXT2_LABEL) -d $2 -E offset=$$PART_OFFSET $1; \
+                mke2fs -F -t ext2 -b $(EXT2_BLOCK_SIZE) -q -L $(EXT2_LABEL) -d $2 -E offset=$$PART_OFFSET $1; \
 	}
 endef
 
