@@ -40,6 +40,10 @@
 #define EXT2_MODE_REGULAR 0x8000
 #define EXT2_DIRECT_BLOCKS 12
 #define EXT2_DIR_ENTRY_HEADER_SIZE (sizeof(U32) + sizeof(U16) + sizeof(U8) + sizeof(U8))
+#define EXT2_DIR_ENTRY_ALIGN 4
+#define EXT2_FT_UNKNOWN 0
+#define EXT2_FT_REG_FILE 1
+#define EXT2_FT_DIR 2
 #define EXT2_MODE_USER_WRITE 0x0080
 #define EXT2_MODE_GROUP_WRITE 0x0010
 #define EXT2_MODE_OTHER_WRITE 0x0002
@@ -94,6 +98,7 @@ static BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPC
 static BOOL WriteBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPCVOID Buffer);
 static BOOL LoadGroupDescriptors(LPEXT2FILESYSTEM FileSystem);
 static BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
+static BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
 static BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, U32* BlockNumber);
 static BOOL FindInodeInDirectory(
     LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Directory, LPCSTR Name, U32* InodeIndex);
@@ -110,6 +115,35 @@ static BOOL SetupDirectoryHandle(
     BOOL Enumerate,
     LPCSTR Pattern);
 static BOOL LoadNextDirectoryEntry(LPEXT2FILE File);
+static BOOL FlushSuperBlock(LPEXT2FILESYSTEM FileSystem);
+static BOOL FlushGroupDescriptor(LPEXT2FILESYSTEM FileSystem, U32 GroupIndex);
+static BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber);
+static BOOL FreeBlock(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber);
+static BOOL AllocateInode(
+    LPEXT2FILESYSTEM FileSystem, BOOL Directory, U32* InodeIndex, LPEXT2INODE Inode, U32* GroupIndexOut);
+static BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Directory);
+static BOOL TruncateInode(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode);
+static BOOL AddDirectoryEntry(
+    LPEXT2FILESYSTEM FileSystem,
+    LPEXT2INODE Directory,
+    U32 DirectoryIndex,
+    U32 ChildInodeIndex,
+    LPCSTR Name,
+    U8 FileType);
+static BOOL CreateDirectoryInternal(
+    LPEXT2FILESYSTEM FileSystem,
+    LPEXT2INODE Parent,
+    U32 ParentIndex,
+    LPCSTR Name,
+    U32* NewInodeIndex,
+    LPEXT2INODE NewInode);
+static BOOL EnsureParentDirectory(
+    LPEXT2FILESYSTEM FileSystem,
+    LPCSTR Path,
+    LPEXT2INODE Parent,
+    U32* ParentIndex,
+    LPSTR FinalComponent);
+static U32 CreateNode(LPFILEINFO Info, BOOL Directory);
 
 static U32 Initialize(void);
 static LPEXT2FILE OpenFile(LPFILEINFO Info);
@@ -416,6 +450,821 @@ static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+static U32 AlignDirectoryNameLength(U32 Length) {
+    return (Length + (EXT2_DIR_ENTRY_ALIGN - 1)) & ~(EXT2_DIR_ENTRY_ALIGN - 1);
+}
+
+/************************************************************************/
+
+static BOOL FlushSuperBlock(LPEXT2FILESYSTEM FileSystem) {
+    U8 Buffer[SECTOR_SIZE * 2];
+
+    if (FileSystem == NULL) return FALSE;
+
+    MemorySet(Buffer, 0, sizeof(Buffer));
+    MemoryCopy(Buffer, &(FileSystem->Super), sizeof(EXT2SUPER));
+
+    return WriteSectors(FileSystem, 2, 2, Buffer);
+}
+
+/************************************************************************/
+
+static BOOL FlushGroupDescriptor(LPEXT2FILESYSTEM FileSystem, U32 GroupIndex) {
+    U32 DescriptorsPerBlock;
+    U32 TargetBlock;
+    U32 OffsetInBlock;
+    U8* Buffer;
+
+    if (FileSystem == NULL) return FALSE;
+    if (FileSystem->Groups == NULL) return FALSE;
+    if (GroupIndex >= FileSystem->GroupCount) return FALSE;
+
+    if (FileSystem->BlockSize == 0) return FALSE;
+
+    DescriptorsPerBlock = FileSystem->BlockSize / sizeof(EXT2BLOCKGROUP);
+    if (DescriptorsPerBlock == 0) return FALSE;
+
+    TargetBlock = FileSystem->Super.FirstDataBlock + 1 + (GroupIndex / DescriptorsPerBlock);
+    OffsetInBlock = (GroupIndex % DescriptorsPerBlock) * sizeof(EXT2BLOCKGROUP);
+
+    Buffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (Buffer == NULL) return FALSE;
+
+    if (ReadBlock(FileSystem, TargetBlock, Buffer) == FALSE) {
+        KernelHeapFree(Buffer);
+        return FALSE;
+    }
+
+    MemoryCopy(Buffer + OffsetInBlock, &(FileSystem->Groups[GroupIndex]), sizeof(EXT2BLOCKGROUP));
+
+    if (WriteBlock(FileSystem, TargetBlock, Buffer) == FALSE) {
+        KernelHeapFree(Buffer);
+        return FALSE;
+    }
+
+    KernelHeapFree(Buffer);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
+    LPEXT2BLOCKGROUP Group;
+    U32 GroupIndex;
+    U32 IndexInGroup;
+    U32 BlockOffset;
+    U32 OffsetInBlock;
+    U8* BlockBuffer;
+    U32 CopySize;
+
+    if (FileSystem == NULL || Inode == NULL) return FALSE;
+    if (InodeIndex == 0) return FALSE;
+    if (FileSystem->InodesPerBlock == 0) return FALSE;
+    if (FileSystem->Groups == NULL) return FALSE;
+
+    GroupIndex = (InodeIndex - 1) / FileSystem->Super.InodesPerGroup;
+    if (GroupIndex >= FileSystem->GroupCount) return FALSE;
+
+    Group = &(FileSystem->Groups[GroupIndex]);
+    if (Group->InodeTable == 0) return FALSE;
+
+    IndexInGroup = (InodeIndex - 1) % FileSystem->Super.InodesPerGroup;
+    BlockOffset = IndexInGroup / FileSystem->InodesPerBlock;
+    OffsetInBlock = (IndexInGroup % FileSystem->InodesPerBlock) * FileSystem->InodeSize;
+
+    BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (BlockBuffer == NULL) return FALSE;
+
+    if (ReadBlock(FileSystem, Group->InodeTable + BlockOffset, BlockBuffer) == FALSE) {
+        KernelHeapFree(BlockBuffer);
+        return FALSE;
+    }
+
+    CopySize = FileSystem->InodeSize;
+    if (CopySize > sizeof(EXT2INODE)) {
+        CopySize = sizeof(EXT2INODE);
+    }
+
+    MemoryCopy(BlockBuffer + OffsetInBlock, Inode, CopySize);
+
+    if (WriteBlock(FileSystem, Group->InodeTable + BlockOffset, BlockBuffer) == FALSE) {
+        KernelHeapFree(BlockBuffer);
+        return FALSE;
+    }
+
+    KernelHeapFree(BlockBuffer);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber) {
+    U8* Bitmap;
+    U32 GroupIndex;
+    U32 BitsPerBlock;
+
+    if (FileSystem == NULL || BlockNumber == NULL) return FALSE;
+    if (FileSystem->BlockSize == 0) return FALSE;
+    if (FileSystem->Groups == NULL) return FALSE;
+
+    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (Bitmap == NULL) return FALSE;
+
+    BitsPerBlock = FileSystem->BlockSize * 8;
+
+    for (GroupIndex = 0; GroupIndex < FileSystem->GroupCount; GroupIndex++) {
+        LPEXT2BLOCKGROUP Group = &(FileSystem->Groups[GroupIndex]);
+        U32 BitIndex;
+
+        if (Group->FreeBlocksCount == 0) continue;
+        if (Group->BlockBitmap == 0) continue;
+
+        if (ReadBlock(FileSystem, Group->BlockBitmap, Bitmap) == FALSE) continue;
+
+        for (BitIndex = 0; BitIndex < BitsPerBlock && BitIndex < FileSystem->Super.BlocksPerGroup; BitIndex++) {
+            U32 ByteIndex = BitIndex / 8;
+            U8 Mask = 1 << (BitIndex % 8);
+
+            if (Bitmap[ByteIndex] & Mask) continue;
+
+            Bitmap[ByteIndex] |= Mask;
+
+            if (WriteBlock(FileSystem, Group->BlockBitmap, Bitmap) == FALSE) {
+                KernelHeapFree(Bitmap);
+                return FALSE;
+            }
+
+            Group->FreeBlocksCount--;
+            FileSystem->Super.FreeBlocksCount--;
+
+            if (FlushGroupDescriptor(FileSystem, GroupIndex) == FALSE) {
+                KernelHeapFree(Bitmap);
+                return FALSE;
+            }
+
+            if (FlushSuperBlock(FileSystem) == FALSE) {
+                KernelHeapFree(Bitmap);
+                return FALSE;
+            }
+
+            {
+                U8* Zero;
+                U32 AbsoluteBlock;
+
+                AbsoluteBlock = FileSystem->Super.FirstDataBlock +
+                    (GroupIndex * FileSystem->Super.BlocksPerGroup) + BitIndex;
+
+                Zero = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+                if (Zero == NULL) {
+                    KernelHeapFree(Bitmap);
+                    return FALSE;
+                }
+
+                MemorySet(Zero, 0, FileSystem->BlockSize);
+
+                if (WriteBlock(FileSystem, AbsoluteBlock, Zero) == FALSE) {
+                    KernelHeapFree(Zero);
+                    KernelHeapFree(Bitmap);
+                    FreeBlock(FileSystem, AbsoluteBlock);
+                    return FALSE;
+                }
+
+                KernelHeapFree(Zero);
+
+                *BlockNumber = AbsoluteBlock;
+                KernelHeapFree(Bitmap);
+                return TRUE;
+            }
+        }
+    }
+
+    KernelHeapFree(Bitmap);
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL FreeBlock(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber) {
+    U8* Bitmap;
+    U32 GroupIndex;
+    U32 BitIndex;
+    U32 RelativeBlock;
+
+    if (FileSystem == NULL) return FALSE;
+    if (BlockNumber == 0) return FALSE;
+    if (FileSystem->Groups == NULL) return FALSE;
+
+    if (BlockNumber < FileSystem->Super.FirstDataBlock) return FALSE;
+
+    RelativeBlock = BlockNumber - FileSystem->Super.FirstDataBlock;
+    GroupIndex = RelativeBlock / FileSystem->Super.BlocksPerGroup;
+    if (GroupIndex >= FileSystem->GroupCount) return FALSE;
+
+    BitIndex = RelativeBlock % FileSystem->Super.BlocksPerGroup;
+
+    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (Bitmap == NULL) return FALSE;
+
+    if (ReadBlock(FileSystem, FileSystem->Groups[GroupIndex].BlockBitmap, Bitmap) == FALSE) {
+        KernelHeapFree(Bitmap);
+        return FALSE;
+    }
+
+    {
+        U32 ByteIndex = BitIndex / 8;
+        U8 Mask = 1 << (BitIndex % 8);
+
+        if ((Bitmap[ByteIndex] & Mask) == 0) {
+            KernelHeapFree(Bitmap);
+            return TRUE;
+        }
+
+        Bitmap[ByteIndex] &= (U8)~Mask;
+    }
+
+    if (WriteBlock(FileSystem, FileSystem->Groups[GroupIndex].BlockBitmap, Bitmap) == FALSE) {
+        KernelHeapFree(Bitmap);
+        return FALSE;
+    }
+
+    KernelHeapFree(Bitmap);
+
+    FileSystem->Groups[GroupIndex].FreeBlocksCount++;
+    FileSystem->Super.FreeBlocksCount++;
+
+    if (FlushGroupDescriptor(FileSystem, GroupIndex) == FALSE) return FALSE;
+    if (FlushSuperBlock(FileSystem) == FALSE) return FALSE;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL AllocateInode(
+    LPEXT2FILESYSTEM FileSystem, BOOL Directory, U32* InodeIndex, LPEXT2INODE Inode, U32* GroupIndexOut) {
+    U8* Bitmap;
+    U32 GroupIndex;
+    U32 BitsPerBitmap;
+
+    if (FileSystem == NULL || InodeIndex == NULL || Inode == NULL) return FALSE;
+    if (FileSystem->BlockSize == 0) return FALSE;
+    if (FileSystem->Groups == NULL) return FALSE;
+
+    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (Bitmap == NULL) return FALSE;
+
+    BitsPerBitmap = FileSystem->BlockSize * 8;
+
+    for (GroupIndex = 0; GroupIndex < FileSystem->GroupCount; GroupIndex++) {
+        LPEXT2BLOCKGROUP Group = &(FileSystem->Groups[GroupIndex]);
+        U32 BitIndex;
+
+        if (Group->FreeInodesCount == 0) continue;
+        if (Group->InodeBitmap == 0) continue;
+
+        if (ReadBlock(FileSystem, Group->InodeBitmap, Bitmap) == FALSE) continue;
+
+        for (BitIndex = 0; BitIndex < BitsPerBitmap && BitIndex < FileSystem->Super.InodesPerGroup; BitIndex++) {
+            U32 ByteIndex = BitIndex / 8;
+            U8 Mask = 1 << (BitIndex % 8);
+
+            if (Bitmap[ByteIndex] & Mask) continue;
+
+            Bitmap[ByteIndex] |= Mask;
+
+            if (WriteBlock(FileSystem, Group->InodeBitmap, Bitmap) == FALSE) {
+                KernelHeapFree(Bitmap);
+                return FALSE;
+            }
+
+            Group->FreeInodesCount--;
+            if (Directory) {
+                Group->UsedDirsCount++;
+            }
+
+            FileSystem->Super.FreeInodesCount--;
+
+            if (FlushGroupDescriptor(FileSystem, GroupIndex) == FALSE) {
+                KernelHeapFree(Bitmap);
+                return FALSE;
+            }
+
+            if (FlushSuperBlock(FileSystem) == FALSE) {
+                KernelHeapFree(Bitmap);
+                return FALSE;
+            }
+
+            *InodeIndex = (GroupIndex * FileSystem->Super.InodesPerGroup) + BitIndex + 1;
+            if (GroupIndexOut != NULL) {
+                *GroupIndexOut = GroupIndex;
+            }
+
+            MemorySet(Inode, 0, sizeof(EXT2INODE));
+            Inode->Mode = Directory ? (EXT2_MODE_DIRECTORY | 0x01ED) : (EXT2_MODE_REGULAR | 0x01A4);
+            Inode->LinksCount = Directory ? 2 : 1;
+
+            KernelHeapFree(Bitmap);
+            return TRUE;
+        }
+    }
+
+    KernelHeapFree(Bitmap);
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Directory) {
+    U8* Bitmap;
+    U32 GroupIndex;
+    U32 BitIndex;
+
+    if (FileSystem == NULL) return FALSE;
+    if (InodeIndex == 0) return FALSE;
+    if (FileSystem->Groups == NULL) return FALSE;
+
+    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (Bitmap == NULL) return FALSE;
+
+    GroupIndex = (InodeIndex - 1) / FileSystem->Super.InodesPerGroup;
+    if (GroupIndex >= FileSystem->GroupCount) {
+        KernelHeapFree(Bitmap);
+        return FALSE;
+    }
+
+    BitIndex = (InodeIndex - 1) % FileSystem->Super.InodesPerGroup;
+
+    if (ReadBlock(FileSystem, FileSystem->Groups[GroupIndex].InodeBitmap, Bitmap) == FALSE) {
+        KernelHeapFree(Bitmap);
+        return FALSE;
+    }
+
+    {
+        U32 ByteIndex = BitIndex / 8;
+        U8 Mask = 1 << (BitIndex % 8);
+
+        if ((Bitmap[ByteIndex] & Mask) == 0) {
+            KernelHeapFree(Bitmap);
+            return TRUE;
+        }
+
+        Bitmap[ByteIndex] &= (U8)~Mask;
+    }
+
+    if (WriteBlock(FileSystem, FileSystem->Groups[GroupIndex].InodeBitmap, Bitmap) == FALSE) {
+        KernelHeapFree(Bitmap);
+        return FALSE;
+    }
+
+    KernelHeapFree(Bitmap);
+
+    FileSystem->Groups[GroupIndex].FreeInodesCount++;
+    if (Directory && FileSystem->Groups[GroupIndex].UsedDirsCount > 0) {
+        FileSystem->Groups[GroupIndex].UsedDirsCount--;
+    }
+
+    FileSystem->Super.FreeInodesCount++;
+
+    if (FlushGroupDescriptor(FileSystem, GroupIndex) == FALSE) return FALSE;
+    if (FlushSuperBlock(FileSystem) == FALSE) return FALSE;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL TruncateInode(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode) {
+    U32 Index;
+
+    if (FileSystem == NULL || Inode == NULL) return FALSE;
+
+    for (Index = 0; Index < EXT2_DIRECT_BLOCKS; Index++) {
+        if (Inode->Block[Index] != 0) {
+            FreeBlock(FileSystem, Inode->Block[Index]);
+            Inode->Block[Index] = 0;
+        }
+    }
+
+    Inode->Size = 0;
+    Inode->Blocks = 0;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL AddDirectoryEntry(
+    LPEXT2FILESYSTEM FileSystem,
+    LPEXT2INODE Directory,
+    U32 DirectoryIndex,
+    U32 ChildInodeIndex,
+    LPCSTR Name,
+    U8 FileType) {
+    U32 NameLength;
+    U32 EntrySize;
+    U32 BlockIndex;
+
+    if (FileSystem == NULL || Directory == NULL || Name == NULL) return FALSE;
+    if (ChildInodeIndex == 0) return FALSE;
+
+    NameLength = StringLength(Name);
+    if (NameLength == 0) return FALSE;
+    if (NameLength >= EXT2_NAME_MAX) {
+        NameLength = EXT2_NAME_MAX - 1;
+    }
+
+    EntrySize = EXT2_DIR_ENTRY_HEADER_SIZE + AlignDirectoryNameLength(NameLength);
+    if (EntrySize > FileSystem->BlockSize) return FALSE;
+
+    for (BlockIndex = 0; BlockIndex < EXT2_DIRECT_BLOCKS; BlockIndex++) {
+        U32 BlockNumber;
+        U8* BlockBuffer;
+        U32 Offset;
+
+        BlockNumber = Directory->Block[BlockIndex];
+
+        if (BlockNumber == 0) {
+            if (AllocateBlock(FileSystem, &BlockNumber) == FALSE) return FALSE;
+
+            Directory->Block[BlockIndex] = BlockNumber;
+            Directory->Size = (BlockIndex + 1) * FileSystem->BlockSize;
+            Directory->Blocks += FileSystem->BlockSize / 512;
+
+            BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+            if (BlockBuffer == NULL) return FALSE;
+
+            MemorySet(BlockBuffer, 0, FileSystem->BlockSize);
+
+            {
+                LPEXT2DIRECTORYENTRY Entry = (LPEXT2DIRECTORYENTRY)BlockBuffer;
+                Entry->Inode = ChildInodeIndex;
+                Entry->RecordLength = FileSystem->BlockSize;
+                Entry->NameLength = (U8)NameLength;
+                Entry->FileType = FileType;
+                MemoryCopy(Entry->Name, Name, NameLength);
+            }
+
+            if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
+                KernelHeapFree(BlockBuffer);
+                return FALSE;
+            }
+
+            KernelHeapFree(BlockBuffer);
+
+            return WriteInode(FileSystem, DirectoryIndex, Directory);
+        }
+
+        BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (BlockBuffer == NULL) return FALSE;
+
+        if (ReadBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
+            KernelHeapFree(BlockBuffer);
+            return FALSE;
+        }
+
+        Offset = 0;
+
+        while (Offset + EXT2_DIR_ENTRY_HEADER_SIZE <= FileSystem->BlockSize) {
+            LPEXT2DIRECTORYENTRY Entry;
+            U32 ActualSize;
+            U32 Remaining;
+
+            Entry = (LPEXT2DIRECTORYENTRY)(BlockBuffer + Offset);
+
+            if (Entry->RecordLength < EXT2_DIR_ENTRY_HEADER_SIZE) break;
+            if (Offset + Entry->RecordLength > FileSystem->BlockSize) break;
+
+            if (Entry->Inode == 0) {
+                if (Entry->RecordLength >= EntrySize) {
+                    Entry->Inode = ChildInodeIndex;
+                    Entry->NameLength = (U8)NameLength;
+                    Entry->FileType = FileType;
+                    MemorySet(Entry->Name, 0, Entry->RecordLength - EXT2_DIR_ENTRY_HEADER_SIZE);
+                    MemoryCopy(Entry->Name, Name, NameLength);
+
+                    if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
+                        KernelHeapFree(BlockBuffer);
+                        return FALSE;
+                    }
+
+                    KernelHeapFree(BlockBuffer);
+
+                    return WriteInode(FileSystem, DirectoryIndex, Directory);
+                }
+            }
+
+            ActualSize = EXT2_DIR_ENTRY_HEADER_SIZE + AlignDirectoryNameLength(Entry->NameLength);
+            if (ActualSize < Entry->RecordLength) {
+                Remaining = Entry->RecordLength - ActualSize;
+
+                if (Remaining >= EntrySize) {
+                    LPEXT2DIRECTORYENTRY NewEntry;
+
+                    Entry->RecordLength = (U16)ActualSize;
+                    NewEntry = (LPEXT2DIRECTORYENTRY)(BlockBuffer + Offset + ActualSize);
+
+                    NewEntry->Inode = ChildInodeIndex;
+                    NewEntry->RecordLength = (U16)Remaining;
+                    NewEntry->NameLength = (U8)NameLength;
+                    NewEntry->FileType = FileType;
+                    MemorySet(NewEntry->Name, 0, Remaining - EXT2_DIR_ENTRY_HEADER_SIZE);
+                    MemoryCopy(NewEntry->Name, Name, NameLength);
+
+                    if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
+                        KernelHeapFree(BlockBuffer);
+                        return FALSE;
+                    }
+
+                    KernelHeapFree(BlockBuffer);
+
+                    return WriteInode(FileSystem, DirectoryIndex, Directory);
+                }
+            }
+
+            Offset += Entry->RecordLength;
+        }
+
+        KernelHeapFree(BlockBuffer);
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL CreateDirectoryInternal(
+    LPEXT2FILESYSTEM FileSystem,
+    LPEXT2INODE Parent,
+    U32 ParentIndex,
+    LPCSTR Name,
+    U32* NewInodeIndex,
+    LPEXT2INODE NewInode) {
+    U32 InodeIndex;
+    EXT2INODE DirectoryInode;
+    U32 BlockNumber;
+    U8* BlockBuffer;
+
+    if (FileSystem == NULL || Parent == NULL || Name == NULL) return FALSE;
+
+    if (AllocateInode(FileSystem, TRUE, &InodeIndex, &DirectoryInode, NULL) == FALSE) return FALSE;
+
+    if (AllocateBlock(FileSystem, &BlockNumber) == FALSE) {
+        FreeInode(FileSystem, InodeIndex, TRUE);
+        return FALSE;
+    }
+
+    BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (BlockBuffer == NULL) {
+        FreeBlock(FileSystem, BlockNumber);
+        FreeInode(FileSystem, InodeIndex, TRUE);
+        return FALSE;
+    }
+
+    MemorySet(BlockBuffer, 0, FileSystem->BlockSize);
+
+    {
+        LPEXT2DIRECTORYENTRY Dot = (LPEXT2DIRECTORYENTRY)BlockBuffer;
+        LPEXT2DIRECTORYENTRY DotDot;
+        U32 DotSize = EXT2_DIR_ENTRY_HEADER_SIZE + AlignDirectoryNameLength(1);
+        U32 DotDotSize = FileSystem->BlockSize - DotSize;
+
+        Dot->Inode = InodeIndex;
+        Dot->RecordLength = (U16)DotSize;
+        Dot->NameLength = 1;
+        Dot->FileType = EXT2_FT_DIR;
+        Dot->Name[0] = '.';
+
+        DotDot = (LPEXT2DIRECTORYENTRY)(BlockBuffer + DotSize);
+        DotDot->Inode = ParentIndex;
+        DotDot->RecordLength = (U16)DotDotSize;
+        DotDot->NameLength = 2;
+        DotDot->FileType = EXT2_FT_DIR;
+        DotDot->Name[0] = '.';
+        DotDot->Name[1] = '.';
+    }
+
+    if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
+        KernelHeapFree(BlockBuffer);
+        FreeBlock(FileSystem, BlockNumber);
+        FreeInode(FileSystem, InodeIndex, TRUE);
+        return FALSE;
+    }
+
+    KernelHeapFree(BlockBuffer);
+
+    DirectoryInode.Block[0] = BlockNumber;
+    DirectoryInode.Size = FileSystem->BlockSize;
+    DirectoryInode.Blocks = FileSystem->BlockSize / 512;
+    DirectoryInode.LinksCount = 2;
+
+    if (WriteInode(FileSystem, InodeIndex, &DirectoryInode) == FALSE) {
+        FreeBlock(FileSystem, BlockNumber);
+        FreeInode(FileSystem, InodeIndex, TRUE);
+        return FALSE;
+    }
+
+    if (AddDirectoryEntry(FileSystem, Parent, ParentIndex, InodeIndex, Name, EXT2_FT_DIR) == FALSE) {
+        FreeBlock(FileSystem, BlockNumber);
+        FreeInode(FileSystem, InodeIndex, TRUE);
+        return FALSE;
+    }
+
+    Parent->LinksCount++;
+    if (WriteInode(FileSystem, ParentIndex, Parent) == FALSE) {
+        return FALSE;
+    }
+
+    if (NewInode != NULL) {
+        MemoryCopy(NewInode, &DirectoryInode, sizeof(EXT2INODE));
+    }
+
+    if (NewInodeIndex != NULL) {
+        *NewInodeIndex = InodeIndex;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL EnsureParentDirectory(
+    LPEXT2FILESYSTEM FileSystem,
+    LPCSTR Path,
+    LPEXT2INODE Parent,
+    U32* ParentIndex,
+    LPSTR FinalComponent) {
+    STR Temp[MAX_PATH_NAME];
+    STR Component[MAX_FILE_NAME];
+    LPSTR Slash;
+    U32 CurrentIndex;
+    EXT2INODE CurrentInode;
+    U32 Offset;
+    U32 Length;
+
+    if (FileSystem == NULL || Path == NULL || Parent == NULL || ParentIndex == NULL || FinalComponent == NULL) {
+        return FALSE;
+    }
+
+    if (ReadInode(FileSystem, EXT2_ROOT_INODE, &CurrentInode) == FALSE) return FALSE;
+    CurrentIndex = EXT2_ROOT_INODE;
+
+    StringCopy(Temp, Path);
+
+    Length = StringLength(Temp);
+    while (Length > 1 && Temp[Length - 1] == PATH_SEP) {
+        Temp[Length - 1] = STR_NULL;
+        Length--;
+    }
+
+    Slash = StringFindCharR(Temp, PATH_SEP);
+    if (Slash != NULL) {
+        StringCopy(FinalComponent, Slash + 1);
+        *Slash = STR_NULL;
+    } else {
+        StringCopy(FinalComponent, Temp);
+        Temp[0] = STR_NULL;
+    }
+
+    if (FinalComponent[0] == STR_NULL) return FALSE;
+    if (StringLength(FinalComponent) >= MAX_FILE_NAME) return FALSE;
+
+    Offset = 0;
+    Length = StringLength(Temp);
+
+    while (Offset < Length) {
+        U32 ComponentLength = 0;
+
+        while (Offset < Length && Temp[Offset] == PATH_SEP) {
+            Offset++;
+        }
+
+        if (Offset >= Length) break;
+
+        while ((Offset + ComponentLength) < Length && Temp[Offset + ComponentLength] != PATH_SEP) {
+            ComponentLength++;
+        }
+
+        if (ComponentLength == 0 || ComponentLength >= MAX_FILE_NAME) {
+            return FALSE;
+        }
+
+        MemorySet(Component, 0, sizeof(Component));
+        MemoryCopy(Component, Temp + Offset, ComponentLength);
+
+        {
+            U32 NextIndex;
+            EXT2INODE NextInode;
+
+            if (FindInodeInDirectory(FileSystem, &CurrentInode, Component, &NextIndex) == FALSE) {
+                if (CreateDirectoryInternal(FileSystem, &CurrentInode, CurrentIndex, Component, &NextIndex, &NextInode) == FALSE) {
+                    return FALSE;
+                }
+
+                MemoryCopy(&CurrentInode, &NextInode, sizeof(EXT2INODE));
+                CurrentIndex = NextIndex;
+            } else {
+                if (ReadInode(FileSystem, NextIndex, &NextInode) == FALSE) {
+                    return FALSE;
+                }
+
+                if ((NextInode.Mode & EXT2_MODE_TYPE_MASK) != EXT2_MODE_DIRECTORY) {
+                    return FALSE;
+                }
+
+                MemoryCopy(&CurrentInode, &NextInode, sizeof(EXT2INODE));
+                CurrentIndex = NextIndex;
+            }
+        }
+
+        Offset += ComponentLength;
+    }
+
+    MemoryCopy(Parent, &CurrentInode, sizeof(EXT2INODE));
+    *ParentIndex = CurrentIndex;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static U32 CreateNode(LPFILEINFO Info, BOOL Directory) {
+    LPEXT2FILESYSTEM FileSystem;
+    EXT2INODE ParentInode;
+    U32 ParentIndex;
+    STR FinalComponent[MAX_FILE_NAME];
+    U32 ExistingIndex;
+    EXT2INODE ExistingInode;
+
+    if (Info == NULL) return DF_ERROR_BADPARAM;
+
+    FileSystem = (LPEXT2FILESYSTEM)Info->FileSystem;
+    if (FileSystem == NULL) return DF_ERROR_BADPARAM;
+
+    LockMutex(&(FileSystem->FilesMutex), INFINITY);
+
+    if (EnsureParentDirectory(FileSystem, Info->Name, &ParentInode, &ParentIndex, FinalComponent) == FALSE) {
+        UnlockMutex(&(FileSystem->FilesMutex));
+        return DF_ERROR_GENERIC;
+    }
+
+    if (FindInodeInDirectory(FileSystem, &ParentInode, FinalComponent, &ExistingIndex)) {
+        if (ReadInode(FileSystem, ExistingIndex, &ExistingInode) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_IO;
+        }
+
+        if (Directory && (ExistingInode.Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_DIRECTORY) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_SUCCESS;
+        }
+
+        if (!Directory && (ExistingInode.Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_REGULAR) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_SUCCESS;
+        }
+
+        UnlockMutex(&(FileSystem->FilesMutex));
+        return DF_ERROR_GENERIC;
+    }
+
+    if (Directory) {
+        if (CreateDirectoryInternal(FileSystem, &ParentInode, ParentIndex, FinalComponent, NULL, NULL) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_GENERIC;
+        }
+    } else {
+        U32 NewInodeIndex;
+        EXT2INODE NewInode;
+
+        if (AllocateInode(FileSystem, FALSE, &NewInodeIndex, &NewInode, NULL) == FALSE) {
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_GENERIC;
+        }
+
+        if (AddDirectoryEntry(FileSystem, &ParentInode, ParentIndex, NewInodeIndex, FinalComponent, EXT2_FT_REG_FILE) == FALSE) {
+            FreeInode(FileSystem, NewInodeIndex, FALSE);
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_GENERIC;
+        }
+
+        if (WriteInode(FileSystem, NewInodeIndex, &NewInode) == FALSE) {
+            FreeInode(FileSystem, NewInodeIndex, FALSE);
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_ERROR_GENERIC;
+        }
+    }
+
+    UnlockMutex(&(FileSystem->FilesMutex));
+
+    return DF_ERROR_SUCCESS;
 }
 
 /************************************************************************/
@@ -966,11 +1815,6 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
-    if (Info->Flags & (FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE)) {
-        UnlockMutex(&(FileSystem->FilesMutex));
-        return NULL;
-    }
-
     Wildcard = HasWildcard(Info->Name);
 
     if (Wildcard) {
@@ -1021,8 +1865,23 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
         U32 InodeIndex;
 
         if (ResolvePath(FileSystem, Info->Name, &Inode, &InodeIndex) == FALSE) {
-            UnlockMutex(&(FileSystem->FilesMutex));
-            return NULL;
+            if (Info->Flags & FILE_OPEN_CREATE_ALWAYS) {
+                UnlockMutex(&(FileSystem->FilesMutex));
+
+                if (CreateNode(Info, FALSE) != DF_ERROR_SUCCESS) {
+                    return NULL;
+                }
+
+                LockMutex(&(FileSystem->FilesMutex), INFINITY);
+
+                if (ResolvePath(FileSystem, Info->Name, &Inode, &InodeIndex) == FALSE) {
+                    UnlockMutex(&(FileSystem->FilesMutex));
+                    return NULL;
+                }
+            } else {
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return NULL;
+            }
         }
 
         File = NewEXT2File(FileSystem);
@@ -1074,6 +1933,23 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
         File->Header.SizeHigh = 0;
         File->Header.Position = (Info->Flags & FILE_OPEN_APPEND) ? Inode.Size : 0;
         File->Header.BytesTransferred = 0;
+
+        if ((Info->Flags & FILE_OPEN_TRUNCATE) && (Info->Flags & FILE_OPEN_WRITE)) {
+            if (TruncateInode(FileSystem, &(File->Inode)) == FALSE) {
+                KernelHeapFree(File);
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return NULL;
+            }
+
+            if (WriteInode(FileSystem, File->InodeIndex, &(File->Inode)) == FALSE) {
+                KernelHeapFree(File);
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return NULL;
+            }
+
+            File->Header.SizeLow = 0;
+            File->Header.Position = 0;
+        }
 
         UnlockMutex(&(FileSystem->FilesMutex));
 
@@ -1211,7 +2087,6 @@ static U32 ReadFile(LPEXT2FILE File) {
 static U32 WriteFile(LPEXT2FILE File) {
     LPEXT2FILESYSTEM FileSystem;
     U32 Remaining;
-    U32 EndPosition;
 
     if (File == NULL) return DF_ERROR_BADPARAM;
     if (File->Header.TypeID != KOID_FILE) return DF_ERROR_BADPARAM;
@@ -1242,13 +2117,6 @@ static U32 WriteFile(LPEXT2FILE File) {
         return DF_ERROR_SUCCESS;
     }
 
-    EndPosition = File->Header.Position + File->Header.ByteCount;
-
-    if (EndPosition > File->Inode.Size) {
-        UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_ERROR_NOTIMPL;
-    }
-
     Remaining = File->Header.ByteCount;
 
     while (Remaining > 0) {
@@ -1261,14 +2129,21 @@ static U32 WriteFile(LPEXT2FILE File) {
         BlockIndex = File->Header.Position / FileSystem->BlockSize;
         OffsetInBlock = File->Header.Position % FileSystem->BlockSize;
 
-        if (GetInodeBlockNumber(FileSystem, &(File->Inode), BlockIndex, &BlockNumber) == FALSE) {
-            UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_ERROR_IO;
-        }
-
-        if (BlockNumber == 0) {
+        if (BlockIndex >= EXT2_DIRECT_BLOCKS) {
             UnlockMutex(&(FileSystem->FilesMutex));
             return DF_ERROR_NOTIMPL;
+        }
+
+        BlockNumber = File->Inode.Block[BlockIndex];
+
+        if (BlockNumber == 0) {
+            if (AllocateBlock(FileSystem, &BlockNumber) == FALSE) {
+                UnlockMutex(&(FileSystem->FilesMutex));
+                return DF_ERROR_IO;
+            }
+
+            File->Inode.Block[BlockIndex] = BlockNumber;
+            File->Inode.Blocks += FileSystem->BlockSize / 512;
         }
 
         Chunk = FileSystem->BlockSize - OffsetInBlock;
@@ -1302,7 +2177,16 @@ static U32 WriteFile(LPEXT2FILE File) {
         Remaining -= Chunk;
     }
 
+    if (File->Header.Position > File->Inode.Size) {
+        File->Inode.Size = File->Header.Position;
+    }
+
     File->Header.SizeLow = File->Inode.Size;
+
+    if (WriteInode(FileSystem, File->InodeIndex, &(File->Inode)) == FALSE) {
+        UnlockMutex(&(FileSystem->FilesMutex));
+        return DF_ERROR_IO;
+    }
 
     UnlockMutex(&(FileSystem->FilesMutex));
 
@@ -1416,6 +2300,8 @@ U32 EXT2Commands(U32 Function, U32 Parameter) {
             return Initialize();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
+        case DF_FS_CREATEFOLDER:
+            return CreateNode((LPFILEINFO)Parameter, TRUE);
         case DF_FS_OPENFILE:
             return (U32)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
