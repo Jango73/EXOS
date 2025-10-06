@@ -180,7 +180,6 @@ typedef struct tag_KERNELDATA {
     BOOL DoLogin;                // Enable/disable login sequence (TRUE=enable, FALSE=disable)
     LPLIST UserSessions;         // List of active user sessions
     LPLIST UserAccount;          // List of user accounts
-    DATABASE* UserDatabase;      // User accounts database
     CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
 } KERNELDATA, *LPKERNELDATA;
 

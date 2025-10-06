@@ -40,6 +40,7 @@
 /************************************************************************/
 
 static U32 NextSessionID = 1;
+static const U32 USER_DATABASE_CAPACITY = 0x3E8;
 
 /************************************************************************/
 
@@ -50,12 +51,6 @@ static U32 NextSessionID = 1;
 BOOL InitializeUserSystem(void) {
     if (Kernel.UserAccount == NULL) {
         ERROR(TEXT("User account list not initialized in kernel"));
-        return FALSE;
-    }
-
-    Kernel.UserDatabase = DatabaseCreate(sizeof(USERACCOUNT), (U32)((U8*)&((USERACCOUNT*)0)->UserID - (U8*)0), 1000);
-    if (Kernel.UserDatabase == NULL) {
-        ERROR(TEXT("Failed to create user database"));
         return FALSE;
     }
 
@@ -79,11 +74,6 @@ void ShutdownUserSystem(void) {
     SAFE_USE(Kernel.UserAccount) {
         SaveUserDatabase();
         ListReset(Kernel.UserAccount);
-    }
-
-    SAFE_USE(Kernel.UserDatabase) {
-        DatabaseFree(Kernel.UserDatabase);
-        Kernel.UserDatabase = NULL;
     }
 }
 
@@ -154,13 +144,6 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
         return NULL;
     }
 
-    DEBUG(TEXT("[CreateUserAccount] Adding to database"));
-    SAFE_USE(Kernel.UserDatabase) {
-        DatabaseAdd(Kernel.UserDatabase, NewUser);
-    } else {
-        DEBUG(TEXT("[CreateUserAccount] UserDatabase is NULL"));
-    }
-
     UnlockMutex(MUTEX_ACCOUNTS);
 
     DEBUG(TEXT("[CreateUserAccount] User created successfully"));
@@ -191,10 +174,6 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
     if (User == NULL) {
         UnlockMutex(MUTEX_ACCOUNTS);
         return FALSE;
-    }
-
-    SAFE_USE(Kernel.UserDatabase) {
-        DatabaseDelete(Kernel.UserDatabase, (I32)U64_ToU32_Clip(User->UserID));
     }
 
     ListErase(Kernel.UserAccount, User);
@@ -295,12 +274,15 @@ BOOL ChangeUserPassword(LPCSTR UserName, LPCSTR OldPassword, LPCSTR NewPassword)
  * @return TRUE on success, FALSE on failure.
  */
 BOOL LoadUserDatabase(void) {
-    if (Kernel.UserDatabase == NULL) {
+    DATABASE* Database = DatabaseCreate(sizeof(USERACCOUNT), (U32)((U8*)&((USERACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
+    if (Database == NULL) {
+        ERROR(TEXT("Failed to allocate temporary user database"));
         return FALSE;
     }
 
-    I32 Result = DatabaseLoad(Kernel.UserDatabase, PATH_USERS_DATABASE);
+    I32 Result = DatabaseLoad(Database, PATH_USERS_DATABASE);
     if (Result != 0) {
+        DatabaseFree(Database);
         return FALSE;
     }
 
@@ -308,8 +290,8 @@ BOOL LoadUserDatabase(void) {
 
     ListReset(Kernel.UserAccount);
 
-    for (U32 i = 0; i < Kernel.UserDatabase->Count; i++) {
-        LPUSERACCOUNT User = (LPUSERACCOUNT)((U8*)Kernel.UserDatabase->Records + i * Kernel.UserDatabase->RecordSize);
+    for (U32 i = 0; i < Database->Count; i++) {
+        LPUSERACCOUNT User = (LPUSERACCOUNT)((U8*)Database->Records + i * Database->RecordSize);
         LPUSERACCOUNT NewUser = (LPUSERACCOUNT)KernelHeapAlloc(sizeof(USERACCOUNT));
 
         SAFE_USE(NewUser) {
@@ -327,7 +309,9 @@ BOOL LoadUserDatabase(void) {
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
-    DEBUG(TEXT("Loaded %u user accounts from database"), Kernel.UserDatabase->Count);
+    DEBUG(TEXT("Loaded %u user accounts from database"), Database->Count);
+
+    DatabaseFree(Database);
     return TRUE;
 }
 
@@ -338,37 +322,37 @@ BOOL LoadUserDatabase(void) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL SaveUserDatabase(void) {
-    if (Kernel.UserDatabase == NULL) {
+    DATABASE* Database = DatabaseCreate(sizeof(USERACCOUNT), (U32)((U8*)&((USERACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
+    if (Database == NULL) {
+        ERROR(TEXT("Failed to allocate temporary user database"));
         return FALSE;
     }
 
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
 
-    Kernel.UserDatabase->Count = 0;
-    for (U32 i = 0; i < Kernel.UserDatabase->IndexSize; i++) {
-        Kernel.UserDatabase->Index[i].Key = -1;
-        Kernel.UserDatabase->Index[i].Index = 0;
-    }
-
     SAFE_USE(Kernel.UserAccount) {
         U32 Count = ListGetSize(Kernel.UserAccount);
-        for (U32 i = 0; i < Count && Kernel.UserDatabase->Count < Kernel.UserDatabase->Capacity; i++) {
+        for (U32 i = 0; i < Count && Database->Count < Database->Capacity; i++) {
             LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(Kernel.UserAccount, i);
 
             SAFE_USE(User) {
-                DatabaseAdd(Kernel.UserDatabase, User);
+                DatabaseAdd(Database, User);
             }
         }
     }
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
-    I32 Result = DatabaseSave(Kernel.UserDatabase, PATH_USERS_DATABASE);
+    U32 SavedCount = Database->Count;
+    I32 Result = DatabaseSave(Database, PATH_USERS_DATABASE);
+
+    DatabaseFree(Database);
+
     if (Result != 0) {
         return FALSE;
     }
 
-    KernelLogText(LOG_VERBOSE, TEXT("Saved %u user accounts to database"), Kernel.UserDatabase->Count);
+    KernelLogText(LOG_VERBOSE, TEXT("Saved %u user accounts to database"), SavedCount);
     return TRUE;
 }
 
