@@ -458,7 +458,6 @@ static BOOL CommandSave(LPEDITCONTEXT Context) { return SaveFile(Context->Curren
 
 /***************************************************************************/
 
-/**
  * @brief Ensure a line has enough capacity for a given index.
  * @param Line Line to check.
  * @param Size Desired capacity.
@@ -479,6 +478,33 @@ static BOOL CheckLineSize(LPEDITLINE Line, I32 Size) {
     }
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Append characters from a buffer to an edit line expanding tabs.
+ * @param Line Destination line.
+ * @param Data Source buffer.
+ * @param Length Number of characters to append from the buffer.
+ */
+static void AppendBufferToLine(LPEDITLINE Line, LPCSTR Data, U32 Length) {
+    U32 Index;
+
+    if (Line == NULL || Data == NULL) return;
+
+    for (Index = 0; Index < Length; Index++) {
+        if (Data[Index] == STR_TAB) {
+            if (CheckLineSize(Line, Line->NumChars + 0x04) == FALSE) return;
+            Line->Chars[Line->NumChars++] = STR_SPACE;
+            Line->Chars[Line->NumChars++] = STR_SPACE;
+            Line->Chars[Line->NumChars++] = STR_SPACE;
+            Line->Chars[Line->NumChars++] = STR_SPACE;
+        } else {
+            if (CheckLineSize(Line, Line->NumChars + 0x01) == FALSE) return;
+            Line->Chars[Line->NumChars++] = Data[Index];
+        }
+    }
 }
 
 /***************************************************************************/
@@ -707,11 +733,39 @@ static void AddLine(LPEDITFILE File) {
  */
 static void GotoEndOfLine(LPEDITFILE File) {
     LPEDITLINE Line;
+    I32 TargetColumn;
+    I32 MaxVisible;
+
+    if (File == NULL) return;
 
     Line = GetCurrentLine(File);
     if (Line == NULL) return;
 
-    File->Cursor.X = Line->NumChars - File->Left;
+    TargetColumn = Line->NumChars;
+    if (TargetColumn <= 0) {
+        File->Left = 0;
+        File->Cursor.X = 0;
+        return;
+    }
+
+    MaxVisible = MAX_COLUMNS;
+    if (MaxVisible < 1) MaxVisible = 1;
+
+    if (TargetColumn <= MaxVisible) {
+        File->Left = 0;
+    } else if (TargetColumn < File->Left) {
+        File->Left = TargetColumn;
+    }
+
+    if ((TargetColumn - File->Left) >= MaxVisible) {
+        File->Left = TargetColumn - (MaxVisible - 1);
+    }
+
+    if (File->Left < 0) File->Left = 0;
+
+    File->Cursor.X = TargetColumn - File->Left;
+    if (File->Cursor.X < 0) File->Cursor.X = 0;
+    if (File->Cursor.X > MaxVisible) File->Cursor.X = MaxVisible;
 }
 
 /***************************************************************************/
@@ -867,6 +921,8 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                         ListAddItem(Context->Files, File);
                         Context->Current = File;
 
+                        ListReset(File->Lines);
+
                         LineData = (LPSTR)Buffer;
                         LineStart = LineData;
                         LineSize = 0;
@@ -876,16 +932,7 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                             if (*LineData == 0x0D || *LineData == 0x0A) {
                                 Line = NewEditLine(FinalLineSize ? FinalLineSize : 0x01);
                                 if (Line) {
-                                    for (Index = 0; Index < LineSize; Index++) {
-                                        if (LineStart[Index] == STR_TAB) {
-                                            Line->Chars[Line->NumChars++] = STR_SPACE;
-                                            Line->Chars[Line->NumChars++] = STR_SPACE;
-                                            Line->Chars[Line->NumChars++] = STR_SPACE;
-                                            Line->Chars[Line->NumChars++] = STR_SPACE;
-                                        } else {
-                                            Line->Chars[Line->NumChars++] = LineStart[Index];
-                                        }
-                                    }
+                                    AppendBufferToLine(Line, LineStart, LineSize);
                                     ListAddItem(File->Lines, Line);
                                 }
 
@@ -906,6 +953,14 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                                 LineData++;
                                 LineSize++;
                                 FinalLineSize++;
+                            }
+                        }
+
+                        if (LineSize > 0 || File->Lines->NumItems == 0) {
+                            Line = NewEditLine(FinalLineSize ? FinalLineSize : 0x01);
+                            if (Line) {
+                                AppendBufferToLine(Line, LineStart, LineSize);
+                                ListAddItem(File->Lines, Line);
                             }
                         }
                     }
