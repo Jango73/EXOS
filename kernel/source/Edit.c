@@ -424,21 +424,38 @@ static BOOL SaveFile(LPEDITFILE File) {
 
     Handle = DoSystemCall(SYSCALL_OpenFile, (U32)&Info);
     if (Handle) {
-        for (Node = File->Lines->First; Node; Node = Node->Next) {
+        LPEDITLINE LastContentLine = NULL;
+
+        for (Node = File->Lines->Last; Node; Node = Node->Prev) {
             Line = (LPEDITLINE)Node;
-
-            Operation.Header.Size = sizeof Operation;
-            Operation.Header.Version = EXOS_ABI_VERSION;
-            Operation.Header.Flags = 0;
-            Operation.File = Handle;
-            Operation.Buffer = Line->Chars;
-            Operation.NumBytes = Line->NumChars;
-            DoSystemCall(SYSCALL_WriteFile, (U32)&Operation);
-
-            Operation.Buffer = CRLF;
-            Operation.NumBytes = 2;
-            DoSystemCall(SYSCALL_WriteFile, (U32)&Operation);
+            if (Line->NumChars > 0) {
+                LastContentLine = Line;
+                break;
+            }
         }
+
+        if (LastContentLine) {
+            for (Node = File->Lines->First; Node; Node = Node->Next) {
+                Line = (LPEDITLINE)Node;
+
+                Operation.Header.Size = sizeof Operation;
+                Operation.Header.Version = EXOS_ABI_VERSION;
+                Operation.Header.Flags = 0;
+                Operation.File = Handle;
+                Operation.Buffer = Line->Chars;
+                Operation.NumBytes = Line->NumChars;
+                DoSystemCall(SYSCALL_WriteFile, (U32)&Operation);
+
+                Operation.Buffer = CRLF;
+                Operation.NumBytes = 2;
+                DoSystemCall(SYSCALL_WriteFile, (U32)&Operation);
+
+                if (Line == LastContentLine) {
+                    break;
+                }
+            }
+        }
+
         DoSystemCall(SYSCALL_DeleteObject, Handle);
     } else {
         KernelLogText(LOG_VERBOSE, TEXT("Could not save file '%s'\n"), File->Name);
