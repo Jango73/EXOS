@@ -139,15 +139,17 @@ static void RemoveFromFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADE
  * size class freelists and a pointer to the first unallocated space.
  * Memory is 16-byte aligned for optimal performance.
  */
-void HeapInit(LINEAR HeapBase, U32 HeapSize) {
+void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
     DEBUG("[HeapInit] Initializing heap at %x, size %x", HeapBase, HeapSize);
 
     MemorySet((LPVOID)HeapBase, 0, HeapSize);
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
+
     ControlBlock->TypeID = KOID_HEAP;
     ControlBlock->HeapBase = HeapBase;
     ControlBlock->HeapSize = HeapSize;
+    ControlBlock->Owner = Process;
 
     // Initialize all freelists to NULL
     for (U32 i = 0; i < HEAP_NUM_SIZE_CLASSES; i++) {
@@ -164,6 +166,65 @@ void HeapInit(LINEAR HeapBase, U32 HeapSize) {
 /************************************************************************/
 
 /**
+ * @brief Attempt to expand the heap when additional memory is required.
+ * @param ControlBlock Pointer to the heap control block.
+ * @param RequiredSize Allocation size (including header) that triggered the expansion.
+ * @return TRUE if the heap was expanded, FALSE otherwise.
+ */
+static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, U32 RequiredSize) {
+    if (ControlBlock == NULL || ControlBlock->Owner == NULL) {
+        ERROR("[TryExpandHeap] Heap owner is undefined");
+        return FALSE;
+    }
+
+    LPPROCESS Process = ControlBlock->Owner;
+    UINT CurrentSize = ControlBlock->HeapSize;
+    UINT Limit = Process->MaximumAllocatedMemory;
+    UINT AdditionalRequired = (UINT)RequiredSize;
+    UINT DesiredSize = CurrentSize << 1;
+
+    if (DesiredSize < CurrentSize) {
+        DesiredSize = Limit;
+    }
+
+    UINT MinimumRequired = CurrentSize + AdditionalRequired;
+    if (MinimumRequired < CurrentSize) {
+        MinimumRequired = Limit;
+    }
+
+    if (DesiredSize < MinimumRequired) {
+        DesiredSize = MinimumRequired;
+    }
+
+    if (DesiredSize > Limit) {
+        DesiredSize = Limit;
+    }
+
+    if (DesiredSize <= CurrentSize) {
+        ERROR("[TryExpandHeap] Heap limit reached (Current=%x Limit=%x)", CurrentSize, Limit);
+        return FALSE;
+    }
+
+    U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE;
+    if (Process->Privilege == PRIVILEGE_KERNEL) {
+        Flags |= ALLOC_PAGES_AT_OR_OVER;
+    }
+
+    if (ResizeRegion(Process->HeapBase, 0, (U32)CurrentSize, (U32)DesiredSize, Flags) == FALSE) {
+        ERROR("[TryExpandHeap] ResizeRegion failed for heap at %x (from %x to %x)", Process->HeapBase, CurrentSize,
+            DesiredSize);
+        return FALSE;
+    }
+
+    ControlBlock->HeapSize = DesiredSize;
+    Process->HeapSize = DesiredSize;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Allocates memory from a heap using heap base, heap size, and size parameters
  * @param HeapBase Linear address of the heap base
  * @param HeapSize Size of the heap in bytes
@@ -173,8 +234,13 @@ void HeapInit(LINEAR HeapBase, U32 HeapSize) {
  * This function implements a freelist-based heap allocation algorithm with size classes.
  * Memory is 16-byte aligned for optimal performance.
  */
-LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
+LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, U32 Size) {
+    UNUSED(HeapSize);
+
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
+    if (Process != NULL) {
+        ControlBlock->Owner = Process;
+    }
     LPHEAPBLOCKHEADER Block = NULL;
     U32 SizeClass = 0;
     U32 ActualSize = 0;
@@ -270,8 +336,15 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
     // No suitable free block found, allocate from unallocated space
     LINEAR NewBlockAddr = (LINEAR)ControlBlock->FirstUnallocated;
     if (NewBlockAddr + TotalSize > ControlBlock->HeapBase + ControlBlock->HeapSize) {
-        ERROR("[HeapAlloc_HBHS] Out of heap memory");
-        return NULL;
+        if (TryExpandHeap(ControlBlock, TotalSize) == FALSE) {
+            return NULL;
+        }
+
+        NewBlockAddr = (LINEAR)ControlBlock->FirstUnallocated;
+
+        if (NewBlockAddr + TotalSize > ControlBlock->HeapBase + ControlBlock->HeapSize) {
+            return NULL;
+        }
     }
 
     Block = (LPHEAPBLOCKHEADER)NewBlockAddr;
@@ -302,9 +375,9 @@ LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size) {
  * - If Size is 0, frees the memory and returns NULL
  * - Otherwise, changes the size of the memory block, potentially moving it
  */
-LPVOID HeapRealloc_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer, U32 Size) {
+LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOID Pointer, U32 Size) {
     if (Pointer == NULL) {
-        return HeapAlloc_HBHS(HeapBase, HeapSize, Size);
+        return HeapAlloc_HBHS(Process, HeapBase, HeapSize, Size);
     }
 
     if (Size == 0) {
@@ -313,6 +386,9 @@ LPVOID HeapRealloc_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer, U32 Size)
     }
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
+    if (Process != NULL) {
+        ControlBlock->Owner = Process;
+    }
     if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) return NULL;
 
     DEBUG("[HeapRealloc_HBHS] Reallocating pointer %x to size %x", Pointer, Size);
@@ -336,7 +412,7 @@ LPVOID HeapRealloc_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer, U32 Size)
     }
 
     // Need to allocate new block
-    LPVOID NewPointer = HeapAlloc_HBHS(HeapBase, HeapSize, Size);
+    LPVOID NewPointer = HeapAlloc_HBHS(Process, HeapBase, HeapSize, Size);
     SAFE_USE(NewPointer) {
         // Copy old data to new location
         MemoryCopy(NewPointer, Pointer, OldDataSize < Size ? OldDataSize : Size);
@@ -358,7 +434,7 @@ LPVOID HeapRealloc_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer, U32 Size)
  *
  * This function frees a block and attempts to coalesce with adjacent free blocks.
  */
-void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer) {
+void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
     UNUSED(HeapSize);
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
@@ -407,7 +483,7 @@ void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer) {
 LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size) {
     LPVOID Pointer = NULL;
     LockMutex(&(Process->HeapMutex), INFINITY);
-    Pointer = HeapAlloc_HBHS(Process->HeapBase, Process->HeapSize, Size);
+    Pointer = HeapAlloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Size);
     UnlockMutex(&(Process->HeapMutex));
     return Pointer;
 }
@@ -427,7 +503,7 @@ LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size) {
 LPVOID HeapRealloc_P(LPPROCESS Process, LPVOID Pointer, U32 Size) {
     LPVOID NewPointer = NULL;
     LockMutex(&(Process->HeapMutex), INFINITY);
-    NewPointer = HeapRealloc_HBHS(Process->HeapBase, Process->HeapSize, Pointer, Size);
+    NewPointer = HeapRealloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Pointer, Size);
     UnlockMutex(&(Process->HeapMutex));
     return NewPointer;
 }

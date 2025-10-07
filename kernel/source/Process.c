@@ -51,6 +51,7 @@ PROCESS SECTION(".data") KernelProcess = {
     .PageDirectory = 0,             // Page directory
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
+    .MaximumAllocatedMemory = N_HalfMemory, // Maximum heap allocation limit
     .FileName = "",                 // File name
     .CommandLine = "",              // Command line
     .WorkFolder = ROOT,             // Working directory
@@ -73,6 +74,7 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("[InitializeKernelProcess] Enter"));
 
     KernelProcess.PageDirectory = GetPageDirectory();
+    KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
     KernelProcess.HeapSize = N_1MB;
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %x"), KernelStartup.MemorySize);
@@ -88,7 +90,7 @@ void InitializeKernelProcess(void) {
     }
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
-    HeapInit(KernelProcess.HeapBase, KernelProcess.HeapSize);
+    HeapInit(&KernelProcess, KernelProcess.HeapBase, KernelProcess.HeapSize);
 
     StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
     StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
@@ -152,6 +154,7 @@ LPPROCESS NewProcess(void) {
     This->Privilege = PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
+    This->MaximumAllocatedMemory = N_HalfMemory;
     This->TaskCount = 0;
     This->Session = NULL;
 
@@ -383,7 +386,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     U32 FileSize = 0;
     U32 CodeSize = 0;
     U32 DataSize = 0;
-    U32 HeapSize = 0;
+    UINT HeapSize = 0;
     U32 StackSize = 0;
     U32 TotalSize = 0;
     BOOL Result = FALSE;
@@ -620,7 +623,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     Process->HeapBase = HeapBase;
     Process->HeapSize = HeapSize;
 
-    HeapInit(Process->HeapBase, Process->HeapSize);
+    HeapInit(Process, Process->HeapBase, Process->HeapSize);
 
     // HeapDump(KernelProcess.HeapBase, KernelProcess.HeapSize);
     // HeapDump(Process->HeapBase, Process->HeapSize);

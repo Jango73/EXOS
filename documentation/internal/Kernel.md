@@ -448,6 +448,12 @@ exos-runtime-c.c : malloc() (or any other function)
 
 EXOS implements a lifecycle management system for both processes and tasks that ensures consistent cleanup and prevents resource leaks.
 
+### Process Heap Management
+
+- Every `PROCESS` keeps track of its `MaximumAllocatedMemory`, which is initialized to `N_HalfMemory` for both the kernel and user processes.
+- When a heap allocation exhausts the committed region, the kernel automatically attempts to double the heap size without exceeding the process limit by calling `ResizeRegion`.
+- If the resize operation cannot be completed, the allocator logs an error and the allocation fails gracefully.
+
 ### Status States
 
 **Task Status (Task.Status):**

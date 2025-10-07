@@ -54,7 +54,8 @@ typedef struct tag_HEAPBLOCKHEADER {
 typedef struct tag_HEAPCONTROLBLOCK {
     U32 TypeID;
     LINEAR HeapBase;
-    U32 HeapSize;
+    UINT HeapSize;
+    LPPROCESS Owner;
     LPHEAPBLOCKHEADER FreeLists[HEAP_NUM_SIZE_CLASSES];
     LPHEAPBLOCKHEADER LargeFreeList;
     LPVOID FirstUnallocated;
@@ -62,19 +63,19 @@ typedef struct tag_HEAPCONTROLBLOCK {
 
 /***************************************************************************/
 
-void HeapInit(LINEAR HeapBase, U32 HeapSize);
+void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize);
 
 // Allocates memory space in the calling process' heap
 // Must provide the heap's limits.
-LPVOID HeapAlloc_HBHS(LINEAR HeapBase, U32 HeapSize, U32 Size);
+LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, U32 Size);
 
 // Reallocates memory space in the calling process' heap
 // Must provide the heap's limits.
-LPVOID HeapRealloc_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer, U32 Size);
+LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOID Pointer, U32 Size);
 
 // Frees memory space in the calling process' heap
 // Must provide the heap's limits.
-void HeapFree_HBHS(LINEAR HeapBase, U32 HeapSize, LPVOID Pointer);
+void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer);
 
 // Allocates memory space in the specified process' heap
 LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size);
