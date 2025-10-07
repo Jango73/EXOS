@@ -47,6 +47,7 @@
 extern STR TempString[128];
 
 void BootDebugPrint(LPCSTR Str);
+void BootVerbosePrint(LPCSTR Str);
 void BootErrorPrint(LPCSTR Str);
 const char* BootGetFileName(const char* Path);
 

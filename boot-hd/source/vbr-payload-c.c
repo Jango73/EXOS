@@ -110,6 +110,10 @@ void BootDebugPrint(LPCSTR Str) {
 
 /************************************************************************/
 
+void BootVerbosePrint(LPCSTR Str) { WriteString(Str); }
+
+/************************************************************************/
+
 void BootErrorPrint(LPCSTR Str) { WriteString(Str); }
 
 /************************************************************************/
@@ -165,6 +169,12 @@ static void VerifyKernelImage(U32 FileSize) {
 
     const U8* const FileStart = (const U8*)SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
     const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
+
+    StringPrintFormat(
+        TempString,
+        TEXT("[VBR] VerifyKernelImage scanning %u data bytes\r\n"),
+        FileSize - (U32)sizeof(U32));
+    BootVerbosePrint(TempString);
 
     U32 LastBytes1 = 0;
     U32 LastBytes2 = 0;
