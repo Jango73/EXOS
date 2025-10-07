@@ -62,6 +62,7 @@ static BOOL CommandCut(LPEDITCONTEXT Context);
 static BOOL CommandCopy(LPEDITCONTEXT Context);
 static BOOL CommandPaste(LPEDITCONTEXT Context);
 static BOOL CopySelectionToClipboard(LPEDITCONTEXT Context);
+static void DeleteSelection(LPEDITFILE File);
 static void AddCharacter(LPEDITFILE File, STR ASCIICode);
 static void AddLine(LPEDITFILE File);
 
