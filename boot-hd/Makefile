@@ -6,6 +6,7 @@ IMG_SIZE_MB     ?= 64
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
+PAYLOAD_OFFSET  ?= 0x8000
 RESERVED_SECTORS= 64		# Reserved sectors for VBR payload
 VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
 
@@ -28,18 +29,18 @@ PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
                   -fvisibility=hidden -mno-red-zone -fno-stack-protector \
                   -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
-                  -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
+                  -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
                   -Iinclude -I../kernel/include
 LD              = i686-elf-ld
-LDFLAGS         = -nostdlib -no-pie
+LDFLAGS         = -nostdlib -no-pie --defsym=PAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
 
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
@@ -314,7 +315,7 @@ hexdump-check: install-vbr-payload
 	@PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 	PAYLOAD_SECTOR_START=$$((PART_OFFSET / 512 - $(RESERVED_SECTORS))); \
 	PAYLOAD_OFF=$$((PAYLOAD_SECTOR_START * 512)); \
-	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o 0x8000 -
+	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o $(PAYLOAD_OFFSET) -
 
 clean:
 	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym

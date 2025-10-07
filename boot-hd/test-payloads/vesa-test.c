@@ -34,8 +34,6 @@
 
 __asm__(".code16gcc");
 
-#define ORIGIN 0x8000
-
 /************************************************************************/
 // VESA structures and constants
 

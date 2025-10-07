@@ -22,7 +22,7 @@
 ;
 ;-------------------------------------------------------------------------
 
-; FAT32 VBR loader, loads some sectors @0x8000 and jumps
+; FAT32 VBR loader, loads some sectors at PAYLOAD_OFFSET and jumps
 ; Registers at start
 ; DL : Boot drive
 ; EAX : Partition Start LBA
@@ -30,7 +30,9 @@
 BITS 16
 ORG (0x7E00 + 0x005A)
 
-PAYLOAD_OFFSET equ 0x8000
+%ifndef PAYLOAD_OFFSET
+%error "PAYLOAD_OFFSET is not defined"
+%endif
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -72,7 +74,7 @@ Start:
     cli                                     ; Disable interrupts
     xor         ax, ax
     mov         ss, ax
-    mov         sp, PAYLOAD_OFFSET          ; Place stack juste below PAYLOAD
+    mov         sp, PAYLOAD_OFFSET          ; Place stack just below PAYLOAD
     mov         ax, 0xB800
     mov         es, ax
     sti                                     ; Enable interrupts

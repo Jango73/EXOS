@@ -30,7 +30,11 @@
 /************************************************************************/
 // Common low-memory layout used by the VBR payload
 
-#define ORIGIN 0x8000
+#ifndef PAYLOAD_OFFSET
+#error "PAYLOAD_OFFSET is not defined"
+#endif
+
+#define ORIGIN PAYLOAD_OFFSET
 #define STACK_SIZE 0x1000
 #define USABLE_RAM_START 0x1000
 #define USABLE_RAM_END (ORIGIN - STACK_SIZE)
