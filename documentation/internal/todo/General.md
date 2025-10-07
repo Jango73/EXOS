@@ -24,7 +24,13 @@
 ## Security 
 
 - Kernel pointer masking
-- ASLR (Address Space Layout Randomization)
+- NX/DEP
+- PIE/ASLR userland
+- Stack canaries
+- RELRO
+- Signed kernel modules + Secure Boot
+- KASLR
+- Audit/fuzz pipeline + ASAN/UBSAN
 
 ## Multitasking
 
@@ -48,3 +54,5 @@
 ## Desktop
 
 - Continue graphics UI
+
+## 
