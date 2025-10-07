@@ -278,7 +278,7 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
     if (FirstPage >= KernelStartup.PageCount) return;
     if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
 
-    DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %X, %X"), FirstPage, End);
+    DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %x, %x"), FirstPage, End);
 
     for (U32 Page = FirstPage; Page < End; Page++) {
         U32 Byte = Page >> MUL_8;
@@ -393,7 +393,7 @@ void FreePhysicalPage(PHYSICAL Page) {
     U32 StartPage, PageIndex;
 
     if ((Page & (PAGE_SIZE - 1)) != 0) {
-        ERROR(TEXT("[FreePhysicalPage] Physical address not page-aligned (%X)"), Page);
+        ERROR(TEXT("[FreePhysicalPage] Physical address not page-aligned (%x)"), Page);
         return;
     }
 
@@ -414,7 +414,7 @@ void FreePhysicalPage(PHYSICAL Page) {
 
     // Bounds check
     if (PageIndex >= KernelStartup.PageCount) {
-        ERROR(TEXT("[FreePhysicalPage] Page index out of range (%X)"), PageIndex);
+        ERROR(TEXT("[FreePhysicalPage] Page index out of range (%x)"), PageIndex);
         return;
     }
 
@@ -427,7 +427,7 @@ void FreePhysicalPage(PHYSICAL Page) {
     // If already free, nothing to do
     if ((Kernel_i386.PPB[ByteIndex] & mask) == 0) {
         UnlockMutex(MUTEX_MEMORY);
-        DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%X)"), Page);
+        DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%x)"), Page);
         return;
     }
 
@@ -540,7 +540,7 @@ static inline void MapOnePage(
     U32 dir = GetDirectoryEntry(Linear);
 
     if (!Directory[dir].Present) {
-        ERROR(TEXT("[MapOnePage] PDE not present for VA %X (dir=%d)"), Linear, dir);
+        ERROR(TEXT("[MapOnePage] PDE not present for VA %x (dir=%d)"), Linear, dir);
         return;  // Or panic
     }
 
@@ -841,12 +841,12 @@ PHYSICAL AllocPageDirectory(void) {
     // TLB sync before returning
     FlushTLB();
 
-    DEBUG(TEXT("[AllocPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[%u]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
+    DEBUG(TEXT("[AllocPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[%u]=%x, PDE[1023]=%x"), *(U32*)&Directory[0],
         *(U32*)&Directory[768], DirTaskRunner, *(U32*)&Directory[DirTaskRunner], *(U32*)&Directory[1023]);
-    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%X, KernelTable[0]=%X, TaskRunnerTable[%u]=%X"),
+    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%x, KernelTable[0]=%x, TaskRunnerTable[%u]=%x"),
         *(U32*)&LowTable[0], *(U32*)&KernelTable[0], TaskRunnerTableIndex,
         *(U32*)&TaskRunnerTable[TaskRunnerTableIndex]);
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%X -> Physical=%X"), VMA_TASK_RUNNER, TaskRunnerPhysical);
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%x -> Physical=%x"), VMA_TASK_RUNNER, TaskRunnerPhysical);
 
     DEBUG(TEXT("[AllocPageDirectory] Exit"));
     return PMA_Directory;
@@ -1031,9 +1031,9 @@ PHYSICAL AllocUserPageDirectory(void) {
     // TLB sync before returning
     FlushTLB();
 
-    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%X, PDE[768]=%X, PDE[1023]=%X"), *(U32*)&Directory[0],
+    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[1023]=%x"), *(U32*)&Directory[0],
         *(U32*)&Directory[768], *(U32*)&Directory[1023]);
-    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%X, KernelTable[0]=%X"), *(U32*)&LowTable[0],
+    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%x, KernelTable[0]=%x"), *(U32*)&LowTable[0],
         *(U32*)&KernelTable[0]);
 
     DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
@@ -1142,7 +1142,7 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     DEBUG(TEXT("[FindFreeRegion] Enter"));
 
     if (StartBase >= Base) {
-        DEBUG(TEXT("[FindFreeRegion] Starting at %X"), StartBase);
+        DEBUG(TEXT("[FindFreeRegion] Starting at %x"), StartBase);
         Base = StartBase;
     }
 
@@ -1317,11 +1317,11 @@ static BOOL PopulateRegionPages(LINEAR Base,
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     LINEAR Pointer = NULL;
     U32 NumPages = 0;
-    DEBUG(TEXT("[AllocRegion] Enter: Base=%X Target=%X Size=%X Flags=%X"), Base, Target, Size, Flags);
+    DEBUG(TEXT("[AllocRegion] Enter: Base=%x Target=%x Size=%x Flags=%x"), Base, Target, Size, Flags);
 
     // Can't allocate more than 25% of total memory at once
     if (Size > KernelStartup.MemorySize / 4) {
-        ERROR(TEXT("[AllocRegion] Size %X exceeds 25%% of memory (%X)"), Size, KernelStartup.MemorySize / 4);
+        ERROR(TEXT("[AllocRegion] Size %x exceeds 25%% of memory (%x)"), Size, KernelStartup.MemorySize / 4);
         return NULL;
     }
 
@@ -1332,7 +1332,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     // If an exact physical mapping is requested, validate inputs
     if (Target != 0 && (Flags & ALLOC_PAGES_IO) == 0) {
         if ((Target & (PAGE_SIZE - 1)) != 0) {
-            ERROR(TEXT("[AllocRegion] Target not page-aligned (%X)"), Target);
+            ERROR(TEXT("[AllocRegion] Target not page-aligned (%x)"), Target);
             return NULL;
         }
 
@@ -1402,7 +1402,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
  * @return TRUE on success, FALSE otherwise.
  */
 BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags) {
-    DEBUG(TEXT("[ResizeRegion] Enter: Base=%X Target=%X Size=%X NewSize=%X Flags=%X"),
+    DEBUG(TEXT("[ResizeRegion] Enter: Base=%x Target=%x Size=%x NewSize=%x Flags=%x"),
           Base,
           Target,
           Size,
@@ -1415,7 +1415,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
     }
 
     if (NewSize > KernelStartup.MemorySize / 4) {
-        ERROR(TEXT("[ResizeRegion] New size %X exceeds 25%% of memory (%X)"),
+        ERROR(TEXT("[ResizeRegion] New size %x exceeds 25%% of memory (%x)"),
               NewSize,
               KernelStartup.MemorySize / 4);
         return FALSE;
@@ -1437,7 +1437,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
         U32 AdditionalSize = AdditionalPages << PAGE_SIZE_MUL;
 
         if (IsRegionFree(NewBase, AdditionalSize) == FALSE) {
-            DEBUG(TEXT("[ResizeRegion] Additional region not free at %X"), NewBase);
+            DEBUG(TEXT("[ResizeRegion] Additional region not free at %x"), NewBase);
             return FALSE;
         }
 
@@ -1446,7 +1446,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
             AdditionalTarget = Target + (CurrentPages << PAGE_SIZE_MUL);
         }
 
-        DEBUG(TEXT("[ResizeRegion] Expanding region by %X bytes"), AdditionalSize);
+        DEBUG(TEXT("[ResizeRegion] Expanding region by %x bytes"), AdditionalSize);
 
         if (PopulateRegionPages(NewBase,
                                 AdditionalTarget,
@@ -1464,7 +1464,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
             LINEAR ReleaseBase = Base + (RequestedPages << PAGE_SIZE_MUL);
             U32 ReleaseSize = PagesToRelease << PAGE_SIZE_MUL;
 
-            DEBUG(TEXT("[ResizeRegion] Shrinking region by %X bytes"), ReleaseSize);
+            DEBUG(TEXT("[ResizeRegion] Shrinking region by %x bytes"), ReleaseSize);
             FreeRegion(ReleaseBase, ReleaseSize);
         }
     }
@@ -1578,7 +1578,7 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, U32 Size) {
 BOOL UnMapIOMemory(LINEAR LinearBase, U32 Size) {
     // Basic parameter checks
     if (LinearBase == 0 || Size == 0) {
-        ERROR(TEXT("[UnMapIOMemory] Invalid parameters (LA=%X Size=%X)"), LinearBase, Size);
+        ERROR(TEXT("[UnMapIOMemory] Invalid parameters (LA=%x Size=%x)"), LinearBase, Size);
         return FALSE;
     }
 
@@ -1639,12 +1639,12 @@ void InitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %X"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %x"), NewPageDirectory);
 
     // Switch to the new page directory first (it includes the recursive map).
     LoadPageDirectory(NewPageDirectory);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %X"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %x"), NewPageDirectory);
 
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
