@@ -135,7 +135,7 @@ typedef struct tag_KERNELSTARTUPINFO {
     U32 PageCount;   // Total memory size in pages (4K)
     U32 E820_Count;  // BIOS E820 function entries
     E820ENTRY E820[N_4KB / sizeof(E820ENTRY)];
-    struct multiboot_info* MultibootInfo;  // Pointer to Multiboot information structure
+    STR CommandLine[MAX_COMMAND_LINE];
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
 extern KERNELSTARTUPINFO KernelStartup;

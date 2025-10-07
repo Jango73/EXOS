@@ -51,7 +51,7 @@ PROCESS SECTION(".data") KernelProcess = {
     .PageDirectory = 0,             // Page directory
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
-    .FileName = "EXOS",             // File name
+    .FileName = "",                 // File name
     .CommandLine = "",              // Command line
     .WorkFolder = ROOT,             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
@@ -88,8 +88,10 @@ void InitializeKernelProcess(void) {
     }
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
-
     HeapInit(KernelProcess.HeapBase, KernelProcess.HeapSize);
+
+    StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
+    StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
 
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
