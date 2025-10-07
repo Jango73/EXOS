@@ -30,8 +30,34 @@ extern "C" {
 #endif
 
 /***************************************************************************/
+// Define __EXOS__
 
 #define __EXOS__
+
+/***************************************************************************/
+// Check __SIZEOF_POINTER__ definition
+
+#ifndef __SIZEOF_POINTER__
+    #if defined(_MSC_VER)
+        #if defined(_WIN64)
+            #define __SIZEOF_POINTER__ 8
+        #else
+            #define __SIZEOF_POINTER__ 4
+        #endif
+    #elif defined(__GNUC__) || defined(__clang__)
+        // GCC and Clang already define this, but we keep a fallback
+        #if defined(__x86_64__) || defined(__aarch64__) || defined(__ppc64__)
+            #define __SIZEOF_POINTER__ 8
+        #else
+            #define __SIZEOF_POINTER__ 4
+        #endif
+    #else
+        #error "Cannot determine pointer size for this compiler."
+    #endif
+#endif
+
+/***************************************************************************/
+// Define __EXOS__ bit size
 
 #if __SIZEOF_POINTER__ == 8
     #define __EXOS_64__
@@ -58,30 +84,28 @@ extern "C" {
 /***************************************************************************/
 // Basic types
 
-typedef unsigned char U8;
-typedef signed char I8;
-typedef unsigned short U16;
-typedef signed short I16;
-typedef unsigned long U32;
-typedef signed long I32;
-typedef unsigned int UINT;
-typedef signed int INT;
-
-typedef float F32;
-typedef double F64;
-
-typedef U32 SIZE;
-
-typedef U32 LINEAR;        // A linear address, paged or not
-typedef U32 PHYSICAL;      // A physical address
-typedef U8* LPPAGEBITMAP;  // A pointer to a page allocation bitmap
-
-/***************************************************************************/
-
-#define MAX_U8 ((U8)0xFF)
-#define MAX_U16 ((U16)0xFFFF)
-#define MAX_U32 ((U32)0xFFFFFFFF)
-// #define MAX_U64 0xFFFFFFFFFFFFFFFF
+#if defined(_MSC_VER)
+    typedef unsigned __int8 U8;     // Unsigned byte
+    typedef signed __int8 I8;       // Signed byte
+    typedef unsigned __int16 U16;   // Unsigned short
+    typedef signed __int16 I16;     // Signed short
+    typedef unsigned __int32 U32;   // Unsigned long
+    typedef signed __int32 I32;     // Signed long
+    typedef unsigned int UINT;      // Unsigned register-sized integer
+    typedef signed int INT;         // Signed register-sized integer
+#elif defined(__GNUC__) || defined(__clang__)
+    typedef unsigned char U8;       // Unsigned byte
+    typedef signed char I8;         // Signed byte
+    typedef unsigned short U16;     // Unsigned short
+    typedef signed short I16;       // Signed short
+    // Unix-land decided to inverse int and long logic ! What a good idea.
+    typedef unsigned int U32;       // Unsigned long
+    typedef signed int I32;         // Signed long
+    typedef unsigned long UINT;     // Unsigned register-sized integer
+    typedef signed long INT;        // Signed register-sized integer
+#else
+    #error "Unsupported compiler for Base.h"
+#endif
 
 /***************************************************************************/
 
@@ -93,28 +117,24 @@ typedef struct tag_U48 {
 /***************************************************************************/
 
 #ifdef __EXOS_32__
+    typedef struct tag_U64 {
+        U32 LO;
+        U32 HI;
+    } U64;
 
-typedef struct tag_U64 {
-    U32 LO;
-    U32 HI;
-} U64;
+    typedef struct tag_I64 {
+        U32 LO;
+        I32 HI;
+    } I64;
 
-typedef struct tag_I64 {
-    U32 LO;
-    I32 HI;
-} I64;
-
-#define U64_0 { .LO = 0, .HI = 0 }
-#define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
-
+    #define U64_0 { .LO = 0, .HI = 0 }
+    #define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
 #else
+    typedef unsigned long long  U64;
+    typedef signed long long    I64;
 
-typedef unsigned long long  U64;
-typedef signed long long    I64;
-
-#define U64_0 0
-#define U64_EQUAL(a, b) (a == b)
-
+    #define U64_0 0
+    #define U64_EQUAL(a, b) (a == b)
 #endif
 
 /***************************************************************************/
@@ -130,6 +150,24 @@ typedef struct tag_U128 {
     U64 LO;
     U64 HI;
 } U128;
+
+/***************************************************************************/
+
+#define MAX_U8 ((U8)0xFF)
+#define MAX_U16 ((U16)0xFFFF)
+#define MAX_U32 ((U32)0xFFFFFFFF)
+// #define MAX_U64 0xFFFFFFFFFFFFFFFF
+
+/***************************************************************************/
+
+typedef float F32;              // 32 bit float
+typedef double F64;             // 64 bit float
+
+typedef U32 SIZE;
+
+typedef U32 LINEAR;             // Linear virtual address, paged or not
+typedef U32 PHYSICAL;           // Physical address
+typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/
 
