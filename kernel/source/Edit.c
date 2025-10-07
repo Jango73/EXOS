@@ -41,6 +41,9 @@ static I32 MenuHeight = 2;
 #define MAX_COLUMNS (Console.Width - 10)
 #define MAX_LINES (Console.Height - MenuHeight)
 
+#define EDIT_EOL_CHAR ((STR)0xB6)
+#define EDIT_EOF_CHAR ((STR)0x1A)
+
 typedef BOOL (*EDITMENUPROC)(LPEDITCONTEXT);
 
 typedef struct tag_EDITMENUITEM {
@@ -334,6 +337,8 @@ void Render(LPEDITFILE File) {
     U16 SpaceCell;
     U32 Width;
     U16* Frame;
+    BOOL PendingEofMarker = FALSE;
+    BOOL EofDrawn = FALSE;
 
     if (File == NULL) return;
     if (File->Lines->NumItems == 0) return;
@@ -360,21 +365,48 @@ void Render(LPEDITFILE File) {
         }
 
         if (Node) {
-            Line = (LPEDITLINE)Node;
-            if (File->Left < Line->NumChars) {
-                I32 Start = File->Left;
-                I32 End = Line->NumChars;
-                I32 Visible = End - Start;
+            LPLISTNODE CurrentNode = Node;
+            BOOL ReachedLineEnd = TRUE;
+            I32 Start = File->Left;
+            I32 Visible = 0;
 
+            Line = (LPEDITLINE)CurrentNode;
+
+            if (Start < 0) Start = 0;
+
+            if (Start < Line->NumChars) {
+                I32 End = Line->NumChars;
+
+                Visible = End - Start;
                 if (Visible > MAX_COLUMNS) {
                     Visible = MAX_COLUMNS;
+                    if (Start + Visible < End) {
+                        ReachedLineEnd = FALSE;
+                    }
                 }
 
-                for (Index = 0; Index < Visible; Index++) {
+                for (Index = 0; Index < Visible && Index < (I32)Width; Index++) {
                     Row[Index] = MakeConsoleCell(Line->Chars[Start + Index], Attribute);
                 }
+            } else {
+                Visible = 0;
             }
-            Node = Node->Next;
+
+            if (ReachedLineEnd && Visible < (I32)Width) {
+                Row[Visible] = MakeConsoleCell(EDIT_EOL_CHAR, Attribute);
+            }
+
+            if (CurrentNode->Next == NULL) {
+                PendingEofMarker = TRUE;
+            }
+
+            Node = CurrentNode->Next;
+        } else {
+            if (PendingEofMarker && EofDrawn == FALSE) {
+                Row[0] = MakeConsoleCell(EDIT_EOF_CHAR, Attribute);
+                EofDrawn = TRUE;
+                PendingEofMarker = FALSE;
+            }
         }
     }
 
