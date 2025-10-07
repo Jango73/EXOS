@@ -41,7 +41,6 @@ static I32 MenuHeight = 2;
 #define MAX_COLUMNS (Console.Width - 10)
 #define MAX_LINES (Console.Height - MenuHeight)
 
-#define EDIT_EOL_CHAR ((STR)0xB6)
 #define EDIT_EOF_CHAR ((STR)0x1A)
 
 typedef BOOL (*EDITMENUPROC)(LPEDITCONTEXT);
@@ -61,6 +60,8 @@ static EDITMENUITEM Menu[] = {
     {{VK_CONTROL, 0, 0}, {VK_S, 0, 0}, TEXT("Save"), CommandSave},
 };
 static const U32 MenuItems = sizeof(Menu) / sizeof(Menu[0]);
+
+static const KEYCODE ControlKey = {VK_CONTROL, 0, 0};
 
 /***************************************************************************/
 
@@ -366,7 +367,6 @@ void Render(LPEDITFILE File) {
 
         if (Node) {
             LPLISTNODE CurrentNode = Node;
-            BOOL ReachedLineEnd = TRUE;
             I32 Start = File->Left;
             I32 Visible = 0;
 
@@ -380,9 +380,6 @@ void Render(LPEDITFILE File) {
                 Visible = End - Start;
                 if (Visible > MAX_COLUMNS) {
                     Visible = MAX_COLUMNS;
-                    if (Start + Visible < End) {
-                        ReachedLineEnd = FALSE;
-                    }
                 }
 
                 for (Index = 0; Index < Visible && Index < (I32)Width; Index++) {
@@ -390,10 +387,6 @@ void Render(LPEDITFILE File) {
                 }
             } else {
                 Visible = 0;
-            }
-
-            if (ReachedLineEnd && Visible < (I32)Width) {
-                Row[Visible] = MakeConsoleCell(EDIT_EOL_CHAR, Attribute);
             }
 
             if (CurrentNode->Next == NULL) {
@@ -859,12 +852,67 @@ static void GotoEndOfLine(LPEDITFILE File) {
 /***************************************************************************/
 
 /**
+ * @brief Move cursor to the beginning of the file.
+ * @param File Active file.
+ */
+static void GotoStartOfFile(LPEDITFILE File) {
+    if (File == NULL) return;
+
+    File->Left = 0;
+    File->Top = 0;
+    File->Cursor.X = 0;
+    File->Cursor.Y = 0;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Move cursor to the start of current line.
  * @param File Active file.
  */
 static void GotoStartOfLine(LPEDITFILE File) {
     File->Left = 0;
     File->Cursor.X = 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Move cursor to the end of the file.
+ * @param File Active file.
+ */
+static void GotoEndOfFile(LPEDITFILE File) {
+    I32 LastLineIndex;
+    I32 VisibleRows;
+
+    if (File == NULL || File->Lines == NULL) return;
+
+    if (File->Lines->NumItems == 0) {
+        File->Left = 0;
+        File->Top = 0;
+        File->Cursor.X = 0;
+        File->Cursor.Y = 0;
+        return;
+    }
+
+    LastLineIndex = (I32)File->Lines->NumItems - 1;
+    VisibleRows = MAX_LINES;
+    if (VisibleRows < 1) VisibleRows = 1;
+
+    if (LastLineIndex < VisibleRows) {
+        File->Top = 0;
+        File->Cursor.Y = LastLineIndex;
+    } else {
+        File->Top = LastLineIndex - (VisibleRows - 1);
+        if (File->Top < 0) File->Top = 0;
+        File->Cursor.Y = LastLineIndex - File->Top;
+        if (File->Cursor.Y >= VisibleRows) {
+            File->Cursor.Y = VisibleRows - 1;
+        }
+    }
+
+    File->Left = 0;
+    GotoEndOfLine(File);
 }
 
 /***************************************************************************/
@@ -923,10 +971,18 @@ static I32 Loop(LPEDITCONTEXT Context) {
                 if (Context->Current->Top < 0) Context->Current->Top = 0;
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_HOME) {
-                GotoStartOfLine(Context->Current);
+                if (GetKeyCodeDown(ControlKey)) {
+                    GotoStartOfFile(Context->Current);
+                } else {
+                    GotoStartOfLine(Context->Current);
+                }
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_END) {
-                GotoEndOfLine(Context->Current);
+                if (GetKeyCodeDown(ControlKey)) {
+                    GotoEndOfFile(Context->Current);
+                } else {
+                    GotoEndOfLine(Context->Current);
+                }
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
                 DeleteCharacter(Context->Current, 0);
