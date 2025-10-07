@@ -29,11 +29,14 @@
 #include "drivers/Keyboard.h"
 #include "List.h"
 #include "Log.h"
+#include "String.h"
 #include "User.h"
 #include "VKey.h"
 
 /***************************************************************************/
 
+typedef struct tag_EDITLINE EDITLINE, *LPEDITLINE;
+typedef struct tag_EDITFILE EDITFILE, *LPEDITFILE;
 typedef struct tag_EDITCONTEXT EDITCONTEXT, *LPEDITCONTEXT;
 
 static I32 MenuHeight = 2;
@@ -74,16 +77,16 @@ static const KEYCODE ShiftKey = {VK_SHIFT, 0, 0};
 
 /***************************************************************************/
 
-typedef struct tag_EDITLINE {
+struct tag_EDITLINE {
     LISTNODE_FIELDS
     I32 MaxChars;
     I32 NumChars;
     LPSTR Chars;
-} EDITLINE, *LPEDITLINE;
+};
 
 /***************************************************************************/
 
-typedef struct tag_EDITFILE {
+struct tag_EDITFILE {
     LISTNODE_FIELDS
     LPLIST Lines;
     POINT Cursor;
@@ -92,18 +95,18 @@ typedef struct tag_EDITFILE {
     I32 Left;
     I32 Top;
     LPSTR Name;
-} EDITFILE, *LPEDITFILE;
+};
 
 /***************************************************************************/
 
-typedef struct tag_EDITCONTEXT {
+struct tag_EDITCONTEXT {
     LISTNODE_FIELDS
     LPLIST Files;
     LPEDITFILE Current;
     I32 Insert;
     LPSTR Clipboard;
     I32 ClipboardSize;
-} EDITCONTEXT, *LPEDITCONTEXT;
+};
 
 /**
  * @brief Allocate a new editable line with a given capacity.
