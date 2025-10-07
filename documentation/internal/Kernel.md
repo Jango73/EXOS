@@ -472,7 +472,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 ### Process Creation Flags
 
 **Process Creation Flags (Process.Flags):**
-- `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` (0x00000001): When the process terminates, all child processes are also killed. If this flag is not set, child processes are orphaned (their Parent field is set to NULL).
+- `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` (0x00000001): When the process terminates, all child processes are also killed. If this flag is not set, child processes are orphaned (their Parent field is set to NULL).
 
 ### Lifecycle Flow
 
@@ -485,13 +485,13 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - When `DeleteTask()` processes a dead task:
   - Decrements `Process.TaskCount`
   - If `TaskCount` reaches 0:
-    - Applies child process policy based on `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` flag
+    - Applies child process policy based on `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` flag
     - Marks the process as `PROCESS_STATUS_DEAD`
   - The process remains in the process list for later cleanup
 
 **3. Process Termination via KillProcess:**
 - `KillProcess()` can be called to terminate a process and handle its children:
-  - Checks the `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` flag
+  - Checks the `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` flag
   - If flag is set: Finds all child processes recursively and kills them
   - If flag is not set: Orphans children by setting their `Parent` field to NULL
   - Calls `KillTask()` on all tasks of the target process
@@ -515,7 +515,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - This prevents race conditions and ensures consistent state
 
 **Hierarchical Process Management:**
-- Child process handling depends on parent's `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` flag
+- Child process handling depends on parent's `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` flag
 - If flag is set: Child processes are automatically killed when parent dies
 - If flag is not set: Child processes are orphaned (Parent set to NULL)
 - The `Parent` field creates a process tree structure

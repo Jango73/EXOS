@@ -124,7 +124,7 @@ struct tag_MESSAGE {
 
 // Process creation flags
 
-#define PROCESS_CREATE_KILL_CHILDREN_ON_DEATH 0x00000001
+#define PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH 0x00000001
 
 /************************************************************************/
 // The window structure

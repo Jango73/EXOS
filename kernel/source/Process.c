@@ -47,7 +47,7 @@ PROCESS SECTION(".data") KernelProcess = {
     .Desktop = NULL,                // Desktop
     .Privilege = PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
-    .Flags = PROCESS_CREATE_KILL_CHILDREN_ON_DEATH, // Flags
+    .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .PageDirectory = 0,             // Page directory
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
@@ -293,7 +293,7 @@ void KillProcess(LPPROCESS This) {
         U32 ChildCount = ListGetSize(ChildProcesses);
         DEBUG(TEXT("[KillProcess] Processing %d child processes"), ChildCount);
 
-        if (This->Flags & PROCESS_CREATE_KILL_CHILDREN_ON_DEATH) {
+        if (This->Flags & PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH) {
             DEBUG(TEXT("[KillProcess] Policy: KILL_CHILDREN_ON_DEATH - killing all children"));
 
             for (U32 i = 0; i < ChildCount; i++) {
