@@ -382,7 +382,7 @@ void Render(LPEDITFILE File) {
 
     Console.CursorX = File->Cursor.X;
     Console.CursorY = File->Cursor.Y;
-    SetConsoleCursorPosition(Console.CursorX, Console.Cursor.Y);
+    SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
     UnlockMutex(MUTEX_CONSOLE);
 }
@@ -458,6 +458,7 @@ static BOOL CommandSave(LPEDITCONTEXT Context) { return SaveFile(Context->Curren
 
 /***************************************************************************/
 
+/**
  * @brief Ensure a line has enough capacity for a given index.
  * @param Line Line to check.
  * @param Size Desired capacity.
