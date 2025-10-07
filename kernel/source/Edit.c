@@ -254,31 +254,67 @@ void CheckPositions(LPEDITFILE File) {
 /**
  * @brief Draw the editor menu at the bottom of the console.
  */
-static void RenderMenu(void) {
+static U16 ComposeConsoleAttribute(void) {
+    U16 Attribute = (U16)(Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07));
+    return (U16)(Attribute << 0x08);
+}
+
+/***************************************************************************/
+
+static inline U16 MakeConsoleCell(STR Char, U16 Attribute) { return (U16)Char | Attribute; }
+
+/***************************************************************************/
+
+static void WriteMenuText(U16* Row, U32 Width, U32* Column, LPCSTR Text, U16 Attribute) {
+    if (Row == NULL || Text == NULL || Column == NULL) return;
+
+    while (*Text && *Column < Width) {
+        Row[*Column] = MakeConsoleCell(*Text, Attribute);
+        (*Column)++;
+        Text++;
+    }
+}
+
+/***************************************************************************/
+
+static void RenderMenu(U16 Attribute, U16 SpaceCell) {
     U32 Item;
     I32 Line;
-    I32 Col;
+    U32 Column;
+    U32 Width = Console.Width;
+    U16* Frame = Console.Memory;
+    U16* Row;
 
-    Console.CursorY = MAX_LINES;
     for (Line = 0; Line < MenuHeight; Line++) {
-        Console.CursorX = 0;
-        for (Col = 0; Col < (I32)Console.Width; Col++) {
-            ConsolePrintChar(STR_SPACE);
+        Row = Frame + ((MAX_LINES + Line) * Width);
+        for (Column = 0; Column < Width; Column++) {
+            Row[Column] = SpaceCell;
         }
-        Console.CursorY++;
     }
 
-    Console.CursorY = MAX_LINES;
-    Console.CursorX = 0;
-    for (Item = 0; Item < MenuItems; Item++) {
+    Row = Frame + (MAX_LINES * Width);
+    Column = 0;
+
+    for (Item = 0; Item < MenuItems && Column < Width; Item++) {
         if (Menu[Item].Modifier.VirtualKey != VK_NONE) {
-            ConsolePrint(GetKeyName(Menu[Item].Modifier.VirtualKey));
-            ConsolePrint(TEXT("+"));
+            WriteMenuText(Row, Width, &Column, GetKeyName(Menu[Item].Modifier.VirtualKey), Attribute);
+            if (Column < Width) {
+                Row[Column++] = MakeConsoleCell('+', Attribute);
+            }
         }
-        ConsolePrint(GetKeyName(Menu[Item].Key.VirtualKey));
-        ConsolePrint(TEXT(" "));
-        ConsolePrint(Menu[Item].Name);
-        ConsolePrint(TEXT("  "));
+
+        WriteMenuText(Row, Width, &Column, GetKeyName(Menu[Item].Key.VirtualKey), Attribute);
+        if (Column < Width) {
+            Row[Column++] = SpaceCell;
+        }
+
+        WriteMenuText(Row, Width, &Column, Menu[Item].Name, Attribute);
+        if (Column < Width) {
+            Row[Column++] = SpaceCell;
+        }
+        if (Column < Width) {
+            Row[Column++] = SpaceCell;
+        }
     }
 }
 
@@ -292,6 +328,12 @@ void Render(LPEDITFILE File) {
     LPLISTNODE Node;
     LPEDITLINE Line;
     I32 Index;
+    U32 RowIndex;
+    U32 Column;
+    U16 Attribute;
+    U16 SpaceCell;
+    U32 Width;
+    U16* Frame;
 
     if (File == NULL) return;
     if (File->Lines->NumItems == 0) return;
@@ -303,40 +345,44 @@ void Render(LPEDITFILE File) {
         Index++;
     }
 
+    Attribute = ComposeConsoleAttribute();
+    SpaceCell = MakeConsoleCell(STR_SPACE, Attribute);
+    Width = Console.Width;
+    Frame = Console.Memory;
+
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
-    Console.CursorX = 0;
-    Console.CursorY = 0;
+    for (RowIndex = 0; RowIndex < MAX_LINES; RowIndex++) {
+        U16* Row = Frame + (RowIndex * Width);
 
-    for (; Node; Node = Node->Next) {
-        Line = (LPEDITLINE)Node;
-        if (File->Left < Line->NumChars) {
-            for (Index = File->Left; Index < Line->NumChars; Index++) {
-                if (Console.CursorX >= MAX_COLUMNS) break;
-                ConsolePrintChar(Line->Chars[Index]);
+        for (Column = 0; Column < Width; Column++) {
+            Row[Column] = SpaceCell;
+        }
+
+        if (Node) {
+            Line = (LPEDITLINE)Node;
+            if (File->Left < Line->NumChars) {
+                I32 Start = File->Left;
+                I32 End = Line->NumChars;
+                I32 Visible = End - Start;
+
+                if (Visible > MAX_COLUMNS) {
+                    Visible = MAX_COLUMNS;
+                }
+
+                for (Index = 0; Index < Visible; Index++) {
+                    Row[Index] = MakeConsoleCell(Line->Chars[Start + Index], Attribute);
+                }
             }
-        }
-        for (; Console.CursorX < MAX_COLUMNS;) ConsolePrintChar(STR_SPACE);
-        Console.CursorX = 0;
-        Console.CursorY++;
-        if (Console.CursorY >= MAX_LINES) break;
-    }
-
-    for (; Console.CursorY < MAX_LINES; Console.CursorY++) {
-        Console.CursorX = 0;
-        for (Index = 0; Index < (I32)MAX_COLUMNS; Index++) {
-            ConsolePrintChar(STR_SPACE);
+            Node = Node->Next;
         }
     }
 
-    RenderMenu();
-
-    // Draw temp cursor
+    RenderMenu(Attribute, SpaceCell);
 
     Console.CursorX = File->Cursor.X;
     Console.CursorY = File->Cursor.Y;
-    // ConsolePrintChar('_');
-    SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+    SetConsoleCursorPosition(Console.CursorX, Console.Cursor.Y);
 
     UnlockMutex(MUTEX_CONSOLE);
 }
