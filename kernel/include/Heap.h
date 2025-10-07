@@ -44,7 +44,7 @@
 
 typedef struct tag_HEAPBLOCKHEADER {
     U32 TypeID;
-    U32 Size;
+    UINT Size;
     struct tag_HEAPBLOCKHEADER* Next;
     struct tag_HEAPBLOCKHEADER* Prev;
 } HEAPBLOCKHEADER, *LPHEAPBLOCKHEADER;
@@ -67,36 +67,36 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize);
 
 // Allocates memory space in the calling process' heap
 // Must provide the heap's limits.
-LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, U32 Size);
+LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Size);
 
 // Reallocates memory space in the calling process' heap
 // Must provide the heap's limits.
-LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOID Pointer, U32 Size);
+LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOID Pointer, UINT Size);
 
 // Frees memory space in the calling process' heap
 // Must provide the heap's limits.
 void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer);
 
 // Allocates memory space in the specified process' heap
-LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size);
+LPVOID HeapAlloc_P(LPPROCESS Process, UINT Size);
 
 // Reallocates memory space in the specified process' heap
-LPVOID HeapRealloc_P(LPPROCESS Process, LPVOID Pointer, U32 Size);
+LPVOID HeapRealloc_P(LPPROCESS Process, LPVOID Pointer, UINT Size);
 
 // Frees memory space in the specified process' heap
 void HeapFree_P(LPPROCESS Process, LPVOID Pointer);
 
 // Allocates memory space in the kernel's heap
-LPVOID KernelHeapAlloc(U32 Size);
+LPVOID KernelHeapAlloc(UINT Size);
 
 // Reallocates memory space in the kernel's heap
-LPVOID KernelHeapRealloc(LPVOID Pointer, U32 Size);
+LPVOID KernelHeapRealloc(LPVOID Pointer, UINT Size);
 
 // Frees memory space in the kernel's heap
 void KernelHeapFree(LPVOID Pointer);
 
 // Allocates memory space in the calling process' heap
-LPVOID HeapAlloc(U32 Size);
+LPVOID HeapAlloc(UINT Size);
 
 // Reallocates memory space in the calling process' heap
 LPVOID HeapRealloc(LPVOID Pointer, U32 Size);

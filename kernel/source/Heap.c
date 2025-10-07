@@ -171,7 +171,7 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
  * @param RequiredSize Allocation size (including header) that triggered the expansion.
  * @return TRUE if the heap was expanded, FALSE otherwise.
  */
-static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, U32 RequiredSize) {
+static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     if (ControlBlock == NULL || ControlBlock->Owner == NULL) {
         ERROR("[TryExpandHeap] Heap owner is undefined");
         return FALSE;
@@ -234,7 +234,7 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, U32 RequiredSize) {
  * This function implements a freelist-based heap allocation algorithm with size classes.
  * Memory is 16-byte aligned for optimal performance.
  */
-LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, U32 Size) {
+LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Size) {
     UNUSED(HeapSize);
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
@@ -286,16 +286,16 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, U32 Siz
                 if (Block->Size > TotalSize) {
                     U32 RemainingSize = Block->Size - TotalSize;
                     if (RemainingSize >= sizeof(HEAPBLOCKHEADER) + HEAP_MIN_BLOCK_SIZE) {
-                    LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
-                    SplitBlock->TypeID = KOID_HEAP;
-                    SplitBlock->Size = RemainingSize;
-                    SplitBlock->Next = NULL;
-                    SplitBlock->Prev = NULL;
+                        LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
+                        SplitBlock->TypeID = KOID_HEAP;
+                        SplitBlock->Size = RemainingSize;
+                        SplitBlock->Next = NULL;
+                        SplitBlock->Prev = NULL;
 
-                    U32 SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAPBLOCKHEADER));
-                    AddToFreeList(ControlBlock, SplitBlock, SplitSizeClass);
+                        U32 SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAPBLOCKHEADER));
+                        AddToFreeList(ControlBlock, SplitBlock, SplitSizeClass);
 
-                    Block->Size = TotalSize;
+                        Block->Size = TotalSize;
                     }
                 }
 
@@ -314,15 +314,15 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, U32 Siz
                 if (Block->Size > TotalSize) {
                     U32 RemainingSize = Block->Size - TotalSize;
                     if (RemainingSize >= sizeof(HEAPBLOCKHEADER) + HEAP_MIN_BLOCK_SIZE) {
-                    LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
-                    SplitBlock->TypeID = KOID_HEAP;
-                    SplitBlock->Size = RemainingSize;
-                    SplitBlock->Next = NULL;
-                    SplitBlock->Prev = NULL;
+                        LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
+                        SplitBlock->TypeID = KOID_HEAP;
+                        SplitBlock->Size = RemainingSize;
+                        SplitBlock->Next = NULL;
+                        SplitBlock->Prev = NULL;
 
-                    AddToFreeList(ControlBlock, SplitBlock, 0xFF);
+                        AddToFreeList(ControlBlock, SplitBlock, 0xFF);
 
-                    Block->Size = TotalSize;
+                        Block->Size = TotalSize;
                     }
                 }
 
@@ -375,7 +375,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, U32 Siz
  * - If Size is 0, frees the memory and returns NULL
  * - Otherwise, changes the size of the memory block, potentially moving it
  */
-LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOID Pointer, U32 Size) {
+LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOID Pointer, UINT Size) {
     if (Pointer == NULL) {
         return HeapAlloc_HBHS(Process, HeapBase, HeapSize, Size);
     }
@@ -480,7 +480,7 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
  * This function provides thread-safe memory allocation by acquiring the
  * process's heap mutex before calling the core allocation function.
  */
-LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size) {
+LPVOID HeapAlloc_P(LPPROCESS Process, UINT Size) {
     LPVOID Pointer = NULL;
     LockMutex(&(Process->HeapMutex), INFINITY);
     Pointer = HeapAlloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Size);
@@ -500,7 +500,7 @@ LPVOID HeapAlloc_P(LPPROCESS Process, U32 Size) {
  * This function provides thread-safe memory reallocation by acquiring the
  * process's heap mutex before calling the core reallocation function.
  */
-LPVOID HeapRealloc_P(LPPROCESS Process, LPVOID Pointer, U32 Size) {
+LPVOID HeapRealloc_P(LPPROCESS Process, LPVOID Pointer, UINT Size) {
     LPVOID NewPointer = NULL;
     LockMutex(&(Process->HeapMutex), INFINITY);
     NewPointer = HeapRealloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Pointer, Size);
@@ -533,7 +533,7 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
  *
  * Convenience function for allocating memory from the kernel process heap.
  */
-LPVOID KernelHeapAlloc(U32 Size) { return HeapAlloc_P(&KernelProcess, Size); }
+LPVOID KernelHeapAlloc(UINT Size) { return HeapAlloc_P(&KernelProcess, Size); }
 
 /************************************************************************/
 
@@ -545,7 +545,7 @@ LPVOID KernelHeapAlloc(U32 Size) { return HeapAlloc_P(&KernelProcess, Size); }
  *
  * Convenience function for reallocating memory from the kernel process heap.
  */
-LPVOID KernelHeapRealloc(LPVOID Pointer, U32 Size) { return HeapRealloc_P(&KernelProcess, Pointer, Size); }
+LPVOID KernelHeapRealloc(LPVOID Pointer, UINT Size) { return HeapRealloc_P(&KernelProcess, Pointer, Size); }
 
 /***************************************************************************/
 
@@ -567,7 +567,7 @@ void KernelHeapFree(LPVOID Pointer) { HeapFree_P(&KernelProcess, Pointer); }
  * Convenience function that automatically determines the current process
  * and allocates memory from its heap.
  */
-LPVOID HeapAlloc(U32 Size) {
+LPVOID HeapAlloc(UINT Size) {
     LPPROCESS Process = GetCurrentProcess();
     if (Process == NULL) return NULL;
 
