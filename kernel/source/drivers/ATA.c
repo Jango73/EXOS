@@ -24,9 +24,11 @@
 
 #include "drivers/ATA.h"
 
+#include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "InterruptController.h"
+#include "utils/Cache.h"
 
 /***************************************************************************/
 // Version
@@ -63,9 +65,28 @@ typedef struct tag_ATADISK {
     U32 IOPort;  // 0x01F0 or 0x0170
     U32 IRQ;     // 0x0E
     U32 Drive;   // 0 or 1
-    U32 NumBuffers;
-    LPSECTORBUFFER Buffer;
+    CACHE SectorCache;
 } ATADISK, *LPATADISK;
+
+/***************************************************************************/
+
+typedef struct tag_SECTOR_CACHE_CONTEXT {
+    U32 SectorLow;
+    U32 SectorHigh;
+} SECTOR_CACHE_CONTEXT, *LPSECTOR_CACHE_CONTEXT;
+
+/***************************************************************************/
+
+static BOOL SectorCacheMatcher(LPVOID Data, LPVOID Context) {
+    LPSECTORBUFFER Buffer = (LPSECTORBUFFER)Data;
+    LPSECTOR_CACHE_CONTEXT Match = (LPSECTOR_CACHE_CONTEXT)Context;
+
+    if (Buffer == NULL || Match == NULL) {
+        return FALSE;
+    }
+
+    return Buffer->SectorLow == Match->SectorLow && Buffer->SectorHigh == Match->SectorHigh;
+}
 
 /***************************************************************************/
 
@@ -171,17 +192,11 @@ static U32 InitializeATA(void) {
                 Disk->IOPort = RealPort;
                 Disk->IRQ = IRQ_ATA;
                 Disk->Drive = Drive;
-                Disk->NumBuffers = NUM_BUFFERS;
-                Disk->Buffer = KernelHeapAlloc(NUM_BUFFERS * sizeof(SECTORBUFFER));
+                CacheInit(&Disk->SectorCache, NUM_BUFFERS);
 
-                //-------------------------------------
-                // Clear the buffers
-
-                for (Index = 0; Index < NUM_BUFFERS; Index++) {
-                    Disk->Buffer[Index].SectorLow = MAX_U32;
-                    Disk->Buffer[Index].SectorHigh = MAX_U32;
-                    Disk->Buffer[Index].Score = 0;
-                    Disk->Buffer[Index].Dirty = 0;
+                if (Disk->SectorCache.Entries == NULL) {
+                    KernelHeapFree(Disk);
+                    continue;
                 }
 
                 ListAddItem(Kernel.Disk, Disk);
@@ -308,7 +323,6 @@ Out:
 static U32 Read(LPIOCONTROL Control) {
     LPATADISK Disk;
     BLOCKPARAMS Params;
-    U32 Index;
     U32 Current;
 
     //-------------------------------------
@@ -329,47 +343,41 @@ static U32 Read(LPIOCONTROL Control) {
     if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
     if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
 
+    CacheCleanup(&Disk->SectorCache, GetSystemTime());
+
     for (Current = 0; Current < Control->NumSectors; Current++) {
-        //-------------------------------------
-        // Let's see if we already have this sector
+        SECTOR_CACHE_CONTEXT Context = {Control->SectorLow + Current, 0};
+        LPSECTORBUFFER Buffer = (LPSECTORBUFFER)CacheFind(&Disk->SectorCache, SectorCacheMatcher, &Context);
 
-        Index = FindSectorInBuffers(Disk->Buffer, Disk->NumBuffers, Control->SectorLow + Current, 0);
+        if (Buffer == NULL) {
+            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-        if (Index != MAX_U32) {
-            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Disk->Buffer[Index].Data, SECTOR_SIZE);
-        } else {
-            //-------------------------------------
-            // Get a new buffer in which to read the sector
+            if (Buffer == NULL) return DF_ERROR_UNEXPECT;
 
-            Index = GetEmptyBuffer(Disk->Buffer, Disk->NumBuffers);
-
-            if (Index == MAX_U32) return DF_ERROR_UNEXPECT;
+            Buffer->SectorLow = Context.SectorLow;
+            Buffer->SectorHigh = Context.SectorHigh;
+            Buffer->Dirty = 0;
 
             //-------------------------------------
             // We must now do a physical disk access
 
             DisableInterrupt(Disk->IRQ);
 
-            SectorToBlockParams(&(Disk->Geometry), Control->SectorLow + Current, &Params);
+            SectorToBlockParams(&(Disk->Geometry), Context.SectorLow, &Params);
 
             ATADriveOut(
-                Disk->IOPort, Disk->Drive, HD_COMMAND_READ, Disk->Buffer[Index].Data, Params.Cylinder, Params.Head,
-                Params.Sector, 1);
+                Disk->IOPort, Disk->Drive, HD_COMMAND_READ, Buffer->Data, Params.Cylinder, Params.Head, Params.Sector,
+                1);
 
             EnableInterrupt(Disk->IRQ);
 
-            //-------------------------------------
-            // Update the buffer
-
-            Disk->Buffer[Index].SectorLow = Control->SectorLow + Current;
-            Disk->Buffer[Index].SectorHigh = 0;
-            Disk->Buffer[Index].Score = 10;
-
-            //-------------------------------------
-            // Copy the buffer to the user's buffer
-
-            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Disk->Buffer[Index].Data, SECTOR_SIZE);
+            if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
+                KernelHeapFree(Buffer);
+                return DF_ERROR_UNEXPECT;
+            }
         }
+
+        MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Buffer->Data, SECTOR_SIZE);
     }
 
     return DF_ERROR_SUCCESS;
@@ -380,7 +388,6 @@ static U32 Read(LPIOCONTROL Control) {
 static U32 Write(LPIOCONTROL Control) {
     LPATADISK Disk;
     BLOCKPARAMS Params;
-    U32 Index;
     U32 Current;
 
     //-------------------------------------
@@ -406,43 +413,47 @@ static U32 Write(LPIOCONTROL Control) {
 
     if (Disk->Access & DISK_ACCESS_READONLY) return DF_ERROR_NOPERM;
 
+    CacheCleanup(&Disk->SectorCache, GetSystemTime());
+
     for (Current = 0; Current < Control->NumSectors; Current++) {
-        //-------------------------------------
-        // Get a buffer for this sector (or use existing one)
+        SECTOR_CACHE_CONTEXT Context = {Control->SectorLow + Current, 0};
+        LPSECTORBUFFER Buffer = (LPSECTORBUFFER)CacheFind(&Disk->SectorCache, SectorCacheMatcher, &Context);
+        BOOL AddedToCache = FALSE;
 
-        Index = FindSectorInBuffers(Disk->Buffer, Disk->NumBuffers, Control->SectorLow + Current, 0);
+        if (Buffer == NULL) {
+            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-        if (Index == MAX_U32) {
-            Index = GetEmptyBuffer(Disk->Buffer, Disk->NumBuffers);
-            if (Index == MAX_U32) return DF_ERROR_UNEXPECT;
+            if (Buffer == NULL) return DF_ERROR_UNEXPECT;
+
+            Buffer->SectorLow = Context.SectorLow;
+            Buffer->SectorHigh = Context.SectorHigh;
+            Buffer->Dirty = 0;
+            AddedToCache = TRUE;
         }
 
-        //-------------------------------------
-        // Update buffer with new data
-
-        MemoryCopy(Disk->Buffer[Index].Data, ((U8*)Control->Buffer) + (Current * SECTOR_SIZE), SECTOR_SIZE);
-        Disk->Buffer[Index].SectorLow = Control->SectorLow + Current;
-        Disk->Buffer[Index].SectorHigh = 0;
-        Disk->Buffer[Index].Score = 10;
-        Disk->Buffer[Index].Dirty = 1;
+        MemoryCopy(Buffer->Data, ((U8*)Control->Buffer) + (Current * SECTOR_SIZE), SECTOR_SIZE);
+        Buffer->Dirty = 1;
 
         //-------------------------------------
         // Write to physical disk
 
         DisableInterrupt(Disk->IRQ);
 
-        SectorToBlockParams(&(Disk->Geometry), Control->SectorLow + Current, &Params);
+        SectorToBlockParams(&(Disk->Geometry), Context.SectorLow, &Params);
 
         ATADriveOut(
-            Disk->IOPort, Disk->Drive, HD_COMMAND_WRITE, Disk->Buffer[Index].Data, Params.Cylinder, Params.Head,
-            Params.Sector, 1);
+            Disk->IOPort, Disk->Drive, HD_COMMAND_WRITE, Buffer->Data, Params.Cylinder, Params.Head, Params.Sector, 1);
 
         EnableInterrupt(Disk->IRQ);
 
-        //-------------------------------------
-        // Mark buffer as clean after successful write
+        Buffer->Dirty = 0;
 
-        Disk->Buffer[Index].Dirty = 0;
+        if (AddedToCache) {
+            if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
+                KernelHeapFree(Buffer);
+                return DF_ERROR_UNEXPECT;
+            }
+        }
     }
 
     return DF_ERROR_SUCCESS;

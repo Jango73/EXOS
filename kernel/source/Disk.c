@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -47,53 +46,3 @@ void SectorToBlockParams(LPDISKGEOMETRY Geometry, U32 Sector, LPBLOCKPARAMS Bloc
 }
 
 /***************************************************************************/
-
-U32 FindSectorInBuffers(LPSECTORBUFFER Buffer, U32 NumBuffers, U32 SectorLow, U32 SectorHigh) {
-    UNUSED(SectorHigh);
-
-    U32 Index = 0;
-    U32 BufNum = MAX_U32;
-
-    for (Index = 0; Index < NumBuffers; Index++) {
-        if (Buffer[Index].SectorLow == SectorLow) {
-            Buffer[Index].Score++;
-            BufNum = Index;
-        } else {
-            if (Buffer[Index].SectorLow != MAX_U32) {
-                if (Buffer[Index].Score) Buffer[Index].Score--;
-            }
-        }
-    }
-
-    return BufNum;
-}
-
-/***************************************************************************/
-
-U32 GetEmptyBuffer(LPSECTORBUFFER Buffer, U32 NumBuffers) {
-    U32 Index;
-    U32 WorstScore = MAX_U32;
-    U32 WorstIndex = MAX_U32;
-
-    for (Index = 0; Index < NumBuffers; Index++) {
-        if (Buffer[Index].SectorLow == MAX_U32) {
-            return Index;
-        } else if (Buffer[Index].SectorLow != MAX_U32) {
-            if (Buffer[Index].Score < WorstScore) {
-                WorstScore = Buffer[Index].Score;
-                WorstIndex = Index;
-            }
-        }
-    }
-
-    //-------------------------------------
-    // Invalidate the buffer and reset its score
-
-    if (WorstIndex != MAX_U32) {
-        Buffer[WorstIndex].Score = 10;
-        Buffer[WorstIndex].SectorLow = MAX_U32;
-        Buffer[WorstIndex].SectorHigh = MAX_U32;
-    }
-
-    return WorstIndex;
-}

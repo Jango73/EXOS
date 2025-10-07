@@ -24,11 +24,13 @@
 
 #include "drivers/SATA.h"
 
+#include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
 #include "drivers/PCI.h"
 #include "User.h"
+#include "utils/Cache.h"
 
 /***************************************************************************/
 // Version
@@ -86,8 +88,7 @@ typedef struct tag_AHCI_PORT {
     LPAHCI_CMD_TBL CommandTable;    // Command table
 
     // Buffer management
-    U32 NumBuffers;
-    LPSECTORBUFFER Buffer;
+    CACHE SectorCache;
 } AHCI_PORT, *LPAHCI_PORT;
 
 /***************************************************************************/
@@ -132,6 +133,26 @@ PCI_DRIVER AHCIPCIDriver = {
 
 /***************************************************************************/
 
+typedef struct tag_SATA_CACHE_CONTEXT {
+    U32 SectorLow;
+    U32 SectorHigh;
+} SATA_CACHE_CONTEXT, *LPSATA_CACHE_CONTEXT;
+
+/***************************************************************************/
+
+static BOOL SATACacheMatcher(LPVOID Data, LPVOID Context) {
+    LPSECTORBUFFER Buffer = (LPSECTORBUFFER)Data;
+    LPSATA_CACHE_CONTEXT Match = (LPSATA_CACHE_CONTEXT)Context;
+
+    if (Buffer == NULL || Match == NULL) {
+        return FALSE;
+    }
+
+    return Buffer->SectorLow == Match->SectorLow && Buffer->SectorHigh == Match->SectorHigh;
+}
+
+/***************************************************************************/
+
 static LPAHCI_PORT NewAHCIPort(void) {
     LPAHCI_PORT This;
 
@@ -147,7 +168,6 @@ static LPAHCI_PORT NewAHCIPort(void) {
     This->Header.Prev = NULL;
     This->Header.Driver = &SATADiskDriver;
     This->Access = 0;
-    This->NumBuffers = NUM_BUFFERS;
 
     return This;
 }
@@ -301,19 +321,10 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     }
     MemorySet(AHCIPort->CommandTable, 0, AHCI_CMD_TBL_SIZE);
 
-    // Allocate sector buffers
-    AHCIPort->Buffer = KernelHeapAlloc(NUM_BUFFERS * sizeof(SECTORBUFFER));
-    if (AHCIPort->Buffer == NULL) {
-        DEBUG(TEXT("[InitializeAHCIPort] Failed to allocate sector buffers"));
+    CacheInit(&AHCIPort->SectorCache, NUM_BUFFERS);
+    if (AHCIPort->SectorCache.Entries == NULL) {
+        DEBUG(TEXT("[InitializeAHCIPort] Failed to initialize cache"));
         return FALSE;
-    }
-
-    // Initialize sector buffers
-    for (U32 i = 0; i < NUM_BUFFERS; i++) {
-        AHCIPort->Buffer[i].SectorLow = MAX_U32;
-        AHCIPort->Buffer[i].SectorHigh = MAX_U32;
-        AHCIPort->Buffer[i].Score = 0;
-        AHCIPort->Buffer[i].Dirty = 0;
     }
 
     // Set up port registers with physical addresses for DMA
@@ -621,7 +632,6 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
 
 static U32 Read(LPIOCONTROL Control) {
     LPAHCI_PORT AHCIPort;
-    U32 Index;
     U32 Current;
     U32 Result;
 
@@ -635,34 +645,36 @@ static U32 Read(LPIOCONTROL Control) {
     // Check validity of parameters
     if (AHCIPort->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
 
+    CacheCleanup(&AHCIPort->SectorCache, GetSystemTime());
+
     for (Current = 0; Current < Control->NumSectors; Current++) {
-        // Let's see if we already have this sector
-        Index = FindSectorInBuffers(AHCIPort->Buffer, AHCIPort->NumBuffers, Control->SectorLow + Current, 0);
+        SATA_CACHE_CONTEXT Context = {Control->SectorLow + Current, 0};
+        LPSECTORBUFFER Buffer = (LPSECTORBUFFER)CacheFind(&AHCIPort->SectorCache, SATACacheMatcher, &Context);
 
-        if (Index != MAX_U32) {
-            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), AHCIPort->Buffer[Index].Data, SECTOR_SIZE);
-        } else {
-            // Get a new buffer in which to read the sector
-            Index = GetEmptyBuffer(AHCIPort->Buffer, AHCIPort->NumBuffers);
+        if (Buffer == NULL) {
+            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-            if (Index == MAX_U32) return DF_ERROR_UNEXPECT;
+            if (Buffer == NULL) return DF_ERROR_UNEXPECT;
 
-            // Read from AHCI
-            Result = AHCICommand(AHCIPort, ATA_CMD_READ_DMA_EXT, Control->SectorLow + Current, 1,
-                                AHCIPort->Buffer[Index].Data, FALSE);
+            Buffer->SectorLow = Context.SectorLow;
+            Buffer->SectorHigh = Context.SectorHigh;
+            Buffer->Dirty = 0;
+
+            Result = AHCICommand(
+                AHCIPort, ATA_CMD_READ_DMA_EXT, Context.SectorLow, 1, Buffer->Data, FALSE);
 
             if (Result != DF_ERROR_SUCCESS) {
+                KernelHeapFree(Buffer);
                 return Result;
             }
 
-            // Update the buffer
-            AHCIPort->Buffer[Index].SectorLow = Control->SectorLow + Current;
-            AHCIPort->Buffer[Index].SectorHigh = 0;
-            AHCIPort->Buffer[Index].Score = 10;
-
-            // Copy the buffer to the user's buffer
-            MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), AHCIPort->Buffer[Index].Data, SECTOR_SIZE);
+            if (!CacheAdd(&AHCIPort->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
+                KernelHeapFree(Buffer);
+                return DF_ERROR_UNEXPECT;
+            }
         }
+
+        MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Buffer->Data, SECTOR_SIZE);
     }
 
     return DF_ERROR_SUCCESS;
@@ -672,7 +684,6 @@ static U32 Read(LPIOCONTROL Control) {
 
 static U32 Write(LPIOCONTROL Control) {
     LPAHCI_PORT AHCIPort;
-    U32 Index;
     U32 Current;
     U32 Result;
 
@@ -689,32 +700,45 @@ static U32 Write(LPIOCONTROL Control) {
     // Check access permissions
     if (AHCIPort->Access & DISK_ACCESS_READONLY) return DF_ERROR_NOPERM;
 
-    for (Current = 0; Current < Control->NumSectors; Current++) {
-        // Get a buffer for this sector (or use existing one)
-        Index = FindSectorInBuffers(AHCIPort->Buffer, AHCIPort->NumBuffers, Control->SectorLow + Current, 0);
+    CacheCleanup(&AHCIPort->SectorCache, GetSystemTime());
 
-        if (Index == MAX_U32) {
-            Index = GetEmptyBuffer(AHCIPort->Buffer, AHCIPort->NumBuffers);
-            if (Index == MAX_U32) return DF_ERROR_UNEXPECT;
+    for (Current = 0; Current < Control->NumSectors; Current++) {
+        SATA_CACHE_CONTEXT Context = {Control->SectorLow + Current, 0};
+        LPSECTORBUFFER Buffer = (LPSECTORBUFFER)CacheFind(&AHCIPort->SectorCache, SATACacheMatcher, &Context);
+        BOOL AddedToCache = FALSE;
+
+        if (Buffer == NULL) {
+            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
+
+            if (Buffer == NULL) return DF_ERROR_UNEXPECT;
+
+            Buffer->SectorLow = Context.SectorLow;
+            Buffer->SectorHigh = Context.SectorHigh;
+            Buffer->Dirty = 0;
+            AddedToCache = TRUE;
         }
 
-        // Update buffer with new data
-        MemoryCopy(AHCIPort->Buffer[Index].Data, ((U8*)Control->Buffer) + (Current * SECTOR_SIZE), SECTOR_SIZE);
-        AHCIPort->Buffer[Index].SectorLow = Control->SectorLow + Current;
-        AHCIPort->Buffer[Index].SectorHigh = 0;
-        AHCIPort->Buffer[Index].Score = 10;
-        AHCIPort->Buffer[Index].Dirty = 1;
+        MemoryCopy(Buffer->Data, ((U8*)Control->Buffer) + (Current * SECTOR_SIZE), SECTOR_SIZE);
+        Buffer->Dirty = 1;
 
-        // Write to AHCI
-        Result = AHCICommand(AHCIPort, ATA_CMD_WRITE_DMA_EXT, Control->SectorLow + Current, 1,
-                           AHCIPort->Buffer[Index].Data, TRUE);
+        Result = AHCICommand(
+            AHCIPort, ATA_CMD_WRITE_DMA_EXT, Context.SectorLow, 1, Buffer->Data, TRUE);
 
         if (Result != DF_ERROR_SUCCESS) {
+            if (AddedToCache) {
+                KernelHeapFree(Buffer);
+            }
             return Result;
         }
 
-        // Mark buffer as clean after successful write
-        AHCIPort->Buffer[Index].Dirty = 0;
+        Buffer->Dirty = 0;
+
+        if (AddedToCache) {
+            if (!CacheAdd(&AHCIPort->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
+                KernelHeapFree(Buffer);
+                return DF_ERROR_UNEXPECT;
+            }
+        }
     }
 
     return DF_ERROR_SUCCESS;
