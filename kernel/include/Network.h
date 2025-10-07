@@ -21,15 +21,16 @@
     Network
 
 \************************************************************************/
+
 #ifndef NETWORK_H_INCLUDED
 #define NETWORK_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
 #include "drivers/PCI.h"
 #include "User.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 
@@ -40,9 +41,9 @@ typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 #define PROTOCOL_HTTP 0x00000004
 #define PROTOCOL_FTP 0x00000005
 
-/***************************************************************************/
-/* Generic Network Driver Function IDs                                     */
-/* All network drivers must implement these IDs                            */
+/************************************************************************/
+// Generic Network Driver Function IDs
+// All network drivers must implement these IDs
 
 #define DF_NT_RESET (DF_FIRSTFUNC + 0x00)   /* Reset the adapter */
 #define DF_NT_GETINFO (DF_FIRSTFUNC + 0x01) /* Get device information */
@@ -50,20 +51,20 @@ typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 #define DF_NT_POLL (DF_FIRSTFUNC + 0x03)    /* Poll RX ring */
 #define DF_NT_SETRXCB (DF_FIRSTFUNC + 0x04) /* Set RX callback */
 
-/***************************************************************************/
-/* Generic Network Driver Error Codes                                      */
+/************************************************************************/
+// Generic Network Driver Error Codes
 
 #define DF_ERROR_NT_TX_FAIL (DF_ERROR_FIRST + 0x00) /* Transmission failed */
 #define DF_ERROR_NT_RX_FAIL (DF_ERROR_FIRST + 0x01) /* Reception failed */
 #define DF_ERROR_NT_NO_LINK (DF_ERROR_FIRST + 0x02) /* Link down */
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef struct tag_IPADDRESS {
     U8 Data[4];
 } IPADDRESS, *LPIPADDRESS;
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef struct tag_NETWORKRESET {
     LPPCI_DEVICE Device;
@@ -90,6 +91,6 @@ typedef struct tag_NETWORKPOLL {
     LPPCI_DEVICE Device;
 } NETWORKPOLL, *LPNETWORKPOLL;
 
-/***************************************************************************/
+/************************************************************************/
 
-#endif /* NETWORK_H_INCLUDED */
+#endif  // NETWORK_H_INCLUDED
