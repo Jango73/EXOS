@@ -1219,7 +1219,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                                 U32 NumPages,
                                 U32 Flags,
                                 LINEAR RollbackBase,
-                                const TCHAR* FunctionName) {
+                                LPCSTR FunctionName) {
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
     LPPAGETABLE Table = NULL;
     PHYSICAL Physical = NULL;
