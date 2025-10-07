@@ -1094,16 +1094,32 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
 static U32 CMD_edit(LPSHELLCONTEXT Context) {
     LPSTR Arguments[2];
     STR FileName[MAX_PATH_NAME];
+    BOOL HasArgument = FALSE;
+    BOOL ArgumentProvided = FALSE;
+    BOOL LineNumbers;
+
+    FileName[0] = STR_NULL;
 
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command)) {
+        ArgumentProvided = TRUE;
         if (QualifyFileName(Context, Context->Command, FileName)) {
             Arguments[0] = FileName;
-            Edit(1, (LPCSTR*)Arguments);
+            HasArgument = TRUE;
         }
-    } else {
-        Edit(0, NULL);
+    }
+
+    while (Context->Input.CommandLine[Context->CommandChar] != STR_NULL) {
+        ParseNextCommandLineComponent(Context);
+    }
+
+    LineNumbers = HasOption(Context, TEXT("n"), TEXT("line-numbers"));
+
+    if (HasArgument) {
+        Edit(1, (LPCSTR*)Arguments, LineNumbers);
+    } else if (!ArgumentProvided) {
+        Edit(0, NULL, LineNumbers);
     }
 
     return DF_ERROR_SUCCESS;

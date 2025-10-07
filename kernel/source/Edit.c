@@ -111,6 +111,7 @@ struct tag_EDITCONTEXT {
     I32 Insert;
     LPSTR Clipboard;
     I32 ClipboardSize;
+    BOOL ShowLineNumbers;
 };
 
 /**
@@ -225,6 +226,7 @@ LPEDITCONTEXT NewEditContext(void) {
     This->Insert = 1;
     This->Clipboard = NULL;
     This->ClipboardSize = 0;
+    This->ShowLineNumbers = FALSE;
 
     return This;
 }
@@ -493,9 +495,9 @@ static void RenderMenu(U16 Attribute, U16 SpaceCell) {
 
 /**
  * @brief Render the current file content to the console.
- * @param File File to render.
+ * @param Context Editor context providing rendering settings.
  */
-void Render(LPEDITFILE File) {
+static void Render(LPEDITCONTEXT Context) {
     LPLISTNODE Node;
     LPEDITLINE Line;
     I32 Index;
@@ -507,13 +509,25 @@ void Render(LPEDITFILE File) {
     U16 MenuSpaceCell;
     U16 TitleAttribute;
     U16 TitleSpaceCell;
+    U16 LineNumberAttribute = 0;
+    U16 LineNumberSpaceCell = 0;
     U32 Width;
     U16* Frame;
     BOOL PendingEofMarker = FALSE;
     BOOL EofDrawn = FALSE;
+    LPEDITFILE File;
+    BOOL ShowLineNumbers;
+    U32 TextColumnOffset;
+
+    if (Context == NULL) return;
+
+    File = Context->Current;
 
     if (File == NULL) return;
     if (File->Lines->NumItems == 0) return;
+
+    ShowLineNumbers = Context->ShowLineNumbers;
+    TextColumnOffset = ShowLineNumbers ? 4U : 0U;
 
     CheckPositions(File);
 
@@ -530,6 +544,11 @@ void Render(LPEDITFILE File) {
     TitleSpaceCell = MenuSpaceCell;
     Width = Console.Width;
     Frame = Console.Memory;
+
+    if (ShowLineNumbers) {
+        LineNumberAttribute = ComposeAttribute(CONSOLE_BLACK, CONSOLE_WHITE, 0);
+        LineNumberSpaceCell = MakeConsoleCell(STR_SPACE, LineNumberAttribute);
+    }
 
     U16 SelectedAttribute = ComposeInverseConsoleAttribute();
     BOOL HasSelection = SelectionHasRange(File);
@@ -554,6 +573,12 @@ void Render(LPEDITFILE File) {
             Row[Column] = SpaceCell;
         }
 
+        if (ShowLineNumbers) {
+            for (Column = 0; Column < TextColumnOffset && Column < Width; Column++) {
+                Row[Column] = LineNumberSpaceCell;
+            }
+        }
+
         if (Node) {
             LPLISTNODE CurrentNode = Node;
             I32 Start = File->Left;
@@ -572,12 +597,19 @@ void Render(LPEDITFILE File) {
                     Visible = MAX_COLUMNS;
                 }
 
-                for (Index = 0; Index < Visible && Index < (I32)Width; Index++) {
-                    Row[Index] = MakeConsoleCell(Line->Chars[Start + Index], Attribute);
+                I32 MaxVisible = (I32)Width - (I32)TextColumnOffset;
+                if (MaxVisible < 0) MaxVisible = 0;
+                if (Visible > MaxVisible) {
+                    Visible = MaxVisible;
+                }
+
+                for (Index = 0; Index < Visible; Index++) {
+                    U32 TargetColumn = TextColumnOffset + (U32)Index;
+                    if (TargetColumn >= Width) break;
+                    Row[TargetColumn] = MakeConsoleCell(Line->Chars[Start + Index], Attribute);
                 }
                 LineLength = Line->NumChars;
             } else {
-                Visible = 0;
                 LineLength = Line->NumChars;
             }
 
@@ -586,9 +618,29 @@ void Render(LPEDITFILE File) {
             }
 
             Node = CurrentNode->Next;
+
+            if (ShowLineNumbers && CurrentLine) {
+                STR LineNumberText[8];
+                U32 DigitIndex;
+                U32 DigitCount;
+
+                StringPrintFormat(LineNumberText, TEXT("%3d"), AbsoluteRow + 1);
+                DigitCount = StringLength(LineNumberText);
+
+                for (DigitIndex = 0; DigitIndex < DigitCount && DigitIndex < TextColumnOffset && DigitIndex < Width; DigitIndex++) {
+                    STR Character = LineNumberText[DigitIndex];
+                    if (Character == STR_NULL) {
+                        break;
+                    }
+                    Row[DigitIndex] = MakeConsoleCell(Character, LineNumberAttribute);
+                }
+            }
         } else {
             if (PendingEofMarker && EofDrawn == FALSE) {
-                Row[0] = MakeConsoleCell(EDIT_EOF_CHAR, Attribute);
+                U32 TargetColumn = TextColumnOffset;
+                if (TargetColumn < Width) {
+                    Row[TargetColumn] = MakeConsoleCell(EDIT_EOF_CHAR, Attribute);
+                }
                 EofDrawn = TRUE;
                 PendingEofMarker = FALSE;
             }
@@ -636,12 +688,17 @@ void Render(LPEDITFILE File) {
 
                 if (VisibleStart < 0) VisibleStart = 0;
                 if (VisibleEnd < 0) VisibleEnd = 0;
-                if (VisibleEnd > (I32)Width) VisibleEnd = (I32)Width;
+
+                I32 MaxVisible = (I32)Width - (I32)TextColumnOffset;
+                if (MaxVisible < 0) MaxVisible = 0;
+                if (VisibleEnd > MaxVisible) VisibleEnd = MaxVisible;
 
                 if (VisibleStart < VisibleEnd) {
                     for (Index = VisibleStart; Index < VisibleEnd; Index++) {
-                        STR Character = (STR)(Row[Index] & 0x00FF);
-                        Row[Index] = MakeConsoleCell(Character, SelectedAttribute);
+                        I32 ColumnIndex = (I32)TextColumnOffset + Index;
+                        if (ColumnIndex < 0 || ColumnIndex >= (I32)Width) break;
+                        STR Character = (STR)(Row[ColumnIndex] & 0x00FF);
+                        Row[ColumnIndex] = MakeConsoleCell(Character, SelectedAttribute);
                     }
                 }
             }
@@ -650,7 +707,10 @@ void Render(LPEDITFILE File) {
 
     RenderMenu(MenuAttribute, MenuSpaceCell);
 
-    Console.CursorX = File->Cursor.X;
+    Console.CursorX = (I32)TextColumnOffset + File->Cursor.X;
+    if (Console.CursorX >= (I32)Width) {
+        Console.CursorX = (I32)Width - 1;
+    }
     Console.CursorY = TitleHeight + File->Cursor.Y;
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
@@ -1524,7 +1584,7 @@ static I32 Loop(LPEDITCONTEXT Context) {
     U32 Item;
     BOOL Handled;
 
-    Render(Context->Current);
+    Render(Context);
 
     FOREVER {
         if (PeekChar()) {
@@ -1538,7 +1598,7 @@ static I32 Loop(LPEDITCONTEXT Context) {
                         if (Menu[Item].Function(Context)) {
                             return 0;
                         }
-                        Render(Context->Current);
+                        Render(Context);
                     }
                     break;
                 }
@@ -1554,30 +1614,30 @@ static I32 Loop(LPEDITCONTEXT Context) {
             if (KeyCode.VirtualKey == VK_DOWN) {
                 Context->Current->Cursor.Y++;
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_UP) {
                 Context->Current->Cursor.Y--;
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_RIGHT) {
                 Context->Current->Cursor.X++;
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_LEFT) {
                 Context->Current->Cursor.X--;
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_PAGEDOWN) {
                 I32 Lines = (Console.Height * 8) / 10;
                 Context->Current->Top += Lines;
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_PAGEUP) {
                 I32 Lines = (Console.Height * 8) / 10;
                 Context->Current->Top -= Lines;
                 if (Context->Current->Top < 0) Context->Current->Top = 0;
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_HOME) {
                 if (GetKeyCodeDown(ControlKey)) {
                     GotoStartOfFile(Context->Current);
@@ -1585,7 +1645,7 @@ static I32 Loop(LPEDITCONTEXT Context) {
                     GotoStartOfLine(Context->Current);
                 }
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_END) {
                 if (GetKeyCodeDown(ControlKey)) {
                     GotoEndOfFile(Context->Current);
@@ -1593,22 +1653,22 @@ static I32 Loop(LPEDITCONTEXT Context) {
                     GotoEndOfLine(Context->Current);
                 }
                 UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
                 DeleteCharacter(Context->Current, 0);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_DELETE) {
                 DeleteCharacter(Context->Current, 1);
-                Render(Context->Current);
+                Render(Context);
             } else if (KeyCode.VirtualKey == VK_ENTER) {
                 AddLine(Context->Current);
-                Render(Context->Current);
+                Render(Context);
             } else {
                 switch (KeyCode.ASCIICode) {
                     default: {
                         if (KeyCode.ASCIICode >= STR_SPACE) {
                             AddCharacter(Context->Current, KeyCode.ASCIICode);
-                            Render(Context->Current);
+                            Render(Context);
                         }
                     } break;
                 }
@@ -1749,14 +1809,21 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
  * @brief Entry point for the text editor utility.
  * @param NumArguments Number of command line arguments.
  * @param Arguments Array of argument strings.
+ * @param LineNumbers TRUE to enable line numbers display.
  * @return 0 on success or error code.
  */
-U32 Edit(U32 NumArguments, LPCSTR* Arguments) {
+U32 Edit(U32 NumArguments, LPCSTR* Arguments, BOOL LineNumbers) {
     LPEDITCONTEXT Context;
     LPEDITFILE File;
     U32 Index;
 
     Context = NewEditContext();
+
+    if (Context == NULL) {
+        return DF_ERROR_GENERIC;
+    }
+
+    Context->ShowLineNumbers = LineNumbers;
 
     if (NumArguments && Arguments) {
         for (Index = 0; Index < NumArguments; Index++) {
