@@ -869,7 +869,17 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
         }
         DoSystemCall(SYSCALL_DeleteObject, Handle);
     } else {
-        KernelLogText(LOG_VERBOSE, TEXT("Could not open file '%s'\n"), Name);
+        File = NewEditFile();
+        if (File) {
+            if (Name) {
+                File->Name = HeapAlloc(StringLength(Name) + 1);
+                if (File->Name) {
+                    StringCopy(File->Name, Name);
+                }
+            }
+            ListAddItem(Context->Files, File);
+            Context->Current = File;
+        }
     }
 
     return TRUE;
