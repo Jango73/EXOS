@@ -58,6 +58,7 @@ typedef struct tag_EDITMENUITEM {
 
 static BOOL CommandExit(LPEDITCONTEXT Context);
 static BOOL CommandSave(LPEDITCONTEXT Context);
+static BOOL CommandCut(LPEDITCONTEXT Context);
 static BOOL CommandCopy(LPEDITCONTEXT Context);
 static BOOL CommandPaste(LPEDITCONTEXT Context);
 static BOOL CopySelectionToClipboard(LPEDITCONTEXT Context);
@@ -67,6 +68,7 @@ static void AddLine(LPEDITFILE File);
 static EDITMENUITEM Menu[] = {
     {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, TEXT("Exit"), CommandExit},
     {{VK_CONTROL, 0, 0}, {VK_S, 0, 0}, TEXT("Save"), CommandSave},
+    {{VK_CONTROL, 0, 0}, {VK_X, 0, 0}, TEXT("Cut"), CommandCut},
     {{VK_CONTROL, 0, 0}, {VK_C, 0, 0}, TEXT("Copy"), CommandCopy},
     {{VK_CONTROL, 0, 0}, {VK_V, 0, 0}, TEXT("Paste"), CommandPaste},
 };
@@ -685,6 +687,90 @@ static BOOL SaveFile(LPEDITFILE File) {
  * @return TRUE if the file was saved.
  */
 static BOOL CommandSave(LPEDITCONTEXT Context) { return SaveFile(Context->Current); }
+
+/***************************************************************************/
+
+static BOOL CommandCut(LPEDITCONTEXT Context) {
+    LPEDITFILE File;
+    LPEDITLINE Line;
+    LPLISTNODE Node;
+    BOOL HasNextLine;
+    POINT CursorPosition;
+    I32 LineY;
+    I32 Length;
+    LPSTR Buffer = NULL;
+    I32 Index;
+
+    if (Context == NULL) return FALSE;
+
+    File = Context->Current;
+    if (File == NULL) return FALSE;
+
+    if (SelectionHasRange(File)) {
+        if (CopySelectionToClipboard(Context)) {
+            DeleteSelection(File);
+        }
+        return FALSE;
+    }
+
+    CursorPosition = GetAbsoluteCursor(File);
+    LineY = CursorPosition.Y;
+
+    Line = ListGetItem(File->Lines, LineY);
+    if (Line == NULL) return FALSE;
+
+    Node = (LPLISTNODE)Line;
+    HasNextLine = (Node != NULL && Node->Next != NULL);
+
+    Length = Line->NumChars;
+    if (HasNextLine) {
+        Length++;
+    }
+
+    if (Length > 0) {
+        Buffer = (LPSTR)HeapAlloc(Length);
+        if (Buffer == NULL) return FALSE;
+
+        for (Index = 0; Index < Line->NumChars; Index++) {
+            Buffer[Index] = Line->Chars[Index];
+        }
+
+        if (HasNextLine) {
+            Buffer[Line->NumChars] = EDIT_CLIPBOARD_NEWLINE;
+        }
+    }
+
+    HeapFree(Context->Clipboard);
+    Context->Clipboard = Buffer;
+    Context->ClipboardSize = Length;
+
+    if (HasNextLine) {
+        File->SelStart.X = 0;
+        File->SelStart.Y = LineY;
+        File->SelEnd.X = 0;
+        File->SelEnd.Y = LineY + 1;
+        DeleteSelection(File);
+        CollapseSelectionToCursor(File);
+        return FALSE;
+    }
+
+    if (File->Lines->NumItems > 1) {
+        LPLISTNODE PrevNode = Node ? Node->Prev : NULL;
+
+        ListEraseItem(File->Lines, Line);
+
+        if (PrevNode) {
+            MoveCursorToAbsolute(File, 0, LineY - 1);
+        } else {
+            MoveCursorToAbsolute(File, 0, 0);
+        }
+    } else {
+        Line->NumChars = 0;
+        MoveCursorToAbsolute(File, 0, LineY);
+    }
+
+    return FALSE;
+}
 
 /***************************************************************************/
 
