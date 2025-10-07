@@ -1214,25 +1214,109 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
 
 /************************************************************************/
 
+static BOOL PopulateRegionPages(LINEAR Base,
+                                PHYSICAL Target,
+                                U32 NumPages,
+                                U32 Flags,
+                                LINEAR RollbackBase,
+                                const TCHAR* FunctionName) {
+    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGETABLE Table = NULL;
+    PHYSICAL Physical = NULL;
+    U32 ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
+    U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
+    U32 PteWriteThrough = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
+
+    if (PteCacheDisabled) PteWriteThrough = 0;
+
+    for (U32 Index = 0; Index < NumPages; Index++) {
+        U32 DirEntry = GetDirectoryEntry(Base);
+        U32 TabEntry = GetTableEntry(Base);
+
+        if (Directory[DirEntry].Address == NULL) {
+            if (AllocPageTable(Base) == NULL) {
+                FreeRegion(RollbackBase, (Index << PAGE_SIZE_MUL));
+                DEBUG(TEXT("[%s] AllocPageTable failed"), FunctionName);
+                return FALSE;
+            }
+        }
+
+        Table = GetPageTableVAFor(Base);
+
+        Table[TabEntry].Present = 0;
+        Table[TabEntry].ReadWrite = ReadWrite;
+        Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
+        Table[TabEntry].WriteThrough = PteWriteThrough;
+        Table[TabEntry].CacheDisabled = PteCacheDisabled;
+        Table[TabEntry].Accessed = 0;
+        Table[TabEntry].Dirty = 0;
+        Table[TabEntry].Reserved = 0;
+        Table[TabEntry].Global = 0;
+        Table[TabEntry].User = 0;
+        Table[TabEntry].Fixed = 0;
+        Table[TabEntry].Address = MAX_U32 >> PAGE_SIZE_MUL;
+
+        if (Flags & ALLOC_PAGES_COMMIT) {
+            if (Target != 0) {
+                Physical = Target + (Index << PAGE_SIZE_MUL);
+
+                if (Flags & ALLOC_PAGES_IO) {
+                    Table[TabEntry].Fixed = 1;
+                    Table[TabEntry].Present = 1;
+                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
+                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                } else {
+                    SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
+                    Table[TabEntry].Present = 1;
+                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
+                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                }
+            } else {
+                Physical = AllocPhysicalPage();
+
+                if (Physical == NULL) {
+                    ERROR(TEXT("[%s] AllocPhysicalPage failed"), FunctionName);
+                    FreeRegion(RollbackBase, (Index << PAGE_SIZE_MUL));
+                    return FALSE;
+                }
+
+                Table[TabEntry].Present = 1;
+                Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
+                Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+            }
+        }
+
+        Base += PAGE_SIZE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Allocate and map a physical region into the linear address space.
- * @param Base Desired base address or 0.
- * @param Target Desired physical base address or 0.
- * @param Size Size in bytes.
- * @param Flags Mapping flags (ALLOC_PAGES_*).
+ * @param Base Desired base address or 0. When zero and ALLOC_PAGES_AT_OR_OVER
+ *             is not set, the allocator picks any free region.
+ * @param Target Desired physical base address or 0. Requires
+ *               ALLOC_PAGES_COMMIT when specified. Use with ALLOC_PAGES_IO to
+ *               map device memory without touching the physical bitmap.
+ * @param Size Size in bytes, rounded up to page granularity. Limited to 25% of
+ *             the available physical memory.
+ * @param Flags Mapping flags:
+ *              - ALLOC_PAGES_COMMIT: allocate and map backing pages.
+ *              - ALLOC_PAGES_READWRITE: request writable pages (read-only
+ *                otherwise).
+ *              - ALLOC_PAGES_AT_OR_OVER: accept any region starting at or
+ *                above Base.
+ *              - ALLOC_PAGES_UC / ALLOC_PAGES_WC: control cache attributes
+ *                (UC has priority over WC).
+ *              - ALLOC_PAGES_IO: keep physical pages marked fixed for MMIO.
  * @return Allocated linear base address or 0 on failure.
  */
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
-    LPPAGETABLE Table = NULL;
     LINEAR Pointer = NULL;
-    PHYSICAL Physical = NULL;
-    U32 DirEntry = 0;
-    U32 TabEntry = 0;
     U32 NumPages = 0;
-    U32 ReadWrite = 0;
-    U32 Index = 0;
-
     DEBUG(TEXT("[AllocRegion] Enter: Base=%X Target=%X Size=%X Flags=%X"), Base, Target, Size, Flags);
 
     // Can't allocate more than 25% of total memory at once
@@ -1244,15 +1328,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     // Rounding behavior for page count
     NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;  // ceil(Size / 4096)
     if (NumPages == 0) NumPages = 1;
-
-    ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
-
-    // Derive cache policy flags for PTE
-    U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
-    U32 PteWriteThrough = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
-
-    // If UC is set, it dominates; WT must be 0 in that case.
-    if (PteCacheDisabled) PteWriteThrough = 0;
 
     // If an exact physical mapping is requested, validate inputs
     if (Target != 0 && (Flags & ALLOC_PAGES_IO) == 0) {
@@ -1302,71 +1377,8 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
 
     DEBUG(TEXT("[AllocRegion] Allocating pages"));
 
-    /* Allocate each page in turn. */
-    for (Index = 0; Index < NumPages; Index++) {
-        DirEntry = GetDirectoryEntry(Base);
-        TabEntry = GetTableEntry(Base);
-
-        if (Directory[DirEntry].Address == NULL) {
-            if (AllocPageTable(Base) == NULL) {
-                FreeRegion(Pointer, (Index << PAGE_SIZE_MUL));
-                DEBUG(TEXT("[AllocRegion] AllocPageTable failed "));
-                return NULL;
-            }
-        }
-
-        Table = GetPageTableVAFor(Base);
-
-        Table[TabEntry].Present = 0;
-        Table[TabEntry].ReadWrite = ReadWrite;
-        Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-        Table[TabEntry].WriteThrough = PteWriteThrough;
-        Table[TabEntry].CacheDisabled = PteCacheDisabled;
-        Table[TabEntry].Accessed = 0;
-        Table[TabEntry].Dirty = 0;
-        Table[TabEntry].Reserved = 0;
-        Table[TabEntry].Global = 0;
-        Table[TabEntry].User = 0;
-        Table[TabEntry].Fixed = 0;
-        Table[TabEntry].Address = MAX_U32 >> PAGE_SIZE_MUL;
-
-        if (Flags & ALLOC_PAGES_COMMIT) {
-            if (Target != 0) {
-                Physical = Target + (Index << PAGE_SIZE_MUL);
-
-                if (Flags & ALLOC_PAGES_IO) {
-                    // IO mapping (BAR) -> no bitmap mark, Fixed=1
-                    Table[TabEntry].Fixed = 1;
-                    Table[TabEntry].Present = 1;
-                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
-                } else {
-                    // RAM mapping
-                    SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
-                    Table[TabEntry].Present = 1;
-                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
-                }
-            } else {
-                // Legacy path: allocate any free physical page
-                Physical = AllocPhysicalPage();
-
-                if (Physical == NULL) {
-                    ERROR(TEXT("[AllocRegion] AllocPhysicalPage failed"));
-
-                    // Roll back pages mapped so far
-                    FreeRegion(Pointer, (Index << PAGE_SIZE_MUL));
-                    return NULL;
-                }
-
-                Table[TabEntry].Present = 1;
-                Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-                Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
-            }
-        }
-
-        // Advance to next page
-        Base += PAGE_SIZE;
+    if (PopulateRegionPages(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
+        return NULL;
     }
 
     // Flush the Translation Look-up Buffer of the CPU
@@ -1375,6 +1387,90 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     DEBUG(TEXT("[AllocRegion] Exit"));
 
     return Pointer;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resize an existing linear region.
+ * @param Base Base linear address of the region.
+ * @param Target Physical base address or 0. Must match the existing mapping
+ *               when resizing committed regions.
+ * @param Size Current size in bytes.
+ * @param NewSize Desired size in bytes.
+ * @param Flags Mapping flags used for the region (see AllocRegion).
+ * @return TRUE on success, FALSE otherwise.
+ */
+BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags) {
+    DEBUG(TEXT("[ResizeRegion] Enter: Base=%X Target=%X Size=%X NewSize=%X Flags=%X"),
+          Base,
+          Target,
+          Size,
+          NewSize,
+          Flags);
+
+    if (Base == 0) {
+        ERROR(TEXT("[ResizeRegion] Base cannot be null"));
+        return FALSE;
+    }
+
+    if (NewSize > KernelStartup.MemorySize / 4) {
+        ERROR(TEXT("[ResizeRegion] New size %X exceeds 25%% of memory (%X)"),
+              NewSize,
+              KernelStartup.MemorySize / 4);
+        return FALSE;
+    }
+
+    U32 CurrentPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+    U32 RequestedPages = (NewSize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+    if (CurrentPages == 0) CurrentPages = 1;
+    if (RequestedPages == 0) RequestedPages = 1;
+
+    if (RequestedPages == CurrentPages) {
+        DEBUG(TEXT("[ResizeRegion] No page count change"));
+        return TRUE;
+    }
+
+    if (RequestedPages > CurrentPages) {
+        U32 AdditionalPages = RequestedPages - CurrentPages;
+        LINEAR NewBase = Base + (CurrentPages << PAGE_SIZE_MUL);
+        U32 AdditionalSize = AdditionalPages << PAGE_SIZE_MUL;
+
+        if (IsRegionFree(NewBase, AdditionalSize) == FALSE) {
+            DEBUG(TEXT("[ResizeRegion] Additional region not free at %X"), NewBase);
+            return FALSE;
+        }
+
+        PHYSICAL AdditionalTarget = 0;
+        if (Target != 0) {
+            AdditionalTarget = Target + (CurrentPages << PAGE_SIZE_MUL);
+        }
+
+        DEBUG(TEXT("[ResizeRegion] Expanding region by %X bytes"), AdditionalSize);
+
+        if (PopulateRegionPages(NewBase,
+                                AdditionalTarget,
+                                AdditionalPages,
+                                Flags,
+                                NewBase,
+                                TEXT("ResizeRegion")) == FALSE) {
+            return FALSE;
+        }
+
+        FlushTLB();
+    } else {
+        U32 PagesToRelease = CurrentPages - RequestedPages;
+        if (PagesToRelease != 0) {
+            LINEAR ReleaseBase = Base + (RequestedPages << PAGE_SIZE_MUL);
+            U32 ReleaseSize = PagesToRelease << PAGE_SIZE_MUL;
+
+            DEBUG(TEXT("[ResizeRegion] Shrinking region by %X bytes"), ReleaseSize);
+            FreeRegion(ReleaseBase, ReleaseSize);
+        }
+    }
+
+    DEBUG(TEXT("[ResizeRegion] Exit"));
+    return TRUE;
 }
 
 /************************************************************************/
