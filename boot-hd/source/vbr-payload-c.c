@@ -163,25 +163,15 @@ static void VerifyKernelImage(U32 FileSize) {
         Hang();
     }
 
-    U8* Loaded = (U8*)(((U32)LOADADDRESS_SEG << 4) + (U32)LOADADDRESS_OFS);
-    U32 BaseAddr = (U32)Loaded;
+    const U8* const FileStart = (const U8*)SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
+    const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
+
     U32 LastBytes1 = 0;
     U32 LastBytes2 = 0;
 
-    for (int i = 0; i < 4; ++i) {
-        U32 ByteAddr = BaseAddr + FileSize - 8U + (U32)i;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        U8 Byte = ReadFarByte(Seg, Ofs);
-        LastBytes1 |= ((U32)Byte) << (i * 8);
-    }
-
-    for (int i = 0; i < 4; ++i) {
-        U32 ByteAddr = BaseAddr + FileSize - 4U + (U32)i;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        U8 Byte = ReadFarByte(Seg, Ofs);
-        LastBytes2 |= ((U32)Byte) << (i * 8);
+    for (int Index = 0; Index < 4; ++Index) {
+        LastBytes1 |= ((U32)FileStart[FileSize - 8U + (U32)Index]) << (Index * 8);
+        LastBytes2 |= ((U32)FileStart[FileSize - 4U + (U32)Index]) << (Index * 8);
     }
 
     StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
@@ -189,19 +179,12 @@ static void VerifyKernelImage(U32 FileSize) {
 
     U32 Computed = 0;
     for (U32 Index = 0; Index < FileSize - sizeof(U32); ++Index) {
-        U32 ByteAddr = BaseAddr + Index;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        Computed += ReadFarByte(Seg, Ofs);
+        Computed += FileStart[Index];
     }
 
     U32 Stored = 0;
-    for (int i = 0; i < 4; ++i) {
-        U32 ByteAddr = BaseAddr + FileSize - sizeof(U32) + (U32)i;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        U8 Byte = ReadFarByte(Seg, Ofs);
-        Stored |= ((U32)Byte) << (i * 8);
+    for (int Index = 0; Index < 4; ++Index) {
+        Stored |= ((U32)ChecksumPtr[Index]) << (Index * 8);
     }
 
     StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
