@@ -57,6 +57,9 @@ static BOOL CommandExit(LPEDITCONTEXT Context);
 static BOOL CommandSave(LPEDITCONTEXT Context);
 static BOOL CommandCopy(LPEDITCONTEXT Context);
 static BOOL CommandPaste(LPEDITCONTEXT Context);
+static BOOL CopySelectionToClipboard(LPEDITCONTEXT Context);
+static void AddCharacter(LPEDITFILE File, STR ASCIICode);
+static void AddLine(LPEDITFILE File);
 
 static EDITMENUITEM Menu[] = {
     {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, TEXT("Exit"), CommandExit},
