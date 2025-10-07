@@ -278,32 +278,32 @@ typedef U32 BOOL;
 /***************************************************************************/
 // Some machine constants
 
-#define N_1B ((U32)0x00000001)
-#define N_2B ((U32)0x00000002)
-#define N_4B ((U32)0x00000004)
-#define N_8B ((U32)0x00000008)
-#define N_1KB ((U32)0x00000400)
-#define N_2KB ((U32)0x00000800)
-#define N_4KB ((U32)0x00001000)
-#define N_8KB ((U32)0x00002000)
-#define N_16KB ((U32)0x00004000)
-#define N_32KB ((U32)0x00008000)
-#define N_64KB ((U32)0x00010000)
-#define N_128KB ((U32)0x00020000)
-#define N_256KB ((U32)0x00040000)
-#define N_512KB ((U32)0x00080000)
-#define N_1MB ((U32)0x00100000)
-#define N_2MB ((U32)0x00200000)
-#define N_3MB ((U32)0x00300000)
-#define N_4MB ((U32)0x00400000)
-#define N_8MB ((U32)0x00800000)
-#define N_16MB ((U32)0x01000000)
-#define N_32MB ((U32)0x02000000)
-#define N_64MB ((U32)0x04000000)
-#define N_128MB ((U32)0x08000000)
-#define N_1GB ((U32)0x40000000)
-#define N_2GB ((U32)0x80000000)
-#define N_4GB ((U32)0xFFFFFFFF)
+#define N_1B ((UINT)0x00000001)
+#define N_2B ((UINT)0x00000002)
+#define N_4B ((UINT)0x00000004)
+#define N_8B ((UINT)0x00000008)
+#define N_1KB ((UINT)0x00000400)
+#define N_2KB ((UINT)0x00000800)
+#define N_4KB ((UINT)0x00001000)
+#define N_8KB ((UINT)0x00002000)
+#define N_16KB ((UINT)0x00004000)
+#define N_32KB ((UINT)0x00008000)
+#define N_64KB ((UINT)0x00010000)
+#define N_128KB ((UINT)0x00020000)
+#define N_256KB ((UINT)0x00040000)
+#define N_512KB ((UINT)0x00080000)
+#define N_1MB ((UINT)0x00100000)
+#define N_2MB ((UINT)0x00200000)
+#define N_3MB ((UINT)0x00300000)
+#define N_4MB ((UINT)0x00400000)
+#define N_8MB ((UINT)0x00800000)
+#define N_16MB ((UINT)0x01000000)
+#define N_32MB ((UINT)0x02000000)
+#define N_64MB ((UINT)0x04000000)
+#define N_128MB ((UINT)0x08000000)
+#define N_1GB ((UINT)0x40000000)
+#define N_2GB ((UINT)0x80000000)
+#define N_4GB ((UINT)0xFFFFFFFF)
 
 #define N_1KB_M1 (N_1KB - 1)
 #define N_4KB_M1 (N_4KB - 1)
@@ -457,11 +457,12 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define USTR_MINUS ((USTR)'-')
 
 /***************************************************************************/
-
 // Forward declaration to avoid circular dependencies
+
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
 /***************************************************************************/
+// A kernel object header
 
 #define OBJECT_FIELDS       \
     U32 TypeID;             \
@@ -473,7 +474,8 @@ typedef struct tag_OBJECT {
     OBJECT_FIELDS
 } OBJECT, *LPOBJECT;
 
-/***************************************************************************/
+/************************************************************************/
+// A datetime
 
 typedef struct tag_DATETIME {
     U32 Year : 22;
@@ -486,14 +488,14 @@ typedef struct tag_DATETIME {
     U32 Unused : 4;
 } DATETIME, *LPDATETIME;
 
-/***************************************************************************
- * Handles - They are a pointer in reality, but called handles so that they
- * are not used in userland, otherwise you get a nice page fault, at best.
- ***************************************************************************/
+/************************************************************************/
+// Handles - They are a pointer in reality, but called handles so that they
+// are not used in userland, otherwise you get a nice page fault, at best.
+// Will implement pointer masking soon.
 
 typedef U32 HANDLE;
 
-/***************************************************************************/
+/************************************************************************/
 // Maximum string lengths
 
 #define MAX_STRING_BUFFER 1024
@@ -506,14 +508,14 @@ typedef U32 HANDLE;
 #define MAX_PASSWORD 64
 #define LOOP_LIMIT 500
 
-/***************************************************************************/
+/************************************************************************/
 
 #define MAKE_VERSION(maj, min) ((U32)(((((U32)maj) & 0xFFFF) << 16) | (((U32)min) & 0xFFFF)))
 
 #define UNSIGNED(val) *((U32*)(&(val)))
 #define SIGNED(val) *((I32*)(&(val)))
 
-/***************************************************************************/
+/************************************************************************/
 // Color manipulations
 
 typedef U32 COLOR;
