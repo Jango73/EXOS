@@ -773,8 +773,12 @@ static void GotoEndOfLine(LPEDITFILE File) {
     LineIndex = File->Top + File->Cursor.Y;
     if (LineIndex < 0) LineIndex = 0;
 
-    Line = EnsureLineAt(File, LineIndex);
-    if (Line == NULL) return;
+    Line = ListGetItem(File->Lines, LineIndex);
+    if (Line == NULL) {
+        File->Left = 0;
+        File->Cursor.X = 0;
+        return;
+    }
 
     TargetColumn = Line->NumChars;
     if (TargetColumn <= 0) {
