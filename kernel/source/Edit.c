@@ -39,10 +39,11 @@ typedef struct tag_EDITLINE EDITLINE, *LPEDITLINE;
 typedef struct tag_EDITFILE EDITFILE, *LPEDITFILE;
 typedef struct tag_EDITCONTEXT EDITCONTEXT, *LPEDITCONTEXT;
 
+static const I32 TitleHeight = 1;
 static I32 MenuHeight = 2;
 
 #define MAX_COLUMNS (Console.Width - 10)
-#define MAX_LINES (Console.Height - MenuHeight)
+#define MAX_LINES (Console.Height - MenuHeight - TitleHeight)
 
 #define EDIT_EOF_CHAR ((STR)0x1A)
 #define EDIT_CLIPBOARD_NEWLINE ((STR)0x0A)
@@ -98,6 +99,7 @@ struct tag_EDITFILE {
     I32 Left;
     I32 Top;
     LPSTR Name;
+    BOOL Modified;
 };
 
 /***************************************************************************/
@@ -176,6 +178,7 @@ LPEDITFILE NewEditFile(void) {
     This->Left = 0;
     This->Top = 0;
     This->Name = NULL;
+    This->Modified = FALSE;
 
     Line = NewEditLine(8);
     ListAddItem(This->Lines, Line);
@@ -374,17 +377,18 @@ static void MoveCursorToAbsolute(LPEDITFILE File, I32 Column, I32 Line) {
 /**
  * @brief Draw the editor menu at the bottom of the console.
  */
-static U16 ComposeConsoleAttribute(void) {
-    U16 Attribute = (U16)(Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07));
+static U16 ComposeAttribute(U32 Foreground, U32 Background, U32 Blink) {
+    U16 Attribute = (U16)(Foreground | (Background << 0x04) | (Blink << 0x07));
     return (U16)(Attribute << 0x08);
 }
 
 /***************************************************************************/
 
-static U16 ComposeInverseConsoleAttribute(void) {
-    U16 Attribute = (U16)(Console.BackColor | (Console.ForeColor << 0x04) | (Console.Blink << 0x07));
-    return (U16)(Attribute << 0x08);
-}
+static U16 ComposeConsoleAttribute(void) { return ComposeAttribute(Console.ForeColor, Console.BackColor, Console.Blink); }
+
+/***************************************************************************/
+
+static U16 ComposeInverseConsoleAttribute(void) { return ComposeAttribute(Console.BackColor, Console.ForeColor, Console.Blink); }
 
 /***************************************************************************/
 
@@ -404,6 +408,46 @@ static void WriteMenuText(U16* Row, U32 Width, U32* Column, LPCSTR Text, U16 Att
 
 /***************************************************************************/
 
+static void RenderTitleBar(LPEDITFILE File, U16 Attribute, U16 SpaceCell) {
+    U16* Frame;
+    U16* Row;
+    U32 Width;
+    I32 Line;
+    U32 Column;
+    LPCSTR Name;
+
+    if (TitleHeight <= 0) return;
+
+    Frame = Console.Memory;
+    Width = Console.Width;
+
+    for (Line = 0; Line < TitleHeight; Line++) {
+        Row = Frame + (Line * Width);
+        for (Column = 0; Column < Width; Column++) {
+            Row[Column] = SpaceCell;
+        }
+    }
+
+    Row = Frame;
+    Column = 0;
+
+    if (File && File->Modified && Column < Width) {
+        Row[Column++] = MakeConsoleCell('*', Attribute);
+    }
+
+    if (File && File->Name) {
+        Name = File->Name;
+    } else {
+        Name = TEXT("<untitled>");
+    }
+
+    while (*Name && Column < Width) {
+        Row[Column++] = MakeConsoleCell(*Name++, Attribute);
+    }
+}
+
+/***************************************************************************/
+
 static void RenderMenu(U16 Attribute, U16 SpaceCell) {
     U32 Item;
     I32 Line;
@@ -413,13 +457,13 @@ static void RenderMenu(U16 Attribute, U16 SpaceCell) {
     U16* Row;
 
     for (Line = 0; Line < MenuHeight; Line++) {
-        Row = Frame + ((MAX_LINES + Line) * Width);
+        Row = Frame + ((TitleHeight + MAX_LINES + Line) * Width);
         for (Column = 0; Column < Width; Column++) {
             Row[Column] = SpaceCell;
         }
     }
 
-    Row = Frame + (MAX_LINES * Width);
+    Row = Frame + ((TitleHeight + MAX_LINES) * Width);
     Column = 0;
 
     for (Item = 0; Item < MenuItems && Column < Width; Item++) {
@@ -459,6 +503,10 @@ void Render(LPEDITFILE File) {
     U32 Column;
     U16 Attribute;
     U16 SpaceCell;
+    U16 MenuAttribute;
+    U16 MenuSpaceCell;
+    U16 TitleAttribute;
+    U16 TitleSpaceCell;
     U32 Width;
     U16* Frame;
     BOOL PendingEofMarker = FALSE;
@@ -476,6 +524,10 @@ void Render(LPEDITFILE File) {
 
     Attribute = ComposeConsoleAttribute();
     SpaceCell = MakeConsoleCell(STR_SPACE, Attribute);
+    MenuAttribute = ComposeAttribute(CONSOLE_WHITE, CONSOLE_BLUE, 0);
+    MenuSpaceCell = MakeConsoleCell(STR_SPACE, MenuAttribute);
+    TitleAttribute = MenuAttribute;
+    TitleSpaceCell = MenuSpaceCell;
     Width = Console.Width;
     Frame = Console.Memory;
 
@@ -490,8 +542,10 @@ void Render(LPEDITFILE File) {
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
+    RenderTitleBar(File, TitleAttribute, TitleSpaceCell);
+
     for (RowIndex = 0; RowIndex < MAX_LINES; RowIndex++) {
-        U16* Row = Frame + (RowIndex * Width);
+        U16* Row = Frame + ((TitleHeight + RowIndex) * Width);
         LPEDITLINE CurrentLine = NULL;
         I32 LineLength = 0;
         I32 AbsoluteRow = File->Top + (I32)RowIndex;
@@ -594,10 +648,10 @@ void Render(LPEDITFILE File) {
         }
     }
 
-    RenderMenu(Attribute, SpaceCell);
+    RenderMenu(MenuAttribute, MenuSpaceCell);
 
     Console.CursorX = File->Cursor.X;
-    Console.CursorY = File->Cursor.Y;
+    Console.CursorY = TitleHeight + File->Cursor.Y;
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
     UnlockMutex(MUTEX_CONSOLE);
@@ -672,6 +726,7 @@ static BOOL SaveFile(LPEDITFILE File) {
             }
         }
 
+        File->Modified = FALSE;
         DoSystemCall(SYSCALL_DeleteObject, Handle);
     } else {
         KernelLogText(LOG_VERBOSE, TEXT("Could not save file '%s'\n"), File->Name);
@@ -701,6 +756,7 @@ static BOOL CommandCut(LPEDITCONTEXT Context) {
     I32 Length;
     LPSTR Buffer = NULL;
     I32 Index;
+    BOOL Modified = FALSE;
 
     if (Context == NULL) return FALSE;
 
@@ -759,6 +815,7 @@ static BOOL CommandCut(LPEDITCONTEXT Context) {
         LPLISTNODE PrevNode = Node ? Node->Prev : NULL;
 
         ListEraseItem(File->Lines, Line);
+        Modified = TRUE;
 
         if (PrevNode) {
             MoveCursorToAbsolute(File, 0, LineY - 1);
@@ -768,6 +825,13 @@ static BOOL CommandCut(LPEDITCONTEXT Context) {
     } else {
         Line->NumChars = 0;
         MoveCursorToAbsolute(File, 0, LineY);
+        if (Length > 0) {
+            Modified = TRUE;
+        }
+    }
+
+    if (Modified) {
+        File->Modified = TRUE;
     }
 
     return FALSE;
@@ -929,6 +993,7 @@ static void DeleteSelection(LPEDITFILE File) {
     I32 LineIndex;
     I32 Remaining;
     I32 Offset;
+    BOOL Modified = FALSE;
 
     if (File == NULL) return;
     if (SelectionHasRange(File) == FALSE) return;
@@ -956,43 +1021,48 @@ static void DeleteSelection(LPEDITFILE File) {
         StartLine->NumChars -= (EndColumn - StartColumn);
 
         MoveCursorToAbsolute(File, StartColumn, Start.Y);
-        return;
-    }
+        Modified = TRUE;
+    } else {
+        StartColumn = Start.X;
+        if (StartColumn > StartLine->NumChars) StartColumn = StartLine->NumChars;
 
-    StartColumn = Start.X;
-    if (StartColumn > StartLine->NumChars) StartColumn = StartLine->NumChars;
+        EndLine = ListGetItem(File->Lines, End.Y);
+        EndColumn = End.X;
+        TailLength = 0;
 
-    EndLine = ListGetItem(File->Lines, End.Y);
-    EndColumn = End.X;
-    TailLength = 0;
-
-    if (EndLine) {
-        if (EndColumn > EndLine->NumChars) EndColumn = EndLine->NumChars;
-        if (EndColumn < 0) EndColumn = 0;
-        TailLength = EndLine->NumChars - EndColumn;
-        if (TailLength < 0) TailLength = 0;
-        if (TailLength > 0) {
-            if (CheckLineSize(StartLine, StartColumn + TailLength) == FALSE) return;
+        if (EndLine) {
+            if (EndColumn > EndLine->NumChars) EndColumn = EndLine->NumChars;
+            if (EndColumn < 0) EndColumn = 0;
+            TailLength = EndLine->NumChars - EndColumn;
+            if (TailLength < 0) TailLength = 0;
+            if (TailLength > 0) {
+                if (CheckLineSize(StartLine, StartColumn + TailLength) == FALSE) return;
+            }
         }
-    }
 
-    StartLine->NumChars = StartColumn;
+        StartLine->NumChars = StartColumn;
+        Modified = TRUE;
 
-    for (LineIndex = End.Y - 1; LineIndex > Start.Y; LineIndex--) {
-        LPEDITLINE MiddleLine = ListGetItem(File->Lines, LineIndex);
-        if (MiddleLine) {
-            ListEraseItem(File->Lines, MiddleLine);
+        for (LineIndex = End.Y - 1; LineIndex > Start.Y; LineIndex--) {
+            LPEDITLINE MiddleLine = ListGetItem(File->Lines, LineIndex);
+            if (MiddleLine) {
+                ListEraseItem(File->Lines, MiddleLine);
+            }
         }
-    }
 
-    if (EndLine && EndLine != StartLine) {
-        for (Offset = 0; Offset < TailLength; Offset++) {
-            StartLine->Chars[StartLine->NumChars++] = EndLine->Chars[EndColumn + Offset];
+        if (EndLine && EndLine != StartLine) {
+            for (Offset = 0; Offset < TailLength; Offset++) {
+                StartLine->Chars[StartLine->NumChars++] = EndLine->Chars[EndColumn + Offset];
+            }
+            ListEraseItem(File->Lines, EndLine);
         }
-        ListEraseItem(File->Lines, EndLine);
+
+        MoveCursorToAbsolute(File, StartColumn, Start.Y);
     }
 
-    MoveCursorToAbsolute(File, StartColumn, Start.Y);
+    if (Modified) {
+        File->Modified = TRUE;
+    }
 }
 
 /***************************************************************************/
@@ -1152,6 +1222,7 @@ static void AddCharacter(LPEDITFILE File, STR ASCIICode) {
         File->Cursor.X--;
     }
     CollapseSelectionToCursor(File);
+    File->Modified = TRUE;
 }
 
 /***************************************************************************/
@@ -1170,6 +1241,7 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
     I32 LineY;
     I32 NewLength;
     I32 Index;
+    BOOL Modified = FALSE;
 
     if (File == NULL) return;
 
@@ -1190,6 +1262,7 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
             }
             Line->NumChars--;
             File->Cursor.X--;
+            Modified = TRUE;
         } else {
             Node = (LPLISTNODE)Line;
             Node = Node->Prev;
@@ -1204,10 +1277,12 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
                 PrevLine->NumChars++;
             }
             ListEraseItem(File->Lines, Line);
+            Modified = TRUE;
         }
     } else {
         if (Line->NumChars == 0) {
             ListEraseItem(File->Lines, Line);
+            Modified = TRUE;
         } else {
             if (LineX >= Line->NumChars) {
                 NextLine = ListGetItem(File->Lines, LineY + 1);
@@ -1218,15 +1293,20 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
                     Line->Chars[Line->NumChars++] = NextLine->Chars[Index];
                 }
                 ListEraseItem(File->Lines, NextLine);
+                Modified = TRUE;
             } else {
                 for (Index = LineX + 1; Index < Line->NumChars; Index++) {
                     Line->Chars[Index - 1] = Line->Chars[Index];
                 }
                 Line->NumChars--;
+                Modified = TRUE;
             }
         }
     }
     CollapseSelectionToCursor(File);
+    if (Modified) {
+        File->Modified = TRUE;
+    }
 }
 
 /***************************************************************************/
@@ -1242,6 +1322,7 @@ static void AddLine(LPEDITFILE File) {
     I32 LineX;
     I32 LineY;
     I32 Index;
+    BOOL Modified = FALSE;
 
     if (File == NULL) return;
 
@@ -1268,6 +1349,7 @@ static void AddLine(LPEDITFILE File) {
 
         File->Cursor.X = 0;
         File->Cursor.Y++;
+        Modified = TRUE;
     } else if (LineX >= Line->NumChars) {
         NewLine = NewEditLine(8);
         if (NewLine == NULL) return;
@@ -1282,6 +1364,7 @@ static void AddLine(LPEDITFILE File) {
 
         File->Cursor.X = 0;
         File->Cursor.Y++;
+        Modified = TRUE;
     } else {
         NewLine = NewEditLine(Line->NumChars);
         if (NewLine == NULL) return;
@@ -1303,9 +1386,13 @@ static void AddLine(LPEDITFILE File) {
 
         File->Cursor.X = 0;
         File->Cursor.Y++;
+        Modified = TRUE;
     }
 
     CollapseSelectionToCursor(File);
+    if (Modified) {
+        File->Modified = TRUE;
+    }
 }
 
 /***************************************************************************/
@@ -1634,6 +1721,9 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                 }
                 HeapFree(Buffer);
             }
+        }
+        if (File) {
+            File->Modified = FALSE;
         }
         DoSystemCall(SYSCALL_DeleteObject, Handle);
     } else {
