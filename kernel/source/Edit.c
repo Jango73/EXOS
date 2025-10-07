@@ -42,6 +42,7 @@ static I32 MenuHeight = 2;
 #define MAX_LINES (Console.Height - MenuHeight)
 
 #define EDIT_EOF_CHAR ((STR)0x1A)
+#define EDIT_CLIPBOARD_NEWLINE ((STR)0x0A)
 
 typedef BOOL (*EDITMENUPROC)(LPEDITCONTEXT);
 
@@ -54,14 +55,19 @@ typedef struct tag_EDITMENUITEM {
 
 static BOOL CommandExit(LPEDITCONTEXT Context);
 static BOOL CommandSave(LPEDITCONTEXT Context);
+static BOOL CommandCopy(LPEDITCONTEXT Context);
+static BOOL CommandPaste(LPEDITCONTEXT Context);
 
 static EDITMENUITEM Menu[] = {
     {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, TEXT("Exit"), CommandExit},
     {{VK_CONTROL, 0, 0}, {VK_S, 0, 0}, TEXT("Save"), CommandSave},
+    {{VK_CONTROL, 0, 0}, {VK_C, 0, 0}, TEXT("Copy"), CommandCopy},
+    {{VK_CONTROL, 0, 0}, {VK_V, 0, 0}, TEXT("Paste"), CommandPaste},
 };
 static const U32 MenuItems = sizeof(Menu) / sizeof(Menu[0]);
 
 static const KEYCODE ControlKey = {VK_CONTROL, 0, 0};
+static const KEYCODE ShiftKey = {VK_SHIFT, 0, 0};
 
 /***************************************************************************/
 
@@ -92,6 +98,8 @@ typedef struct tag_EDITCONTEXT {
     LPLIST Files;
     LPEDITFILE Current;
     I32 Insert;
+    LPSTR Clipboard;
+    I32 ClipboardSize;
 } EDITCONTEXT, *LPEDITCONTEXT;
 
 /**
@@ -203,6 +211,8 @@ LPEDITCONTEXT NewEditContext(void) {
     This->Files = NewList(EditFileDestructor, NULL, NULL);
     This->Current = NULL;
     This->Insert = 1;
+    This->Clipboard = NULL;
+    This->ClipboardSize = 0;
 
     return This;
 }
@@ -217,6 +227,7 @@ void DeleteEditContext(LPEDITCONTEXT This) {
     if (This == NULL) return;
 
     DeleteList(This->Files);
+    HeapFree(This->Clipboard);
     HeapFree(This);
 }
 
@@ -255,11 +266,114 @@ void CheckPositions(LPEDITFILE File) {
 
 /***************************************************************************/
 
+static POINT GetAbsoluteCursor(const LPEDITFILE File) {
+    POINT Position;
+
+    Position.X = 0;
+    Position.Y = 0;
+    if (File == NULL) return Position;
+
+    Position.X = File->Left + File->Cursor.X;
+    Position.Y = File->Top + File->Cursor.Y;
+
+    return Position;
+}
+
+/***************************************************************************/
+
+static BOOL SelectionHasRange(const LPEDITFILE File) {
+    if (File == NULL) return FALSE;
+    return (File->SelStart.X != File->SelEnd.X) || (File->SelStart.Y != File->SelEnd.Y);
+}
+
+/***************************************************************************/
+
+static void NormalizeSelection(const LPEDITFILE File, POINT* Start, POINT* End) {
+    POINT Temp;
+
+    if (File == NULL || Start == NULL || End == NULL) return;
+
+    *Start = File->SelStart;
+    *End = File->SelEnd;
+
+    if ((Start->Y > End->Y) || (Start->Y == End->Y && Start->X > End->X)) {
+        Temp = *Start;
+        *Start = *End;
+        *End = Temp;
+    }
+}
+
+/***************************************************************************/
+
+static void CollapseSelectionToCursor(LPEDITFILE File) {
+    POINT Position;
+
+    if (File == NULL) return;
+
+    Position = GetAbsoluteCursor(File);
+    File->SelStart = Position;
+    File->SelEnd = Position;
+}
+
+/***************************************************************************/
+
+static void UpdateSelectionAfterMove(LPEDITFILE File, BOOL Extend, POINT Previous) {
+    if (File == NULL) return;
+
+    if (Extend) {
+        if (SelectionHasRange(File) == FALSE) {
+            File->SelStart = Previous;
+        }
+        File->SelEnd = GetAbsoluteCursor(File);
+    } else {
+        CollapseSelectionToCursor(File);
+    }
+}
+
+/***************************************************************************/
+
+static void MoveCursorToAbsolute(LPEDITFILE File, I32 Column, I32 Line) {
+    if (File == NULL) return;
+
+    if (Line < 0) Line = 0;
+    if (Column < 0) Column = 0;
+
+    if (Line < File->Top) {
+        File->Top = Line;
+    } else if (Line >= (File->Top + MAX_LINES)) {
+        File->Top = Line - (MAX_LINES - 1);
+        if (File->Top < 0) File->Top = 0;
+    }
+
+    if (Column < File->Left) {
+        File->Left = Column;
+    } else if (Column >= (File->Left + MAX_COLUMNS)) {
+        File->Left = Column - (MAX_COLUMNS - 1);
+        if (File->Left < 0) File->Left = 0;
+    }
+
+    File->Cursor.Y = Line - File->Top;
+    File->Cursor.X = Column - File->Left;
+    if (File->Cursor.Y < 0) File->Cursor.Y = 0;
+    if (File->Cursor.X < 0) File->Cursor.X = 0;
+
+    CollapseSelectionToCursor(File);
+}
+
+/***************************************************************************/
+
 /**
  * @brief Draw the editor menu at the bottom of the console.
  */
 static U16 ComposeConsoleAttribute(void) {
     U16 Attribute = (U16)(Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07));
+    return (U16)(Attribute << 0x08);
+}
+
+/***************************************************************************/
+
+static U16 ComposeInverseConsoleAttribute(void) {
+    U16 Attribute = (U16)(Console.BackColor | (Console.ForeColor << 0x04) | (Console.Blink << 0x07));
     return (U16)(Attribute << 0x08);
 }
 
@@ -356,10 +470,22 @@ void Render(LPEDITFILE File) {
     Width = Console.Width;
     Frame = Console.Memory;
 
+    U16 SelectedAttribute = ComposeInverseConsoleAttribute();
+    BOOL HasSelection = SelectionHasRange(File);
+    POINT SelectionStart;
+    POINT SelectionEnd;
+
+    if (HasSelection) {
+        NormalizeSelection(File, &SelectionStart, &SelectionEnd);
+    }
+
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     for (RowIndex = 0; RowIndex < MAX_LINES; RowIndex++) {
         U16* Row = Frame + (RowIndex * Width);
+        LPEDITLINE CurrentLine = NULL;
+        I32 LineLength = 0;
+        I32 AbsoluteRow = File->Top + (I32)RowIndex;
 
         for (Column = 0; Column < Width; Column++) {
             Row[Column] = SpaceCell;
@@ -371,6 +497,7 @@ void Render(LPEDITFILE File) {
             I32 Visible = 0;
 
             Line = (LPEDITLINE)CurrentNode;
+            CurrentLine = Line;
 
             if (Start < 0) Start = 0;
 
@@ -385,8 +512,10 @@ void Render(LPEDITFILE File) {
                 for (Index = 0; Index < Visible && Index < (I32)Width; Index++) {
                     Row[Index] = MakeConsoleCell(Line->Chars[Start + Index], Attribute);
                 }
+                LineLength = Line->NumChars;
             } else {
                 Visible = 0;
+                LineLength = Line->NumChars;
             }
 
             if (CurrentNode->Next == NULL) {
@@ -399,6 +528,59 @@ void Render(LPEDITFILE File) {
                 Row[0] = MakeConsoleCell(EDIT_EOF_CHAR, Attribute);
                 EofDrawn = TRUE;
                 PendingEofMarker = FALSE;
+            }
+        }
+
+        if (HasSelection) {
+            I32 RangeStart = 0;
+            I32 RangeEnd = 0;
+
+            if (AbsoluteRow < SelectionStart.Y || AbsoluteRow > SelectionEnd.Y) {
+                RangeStart = 0;
+                RangeEnd = 0;
+            } else if (SelectionStart.Y == SelectionEnd.Y) {
+                RangeStart = SelectionStart.X;
+                RangeEnd = SelectionEnd.X;
+            } else if (AbsoluteRow == SelectionStart.Y) {
+                RangeStart = SelectionStart.X;
+                RangeEnd = LineLength;
+            } else if (AbsoluteRow == SelectionEnd.Y) {
+                RangeStart = 0;
+                RangeEnd = SelectionEnd.X;
+            } else {
+                RangeStart = 0;
+                RangeEnd = LineLength;
+            }
+
+            if (RangeStart < 0) RangeStart = 0;
+            if (RangeEnd < RangeStart) RangeEnd = RangeStart;
+
+            if (CurrentLine) {
+                if (RangeStart > CurrentLine->NumChars) RangeStart = CurrentLine->NumChars;
+                if (RangeEnd > CurrentLine->NumChars) RangeEnd = CurrentLine->NumChars;
+            } else {
+                RangeStart = 0;
+                if (RangeEnd < 0) RangeEnd = 0;
+            }
+
+            if (AbsoluteRow == SelectionEnd.Y && AbsoluteRow > SelectionStart.Y && SelectionEnd.X == 0) {
+                RangeEnd = RangeStart + 1;
+            }
+
+            if (RangeEnd > RangeStart) {
+                I32 VisibleStart = RangeStart - File->Left;
+                I32 VisibleEnd = RangeEnd - File->Left;
+
+                if (VisibleStart < 0) VisibleStart = 0;
+                if (VisibleEnd < 0) VisibleEnd = 0;
+                if (VisibleEnd > (I32)Width) VisibleEnd = (I32)Width;
+
+                if (VisibleStart < VisibleEnd) {
+                    for (Index = VisibleStart; Index < VisibleEnd; Index++) {
+                        STR Character = (STR)(Row[Index] & 0x00FF);
+                        Row[Index] = MakeConsoleCell(Character, SelectedAttribute);
+                    }
+                }
             }
         }
     }
@@ -497,6 +679,39 @@ static BOOL SaveFile(LPEDITFILE File) {
  * @return TRUE if the file was saved.
  */
 static BOOL CommandSave(LPEDITCONTEXT Context) { return SaveFile(Context->Current); }
+
+/***************************************************************************/
+
+static BOOL CommandCopy(LPEDITCONTEXT Context) {
+    if (Context == NULL) return FALSE;
+    CopySelectionToClipboard(Context);
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL CommandPaste(LPEDITCONTEXT Context) {
+    LPEDITFILE File;
+    I32 Index;
+
+    if (Context == NULL) return FALSE;
+
+    File = Context->Current;
+    if (File == NULL) return FALSE;
+    if (Context->Clipboard == NULL) return FALSE;
+    if (Context->ClipboardSize <= 0) return FALSE;
+
+    for (Index = 0; Index < Context->ClipboardSize; Index++) {
+        STR Character = Context->Clipboard[Index];
+        if (Character == EDIT_CLIPBOARD_NEWLINE) {
+            AddLine(File);
+        } else {
+            AddCharacter(File, Character);
+        }
+    }
+
+    return FALSE;
+}
 
 /***************************************************************************/
 
@@ -610,6 +825,185 @@ static LPEDITLINE GetCurrentLine(LPEDITFILE File) {
 
 /***************************************************************************/
 
+static void DeleteSelection(LPEDITFILE File) {
+    POINT Start;
+    POINT End;
+    LPEDITLINE StartLine;
+    LPEDITLINE EndLine;
+    I32 StartColumn;
+    I32 EndColumn;
+    I32 TailLength;
+    I32 LineIndex;
+    I32 Remaining;
+    I32 Offset;
+
+    if (File == NULL) return;
+    if (SelectionHasRange(File) == FALSE) return;
+
+    NormalizeSelection(File, &Start, &End);
+
+    StartLine = ListGetItem(File->Lines, Start.Y);
+    if (StartLine == NULL) return;
+
+    if (Start.Y == End.Y) {
+        StartColumn = Start.X;
+        EndColumn = End.X;
+
+        if (StartColumn > StartLine->NumChars) StartColumn = StartLine->NumChars;
+        if (EndColumn > StartLine->NumChars) EndColumn = StartLine->NumChars;
+        if (EndColumn <= StartColumn) {
+            MoveCursorToAbsolute(File, StartColumn, Start.Y);
+            return;
+        }
+
+        Remaining = StartLine->NumChars - EndColumn;
+        for (Offset = 0; Offset < Remaining; Offset++) {
+            StartLine->Chars[StartColumn + Offset] = StartLine->Chars[EndColumn + Offset];
+        }
+        StartLine->NumChars -= (EndColumn - StartColumn);
+
+        MoveCursorToAbsolute(File, StartColumn, Start.Y);
+        return;
+    }
+
+    StartColumn = Start.X;
+    if (StartColumn > StartLine->NumChars) StartColumn = StartLine->NumChars;
+
+    EndLine = ListGetItem(File->Lines, End.Y);
+    EndColumn = End.X;
+    TailLength = 0;
+
+    if (EndLine) {
+        if (EndColumn > EndLine->NumChars) EndColumn = EndLine->NumChars;
+        if (EndColumn < 0) EndColumn = 0;
+        TailLength = EndLine->NumChars - EndColumn;
+        if (TailLength < 0) TailLength = 0;
+        if (TailLength > 0) {
+            if (CheckLineSize(StartLine, StartColumn + TailLength) == FALSE) return;
+        }
+    }
+
+    StartLine->NumChars = StartColumn;
+
+    for (LineIndex = End.Y - 1; LineIndex > Start.Y; LineIndex--) {
+        LPEDITLINE MiddleLine = ListGetItem(File->Lines, LineIndex);
+        if (MiddleLine) {
+            ListEraseItem(File->Lines, MiddleLine);
+        }
+    }
+
+    if (EndLine && EndLine != StartLine) {
+        for (Offset = 0; Offset < TailLength; Offset++) {
+            StartLine->Chars[StartLine->NumChars++] = EndLine->Chars[EndColumn + Offset];
+        }
+        ListEraseItem(File->Lines, EndLine);
+    }
+
+    MoveCursorToAbsolute(File, StartColumn, Start.Y);
+}
+
+/***************************************************************************/
+
+static BOOL CopySelectionToClipboard(LPEDITCONTEXT Context) {
+    LPEDITFILE File;
+    POINT Start;
+    POINT End;
+    I32 LineIndex;
+    I32 SegmentStart;
+    I32 SegmentEnd;
+    I32 Length;
+    I32 Position;
+    LPEDITLINE Line;
+    LPSTR Buffer;
+
+    if (Context == NULL) return FALSE;
+
+    File = Context->Current;
+    if (File == NULL) return FALSE;
+    if (SelectionHasRange(File) == FALSE) return FALSE;
+
+    NormalizeSelection(File, &Start, &End);
+
+    Length = 0;
+
+    for (LineIndex = Start.Y; LineIndex <= End.Y; LineIndex++) {
+        Line = ListGetItem(File->Lines, LineIndex);
+        if (Line == NULL) break;
+
+        SegmentStart = 0;
+        SegmentEnd = Line->NumChars;
+
+        if (LineIndex == Start.Y) {
+            SegmentStart = Start.X;
+            if (SegmentStart > Line->NumChars) SegmentStart = Line->NumChars;
+        }
+
+        if (LineIndex == End.Y) {
+            SegmentEnd = End.X;
+            if (SegmentEnd > Line->NumChars) SegmentEnd = Line->NumChars;
+        }
+
+        if (LineIndex == Start.Y && LineIndex != End.Y) {
+            SegmentEnd = Line->NumChars;
+        }
+
+        if (SegmentEnd < SegmentStart) SegmentEnd = SegmentStart;
+
+        Length += (SegmentEnd - SegmentStart);
+
+        if (LineIndex < End.Y) {
+            Length++;
+        }
+    }
+
+    if (Length <= 0) return FALSE;
+
+    Buffer = (LPSTR)HeapAlloc(Length);
+    if (Buffer == NULL) return FALSE;
+
+    Position = 0;
+
+    for (LineIndex = Start.Y; LineIndex <= End.Y && Position < Length; LineIndex++) {
+        Line = ListGetItem(File->Lines, LineIndex);
+        if (Line == NULL) break;
+
+        SegmentStart = 0;
+        SegmentEnd = Line->NumChars;
+
+        if (LineIndex == Start.Y) {
+            SegmentStart = Start.X;
+            if (SegmentStart > Line->NumChars) SegmentStart = Line->NumChars;
+        }
+
+        if (LineIndex == End.Y) {
+            SegmentEnd = End.X;
+            if (SegmentEnd > Line->NumChars) SegmentEnd = Line->NumChars;
+        }
+
+        if (LineIndex == Start.Y && LineIndex != End.Y) {
+            SegmentEnd = Line->NumChars;
+        }
+
+        if (SegmentEnd < SegmentStart) SegmentEnd = SegmentStart;
+
+        for (; SegmentStart < SegmentEnd && Position < Length; SegmentStart++) {
+            Buffer[Position++] = Line->Chars[SegmentStart];
+        }
+
+        if (LineIndex < End.Y && Position < Length) {
+            Buffer[Position++] = EDIT_CLIPBOARD_NEWLINE;
+        }
+    }
+
+    HeapFree(Context->Clipboard);
+    Context->Clipboard = Buffer;
+    Context->ClipboardSize = Position;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 /**
  * @brief Insert a character at the cursor position.
  * @param File Active file.
@@ -621,6 +1015,12 @@ static void AddCharacter(LPEDITFILE File, STR ASCIICode) {
     I32 LineX;
     I32 NewLength;
     I32 LineY;
+
+    if (File == NULL) return;
+
+    if (SelectionHasRange(File)) {
+        DeleteSelection(File);
+    }
 
     LineX = File->Left + File->Cursor.X;
     LineY = File->Top + File->Cursor.Y;
@@ -658,6 +1058,7 @@ static void AddCharacter(LPEDITFILE File, STR ASCIICode) {
         File->Left++;
         File->Cursor.X--;
     }
+    CollapseSelectionToCursor(File);
 }
 
 /***************************************************************************/
@@ -676,6 +1077,13 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
     I32 LineY;
     I32 NewLength;
     I32 Index;
+
+    if (File == NULL) return;
+
+    if (SelectionHasRange(File)) {
+        DeleteSelection(File);
+        return;
+    }
 
     LineX = File->Left + File->Cursor.X;
     LineY = File->Top + File->Cursor.Y;
@@ -725,6 +1133,7 @@ static void DeleteCharacter(LPEDITFILE File, I32 Flag) {
             }
         }
     }
+    CollapseSelectionToCursor(File);
 }
 
 /***************************************************************************/
@@ -740,6 +1149,12 @@ static void AddLine(LPEDITFILE File) {
     I32 LineX;
     I32 LineY;
     I32 Index;
+
+    if (File == NULL) return;
+
+    if (SelectionHasRange(File)) {
+        DeleteSelection(File);
+    }
 
     LineX = File->Left + File->Cursor.X;
     LineY = File->Top + File->Cursor.Y;
@@ -796,6 +1211,8 @@ static void AddLine(LPEDITFILE File) {
         File->Cursor.X = 0;
         File->Cursor.Y++;
     }
+
+    CollapseSelectionToCursor(File);
 }
 
 /***************************************************************************/
@@ -949,26 +1366,37 @@ static I32 Loop(LPEDITCONTEXT Context) {
 
             if (Handled) continue;
 
+            if (Context->Current == NULL) continue;
+
+            BOOL ShiftDown = GetKeyCodeDown(ShiftKey);
+            POINT PreviousPosition = GetAbsoluteCursor(Context->Current);
+
             if (KeyCode.VirtualKey == VK_DOWN) {
                 Context->Current->Cursor.Y++;
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_UP) {
                 Context->Current->Cursor.Y--;
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_RIGHT) {
                 Context->Current->Cursor.X++;
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_LEFT) {
                 Context->Current->Cursor.X--;
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_PAGEDOWN) {
                 I32 Lines = (Console.Height * 8) / 10;
                 Context->Current->Top += Lines;
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_PAGEUP) {
                 I32 Lines = (Console.Height * 8) / 10;
                 Context->Current->Top -= Lines;
                 if (Context->Current->Top < 0) Context->Current->Top = 0;
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_HOME) {
                 if (GetKeyCodeDown(ControlKey)) {
@@ -976,6 +1404,7 @@ static I32 Loop(LPEDITCONTEXT Context) {
                 } else {
                     GotoStartOfLine(Context->Current);
                 }
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_END) {
                 if (GetKeyCodeDown(ControlKey)) {
@@ -983,6 +1412,7 @@ static I32 Loop(LPEDITCONTEXT Context) {
                 } else {
                     GotoEndOfLine(Context->Current);
                 }
+                UpdateSelectionAfterMove(Context->Current, ShiftDown, PreviousPosition);
                 Render(Context->Current);
             } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
                 DeleteCharacter(Context->Current, 0);
