@@ -531,6 +531,32 @@ static void FillToCursor(LPEDITFILE File, LPEDITLINE Line) {
 /***************************************************************************/
 
 /**
+ * @brief Ensure the file contains a line at the requested index.
+ * @param File Active file.
+ * @param LineIndex Zero-based line index to retrieve.
+ * @return Pointer to the ensured line or NULL on failure.
+ */
+static LPEDITLINE EnsureLineAt(LPEDITFILE File, I32 LineIndex) {
+    LPEDITLINE Line;
+
+    if (File == NULL) return NULL;
+    if (LineIndex < 0) return NULL;
+
+    while ((I32)File->Lines->NumItems <= LineIndex) {
+        Line = NewEditLine(8);
+        if (Line == NULL) return NULL;
+        if (ListAddItem(File->Lines, Line) == FALSE) {
+            DeleteEditLine(Line);
+            return NULL;
+        }
+    }
+
+    return (LPEDITLINE)ListGetItem(File->Lines, LineIndex);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Retrieve the line under the current cursor.
  * @param File File containing the line.
  * @return Pointer to the current line or NULL.
@@ -552,9 +578,13 @@ static void AddCharacter(LPEDITFILE File, STR ASCIICode) {
     I32 Index;
     I32 LineX;
     I32 NewLength;
+    I32 LineY;
 
     LineX = File->Left + File->Cursor.X;
-    Line = GetCurrentLine(File);
+    LineY = File->Top + File->Cursor.Y;
+    if (LineY < 0) LineY = 0;
+
+    Line = EnsureLineAt(File, LineY);
     if (Line == NULL) return;
 
     if (LineX <= Line->NumChars) {
@@ -736,10 +766,14 @@ static void GotoEndOfLine(LPEDITFILE File) {
     LPEDITLINE Line;
     I32 TargetColumn;
     I32 MaxVisible;
+    I32 LineIndex;
 
     if (File == NULL) return;
 
-    Line = GetCurrentLine(File);
+    LineIndex = File->Top + File->Cursor.Y;
+    if (LineIndex < 0) LineIndex = 0;
+
+    Line = EnsureLineAt(File, LineIndex);
     if (Line == NULL) return;
 
     TargetColumn = Line->NumChars;
