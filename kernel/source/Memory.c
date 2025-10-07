@@ -549,7 +549,6 @@ static inline void MapOnePage(
 }
 
 /************************************************************************/
-// Unmap (mark not-present) one virtual page.
 
 /**
  * @brief Unmap a single page from the current address space.
@@ -630,7 +629,7 @@ static LINEAR MapTempPhysicalPage2(PHYSICAL Physical) {
 // Internal temporary map #3
 
 /**
- * @brief Map a physical page to the second temporary linear address.
+ * @brief Map a physical page to the third temporary linear address.
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
@@ -646,14 +645,6 @@ static LINEAR MapTempPhysicalPage3(PHYSICAL Physical) {
 }
 
 /************************************************************************/
-/*
- * AllocPageDirectory
- * - Identity-map the first 4MB at 0x00000000..0x003FFFFF
- * - Map the kernel at VMA_KERNEL to KernelStartup.StubAddress (4MB window)
- * - Install recursive mapping PDE[1023] = PD
- *
- * @return: The physical address of the page directory that goes in cr3
- */
 
 /**
  * @brief Allocate a new page directory.
@@ -1058,13 +1049,6 @@ Out_Error:
 }
 
 /************************************************************************/
-/*
- * AllocPageTable
- * AllocPageTable expands the page tables of the calling process by
- * allocating a page table to map the "Base" linear address.
- *
- * @return: The virtual address of the new page
- */
 
 /**
  * @brief Allocate a page table for the given base address.
@@ -1111,15 +1095,6 @@ LINEAR AllocPageTable(LINEAR Base) {
 }
 
 /************************************************************************/
-/*
- * IsRegionFree
- * Checks if a specified memory region is free
- *
- * @Base: The base of the region to check
- * @Size: The size of the region to check
- *
- * @return: TRUE if the region is free, FALSE otherwise
- */
 
 /**
  * @brief Check if a linear region is free of mappings.
@@ -1153,9 +1128,7 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
     return TRUE;
 }
 
-/*************************************************************************/
-/* Tries to find a linear address region of "Size" bytes
-   which is not mapped in the page tables */
+/************************************************************************/
 
 /**
  * @brief Find a free linear region starting from a base address.
@@ -1183,7 +1156,7 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
     return NULL;
 }
 
-/*************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Release page tables that no longer contain mappings.
@@ -1218,7 +1191,7 @@ static void FreeEmptyPageTables(void) {
     }
 }
 
-/*************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Translate a linear address to its physical counterpart (page-level granularity).
@@ -1239,34 +1212,15 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
     return (PHYSICAL)((Table[TabEntry].Address << PAGE_SIZE_MUL) | (Address & (PAGE_SIZE - 1)));
 }
 
-/***************************************************************************\
-
-    AllocRegion is the most important memory management function.
-    It allocates a linear address memory region to the calling process
-    and sets up the page tables.
-
-    If the user supplies a linear address as a base for the region:
-        If the region is already allocated
-            If ALLOC_PAGES_AT_OR_OVER is specified, AllocRegion tries to find
-            a free region above the supplied linear address
-            Else AllocRegion returns NULL
-
-    If the user supplies a physical target address, AllocRegion returns
-    NULL if the physical region is not free.
-
-    The pages can be physically allocated if the flags include
-    ALLOC_PAGES_COMMIT or can be reserved (not present in physical
-    memory) with the ALLOC_PAGES_RESERVE flag.
-
-\***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Allocate and map a physical region into the linear address space.
  * @param Base Desired base address or 0.
- * @param Target Physical base address.
+ * @param Target Desired physical base address or 0.
  * @param Size Size in bytes.
- * @param Flags Mapping flags.
- * @return Linear base address or 0 on failure.
+ * @param Flags Mapping flags (ALLOC_PAGES_*).
+ * @return Allocated linear base address or 0 on failure.
  */
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
@@ -1423,7 +1377,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
     return Pointer;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Unmap and free a linear region.
@@ -1473,6 +1427,8 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
     return TRUE;
 }
 
+/************************************************************************/
+
 /**
  * @brief Map an I/O physical range into virtual memory.
  * @param PhysicalBase Physical base address.
@@ -1515,7 +1471,7 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, U32 Size) {
     return result;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Unmap a previously mapped I/O range.
