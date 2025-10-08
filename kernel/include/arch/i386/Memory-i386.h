@@ -276,7 +276,7 @@ typedef struct tag_ARCH_PAGE_ITERATOR {
     UINT TableIndex;
 } ARCH_PAGE_ITERATOR;
 
-static inline ARCH_PAGE_ITERATOR ArchPageIteratorFromLinear(LINEAR Linear) {
+static inline ARCH_PAGE_ITERATOR MemoryPageIteratorFromLinear(LINEAR Linear) {
     ARCH_PAGE_ITERATOR Iterator;
     Iterator.Linear = Linear;
     Iterator.DirectoryIndex = GetDirectoryEntry(Linear);
@@ -284,19 +284,19 @@ static inline ARCH_PAGE_ITERATOR ArchPageIteratorFromLinear(LINEAR Linear) {
     return Iterator;
 }
 
-static inline LINEAR ArchPageIteratorGetLinear(const ARCH_PAGE_ITERATOR* Iterator) {
+static inline LINEAR MemoryPageIteratorGetLinear(const ARCH_PAGE_ITERATOR* Iterator) {
     return Iterator->Linear;
 }
 
-static inline UINT ArchPageIteratorGetDirectoryIndex(const ARCH_PAGE_ITERATOR* Iterator) {
+static inline UINT MemoryPageIteratorGetDirectoryIndex(const ARCH_PAGE_ITERATOR* Iterator) {
     return Iterator->DirectoryIndex;
 }
 
-static inline UINT ArchPageIteratorGetTableIndex(const ARCH_PAGE_ITERATOR* Iterator) {
+static inline UINT MemoryPageIteratorGetTableIndex(const ARCH_PAGE_ITERATOR* Iterator) {
     return Iterator->TableIndex;
 }
 
-static inline void ArchPageIteratorStepPage(ARCH_PAGE_ITERATOR* Iterator) {
+static inline void MemoryPageIteratorStepPage(ARCH_PAGE_ITERATOR* Iterator) {
     Iterator->Linear += PAGE_SIZE;
     Iterator->TableIndex++;
     if (Iterator->TableIndex >= PAGE_TABLE_NUM_ENTRIES) {
@@ -309,23 +309,23 @@ static inline LINEAR ArchAlignLinearToTableBoundary(LINEAR Linear) {
     return Linear & ~PAGE_TABLE_CAPACITY_MASK;
 }
 
-static inline void ArchPageIteratorAlignToTableStart(ARCH_PAGE_ITERATOR* Iterator) {
+static inline void MemoryPageIteratorAlignToTableStart(ARCH_PAGE_ITERATOR* Iterator) {
     Iterator->Linear = ArchAlignLinearToTableBoundary(Iterator->Linear);
     Iterator->DirectoryIndex = GetDirectoryEntry(Iterator->Linear);
     Iterator->TableIndex = 0;
 }
 
-static inline void ArchPageIteratorNextTable(ARCH_PAGE_ITERATOR* Iterator) {
+static inline void MemoryPageIteratorNextTable(ARCH_PAGE_ITERATOR* Iterator) {
     Iterator->Linear = ArchAlignLinearToTableBoundary(Iterator->Linear) + PAGE_TABLE_CAPACITY;
     Iterator->DirectoryIndex = GetDirectoryEntry(Iterator->Linear);
     Iterator->TableIndex = 0;
 }
 
-static inline BOOL ArchPageIteratorIsAtTableStart(const ARCH_PAGE_ITERATOR* Iterator) {
+static inline BOOL MemoryPageIteratorIsAtTableStart(const ARCH_PAGE_ITERATOR* Iterator) {
     return Iterator->TableIndex == 0;
 }
 
-static inline LPPAGE_TABLE ArchPageIteratorGetTable(const ARCH_PAGE_ITERATOR* Iterator) {
+static inline LPPAGE_TABLE MemoryPageIteratorGetTable(const ARCH_PAGE_ITERATOR* Iterator) {
     return GetPageTableVAFor(Iterator->Linear);
 }
 
