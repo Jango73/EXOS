@@ -31,7 +31,6 @@
 #include "Memory.h"
 #include "Process.h"
 #include "Stack.h"
-#include "StackTrace.h"
 #include "System.h"
 #include "Task.h"
 

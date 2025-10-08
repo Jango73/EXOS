@@ -44,7 +44,6 @@
 #include "utils/Path.h"
 #include "Process.h"
 #include "Script.h"
-#include "StackTrace.h"
 #include "String.h"
 #include "utils/StringArray.h"
 #include "System.h"

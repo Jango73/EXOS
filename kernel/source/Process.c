@@ -31,7 +31,6 @@
 #include "List.h"
 #include "Log.h"
 #include "String.h"
-#include "StackTrace.h"
 
 /***************************************************************************/
 

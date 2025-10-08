@@ -405,6 +405,53 @@ typedef struct tag_FAR_POINTER {
 } FAR_POINTER, *LPFAR_POINTER;
 
 /***************************************************************************/
+// Stack usage tracing helpers (i386 specific)
+
+#define STACK_TRACE_WARNING 256
+
+/***************************************************************************/
+
+#if defined(__EXOS_ARCH_I386__)
+
+#if TRACE_STACK_USAGE == 1
+#define TRACED_FUNCTION                                                                                           \
+    LINEAR __StackTraceStart;                                                                                     \
+    __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__StackTraceStart) : :)
+#else
+#define TRACED_FUNCTION
+#endif
+
+/***************************************************************************/
+
+#if TRACE_STACK_USAGE == 1
+#if SCHEDULING_DEBUG_OUTPUT == 1
+#define TRACED_EPILOGUE(FunctionName)                                                                              \
+    LINEAR __StackTraceEnd;                                                                                        \
+    __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__StackTraceEnd) : :);                                        \
+    LINEAR __StackTraceUsed = __StackTraceStart - __StackTraceEnd;                                                 \
+    DEBUG(TEXT("ESP in " #FunctionName " = %x"), __StackTraceEnd);                                                  \
+    if (__StackTraceUsed > STACK_TRACE_WARNING) {                                                                  \
+        WARNING(TEXT("Stack usage exceeds limit (%x) in " #FunctionName), __StackTraceUsed);                       \
+    }
+#else
+#define TRACED_EPILOGUE(FunctionName)                                                                              \
+    LINEAR __StackTraceEnd;                                                                                        \
+    __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__StackTraceEnd) : :);                                        \
+    LINEAR __StackTraceUsed = __StackTraceStart - __StackTraceEnd;                                                 \
+    if (__StackTraceUsed > STACK_TRACE_WARNING) {                                                                  \
+        WARNING(TEXT("Stack usage exceeds limit (%x) in " #FunctionName), __StackTraceUsed);                       \
+    }
+#endif
+#else
+#define TRACED_EPILOGUE(FunctionName)
+#endif
+
+#else
+#define TRACED_FUNCTION
+#define TRACED_EPILOGUE(FunctionName)
+#endif
+
+/***************************************************************************/
 // Scheduler helpers (i386 specific)
 
 #define SetupStackForKernelMode(Task, StackTop)               \

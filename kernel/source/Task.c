@@ -29,7 +29,6 @@
 #include "Log.h"
 #include "Process.h"
 #include "Stack.h"
-#include "StackTrace.h"
 
 /************************************************************************/
 

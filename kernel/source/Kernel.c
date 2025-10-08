@@ -44,7 +44,6 @@
 #include "Mouse.h"
 #include "drivers/PCI.h"
 #include "Stack.h"
-#include "StackTrace.h"
 #include "System.h"
 #include "SystemFS.h"
 #include "utils/TOML.h"
