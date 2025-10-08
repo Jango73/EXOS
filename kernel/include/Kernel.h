@@ -62,40 +62,6 @@ typedef struct tag_CPUINFORMATION {
 } CPUINFORMATION, *LPCPUINFORMATION;
 
 /***************************************************************************/
-// Selectors
-
-#define SELECTOR_GLOBAL 0x00
-#define SELECTOR_LOCAL 0x04
-
-#define SELECTOR_NULL 0x00
-#define SELECTOR_KERNEL_CODE (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_KERNEL_DATA (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_USER_CODE (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-
-#define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
-
-/***************************************************************************/
-
-#define DESCRIPTOR_SIZE 10
-#define GDT_NUM_DESCRIPTORS (GDT_SIZE / DESCRIPTOR_SIZE)
-#define GDT_NUM_BASE_DESCRIPTORS 8
-#define GDT_TSS_INDEX GDT_NUM_BASE_DESCRIPTORS
-#define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, 0)
-
-#define GDT_NUM_TASKS (GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS)
-#define NUM_TASKS GDT_NUM_TASKS
-
-#define IDT_SIZE N_4KB
-#define GDT_SIZE N_8KB
-
-/***************************************************************************/
-
-#define NUM_INTERRUPTS 48
-
-/***************************************************************************/
 // EXOS system calls
 
 #define EXOS_USER_CALL 0x70
@@ -139,15 +105,6 @@ typedef struct tag_KERNELSTARTUPINFO {
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
 extern KERNELSTARTUPINFO KernelStartup;
-
-typedef struct tag_KERNELDATA_I386 {
-    LPGATE_DESCRIPTOR IDT;
-    LPSEGMENT_DESCRIPTOR GDT;
-    LPTASK_STATE_SEGMENT TSS;
-    LPPAGEBITMAP PPB;
-} KERNELDATA_I386, *LPKERNELDATA_I386;
-
-extern KERNELDATA_I386 Kernel_i386;
 
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 

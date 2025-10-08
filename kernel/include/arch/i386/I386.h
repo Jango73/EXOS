@@ -285,6 +285,18 @@ typedef struct {
     U32 Base;
 } GDT_REGISTER;
 
+/***************************************************************************/
+// Architecture-specific kernel data exposed to assembly and C
+
+typedef struct tag_KERNELDATA_I386 {
+    LPGATE_DESCRIPTOR IDT;
+    LPSEGMENT_DESCRIPTOR GDT;
+    LPTASK_STATE_SEGMENT TSS;
+    LPPAGEBITMAP PPB;
+} KERNELDATA_I386, *LPKERNELDATA_I386;
+
+extern KERNELDATA_I386 Kernel_i386;
+
 /************************************************************************/
 // Page directory and page table
 
@@ -321,6 +333,8 @@ typedef struct {
 #define VMA_LIBRARY 0xA0000000                     // Dynamic Libraries
 #define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)  // User alias for TaskRunner
 #define VMA_KERNEL 0xC0000000                      // Kernel
+
+#define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
 /***************************************************************************/
 // Segment descriptor attributes
@@ -405,6 +419,34 @@ typedef struct {
 
 // Convenience: selector into LDT with given index and RPL
 #define MAKE_LDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_LDT, (rpl))
+
+/***************************************************************************/
+// Canonical selector values (i386 layout)
+
+#define SELECTOR_GLOBAL 0x00
+#define SELECTOR_LOCAL 0x04
+
+#define SELECTOR_NULL 0x00
+#define SELECTOR_KERNEL_CODE (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_KERNEL_DATA (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_USER_CODE (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+#define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+#define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+
+#define IDT_SIZE N_4KB
+#define GDT_SIZE N_8KB
+
+#define DESCRIPTOR_SIZE 10
+#define GDT_NUM_DESCRIPTORS (GDT_SIZE / DESCRIPTOR_SIZE)
+#define GDT_NUM_BASE_DESCRIPTORS 8
+#define GDT_TSS_INDEX GDT_NUM_BASE_DESCRIPTORS
+#define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, PRIVILEGE_KERNEL)
+
+#define GDT_NUM_TASKS (GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS)
+#define NUM_TASKS GDT_NUM_TASKS
+
+#define NUM_INTERRUPTS 48
 
 /***************************************************************************/
 
