@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,21 +17,17 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Interrupt Frame Management
+    Interrupt Frame Management (i386)
 
 \************************************************************************/
 
-#ifndef INTERRUPTFRAME_H_INCLUDED
-#define INTERRUPTFRAME_H_INCLUDED
+#ifndef ARCH_I386_INTERRUPTFRAME_H_INCLUDED
+#define ARCH_I386_INTERRUPTFRAME_H_INCLUDED
 
 #include "Base.h"
+#include "arch/i386/I386.h"
 
-#if defined(EXOS_ARCH_I386)
-    #include "arch/i386/InterruptFrame.h"
-#elif defined(EXOS_ARCH_X86_64)
-    #include "arch/x86-64/InterruptFrame.h"
-#else
-    #error "Unsupported architecture for interrupt frame management"
-#endif
+LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP);
+void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP);
 
 #endif

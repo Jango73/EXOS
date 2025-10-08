@@ -2,6 +2,8 @@ SHELL   = /bin/bash
 
 BUILD_DIR = ../build
 
+ARCH ?= i386
+
 BARE_METAL					?= 0
 DEBUG_OUTPUT    			?= 0
 SCHEDULING_DEBUG_OUTPUT    	?= 0
@@ -23,14 +25,14 @@ CFLAGS  = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
 	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
 	-Iinclude -I../third/include -I../runtime/include
 
-AFLAGS  = -f elf -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
+AFLAGS  = -f elf -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/ -I source/arch/$(ARCH)/asm/
 
 LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
 
 KERNEL_ELF = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
-         $(wildcard source/arch/i386/*.c) \
+         $(wildcard source/arch/$(ARCH)/*.c) \
          $(wildcard source/network/*.c) \
          $(wildcard source/drivers/*.c) \
          $(wildcard source/utils/*.c) \
@@ -41,12 +43,13 @@ SRC_C  = $(wildcard source/*.c) \
          ../third/bcrypt/endian.c \
          ../runtime/source/exos-runtime-c.c
 SRC_S  = $(wildcard source/asm/*.asm) \
+         $(wildcard source/arch/$(ARCH)/asm/*.asm) \
          ../runtime/source/exos-runtime-a.asm
 
 OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \
          $(patsubst ../third/bcrypt/%.c, $(BUILD_DIR)/kernel/bcrypt_%.o, $(filter ../third/bcrypt/%.c, $(SRC_C))) \
          $(patsubst ../runtime/source/%.c, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.c, $(SRC_C)))
-OBJ_S  = $(patsubst source/asm/%.asm, $(BUILD_DIR)/kernel/%.o, $(filter source/asm/%.asm, $(SRC_S))) \
+OBJ_S  = $(patsubst source/%.asm, $(BUILD_DIR)/kernel/%.o, $(filter source/%.asm, $(SRC_S))) \
          $(patsubst ../runtime/source/%.asm, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.asm, $(SRC_S)))
 
 OBJS   = $(OBJ_S) $(OBJ_C)
@@ -135,7 +138,7 @@ $(BUILD_DIR)/kernel/%.o: source/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(BUILD_DIR)/kernel/%.o: source/asm/%.asm
+$(BUILD_DIR)/kernel/%.o: source/%.asm
 	@mkdir -p $(dir $@)
 	$(NASM) $(AFLAGS) -o $@ $<
 
