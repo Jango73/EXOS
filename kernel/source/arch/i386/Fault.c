@@ -33,53 +33,6 @@
 #include "System.h"
 #include "Text.h"
 
-/************************************************************************/
-// Fault logging helpers
-
-/**
- * @brief Log a segment selector extracted from an error code.
- * @param Prefix Text prefix for the log entry.
- * @param Err Raw error code containing a selector.
- */
-void LogSelectorFromErrorCode(LPCSTR Prefix, U32 Err) {
-    U16 sel = (U16)(Err & 0xFFFFu);
-    U16 idx = SELECTOR_INDEX(sel);
-    U16 ti = SELECTOR_TI(sel);
-    U16 rpl = SELECTOR_RPL(sel);
-
-    KernelLogText(
-        LOG_ERROR, TEXT("%s error code=%X  selector=%X  index=%u  TI=%u  RPL=%u"), Prefix, (U32)Err, (U32)sel, (U32)idx,
-        (U32)ti, (U32)rpl);
-}
-
-/************************************************************************/
-
-/**
- * @brief Dump descriptor and TSS information for a selector.
- * @param Prefix Text prefix for the log entry.
- * @param Sel Segment selector value.
- */
-void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
-    U16 ti = SELECTOR_TI(Sel);
-    U16 idx = SELECTOR_INDEX(Sel);
-
-    if (ti != 0) {
-        ERROR(TEXT("%s selector points to LDT (TI=1); no dump available"), Prefix);
-        return;
-    }
-
-    if (idx < GDT_NUM_BASE_DESCRIPTORS) {
-        ERROR(TEXT("%s selector index %u is below base descriptors"), Prefix, (U32)idx);
-        return;
-    }
-
-    U32 table = idx;
-    LogTSSDescriptor(LOG_ERROR, (const TSS_DESCRIPTOR*)&Kernel_i386.GDT[table]);
-    LogTaskStateSegment(LOG_ERROR, (const TASK_STATE_SEGMENT*)Kernel_i386.TSS);
-}
-
-/************************************************************************/
-
 // Conservative pointer checks. If StackLow/High are zero, use heuristics.
 /*
 static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackHigh) {
