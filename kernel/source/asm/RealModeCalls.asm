@@ -50,8 +50,8 @@ bits 32
 
 ;--------------------------------------
 
-; void RealModeCall (U32 Int, LPX86REGS Param2)
-; void RealModeCall (U32 Address, LPX86REGS Param2)
+; void RealModeCall (U32 Int, LPINTEL_X86_REGISTERS Param2)
+; void RealModeCall (U32 Address, LPINTEL_X86_REGISTERS Param2)
 
 ; If Param1 <= 0xFF, Param1 is an interrupt
 ; If Param1 >  0xFF, Param1 is a far function pointer

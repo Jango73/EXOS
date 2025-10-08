@@ -117,11 +117,11 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_HardDrive,          // 47  0x0F
 };
 
-GATEDESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATEDESCRIPTOR)];
+GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 
 /***************************************************************************/
 
-static void SetGateDescriptorOffset(LPGATEDESCRIPTOR This, U32 Offset) {
+static void SetGateDescriptorOffset(LPGATE_DESCRIPTOR This, U32 Offset) {
     This->Offset_00_15 = (Offset & (U32)0x0000FFFF) >> 0x00;
     This->Offset_16_31 = (Offset & (U32)0xFFFF0000) >> 0x10;
 }

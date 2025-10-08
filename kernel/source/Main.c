@@ -129,9 +129,9 @@ void KernelMain(void) {
     //-------------------------------------
     // Read current GDT base address
 
-    GDTREGISTER gdtr;
+    GDT_REGISTER gdtr;
     ReadGlobalDescriptorTable(&gdtr);
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)gdtr.Base;
+    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)gdtr.Base;
 
     //-------------------------------------
     // Clear the BSS

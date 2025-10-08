@@ -35,7 +35,7 @@
 /***************************************************************************/
 // General purpose register snapshot for 64-bit mode
 
-typedef struct tag_INTEL64GENERALREGISTERS {
+typedef struct tag_INTEL_64_GENERAL_REGISTERS {
     U64 RFlags;
     U64 RAX, RBX, RCX, RDX;
     U64 RSI, RDI, RBP, RSP;
@@ -45,12 +45,12 @@ typedef struct tag_INTEL64GENERALREGISTERS {
     U16 ES, FS, GS;
     U64 CR0, CR2, CR3, CR4, CR8;
     U64 DR0, DR1, DR2, DR3, DR6, DR7;
-} INTEL64GENERALREGISTERS, *LPINTEL64GENERALREGISTERS;
+} INTEL_64_GENERAL_REGISTERS, *LPINTEL_64_GENERAL_REGISTERS;
 
 /***************************************************************************/
 // IDT entry layout for 64-bit mode (16 bytes)
 
-typedef struct tag_X86_64_IDTENTRY {
+typedef struct tag_X86_64_IDT_ENTRY {
     U16 Offset_00_15;
     U16 Selector;
     U16 InterruptStackTable : 3;
@@ -62,12 +62,12 @@ typedef struct tag_X86_64_IDTENTRY {
     U16 Offset_16_31;
     U32 Offset_32_63;
     U32 Reserved_2;
-} X86_64_IDTENTRY, *LPX86_64_IDTENTRY;
+} X86_64_IDT_ENTRY, *LPX86_64_IDT_ENTRY;
 
 /***************************************************************************/
 // System segment descriptor (e.g. TSS/LDT) layout for 64-bit mode (16 bytes)
 
-typedef struct tag_X86_64_SYSTEMSEGMENTDESCRIPTOR {
+typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
     U16 Limit_00_15;
     U16 Base_00_15;
     U8 Base_16_23;
@@ -82,7 +82,7 @@ typedef struct tag_X86_64_SYSTEMSEGMENTDESCRIPTOR {
     U8 Base_24_31;
     U32 Base_32_63;
     U32 Reserved;
-} X86_64_SYSTEMSEGMENTDESCRIPTOR, *LPX86_64_SYSTEMSEGMENTDESCRIPTOR;
+} X86_64_SYSTEM_SEGMENT_DESCRIPTOR, *LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR;
 
 /***************************************************************************/
 // Generic 64-bit paging entry (PML4E, PDPTE, PDE, PTE)

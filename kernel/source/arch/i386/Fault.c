@@ -74,8 +74,8 @@ void LogDescriptorAndTSSFromSelector(LPCSTR Prefix, U16 Sel) {
     }
 
     U32 table = idx;
-    LogTSSDescriptor(LOG_ERROR, (const TSSDESCRIPTOR*)&Kernel_i386.GDT[table]);
-    LogTaskStateSegment(LOG_ERROR, (const TASKSTATESEGMENT*)Kernel_i386.TSS);
+    LogTSSDescriptor(LOG_ERROR, (const TSS_DESCRIPTOR*)&Kernel_i386.GDT[table]);
+    LogTaskStateSegment(LOG_ERROR, (const TASK_STATE_SEGMENT*)Kernel_i386.TSS);
 }
 
 /************************************************************************/
@@ -105,7 +105,7 @@ static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackH
 
 /************************************************************************/
 
-void LogCPUState(LPINTERRUPTFRAME Frame) {
+void LogCPUState(LPINTERRUPT_FRAME Frame) {
     STR DisasmBuffer[MAX_STRING_BUFFER];
     LPTASK Task = GetCurrentTask();
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
@@ -164,7 +164,7 @@ void Die(void) {
  * @brief Handle unknown interrupts.
  * @param Frame Interrupt frame context.
  */
-void DefaultHandler(LPINTERRUPTFRAME Frame) {
+void DefaultHandler(LPINTERRUPT_FRAME Frame) {
     UNUSED(Frame);
     // DEBUG(TEXT("Unknown interrupt"));
     // LogCPUState(Frame);
@@ -177,7 +177,7 @@ void DefaultHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle divide-by-zero faults.
  * @param Frame Interrupt frame context.
  */
-void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
+void DivideErrorHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Divide error"));
     LogCPUState(Frame);
     Die();
@@ -189,7 +189,7 @@ void DivideErrorHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle debug exceptions and log diagnostic information.
  * @param Frame Interrupt frame context.
  */
-void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
+void DebugExceptionHandler(LPINTERRUPT_FRAME Frame) {
     LPTASK Task = GetCurrentTask();
     U32 dr6, dr0, dr7;
 
@@ -253,7 +253,7 @@ void DebugExceptionHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle non-maskable interrupts.
  * @param Frame Interrupt frame context.
  */
-void NMIHandler(LPINTERRUPTFRAME Frame) {
+void NMIHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Non-maskable interrupt"));
     LogCPUState(Frame);
 }
@@ -264,7 +264,7 @@ void NMIHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle breakpoint exceptions.
  * @param Frame Interrupt frame context.
  */
-void BreakPointHandler(LPINTERRUPTFRAME Frame) {
+void BreakPointHandler(LPINTERRUPT_FRAME Frame) {
     UNUSED(Frame);
     ERROR(TEXT("FAULT: Breakpoint"));
     // LogCPUState(Frame);
@@ -276,7 +276,7 @@ void BreakPointHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle overflow exceptions.
  * @param Frame Interrupt frame context.
  */
-void OverflowHandler(LPINTERRUPTFRAME Frame) {
+void OverflowHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Overflow"));
     LogCPUState(Frame);
     Die();
@@ -288,7 +288,7 @@ void OverflowHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle bound range exceeded faults.
  * @param Frame Interrupt frame context.
  */
-void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
+void BoundRangeHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Bound range fault"));
     LogCPUState(Frame);
     Die();
@@ -300,7 +300,7 @@ void BoundRangeHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle invalid opcode faults.
  * @param Frame Interrupt frame context.
  */
-void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
+void InvalidOpcodeHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Invalid opcode"));
     LogCPUState(Frame);
     Die();
@@ -312,7 +312,7 @@ void InvalidOpcodeHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle device-not-available faults.
  * @param Frame Interrupt frame context.
  */
-void DeviceNotAvailHandler(LPINTERRUPTFRAME Frame) {
+void DeviceNotAvailHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Device not available"));
     LogCPUState(Frame);
 }
@@ -323,7 +323,7 @@ void DeviceNotAvailHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle double fault exceptions.
  * @param Frame Interrupt frame context.
  */
-void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
+void DoubleFaultHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Double fault"));
     LogCPUState(Frame);
     Die();
@@ -335,7 +335,7 @@ void DoubleFaultHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle math overflow exceptions.
  * @param Frame Interrupt frame context.
  */
-void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
+void MathOverflowHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Math overflow"));
     ConsolePrint(TEXT("Math overflow!\n"));
     LogCPUState(Frame);
@@ -348,7 +348,7 @@ void MathOverflowHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle invalid TSS faults.
  * @param Frame Interrupt frame context.
  */
-void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
+void InvalidTSSHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Invalid TSS"));
     ConsolePrint(TEXT("Invalid TSS!\n"));
     LogCPUState(Frame);
@@ -361,7 +361,7 @@ void InvalidTSSHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle segment not present faults.
  * @param Frame Interrupt frame context.
  */
-void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
+void SegmentFaultHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Segment fault"));
     ConsolePrint(TEXT("Segment fault!\n"));
     LogCPUState(Frame);
@@ -374,7 +374,7 @@ void SegmentFaultHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle stack fault exceptions.
  * @param Frame Interrupt frame context.
  */
-void StackFaultHandler(LPINTERRUPTFRAME Frame) {
+void StackFaultHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Stack fault"));
     ConsolePrint(TEXT("Stack fault!\n"));
     LogCPUState(Frame);
@@ -387,7 +387,7 @@ void StackFaultHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle general protection faults.
  * @param Frame Interrupt frame context.
  */
-void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
+void GeneralProtectionHandler(LPINTERRUPT_FRAME Frame) {
     LPTASK Task = GetCurrentTask();
     ERROR(TEXT("FAULT: General protection fault"));
 
@@ -407,7 +407,7 @@ void GeneralProtectionHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle page fault exceptions.
  * @param Frame Interrupt frame context.
  */
-void PageFaultHandler(LPINTERRUPTFRAME Frame) {
+void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
     LINEAR FaultAddress;
     __asm__ volatile("mov %%cr2, %0" : "=r"(FaultAddress));
 
@@ -433,7 +433,7 @@ void PageFaultHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle alignment check faults.
  * @param Frame Interrupt frame context.
  */
-void AlignmentCheckHandler(LPINTERRUPTFRAME Frame) {
+void AlignmentCheckHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("Alignment check fault"));
     LogCPUState(Frame);
     Die();
@@ -445,7 +445,7 @@ void AlignmentCheckHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle alignment check faults.
  * @param Frame Interrupt frame context.
  */
-void MachineCheckHandler(LPINTERRUPTFRAME Frame) {
+void MachineCheckHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Machine check exception"));
     LogCPUState(Frame);
     Die();
@@ -457,7 +457,7 @@ void MachineCheckHandler(LPINTERRUPTFRAME Frame) {
  * @brief Handle floating point exceptions.
  * @param Frame Interrupt frame context.
  */
-void FloatingPointHandler(LPINTERRUPTFRAME Frame) {
+void FloatingPointHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("Floating point exception"));
     LogCPUState(Frame);
     Die();

@@ -60,7 +60,7 @@ struct tag_TASK {
     LPVOID Parameter;         // Parameter passed to the function
     U32 ExitCode;             // This task's exit code
     U32 Flags;                // Task creation flags
-    INTERRUPTFRAME Context;   // Saved context for software switching
+    INTERRUPT_FRAME Context;   // Saved context for software switching
     LINEAR StackBase;         // This task's stack in the heap
     U32 StackSize;            // This task's stack size
     LINEAR SysStackBase;

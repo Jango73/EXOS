@@ -462,7 +462,7 @@ static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_C
  * @brief Obtain the virtual address of the current page directory.
  * @return Pointer to page directory.
  */
-static inline LPPAGEDIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGEDIRECTORY)PD_VA; }
+static inline LPPAGE_DIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGE_DIRECTORY)PD_VA; }
 
 /************************************************************************/
 
@@ -471,9 +471,9 @@ static inline LPPAGEDIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGEDI
  * @param Address Linear address.
  * @return Pointer to page table.
  */
-static inline LPPAGETABLE GetPageTableVAFor(LINEAR Address) {
+static inline LPPAGE_TABLE GetPageTableVAFor(LINEAR Address) {
     U32 dir = GetDirectoryEntry(Address);
-    return (LPPAGETABLE)(PT_BASE_VA + (dir << PAGE_SIZE_MUL));
+    return (LPPAGE_TABLE)(PT_BASE_VA + (dir << PAGE_SIZE_MUL));
 }
 
 /************************************************************************/
@@ -510,7 +510,7 @@ static inline U32 MakePageTableEntryValue(
     return val;
 
     /*
-    PAGETABLE TableEntry;
+    PAGE_TABLE TableEntry;
 
     TableEntry.Present = 1;
     TableEntry.ReadWrite = ReadWrite;
@@ -536,7 +536,7 @@ static inline void MapOnePage(
     LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
     U32 Fixed) {
     volatile U32* Pte = GetPageTableEntryRawPointer(Linear);
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     U32 dir = GetDirectoryEntry(Linear);
 
     if (!Directory[dir].Present) {
@@ -568,7 +568,7 @@ static inline void UnmapOnePage(LINEAR Linear) {
  * @return TRUE if address is valid.
  */
 BOOL IsValidMemory(LINEAR Pointer) {
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
     U32 dir = GetDirectoryEntry(Pointer);
     U32 tab = GetTableEntry(Pointer);
@@ -581,7 +581,7 @@ BOOL IsValidMemory(LINEAR Pointer) {
     if (Directory[dir].Present == 0) return FALSE;
 
     // Page table present?
-    LPPAGETABLE Table = GetPageTableVAFor(Pointer);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Pointer);
     if (Table[tab].Present == 0) return FALSE;
 
     return TRUE;
@@ -656,10 +656,10 @@ PHYSICAL AllocPageDirectory(void) {
     PHYSICAL PMA_KernelTable = NULL;
     PHYSICAL PMA_TaskRunnerTable = NULL;
 
-    LPPAGEDIRECTORY Directory = NULL;
-    LPPAGETABLE LowTable = NULL;
-    LPPAGETABLE KernelTable = NULL;
-    LPPAGETABLE TaskRunnerTable = NULL;
+    LPPAGE_DIRECTORY Directory = NULL;
+    LPPAGE_TABLE LowTable = NULL;
+    LPPAGE_TABLE KernelTable = NULL;
+    LPPAGE_TABLE TaskRunnerTable = NULL;
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
@@ -685,7 +685,7 @@ PHYSICAL AllocPageDirectory(void) {
         ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage failed on Directory"));
         goto Out_Error;
     }
-    Directory = (LPPAGEDIRECTORY)VMA_PD;
+    Directory = (LPPAGE_DIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
     DEBUG(TEXT("[AllocPageDirectory] Page directory cleared"));
@@ -752,7 +752,7 @@ PHYSICAL AllocPageDirectory(void) {
         ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
-    LowTable = (LPPAGETABLE)VMA_PT;
+    LowTable = (LPPAGE_TABLE)VMA_PT;
     MemorySet(LowTable, 0, PAGE_SIZE);
 
     DEBUG(TEXT("[AllocPageDirectory] Low memory table cleared"));
@@ -785,7 +785,7 @@ PHYSICAL AllocPageDirectory(void) {
         ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
-    KernelTable = (LPPAGETABLE)VMA_PT;
+    KernelTable = (LPPAGE_TABLE)VMA_PT;
 
     MemorySet(KernelTable, 0, PAGE_SIZE);
 
@@ -813,7 +813,7 @@ PHYSICAL AllocPageDirectory(void) {
         ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on TaskRunnerTable"));
         goto Out_Error;
     }
-    TaskRunnerTable = (LPPAGETABLE)VMA_PT;
+    TaskRunnerTable = (LPPAGE_TABLE)VMA_PT;
     MemorySet(TaskRunnerTable, 0, PAGE_SIZE);
 
     DEBUG(TEXT("[AllocPageDirectory] TaskRunner table cleared"));
@@ -872,10 +872,10 @@ PHYSICAL AllocUserPageDirectory(void) {
     PHYSICAL PMA_LowTable = NULL;
     PHYSICAL PMA_KernelTable = NULL;
 
-    LPPAGEDIRECTORY Directory = NULL;
-    LPPAGETABLE LowTable = NULL;
-    LPPAGETABLE KernelTable = NULL;
-    LPPAGEDIRECTORY CurrentPD = (LPPAGEDIRECTORY)PD_VA;
+    LPPAGE_DIRECTORY Directory = NULL;
+    LPPAGE_TABLE LowTable = NULL;
+    LPPAGE_TABLE KernelTable = NULL;
+    LPPAGE_DIRECTORY CurrentPD = (LPPAGE_DIRECTORY)PD_VA;
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
@@ -899,7 +899,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage failed on Directory"));
         goto Out_Error;
     }
-    Directory = (LPPAGEDIRECTORY)VMA_PD;
+    Directory = (LPPAGE_DIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
     DEBUG(TEXT("[AllocUserPageDirectory] Page directory cleared"));
@@ -969,7 +969,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
-    LowTable = (LPPAGETABLE)VMA_PT;
+    LowTable = (LPPAGE_TABLE)VMA_PT;
     MemorySet(LowTable, 0, PAGE_SIZE);
 
     // Initialize identity mapping for 0..4MB (same as AllocPageDirectory)
@@ -1003,7 +1003,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
-    KernelTable = (LPPAGETABLE)VMA_PT;
+    KernelTable = (LPPAGE_TABLE)VMA_PT;
 
     // Create basic static kernel mapping instead of copying (for testing)
     MemorySet(KernelTable, 0, PAGE_SIZE);
@@ -1065,7 +1065,7 @@ LINEAR AllocPageTable(LINEAR Base) {
 
     // Fill the directory entry that describes the new table
     U32 DirEntry = GetDirectoryEntry(Base);
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
     // Determine privilege: user space (< VMA_KERNEL) needs user privilege
     U32 Privilege = PAGE_PRIVILEGE(Base);
@@ -1106,7 +1106,7 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
     // DEBUG(TEXT("[IsRegionFree] Enter : %x; %x"), Base, Size);
 
     U32 NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     LINEAR Current = Base;
 
     // DEBUG(TEXT("[IsRegionFree] Traversing pages"));
@@ -1116,7 +1116,7 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
         U32 tab = GetTableEntry(Current);
 
         if (Directory[dir].Present) {
-            LPPAGETABLE Table = GetPageTableVAFor(Current);
+            LPPAGE_TABLE Table = GetPageTableVAFor(Current);
             if (Table[tab].Present) return FALSE;
         }
 
@@ -1162,8 +1162,8 @@ static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
  * @brief Release page tables that no longer contain mappings.
  */
 static void FreeEmptyPageTables(void) {
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
-    LPPAGETABLE Table = NULL;
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGE_TABLE Table = NULL;
     LINEAR Base = N_4MB;
     U32 DirEntry = 0;
     U32 Index = 0;
@@ -1199,13 +1199,13 @@ static void FreeEmptyPageTables(void) {
  * @return Physical page number or MAX_U32 on failure.
  */
 PHYSICAL MapLinearToPhysical(LINEAR Address) {
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     U32 DirEntry = GetDirectoryEntry(Address);
     U32 TabEntry = GetTableEntry(Address);
 
     if (Directory[DirEntry].Address == 0) return 0;
 
-    LPPAGETABLE Table = GetPageTableVAFor(Address);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Address);
     if (Table[TabEntry].Address == 0) return 0;
 
     /* Compose physical: page frame << 12 | offset-in-page */
@@ -1220,8 +1220,8 @@ static BOOL PopulateRegionPages(LINEAR Base,
                                 U32 Flags,
                                 LINEAR RollbackBase,
                                 LPCSTR FunctionName) {
-    LPPAGEDIRECTORY Directory = GetCurrentPageDirectoryVA();
-    LPPAGETABLE Table = NULL;
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+    LPPAGE_TABLE Table = NULL;
     PHYSICAL Physical = NULL;
     U32 ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
     U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
@@ -1482,8 +1482,8 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
  * @return TRUE on success.
  */
 BOOL FreeRegion(LINEAR Base, U32 Size) {
-    LPPAGEDIRECTORY Directory = (LPPAGEDIRECTORY)GetCurrentPageDirectoryVA();
-    LPPAGETABLE Table = NULL;
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)GetCurrentPageDirectoryVA();
+    LPPAGE_TABLE Table = NULL;
     U32 DirEntry = 0;
     U32 TabEntry = 0;
     U32 NumPages = 0;
@@ -1658,7 +1658,7 @@ void InitializeMemoryManager(void) {
     }
 
     // Allocate a permanent linear region for the GDT
-    Kernel_i386.GDT = (LPSEGMENTDESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Kernel_i386.GDT == NULL) {
         ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
@@ -1689,14 +1689,14 @@ void InitializeMemoryManager(void) {
  * @param DirectoryPhysical Physical address of the page directory to log.
  */
 void LogPageDirectory(PHYSICAL DirectoryPhysical) {
-    LPPAGEDIRECTORY Directory;
-    LPPAGETABLE Table;
+    LPPAGE_DIRECTORY Directory;
+    LPPAGE_TABLE Table;
     U32 DirEntry, TabEntry;
     LINEAR VirtualAddress;
     PHYSICAL PhysicalAddress;
 
     // Map the physical page directory to a temporary virtual address
-    Directory = (LPPAGEDIRECTORY)MapTempPhysicalPage(DirectoryPhysical);
+    Directory = (LPPAGE_DIRECTORY)MapTempPhysicalPage(DirectoryPhysical);
 
     DEBUG(TEXT("[LogPageDirectory] Page Directory PA=%x contents:"), DirectoryPhysical);
 
@@ -1714,7 +1714,7 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
 
             // Map the page table physically to read its contents
             PHYSICAL PageTablePhysical = Directory[DirEntry].Address << 12;
-            Table = (LPPAGETABLE)MapTempPhysicalPage2(PageTablePhysical);
+            Table = (LPPAGE_TABLE)MapTempPhysicalPage2(PageTablePhysical);
 
             // Count and display mapped pages in this table
             U32 MappedCount = 0;

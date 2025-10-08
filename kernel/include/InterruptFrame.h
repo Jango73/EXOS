@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#ifndef INTERRUPTFRAME_H_INCLUDED
-#define INTERRUPTFRAME_H_INCLUDED
+#ifndef INTERRUPT_FRAME_H_INCLUDED
+#define INTERRUPT_FRAME_H_INCLUDED
 
 #include "Base.h"
 

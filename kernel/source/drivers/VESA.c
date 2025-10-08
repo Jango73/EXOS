@@ -191,7 +191,7 @@ VESA_CONTEXT VESAContext = {
 /***************************************************************************/
 
 static U32 VESAInitialize(void) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
 
     DEBUG(TEXT("[VESAInitialize] Enter"));
 
@@ -256,7 +256,7 @@ static U32 VESAInitialize(void) {
 /***************************************************************************/
 
 static U32 VESAUninitialize(void) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
 
     //-------------------------------------
     // Set text mode
@@ -272,7 +272,7 @@ static U32 VESAUninitialize(void) {
 /***************************************************************************/
 
 static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
     U16* ModePtr = NULL;
     U32 Found = 0;
     U32 Index = 0;
@@ -417,7 +417,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 /***************************************************************************/
 
 static void SetVESABank(LPVESA_CONTEXT Context, U32 Bank) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
 
     if (Bank != Context->CurrentBank) {
         Regs.X.AX = 0x4F05;
@@ -1153,7 +1153,7 @@ static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 /***************************************************************************/
 
 static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
     U8* Pln1;
     U8* Pln2;
     U8* Pln3;

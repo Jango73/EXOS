@@ -21,13 +21,13 @@
 
 \************************************************************************/
 
-#ifndef ARCH_I386_INTERRUPTFRAME_H_INCLUDED
-#define ARCH_I386_INTERRUPTFRAME_H_INCLUDED
+#ifndef ARCH_I386_INTERRUPT_FRAME_H_INCLUDED
+#define ARCH_I386_INTERRUPT_FRAME_H_INCLUDED
 
 #include "Base.h"
 #include "arch/i386/I386.h"
 
-LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP);
-void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP);
+LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP);
+void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, U32 ESP);
 
 #endif

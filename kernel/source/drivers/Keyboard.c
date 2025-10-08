@@ -378,7 +378,7 @@ static void ScanCodeToKeyCode_E0(U32 ScanCode, LPKEYCODE KeyCode) {
 
     if (KeyCode->VirtualKey == VK_DELETE) {
         if (Keyboard.Status[SCAN_CONTROL] && Keyboard.Status[SCAN_ALT]) {
-            X86REGS Regs;
+            INTEL_X86_REGISTERS Regs;
             // RealModeCall(0xF000FFF0, &Regs);
         }
     }

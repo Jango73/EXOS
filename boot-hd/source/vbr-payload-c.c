@@ -352,17 +352,17 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
 /************************************************************************/
 
-static LPPAGEDIRECTORY PageDirectory = (LPPAGEDIRECTORY)PAGE_DIRECTORY_ADDRESS;
-static LPPAGETABLE PageTableLow = (LPPAGETABLE)PAGE_TABLE_LOW_ADDRESS;
-static LPPAGETABLE PageTableKrn = (LPPAGETABLE)PAGE_TABLE_KERNEL_ADDRESS;
-static GDTREGISTER Gdtr;
+static LPPAGE_DIRECTORY PageDirectory = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_ADDRESS;
+static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)PAGE_TABLE_LOW_ADDRESS;
+static LPPAGE_TABLE PageTableKrn = (LPPAGE_TABLE)PAGE_TABLE_KERNEL_ADDRESS;
+static GDT_REGISTER Gdtr;
 
 /************************************************************************/
 
 static void SetSegmentDescriptor(
-    LPSEGMENTDESCRIPTOR D, U32 Base, U32 Limit, U32 Type /*0=data,1=code*/, U32 CanWrite, U32 Priv /*0*/,
+    LPSEGMENT_DESCRIPTOR D, U32 Base, U32 Limit, U32 Type /*0=data,1=code*/, U32 CanWrite, U32 Priv /*0*/,
     U32 Operand32 /*1*/, U32 Gran4K /*1*/) {
-    // Fill SEGMENTDESCRIPTOR bitfields (per your I386.h)
+    // Fill SEGMENT_DESCRIPTOR bitfields (per your I386.h)
     D->Limit_00_15 = (U16)(Limit & 0xFFFF);
     D->Base_00_15 = (U16)(Base & 0xFFFF);
     D->Base_16_23 = (U8)((Base >> 16) & 0xFF);
@@ -385,7 +385,7 @@ static void SetSegmentDescriptor(
 
 static void BuildGdtFlat(void) {
     // Build in a real local array so the compiler knows the bounds.
-    SEGMENTDESCRIPTOR GdtBuffer[3];
+    SEGMENT_DESCRIPTOR GdtBuffer[3];
 
     BootDebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
 
@@ -419,7 +419,7 @@ static void ClearPdPt(void) {
 
 /************************************************************************/
 
-static void SetPageDirectoryEntry(LPPAGEDIRECTORY E, U32 PtPhys) {
+static void SetPageDirectoryEntry(LPPAGE_DIRECTORY E, U32 PtPhys) {
     E->Present = 1;
     E->ReadWrite = 1;
     E->Privilege = 0;
@@ -436,7 +436,7 @@ static void SetPageDirectoryEntry(LPPAGEDIRECTORY E, U32 PtPhys) {
 
 /************************************************************************/
 
-static void SetPageTableEntry(LPPAGETABLE E, U32 Physical) {
+static void SetPageTableEntry(LPPAGE_TABLE E, U32 Physical) {
     BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
 
     E->Present = !Protected;

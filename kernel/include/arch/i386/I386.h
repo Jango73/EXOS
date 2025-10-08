@@ -35,7 +35,7 @@
 
 /***************************************************************************/
 
-typedef struct tag_INTEL386REGISTERS {
+typedef struct tag_INTEL_386_REGISTERS {
     U32 EFlags;
     U32 EAX, EBX, ECX, EDX;
     U32 ESI, EDI, ESP, EBP;
@@ -45,11 +45,11 @@ typedef struct tag_INTEL386REGISTERS {
     U32 CR0, CR2, CR3, CR4;
     U32 DR0, DR1, DR2, DR3;
     U32 DR4, DR5, DR6, DR7;
-} INTEL386REGISTERS, *LPINTEL386REGISTERS;
+} INTEL_386_REGISTERS, *LPINTEL_386_REGISTERS;
 
 /***************************************************************************/
 
-typedef struct tag_INTELFPUREGISTERS {
+typedef struct tag_INTEL_FPU_REGISTERS {
     U16 Control;
     U16 Status;
     U16 Tag;
@@ -57,11 +57,11 @@ typedef struct tag_INTELFPUREGISTERS {
     U48 DP;
     U80 ST0, ST1, ST2, ST3;
     U80 ST4, ST5, ST6, ST7;
-} INTELFPUREGISTERS, *LPINTELFPUREGISTERS;
+} INTEL_FPU_REGISTERS, *LPINTEL_FPU_REGISTERS;
 
 /***************************************************************************/
 
-typedef union tag_X86REGS {
+typedef union tag_INTEL_X86_REGISTERS {
     struct {
         U16 DS;
         U16 ES;
@@ -113,13 +113,13 @@ typedef union tag_X86REGS {
         U32 EDI;
         U32 EFL;
     } E;
-} X86REGS, *LPX86REGS;
+} INTEL_X86_REGISTERS, *LPINTEL_X86_REGISTERS;
 
 /***************************************************************************/
 // The page directory entry
 // Size : 4 bytes
 
-typedef struct tag_PAGEDIRECTORY {
+typedef struct tag_PAGE_DIRECTORY {
     U32 Present : 1;    // Is page present in RAM ?
     U32 ReadWrite : 1;  // Read-write access rights
     U32 Privilege : 1;  // Privilege level
@@ -132,13 +132,13 @@ typedef struct tag_PAGEDIRECTORY {
     U32 User : 2;      // Available to OS
     U32 Fixed : 1;     // EXOS : Can page be swapped ?
     U32 Address : 20;  // Physical address
-} PAGEDIRECTORY, *LPPAGEDIRECTORY;
+} PAGE_DIRECTORY, *LPPAGE_DIRECTORY;
 
 /***************************************************************************/
 // The page table entry
 // Size : 4 bytes
 
-typedef struct tag_PAGETABLE {
+typedef struct tag_PAGE_TABLE {
     U32 Present : 1;    // Is page present in RAM ?
     U32 ReadWrite : 1;  // Read-write access rights
     U32 Privilege : 1;  // Privilege level
@@ -151,13 +151,13 @@ typedef struct tag_PAGETABLE {
     U32 User : 2;      // Available to OS
     U32 Fixed : 1;     // EXOS : Can page be swapped ?
     U32 Address : 20;  // Physical address
-} PAGETABLE, *LPPAGETABLE;
+} PAGE_TABLE, *LPPAGE_TABLE;
 
 /***************************************************************************/
 // The segment descriptor
 // Size : 8 bytes
 
-typedef struct tag_SEGMENTDESCRIPTOR {
+typedef struct tag_SEGMENT_DESCRIPTOR {
     U32 Limit_00_15 : 16;   // Bits 0-15 of segment limit
     U32 Base_00_15 : 16;    // Bits 0-15 of segment base
     U32 Base_16_23 : 8;     // Bits 16-23 of segment base
@@ -176,12 +176,12 @@ typedef struct tag_SEGMENTDESCRIPTOR {
     U32 OperandSize : 1;    // 0 = 16-bit, 1 = 32-bit
     U32 Granularity : 1;    // 0 = 1 byte granular, 1 = 4096 bytes granular
     U32 Base_24_31 : 8;     // Bits 24-31 of segment base
-} SEGMENTDESCRIPTOR, *LPSEGMENTDESCRIPTOR;
+} SEGMENT_DESCRIPTOR, *LPSEGMENT_DESCRIPTOR;
 
 /***************************************************************************/
 // The Gate Descriptor
 
-typedef struct tag_GATEDESCRIPTOR {
+typedef struct tag_GATE_DESCRIPTOR {
     U32 Offset_00_15 : 16;  // Bits 0-15 of entry point offset
     U32 Selector : 16;      // Selector for code segment
     U32 Reserved : 8;       // Reserved
@@ -189,12 +189,12 @@ typedef struct tag_GATEDESCRIPTOR {
     U32 Privilege : 2;      // Privilege level
     U32 Present : 1;        //
     U32 Offset_16_31 : 16;  // Bits 16-31 of entry point offset
-} GATEDESCRIPTOR, *LPGATEDESCRIPTOR;
+} GATE_DESCRIPTOR, *LPGATE_DESCRIPTOR;
 
 /***************************************************************************/
 // The TSS descriptor
 
-typedef struct tag_TSSDESCRIPTOR {
+typedef struct tag_TSS_DESCRIPTOR {
     U32 Limit_00_15 : 16;  // Bits 0-15 of segment limit
     U32 Base_00_15 : 16;   // Bits 0-15 of segment base
     U32 Base_16_23 : 8;    // Bits 16-23 of segment base
@@ -206,13 +206,13 @@ typedef struct tag_TSSDESCRIPTOR {
     U32 Unused : 2;        // Reserved
     U32 Granularity : 1;   // 0 = 1 byte granular, 1 = 4096 bytes granular
     U32 Base_24_31 : 8;    // Bits 24-31 of segment base
-} TSSDESCRIPTOR, *LPTSSDESCRIPTOR;
+} TSS_DESCRIPTOR, *LPTSS_DESCRIPTOR;
 
 /***************************************************************************/
 // The Task State Segment
 // It must be 256 bytes long
 
-typedef struct tag_TASKSTATESEGMENT {
+typedef struct tag_TASK_STATE_SEGMENT {
     U16 BackLink;  // TSS backlink
     U16 Res1;      // Reserved
     U32 ESP0;      // Stack 0 pointer (CPL = 0)
@@ -262,20 +262,20 @@ typedef struct tag_TASKSTATESEGMENT {
 
     U16 IOMap;          // I/O Map Base Address
     U8 IOMapBits[152];  // Map 1024 port adresses
-} TASKSTATESEGMENT, *LPTASKSTATESEGMENT;
+} TASK_STATE_SEGMENT, *LPTASK_STATE_SEGMENT;
 
 /************************************************************************/
 // NOTE: fields not meaningful for a given trap are set to 0
 // !! Structure MUST BE IDENTICAL to STRUC INTERRUPT_FRAME in Kernel.inc !!
 
-typedef struct tag_INTERRUPTFRAME {
-    INTEL386REGISTERS Registers;
-    INTELFPUREGISTERS FPURegisters;
+typedef struct tag_INTERRUPT_FRAME {
+    INTEL_386_REGISTERS Registers;
+    INTEL_FPU_REGISTERS FPURegisters;
     U32 SS0;      // SS in ring 0
     U32 ESP0;     // ESP in ring 0
     U32 IntNo;    // Interrupt / exception vector
     U32 ErrCode;  // CPU error code (0 for #UD)
-} INTERRUPTFRAME, *LPINTERRUPTFRAME;
+} INTERRUPT_FRAME, *LPINTERRUPT_FRAME;
 
 /************************************************************************/
 // The GDT register
@@ -283,7 +283,7 @@ typedef struct tag_INTERRUPTFRAME {
 typedef struct {
     U16 Limit;
     U32 Base;
-} GDTREGISTER;
+} GDT_REGISTER;
 
 /************************************************************************/
 // Page directory and page table
@@ -399,10 +399,10 @@ typedef struct {
 typedef U16 SELECTOR;
 typedef U32 OFFSET;
 
-typedef struct tag_FARPOINTER {
+typedef struct tag_FAR_POINTER {
     OFFSET Offset;
     SELECTOR Selector;
-} FARPOINTER, *LPFARPOINTER;
+} FAR_POINTER, *LPFAR_POINTER;
 
 /***************************************************************************/
 // Privilege levels (rings)
@@ -666,7 +666,7 @@ typedef struct tag_FARPOINTER {
 /***************************************************************************/
 // Structure to receive information about a segment in a more friendly way
 
-typedef struct tag_SEGMENTINFO {
+typedef struct tag_SEGMENT_INFO {
     U32 Base;
     U32 Limit;
     U32 Type;
@@ -676,7 +676,7 @@ typedef struct tag_SEGMENTINFO {
     U32 OperandSize;
     U32 Conforming;
     U32 Present;
-} SEGMENTINFO, *LPSEGMENTINFO;
+} SEGMENT_INFO, *LPSEGMENT_INFO;
 
 /************************************************************************/
 // Hardware debugging macros
@@ -732,8 +732,8 @@ typedef struct tag_SEGMENTINFO {
 
 /************************************************************************/
 
-BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info);
-BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text);
+BOOL GetSegmentInfo(LPSEGMENT_DESCRIPTOR This, LPSEGMENT_INFO Info);
+BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text);
 
 /************************************************************************/
 

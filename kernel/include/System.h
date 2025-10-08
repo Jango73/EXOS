@@ -89,7 +89,7 @@ extern U32 ClearTaskState(void);
 extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32, U32);
-extern U32 SaveRegisters(LPINTEL386REGISTERS);
+extern U32 SaveRegisters(LPINTEL_386_REGISTERS);
 extern U32 DoSystemCall(U32, U32);
 extern void IdleCPU(void);
 extern void DeadCPU(void);
@@ -99,7 +99,7 @@ extern void Reboot(void);
 
 // Functions in RMC.asm
 
-extern void RealModeCall(U32, LPX86REGS);
+extern void RealModeCall(U32, LPINTEL_X86_REGISTERS);
 extern void RealModeCallTest(void);
 
 /***************************************************************************/

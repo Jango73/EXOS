@@ -101,7 +101,7 @@ void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length) {
  * and debug registers with their current values. Shows detailed debug
  * register flags for comprehensive processor state analysis.
  */
-void LogRegisters(LPINTEL386REGISTERS Regs) {
+void LogRegisters(LPINTEL_386_REGISTERS Regs) {
     KernelLogText(LOG_VERBOSE, TEXT("CS : %x DS : %x SS : %x "), Regs->CS, Regs->DS, Regs->SS);
     KernelLogText(LOG_VERBOSE, TEXT("ES : %x FS : %x GS : %x "), Regs->ES, Regs->FS, Regs->GS);
     KernelLogText(
@@ -129,7 +129,7 @@ void LogRegisters(LPINTEL386REGISTERS Regs) {
  * @brief Log register state for a task at fault.
  * @param Frame Interrupt frame with register snapshot.
  */
-void LogFrame(LPTASK Task, LPINTERRUPTFRAME Frame) {
+void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
     LPPROCESS Process;
 
     if (Task == NULL) Task = GetCurrentTask();
@@ -156,11 +156,11 @@ void LogFrame(LPTASK Task, LPINTERRUPTFRAME Frame) {
  * format and logs the segment information. Used for debugging memory
  * segmentation and privilege levels.
  */
-void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
+void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
     U32 Index = 0;
 
     if (Table) {
-        SEGMENTINFO Info;
+        SEGMENT_INFO Info;
         STR Text[256];
 
         for (Index = 0; Index < Size; Index++) {
@@ -182,10 +182,10 @@ void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size) {
  * caching attributes, and physical address. Used for debugging virtual memory
  * management and page fault analysis.
  */
-void LogPageDirectoryEntry(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
+void LogPageDirectoryEntry(U32 LogType, const PAGE_DIRECTORY* PageDirectory) {
     KernelLogText(
         LogType,
-        TEXT("PAGEDIRECTORY:\n"
+        TEXT("PAGE_DIRECTORY:\n"
              "  Present       = %u\n"
              "  ReadWrite     = %u\n"
              "  Privilege     = %u\n"
@@ -215,10 +215,10 @@ void LogPageDirectoryEntry(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
  * dirty bit, caching attributes, and physical address mapping. Essential
  * for debugging page-level memory management issues.
  */
-void LogPageTableEntry(U32 LogType, const PAGETABLE* PageTable) {
+void LogPageTableEntry(U32 LogType, const PAGE_TABLE* PageTable) {
     KernelLogText(
         LogType,
-        TEXT("PAGETABLE:\n"
+        TEXT("PAGE_TABLE:\n"
              "  Present       = %u\n"
              "  ReadWrite     = %u\n"
              "  Privilege     = %u\n"
@@ -247,10 +247,10 @@ void LogPageTableEntry(U32 LogType, const PAGETABLE* PageTable) {
  * access rights, privilege level, and granularity. Used for debugging
  * memory segmentation and privilege violations.
  */
-void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescriptor) {
+void LogSegmentDescriptor(U32 LogType, const SEGMENT_DESCRIPTOR* SegmentDescriptor) {
     KernelLogText(
         LogType,
-        TEXT("SEGMENTDESCRIPTOR:\n"
+        TEXT("SEGMENT_DESCRIPTOR:\n"
              "  Limit_00_15   = %X\n"
              "  Base_00_15    = %X\n"
              "  Base_16_23    = %X\n"
@@ -286,7 +286,7 @@ void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescripto
  * 8 present entries. Used for debugging virtual memory layout and
  * page table structure analysis.
  */
-void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEntry) {
+void LogPageTableFromDirectory(U32 LogType, const PAGE_DIRECTORY* PageDirectoryEntry) {
     if (!PageDirectoryEntry->Present) {
         KernelLogText(LogType, TEXT("Page table not present (Present=0), nothing to dump.\n"));
         return;
@@ -297,7 +297,7 @@ void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEn
 
     KernelLogText(LogType, TEXT("\n8 first entries :"));
 
-    const PAGETABLE* PageTable = (const PAGETABLE*)PageTableVirtualAddress;
+    const PAGE_TABLE* PageTable = (const PAGE_TABLE*)PageTableVirtualAddress;
     for (U32 PageTableIndex = 0; PageTableIndex < 8; ++PageTableIndex) {
         if (PageTable[PageTableIndex].Present) {
             LogPageTableEntry(LogType, &PageTable[PageTableIndex]);
@@ -316,7 +316,7 @@ void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEn
  * of present page tables. Provides comprehensive view of virtual
  * memory mapping for debugging memory management issues.
  */
-void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
+void LogAllPageTables(U32 LogType, const PAGE_DIRECTORY* PageDirectory) {
     KernelLogText(LogType, TEXT("Page Directory at %X"), PageDirectory);
     for (U32 PageDirectoryIndex = 0; PageDirectoryIndex < 1024; ++PageDirectoryIndex) {
         if (PageDirectory[PageDirectoryIndex].Present) {
@@ -337,7 +337,7 @@ void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory) {
  * base address, effective limit, and size. Shows decoded view for easier
  * debugging of task switching and privilege level changes.
  */
-void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
+void LogTSSDescriptor(U32 LogType, const TSS_DESCRIPTOR* TssDescriptor) {
     /* Compute base, raw/effective limit */
     const U32 Base = ((U32)TssDescriptor->Base_00_15) | (((U32)TssDescriptor->Base_16_23) << 16) |
                      (((U32)TssDescriptor->Base_24_31) << 24);
@@ -350,7 +350,7 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
     /* Raw fields */
     KernelLogText(
         LogType,
-        TEXT("TSSDESCRIPTOR:\n"
+        TEXT("TSS_DESCRIPTOR:\n"
              "  Limit_00_15   = %X\n"
              "  Base_00_15    = %X\n"
              "  Base_16_23    = %X\n"
@@ -369,7 +369,7 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
     /* Decoded view */
     KernelLogText(
         LogType,
-        TEXT("TSSDESCRIPTOR (decoded):\n"
+        TEXT("TSS_DESCRIPTOR (decoded):\n"
              "  Base          = %X\n"
              "  RawLimit      = %X\n"
              "  EffLimit      = %X (%u bytes)"),
@@ -387,10 +387,10 @@ void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor) {
  * levels, register values, segment selectors, and I/O permission bitmap.
  * Essential for debugging task switching and privilege transitions.
  */
-void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
+void LogTaskStateSegment(U32 LogType, const TASK_STATE_SEGMENT* Tss) {
     KernelLogText(
         LogType,
-        TEXT("TASKSTATESEGMENT @ %p (sizeof=%u):\n"
+        TEXT("TASK_STATE_SEGMENT @ %p (sizeof=%u):\n"
              "  BackLink  = %X\n"
              "  ESP0/SS0  = %X / %X\n"
              "  ESP1/SS1  = %X / %X\n"
@@ -408,7 +408,7 @@ void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss) {
              "  LDT       = %X\n"
              "  Trap      = %u\n"
              "  IOMap     = %X (linear @ %p)"),
-        (void*)Tss, (U32)sizeof(TASKSTATESEGMENT), (U32)Tss->BackLink, (U32)Tss->ESP0, (U32)Tss->SS0, (U32)Tss->ESP1,
+        (void*)Tss, (U32)sizeof(TASK_STATE_SEGMENT), (U32)Tss->BackLink, (U32)Tss->ESP0, (U32)Tss->SS0, (U32)Tss->ESP1,
         (U32)Tss->SS1, (U32)Tss->ESP2, (U32)Tss->SS2, (U32)Tss->CR3, (U32)Tss->EIP, (U32)Tss->EFlags, (U32)Tss->EAX,
         (U32)Tss->ECX, (U32)Tss->EDX, (U32)Tss->EBX, (U32)Tss->ESP, (U32)Tss->EBP, (U32)Tss->ESI, (U32)Tss->EDI,
         (U32)Tss->ES, (U32)Tss->CS, (U32)Tss->SS, (U32)Tss->DS, (U32)Tss->FS, (U32)Tss->GS, (U32)Tss->LDT,

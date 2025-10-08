@@ -30,7 +30,7 @@
 
 /************************************************************************/
 
-BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info) {
+BOOL GetSegmentInfo(LPSEGMENT_DESCRIPTOR This, LPSEGMENT_INFO Info) {
     if (Info) {
         Info->Base = SEGMENTBASE(This);
         Info->Limit = SEGMENTLIMIT(This);
@@ -50,7 +50,7 @@ BOOL GetSegmentInfo(LPSEGMENTDESCRIPTOR This, LPSEGMENTINFO Info) {
 
 /************************************************************************/
 
-BOOL SegmentInfoToString(LPSEGMENTINFO This, LPSTR Text) {
+BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
     if (This && Text) {
         STR Temp[64];
 

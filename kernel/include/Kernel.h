@@ -141,9 +141,9 @@ typedef struct tag_KERNELSTARTUPINFO {
 extern KERNELSTARTUPINFO KernelStartup;
 
 typedef struct tag_KERNELDATA_I386 {
-    LPGATEDESCRIPTOR IDT;
-    LPSEGMENTDESCRIPTOR GDT;
-    LPTASKSTATESEGMENT TSS;
+    LPGATE_DESCRIPTOR IDT;
+    LPSEGMENT_DESCRIPTOR GDT;
+    LPTASK_STATE_SEGMENT TSS;
     LPPAGEBITMAP PPB;
 } KERNELDATA_I386, *LPKERNELDATA_I386;
 
@@ -205,13 +205,13 @@ void ReleaseProcessKernelObjects(LPPROCESS Process);
 /***************************************************************************/
 // Functions in Segment.c
 
-void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR, U32);
-void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table);
+void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR, U32);
+void InitGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);
 void InitializeTaskSegments(void);
-void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR Desc, U32 Base);
-void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR Desc, U32 Limit);
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR Desc, U32 Base);
-void SetTSSDescriptorLimit(LPTSSDESCRIPTOR Desc, U32 Limit);
+void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR Desc, U32 Base);
+void SetSegmentDescriptorLimit(LPSEGMENT_DESCRIPTOR Desc, U32 Limit);
+void SetTSSDescriptorBase(LPTSS_DESCRIPTOR Desc, U32 Base);
+void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR Desc, U32 Limit);
 
 /***************************************************************************/
 // Functions in MemoryEditor.c

@@ -138,7 +138,7 @@
     +------------------+
     |      DATA        |
     |       OF         |
-    |  INTERRUPTFRAME  |
+    |  INTERRUPT_FRAME  |
     +------------------+ <-- ESP as given to BuildInterruptFrame
 
 \************************************************************************/
@@ -177,15 +177,15 @@
 
 /************************************************************************/
 
-LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
-    LPINTERRUPTFRAME Frame;
+LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
+    LPINTERRUPT_FRAME Frame;
     U32* Stack;
     U32 UserMode;
 
     if (HasErrorCode > 1) HasErrorCode = 1;
 
-    Frame = (LPINTERRUPTFRAME)ESP;
-    Stack = (U32*)(ESP + sizeof(INTERRUPTFRAME));
+    Frame = (LPINTERRUPT_FRAME)ESP;
+    Stack = (U32*)(ESP + sizeof(INTERRUPT_FRAME));
 
     if (IsValidMemory((LINEAR)Stack) == FALSE) {
         DEBUG(TEXT("[BuildInterruptFrame] Invalid stack computed : %x"), Stack);
@@ -194,7 +194,7 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
 
     UserMode = (Stack[INCOMING_CS_INDEX + HasErrorCode] & SELECTOR_RPL_MASK) != 0;
 
-    MemorySet(Frame, 0, sizeof(INTERRUPTFRAME));
+    MemorySet(Frame, 0, sizeof(INTERRUPT_FRAME));
 
     Frame->Registers.EFlags = Stack[INCOMING_EFLAGS_INDEX + HasErrorCode];
     Frame->Registers.EIP = Stack[INCOMING_EIP_INDEX + HasErrorCode];
@@ -259,7 +259,7 @@ LPINTERRUPTFRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
 
 /************************************************************************/
 
-void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP) {
+void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, U32 ESP) {
     U32* Stack;
     U32 UserMode;
     U32 HasErrorCode = 0;  // Timer interrupts don't have error codes
@@ -269,7 +269,7 @@ void RestoreFromInterruptFrame(LPINTERRUPTFRAME NextFrame, U32 ESP) {
 #endif
 
     SAFE_USE_VALID(NextFrame) {
-        Stack = (U32*)(ESP + sizeof(INTERRUPTFRAME));
+        Stack = (U32*)(ESP + sizeof(INTERRUPT_FRAME));
         // For task switching via timer interrupt (32), HasErrorCode = 0
         UserMode = (NextFrame->Registers.CS & SELECTOR_RPL_MASK) != 0;
 

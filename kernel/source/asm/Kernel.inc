@@ -263,15 +263,15 @@ ENDSTRUC
 ; Keep this in sync with the C definition of 'Kernel_i386'.
 
 STRUC KERNELDATA_I386
-    .IDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
-    .GDT                RESB 4        ; LPSEGMENTDESCRIPTOR*
-    .TSS                RESB 4        ; LPTASKSTATESEGMENT*
+    .IDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
+    .GDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
+    .TSS                RESB 4        ; LPTASK_STATE_SEGMENT*
     .PPB                RESB 4        ; LPPAGEBITMAP*
 ENDSTRUC
 
 ;-------------------------------------------------------------------------
-; Interrupt frame - MUST be synced with INTERRUPTFRAME in arch/i386/I386.h
-; /!\ Structure MUST BE IDENTICAL to struct INTERRUPTFRAME in arch/i386/I386.h /!\
+; Interrupt frame - MUST be synced with INTERRUPT_FRAME in arch/i386/I386.h
+; /!\ Structure MUST BE IDENTICAL to struct INTERRUPT_FRAME in arch/i386/I386.h /!\
 
 STRUC INTERRUPT_FRAME
 ; CPU registers
