@@ -30,6 +30,10 @@
 
 /************************************************************************/
 
+KERNELDATA_I386 SECTION(".data") Kernel_i386 = {.GDT = 0, .TSS = 0, .PPB = (U8*)0};
+
+/************************************************************************/
+
 BOOL GetSegmentInfo(LPSEGMENT_DESCRIPTOR This, LPSEGMENT_INFO Info) {
     if (Info) {
         Info->Base = SEGMENTBASE(This);
