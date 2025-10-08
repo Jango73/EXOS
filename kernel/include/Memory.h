@@ -26,7 +26,7 @@
 #define MEMORY_H_INCLUDED
 
 #include "Base.h"
-#include "arch/i386/I386.h"
+#include "arch/Memory.h"
 
 /************************************************************************/
 

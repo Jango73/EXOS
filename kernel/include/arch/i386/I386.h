@@ -28,6 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "arch/i386/Memory-i386.h"
 
 /***************************************************************************/
 
@@ -114,44 +115,6 @@ typedef union tag_INTEL_X86_REGISTERS {
         U32 EFL;
     } E;
 } INTEL_X86_REGISTERS, *LPINTEL_X86_REGISTERS;
-
-/***************************************************************************/
-// The page directory entry
-// Size : 4 bytes
-
-typedef struct tag_PAGE_DIRECTORY {
-    U32 Present : 1;    // Is page present in RAM ?
-    U32 ReadWrite : 1;  // Read-write access rights
-    U32 Privilege : 1;  // Privilege level
-    U32 WriteThrough : 1;
-    U32 CacheDisabled : 1;
-    U32 Accessed : 1;  // Has page been accessed ?
-    U32 Reserved : 1;
-    U32 PageSize : 1;  // 0 = 4KB
-    U32 Global : 1;    // Ignored
-    U32 User : 2;      // Available to OS
-    U32 Fixed : 1;     // EXOS : Can page be swapped ?
-    U32 Address : 20;  // Physical address
-} PAGE_DIRECTORY, *LPPAGE_DIRECTORY;
-
-/***************************************************************************/
-// The page table entry
-// Size : 4 bytes
-
-typedef struct tag_PAGE_TABLE {
-    U32 Present : 1;    // Is page present in RAM ?
-    U32 ReadWrite : 1;  // Read-write access rights
-    U32 Privilege : 1;  // Privilege level
-    U32 WriteThrough : 1;
-    U32 CacheDisabled : 1;
-    U32 Accessed : 1;  // Has page been accessed ?
-    U32 Dirty : 1;     // Has been written to ?
-    U32 Reserved : 1;  // Reserved by Intel
-    U32 Global : 1;
-    U32 User : 2;      // Available to OS
-    U32 Fixed : 1;     // EXOS : Can page be swapped ?
-    U32 Address : 20;  // Physical address
-} PAGE_TABLE, *LPPAGE_TABLE;
 
 /***************************************************************************/
 // The segment descriptor
@@ -306,45 +269,6 @@ typedef struct tag_KERNELDATA_I386 {
 } KERNELDATA_I386, *LPKERNELDATA_I386;
 
 extern KERNELDATA_I386 Kernel_i386;
-
-/************************************************************************/
-// Page directory and page table
-
-#define PAGE_SIZE N_4KB
-#define PAGE_SIZE_MUL MUL_4KB
-#define PAGE_SIZE_MASK (PAGE_SIZE - 1)
-
-#define PAGE_TABLE_SIZE N_4KB
-#define PAGE_TABLE_SIZE_MUL MUL_4KB
-#define PAGE_TABLE_SIZE_MASK (PAGE_TABLE_SIZE - 1)
-
-#define PAGE_TABLE_ENTRY_SIZE (sizeof(U32))
-#define PAGE_TABLE_NUM_ENTRIES (PAGE_TABLE_SIZE / PAGE_TABLE_ENTRY_SIZE)
-
-#define PAGE_TABLE_CAPACITY (PAGE_TABLE_NUM_ENTRIES * PAGE_SIZE)
-#define PAGE_TABLE_CAPACITY_MUL MUL_4MB
-#define PAGE_TABLE_CAPACITY_MASK (PAGE_TABLE_CAPACITY - 1)
-
-#define PAGE_MASK (~(PAGE_SIZE - 1))
-
-#define PAGE_PRIVILEGE_KERNEL 0
-#define PAGE_PRIVILEGE_USER 1
-
-#define PAGE_ALIGN(a) (((a) + PAGE_SIZE - 1) & PAGE_MASK)
-
-/***************************************************************************/
-// Static virtual memory addresses (VMA)
-// All processes have the following address space layout
-
-#define VMA_RAM 0x00000000                         // Reserved for kernel
-#define VMA_VIDEO 0x000A0000                       // Reserved for kernel
-#define VMA_CONSOLE 0x000B8000                     // Reserved for kernel
-#define VMA_USER 0x00400000                        // Start of user address space
-#define VMA_LIBRARY 0xA0000000                     // Dynamic Libraries
-#define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)  // User alias for TaskRunner
-#define VMA_KERNEL 0xC0000000                      // Kernel
-
-#define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
 /***************************************************************************/
 // Segment descriptor attributes

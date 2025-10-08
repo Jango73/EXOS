@@ -166,11 +166,7 @@
 \************************************************************************/
 
 // INTERNAL SELF-MAP + TEMP MAPPING ]
-/// These are internal-only constants; do not export in public headers.
-
-#define PD_RECURSIVE_SLOT 1023u         /* PDE index used for self-map */
-#define PD_VA ((LINEAR)0xFFFFF000)      /* Page Directory linear alias */
-#define PT_BASE_VA ((LINEAR)0xFFC00000) /* Page Tables linear window   */
+/// Architecture-specific constants are defined in arch/i386/Memory-i386.h.
 
 // Uncomment below to mark BIOS memory pages "not present" in the page tables
 // #define PROTECT_BIOS
@@ -446,96 +442,8 @@ void FreePhysicalPage(PHYSICAL Page) {
 }
 
 /************************************************************************/
-
-/**
- * @brief Get the page directory index for a linear address.
- * @param Address Linear address.
- * @return Page directory entry index.
- */
-static inline UINT GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TABLE_CAPACITY_MUL; }
-
+// Paging helpers are provided by arch/i386/Memory-i386.h.
 /************************************************************************/
-
-/**
- * @brief Get the page table index for a linear address.
- * @param Address Linear address.
- * @return Page table entry index.
- */
-static inline UINT GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
-
-/************************************************************************/
-// Self-map helpers (no public exposure)
-
-/**
- * @brief Obtain the virtual address of the current page directory.
- * @return Pointer to page directory.
- */
-static inline LPPAGE_DIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGE_DIRECTORY)PD_VA; }
-
-/************************************************************************/
-
-/**
- * @brief Get the virtual address of the page table for a linear address.
- * @param Address Linear address.
- * @return Pointer to page table.
- */
-static inline LPPAGE_TABLE GetPageTableVAFor(LINEAR Address) {
-    UINT dir = GetDirectoryEntry(Address);
-    return (LPPAGE_TABLE)(PT_BASE_VA + (dir << PAGE_SIZE_MUL));
-}
-
-/************************************************************************/
-
-/**
- * @brief Get a pointer to the raw PTE entry for a linear address.
- * @param Address Linear address.
- * @return Pointer to the PTE.
- */
-static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
-    UINT tab = GetTableEntry(Address);
-    return (volatile U32*)&GetPageTableVAFor(Address)[tab];
-}
-
-/************************************************************************/
-// Compose a raw 32-bit PTE value from fields + physical address.
-
-static inline U32 MakePageTableEntryValue(
-    PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global, U32 Fixed) {
-    U32 val = 0;
-    val |= 1u;  // Present
-
-    if (ReadWrite) val |= (1u << 1);
-    if (Privilege) val |= (1u << 2);  // 1=user, 0=kernel
-    if (WriteThrough) val |= (1u << 3);
-    if (CacheDisabled) val |= (1u << 4);
-
-    // Accessed (bit 5) / Dirty (bit 6) left to CPU
-    if (Global) val |= (1u << 8);
-    if (Fixed) val |= (1u << 9);  // Your code uses this bit in PTE
-
-    val |= (U32)(Physical & ~(PAGE_SIZE - 1));  // Frame address aligned
-
-    return val;
-
-    /*
-    PAGE_TABLE TableEntry;
-
-    TableEntry.Present = 1;
-    TableEntry.ReadWrite = ReadWrite;
-    TableEntry.Privilege = Privilege;
-    TableEntry.WriteThrough = WriteThrough;
-    TableEntry.CacheDisabled = CacheDisabled;
-    TableEntry.Accessed = 0;
-    TableEntry.Dirty = 0;
-    TableEntry.Reserved = 0;
-    TableEntry.Global = Global;
-    TableEntry.User = 0;
-    TableEntry.Fixed = Fixed;
-    TableEntry.Address = Physical & ~(PAGE_SIZE - 1);
-
-    return *((U32*)&TableEntry);
-    */
-}
 
 /************************************************************************/
 // Map or remap a single virtual page by directly editing its PTE via the self-map.
