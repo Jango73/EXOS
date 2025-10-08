@@ -27,9 +27,9 @@
 
 #include "Base.h"
 
-#if defined(EXOS_ARCH_I386)
+#if defined(__EXOS_ARCH_I386__)
     #include "arch/i386/InterruptFrame.h"
-#elif defined(EXOS_ARCH_X86_64)
+#elif defined(__EXOS_ARCH_X86_64__)
     #include "arch/x86-64/InterruptFrame.h"
 #else
     #error "Unsupported architecture for interrupt frame management"
