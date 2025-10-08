@@ -28,7 +28,6 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "arch/i386/I386.h"
 
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
@@ -61,56 +60,5 @@ BOOL UnfreezeScheduler(void);
 U32 Wait(LPWAITINFO WaitInfo);
 
 /************************************************************************/
-
-#define SetupStackForKernelMode(Task, StackTop)           \
-    (StackTop) -= 3;                                      \
-    ((U32*)StackTop)[2] = Task->Context.Registers.EFlags; \
-    ((U32*)StackTop)[1] = Task->Context.Registers.CS;     \
-    ((U32*)StackTop)[0] = Task->Context.Registers.EIP;
-
-/************************************************************************/
-
-#define SetupStackForUserMode(Task, StackTop, UserESP)    \
-    (StackTop) -= 5;                                      \
-    ((U32*)StackTop)[4] = Task->Context.Registers.SS;     \
-    ((U32*)StackTop)[3] = UserESP;                        \
-    ((U32*)StackTop)[2] = Task->Context.Registers.EFlags; \
-    ((U32*)StackTop)[1] = Task->Context.Registers.CS;     \
-    ((U32*)StackTop)[0] = Task->Context.Registers.EIP;
-
-/************************************************************************/
-
-#define SwitchToNextTask_2(prev, next)                                                                 \
-    do {                                                                                               \
-        __asm__ __volatile__(                                                                          \
-            "pusha\n\t"                                                                                \
-            "movl %%esp,%0\n\t"                                                                        \
-            "movl %2,%%esp\n\t"                                                                        \
-            "movl $1f,%1\n\t"                                                                          \
-            "pushl %5\n\t"                                                                             \
-            "pushl %4\n\t"                                                                             \
-            "call SwitchToNextTask_3\n"                                                                \
-            "1:\t"                                                                                     \
-            "add $8, %%esp\n\t"                                                                        \
-            "popa\n\t"                                                                                 \
-            : "=m"(prev->Context.Registers.ESP), "=m"(prev->Context.Registers.EIP)                     \
-            : "m"(next->Context.Registers.ESP), "m"(next->Context.Registers.EIP), "r"(prev), "r"(next) \
-            : "memory");                                                                               \
-    } while (0)
-
-/************************************************************************/
-
-#define JumpToReadyTask(Task, StackPointer)                                                         \
-    __asm__ __volatile__(                                                                           \
-        "finit\n\t"                                                                                 \
-        "mov %0, %%eax\n\t"                                                                         \
-        "mov %1, %%ebx\n\t"                                                                         \
-        "mov %2, %%esp\n\t"                                                                         \
-        "iret"                                                                                      \
-        :                                                                                           \
-        : "m"((Task)->Context.Registers.EAX), "m"((Task)->Context.Registers.EBX), "m"(StackPointer) \
-        : "eax", "ebx", "memory");
-
-/***************************************************************************/
 
 #endif

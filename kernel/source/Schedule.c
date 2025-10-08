@@ -40,8 +40,8 @@
 typedef struct tag_TASKLIST {
     volatile U32 Freeze;
     volatile U32 SchedulerTime;
-    volatile U32 NumTasks;
-    volatile U32 CurrentIndex;  // Index of current task instead of pointer
+    volatile UINT NumTasks;
+    volatile UINT CurrentIndex;  // Index of current task instead of pointer
     LPTASK Tasks[NUM_TASKS];
 } TASKLIST, *LPTASKLIST;
 
@@ -60,7 +60,7 @@ static TASKLIST TaskList = {.Freeze = 0, .SchedulerTime = 0, .NumTasks = 0, .Cur
 static void WakeUpExpiredTasks(void) {
     U32 CurrentTime = GetSystemTime();
 
-    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+    for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
 
         if (GetTaskStatus(Task) == TASK_STATUS_SLEEPING && CurrentTime >= Task->WakeUpTime) {
@@ -81,8 +81,8 @@ static void WakeUpExpiredTasks(void) {
  * @param ExceptTask Task pointer we're switching to (don't remove it)
  * @return New index of ExceptTask after removals
  */
-static U32 RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
-    U32 NewExceptIndex = INFINITY;
+static UINT RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
+    UINT NewExceptIndex = INFINITY;
 
     // Search backwards to handle array compaction safely
     for (I32 Index = (I32)(TaskList.NumTasks - 1); Index >= 0; Index--) {
@@ -95,7 +95,7 @@ static U32 RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
 #endif
 
             // Shift remaining tasks down
-            for (U32 ShiftIndex = (U32)Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
+            for (UINT ShiftIndex = (UINT)Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
                 TaskList.Tasks[ShiftIndex] = TaskList.Tasks[ShiftIndex + 1];
             }
 
@@ -105,9 +105,9 @@ static U32 RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
     }
 
     // Find new index of ExceptTask
-    for (U32 i = 0; i < TaskList.NumTasks; i++) {
-        if (TaskList.Tasks[i] == ExceptTask) {
-            NewExceptIndex = i;
+    for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
+        if (TaskList.Tasks[Index] == ExceptTask) {
+            NewExceptIndex = Index;
             break;
         }
     }
@@ -124,10 +124,10 @@ static U32 RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
  *
  * @return Number of runnable tasks
  */
-static U32 CountRunnableTasks(void) {
-    U32 RunnableCount = 0;
+static UINT CountRunnableTasks(void) {
+    UINT RunnableCount = 0;
 
-    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+    for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
 
         U32 Status = GetTaskStatus(Task);
@@ -150,9 +150,9 @@ static U32 CountRunnableTasks(void) {
  * @param StartIndex Index to start searching from
  * @return Index of next runnable task, or INFINITY if none found
  */
-U32 FindNextRunnableTask(U32 StartIndex) {
-    for (U32 Attempts = 0; Attempts < TaskList.NumTasks; Attempts++) {
-        U32 Index = (StartIndex + Attempts) % TaskList.NumTasks;
+UINT FindNextRunnableTask(UINT StartIndex) {
+    for (UINT Attempts = 0; Attempts < TaskList.NumTasks; Attempts++) {
+        UINT Index = (StartIndex + Attempts) % TaskList.NumTasks;
         LPTASK Task = TaskList.Tasks[Index];
 
         // Skip dead tasks - they will be removed during context switch
@@ -198,7 +198,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
         }
 
         // Check if task already in task queue
-        for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+        for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
             if (TaskList.Tasks[Index] == NewTask) {
                 UnfreezeScheduler();
 
@@ -251,7 +251,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
 
     FreezeScheduler();
 
-    for (U32 Index = 0; Index < TaskList.NumTasks; Index++) {
+    for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         if (TaskList.Tasks[Index] == OldTask) {
             // If removing current task, adjust current index
             if (Index == TaskList.CurrentIndex) {
@@ -270,7 +270,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
             }
 
             // Shift remaining tasks
-            for (U32 ShiftIndex = Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
+            for (UINT ShiftIndex = Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
                 TaskList.Tasks[ShiftIndex] = TaskList.Tasks[ShiftIndex + 1];
             }
 
@@ -390,7 +390,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
     // Set up system stack for new task
-    U32 NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
+    LINEAR NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
 
     Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
     Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
@@ -487,7 +487,7 @@ void Scheduler(void) {
     WakeUpExpiredTasks();
 
     // Update sleeping tasks status
-    U32 RunnableCount = CountRunnableTasks();
+    UINT RunnableCount = CountRunnableTasks();
 
     // No runnable tasks - system idle
     if (RunnableCount == 0) {
@@ -508,7 +508,7 @@ void Scheduler(void) {
     }
 
     // Time to switch - find next runnable task
-    U32 NextIndex = FindNextRunnableTask((TaskList.CurrentIndex + 1) % TaskList.NumTasks);
+    UINT NextIndex = FindNextRunnableTask((TaskList.CurrentIndex + 1) % TaskList.NumTasks);
 
     if (TaskList.CurrentIndex != NextIndex) {
         // Get task pointers BEFORE any queue manipulation
@@ -517,7 +517,7 @@ void Scheduler(void) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
         KernelLogText(
-            LOG_DEBUG, TEXT("[Scheduler] Switch between task index %d (%s @ %s) and %d (%s @ %s)"),
+            LOG_DEBUG, TEXT("[Scheduler] Switch between task index %u (%s @ %s) and %u (%s @ %s)"),
             TaskList.CurrentIndex, CurrentTask ? CurrentTask->Name : TEXT("NULL"),
             CurrentTask ? CurrentTask->Process->FileName : TEXT("NULL"), NextIndex, NextTask->Name,
             NextTask->Process->FileName);
@@ -629,7 +629,7 @@ static U32 GetObjectExitCode(LPVOID Object) {
 /************************************************************************/
 
 U32 Wait(LPWAITINFO WaitInfo) {
-    U32 Index;
+    UINT Index;
     U32 StartTime;
     LPTASK CurrentTask;
 
@@ -646,7 +646,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
     U32 LastDebugTime = StartTime;
 
     FOREVER {
-        U32 SignaledCount = 0;
+        UINT SignaledCount = 0;
 
         // Count signaled objects
         for (Index = 0; Index < WaitInfo->Count; Index++) {

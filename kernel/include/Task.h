@@ -62,9 +62,9 @@ struct tag_TASK {
     U32 Flags;                // Task creation flags
     INTERRUPT_FRAME Context;   // Saved context for software switching
     LINEAR StackBase;         // This task's stack in the heap
-    U32 StackSize;            // This task's stack size
+    UINT StackSize;           // This task's stack size
     LINEAR SysStackBase;
-    U32 SysStackSize;
+    UINT SysStackSize;
     U32 WakeUpTime;           // System time at which to wake up the task
     MUTEX MessageMutex;       // Mutex to access message queue
     LPLIST Message;           // This task's message queue

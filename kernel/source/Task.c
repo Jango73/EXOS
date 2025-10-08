@@ -221,7 +221,7 @@ void DeleteTask(LPTASK This) {
             LockMutex(MUTEX_PROCESS, INFINITY);
             This->Process->TaskCount--;
 
-            DEBUG(TEXT("[DeleteTask] Process %s TaskCount decremented to %d"), This->Process->FileName,
+            DEBUG(TEXT("[DeleteTask] Process %s TaskCount decremented to %u"), This->Process->FileName,
                 This->Process->TaskCount);
 
             if (This->Process->TaskCount == 0) {
@@ -395,7 +395,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     SAFE_USE(Process) {
         LockMutex(MUTEX_PROCESS, INFINITY);
         Process->TaskCount++;
-        DEBUG(TEXT("[CreateTask] Process %s TaskCount incremented to %d"), Process->FileName,
+        DEBUG(TEXT("[CreateTask] Process %s TaskCount incremented to %u"), Process->FileName,
             Process->TaskCount);
         UnlockMutex(MUTEX_PROCESS);
     }
@@ -515,7 +515,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
         LINEAR BootStackTop = KernelStartup.StackTop;
         LINEAR ESP = GetESP();
-        U32 StackUsed = (BootStackTop - ESP) + 256;
+        UINT StackUsed = (BootStackTop - ESP) + 256;
 
         DEBUG(TEXT("[CreateTask] BootStackTop = %X"), BootStackTop);
         DEBUG(TEXT("[CreateTask] StackTop = %X"), StackTop);

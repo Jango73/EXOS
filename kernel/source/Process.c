@@ -197,7 +197,7 @@ void DeleteProcessCommit(LPPROCESS This) {
             return;
         }
 
-        DEBUG(TEXT("[DeleteProcessCommit] Deleting process %s (TaskCount=%d)"), This->FileName, This->TaskCount);
+        DEBUG(TEXT("[DeleteProcessCommit] Deleting process %s (TaskCount=%u)"), This->FileName, This->TaskCount);
 
         // Free page directory if allocated
         // TODO : FREE ALL PD PAGES
@@ -259,15 +259,15 @@ void KillProcess(LPPROCESS This) {
             while (Current != NULL) {
                 SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
                     // Check if this process has a parent in our check list
-                    for (U32 i = 0; i < ListGetSize(ProcessesToCheck); i++) {
-                        LPPROCESS ParentToCheck = (LPPROCESS)ListGetItem(ProcessesToCheck, i);
+                    for (UINT i = 0; i < ListGetSize(ProcessesToCheck); i++) {
+                        LPPROCESS ParentToCheck = (LPPROCESS)ListGetItem(ProcessesToCheck, (U32)i);
 
                         if (Current->OwnerProcess == ParentToCheck && Current != This) {
                             // Check if this child is not already in the list
                             BOOL AlreadyInList = FALSE;
 
-                            for (U32 j = 0; j < ListGetSize(ChildProcesses); j++) {
-                                if (ListGetItem(ChildProcesses, j) == Current) {
+                            for (UINT j = 0; j < ListGetSize(ChildProcesses); j++) {
+                                if (ListGetItem(ChildProcesses, (U32)j) == Current) {
                                     AlreadyInList = TRUE;
                                     break;
                                 }
@@ -290,14 +290,14 @@ void KillProcess(LPPROCESS This) {
         DeleteList(ProcessesToCheck);
 
         // Process child processes according to parent's policy
-        U32 ChildCount = ListGetSize(ChildProcesses);
-        DEBUG(TEXT("[KillProcess] Processing %d child processes"), ChildCount);
+        UINT ChildCount = ListGetSize(ChildProcesses);
+        DEBUG(TEXT("[KillProcess] Processing %u child processes"), ChildCount);
 
         if (This->Flags & PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH) {
             DEBUG(TEXT("[KillProcess] Policy: KILL_CHILDREN_ON_DEATH - killing all children"));
 
-            for (U32 i = 0; i < ChildCount; i++) {
-                LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, i);
+            for (UINT i = 0; i < ChildCount; i++) {
+                LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, (U32)i);
                 SAFE_USE_VALID_ID(ChildProcess, KOID_PROCESS) {
                     DEBUG(TEXT("[KillProcess] Killing tasks of child process %s"), ChildProcess->FileName);
 
@@ -321,8 +321,8 @@ void KillProcess(LPPROCESS This) {
         } else {
             DEBUG(TEXT("[KillProcess] Policy: ORPHAN_CHILDREN - detaching children from parent"));
 
-            for (U32 i = 0; i < ChildCount; i++) {
-                LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, i);
+            for (UINT i = 0; i < ChildCount; i++) {
+                LPPROCESS ChildProcess = (LPPROCESS)ListGetItem(ChildProcesses, (U32)i);
                 SAFE_USE_VALID_ID(ChildProcess, KOID_PROCESS) {
                     // Detach child from parent (make it orphan)
                     ChildProcess->OwnerProcess = NULL;
@@ -383,12 +383,12 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     LINEAR CodeBase = NULL;
     LINEAR DataBase = NULL;
     LINEAR HeapBase = NULL;
-    U32 FileSize = 0;
-    U32 CodeSize = 0;
-    U32 DataSize = 0;
+    UINT FileSize = 0;
+    UINT CodeSize = 0;
+    UINT DataSize = 0;
     UINT HeapSize = 0;
-    U32 StackSize = 0;
-    U32 TotalSize = 0;
+    UINT StackSize = 0;
+    UINT TotalSize = 0;
     BOOL Result = FALSE;
 
     DEBUG(TEXT("[CreateProcess] Enter"));
@@ -451,7 +451,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         return FALSE;
     }
 
-    DEBUG(TEXT("[CreateProcess] : File size %d"), FileSize);
+    DEBUG(TEXT("[CreateProcess] : File size %u"), FileSize);
 
     //-------------------------------------
     // Get executable information
@@ -695,7 +695,7 @@ U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
 
     PROCESSINFO ProcessInfo;
     WAITINFO WaitInfo;
-    U32 Result;
+    UINT Result;
     LPPROCESS ParentProcess = NULL;
 
     MemorySet(&ProcessInfo, 0, sizeof(PROCESSINFO));
@@ -737,11 +737,11 @@ U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
         DEBUG(TEXT("[Spawn] Process wait timed out"));
         return MAX_U32;
     } else if (Result != WAIT_OBJECT_0) {
-        DEBUG(TEXT("[Spawn] Process wait failed: %d"), Result);
+        DEBUG(TEXT("[Spawn] Process wait failed: %u"), Result);
         return MAX_U32;
     }
 
-    DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %d"), WaitInfo.ExitCodes[0]);
+    DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %u"), WaitInfo.ExitCodes[0]);
     return WaitInfo.ExitCodes[0];
 }
 
