@@ -25,7 +25,7 @@
 ;-------------------------------------------------------------------------
 ; Useful constants
 
-%ifndef KERNEL_ARCH_MAX_UINT
+%ifnexists KERNEL_ARCH_MAX_UINT
     %error "KERNEL_ARCH_MAX_UINT must be defined by the architecture include"
 %endif
 
