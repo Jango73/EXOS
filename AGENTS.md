@@ -3,7 +3,7 @@
 This file provides guidance to agents when working with code in this repository.
 
 ## Project Overview
-EXOS is a 32-bit operating system for i386 architecture.
+EXOS is a multi-architecture operating system. Currently supporting i386 and x86-64.
 
 **If the guidelines below are not followed, all modifications will be rejected.**
 
