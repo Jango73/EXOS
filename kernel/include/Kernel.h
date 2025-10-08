@@ -169,18 +169,6 @@ LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
 
-/***************************************************************************/
-// Functions in Segment.c
-
-void InitSegmentDescriptor(struct tag_SEGMENT_DESCRIPTOR*, U32);
-void InitGlobalDescriptorTable(struct tag_SEGMENT_DESCRIPTOR* Table);
-void InitializeTaskSegments(void);
-void SetSegmentDescriptorBase(struct tag_SEGMENT_DESCRIPTOR* Desc, U32 Base);
-void SetSegmentDescriptorLimit(struct tag_SEGMENT_DESCRIPTOR* Desc, U32 Limit);
-void SetTSSDescriptorBase(struct tag_TSS_DESCRIPTOR* Desc, U32 Base);
-void SetTSSDescriptorLimit(struct tag_TSS_DESCRIPTOR* Desc, U32 Limit);
-
-/***************************************************************************/
 // Functions in MemoryEditor.c
 
 void PrintMemory(U32, U32);

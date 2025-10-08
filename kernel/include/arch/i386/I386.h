@@ -888,6 +888,16 @@ typedef struct tag_SEGMENT_INFO {
 
 /************************************************************************/
 
+void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type);
+void InitGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);
+void InitializeTaskSegments(void);
+void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR Desc, U32 Base);
+void SetSegmentDescriptorLimit(LPSEGMENT_DESCRIPTOR Desc, U32 Limit);
+void SetTSSDescriptorBase(LPTSS_DESCRIPTOR Desc, U32 Base);
+void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR Desc, U32 Limit);
+
+/************************************************************************/
+
 BOOL GetSegmentInfo(LPSEGMENT_DESCRIPTOR This, LPSEGMENT_INFO Info);
 BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text);
 
