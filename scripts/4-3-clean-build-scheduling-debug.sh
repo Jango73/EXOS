@@ -1,7 +1,8 @@
 #!/bin/bash
-export KERNEL_FILE="EXOS    BIN"
 export DEBUG_OUTPUT=1
 export SCHEDULING_DEBUG_OUTPUT=1
 export TRACE_STACK_USAGE=1
+export KERNEL_FILE="exos.bin"
+export FILE_SYSTEM=ext2
 make clean
 make -j$(nproc)

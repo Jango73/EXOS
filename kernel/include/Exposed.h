@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,49 +17,30 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Generic Temporary Cache with TTL
+    Shell Script Host Exposure Helpers
 
 \************************************************************************/
 
-#ifndef CACHE_H_INCLUDED
-#define CACHE_H_INCLUDED
+#pragma once
+
+#include "Script.h"
 
 /************************************************************************/
 
-#include "Base.h"
-#include "List.h"
-#include "Mutex.h"
+SCRIPT_ERROR ProcessGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR ProcessArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR ProcessDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR ProcessArrayDescriptor;
 
 /************************************************************************/
 
-#define CACHE_DEFAULT_CAPACITY 256
-
-/************************************************************************/
-
-typedef struct {
-    LPVOID Data;
-    U32 ExpirationTime;
-    U32 TTL;
-    U32 Score;
-    BOOL Valid;
-} CACHE_ENTRY, *LPCACHE_ENTRY;
-
-typedef struct {
-    LPCACHE_ENTRY Entries;
-    U32 Capacity;
-    U32 Count;
-    MUTEX Mutex;
-} CACHE, *LPCACHE;
-
-/************************************************************************/
-
-void CacheInit(LPCACHE Cache, U32 Capacity);
-void CacheDeinit(LPCACHE Cache);
-BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS);
-LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context);
-void CacheCleanup(LPCACHE Cache, U32 CurrentTime);
-LPCACHE_ENTRY CacheFindLowestScoreEntry(LPCACHE Cache);
-
-/************************************************************************/
-
-#endif  // CACHE_H_INCLUDED

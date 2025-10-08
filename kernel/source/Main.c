@@ -53,7 +53,6 @@ void KernelMain(void) {
     U32 MultibootInfoPhys;
 
     // No more interrupts
-
     DisableInterrupts();
 
     // Retrieve Multiboot parameters from registers
@@ -69,20 +68,18 @@ void KernelMain(void) {
     // Map the multiboot info structure to access it
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)MultibootInfoPhys;
 
-    // Store the multiboot info pointer in kernel startup
-    KernelStartup.MultibootInfo = MultibootInfo;
-
     // Extract information from Multiboot structure
     // Get kernel address from first module
     if (MultibootInfo->flags & MULTIBOOT_INFO_MODS && MultibootInfo->mods_count > 0) {
         multiboot_module_t* FirstModule = (multiboot_module_t*)MultibootInfo->mods_addr;
         KernelStartup.StubAddress = FirstModule->mod_start;
+        // Get the command line
+        StringCopy(KernelStartup.CommandLine, FirstModule->cmdline);
     } else {
         // Fallback - should not happen with our bootloader
         KernelStartup.StubAddress = 0;
+        StringClear(KernelStartup.CommandLine);
     }
-
-    // Console cursor position now handled directly in InitializeConsole
 
     // Process memory map if available
     if (MultibootInfo->flags & MULTIBOOT_INFO_MEM_MAP) {

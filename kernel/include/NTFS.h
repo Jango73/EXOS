@@ -21,6 +21,7 @@
     NTFS
 
 \************************************************************************/
+
 #ifndef NTFS_H_INCLUDED
 #define NTFS_H_INCLUDED
 
@@ -34,7 +35,6 @@
 #pragma pack(push, 1)
 
 /***************************************************************************/
-
 // The NTFS Master Boot Record
 // Code begins at 0x005D
 
@@ -93,7 +93,6 @@ typedef struct tag_NTFS_FILERECORD {
 } NTFS_FILERECORD, *LPNTFS_FILERECORD;
 
 /***************************************************************************/
-
 // $VOLUME_NAME
 
 typedef struct tag_NTFS_VOLUMENAME {
@@ -101,7 +100,6 @@ typedef struct tag_NTFS_VOLUMENAME {
 } NTFS_VOLUMENAME, *LPNTFS_VOLUMENAME;
 
 /***************************************************************************/
-
 // $VOLUME_INFORMATION
 
 typedef struct tag_NTFS_VOLUMEINFO {
@@ -112,7 +110,6 @@ typedef struct tag_NTFS_VOLUMEINFO {
 } NTFS_VOLUMEINFO, *LPNTFS_VOLUMEINFO;
 
 /***************************************************************************/
-
 // $AttrDef
 
 typedef struct tag_NTFS_ATTRDEF {
@@ -124,7 +121,6 @@ typedef struct tag_NTFS_ATTRDEF {
 } NTFS_ATTRDEF, *LPNTFS_ATTRDEF;
 
 /***************************************************************************/
-
 // $STANDARD_INFORMATION
 // Time is nanoseconds since Jan 1, 1601
 

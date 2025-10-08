@@ -24,7 +24,8 @@
 # Project
 temp
 build
-kernel/configuration/exos.toml
+kernel/configuration/exos.ext2.toml
+kernel/configuration/exos.fat32.toml
 documentation/internal/kernel
 log/*
 

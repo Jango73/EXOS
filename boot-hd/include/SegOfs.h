@@ -28,6 +28,34 @@
 #include "arch/i386/I386.h"
 
 /************************************************************************/
+// Common low-memory layout used by the VBR payload
+
+#ifndef PAYLOAD_OFFSET
+#error "PAYLOAD_OFFSET is not defined"
+#endif
+
+#define ORIGIN PAYLOAD_OFFSET
+#define STACK_SIZE 0x1000
+#define USABLE_RAM_START 0x1000
+#define USABLE_RAM_END (ORIGIN - STACK_SIZE)
+#define USABLE_RAM_SIZE (USABLE_RAM_END - USABLE_RAM_START)
+
+#define SECTORSIZE 512
+
+#define LOADADDRESS_SEG 0x2000
+#define LOADADDRESS_OFS 0x0000
+
+/************************************************************************/
+// Shared helpers exposed by the common payload code
+
+extern STR TempString[128];
+
+void BootDebugPrint(LPCSTR Str);
+void BootVerbosePrint(LPCSTR Str);
+void BootErrorPrint(LPCSTR Str);
+const char* BootGetFileName(const char* Path);
+
+/************************************************************************/
 // Functions in vbr-payload-a.asm
 
 extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);

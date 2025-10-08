@@ -27,7 +27,11 @@
 ; EAX : Partition Start LBA
 
 BITS 16
-ORIGIN equ 0x8000
+%ifndef PAYLOAD_OFFSET
+%error "PAYLOAD_OFFSET is not defined"
+%endif
+
+ORIGIN equ PAYLOAD_OFFSET
 KERNEL_LOAD_ADDRESS      equ 0x00020000
 
 %macro DebugPrint 1
@@ -87,7 +91,7 @@ Start:
     mov         ss, ax
 
     ; Setup a 32-bit stack
-    ; Just below 0x8000, don't care about this data
+    ; Just below PAYLOAD_OFFSET, do not care about this data
     ; We won't be returning to MBR and VBR
     mov         sp, ORIGIN
     xor         eax, eax

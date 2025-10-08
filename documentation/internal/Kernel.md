@@ -45,6 +45,17 @@ and SATA), graphics (VGA, VESA, and mode tables), and file system backends
 from the build system and clarifies the separation between reusable utilities
 and hardware support code.
 
+### Shell scripting integration
+
+The interactive shell keeps a persistent script interpreter context to run
+automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol`
+so scripts can inspect kernel state without bypassing the interpreter API. The
+shell now publishes the kernel process list under the global identifier
+`process`. Scripts can iterate over the list (`process[0]`, `process[1]`, ...)
+and query per-process properties such as `Status`, `Flags`, `ExitCode`,
+`FileName`, `CommandLine`, and `WorkFolder`, enabling diagnostics like
+`process[0].CommandLine` directly from the scripting language.
+
 ### ACPI services
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
@@ -437,6 +448,12 @@ exos-runtime-c.c : malloc() (or any other function)
 
 EXOS implements a lifecycle management system for both processes and tasks that ensures consistent cleanup and prevents resource leaks.
 
+### Process Heap Management
+
+- Every `PROCESS` keeps track of its `MaximumAllocatedMemory`, which is initialized to `N_HalfMemory` for both the kernel and user processes.
+- When a heap allocation exhausts the committed region, the kernel automatically attempts to double the heap size without exceeding the process limit by calling `ResizeRegion`.
+- If the resize operation cannot be completed, the allocator logs an error and the allocation fails gracefully.
+
 ### Status States
 
 **Task Status (Task.Status):**
@@ -455,7 +472,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 ### Process Creation Flags
 
 **Process Creation Flags (Process.Flags):**
-- `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` (0x00000001): When the process terminates, all child processes are also killed. If this flag is not set, child processes are orphaned (their Parent field is set to NULL).
+- `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` (0x00000001): When the process terminates, all child processes are also killed. If this flag is not set, child processes are orphaned (their Parent field is set to NULL).
 
 ### Lifecycle Flow
 
@@ -468,13 +485,13 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - When `DeleteTask()` processes a dead task:
   - Decrements `Process.TaskCount`
   - If `TaskCount` reaches 0:
-    - Applies child process policy based on `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` flag
+    - Applies child process policy based on `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` flag
     - Marks the process as `PROCESS_STATUS_DEAD`
   - The process remains in the process list for later cleanup
 
 **3. Process Termination via KillProcess:**
 - `KillProcess()` can be called to terminate a process and handle its children:
-  - Checks the `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` flag
+  - Checks the `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` flag
   - If flag is set: Finds all child processes recursively and kills them
   - If flag is not set: Orphans children by setting their `Parent` field to NULL
   - Calls `KillTask()` on all tasks of the target process
@@ -498,7 +515,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - This prevents race conditions and ensures consistent state
 
 **Hierarchical Process Management:**
-- Child process handling depends on parent's `PROCESS_CREATE_KILL_CHILDREN_ON_DEATH` flag
+- Child process handling depends on parent's `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` flag
 - If flag is set: Child processes are automatically killed when parent dies
 - If flag is not set: Child processes are orphaned (Parent set to NULL)
 - The `Parent` field creates a process tree structure

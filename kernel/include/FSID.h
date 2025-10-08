@@ -67,7 +67,12 @@
 #define FSID_OLD_MINIX 0x80    // Old Minix
 #define FSID_LINUXMINIX 0x81   // Linux / Minix
 #define FSID_LINUXSWAP 0x82    // Linux Swap
-#define FSID_LINUXNATIVE 0x83  // Linux Native
+#define FSID_LINUXNATIVE 0x83   // Linux Native
+#define FSID_LINUX_EXT2 0x83    // Linux EXT2
+#define FSID_LINUX_EXT3 0x83    // Linux EXT3
+#define FSID_LINUX_EXT4 0x83    // Linux EXT4
+#define FSID_LINUX_EXTENDED 0x85  // Linux Extended
+#define FSID_LINUX_LVM 0x8E     // Linux LVM
 #define FSID_AMOEBA 0x93       // Amoeba
 #define FSID_MACOS_X 0xA8      // Mac-OS X
 #define FSID_NETBSD 0xA9       // NetBSD

@@ -113,6 +113,7 @@ typedef struct tag_DISKACCESS {
 #define MAX_DISK 4
 #define TIMEOUT 10000
 #define NUM_BUFFERS 32
+#define DISK_CACHE_TTL_MS (5 * 60 * 1000)
 
 /***************************************************************************/
 // Disk sector buffer
@@ -120,7 +121,6 @@ typedef struct tag_DISKACCESS {
 typedef struct tag_SECTORBUFFER {
     U32 SectorLow;
     U32 SectorHigh;
-    U32 Score;
     U32 Dirty;
     U8 Data[SECTOR_SIZE];
 } SECTORBUFFER, *LPSECTORBUFFER;
@@ -137,8 +137,6 @@ typedef struct tag_BLOCKPARAMS {
 // Function prototypes
 
 void SectorToBlockParams(LPDISKGEOMETRY Geometry, U32 Sector, LPBLOCKPARAMS Block);
-U32 FindSectorInBuffers(LPSECTORBUFFER Buffer, U32 NumBuffers, U32 SectorLow, U32 SectorHigh);
-U32 GetEmptyBuffer(LPSECTORBUFFER Buffer, U32 NumBuffers);
 
 /***************************************************************************/
 

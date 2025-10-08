@@ -47,11 +47,12 @@ PROCESS SECTION(".data") KernelProcess = {
     .Desktop = NULL,                // Desktop
     .Privilege = PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
-    .Flags = PROCESS_CREATE_KILL_CHILDREN_ON_DEATH, // Flags
+    .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .PageDirectory = 0,             // Page directory
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
-    .FileName = "EXOS",             // File name
+    .MaximumAllocatedMemory = N_HalfMemory, // Maximum heap allocation limit
+    .FileName = "",                 // File name
     .CommandLine = "",              // Command line
     .WorkFolder = ROOT,             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
@@ -73,6 +74,7 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("[InitializeKernelProcess] Enter"));
 
     KernelProcess.PageDirectory = GetPageDirectory();
+    KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
     KernelProcess.HeapSize = N_1MB;
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %x"), KernelStartup.MemorySize);
@@ -88,8 +90,10 @@ void InitializeKernelProcess(void) {
     }
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
+    HeapInit(&KernelProcess, KernelProcess.HeapBase, KernelProcess.HeapSize);
 
-    HeapInit(KernelProcess.HeapBase, KernelProcess.HeapSize);
+    StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
+    StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
 
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
@@ -150,6 +154,7 @@ LPPROCESS NewProcess(void) {
     This->Privilege = PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
+    This->MaximumAllocatedMemory = N_HalfMemory;
     This->TaskCount = 0;
     This->Session = NULL;
 
@@ -288,7 +293,7 @@ void KillProcess(LPPROCESS This) {
         U32 ChildCount = ListGetSize(ChildProcesses);
         DEBUG(TEXT("[KillProcess] Processing %d child processes"), ChildCount);
 
-        if (This->Flags & PROCESS_CREATE_KILL_CHILDREN_ON_DEATH) {
+        if (This->Flags & PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH) {
             DEBUG(TEXT("[KillProcess] Policy: KILL_CHILDREN_ON_DEATH - killing all children"));
 
             for (U32 i = 0; i < ChildCount; i++) {
@@ -381,7 +386,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     U32 FileSize = 0;
     U32 CodeSize = 0;
     U32 DataSize = 0;
-    U32 HeapSize = 0;
+    UINT HeapSize = 0;
     U32 StackSize = 0;
     U32 TotalSize = 0;
     BOOL Result = FALSE;
@@ -618,7 +623,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     Process->HeapBase = HeapBase;
     Process->HeapSize = HeapSize;
 
-    HeapInit(Process->HeapBase, Process->HeapSize);
+    HeapInit(Process, Process->HeapBase, Process->HeapSize);
 
     // HeapDump(KernelProcess.HeapBase, KernelProcess.HeapSize);
     // HeapDump(Process->HeapBase, Process->HeapSize);

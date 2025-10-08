@@ -30,8 +30,34 @@ extern "C" {
 #endif
 
 /***************************************************************************/
+// Define __EXOS__
 
 #define __EXOS__
+
+/***************************************************************************/
+// Check __SIZEOF_POINTER__ definition
+
+#ifndef __SIZEOF_POINTER__
+    #if defined(_MSC_VER)
+        #if defined(_WIN64)
+            #define __SIZEOF_POINTER__ 8
+        #else
+            #define __SIZEOF_POINTER__ 4
+        #endif
+    #elif defined(__GNUC__) || defined(__clang__)
+        // GCC and Clang already define this, but we keep a fallback
+        #if defined(__x86_64__) || defined(__aarch64__) || defined(__ppc64__)
+            #define __SIZEOF_POINTER__ 8
+        #else
+            #define __SIZEOF_POINTER__ 4
+        #endif
+    #else
+        #error "Cannot determine pointer size for this compiler."
+    #endif
+#endif
+
+/***************************************************************************/
+// Define __EXOS__ bit size
 
 #if __SIZEOF_POINTER__ == 8
     #define __EXOS_64__
@@ -58,30 +84,28 @@ extern "C" {
 /***************************************************************************/
 // Basic types
 
-typedef unsigned char U8;
-typedef signed char I8;
-typedef unsigned short U16;
-typedef signed short I16;
-typedef unsigned long U32;
-typedef signed long I32;
-typedef unsigned int UINT;
-typedef signed int INT;
-
-typedef float F32;
-typedef double F64;
-
-typedef U32 SIZE;
-
-typedef U32 LINEAR;        // A linear address, paged or not
-typedef U32 PHYSICAL;      // A physical address
-typedef U8* LPPAGEBITMAP;  // A pointer to a page allocation bitmap
-
-/***************************************************************************/
-
-#define MAX_U8 ((U8)0xFF)
-#define MAX_U16 ((U16)0xFFFF)
-#define MAX_U32 ((U32)0xFFFFFFFF)
-// #define MAX_U64 0xFFFFFFFFFFFFFFFF
+#if defined(_MSC_VER)
+    typedef unsigned __int8 U8;     // Unsigned byte
+    typedef signed __int8 I8;       // Signed byte
+    typedef unsigned __int16 U16;   // Unsigned short
+    typedef signed __int16 I16;     // Signed short
+    typedef unsigned __int32 U32;   // Unsigned long
+    typedef signed __int32 I32;     // Signed long
+    typedef unsigned int UINT;      // Unsigned register-sized integer
+    typedef signed int INT;         // Signed register-sized integer
+#elif defined(__GNUC__) || defined(__clang__)
+    typedef unsigned char U8;       // Unsigned byte
+    typedef signed char I8;         // Signed byte
+    typedef unsigned short U16;     // Unsigned short
+    typedef signed short I16;       // Signed short
+    // Unix-land decided to inverse int and long logic ! What a good idea.
+    typedef unsigned int U32;       // Unsigned long
+    typedef signed int I32;         // Signed long
+    typedef unsigned long UINT;     // Unsigned register-sized integer
+    typedef signed long INT;        // Signed register-sized integer
+#else
+    #error "Unsupported compiler for Base.h"
+#endif
 
 /***************************************************************************/
 
@@ -93,28 +117,24 @@ typedef struct tag_U48 {
 /***************************************************************************/
 
 #ifdef __EXOS_32__
+    typedef struct tag_U64 {
+        U32 LO;
+        U32 HI;
+    } U64;
 
-typedef struct tag_U64 {
-    U32 LO;
-    U32 HI;
-} U64;
+    typedef struct tag_I64 {
+        U32 LO;
+        I32 HI;
+    } I64;
 
-typedef struct tag_I64 {
-    U32 LO;
-    I32 HI;
-} I64;
-
-#define U64_0 { .LO = 0, .HI = 0 }
-#define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
-
+    #define U64_0 { .LO = 0, .HI = 0 }
+    #define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
 #else
+    typedef unsigned long long  U64;
+    typedef signed long long    I64;
 
-typedef unsigned long long  U64;
-typedef signed long long    I64;
-
-#define U64_0 0
-#define U64_EQUAL(a, b) (a == b)
-
+    #define U64_0 0
+    #define U64_EQUAL(a, b) (a == b)
 #endif
 
 /***************************************************************************/
@@ -130,6 +150,27 @@ typedef struct tag_U128 {
     U64 LO;
     U64 HI;
 } U128;
+
+/***************************************************************************/
+
+#define MAX_U8 ((U8)0xFF)
+#define MAX_U16 ((U16)0xFFFF)
+#define MAX_U32 ((U32)0xFFFFFFFF)
+
+#ifdef __EXOS_64__
+    #define MAX_U64 0xFFFFFFFFFFFFFFFF
+#endif
+
+/***************************************************************************/
+
+typedef float F32;              // 32 bit float
+typedef double F64;             // 64 bit float
+
+typedef U32 SIZE;
+
+typedef UINT LINEAR;             // Linear virtual address, paged or not
+typedef UINT PHYSICAL;           // Physical address
+typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/
 
@@ -188,6 +229,7 @@ typedef U32 BOOL;
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
 #define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_3(a, b, c) if ((a) != NULL && (b) != NULL && (c) != NULL)
 #define SAFE_USE_ID(a, i) if ((a) != NULL && (a->TypeID == i))
 #define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->TypeID == i) && (b) != NULL && (b->TypeID == i))
 #define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
@@ -216,6 +258,7 @@ typedef U32 BOOL;
     } while (0)
 
 #define STRINGS_EQUAL(a,b) (StringCompare(a,b)==0)
+#define STRINGS_EQUAL_NO_CASE(a,b) (StringCompareNC(a,b)==0)
 
 /************************************************************************/
 // NULL values
@@ -238,32 +281,32 @@ typedef U32 BOOL;
 /***************************************************************************/
 // Some machine constants
 
-#define N_1B ((U32)0x00000001)
-#define N_2B ((U32)0x00000002)
-#define N_4B ((U32)0x00000004)
-#define N_8B ((U32)0x00000008)
-#define N_1KB ((U32)0x00000400)
-#define N_2KB ((U32)0x00000800)
-#define N_4KB ((U32)0x00001000)
-#define N_8KB ((U32)0x00002000)
-#define N_16KB ((U32)0x00004000)
-#define N_32KB ((U32)0x00008000)
-#define N_64KB ((U32)0x00010000)
-#define N_128KB ((U32)0x00020000)
-#define N_256KB ((U32)0x00040000)
-#define N_512KB ((U32)0x00080000)
-#define N_1MB ((U32)0x00100000)
-#define N_2MB ((U32)0x00200000)
-#define N_3MB ((U32)0x00300000)
-#define N_4MB ((U32)0x00400000)
-#define N_8MB ((U32)0x00800000)
-#define N_16MB ((U32)0x01000000)
-#define N_32MB ((U32)0x02000000)
-#define N_64MB ((U32)0x04000000)
-#define N_128MB ((U32)0x08000000)
-#define N_1GB ((U32)0x40000000)
-#define N_2GB ((U32)0x80000000)
-#define N_4GB ((U32)0xFFFFFFFF)
+#define N_1B ((UINT)0x00000001)
+#define N_2B ((UINT)0x00000002)
+#define N_4B ((UINT)0x00000004)
+#define N_8B ((UINT)0x00000008)
+#define N_1KB ((UINT)0x00000400)
+#define N_2KB ((UINT)0x00000800)
+#define N_4KB ((UINT)0x00001000)
+#define N_8KB ((UINT)0x00002000)
+#define N_16KB ((UINT)0x00004000)
+#define N_32KB ((UINT)0x00008000)
+#define N_64KB ((UINT)0x00010000)
+#define N_128KB ((UINT)0x00020000)
+#define N_256KB ((UINT)0x00040000)
+#define N_512KB ((UINT)0x00080000)
+#define N_1MB ((UINT)0x00100000)
+#define N_2MB ((UINT)0x00200000)
+#define N_3MB ((UINT)0x00300000)
+#define N_4MB ((UINT)0x00400000)
+#define N_8MB ((UINT)0x00800000)
+#define N_16MB ((UINT)0x01000000)
+#define N_32MB ((UINT)0x02000000)
+#define N_64MB ((UINT)0x04000000)
+#define N_128MB ((UINT)0x08000000)
+#define N_1GB ((UINT)0x40000000)
+#define N_2GB ((UINT)0x80000000)
+#define N_4GB ((UINT)0xFFFFFFFF)
 
 #define N_1KB_M1 (N_1KB - 1)
 #define N_4KB_M1 (N_4KB - 1)
@@ -271,6 +314,16 @@ typedef U32 BOOL;
 #define N_4MB_M1 (N_4MB - 1)
 #define N_1GB_M1 (N_1GB - 1)
 #define N_2GB_M1 (N_2GB - 1)
+
+#ifdef __EXOS_32__
+    #define N_HalfMemory (MAX_U32 / 2)
+    #define N_FullMemory (MAX_U32)
+#endif
+
+#ifdef __EXOS_64__
+    #define N_HalfMemory (MAX_U64 / 2)
+    #define N_FullMemory (MAX_U64)
+#endif
 
 /***************************************************************************/
 
@@ -417,11 +470,12 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define USTR_MINUS ((USTR)'-')
 
 /***************************************************************************/
-
 // Forward declaration to avoid circular dependencies
+
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
 /***************************************************************************/
+// A kernel object header
 
 #define OBJECT_FIELDS       \
     U32 TypeID;             \
@@ -433,7 +487,8 @@ typedef struct tag_OBJECT {
     OBJECT_FIELDS
 } OBJECT, *LPOBJECT;
 
-/***************************************************************************/
+/************************************************************************/
+// A datetime
 
 typedef struct tag_DATETIME {
     U32 Year : 22;
@@ -446,14 +501,14 @@ typedef struct tag_DATETIME {
     U32 Unused : 4;
 } DATETIME, *LPDATETIME;
 
-/***************************************************************************
- * Handles - They are a pointer in reality, but called handles so that they
- * are not used in userland, otherwise you get a nice page fault, at best.
- ***************************************************************************/
+/************************************************************************/
+// Handles - They are a pointer in reality, but called handles so that they
+// are not used in userland, otherwise you get a nice page fault, at best.
+// Will implement pointer masking soon.
 
 typedef U32 HANDLE;
 
-/***************************************************************************/
+/************************************************************************/
 // Maximum string lengths
 
 #define MAX_STRING_BUFFER 1024
@@ -466,14 +521,14 @@ typedef U32 HANDLE;
 #define MAX_PASSWORD 64
 #define LOOP_LIMIT 500
 
-/***************************************************************************/
+/************************************************************************/
 
 #define MAKE_VERSION(maj, min) ((U32)(((((U32)maj) & 0xFFFF) << 16) | (((U32)min) & 0xFFFF)))
 
 #define UNSIGNED(val) *((U32*)(&(val)))
 #define SIGNED(val) *((I32*)(&(val)))
 
-/***************************************************************************/
+/************************************************************************/
 // Color manipulations
 
 typedef U32 COLOR;

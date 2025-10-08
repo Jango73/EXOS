@@ -234,7 +234,7 @@ void DeleteTask(LPTASK This) {
                 SetProcessStatus(This->Process, PROCESS_STATUS_DEAD);
 
                 // Apply child process policy
-                if (This->Process->Flags & PROCESS_CREATE_KILL_CHILDREN_ON_DEATH) {
+                if (This->Process->Flags & PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH) {
                     DEBUG(TEXT("[DeleteTask] Process %s policy: killing all children"), This->Process->FileName);
 
                     // Find and kill all child processes

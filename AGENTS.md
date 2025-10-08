@@ -2,31 +2,31 @@
 
 This file provides guidance to agents when working with code in this repository.
 
+## Project Overview
+EXOS is a 32-bit operating system for i386 architecture.
+
 **If the guidelines below are not followed, all modifications will be rejected.**
 
 ## Communication Guidelines
-- NEVER use emojis in responses
+- NEVER use emojis in responses.
 - DON'T act like a human being with emotions, just be a machine.
 - DON'T says "Great!", "Perfect!", "You're right" all the time.
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
 
-## Project Overview
-EXOS is a 32-bit operating system for i386 architecture, originally developed in 1999. It features multitasking, virtual memory management, file systems (FAT/FAT32/EXFS), hardware drivers, and a basic shell interface.
-
 ## Coding Conventions
-- **Debugging**: Debug output is **ALWAYS** logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE()
+- **Debugging**: Debug output is **ALWAYS** logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done.
-- **I18n**: Write comments, console output and technical doc in english
-- **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines
-- **Comments**: For single-line comments, use `//`, not `/*`
-- **Style**: 4-space indentation, follow `.clang-format` rules
-- **Numbers**: Hexadecimal for constant numbers, except for graphic points/sizes and time
-- **Documentation**: Update `documentation/internal/Kernel.md` when adding/modifying kernel components
-- **Languages**: C for kernel, avoid Python (use Node.js/JS if needed)
-- **Libraries**: NO stdlib/stdio in kernel - custom implementations only
-- **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning
+- **I18n**: Write comments, console output and technical doc in english.
+- **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
+- **Comments**: For single-line comments, use `//`, not `/*`.
+- **Style**: 4-space indentation, follow `.clang-format` rules.
+- **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors and time.
+- **Documentation**: Update `documentation/internal/Kernel.md` when adding/modifying kernel components.
+- **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
+- **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
+- **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
 - **Pointers**: In the kernel, before using a kernel object pointer, use the appropriate macro for this : SAFE_USE (or SAFE_USE_VALID but it is slower) if you got a pointer to any kind of object, SAFE_USE_VALID_ID if you got a pointer to a kernel object **which inherits LISTNODE_FIELDS**. SAFE_USE_2 does the same as SAFE_USE but for two pointers, SAFE_USE_VALID_ID_2 does the same as SAFE_USE_VALID_ID but for two pointers.
-- **No direct access to physical memory**: Use the MapTempPhysicalPage and MapIOMemory/UnMapIOMemory functions to access physical memory pages
+- **No direct access to physical memory**: Use the MapTempPhysicalPage and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it.
 - **Functions**: Add a doxygen header to functions and separate all functions with a 75 character long line such as : /************************************************************************/
 
@@ -52,7 +52,7 @@ EXOS is a 32-bit operating system for i386 architecture, originally developed in
 ./scripts/5-2-debug-qemu-ioapic-sata-e1000.sh  # Launches QEMU with graphics and GDB
 ```
 
-**Don't wait more than 10 seconds when testing, the system boots in less than 2 seconds and auto-run executable should finish under 8 seconds**
+**Don't wait more than 15 seconds when testing, the system boots in less than 2 seconds and auto-run executable should finish under 15 seconds**
 
 ## Debug output
 

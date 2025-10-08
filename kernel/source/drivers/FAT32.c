@@ -26,6 +26,7 @@
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "String.h"
 
 /***************************************************************************/
 
@@ -1182,9 +1183,18 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
 
             if ((DirEntry->ClusterLow || DirEntry->ClusterHigh) && (DirEntry->Attributes & FAT_ATTR_VOLUME) == 0 &&
                 (DirEntry->Name[0] != 0xE5)) {
+                BOOL ExpectFolderMatch = (!IsLastComponent) || IsFolder;
+                BOOL NamesMatch;
+
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompare(Component, TEXT("*")) == 0 || STRINGS_EQUAL(Component, Name)) {
+                NamesMatch = (StringCompare(Component, TEXT("*")) == 0) || STRINGS_EQUAL(Component, Name);
+
+                if (!NamesMatch && ExpectFolderMatch && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {
+                    NamesMatch = (StringCompareNC(Component, Name) == 0);
+                }
+
+                if (NamesMatch) {
                     if (IsLastComponent) {
                         // Found existing item with same name
                         if (IsFolder && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {

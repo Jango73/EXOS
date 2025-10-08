@@ -22,10 +22,7 @@
 
 \************************************************************************/
 
-// I386 32 bits real mode
-// Minimal FAT32 loader to load a binary image from FAT32 root directory.
-// It won't load large files, you'll get critical errors if you try to.
-// It is meant for small kernels, up to 500KB in size.
+// I386 32 bits real mode payload entry point
 
 #include "../../kernel/include/arch/i386/I386.h"
 #include "../../kernel/include/SerialPort.h"
@@ -37,25 +34,9 @@
 
 __asm__(".code16gcc");
 
-#define ORIGIN 0x8000
-#define STACK_SIZE 0x1000
-#define USABLE_RAM_START 0x1000
-#define USABLE_RAM_END (ORIGIN - STACK_SIZE)
-#define USABLE_RAM_SIZE (USABLE_RAM_END - USABLE_RAM_START)
-
-#define SECTORSIZE 512
 #ifndef KERNEL_FILE
-#error "KERNEL_FILE must be defined (e.g., -DFILETOLOAD=\"EXOS    BIN\")"
+#error "KERNEL_FILE must be defined (e.g., -DKERNEL_FILE=\"exos.bin\")"
 #endif
-#define LOADADDRESS_SEG 0x2000
-#define LOADADDRESS_OFS 0x0000
-
-/************************************************************************/
-// FAT32 special values (masked to 28 bits)
-
-#define FAT32_MASK 0x0FFFFFFF
-#define FAT32_EOC_MIN 0x0FFFFFF8
-#define FAT32_BAD_CLUSTER 0x0FFFFFF7
 
 /************************************************************************/
 // I386 values
@@ -72,14 +53,33 @@ __asm__(".code16gcc");
 
 static void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
+BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut);
+BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut);
+
 /************************************************************************/
 
+static void InitDebug(void);
+static void OutputChar(U8 Char);
+static void WriteString(LPCSTR Str);
+static U8 ReadFarByte(U16 Seg, U16 Ofs);
+
+STR TempString[128];
+static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
+
+/************************************************************************/
+
+static void InitDebug(void) {
 #if DEBUG_OUTPUT == 2
-static void InitDebug(void) { SerialReset(0); }
-static void OutputChar(U8 Char) { SerialOut(0, Char); }
-#else
-static void InitDebug(void) {}
+    SerialReset(0);
+#endif
+}
+
+/************************************************************************/
+
 static void OutputChar(U8 Char) {
+#if DEBUG_OUTPUT == 2
+    SerialOut(0, Char);
+#else
     __asm__ __volatile__(
         "mov   $0x0E, %%ah\n\t"
         "mov   %0, %%al\n\t"
@@ -87,8 +87,10 @@ static void OutputChar(U8 Char) {
         :
         : "r"(Char)
         : "ah", "al");
-}
 #endif
+}
+
+/************************************************************************/
 
 static void WriteString(LPCSTR Str) {
     while (*Str) {
@@ -96,62 +98,116 @@ static void WriteString(LPCSTR Str) {
     }
 }
 
-#if DEBUG_OUTPUT == 1
-#define DebugPrint(Str) WriteString(Str)
-#else
-#define DebugPrint(Str) ((void)0)
-#endif
+/************************************************************************/
 
-#define ErrorPrint(Str) WriteString(Str)
+void BootDebugPrint(LPCSTR Str) {
+#if DEBUG_OUTPUT == 0
+    UNUSED(Str);
+#else
+    WriteString(Str);
+#endif
+}
 
 /************************************************************************/
 
-typedef struct __attribute__((packed)) tag_FAT32_BOOT_SECTOR {
-    U8 Jump[3];
-    U8 Oem[8];
-    U16 BytesPerSector;
-    U8 SectorsPerCluster;
-    U16 ReservedSectorCount;
-    U8 NumberOfFats;
-    U16 RootEntryCount_NA;
-    U16 TotalSectors16_NA;
-    U8 Media;
-    U16 SectorsPerFat16_NA;
-    U16 SectorsPerTrack;
-    U16 NumberOfHeads;
-    U32 HiddenSectors;
-    U32 NumSectors;
-    U32 NumSectorsPerFat;
-    U16 ExtFlags;
-    U16 FsVersion;
-    U32 RootCluster;
-    U16 InfoSector;
-    U16 BackupBootSector;
-    U8 Reserved1[12];
-    U8 LogicalDriveNumber;
-    U8 Reserved2;
-    U8 ExtendedSignature;
-    U32 SerialNumber;
-    U8 VolumeName[11];
-    U8 FatName[8];
-    U8 Code[420];
-    U16 BiosMark;
-} FAT32_BOOT_SECTOR;
+void BootVerbosePrint(LPCSTR Str) { WriteString(Str); }
 
-typedef struct __attribute__((packed)) tag_FAT_DIR_ENTRY {
-    U8 Name[11];
-    U8 Attributes;
-    U8 NtReserved;
-    U8 CreationTimeTenth;
-    U16 CreationTime;
-    U16 CreationDate;
-    U16 LastAccessDate;
-    U16 FirstClusterHigh;
-    U16 WriteTime;
-    U16 WriteDate;
-    U16 FirstClusterLow;
-    U32 FileSize;
-} FAT_DIR_ENTRY;
+/************************************************************************/
+
+void BootErrorPrint(LPCSTR Str) { WriteString(Str); }
+
+/************************************************************************/
+
+const char* BootGetFileName(const char* Path) {
+    if (Path == NULL) {
+        return "";
+    }
+
+    const char* Result = Path;
+    for (const char* Ptr = Path; *Ptr != '\0'; ++Ptr) {
+        if (*Ptr == '/' || *Ptr == '\\') {
+            Result = Ptr + 1;
+        }
+    }
+
+    return Result;
+}
+
+/************************************************************************/
+
+static char ToLowerChar(char C) {
+    if (C >= 'A' && C <= 'Z') {
+        return (char)(C - 'A' + 'a');
+    }
+    return C;
+}
+
+/************************************************************************/
+
+static void BuildKernelExt2Name(char* Out, U32 OutSize) {
+    if (Out == NULL || OutSize == 0U) {
+        return;
+    }
+
+    const char* FileName = BootGetFileName(KERNEL_FILE);
+    U32 Pos = 0;
+
+    for (const char* Ptr = FileName; *Ptr != '\0' && Pos + 1U < OutSize; ++Ptr) {
+        Out[Pos++] = ToLowerChar(*Ptr);
+    }
+
+    Out[Pos] = '\0';
+}
+
+/************************************************************************/
+
+static void VerifyKernelImage(U32 FileSize) {
+    if (FileSize < 8U) {
+        BootErrorPrint(TEXT("[VBR] ERROR: FileSize too small for checksum. Halting.\r\n"));
+        Hang();
+    }
+
+    const U8* const FileStart = (const U8*)SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
+    const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
+
+    StringPrintFormat(
+        TempString,
+        TEXT("[VBR] VerifyKernelImage scanning %u data bytes\r\n"),
+        FileSize - (U32)sizeof(U32));
+    BootVerbosePrint(TempString);
+
+    U32 LastBytes1 = 0;
+    U32 LastBytes2 = 0;
+
+    for (int Index = 0; Index < 4; ++Index) {
+        LastBytes1 |= ((U32)FileStart[FileSize - 8U + (U32)Index]) << (Index * 8);
+        LastBytes2 |= ((U32)FileStart[FileSize - 4U + (U32)Index]) << (Index * 8);
+    }
+
+    StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
+    BootDebugPrint(TempString);
+
+    U32 Computed = 0;
+    for (U32 Index = 0; Index < FileSize - sizeof(U32); ++Index) {
+        Computed += FileStart[Index];
+    }
+
+    U32 Stored = 0;
+    for (int Index = 0; Index < 4; ++Index) {
+        Stored |= ((U32)ChecksumPtr[Index]) << (Index * 8);
+    }
+
+    StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
+    BootDebugPrint(TempString);
+
+    if (Computed != Stored) {
+        StringPrintFormat(TempString, TEXT("[VBR] Checksum mismatch. Halting. Computed : %x\r\n"), Computed);
+        BootErrorPrint(TempString);
+        Hang();
+    }
+}
+
+/************************************************************************/
 
 // E820 memory map
 typedef struct __attribute__((packed)) tag_E820ENTRY {
@@ -166,22 +222,11 @@ typedef struct __attribute__((packed)) tag_E820ENTRY {
 
 #define E820_MAX_ENTRIES 32
 #define E820_SIZE (E820_MAX_ENTRIES * sizeof(E820ENTRY))
-#define MAX_SECTORS_PER_CLUSTER ((USABLE_RAM_SIZE - E820_SIZE) / 512)
 
 /************************************************************************/
 
 static U32 E820_EntryCount = 0;
-static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
-static STR TempString[128];
-
-FAT32_BOOT_SECTOR BootSector;
-static U8 FatBuffer[SECTORSIZE];
-
-// static E820ENTRY* const E820_Map = (E820ENTRY*)(USABLE_RAM_START);
-// static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START + E820_SIZE);
-
 static E820ENTRY E820_Map[E820_MAX_ENTRIES];
-static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
 
 // Multiboot structures - placed at a safe memory location
 static multiboot_info_t MultibootInfo;
@@ -246,54 +291,11 @@ void SerialOut(U8 Which, U8 Char) {
 
 /************************************************************************/
 
-static int MemCmp(const void* A, const void* B, int Len) {
-    const U8* X = (const U8*)A;
-    const U8* Y = (const U8*)B;
-    for (int I = 0; I < Len; ++I) {
-        if (X[I] != Y[I]) return 1;
-    }
-    return 0;
-}
-
-/************************************************************************/
-// Read a FAT32 entry for a given cluster with 1-sector cache.
-// Parameters:
-//   BootDrive, FatStartSector, Cluster, CurrentFatSector(in/out)
-// Returns:
-//   next cluster value (masked to 28 bits). Will Hang() on fatal errors.
-//   Caller must test for EOC/BAD/FREE.
-
-static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* CurrentFatSector) {
-    U32 FatSector = FatStartSector + ((Cluster * 4) / SECTORSIZE);
-    U32 EntryOffset = (Cluster * 4) % SECTORSIZE;
-
-    if (*CurrentFatSector != FatSector) {
-        if (BiosReadSectors(BootDrive, FatSector, 1, MakeSegOfs(FatBuffer))) {
-            ErrorPrint(TEXT("[VBR] FAT sector read failed\r\n"));
-            Hang();
-        }
-        *CurrentFatSector = FatSector;
-    }
-
-    U32 Next = *(U32*)&FatBuffer[EntryOffset];
-    Next &= FAT32_MASK;
-    return Next;
-}
-
-/************************************************************************/
 // Helper function to read byte via far pointer to avoid segment limit issues
 
-static U8 ReadFarByte(U16 seg, U16 ofs) {
-    U8 result;
-    __asm__ __volatile__(
-        "pushw %%ds\n\t"
-        "mov %1, %%ds\n\t"
-        "movb (%%si), %%al\n\t"
-        "popw %%ds"
-        : "=a"(result)
-        : "r"(seg), "S"(ofs)
-        : "memory");
-    return result;
+static U8 ReadFarByte(U16 Seg, U16 Ofs) {
+    U32 Linear = SegOfsToLinear(Seg, Ofs);
+    return *((U8*)Linear);
 }
 
 /************************************************************************/
@@ -305,291 +307,43 @@ static void RetrieveMemoryMap(void) {
 
 /************************************************************************/
 
-void BootMain(U32 BootDrive, U32 Fat32Lba) {
+void BootMain(U32 BootDrive, U32 PartitionLba) {
     InitDebug();
-
-    StringPrintFormat(TempString, TEXT("[VBR] Maximum sectors per cluster : %08X\r\n"), MAX_SECTORS_PER_CLUSTER);
-    DebugPrint(TempString);
 
     RetrieveMemoryMap();
 
     StringPrintFormat(
-        TempString, TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"), LOADADDRESS_SEG, LOADADDRESS_OFS);
-    DebugPrint(TempString);
+        TempString,
+        TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"),
+        LOADADDRESS_SEG,
+        LOADADDRESS_OFS);
+    BootDebugPrint(TempString);
 
-    DebugPrint(TEXT("[VBR] Reading FAT32 VBR\r\n"));
-    if (BiosReadSectors(BootDrive, Fat32Lba, 1, MakeSegOfs(&BootSector))) {
-        ErrorPrint(TEXT("[VBR] VBR read failed. Halting.\r\n"));
+    char Ext2KernelName[32];
+    BuildKernelExt2Name(Ext2KernelName, sizeof(Ext2KernelName));
+
+    U32 FileSize = 0;
+    const char* LoadedFs = NULL;
+
+    if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
+        LoadedFs = "FAT32";
+    } else if (LoadKernelExt2(BootDrive, PartitionLba, Ext2KernelName, &FileSize)) {
+        LoadedFs = "EXT2";
+    } else {
+        BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.\r\n"));
         Hang();
     }
 
-    /*
-        DebugPrint(TEXT("[VBR] BIOS mark "));
-        NumberToString(TempString, BootSector.BIOSMark, 16, 0, 0, PF_SPECIAL));
-        DebugPrint(TempString);
-        DebugPrint(TEXT("\r\n"));
+    StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
+    BootDebugPrint(TempString);
 
-        DebugPrint(TEXT("[VBR] Num sectors per FAT ");
-        NumberToString(TempString, BootSector.NumSectorsPerFat, 16, 0, 0,
-       PF_SPECIAL); DebugPrint(TempString); DebugPrint(TEXT("\r\n"));
-
-        DebugPrint(TEXT("[VBR] RootCluster ");
-        NumberToString(TempString, BootSector.RootCluster, 16, 0, 0,
-       PF_SPECIAL); DebugPrint(TempString); DebugPrint(TEXT("\r\n"));
-    */
-
-    if (BootSector.BiosMark != 0xAA55) {
-        ErrorPrint(TEXT("[VBR] BIOS mark not valid. Halting\r\n"));
-        Hang();
-    }
-
-    U32 FatStartSector = Fat32Lba + BootSector.ReservedSectorCount;
-    U32 FatSizeSectors = BootSector.NumSectorsPerFat;
-    U32 RootCluster = BootSector.RootCluster;
-    U32 SectorsPerCluster = BootSector.SectorsPerCluster;
-    U32 FirstDataSector = Fat32Lba + BootSector.ReservedSectorCount + ((U32)BootSector.NumberOfFats * FatSizeSectors);
-
-    if (SectorsPerCluster > MAX_SECTORS_PER_CLUSTER) {
-        ErrorPrint(TEXT("[VBR] Max sectors per cluster exceeded. Code needs rewriting... Halting.\r\n"));
-        Hang();
-    }
-
-    if (SectorsPerCluster == 0) {
-        ErrorPrint(TEXT("[VBR] Invalid SectorsPerCluster = 0. Halting.\r\n"));
-        Hang();
-    }
-
-    if (RootCluster < 2) {
-        ErrorPrint(TEXT("[VBR] Invalid RootCluster < 2. Halting.\r\n"));
-        Hang();
-    }
-
-    if (SectorsPerCluster < 4) {
-        DebugPrint(TEXT("[VBR] WARNING: small cluster size; expect many BIOS calls\r\n"));
-    }
-
-    /********************************************************************/
-    // Scan ROOT directory chain to find the file
-
-    U8 Found = 0;
-    U32 FileCluster = 0, FileSize = 0;
-    U32 DirCluster = RootCluster;
-    U32 CurrentFatSector = 0xFFFFFFFF;
-    U8 DirEnd = 0;
-
-    DebugPrint(TEXT("[VBR] Scanning root directory chain...\r\n"));
-
-    while (!DirEnd && DirCluster >= 2 && DirCluster < FAT32_EOC_MIN) {
-        U32 Lba = FirstDataSector + (DirCluster - 2) * SectorsPerCluster;
-
-        /*
-        DebugPrint(TEXT("[VBR] Reading DIR data cluster at LBA ");
-        NumberToString(TempString, Lba, 16, 0, 0, PF_SPECIAL);
-        DebugPrint(TempString);
-        DebugPrint(TEXT("\r\n");
-        */
-
-        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
-            ErrorPrint(TEXT("[VBR] DIR cluster read failed. Halting.\r\n"));
-            Hang();
-        }
-
-        // Scan 32-byte directory entries
-        for (U8* Ptr = ClusterBuffer; Ptr < ClusterBuffer + SectorsPerCluster * SECTORSIZE; Ptr += 32) {
-            FAT_DIR_ENTRY* DirEntry = (FAT_DIR_ENTRY*)Ptr;
-
-            if (DirEntry->Name[0] == 0x00) {
-                DirEnd = 1;
-                break;
-            }
-            if (DirEntry->Name[0] == 0xE5) continue;
-            if ((DirEntry->Attributes & 0x0F) == 0x0F) continue;
-
-            if (MemCmp(DirEntry->Name, KERNEL_FILE, 11) == 0) {
-                FileCluster = ((U32)DirEntry->FirstClusterHigh << 16) | DirEntry->FirstClusterLow;
-                FileSize = DirEntry->FileSize;
-                Found = 1;
-                break;
-            }
-        }
-
-        if (Found || DirEnd) break;
-
-        // Follow root directory chain via FAT
-        U32 Next = ReadFatEntry(BootDrive, FatStartSector, DirCluster, &CurrentFatSector);
-
-        if (Next == FAT32_BAD_CLUSTER) {
-            ErrorPrint(TEXT("[VBR] Root chain hit BAD cluster. Halting.\r\n"));
-            Hang();
-        }
-
-        if (Next == 0x00000000) {
-            ErrorPrint(TEXT("[VBR] Root chain broken (FREE in FAT). Halting.\r\n"));
-            Hang();
-        }
-
-        DirCluster = Next;
-    }
-
-    if (!Found) {
-        StringPrintFormat(TempString, TEXT("[VBR] ERROR: Kernel image (%s) not found in root directory. Halting.\r\n"), KERNEL_FILE);
-        ErrorPrint(TempString);
-        Hang();
-    }
-
-    StringPrintFormat(TempString, TEXT("[VBR] File size %08X bytes\r\n"), FileSize);
-    DebugPrint(TempString);
-
-    /********************************************************************/
-    // Load the file by following its FAT chain
-
-    U32 Remaining = FileSize;
-    U16 DestSeg = LOADADDRESS_SEG;
-    U16 DestOfs = LOADADDRESS_OFS;
-    U32 Cluster = FileCluster;
-    int ClusterCount = 0;
-    CurrentFatSector = 0xFFFFFFFF;
-
-    U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SECTORSIZE;
-    U32 MaxClusters = (FileSize + (ClusterBytes - 1)) / ClusterBytes;
-
-    while (Remaining > 0 && Cluster >= 2 && Cluster < FAT32_EOC_MIN) {
-        /*
-        DebugPrint(TEXT("[VBR] Remaining bytes ");
-        NumberToString(TempString, Remaining, 16, 0, 0, PF_SPECIAL);
-        DebugPrint(TempString);
-        DebugPrint(TEXT(" | Reading data cluster ");
-        NumberToString(TempString, Cluster, 16, 0, 0, PF_SPECIAL);
-        DebugPrint(TempString);
-        DebugPrint(TEXT("\r\n");
-        */
-
-        U32 Lba = FirstDataSector + (Cluster - 2) * SectorsPerCluster;
-
-        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, PackSegOfs(DestSeg, DestOfs))) {
-            StringPrintFormat(TempString, TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
-            ErrorPrint(TempString);
-            Hang();
-        }
-
-        // Simple visibility: dump first 8 bytes (2 dwords) from loaded cluster
-        /*
-        U32* Ptr32 = (U32*)((U32)DestSeg << 4);
-        DebugPrint(TEXT("[VBR] Cluster data (first 8 bytes): ");
-        NumberToString(TempString, Ptr32[0], 16, 0, 0, PF_SPECIAL);
-        DebugPrint(TempString);
-        DebugPrint(TEXT(" ");
-        NumberToString(TempString, Ptr32[1], 16, 0, 0, PF_SPECIAL);
-        DebugPrint(TempString);
-        DebugPrint(TEXT("\r\n");
-        */
-
-        // Advance destination pointer by cluster size
-        U32 AdvanceBytes = (U32)SectorsPerCluster * (U32)SECTORSIZE;
-        DestSeg += (AdvanceBytes >> 4);
-        DestOfs += (U16)(AdvanceBytes & 0xF);
-        if (DestOfs < (U16)(AdvanceBytes & 0xF)) {
-            DestSeg += 1;
-        }
-
-        if (Remaining <= AdvanceBytes)
-            Remaining = 0;
-        else
-            Remaining -= AdvanceBytes;
-
-        // Get next cluster from FAT (with checks)
-        U32 Next = ReadFatEntry(BootDrive, FatStartSector, Cluster, &CurrentFatSector);
-
-        if (Next == FAT32_BAD_CLUSTER) {
-            ErrorPrint(TEXT("[VBR] BAD cluster in file chain. Halting.\r\n"));
-            Hang();
-        }
-
-        if (Next == 0x00000000) {
-            ErrorPrint(TEXT("[VBR] FREE cluster in file chain (corruption). Halting.\r\n"));
-            Hang();
-        }
-
-        Cluster = Next;
-        ClusterCount++;
-
-        if (ClusterCount > (int)(MaxClusters + 8)) {
-            ErrorPrint(TEXT("[VBR] Cluster chain too long. Halting.\r\n"));
-            Hang();
-        }
-    }
-
-    /********************************************************************/
-    // Verify checksum
-
-    U8* Loaded = (U8*)(((U32)LOADADDRESS_SEG << 4) + (U32)LOADADDRESS_OFS);
-
-    // Sanity check before memory access
-    if (FileSize < 8) {
-        ErrorPrint(TEXT("[VBR] ERROR: FileSize too small for checksum. Halting.\r\n"));
-        Hang();
-    }
-
-    // Read last 8 bytes safely using far pointers to avoid segment limit issues
-    U32 BaseAddr = (U32)Loaded;
-    U32 LastBytes1 = 0, LastBytes2 = 0;
-
-    // Read bytes -8 to -5 (first U32)
-    for (int i = 0; i < 4; i++) {
-        U32 ByteAddr = BaseAddr + FileSize - 8 + i;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        U8 Byte = ReadFarByte(Seg, Ofs);
-        LastBytes1 |= ((U32)Byte) << (i * 8);
-    }
-
-    // Read bytes -4 to -1 (second U32)
-    for (int i = 0; i < 4; i++) {
-        U32 ByteAddr = BaseAddr + FileSize - 4 + i;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        U8 Byte = ReadFarByte(Seg, Ofs);
-        LastBytes2 |= ((U32)Byte) << (i * 8);
-    }
-
-    StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
-    DebugPrint(TempString);
-
-    U32 Computed = 0;
-    for (U32 Index = 0; Index < FileSize - sizeof(U32); Index++) {
-        U32 ByteAddr = BaseAddr + Index;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        Computed += ReadFarByte(Seg, Ofs);
-    }
-
-    // Read stored checksum byte-by-byte using far pointers
-    U32 Stored = 0;
-    for (int i = 0; i < 4; i++) {
-        U32 ByteAddr = BaseAddr + FileSize - sizeof(U32) + i;
-        U16 Seg = (U16)(ByteAddr >> 4);
-        U16 Ofs = (U16)(ByteAddr & 0xF);
-        U8 Byte = ReadFarByte(Seg, Ofs);
-        Stored |= ((U32)Byte) << (i * 8);
-    }
-
-    StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
-    DebugPrint(TempString);
-
-    if (Computed != Stored) {
-        StringPrintFormat(TempString, TEXT("[VBR] Checksum mismatch. Halting. Computed : %x\r\n"), Computed);
-        ErrorPrint(TempString);
-        Hang();
-    }
+    VerifyKernelImage(FileSize);
 
     StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
-    DebugPrint(TempString);
-
-    StringPrintFormat(TempString, TEXT("[VBR] Cluster buffer at %x\r\n"), (U32)ClusterBuffer);
-    DebugPrint(TempString);
+    BootDebugPrint(TempString);
 
     StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
-    DebugPrint(TempString);
+    BootDebugPrint(TempString);
 
     EnterProtectedPagingAndJump(FileSize);
 
@@ -633,7 +387,7 @@ static void BuildGdtFlat(void) {
     // Build in a real local array so the compiler knows the bounds.
     SEGMENTDESCRIPTOR GdtBuffer[3];
 
-    DebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
+    BootDebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
 
     // Safe: compiler knows GdtBuf has exactly 3 entries
     MemorySet(GdtBuffer, 0, sizeof(GdtBuffer));
@@ -827,9 +581,9 @@ static U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
     // EXOS-specific extensions removed (cursor position now handled in Console module)
 
     StringPrintFormat(TempString, TEXT("[VBR] Multiboot info at %x\r\n"), (U32)&MultibootInfo);
-    DebugPrint(TempString);
+    BootDebugPrint(TempString);
     StringPrintFormat(TempString, TEXT("[VBR] mem_lower=%u KB, mem_upper=%u KB\r\n"), LowerMem, UpperMem);
-    DebugPrint(TempString);
+    BootDebugPrint(TempString);
 
     return (U32)&MultibootInfo;
 }

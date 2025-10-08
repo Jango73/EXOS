@@ -3,7 +3,8 @@ ENTRY(_start)
 
 SECTIONS
 {
-    . = 0x8000;
+    ASSERT(DEFINED(PAYLOAD_OFFSET), "PAYLOAD_OFFSET must be defined")
+    . = PAYLOAD_OFFSET;
 
     .start  : { *(.start) }
     .text   : { *(.text*) }

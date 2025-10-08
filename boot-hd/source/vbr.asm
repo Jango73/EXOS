@@ -22,7 +22,7 @@
 ;
 ;-------------------------------------------------------------------------
 
-; FAT32 VBR loader, loads some sectors @0x8000 and jumps
+; FAT32 VBR loader, loads some sectors at PAYLOAD_OFFSET and jumps
 ; Registers at start
 ; DL : Boot drive
 ; EAX : Partition Start LBA
@@ -30,7 +30,9 @@
 BITS 16
 ORG (0x7E00 + 0x005A)
 
-PAYLOAD_OFFSET equ 0x8000
+%ifndef PAYLOAD_OFFSET
+%error "PAYLOAD_OFFSET is not defined"
+%endif
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -56,13 +58,23 @@ PAYLOAD_OFFSET equ 0x8000
     db          'VBR1'
 
 Start:
-    mov         [DAP_Start_LBA_Low], eax    ; Save Partition Start LBA
-    add         dword [DAP_Start_LBA_Low], 1
+    mov         [PartitionStartLBA], eax    ; Save Partition Start LBA
+
+    xor         ecx, ecx
+    mov         cx, [DAP_NumSectors]
+    cmp         eax, ecx
+    jae         .payload_ok
+    jmp         BootFailed
+
+.payload_ok:
+    sub         eax, ecx
+    mov         [DAP_Start_LBA_Low], eax    ; Read payload from the gap before the partition
+    mov         dword [DAP_Start_LBA_High], 0
 
     cli                                     ; Disable interrupts
     xor         ax, ax
     mov         ss, ax
-    mov         sp, PAYLOAD_OFFSET          ; Place stack juste below PAYLOAD
+    mov         sp, PAYLOAD_OFFSET          ; Place stack just below PAYLOAD
     mov         ax, 0xB800
     mov         es, ax
     sti                                     ; Enable interrupts
@@ -83,9 +95,8 @@ Start:
 
     DebugPrint  Text_Jumping
 
-    ; Jump to loaded sector at PAYLOAD_OFFSET
-    mov         eax, [DAP_Start_LBA_Low]
-    sub         eax, 1                      ; We added a 1 sector offset before
+    ; Jump to loaded sector at PAYLOAD_OFFSET with partition start in EAX
+    mov         eax, [PartitionStartLBA]
     jmp         PAYLOAD_OFFSET
 
 BootFailed:
@@ -149,11 +160,13 @@ InitSerial:
 DAP :
 DAP_Size : db 16
 DAP_Reserved : db 0
-DAP_NumSectors : dw 48
+DAP_NumSectors : dw RESERVED_SECTORS
 DAP_Buffer_Offset : dw PAYLOAD_OFFSET
 DAP_Buffer_Segment : dw 0x0000
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
+
+PartitionStartLBA : dd 0
 
 Text_Loading: db "Loading payload...",13,10,0
 Text_Jumping: db "Jumping to VBR-2 code...",13,10,0

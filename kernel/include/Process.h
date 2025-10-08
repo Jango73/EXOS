@@ -72,7 +72,8 @@ struct tag_PROCESS {
     U32 Flags;               // Process creation flags
     PHYSICAL PageDirectory;  // This process' page directory
     LINEAR HeapBase;
-    U32 HeapSize;
+    UINT HeapSize;
+    UINT MaximumAllocatedMemory;
     U32 ExitCode;            // This process' exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
@@ -123,7 +124,7 @@ struct tag_MESSAGE {
 
 // Process creation flags
 
-#define PROCESS_CREATE_KILL_CHILDREN_ON_DEATH 0x00000001
+#define PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH 0x00000001
 
 /************************************************************************/
 // The window structure

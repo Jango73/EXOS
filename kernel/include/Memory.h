@@ -71,6 +71,9 @@ PHYSICAL MapLinearToPhysical(LINEAR Address);
 // Allocates physical space for a new region of virtual memory
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags);
 
+// Resizes an existing region of virtual memory
+BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags);
+
 // Frees physical space of a region of virtual memory
 BOOL FreeRegion(LINEAR Base, U32 Size);
 

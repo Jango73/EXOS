@@ -135,7 +135,7 @@ typedef struct tag_KERNELSTARTUPINFO {
     U32 PageCount;   // Total memory size in pages (4K)
     U32 E820_Count;  // BIOS E820 function entries
     E820ENTRY E820[N_4KB / sizeof(E820ENTRY)];
-    struct multiboot_info* MultibootInfo;  // Pointer to Multiboot information structure
+    STR CommandLine[MAX_COMMAND_LINE];
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
 extern KERNELSTARTUPINFO KernelStartup;
@@ -180,7 +180,6 @@ typedef struct tag_KERNELDATA {
     BOOL DoLogin;                // Enable/disable login sequence (TRUE=enable, FALSE=disable)
     LPLIST UserSessions;         // List of active user sessions
     LPLIST UserAccount;          // List of user accounts
-    DATABASE* UserDatabase;      // User accounts database
     CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
 } KERNELDATA, *LPKERNELDATA;
 
@@ -223,7 +222,7 @@ void MemoryEditor(U32);
 /***************************************************************************/
 // Functions in Edit.c
 
-U32 Edit(U32, LPCSTR*);
+U32 Edit(U32, LPCSTR*, BOOL);
 
 /***************************************************************************/
 

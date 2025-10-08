@@ -19,11 +19,17 @@ Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
 
 ./scripts/1-2-setup-qemu.sh		<- if you want a recent QEMU (9.0.2)
 
-### Build
+### Build (Disk image with ext2)
 
 ./scripts/4-4-build.sh
 
 ( or ./scripts/4-1-clean-build.sh to later build from a clean repo )
+
+### Build (Disk image with FAT32)
+
+./scripts/4-4-build-fat32.sh
+
+( or ./scripts/4-1-clean-build-release-fat32.sh to later build from a clean repo )
 
 ### Run
 
@@ -54,13 +60,12 @@ This was a year-long solo project, developed the hard way:
 ## Things it does
 
 - Virtual memory management
-- Heap management
+- Heap management (free lists)
 - Process spawning, task spawning, scheduling
-- File system management : FAT16, FAT32, EXFS (EXOS file system)
-- PCI device management
-- ATA Hard disk driver
-- SATA/AHCI Hard disk driver
+- File system management : FAT16, FAT32, EXT2, EXFS (EXOS file system)
 - I/O APIC management
+- PCI device management
+- ATA & SATA/AHCI Hard disk driver
 - ACPI Shutdown/reboot
 - Console management
 - Basic keyboard and mouse management
@@ -71,3 +76,4 @@ This was a year-long solo project, developed the hard way:
 - E1000 network driver
 - ARP/IPv4/DHCP/UDP/TCP network layers
 - Minimal HTTP client
+- A few test apps
