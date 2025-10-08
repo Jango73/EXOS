@@ -23,6 +23,7 @@
 ;-------------------------------------------------------------------------
 
 %include "Kernel.inc"
+%include "KernelArch.inc"
 %include "System.inc"
 
 section .data

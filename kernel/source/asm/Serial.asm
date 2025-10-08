@@ -22,7 +22,8 @@
 ;
 ;-------------------------------------------------------------------------
 
-%include "./Kernel.inc"
+%include "Kernel.inc"
+%include "KernelArch.inc"
 
 COMPort_Debug equ 0x2F8
 

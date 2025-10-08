@@ -22,7 +22,8 @@
 ;
 ;-------------------------------------------------------------------------
 
-%include "./Kernel.inc"
+%include "Kernel.inc"
+%include "KernelArch.inc"
 
 extern Kernel_i386
 extern SwitchToPICForRealMode
