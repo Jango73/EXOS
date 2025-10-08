@@ -3,7 +3,7 @@
 
 %define KERNEL_ARCH_MAX_UINT 0xFFFFFFFF
 
-%include "../common/Kernel.inc"
+%include "../../common/Kernel.inc"
 
 ;-------------------------------------------------------------------------
 ;
