@@ -190,7 +190,7 @@ static LINEAR G_TempLinear3 = 0;
  * @param outLen Resulting 32-bit length.
  * @return Non-zero if clipping succeeded.
  */
-static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
+static inline int ClipTo32Bit(U64 base, U64 len, PHYSICAL* outBase, UINT* outLen) {
     U64 limit = U64_Make(1, 0x00000000u);
     if (len.HI == 0 && len.LO == 0) return 0;
     if (U64_Cmp(base, limit) >= 0) return 0;
@@ -215,16 +215,16 @@ static inline int ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
  * @param Page Page index.
  * @param Used Non-zero to mark used.
  */
-static void SetPhysicalPageMark(U32 Page, U32 Used) {
-    U32 Offset = 0;
-    U32 Value = 0;
+static void SetPhysicalPageMark(UINT Page, UINT Used) {
+    UINT Offset = 0;
+    UINT Value = 0;
 
     if (Page >= KernelStartup.PageCount) return;
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     Offset = Page >> MUL_8;
-    Value = (U32)0x01 << (Page & 0x07);
+    Value = (UINT)0x01 << (Page & 0x07);
 
     if (Used) {
         Kernel_i386.PPB[Offset] |= (U8)Value;
@@ -271,17 +271,17 @@ static U32 GetPhysicalPageMark(U32 Page) {
  * @param PageCount Number of pages.
  * @param Used Non-zero to mark used.
  */
-static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
+static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
     DEBUG(TEXT("[SetPhysicalPageRangeMark] Enter"));
 
-    U32 End = FirstPage + PageCount;
+    UINT End = FirstPage + PageCount;
     if (FirstPage >= KernelStartup.PageCount) return;
     if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
 
     DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %x, %x"), FirstPage, End);
 
-    for (U32 Page = FirstPage; Page < End; Page++) {
-        U32 Byte = Page >> MUL_8;
+    for (UINT Page = FirstPage; Page < End; Page++) {
+        UINT Byte = Page >> MUL_8;
         U8 Mask = (U8)(1u << (Page & 0x07)); /* bit within byte */
         if (Used) {
             Kernel_i386.PPB[Byte] |= Mask;
@@ -297,36 +297,36 @@ static void SetPhysicalPageRangeMark(U32 FirstPage, U32 PageCount, U32 Used) {
  * @brief Mark physical pages that are reserved or already used.
  */
 static void MarkUsedPhysicalMemory(void) {
-    U32 Start = 0;
-    U32 End = (N_4MB) >> PAGE_SIZE_MUL;
+    UINT Start = 0;
+    UINT End = (N_4MB) >> PAGE_SIZE_MUL;
     SetPhysicalPageRangeMark(Start, End, 1);
 
     // Derive total memory size and number of pages from the E820 map
     if (KernelStartup.E820_Count > 0) {
-        U32 MaxAddress = 0;
-        U32 MaxUsableRAM = 0;
+        PHYSICAL MaxAddress = 0;
+        PHYSICAL MaxUsableRAM = 0;
 
-        for (U32 i = 0; i < KernelStartup.E820_Count; i++) {
+        for (UINT i = 0; i < KernelStartup.E820_Count; i++) {
             const E820ENTRY* Entry = &KernelStartup.E820[i];
-            U32 Base = 0;
-            U32 Size = 0;
+            PHYSICAL Base = 0;
+            UINT Size = 0;
 
             DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %x, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
 
             ClipTo32Bit(Entry->Base, Entry->Size, &Base, &Size);
 
-            U32 End = Base + Size;
-            if (End > MaxAddress) {
-                MaxAddress = End;
+            PHYSICAL EntryEnd = Base + Size;
+            if (EntryEnd > MaxAddress) {
+                MaxAddress = EntryEnd;
             }
 
             if (Entry->Type == BIOS_E820_TYPE_USABLE) {
-                if (End > MaxUsableRAM) {
-                    MaxUsableRAM = End;
+                if (EntryEnd > MaxUsableRAM) {
+                    MaxUsableRAM = EntryEnd;
                 }
             } else {
-                U32 FirstPage = (U32)(Base >> PAGE_SIZE_MUL);
-                U32 PageCount = (U32)((Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
+                UINT FirstPage = (UINT)(Base >> PAGE_SIZE_MUL);
+                UINT PageCount = (UINT)((Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
                 SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
             }
         }
@@ -345,8 +345,13 @@ static void MarkUsedPhysicalMemory(void) {
  * @return Physical page number or MAX_U32 on failure.
  */
 PHYSICAL AllocPhysicalPage(void) {
-    U32 i, v, bit, page, mask;
-    U32 StartPage, StartByte, MaxByte;
+    UINT i = 0;
+    UINT bit = 0;
+    UINT page = 0;
+    UINT mask = 0;
+    UINT StartPage = 0;
+    UINT StartByte = 0;
+    UINT MaxByte = 0;
     PHYSICAL result = 0;
 
     // DEBUG(TEXT("[AllocPhysicalPage] Enter"));
@@ -362,14 +367,14 @@ PHYSICAL AllocPhysicalPage(void) {
 
     /* Scan from StartByte upward */
     for (i = StartByte; i < MaxByte; i++) {
-        v = Kernel_i386.PPB[i];
+        U8 v = Kernel_i386.PPB[i];
         if (v != 0xFF) {
             page = (i << MUL_8); /* first page covered by this byte */
             for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
                 mask = 1u << bit;
                 if ((v & mask) == 0) {
-                    Kernel_i386.PPB[i] = (U8)(v | mask);
-                    result = (PHYSICAL)page << PAGE_SIZE_MUL; /* page * 4096 */
+                    Kernel_i386.PPB[i] = (U8)(v | (U8)mask);
+                    result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
                     goto Out;
                 }
             }
@@ -390,7 +395,8 @@ Out:
  * @param Page Page number to free.
  */
 void FreePhysicalPage(PHYSICAL Page) {
-    U32 StartPage, PageIndex;
+    UINT StartPage = 0;
+    UINT PageIndex = 0;
 
     if ((Page & (PAGE_SIZE - 1)) != 0) {
         ERROR(TEXT("[FreePhysicalPage] Physical address not page-aligned (%x)"), Page);
@@ -421,7 +427,7 @@ void FreePhysicalPage(PHYSICAL Page) {
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     // Bitmap math: 8 pages per byte
-    U32 ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
+    UINT ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
     U8 mask = (U8)(1u << (PageIndex & 0x07));  // bit within the byte
 
     // If already free, nothing to do
@@ -444,7 +450,7 @@ void FreePhysicalPage(PHYSICAL Page) {
  * @param Address Linear address.
  * @return Page directory entry index.
  */
-static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TABLE_CAPACITY_MUL; }
+static inline UINT GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TABLE_CAPACITY_MUL; }
 
 /************************************************************************/
 
@@ -453,7 +459,7 @@ static inline U32 GetDirectoryEntry(LINEAR Address) { return Address >> PAGE_TAB
  * @param Address Linear address.
  * @return Page table entry index.
  */
-static inline U32 GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
+static inline UINT GetTableEntry(LINEAR Address) { return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL; }
 
 /************************************************************************/
 // Self-map helpers (no public exposure)
@@ -472,7 +478,7 @@ static inline LPPAGE_DIRECTORY GetCurrentPageDirectoryVA(void) { return (LPPAGE_
  * @return Pointer to page table.
  */
 static inline LPPAGE_TABLE GetPageTableVAFor(LINEAR Address) {
-    U32 dir = GetDirectoryEntry(Address);
+    UINT dir = GetDirectoryEntry(Address);
     return (LPPAGE_TABLE)(PT_BASE_VA + (dir << PAGE_SIZE_MUL));
 }
 
@@ -484,7 +490,7 @@ static inline LPPAGE_TABLE GetPageTableVAFor(LINEAR Address) {
  * @return Pointer to the PTE.
  */
 static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
-    U32 tab = GetTableEntry(Address);
+    UINT tab = GetTableEntry(Address);
     return (volatile U32*)&GetPageTableVAFor(Address)[tab];
 }
 
@@ -663,10 +669,10 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
-    U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);           // 4MB directory slot for VMA_KERNEL
-    U32 DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
-    U32 PhysBaseKernel = KernelStartup.StubAddress;                    // Kernel physical base
-    U32 Index;
+    UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);           // 4MB directory slot for VMA_KERNEL
+    UINT DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
+    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;                // Kernel physical base
+    UINT Index;
 
     // Allocate required physical pages (PD + 3 PTs)
     PMA_Directory = AllocPhysicalPage();
@@ -791,7 +797,7 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Kernel table cleared"));
 
-    U32 KernelFirstFrame = (PhysBaseKernel >> PAGE_SIZE_MUL);
+    UINT KernelFirstFrame = (UINT)(PhysBaseKernel >> PAGE_SIZE_MUL);
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
         KernelTable[Index].Present = 1;
         KernelTable[Index].ReadWrite = 1;
@@ -818,12 +824,13 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] TaskRunner table cleared"));
 
-    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + ((U32)&__task_runner_start - VMA_KERNEL);
+    LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
+    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + (PHYSICAL)(TaskRunnerLinear - VMA_KERNEL);
 
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"), (U32)PhysBaseKernel,
-        (U32)&__task_runner_start, (U32)VMA_KERNEL, (U32)TaskRunnerPhysical);
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"),
+        (UINT)PhysBaseKernel, (UINT)TaskRunnerLinear, (UINT)VMA_KERNEL, (UINT)TaskRunnerPhysical);
 
-    U32 TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
+    UINT TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
 
     TaskRunnerTable[TaskRunnerTableIndex].Present = 1;
     TaskRunnerTable[TaskRunnerTableIndex].ReadWrite = 0;  // Read-only for user
@@ -879,9 +886,9 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
-    U32 DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
-    U32 PhysBaseKernel = KernelStartup.StubAddress;           // Kernel physical base
-    U32 Index;
+    UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
+    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;       // Kernel physical base
+    UINT Index;
 
     // Allocate required physical pages (PD + 4 PTs)
     PMA_Directory = AllocPhysicalPage();
@@ -935,17 +942,17 @@ PHYSICAL AllocUserPageDirectory(void) {
     // Copy present PDEs from current directory, but skip user space (VMA_USER to VMA_LIBRARY-1)
     // to allow new process to allocate its own region at VMA_USER
     UNUSED(VMA_TASK_RUNNER);
-    U32 UserStartPDE = GetDirectoryEntry(VMA_USER);             // PDE index for VMA_USER
-    U32 UserEndPDE = GetDirectoryEntry(VMA_LIBRARY - 1) - 1;    // PDE index for VMA_LIBRARY-1, excluding TaskRunner space
-    for (Index = 1; Index < 1023; Index++) {                           // Skip 0 (already done) and 1023 (self-map)
+    UINT UserStartPDE = GetDirectoryEntry(VMA_USER);             // PDE index for VMA_USER
+    UINT UserEndPDE = GetDirectoryEntry(VMA_LIBRARY - 1) - 1;    // PDE index for VMA_LIBRARY-1, excluding TaskRunner space
+    for (Index = 1; Index < 1023; Index++) {                            // Skip 0 (already done) and 1023 (self-map)
         if (CurrentPD[Index].Present && Index != DirKernel) {
             // Skip user space PDEs to avoid copying current process's user space
             if (Index >= UserStartPDE && Index <= UserEndPDE) {
-                DEBUG(TEXT("[AllocUserPageDirectory] Skipped user space PDE[%d]"), Index);
+                DEBUG(TEXT("[AllocUserPageDirectory] Skipped user space PDE[%u]"), Index);
                 continue;
             }
             Directory[Index] = CurrentPD[Index];
-            DEBUG(TEXT("[AllocUserPageDirectory] Copied PDE[%d]"), Index);
+            DEBUG(TEXT("[AllocUserPageDirectory] Copied PDE[%u]"), Index);
         }
     }
 
@@ -1008,7 +1015,7 @@ PHYSICAL AllocUserPageDirectory(void) {
     // Create basic static kernel mapping instead of copying (for testing)
     MemorySet(KernelTable, 0, PAGE_SIZE);
 
-    U32 KernelFirstFrame = (PhysBaseKernel >> PAGE_SIZE_MUL);
+    UINT KernelFirstFrame = (UINT)(PhysBaseKernel >> PAGE_SIZE_MUL);
 
     // Map full 4MB kernel space (1024 pages)
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
@@ -1064,7 +1071,7 @@ LINEAR AllocPageTable(LINEAR Base) {
     }
 
     // Fill the directory entry that describes the new table
-    U32 DirEntry = GetDirectoryEntry(Base);
+    UINT DirEntry = GetDirectoryEntry(Base);
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
     // Determine privilege: user space (< VMA_KERNEL) needs user privilege
@@ -1102,18 +1109,18 @@ LINEAR AllocPageTable(LINEAR Base) {
  * @param Size Size of region.
  * @return TRUE if region is free.
  */
-BOOL IsRegionFree(LINEAR Base, U32 Size) {
+BOOL IsRegionFree(LINEAR Base, UINT Size) {
     // DEBUG(TEXT("[IsRegionFree] Enter : %x; %x"), Base, Size);
 
-    U32 NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
+    UINT NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     LINEAR Current = Base;
 
     // DEBUG(TEXT("[IsRegionFree] Traversing pages"));
 
-    for (U32 i = 0; i < NumPages; i++) {
-        U32 dir = GetDirectoryEntry(Current);
-        U32 tab = GetTableEntry(Current);
+    for (UINT i = 0; i < NumPages; i++) {
+        UINT dir = GetDirectoryEntry(Current);
+        UINT tab = GetTableEntry(Current);
 
         if (Directory[dir].Present) {
             LPPAGE_TABLE Table = GetPageTableVAFor(Current);
@@ -1136,8 +1143,8 @@ BOOL IsRegionFree(LINEAR Base, U32 Size) {
  * @param Size Desired region size.
  * @return Base of free region or 0.
  */
-static LINEAR FindFreeRegion(U32 StartBase, U32 Size) {
-    U32 Base = N_4MB;
+static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
+    LINEAR Base = N_4MB;
 
     DEBUG(TEXT("[FindFreeRegion] Enter"));
 
@@ -1165,23 +1172,23 @@ static void FreeEmptyPageTables(void) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     LPPAGE_TABLE Table = NULL;
     LINEAR Base = N_4MB;
-    U32 DirEntry = 0;
-    U32 Index = 0;
-    U32 DestroyIt = 0;
+    UINT DirEntry = 0;
+    UINT Index = 0;
+    BOOL DestroyIt = TRUE;
 
     while (Base < VMA_KERNEL) {
-        DestroyIt = 1;
+        DestroyIt = TRUE;
         DirEntry = GetDirectoryEntry(Base);
 
         if (Directory[DirEntry].Address != NULL) {
             Table = GetPageTableVAFor(Base);
 
             for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-                if (Table[Index].Address != NULL) DestroyIt = 0;
+                if (Table[Index].Address != NULL) DestroyIt = FALSE;
             }
 
             if (DestroyIt) {
-                SetPhysicalPageMark(Directory[DirEntry].Address, 0);
+                SetPhysicalPageMark((UINT)Directory[DirEntry].Address, 0);
                 Directory[DirEntry].Present = 0;
                 Directory[DirEntry].Address = NULL;
             }
@@ -1200,8 +1207,8 @@ static void FreeEmptyPageTables(void) {
  */
 PHYSICAL MapLinearToPhysical(LINEAR Address) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    U32 DirEntry = GetDirectoryEntry(Address);
-    U32 TabEntry = GetTableEntry(Address);
+    UINT DirEntry = GetDirectoryEntry(Address);
+    UINT TabEntry = GetTableEntry(Address);
 
     if (Directory[DirEntry].Address == 0) return 0;
 
@@ -1216,7 +1223,7 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
 
 static BOOL PopulateRegionPages(LINEAR Base,
                                 PHYSICAL Target,
-                                U32 NumPages,
+                                UINT NumPages,
                                 U32 Flags,
                                 LINEAR RollbackBase,
                                 LPCSTR FunctionName) {
@@ -1229,13 +1236,13 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
     if (PteCacheDisabled) PteWriteThrough = 0;
 
-    for (U32 Index = 0; Index < NumPages; Index++) {
-        U32 DirEntry = GetDirectoryEntry(Base);
-        U32 TabEntry = GetTableEntry(Base);
+    for (UINT Index = 0; Index < NumPages; Index++) {
+        UINT DirEntry = GetDirectoryEntry(Base);
+        UINT TabEntry = GetTableEntry(Base);
 
         if (Directory[DirEntry].Address == NULL) {
             if (AllocPageTable(Base) == NULL) {
-                FreeRegion(RollbackBase, (Index << PAGE_SIZE_MUL));
+                FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 DEBUG(TEXT("[%s] AllocPageTable failed"), FunctionName);
                 return FALSE;
             }
@@ -1258,7 +1265,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
         if (Flags & ALLOC_PAGES_COMMIT) {
             if (Target != 0) {
-                Physical = Target + (Index << PAGE_SIZE_MUL);
+                Physical = Target + (PHYSICAL)(Index << PAGE_SIZE_MUL);
 
                 if (Flags & ALLOC_PAGES_IO) {
                     Table[TabEntry].Fixed = 1;
@@ -1266,7 +1273,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                     Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
                     Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
                 } else {
-                    SetPhysicalPageMark(Physical >> PAGE_SIZE_MUL, 1);
+                    SetPhysicalPageMark((UINT)(Physical >> PAGE_SIZE_MUL), 1);
                     Table[TabEntry].Present = 1;
                     Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
                     Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
@@ -1276,7 +1283,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
                 if (Physical == NULL) {
                     ERROR(TEXT("[%s] AllocPhysicalPage failed"), FunctionName);
-                    FreeRegion(RollbackBase, (Index << PAGE_SIZE_MUL));
+                    FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                     return FALSE;
                 }
 
@@ -1314,9 +1321,9 @@ static BOOL PopulateRegionPages(LINEAR Base,
  *              - ALLOC_PAGES_IO: keep physical pages marked fixed for MMIO.
  * @return Allocated linear base address or 0 on failure.
  */
-LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
     LINEAR Pointer = NULL;
-    U32 NumPages = 0;
+    UINT NumPages = 0;
     DEBUG(TEXT("[AllocRegion] Enter: Base=%x Target=%x Size=%x Flags=%x"), Base, Target, Size, Flags);
 
     // Can't allocate more than 25% of total memory at once
@@ -1401,7 +1408,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags) {
  * @param Flags Mapping flags used for the region (see AllocRegion).
  * @return TRUE on success, FALSE otherwise.
  */
-BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags) {
+BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags) {
     DEBUG(TEXT("[ResizeRegion] Enter: Base=%x Target=%x Size=%x NewSize=%x Flags=%x"),
           Base,
           Target,
@@ -1421,8 +1428,8 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
         return FALSE;
     }
 
-    U32 CurrentPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
-    U32 RequestedPages = (NewSize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+    UINT CurrentPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+    UINT RequestedPages = (NewSize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
     if (CurrentPages == 0) CurrentPages = 1;
     if (RequestedPages == 0) RequestedPages = 1;
 
@@ -1432,9 +1439,9 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
     }
 
     if (RequestedPages > CurrentPages) {
-        U32 AdditionalPages = RequestedPages - CurrentPages;
-        LINEAR NewBase = Base + (CurrentPages << PAGE_SIZE_MUL);
-        U32 AdditionalSize = AdditionalPages << PAGE_SIZE_MUL;
+        UINT AdditionalPages = RequestedPages - CurrentPages;
+        LINEAR NewBase = Base + ((LINEAR)CurrentPages << PAGE_SIZE_MUL);
+        UINT AdditionalSize = AdditionalPages << PAGE_SIZE_MUL;
 
         if (IsRegionFree(NewBase, AdditionalSize) == FALSE) {
             DEBUG(TEXT("[ResizeRegion] Additional region not free at %x"), NewBase);
@@ -1443,7 +1450,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
 
         PHYSICAL AdditionalTarget = 0;
         if (Target != 0) {
-            AdditionalTarget = Target + (CurrentPages << PAGE_SIZE_MUL);
+            AdditionalTarget = Target + (PHYSICAL)(CurrentPages << PAGE_SIZE_MUL);
         }
 
         DEBUG(TEXT("[ResizeRegion] Expanding region by %x bytes"), AdditionalSize);
@@ -1459,10 +1466,10 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
 
         FlushTLB();
     } else {
-        U32 PagesToRelease = CurrentPages - RequestedPages;
+        UINT PagesToRelease = CurrentPages - RequestedPages;
         if (PagesToRelease != 0) {
-            LINEAR ReleaseBase = Base + (RequestedPages << PAGE_SIZE_MUL);
-            U32 ReleaseSize = PagesToRelease << PAGE_SIZE_MUL;
+            LINEAR ReleaseBase = Base + ((LINEAR)RequestedPages << PAGE_SIZE_MUL);
+            UINT ReleaseSize = PagesToRelease << PAGE_SIZE_MUL;
 
             DEBUG(TEXT("[ResizeRegion] Shrinking region by %x bytes"), ReleaseSize);
             FreeRegion(ReleaseBase, ReleaseSize);
@@ -1481,13 +1488,13 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags
  * @param Size Size of region.
  * @return TRUE on success.
  */
-BOOL FreeRegion(LINEAR Base, U32 Size) {
+BOOL FreeRegion(LINEAR Base, UINT Size) {
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)GetCurrentPageDirectoryVA();
     LPPAGE_TABLE Table = NULL;
-    U32 DirEntry = 0;
-    U32 TabEntry = 0;
-    U32 NumPages = 0;
-    U32 Index = 0;
+    UINT DirEntry = 0;
+    UINT TabEntry = 0;
+    UINT NumPages = 0;
+    UINT Index = 0;
 
     NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL; /* ceil(Size / 4096) */
     if (NumPages == 0) NumPages = 1;
@@ -1503,7 +1510,7 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
             if (Table[TabEntry].Address != NULL) {
                 /* Skip bitmap mark if it was an IO mapping (BAR) */
                 if (Table[TabEntry].Fixed == 0) {
-                    SetPhysicalPageMark(Table[TabEntry].Address, 0);
+                    SetPhysicalPageMark((UINT)Table[TabEntry].Address, 0);
                 }
 
                 Table[TabEntry].Present = 0;
@@ -1531,7 +1538,7 @@ BOOL FreeRegion(LINEAR Base, U32 Size) {
  * @param Size Size in bytes.
  * @return Linear address or 0 on failure.
  */
-LINEAR MapIOMemory(PHYSICAL PhysicalBase, U32 Size) {
+LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
     // Basic parameter checks
     if (PhysicalBase == 0 || Size == 0) {
         ERROR(TEXT("[MapIOMemory] Invalid parameters (PA=%x Size=%x)"), PhysicalBase, Size);
@@ -1539,9 +1546,9 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, U32 Size) {
     }
 
     // Calculate page-aligned base and adjusted size for non-aligned addresses
-    PHYSICAL PageOffset = PhysicalBase & (PAGE_SIZE - 1);
+    UINT PageOffset = (UINT)(PhysicalBase & (PAGE_SIZE - 1));
     PHYSICAL AlignedPhysicalBase = PhysicalBase & ~(PAGE_SIZE - 1);
-    U32 AdjustedSize = ((Size + PageOffset + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+    UINT AdjustedSize = ((Size + PageOffset + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
 
     DEBUG(TEXT("[MapIOMemory] Original: PA=%x Size=%x"), PhysicalBase, Size);
     DEBUG(TEXT("[MapIOMemory] Aligned: PA=%x Size=%x Offset=%x"), AlignedPhysicalBase, AdjustedSize, PageOffset);
@@ -1575,7 +1582,7 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, U32 Size) {
  * @param Size Size in bytes.
  * @return TRUE on success.
  */
-BOOL UnMapIOMemory(LINEAR LinearBase, U32 Size) {
+BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
     // Basic parameter checks
     if (LinearBase == 0 || Size == 0) {
         ERROR(TEXT("[UnMapIOMemory] Invalid parameters (LA=%x Size=%x)"), LinearBase, Size);
@@ -1595,7 +1602,7 @@ BOOL UnMapIOMemory(LINEAR LinearBase, U32 Size) {
  * @param Flags Additional allocation flags.
  * @return Linear address or 0 on failure.
  */
-LINEAR AllocKernelRegion(PHYSICAL Target, U32 Size, U32 Flags) {
+LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
     return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
 }
@@ -1673,9 +1680,9 @@ void InitializeMemoryManager(void) {
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
     // Log GDT contents
-    for (U32 i = 0; i < 10; i++) {
-        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), i, ((U32*)(Kernel_i386.GDT))[i * 2 + 1],
-            ((U32*)(Kernel_i386.GDT))[i * 2]);
+    for (UINT Index = 0; Index < 10; Index++) {
+        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), Index, ((U32*)(Kernel_i386.GDT))[Index * 2 + 1],
+            ((U32*)(Kernel_i386.GDT))[Index * 2]);
     }
 
     DEBUG(TEXT("[InitializeMemoryManager] Exit"));
@@ -1691,7 +1698,7 @@ void InitializeMemoryManager(void) {
 void LogPageDirectory(PHYSICAL DirectoryPhysical) {
     LPPAGE_DIRECTORY Directory;
     LPPAGE_TABLE Table;
-    U32 DirEntry, TabEntry;
+    UINT DirEntry, TabEntry;
     LINEAR VirtualAddress;
     PHYSICAL PhysicalAddress;
 
@@ -1717,7 +1724,7 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
             Table = (LPPAGE_TABLE)MapTempPhysicalPage2(PageTablePhysical);
 
             // Count and display mapped pages in this table
-            U32 MappedCount = 0;
+            UINT MappedCount = 0;
             for (TabEntry = 0; TabEntry < 1024; TabEntry++) {
                 if (Table[TabEntry].Present) {
                     MappedCount++;

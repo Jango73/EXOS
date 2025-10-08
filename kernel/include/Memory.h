@@ -69,20 +69,20 @@ BOOL IsValidMemory(LINEAR Pointer);
 PHYSICAL MapLinearToPhysical(LINEAR Address);
 
 // Allocates physical space for a new region of virtual memory
-LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 Flags);
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags);
 
 // Resizes an existing region of virtual memory
-BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, U32 Size, U32 NewSize, U32 Flags);
+BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
 
 // Frees physical space of a region of virtual memory
-BOOL FreeRegion(LINEAR Base, U32 Size);
+BOOL FreeRegion(LINEAR Base, UINT Size);
 
 // Map/unmap a physical MMIO region (BAR or Base Address Register) as Uncached Read/Write
-LINEAR MapIOMemory(PHYSICAL PhysicalBase, U32 Size);
-BOOL UnMapIOMemory(LINEAR LinearBase, U32 Size);
+LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size);
+BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 
 // Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
-LINEAR AllocKernelRegion(PHYSICAL Target, U32 Size, U32 Flags);
+LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags);
 
 // Debug function to log all mapped entries in a page directory
 void LogPageDirectory(PHYSICAL DirectoryPhysical);
