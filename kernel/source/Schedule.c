@@ -28,6 +28,7 @@
 #include "Kernel.h"
 #include "List.h"
 #include "Log.h"
+#include "arch/i386/LogI386Struct.h"
 #include "Memory.h"
 #include "Process.h"
 #include "Stack.h"

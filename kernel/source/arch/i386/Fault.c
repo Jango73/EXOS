@@ -25,6 +25,7 @@
 #include "Console.h"
 #include "Heap.h"
 #include "arch/i386/I386.h"
+#include "arch/i386/LogI386Struct.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"

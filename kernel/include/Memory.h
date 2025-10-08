@@ -86,9 +86,6 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 // Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags);
 
-// Debug function to log all mapped entries in a page directory
-void LogPageDirectory(PHYSICAL DirectoryPhysical);
-
 /************************************************************************/
 
 #endif  // MEMORY_H_INCLUDED

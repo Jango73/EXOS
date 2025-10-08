@@ -28,6 +28,7 @@
 #include "Console.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "arch/i386/LogI386Struct.h"
 #include "Schedule.h"
 #include "System.h"
 
