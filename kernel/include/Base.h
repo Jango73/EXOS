@@ -35,6 +35,17 @@ extern "C" {
 #define __EXOS__
 
 /***************************************************************************/
+// Target architecture detection
+
+#if defined(__i386__) || defined(_M_IX86)
+    #define __EXOS_ARCH_I386__
+#elif defined(__x86_64__) || defined(_M_X64)
+    #define __EXOS_ARCH_X86_64__
+#else
+    #error "Unsupported target architecture for EXOS"
+#endif
+
+/***************************************************************************/
 // Check __SIZEOF_POINTER__ definition
 
 #ifndef __SIZEOF_POINTER__
@@ -63,6 +74,19 @@ extern "C" {
     #define __EXOS_64__
 #else
     #define __EXOS_32__
+#endif
+
+/***************************************************************************/
+// Validate architecture and ABI combination
+
+#if defined(__EXOS_ARCH_I386__)
+    #if __SIZEOF_POINTER__ != 4
+        #error "i386 build requires 32-bit pointer size"
+    #endif
+#elif defined(__EXOS_ARCH_X86_64__)
+    #if __SIZEOF_POINTER__ != 8
+        #error "x86_64 build requires 64-bit pointer size"
+    #endif
 #endif
 
 /***************************************************************************/
