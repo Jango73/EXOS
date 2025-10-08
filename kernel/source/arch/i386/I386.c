@@ -25,11 +25,14 @@
 #include "arch/i386/I386.h"
 
 #include "Log.h"
+#include "Memory.h"
 #include "Process.h"
+#include "Stack.h"
 #include "String.h"
 #include "System.h"
 #include "Task.h"
 #include "Text.h"
+#include "Kernel.h"
 
 /************************************************************************/
 
@@ -117,6 +120,119 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
 /***************************************************************************/
 
 /**
+ * @brief Perform i386-specific initialisation for a freshly created task.
+ *
+ * Allocates and clears the user and system stacks, seeds the interrupt frame
+ * with the correct segment selectors, and configures the boot-time stack when
+ * creating the main kernel task. The generic CreateTask routine handles the
+ * architecture-neutral bookkeeping and delegates the hardware specific work to
+ * this helper.
+ */
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+    LINEAR BaseVMA = VMA_KERNEL;
+    SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
+    SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
+
+    if (Process->Privilege == PRIVILEGE_USER) {
+        BaseVMA = VMA_USER;
+        CodeSelector = SELECTOR_USER_CODE;
+        DataSelector = SELECTOR_USER_DATA;
+    }
+
+    Task->Arch.StackSize = Info->StackSize;
+    Task->Arch.SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
+
+    Task->Arch.StackBase =
+        AllocRegion(BaseVMA, 0, Task->Arch.StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Task->Arch.SysStackBase =
+        AllocKernelRegion(0, Task->Arch.SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    DEBUG(TEXT("[SetupTask] BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
+    DEBUG(TEXT("[SetupTask] Actually got StackBase=%X"), Task->Arch.StackBase);
+
+    if (Task->Arch.StackBase == NULL || Task->Arch.SysStackBase == NULL) {
+        if (Task->Arch.StackBase) {
+            FreeRegion(Task->Arch.StackBase, Task->Arch.StackSize);
+            Task->Arch.StackBase = NULL;
+            Task->Arch.StackSize = 0;
+        }
+
+        if (Task->Arch.SysStackBase) {
+            FreeRegion(Task->Arch.SysStackBase, Task->Arch.SysStackSize);
+            Task->Arch.SysStackBase = NULL;
+            Task->Arch.SysStackSize = 0;
+        }
+
+        ERROR(TEXT("[SetupTask] Stack or system stack allocation failed"));
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[SetupTask] Stack (%X bytes) allocated at %X"), Task->Arch.StackSize, Task->Arch.StackBase);
+    DEBUG(TEXT("[SetupTask] System stack (%X bytes) allocated at %X"), Task->Arch.SysStackSize, Task->Arch.SysStackBase);
+
+    MemorySet((void*)(Task->Arch.StackBase), 0, Task->Arch.StackSize);
+    MemorySet((void*)(Task->Arch.SysStackBase), 0, Task->Arch.SysStackSize);
+
+    MemorySet(&(Task->Arch.Context), 0, sizeof(INTERRUPT_FRAME));
+
+    Task->Arch.Context.Registers.EAX = (U32)Task->Parameter;
+    Task->Arch.Context.Registers.EBX = (U32)Task->Function;
+    Task->Arch.Context.Registers.ECX = 0;
+    Task->Arch.Context.Registers.EDX = 0;
+
+    Task->Arch.Context.Registers.CS = CodeSelector;
+    Task->Arch.Context.Registers.DS = DataSelector;
+    Task->Arch.Context.Registers.ES = DataSelector;
+    Task->Arch.Context.Registers.FS = DataSelector;
+    Task->Arch.Context.Registers.GS = DataSelector;
+    Task->Arch.Context.Registers.SS = DataSelector;
+    Task->Arch.Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
+    Task->Arch.Context.Registers.CR3 = Process->PageDirectory;
+    Task->Arch.Context.Registers.CR4 = GetCR4();
+    Task->Arch.Context.Registers.EIP = VMA_TASK_RUNNER;
+
+    LINEAR StackTop = Task->Arch.StackBase + Task->Arch.StackSize;
+    LINEAR SysStackTop = Task->Arch.SysStackBase + Task->Arch.SysStackSize;
+
+    if (Process->Privilege == PRIVILEGE_KERNEL) {
+        DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
+        Task->Arch.Context.Registers.ESP = StackTop - STACK_SAFETY_MARGIN;
+        Task->Arch.Context.Registers.EBP = StackTop - STACK_SAFETY_MARGIN;
+    } else {
+        DEBUG(TEXT("[SetupTask] Setting user privilege (ring 3)"));
+        Task->Arch.Context.Registers.ESP = SysStackTop - STACK_SAFETY_MARGIN;
+        Task->Arch.Context.Registers.EBP = SysStackTop - STACK_SAFETY_MARGIN;
+    }
+
+    if (Info->Flags & TASK_CREATE_MAIN_KERNEL) {
+        Task->Status = TASK_STATUS_RUNNING;
+
+        Kernel_i386.TSS->ESP0 = SysStackTop - STACK_SAFETY_MARGIN;
+
+        LINEAR BootStackTop = KernelStartup.StackTop;
+        LINEAR ESP = GetESP();
+        UINT StackUsed = (BootStackTop - ESP) + 256;
+
+        DEBUG(TEXT("[SetupTask] BootStackTop = %X"), BootStackTop);
+        DEBUG(TEXT("[SetupTask] StackTop = %X"), StackTop);
+        DEBUG(TEXT("[SetupTask] StackUsed = %X"), StackUsed);
+        DEBUG(TEXT("[SetupTask] Switching to new stack..."));
+
+        if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
+            Task->Arch.Context.Registers.ESP = 0;  // Not used for main task
+            Task->Arch.Context.Registers.EBP = GetEBP();
+            DEBUG(TEXT("[SetupTask] Main task stack switched successfully"));
+        } else {
+            ERROR(TEXT("[SetupTask] Stack switch failed"));
+        }
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Prepares architecture-specific state for the next task switch.
  *
  * Saves the current task's segment and FPU state, configures the TSS and
@@ -124,23 +240,23 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
  * segment and FPU state so that SwitchToNextTask_3 can perform the generic
  * scheduling steps.
  */
-void ArchPrepareNextTaskSwitch(LPTASK CurrentTask, LPTASK NextTask) {
-    LINEAR NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
+void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
+    LINEAR NextSysStackTop = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize;
 
     Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
     Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
 
-    GetFS(CurrentTask->Context.Registers.FS);
-    GetGS(CurrentTask->Context.Registers.GS);
+    GetFS(CurrentTask->Arch.Context.Registers.FS);
+    GetGS(CurrentTask->Arch.Context.Registers.GS);
 
-    SaveFPU((LPVOID)&(CurrentTask->Context.FPURegisters));
+    SaveFPU((LPVOID)&(CurrentTask->Arch.Context.FPURegisters));
 
     LoadPageDirectory(NextTask->Process->PageDirectory);
 
-    SetDS(NextTask->Context.Registers.DS);
-    SetES(NextTask->Context.Registers.ES);
-    SetFS(NextTask->Context.Registers.FS);
-    SetGS(NextTask->Context.Registers.GS);
+    SetDS(NextTask->Arch.Context.Registers.DS);
+    SetES(NextTask->Arch.Context.Registers.ES);
+    SetFS(NextTask->Arch.Context.Registers.FS);
+    SetGS(NextTask->Arch.Context.Registers.GS);
 
-    RestoreFPU(&(NextTask->Context.FPURegisters));
+    RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
 }

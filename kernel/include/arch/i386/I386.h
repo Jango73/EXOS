@@ -277,6 +277,16 @@ typedef struct tag_INTERRUPT_FRAME {
     U32 ErrCode;  // CPU error code (0 for #UD)
 } INTERRUPT_FRAME, *LPINTERRUPT_FRAME;
 
+/***************************************************************************/
+
+typedef struct tag_ARCH_TASK_DATA {
+    INTERRUPT_FRAME Context;
+    LINEAR StackBase;
+    UINT StackSize;
+    LINEAR SysStackBase;
+    UINT SysStackSize;
+} ARCH_TASK_DATA, *LPARCH_TASK_DATA;
+
 /************************************************************************/
 // The GDT register
 
@@ -427,12 +437,12 @@ extern KERNELDATA_I386 Kernel_i386;
 #define SELECTOR_LOCAL 0x04
 
 #define SELECTOR_NULL 0x00
-#define SELECTOR_KERNEL_CODE (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_KERNEL_DATA (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_USER_CODE (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_KERNEL_CODE (0x08 | SELECTOR_GLOBAL | GDT_PRIVILEGE_KERNEL)
+#define SELECTOR_KERNEL_DATA (0x10 | SELECTOR_GLOBAL | GDT_PRIVILEGE_KERNEL)
+#define SELECTOR_USER_CODE (0x18 | SELECTOR_GLOBAL | GDT_PRIVILEGE_USER)
+#define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | GDT_PRIVILEGE_USER)
+#define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | GDT_PRIVILEGE_KERNEL)
+#define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | GDT_PRIVILEGE_KERNEL)
 
 #define IDT_SIZE N_4KB
 #define GDT_SIZE N_8KB
@@ -441,7 +451,7 @@ extern KERNELDATA_I386 Kernel_i386;
 #define GDT_NUM_DESCRIPTORS (GDT_SIZE / DESCRIPTOR_SIZE)
 #define GDT_NUM_BASE_DESCRIPTORS 8
 #define GDT_TSS_INDEX GDT_NUM_BASE_DESCRIPTORS
-#define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, PRIVILEGE_KERNEL)
+#define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, GDT_PRIVILEGE_KERNEL)
 
 #define GDT_NUM_TASKS (GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS)
 #define NUM_TASKS GDT_NUM_TASKS
@@ -508,21 +518,21 @@ typedef struct tag_FAR_POINTER {
 /***************************************************************************/
 // Scheduler helpers (i386 specific)
 
-#define SetupStackForKernelMode(Task, StackTop)               \
-    (StackTop) -= 3;                                          \
-    ((U32*)(StackTop))[2] = (Task)->Context.Registers.EFlags; \
-    ((U32*)(StackTop))[1] = (Task)->Context.Registers.CS;     \
-    ((U32*)(StackTop))[0] = (Task)->Context.Registers.EIP;
+#define SetupStackForKernelMode(Task, StackTop)                    \
+    (StackTop) -= 3;                                               \
+    ((U32*)(StackTop))[2] = (Task)->Arch.Context.Registers.EFlags; \
+    ((U32*)(StackTop))[1] = (Task)->Arch.Context.Registers.CS;     \
+    ((U32*)(StackTop))[0] = (Task)->Arch.Context.Registers.EIP;
 
 /************************************************************************/
 
-#define SetupStackForUserMode(Task, StackTop, UserESP)        \
-    (StackTop) -= 5;                                          \
-    ((U32*)(StackTop))[4] = (Task)->Context.Registers.SS;     \
-    ((U32*)(StackTop))[3] = (UserESP);                        \
-    ((U32*)(StackTop))[2] = (Task)->Context.Registers.EFlags; \
-    ((U32*)(StackTop))[1] = (Task)->Context.Registers.CS;     \
-    ((U32*)(StackTop))[0] = (Task)->Context.Registers.EIP;
+#define SetupStackForUserMode(Task, StackTop, UserESP)             \
+    (StackTop) -= 5;                                               \
+    ((U32*)(StackTop))[4] = (Task)->Arch.Context.Registers.SS;     \
+    ((U32*)(StackTop))[3] = (UserESP);                             \
+    ((U32*)(StackTop))[2] = (Task)->Arch.Context.Registers.EFlags; \
+    ((U32*)(StackTop))[1] = (Task)->Arch.Context.Registers.CS;     \
+    ((U32*)(StackTop))[0] = (Task)->Arch.Context.Registers.EIP;
 
 /************************************************************************/
 
@@ -539,8 +549,8 @@ typedef struct tag_FAR_POINTER {
             "1:\t"                                                                                     \
             "add $8, %%esp\n\t"                                                                        \
             "popa\n\t"                                                                                 \
-            : "=m"((prev)->Context.Registers.ESP), "=m"((prev)->Context.Registers.EIP)                 \
-            : "m"((next)->Context.Registers.ESP), "m"((next)->Context.Registers.EIP), "r"(prev),      \
+            : "=m"((prev)->Arch.Context.Registers.ESP), "=m"((prev)->Arch.Context.Registers.EIP)       \
+            : "m"((next)->Arch.Context.Registers.ESP), "m"((next)->Arch.Context.Registers.EIP), "r"(prev), \
               "r"(next)                                                                               \
             : "memory");                                                                               \
     } while (0)
@@ -555,16 +565,8 @@ typedef struct tag_FAR_POINTER {
         "mov %2, %%esp\n\t"                                                                         \
         "iret"                                                                                      \
         :                                                                                           \
-        : "m"((Task)->Context.Registers.EAX), "m"((Task)->Context.Registers.EBX), "m"(StackPointer) \
+        : "m"((Task)->Arch.Context.Registers.EAX), "m"((Task)->Arch.Context.Registers.EBX), "m"(StackPointer) \
         : "eax", "ebx", "memory");
-
-/***************************************************************************/
-// Privilege levels (rings)
-
-#define PRIVILEGE_KERNEL 0x00
-#define PRIVILEGE_DRIVERS 0x01
-#define PRIVILEGE_ROUTINES 0x02
-#define PRIVILEGE_USER 0x03
 
 /***************************************************************************/
 // Values related to CPUID
@@ -892,6 +894,10 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text);
 /***************************************************************************/
 
 struct tag_TASK;
+struct tag_PROCESS;
+struct tag_TASKINFO;
+
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
 void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 
 /************************************************************************/

@@ -28,7 +28,6 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Process.h"
-#include "Stack.h"
 
 /************************************************************************/
 
@@ -200,16 +199,17 @@ void DeleteTask(LPTASK This) {
 
         DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
-        SAFE_USE(This->SysStackBase) {
-            DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->SysStackBase,
-                This->SysStackSize);
-            FreeRegion(This->SysStackBase, This->SysStackSize);
+        SAFE_USE(This->Arch.SysStackBase) {
+            DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->Arch.SysStackBase,
+                This->Arch.SysStackSize);
+            FreeRegion(This->Arch.SysStackBase, This->Arch.SysStackSize);
         }
 
         SAFE_USE(This->Process) {
-            SAFE_USE(This->StackBase) {
-                DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->StackBase, This->StackSize);
-                FreeRegion(This->StackBase, This->StackSize);
+            SAFE_USE(This->Arch.StackBase) {
+                DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->Arch.StackBase,
+                    This->Arch.StackSize);
+                FreeRegion(This->Arch.StackBase, This->Arch.StackSize);
             }
         }
 
@@ -321,10 +321,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     TRACED_FUNCTION;
 
     LPTASK Task = NULL;
-    LINEAR StackTop = NULL;
-    LINEAR SysStackTop = NULL;
-    SELECTOR CodeSelector = 0;
-    SELECTOR DataSelector = 0;
 
     DEBUG(TEXT("[CreateTask] Enter"));
     DEBUG(TEXT("[CreateTask] Process : %X"), Process);
@@ -421,113 +417,12 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         KernelProcess.HeapSize);
     DEBUG(TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
-    LINEAR BaseVMA = VMA_KERNEL;
-
-    if (Process->Privilege == PRIVILEGE_USER) {
-        BaseVMA = VMA_USER;
-    }
-
-    Task->StackSize = Info->StackSize;
-    Task->SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
-
-    Task->StackBase =
-        AllocRegion(BaseVMA, 0, Task->StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
-    Task->SysStackBase = AllocKernelRegion(0, Task->SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-
-    DEBUG(TEXT("[CreateTask] BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
-    DEBUG(TEXT("[CreateTask] Actually got StackBase=%X"), Task->StackBase);
-
-    if (Task->StackBase == NULL || Task->SysStackBase == NULL) {
-        SAFE_USE(Task->StackBase) {
-            FreeRegion(Task->StackBase, Task->StackSize);
-        }
-
-        SAFE_USE(Task->SysStackBase) {
-            FreeRegion(Task->SysStackBase, Task->SysStackSize);
-        }
-
+    if (SetupTask(Task, Process, Info) == FALSE) {
         DeleteTask(Task);
         Task = NULL;
 
-        ERROR(TEXT("[CreateTask] Stack or system stack allocation failed"));
+        ERROR(TEXT("[CreateTask] Architecture-specific task setup failed"));
         goto Out;
-    }
-
-    DEBUG(TEXT("[CreateTask] Stack (%X bytes) allocated at %X"), Task->StackSize, Task->StackBase);
-    DEBUG(TEXT("[CreateTask] System stack (%X bytes) allocated at %X"), Task->SysStackSize,
-        Task->SysStackBase);
-
-    //-------------------------------------
-    // Clear stacks
-
-    MemorySet((void*)(Task->StackBase), 0, Task->StackSize);
-    MemorySet((void*)(Task->SysStackBase), 0, Task->SysStackSize);
-
-    //-------------------------------------
-    // Setup privilege data
-
-    if (Process->Privilege == PRIVILEGE_KERNEL) {
-        DEBUG(TEXT("[CreateTask] Setting kernel privilege (ring 0)"));
-
-        CodeSelector = SELECTOR_KERNEL_CODE;
-        DataSelector = SELECTOR_KERNEL_DATA;
-    } else {
-        DEBUG(TEXT("[CreateTask] Setting user privilege (ring 3)"));
-
-        CodeSelector = SELECTOR_USER_CODE;
-        DataSelector = SELECTOR_USER_DATA;
-    }
-
-    StackTop = Task->StackBase + Task->StackSize;
-    SysStackTop = Task->SysStackBase + Task->SysStackSize;
-
-    MemorySet(&(Task->Context), 0, sizeof(INTERRUPT_FRAME));
-
-    Task->Context.Registers.EAX = (U32)Task->Parameter;
-    Task->Context.Registers.EBX = (U32)Task->Function;
-    Task->Context.Registers.ECX = 0;
-    Task->Context.Registers.EDX = 0;
-
-    Task->Context.Registers.CS = CodeSelector;
-    Task->Context.Registers.DS = DataSelector;
-    Task->Context.Registers.ES = DataSelector;
-    Task->Context.Registers.FS = DataSelector;
-    Task->Context.Registers.GS = DataSelector;
-    Task->Context.Registers.SS = DataSelector;
-    Task->Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
-    Task->Context.Registers.CR3 = Process->PageDirectory;
-    Task->Context.Registers.CR4 = GetCR4();
-    Task->Context.Registers.EIP = VMA_TASK_RUNNER;
-
-    if (Process->Privilege == PRIVILEGE_KERNEL) {
-        Task->Context.Registers.ESP = StackTop - STACK_SAFETY_MARGIN;
-        Task->Context.Registers.EBP = StackTop - STACK_SAFETY_MARGIN;
-    } else {
-        Task->Context.Registers.ESP = SysStackTop - STACK_SAFETY_MARGIN;
-        Task->Context.Registers.EBP = SysStackTop - STACK_SAFETY_MARGIN;
-    }
-
-    if (Info->Flags & TASK_CREATE_MAIN_KERNEL) {
-        Task->Status = TASK_STATUS_RUNNING;
-
-        Kernel_i386.TSS->ESP0 = SysStackTop - STACK_SAFETY_MARGIN;
-
-        LINEAR BootStackTop = KernelStartup.StackTop;
-        LINEAR ESP = GetESP();
-        UINT StackUsed = (BootStackTop - ESP) + 256;
-
-        DEBUG(TEXT("[CreateTask] BootStackTop = %X"), BootStackTop);
-        DEBUG(TEXT("[CreateTask] StackTop = %X"), StackTop);
-        DEBUG(TEXT("[CreateTask] StackUsed = %X"), StackUsed);
-        DEBUG(TEXT("[CreateTask] Switching to new stack..."));
-
-        if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
-            Task->Context.Registers.ESP = 0;  // Not used for main task
-            Task->Context.Registers.EBP = GetEBP();
-            DEBUG(TEXT("[CreateTask] Main task stack switched successfully"));
-        } else {
-            ERROR(TEXT("[CreateTask] Stack switch failed"));
-        }
     }
 
     // Save flags for scheduler
@@ -1435,10 +1330,10 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("Function        : %x"), Task->Function);
     VERBOSE(TEXT("Parameter       : %x"), Task->Parameter);
     VERBOSE(TEXT("ExitCode        : %x"), Task->ExitCode);
-    VERBOSE(TEXT("StackBase       : %x"), Task->StackBase);
-    VERBOSE(TEXT("StackSize       : %x"), Task->StackSize);
-    VERBOSE(TEXT("SysStackBase    : %x"), Task->SysStackBase);
-    VERBOSE(TEXT("SysStackSize    : %x"), Task->SysStackSize);
+    VERBOSE(TEXT("StackBase       : %x"), Task->Arch.StackBase);
+    VERBOSE(TEXT("StackSize       : %x"), Task->Arch.StackSize);
+    VERBOSE(TEXT("SysStackBase    : %x"), Task->Arch.SysStackBase);
+    VERBOSE(TEXT("SysStackSize    : %x"), Task->Arch.SysStackSize);
     VERBOSE(TEXT("WakeUpTime      : %d"), Task->WakeUpTime);
     VERBOSE(TEXT("Queued messages : %d"), Task->Message->NumItems);
 

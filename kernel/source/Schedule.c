@@ -398,12 +398,13 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
-            LINEAR ESP = NextTask->StackBase + NextTask->StackSize - STACK_SAFETY_MARGIN;
+            LINEAR ESP = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
             SetupStackForKernelMode(NextTask, ESP);
             JumpToReadyTask(NextTask, ESP);
         } else {
-            LINEAR ESP = NextTask->SysStackBase + NextTask->SysStackSize - STACK_SAFETY_MARGIN;
-            SetupStackForUserMode(NextTask, ESP, NextTask->StackBase + NextTask->StackSize - STACK_SAFETY_MARGIN);
+            LINEAR ESP = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
+            SetupStackForUserMode(
+                NextTask, ESP, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
             JumpToReadyTask(NextTask, ESP);
         }
     }
@@ -532,8 +533,8 @@ void Scheduler(void) {
             CurrentTask->Process->Privilege != NextTask->Process->Privilege) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[Scheduler] Different ring switch :"));
-            LogFrame(CurrentTask, &CurrentTask->Context);
-            LogFrame(NextTask, &NextTask->Context);
+            LogFrame(CurrentTask, &CurrentTask->Arch.Context);
+            LogFrame(NextTask, &NextTask->Arch.Context);
 #endif
         }
 

@@ -344,6 +344,19 @@ Fractional part = unusable space.
 
 ## Tasks
 
+### Architecture-specific task data
+
+Each task embeds an `ARCH_TASK_DATA` structure (declared in `kernel/include/arch/i386/I386.h`) that
+contains the saved interrupt frame along with both the user and system stack descriptors. The
+generic `tag_TASK` definition in `kernel/include/Task.h` now exposes this structure as the `Arch`
+member so that all stack and context manipulations are scoped to the active architecture.
+
+The i386 implementation of `SetupTask` (`kernel/source/arch/i386/I386.c`) is responsible for
+allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and
+performing the bootstrap stack switch for the main kernel task. `CreateTask` calls this helper after
+finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic
+while allowing future architectures to provide their own `SetupTask` specialisation.
+
 ### IRQ scheduling
 
 #### IRQ 0 path

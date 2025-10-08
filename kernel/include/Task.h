@@ -60,11 +60,7 @@ struct tag_TASK {
     LPVOID Parameter;         // Parameter passed to the function
     U32 ExitCode;             // This task's exit code
     U32 Flags;                // Task creation flags
-    INTERRUPT_FRAME Context;   // Saved context for software switching
-    LINEAR StackBase;         // This task's stack in the heap
-    UINT StackSize;           // This task's stack size
-    LINEAR SysStackBase;
-    UINT SysStackSize;
+    ARCH_TASK_DATA Arch;      // Architecture-specific task data
     U32 WakeUpTime;           // System time at which to wake up the task
     MUTEX MessageMutex;       // Mutex to access message queue
     LPLIST Message;           // This task's message queue

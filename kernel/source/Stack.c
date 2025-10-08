@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "Base.h"
+#include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
 #include "Process.h"
@@ -186,15 +187,15 @@ BOOL CheckStack(void) {
     // Determine which ESP to check and which stack bounds to use
     if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
         // Kernel tasks always use their normal stack
-        CurrentESP = CurrentTask->Context.Registers.ESP;
-        StackBase = CurrentTask->StackBase;
-        StackTop = StackBase + CurrentTask->StackSize;
+        CurrentESP = CurrentTask->Arch.Context.Registers.ESP;
+        StackBase = CurrentTask->Arch.StackBase;
+        StackTop = StackBase + CurrentTask->Arch.StackSize;
     } else if (InKernelMode) {
         // User task currently in kernel mode (via syscall/interrupt)
         // The hardware switches to ESP0 stack, which may not be the task's system stack
         // We cannot reliably validate the current ESP since it might be on a different kernel stack
         // Instead, we just verify the task has a valid system stack allocated
-        if (CurrentTask->SysStackBase == 0 || CurrentTask->SysStackSize == 0) {
+        if (CurrentTask->Arch.SysStackBase == 0 || CurrentTask->Arch.SysStackSize == 0) {
             ERROR(TEXT("[CheckStack] User task in kernel mode without system stack!"));
             KernelLogText(
                 LOG_ERROR, TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name,
@@ -206,9 +207,9 @@ BOOL CheckStack(void) {
         return TRUE;
     } else {
         // User task in user mode - check saved user stack ESP
-        CurrentESP = CurrentTask->Context.Registers.ESP;
-        StackBase = CurrentTask->StackBase;
-        StackTop = StackBase + CurrentTask->StackSize;
+        CurrentESP = CurrentTask->Arch.Context.Registers.ESP;
+        StackBase = CurrentTask->Arch.StackBase;
+        StackTop = StackBase + CurrentTask->Arch.StackSize;
     }
 
     if (CurrentESP < StackBase || CurrentESP > StackTop) {

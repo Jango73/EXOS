@@ -23,6 +23,8 @@
 \************************************************************************/
 
 #include "Kernel.h"
+#include "arch/i386/I386.h"
+#include "Process.h"
 
 #include "drivers/ACPI.h"
 #include "drivers/LocalAPIC.h"
@@ -451,7 +453,7 @@ static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
  *
  * @param Process Process whose owned kernel objects must be released.
  */
-void ReleaseProcessKernelObjects(LPPROCESS Process) {
+void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         if (Process == &KernelProcess) {
             return;

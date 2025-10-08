@@ -27,18 +27,24 @@
 
 /***************************************************************************/
 
+// Privilege levels (rings)
+#define PRIVILEGE_KERNEL 0x00
+#define PRIVILEGE_DRIVERS 0x01
+#define PRIVILEGE_ROUTINES 0x02
+#define PRIVILEGE_USER 0x03
+
+/***************************************************************************/
+
 #include "Base.h"
 #include "utils/Cache.h"
 #include "utils/Database.h"
 #include "utils/TOML.h"
 #include "FileSystem.h"
 #include "Heap.h"
-#include "arch/i386/I386.h"
 #include "ID.h"
 #include "List.h"
 #include "Memory.h"
 #include "Multiboot.h"
-#include "Process.h"
 #include "String.h"
 #include "Text.h"
 #include "User.h"
@@ -48,6 +54,10 @@
 /***************************************************************************/
 
 #pragma pack(push, 1)
+
+struct tag_PROCESS;
+struct tag_SEGMENT_DESCRIPTOR;
+struct tag_TSS_DESCRIPTOR;
 
 /***************************************************************************/
 // Structure to receive CPU information
@@ -157,18 +167,18 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
 void KernelObjectDestructor(LPVOID);
 LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
-void ReleaseProcessKernelObjects(LPPROCESS Process);
+void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
 
 /***************************************************************************/
 // Functions in Segment.c
 
-void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR, U32);
-void InitGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);
+void InitSegmentDescriptor(struct tag_SEGMENT_DESCRIPTOR*, U32);
+void InitGlobalDescriptorTable(struct tag_SEGMENT_DESCRIPTOR* Table);
 void InitializeTaskSegments(void);
-void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR Desc, U32 Base);
-void SetSegmentDescriptorLimit(LPSEGMENT_DESCRIPTOR Desc, U32 Limit);
-void SetTSSDescriptorBase(LPTSS_DESCRIPTOR Desc, U32 Base);
-void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR Desc, U32 Limit);
+void SetSegmentDescriptorBase(struct tag_SEGMENT_DESCRIPTOR* Desc, U32 Base);
+void SetSegmentDescriptorLimit(struct tag_SEGMENT_DESCRIPTOR* Desc, U32 Limit);
+void SetTSSDescriptorBase(struct tag_TSS_DESCRIPTOR* Desc, U32 Base);
+void SetTSSDescriptorLimit(struct tag_TSS_DESCRIPTOR* Desc, U32 Limit);
 
 /***************************************************************************/
 // Functions in MemoryEditor.c
