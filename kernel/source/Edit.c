@@ -283,6 +283,11 @@ void CheckPositions(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Compute the absolute cursor position inside the file.
+ * @param File File providing cursor and viewport information.
+ * @return Absolute cursor coordinates or {0,0} if File is NULL.
+ */
 static POINT GetAbsoluteCursor(const LPEDITFILE File) {
     POINT Position;
 
@@ -298,6 +303,11 @@ static POINT GetAbsoluteCursor(const LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Check whether the current selection spans at least one character.
+ * @param File File holding the selection state.
+ * @return TRUE if the selection has a non-zero range, FALSE otherwise.
+ */
 static BOOL SelectionHasRange(const LPEDITFILE File) {
     if (File == NULL) return FALSE;
     return (File->SelStart.X != File->SelEnd.X) || (File->SelStart.Y != File->SelEnd.Y);
@@ -305,6 +315,12 @@ static BOOL SelectionHasRange(const LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Order selection boundaries so Start is before End.
+ * @param File File providing the selection information.
+ * @param Start Output start point of the selection.
+ * @param End Output end point of the selection.
+ */
 static void NormalizeSelection(const LPEDITFILE File, POINT* Start, POINT* End) {
     POINT Temp;
 
@@ -322,6 +338,10 @@ static void NormalizeSelection(const LPEDITFILE File, POINT* Start, POINT* End) 
 
 /***************************************************************************/
 
+/**
+ * @brief Reduce the selection to the current cursor position.
+ * @param File File containing the selection.
+ */
 static void CollapseSelectionToCursor(LPEDITFILE File) {
     POINT Position;
 
@@ -334,6 +354,12 @@ static void CollapseSelectionToCursor(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Update selection endpoints after the cursor moves.
+ * @param File File being edited.
+ * @param Extend TRUE to extend the selection, FALSE to collapse it.
+ * @param Previous Cursor position before the move.
+ */
 static void UpdateSelectionAfterMove(LPEDITFILE File, BOOL Extend, POINT Previous) {
     if (File == NULL) return;
 
@@ -349,6 +375,12 @@ static void UpdateSelectionAfterMove(LPEDITFILE File, BOOL Extend, POINT Previou
 
 /***************************************************************************/
 
+/**
+ * @brief Move the cursor to absolute coordinates and adjust the viewport.
+ * @param File File whose cursor must be moved.
+ * @param Column Absolute column target.
+ * @param Line Absolute line target.
+ */
 static void MoveCursorToAbsolute(LPEDITFILE File, I32 Column, I32 Line) {
     if (File == NULL) return;
 
@@ -380,7 +412,7 @@ static void MoveCursorToAbsolute(LPEDITFILE File, I32 Column, I32 Line) {
 /***************************************************************************/
 
 /**
- * @brief Draw the editor menu at the bottom of the console.
+ * @brief Forward declarations for console rendering helpers.
  */
 static void ConsoleFill(U32 Row, U32 Column, U32 Length);
 static void RenderTitleBar(LPEDITFILE File, U32 ForeColor, U32 BackColor, U32 Width);
@@ -657,6 +689,12 @@ static void Render(LPEDITCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Fill a portion of the console with spaces using current colors.
+ * @param Row Target console row.
+ * @param Column Starting column inside the row.
+ * @param Length Number of characters to overwrite.
+ */
 static void ConsoleFill(U32 Row, U32 Column, U32 Length) {
     STR SpaceBuffer[32];
     U32 Index;
@@ -681,6 +719,13 @@ static void ConsoleFill(U32 Row, U32 Column, U32 Length) {
 
 /***************************************************************************/
 
+/**
+ * @brief Print a single character inside the menu line and advance the cursor.
+ * @param Row Target console row.
+ * @param Column Pointer to the current column offset.
+ * @param Character Character to print.
+ * @param Width Total width available on the row.
+ */
 static void PrintMenuChar(U32 Row, U32* Column, STR Character, U32 Width) {
     STR Buffer[1];
 
@@ -694,6 +739,13 @@ static void PrintMenuChar(U32 Row, U32* Column, STR Character, U32 Width) {
 
 /***************************************************************************/
 
+/**
+ * @brief Print a string inside the menu line respecting the available width.
+ * @param Row Target console row.
+ * @param Column Pointer to the current column offset.
+ * @param Text Text to display.
+ * @param Width Total width available on the row.
+ */
 static void PrintMenuText(U32 Row, U32* Column, LPCSTR Text, U32 Width) {
     U32 Length;
     U32 Remaining;
@@ -715,6 +767,13 @@ static void PrintMenuText(U32 Row, U32* Column, LPCSTR Text, U32 Width) {
 
 /***************************************************************************/
 
+/**
+ * @brief Render the editor title bar, including file name and modified flag.
+ * @param File Currently active file.
+ * @param ForeColor Foreground color to use.
+ * @param BackColor Background color to use.
+ * @param Width Console width in characters.
+ */
 static void RenderTitleBar(LPEDITFILE File, U32 ForeColor, U32 BackColor, U32 Width) {
     I32 Line;
     U32 Column = 0;
@@ -752,6 +811,12 @@ static void RenderTitleBar(LPEDITFILE File, U32 ForeColor, U32 BackColor, U32 Wi
 
 /***************************************************************************/
 
+/**
+ * @brief Render the editor command menu at the bottom of the screen.
+ * @param ForeColor Foreground color to use.
+ * @param BackColor Background color to use.
+ * @param Width Console width in characters.
+ */
 static void RenderMenu(U32 ForeColor, U32 BackColor, U32 Width) {
     U32 Item;
     I32 Line;
@@ -791,7 +856,9 @@ static void RenderMenu(U32 ForeColor, U32 BackColor, U32 Width) {
 /***************************************************************************/
 
 /**
- * @brief Draw the editor menu at the bottom of the console.
+ * @brief Handle the exit command from the menu.
+ * @param Context Active editor context (unused).
+ * @return TRUE to terminate the editor loop.
  */
 static BOOL CommandExit(LPEDITCONTEXT Context) {
     UNUSED(Context);
@@ -875,6 +942,11 @@ static BOOL CommandSave(LPEDITCONTEXT Context) { return SaveFile(Context->Curren
 
 /***************************************************************************/
 
+/**
+ * @brief Cut the current line or selection into the clipboard.
+ * @param Context Active editor context.
+ * @return FALSE because the editor loop continues running.
+ */
 static BOOL CommandCut(LPEDITCONTEXT Context) {
     LPEDITFILE File;
     LPEDITLINE Line;
@@ -968,6 +1040,11 @@ static BOOL CommandCut(LPEDITCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Copy the current selection into the clipboard.
+ * @param Context Active editor context.
+ * @return FALSE because the editor loop continues running.
+ */
 static BOOL CommandCopy(LPEDITCONTEXT Context) {
     if (Context == NULL) return FALSE;
     CopySelectionToClipboard(Context);
@@ -976,6 +1053,11 @@ static BOOL CommandCopy(LPEDITCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Paste clipboard content at the cursor position.
+ * @param Context Active editor context.
+ * @return FALSE because the editor loop continues running.
+ */
 static BOOL CommandPaste(LPEDITCONTEXT Context) {
     LPEDITFILE File;
     I32 Index;
@@ -1111,6 +1193,10 @@ static LPEDITLINE GetCurrentLine(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Delete the currently selected text range.
+ * @param File Active file containing the selection.
+ */
 static void DeleteSelection(LPEDITFILE File) {
     POINT Start;
     POINT End;
@@ -1196,6 +1282,11 @@ static void DeleteSelection(LPEDITFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Copy the selected text into the editor clipboard.
+ * @param Context Active editor context.
+ * @return TRUE if text was copied, FALSE otherwise.
+ */
 static BOOL CopySelectionToClipboard(LPEDITCONTEXT Context) {
     LPEDITFILE File;
     POINT Start;
