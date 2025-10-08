@@ -207,6 +207,69 @@ void LogPageDirectoryEntry(U32 LogType, const PAGE_DIRECTORY* PageDirectory) {
 /***************************************************************************/
 
 /**
+ * @brief Logs the full contents of a page directory and its tables.
+ * @param DirectoryPhysical Physical address of the page directory to inspect.
+ *
+ * Dumps each present page directory entry and a sample of the corresponding
+ * page table mappings, giving visibility into the linear to physical mapping
+ * layout. Uses the temporary mapping helpers to walk the structures.
+ */
+void LogPageDirectory(PHYSICAL DirectoryPhysical) {
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTempPhysicalPage(DirectoryPhysical);
+    UINT DirEntry = 0;
+
+    DEBUG(TEXT("[LogPageDirectory] Page Directory PA=%x contents:"), DirectoryPhysical);
+
+    for (DirEntry = 0; DirEntry < 1024; DirEntry++) {
+        if (Directory[DirEntry].Present) {
+            LINEAR VirtualAddress = DirEntry << 22;
+            PHYSICAL PhysicalAddress = Directory[DirEntry].Address << 12;
+
+            DEBUG(TEXT("[LogPageDirectory] PDE[%03u]: VA=%x-%x -> PT_PA=%x Present=%u RW=%u Priv=%u"), DirEntry,
+                VirtualAddress, VirtualAddress + 0x3FFFFF, PhysicalAddress, Directory[DirEntry].Present,
+                Directory[DirEntry].ReadWrite, Directory[DirEntry].Privilege);
+
+            PHYSICAL PageTablePhysical = Directory[DirEntry].Address << 12;
+            LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTempPhysicalPage2(PageTablePhysical);
+
+            UINT TabEntry = 0;
+            UINT MappedCount = 0;
+
+            for (TabEntry = 0; TabEntry < 1024; TabEntry++) {
+                if (Table[TabEntry].Present) {
+                    MappedCount++;
+
+                    if (MappedCount <= 3 || MappedCount >= 1021) {
+                        VirtualAddress = (DirEntry << 22) + (TabEntry << 12);
+                        PhysicalAddress = Table[TabEntry].Address << 12;
+
+                        DEBUG(TEXT("[LogPageDirectory]   PTE[%u]: VA=%x -> PA=%x Present=%u RW=%u Priv=%u Dirty=%u Fixed=%u"),
+                            TabEntry, VirtualAddress, PhysicalAddress, Table[TabEntry].Present, Table[TabEntry].ReadWrite,
+                            Table[TabEntry].Privilege, Table[TabEntry].Dirty, Table[TabEntry].Fixed);
+
+                        U8* Memory = (U8*)MapTempPhysicalPage3(PhysicalAddress);
+
+#if DEBUG_OUTPUT == 1
+                        LogMemoryLine16B(LOG_DEBUG, (LPCSTR)"[LogPageDirectory]     RAM: ", Memory);
+#endif
+                    } else if (MappedCount == 4) {
+                        DEBUG(TEXT("[LogPageDirectory]   ... (%u more mapped pages) ..."), 1024 - 6);
+                    }
+                }
+            }
+
+            if (MappedCount > 0) {
+                DEBUG(TEXT("[LogPageDirectory]   Total mapped pages in PDE[%u]: %u/1024"), DirEntry, MappedCount);
+            }
+        }
+    }
+
+    DEBUG(TEXT("[LogPageDirectory] End of page directory"));
+}
+
+/***************************************************************************/
+
+/**
  * @brief Logs the detailed contents of a page table entry
  * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
  * @param PageTable Pointer to the page table entry to log
