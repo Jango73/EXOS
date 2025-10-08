@@ -545,7 +545,7 @@ static inline void MapOnePage(
     U32 Fixed) {
     volatile U32* Pte = GetPageTableEntryRawPointer(Linear);
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    U32 dir = GetDirectoryEntry(Linear);
+    UINT dir = GetDirectoryEntry(Linear);
 
     if (!Directory[dir].Present) {
         ERROR(TEXT("[MapOnePage] PDE not present for VA %x (dir=%d)"), Linear, dir);
@@ -578,8 +578,8 @@ static inline void UnmapOnePage(LINEAR Linear) {
 BOOL IsValidMemory(LINEAR Pointer) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
-    U32 dir = GetDirectoryEntry(Pointer);
-    U32 tab = GetTableEntry(Pointer);
+    UINT dir = GetDirectoryEntry(Pointer);
+    UINT tab = GetTableEntry(Pointer);
 
     // Bounds check
     if (dir >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
@@ -767,7 +767,7 @@ PHYSICAL AllocPageDirectory(void) {
 
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
         #ifdef PROTECT_BIOS
-        LINEAR Physical = (U32)Index << 12;
+        PHYSICAL Physical = (PHYSICAL)Index << PAGE_SIZE_MUL;
         BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
         #else
         BOOL Protected = FALSE;
@@ -984,7 +984,7 @@ PHYSICAL AllocUserPageDirectory(void) {
     // Initialize identity mapping for 0..4MB (same as AllocPageDirectory)
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
         #ifdef PROTECT_BIOS
-        LINEAR Physical = (U32)Index << 12;
+        PHYSICAL Physical = (PHYSICAL)Index << PAGE_SIZE_MUL;
         BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
         #else
         BOOL Protected = FALSE;
