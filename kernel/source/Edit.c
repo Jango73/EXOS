@@ -26,6 +26,7 @@
 #include "Console.h"
 #include "Heap.h"
 #include "Kernel.h"
+#include "Mutex.h"
 #include "drivers/Keyboard.h"
 #include "List.h"
 #include "Log.h"
@@ -379,117 +380,9 @@ static void MoveCursorToAbsolute(LPEDITFILE File, I32 Column, I32 Line) {
 /**
  * @brief Draw the editor menu at the bottom of the console.
  */
-static U16 ComposeAttribute(U32 Foreground, U32 Background, U32 Blink) {
-    U16 Attribute = (U16)(Foreground | (Background << 0x04) | (Blink << 0x07));
-    return (U16)(Attribute << 0x08);
-}
-
-/***************************************************************************/
-
-static U16 ComposeConsoleAttribute(void) { return ComposeAttribute(Console.ForeColor, Console.BackColor, Console.Blink); }
-
-/***************************************************************************/
-
-static U16 ComposeInverseConsoleAttribute(void) { return ComposeAttribute(Console.BackColor, Console.ForeColor, Console.Blink); }
-
-/***************************************************************************/
-
-static inline U16 MakeConsoleCell(STR Char, U16 Attribute) { return (U16)Char | Attribute; }
-
-/***************************************************************************/
-
-static void WriteMenuText(U16* Row, U32 Width, U32* Column, LPCSTR Text, U16 Attribute) {
-    if (Row == NULL || Text == NULL || Column == NULL) return;
-
-    while (*Text && *Column < Width) {
-        Row[*Column] = MakeConsoleCell(*Text, Attribute);
-        (*Column)++;
-        Text++;
-    }
-}
-
-/***************************************************************************/
-
-static void RenderTitleBar(LPEDITFILE File, U16 Attribute, U16 SpaceCell) {
-    U16* Frame;
-    U16* Row;
-    U32 Width;
-    I32 Line;
-    U32 Column;
-    LPCSTR Name;
-
-    if (TitleHeight <= 0) return;
-
-    Frame = Console.Memory;
-    Width = Console.Width;
-
-    for (Line = 0; Line < TitleHeight; Line++) {
-        Row = Frame + (Line * Width);
-        for (Column = 0; Column < Width; Column++) {
-            Row[Column] = SpaceCell;
-        }
-    }
-
-    Row = Frame;
-    Column = 0;
-
-    if (File && File->Modified && Column < Width) {
-        Row[Column++] = MakeConsoleCell('*', Attribute);
-    }
-
-    if (File && File->Name) {
-        Name = File->Name;
-    } else {
-        Name = TEXT("<untitled>");
-    }
-
-    while (*Name && Column < Width) {
-        Row[Column++] = MakeConsoleCell(*Name++, Attribute);
-    }
-}
-
-/***************************************************************************/
-
-static void RenderMenu(U16 Attribute, U16 SpaceCell) {
-    U32 Item;
-    I32 Line;
-    U32 Column;
-    U32 Width = Console.Width;
-    U16* Frame = Console.Memory;
-    U16* Row;
-
-    for (Line = 0; Line < MenuHeight; Line++) {
-        Row = Frame + ((TitleHeight + MAX_LINES + Line) * Width);
-        for (Column = 0; Column < Width; Column++) {
-            Row[Column] = SpaceCell;
-        }
-    }
-
-    Row = Frame + ((TitleHeight + MAX_LINES) * Width);
-    Column = 0;
-
-    for (Item = 0; Item < MenuItems && Column < Width; Item++) {
-        if (Menu[Item].Modifier.VirtualKey != VK_NONE) {
-            WriteMenuText(Row, Width, &Column, GetKeyName(Menu[Item].Modifier.VirtualKey), Attribute);
-            if (Column < Width) {
-                Row[Column++] = MakeConsoleCell('+', Attribute);
-            }
-        }
-
-        WriteMenuText(Row, Width, &Column, GetKeyName(Menu[Item].Key.VirtualKey), Attribute);
-        if (Column < Width) {
-            Row[Column++] = SpaceCell;
-        }
-
-        WriteMenuText(Row, Width, &Column, Menu[Item].Name, Attribute);
-        if (Column < Width) {
-            Row[Column++] = SpaceCell;
-        }
-        if (Column < Width) {
-            Row[Column++] = SpaceCell;
-        }
-    }
-}
+static void ConsoleFill(U32 Row, U32 Column, U32 Length);
+static void RenderTitleBar(LPEDITFILE File, U32 ForeColor, U32 BackColor, U32 Width);
+static void RenderMenu(U32 ForeColor, U32 BackColor, U32 Width);
 
 /***************************************************************************/
 
@@ -502,22 +395,25 @@ static void Render(LPEDITCONTEXT Context) {
     LPEDITLINE Line;
     I32 Index;
     U32 RowIndex;
-    U32 Column;
-    U16 Attribute;
-    U16 SpaceCell;
-    U16 MenuAttribute;
-    U16 MenuSpaceCell;
-    U16 TitleAttribute;
-    U16 TitleSpaceCell;
-    U16 LineNumberAttribute = 0;
-    U16 LineNumberSpaceCell = 0;
-    U32 Width;
-    U16* Frame;
-    BOOL PendingEofMarker = FALSE;
-    BOOL EofDrawn = FALSE;
     LPEDITFILE File;
     BOOL ShowLineNumbers;
     U32 TextColumnOffset;
+    U32 Width;
+    BOOL PendingEofMarker = FALSE;
+    BOOL EofDrawn = FALSE;
+    BOOL HasSelection;
+    POINT SelectionStart;
+    POINT SelectionEnd;
+    U32 DefaultForeColor;
+    U32 DefaultBackColor;
+    U32 MenuForeColor = CONSOLE_WHITE;
+    U32 MenuBackColor = CONSOLE_BLUE;
+    U32 TitleForeColor = CONSOLE_WHITE;
+    U32 TitleBackColor = CONSOLE_BLUE;
+    U32 LineNumberForeColor = CONSOLE_BLACK;
+    U32 LineNumberBackColor = CONSOLE_WHITE;
+    U32 SelectionForeColor;
+    U32 SelectionBackColor;
 
     if (Context == NULL) return;
 
@@ -536,47 +432,36 @@ static void Render(LPEDITCONTEXT Context) {
         Index++;
     }
 
-    Attribute = ComposeConsoleAttribute();
-    SpaceCell = MakeConsoleCell(STR_SPACE, Attribute);
-    MenuAttribute = ComposeAttribute(CONSOLE_WHITE, CONSOLE_BLUE, 0);
-    MenuSpaceCell = MakeConsoleCell(STR_SPACE, MenuAttribute);
-    TitleAttribute = MenuAttribute;
-    TitleSpaceCell = MenuSpaceCell;
     Width = Console.Width;
-    Frame = Console.Memory;
+    DefaultForeColor = Console.ForeColor;
+    DefaultBackColor = Console.BackColor;
+    SelectionForeColor = DefaultBackColor;
+    SelectionBackColor = DefaultForeColor;
 
-    if (ShowLineNumbers) {
-        LineNumberAttribute = ComposeAttribute(CONSOLE_BLACK, CONSOLE_WHITE, 0);
-        LineNumberSpaceCell = MakeConsoleCell(STR_SPACE, LineNumberAttribute);
-    }
-
-    U16 SelectedAttribute = ComposeInverseConsoleAttribute();
-    BOOL HasSelection = SelectionHasRange(File);
-    POINT SelectionStart;
-    POINT SelectionEnd;
-
+    HasSelection = SelectionHasRange(File);
     if (HasSelection) {
         NormalizeSelection(File, &SelectionStart, &SelectionEnd);
     }
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
-    RenderTitleBar(File, TitleAttribute, TitleSpaceCell);
+    RenderTitleBar(File, TitleForeColor, TitleBackColor, Width);
 
     for (RowIndex = 0; RowIndex < MAX_LINES; RowIndex++) {
-        U16* Row = Frame + ((TitleHeight + RowIndex) * Width);
         LPEDITLINE CurrentLine = NULL;
         I32 LineLength = 0;
         I32 AbsoluteRow = File->Top + (I32)RowIndex;
+        U32 TargetRow = TitleHeight + RowIndex;
+        BOOL RowHasEofMarker = FALSE;
 
-        for (Column = 0; Column < Width; Column++) {
-            Row[Column] = SpaceCell;
-        }
+        SetConsoleForeColor(DefaultForeColor);
+        SetConsoleBackColor(DefaultBackColor);
+        ConsoleFill(TargetRow, 0, Width);
 
         if (ShowLineNumbers) {
-            for (Column = 0; Column < TextColumnOffset && Column < Width; Column++) {
-                Row[Column] = LineNumberSpaceCell;
-            }
+            SetConsoleForeColor(LineNumberForeColor);
+            SetConsoleBackColor(LineNumberBackColor);
+            ConsoleFill(TargetRow, 0, TextColumnOffset);
         }
 
         if (Node) {
@@ -603,10 +488,10 @@ static void Render(LPEDITCONTEXT Context) {
                     Visible = MaxVisible;
                 }
 
-                for (Index = 0; Index < Visible; Index++) {
-                    U32 TargetColumn = TextColumnOffset + (U32)Index;
-                    if (TargetColumn >= Width) break;
-                    Row[TargetColumn] = MakeConsoleCell(Line->Chars[Start + Index], Attribute);
+                if (Visible > 0) {
+                    SetConsoleForeColor(DefaultForeColor);
+                    SetConsoleBackColor(DefaultBackColor);
+                    ConsolePrintLine(TargetRow, TextColumnOffset, &Line->Chars[Start], (U32)Visible);
                 }
                 LineLength = Line->NumChars;
             } else {
@@ -621,25 +506,32 @@ static void Render(LPEDITCONTEXT Context) {
 
             if (ShowLineNumbers && CurrentLine) {
                 STR LineNumberText[8];
-                U32 DigitIndex;
                 U32 DigitCount;
 
+                SetConsoleForeColor(LineNumberForeColor);
+                SetConsoleBackColor(LineNumberBackColor);
                 StringPrintFormat(LineNumberText, TEXT("%3d"), AbsoluteRow + 1);
                 DigitCount = StringLength(LineNumberText);
-
-                for (DigitIndex = 0; DigitIndex < DigitCount && DigitIndex < TextColumnOffset && DigitIndex < Width; DigitIndex++) {
-                    STR Character = LineNumberText[DigitIndex];
-                    if (Character == STR_NULL) {
-                        break;
-                    }
-                    Row[DigitIndex] = MakeConsoleCell(Character, LineNumberAttribute);
+                if (DigitCount > TextColumnOffset) {
+                    DigitCount = TextColumnOffset;
+                }
+                if (DigitCount > Width) {
+                    DigitCount = Width;
+                }
+                if (DigitCount > 0) {
+                    ConsolePrintLine(TargetRow, 0, LineNumberText, DigitCount);
                 }
             }
         } else {
             if (PendingEofMarker && EofDrawn == FALSE) {
                 U32 TargetColumn = TextColumnOffset;
                 if (TargetColumn < Width) {
-                    Row[TargetColumn] = MakeConsoleCell(EDIT_EOF_CHAR, Attribute);
+                    STR EofChar[1];
+                    EofChar[0] = EDIT_EOF_CHAR;
+                    SetConsoleForeColor(DefaultForeColor);
+                    SetConsoleBackColor(DefaultBackColor);
+                    ConsolePrintLine(TargetRow, TargetColumn, EofChar, 1);
+                    RowHasEofMarker = TRUE;
                 }
                 EofDrawn = TRUE;
                 PendingEofMarker = FALSE;
@@ -694,18 +586,59 @@ static void Render(LPEDITCONTEXT Context) {
                 if (VisibleEnd > MaxVisible) VisibleEnd = MaxVisible;
 
                 if (VisibleStart < VisibleEnd) {
-                    for (Index = VisibleStart; Index < VisibleEnd; Index++) {
-                        I32 ColumnIndex = (I32)TextColumnOffset + Index;
-                        if (ColumnIndex < 0 || ColumnIndex >= (I32)Width) break;
-                        STR Character = (STR)(Row[ColumnIndex] & 0x00FF);
-                        Row[ColumnIndex] = MakeConsoleCell(Character, SelectedAttribute);
+                    U32 HighlightColumn = TextColumnOffset + (U32)VisibleStart;
+                    U32 HighlightLength = (U32)(VisibleEnd - VisibleStart);
+
+                    if (HighlightColumn < Width) {
+                        if (HighlightLength > (Width - HighlightColumn)) {
+                            HighlightLength = Width - HighlightColumn;
+                        }
+
+                        if (HighlightLength > 0) {
+                            U32 Remaining = HighlightLength;
+                            I32 SourceIndex = RangeStart;
+                            U32 BufferOffset = 0;
+
+                            while (Remaining > 0) {
+                                STR HighlightBuffer[64];
+                                U32 Chunk = Remaining;
+                                U32 IndexInChunk;
+
+                                if (Chunk > (U32)(sizeof(HighlightBuffer) / sizeof(HighlightBuffer[0]))) {
+                                    Chunk = (U32)(sizeof(HighlightBuffer) / sizeof(HighlightBuffer[0]));
+                                }
+
+                                for (IndexInChunk = 0; IndexInChunk < Chunk; IndexInChunk++) {
+                                    STR Character = STR_SPACE;
+
+                                    if (CurrentLine && (SourceIndex + (I32)IndexInChunk) < CurrentLine->NumChars) {
+                                        Character = CurrentLine->Chars[SourceIndex + (I32)IndexInChunk];
+                                    } else if (RowHasEofMarker && HighlightColumn == TextColumnOffset && IndexInChunk == 0) {
+                                        Character = EDIT_EOF_CHAR;
+                                    }
+
+                                    HighlightBuffer[IndexInChunk] = Character;
+                                }
+
+                                SetConsoleForeColor(SelectionForeColor);
+                                SetConsoleBackColor(SelectionBackColor);
+                                ConsolePrintLine(TargetRow, HighlightColumn + BufferOffset, HighlightBuffer, Chunk);
+
+                                BufferOffset += Chunk;
+                                SourceIndex += (I32)Chunk;
+                                Remaining -= Chunk;
+                            }
+
+                            SetConsoleForeColor(DefaultForeColor);
+                            SetConsoleBackColor(DefaultBackColor);
+                        }
                     }
                 }
             }
         }
     }
 
-    RenderMenu(MenuAttribute, MenuSpaceCell);
+    RenderMenu(MenuForeColor, MenuBackColor, Width);
 
     Console.CursorX = (I32)TextColumnOffset + File->Cursor.X;
     if (Console.CursorX >= (I32)Width) {
@@ -714,15 +647,468 @@ static void Render(LPEDITCONTEXT Context) {
     Console.CursorY = TitleHeight + File->Cursor.Y;
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
-    UnlockMutex(MUTEX_CONSOLE);
+    SetConsoleForeColor(DefaultForeColor);
+    SetConsoleBackColor(DefaultBackColor);
+
+    UnlockMutex(MUTEX_CONSOLE, INFINITY);
+}
+
+/***************************************************************************/
+
+static void ConsoleFill(U32 Row, U32 Column, U32 Length) {
+    STR SpaceBuffer[32];
+    U32 Index;
+
+    for (Index = 0; Index < (U32)(sizeof(SpaceBuffer) / sizeof(SpaceBuffer[0])); Index++) {
+        SpaceBuffer[Index] = STR_SPACE;
+    }
+
+    while (Length > 0) {
+        U32 Chunk = Length;
+
+        if (Chunk > (U32)(sizeof(SpaceBuffer) / sizeof(SpaceBuffer[0]))) {
+            Chunk = (U32)(sizeof(SpaceBuffer) / sizeof(SpaceBuffer[0]));
+        }
+
+        ConsolePrintLine(Row, Column, SpaceBuffer, Chunk);
+
+        Column += Chunk;
+        Length -= Chunk;
+    }
+}
+
+/***************************************************************************/
+
+static void PrintMenuChar(U32 Row, U32* Column, STR Character, U32 Width) {
+    STR Buffer[1];
+
+    if (Column == NULL) return;
+    if (*Column >= Width) return;
+
+    Buffer[0] = Character;
+    ConsolePrintLine(Row, *Column, Buffer, 1);
+    (*Column)++;
+}
+
+/***************************************************************************/
+
+static void PrintMenuText(U32 Row, U32* Column, LPCSTR Text, U32 Width) {
+    U32 Length;
+    U32 Remaining;
+
+    if (Column == NULL || Text == NULL) return;
+    if (*Column >= Width) return;
+
+    Remaining = Width - *Column;
+    Length = StringLength(Text);
+    if (Length > Remaining) {
+        Length = Remaining;
+    }
+
+    if (Length == 0) return;
+
+    ConsolePrintLine(Row, *Column, Text, Length);
+    *Column += Length;
+}
+
+/***************************************************************************/
+
+static void RenderTitleBar(LPEDITFILE File, U32 ForeColor, U32 BackColor, U32 Width) {
+    I32 Line;
+    U32 Column = 0;
+    LPCSTR Name;
+
+    if (TitleHeight <= 0) return;
+
+    SetConsoleForeColor(ForeColor);
+    SetConsoleBackColor(BackColor);
+
+    for (Line = 0; Line < TitleHeight; Line++) {
+        ConsoleFill((U32)Line, 0, Width);
+    }
+
+    if (File && File->Modified && Column < Width) {
+        STR Modified = '*';
+        ConsolePrintLine(0, Column, &Modified, 1);
+        Column++;
+    }
+
+    if (File && File->Name) {
+        Name = File->Name;
+    } else {
+        Name = TEXT("<untitled>");
+    }
+
+    if (Name && Column < Width) {
+        U32 NameLength = StringLength(Name);
+        if (NameLength > (Width - Column)) {
+            NameLength = Width - Column;
+        }
+        ConsolePrintLine(0, Column, Name, NameLength);
+    }
+}
+
+/***************************************************************************/
+
+static void RenderMenu(U32 ForeColor, U32 BackColor, U32 Width) {
+    U32 Item;
+    I32 Line;
+    U32 Column;
+    U32 MenuRow = TitleHeight + MAX_LINES;
+
+    SetConsoleForeColor(ForeColor);
+    SetConsoleBackColor(BackColor);
+
+    for (Line = 0; Line < MenuHeight; Line++) {
+        ConsoleFill((U32)(TitleHeight + MAX_LINES + Line), 0, Width);
+    }
+
+    Column = 0;
+
+    for (Item = 0; Item < MenuItems && Column < Width; Item++) {
+        LPEDITMENUITEM MenuItem = &Menu[Item];
+        LPCSTR ModifierName = NULL;
+        LPCSTR KeyName = NULL;
+
+        if (MenuItem->Modifier.VirtualKey != VK_NONE) {
+            ModifierName = GetKeyName(MenuItem->Modifier.VirtualKey);
+            PrintMenuText(MenuRow, &Column, ModifierName, Width);
+            PrintMenuChar(MenuRow, &Column, '+', Width);
+        }
+
+        KeyName = GetKeyName(MenuItem->Key.VirtualKey);
+        PrintMenuText(MenuRow, &Column, KeyName, Width);
+        PrintMenuChar(MenuRow, &Column, ' ', Width);
+
+        PrintMenuText(MenuRow, &Column, MenuItem->Name, Width);
+        PrintMenuChar(MenuRow, &Column, ' ', Width);
+        PrintMenuChar(MenuRow, &Column, ' ', Width);
+    }
+}
+
+/***************************************************************************/
+
+static BOOL CommandExit(LPEDITCONTEXT Context);
+static BOOL CommandSave(LPEDITCONTEXT Context);
+static BOOL CommandCut(LPEDITCONTEXT Context);
+static BOOL CommandCopy(LPEDITCONTEXT Context);
+static BOOL CommandPaste(LPEDITCONTEXT Context);
+static BOOL CopySelectionToClipboard(LPEDITCONTEXT Context);
+static void DeleteSelection(LPEDITFILE File);
+static void AddCharacter(LPEDITFILE File, STR ASCIICode);
+static void AddLine(LPEDITFILE File);
+
+static EDITMENUITEM Menu[] = {
+    {{VK_NONE, 0, 0}, {VK_ESCAPE, 0, 0}, TEXT("Exit"), CommandExit},
+    {{VK_CONTROL, 0, 0}, {VK_S, 0, 0}, TEXT("Save"), CommandSave},
+    {{VK_CONTROL, 0, 0}, {VK_X, 0, 0}, TEXT("Cut"), CommandCut},
+    {{VK_CONTROL, 0, 0}, {VK_C, 0, 0}, TEXT("Copy"), CommandCopy},
+    {{VK_CONTROL, 0, 0}, {VK_V, 0, 0}, TEXT("Paste"), CommandPaste},
+};
+static const U32 MenuItems = sizeof(Menu) / sizeof(Menu[0]);
+
+static const KEYCODE ControlKey = {VK_CONTROL, 0, 0};
+static const KEYCODE ShiftKey = {VK_SHIFT, 0, 0};
+
+/***************************************************************************/
+
+struct tag_EDITLINE {
+    LISTNODE_FIELDS
+    I32 MaxChars;
+    I32 NumChars;
+    LPSTR Chars;
+};
+
+/***************************************************************************/
+
+struct tag_EDITFILE {
+    LISTNODE_FIELDS
+    LPLIST Lines;
+    POINT Cursor;
+    POINT SelStart;
+    POINT SelEnd;
+    I32 Left;
+    I32 Top;
+    LPSTR Name;
+    BOOL Modified;
+};
+
+/***************************************************************************/
+
+struct tag_EDITCONTEXT {
+    LISTNODE_FIELDS
+    LPLIST Files;
+    LPEDITFILE Current;
+    I32 Insert;
+    LPSTR Clipboard;
+    I32 ClipboardSize;
+    BOOL ShowLineNumbers;
+};
+
+/**
+ * @brief Allocate a new editable line with a given capacity.
+ * @param Size Maximum number of characters in the line.
+ * @return Pointer to the newly created line or NULL on failure.
+ */
+LPEDITLINE NewEditLine(I32 Size) {
+    LPEDITLINE This = (LPEDITLINE)HeapAlloc(sizeof(EDITLINE));
+
+    if (This == NULL) return NULL;
+
+    This->Next = NULL;
+    This->Prev = NULL;
+    This->MaxChars = Size;
+    This->NumChars = 0;
+    This->Chars = (LPSTR)HeapAlloc(Size);
+
+    return This;
 }
 
 /***************************************************************************/
 
 /**
- * @brief Handler for the exit command.
- * @param Context Active editor context.
- * @return TRUE to terminate the editor.
+ * @brief Free an editable line and its resources.
+ * @param This Line to destroy.
+ */
+void DeleteEditLine(LPEDITLINE This) {
+    if (This == NULL) return;
+
+    HeapFree(This->Chars);
+    HeapFree(This);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief List destructor callback for edit lines.
+ * @param Item Item to delete.
+ */
+void EditLineDestructor(LPVOID Item) { DeleteEditLine((LPEDITLINE)Item); }
+
+/***************************************************************************/
+
+/**
+ * @brief Create a new editable file instance.
+ * @return Pointer to a new EDITFILE or NULL on failure.
+ */
+LPEDITFILE NewEditFile(void) {
+    LPEDITFILE This;
+    LPEDITLINE Line;
+
+    This = (LPEDITFILE)HeapAlloc(sizeof(EDITFILE));
+    if (This == NULL) return NULL;
+
+    This->Next = NULL;
+    This->Prev = NULL;
+    This->Lines = NewList(EditLineDestructor, NULL, NULL);
+    This->Cursor.X = 0;
+    This->Cursor.Y = 0;
+    This->SelStart.X = 0;
+    This->SelStart.Y = 0;
+    This->SelEnd.X = 0;
+    This->SelEnd.Y = 0;
+    This->Left = 0;
+    This->Top = 0;
+    This->Name = NULL;
+    This->Modified = FALSE;
+
+    Line = NewEditLine(8);
+    ListAddItem(This->Lines, Line);
+
+    return This;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Destroy an editable file and all contained lines.
+ * @param This File to delete.
+ */
+void DeleteEditFile(LPEDITFILE This) {
+    if (This == NULL) return;
+
+    DeleteList(This->Lines);
+    HeapFree(This->Name);
+    HeapFree(This);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief List destructor callback for edit files.
+ * @param Item Item to delete.
+ */
+void EditFileDestructor(LPVOID Item) { DeleteEditFile((LPEDITFILE)Item); }
+
+/***************************************************************************/
+
+/**
+ * @brief Allocate a new editor context.
+ * @return Pointer to a new EDITCONTEXT or NULL on failure.
+ */
+LPEDITCONTEXT NewEditContext(void) {
+    LPEDITCONTEXT This = (LPEDITCONTEXT)HeapAlloc(sizeof(EDITCONTEXT));
+    if (This == NULL) return NULL;
+
+    This->Next = NULL;
+    This->Prev = NULL;
+    This->Files = NewList(EditFileDestructor, NULL, NULL);
+    This->Current = NULL;
+    This->Insert = 1;
+    This->Clipboard = NULL;
+    This->ClipboardSize = 0;
+    This->ShowLineNumbers = FALSE;
+
+    return This;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Destroy an editor context and its files list.
+ * @param This Context to delete.
+ */
+void DeleteEditContext(LPEDITCONTEXT This) {
+    if (This == NULL) return;
+
+    DeleteList(This->Files);
+    HeapFree(This->Clipboard);
+    HeapFree(This);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Ensure cursor and viewport positions remain within bounds.
+ * @param File File whose positions are validated.
+ */
+void CheckPositions(LPEDITFILE File) {
+    I32 MinX = 0;
+    I32 MinY = 0;
+    I32 MaxX = MAX_COLUMNS;
+    I32 MaxY = MAX_LINES;
+
+    while (File->Cursor.X < MinX) {
+        File->Left--;
+        File->Cursor.X++;
+    }
+    while (File->Cursor.X >= MaxX) {
+        File->Left++;
+        File->Cursor.X--;
+    }
+    while (File->Cursor.Y < MinY) {
+        File->Top--;
+        File->Cursor.Y++;
+    }
+    while (File->Cursor.Y >= MaxY) {
+        File->Top++;
+        File->Cursor.Y--;
+    }
+
+    if (File->Left < 0) File->Left = 0;
+    if (File->Top < 0) File->Top = 0;
+}
+
+/***************************************************************************/
+
+static POINT GetAbsoluteCursor(const LPEDITFILE File) {
+    POINT Position;
+
+    Position.X = 0;
+    Position.Y = 0;
+    if (File == NULL) return Position;
+
+    Position.X = File->Left + File->Cursor.X;
+    Position.Y = File->Top + File->Cursor.Y;
+
+    return Position;
+}
+
+/***************************************************************************/
+
+static BOOL SelectionHasRange(const LPEDITFILE File) {
+    if (File == NULL) return FALSE;
+    return (File->SelStart.X != File->SelEnd.X) || (File->SelStart.Y != File->SelEnd.Y);
+}
+
+/***************************************************************************/
+
+static void NormalizeSelection(const LPEDITFILE File, POINT* Start, POINT* End) {
+    POINT Temp;
+
+    if (File == NULL || Start == NULL || End == NULL) return;
+
+    *Start = File->SelStart;
+    *End = File->SelEnd;
+
+    if ((Start->Y > End->Y) || (Start->Y == End->Y && Start->X > End->X)) {
+        Temp = *Start;
+        *Start = *End;
+        *End = Temp;
+    }
+}
+
+/***************************************************************************/
+
+static void CollapseSelectionToCursor(LPEDITFILE File) {
+    POINT Position;
+
+    if (File == NULL) return;
+
+    Position = GetAbsoluteCursor(File);
+    File->SelStart = Position;
+    File->SelEnd = Position;
+}
+
+/***************************************************************************/
+
+static void UpdateSelectionAfterMove(LPEDITFILE File, BOOL Extend, POINT Previous) {
+    if (File == NULL) return;
+
+    if (Extend) {
+        if (SelectionHasRange(File) == FALSE) {
+            File->SelStart = Previous;
+        }
+        File->SelEnd = GetAbsoluteCursor(File);
+    } else {
+        CollapseSelectionToCursor(File);
+    }
+}
+
+/***************************************************************************/
+
+static void MoveCursorToAbsolute(LPEDITFILE File, I32 Column, I32 Line) {
+    if (File == NULL) return;
+
+    if (Line < 0) Line = 0;
+    if (Column < 0) Column = 0;
+
+    if (Line < File->Top) {
+        File->Top = Line;
+    } else if (Line >= (File->Top + MAX_LINES)) {
+        File->Top = Line - (MAX_LINES - 1);
+        if (File->Top < 0) File->Top = 0;
+    }
+
+    if (Column < File->Left) {
+        File->Left = Column;
+    } else if (Column >= (File->Left + MAX_COLUMNS)) {
+        File->Left = Column - (MAX_COLUMNS - 1);
+        if (File->Left < 0) File->Left = 0;
+    }
+
+    File->Cursor.Y = Line - File->Top;
+    File->Cursor.X = Column - File->Left;
+    if (File->Cursor.Y < 0) File->Cursor.Y = 0;
+    if (File->Cursor.X < 0) File->Cursor.X = 0;
+
+    CollapseSelectionToCursor(File);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw the editor menu at the bottom of the console.
  */
 static BOOL CommandExit(LPEDITCONTEXT Context) {
     UNUSED(Context);

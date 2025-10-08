@@ -297,6 +297,32 @@ void ConsolePrint(LPCSTR Format, ...) {
 
 /***************************************************************************/
 
+void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length) {
+    U32 Index;
+    U32 Width;
+    U32 Height;
+    U32 Offset;
+    U16 Attribute;
+
+    if (Text == NULL) return;
+
+    Width = Console.Width;
+    Height = Console.Height;
+
+    if (Row >= Height || Column >= Width) return;
+
+    Offset = (Row * Width) + Column;
+    Attribute = (U16)(Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07));
+    Attribute = (U16)(Attribute << 0x08);
+
+    for (Index = 0; Index < Length && (Column + Index) < Width; Index++) {
+        STR Character = Text[Index];
+        Console.Memory[Offset + Index] = (U16)Character | Attribute;
+    }
+}
+
+/***************************************************************************/
+
 int SetConsoleBackColor(U32 Color) {
     Console.BackColor = Color;
     return 1;

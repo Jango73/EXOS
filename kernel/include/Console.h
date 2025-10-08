@@ -74,6 +74,7 @@ void ClearConsole(void);
 void ConsolePrintChar(STR);
 void ConsoleBackSpace(void);
 void ConsolePrint(LPCSTR Format, ...);
+void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length);
 int SetConsoleBackColor(U32 Color);
 int SetConsoleForeColor(U32 Color);
 BOOL ConsoleGetString(LPSTR, U32);
