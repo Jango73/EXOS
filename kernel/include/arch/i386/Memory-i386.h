@@ -135,6 +135,101 @@ static inline UINT GetTableEntry(LINEAR Address) {
     return (Address & PAGE_TABLE_CAPACITY_MASK) >> PAGE_SIZE_MUL;
 }
 
+typedef struct tag_ARCH_PAGE_ITERATOR {
+    LINEAR Linear;
+    UINT DirectoryIndex;
+    UINT TableIndex;
+} ARCH_PAGE_ITERATOR;
+
+static inline ARCH_PAGE_ITERATOR ArchPageIteratorFromLinear(LINEAR Linear) {
+    ARCH_PAGE_ITERATOR Iterator;
+    Iterator.Linear = Linear;
+    Iterator.DirectoryIndex = GetDirectoryEntry(Linear);
+    Iterator.TableIndex = GetTableEntry(Linear);
+    return Iterator;
+}
+
+static inline LINEAR ArchPageIteratorGetLinear(const ARCH_PAGE_ITERATOR* Iterator) {
+    return Iterator->Linear;
+}
+
+static inline UINT ArchPageIteratorGetDirectoryIndex(const ARCH_PAGE_ITERATOR* Iterator) {
+    return Iterator->DirectoryIndex;
+}
+
+static inline UINT ArchPageIteratorGetTableIndex(const ARCH_PAGE_ITERATOR* Iterator) {
+    return Iterator->TableIndex;
+}
+
+static inline void ArchPageIteratorStepPage(ARCH_PAGE_ITERATOR* Iterator) {
+    Iterator->Linear += PAGE_SIZE;
+    Iterator->TableIndex++;
+    if (Iterator->TableIndex >= PAGE_TABLE_NUM_ENTRIES) {
+        Iterator->TableIndex = 0;
+        Iterator->DirectoryIndex = GetDirectoryEntry(Iterator->Linear);
+    }
+}
+
+static inline LINEAR ArchAlignLinearToTableBoundary(LINEAR Linear) {
+    return Linear & ~PAGE_TABLE_CAPACITY_MASK;
+}
+
+static inline void ArchPageIteratorAlignToTableStart(ARCH_PAGE_ITERATOR* Iterator) {
+    Iterator->Linear = ArchAlignLinearToTableBoundary(Iterator->Linear);
+    Iterator->DirectoryIndex = GetDirectoryEntry(Iterator->Linear);
+    Iterator->TableIndex = 0;
+}
+
+static inline void ArchPageIteratorNextTable(ARCH_PAGE_ITERATOR* Iterator) {
+    Iterator->Linear = ArchAlignLinearToTableBoundary(Iterator->Linear) + PAGE_TABLE_CAPACITY;
+    Iterator->DirectoryIndex = GetDirectoryEntry(Iterator->Linear);
+    Iterator->TableIndex = 0;
+}
+
+static inline BOOL ArchPageIteratorIsAtTableStart(const ARCH_PAGE_ITERATOR* Iterator) {
+    return Iterator->TableIndex == 0;
+}
+
+static inline LPPAGE_TABLE ArchPageIteratorGetTable(const ARCH_PAGE_ITERATOR* Iterator) {
+    return GetPageTableVAFor(Iterator->Linear);
+}
+
+static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
+    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+        if (PageTableEntryIsPresent(Table, Index)) return FALSE;
+    }
+    return TRUE;
+}
+
+static inline U64 ArchGetMaxLinearAddressPlusOne(void) {
+    return U64_Make(1, 0x00000000u);
+}
+
+static inline U64 ArchGetMaxPhysicalAddressPlusOne(void) {
+    return U64_Make(1, 0x00000000u);
+}
+
+static inline BOOL ArchClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UINT* OutLength) {
+    U64 Limit = ArchGetMaxPhysicalAddressPlusOne();
+
+    if ((Length.HI == 0 && Length.LO == 0) || OutBase == NULL || OutLength == NULL) return FALSE;
+    if (U64_Cmp(Base, Limit) >= 0) return FALSE;
+
+    U64 End = U64_Add(Base, Length);
+    if (U64_Cmp(End, Limit) > 0) End = Limit;
+
+    U64 NewLength = U64_Sub(End, Base);
+
+    *OutBase = Base.LO;
+    if (NewLength.HI != 0) {
+        *OutLength = MAX_U32 - Base.LO;
+    } else {
+        *OutLength = NewLength.LO;
+    }
+
+    return (*OutLength != 0);
+}
+
 static inline LPPAGE_DIRECTORY GetCurrentPageDirectoryVA(void) {
     return (LPPAGE_DIRECTORY)PD_VA;
 }

@@ -180,32 +180,6 @@ static LINEAR G_TempLinear3 = 0;
 
 /************************************************************************/
 
-/**
- * @brief Clip a 64-bit range to 32 bits.
- * @param base Input base address.
- * @param len Length of the range.
- * @param outBase Resulting 32-bit base.
- * @param outLen Resulting 32-bit length.
- * @return Non-zero if clipping succeeded.
- */
-static inline int ClipTo32Bit(U64 base, U64 len, PHYSICAL* outBase, UINT* outLen) {
-    U64 limit = U64_Make(1, 0x00000000u);
-    if (len.HI == 0 && len.LO == 0) return 0;
-    if (U64_Cmp(base, limit) >= 0) return 0;
-    U64 end = U64_Add(base, len);
-    if (U64_Cmp(end, limit) > 0) end = limit;
-    U64 newLen = U64_Sub(end, base);
-
-    if (newLen.HI != 0) {
-        *outBase = base.LO;
-        *outLen = 0xFFFFFFFFu - base.LO;
-    } else {
-        *outBase = base.LO;
-        *outLen = newLen.LO;
-    }
-    return (*outLen != 0);
-}
-
 /************************************************************************/
 
 /**
@@ -311,7 +285,7 @@ static void MarkUsedPhysicalMemory(void) {
 
             DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %x, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
 
-            ClipTo32Bit(Entry->Base, Entry->Size, &Base, &Size);
+            ArchClipPhysicalRange(Entry->Base, Entry->Size, &Base, &Size);
 
             PHYSICAL EntryEnd = Base + Size;
             if (EntryEnd > MaxAddress) {
@@ -1025,20 +999,20 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
 
     UINT NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    LINEAR Current = Base;
+    ARCH_PAGE_ITERATOR Iterator = ArchPageIteratorFromLinear(Base);
 
     // DEBUG(TEXT("[IsRegionFree] Traversing pages"));
 
     for (UINT i = 0; i < NumPages; i++) {
-        UINT dir = GetDirectoryEntry(Current);
-        UINT tab = GetTableEntry(Current);
+        UINT DirEntry = ArchPageIteratorGetDirectoryIndex(&Iterator);
+        UINT TabEntry = ArchPageIteratorGetTableIndex(&Iterator);
 
-        if (PageDirectoryEntryIsPresent(Directory, dir)) {
-            LPPAGE_TABLE Table = GetPageTableVAFor(Current);
-            if (PageTableEntryIsPresent(Table, tab)) return FALSE;
+        if (PageDirectoryEntryIsPresent(Directory, DirEntry)) {
+            LPPAGE_TABLE Table = ArchPageIteratorGetTable(&Iterator);
+            if (PageTableEntryIsPresent(Table, TabEntry)) return FALSE;
         }
 
-        Current += PAGE_SIZE;
+        ArchPageIteratorStepPage(&Iterator);
     }
 
     // DEBUG(TEXT("[IsRegionFree] Exit"));
@@ -1081,31 +1055,23 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
  */
 static void FreeEmptyPageTables(void) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    LPPAGE_TABLE Table = NULL;
-    LINEAR Base = N_4MB;
-    UINT DirEntry = 0;
-    UINT Index = 0;
-    BOOL DestroyIt = TRUE;
+    ARCH_PAGE_ITERATOR Iterator = ArchPageIteratorFromLinear(N_4MB);
+    ArchPageIteratorAlignToTableStart(&Iterator);
 
-    while (Base < VMA_KERNEL) {
-        DestroyIt = TRUE;
-        DirEntry = GetDirectoryEntry(Base);
-
+    while (ArchPageIteratorGetLinear(&Iterator) < VMA_KERNEL) {
+        UINT DirEntry = ArchPageIteratorGetDirectoryIndex(&Iterator);
         PHYSICAL TablePhysical = PageDirectoryEntryGetPhysical(Directory, DirEntry);
+
         if (TablePhysical != 0) {
-            Table = GetPageTableVAFor(Base);
+            LPPAGE_TABLE Table = ArchPageIteratorGetTable(&Iterator);
 
-            for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-                if (PageTableEntryGetPhysical(Table, Index) != 0) DestroyIt = FALSE;
-            }
-
-            if (DestroyIt) {
+            if (ArchPageTableIsEmpty(Table)) {
                 SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
                 ClearPageDirectoryEntry(Directory, DirEntry);
             }
         }
 
-        Base += PAGE_TABLE_CAPACITY;
+        ArchPageIteratorNextTable(&Iterator);
     }
 }
 
@@ -1118,12 +1084,13 @@ static void FreeEmptyPageTables(void) {
  */
 PHYSICAL MapLinearToPhysical(LINEAR Address) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    UINT DirEntry = GetDirectoryEntry(Address);
-    UINT TabEntry = GetTableEntry(Address);
+    ARCH_PAGE_ITERATOR Iterator = ArchPageIteratorFromLinear(Address);
+    UINT DirEntry = ArchPageIteratorGetDirectoryIndex(&Iterator);
+    UINT TabEntry = ArchPageIteratorGetTableIndex(&Iterator);
 
     if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) return 0;
 
-    LPPAGE_TABLE Table = GetPageTableVAFor(Address);
+    LPPAGE_TABLE Table = ArchPageIteratorGetTable(&Iterator);
     if (!PageTableEntryIsPresent(Table, TabEntry)) return 0;
 
     PHYSICAL PagePhysical = PageTableEntryGetPhysical(Table, TabEntry);
@@ -1150,20 +1117,23 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
     if (PteCacheDisabled) PteWriteThrough = 0;
 
+    ARCH_PAGE_ITERATOR Iterator = ArchPageIteratorFromLinear(Base);
+
     for (UINT Index = 0; Index < NumPages; Index++) {
-        UINT DirEntry = GetDirectoryEntry(Base);
-        UINT TabEntry = GetTableEntry(Base);
+        UINT DirEntry = ArchPageIteratorGetDirectoryIndex(&Iterator);
+        UINT TabEntry = ArchPageIteratorGetTableIndex(&Iterator);
+        LINEAR CurrentLinear = ArchPageIteratorGetLinear(&Iterator);
 
         if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) {
-            if (AllocPageTable(Base) == NULL) {
+            if (AllocPageTable(CurrentLinear) == NULL) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 DEBUG(TEXT("[%s] AllocPageTable failed"), FunctionName);
                 return FALSE;
             }
         }
 
-        Table = GetPageTableVAFor(Base);
-        U32 Privilege = PAGE_PRIVILEGE(Base);
+        Table = ArchPageIteratorGetTable(&Iterator);
+        U32 Privilege = PAGE_PRIVILEGE(CurrentLinear);
         U32 FixedFlag = (Flags & ALLOC_PAGES_IO) ? 1u : 0u;
         U32 BaseFlags = BuildPageFlags(ReadWrite, Privilege, PteWriteThrough, PteCacheDisabled, 0, FixedFlag);
         U32 ReservedFlags = BaseFlags & ~PAGE_FLAG_PRESENT;
@@ -1224,6 +1194,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
             }
         }
 
+        ArchPageIteratorStepPage(&Iterator);
         Base += PAGE_SIZE;
     }
 
@@ -1422,21 +1393,20 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
 BOOL FreeRegion(LINEAR Base, UINT Size) {
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)GetCurrentPageDirectoryVA();
     LPPAGE_TABLE Table = NULL;
-    UINT DirEntry = 0;
-    UINT TabEntry = 0;
     UINT NumPages = 0;
-    UINT Index = 0;
 
     NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL; /* ceil(Size / 4096) */
     if (NumPages == 0) NumPages = 1;
 
     // Free each page in turn.
-    for (Index = 0; Index < NumPages; Index++) {
-        DirEntry = GetDirectoryEntry(Base);
-        TabEntry = GetTableEntry(Base);
+    ARCH_PAGE_ITERATOR Iterator = ArchPageIteratorFromLinear(Base);
+
+    for (UINT Index = 0; Index < NumPages; Index++) {
+        UINT DirEntry = ArchPageIteratorGetDirectoryIndex(&Iterator);
+        UINT TabEntry = ArchPageIteratorGetTableIndex(&Iterator);
 
         if (PageDirectoryEntryGetPhysical(Directory, DirEntry) != 0) {
-            Table = GetPageTableVAFor(Base);
+            Table = ArchPageIteratorGetTable(&Iterator);
 
             PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
             if (EntryPhysical != 0) {
@@ -1449,6 +1419,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
             }
         }
 
+        ArchPageIteratorStepPage(&Iterator);
         Base += PAGE_SIZE;
     }
 
