@@ -17,9 +17,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    x86-64 memory manager stubs
+    Intel x86-64 Architecture Support
 
 \************************************************************************/
+
+#include "arch/x86-64/x86-64.h"
+
 #include "Memory.h"
 
 /************************************************************************/
