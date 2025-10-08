@@ -47,8 +47,10 @@
 // Initializes the memory manager
 void InitializeMemoryManager(void);
 
-// Uses a temp page table to get access to a random physical page
+// Uses temp page tables to get access to random physical pages
 LINEAR MapTempPhysicalPage(PHYSICAL Physical);
+LINEAR MapTempPhysicalPage2(PHYSICAL Physical);
+LINEAR MapTempPhysicalPage3(PHYSICAL Physical);
 
 // Allocates physical space for a new page directory
 PHYSICAL AllocPageDirectory(void);

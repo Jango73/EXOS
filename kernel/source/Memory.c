@@ -613,14 +613,14 @@ LINEAR MapTempPhysicalPage(PHYSICAL Physical) {
 }
 
 /************************************************************************/
-// Internal temporary map #2
+// Public temporary map #2
 
 /**
  * @brief Map a physical page to the second temporary linear address.
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-static LINEAR MapTempPhysicalPage2(PHYSICAL Physical) {
+LINEAR MapTempPhysicalPage2(PHYSICAL Physical) {
     if (G_TempLinear2 == 0) {
         ERROR(TEXT("[MapTempPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
@@ -632,14 +632,14 @@ static LINEAR MapTempPhysicalPage2(PHYSICAL Physical) {
 }
 
 /************************************************************************/
-// Internal temporary map #3
+// Public temporary map #3
 
 /**
  * @brief Map a physical page to the third temporary linear address.
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-static LINEAR MapTempPhysicalPage3(PHYSICAL Physical) {
+LINEAR MapTempPhysicalPage3(PHYSICAL Physical) {
     if (G_TempLinear3 == 0) {
         ERROR(TEXT("[MapTempPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
