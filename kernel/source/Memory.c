@@ -451,16 +451,19 @@ void FreePhysicalPage(PHYSICAL Page) {
 static inline void MapOnePage(
     LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
     U32 Fixed) {
-    volatile U32* Pte = GetPageTableEntryRawPointer(Linear);
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     UINT dir = GetDirectoryEntry(Linear);
 
-    if (!Directory[dir].Present) {
+    if (!PageDirectoryEntryIsPresent(Directory, dir)) {
         ERROR(TEXT("[MapOnePage] PDE not present for VA %x (dir=%d)"), Linear, dir);
         return;  // Or panic
     }
 
-    *Pte = MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
+    UINT tab = GetTableEntry(Linear);
+
+    WritePageTableEntryValue(
+        Table, tab, MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed));
     InvalidatePage(Linear);
 }
 
@@ -471,8 +474,9 @@ static inline void MapOnePage(
  * @param Linear Linear address to unmap.
  */
 static inline void UnmapOnePage(LINEAR Linear) {
-    volatile U32* Pte = GetPageTableEntryRawPointer(Linear);
-    *Pte = 0;
+    LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
+    UINT tab = GetTableEntry(Linear);
+    ClearPageTableEntry(Table, tab);
     InvalidatePage(Linear);
 }
 
@@ -494,11 +498,11 @@ BOOL IsValidMemory(LINEAR Pointer) {
     if (tab >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
 
     // Page directory present?
-    if (Directory[dir].Present == 0) return FALSE;
+    if (!PageDirectoryEntryIsPresent(Directory, dir)) return FALSE;
 
     // Page table present?
     LPPAGE_TABLE Table = GetPageTableVAFor(Pointer);
-    if (Table[tab].Present == 0) return FALSE;
+    if (!PageTableEntryIsPresent(Table, tab)) return FALSE;
 
     return TRUE;
 }
@@ -607,60 +611,56 @@ PHYSICAL AllocPageDirectory(void) {
     DEBUG(TEXT("[AllocPageDirectory] Page directory cleared"));
 
     // Directory[0] -> identity map 0..4MB via PMA_LowTable
-    Directory[0].Present = 1;
-    Directory[0].ReadWrite = 1;
-    Directory[0].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[0].WriteThrough = 0;
-    Directory[0].CacheDisabled = 0;
-    Directory[0].Accessed = 0;
-    Directory[0].Reserved = 0;
-    Directory[0].PageSize = 0;  // 4KB pages
-    Directory[0].Global = 0;
-    Directory[0].User = 0;
-    Directory[0].Fixed = 1;
-    Directory[0].Address = (PMA_LowTable >> PAGE_SIZE_MUL);
+    WritePageDirectoryEntryValue(
+        Directory,
+        0,
+        MakePageDirectoryEntryValue(
+            PMA_LowTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Directory[DirKernel] -> map VMA_KERNEL..VMA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
-    Directory[DirKernel].Present = 1;
-    Directory[DirKernel].ReadWrite = 1;
-    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[DirKernel].WriteThrough = 0;
-    Directory[DirKernel].CacheDisabled = 0;
-    Directory[DirKernel].Accessed = 0;
-    Directory[DirKernel].Reserved = 0;
-    Directory[DirKernel].PageSize = 0;  // 4KB pages
-    Directory[DirKernel].Global = 0;
-    Directory[DirKernel].User = 0;
-    Directory[DirKernel].Fixed = 1;
-    Directory[DirKernel].Address = (PMA_KernelTable >> PAGE_SIZE_MUL);
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirKernel,
+        MakePageDirectoryEntryValue(
+            PMA_KernelTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Directory[DirTaskRunner] -> map VMA_TASK_RUNNER (one page) to TaskRunner physical location
-    Directory[DirTaskRunner].Present = 1;
-    Directory[DirTaskRunner].ReadWrite = 1;
-    Directory[DirTaskRunner].Privilege = PAGE_PRIVILEGE_USER;
-    Directory[DirTaskRunner].WriteThrough = 0;
-    Directory[DirTaskRunner].CacheDisabled = 0;
-    Directory[DirTaskRunner].Accessed = 0;
-    Directory[DirTaskRunner].Reserved = 0;
-    Directory[DirTaskRunner].PageSize = 0;  // 4KB pages
-    Directory[DirTaskRunner].Global = 0;
-    Directory[DirTaskRunner].User = 0;
-    Directory[DirTaskRunner].Fixed = 1;
-    Directory[DirTaskRunner].Address = (PMA_TaskRunnerTable >> PAGE_SIZE_MUL);
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirTaskRunner,
+        MakePageDirectoryEntryValue(
+            PMA_TaskRunnerTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Install recursive mapping: PDE[1023] = PD
-    Directory[PD_RECURSIVE_SLOT].Present = 1;
-    Directory[PD_RECURSIVE_SLOT].ReadWrite = 1;
-    Directory[PD_RECURSIVE_SLOT].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[PD_RECURSIVE_SLOT].WriteThrough = 0;
-    Directory[PD_RECURSIVE_SLOT].CacheDisabled = 0;
-    Directory[PD_RECURSIVE_SLOT].Accessed = 0;
-    Directory[PD_RECURSIVE_SLOT].Reserved = 0;
-    Directory[PD_RECURSIVE_SLOT].PageSize = 0;
-    Directory[PD_RECURSIVE_SLOT].Global = 0;
-    Directory[PD_RECURSIVE_SLOT].User = 0;
-    Directory[PD_RECURSIVE_SLOT].Fixed = 1;
-    Directory[PD_RECURSIVE_SLOT].Address = (PMA_Directory >> PAGE_SIZE_MUL);
+    WritePageDirectoryEntryValue(
+        Directory,
+        PD_RECURSIVE_SLOT,
+        MakePageDirectoryEntryValue(
+            PMA_Directory,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Fill identity-mapped low table (0..4MB)
     LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
@@ -674,25 +674,29 @@ PHYSICAL AllocPageDirectory(void) {
     DEBUG(TEXT("[AllocPageDirectory] Low memory table cleared"));
 
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        #ifdef PROTECT_BIOS
         PHYSICAL Physical = (PHYSICAL)Index << PAGE_SIZE_MUL;
+
+        #ifdef PROTECT_BIOS
         BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
         #else
         BOOL Protected = FALSE;
         #endif
 
-        LowTable[Index].Present = !Protected;
-        LowTable[Index].ReadWrite = 1;
-        LowTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
-        LowTable[Index].WriteThrough = 0;
-        LowTable[Index].CacheDisabled = 0;
-        LowTable[Index].Accessed = 0;
-        LowTable[Index].Dirty = 0;
-        LowTable[Index].Reserved = 0;
-        LowTable[Index].Global = 0;
-        LowTable[Index].User = 0;
-        LowTable[Index].Fixed = 1;
-        LowTable[Index].Address = Index;  // frame N -> 4KB*N
+        if (Protected) {
+            ClearPageTableEntry(LowTable, Index);
+        } else {
+            WritePageTableEntryValue(
+                LowTable,
+                Index,
+                MakePageTableEntryValue(
+                    Physical,
+                    /*ReadWrite*/ 1,
+                    PAGE_PRIVILEGE_KERNEL,
+                    /*WriteThrough*/ 0,
+                    /*CacheDisabled*/ 0,
+                    /*Global*/ 0,
+                    /*Fixed*/ 1));
+        }
     }
 
     // Fill kernel mapping table by copying the current kernel PT
@@ -707,20 +711,19 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Kernel table cleared"));
 
-    UINT KernelFirstFrame = (UINT)(PhysBaseKernel >> PAGE_SIZE_MUL);
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        KernelTable[Index].Present = 1;
-        KernelTable[Index].ReadWrite = 1;
-        KernelTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
-        KernelTable[Index].WriteThrough = 0;
-        KernelTable[Index].CacheDisabled = 0;
-        KernelTable[Index].Accessed = 0;
-        KernelTable[Index].Dirty = 0;
-        KernelTable[Index].Reserved = 0;
-        KernelTable[Index].Global = 0;
-        KernelTable[Index].User = 0;
-        KernelTable[Index].Fixed = 1;
-        KernelTable[Index].Address = KernelFirstFrame + Index;
+        PHYSICAL Physical = PhysBaseKernel + ((PHYSICAL)Index << PAGE_SIZE_MUL);
+        WritePageTableEntryValue(
+            KernelTable,
+            Index,
+            MakePageTableEntryValue(
+                Physical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_KERNEL,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
     }
 
     // Fill TaskRunner page table - only map the first page where TaskRunner is located
@@ -742,27 +745,27 @@ PHYSICAL AllocPageDirectory(void) {
 
     UINT TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
 
-    TaskRunnerTable[TaskRunnerTableIndex].Present = 1;
-    TaskRunnerTable[TaskRunnerTableIndex].ReadWrite = 0;  // Read-only for user
-    TaskRunnerTable[TaskRunnerTableIndex].Privilege = PAGE_PRIVILEGE_USER;
-    TaskRunnerTable[TaskRunnerTableIndex].WriteThrough = 0;
-    TaskRunnerTable[TaskRunnerTableIndex].CacheDisabled = 0;
-    TaskRunnerTable[TaskRunnerTableIndex].Accessed = 0;
-    TaskRunnerTable[TaskRunnerTableIndex].Dirty = 0;
-    TaskRunnerTable[TaskRunnerTableIndex].Reserved = 0;
-    TaskRunnerTable[TaskRunnerTableIndex].Global = 0;
-    TaskRunnerTable[TaskRunnerTableIndex].User = 0;
-    TaskRunnerTable[TaskRunnerTableIndex].Fixed = 1;
-    TaskRunnerTable[TaskRunnerTableIndex].Address = TaskRunnerPhysical >> PAGE_SIZE_MUL;
+    WritePageTableEntryValue(
+        TaskRunnerTable,
+        TaskRunnerTableIndex,
+        MakePageTableEntryValue(
+            TaskRunnerPhysical,
+            /*ReadWrite*/ 0,  // Read-only for user
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // TLB sync before returning
     FlushTLB();
 
-    DEBUG(TEXT("[AllocPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[%u]=%x, PDE[1023]=%x"), *(U32*)&Directory[0],
-        *(U32*)&Directory[768], DirTaskRunner, *(U32*)&Directory[DirTaskRunner], *(U32*)&Directory[1023]);
+    DEBUG(TEXT("[AllocPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[%u]=%x, PDE[1023]=%x"),
+        ReadPageDirectoryEntryValue(Directory, 0), ReadPageDirectoryEntryValue(Directory, 768), DirTaskRunner,
+        ReadPageDirectoryEntryValue(Directory, DirTaskRunner), ReadPageDirectoryEntryValue(Directory, 1023));
     DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%x, KernelTable[0]=%x, TaskRunnerTable[%u]=%x"),
-        *(U32*)&LowTable[0], *(U32*)&KernelTable[0], TaskRunnerTableIndex,
-        *(U32*)&TaskRunnerTable[TaskRunnerTableIndex]);
+        ReadPageTableEntryValue(LowTable, 0), ReadPageTableEntryValue(KernelTable, 0), TaskRunnerTableIndex,
+        ReadPageTableEntryValue(TaskRunnerTable, TaskRunnerTableIndex));
     DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%x -> Physical=%x"), VMA_TASK_RUNNER, TaskRunnerPhysical);
 
     DEBUG(TEXT("[AllocPageDirectory] Exit"));
@@ -822,32 +825,30 @@ PHYSICAL AllocUserPageDirectory(void) {
     DEBUG(TEXT("[AllocUserPageDirectory] Page directory cleared"));
 
     // Directory[0] -> identity map 0..4MB via PMA_LowTable
-    Directory[0].Present = 1;
-    Directory[0].ReadWrite = 1;
-    Directory[0].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[0].WriteThrough = 0;
-    Directory[0].CacheDisabled = 0;
-    Directory[0].Accessed = 0;
-    Directory[0].Reserved = 0;
-    Directory[0].PageSize = 0;  // 4KB pages
-    Directory[0].Global = 0;
-    Directory[0].User = 0;
-    Directory[0].Fixed = 1;
-    Directory[0].Address = (PMA_LowTable >> PAGE_SIZE_MUL);
+    WritePageDirectoryEntryValue(
+        Directory,
+        0,
+        MakePageDirectoryEntryValue(
+            PMA_LowTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Directory[DirKernel] -> map VMA_KERNEL..VMA_KERNEL+4MB-1 to current kernel state
-    Directory[DirKernel].Present = 1;
-    Directory[DirKernel].ReadWrite = 1;
-    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[DirKernel].WriteThrough = 0;
-    Directory[DirKernel].CacheDisabled = 0;
-    Directory[DirKernel].Accessed = 0;
-    Directory[DirKernel].Reserved = 0;
-    Directory[DirKernel].PageSize = 0;  // 4KB pages
-    Directory[DirKernel].Global = 0;
-    Directory[DirKernel].User = 0;
-    Directory[DirKernel].Fixed = 1;
-    Directory[DirKernel].Address = (PMA_KernelTable >> PAGE_SIZE_MUL);
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirKernel,
+        MakePageDirectoryEntryValue(
+            PMA_KernelTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Copy present PDEs from current directory, but skip user space (VMA_USER to VMA_LIBRARY-1)
     // to allow new process to allocate its own region at VMA_USER
@@ -855,30 +856,29 @@ PHYSICAL AllocUserPageDirectory(void) {
     UINT UserStartPDE = GetDirectoryEntry(VMA_USER);             // PDE index for VMA_USER
     UINT UserEndPDE = GetDirectoryEntry(VMA_LIBRARY - 1) - 1;    // PDE index for VMA_LIBRARY-1, excluding TaskRunner space
     for (Index = 1; Index < 1023; Index++) {                            // Skip 0 (already done) and 1023 (self-map)
-        if (CurrentPD[Index].Present && Index != DirKernel) {
+        if (PageDirectoryEntryIsPresent(CurrentPD, Index) && Index != DirKernel) {
             // Skip user space PDEs to avoid copying current process's user space
             if (Index >= UserStartPDE && Index <= UserEndPDE) {
                 DEBUG(TEXT("[AllocUserPageDirectory] Skipped user space PDE[%u]"), Index);
                 continue;
             }
-            Directory[Index] = CurrentPD[Index];
+            WritePageDirectoryEntryValue(Directory, Index, ReadPageDirectoryEntryValue(CurrentPD, Index));
             DEBUG(TEXT("[AllocUserPageDirectory] Copied PDE[%u]"), Index);
         }
     }
 
     // Install recursive mapping: PDE[1023] = PD
-    Directory[PD_RECURSIVE_SLOT].Present = 1;
-    Directory[PD_RECURSIVE_SLOT].ReadWrite = 1;
-    Directory[PD_RECURSIVE_SLOT].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[PD_RECURSIVE_SLOT].WriteThrough = 0;
-    Directory[PD_RECURSIVE_SLOT].CacheDisabled = 0;
-    Directory[PD_RECURSIVE_SLOT].Accessed = 0;
-    Directory[PD_RECURSIVE_SLOT].Reserved = 0;
-    Directory[PD_RECURSIVE_SLOT].PageSize = 0;
-    Directory[PD_RECURSIVE_SLOT].Global = 0;
-    Directory[PD_RECURSIVE_SLOT].User = 0;
-    Directory[PD_RECURSIVE_SLOT].Fixed = 1;
-    Directory[PD_RECURSIVE_SLOT].Address = (PMA_Directory >> PAGE_SIZE_MUL);
+    WritePageDirectoryEntryValue(
+        Directory,
+        PD_RECURSIVE_SLOT,
+        MakePageDirectoryEntryValue(
+            PMA_Directory,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Fill identity-mapped low table (0..4MB) - manual setup like AllocPageDirectory
     LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
@@ -891,25 +891,29 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     // Initialize identity mapping for 0..4MB (same as AllocPageDirectory)
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        #ifdef PROTECT_BIOS
         PHYSICAL Physical = (PHYSICAL)Index << PAGE_SIZE_MUL;
+
+        #ifdef PROTECT_BIOS
         BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
         #else
         BOOL Protected = FALSE;
         #endif
 
-        LowTable[Index].Present = !Protected;
-        LowTable[Index].ReadWrite = 1;
-        LowTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
-        LowTable[Index].WriteThrough = 0;
-        LowTable[Index].CacheDisabled = 0;
-        LowTable[Index].Accessed = 0;
-        LowTable[Index].Dirty = 0;
-        LowTable[Index].Reserved = 0;
-        LowTable[Index].Global = 0;
-        LowTable[Index].User = 0;
-        LowTable[Index].Fixed = 1;
-        LowTable[Index].Address = Index;  // Identity mapping: page Index -> physical page Index
+        if (Protected) {
+            ClearPageTableEntry(LowTable, Index);
+        } else {
+            WritePageTableEntryValue(
+                LowTable,
+                Index,
+                MakePageTableEntryValue(
+                    Physical,
+                    /*ReadWrite*/ 1,
+                    PAGE_PRIVILEGE_KERNEL,
+                    /*WriteThrough*/ 0,
+                    /*CacheDisabled*/ 0,
+                    /*Global*/ 0,
+                    /*Fixed*/ 1));
+        }
     }
 
     DEBUG(TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
@@ -925,22 +929,20 @@ PHYSICAL AllocUserPageDirectory(void) {
     // Create basic static kernel mapping instead of copying (for testing)
     MemorySet(KernelTable, 0, PAGE_SIZE);
 
-    UINT KernelFirstFrame = (UINT)(PhysBaseKernel >> PAGE_SIZE_MUL);
-
     // Map full 4MB kernel space (1024 pages)
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        KernelTable[Index].Present = 1;
-        KernelTable[Index].ReadWrite = 1;
-        KernelTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
-        KernelTable[Index].WriteThrough = 0;
-        KernelTable[Index].CacheDisabled = 0;
-        KernelTable[Index].Accessed = 0;
-        KernelTable[Index].Dirty = 0;
-        KernelTable[Index].Reserved = 0;
-        KernelTable[Index].Global = 0;
-        KernelTable[Index].User = 0;
-        KernelTable[Index].Fixed = 1;
-        KernelTable[Index].Address = KernelFirstFrame + Index;
+        PHYSICAL Physical = PhysBaseKernel + ((PHYSICAL)Index << PAGE_SIZE_MUL);
+        WritePageTableEntryValue(
+            KernelTable,
+            Index,
+            MakePageTableEntryValue(
+                Physical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_KERNEL,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
     }
 
     DEBUG(TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
@@ -948,10 +950,10 @@ PHYSICAL AllocUserPageDirectory(void) {
     // TLB sync before returning
     FlushTLB();
 
-    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[1023]=%x"), *(U32*)&Directory[0],
-        *(U32*)&Directory[768], *(U32*)&Directory[1023]);
-    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%x, KernelTable[0]=%x"), *(U32*)&LowTable[0],
-        *(U32*)&KernelTable[0]);
+    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[1023]=%x"), ReadPageDirectoryEntryValue(Directory, 0),
+        ReadPageDirectoryEntryValue(Directory, 768), ReadPageDirectoryEntryValue(Directory, 1023));
+    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%x, KernelTable[0]=%x"), ReadPageTableEntryValue(LowTable, 0),
+        ReadPageTableEntryValue(KernelTable, 0));
 
     DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
     return PMA_Directory;
@@ -987,18 +989,17 @@ LINEAR AllocPageTable(LINEAR Base) {
     // Determine privilege: user space (< VMA_KERNEL) needs user privilege
     U32 Privilege = PAGE_PRIVILEGE(Base);
 
-    Directory[DirEntry].Present = 1;
-    Directory[DirEntry].ReadWrite = 1;
-    Directory[DirEntry].Privilege = Privilege;
-    Directory[DirEntry].WriteThrough = 0;
-    Directory[DirEntry].CacheDisabled = 0;
-    Directory[DirEntry].Accessed = 0;
-    Directory[DirEntry].Reserved = 0;
-    Directory[DirEntry].PageSize = 0;
-    Directory[DirEntry].Global = 0;
-    Directory[DirEntry].User = 0;
-    Directory[DirEntry].Fixed = 1;
-    Directory[DirEntry].Address = PMA_Table >> PAGE_SIZE_MUL;
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirEntry,
+        MakePageDirectoryEntryValue(
+            PMA_Table,
+            /*ReadWrite*/ 1,
+            Privilege,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
 
     // Clear the new table by mapping its physical page temporarily.
     LINEAR VMA_PT = MapTempPhysicalPage2(PMA_Table);
@@ -1032,9 +1033,9 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
         UINT dir = GetDirectoryEntry(Current);
         UINT tab = GetTableEntry(Current);
 
-        if (Directory[dir].Present) {
+        if (PageDirectoryEntryIsPresent(Directory, dir)) {
             LPPAGE_TABLE Table = GetPageTableVAFor(Current);
-            if (Table[tab].Present) return FALSE;
+            if (PageTableEntryIsPresent(Table, tab)) return FALSE;
         }
 
         Current += PAGE_SIZE;
@@ -1090,17 +1091,17 @@ static void FreeEmptyPageTables(void) {
         DestroyIt = TRUE;
         DirEntry = GetDirectoryEntry(Base);
 
-        if (Directory[DirEntry].Address != NULL) {
+        PHYSICAL TablePhysical = PageDirectoryEntryGetPhysical(Directory, DirEntry);
+        if (TablePhysical != 0) {
             Table = GetPageTableVAFor(Base);
 
             for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-                if (Table[Index].Address != NULL) DestroyIt = FALSE;
+                if (PageTableEntryGetPhysical(Table, Index) != 0) DestroyIt = FALSE;
             }
 
             if (DestroyIt) {
-                SetPhysicalPageMark((UINT)Directory[DirEntry].Address, 0);
-                Directory[DirEntry].Present = 0;
-                Directory[DirEntry].Address = NULL;
+                SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
+                ClearPageDirectoryEntry(Directory, DirEntry);
             }
         }
 
@@ -1120,13 +1121,16 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
     UINT DirEntry = GetDirectoryEntry(Address);
     UINT TabEntry = GetTableEntry(Address);
 
-    if (Directory[DirEntry].Address == 0) return 0;
+    if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) return 0;
 
     LPPAGE_TABLE Table = GetPageTableVAFor(Address);
-    if (Table[TabEntry].Address == 0) return 0;
+    if (!PageTableEntryIsPresent(Table, TabEntry)) return 0;
 
-    /* Compose physical: page frame << 12 | offset-in-page */
-    return (PHYSICAL)((Table[TabEntry].Address << PAGE_SIZE_MUL) | (Address & (PAGE_SIZE - 1)));
+    PHYSICAL PagePhysical = PageTableEntryGetPhysical(Table, TabEntry);
+    if (PagePhysical == 0) return 0;
+
+    /* Compose physical: page frame | offset-in-page */
+    return (PHYSICAL)(PagePhysical | (Address & (PAGE_SIZE - 1)));
 }
 
 /************************************************************************/
@@ -1150,7 +1154,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
         UINT DirEntry = GetDirectoryEntry(Base);
         UINT TabEntry = GetTableEntry(Base);
 
-        if (Directory[DirEntry].Address == NULL) {
+        if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) {
             if (AllocPageTable(Base) == NULL) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 DEBUG(TEXT("[%s] AllocPageTable failed"), FunctionName);
@@ -1159,34 +1163,43 @@ static BOOL PopulateRegionPages(LINEAR Base,
         }
 
         Table = GetPageTableVAFor(Base);
+        U32 Privilege = PAGE_PRIVILEGE(Base);
+        U32 FixedFlag = (Flags & ALLOC_PAGES_IO) ? 1u : 0u;
+        U32 BaseFlags = BuildPageFlags(ReadWrite, Privilege, PteWriteThrough, PteCacheDisabled, 0, FixedFlag);
+        U32 ReservedFlags = BaseFlags & ~PAGE_FLAG_PRESENT;
+        PHYSICAL ReservedPhysical = (PHYSICAL)(MAX_U32 & ~(PAGE_SIZE - 1));
 
-        Table[TabEntry].Present = 0;
-        Table[TabEntry].ReadWrite = ReadWrite;
-        Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-        Table[TabEntry].WriteThrough = PteWriteThrough;
-        Table[TabEntry].CacheDisabled = PteCacheDisabled;
-        Table[TabEntry].Accessed = 0;
-        Table[TabEntry].Dirty = 0;
-        Table[TabEntry].Reserved = 0;
-        Table[TabEntry].Global = 0;
-        Table[TabEntry].User = 0;
-        Table[TabEntry].Fixed = 0;
-        Table[TabEntry].Address = MAX_U32 >> PAGE_SIZE_MUL;
+        WritePageTableEntryValue(Table, TabEntry, MakePageEntryRaw(ReservedPhysical, ReservedFlags));
 
         if (Flags & ALLOC_PAGES_COMMIT) {
             if (Target != 0) {
                 Physical = Target + (PHYSICAL)(Index << PAGE_SIZE_MUL);
 
                 if (Flags & ALLOC_PAGES_IO) {
-                    Table[TabEntry].Fixed = 1;
-                    Table[TabEntry].Present = 1;
-                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                    WritePageTableEntryValue(
+                        Table,
+                        TabEntry,
+                        MakePageTableEntryValue(
+                            Physical,
+                            ReadWrite,
+                            Privilege,
+                            PteWriteThrough,
+                            PteCacheDisabled,
+                            /*Global*/ 0,
+                            /*Fixed*/ 1));
                 } else {
                     SetPhysicalPageMark((UINT)(Physical >> PAGE_SIZE_MUL), 1);
-                    Table[TabEntry].Present = 1;
-                    Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-                    Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                    WritePageTableEntryValue(
+                        Table,
+                        TabEntry,
+                        MakePageTableEntryValue(
+                            Physical,
+                            ReadWrite,
+                            Privilege,
+                            PteWriteThrough,
+                            PteCacheDisabled,
+                            /*Global*/ 0,
+                            /*Fixed*/ 0));
                 }
             } else {
                 Physical = AllocPhysicalPage();
@@ -1197,9 +1210,17 @@ static BOOL PopulateRegionPages(LINEAR Base,
                     return FALSE;
                 }
 
-                Table[TabEntry].Present = 1;
-                Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
-                Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
+                WritePageTableEntryValue(
+                    Table,
+                    TabEntry,
+                    MakePageTableEntryValue(
+                        Physical,
+                        ReadWrite,
+                        Privilege,
+                        PteWriteThrough,
+                        PteCacheDisabled,
+                        /*Global*/ 0,
+                        /*Fixed*/ 0));
             }
         }
 
@@ -1414,18 +1435,17 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
         DirEntry = GetDirectoryEntry(Base);
         TabEntry = GetTableEntry(Base);
 
-        if (Directory[DirEntry].Address != NULL) {
+        if (PageDirectoryEntryGetPhysical(Directory, DirEntry) != 0) {
             Table = GetPageTableVAFor(Base);
 
-            if (Table[TabEntry].Address != NULL) {
+            PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
+            if (EntryPhysical != 0) {
                 /* Skip bitmap mark if it was an IO mapping (BAR) */
-                if (Table[TabEntry].Fixed == 0) {
-                    SetPhysicalPageMark((UINT)Table[TabEntry].Address, 0);
+                if (!PageTableEntryIsFixed(Table, TabEntry)) {
+                    SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0);
                 }
 
-                Table[TabEntry].Present = 0;
-                Table[TabEntry].Address = NULL;
-                Table[TabEntry].Fixed = 0;
+                ClearPageTableEntry(Table, TabEntry);
             }
         }
 

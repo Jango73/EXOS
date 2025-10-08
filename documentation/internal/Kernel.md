@@ -10,6 +10,20 @@ Be aware that it generates A LOT of COM2 output, the scheduler is called every 1
 
 To be completed.
 
+### Paging abstractions
+
+The memory manager relies on `arch/Memory.h` to describe page hierarchy
+helpers exposed by the active architecture backend. The i386
+implementation (`arch/i386/Memory-i386.h`) now centralizes directory and
+table index calculations, exposes accessors for the self-mapped page
+directory, and provides helper routines to build raw page directory and
+page table entries. Kernel code constructs mappings through
+`MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and
+`WritePage*EntryValue` instead of touching the i386 bitfields directly.
+This abstraction keeps `Memory.c` agnostic of the paging depth so that a
+future x86-64 backend can extend the hierarchy without refactoring the
+core allocator.
+
 ### Kernel object identifiers
 
 Kernel objects now embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier

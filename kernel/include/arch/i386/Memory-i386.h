@@ -116,6 +116,17 @@ typedef struct tag_PAGE_TABLE {
 // Helper functions for page table navigation
 /***************************************************************************/
 
+#define PAGE_FLAG_PRESENT (1u << 0)
+#define PAGE_FLAG_READ_WRITE (1u << 1)
+#define PAGE_FLAG_USER (1u << 2)
+#define PAGE_FLAG_WRITE_THROUGH (1u << 3)
+#define PAGE_FLAG_CACHE_DISABLED (1u << 4)
+#define PAGE_FLAG_ACCESSED (1u << 5)
+#define PAGE_FLAG_DIRTY (1u << 6)
+#define PAGE_FLAG_PAGE_SIZE (1u << 7)
+#define PAGE_FLAG_GLOBAL (1u << 8)
+#define PAGE_FLAG_FIXED (1u << 9)
+
 static inline UINT GetDirectoryEntry(LINEAR Address) {
     return Address >> PAGE_TABLE_CAPACITY_MUL;
 }
@@ -138,6 +149,38 @@ static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
     return (volatile U32*)&GetPageTableVAFor(Address)[tab];
 }
 
+static inline U32 BuildPageFlags(
+    U32 ReadWrite,
+    U32 Privilege,
+    U32 WriteThrough,
+    U32 CacheDisabled,
+    U32 Global,
+    U32 Fixed) {
+    U32 Flags = PAGE_FLAG_PRESENT;
+
+    if (ReadWrite) Flags |= PAGE_FLAG_READ_WRITE;
+    if (Privilege == PAGE_PRIVILEGE_USER) Flags |= PAGE_FLAG_USER;
+    if (WriteThrough) Flags |= PAGE_FLAG_WRITE_THROUGH;
+    if (CacheDisabled) Flags |= PAGE_FLAG_CACHE_DISABLED;
+    if (Global) Flags |= PAGE_FLAG_GLOBAL;
+    if (Fixed) Flags |= PAGE_FLAG_FIXED;
+
+    return Flags;
+}
+
+static inline U32 MakePageDirectoryEntryValue(
+    PHYSICAL Physical,
+    U32 ReadWrite,
+    U32 Privilege,
+    U32 WriteThrough,
+    U32 CacheDisabled,
+    U32 Global,
+    U32 Fixed) {
+    U32 Flags = BuildPageFlags(ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
+    Flags &= ~PAGE_FLAG_PAGE_SIZE;  // PDE uses 4KB pages in EXOS
+    return (U32)(Physical & ~(PAGE_SIZE - 1)) | Flags;
+}
+
 static inline U32 MakePageTableEntryValue(
     PHYSICAL Physical,
     U32 ReadWrite,
@@ -146,21 +189,56 @@ static inline U32 MakePageTableEntryValue(
     U32 CacheDisabled,
     U32 Global,
     U32 Fixed) {
-    U32 val = 0;
-    val |= 1u;  // Present
+    U32 Flags = BuildPageFlags(ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
+    return (U32)(Physical & ~(PAGE_SIZE - 1)) | Flags;
+}
 
-    if (ReadWrite) val |= (1u << 1);
-    if (Privilege) val |= (1u << 2);  // 1=user, 0=kernel
-    if (WriteThrough) val |= (1u << 3);
-    if (CacheDisabled) val |= (1u << 4);
+static inline U32 MakePageEntryRaw(PHYSICAL Physical, U32 Flags) {
+    return (U32)(Physical & ~(PAGE_SIZE - 1)) | (Flags & 0xFFFu);
+}
 
-    // Accessed (bit 5) / Dirty (bit 6) left to CPU
-    if (Global) val |= (1u << 8);
-    if (Fixed) val |= (1u << 9);  // EXOS specific
+static inline void WritePageDirectoryEntryValue(LPPAGE_DIRECTORY Directory, UINT Index, U32 Value) {
+    ((volatile U32*)Directory)[Index] = Value;
+}
 
-    val |= (U32)(Physical & ~(PAGE_SIZE - 1));
+static inline void WritePageTableEntryValue(LPPAGE_TABLE Table, UINT Index, U32 Value) {
+    ((volatile U32*)Table)[Index] = Value;
+}
 
-    return val;
+static inline U32 ReadPageDirectoryEntryValue(const LPPAGE_DIRECTORY Directory, UINT Index) {
+    return ((volatile const U32*)Directory)[Index];
+}
+
+static inline U32 ReadPageTableEntryValue(const LPPAGE_TABLE Table, UINT Index) {
+    return ((volatile const U32*)Table)[Index];
+}
+
+static inline BOOL PageDirectoryEntryIsPresent(const LPPAGE_DIRECTORY Directory, UINT Index) {
+    return (ReadPageDirectoryEntryValue(Directory, Index) & PAGE_FLAG_PRESENT) != 0;
+}
+
+static inline BOOL PageTableEntryIsPresent(const LPPAGE_TABLE Table, UINT Index) {
+    return (ReadPageTableEntryValue(Table, Index) & PAGE_FLAG_PRESENT) != 0;
+}
+
+static inline PHYSICAL PageDirectoryEntryGetPhysical(const LPPAGE_DIRECTORY Directory, UINT Index) {
+    return (PHYSICAL)(ReadPageDirectoryEntryValue(Directory, Index) & ~(PAGE_SIZE - 1));
+}
+
+static inline PHYSICAL PageTableEntryGetPhysical(const LPPAGE_TABLE Table, UINT Index) {
+    return (PHYSICAL)(ReadPageTableEntryValue(Table, Index) & ~(PAGE_SIZE - 1));
+}
+
+static inline BOOL PageTableEntryIsFixed(const LPPAGE_TABLE Table, UINT Index) {
+    return (ReadPageTableEntryValue(Table, Index) & PAGE_FLAG_FIXED) != 0;
+}
+
+static inline void ClearPageDirectoryEntry(LPPAGE_DIRECTORY Directory, UINT Index) {
+    WritePageDirectoryEntryValue(Directory, Index, 0u);
+}
+
+static inline void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index) {
+    WritePageTableEntryValue(Table, Index, 0u);
 }
 
 #endif  // ARCH_I386_MEMORY_I386_H_INCLUDED
