@@ -18,25 +18,15 @@
 ;   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ;
 ;
-;   System functions
+;   System functions (i386)
 ;
 ;-------------------------------------------------------------------------
 
-%include "./Kernel.inc"
-
-;----------------------------------------------------------------------------
-
-; Helper values to access function parameters and local variables
-
-PBN equ 0x08                           ; Param base near
-PBF equ 0x0A                           ; Param base far
-LBN equ 0x04                           ; Local base near
-LBF equ 0x04                           ; Local base far
-
-;----------------------------------------------------------------------------
+%include "Kernel.inc"
+%include "System.inc"
 
 section .data
-bits 32
+BITS 32
 
     global DeadBeef
 
@@ -47,7 +37,7 @@ DeadBeef      dd 0xDEADBEEF
 ;--------------------------------------
 
 section .text.stub
-bits 32
+BITS 32
 
 global start
 extern KernelMain
@@ -77,7 +67,7 @@ start:
 ;----------------------------------------------------------------------------
 
 section .text
-bits 32
+BITS 32
 
     global GetCR4
     global GetESP
@@ -1241,7 +1231,7 @@ Reboot :
 ;----------------------------------------------------------------------------
 
 section .shared_text
-bits 32
+BITS 32
 
 ;--------------------------------------
 ; This is the entry point of each new task
@@ -1288,7 +1278,7 @@ _TaskRunner_Exit :
 ;----------------------------------------------------------------------------
 
 section .data
-bits 32
+BITS 32
 
 TaskRunnerLogMsg db '[TaskRunner] EAX=%x EBX=%x', 0
 
