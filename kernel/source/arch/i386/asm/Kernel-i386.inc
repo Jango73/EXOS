@@ -1,7 +1,7 @@
 %ifndef KERNEL_I386_INC
 %define KERNEL_I386_INC
 
-KERNEL_ARCH_MAX_UINT equ 0xFFFFFFFF
+%define KERNEL_ARCH_MAX_UINT 0xFFFFFFFF
 
 %include "Kernel.inc"
 
