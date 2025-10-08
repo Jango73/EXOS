@@ -25,7 +25,10 @@
 #include "arch/i386/I386.h"
 
 #include "Log.h"
+#include "Process.h"
 #include "String.h"
+#include "System.h"
+#include "Task.h"
 #include "Text.h"
 
 /************************************************************************/
@@ -109,4 +112,35 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
     }
 
     return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Prepares architecture-specific state for the next task switch.
+ *
+ * Saves the current task's segment and FPU state, configures the TSS and
+ * kernel stack for the next task, loads its address space and restores its
+ * segment and FPU state so that SwitchToNextTask_3 can perform the generic
+ * scheduling steps.
+ */
+void ArchPrepareNextTaskSwitch(LPTASK CurrentTask, LPTASK NextTask) {
+    LINEAR NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
+
+    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
+    Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
+
+    GetFS(CurrentTask->Context.Registers.FS);
+    GetGS(CurrentTask->Context.Registers.GS);
+
+    SaveFPU((LPVOID)&(CurrentTask->Context.FPURegisters));
+
+    LoadPageDirectory(NextTask->Process->PageDirectory);
+
+    SetDS(NextTask->Context.Registers.DS);
+    SetES(NextTask->Context.Registers.ES);
+    SetFS(NextTask->Context.Registers.FS);
+    SetGS(NextTask->Context.Registers.GS);
+
+    RestoreFPU(&(NextTask->Context.FPURegisters));
 }

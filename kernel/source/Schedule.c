@@ -389,26 +389,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
-    // Set up system stack for new task
-    LINEAR NextSysStackTop = NextTask->SysStackBase + NextTask->SysStackSize;
-
-    Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
-    Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
-
-    GetFS(CurrentTask->Context.Registers.FS);
-    GetGS(CurrentTask->Context.Registers.GS);
-
-    SaveFPU((LPVOID)&(CurrentTask->Context.FPURegisters));
-
-    // Load CR3 only if different than current
-    LoadPageDirectory(NextTask->Process->PageDirectory);
-
-    SetDS(NextTask->Context.Registers.DS);
-    SetES(NextTask->Context.Registers.ES);
-    SetFS(NextTask->Context.Registers.FS);
-    SetGS(NextTask->Context.Registers.GS);
-
-    RestoreFPU(&(NextTask->Context.FPURegisters));
+    ArchPrepareNextTaskSwitch(CurrentTask, NextTask);
 
     U32 CurrentTaskStatus = GetTaskStatus(NextTask);
 

@@ -889,6 +889,11 @@ typedef struct tag_SEGMENT_INFO {
 BOOL GetSegmentInfo(LPSEGMENT_DESCRIPTOR This, LPSEGMENT_INFO Info);
 BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text);
 
+/***************************************************************************/
+
+struct tag_TASK;
+void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
+
 /************************************************************************/
 
 #pragma pack(pop)
