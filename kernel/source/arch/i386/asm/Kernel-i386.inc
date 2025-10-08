@@ -1,3 +1,10 @@
+%ifndef KERNEL_I386_INC
+%define KERNEL_I386_INC
+
+KERNEL_ARCH_MAX_UINT equ 0xFFFFFFFF
+
+%include "Kernel.inc"
+
 ;-------------------------------------------------------------------------
 ;
 ;   EXOS Kernel
@@ -63,15 +70,6 @@ GDT_SIZE     equ N_8KB
 VMA_USER      equ 0x00400000
 VMA_LIBRARY   equ 0xA0000000
 VMA_KERNEL    equ 0xC0000000
-
-LOW_MEMORY_PAGE_1   equ 0x1000  ; Reserved by VBR system structures
-LOW_MEMORY_PAGE_2   equ 0x2000  ; Reserved by VBR system structures
-LOW_MEMORY_PAGE_3   equ 0x3000  ; Reserved by VBR system structures
-LOW_MEMORY_PAGE_4   equ 0x4000
-LOW_MEMORY_PAGE_5   equ 0x5000  ; RMC code base
-LOW_MEMORY_PAGE_6   equ 0x6000  ; RMC buffers
-LOW_MEMORY_PAGE_7   equ 0x7000
-LOW_MEMORY_PAGE_8   equ 0x8000
 
 ;-------------------------------------------------------------------------
 ; Values related to IDT, GDT, LDT
@@ -208,3 +206,4 @@ ENDSTRUC
     align 16
 %endmacro
 
+%endif ; KERNEL_I386_INC

@@ -22,8 +22,7 @@
 ;
 ;-------------------------------------------------------------------------
 
-%include "Kernel.inc"
-%include "KernelArch.inc"
+%include "Kernel-i386.inc"
 
 COMPort_Debug equ 0x2F8
 

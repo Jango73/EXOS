@@ -1,3 +1,10 @@
+%ifndef KERNEL_X86_64_INC
+%define KERNEL_X86_64_INC
+
+KERNEL_ARCH_MAX_UINT equ 0xFFFFFFFFFFFFFFFF
+
+%include "Kernel.inc"
+
 ;-------------------------------------------------------------------------
 ;
 ;   EXOS Kernel
@@ -14,4 +21,4 @@
     align 16
 %endmacro
 
-
+%endif ; KERNEL_X86_64_INC

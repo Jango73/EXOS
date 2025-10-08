@@ -25,14 +25,12 @@
 ;-------------------------------------------------------------------------
 ; Useful constants
 
-%include "KernelArchConfig.inc"
-
-EXOS_USER_CALL equ 0x70
-EXOS_DRIVER_CALL equ 0x71
-
 %ifndef KERNEL_ARCH_MAX_UINT
     %error "KERNEL_ARCH_MAX_UINT must be defined by the architecture include"
 %endif
+
+EXOS_USER_CALL equ 0x70
+EXOS_DRIVER_CALL equ 0x71
 
 MAX_UINT    equ KERNEL_ARCH_MAX_UINT
 U32_SIZE    equ 4
@@ -51,6 +49,15 @@ N_1MB       equ 0x00100000
 N_2MB       equ 0x00200000
 N_4MB       equ 0x00400000
 N_8MB       equ 0x00800000
+
+LOW_MEMORY_PAGE_1   equ 0x00001000  ; Reserved by VBR system structures
+LOW_MEMORY_PAGE_2   equ 0x00002000  ; Reserved by VBR system structures
+LOW_MEMORY_PAGE_3   equ 0x00003000  ; Reserved by VBR system structures
+LOW_MEMORY_PAGE_4   equ 0x00004000
+LOW_MEMORY_PAGE_5   equ 0x00005000  ; RMC code base
+LOW_MEMORY_PAGE_6   equ 0x00006000  ; RMC buffers
+LOW_MEMORY_PAGE_7   equ 0x00007000
+LOW_MEMORY_PAGE_8   equ 0x00008000
 
 ;-------------------------------------------------------------------------
 ; Shift values to multiply or divide by machine constants

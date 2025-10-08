@@ -266,7 +266,7 @@ typedef struct tag_TASK_STATE_SEGMENT {
 
 /************************************************************************/
 // NOTE: fields not meaningful for a given trap are set to 0
-// !! Structure MUST BE IDENTICAL to STRUC INTERRUPT_FRAME in KernelArch.inc !!
+// !! Structure MUST BE IDENTICAL to STRUC INTERRUPT_FRAME in Kernel-i386.inc !!
 
 typedef struct tag_INTERRUPT_FRAME {
     INTEL_386_REGISTERS Registers;
