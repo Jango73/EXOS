@@ -34,6 +34,13 @@ also delegated to the architecture via `ArchClipPhysicalRange`, keeping
 future 64-bit backends free to extend address limits without touching the
 common kernel code.
 
+`InitializeMemoryManager` now defers to `MemoryArchInitializeManager` so
+the architecture backend owns the low-level bootstrap steps. The i386
+implementation continues to reserve the bitmap in low memory, seed the
+temporary mapping slots, install the recursive page directory, and load
+the GDT, while the x86-64 tree exposes a stub ready to grow into the
+final long-mode bootstrap sequence.
+
 ### Kernel object identifiers
 
 Kernel objects now embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier

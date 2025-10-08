@@ -17,21 +17,18 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Architecture-specific memory abstractions
+    x86-64 memory manager stubs
 
 \************************************************************************/
+#include "Memory.h"
 
-#ifndef ARCH_MEMORY_H_INCLUDED
-#define ARCH_MEMORY_H_INCLUDED
+/************************************************************************/
 
-#if defined(__EXOS_ARCH_I386__)
-    #include "arch/i386/Memory-i386.h"
-#elif defined(__EXOS_ARCH_X86_64__)
-    #include "arch/x86-64/Memory-x86-64.h"
-#else
-    #error "Unsupported architecture for memory abstractions"
-#endif
+/**
+ * @brief Placeholder memory manager initialization for x86-64.
+ */
+void MemoryArchInitializeManager(void) {
+    // TODO: provide x86-64 specific memory initialization.
+}
 
-void MemoryArchInitializeManager(void);
-
-#endif  // ARCH_MEMORY_H_INCLUDED
+/************************************************************************/

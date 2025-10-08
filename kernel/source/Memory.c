@@ -180,6 +180,20 @@ static LINEAR G_TempLinear3 = 0;
 
 /************************************************************************/
 
+/**
+ * @brief Configure the reserved temporary linear mapping slots.
+ * @param Linear1 First temporary linear address.
+ * @param Linear2 Second temporary linear address.
+ * @param Linear3 Third temporary linear address.
+ */
+void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear3) {
+    G_TempLinear1 = Linear1;
+    G_TempLinear2 = Linear2;
+    G_TempLinear3 = Linear3;
+}
+
+/************************************************************************/
+
 /************************************************************************/
 
 /**
@@ -268,7 +282,7 @@ static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) 
 /**
  * @brief Mark physical pages that are reserved or already used.
  */
-static void MarkUsedPhysicalMemory(void) {
+static void MarkUsedPhysicalMemoryInternal(void) {
     UINT Start = 0;
     UINT End = (N_4MB) >> PAGE_SIZE_MUL;
     SetPhysicalPageRangeMark(Start, End, 1);
@@ -308,6 +322,15 @@ static void MarkUsedPhysicalMemory(void) {
 
         DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %x"), KernelStartup.MemorySize);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Public wrapper to mark reserved and used physical pages.
+ */
+void MemoryMarkUsedPhysicalMemory(void) {
+    MarkUsedPhysicalMemoryInternal();
 }
 
 /************************************************************************/
@@ -1514,78 +1537,6 @@ LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
  * @brief Initialize the kernel memory manager.
  */
 void InitializeMemoryManager(void) {
-    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
-
-    // Place the physical page bitmap at 2MB (half of reserved low memory)
-    Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
-    MemorySet(Kernel_i386.PPB, 0, N_128KB);
-
-    MarkUsedPhysicalMemory();
-
-    if (KernelStartup.MemorySize == 0) {
-        ConsolePanic(TEXT("Detected memory = 0"));
-    }
-
-    // Reserve two temporary linear pages (not committed). They will be remapped on demand.
-    G_TempLinear1 = 0xC0100000;  // VA in kernel space, dir=768
-    G_TempLinear2 = 0xC0101000;  // next VA, same dir
-    G_TempLinear3 = 0xC0102000;  // next VA, same dir
-
-    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %x, %x, %x"), G_TempLinear1, G_TempLinear2,
-        G_TempLinear3);
-
-    // Allocate a page directory
-    PHYSICAL NewPageDirectory = AllocPageDirectory();
-
-    LogPageDirectory(NewPageDirectory);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory ready"));
-
-    if (NewPageDirectory == NULL) {
-        ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %x"), NewPageDirectory);
-
-    // Switch to the new page directory first (it includes the recursive map).
-    LoadPageDirectory(NewPageDirectory);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %x"), NewPageDirectory);
-
-    // Flush the Translation Look-up Buffer of the CPU
-    FlushTLB();
-
-    DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
-
-    if (G_TempLinear1 == 0 || G_TempLinear2 == 0) {
-        ERROR(TEXT("[InitializeMemoryManager] Failed to reserve temp linear pages"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    // Allocate a permanent linear region for the GDT
-    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-
-    if (Kernel_i386.GDT == NULL) {
-        ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    InitGlobalDescriptorTable(Kernel_i386.GDT);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
-
-    LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
-
-    // Log GDT contents
-    for (UINT Index = 0; Index < 10; Index++) {
-        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), Index, ((U32*)(Kernel_i386.GDT))[Index * 2 + 1],
-            ((U32*)(Kernel_i386.GDT))[Index * 2]);
-    }
-
-    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
+    MemoryArchInitializeManager();
 }
 
