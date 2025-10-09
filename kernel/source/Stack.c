@@ -95,7 +95,13 @@ BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINE
  * @return TRUE on success, FALSE on failure
  */
 BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
+#if defined(__EXOS_ARCH_I386__)
+    LINEAR CurrentEbp;
+    GetEBP(CurrentEbp);
+    return CopyStackWithEBP(DestStackTop, SourceStackTop, Size, CurrentEbp);
+#else
     return CopyStackWithEBP(DestStackTop, SourceStackTop, Size, GetEBP());
+#endif
 }
 
 /************************************************************************/
@@ -121,8 +127,15 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
     I32 Delta = DestStackTop - SourceStackTop;
 
     // Get current ESP and EBP at the moment of switch
-    LINEAR CurrentEsp = GetESP();
-    LINEAR CurrentEbp = GetEBP();
+    LINEAR CurrentEsp;
+    LINEAR CurrentEbp;
+#if defined(__EXOS_ARCH_I386__)
+    GetESP(CurrentEsp);
+    GetEBP(CurrentEbp);
+#else
+    CurrentEsp = GetESP();
+    CurrentEbp = GetEBP();
+#endif
 
     DEBUG(TEXT("[SwitchStack] Current ESP=%X, EBP=%X at switch time"), CurrentEsp, CurrentEbp);
 

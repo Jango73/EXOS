@@ -139,7 +139,13 @@ LPTASK NewTask(void) {
     DEBUG(TEXT("[NewTask] MessageDestructor = %x"), (LINEAR)MessageDestructor);
     DEBUG(TEXT("[NewTask] KernelHeapAlloc = %x"), (LINEAR)KernelHeapAlloc);
     DEBUG(TEXT("[NewTask] KernelHeapFree = %x"), (LINEAR)KernelHeapFree);
+#if defined(__EXOS_ARCH_I386__)
+    LINEAR CurrentEbp;
+    GetEBP(CurrentEbp);
+    DEBUG(TEXT("[NewTask] EBP = %x"), CurrentEbp);
+#else
     DEBUG(TEXT("[NewTask] EBP = %x"), (LINEAR)GetEBP());
+#endif
 
     This->Message = NewList(MessageDestructor, KernelHeapAlloc, KernelHeapFree);
 

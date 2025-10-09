@@ -69,13 +69,6 @@ start:
 section .text
 BITS 32
 
-    global GetCR4
-    global GetESP
-    global GetEBP
-    global GetDR6
-    global GetDR7
-    global SetDR6
-    global SetDR7
     global GetCPUID
     global DisablePaging
     global EnablePaging
@@ -122,74 +115,6 @@ BITS 32
     global DeadCPU
     global Reboot
     global TaskRunner
-
-;--------------------------------------
-
-FUNC_HEADER
-GetCR4 :
-
-    mov         eax, cr4
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-GetESP :
-
-    mov         eax, esp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-GetEBP :
-
-    mov         eax, ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-GetDR6 :
-
-    mov         eax, dr6
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-GetDR7 :
-
-    mov         eax, dr7
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-SetDR6 :
-
-    push        ebp
-    mov         ebp, esp
-
-    mov         eax, [ebp+PBN]
-    mov         dr6, eax
-
-    pop         ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-SetDR7 :
-
-    push        ebp
-    mov         ebp, esp
-
-    mov         eax, [ebp+PBN]
-    mov         dr7, eax
-
-    pop         ebp
-    ret
 
 ;--------------------------------------
 

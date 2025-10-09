@@ -649,5 +649,7 @@ void BacktraceFrom(U32 StartEbp, U32 MaxFrames) {
  * Gets current EBP and traces the call stack. Wrapper around BacktraceFrom.
  */
 void BacktraceFromCurrent(U32 MaxFrames) {
-    BacktraceFrom(GetEBP(), MaxFrames);
+    LINEAR CurrentEbp;
+    GetEBP(CurrentEbp);
+    BacktraceFrom(CurrentEbp, MaxFrames);
 }
