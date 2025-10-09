@@ -1,4 +1,4 @@
-SHELL   = /bin/bash
+SHELL = /bin/bash
 
 BUILD_DIR = ../build
 
@@ -16,16 +16,17 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-BARE_METAL					?= 0
-DEBUG_OUTPUT    			?= 0
-SCHEDULING_DEBUG_OUTPUT    	?= 0
-TRACE_STACK_USAGE			?= 0
+BARE_METAL              ?= 0
+DEBUG_OUTPUT            ?= 0
+SCHEDULING_DEBUG_OUTPUT ?= 0
+TRACE_STACK_USAGE       ?= 0
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+NASMFLAGS = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
 
+NASM    = nasm
 CC      = $(TOOLCHAIN_PREFIX)-gcc
 LD      = $(TOOLCHAIN_PREFIX)-ld
-NASM    = nasm
+NM      = $(TOOLCHAIN_PREFIX)-nm
 OBJCOPY = $(TOOLCHAIN_PREFIX)-objcopy
 READELF = $(TOOLCHAIN_PREFIX)-readelf
 
@@ -172,7 +173,7 @@ check_magic: $(FINAL_IMG)
 
 # Extract debug symbols for Bochs
 $(BUILD_DIR)/kernel/exos.sym: $(KERNEL_ELF)
-	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Optional sanity check to ensure the ELF has no GOT/PLT/DYNAMIC/INTERP sections
 check-nogot: $(KERNEL_ELF)

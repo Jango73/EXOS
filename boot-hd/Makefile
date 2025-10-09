@@ -1,6 +1,25 @@
 # Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
-ARCH            ?= i386
+SHELL = /bin/bash
+
+BUILD_DIR = ../build
+
+ARCH ?= i386
+
+ifeq ($(ARCH),i386)
+TOOLCHAIN_PREFIX = i686-elf
+NASM_FORMAT = elf32
+ARCH_DEFINES = -DBOOT_ARCH_I386
+NASM_ARCH_FLAGS = -DARCH_I386
+else ifeq ($(ARCH),x86-64)
+TOOLCHAIN_PREFIX = i686-elf
+NASM_FORMAT = elf32
+ARCH_DEFINES = -DBOOT_ARCH_X86_64
+NASM_ARCH_FLAGS = -DARCH_X86_64
+else
+$(error Unsupported architecture $(ARCH))
+endif
+
 DEBUG_OUTPUT    ?= 0
 
 IMG_SIZE_MB     ?= 64
@@ -8,10 +27,8 @@ FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
 PAYLOAD_OFFSET  ?= 0x8000
-RESERVED_SECTORS= 64		# Reserved sectors for VBR payload
-VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
-
-BUILD_DIR       = ../build
+RESERVED_SECTORS= 64            # Reserved sectors for VBR payload
+VBR_CODE_OFFSET = 0x5A          # Offset of code in VBR sector
 
 KERNEL_CFG_FAT32= ../kernel/configuration/exos.fat32.toml
 KERNEL_CFG_EXT2 = ../kernel/configuration/exos.ext2.toml
@@ -30,7 +47,7 @@ PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) $(NASM_ARCH_FLAGS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -39,23 +56,15 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
-                  -Iinclude -I../kernel/include
+                  -Iinclude -I../kernel/include \
+                  $(ARCH_DEFINES)
 
-ifeq ($(ARCH),i386)
-ARCH_DEFINES    = -DBOOT_ARCH_I386
-NASMFLAGS      += -DARCH_I386
-else ifeq ($(ARCH),x86-64)
-ARCH_DEFINES    = -DBOOT_ARCH_X86_64
-NASMFLAGS      += -DARCH_X86_64
-else
-$(error Unsupported architecture $(ARCH))
-endif
-
-CFLAGS         += $(ARCH_DEFINES)
-LD              = i686-elf-ld
+NASM            = nasm
+CC              = $(TOOLCHAIN_PREFIX)-gcc
+LD              = $(TOOLCHAIN_PREFIX)-ld
+NM              = $(TOOLCHAIN_PREFIX)-nm
 LDFLAGS         = -nostdlib -no-pie
 LDDEFS          = --defsym=PAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
-
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
@@ -177,36 +186,36 @@ endef
 all: check_tools $(FINAL_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 check_tools:
-	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
+	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
 	@command -v parted >/dev/null 2>&1 || { echo "parted is not installed. Please run: sudo apt install parted"; exit 1; }
-	@command -v i686-elf-gcc >/dev/null 2>&1 || { echo "i686-elf-gcc is not installed. Please install your cross toolchain."; exit 1; }
-	@command -v i686-elf-ld >/dev/null 2>&1 || { echo "i686-elf-ld is not installed. Please install your cross toolchain."; exit 1; }
+	@command -v $(CC) >/dev/null 2>&1 || { echo "$(CC) is not installed. Please install your cross toolchain."; exit 1; }
+	@command -v $(LD) >/dev/null 2>&1 || { echo "$(LD) is not installed. Please install your cross toolchain."; exit 1; }
 	$(FS_SPECIFIC_CHECK)
 
 $(MBR_BIN): $(MBR_SOURCE)
 	@echo "Assembling custom MBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	nasm $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
+	$(NASM) $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
 
 $(VBR_BIN): $(VBR_SRC)
 	@echo "Assembling VBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	nasm $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
+	$(NASM) $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
 
 $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@echo "Assembling payload stub (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	nasm $(NASMFLAGS) -f elf32 $< -o $@
+	$(NASM) $(NASMFLAGS) -f $(NASM_FORMAT) $< -o $@
 
 $(BUILD_DIR)/boot-hd/%.o: source/%.c
 	@echo "Compiling payload C from $<..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	i686-elf-gcc $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 	@echo "Compiling String from $(PAYLOAD_STR_C)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	i686-elf-gcc $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
@@ -218,7 +227,7 @@ $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_E
 
 $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	# @echo "Extracting payload symbols for Bochs debugging"
-	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Create image only if it does not exist
 $(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
