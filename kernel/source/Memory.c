@@ -27,9 +27,11 @@
 #include "Base.h"
 #include "Console.h"
 #include "Kernel.h"
-#include "arch/i386/i386.h"
+#include "Arch.h"
 #include "Log.h"
+#if defined(__EXOS_ARCH_I386__)
 #include "arch/i386/i386-Log.h"
+#endif
 #include "Schedule.h"
 #include "System.h"
 

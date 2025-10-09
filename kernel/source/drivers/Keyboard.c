@@ -26,7 +26,7 @@
 
 #include "Base.h"
 #include "Console.h"
-#include "arch/i386/i386.h"
+#include "Arch.h"
 #include "InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"

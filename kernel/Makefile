@@ -4,6 +4,18 @@ BUILD_DIR = ../build
 
 ARCH ?= i386
 
+ifeq ($(ARCH),i386)
+TOOLCHAIN_PREFIX = i686-elf
+NASM_FORMAT = elf
+ARCH_AUTOTEST_EXCLUDES =
+else ifeq ($(ARCH),x86-64)
+TOOLCHAIN_PREFIX = x86_64-elf
+NASM_FORMAT = elf64
+ARCH_AUTOTEST_EXCLUDES = source/autotest/Autotest-I386-MCI.c
+else
+$(error Unsupported architecture $(ARCH))
+endif
+
 BARE_METAL					?= 0
 DEBUG_OUTPUT    			?= 0
 SCHEDULING_DEBUG_OUTPUT    	?= 0
@@ -11,11 +23,11 @@ TRACE_STACK_USAGE			?= 0
 
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
 
-CC      = i686-elf-gcc
-LD      = i686-elf-ld
+CC      = $(TOOLCHAIN_PREFIX)-gcc
+LD      = $(TOOLCHAIN_PREFIX)-ld
 NASM    = nasm
-OBJCOPY = i686-elf-objcopy
-READELF = i686-elf-readelf
+OBJCOPY = $(TOOLCHAIN_PREFIX)-objcopy
+READELF = $(TOOLCHAIN_PREFIX)-readelf
 
 CFLAGS  = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
 	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
@@ -25,7 +37,7 @@ CFLAGS  = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
 	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
 	-Iinclude -I../third/include -I../runtime/include
 
-AFLAGS  = -f elf -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/ -I source/arch/$(ARCH)/asm/
+AFLAGS  = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/ -I source/arch/$(ARCH)/asm/
 
 LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
 
@@ -42,6 +54,7 @@ SRC_C  = $(wildcard source/*.c) \
          ../third/bcrypt/wrapbf.c \
          ../third/bcrypt/endian.c \
          ../runtime/source/exos-runtime-c.c
+SRC_C := $(filter-out $(ARCH_AUTOTEST_EXCLUDES), $(SRC_C))
 SRC_S  = $(wildcard source/asm/*.asm) \
          $(wildcard source/arch/$(ARCH)/asm/*.asm) \
          ../runtime/source/exos-runtime-a.asm

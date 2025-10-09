@@ -28,14 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
-
-#if defined(__EXOS_ARCH_I386__)
-#include "arch/i386/i386.h"
-#elif defined(__EXOS_ARCH_X86_64__)
-#include "arch/x86-64/x86-64.h"
-#else
-#error "Unsupported architecture for System.h"
-#endif
+#include "Arch.h"
 
 /***************************************************************************/
 

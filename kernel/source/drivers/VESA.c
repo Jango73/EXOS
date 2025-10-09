@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "GFX.h"
-#include "arch/i386/i386.h"
+#include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
 
