@@ -260,6 +260,180 @@ Out_Error:
 /************************************************************************/
 
 /**
+ * @brief Allocate a new page directory for userland processes.
+ * @return Physical address of the page directory or NULL on failure.
+ */
+PHYSICAL AllocUserPageDirectory(void) {
+    PHYSICAL PMA_Directory = NULL;
+    PHYSICAL PMA_LowTable = NULL;
+    PHYSICAL PMA_KernelTable = NULL;
+
+    LPPAGE_DIRECTORY Directory = NULL;
+    LPPAGE_TABLE LowTable = NULL;
+    LPPAGE_TABLE KernelTable = NULL;
+    LPPAGE_DIRECTORY CurrentPD = (LPPAGE_DIRECTORY)PD_VA;
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
+
+    UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);
+    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;
+    UINT Index;
+
+    PMA_Directory = AllocPhysicalPage();
+    PMA_LowTable = AllocPhysicalPage();
+    PMA_KernelTable = AllocPhysicalPage();
+
+    if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL) {
+        ERROR(TEXT("[AllocUserPageDirectory] Out of physical pages"));
+        goto Out_Error;
+    }
+
+    LINEAR VMA_PD = MapTempPhysicalPage(PMA_Directory);
+    if (VMA_PD == NULL) {
+        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage failed on Directory"));
+        goto Out_Error;
+    }
+    Directory = (LPPAGE_DIRECTORY)VMA_PD;
+    MemorySet(Directory, 0, PAGE_SIZE);
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Page directory cleared"));
+
+    WritePageDirectoryEntryValue(
+        Directory,
+        0,
+        MakePageDirectoryEntryValue(
+            PMA_LowTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirKernel,
+        MakePageDirectoryEntryValue(
+            PMA_KernelTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    UNUSED(VMA_TASK_RUNNER);
+    UINT UserStartPDE = GetDirectoryEntry(VMA_USER);
+    UINT UserEndPDE = GetDirectoryEntry(VMA_LIBRARY - 1) - 1;
+    for (Index = 1; Index < 1023; Index++) {
+        if (PageDirectoryEntryIsPresent(CurrentPD, Index) && Index != DirKernel) {
+            if (Index >= UserStartPDE && Index <= UserEndPDE) {
+                DEBUG(TEXT("[AllocUserPageDirectory] Skipped user space PDE[%u]"), Index);
+                continue;
+            }
+            WritePageDirectoryEntryValue(Directory, Index, ReadPageDirectoryEntryValue(CurrentPD, Index));
+            DEBUG(TEXT("[AllocUserPageDirectory] Copied PDE[%u]"), Index);
+        }
+    }
+
+    WritePageDirectoryEntryValue(
+        Directory,
+        PD_RECURSIVE_SLOT,
+        MakePageDirectoryEntryValue(
+            PMA_Directory,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
+    if (VMA_PT == NULL) {
+        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
+        goto Out_Error;
+    }
+    LowTable = (LPPAGE_TABLE)VMA_PT;
+    MemorySet(LowTable, 0, PAGE_SIZE);
+
+    for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+        PHYSICAL Physical = (PHYSICAL)Index << PAGE_SIZE_MUL;
+
+#ifdef PROTECT_BIOS
+        BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
+#else
+        BOOL Protected = FALSE;
+#endif
+
+        if (Protected) {
+            ClearPageTableEntry(LowTable, Index);
+        } else {
+            WritePageTableEntryValue(
+                LowTable,
+                Index,
+                MakePageTableEntryValue(
+                    Physical,
+                    /*ReadWrite*/ 1,
+                    PAGE_PRIVILEGE_KERNEL,
+                    /*WriteThrough*/ 0,
+                    /*CacheDisabled*/ 0,
+                    /*Global*/ 0,
+                    /*Fixed*/ 1));
+        }
+    }
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
+
+    VMA_PT = MapTempPhysicalPage2(PMA_KernelTable);
+    if (VMA_PT == NULL) {
+        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
+        goto Out_Error;
+    }
+    KernelTable = (LPPAGE_TABLE)VMA_PT;
+    MemorySet(KernelTable, 0, PAGE_SIZE);
+
+    for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+        PHYSICAL Physical = PhysBaseKernel + ((PHYSICAL)Index << PAGE_SIZE_MUL);
+        WritePageTableEntryValue(
+            KernelTable,
+            Index,
+            MakePageTableEntryValue(
+                Physical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_KERNEL,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+    }
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
+
+    FlushTLB();
+
+    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[1023]=%x"),
+        ReadPageDirectoryEntryValue(Directory, 0),
+        ReadPageDirectoryEntryValue(Directory, 768),
+        ReadPageDirectoryEntryValue(Directory, 1023));
+    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%x, KernelTable[0]=%x"),
+        ReadPageTableEntryValue(LowTable, 0),
+        ReadPageTableEntryValue(KernelTable, 0));
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
+    return PMA_Directory;
+
+Out_Error:
+
+    if (PMA_Directory) FreePhysicalPage(PMA_Directory);
+    if (PMA_LowTable) FreePhysicalPage(PMA_LowTable);
+    if (PMA_KernelTable) FreePhysicalPage(PMA_KernelTable);
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Architecture-specific memory manager initialization for i386.
  */
 void MemoryArchInitializeManager(void) {
