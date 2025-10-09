@@ -14,10 +14,12 @@ EXOS is a multi-architecture operating system. Currently supporting i386 and x86
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
 
 ## Coding Conventions
+- **Types**: Use LINEAR for virtual addresses, PHYSICAL for physical addresses, UINT for indexes and sizes.
 - **Debugging**: Debug output is **ALWAYS** logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done.
 - **I18n**: Write comments, console output and technical doc in english.
 - **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
+- **Order**: Group the declarations in headers. 1: #defines, 2: typedefs, 3: inlines, 4: external symbols
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors and time.
