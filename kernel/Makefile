@@ -1,3 +1,4 @@
+
 SHELL = /bin/bash
 
 BUILD_DIR = ../build
@@ -21,28 +22,27 @@ DEBUG_OUTPUT            ?= 0
 SCHEDULING_DEBUG_OUTPUT ?= 0
 TRACE_STACK_USAGE       ?= 0
 
-NASMFLAGS = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
+                  -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
+                  -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+                  -fvisibility=hidden -mno-red-zone \
+                  -Werror-implicit-function-declaration -Wstrict-prototypes \
+                  -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
+                  -Iinclude -I../third/include -I../runtime/include
 
-NASM    = nasm
-CC      = $(TOOLCHAIN_PREFIX)-gcc
-LD      = $(TOOLCHAIN_PREFIX)-ld
-NM      = $(TOOLCHAIN_PREFIX)-nm
-OBJCOPY = $(TOOLCHAIN_PREFIX)-objcopy
-READELF = $(TOOLCHAIN_PREFIX)-readelf
+NASM            = nasm
+CC              = $(TOOLCHAIN_PREFIX)-gcc
+LD              = $(TOOLCHAIN_PREFIX)-ld
+NM              = $(TOOLCHAIN_PREFIX)-nm
+OBJCOPY         = $(TOOLCHAIN_PREFIX)-objcopy
+READELF         = $(TOOLCHAIN_PREFIX)-readelf
 
-CFLAGS  = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
-	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
-	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
-	-fvisibility=hidden -mno-red-zone \
-	-Werror-implicit-function-declaration -Wstrict-prototypes \
-	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
-	-Iinclude -I../third/include -I../runtime/include
+AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/ -I source/arch/$(ARCH)/asm/
 
-AFLAGS  = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/ -I source/arch/$(ARCH)/asm/
+LDFLAGS_ELF     = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
 
-LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
-
-KERNEL_ELF = $(BUILD_DIR)/kernel/exos.elf
+KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/arch/$(ARCH)/*.c) \

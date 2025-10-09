@@ -1,4 +1,3 @@
-# Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
 SHELL = /bin/bash
 
