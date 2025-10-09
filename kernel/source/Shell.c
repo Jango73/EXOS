@@ -39,6 +39,7 @@
 #include "drivers/Keyboard.h"
 #include "List.h"
 #include "Log.h"
+#include "arch/Disassemble.h"
 #include "Network.h"
 #include "NetworkManager.h"
 #include "utils/Path.h"

@@ -529,12 +529,12 @@ void LogTask(U32 LogType, const LPTASK Task) {
 /************************************************************************/
 
 /**
- * @brief Disassemble a few instructions at EIP for fault diagnosis.
+ * @brief Disassemble a few instructions at the provided linear address.
  * @param Buffer Output buffer.
- * @param EIP Current instruction pointer.
+ * @param InstructionPointer Current instruction pointer.
  * @param NumInstructions Number of instructions to disassemble (default 5).
  */
-void Disassemble(LPSTR Buffer, U32 EIP, U32 NumInstructions) {
+void Disassemble(LPSTR Buffer, LINEAR InstructionPointer, U32 NumInstructions) {
     STR LineBuffer[128];
     STR DisasmBuffer[64];
     STR HexBuffer[64];
@@ -542,13 +542,14 @@ void Disassemble(LPSTR Buffer, U32 EIP, U32 NumInstructions) {
     Buffer[0] = STR_NULL;
 
     U8 *BasePtr = (U8 *)VMA_USER;
-    U8 *CodePtr = (U8 *)EIP;
+    U8 *CodePtr = (U8 *)InstructionPointer;
 
-    if (EIP >= VMA_LIBRARY) BasePtr = (U8 *)VMA_LIBRARY;
-    if (EIP >= VMA_KERNEL) BasePtr = (U8 *)VMA_KERNEL;
+    if (InstructionPointer >= VMA_LIBRARY) BasePtr = (U8 *)VMA_LIBRARY;
+    if (InstructionPointer >= VMA_KERNEL) BasePtr = (U8 *)VMA_KERNEL;
 
-    if (IsValidMemory(EIP) && IsValidMemory(EIP + NumInstructions - 1)) {
-        if (EIP < 0xFFFFF) {
+    if (IsValidMemory(InstructionPointer) &&
+        IsValidMemory(InstructionPointer + NumInstructions - 1)) {
+        if (InstructionPointer < 0xFFFFF) {
             SetIntelAttributes(I16BIT, I16BIT);
         } else {
             SetIntelAttributes(I32BIT, I32BIT);
