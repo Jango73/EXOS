@@ -26,48 +26,9 @@
 
 #include "Base.h"
 
-/***************************************************************************/
-// Page directory entry structure (4 bytes)
-/***************************************************************************/
-
-typedef struct tag_PAGE_DIRECTORY {
-    U32 Present : 1;    // Is page present in RAM ?
-    U32 ReadWrite : 1;  // Read-write access rights
-    U32 Privilege : 1;  // Privilege level
-    U32 WriteThrough : 1;
-    U32 CacheDisabled : 1;
-    U32 Accessed : 1;  // Has page been accessed ?
-    U32 Reserved : 1;
-    U32 PageSize : 1;  // 0 = 4KB
-    U32 Global : 1;    // Ignored
-    U32 User : 2;      // Available to OS
-    U32 Fixed : 1;     // EXOS : Can page be swapped ?
-    U32 Address : 20;  // Physical address
-} PAGE_DIRECTORY, *LPPAGE_DIRECTORY;
-
-/***************************************************************************/
-// Page table entry structure (4 bytes)
-/***************************************************************************/
-
-typedef struct tag_PAGE_TABLE {
-    U32 Present : 1;    // Is page present in RAM ?
-    U32 ReadWrite : 1;  // Read-write access rights
-    U32 Privilege : 1;  // Privilege level
-    U32 WriteThrough : 1;
-    U32 CacheDisabled : 1;
-    U32 Accessed : 1;  // Has page been accessed ?
-    U32 Dirty : 1;     // Has been written to ?
-    U32 Reserved : 1;  // Reserved by Intel
-    U32 Global : 1;
-    U32 User : 2;      // Available to OS
-    U32 Fixed : 1;     // EXOS : Can page be swapped ?
-    U32 Address : 20;  // Physical address
-} PAGE_TABLE, *LPPAGE_TABLE;
-
-/***************************************************************************/
-// Page sizing and address space definitions
-/***************************************************************************/
-
+/*************************************************************************/
+// #defines
+/*************************************************************************/
 #define PAGE_SIZE N_4KB
 #define PAGE_SIZE_MUL MUL_4KB
 #define PAGE_SIZE_MASK (PAGE_SIZE - 1)
@@ -90,10 +51,6 @@ typedef struct tag_PAGE_TABLE {
 
 #define PAGE_ALIGN(a) (((a) + PAGE_SIZE - 1) & PAGE_MASK)
 
-/***************************************************************************/
-// Virtual memory layout
-/***************************************************************************/
-
 #define VMA_RAM 0x00000000                         // Reserved for kernel
 #define VMA_VIDEO 0x000A0000                       // Reserved for kernel
 #define VMA_CONSOLE 0x000B8000                     // Reserved for kernel
@@ -104,17 +61,9 @@ typedef struct tag_PAGE_TABLE {
 
 #define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
-/***************************************************************************/
-// Recursive mapping constants
-/***************************************************************************/
-
 #define PD_RECURSIVE_SLOT 1023u         // PDE index used for self-map
 #define PD_VA ((LINEAR)0xFFFFF000)      // Page Directory linear alias
 #define PT_BASE_VA ((LINEAR)0xFFC00000) // Page Tables linear window
-
-/***************************************************************************/
-// Helper functions for page table navigation
-/***************************************************************************/
 
 #define PAGE_FLAG_PRESENT (1u << 0)
 #define PAGE_FLAG_READ_WRITE (1u << 1)
@@ -126,7 +75,48 @@ typedef struct tag_PAGE_TABLE {
 #define PAGE_FLAG_PAGE_SIZE (1u << 7)
 #define PAGE_FLAG_GLOBAL (1u << 8)
 #define PAGE_FLAG_FIXED (1u << 9)
+/*************************************************************************/
+// typedefs
+/*************************************************************************/
 
+typedef struct tag_PAGE_DIRECTORY {
+    U32 Present : 1;    // Is page present in RAM?
+    U32 ReadWrite : 1;  // Read-write access rights
+    U32 Privilege : 1;  // Privilege level
+    U32 WriteThrough : 1;
+    U32 CacheDisabled : 1;
+    U32 Accessed : 1;  // Has page been accessed?
+    U32 Reserved : 1;
+    U32 PageSize : 1;  // 0 = 4KB
+    U32 Global : 1;    // Ignored
+    U32 User : 2;      // Available to OS
+    U32 Fixed : 1;     // EXOS: Can page be swapped?
+    U32 Address : 20;  // Physical address
+} PAGE_DIRECTORY, *LPPAGE_DIRECTORY;
+
+typedef struct tag_PAGE_TABLE {
+    U32 Present : 1;    // Is page present in RAM?
+    U32 ReadWrite : 1;  // Read-write access rights
+    U32 Privilege : 1;  // Privilege level
+    U32 WriteThrough : 1;
+    U32 CacheDisabled : 1;
+    U32 Accessed : 1;  // Has page been accessed?
+    U32 Dirty : 1;     // Has been written to?
+    U32 Reserved : 1;  // Reserved by Intel
+    U32 Global : 1;
+    U32 User : 2;      // Available to OS
+    U32 Fixed : 1;     // EXOS: Can page be swapped?
+    U32 Address : 20;  // Physical address
+} PAGE_TABLE, *LPPAGE_TABLE;
+
+typedef struct tag_ARCH_PAGE_ITERATOR {
+    LINEAR Linear;
+    UINT DirectoryIndex;
+    UINT TableIndex;
+} ARCH_PAGE_ITERATOR;
+/*************************************************************************/
+// inlines
+/*************************************************************************/
 static inline UINT GetDirectoryEntry(LINEAR Address) {
     return Address >> PAGE_TABLE_CAPACITY_MUL;
 }
@@ -169,13 +159,13 @@ static inline LPPAGE_DIRECTORY GetCurrentPageDirectoryVA(void) {
 }
 
 static inline LPPAGE_TABLE GetPageTableVAFor(LINEAR Address) {
-    UINT dir = GetDirectoryEntry(Address);
-    return (LPPAGE_TABLE)(PT_BASE_VA + (dir << PAGE_SIZE_MUL));
+    UINT Directory = GetDirectoryEntry(Address);
+    return (LPPAGE_TABLE)(PT_BASE_VA + (Directory << PAGE_SIZE_MUL));
 }
 
 static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
-    UINT tab = GetTableEntry(Address);
-    return (volatile U32*)&GetPageTableVAFor(Address)[tab];
+    UINT Table = GetTableEntry(Address);
+    return (volatile U32*)&GetPageTableVAFor(Address)[Table];
 }
 
 static inline U32 BuildPageFlags(
@@ -270,12 +260,6 @@ static inline void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index) {
     WritePageTableEntryValue(Table, Index, 0u);
 }
 
-typedef struct tag_ARCH_PAGE_ITERATOR {
-    LINEAR Linear;
-    UINT DirectoryIndex;
-    UINT TableIndex;
-} ARCH_PAGE_ITERATOR;
-
 static inline ARCH_PAGE_ITERATOR MemoryPageIteratorFromLinear(LINEAR Linear) {
     ARCH_PAGE_ITERATOR Iterator;
     Iterator.Linear = Linear;
@@ -335,5 +319,9 @@ static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
     }
     return TRUE;
 }
+/*************************************************************************/
+// External symbols
+/*************************************************************************/
 
+/*************************************************************************/
 #endif  // ARCH_I386_I386_MEMORY_H_INCLUDED
