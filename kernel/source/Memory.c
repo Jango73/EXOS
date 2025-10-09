@@ -1451,13 +1451,54 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
 /************************************************************************/
 
 /**
+ * @brief Resolve the page table targeted by an iterator when the hierarchy is present.
+ * @param Iterator Page iterator referencing the page to access.
+ * @param OutTable Receives the page table pointer when available.
+ * @return TRUE when the table exists and is returned.
+ */
+static BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable) {
+    if (Iterator == NULL || OutTable == NULL) return FALSE;
+
+#if defined(__EXOS_ARCH_X86_64__)
+    LINEAR Linear = CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(Iterator));
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
+
+    if ((ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index) & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Linear);
+    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
+
+    if ((ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex) & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Linear);
+#else
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+#endif
+
+    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
+
+    if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) {
+        return FALSE;
+    }
+
+    *OutTable = MemoryPageIteratorGetTable(Iterator);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Unmap and free a linear region.
  * @param Base Base linear address.
  * @param Size Size of region.
  * @return TRUE on success.
  */
 BOOL FreeRegion(LINEAR Base, UINT Size) {
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)GetCurrentPageDirectoryVA();
     LPPAGE_TABLE Table = NULL;
     UINT NumPages = 0;
 
@@ -1465,24 +1506,21 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
     if (NumPages == 0) NumPages = 1;
 
     // Free each page in turn.
+    Base = CanonicalizeLinearAddress(Base);
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
     for (UINT Index = 0; Index < NumPages; Index++) {
-        UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
 
-        if (PageDirectoryEntryGetPhysical(Directory, DirEntry) != 0) {
-            Table = MemoryPageIteratorGetTable(&Iterator);
-
+        if (TryGetPageTableForIterator(&Iterator, &Table) && PageTableEntryIsPresent(Table, TabEntry)) {
             PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
-            if (EntryPhysical != 0) {
-                /* Skip bitmap mark if it was an IO mapping (BAR) */
-                if (!PageTableEntryIsFixed(Table, TabEntry)) {
-                    SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0);
-                }
 
-                ClearPageTableEntry(Table, TabEntry);
+            /* Skip bitmap mark if it was an IO mapping (BAR) */
+            if (!PageTableEntryIsFixed(Table, TabEntry)) {
+                SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0);
             }
+
+            ClearPageTableEntry(Table, TabEntry);
         }
 
         MemoryPageIteratorStepPage(&Iterator);
@@ -1536,7 +1574,8 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
     }
 
     // Return the address adjusted for the original offset
-    LINEAR result = AlignedResult + PageOffset;
+    LINEAR CanonicalAligned = CanonicalizeLinearAddress(AlignedResult);
+    LINEAR result = CanonicalizeLinearAddress(CanonicalAligned + (LINEAR)PageOffset);
     DEBUG(TEXT("[MapIOMemory] Mapped at aligned=%x, returning=%x"), AlignedResult, result);
     return result;
 }
@@ -1557,7 +1596,7 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
     }
 
     // Just unmap; FreeRegion will skip RAM bitmap if PTE.Fixed was set
-    return FreeRegion(LinearBase, Size);
+    return FreeRegion(CanonicalizeLinearAddress(LinearBase), Size);
 }
 
 /************************************************************************/
