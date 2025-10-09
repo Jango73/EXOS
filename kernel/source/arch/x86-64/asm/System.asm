@@ -134,12 +134,6 @@ BITS 64
 
 CR0_PAGING  equ 0x0000000080000000
 
-STUB_FUNC DoSystemCall
-STUB_FUNC IdleCPU
-STUB_FUNC DeadCPU
-STUB_FUNC Reboot
-STUB_FUNC TaskRunner
-
 ;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN GetCPUID
@@ -709,6 +703,89 @@ SYS_FUNC_BEGIN MemoryMove
 
 .exit:
     mov     rax, r8
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN DoSystemCall
+    mov     r11, rbx
+    mov     eax, edi
+    mov     rbx, rsi
+    int     EXOS_USER_CALL
+    mov     rbx, r11
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN IdleCPU
+    sti
+    hlt
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN DeadCPU
+.loop:
+    sti
+    hlt
+    jmp     .loop
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN Reboot
+    cli
+
+.wait_input_clear:
+    in      al, 0x64
+    test    al, 0x02
+    jnz     .wait_input_clear
+
+    mov     al, 0xFE
+    out     0x64, al
+
+.hang:
+    hlt
+    jmp     .hang
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+section .shared_text
+BITS 64
+
+SYS_FUNC_BEGIN TaskRunner
+    mov     r8, rax
+    mov     r9, rbx
+
+    xor     ecx, ecx
+    xor     edx, edx
+    xor     esi, esi
+    xor     ebp, ebp
+    xor     r10d, r10d
+    xor     r11d, r11d
+    xor     r12d, r12d
+    xor     r13d, r13d
+    xor     r14d, r14d
+    xor     r15d, r15d
+
+    mov     rbx, r9
+    test    rbx, rbx
+    je      _TaskRunner_Exit
+
+    mov     rdi, r8
+    call    rbx
+
+_TaskRunner_Exit:
+    mov     rbx, rax
+    mov     eax, 0x33
+    int     EXOS_USER_CALL
+
+.sleep:
+    mov     eax, 0x0E
+    mov     rbx, MAX_UINT
+    int     EXOS_USER_CALL
+    jmp     .sleep
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
