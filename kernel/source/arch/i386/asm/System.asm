@@ -22,7 +22,7 @@
 ;
 ;-------------------------------------------------------------------------
 
-%include "Kernel-i386.inc"
+%include "i386.inc"
 %include "System.inc"
 
 section .data
