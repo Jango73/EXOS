@@ -24,6 +24,7 @@
 #define VBR_PAYLOAD_SHARED_H_INCLUDED
 
 #include "../../kernel/include/String.h"
+#include "Multiboot.h"
 #include "SegOfs.h"
 
 /************************************************************************/

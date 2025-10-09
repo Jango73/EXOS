@@ -52,7 +52,6 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
 static void InitDebug(void);
 static void OutputChar(U8 Char);
 static void WriteString(LPCSTR Str);
-static U8 ReadFarByte(U16 Seg, U16 Ofs);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
@@ -300,15 +299,6 @@ void SerialOut(U8 Which, U8 Char) {
 
 /************************************************************************/
 
-// Helper function to read byte via far pointer to avoid segment limit issues
-
-static U8 ReadFarByte(U16 Seg, U16 Ofs) {
-    U32 Linear = SegOfsToLinear(Seg, Ofs);
-    return *((U8*)Linear);
-}
-
-/************************************************************************/
-
 static void RetrieveMemoryMap(void) {
     MemorySet((void*)E820_Map, 0, E820_SIZE);
     E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
@@ -360,19 +350,6 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 }
 
 /************************************************************************/
-
-#if defined(BOOT_ARCH_X86_64)
-static LPPML4 PageMapLevel4 = (LPPML4)PML4_ADDRESS;
-static LPPDPT PageDirectoryPointerLow = (LPPDPT)PDPT_LOW_ADDRESS;
-static LPPDPT PageDirectoryPointerKernel = (LPPDPT)PDPT_KERNEL_ADDRESS;
-static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_LOW_ADDRESS;
-static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_KERNEL_ADDRESS;
-static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)PAGE_TABLE_LOW_ADDRESS;
-#else
-static LPPAGE_DIRECTORY PageDirectory = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_ADDRESS;
-static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)PAGE_TABLE_LOW_ADDRESS;
-static LPPAGE_TABLE PageTableKrn = (LPPAGE_TABLE)PAGE_TABLE_KERNEL_ADDRESS;
-#endif
 
 U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
     // Clear the multiboot info structure
