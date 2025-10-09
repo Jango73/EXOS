@@ -135,8 +135,8 @@ STRUC KERNELDATA_I386
 ENDSTRUC
 
 ;-------------------------------------------------------------------------
-; Interrupt frame - MUST be synced with INTERRUPT_FRAME in arch/i386/I386.h
-; /!\ Structure MUST BE IDENTICAL to struct INTERRUPT_FRAME in arch/i386/I386.h /!\
+; Interrupt frame - MUST be synced with INTERRUPT_FRAME in arch/i386/i386.h
+; /!\ Structure MUST BE IDENTICAL to struct INTERRUPT_FRAME in arch/i386/i386.h /!\
 
 STRUC INTERRUPT_FRAME
 ; CPU registers

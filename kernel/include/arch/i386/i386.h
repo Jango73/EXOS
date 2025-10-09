@@ -22,13 +22,13 @@
 
 \************************************************************************/
 
-#ifndef I386_H_INCLUDED
-#define I386_H_INCLUDED
+#ifndef ARCH_I386_I386_H_INCLUDED
+#define ARCH_I386_I386_H_INCLUDED
 
 /***************************************************************************/
 
 #include "Base.h"
-#include "arch/i386/Memory-i386.h"
+#include "arch/i386/i386-Memory.h"
 
 /***************************************************************************/
 
@@ -407,7 +407,7 @@ typedef struct tag_FAR_POINTER {
     __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__StackTraceStart) : :)
 #else
 #define TRACED_FUNCTION
-#endif
+#endif  // TRACE_STACK_USAGE == 1
 
 /***************************************************************************/
 
@@ -429,7 +429,7 @@ typedef struct tag_FAR_POINTER {
     if (__StackTraceUsed > STACK_TRACE_WARNING) {                                                                  \
         WARNING(TEXT("Stack usage exceeds limit (%x) in " #FunctionName), __StackTraceUsed);                       \
     }
-#endif
+#endif  // TRACE_STACK_USAGE == 1
 #else
 #define TRACED_EPILOGUE(FunctionName)
 #endif
@@ -838,4 +838,4 @@ void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* Ne
 
 #pragma pack(pop)
 
-#endif
+#endif  // ARCH_I386_I386_H_INCLUDED

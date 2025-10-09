@@ -25,7 +25,7 @@
 #include "Autotest.h"
 #include "Base.h"
 #include "Heap.h"
-#include "arch/i386/I386-MCI.h"
+#include "arch/i386/i386-Asm.h"
 #include "Log.h"
 #include "String.h"
 

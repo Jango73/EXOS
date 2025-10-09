@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 #include "String.h"
 #include "../include/SegOfs.h"
 

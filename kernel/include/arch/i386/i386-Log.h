@@ -20,14 +20,14 @@
     Log I386Struct header
 
 \************************************************************************/
-#ifndef ARCH_I386_LOGI386STRUCT_H_INCLUDED
-#define ARCH_I386_LOGI386STRUCT_H_INCLUDED
+#ifndef ARCH_I386_I386_LOG_H_INCLUDED
+#define ARCH_I386_I386_LOG_H_INCLUDED
 
 /***************************************************************************/
 
 #include "Base.h"
 #include "Task.h"
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 #include "arch/i386/InterruptFrame.h"
 
 /***************************************************************************/
@@ -52,4 +52,4 @@ void BacktraceFromCurrent(U32 MaxFrames);
 
 /***************************************************************************/
 
-#endif  // ARCH_I386_LOGI386STRUCT_H_INCLUDED
+#endif  // ARCH_I386_I386_LOG_H_INCLUDED

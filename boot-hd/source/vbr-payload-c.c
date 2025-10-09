@@ -24,7 +24,7 @@
 
 // I386 32 bits real mode payload entry point
 
-#include "../../kernel/include/arch/i386/I386.h"
+#include "../../kernel/include/arch/i386/i386.h"
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
 #include "../include/Multiboot.h"
@@ -362,7 +362,7 @@ static GDT_REGISTER Gdtr;
 static void SetSegmentDescriptor(
     LPSEGMENT_DESCRIPTOR D, U32 Base, U32 Limit, U32 Type /*0=data,1=code*/, U32 CanWrite, U32 Priv /*0*/,
     U32 Operand32 /*1*/, U32 Gran4K /*1*/) {
-    // Fill SEGMENT_DESCRIPTOR bitfields (per your I386.h)
+    // Fill SEGMENT_DESCRIPTOR bitfields (per your i386.h)
     D->Limit_00_15 = (U16)(Limit & 0xFFFF);
     D->Base_00_15 = (U16)(Base & 0xFFFF);
     D->Base_16_23 = (U8)((Base >> 16) & 0xFF);

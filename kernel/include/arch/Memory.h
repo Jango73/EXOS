@@ -25,7 +25,7 @@
 #define ARCH_MEMORY_H_INCLUDED
 
 #if defined(__EXOS_ARCH_I386__)
-    #include "arch/i386/Memory-i386.h"
+    #include "arch/i386/i386-Memory.h"
 #elif defined(__EXOS_ARCH_X86_64__)
     #include "arch/x86-64/Memory-x86-64.h"
 #else

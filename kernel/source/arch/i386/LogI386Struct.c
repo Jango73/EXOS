@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "arch/i386/I386-MCI.h"
+#include "arch/i386/i386-Asm.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "arch/i386/LogI386Struct.h"
+#include "arch/i386/i386-Log.h"
 #include "Memory.h"
 #include "String.h"
 #include "System.h"

@@ -24,7 +24,7 @@
 
 #include "Clock.h"
 #include "Console.h"
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Process.h"

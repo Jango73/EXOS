@@ -14,7 +14,7 @@ To be completed.
 
 The memory manager relies on `arch/Memory.h` to describe page hierarchy
 helpers exposed by the active architecture backend. The i386
-implementation (`arch/i386/Memory-i386.h`) now centralizes directory and
+implementation (`arch/i386/i386-Memory.h`) now centralizes directory and
 table index calculations, exposes accessors for the self-mapped page
 directory, and provides helper routines to build raw page directory and
 page table entries. Kernel code constructs mappings through
@@ -24,7 +24,7 @@ This abstraction keeps `Memory.c` agnostic of the paging depth so that a
 future x86-64 backend can extend the hierarchy without refactoring the
 core allocator.
 
-`arch/i386/Memory-i386.h` now exposes a generic `ARCH_PAGE_ITERATOR`
+`arch/i386/i386-Memory.h` now exposes a generic `ARCH_PAGE_ITERATOR`
 helper that walks page mappings without assuming a fixed number of page
 table levels. Region management routines (`IsRegionFree`, `AllocRegion`,
 `FreeRegion`, and friends) advance the iterator rather than manually
@@ -377,7 +377,7 @@ Fractional part = unusable space.
 
 ### Architecture-specific task data
 
-Each task embeds an `ARCH_TASK_DATA` structure (declared in `kernel/include/arch/i386/I386.h`) that
+Each task embeds an `ARCH_TASK_DATA` structure (declared in `kernel/include/arch/i386/i386.h`) that
 contains the saved interrupt frame along with both the user and system stack descriptors. The
 generic `tag_TASK` definition in `kernel/include/Task.h` now exposes this structure as the `Arch`
 member so that all stack and context manipulations are scoped to the active architecture.

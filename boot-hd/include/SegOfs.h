@@ -25,7 +25,7 @@
 #ifndef SEGOFS_H_INCLUDED
 #define SEGOFS_H_INCLUDED
 
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 
 /************************************************************************/
 // Common low-memory layout used by the VBR payload

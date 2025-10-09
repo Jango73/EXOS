@@ -27,9 +27,9 @@
 #include "Base.h"
 #include "Console.h"
 #include "Kernel.h"
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 #include "Log.h"
-#include "arch/i386/LogI386Struct.h"
+#include "arch/i386/i386-Log.h"
 #include "Schedule.h"
 #include "System.h"
 
@@ -166,7 +166,7 @@
 \************************************************************************/
 
 // INTERNAL SELF-MAP + TEMP MAPPING ]
-/// Architecture-specific constants are defined in arch/i386/Memory-i386.h.
+/// Architecture-specific constants are defined in arch/i386/i386-Memory.h.
 
 // Uncomment below to mark BIOS memory pages "not present" in the page tables
 // #define PROTECT_BIOS
@@ -439,7 +439,7 @@ void FreePhysicalPage(PHYSICAL Page) {
 }
 
 /************************************************************************/
-// Paging helpers are provided by arch/i386/Memory-i386.h.
+// Paging helpers are provided by arch/i386/i386-Memory.h.
 /************************************************************************/
 
 /************************************************************************/

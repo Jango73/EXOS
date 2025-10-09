@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Kernel.h"
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 #include "Process.h"
 
 #include "drivers/ACPI.h"

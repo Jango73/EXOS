@@ -39,7 +39,7 @@
 #include "drivers/Keyboard.h"
 #include "List.h"
 #include "Log.h"
-#include "arch/i386/LogI386Struct.h"
+#include "arch/i386/i386-Log.h"
 #include "Network.h"
 #include "NetworkManager.h"
 #include "utils/Path.h"

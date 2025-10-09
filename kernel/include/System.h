@@ -30,7 +30,7 @@
 #include "Base.h"
 
 #if defined(__EXOS_ARCH_I386__)
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 #elif defined(__EXOS_ARCH_X86_64__)
 #include "arch/x86-64/x86-64.h"
 #else

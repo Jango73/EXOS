@@ -24,7 +24,7 @@
 
 #include "Console.h"
 #include "Kernel.h"
-#include "arch/i386/I386.h"
+#include "arch/i386/i386.h"
 #include "Log.h"
 #include "System.h"
 #include "Multiboot.h"

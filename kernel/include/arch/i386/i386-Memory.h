@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#ifndef ARCH_I386_MEMORY_I386_H_INCLUDED
-#define ARCH_I386_MEMORY_I386_H_INCLUDED
+#ifndef ARCH_I386_I386_MEMORY_H_INCLUDED
+#define ARCH_I386_I386_MEMORY_H_INCLUDED
 
 #include "Base.h"
 
@@ -336,4 +336,4 @@ static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
     return TRUE;
 }
 
-#endif  // ARCH_I386_MEMORY_I386_H_INCLUDED
+#endif  // ARCH_I386_I386_MEMORY_H_INCLUDED
