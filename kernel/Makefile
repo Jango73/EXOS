@@ -11,7 +11,7 @@ ARCH_AUTOTEST_EXCLUDES =
 else ifeq ($(ARCH),x86-64)
 TOOLCHAIN_PREFIX = x86_64-elf
 NASM_FORMAT = elf64
-ARCH_AUTOTEST_EXCLUDES = source/autotest/Autotest-I386-MCI.c
+ARCH_AUTOTEST_EXCLUDES = source/autotest/Autotest-i386-Asm.c
 else
 $(error Unsupported architecture $(ARCH))
 endif
