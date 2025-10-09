@@ -24,11 +24,18 @@
 
 // I386 32 bits real mode payload entry point
 
-#include "../../kernel/include/arch/i386/i386.h"
+#include <stdint.h>
+
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
 #include "../include/Multiboot.h"
 #include "../include/SegOfs.h"
+
+#if defined(BOOT_ARCH_X86_64)
+#include "../../kernel/include/arch/x86-64/x86-64-Memory.h"
+#else
+#include "../../kernel/include/arch/i386/i386-Memory.h"
+#endif
 
 /************************************************************************/
 
@@ -41,10 +48,22 @@ __asm__(".code16gcc");
 /************************************************************************/
 // I386 values
 
+#if defined(BOOT_ARCH_X86_64)
+#define PML4_ADDRESS LOW_MEMORY_PAGE_1
+#define PDPT_LOW_ADDRESS LOW_MEMORY_PAGE_2
+#define PDPT_KERNEL_ADDRESS LOW_MEMORY_PAGE_3
+#define PAGE_DIRECTORY_LOW_ADDRESS LOW_MEMORY_PAGE_4
+#define PAGE_DIRECTORY_KERNEL_ADDRESS LOW_MEMORY_PAGE_5
+#define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_6
+static U32 GdtPhysicalAddress = 0U;
+static const U64 KERNEL_LONG_MODE_BASE = 0xFFFFFFFF80000000ull;
+static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
+#else
 #define PAGE_DIRECTORY_ADDRESS LOW_MEMORY_PAGE_1
 #define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_2
 #define PAGE_TABLE_KERNEL_ADDRESS LOW_MEMORY_PAGE_3
-#define GDT_ADDRESS LOW_MEMORY_PAGE_4
+static U32 GdtPhysicalAddress = LOW_MEMORY_PAGE_4;
+#endif
 
 #define PROTECTED_ZONE_START 0xC0000
 #define PROTECTED_ZONE_END 0xFFFFF
@@ -352,16 +371,34 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
 /************************************************************************/
 
+#if defined(BOOT_ARCH_X86_64)
+static LPPML4 PageMapLevel4 = (LPPML4)PML4_ADDRESS;
+static LPPDPT PageDirectoryPointerLow = (LPPDPT)PDPT_LOW_ADDRESS;
+static LPPDPT PageDirectoryPointerKernel = (LPPDPT)PDPT_KERNEL_ADDRESS;
+static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_LOW_ADDRESS;
+static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_KERNEL_ADDRESS;
+static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)PAGE_TABLE_LOW_ADDRESS;
+#else
 static LPPAGE_DIRECTORY PageDirectory = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_ADDRESS;
 static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)PAGE_TABLE_LOW_ADDRESS;
 static LPPAGE_TABLE PageTableKrn = (LPPAGE_TABLE)PAGE_TABLE_KERNEL_ADDRESS;
+#endif
+
+static SEGMENT_DESCRIPTOR GdtEntries[3];
 static GDT_REGISTER Gdtr;
 
 /************************************************************************/
 
 static void SetSegmentDescriptor(
-    LPSEGMENT_DESCRIPTOR D, U32 Base, U32 Limit, U32 Type /*0=data,1=code*/, U32 CanWrite, U32 Priv /*0*/,
-    U32 Operand32 /*1*/, U32 Gran4K /*1*/) {
+    LPSEGMENT_DESCRIPTOR D,
+    U32 Base,
+    U32 Limit,
+    U32 Type /*0=data,1=code*/,
+    U32 CanWrite,
+    U32 Priv /*0*/,
+    U32 Operand32 /*1*/,
+    U32 Gran4K /*1*/,
+    U32 LongMode /*0*/) {
     // Fill SEGMENT_DESCRIPTOR bitfields (per your i386.h)
     D->Limit_00_15 = (U16)(Limit & 0xFFFF);
     D->Base_00_15 = (U16)(Base & 0xFFFF);
@@ -375,7 +412,7 @@ static void SetSegmentDescriptor(
     D->Present = 1;
     D->Limit_16_19 = (Limit >> 16) & 0xF;
     D->Available = 0;
-    D->Unused = 0;
+    D->Unused = (LongMode ? 1U : 0U);
     D->OperandSize = (Operand32 ? 1U : 0U);
     D->Granularity = (Gran4K ? 1U : 0U);
     D->Base_24_31 = (U8)((Base >> 24) & 0xFF);
@@ -384,33 +421,46 @@ static void SetSegmentDescriptor(
 /************************************************************************/
 
 static void BuildGdtFlat(void) {
-    // Build in a real local array so the compiler knows the bounds.
-    SEGMENT_DESCRIPTOR GdtBuffer[3];
-
     BootDebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
 
-    // Safe: compiler knows GdtBuf has exactly 3 entries
-    MemorySet(GdtBuffer, 0, sizeof(GdtBuffer));
+    MemorySet(GdtEntries, 0, sizeof(GdtEntries));
 
+#if defined(BOOT_ARCH_X86_64)
+    // 64-bit code segment: long mode, 64-bit default, RW
+    SetSegmentDescriptor(
+        &GdtEntries[1], 0x00000000u, 0x00000000u, /*Type=*/1, /*RW=*/1,
+        /*Priv=*/0, /*Operand32=*/0, /*Gran4K=*/1, /*LongMode=*/1);
+
+    // Data segment: 64-bit mode ignores limit, keep 32-bit operand size for stack operations
+    SetSegmentDescriptor(
+        &GdtEntries[2], 0x00000000u, 0x000FFFFFu, /*Type=*/0, /*RW=*/1,
+        /*Priv=*/0, /*Operand32=*/1, /*Gran4K=*/1, /*LongMode=*/0);
+#else
     // Code segment: base=0, limit=0xFFFFF, type=code, RW=1, gran=4K, 32-bit
     SetSegmentDescriptor(
-        &GdtBuffer[1], 0x00000000, 0x000FFFFF, /*Type=*/1, /*RW=*/1,
-        /*Conforming=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
+        &GdtEntries[1], 0x00000000u, 0x000FFFFFu, /*Type=*/1, /*RW=*/1,
+        /*Priv=*/0, /*Operand32=*/1, /*Gran4K=*/1, /*LongMode=*/0);
 
     // Data segment: base=0, limit=0xFFFFF, type=data, RW=1, gran=4K, 32-bit
     SetSegmentDescriptor(
-        &GdtBuffer[2], 0x00000000, 0x000FFFFF, /*Type=*/0, /*RW=*/1,
-        /*ExpandDown=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
+        &GdtEntries[2], 0x00000000u, 0x000FFFFFu, /*Type=*/0, /*RW=*/1,
+        /*Priv=*/0, /*Operand32=*/1, /*Gran4K=*/1, /*LongMode=*/0);
+#endif
 
-    // Now copy to the physical location expected by your early boot
-    MemoryCopy((void*)GDT_ADDRESS, GdtBuffer, sizeof(GdtBuffer));
+    if (GdtPhysicalAddress == 0U) {
+        BootErrorPrint(TEXT("[VBR] ERROR: Missing GDT physical address. Halting.\r\n"));
+        Hang();
+    }
 
-    Gdtr.Limit = (U16)(sizeof(GdtBuffer) - 1);
-    Gdtr.Base = (U32)GDT_ADDRESS;
+    MemoryCopy((void*)GdtPhysicalAddress, GdtEntries, sizeof(GdtEntries));
+
+    Gdtr.Limit = (U16)(sizeof(GdtEntries) - 1U);
+    Gdtr.Base = GdtPhysicalAddress;
 }
 
 /************************************************************************/
 
+#if defined(BOOT_ARCH_I386)
 static void ClearPdPt(void) {
     MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
     MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
@@ -476,6 +526,113 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
 
     SetPageDirectoryEntry(PageDirectory + 1023, (U32)PageDirectory);
 }
+
+#endif  // BOOT_ARCH_I386
+
+#if defined(BOOT_ARCH_X86_64)
+
+static void ClearLongModeStructures(void) {
+    MemorySet(PageMapLevel4, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageDirectoryPointerLow, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageDirectoryPointerKernel, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageDirectoryLow, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageDirectoryKernel, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
+}
+
+/************************************************************************/
+
+static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Global) {
+    Entry->Present = 1;
+    Entry->ReadWrite = 1;
+    Entry->Privilege = 0;
+    Entry->WriteThrough = 0;
+    Entry->CacheDisabled = 0;
+    Entry->Accessed = 0;
+    Entry->Dirty = 0;
+    Entry->PageSize = 0;
+    Entry->Global = (Global ? 1U : 0U);
+    Entry->Available_9_11 = 0;
+    Entry->Address = (Physical >> 12);
+    Entry->Available_52_58 = 0;
+    Entry->Reserved_59_62 = 0;
+    Entry->NoExecute = 0;
+}
+
+/************************************************************************/
+
+static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
+    ClearLongModeStructures();
+
+    // Identity map first 2 MiB for the bootloader environment
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + 0), (U64)(uintptr_t)PageDirectoryPointerLow, 0);
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryPointerLow + 0), (U64)(uintptr_t)PageDirectoryLow, 0);
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryLow + 0), (U64)(uintptr_t)PageTableLow, 0);
+
+    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; ++Index) {
+        const U64 Physical = (U64)Index * PAGE_SIZE;
+        SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageTableLow + Index), Physical, 1);
+    }
+
+    // Recursive slot for kernel management utilities
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + PML4_RECURSIVE_SLOT), (U64)(uintptr_t)PageMapLevel4, 0);
+
+    const UINT KernelPml4Index = (UINT)((KernelVirtBase >> 39) & 0x1FFu);
+    const UINT KernelPdptIndex = (UINT)((KernelVirtBase >> 30) & 0x1FFu);
+    UINT KernelPdIndex = (UINT)((KernelVirtBase >> 21) & 0x1FFu);
+    UINT KernelPtIndex = (UINT)((KernelVirtBase >> 12) & 0x1FFu);
+
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + KernelPml4Index), (U64)(uintptr_t)PageDirectoryPointerKernel, 0);
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryPointerKernel + KernelPdptIndex), (U64)(uintptr_t)PageDirectoryKernel, 0);
+
+    const U32 TotalPages = (MapSize + PAGE_SIZE - 1U) / PAGE_SIZE;
+    const U32 TablesRequired = (TotalPages + PAGE_TABLE_NUM_ENTRIES - 1U) / PAGE_TABLE_NUM_ENTRIES;
+
+    StringPrintFormat(TempString, TEXT("[VBR] Long mode mapping %u pages (%u tables)\r\n"), TotalPages, TablesRequired);
+    BootDebugPrint(TempString);
+
+    if (TablesRequired > MAX_KERNEL_PAGE_TABLES) {
+        StringPrintFormat(
+            TempString,
+            TEXT("[VBR] ERROR: Required kernel tables %u exceed limit %u. Halting.\r\n"),
+            TablesRequired,
+            MAX_KERNEL_PAGE_TABLES);
+        BootErrorPrint(TempString);
+        Hang();
+    }
+
+    const U32 BaseTablePhysical = KernelPhysBase + MapSize;
+    U32 RemainingPages = TotalPages;
+    U32 TableIndex = 0;
+    U32 PhysicalCursor = KernelPhysBase;
+
+    while (RemainingPages > 0U) {
+        if (KernelPdIndex >= PAGE_DIRECTORY_ENTRY_COUNT) {
+            BootErrorPrint(TEXT("[VBR] ERROR: Kernel page directory overflow. Halting.\r\n"));
+            Hang();
+        }
+
+        const U32 TablePhysical = BaseTablePhysical + (TableIndex * PAGE_TABLE_SIZE);
+        LPPAGE_TABLE CurrentTable = (LPPAGE_TABLE)(uintptr_t)TablePhysical;
+        MemorySet(CurrentTable, 0, PAGE_TABLE_SIZE);
+
+        SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryKernel + KernelPdIndex), (U64)TablePhysical, 0);
+
+        for (UINT EntryIndex = KernelPtIndex; EntryIndex < PAGE_TABLE_NUM_ENTRIES && RemainingPages > 0U; ++EntryIndex) {
+            SetLongModeEntry((LPX86_64_PAGING_ENTRY)(CurrentTable + EntryIndex), (U64)PhysicalCursor, 1);
+            PhysicalCursor += PAGE_SIZE;
+            --RemainingPages;
+        }
+
+        ++KernelPdIndex;
+        KernelPtIndex = 0;
+        ++TableIndex;
+    }
+
+    GdtPhysicalAddress = BaseTablePhysical + (TableIndex * PAGE_TABLE_SIZE);
+}
+
+#endif  // BOOT_ARCH_X86_64
 
 /************************************************************************/
 
@@ -592,24 +749,35 @@ static U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
 
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     const U32 KernelPhysBase = SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
-    const U32 KernelVirtBase = 0xC0000000U;
     const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
 
     EnableA20();
-    BuildGdtFlat();
+
+#if defined(BOOT_ARCH_X86_64)
+    const U64 KernelVirtBase = KERNEL_LONG_MODE_BASE;
     BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);
+    BuildGdtFlat();
 
-    // Build the multiboot information structure
+    const U32 KernelEntryLo = (U32)(KernelVirtBase & 0xFFFFFFFFu);
+    const U32 KernelEntryHi = (U32)((KernelVirtBase >> 32) & 0xFFFFFFFFu);
+    const U32 PagingStructure = (U32)(uintptr_t)PageMapLevel4;
+#else
+    const U32 KernelVirtBase = 0xC0000000U;
+    BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);
+    BuildGdtFlat();
+
+    const U32 KernelEntryLo = KernelVirtBase;
+    const U32 KernelEntryHi = 0U;
+    const U32 PagingStructure = (U32)(uintptr_t)PageDirectory;
+#endif
+
     U32 MultibootInfoPtr = BuildMultibootInfo(KernelPhysBase, FileSize);
-
-    // Pass kernel entry VA as a normal C value
-    const U32 KernelEntryVA = 0xC0000000;
 
     for (volatile int i = 0; i < 100000; ++i) {
         __asm__ __volatile__("nop");
     }
 
-    StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
+    StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 
     __builtin_unreachable();
 }

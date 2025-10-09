@@ -25,7 +25,11 @@
 #ifndef SEGOFS_H_INCLUDED
 #define SEGOFS_H_INCLUDED
 
+#if defined(BOOT_ARCH_X86_64)
+#include "arch/x86-64/x86-64.h"
+#else
 #include "arch/i386/i386.h"
+#endif
 
 /************************************************************************/
 // Common low-memory layout used by the VBR payload
@@ -67,8 +71,13 @@ extern U32 VESASetMode(U16 Mode);
 extern void SetPixel24(U32 x, U32 y, U32 color, U32 framebuffer);
 extern void EnableA20(void);
 
-extern void __attribute__((noreturn))
-StubJumpToImage(U32 GDTR, U32 PageDirectoryPA, U32 KernelEntryVA, U32 MultibootInfoPtr, U32 MultibootMagic);
+extern void __attribute__((noreturn)) StubJumpToImage(
+    U32 GDTR,
+    U32 PageStructurePA,
+    U32 KernelEntryLo,
+    U32 KernelEntryHi,
+    U32 MultibootInfoPtr,
+    U32 MultibootMagic);
 
 /************************************************************************/
 

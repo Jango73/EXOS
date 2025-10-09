@@ -77,6 +77,12 @@ CR0_TASKSWITCH              equ 0x00000008  ; Set on task switch
 CR0_80387                   equ 0x00000010  ; Type of co-processor
 CR0_PAGING                  equ 0x80000000  ; Paging on/off
 
+%ifdef ARCH_X86_64
+CR4_PAE                     equ 0x00000020
+IA32_EFER                   equ 0xC0000080
+EFER_LME                    equ 0x00000100
+%endif
+
 _start:
     jmp         Start
     db          'VBR2'
@@ -684,12 +690,13 @@ PrintHex32Nibble:
 
 ;-------------------------------------------------------------------------
 ; StubJumpToImage : switches to protected mode, enables paging
-; and jumps into the kernel at 0xC0000000
+; and jumps into the kernel entry point
 ; Param 1 : GDTR
 ; Param 2 : PageDirectory (physical)
-; Param 3 : KernelEntryVA (virtual)
-; Param 4 : MultibootInfoPtr (physical address of multiboot_info_t)
-; Param 5 : MultibootMagic (0x2BADB002)
+; Param 3 : KernelEntryLo (low 32 bits of virtual entry point)
+; Param 4 : KernelEntryHi (high 32 bits of virtual entry point)
+; Param 5 : MultibootInfoPtr (physical address of multiboot_info_t)
+; Param 6 : MultibootMagic (0x2BADB002)
 ;-------------------------------------------------------------------------
 
 StubJumpToImage:
@@ -703,7 +710,7 @@ StubJumpToImage:
     mov         eax, [ebp + 8]              ; GDTR
     lgdt        [eax]
 
-    mov         eax, [ebp + 12]             ; PageDirectory (cr3)
+    mov         eax, [ebp + 12]             ; Paging structure (cr3)
     mov         cr3, eax
 
     ; Activate protected mode
@@ -722,17 +729,76 @@ ProtectedEntryPoint:
     mov         ss, ax
     mov         esp, 0x200000               ; Set stack halfway through low 4mb
 
+%ifdef ARCH_X86_64
+    ; Preserve parameters for long mode entry
+    mov         eax, [ebp + 24]             ; Multiboot info pointer
+    mov         [LongModeMultibootInfo], eax
+    xor         edx, edx
+    mov         [LongModeMultibootInfo + 4], edx
+
+    mov         eax, [ebp + 28]             ; Multiboot magic
+    mov         [LongModeMultibootMagic], eax
+
+    mov         eax, [ebp + 16]             ; Kernel entry low
+    mov         [LongModeKernelEntry], eax
+    mov         eax, [ebp + 20]             ; Kernel entry high
+    mov         [LongModeKernelEntry + 4], eax
+
+    ; Enable PAE
+    mov         eax, cr4
+    or          eax, CR4_PAE
+    mov         cr4, eax
+
+    ; Reload CR3 with PML4 base (ensures alignment after CR4 update)
+    mov         eax, [ebp + 12]
+    mov         cr3, eax
+
+    ; Enable long mode
+    mov         ecx, IA32_EFER
+    rdmsr
+    or          eax, EFER_LME
+    wrmsr
+
+    ; Activate paging
+    mov         eax, cr0
+    or          eax, CR0_PAGING
+    mov         cr0, eax
+
+    ; Jump to 64-bit mode
+    jmp         0x08:LongModeEntry
+%else
     ; Activate paging
     mov         eax, cr0
     or          eax, CR0_PAGING
     mov         cr0, eax
     jmp         $+2                         ; Pipeline flush
 
-    mov         eax, [ebp + 24]             ; Multiboot magic (0x2BADB002)
-    mov         ebx, [ebp + 20]             ; Physical address of multiboot_info_t
-    mov         edx, [ebp + 16]             ; KernelEntryVA
+    mov         eax, [ebp + 28]             ; Multiboot magic (0x2BADB002)
+    mov         ebx, [ebp + 24]             ; Physical address of multiboot_info_t
+    mov         edx, [ebp + 16]             ; Kernel entry virtual address
     jmp         edx
+%endif
 
+%ifdef ARCH_X86_64
+[BITS 64]
+LongModeEntry:
+    mov         ax, 0x10
+    mov         ds, ax
+    mov         es, ax
+    mov         ss, ax
+    mov         fs, ax
+    mov         gs, ax
+
+    mov         rsp, 0x0000000000200000
+    mov         rbp, rsp
+
+    mov         eax, [LongModeMultibootMagic]
+    mov         rbx, qword [LongModeMultibootInfo]
+    mov         rdx, qword [LongModeKernelEntry]
+    jmp         rdx
+%endif
+
+[BITS 32]
 .hang:
     cli
     hlt
@@ -769,6 +835,14 @@ DAP_Buffer_Offset : dw 0
 DAP_Buffer_Segment : dw 0
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
+
+%ifdef ARCH_X86_64
+align 16
+LongModeKernelEntry:      dq 0
+LongModeMultibootInfo:    dq 0
+LongModeMultibootMagic:   dd 0
+LongModePadding:          dd 0
+%endif
 
 ; Temporary GDT for unreal mode
 align 16

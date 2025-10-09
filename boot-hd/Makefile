@@ -1,5 +1,6 @@
 # Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
 
+ARCH            ?= i386
 DEBUG_OUTPUT    ?= 0
 
 IMG_SIZE_MB     ?= 64
@@ -39,6 +40,18 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
                   -Iinclude -I../kernel/include
+
+ifeq ($(ARCH),i386)
+ARCH_DEFINES    = -DBOOT_ARCH_I386
+NASMFLAGS      += -DARCH_I386
+else ifeq ($(ARCH),x86-64)
+ARCH_DEFINES    = -DBOOT_ARCH_X86_64
+NASMFLAGS      += -DARCH_X86_64
+else
+$(error Unsupported architecture $(ARCH))
+endif
+
+CFLAGS         += $(ARCH_DEFINES)
 LD              = i686-elf-ld
 LDFLAGS         = -nostdlib -no-pie
 LDDEFS          = --defsym=PAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
