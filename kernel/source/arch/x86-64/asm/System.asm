@@ -76,12 +76,9 @@ BITS 64
     FUNC_HEADER
     global %1
 %1:
-    push    rbp
-    mov     rbp, rsp
 %endmacro
 
 %macro SYS_FUNC_END 0
-    pop     rbp
     ret
 %endmacro
 
