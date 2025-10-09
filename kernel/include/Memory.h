@@ -30,6 +30,18 @@
 
 /************************************************************************/
 
+// Inlines
+#if defined(__EXOS_ARCH_X86_64__)
+static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
+    return (LINEAR)ArchCanonicalizeAddress((U64)Address);
+}
+#else
+static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
+    return Address;
+}
+#endif
+
+// External symbols
 // Initializes the memory manager
 void InitializeMemoryManager(void);
 

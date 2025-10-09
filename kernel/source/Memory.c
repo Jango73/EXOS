@@ -194,16 +194,6 @@ void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear
 
 /************************************************************************/
 
-#if defined(__EXOS_ARCH_X86_64__)
-static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
-    return (LINEAR)ArchCanonicalizeAddress((U64)Address);
-}
-#else
-static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
-    return Address;
-}
-#endif
-
 static BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
     if (Base == 0 || NumPages == 0) return TRUE;
 
