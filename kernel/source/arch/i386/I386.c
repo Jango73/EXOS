@@ -43,6 +43,223 @@ KERNELDATA_I386 SECTION(".data") Kernel_i386 = {.GDT = 0, .TSS = 0, .PPB = (U8*)
 /************************************************************************/
 
 /**
+ * @brief Allocate a new page directory.
+ * @return Physical address of the page directory or MAX_U32 on failure.
+ */
+PHYSICAL AllocPageDirectory(void) {
+    PHYSICAL PMA_Directory = NULL;
+    PHYSICAL PMA_LowTable = NULL;
+    PHYSICAL PMA_KernelTable = NULL;
+    PHYSICAL PMA_TaskRunnerTable = NULL;
+
+    LPPAGE_DIRECTORY Directory = NULL;
+    LPPAGE_TABLE LowTable = NULL;
+    LPPAGE_TABLE KernelTable = NULL;
+    LPPAGE_TABLE TaskRunnerTable = NULL;
+
+    DEBUG(TEXT("[AllocPageDirectory] Enter"));
+
+    UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);           // 4MB directory slot for VMA_KERNEL
+    UINT DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
+    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;                // Kernel physical base
+    UINT Index;
+
+    // Allocate required physical pages (PD + 3 PTs)
+    PMA_Directory = AllocPhysicalPage();
+    PMA_LowTable = AllocPhysicalPage();
+    PMA_KernelTable = AllocPhysicalPage();
+    PMA_TaskRunnerTable = AllocPhysicalPage();
+
+    if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL || PMA_TaskRunnerTable == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] Out of physical pages"));
+        goto Out_Error;
+    }
+
+    // Clear and prepare the Page Directory
+    LINEAR VMA_PD = MapTempPhysicalPage(PMA_Directory);
+    if (VMA_PD == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage failed on Directory"));
+        goto Out_Error;
+    }
+    Directory = (LPPAGE_DIRECTORY)VMA_PD;
+    MemorySet(Directory, 0, PAGE_SIZE);
+
+    DEBUG(TEXT("[AllocPageDirectory] Page directory cleared"));
+
+    // Directory[0] -> identity map 0..4MB via PMA_LowTable
+    WritePageDirectoryEntryValue(
+        Directory,
+        0,
+        MakePageDirectoryEntryValue(
+            PMA_LowTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    // Directory[DirKernel] -> map VMA_KERNEL..VMA_KERNEL+4MB-1 to KERNEL_PHYSICAL_ORIGIN..+4MB-1
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirKernel,
+        MakePageDirectoryEntryValue(
+            PMA_KernelTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    // Directory[DirTaskRunner] -> map VMA_TASK_RUNNER (one page) to TaskRunner physical location
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirTaskRunner,
+        MakePageDirectoryEntryValue(
+            PMA_TaskRunnerTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    // Install recursive mapping: PDE[1023] = PD
+    WritePageDirectoryEntryValue(
+        Directory,
+        PD_RECURSIVE_SLOT,
+        MakePageDirectoryEntryValue(
+            PMA_Directory,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    // Fill identity-mapped low table (0..4MB)
+    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
+    if (VMA_PT == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
+        goto Out_Error;
+    }
+    LowTable = (LPPAGE_TABLE)VMA_PT;
+    MemorySet(LowTable, 0, PAGE_SIZE);
+
+    DEBUG(TEXT("[AllocPageDirectory] Low memory table cleared"));
+
+    for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+        PHYSICAL Physical = (PHYSICAL)Index << PAGE_SIZE_MUL;
+
+#ifdef PROTECT_BIOS
+        BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
+#else
+        BOOL Protected = FALSE;
+#endif
+
+        if (Protected) {
+            ClearPageTableEntry(LowTable, Index);
+        } else {
+            WritePageTableEntryValue(
+                LowTable,
+                Index,
+                MakePageTableEntryValue(
+                    Physical,
+                    /*ReadWrite*/ 1,
+                    PAGE_PRIVILEGE_KERNEL,
+                    /*WriteThrough*/ 0,
+                    /*CacheDisabled*/ 0,
+                    /*Global*/ 0,
+                    /*Fixed*/ 1));
+        }
+    }
+
+    // Fill kernel mapping table by copying the current kernel PT
+    VMA_PT = MapTempPhysicalPage2(PMA_KernelTable);
+    if (VMA_PT == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
+        goto Out_Error;
+    }
+    KernelTable = (LPPAGE_TABLE)VMA_PT;
+
+    MemorySet(KernelTable, 0, PAGE_SIZE);
+
+    DEBUG(TEXT("[AllocPageDirectory] Kernel table cleared"));
+
+    for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+        PHYSICAL Physical = PhysBaseKernel + ((PHYSICAL)Index << PAGE_SIZE_MUL);
+        WritePageTableEntryValue(
+            KernelTable,
+            Index,
+            MakePageTableEntryValue(
+                Physical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_KERNEL,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+    }
+
+    // Fill TaskRunner page table - only map the first page where TaskRunner is located
+    VMA_PT = MapTempPhysicalPage2(PMA_TaskRunnerTable);
+    if (VMA_PT == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on TaskRunnerTable"));
+        goto Out_Error;
+    }
+    TaskRunnerTable = (LPPAGE_TABLE)VMA_PT;
+    MemorySet(TaskRunnerTable, 0, PAGE_SIZE);
+
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner table cleared"));
+
+    LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
+    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + (PHYSICAL)(TaskRunnerLinear - VMA_KERNEL);
+
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"),
+        (UINT)PhysBaseKernel, (UINT)TaskRunnerLinear, (UINT)VMA_KERNEL, (UINT)TaskRunnerPhysical);
+
+    UINT TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
+
+    WritePageTableEntryValue(
+        TaskRunnerTable,
+        TaskRunnerTableIndex,
+        MakePageTableEntryValue(
+            TaskRunnerPhysical,
+            /*ReadWrite*/ 0,  // Read-only for user
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    // TLB sync before returning
+    FlushTLB();
+
+    DEBUG(TEXT("[AllocPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[%u]=%x, PDE[1023]=%x"),
+        ReadPageDirectoryEntryValue(Directory, 0), ReadPageDirectoryEntryValue(Directory, 768), DirTaskRunner,
+        ReadPageDirectoryEntryValue(Directory, DirTaskRunner), ReadPageDirectoryEntryValue(Directory, 1023));
+    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%x, KernelTable[0]=%x, TaskRunnerTable[%u]=%x"),
+        ReadPageTableEntryValue(LowTable, 0), ReadPageTableEntryValue(KernelTable, 0), TaskRunnerTableIndex,
+        ReadPageTableEntryValue(TaskRunnerTable, TaskRunnerTableIndex));
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%x -> Physical=%x"), VMA_TASK_RUNNER, TaskRunnerPhysical);
+
+    DEBUG(TEXT("[AllocPageDirectory] Exit"));
+    return PMA_Directory;
+
+Out_Error:
+
+    if (PMA_Directory) FreePhysicalPage(PMA_Directory);
+    if (PMA_LowTable) FreePhysicalPage(PMA_LowTable);
+    if (PMA_KernelTable) FreePhysicalPage(PMA_KernelTable);
+    if (PMA_TaskRunnerTable) FreePhysicalPage(PMA_TaskRunnerTable);
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Architecture-specific memory manager initialization for i386.
  */
 void MemoryArchInitializeManager(void) {
