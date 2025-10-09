@@ -42,6 +42,7 @@ PAYLOAD_STR_C   = ../kernel/source/String.c
 
 # Configurable payload source (can be overridden with make PAYLOAD_SOURCE=...)
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
+PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
@@ -67,7 +68,7 @@ LDDEFS          = --defsym=PAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
-PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
 PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(sort $(PAYLOAD_C_SOURCES)))
 PAYLOAD_STR_O   = $(BUILD_DIR)/boot-hd/String.o
 PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
