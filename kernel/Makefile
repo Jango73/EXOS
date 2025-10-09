@@ -9,10 +9,19 @@ ifeq ($(ARCH),i386)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf
 ARCH_AUTOTEST_EXCLUDES =
+CC              = $(TOOLCHAIN_PREFIX)-gcc
+LD              = $(TOOLCHAIN_PREFIX)-ld
+NM              = $(TOOLCHAIN_PREFIX)-nm
+OBJCOPY         = $(TOOLCHAIN_PREFIX)-objcopy
+READELF         = $(TOOLCHAIN_PREFIX)-readelf
 else ifeq ($(ARCH),x86-64)
-TOOLCHAIN_PREFIX = x86_64-elf
 NASM_FORMAT = elf64
 ARCH_AUTOTEST_EXCLUDES = source/autotest/Autotest-i386-Asm.c
+CC              = gcc
+LD              = ld
+NM              = nm
+OBJCOPY         = objcopy
+READELF         = readelf
 else
 $(error Unsupported architecture $(ARCH))
 endif
@@ -32,13 +41,14 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -Iinclude -I../third/include -I../runtime/include
 
 NASM            = nasm
-CC              = $(TOOLCHAIN_PREFIX)-gcc
-LD              = $(TOOLCHAIN_PREFIX)-ld
-NM              = $(TOOLCHAIN_PREFIX)-nm
-OBJCOPY         = $(TOOLCHAIN_PREFIX)-objcopy
-READELF         = $(TOOLCHAIN_PREFIX)-readelf
 
-AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/ -I source/arch/$(ARCH)/asm/
+AFLAGS_INCLUDES = -I source/asm/ -I source/arch/$(ARCH)/asm/
+
+ifeq ($(ARCH),x86-64)
+AFLAGS_INCLUDES += -I source/arch/i386/asm/
+endif
+
+AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) $(AFLAGS_INCLUDES)
 
 LDFLAGS_ELF     = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
 
