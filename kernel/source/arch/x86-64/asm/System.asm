@@ -368,20 +368,24 @@ SYS_FUNC_END
 ;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN LoadGlobalDescriptorTable
-    sub     rsp, 16
+    sub     rsp, 32
     mov     word [rsp], si
     mov     qword [rsp + 2], rdi
     lgdt    [rsp]
-    jmp     SELECTOR_KERNEL_CODE:.flush
+
+    lea     rax, [rel .flush]
+    mov     qword [rsp + 16], rax
+    mov     word [rsp + 24], SELECTOR_KERNEL_CODE
+    jmp     far [rsp + 16]
 
 .flush:
+    add     rsp, 32
     mov     ax, SELECTOR_KERNEL_DATA
     mov     ss, ax
     mov     ds, ax
     mov     es, ax
     mov     fs, ax
     mov     gs, ax
-    add     rsp, 16
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
@@ -458,7 +462,7 @@ SYS_FUNC_END
 ;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN InvalidatePage
-    invlpg  byte [rdi]
+    invlpg  [rdi]
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
