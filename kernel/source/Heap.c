@@ -140,7 +140,7 @@ static void RemoveFromFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADE
  * Memory is 16-byte aligned for optimal performance.
  */
 void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
-    DEBUG("[HeapInit] Initializing heap at %x, size %x", HeapBase, HeapSize);
+    DEBUG("[HeapInit] Initializing heap at %lx, size %lx", (unsigned long)HeapBase, (unsigned long)HeapSize);
 
     MemorySet((LPVOID)HeapBase, 0, HeapSize);
 
@@ -160,7 +160,8 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
     // Set first unallocated to after control block, aligned to 16 bytes
     ControlBlock->FirstUnallocated = (LPVOID)((HeapBase + sizeof(HEAPCONTROLBLOCK) + 15) & ~15);
 
-    DEBUG("[HeapInit] Control block size: %x, first unallocated: %x", sizeof(HEAPCONTROLBLOCK), ControlBlock->FirstUnallocated);
+    DEBUG("[HeapInit] Control block size: %lx, first unallocated: %lx", (unsigned long)sizeof(HEAPCONTROLBLOCK),
+        (unsigned long)ControlBlock->FirstUnallocated);
 }
 
 /************************************************************************/
@@ -201,7 +202,8 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     }
 
     if (DesiredSize <= CurrentSize) {
-        ERROR("[TryExpandHeap] Heap limit reached (Current=%x Limit=%x)", CurrentSize, Limit);
+        ERROR("[TryExpandHeap] Heap limit reached (Current=%lx Limit=%lx)", (unsigned long)CurrentSize,
+            (unsigned long)Limit);
         return FALSE;
     }
 
@@ -211,8 +213,8 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     }
 
     if (ResizeRegion(Process->HeapBase, 0, (U32)CurrentSize, (U32)DesiredSize, Flags) == FALSE) {
-        ERROR("[TryExpandHeap] ResizeRegion failed for heap at %x (from %x to %x)", Process->HeapBase, CurrentSize,
-            DesiredSize);
+        ERROR("[TryExpandHeap] ResizeRegion failed for heap at %lx (from %lx to %lx)",
+            (unsigned long)Process->HeapBase, (unsigned long)CurrentSize, (unsigned long)DesiredSize);
         return FALSE;
     }
 
@@ -251,7 +253,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
     if (ControlBlock->TypeID != KOID_HEAP) return NULL;
     if (Size == 0) return NULL;
 
-    // DEBUG("[HeapAlloc_HBHS] Allocating size %x", Size);
+    // DEBUG("[HeapAlloc_HBHS] Allocating size %lx", (unsigned long)Size);
 
     // Determine size class and actual allocation size
     SizeClass = GetSizeClass(Size);
@@ -264,7 +266,8 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     TotalSize = ActualSize + sizeof(HEAPBLOCKHEADER);
 
-    // DEBUG("[HeapAlloc_HBHS] Size class: %x, actual size: %x, total size: %x", SizeClass, ActualSize, TotalSize);
+    // DEBUG("[HeapAlloc_HBHS] Size class: %x, actual size: %lx, total size: %lx", SizeClass, (unsigned long)ActualSize,
+    //     (unsigned long)TotalSize);
 
     // Try to find a block in the appropriate freelist
     if (SizeClass != 0xFF) {
@@ -272,7 +275,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
         Block = ControlBlock->FreeLists[SizeClass];
         if (Block != NULL && Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
             RemoveFromFreeList(ControlBlock, Block, SizeClass);
-            // DEBUG("[HeapAlloc_HBHS] Found block in size class %x at %x", SizeClass, Block);
+            // DEBUG("[HeapAlloc_HBHS] Found block in size class %x at %lx", SizeClass, (unsigned long)Block);
             return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
         }
 
@@ -299,7 +302,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                // DEBUG("[HeapAlloc_HBHS] Found larger block in size class %x at %x", i, Block);
+                // DEBUG("[HeapAlloc_HBHS] Found larger block in size class %x at %lx", i, (unsigned long)Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
         }
@@ -326,7 +329,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                // DEBUG("[HeapAlloc_HBHS] Found large block at %x", Block);
+                // DEBUG("[HeapAlloc_HBHS] Found large block at %lx", (unsigned long)Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
             Block = Block->Next;
@@ -355,7 +358,8 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     ControlBlock->FirstUnallocated = (LPVOID)(NewBlockAddr + TotalSize);
 
-    // DEBUG("[HeapAlloc_HBHS] Allocated new block at %x, next unallocated: %x", Block, ControlBlock->FirstUnallocated);
+    // DEBUG("[HeapAlloc_HBHS] Allocated new block at %lx, next unallocated: %lx", (unsigned long)Block,
+    //     (unsigned long)ControlBlock->FirstUnallocated);
 
     return (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER));
 }
@@ -391,7 +395,7 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
     }
     if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) return NULL;
 
-    DEBUG("[HeapRealloc_HBHS] Reallocating pointer %x to size %x", Pointer, Size);
+    DEBUG("[HeapRealloc_HBHS] Reallocating pointer %lx to size %lx", (unsigned long)Pointer, (unsigned long)Size);
 
     // Get the block header
     LPHEAPBLOCKHEADER Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
@@ -420,7 +424,7 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
         HeapFree_HBHS(HeapBase, HeapSize, Pointer);
     }
 
-    DEBUG("[HeapRealloc_HBHS] Allocated new block at %x", NewPointer);
+    DEBUG("[HeapRealloc_HBHS] Allocated new block at %lx", (unsigned long)NewPointer);
     return NewPointer;
 }
 
@@ -444,7 +448,7 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
     if (Pointer == NULL) return;
     if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) return;
 
-    // DEBUG("[HeapFree_HBHS] Freeing pointer %x", Pointer);
+    // DEBUG("[HeapFree_HBHS] Freeing pointer %lx", (unsigned long)Pointer);
 
     // Get the block header
     Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
@@ -453,7 +457,7 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
         return;
     }
 
-    // DEBUG("[HeapFree_HBHS] Freeing block at %x, size %x", Block, Block->Size);
+    // DEBUG("[HeapFree_HBHS] Freeing block at %lx, size %lx", (unsigned long)Block, (unsigned long)Block->Size);
 
     // TODO: Implement coalescing with adjacent blocks
     // For now, just add to appropriate freelist
