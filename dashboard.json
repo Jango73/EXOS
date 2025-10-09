@@ -6,8 +6,8 @@
     "keyBindings": {
         "f1": { "label": "Setup Dependencies", "script": "1-setup-deps.sh" },
 
-        "f2": { "label": "Clean Build", "script": "4-1-clean-build.sh" },
-        "f3": { "label": "Build", "script": "4-4-build.sh" },
+        "f2": { "label": "Clean Build", "script": "4-1-clean-build-release.sh" },
+        "f3": { "label": "Build", "script": "4-4-build-release.sh" },
         "f4": { "label": "Start QEMU", "script": "5-1-start-qemu-hd.sh" },
 
         "1--------------------": "",
@@ -22,10 +22,10 @@
 
         "3--------------------": "",
 
-        "f9": { "label": "Start QEMU debug", "script": "5-2-debug-qemu-hd.sh" },
-        "f10": { "label": "Start QEMU No GFX", "script": "6-1-start-qemu-hd-nogfx.sh" },
+        "f10": { "label": "Start QEMU release", "script": "5-1-start-qemu-ioapic-sata-e1000.sh" },
+        "f11": { "label": "Start QEMU debug", "script": "5-2-debug-qemu-ioapic-sata-e1000.sh" },
 
-        "f11": { "label": "Format Code", "script": "3-format-all-code.sh" },
+        "f12": { "label": "Format Code", "script": "3-format-all-code.sh" },
 
         "4--------------------": "",
 
