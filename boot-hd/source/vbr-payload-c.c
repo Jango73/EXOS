@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-// I386 32 bits real mode payload entry point
+// i386 32 bits real mode payload entry point
 
 #include <stdint.h>
 
@@ -46,7 +46,7 @@ __asm__(".code16gcc");
 #endif
 
 /************************************************************************/
-// I386 values
+// i386 values
 
 #if defined(BOOT_ARCH_X86_64)
 #define PML4_ADDRESS LOW_MEMORY_PAGE_1
@@ -528,6 +528,8 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
 }
 
 #endif  // BOOT_ARCH_I386
+
+/************************************************************************/
 
 #if defined(BOOT_ARCH_X86_64)
 

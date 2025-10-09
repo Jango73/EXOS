@@ -32,7 +32,7 @@ BITS 16
 %endif
 
 ORIGIN equ PAYLOAD_OFFSET
-KERNEL_LOAD_ADDRESS      equ 0x00020000
+KERNEL_LOAD_ADDRESS      equ 0x20000
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -789,7 +789,7 @@ LongModeEntry:
     mov         fs, ax
     mov         gs, ax
 
-    mov         rsp, 0x0000000000200000
+    mov         rsp, KERNEL_LOAD_ADDRESS
     mov         rbp, rsp
 
     mov         eax, [LongModeMultibootMagic]
