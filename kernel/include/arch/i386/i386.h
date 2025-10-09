@@ -639,6 +639,27 @@ typedef struct tag_SEGMENT_INFO {
 /************************************************************************/
 // Hardware debugging macros
 
+// Read control register 4
+#define GetCR4(var) __asm__ volatile("mov %%cr4, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+
+// Read current stack pointer
+#define GetESP(var) __asm__ volatile("mov %%esp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+
+// Read current base pointer
+#define GetEBP(var) __asm__ volatile("mov %%ebp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+
+// Read debug register DR6 (debug status)
+#define GetDR6(var) __asm__ volatile("mov %%dr6, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+
+// Read debug register DR7 (debug control)
+#define GetDR7(var) __asm__ volatile("mov %%dr7, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+
+// Write debug register DR6 (debug status)
+#define SetDR6(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr6" : : "r"(var) : "eax")
+
+// Write debug register DR7 (debug control)
+#define SetDR7(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr7" : : "r"(var) : "eax")
+
 // Set execution breakpoint on specific address in DR0
 #define SET_HW_BREAKPOINT(addr)                      \
     __asm__ volatile(                                \
@@ -647,8 +668,6 @@ typedef struct tag_SEGMENT_INFO {
         :                                            \
         : "r"(addr)                                  \
         : "eax")
-
-// Read debug register DR6 (debug status)
 #define READ_DR6(var) __asm__ volatile("mov %%dr6, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 
 // Read debug register DR0 (breakpoint address)

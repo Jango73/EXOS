@@ -769,7 +769,9 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.SS = DataSelector;
     Task->Arch.Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
     Task->Arch.Context.Registers.CR3 = Process->PageDirectory;
-    Task->Arch.Context.Registers.CR4 = GetCR4();
+    U32 ControlRegister4;
+    GetCR4(ControlRegister4);
+    Task->Arch.Context.Registers.CR4 = ControlRegister4;
     Task->Arch.Context.Registers.EIP = VMA_TASK_RUNNER;
 
     LINEAR StackTop = Task->Arch.StackBase + Task->Arch.StackSize;
@@ -791,7 +793,8 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         Kernel_i386.TSS->ESP0 = SysStackTop - STACK_SAFETY_MARGIN;
 
         LINEAR BootStackTop = KernelStartup.StackTop;
-        LINEAR ESP = GetESP();
+        LINEAR ESP;
+        GetESP(ESP);
         UINT StackUsed = (BootStackTop - ESP) + 256;
 
         DEBUG(TEXT("[SetupTask] BootStackTop = %X"), BootStackTop);
@@ -801,7 +804,9 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
         if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
             Task->Arch.Context.Registers.ESP = 0;  // Not used for main task
-            Task->Arch.Context.Registers.EBP = GetEBP();
+            LINEAR CurrentEbp;
+            GetEBP(CurrentEbp);
+            Task->Arch.Context.Registers.EBP = CurrentEbp;
             DEBUG(TEXT("[SetupTask] Main task stack switched successfully"));
         } else {
             ERROR(TEXT("[SetupTask] Stack switch failed"));

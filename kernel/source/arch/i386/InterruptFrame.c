@@ -320,7 +320,9 @@ void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, U32 ESP) {
         DEBUG(TEXT("[RestoreFromInterruptFrame] ==== Stack at NextFrame->Registers.ESP:"));
         KernelLogMem(LOG_DEBUG, NextFrame->Registers.ESP, 256);
         DEBUG(TEXT("[RestoreFromInterruptFrame] ==== Current stack (ESP):"));
-        KernelLogMem(LOG_DEBUG, GetESP(), 256);
+        LINEAR CurrentEsp;
+        GetESP(CurrentEsp);
+        KernelLogMem(LOG_DEBUG, CurrentEsp, 256);
 
         // Debug the stack data we're about to restore
         DEBUG(TEXT("[RestoreFromInterruptFrame] Stack data restore:"));
