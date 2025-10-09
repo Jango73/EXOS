@@ -194,6 +194,46 @@ void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear
 
 /************************************************************************/
 
+#if defined(__EXOS_ARCH_X86_64__)
+static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
+    return (LINEAR)ArchCanonicalizeAddress((U64)Address);
+}
+#else
+static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
+    return Address;
+}
+#endif
+
+static BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
+    if (Base == 0 || NumPages == 0) return TRUE;
+
+    UINT RequestedLength = NumPages << PAGE_SIZE_MUL;
+
+#if defined(__EXOS_ARCH_I386__)
+    U64 RangeBase;
+    RangeBase.LO = (U32)Base;
+    RangeBase.HI = 0;
+
+    U64 RangeLength;
+    RangeLength.LO = (U32)RequestedLength;
+    RangeLength.HI = 0;
+
+    PHYSICAL ClippedBase = 0;
+    UINT ClippedLength = 0;
+
+    if (ArchClipPhysicalRange(RangeBase, RangeLength, &ClippedBase, &ClippedLength) == FALSE) return FALSE;
+
+    return (ClippedBase == Base && ClippedLength == RequestedLength);
+#else
+    PHYSICAL ClippedBase = 0;
+    UINT ClippedLength = 0;
+
+    if (ArchClipPhysicalRange((U64)Base, (U64)RequestedLength, &ClippedBase, &ClippedLength) == FALSE) return FALSE;
+
+    return (ClippedBase == Base && ClippedLength == RequestedLength);
+#endif
+}
+
 /************************************************************************/
 
 /**
@@ -1056,19 +1096,25 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
 
     DEBUG(TEXT("[FindFreeRegion] Enter"));
 
-    if (StartBase >= Base) {
-        DEBUG(TEXT("[FindFreeRegion] Starting at %x"), StartBase);
-        Base = StartBase;
+    if (StartBase != 0) {
+        LINEAR CanonStart = CanonicalizeLinearAddress(StartBase);
+        if (CanonStart >= Base) {
+            Base = CanonStart;
+        }
+        DEBUG(TEXT("[FindFreeRegion] Starting at %x"), Base);
     }
 
-    FOREVER {
+    while (TRUE) {
         if (IsRegionFree(Base, Size) == TRUE) return Base;
-        Base += PAGE_SIZE;
+
+        LINEAR NextBase = CanonicalizeLinearAddress(Base + PAGE_SIZE);
+        if (NextBase <= Base) {
+            DEBUG(TEXT("[FindFreeRegion] Address space exhausted"));
+            return NULL;
+        }
+
+        Base = NextBase;
     }
-
-    DEBUG(TEXT("[FindFreeRegion] Exit"));
-
-    return NULL;
 }
 
 /************************************************************************/
@@ -1261,15 +1307,22 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
     NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;  // ceil(Size / 4096)
     if (NumPages == 0) NumPages = 1;
 
+    Base = CanonicalizeLinearAddress(Base);
+
     // If an exact physical mapping is requested, validate inputs
-    if (Target != 0 && (Flags & ALLOC_PAGES_IO) == 0) {
+    if (Target != 0) {
         if ((Target & (PAGE_SIZE - 1)) != 0) {
             ERROR(TEXT("[AllocRegion] Target not page-aligned (%x)"), Target);
             return NULL;
         }
 
-        if ((Flags & ALLOC_PAGES_COMMIT) == 0) {
+        if ((Flags & ALLOC_PAGES_IO) == 0 && (Flags & ALLOC_PAGES_COMMIT) == 0) {
             ERROR(TEXT("[AllocRegion] Exact PMA mapping requires COMMIT"));
+            return NULL;
+        }
+
+        if (ValidatePhysicalTargetRange(Target, NumPages) == FALSE) {
+            ERROR(TEXT("[AllocRegion] Target range cannot be addressed"));
             return NULL;
         }
         /* NOTE: Do not reject pages already marked used here.
