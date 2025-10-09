@@ -23,46 +23,27 @@
 #ifndef ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
 #define ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
 
-/***************************************************************************/
-
 #include "Base.h"
 
-/***************************************************************************/
-
-// Page size helpers
-
+/*************************************************************************/
+// #defines
+/*************************************************************************/
 #define PAGE_SIZE N_4KB
 #define PAGE_SIZE_MUL MUL_4KB
 #define PAGE_SIZE_MASK ((U64)PAGE_SIZE - 1ull)
 
-/***************************************************************************/
-
-// Paging structure dimensions
-
-#define PAGE_TABLE_NUM_ENTRIES 512u
 #define PAGE_TABLE_ENTRY_SIZE ((UINT)sizeof(U64))
+#define PAGE_TABLE_NUM_ENTRIES 512u
 #define PAGE_TABLE_SIZE (PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_ENTRY_SIZE)
 #define PAGE_TABLE_SIZE_MUL MUL_4KB
 #define PAGE_TABLE_CAPACITY (PAGE_TABLE_NUM_ENTRIES * PAGE_SIZE)
 #define PAGE_TABLE_CAPACITY_MUL MUL_2MB
 #define PAGE_TABLE_CAPACITY_MASK ((U64)PAGE_TABLE_CAPACITY - 1ull)
 
-/***************************************************************************/
-
-// Addressing helpers
-
 #define PAGE_MASK (~((U64)PAGE_SIZE - 1ull))
-
-/***************************************************************************/
-
-// Paging privileges
 
 #define PAGE_PRIVILEGE_KERNEL 0u
 #define PAGE_PRIVILEGE_USER 1u
-
-/***************************************************************************/
-
-// Paging flags
 
 #define PAGE_FLAG_PRESENT (1ull << 0)
 #define PAGE_FLAG_READ_WRITE (1ull << 1)
@@ -76,19 +57,11 @@
 #define PAGE_FLAG_FIXED (1ull << 9)
 #define PAGE_FLAG_NO_EXECUTE (1ull << 63)
 
-/***************************************************************************/
-
-// Table entry counts
-
 #define PML4_ENTRY_COUNT 512u
 #define PDPT_ENTRY_COUNT 512u
 #define PAGE_DIRECTORY_ENTRY_COUNT 512u
 #define PML4_RECURSIVE_SLOT 510u
 #define PD_RECURSIVE_SLOT PML4_RECURSIVE_SLOT
-
-/***************************************************************************/
-
-// Virtual memory layout
 
 #define VMA_RAM 0x0000000000000000ull
 #define VMA_VIDEO 0x00000000000A0000ull
@@ -98,15 +71,13 @@
 #define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)
 #define VMA_KERNEL 0xFFFFFFFF80000000ull
 
-/***************************************************************************/
-
 #define PAGE_PRIVILEGE(Address) \
     (((U64)(Address) >= VMA_USER && (U64)(Address) < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
 #define PAGE_ALIGN(Address) (((U64)(Address) + PAGE_SIZE - 1ull) & PAGE_MASK)
-
-/***************************************************************************/
-
+/*************************************************************************/
+// typedefs
+/*************************************************************************/
 typedef struct tag_X86_64_PAGING_ENTRY {
     U64 Present : 1;
     U64 ReadWrite : 1;
@@ -141,9 +112,9 @@ typedef struct tag_ARCH_PAGE_ITERATOR {
     UINT DirectoryIndex;
     UINT TableIndex;
 } ARCH_PAGE_ITERATOR;
-
-/***************************************************************************/
-
+/*************************************************************************/
+// inlines
+/*************************************************************************/
 static inline U64 ArchCanonicalizeAddress(U64 Address) {
     const U64 SignBit = 1ull << 47;
     const U64 Mask = (1ull << 48) - 1ull;
@@ -393,7 +364,9 @@ static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
     }
     return TRUE;
 }
-
-/***************************************************************************/
+/*************************************************************************/
+// external symbols
+/*************************************************************************/
+// None.
 
 #endif  // ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
