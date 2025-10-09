@@ -24,6 +24,6 @@
 #ifndef ARCH_X86_64_INTERRUPT_FRAME_H_INCLUDED
 #define ARCH_X86_64_INTERRUPT_FRAME_H_INCLUDED
 
-#error "x86-64 interrupt frame definitions are not implemented yet"
+#include "arch/x86-64/x86-64.h"
 
 #endif

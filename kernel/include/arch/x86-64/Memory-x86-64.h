@@ -17,12 +17,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    x86-64 memory-specific stubs
+    x86-64 memory-specific definitions
 
 \************************************************************************/
 #ifndef ARCH_X86_64_MEMORY_X86_64_H_INCLUDED
 #define ARCH_X86_64_MEMORY_X86_64_H_INCLUDED
 
-#include "Base.h"
+#include "arch/x86-64/x86-64.h"
 
 #endif  // ARCH_X86_64_MEMORY_X86_64_H_INCLUDED
