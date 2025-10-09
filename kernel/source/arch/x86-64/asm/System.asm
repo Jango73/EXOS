@@ -72,6 +72,21 @@ BITS 64
     ret
 %endmacro
 
+%macro SYS_FUNC_BEGIN 1
+    FUNC_HEADER
+    global %1
+%1:
+    push    rbp
+    mov     rbp, rsp
+%endmacro
+
+%macro SYS_FUNC_END 0
+    pop     rbp
+    ret
+%endmacro
+
+CR0_PAGING  equ 0x0000000080000000
+
 STUB_FUNC GetCR4
 STUB_FUNC GetESP
 STUB_FUNC GetEBP
@@ -79,23 +94,6 @@ STUB_FUNC GetDR6
 STUB_FUNC GetDR7
 STUB_FUNC SetDR6
 STUB_FUNC SetDR7
-STUB_FUNC GetCPUID
-STUB_FUNC DisablePaging
-STUB_FUNC EnablePaging
-STUB_FUNC DisableInterrupts
-STUB_FUNC EnableInterrupts
-STUB_FUNC SaveFlags
-STUB_FUNC RestoreFlags
-STUB_FUNC SaveFPU
-STUB_FUNC RestoreFPU
-STUB_FUNC InPortByte
-STUB_FUNC OutPortByte
-STUB_FUNC InPortWord
-STUB_FUNC OutPortWord
-STUB_FUNC InPortLong
-STUB_FUNC OutPortLong
-STUB_FUNC InPortStringWord
-STUB_FUNC OutPortStringWord
 STUB_FUNC MaskIRQ
 STUB_FUNC UnmaskIRQ
 STUB_FUNC DisableIRQ
@@ -125,6 +123,160 @@ STUB_FUNC IdleCPU
 STUB_FUNC DeadCPU
 STUB_FUNC Reboot
 STUB_FUNC TaskRunner
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN GetCPUID
+    push    rbx
+
+    mov     eax, 0
+    cpuid
+
+    mov     dword [rdi + 0x00], eax
+    mov     dword [rdi + 0x04], ebx
+    mov     dword [rdi + 0x08], ecx
+    mov     dword [rdi + 0x0C], edx
+
+    mov     eax, 1
+    cpuid
+
+    mov     dword [rdi + 0x10], eax
+    mov     dword [rdi + 0x14], ebx
+    mov     dword [rdi + 0x18], ecx
+    mov     dword [rdi + 0x1C], edx
+
+    mov     eax, 1
+
+    pop     rbx
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN DisablePaging
+    mov     rax, cr0
+    btr     rax, 31
+    mov     cr0, rax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN EnablePaging
+    mov     rax, cr0
+    or      rax, CR0_PAGING
+    mov     cr0, rax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN DisableInterrupts
+    cli
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN EnableInterrupts
+    sti
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN SaveFlags
+    pushfq
+    pop     rax
+    mov     dword [rdi], eax
+    xor     eax, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN RestoreFlags
+    mov     eax, dword [rdi]
+    push    rax
+    popfq
+    xor     eax, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN SaveFPU
+    fsave   [rdi]
+    xor     eax, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN RestoreFPU
+    frstor  [rdi]
+    xor     eax, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN InPortByte
+    mov     dx, di
+    xor     eax, eax
+    in      al, dx
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN OutPortByte
+    mov     dx, di
+    mov     eax, esi
+    out     dx, al
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN InPortWord
+    mov     dx, di
+    xor     eax, eax
+    in      ax, dx
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN OutPortWord
+    mov     dx, di
+    mov     eax, esi
+    out     dx, ax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN InPortLong
+    mov     dx, di
+    in      eax, dx
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN OutPortLong
+    mov     dx, di
+    mov     eax, esi
+    out     dx, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN InPortStringWord
+    mov     dx, di
+    mov     rdi, rsi
+    mov     rcx, rdx
+    cld
+    rep     insw
+    xor     eax, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN OutPortStringWord
+    mov     dx, di
+    mov     rcx, rdx
+    cld
+    rep     outsw
+    xor     eax, eax
+SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
