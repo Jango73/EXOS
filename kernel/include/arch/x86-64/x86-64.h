@@ -28,7 +28,7 @@
 
 #include "Base.h"
 #include "arch/i386/i386.h"
-#include "arch/x86-64/Memory-x86-64.h"
+#include "arch/x86-64/x86-64-Memory.h"
 
 /***************************************************************************/
 

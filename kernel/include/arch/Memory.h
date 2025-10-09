@@ -27,7 +27,7 @@
 #if defined(__EXOS_ARCH_I386__)
     #include "arch/i386/i386-Memory.h"
 #elif defined(__EXOS_ARCH_X86_64__)
-    #include "arch/x86-64/Memory-x86-64.h"
+    #include "arch/x86-64/x86-64-Memory.h"
 #else
     #error "Unsupported architecture for memory abstractions"
 #endif

@@ -20,8 +20,8 @@
     x86-64 memory-specific definitions
 
 \************************************************************************/
-#ifndef ARCH_X86_64_MEMORY_X86_64_H_INCLUDED
-#define ARCH_X86_64_MEMORY_X86_64_H_INCLUDED
+#ifndef ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
+#define ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
 
 /***************************************************************************/
 
@@ -396,4 +396,4 @@ static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
 
 /***************************************************************************/
 
-#endif  // ARCH_X86_64_MEMORY_X86_64_H_INCLUDED
+#endif  // ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
