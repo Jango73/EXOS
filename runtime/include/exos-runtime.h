@@ -92,14 +92,28 @@ static inline unsigned long ntohl(unsigned long Value) { return htonl(Value); }
 /************************************************************************/
 // Types
 
-#if defined(__i386__) || defined(__x86_64__)
+#if defined(_MSC_VER)
+    typedef unsigned __int8 uint8_t;
+    typedef signed __int8 int8_t;
+    typedef unsigned __int16 uint16_t;
+    typedef signed __int16 int16_t;
+    typedef unsigned __int32 uint32_t;
+    typedef signed __int32 int32_t;
+    typedef unsigned int uint_t;
+    typedef signed int int_t;
+    typedef unsigned int size_t;
+#elif defined(__GNUC__) || defined(__clang__)
     typedef unsigned char uint8_t;
+    typedef signed char int8_t;
     typedef unsigned short uint16_t;
-    typedef unsigned long uint32_t;
+    typedef signed short int16_t;
+    typedef unsigned int uint32_t;
+    typedef signed int int32_t;
+    typedef unsigned long uint_t;
+    typedef signed long int_t;
     typedef unsigned long size_t;
-    typedef unsigned long exos_uint_t;
 #else
-    #error "Unsupported architecture for exos-runtime.h"
+    #error "Unsupported compiler for Base.h"
 #endif
 
 /************************************************************************/
@@ -108,8 +122,8 @@ extern void debug(char* format, ...);
 
 /************************************************************************/
 
-extern exos_uint_t exoscall(exos_uint_t function, exos_uint_t parameter);
-extern void __exit__(int code);
+extern uint_t exoscall(uint_t function, uint_t parameter);
+extern void __exit__(int_t code);
 extern unsigned strcmp(const char*, const char*);
 extern int strncmp(const char*, const char*, unsigned);
 extern char* strstr(const char* haystack, const char* needle);

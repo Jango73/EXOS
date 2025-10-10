@@ -29,7 +29,7 @@
 /***************************************************************************/
 
 // Helper macro to cast parameters to the architecture-sized integer type.
-#define EXOS_PARAM(Value) ((exos_uint_t)(Value))
+#define EXOS_PARAM(Value) ((uint_t)(Value))
 
 // Every user structure passed to the kernel begins with an ABI_HDR. Populate
 // Header.Size with sizeof(struct), set Header.Version to EXOS_ABI_VERSION, and clear
