@@ -14,7 +14,7 @@ EXOS is a multi-architecture operating system. Currently supporting i386 and x86
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
 
 ## Coding Conventions
-- **Types**: Use LINEAR for virtual addresses, PHYSICAL for physical addresses, UINT for indexes and sizes.
+- **Types**: Use LINEAR for virtual addresses, PHYSICAL for physical addresses, UINT for indexes and sizes. In the kernel, it is **FORBIDDEN** to use a direct c type (int, unsigned long, long long, etc...) : only types in Base.h are allowed.
 - **Debugging**: Debug output is **ALWAYS** logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done.
 - **I18n**: Write comments, console output and technical doc in english.
