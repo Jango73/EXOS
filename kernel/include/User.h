@@ -541,34 +541,34 @@ typedef struct tag_SOCKET_CREATE_INFO {
 
 typedef struct tag_SOCKET_BIND_INFO {
     ABI_HEADER Header;
-    U32 SocketHandle;
+    SOCKET_HANDLE SocketHandle;
     U8 AddressData[16];  // Storage for socket address
     U32 AddressLength;
 } SOCKET_BIND_INFO, *LPSOCKET_BIND_INFO;
 
 typedef struct tag_SOCKET_LISTEN_INFO {
     ABI_HEADER Header;
-    U32 SocketHandle;
+    SOCKET_HANDLE SocketHandle;
     U32 Backlog;
 } SOCKET_LISTEN_INFO, *LPSOCKET_LISTEN_INFO;
 
 typedef struct tag_SOCKET_ACCEPT_INFO {
     ABI_HEADER Header;
-    U32 SocketHandle;
+    SOCKET_HANDLE SocketHandle;
     LPVOID AddressBuffer;
     U32* AddressLength;
 } SOCKET_ACCEPT_INFO, *LPSOCKET_ACCEPT_INFO;
 
 typedef struct tag_SOCKET_CONNECT_INFO {
     ABI_HEADER Header;
-    U32 SocketHandle;
+    SOCKET_HANDLE SocketHandle;
     U8 AddressData[16];  // Storage for socket address
     U32 AddressLength;
 } SOCKET_CONNECT_INFO, *LPSOCKET_CONNECT_INFO;
 
 typedef struct tag_SOCKET_DATA_INFO {
     ABI_HEADER Header;
-    U32 SocketHandle;
+    SOCKET_HANDLE SocketHandle;
     LPVOID Buffer;
     U32 Length;
     U32 Flags;
@@ -578,7 +578,7 @@ typedef struct tag_SOCKET_DATA_INFO {
 
 typedef struct tag_SOCKET_OPTION_INFO {
     ABI_HEADER Header;
-    U32 SocketHandle;
+    SOCKET_HANDLE SocketHandle;
     U32 Level;
     U32 OptionName;
     LPVOID OptionValue;
@@ -587,7 +587,7 @@ typedef struct tag_SOCKET_OPTION_INFO {
 
 typedef struct tag_SOCKET_SHUTDOWN_INFO {
     ABI_HEADER Header;
-    U32 SocketHandle;
+    SOCKET_HANDLE SocketHandle;
     U32 How;  // SOCKET_SHUTDOWN_READ, SOCKET_SHUTDOWN_WRITE, SOCKET_SHUTDOWN_BOTH
 } SOCKET_SHUTDOWN_INFO, *LPSOCKET_SHUTDOWN_INFO;
 

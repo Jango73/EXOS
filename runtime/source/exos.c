@@ -491,7 +491,7 @@ U32 rand(void) {
 /***************************************************************************/
 // Berkeley Socket API implementations
 
-U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
+SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     SOCKET_CREATE_INFO Info;
     Info.Header.Size = sizeof(SOCKET_CREATE_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -499,12 +499,12 @@ U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     Info.AddressFamily = AddressFamily;
     Info.SocketType = SocketType;
     Info.Protocol = Protocol;
-    return exoscall(SYSCALL_SocketCreate, EXOS_PARAM(&Info));
+    return (SOCKET_HANDLE)exoscall(SYSCALL_SocketCreate, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
+U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
     SOCKET_BIND_INFO Info;
     Info.Header.Size = sizeof(SOCKET_BIND_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -522,7 +522,7 @@ U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
 
 /***************************************************************************/
 
-U32 SocketListen(U32 SocketHandle, U32 Backlog) {
+U32 SocketListen(SOCKET_HANDLE SocketHandle, U32 Backlog) {
     SOCKET_LISTEN_INFO Info;
     Info.Header.Size = sizeof(SOCKET_LISTEN_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -534,7 +534,7 @@ U32 SocketListen(U32 SocketHandle, U32 Backlog) {
 
 /***************************************************************************/
 
-U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     SOCKET_ACCEPT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_ACCEPT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -542,12 +542,12 @@ U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength)
     Info.SocketHandle = SocketHandle;
     Info.AddressBuffer = (LPVOID)Address;
     Info.AddressLength = AddressLength;
-    return exoscall(SYSCALL_SocketAccept, EXOS_PARAM(&Info));
+    return (SOCKET_HANDLE)exoscall(SYSCALL_SocketAccept, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
+U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
     SOCKET_CONNECT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_CONNECT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -565,7 +565,7 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
 
 /***************************************************************************/
 
-I32 SocketSend(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags) {
+I32 SocketSend(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -579,7 +579,7 @@ I32 SocketSend(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags) {
 
 /***************************************************************************/
 
-I32 SocketReceive(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags) {
+I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -593,7 +593,7 @@ I32 SocketReceive(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags) {
 
 /***************************************************************************/
 
-I32 SocketSendTo(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS DestAddress, U32 AddressLength) {
+I32 SocketSendTo(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS DestAddress, U32 AddressLength) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -614,7 +614,7 @@ I32 SocketSendTo(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags, LPSOCK
 
 /***************************************************************************/
 
-I32 SocketReceiveFrom(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS SourceAddress, U32* AddressLength) {
+I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS SourceAddress, U32* AddressLength) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -637,13 +637,13 @@ I32 SocketReceiveFrom(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LP
 
 /***************************************************************************/
 
-U32 SocketClose(U32 SocketHandle) {
+U32 SocketClose(SOCKET_HANDLE SocketHandle) {
     return exoscall(SYSCALL_SocketClose, EXOS_PARAM(SocketHandle));
 }
 
 /***************************************************************************/
 
-U32 SocketShutdown(U32 SocketHandle, U32 How) {
+U32 SocketShutdown(SOCKET_HANDLE SocketHandle, U32 How) {
     SOCKET_SHUTDOWN_INFO Info;
     Info.Header.Size = sizeof(SOCKET_SHUTDOWN_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -655,7 +655,7 @@ U32 SocketShutdown(U32 SocketHandle, U32 How) {
 
 /***************************************************************************/
 
-U32 SocketGetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPVOID OptionValue, U32* OptionLength) {
+U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPVOID OptionValue, U32* OptionLength) {
     SOCKET_OPTION_INFO Info;
     Info.Header.Size = sizeof(SOCKET_OPTION_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -672,7 +672,7 @@ U32 SocketGetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPVOID OptionVa
 
 /***************************************************************************/
 
-U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionValue, U32 OptionLength) {
+U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionValue, U32 OptionLength) {
     SOCKET_OPTION_INFO Info;
     Info.Header.Size = sizeof(SOCKET_OPTION_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -687,7 +687,7 @@ U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionV
 
 /***************************************************************************/
 
-U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+U32 SocketGetPeerName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     SOCKET_ACCEPT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_ACCEPT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -700,7 +700,7 @@ U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLe
 
 /***************************************************************************/
 
-U32 SocketGetSocketName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+U32 SocketGetSocketName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     SOCKET_ACCEPT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_ACCEPT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;

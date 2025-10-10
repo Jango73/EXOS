@@ -536,6 +536,7 @@ typedef struct tag_DATETIME {
 // Will implement pointer masking soon.
 
 typedef UINT HANDLE;
+typedef UINT SOCKET_HANDLE;
 
 /************************************************************************/
 // Maximum string lengths

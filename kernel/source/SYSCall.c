@@ -1085,7 +1085,7 @@ UINT SysCall_SocketReceiveFrom(UINT Parameter) {
 /***************************************************************************/
 
 UINT SysCall_SocketClose(UINT Parameter) {
-    UINT SocketHandle = Parameter;
+    SOCKET_HANDLE SocketHandle = (SOCKET_HANDLE)Parameter;
     return SocketClose(SocketHandle);
 }
 

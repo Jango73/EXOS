@@ -89,25 +89,25 @@ void SocketDestructor(LPVOID Item) {
  * @param Protocol Protocol (SOCKET_PROTOCOL_TCP or SOCKET_PROTOCOL_UDP)
  * @return Socket descriptor on success, or negative error code on failure
  */
-U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
+SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     DEBUG(TEXT("[SocketCreate] Creating socket: AF=%d, Type=%d, Protocol=%d"), AddressFamily, SocketType, Protocol);
 
     // Validate parameters
     if (AddressFamily != SOCKET_AF_INET) {
         ERROR(TEXT("[SocketCreate] Unsupported address family: %d"),AddressFamily);
-        return SOCKET_ERROR_INVALID;
+        return (SOCKET_HANDLE)SOCKET_ERROR_INVALID;
     }
 
     if (SocketType != SOCKET_TYPE_STREAM && SocketType != SOCKET_TYPE_DGRAM) {
         ERROR(TEXT("[SocketCreate] Unsupported socket type: %d"),SocketType);
-        return SOCKET_ERROR_INVALID;
+        return (SOCKET_HANDLE)SOCKET_ERROR_INVALID;
     }
 
     // Allocate socket control block
     LPSOCKET Socket = (LPSOCKET)CreateKernelObject(sizeof(SOCKET), KOID_SOCKET);
     if (!Socket) {
         ERROR(TEXT("[SocketCreate] Failed to allocate socket control block"));
-        return SOCKET_ERROR_NOMEM;
+        return (SOCKET_HANDLE)SOCKET_ERROR_NOMEM;
     }
 
     // Initialize socket-specific fields (LISTNODE_FIELDS already initialized by CreateKernelObject)
@@ -134,11 +134,11 @@ U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     if (ListAddTail(Kernel.Socket, Socket) == 0) {
         ERROR(TEXT("[SocketCreate] Failed to add socket to list"));
         KernelHeapFree(Socket);
-        return SOCKET_ERROR_NOMEM;
+        return (SOCKET_HANDLE)SOCKET_ERROR_NOMEM;
     }
 
     DEBUG(TEXT("[SocketCreate] Socket created at %p"), Socket);
-    return (U32)Socket;
+    return (SOCKET_HANDLE)Socket;
 }
 
 /************************************************************************/
@@ -152,8 +152,8 @@ U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
  * @param SocketHandle The socket descriptor to close
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketClose(U32 SocketHandle) {
-    DEBUG(TEXT("[SocketClose] Closing socket %d"), SocketHandle);
+U32 SocketClose(SOCKET_HANDLE SocketHandle) {
+    DEBUG(TEXT("[SocketClose] Closing socket %llx"), (U64)SocketHandle);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
@@ -171,7 +171,7 @@ U32 SocketClose(U32 SocketHandle) {
         // Remove from list (this will call the destructor)
         ListErase(Kernel.Socket, Socket);
 
-        DEBUG(TEXT("[SocketClose] Socket %d closed"), SocketHandle);
+        DEBUG(TEXT("[SocketClose] Socket %llx closed"), (U64)SocketHandle);
         return SOCKET_ERROR_NONE;
     }
 
@@ -190,35 +190,35 @@ U32 SocketClose(U32 SocketHandle) {
  * @param How How to shutdown (SOCKET_SHUTDOWN_READ, SOCKET_SHUTDOWN_WRITE, or SOCKET_SHUTDOWN_BOTH)
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketShutdown(U32 SocketHandle, U32 How) {
+U32 SocketShutdown(SOCKET_HANDLE SocketHandle, U32 How) {
     UNUSED(How);
-    DEBUG(TEXT("[SocketShutdown] Shutting down socket %x, how=%d"), SocketHandle, How);
+    DEBUG(TEXT("[SocketShutdown] Shutting down socket %llx, how=%u"), (U64)SocketHandle, How);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
-        DEBUG(TEXT("[SocketShutdown] Socket state=%d, type=%d, TCPConnection=%x"), Socket->State, Socket->SocketType, Socket->TCPConnection);
+        DEBUG(TEXT("[SocketShutdown] Socket state=%u, type=%u, TCPConnection=%p"), Socket->State, Socket->SocketType, Socket->TCPConnection);
 
         // Allow shutdown on connecting sockets too (not just connected ones)
         if (Socket->State == SOCKET_STATE_CLOSED) {
-            ERROR(TEXT("[SocketShutdown] Socket %x already closed"), SocketHandle);
+            ERROR(TEXT("[SocketShutdown] Socket %llx already closed"), (U64)SocketHandle);
             return SOCKET_ERROR_NOTCONNECTED;
         }
 
         // For TCP sockets, gracefully close the connection
         if (Socket->SocketType == SOCKET_TYPE_STREAM && Socket->TCPConnection != NULL) {
-            DEBUG(TEXT("[SocketShutdown] Calling TCP_Close for connection %x"), Socket->TCPConnection);
+            DEBUG(TEXT("[SocketShutdown] Calling TCP_Close for connection %p"), Socket->TCPConnection);
             TCP_Close(Socket->TCPConnection);
             Socket->State = SOCKET_STATE_CLOSING;
             DEBUG(TEXT("[SocketShutdown] Socket state changed to CLOSING"));
         } else {
-            DEBUG(TEXT("[SocketShutdown] Not calling TCP_Close - type=%d, TCPConnection=%x"), Socket->SocketType, Socket->TCPConnection);
+            DEBUG(TEXT("[SocketShutdown] Not calling TCP_Close - type=%u, TCPConnection=%p"), Socket->SocketType, Socket->TCPConnection);
         }
 
         return SOCKET_ERROR_NONE;
     }
 
-    ERROR(TEXT("[SocketShutdown] SAFE_USE_VALID_ID failed for socket %x"), SocketHandle);
+    ERROR(TEXT("[SocketShutdown] SAFE_USE_VALID_ID failed for socket %llx"), (U64)SocketHandle);
     return SOCKET_ERROR_INVALID;
 }
 
@@ -321,7 +321,7 @@ void SocketUpdate(void) {
                     case TCP_STATE_CLOSED:
                         if (Socket->State != SOCKET_STATE_CLOSED) {
                             Socket->State = SOCKET_STATE_CLOSED;
-                            DEBUG(TEXT("[SocketUpdate] Socket %x closed"), (U32)Socket);
+                            DEBUG(TEXT("[SocketUpdate] Socket %p closed"), Socket);
                         }
                         break;
                 }
@@ -345,8 +345,8 @@ void SocketUpdate(void) {
  * @param AddressLength Size of the address structure
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
-    DEBUG(TEXT("[SocketBind] Binding socket %x"), SocketHandle);
+U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
+    DEBUG(TEXT("[SocketBind] Binding socket %llx"), (U64)SocketHandle);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
@@ -357,7 +357,7 @@ U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CREATED) {
-            ERROR(TEXT("[SocketBind] Socket %x already bound or in invalid state"), SocketHandle);
+            ERROR(TEXT("[SocketBind] Socket %llx already bound or in invalid state"), (U64)SocketHandle);
             return SOCKET_ERROR_INUSE;
         }
 
@@ -394,8 +394,8 @@ U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
         MemoryCopy(&Socket->LocalAddress, &InetAddress, sizeof(SOCKET_ADDRESS_INET));
         Socket->State = SOCKET_STATE_BOUND;
 
-        DEBUG(TEXT("[SocketBind] Socket %x bound to %d.%d.%d.%d:%d"),
-              SocketHandle,
+        DEBUG(TEXT("[SocketBind] Socket %llx bound to %d.%d.%d.%d:%d"),
+              (U64)SocketHandle,
               (InetAddress.Address >> 0) & 0xFF,
               (InetAddress.Address >> 8) & 0xFF,
               (InetAddress.Address >> 16) & 0xFF,
@@ -420,19 +420,19 @@ U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
  * @param Backlog Maximum number of pending connections in the queue
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketListen(U32 SocketHandle, U32 Backlog) {
-    DEBUG(TEXT("[SocketListen] Setting socket %x to listen with backlog %d"), SocketHandle, Backlog);
+U32 SocketListen(SOCKET_HANDLE SocketHandle, U32 Backlog) {
+    DEBUG(TEXT("[SocketListen] Setting socket %llx to listen with backlog %u"), (U64)SocketHandle, Backlog);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_BOUND) {
-            ERROR(TEXT("[SocketListen] Socket %x not bound"), SocketHandle);
+            ERROR(TEXT("[SocketListen] Socket %llx not bound"), (U64)SocketHandle);
             return SOCKET_ERROR_NOTBOUND;
         }
 
         if (Socket->SocketType != SOCKET_TYPE_STREAM) {
-            ERROR(TEXT("[SocketListen] Socket %x is not a stream socket"), SocketHandle);
+            ERROR(TEXT("[SocketListen] Socket %llx is not a stream socket"), (U64)SocketHandle);
             return SOCKET_ERROR_INVALID;
         }
 
@@ -468,7 +468,7 @@ U32 SocketListen(U32 SocketHandle, U32 Backlog) {
         Socket->ListenBacklog = Backlog;
         Socket->State = SOCKET_STATE_LISTENING;
 
-        DEBUG(TEXT("[SocketListen] Socket %x now listening"), SocketHandle);
+        DEBUG(TEXT("[SocketListen] Socket %llx now listening"), (U64)SocketHandle);
         return SOCKET_ERROR_NONE;
     }
 
@@ -488,40 +488,40 @@ U32 SocketListen(U32 SocketHandle, U32 Backlog) {
  * @param AddressLength Pointer to the size of the address buffer
  * @return New socket descriptor for the accepted connection, or error code on failure
  */
-U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
-    DEBUG(TEXT("[SocketAccept] Accepting connection on socket %x"), SocketHandle);
+SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+    DEBUG(TEXT("[SocketAccept] Accepting connection on socket %llx"), (U64)SocketHandle);
 
     LPSOCKET ListenSocket = (LPSOCKET)SocketHandle;
 
     SAFE_USE_VALID_ID(ListenSocket, KOID_SOCKET) {
         if (ListenSocket->State != SOCKET_STATE_LISTENING) {
-            ERROR(TEXT("[SocketAccept] Socket %x not listening"), SocketHandle);
-            return SOCKET_ERROR_NOTLISTENING;
+            ERROR(TEXT("[SocketAccept] Socket %llx not listening"), (U64)SocketHandle);
+            return (SOCKET_HANDLE)SOCKET_ERROR_NOTLISTENING;
         }
 
         // Check for pending connections
         if (!ListenSocket->PendingConnections || ListenSocket->PendingConnections->NumItems == 0) {
             // No pending connections, would block
-            DEBUG(TEXT("[SocketAccept] No pending connections on socket %x"), SocketHandle);
-            return SOCKET_ERROR_WOULDBLOCK;
+            DEBUG(TEXT("[SocketAccept] No pending connections on socket %llx"), (U64)SocketHandle);
+            return (SOCKET_HANDLE)SOCKET_ERROR_WOULDBLOCK;
         }
 
         // Get the first pending connection
         LPSOCKET PendingSocket = (LPSOCKET)ListenSocket->PendingConnections->First;
         if (!PendingSocket) {
             ERROR(TEXT("[SocketAccept] No pending connection found"));
-            return SOCKET_ERROR_WOULDBLOCK;
+            return (SOCKET_HANDLE)SOCKET_ERROR_WOULDBLOCK;
         }
 
         // Remove from pending queue
         ListRemove(ListenSocket->PendingConnections, PendingSocket);
 
         // Create new socket for the accepted connection
-        U32 NewSocketDescriptor = SocketCreate(SOCKET_AF_INET, SOCKET_TYPE_STREAM, SOCKET_PROTOCOL_TCP);
-        if (NewSocketDescriptor == (U32)SOCKET_ERROR_INVALID) {
+        SOCKET_HANDLE NewSocketDescriptor = SocketCreate(SOCKET_AF_INET, SOCKET_TYPE_STREAM, SOCKET_PROTOCOL_TCP);
+        if (NewSocketDescriptor == (SOCKET_HANDLE)SOCKET_ERROR_INVALID) {
             ERROR(TEXT("[SocketAccept] Failed to create new socket for accepted connection"));
             KernelHeapFree(PendingSocket);
-            return SOCKET_ERROR_NOMEM;
+            return (SOCKET_HANDLE)SOCKET_ERROR_NOMEM;
         }
 
         LPSOCKET NewSocket = (LPSOCKET)NewSocketDescriptor;
@@ -541,18 +541,18 @@ U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength)
 
             KernelHeapFree(PendingSocket);
 
-            DEBUG(TEXT("[SocketAccept] Connection accepted on socket %x, new socket %x"),SocketHandle, NewSocketDescriptor);
+            DEBUG(TEXT("[SocketAccept] Connection accepted on socket %llx, new socket %llx"), (U64)SocketHandle, (U64)NewSocketDescriptor);
             return NewSocketDescriptor;
         } else {
             // SAFE_USE_VALID_ID failed, cleanup and return error
             SocketClose(NewSocketDescriptor);
             KernelHeapFree(PendingSocket);
             ERROR(TEXT("[SocketAccept] Failed to validate new socket"));
-            return SOCKET_ERROR_INVALID;
+            return (SOCKET_HANDLE)SOCKET_ERROR_INVALID;
         }
     }
 
-    return SOCKET_ERROR_INVALID;
+    return (SOCKET_HANDLE)SOCKET_ERROR_INVALID;
 }
 
 /************************************************************************/
@@ -568,8 +568,8 @@ U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength)
  * @param AddressLength Size of the address structure
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
-    DEBUG(TEXT("[SocketConnect] Connecting socket %x"), SocketHandle);
+U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
+    DEBUG(TEXT("[SocketConnect] Connecting socket %llx"), (U64)SocketHandle);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
@@ -580,12 +580,12 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CREATED && Socket->State != SOCKET_STATE_BOUND) {
-            ERROR(TEXT("[SocketConnect] Socket %x in invalid state for connect"), SocketHandle);
+            ERROR(TEXT("[SocketConnect] Socket %llx in invalid state for connect"), (U64)SocketHandle);
             return SOCKET_ERROR_INVALID;
         }
 
         if (Socket->SocketType != SOCKET_TYPE_STREAM) {
-            ERROR(TEXT("[SocketConnect] Socket %x is not a stream socket"), SocketHandle);
+            ERROR(TEXT("[SocketConnect] Socket %llx is not a stream socket"), (U64)SocketHandle);
             return SOCKET_ERROR_INVALID;
         }
 
@@ -646,7 +646,7 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
         if (TCP_RegisterCallback(Socket->TCPConnection, NOTIF_EVENT_TCP_CONNECTED, SocketTCPNotificationCallback, Socket) != 0) {
             ERROR(TEXT("[SocketConnect] Failed to register TCP notification"));
         } else {
-            DEBUG(TEXT("[SocketConnect] Registered TCP notification callback for socket %x"), (U32)Socket);
+            DEBUG(TEXT("[SocketConnect] Registered TCP notification callback for socket %p"), Socket);
         }
 
         // Initiate TCP connection
@@ -661,8 +661,8 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
 
         Socket->State = SOCKET_STATE_CONNECTING;
 
-        DEBUG(TEXT("[SocketConnect] Socket %x connecting to %d.%d.%d.%d:%d"),
-              SocketHandle,
+        DEBUG(TEXT("[SocketConnect] Socket %llx connecting to %d.%d.%d.%d:%d"),
+              (U64)SocketHandle,
               (RemoteAddress.Address >> 0) & 0xFF,
               (RemoteAddress.Address >> 8) & 0xFF,
               (RemoteAddress.Address >> 16) & 0xFF,
@@ -689,7 +689,7 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
  * @param Flags Send flags (currently unused)
  * @return Number of bytes sent on success, or negative error code on failure
  */
-I32 SocketSend(U32 SocketHandle, const void* Buffer, U32 Length, U32 Flags) {
+I32 SocketSend(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32 Flags) {
     UNUSED(Flags);
     if (!Buffer || Length == 0) {
         ERROR(TEXT("[SocketSend] Invalid buffer or length"));
@@ -700,7 +700,7 @@ I32 SocketSend(U32 SocketHandle, const void* Buffer, U32 Length, U32 Flags) {
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CONNECTED) {
-            ERROR(TEXT("[SocketSend] Socket %x not connected"), SocketHandle);
+            ERROR(TEXT("[SocketSend] Socket %llx not connected"), (U64)SocketHandle);
             return SOCKET_ERROR_NOTCONNECTED;
         }
 
@@ -710,7 +710,7 @@ I32 SocketSend(U32 SocketHandle, const void* Buffer, U32 Length, U32 Flags) {
             if (Result > 0) {
                 Socket->BytesSent += Result;
                 Socket->PacketsSent++;
-                DEBUG(TEXT("[SocketSend] Sent %d bytes on socket %x"),Result, SocketHandle);
+                DEBUG(TEXT("[SocketSend] Sent %d bytes on socket %llx"), Result, (U64)SocketHandle);
             }
             return Result;
         } else {
@@ -736,7 +736,7 @@ I32 SocketSend(U32 SocketHandle, const void* Buffer, U32 Length, U32 Flags) {
  * @param Flags Receive flags (currently unused)
  * @return Number of bytes received on success, or negative error code on failure
  */
-I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
+I32 SocketReceive(SOCKET_HANDLE SocketHandle, void* Buffer, U32 Length, U32 Flags) {
     UNUSED(Flags);
     if (!Buffer || Length == 0) {
         ERROR(TEXT("[SocketReceive] Invalid buffer or length"));
@@ -747,14 +747,14 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CONNECTED && Socket->State != SOCKET_STATE_CLOSED) {
-            ERROR(TEXT("[SocketReceive] Socket %x not connected (state=%d)"), SocketHandle, Socket->State);
+            ERROR(TEXT("[SocketReceive] Socket %llx not connected (state=%u)"), (U64)SocketHandle, Socket->State);
             return SOCKET_ERROR_NOTCONNECTED;
         }
 
         if (Socket->SocketType == SOCKET_TYPE_STREAM && Socket->TCPConnection != NULL) {
             if (Socket->ReceiveOverflow || Socket->ReceiveBuffer.Overflowed) {
                 if (Socket->ReceiveOverflow) {
-                    WARNING(TEXT("[SocketReceive] Receive buffer overflow detected on socket %x"), SocketHandle);
+                    WARNING(TEXT("[SocketReceive] Receive buffer overflow detected on socket %llx"), (U64)SocketHandle);
                     Socket->ReceiveOverflow = FALSE;
                 }
                 return SOCKET_ERROR_OVERFLOW;
@@ -772,7 +772,7 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
                     TCP_HandleApplicationRead(Socket->TCPConnection, BytesToCopy);
                 }
 
-                DEBUG(TEXT("[SocketReceive] Received %d bytes from socket %x"),BytesToCopy, SocketHandle);
+                DEBUG(TEXT("[SocketReceive] Received %d bytes from socket %llx"), BytesToCopy, (U64)SocketHandle);
                 return BytesToCopy;
             } else {
                 // No data available - check timeout
@@ -787,8 +787,8 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
                     // Check if timeout exceeded
                     if ((CurrentTime - Socket->ReceiveTimeoutStartTime) >= Socket->ReceiveTimeout) {
                         Socket->ReceiveTimeoutStartTime = 0; // Reset for next operation
-                        DEBUG(TEXT("[SocketReceive] Receive timeout (%u ms) exceeded for socket %x"),
-                              Socket->ReceiveTimeout, SocketHandle);
+                        DEBUG(TEXT("[SocketReceive] Receive timeout (%u ms) exceeded for socket %llx"),
+                              Socket->ReceiveTimeout, (U64)SocketHandle);
                         DEBUG(TEXT("[SocketReceive] User space may retry if the connection is still alive"));
                         return SOCKET_ERROR_TIMEOUT;
                     }
@@ -828,7 +828,7 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
  * @param AddressLength Size of the destination address structure
  * @return Number of bytes sent on success, or negative error code on failure
  */
-I32 SocketSendTo(U32 SocketHandle, const void* Buffer, U32 Length, U32 Flags,
+I32 SocketSendTo(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32 Flags,
                  LPSOCKET_ADDRESS DestinationAddress, U32 AddressLength) {
     UNUSED(SocketHandle);
     UNUSED(Buffer);
@@ -857,7 +857,7 @@ I32 SocketSendTo(U32 SocketHandle, const void* Buffer, U32 Length, U32 Flags,
  * @param AddressLength Pointer to the size of the source address buffer
  * @return Number of bytes received on success, or negative error code on failure
  */
-I32 SocketReceiveFrom(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags,
+I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, void* Buffer, U32 Length, U32 Flags,
                       LPSOCKET_ADDRESS SourceAddress, U32* AddressLength) {
     UNUSED(SocketHandle);
     UNUSED(Buffer);
@@ -887,7 +887,7 @@ void SocketTCPNotificationCallback(LPNOTIFICATION_DATA NotificationData, LPVOID 
 
     if (!Socket || !NotificationData) return;
 
-    DEBUG(TEXT("[SocketTCPNotificationCallback] Socket %x received TCP event %u"), (U32)Socket, NotificationData->EventID);
+    DEBUG(TEXT("[SocketTCPNotificationCallback] Socket %p received TCP event %u"), Socket, NotificationData->EventID);
 
     if (NotificationData->EventID == NOTIF_EVENT_TCP_CONNECTED) {
         DEBUG(TEXT("[SocketTCPNotificationCallback] TCP connection established, updating socket state"));
@@ -909,12 +909,12 @@ U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32
 
                 if (BytesToCopy > 0) {
                     Socket->PacketsReceived++;
-                    DEBUG(TEXT("[SocketTCPReceiveCallback] Buffered %d bytes for socket %x"),BytesToCopy, Socket);
+                    DEBUG(TEXT("[SocketTCPReceiveCallback] Buffered %d bytes for socket %p"), BytesToCopy, Socket);
                 }
 
                 if (BytesToCopy < DataLength) {
                     Socket->ReceiveOverflow = TRUE;
-                    WARNING(TEXT("[SocketTCPReceiveCallback] Receive buffer overflow for socket %x (%u/%u bytes stored, size=%u, max=%u)"),
+                    WARNING(TEXT("[SocketTCPReceiveCallback] Receive buffer overflow for socket %p (%u/%u bytes stored, size=%u, max=%u)"),
                             Socket,
                             BytesToCopy,
                             DataLength,
@@ -950,7 +950,7 @@ U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32
  * @param OptionLength Pointer to the size of the option value buffer
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketGetOption(U32 SocketHandle, U32 Level, U32 OptionName, void* OptionValue, U32* OptionLength) {
+U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, void* OptionValue, U32* OptionLength) {
     UNUSED(Level);
     UNUSED(OptionName);
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
@@ -984,7 +984,7 @@ U32 SocketGetOption(U32 SocketHandle, U32 Level, U32 OptionName, void* OptionVal
  * @param OptionLength Size of the option value
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, const void* OptionValue, U32 OptionLength) {
+U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, const void* OptionValue, U32 OptionLength) {
     UNUSED(Level);
     UNUSED(OptionName);
     UNUSED(OptionLength);
@@ -1005,7 +1005,7 @@ U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, const void* Opt
                     }
                     U32 timeoutMs = *(const U32*)OptionValue;
                     Socket->ReceiveTimeout = timeoutMs;
-                    DEBUG(TEXT("[SocketSetOption] Set SO_RCVTIMEO to %u ms for socket %x"), timeoutMs, SocketHandle);
+                    DEBUG(TEXT("[SocketSetOption] Set SO_RCVTIMEO to %u ms for socket %llx"), timeoutMs, (U64)SocketHandle);
                     return SOCKET_ERROR_NONE;
                 }
                 default:
@@ -1034,7 +1034,7 @@ U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, const void* Opt
  * @param AddressLength Pointer to the size of the address buffer
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+U32 SocketGetPeerName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
     if (!Address || !AddressLength) {
@@ -1044,7 +1044,7 @@ U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLe
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CONNECTED) {
-            DEBUG(TEXT("[SocketGetPeerName] Socket %x not connected"), SocketHandle);
+            DEBUG(TEXT("[SocketGetPeerName] Socket %llx not connected"), (U64)SocketHandle);
             return SOCKET_ERROR_NOTCONNECTED;
         }
 
@@ -1075,7 +1075,7 @@ U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLe
  * @param AddressLength Pointer to the size of the address buffer
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketGetSocketName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+U32 SocketGetSocketName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
     if (!Address || !AddressLength) {
@@ -1085,7 +1085,7 @@ U32 SocketGetSocketName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* Address
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State < SOCKET_STATE_BOUND) {
-            ERROR(TEXT("[SocketGetSocketName] Socket %x not bound"), SocketHandle);
+            ERROR(TEXT("[SocketGetSocketName] Socket %llx not bound"), (U64)SocketHandle);
             return SOCKET_ERROR_NOTBOUND;
         }
 

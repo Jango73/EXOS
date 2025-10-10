@@ -26,6 +26,7 @@
 #define HTTP_H_INCLUDED
 
 #include "../include/exos-runtime.h"
+#include "../include/exos.h"
 #include "../../kernel/include/utils/AdaptiveDelay.h"
 
 /************************************************************************/
@@ -86,7 +87,7 @@ typedef struct tag_HTTP_RESPONSE {
 // HTTP Connection Structure
 
 typedef struct tag_HTTP_CONNECTION {
-    unsigned int SocketHandle;  // Berkeley socket descriptor
+    SOCKET_HANDLE SocketHandle;  // Berkeley socket descriptor
     unsigned int RemoteIP;          // Server IP address
     unsigned short RemotePort;      // Server port (usually 80)
     int Connected;                  // Connection status
