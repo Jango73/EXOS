@@ -8,12 +8,10 @@ ARCH ?= i386
 ifeq ($(ARCH),i386)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf32
-ARCH_DEFINES = -DBOOT_ARCH_I386
 NASM_ARCH_FLAGS = -DARCH_I386
 else ifeq ($(ARCH),x86-64)
 TOOLCHAIN_PREFIX = x86_64-elf
 NASM_FORMAT = elf32
-ARCH_DEFINES = -DBOOT_ARCH_X86_64
 NASM_ARCH_FLAGS = -DARCH_X86_64
 else
 $(error Unsupported architecture $(ARCH))
@@ -54,10 +52,11 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -fvisibility=hidden -mno-red-zone -fno-stack-protector \
                   -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
-                  -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) \
+                  -DARCH=$(ARCH) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
-                  -Iinclude -I../kernel/include \
-                  $(ARCH_DEFINES)
+                  -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
+                  -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) \
+                  -Iinclude -I../kernel/include
 
 NASM            = nasm
 CC              = $(TOOLCHAIN_PREFIX)-gcc

@@ -25,10 +25,10 @@
 #ifndef SEGOFS_H_INCLUDED
 #define SEGOFS_H_INCLUDED
 
-#if defined(BOOT_ARCH_X86_64)
-#include "arch/x86-64/x86-64.h"
-#else
+#if ARCH == i386
 #include "arch/i386/i386.h"
+#else
+#include "arch/x86-64/x86-64.h"
 #endif
 
 /************************************************************************/
