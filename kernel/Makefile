@@ -54,7 +54,9 @@ endif
 
 AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) $(AFLAGS_INCLUDES)
 
-LDFLAGS_ELF     = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
+LINKER_SCRIPT   = exos-$(ARCH).ld
+
+LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
 
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
@@ -101,7 +103,7 @@ ALIGN      		= 4096
 
 all: check_magic $(BUILD_DIR)/kernel/exos.sym
 
-$(KERNEL_ELF): $(OBJS) exos.ld
+$(KERNEL_ELF): $(OBJS) $(LINKER_SCRIPT)
 	$(LD) $(LDFLAGS_ELF) -o $@ $(OBJS)
 
 $(TEXT_BIN): $(KERNEL_ELF)
