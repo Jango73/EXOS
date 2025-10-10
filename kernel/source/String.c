@@ -584,15 +584,6 @@ U32 StringToU32(LPCSTR Text) {
 
 /***************************************************************************/
 
-// Helper macro for division with remainder - divides n by base and returns remainder
-#define DoDiv(n, base)                \
-    ({                                \
-        int __res;                    \
-        __res = ((U32)n) % (U32)Base; \
-        n = ((U32)n) / (U32)Base;     \
-        __res;                        \
-    })
-
 /**
  * @brief Converts a number to formatted string representation in specified base.
  *
@@ -601,14 +592,16 @@ U32 StringToU32(LPCSTR Text) {
  * functions to format numeric output with various formatting flags.
  *
  * @param Text Buffer to store resulting formatted string
- * @param Number Integer value to convert
+ * @param Number Magnitude of the integer value to convert (always positive)
  * @param Base Number base (2-36) for conversion
  * @param Size Minimum field width for padding
  * @param Precision Minimum number of digits to display
  * @param Type Formatting flags (PF_LARGE, PF_LEFT, PF_SIGN, etc.)
+ * @param IsNegative TRUE when the original value was negative
  * @return Pointer to end of formatted string
  */
-LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, I32 Type) {
+LPSTR NumberToString(
+    LPSTR Text, unsigned long long Number, I32 Base, I32 Size, I32 Precision, I32 Type, BOOL IsNegative) {
     STR c, Sign, Temp[66];                                         // Temp buffer for digits (max needed for base 2)
     LPCSTR Digits = TEXT("0123456789abcdefghijklmnopqrstuvwxyz");  // Lowercase digits
     INT i;
@@ -628,10 +621,9 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
 
     // Handle sign processing
     if (Type & PF_SIGN) {
-        if (Number < 0) {
+        if (IsNegative) {
             Sign = '-';  // Negative number
-            Number = -Number;
-            Size--;  // Reserve space for sign
+            Size--;       // Reserve space for sign
         } else if (Type & PF_PLUS) {
             Sign = '+';  // Force + for positive
             Size--;
@@ -644,6 +636,7 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
     // Special prefixes ("0" for octal, "0x" for hex)
     if (Type & PF_SPECIAL) {
         if (Base == 8) Size--;  // Reserve space for "0"
+        else if (Base == 16) Size -= 2;  // Reserve space for "0x"
     }
 
     i = 0;
@@ -652,7 +645,11 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
     if (Number == 0)
         Temp[i++] = '0';  // Special case for zero
     else
-        while (Number != 0) Temp[i++] = Digits[DoDiv(Number, Base)];
+        while (Number != 0) {
+            U32 Remainder = (U32)(Number % (unsigned long long)Base);
+            Temp[i++] = Digits[Remainder];
+            Number /= (unsigned long long)Base;
+        }
 
     // Ensure minimum precision (pad with zeros if needed)
     if (i > Precision) Precision = i;
@@ -673,7 +670,7 @@ LPSTR NumberToString(LPSTR Text, I32 Number, I32 Base, I32 Size, I32 Precision, 
             *Text++ = '0';  // Octal prefix
         else if (Base == 16) {
             *Text++ = '0';  // Hex prefix
-            *Text++ = 'x';
+            *Text++ = (Type & PF_LARGE) ? 'X' : 'x';
         }
     }
 
@@ -794,7 +791,10 @@ LPSTR FloatToString(LPSTR Text, F32 Value, I32 Precision) {
  */
 void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     LPCSTR Text = NULL;
-    long Number;
+    unsigned long long NumberValue = 0ull;
+    BOOL NumberIsNegative = FALSE;
+    BOOL NumberIsPreloaded = FALSE;
+    BOOL QualifierIsLongLong = FALSE;
     int Flags, FieldWidth, Precision, Qualifier, Base, Length, i;
     LPSTR Dst = Destination;  // Output pointer
 
@@ -820,6 +820,9 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
 
         // Found '%' - begin format specifier parsing
         Flags = 0;
+        NumberIsPreloaded = FALSE;
+        NumberIsNegative = FALSE;
+        NumberValue = 0ull;
 
         // Parse format flags (-, +, space, #, 0) - can appear in any combination
     Repeat:
@@ -870,9 +873,14 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
         }
 
         Qualifier = -1;
+        QualifierIsLongLong = FALSE;
         if (*Format == 'h' || *Format == 'l' || *Format == 'L') {
             Qualifier = *Format;
             Format++;
+            if (Qualifier == 'l' && *Format == 'l') {
+                QualifierIsLongLong = TRUE;
+                Format++;
+            }
         }
 
         Base = 10;
@@ -902,13 +910,18 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 while (Length < FieldWidth--) *Dst++ = STR_SPACE;
                 continue;
 
-            case 'p':
+            case 'p': {
                 if (FieldWidth == -1) {
-                    FieldWidth = 2 * sizeof(void*);
+                    FieldWidth = 2 * (I32)sizeof(LINEAR);
                     Flags |= PF_ZEROPAD | PF_LARGE;
                 }
                 Base = 16;
+                LINEAR PointerValue = (LINEAR)VarArg(Args, void*);
+                NumberValue = (unsigned long long)PointerValue;
+                NumberIsPreloaded = TRUE;
+                NumberIsNegative = FALSE;
                 goto HandleNumber;
+            }
 
             case 'o':
                 Flags |= PF_SPECIAL;
@@ -960,19 +973,60 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
 
     // Extract and format numeric value based on qualifier and flags
     HandleNumber:
-        if (Qualifier == 'l') {
-            Number = VarArg(Args, long);  // Long integer
-        } else if (Qualifier == 'h') {
-            // Short integer (signed or unsigned based on PF_SIGN flag)
-            Number = (Flags & PF_SIGN) ? (short)VarArg(Args, int) : (unsigned short)VarArg(Args, unsigned int);
-        } else {
-            // Normal integer (signed or unsigned based on PF_SIGN flag)
-            Number = (Flags & PF_SIGN) ? (int)VarArg(Args, int) : (unsigned int)VarArg(Args, unsigned int);
+        if (!NumberIsPreloaded) {
+            if (Flags & PF_SIGN) {
+                if (QualifierIsLongLong) {
+                    long long SignedValue = VarArg(Args, long long);
+                    if (SignedValue < 0) {
+                        NumberIsNegative = TRUE;
+                        NumberValue = (unsigned long long)(-SignedValue);
+                    } else {
+                        NumberValue = (unsigned long long)SignedValue;
+                    }
+                } else if (Qualifier == 'l' || Qualifier == 'L') {
+                    long SignedValue = VarArg(Args, long);
+                    if (SignedValue < 0) {
+                        NumberIsNegative = TRUE;
+                        NumberValue = (unsigned long long)(-SignedValue);
+                    } else {
+                        NumberValue = (unsigned long long)SignedValue;
+                    }
+                } else if (Qualifier == 'h') {
+                    int RawValue = VarArg(Args, int);
+                    short ShortValue = (short)RawValue;
+                    if (ShortValue < 0) {
+                        NumberIsNegative = TRUE;
+                        NumberValue = (unsigned long long)(-(long long)ShortValue);
+                    } else {
+                        NumberValue = (unsigned long long)ShortValue;
+                    }
+                } else {
+                    int SignedValue = VarArg(Args, int);
+                    if (SignedValue < 0) {
+                        NumberIsNegative = TRUE;
+                        NumberValue = (unsigned long long)(-SignedValue);
+                    } else {
+                        NumberValue = (unsigned long long)SignedValue;
+                    }
+                }
+            } else {
+                if (QualifierIsLongLong) {
+                    NumberValue = VarArg(Args, unsigned long long);
+                } else if (Qualifier == 'l' || Qualifier == 'L') {
+                    NumberValue = (unsigned long long)VarArg(Args, unsigned long);
+                } else if (Qualifier == 'h') {
+                    NumberValue = (unsigned long long)(unsigned short)VarArg(Args, unsigned int);
+                } else {
+                    NumberValue = (unsigned long long)VarArg(Args, unsigned int);
+                }
+            }
         }
 
         // Convert number to formatted string and copy to output
         STR Temp[128];
-        NumberToString(Temp, Number, Base, FieldWidth, Precision, Flags);
+        NumberToString(Temp, NumberValue, Base, FieldWidth, Precision, Flags, NumberIsNegative);
+        NumberIsPreloaded = FALSE;
+        NumberIsNegative = FALSE;
         for (i = 0; Temp[i] != STR_NULL; i++) {
             *Dst++ = Temp[i];  // Copy formatted digits
         }
