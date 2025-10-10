@@ -21,8 +21,6 @@
 
 \************************************************************************/
 
-#include <stdint.h>
-
 #include "../../kernel/include/arch/i386/i386-Memory.h"
 #include "../../kernel/include/arch/i386/i386.h"
 #include "../include/VbrPayloadShared.h"
@@ -141,7 +139,7 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
 
     const U32 KernelEntryLo = KernelVirtBase;
     const U32 KernelEntryHi = 0U;
-    const U32 PagingStructure = (U32)(uintptr_t)PageDirectory;
+    const U32 PagingStructure = (U32)(UINT)PageDirectory;
 
     U32 MultibootInfoPtr = BuildMultibootInfo(KernelPhysBase, FileSize);
 
