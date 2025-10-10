@@ -29,7 +29,7 @@
 
 #include "Base.h"
 #include "Driver.h"
-#include "arch/i386/i386.h"
+#include "Arch.h"
 #include "ID.h"
 #include "List.h"
 #include "Mutex.h"
