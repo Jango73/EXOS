@@ -594,6 +594,8 @@ typedef U32 COLOR;
 /************************************************************************/
 // 64 bits math
 
+#ifdef __EXOS_32__
+
 // Make U64 from hi/lo
 static inline U64 U64_Make(U32 hi, U32 lo) {
     U64 v;
@@ -666,6 +668,56 @@ static inline U64 U64_ShiftRight8(U64 Value) {
     Result.HI = Value.HI >> 8;
     return Result;
 }
+
+#else
+
+// Make U64 from hi/lo
+static inline U64 U64_Make(U32 hi, U32 lo) {
+    return ((U64)hi << 32) | (U64)lo;
+}
+
+// Add two U64
+static inline U64 U64_Add(U64 a, U64 b) {
+    return a + b;
+}
+
+// Subtract b from a
+static inline U64 U64_Sub(U64 a, U64 b) {
+    return a - b;
+}
+
+// Compare: return -1 if a<b, 0 if a==b, 1 if a>b
+static inline int U64_Cmp(U64 a, U64 b) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+}
+
+// Convert U64 to 32-bit if <= 0xFFFFFFFF, else clip
+static inline U32 U64_ToU32_Clip(U64 v) {
+    return (v > 0xFFFFFFFFull) ? 0xFFFFFFFFu : (U32)v;
+}
+
+// Helper functions for U64 operations in CRC64
+static inline U64 U64_ShiftRight1(U64 Value) {
+    return Value >> 1;
+}
+
+static inline U64 U64_Xor(U64 A, U64 B) {
+    return A ^ B;
+}
+
+static inline BOOL U64_IsOdd(U64 Value) { return (Value & 1ull) != 0; }
+
+static inline U64 U64_FromU32(U32 Value) {
+    return (U64)Value;
+}
+
+static inline U64 U64_ShiftRight8(U64 Value) {
+    return Value >> 8;
+}
+
+#endif
 
 /************************************************************************/
 

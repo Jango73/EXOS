@@ -32,6 +32,77 @@
 
 /***************************************************************************/
 
+// PIC and IRQ helpers
+
+#define INTERRUPT_COMMAND 0x0020
+#define MAX_IRQ 16
+#define IRQ_KEYBOARD 0x01
+#define IRQ_MOUSE 0x04
+#define IRQ_ATA 0x0E
+
+/***************************************************************************/
+
+// CMOS helpers
+
+#define CMOS_COMMAND 0x0070
+#define CMOS_DATA 0x0071
+#define CMOS_SECOND 0x00
+#define CMOS_ALARM_SECOND 0x01
+#define CMOS_MINUTE 0x02
+#define CMOS_ALARM_MINUTE 0x03
+#define CMOS_HOUR 0x04
+#define CMOS_ALARM_HOUR 0x05
+#define CMOS_DAY_OF_WEEK 0x06
+#define CMOS_DAY_OF_MONTH 0x07
+#define CMOS_MONTH 0x08
+#define CMOS_YEAR 0x09
+#define CMOS_CENTURY 0x32
+
+/***************************************************************************/
+
+// PIT clock
+
+#define CLOCK_COMMAND 0x0043
+#define CLOCK_DATA 0x0040
+
+/***************************************************************************/
+
+// Keyboard controller
+
+#define KEYBOARD_COMMAND 0x0064
+#define KEYBOARD_DATA 0x0060
+#define KSR_OUT_FULL 0x01
+#define KSR_IN_FULL 0x02
+#define KSR_COMMAND 0x08
+#define KSR_ACTIVE 0x10
+#define KSR_OUT_ERROR 0x20
+#define KSR_IN_ERROR 0x40
+#define KSR_PARITY_ERROR 0x80
+#define KSL_SCROLL 0x01
+#define KSL_NUM 0x02
+#define KSL_CAPS 0x04
+#define KSC_READ_MODE 0x20
+#define KSC_WRITE_MODE 0x60
+#define KSC_SELF_TEST 0xAA
+#define KSC_ENABLE 0xAE
+#define KSC_SETLEDSTATUS 0xED
+#define KSS_ACK 0xFA
+
+/***************************************************************************/
+
+// Low memory pages reserved by VBR
+
+#define LOW_MEMORY_PAGE_1 0x1000
+#define LOW_MEMORY_PAGE_2 0x2000
+#define LOW_MEMORY_PAGE_3 0x3000
+#define LOW_MEMORY_PAGE_4 0x4000
+#define LOW_MEMORY_PAGE_5 0x5000
+#define LOW_MEMORY_PAGE_6 0x6000
+#define LOW_MEMORY_PAGE_7 0x7000
+#define LOW_MEMORY_PAGE_8 0x8000
+
+/***************************************************************************/
+
 // Extended control register helpers
 
 #define READ_CR8(var) __asm__ volatile("mov %%cr8, %0" : "=r"(var))

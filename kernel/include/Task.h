@@ -32,7 +32,7 @@
 /************************************************************************/
 
 #include "Base.h"
-#include "arch/i386/i386.h"
+#include "Arch.h"
 #include "List.h"
 #include "Mutex.h"
 #include "User.h"
