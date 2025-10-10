@@ -22,7 +22,7 @@
 \************************************************************************/
 
 #include "../../kernel/include/arch/i386/i386.h"
-#include "../../kernel/include/arch/x86-64/x86-64-Memory.h"
+#include "../include/LongModeStructures.h"
 #include "../include/VbrPayloadShared.h"
 
 /************************************************************************/
@@ -33,11 +33,6 @@
 #define PAGE_DIRECTORY_LOW_ADDRESS LOW_MEMORY_PAGE_4
 #define PAGE_DIRECTORY_KERNEL_ADDRESS LOW_MEMORY_PAGE_5
 #define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_6
-
-typedef struct tag_VBR_LONG_MODE_ENTRY_RAW {
-    U32 Low;
-    U32 High;
-} VBR_LONG_MODE_ENTRY_RAW, *LPVBR_LONG_MODE_ENTRY_RAW;
 
 static U32 GdtPhysicalAddress = 0U;
 #ifdef __EXOS_32__
@@ -143,7 +138,6 @@ static void ClearLongModeStructures(void) {
 /************************************************************************/
 
 static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Global) {
-    LPVBR_LONG_MODE_ENTRY_RAW RawEntry = (LPVBR_LONG_MODE_ENTRY_RAW)(void*)Entry;
     U32 Low = 0x00000003u;
     U32 High = 0u;
 
@@ -157,8 +151,8 @@ static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Glob
     Low |= (PhysicalLow & 0xFFFFF000u);
     High |= (PhysicalHigh & 0x000FFFFFu);
 
-    RawEntry->Low = Low;
-    RawEntry->High = High;
+    Entry->Low = Low;
+    Entry->High = High;
 }
 
 /************************************************************************/
