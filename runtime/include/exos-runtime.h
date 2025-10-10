@@ -92,10 +92,15 @@ static inline unsigned long ntohl(unsigned long Value) { return htonl(Value); }
 /************************************************************************/
 // Types
 
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned long uint32_t;
-typedef unsigned long size_t;
+#if defined(__i386__) || defined(__x86_64__)
+    typedef unsigned char uint8_t;
+    typedef unsigned short uint16_t;
+    typedef unsigned long uint32_t;
+    typedef unsigned long size_t;
+    typedef unsigned long exos_uint_t;
+#else
+    #error "Unsupported architecture for exos-runtime.h"
+#endif
 
 /************************************************************************/
 
@@ -103,7 +108,7 @@ extern void debug(char* format, ...);
 
 /************************************************************************/
 
-extern unsigned exoscall(unsigned function, unsigned paramter);
+extern exos_uint_t exoscall(exos_uint_t function, exos_uint_t parameter);
 extern void __exit__(int code);
 extern unsigned strcmp(const char*, const char*);
 extern int strncmp(const char*, const char*, unsigned);

@@ -30,6 +30,10 @@
 
 /************************************************************************/
 
+#define EXOS_PARAM(Value) ((exos_uint_t)(Value))
+
+/************************************************************************/
+
 // Global argc/argv for main function
 int _argc = 0;
 char** _argv = NULL;
@@ -66,7 +70,7 @@ void debug(char* format, ...) {
     StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)format, Args);
     VarArgEnd(Args);
 
-    exoscall(SYSCALL_Debug, (unsigned)Buffer);
+    exoscall(SYSCALL_Debug, EXOS_PARAM(Buffer));
 }
 #endif
 
@@ -86,7 +90,7 @@ extern void* KernelHeapRealloc(void* ptr, unsigned long size);
 
 void* malloc(size_t s) { return KernelHeapAlloc(s); }
 #else
-void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, s); }
+void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, EXOS_PARAM(s)); }
 #endif
 
 /************************************************************************/
@@ -94,7 +98,7 @@ void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, s); }
 #ifdef __KERNEL__
 void free(void* p) { KernelHeapFree(p); }
 #else
-void free(void* p) { exoscall(SYSCALL_HeapFree, (unsigned)p); }
+void free(void* p) { exoscall(SYSCALL_HeapFree, EXOS_PARAM(p)); }
 #endif
 
 /************************************************************************/
@@ -109,7 +113,7 @@ void* realloc(void* ptr, size_t size) {
     info.Header.Flags = 0;
     info.Pointer = ptr;
     info.Size = (U32)size;
-    return (void*)exoscall(SYSCALL_HeapRealloc, (U32)&info);
+    return (void*)exoscall(SYSCALL_HeapRealloc, EXOS_PARAM(&info));
 }
 #endif
 
@@ -142,7 +146,7 @@ int printf(const char* fmt, ...) {
     StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)fmt, Args);
     VarArgEnd(Args);
 
-    exoscall(SYSCALL_ConsolePrint, (unsigned)Buffer);
+    exoscall(SYSCALL_ConsolePrint, EXOS_PARAM(Buffer));
     return strlen(Buffer);
 }
 #endif
@@ -170,11 +174,11 @@ int fprintf(FILE* fp, const char* fmt, ...) {
 int getch(void) {
     KEYCODE KeyCode;
 
-    while (exoscall(SYSCALL_ConsolePeekKey, 0) == 0) {
+    while (exoscall(SYSCALL_ConsolePeekKey, EXOS_PARAM(0)) == 0) {
         sleep(10);
     }
 
-    exoscall(SYSCALL_ConsoleGetKey, (U32)&KeyCode);
+    exoscall(SYSCALL_ConsoleGetKey, EXOS_PARAM(&KeyCode));
 
     return (int)KeyCode.ASCIICode;
 }
@@ -186,11 +190,11 @@ int getch(void) {
 int getkey(void) {
     KEYCODE KeyCode;
 
-    while (exoscall(SYSCALL_ConsolePeekKey, 0) == 0) {
+    while (exoscall(SYSCALL_ConsolePeekKey, EXOS_PARAM(0)) == 0) {
         sleep(10);
     }
 
-    exoscall(SYSCALL_ConsoleGetKey, (U32)&KeyCode);
+    exoscall(SYSCALL_ConsoleGetKey, EXOS_PARAM(&KeyCode));
 
     return (int)KeyCode.VirtualKey;
 }
@@ -216,7 +220,7 @@ int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_li
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = 0;
 
-    return (int)exoscall(SYSCALL_CreateTask, (unsigned)&TaskInfo);
+    return (int)exoscall(SYSCALL_CreateTask, EXOS_PARAM(&TaskInfo));
 }
 #endif
 
@@ -227,7 +231,7 @@ void _endthread(void) {}
 /************************************************************************/
 
 #ifndef __KERNEL__
-void sleep(unsigned ms) { exoscall(SYSCALL_Sleep, (U32)ms); }
+void sleep(unsigned ms) { exoscall(SYSCALL_Sleep, EXOS_PARAM(ms)); }
 #endif
 
 /************************************************************************/
@@ -247,7 +251,7 @@ int system(const char* __cmd) {
     ProcessInfo.StdIn = NULL;
     ProcessInfo.StdErr = NULL;
 
-    return (int)exoscall(SYSCALL_CreateProcess, (U32)&ProcessInfo);
+    return (int)exoscall(SYSCALL_CreateProcess, EXOS_PARAM(&ProcessInfo));
 }
 #endif
 
@@ -311,13 +315,13 @@ FILE* fopen(const char* __name, const char* __mode) {
         info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE;
     }
 
-    handle = exoscall(SYSCALL_OpenFile, (unsigned)&info);
+    handle = exoscall(SYSCALL_OpenFile, EXOS_PARAM(&info));
 
     if (handle) {
         __fp = (FILE*)malloc(sizeof(FILE));
 
         if (__fp == NULL) {
-            exoscall(SYSCALL_DeleteObject, handle);
+            exoscall(SYSCALL_DeleteObject, EXOS_PARAM(handle));
             return NULL;
         }
 
@@ -342,7 +346,7 @@ FILE* fopen(const char* __name, const char* __mode) {
 #ifndef __KERNEL__
 int fclose(FILE* __fp) {
     if (__fp) {
-        exoscall(SYSCALL_DeleteObject, __fp->_handle);
+        exoscall(SYSCALL_DeleteObject, EXOS_PARAM(__fp->_handle));
         if (__fp->_base) free(__fp->_base);
         free(__fp);
         return 1;
@@ -366,7 +370,7 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
     fileop.NumBytes = elsize * num;
     fileop.Buffer = buf;
 
-    return (size_t)exoscall(SYSCALL_ReadFile, (unsigned)&fileop);
+    return (size_t)exoscall(SYSCALL_ReadFile, EXOS_PARAM(&fileop));
 }
 
 /************************************************************************/
@@ -389,7 +393,7 @@ size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
     fileop.Buffer = (void*)buf;
 
     debug("[fwrite] Calling SYSCALL_WriteFile with %u bytes", fileop.NumBytes);
-    size_t result = (size_t)exoscall(SYSCALL_WriteFile, (unsigned)&fileop);
+    size_t result = (size_t)exoscall(SYSCALL_WriteFile, EXOS_PARAM(&fileop));
     debug("[fwrite] SYSCALL_WriteFile returned: %u", result);
 
     return result;
@@ -620,7 +624,7 @@ void _SetupArguments(void) {
     _ProcessInfo.Header.Flags = 0;
     _ProcessInfo.Process = 0;
 
-    if (exoscall(SYSCALL_GetProcessInfo, (unsigned)&_ProcessInfo) != DF_ERROR_SUCCESS) {
+    if (exoscall(SYSCALL_GetProcessInfo, EXOS_PARAM(&_ProcessInfo)) != DF_ERROR_SUCCESS) {
         return;
     }
 

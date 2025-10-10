@@ -1,26 +1,45 @@
 
 BUILD_DIR = ../build
 
-CC      = i686-elf-gcc
-CXX     = i686-elf-g++
-LD      = i686-elf-ld
-AS      = AS = i686-elf-as
+ARCH ?= i386
+
 NASM    = nasm
+
+ifeq ($(ARCH),i386)
+TOOLCHAIN_PREFIX = i686-elf
+NASM_FORMAT      = elf
+CC               = $(TOOLCHAIN_PREFIX)-gcc
+CXX              = $(TOOLCHAIN_PREFIX)-g++
+AR               = $(TOOLCHAIN_PREFIX)-ar
+CFLAGS_ARCH      =
+CXXFLAGS_ARCH    =
+else ifeq ($(ARCH),x86-64)
+NASM_FORMAT      = elf64
+CC               = gcc
+CXX              = g++
+AR               = ar
+CFLAGS_ARCH      = -m64
+CXXFLAGS_ARCH    = -m64
+else
+$(error Unsupported architecture $(ARCH))
+endif
 
 CFLAGS  = -g -Wall -Wextra -O0 \
 	-ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
 	-Werror-implicit-function-declaration -Wstrict-prototypes \
-	-I../kernel/include
+	-I../kernel/include \
+	$(CFLAGS_ARCH)
 
 CXXFLAGS = -g -Wall -Wextra -O0 -std=c++11 \
 	-ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
-	-fno-rtti -fno-threadsafe-statics
+	-fno-rtti -fno-threadsafe-statics \
+	$(CXXFLAGS_ARCH)
 
-AFLAGS  = -f elf -g -F dwarf -I source/
+AFLAGS  = -f $(NASM_FORMAT) -g -F dwarf -I source/
 
 LDFLAGS = -T linker.ld -nostdlib -Map=$(BUILD_DIR)/runtime/exos-runtime.map
 
@@ -42,7 +61,7 @@ all: $(RUNTIME_LIB)
 
 $(RUNTIME_LIB): $(OBJS)
 	@mkdir -p $(dir $@)
-	i686-elf-ar rcs $@ $^
+	$(AR) rcs $@ $^
 
 $(BUILD_DIR)/runtime/%.o: source/%.c
 	@mkdir -p $(dir $@)
