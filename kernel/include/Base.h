@@ -532,8 +532,8 @@ typedef struct tag_DATETIME {
 
 /************************************************************************/
 // Handles - They are a pointer in reality, but called handles so that they
-// are not used in userland, otherwise you get a nice page fault, at best.
-// Will implement pointer masking soon.
+// are not used in userland, otherwise you get a nice privilege violation,
+// at best. Will implement pointer masking soon.
 
 typedef UINT HANDLE;
 typedef UINT SOCKET_HANDLE;
