@@ -241,7 +241,7 @@ $(KERNEL_CFG_EXT2): $(FINAL_IMG)
 
 update: $(UPDATE_TARGET)
 
-update-fat32: check_kernel_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
+update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/exos.toml) \
@@ -258,7 +258,7 @@ update-fat32: check_kernel_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
 		All files injected into image.)
 
-update-ext2: check_kernel_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
+update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@echo "Preparing EXT2 staging directory at $(EXT2_STAGING_DIR)"
 	@rm -rf $(EXT2_STAGING_DIR)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
@@ -281,7 +281,7 @@ install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
-install-vbr-payload: check_kernel_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
+install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
 	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload into the pre-partition gap..."
 	@{ \
 		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
@@ -342,13 +342,13 @@ hexdump-check: install-vbr-payload
 clean:
 	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym
 
-.PHONY: check_kernel_size
-check_kernel_size: $(KERNEL_BIN)
-	@{
-		KERNEL_SIZE=$$(stat -c %s $(KERNEL_BIN)); \
-		MAX_SIZE=$$(( $(RESERVED_SECTORS) * 512 )); \
-		if [ $$KERNEL_SIZE -gt $$MAX_SIZE ]; then \
-			echo "ERROR: Kernel binary size ($$KERNEL_SIZE bytes) exceeds reserved space ($$MAX_SIZE bytes)."; \
-			exit 1; \
-		fi; \
-	}
+.PHONY: check_payload_size
+check_payload_size: $(PAYLOAD_BIN)
+        @{
+                PAYLOAD_SIZE=$$(stat -c %s $(PAYLOAD_BIN)); \
+                MAX_SIZE=$$(( $(RESERVED_SECTORS) * 512 )); \
+                if [ $$PAYLOAD_SIZE -gt $$MAX_SIZE ]; then \
+                        echo "ERROR: VBR payload size ($$PAYLOAD_SIZE bytes) exceeds reserved space ($$MAX_SIZE bytes)."; \
+                        exit 1; \
+                fi; \
+        }
