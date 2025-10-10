@@ -32,7 +32,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 RAMDiskCommands(U32, U32);
+U32 RAMDiskCommands(UINT, UINT);
 
 DRIVER RAMDiskDriver = {
     .TypeID = KOID_DRIVER,
@@ -477,7 +477,7 @@ static U32 RAMDiskInitialize(void) {
 
     StringCopy(Create.VolumeName, TEXT("RamDisk"));
 
-    EXFSDriver.Command(DF_FS_CREATEPARTITION, (U32)&Create);
+    EXFSDriver.Command(DF_FS_CREATEPARTITION, (UINT)&Create);
 
     DEBUG(TEXT("[RAMDiskInitialize] Partition formated in EXFS"));
 
@@ -622,7 +622,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 /***************************************************************************/
 
-U32 RAMDiskCommands(U32 Function, U32 Parameter) {
+U32 RAMDiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return RAMDiskInitialize();

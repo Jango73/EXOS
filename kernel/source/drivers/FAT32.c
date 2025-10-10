@@ -33,7 +33,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 FAT32Commands(U32, U32);
+U32 FAT32Commands(UINT, UINT);
 
 DRIVER FAT32Driver = {
     .TypeID = KOID_DRIVER,
@@ -163,7 +163,7 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     Control.Buffer = (LPVOID)Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -276,7 +276,7 @@ static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
     Control.Buffer = Buffer;
     Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -312,7 +312,7 @@ static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID B
     Control.Buffer = Buffer;
     Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -350,7 +350,7 @@ static CLUSTER GetNextClusterInChain(LPFAT32FILESYSTEM FileSystem, CLUSTER Clust
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result == DF_ERROR_SUCCESS) {
         NextCluster = Buffer[Offset];
@@ -392,7 +392,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
         if (Result != DF_ERROR_SUCCESS) {
             goto Out;
         }
@@ -410,7 +410,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                 Control.SectorLow = FileSystem->FATStart + CurrentSector;
                 Control.SectorHigh = 0;
                 Control.NumSectors = 1;
-                Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+                Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
                 if (Result != DF_ERROR_SUCCESS) {
                     goto Out;
                 }
@@ -424,7 +424,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorLow = FileSystem->FATStart2 + CurrentSector;
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
-                    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+                    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
                     if (Result != DF_ERROR_SUCCESS) {
                         goto Out;
                     }
@@ -440,7 +440,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorLow = FileSystem->FATStart2 + CurrentSector;
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
-                    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+                    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
                     if (Result != DF_ERROR_SUCCESS) {
                         goto Out;
                     }
@@ -488,7 +488,7 @@ static BOOL FindFreeFATEntry(LPFAT32FILESYSTEM FileSystem, U32* Sector,
         Control.Buffer = Buffer;
         Control.BufferSize = SECTOR_SIZE;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
         if (Result != DF_ERROR_SUCCESS) {
             return FALSE;
@@ -821,7 +821,7 @@ static CLUSTER ChainNewCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
         if (Result != DF_ERROR_SUCCESS) {
             return NewCluster;
@@ -851,7 +851,7 @@ Next:
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
         if (Result != DF_ERROR_SUCCESS) {
             return NewCluster;
@@ -859,7 +859,7 @@ Next:
 
         Buffer[CurrentOffset] = NewCluster;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
         if (Result != DF_ERROR_SUCCESS) {
             return NewCluster;
@@ -1806,7 +1806,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
  * @param Parameter Optional parameter pointer.
  * @return DF_ERROR_* result code.
  */
-U32 FAT32Commands(U32 Function, U32 Parameter) {
+U32 FAT32Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();

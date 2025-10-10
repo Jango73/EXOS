@@ -574,7 +574,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
     Control.CurrentFolder[0] = STR_NULL;
     StringCopy(Control.SubFolder, NewPath);
 
-    if (GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
+    if (GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (UINT)&Control)) {
         StringCopy(Context->CurrentFolder, NewPath);
     } else {
         ConsolePrint(TEXT("Unknown folder : %s\n"), NewPath);
@@ -603,7 +603,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
         FileInfo.FileSystem = FileSystem;
         FileInfo.Attributes = MAX_U32;
         StringCopy(FileInfo.Name, FileName);
-        FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (U32)&FileInfo);
+        FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&FileInfo);
     }
 }
 
@@ -698,16 +698,16 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     StringConcat(Pattern, TEXT("*"));
     StringCopy(Find.Name, Pattern);
 
-    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
     if (File == NULL) {
         StringCopy(Find.Name, Base);
-        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
         if (File == NULL) {
             ConsolePrint(TEXT("Unknown file : %s\n"), Base);
             return;
         }
         ListFile(File, Indent);
-        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
         return;
     }
 
@@ -730,9 +730,9 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
                 WaitKey();
             }
         }
-    } while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
+    } while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_ERROR_SUCCESS);
 
-    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
 }
 
 /***************************************************************************/
@@ -1138,7 +1138,7 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
         Disk = (LPPHYSICALDISK)Node;
 
         DiskInfo.Disk = Disk;
-        Disk->Driver->Command(DF_DISK_GETINFO, (U32)&DiskInfo);
+        Disk->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo);
 
         ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
@@ -1200,7 +1200,7 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
                         NETWORKINFO Info;
                         MemorySet(&Info, 0, sizeof(Info));
                         NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
-                        Device->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo);
+                        Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
                         // Convert IP from network to host byte order
                         U32 IpHost = Ntohl(NetContext->LocalIPv4_Be);

@@ -36,7 +36,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 SerialMouseCommands(U32, U32);
+U32 SerialMouseCommands(UINT, UINT);
 
 DRIVER SerialMouseDriver = {
     .TypeID = KOID_DRIVER,
@@ -361,13 +361,13 @@ static void DrawMouseCursor(I32 X, I32 Y) {
     LineInfo.Y1 = Y;
     LineInfo.X2 = X + 4;
     LineInfo.Y2 = Y;
-    VESADriver.Command(DF_GFX_LINE, (U32)&LineInfo);
+    VESADriver.Command(DF_GFX_LINE, (UINT)&LineInfo);
 
     LineInfo.X1 = X;
     LineInfo.Y1 = Y - 4;
     LineInfo.X2 = X;
     LineInfo.Y2 = Y + 4;
-    VESADriver.Command(DF_GFX_LINE, (U32)&LineInfo);
+    VESADriver.Command(DF_GFX_LINE, (UINT)&LineInfo);
 }
 */
 
@@ -471,7 +471,7 @@ void MouseHandler(void) {
 
 /***************************************************************************/
 
-U32 SerialMouseCommands(U32 Function, U32 Parameter) {
+U32 SerialMouseCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
 
     switch (Function) {

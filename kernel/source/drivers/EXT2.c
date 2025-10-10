@@ -153,7 +153,7 @@ static U32 ReadFile(LPEXT2FILE File);
 static U32 WriteFile(LPEXT2FILE File);
 
 BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
-U32 EXT2Commands(U32 Function, U32 Parameter);
+U32 EXT2Commands(UINT Function, UINT Parameter);
 
 /************************************************************************/
 
@@ -1448,7 +1448,7 @@ static BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVO
     Control.Buffer = Buffer;
     Control.BufferSize = Count * SECTOR_SIZE;
 
-    return FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control) == DF_ERROR_SUCCESS;
+    return FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control) == DF_ERROR_SUCCESS;
 }
 
 /************************************************************************/
@@ -1492,7 +1492,7 @@ static BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPC
     Control.Buffer = (LPVOID)Buffer;
     Control.BufferSize = Count * SECTOR_SIZE;
 
-    return FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control) == DF_ERROR_SUCCESS;
+    return FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control) == DF_ERROR_SUCCESS;
 }
 
 /************************************************************************/
@@ -2384,7 +2384,7 @@ BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     Control.Buffer = (LPVOID)Buffer;
     Control.BufferSize = sizeof(Buffer);
 
-    Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -2455,7 +2455,7 @@ BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
  * @param Parameter Optional parameter pointer or value.
  * @return Driver-specific result or error code.
  */
-U32 EXT2Commands(U32 Function, U32 Parameter) {
+U32 EXT2Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();

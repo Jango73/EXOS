@@ -52,7 +52,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 SystemFSCommands(U32, U32);
+U32 SystemFSCommands(UINT, UINT);
 
 DRIVER SystemFSDriver = {
     .TypeID = KOID_DRIVER,
@@ -376,11 +376,11 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Info.Flags = 0;
     StringCopy(Info.Name, Remaining);
 
-    Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Info);
+    Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
     if (Mounted == NULL) return FALSE;
 
     Result = (Mounted->Attributes & FS_ATTR_FOLDER) != 0;
-    Node->Mounted->Driver->Command(DF_FS_CLOSEFILE, (U32)Mounted);
+    Node->Mounted->Driver->Command(DF_FS_CLOSEFILE, (UINT)Mounted);
 
     return Result;
 }
@@ -479,12 +479,12 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
                 Info.Flags = 0;
                 StringCopy(Info.Name, SourcePath);
 
-                TestFile = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (U32)&Info);
+                TestFile = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
                 if (TestFile == NULL) {
                     ERROR(TEXT("[MountConfiguredFileSystem] Source path '%s' does not exist in filesystem '%s'"), SourcePath, FileSystem);
                     return;
                 }
-                FS->Driver->Command(DF_FS_CLOSEFILE, (U32)TestFile);
+                FS->Driver->Command(DF_FS_CLOSEFILE, (UINT)TestFile);
             }
 
             StringCopy(Control.Path, Path);
@@ -539,7 +539,7 @@ BOOL MountSystemFS(void) {
         Volume.Size = sizeof(VOLUMEINFO);
         Volume.Volume = (HANDLE)FS;
         Volume.Name[0] = STR_NULL;
-        Result = FS->Driver->Command(DF_FS_GETVOLUMEINFO, (U32)&Volume);
+        Result = FS->Driver->Command(DF_FS_GETVOLUMEINFO, (UINT)&Volume);
         if (Result != DF_ERROR_SUCCESS || Volume.Name[0] == STR_NULL) {
             StringCopy(Volume.Name, FS->Name);
         }
@@ -600,7 +600,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             StringConcat(Local.Name, TEXT("*"));
         }
 
-        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
         return WrapMountedFile(Node, Mounted);
     }
 
@@ -619,7 +619,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             } else {
                 StringCopy(Local.Name, TEXT("*"));
             }
-            Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+            Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
             return WrapMountedFile(Node, Mounted);
         } else {
             LPSYSTEMFSFILE Child = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
@@ -650,7 +650,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         } else {
             Local.Name[0] = STR_NULL;
         }
-        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (U32)&Local);
+        Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
         return WrapMountedFile(Node, Mounted);
     }
 
@@ -681,7 +681,7 @@ static U32 OpenNext(LPSYSFSFILE File) {
     if (File->MountedFile) {
         FS = File->Parent ? File->Parent->Mounted : NULL;
         if (FS == NULL) return DF_ERROR_GENERIC;
-        Result = FS->Driver->Command(DF_FS_OPENNEXT, (U32)File->MountedFile);
+        Result = FS->Driver->Command(DF_FS_OPENNEXT, (UINT)File->MountedFile);
         if (Result != DF_ERROR_SUCCESS) return Result;
         StringCopy(File->Header.Name, File->MountedFile->Name);
         File->Header.Attributes = File->MountedFile->Attributes;
@@ -710,7 +710,7 @@ static U32 CloseFile(LPSYSFSFILE File) {
     if (File == NULL) return DF_ERROR_BADPARAM;
 
     if (File->MountedFile && File->Parent && File->Parent->Mounted) {
-        File->Parent->Mounted->Driver->Command(DF_FS_CLOSEFILE, (U32)File->MountedFile);
+        File->Parent->Mounted->Driver->Command(DF_FS_CLOSEFILE, (UINT)File->MountedFile);
     }
 
     ReleaseKernelObject(File);
@@ -735,7 +735,7 @@ static U32 ReadFile(LPSYSFSFILE File) {
         Mounted->ByteCount = File->Header.ByteCount;
         Mounted->Position = File->Header.Position;
 
-        Result = FS->Driver->Command(DF_FS_READ, (U32)Mounted);
+        Result = FS->Driver->Command(DF_FS_READ, (UINT)Mounted);
 
         File->Header.BytesTransferred = Mounted->BytesTransferred;
         File->Header.Position = Mounted->Position;
@@ -763,7 +763,7 @@ static U32 WriteFile(LPSYSFSFILE File) {
         Mounted->ByteCount = File->Header.ByteCount;
         Mounted->Position = File->Header.Position;
 
-        Result = FS->Driver->Command(DF_FS_WRITE, (U32)Mounted);
+        Result = FS->Driver->Command(DF_FS_WRITE, (UINT)Mounted);
 
         File->Header.BytesTransferred = Mounted->BytesTransferred;
         File->Header.Position = Mounted->Position;
@@ -839,7 +839,7 @@ static BOOL FileExists(LPFILEINFO Info) {
 
 /************************************************************************/
 
-U32 SystemFSCommands(U32 Function, U32 Parameter) {
+U32 SystemFSCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();

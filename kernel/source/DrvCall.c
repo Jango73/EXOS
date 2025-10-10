@@ -28,7 +28,7 @@
 
 /***************************************************************************/
 
-typedef U32 (*DRVCALLFUNC)(U32);
+typedef U32 (*DRVCALLFUNC)(UINT);
 
 /***************************************************************************/
 
@@ -37,7 +37,7 @@ typedef U32 (*DRVCALLFUNC)(U32);
  * @param Parameter Parameter passed to the driver.
  * @return Always returns 0.
  */
-U32 DriverFunc(U32 Parameter) {
+U32 DriverFunc(UINT Parameter) {
     UNUSED(Parameter);
 
     return 0;
@@ -57,7 +57,7 @@ DRVCALLFUNC DrvCallTable[MAX_DRVCALL] = {DriverFunc};
  * @param Parameter Parameter passed to the driver function.
  * @return Result returned by the invoked driver function.
  */
-U32 DriverCallHandler(U32 Function, U32 Parameter) {
+U32 DriverCallHandler(UINT Function, UINT Parameter) {
     if (Function < MAX_DRVCALL && DrvCallTable[Function]) {
         return DrvCallTable[Function](Parameter);
     }

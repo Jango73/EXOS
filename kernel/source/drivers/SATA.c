@@ -48,7 +48,7 @@
 
 /***************************************************************************/
 
-U32 SATADiskCommands(U32, U32);
+U32 SATADiskCommands(UINT, UINT);
 
 DRIVER SATADiskDriver = {
     .TypeID = KOID_DRIVER,
@@ -105,7 +105,7 @@ static AHCI_STATE AHCIState = {NULL, 0, NULL};
 /***************************************************************************/
 // AHCI PCI Driver
 
-static U32 AHCIProbe(U32 Function, U32 Parameter);
+static U32 AHCIProbe(UINT Function, UINT Parameter);
 static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice);
 static U32 InitializeAHCIController(void);
 
@@ -382,7 +382,7 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
 
 /***************************************************************************/
 
-static U32 AHCIProbe(U32 Function, U32 Parameter) {
+static U32 AHCIProbe(UINT Function, UINT Parameter) {
     LPPCI_INFO PciInfo = (LPPCI_INFO)Parameter;
 
     if (Function != DF_PROBE) {
@@ -824,7 +824,7 @@ void AHCIInterruptHandler(void) {
 
 /***************************************************************************/
 
-U32 SATADiskCommands(U32 Function, U32 Parameter) {
+U32 SATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return DF_ERROR_SUCCESS;

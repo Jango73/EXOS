@@ -462,7 +462,7 @@ void PCI_ScanBus(void) {
                                 DEBUG(TEXT("[PCI] %s matches %X:%X.%u"), PciDriver->Product, (U32)Bus,
                                     (U32)Device, (U32)Function);
 
-                                U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
+                                U32 Result = PciDriver->Command(DF_PROBE, (UINT)(LPVOID)&PciInfo);
                                 if (Result == DF_ERROR_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);

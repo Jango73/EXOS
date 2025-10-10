@@ -175,7 +175,7 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
         return;
     }
 
-    File = (LPFILE)Context->FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+    File = (LPFILE)Context->FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
     if (File == NULL) return;
 
     do {
@@ -187,11 +187,11 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
         }
     } while (Context->FileSystem != NULL && Context->FileSystem->Driver != NULL &&
              Context->FileSystem->Driver->Command != NULL &&
-             Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
+             Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_ERROR_SUCCESS);
 
     if (Context->FileSystem != NULL && Context->FileSystem->Driver != NULL &&
         Context->FileSystem->Driver->Command != NULL) {
-        Context->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        Context->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
     } else {
         DEBUG(TEXT("[BuildMatches] CORRUPTION: Context->FileSystem corrupted during file operations"));
     }

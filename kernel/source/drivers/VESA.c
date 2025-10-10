@@ -44,7 +44,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 VESACommands(U32, U32);
+U32 VESACommands(UINT, UINT);
 
 DRIVER VESADriver = {
     .TypeID = KOID_DRIVER,
@@ -1409,7 +1409,7 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 
 /***************************************************************************/
 
-U32 VESACommands(U32 Function, U32 Param) {
+U32 VESACommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
             return (U32)VESAInitialize();

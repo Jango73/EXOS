@@ -277,13 +277,13 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Reset the device
             NETWORKRESET Reset = {.Device = Device};
-            Device->Driver->Command(DF_NT_RESET, (U32)(LPVOID)&Reset);
+            Device->Driver->Command(DF_NT_RESET, (UINT)(LPVOID)&Reset);
 
             // Get device information
             NETWORKINFO Info;
             MemorySet(&Info, 0, sizeof(Info));
             NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
-            Device->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo);
+            Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
             DEBUG(TEXT("[NetworkManager_InitializeDevice] MAC=%x:%x:%x:%x:%x:%x Link=%s Speed=%u Duplex=%s MTU=%u"),
                   (U32)Info.MAC[0], (U32)Info.MAC[1], (U32)Info.MAC[2],
@@ -333,7 +333,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             // Install RX callback with device context as UserData
             NETWORKSETRXCB SetRxCb = {.Device = Device, .Callback = NetworkManager_RxCallback, .UserData = (LPVOID)DeviceContext};
             DEBUG(TEXT("[NetworkManager_InitializeDevice] Installing RX callback %X with UserData %X"), (U32)NetworkManager_RxCallback, (U32)DeviceContext);
-            U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCb);
+            U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (UINT)(LPVOID)&SetRxCb);
             DEBUG(TEXT("[NetworkManager_InitializeDevice] RX callback installation result: %u"), Result);
 
             // Mark device as initialized
@@ -375,7 +375,7 @@ U32 NetworkManagerTask(LPVOID param) {
                         SAFE_USE_VALID_ID(Ctx->Device, KOID_PCIDEVICE) {
                             SAFE_USE_VALID_ID(Ctx->Device->Driver, KOID_DRIVER) {
                                 NETWORKPOLL poll = {.Device = Ctx->Device};
-                                Ctx->Device->Driver->Command(DF_NT_POLL, (U32)(LPVOID)&poll);
+                                Ctx->Device->Driver->Command(DF_NT_POLL, (UINT)(LPVOID)&poll);
                             }
                         }
                     }

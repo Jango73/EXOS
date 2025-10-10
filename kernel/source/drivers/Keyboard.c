@@ -38,7 +38,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 StdKeyboardCommands(U32, U32);
+U32 StdKeyboardCommands(UINT, UINT);
 
 DRIVER StdKeyboardDriver = {
     .TypeID = KOID_DRIVER,
@@ -790,7 +790,7 @@ static U32 InitializeKeyboard(void) {
 
 /***************************************************************************/
 
-U32 StdKeyboardCommands(U32 Function, U32 Parameter) {
+U32 StdKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return InitializeKeyboard();

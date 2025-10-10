@@ -33,7 +33,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 EXFSCommands(U32, U32);
+U32 EXFSCommands(UINT, UINT);
 
 DRIVER EXFSDriver = {
     .TypeID = KOID_DRIVER,
@@ -165,7 +165,7 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     Control.Buffer = (LPVOID)Buffer1;
     Control.BufferSize = SECTOR_SIZE * 2;
 
-    Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -180,7 +180,7 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     Control.Buffer = (LPVOID)Buffer2;
     Control.BufferSize = SECTOR_SIZE * 2;
 
-    Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -271,7 +271,7 @@ static BOOL ReadCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buf
     Control.Buffer = Buffer;
     Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -303,7 +303,7 @@ static BOOL WriteCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster,
     Control.Buffer = Buffer;
     Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -469,7 +469,7 @@ static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPV
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    Result = Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+    Result = Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -867,7 +867,7 @@ static U32 CloseFile(LPEXFSFILE File) {
  * @param Parameter Command parameter.
  * @return Driver-specific result code.
  */
-U32 EXFSCommands(U32 Function, U32 Parameter) {
+U32 EXFSCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();

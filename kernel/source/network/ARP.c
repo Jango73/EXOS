@@ -277,7 +277,7 @@ static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
     Send.Length = Length;
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (U32)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
+            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (UINT)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
         }
     }
 
@@ -547,7 +547,7 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
 
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
                 DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"), (U32)Info.MAC[0], (U32)Info.MAC[1],
                       (U32)Info.MAC[2], (U32)Info.MAC[3], (U32)Info.MAC[4], (U32)Info.MAC[5]);
 
@@ -564,7 +564,7 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
                 SetRxCallback.Device = (LPPCI_DEVICE)Device;
                 SetRxCallback.Callback = ARP_OnEthernetFrame;
                 DEBUG(TEXT("[ARP_Initialize] Registering RX callback %x for device %x"), (U32)ARP_OnEthernetFrame, (U32)Device);
-                U32 Result = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SETRXCB, (U32)(LPVOID)&SetRxCallback);
+                U32 Result = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SETRXCB, (UINT)(LPVOID)&SetRxCallback);
                 DEBUG(TEXT("[ARP_Initialize] RX callback registration result: %u"), Result); */
                 DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
             } else {

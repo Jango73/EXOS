@@ -92,7 +92,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.Flags = Info->Flags;
         StringCopy(Find.Name, Info->Name);
 
-        File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
             LockMutex(MUTEX_FILE, INFINITY);
@@ -123,7 +123,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.Flags = Info->Flags;
         StringCopy(Find.Name, Info->Name);
 
-        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
             DEBUG(TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
@@ -163,7 +163,7 @@ U32 CloseFile(LPFILE File) {
     LockMutex(&(File->Mutex), INFINITY);
 
     // Call filesystem-specific close function
-    File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+    File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
 
     ReleaseKernelObject(File);
 
@@ -261,7 +261,7 @@ U32 ReadFile(LPFILEOPERATION FileOp) {
     File->ByteCount = FileOp->NumBytes;
     File->Buffer = FileOp->Buffer;
 
-    Result = File->FileSystem->Driver->Command(DF_FS_READ, (U32)File);
+    Result = File->FileSystem->Driver->Command(DF_FS_READ, (UINT)File);
 
     if (Result == DF_ERROR_SUCCESS) {
         BytesTransferred = File->BytesTransferred;
@@ -303,7 +303,7 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
     File->ByteCount = FileOp->NumBytes;
     File->Buffer = FileOp->Buffer;
 
-    Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (U32)File);
+    Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (UINT)File);
 
     if (Result == DF_ERROR_SUCCESS) {
         BytesWritten = File->BytesTransferred;

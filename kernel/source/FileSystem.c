@@ -138,7 +138,7 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32
     Control.Buffer = (LPVOID)Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -180,7 +180,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
         Control.Buffer = (LPVOID)Buffer;
         Control.BufferSize = SECTOR_SIZE;
 
-        Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+        Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
         if (Result != DF_ERROR_SUCCESS) return FALSE;
 
         Partition = (LPBOOTPARTITION)(Buffer + MBR_PARTITION_START);

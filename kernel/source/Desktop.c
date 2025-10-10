@@ -306,7 +306,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     DEBUG(TEXT("[ShowDesktop] Setting gfx mode %ux%u"), ModeInfo.Width, ModeInfo.Height);
 
-    This->Graphics->Command(DF_GFX_SETMODE, (U32)&ModeInfo);
+    This->Graphics->Command(DF_GFX_SETMODE, (UINT)&ModeInfo);
 
     // PostMessage((HANDLE) This->Window, EWM_DRAW, 0, 0);
 
@@ -1371,7 +1371,7 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
     PixelInfo->X = Context->Origin.X + PixelInfo->X;
     PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
 
-    Context->Driver->Command(DF_GFX_SETPIXEL, (U32)PixelInfo);
+    Context->Driver->Command(DF_GFX_SETPIXEL, (UINT)PixelInfo);
 
     return TRUE;
 }
@@ -1399,7 +1399,7 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
     PixelInfo->X = Context->Origin.X + PixelInfo->X;
     PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
 
-    Context->Driver->Command(DF_GFX_GETPIXEL, (U32)PixelInfo);
+    Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)PixelInfo);
 
     return TRUE;
 }
@@ -1430,7 +1430,7 @@ BOOL Line(LPLINEINFO LineInfo) {
     LineInfo->X2 = Context->Origin.X + LineInfo->X2;
     LineInfo->Y2 = Context->Origin.Y + LineInfo->Y2;
 
-    Context->Driver->Command(DF_GFX_LINE, (U32)LineInfo);
+    Context->Driver->Command(DF_GFX_LINE, (UINT)LineInfo);
 
     return TRUE;
 }
@@ -1461,7 +1461,7 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
     RectInfo->X2 = Context->Origin.X + RectInfo->X2;
     RectInfo->Y2 = Context->Origin.Y + RectInfo->Y2;
 
-    Context->Driver->Command(DF_GFX_RECTANGLE, (U32)RectInfo);
+    Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)RectInfo);
 
     return TRUE;
 }
