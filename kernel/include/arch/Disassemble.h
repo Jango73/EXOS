@@ -29,7 +29,7 @@
 
 /***************************************************************************/
 
-void Disassemble(LPSTR Buffer, LINEAR InstructionPointer, U32 NumInstructions);
+void Disassemble(LPSTR Buffer, LINEAR InstructionPointer, U32 NumInstructions, U32 NumBits);
 
 /***************************************************************************/
 

@@ -124,7 +124,7 @@
 
 \************************************************************************/
 
-#include "arch/i386/i386-Asm.h"
+#include "arch/intel/i386-Asm.h"
 
 // Empty string pointer
 

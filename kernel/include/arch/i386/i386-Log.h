@@ -46,7 +46,6 @@ void LogAllPageTables(U32 LogType, const PAGE_DIRECTORY* PageDirectory);
 void LogTSSDescriptor(U32 LogType, const TSS_DESCRIPTOR* TssDescriptor);
 void LogTaskStateSegment(U32 LogType, const TASK_STATE_SEGMENT* Tss);
 void LogTask(U32 LogType, const LPTASK Task);
-void Disassemble(LPSTR Buffer, LINEAR InstructionPointer, U32 NumInstructions);
 void BacktraceFrom(U32 StartEbp, U32 MaxFrames);
 void BacktraceFromCurrent(U32 MaxFrames);
 

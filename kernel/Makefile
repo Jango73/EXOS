@@ -55,6 +55,7 @@ LDFLAGS_ELF     = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/arch/intel/*.c) \
          $(wildcard source/arch/$(ARCH)/*.c) \
          $(wildcard source/network/*.c) \
          $(wildcard source/drivers/*.c) \

@@ -952,7 +952,12 @@ static U32 CMD_disasm(LPSHELLCONTEXT Context) {
     if (Address != 0 && InstrCount > 0) {
         MemorySet(Buffer, 0, MAX_STRING_BUFFER);
 
-        Disassemble(Buffer, Address, InstrCount);
+        U32 NumBits = 32;
+#if defined(__EXOS_ARCH_X86_64__)
+        NumBits = 64;
+#endif
+
+        Disassemble(Buffer, Address, InstrCount, NumBits);
         ConsolePrint(Buffer);
     } else {
         ConsolePrint(TEXT("Missing parameter\n"));

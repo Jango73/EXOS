@@ -24,6 +24,7 @@
 
 #include "Console.h"
 #include "Heap.h"
+#include "arch/Disassemble.h"
 #include "arch/i386/i386.h"
 #include "arch/i386/i386-Log.h"
 #include "Kernel.h"
@@ -64,7 +65,7 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
     LPTASK Task = GetCurrentTask();
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LogFrame(Task, Frame);
-        Disassemble(DisasmBuffer, Frame->Registers.EIP, 5);
+        Disassemble(DisasmBuffer, Frame->Registers.EIP, 5, 32);
         ERROR(TEXT("Code at EIP:\n%s"), DisasmBuffer);
         BacktraceFrom(Frame->Registers.EBP, 10);
     }

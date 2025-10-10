@@ -22,7 +22,6 @@
 
 \************************************************************************/
 
-#include "arch/i386/i386-Asm.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "arch/i386/i386-Log.h"
@@ -524,65 +523,6 @@ void LogTask(U32 LogType, const LPTASK Task) {
         (U32)Task->Status, (U32)Task->Priority, (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ExitCode,
         (U32)Task->Arch.StackBase, (U32)Task->Arch.StackSize, (U32)Task->Arch.SysStackBase, (U32)Task->Arch.SysStackSize,
         (U32)Task->WakeUpTime);
-}
-
-/************************************************************************/
-
-/**
- * @brief Disassemble a few instructions at the provided linear address.
- * @param Buffer Output buffer.
- * @param InstructionPointer Current instruction pointer.
- * @param NumInstructions Number of instructions to disassemble (default 5).
- */
-void Disassemble(LPSTR Buffer, LINEAR InstructionPointer, U32 NumInstructions) {
-    STR LineBuffer[128];
-    STR DisasmBuffer[64];
-    STR HexBuffer[64];
-
-    Buffer[0] = STR_NULL;
-
-    U8 *BasePtr = (U8 *)VMA_USER;
-    U8 *CodePtr = (U8 *)InstructionPointer;
-
-    if (InstructionPointer >= VMA_LIBRARY) BasePtr = (U8 *)VMA_LIBRARY;
-    if (InstructionPointer >= VMA_KERNEL) BasePtr = (U8 *)VMA_KERNEL;
-
-    if (IsValidMemory(InstructionPointer) &&
-        IsValidMemory(InstructionPointer + NumInstructions - 1)) {
-        if (InstructionPointer < 0xFFFFF) {
-            SetIntelAttributes(I16BIT, I16BIT);
-        } else {
-            SetIntelAttributes(I32BIT, I32BIT);
-        }
-
-        for (U32 i = 0; i < NumInstructions; i++) {
-            U32 InstrLength = Intel_MachineCodeToString((LPCSTR)BasePtr, (LPCSTR)CodePtr, DisasmBuffer);
-
-            if (InstrLength > 0 && InstrLength <= 20) {
-                StringPrintFormat(HexBuffer, TEXT("%x: "), CodePtr);
-
-                for (U32 j = 0; j < InstrLength && j < 8; j++) {
-                    STR ByteHex[24];
-                    StringPrintFormat(ByteHex, TEXT("%x "), CodePtr[j]);
-                    StringConcat(HexBuffer, ByteHex);
-                }
-
-                while (StringLength(HexBuffer) < 40) {
-                    StringConcat(HexBuffer, TEXT(" "));
-                }
-
-                StringPrintFormat(LineBuffer, TEXT("%s %s\n"), HexBuffer, DisasmBuffer);
-                StringConcat(Buffer, LineBuffer);
-
-                CodePtr += InstrLength;
-            } else {
-                break;
-            }
-        }
-    } else {
-        StringPrintFormat(LineBuffer, TEXT("Can't disassemble at %x (base %x)\n"), CodePtr, BasePtr);
-        StringConcat(Buffer, LineBuffer);
-    }
 }
 
 /************************************************************************/
