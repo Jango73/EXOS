@@ -3,7 +3,7 @@
 This file provides guidance to agents when working with code in this repository.
 
 ## Project Overview
-EXOS is a multi-architecture operating system. Currently supporting i386 and x86-64.
+EXOS is a **MULTI-ARCHITECTURE** operating system. Currently supporting i386 and x86-64.
 
 **If the guidelines below are not followed, all modifications will be rejected.**
 
@@ -14,8 +14,9 @@ EXOS is a multi-architecture operating system. Currently supporting i386 and x86
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
 
 ## Coding Conventions
-- **Types**: Use LINEAR for virtual addresses, PHYSICAL for physical addresses, UINT for indexes and sizes. In the kernel, it is **FORBIDDEN** to use a direct c type (int, unsigned long, long long, etc...) : only types in Base.h are allowed.
-- **Debugging**: Debug output is **ALWAYS** logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
+- **Freestanding**: The codebase **MUST NOT** rely on **ANY** library/module outside of the EXOS codebase. **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
+- **Types**: Use **LINEAR** for virtual addresses (when not using direct pointers), **PHYSICAL** for physical addresses, **UINT** for indexes and sizes. In the kernel, it is **FORBIDDEN** to use a direct c type (int, unsigned long, long long, etc...) : only types in Base.h are allowed.
+- **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done.
 - **I18n**: Write comments, console output and technical doc in english.
 - **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
@@ -27,8 +28,8 @@ EXOS is a multi-architecture operating system. Currently supporting i386 and x86
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
 - **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
-- **Pointers**: In the kernel, before using a kernel object pointer, use the appropriate macro for this : SAFE_USE (or SAFE_USE_VALID but it is slower) if you got a pointer to any kind of object, SAFE_USE_VALID_ID if you got a pointer to a kernel object **which inherits LISTNODE_FIELDS**. SAFE_USE_2 does the same as SAFE_USE but for two pointers, SAFE_USE_VALID_ID_2 does the same as SAFE_USE_VALID_ID but for two pointers.
-- **No direct access to physical memory**: Use the MapTempPhysicalPage and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
+- **Pointers**: In the kernel, before using a kernel object pointer, use the appropriate macro for this : SAFE_USE if you got a pointer to any kind of object, SAFE_USE_VALID_ID if you got a pointer to a kernel object **which inherits LISTNODE_FIELDS**. SAFE_USE_2 does the same as SAFE_USE but for two pointers, SAFE_USE_VALID_ID_2 does the same as SAFE_USE_VALID_ID but for two pointers (SAFE_USE_VALID_ID_3 for 3 pointers, etc...).
+- **No direct access to physical memory**: Use the MapTempPhysicalPage (MapTempPhysicalPage2, etc...) and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it.
 - **Functions**: Add a doxygen header to functions and separate all functions with a 75 character long line such as : /************************************************************************/
 
