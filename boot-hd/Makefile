@@ -344,11 +344,11 @@ clean:
 
 .PHONY: check_payload_size
 check_payload_size: $(PAYLOAD_BIN)
-        @{
-                PAYLOAD_SIZE=$$(stat -c %s $(PAYLOAD_BIN)); \
-                MAX_SIZE=$$(( $(RESERVED_SECTORS) * 512 )); \
-                if [ $$PAYLOAD_SIZE -gt $$MAX_SIZE ]; then \
-                        echo "ERROR: VBR payload size ($$PAYLOAD_SIZE bytes) exceeds reserved space ($$MAX_SIZE bytes)."; \
-                        exit 1; \
-                fi; \
-        }
+	@{ \
+		PAYLOAD_SIZE=$$(stat -c %s $(PAYLOAD_BIN)); \
+		MAX_SIZE=$$(( $(RESERVED_SECTORS) * 512 )); \
+		if [ $$PAYLOAD_SIZE -gt $$MAX_SIZE ]; then \
+			echo "ERROR: VBR payload size ($$PAYLOAD_SIZE bytes) exceeds reserved space ($$MAX_SIZE bytes)."; \
+			exit 1; \
+		fi; \
+	}
