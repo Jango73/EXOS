@@ -33,25 +33,25 @@
 typedef struct {
     U32 Magic;
     U32 Version;
-    U32 RecordSize;
+    UINT RecordSize;
     U32 Count;
     U32 Capacity;
 } DATABASE_FILE_HEADER;
 
 typedef struct {
     I32 Key;   /* id, -1 if empty */
-    U32 Index; /* position in records array */
+    UINT Index; /* position in records array */
 } DATABASE_INDEX_ENTRY;
 
 typedef struct {
     LPVOID Records; /* array of records */
-    U32 RecordSize;
+    UINT RecordSize;
     U32 IdOffset; /* offset of I32 id field */
     U32 Capacity;
     U32 Count;
 
     DATABASE_INDEX_ENTRY *Index; /* hashmap */
-    U32 IndexSize;
+    UINT IndexSize;
 } DATABASE;
 
 /* lifecycle */

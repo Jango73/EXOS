@@ -59,10 +59,10 @@ typedef struct tag_STATE_MACHINE {
     SM_STATE PreviousState;
 
     SM_TRANSITION* Transitions;
-    U32 TransitionCount;
+    UINT TransitionCount;
 
     SM_STATE_DEFINITION* States;
-    U32 StateCount;
+    UINT StateCount;
 
     LPVOID Context;
 

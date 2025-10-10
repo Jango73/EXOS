@@ -77,7 +77,7 @@ typedef struct tag_SHELLCONTEXT {
     STR Command[256];
     STR CurrentFolder[MAX_PATH_NAME];
     LPVOID BufferBase;
-    U32 BufferSize;
+    UINT BufferSize;
     LPSTR Buffer[SHELL_NUM_BUFFERS];
     STRINGARRAY Options;
     PATHCOMPLETION PathCompletion;

@@ -46,8 +46,8 @@ typedef enum {
 typedef struct {
     LPVOID* Elements;
     SCRIPT_VAR_TYPE* ElementTypes;
-    U32 Size;
-    U32 Capacity;
+    UINT Size;
+    UINT Capacity;
 } SCRIPT_ARRAY, *LPSCRIPT_ARRAY;
 
 typedef union {
@@ -204,7 +204,7 @@ typedef struct tag_AST_NODE {
             STR VarName[MAX_VAR_NAME];
             struct tag_AST_NODE* Expression;
             BOOL IsArrayAccess;
-            U32 ArrayIndex;
+            UINT ArrayIndex;
             struct tag_AST_NODE* ArrayIndexExpr;
         } Assignment;
         struct {
@@ -229,7 +229,7 @@ typedef struct tag_AST_NODE {
             F32 NumValue;
             BOOL IsVariable;
             BOOL IsArrayAccess;
-            U32 ArrayIndex;
+            UINT ArrayIndex;
             struct tag_AST_NODE* ArrayIndexExpr;
             struct tag_AST_NODE* BaseExpression;
             BOOL IsPropertyAccess;

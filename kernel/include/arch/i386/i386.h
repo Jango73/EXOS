@@ -452,7 +452,7 @@ typedef struct tag_SEGMENT_INFO {
     U32 Privilege;
     U32 Granularity;
     U32 CanWrite;
-    U32 OperandSize;
+    UINT OperandSize;
     U32 Conforming;
     U32 Present;
 } SEGMENT_INFO, *LPSEGMENT_INFO;

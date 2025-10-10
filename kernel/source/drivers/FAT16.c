@@ -55,12 +55,12 @@ typedef struct tag_FAT16FILESYSTEM {
     LPPHYSICALDISK Disk;
     FAT16MBR Master;
     SECTOR PartitionStart;
-    U32 PartitionSize;
+    UINT PartitionSize;
     SECTOR FATStart;
     SECTOR FATStart2;
     SECTOR DataStart;
-    U32 SectorsInRoot;
-    U32 BytesPerCluster;
+    UINT SectorsInRoot;
+    UINT BytesPerCluster;
     U8* IOBuffer;
 } FAT16FILESYSTEM, *LPFAT16FILESYSTEM;
 

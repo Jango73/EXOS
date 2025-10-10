@@ -85,72 +85,72 @@ typedef union tag_INTEL_SIB {
 // This is used to address the type and size without knowing the type of operand
 typedef struct tag_INTEL_OPERAND_ANY {
     U32 Type;
-    U32 Size;
+    UINT Size;
 } INTEL_OPERAND_ANY, *LPINTEL_OPERAND_ANY;
 
 // This is any register
 typedef struct tag_INTEL_OPERAND_R {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U32 Register;
 } INTEL_OPERAND_R, *LPINTEL_OPERAND_R;
 
 // This is an immediate byte value (MOV AL, 10)
 typedef struct tag_INTEL_OPERAND_I8 {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U8 Value;
 } INTEL_OPERAND_I8, *LPINTEL_OPERAND_I8;
 
 // This is an immediate word value (MOV AX, 10)
 typedef struct tag_INTEL_OPERAND_I16 {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U16 Value;
 } INTEL_OPERAND_I16, *LPINTEL_OPERAND_I16;
 
 // This is an immediate dword value (MOV EAX, 10)
 typedef struct tag_INTEL_OPERAND_I32 {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U32 Value;
 } INTEL_OPERAND_I32, *LPINTEL_OPERAND_I32;
 
 // This is an immediate qword value (MOV MM0, 10)
 typedef struct tag_INTEL_OPERAND_I64 {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U64 Value;
 } INTEL_OPERAND_I64, *LPINTEL_OPERAND_I64;
 
 // This is a displacement value
 typedef struct tag_INTEL_OPERAND_DSP {
     U32 Type;
-    U32 Size;
+    UINT Size;
     I32 Value;
 } INTEL_OPERAND_DSP, *LPINTEL_OPERAND_DSP;
 
 // This is an indirect immediate addressing (MOV [200], AX)
 typedef struct tag_INTEL_OPERAND_II {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U32 Value;
 } INTEL_OPERAND_II, *LPINTEL_OPERAND_II;
 
 // This is a 16 bit [base+index] format instruction
 typedef struct tag_INTEL_OPERAND_BI {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U32 Base;
-    U32 Index;
+    UINT Index;
 } INTEL_OPERAND_BI, *LPINTEL_OPERAND_BI;
 
 // This is a 32 bit disp[base+index*scale] format instruction
 typedef struct tag_INTEL_OPERAND_BISD {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U32 Base;
-    U32 Index;
+    UINT Index;
     U32 Scale;
     U32 Displace;
 } INTEL_OPERAND_BISD, *LPINTEL_OPERAND_BISD;
@@ -158,7 +158,7 @@ typedef struct tag_INTEL_OPERAND_BISD {
 // This is a segment:offset16 format instruction
 typedef struct tag_INTEL_OPERAND_SO16 {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U16 Segment;
     U16 Offset;
 } INTEL_OPERAND_SO16, *LPINTEL_OPERAND_SO16;
@@ -166,14 +166,14 @@ typedef struct tag_INTEL_OPERAND_SO16 {
 // This is a segment:offset32 format instruction
 typedef struct tag_INTEL_OPERAND_SO32 {
     U32 Type;
-    U32 Size;
+    UINT Size;
     U16 Segment;
     U32 Offset;
 } INTEL_OPERAND_SO32, *LPINTEL_OPERAND_SO32;
 
 typedef struct tag_INTEL_OPERAND_STR {
     U32 Type;
-    U32 Size;
+    UINT Size;
     STR String[8];
 } INTEL_OPERAND_STR, *LPINTEL_OPERAND_STR;
 
@@ -211,14 +211,14 @@ typedef struct tag_INTEL_INSTRUCTION {
     U8* Base;
     LINEAR Address;
     U32 Length;
-    U32 OperandSize;
-    U32 AddressSize;
+    UINT OperandSize;
+    UINT AddressSize;
 } INTEL_INSTRUCTION, *LPINTEL_INSTRUCTION;
 
 /*************************************************************************************************/
 
 typedef struct tag_INTEL_MACHINE_CODE {
-    U32 Size;
+    UINT Size;
     U32 Offset_ModR_M;
     U32 Offset_SIB;
     U32 Offset_Imm;

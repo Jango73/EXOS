@@ -57,11 +57,11 @@ typedef struct tag_FAT32FILESYSTEM {
     LPPHYSICALDISK Disk;
     FAT32MBR Master;
     SECTOR PartitionStart;
-    U32 PartitionSize;
+    UINT PartitionSize;
     SECTOR FATStart;
     SECTOR FATStart2;
     SECTOR DataStart;
-    U32 BytesPerCluster;
+    UINT BytesPerCluster;
     U8* IOBuffer;
 } FAT32FILESYSTEM, *LPFAT32FILESYSTEM;
 

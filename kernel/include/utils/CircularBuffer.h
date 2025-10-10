@@ -32,12 +32,12 @@ typedef struct tag_CIRCULAR_BUFFER {
     U8* Data;
     U8* InitialData;
     U8* AllocatedData;
-    U32 Size;
-    U32 InitialSize;
-    U32 MaximumSize;
-    U32 WriteOffset;
-    U32 ReadOffset;
-    U32 DataLength;
+    UINT Size;
+    UINT InitialSize;
+    UINT MaximumSize;
+    UINT WriteOffset;
+    UINT ReadOffset;
+    UINT DataLength;
     BOOL Overflowed;
 } CIRCULAR_BUFFER, *LPCIRCULAR_BUFFER;
 

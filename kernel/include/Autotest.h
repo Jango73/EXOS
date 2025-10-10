@@ -33,8 +33,8 @@
 
 // Test results structure
 typedef struct tag_TEST_RESULTS {
-    U32 TestsRun;         // Number of tests/assertions executed
-    U32 TestsPassed;      // Number of successful tests/assertions
+    UINT TestsRun;         // Number of tests/assertions executed
+    UINT TestsPassed;      // Number of successful tests/assertions
 } TEST_RESULTS, *LPTEST_RESULTS;
 
 // Main testing functions

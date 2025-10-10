@@ -59,8 +59,8 @@ typedef struct tag_EXFSFILESYSTEM {
     EXFSMBR Master;
     EXFSSUPER Super;
     SECTOR PartitionStart;
-    U32 PartitionSize;
-    U32 BytesPerCluster;
+    UINT PartitionSize;
+    UINT BytesPerCluster;
     SECTOR DataStart;
     U8* PageBuffer;
     U8* IOBuffer;

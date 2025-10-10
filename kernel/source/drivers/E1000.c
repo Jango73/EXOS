@@ -138,7 +138,7 @@ typedef struct tag_E1000DEVICE {
 
     // MMIO mapping
     LINEAR MmioBase;
-    U32 MmioSize;
+    UINT MmioSize;
 
     // MAC address
     U8 Mac[6];
@@ -146,16 +146,16 @@ typedef struct tag_E1000DEVICE {
     // RX ring
     PHYSICAL RxRingPhysical;
     LINEAR RxRingLinear;
-    U32 RxRingCount;
-    U32 RxHead;
-    U32 RxTail;
+    UINT RxRingCount;
+    UINT RxHead;
+    UINT RxTail;
 
     // TX ring
     PHYSICAL TxRingPhysical;
     LINEAR TxRingLinear;
-    U32 TxRingCount;
-    U32 TxHead;
-    U32 TxTail;
+    UINT TxRingCount;
+    UINT TxHead;
+    UINT TxTail;
 
     // RX buffers
     PHYSICAL RxBufPhysical[E1000_RX_DESC_COUNT];

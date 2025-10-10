@@ -149,7 +149,7 @@ struct tag_VESA_CONTEXT {
     U32 GranularModulo;
     U32 NumBanks;
     U32 CurrentBank;
-    U32 PixelSize;
+    UINT PixelSize;
 };
 
 /***************************************************************************/

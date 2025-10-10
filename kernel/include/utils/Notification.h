@@ -45,7 +45,7 @@
 
 typedef struct tag_NOTIFICATION_DATA {
     U32 EventID;
-    U32 DataSize;
+    UINT DataSize;
     LPVOID Data;
 } NOTIFICATION_DATA, *LPNOTIFICATION_DATA;
 
@@ -77,7 +77,7 @@ typedef struct tag_ARP_FAILED_DATA {
 typedef struct tag_IPV4_PACKET_SENT_DATA {
     U32 DestinationIP;
     U8 Protocol;
-    U32 PayloadLength;
+    UINT PayloadLength;
 } IPV4_PACKET_SENT_DATA, *LPIPV4_PACKET_SENT_DATA;
 
 /************************************************************************/

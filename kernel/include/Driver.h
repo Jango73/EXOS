@@ -85,7 +85,7 @@ typedef struct tag_DRIVER {
 #define DRIVER_CAPS1_RECORDSOUND 0x00000020
 
 typedef struct tag_DRIVERCAPS {
-    U32 Size;
+    UINT Size;
     U32 Caps1;
 } DRIVERCAPS, *LPDRIVERCAPS;
 

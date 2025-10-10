@@ -83,8 +83,8 @@ static U32 TCP_GetConfiguredBufferSize(LPCSTR configKey, U32 fallback, U32 maxLi
 
 typedef struct tag_TCP_GLOBAL_STATE {
     U16 NextEphemeralPort;
-    U32 SendBufferSize;
-    U32 ReceiveBufferSize;
+    UINT SendBufferSize;
+    UINT ReceiveBufferSize;
 } TCP_GLOBAL_STATE, *LPTCP_GLOBAL_STATE;
 
 TCP_GLOBAL_STATE GlobalTCP;

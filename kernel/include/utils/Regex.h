@@ -66,7 +66,7 @@ typedef struct tag_REGEX {
 
     // Token stream
     TOKEN Tokens[REGEX_MAX_TOKENS];
-    U32 TokenCount;
+    UINT TokenCount;
 
     // Flags derived from anchors
     U8 AnchorBOL;

@@ -40,7 +40,7 @@ typedef struct tag_PATHCOMPLETION {
     LPFILESYSTEM FileSystem;
     STR Base[MAX_PATH_NAME];
     STRINGARRAY Matches;
-    U32 Index;
+    UINT Index;
 } PATHCOMPLETION, *LPPATHCOMPLETION;
 
 /***************************************************************************/

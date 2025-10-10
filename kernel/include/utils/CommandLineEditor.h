@@ -31,11 +31,11 @@
 
 typedef struct tag_COMMANDLINE_COMPLETION_CONTEXT {
     LPCSTR Buffer;
-    U32 BufferLength;
-    U32 CursorPosition;
-    U32 TokenStart;
+    UINT BufferLength;
+    UINT CursorPosition;
+    UINT TokenStart;
     LPCSTR Token;
-    U32 TokenLength;
+    UINT TokenLength;
     LPVOID UserData;
 } COMMANDLINE_COMPLETION_CONTEXT, *LPCOMMANDLINE_COMPLETION_CONTEXT;
 
@@ -50,7 +50,7 @@ typedef BOOL (*COMMANDLINEEDITOR_COMPLETION_CALLBACK)(
 
 typedef struct tag_COMMANDLINEEDITOR {
     STRINGARRAY History;
-    U32 HistoryCapacity;
+    UINT HistoryCapacity;
     COMMANDLINEEDITOR_COMPLETION_CALLBACK CompletionCallback;
     LPVOID CompletionUserData;
 } COMMANDLINEEDITOR, *LPCOMMANDLINEEDITOR;

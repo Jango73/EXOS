@@ -79,7 +79,7 @@ typedef struct tag_IOCONTROL {
     U32 SectorHigh;
     U32 NumSectors;
     LPVOID Buffer;
-    U32 BufferSize;
+    UINT BufferSize;
 } IOCONTROL, *LPIOCONTROL;
 
 /***************************************************************************/
