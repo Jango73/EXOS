@@ -180,6 +180,11 @@ typedef struct tag_U128 {
 #define MAX_U8 ((U8)0xFF)
 #define MAX_U16 ((U16)0xFFFF)
 #define MAX_U32 ((U32)0xFFFFFFFF)
+#ifdef __EXOS_32__
+    #define MAX_UINT ((UINT)0xFFFFFFFF)
+#else
+    #define MAX_UINT ((UINT)0xFFFFFFFFFFFFFFFFULL)
+#endif
 
 #ifdef __EXOS_64__
     #define MAX_U64 0xFFFFFFFFFFFFFFFF

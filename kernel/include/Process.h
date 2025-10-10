@@ -74,7 +74,7 @@ struct tag_PROCESS {
     LINEAR HeapBase;
     UINT HeapSize;
     UINT MaximumAllocatedMemory;
-    U32 ExitCode;            // This process' exit code
+    UINT ExitCode;           // This process' exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
     STR WorkFolder[MAX_PATH_NAME];
@@ -191,7 +191,7 @@ void KillProcess(LPPROCESS);
 void DeleteProcessCommit(LPPROCESS);
 void InitSecurity(LPSECURITY);
 BOOL CreateProcess(LPPROCESSINFO);
-U32 Spawn(LPCSTR, LPCSTR);
+UINT Spawn(LPCSTR, LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);
 

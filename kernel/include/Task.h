@@ -58,7 +58,7 @@ struct tag_TASK {
     U32 Priority;             // Current priority of this task
     TASKFUNC Function;        // Start address of this task
     LPVOID Parameter;         // Parameter passed to the function
-    U32 ExitCode;             // This task's exit code
+    UINT ExitCode;            // This task's exit code
     U32 Flags;                // Task creation flags
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
     U32 WakeUpTime;           // System time at which to wake up the task
@@ -73,7 +73,7 @@ typedef struct tag_TASK TASK, *LPTASK;
 BOOL InitKernelTask(void);
 LPTASK CreateTask(LPPROCESS, LPTASKINFO);
 BOOL KillTask(LPTASK Task);
-BOOL SetTaskExitCode(LPTASK Task, U32 Code);
+BOOL SetTaskExitCode(LPTASK Task, UINT Code);
 void DeleteDeadTasksAndProcesses(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);

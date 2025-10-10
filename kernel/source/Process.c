@@ -689,9 +689,9 @@ Out:
  *
  * @param CommandLine Full command line including executable name and arguments.
  * @param WorkFolder Working directory to use, or empty/NULL to inherit from parent.
- * @return The process exit code on success, MAX_U32 on failure.
+ * @return The process exit code on success, MAX_UINT on failure.
  */
-U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
+UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     DEBUG(TEXT("[Spawn] Launching : %s"), CommandLine);
 
     PROCESSINFO ProcessInfo;
@@ -721,7 +721,7 @@ U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     }
 
     if (!CreateProcess(&ProcessInfo) || ProcessInfo.Process == NULL) {
-        return MAX_U32;
+        return MAX_UINT;
     }
 
     // Wait for the process to complete
@@ -736,13 +736,13 @@ U32 Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
 
     if (Result == WAIT_TIMEOUT) {
         DEBUG(TEXT("[Spawn] Process wait timed out"));
-        return MAX_U32;
+        return MAX_UINT;
     } else if (Result != WAIT_OBJECT_0) {
-        DEBUG(TEXT("[Spawn] Process wait failed: %u"), Result);
-        return MAX_U32;
+        DEBUG(TEXT("[Spawn] Process wait failed: %lu"), Result);
+        return MAX_UINT;
     }
 
-    DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %u"), WaitInfo.ExitCodes[0]);
+    DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %lu"), WaitInfo.ExitCodes[0]);
     return WaitInfo.ExitCodes[0];
 }
 

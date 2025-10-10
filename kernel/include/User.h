@@ -331,7 +331,7 @@ typedef struct tag_WAITINFO {
     U32 MilliSeconds;
     U32 Flags;
     HANDLE Objects[WAITINFO_MAX_OBJECTS];
-    U32 ExitCodes[WAITINFO_MAX_OBJECTS];
+    UINT ExitCodes[WAITINFO_MAX_OBJECTS];
 } WAITINFO, *LPWAITINFO;
 
 typedef struct tag_ALLOCREGIONINFO {

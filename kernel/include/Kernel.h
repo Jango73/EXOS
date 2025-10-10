@@ -121,7 +121,7 @@ typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 typedef struct {
     LPVOID Object;
     U64 ID;
-    U32 ExitCode;
+    UINT ExitCode;
 } OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
 
 typedef struct tag_KERNELDATA {
@@ -162,10 +162,10 @@ U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
-void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
+void StoreObjectTerminationState(LPVOID Object, UINT ExitCode);
 
 void KernelObjectDestructor(LPVOID);
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
+LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
 

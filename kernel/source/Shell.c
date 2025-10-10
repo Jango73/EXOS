@@ -1600,8 +1600,8 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
                 DEBUG(TEXT("Process started in background"));
             }
         } else {
-            U32 ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
-            return (ExitCode != MAX_U32);
+            UINT ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
+            return (ExitCode != MAX_UINT);
         }
     }
 

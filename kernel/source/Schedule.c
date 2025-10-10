@@ -590,7 +590,7 @@ static BOOL IsObjectSignaled(LPVOID Object) {
 
 /************************************************************************/
 
-static U32 GetObjectExitCode(LPVOID Object) {
+static UINT GetObjectExitCode(LPVOID Object) {
 
     LockMutex(MUTEX_KERNEL, INFINITY);
 
@@ -602,14 +602,14 @@ static U32 GetObjectExitCode(LPVOID Object) {
     );
 
     SAFE_USE(TermState) {
-        DEBUG(TEXT("[GetObjectExitCode] Object %x found in termination cache, ExitCode=%u"), Object, TermState->ExitCode);
+        DEBUG(TEXT("[GetObjectExitCode] Object %x found in termination cache, ExitCode=%lu"), Object, TermState->ExitCode);
         UnlockMutex(MUTEX_KERNEL);
         return TermState->ExitCode;
     }
 
     UnlockMutex(MUTEX_KERNEL);
 
-    return MAX_U32;
+    return MAX_UINT;
 }
 
 /************************************************************************/

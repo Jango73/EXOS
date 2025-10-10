@@ -308,13 +308,13 @@ void KernelObjectDestructor(LPVOID Object) {
  * @param ObjectTypeID ID from ID.h to identify the object type
  * @return Pointer to the allocated and initialized object, or NULL on failure
  */
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
+LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     LPLISTNODE Object;
     U8 Identifier[UUID_BINARY_SIZE];
     U64 ObjectID = U64_0;
     U32 Index;
 
-    DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
+    DEBUG(TEXT("[CreateKernelObject] Creating object of size %lu with ID %x"), Size, ObjectTypeID);
 
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
@@ -481,7 +481,7 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
  * @param Object Handle of the terminated object
  * @param ExitCode Exit code of the object
  */
-void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
+void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
     LPOBJECT KernelObject = (LPOBJECT)Object;
 
     SAFE_USE_VALID(KernelObject) {
@@ -497,7 +497,7 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
             TermState->ID = KernelObject->ID;
             CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
 
-            DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%u"),
+            DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%lu"),
                   KernelObject,
                   IdHigh,
                   IdLow,
