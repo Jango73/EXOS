@@ -584,6 +584,63 @@ U32 StringToU32(LPCSTR Text) {
 
 /***************************************************************************/
 
+#ifdef __EXOS_32__
+// Helper union used to split a 64-bit magnitude without relying on compiler-provided
+// runtime helpers when targeting the 32-bit toolchain.
+typedef union tag_U64_SPLIT {
+    unsigned long long Value;
+    struct {
+        U32 Low;
+        U32 High;
+    } Parts;
+} U64_SPLIT;
+
+// Manual 64-bit by 32-bit division that only relies on 32-bit operations. This keeps
+// the i386 build self-contained by avoiding references to __udivdi3/__umoddi3.
+static unsigned long long DivideUnsignedMagnitude(unsigned long long Value, U32 Base, U32* Remainder) {
+    U64_SPLIT Input;
+    U64_SPLIT Output;
+    U32 RemainderValue = 0;
+    const U32 BaseValue = Base;
+
+    Input.Value = Value;
+    Output.Parts.High = 0;
+    Output.Parts.Low = 0;
+
+    for (INT Bit = 31; Bit >= 0; Bit--) {
+        RemainderValue <<= 1;
+        if ((Input.Parts.High >> Bit) & 1u) {
+            RemainderValue |= 1u;
+        }
+        if (RemainderValue >= BaseValue) {
+            RemainderValue -= BaseValue;
+            Output.Parts.High |= (1u << Bit);
+        }
+    }
+
+    for (INT Bit = 31; Bit >= 0; Bit--) {
+        RemainderValue <<= 1;
+        if ((Input.Parts.Low >> Bit) & 1u) {
+            RemainderValue |= 1u;
+        }
+        if (RemainderValue >= BaseValue) {
+            RemainderValue -= BaseValue;
+            Output.Parts.Low |= (1u << Bit);
+        }
+    }
+
+    *Remainder = RemainderValue;
+    return Output.Value;
+}
+#else
+static unsigned long long DivideUnsignedMagnitude(unsigned long long Value, U32 Base, U32* Remainder) {
+    *Remainder = (U32)(Value % (unsigned long long)Base);
+    return Value / (unsigned long long)Base;
+}
+#endif
+
+/***************************************************************************/
+
 /**
  * @brief Converts a number to formatted string representation in specified base.
  *
@@ -642,14 +699,17 @@ LPSTR NumberToString(
     i = 0;
 
     // Convert number to digits (stored in reverse order)
-    if (Number == 0)
+    if (Number == 0) {
         Temp[i++] = '0';  // Special case for zero
-    else
-        while (Number != 0) {
-            U32 Remainder = (U32)(Number % (unsigned long long)Base);
+    } else {
+        unsigned long long WorkingNumber = Number;
+
+        while (WorkingNumber != 0ull) {
+            U32 Remainder = 0;
+            WorkingNumber = DivideUnsignedMagnitude(WorkingNumber, (U32)Base, &Remainder);
             Temp[i++] = Digits[Remainder];
-            Number /= (unsigned long long)Base;
         }
+    }
 
     // Ensure minimum precision (pad with zeros if needed)
     if (i > Precision) Precision = i;
