@@ -845,7 +845,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.RFlags = RFLAGS_IF | RFLAGS_ALWAYS_1;
     Task->Arch.Context.Registers.CR3 = (U64)Process->PageDirectory;
 
-    __asm__ __volatile__("mov %%cr4, %0" : "=r"(ControlRegister4));
+    ControlRegister4 = GetCR4();
     Task->Arch.Context.Registers.CR4 = ControlRegister4;
     Task->Arch.Context.Registers.RIP = (U64)VMA_TASK_RUNNER;
 

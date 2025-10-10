@@ -43,15 +43,6 @@ extern U32 IRQMask_A1_RM;
 
 // Functions in System.asm
 
-#if defined(__EXOS_ARCH_X86_64__)
-extern U32 GetCR4(void);
-extern U32 GetESP(void);
-extern U32 GetEBP(void);
-extern U32 GetDR6(void);
-extern U32 GetDR7(void);
-extern void SetDR6(U32);
-extern void SetDR7(U32);
-#endif
 extern void GetCPUID(LPVOID);
 extern U32 DisablePaging(void);
 extern U32 EnablePaging(void);

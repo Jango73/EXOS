@@ -315,6 +315,97 @@ typedef struct tag_KERNELDATA_X86_64 {
 
 /***************************************************************************/
 
+/***************************************************************************/
+// Inline register helpers
+/***************************************************************************/
+
+/************************************************************************//**
+ * @brief Read the content of the CR4 control register.
+ */
+static inline U64 GetCR4(void) {
+    U64 Value;
+
+    __asm__ __volatile__("mov %%cr4, %0" : "=r"(Value));
+
+    return Value;
+}
+
+/***************************************************************************/
+
+/************************************************************************//**
+ * @brief Read the current stack pointer (RSP).
+ */
+static inline U64 GetESP(void) {
+    U64 Value;
+
+    __asm__ __volatile__("mov %%rsp, %0" : "=r"(Value));
+
+    return Value;
+}
+
+/***************************************************************************/
+
+/************************************************************************//**
+ * @brief Read the current frame pointer (RBP).
+ */
+static inline U64 GetEBP(void) {
+    U64 Value;
+
+    __asm__ __volatile__("mov %%rbp, %0" : "=r"(Value));
+
+    return Value;
+}
+
+/***************************************************************************/
+
+/************************************************************************//**
+ * @brief Read the content of the DR6 debug status register.
+ */
+static inline U64 GetDR6(void) {
+    U64 Value;
+
+    __asm__ __volatile__("mov %%dr6, %0" : "=r"(Value));
+
+    return Value;
+}
+
+/***************************************************************************/
+
+/************************************************************************//**
+ * @brief Read the content of the DR7 debug control register.
+ */
+static inline U64 GetDR7(void) {
+    U64 Value;
+
+    __asm__ __volatile__("mov %%dr7, %0" : "=r"(Value));
+
+    return Value;
+}
+
+/***************************************************************************/
+
+/************************************************************************//**
+ * @brief Write the debug status register (DR6).
+ *
+ * @param Value Value to store in DR6.
+ */
+static inline void SetDR6(U64 Value) {
+    __asm__ __volatile__("mov %0, %%rax; mov %%rax, %%dr6" : : "r"(Value) : "rax");
+}
+
+/***************************************************************************/
+
+/************************************************************************//**
+ * @brief Write the debug control register (DR7).
+ *
+ * @param Value Value to store in DR7.
+ */
+static inline void SetDR7(U64 Value) {
+    __asm__ __volatile__("mov %0, %%rax; mov %%rax, %%dr7" : : "r"(Value) : "rax");
+}
+
+/***************************************************************************/
+
 extern KERNELDATA_X86_64 Kernel_i386;
 
 struct tag_TASK;
