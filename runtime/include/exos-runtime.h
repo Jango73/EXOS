@@ -56,35 +56,6 @@ extern "C" {
 
 #define TZNAME_MAX 30
 
-/************************************************************************/
-
-#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-
-static inline unsigned short htons(unsigned short Value) { return Value; }
-
-static inline unsigned short ntohs(unsigned short Value) { return Value; }
-
-static inline unsigned long htonl(unsigned long Value) { return Value; }
-
-static inline unsigned long ntohl(unsigned long Value) { return Value; }
-
-#elif defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-
-static inline unsigned short htons(unsigned short Value) { return (unsigned short)((Value << 8) | (Value >> 8)); }
-
-static inline unsigned short ntohs(unsigned short Value) { return htons(Value); }
-
-static inline unsigned long htonl(unsigned long Value) {
-    return ((Value & 0x000000FFU) << 24) | ((Value & 0x0000FF00U) << 8) | ((Value & 0x00FF0000U) >> 8) |
-           ((Value & 0xFF000000U) >> 24);
-}
-
-static inline unsigned long ntohl(unsigned long Value) { return htonl(Value); }
-
-#else
-    #error "Endianness not defined"
-#endif
-
 #ifndef NULL
 #define NULL 0L
 #endif
@@ -114,6 +85,59 @@ static inline unsigned long ntohl(unsigned long Value) { return htonl(Value); }
     typedef unsigned long size_t;
 #else
     #error "Unsupported compiler for Base.h"
+#endif
+
+/************************************************************************/
+// POSIX Socket types
+
+typedef uint32_t socklen_t;
+
+#pragma pack(push, 1)
+struct sockaddr {
+    unsigned short sa_family;
+    char sa_data[14];
+};
+
+struct sockaddr_in {
+    unsigned short sin_family;
+    unsigned short sin_port;
+    unsigned int sin_addr;
+    unsigned char sin_zero[8];
+};
+#pragma pack(pop)
+
+// Socket option constants
+#define SOL_SOCKET                1
+#define SO_RCVTIMEO               20
+
+/************************************************************************/
+// Byte order inline functions
+
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+
+static inline unsigned short htons(unsigned short Value) { return Value; }
+
+static inline unsigned short ntohs(unsigned short Value) { return Value; }
+
+static inline unsigned long htonl(unsigned long Value) { return Value; }
+
+static inline unsigned long ntohl(unsigned long Value) { return Value; }
+
+#elif defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+
+static inline unsigned short htons(unsigned short Value) { return (unsigned short)((Value << 8) | (Value >> 8)); }
+
+static inline unsigned short ntohs(unsigned short Value) { return htons(Value); }
+
+static inline unsigned long htonl(unsigned long Value) {
+    return ((Value & 0x000000FFU) << 24) | ((Value & 0x0000FF00U) << 8) | ((Value & 0x00FF0000U) >> 8) |
+           ((Value & 0xFF000000U) >> 24);
+}
+
+static inline unsigned long ntohl(unsigned long Value) { return htonl(Value); }
+
+#else
+    #error "Endianness not defined"
 #endif
 
 /************************************************************************/
@@ -184,26 +208,6 @@ extern int fgetc(FILE*);
 
 /************************************************************************/
 // POSIX Socket interface
-
-typedef unsigned int socklen_t;
-
-#pragma pack(push, 1)
-struct sockaddr {
-    unsigned short sa_family;
-    char sa_data[14];
-};
-
-struct sockaddr_in {
-    unsigned short sin_family;
-    unsigned short sin_port;
-    unsigned int sin_addr;
-    unsigned char sin_zero[8];
-};
-#pragma pack(pop)
-
-// Socket option constants
-#define SOL_SOCKET                1
-#define SO_RCVTIMEO               20
 
 int     socket(int domain, int type, int protocol);
 int     bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);

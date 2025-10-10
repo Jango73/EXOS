@@ -4,6 +4,10 @@
 
 - NetworkManager.c:73 : config file (exos.toml) IS able to handle per device settings.
 
+## Logs
+
+- Use __func__ to automatically include function name
+
 ## Errors
 
 - Functions returning U32 MUST return DF_ERROR_XXXX codes : meaning 0 on success, an error otherwise.
@@ -54,5 +58,3 @@
 ## Desktop
 
 - Continue graphics UI
-
-## 
