@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#ifndef SEGOFS_H_INCLUDED
-#define SEGOFS_H_INCLUDED
+#ifndef VBR_REALMODE_UTILS_H_INCLUDED
+#define VBR_REALMODE_UTILS_H_INCLUDED
 
 /************************************************************************/
 // Common low-memory layout used by the VBR payload
@@ -44,36 +44,7 @@
 #define LOADADDRESS_OFS 0x0000
 
 /************************************************************************/
-// Shared helpers exposed by the common payload code
-
-extern STR TempString[128];
-
-void BootDebugPrint(LPCSTR Str);
-void BootVerbosePrint(LPCSTR Str);
-void BootErrorPrint(LPCSTR Str);
-const char* BootGetFileName(const char* Path);
-
-/************************************************************************/
-// Functions in vbr-payload-a.asm
-
-extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
-extern void MemorySet(LPVOID Base, U32 What, U32 Size);
-extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
-extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
-extern U32 VESAGetModeInfo(U16 Mode, U32 Buffer);
-extern U32 VESASetMode(U16 Mode);
-extern void SetPixel24(U32 x, U32 y, U32 color, U32 framebuffer);
-extern void EnableA20(void);
-
-extern void __attribute__((noreturn)) StubJumpToImage(
-    U32 GDTR,
-    U32 PageStructurePA,
-    U32 KernelEntryLo,
-    U32 KernelEntryHi,
-    U32 MultibootInfoPtr,
-    U32 MultibootMagic);
-
-/************************************************************************/
+// Inline helpers for segment arithmetic
 
 // Pack segment and offset into a single U32 (seg:ofs as 0xSSSSOOOO)
 static inline U32 PackSegOfs(U16 Seg, U16 Ofs) {
@@ -112,4 +83,34 @@ static inline void Hang(void) {
     } while (0);
 }
 
-#endif // SEGOFS_H_INCLUDED
+/************************************************************************/
+// Shared helpers exposed by the common payload code
+
+extern STR TempString[128];
+
+void BootDebugPrint(LPCSTR Str);
+void BootVerbosePrint(LPCSTR Str);
+void BootErrorPrint(LPCSTR Str);
+const char* BootGetFileName(const char* Path);
+
+/************************************************************************/
+// Functions in vbr-payload-a.asm
+
+extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
+extern void MemorySet(LPVOID Base, U32 What, U32 Size);
+extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
+extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
+extern U32 VESAGetModeInfo(U16 Mode, U32 Buffer);
+extern U32 VESASetMode(U16 Mode);
+extern void SetPixel24(U32 x, U32 y, U32 color, U32 framebuffer);
+extern void EnableA20(void);
+
+extern void __attribute__((noreturn)) StubJumpToImage(
+    U32 GDTR,
+    U32 PageStructurePA,
+    U32 KernelEntryLo,
+    U32 KernelEntryHi,
+    U32 MultibootInfoPtr,
+    U32 MultibootMagic);
+
+#endif // VBR_REALMODE_UTILS_H_INCLUDED

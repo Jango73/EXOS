@@ -28,9 +28,9 @@
 
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
-#include "../include/Multiboot.h"
-#include "../include/SegOfs.h"
-#include "../include/VbrPayloadShared.h"
+#include "../include/vbr-multiboot.h"
+#include "../include/vbr-realmode-utils.h"
+#include "../include/vbr-payload-shared.h"
 #include "../../kernel/include/arch/i386/i386.h"
 
 /************************************************************************/

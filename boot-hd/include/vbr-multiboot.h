@@ -1,7 +1,6 @@
-
 /************************************************************************\
 
-    EXOS Kernel
+    EXOS Bootloader
     Copyright (c) 1999-2025 Jango73
 
     This program is free software: you can redistribute it and/or modify
@@ -22,12 +21,12 @@
 
 \************************************************************************/
 
-#ifndef MULTIBOOT_H_INCLUDED
-#define MULTIBOOT_H_INCLUDED
+#ifndef VBR_MULTIBOOT_H_INCLUDED
+#define VBR_MULTIBOOT_H_INCLUDED
 
 /************************************************************************/
 
-#include "Base.h"
+#include "../../kernel/include/Base.h"
 
 /************************************************************************/
 
@@ -35,18 +34,18 @@
 #define MULTIBOOT_BOOTLOADER_MAGIC 0x2BADB002
 
 // Multiboot info flags
-#define MULTIBOOT_INFO_MEMORY         0x00000001
-#define MULTIBOOT_INFO_BOOTDEV        0x00000002
-#define MULTIBOOT_INFO_CMDLINE        0x00000004
-#define MULTIBOOT_INFO_MODS           0x00000008
-#define MULTIBOOT_INFO_AOUT_SYMS      0x00000010
-#define MULTIBOOT_INFO_ELF_SHDR       0x00000020
-#define MULTIBOOT_INFO_MEM_MAP        0x00000040
-#define MULTIBOOT_INFO_DRIVE_INFO     0x00000080
-#define MULTIBOOT_INFO_CONFIG_TABLE   0x00000100
+#define MULTIBOOT_INFO_MEMORY           0x00000001
+#define MULTIBOOT_INFO_BOOTDEV          0x00000002
+#define MULTIBOOT_INFO_CMDLINE          0x00000004
+#define MULTIBOOT_INFO_MODS             0x00000008
+#define MULTIBOOT_INFO_AOUT_SYMS        0x00000010
+#define MULTIBOOT_INFO_ELF_SHDR         0x00000020
+#define MULTIBOOT_INFO_MEM_MAP          0x00000040
+#define MULTIBOOT_INFO_DRIVE_INFO       0x00000080
+#define MULTIBOOT_INFO_CONFIG_TABLE     0x00000100
 #define MULTIBOOT_INFO_BOOT_LOADER_NAME 0x00000200
-#define MULTIBOOT_INFO_APM_TABLE      0x00000400
-#define MULTIBOOT_INFO_VBE_INFO       0x00000800
+#define MULTIBOOT_INFO_APM_TABLE        0x00000400
+#define MULTIBOOT_INFO_VBE_INFO         0x00000800
 #define MULTIBOOT_INFO_FRAMEBUFFER_INFO 0x00001000
 
 // Multiboot memory map entry types
@@ -55,6 +54,13 @@
 #define MULTIBOOT_MEMORY_ACPI_RECLAIMABLE 3
 #define MULTIBOOT_MEMORY_NVS          4
 #define MULTIBOOT_MEMORY_BADRAM       5
+
+// E820 memory types
+#define E820_AVAILABLE    1
+#define E820_RESERVED     2
+#define E820_ACPI         3
+#define E820_NVS          4
+#define E820_UNUSABLE     5
 
 // Multiboot memory map structure
 typedef struct {
@@ -113,22 +119,4 @@ typedef struct {
 
 /************************************************************************/
 
-// E820 memory types
-#define E820_AVAILABLE    1
-#define E820_RESERVED     2
-#define E820_ACPI         3
-#define E820_NVS          4
-#define E820_UNUSABLE     5
-
-// E820 memory map entry structure (for conversion) - renamed to avoid conflict
-typedef struct {
-    U32 BaseAddrLow;
-    U32 BaseAddrHigh;
-    U32 LengthLow;
-    U32 LengthHigh;
-    U32 Type;
-} __attribute__((packed)) MULTIBOOT_E820ENTRY;
-
-/************************************************************************/
-
-#endif  // MULTIBOOT_H_INCLUDED
+#endif  // VBR_MULTIBOOT_H_INCLUDED

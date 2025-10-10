@@ -27,7 +27,7 @@
 #include "Arch.h"
 #include "Log.h"
 #include "System.h"
-#include "Multiboot.h"
+#include "vbr-multiboot.h"
 
 /************************************************************************/
 

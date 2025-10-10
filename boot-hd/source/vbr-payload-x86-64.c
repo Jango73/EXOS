@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#include "../include/LongModeStructures.h"
-#include "../include/VbrPayloadShared.h"
+#include "../include/vbr-payload-x86-64.h"
+#include "../include/vbr-payload-shared.h"
 
 /************************************************************************/
 

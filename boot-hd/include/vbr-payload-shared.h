@@ -24,10 +24,12 @@
 #define VBR_PAYLOAD_SHARED_H_INCLUDED
 
 #include "../../kernel/include/String.h"
-#include "Multiboot.h"
-#include "SegOfs.h"
+#include "vbr-multiboot.h"
+#include "vbr-realmode-utils.h"
 
-/* Low memory pages reserved by VBR */
+/************************************************************************/
+// Low memory pages reserved by VBR
+/************************************************************************/
 #define LOW_MEMORY_PAGE_1 0x1000
 #define LOW_MEMORY_PAGE_2 0x2000
 #define LOW_MEMORY_PAGE_3 0x3000
@@ -36,6 +38,13 @@
 #define LOW_MEMORY_PAGE_6 0x6000
 #define LOW_MEMORY_PAGE_7 0x7000
 #define LOW_MEMORY_PAGE_8 0x8000
+
+/************************************************************************/
+// Constants shared with the architecture specific code
+/************************************************************************/
+#define E820_MAX_ENTRIES 32u
+#define E820_ENTRY_SIZE 24u
+#define E820_SIZE (E820_MAX_ENTRIES * E820_ENTRY_SIZE)
 
 /************************************************************************/
 // E820 memory map
@@ -47,11 +56,7 @@ typedef struct __attribute__((packed)) tag_E820ENTRY {
     U32 Attributes;
 } E820ENTRY;
 
-/************************************************************************/
-// Constants shared with the architecture specific code
-/************************************************************************/
-#define E820_MAX_ENTRIES 32
-#define E820_SIZE (E820_MAX_ENTRIES * (UINT)sizeof(E820ENTRY))
+struct tag_SEGMENT_DESCRIPTOR;
 
 /************************************************************************/
 // Globals provided by the common payload implementation
@@ -68,8 +73,6 @@ extern STR TempString[128];
 /************************************************************************/
 // Common helpers exposed to the architecture specific units
 /************************************************************************/
-struct tag_SEGMENT_DESCRIPTOR;
-
 U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize);
 
 void BootDebugPrint(LPCSTR Str);

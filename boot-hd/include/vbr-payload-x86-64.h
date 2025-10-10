@@ -20,8 +20,8 @@
     Long mode paging structures for the VBR payload
 
 \************************************************************************/
-#ifndef LONG_MODE_STRUCTURES_H_INCLUDED
-#define LONG_MODE_STRUCTURES_H_INCLUDED
+#ifndef VBR_PAYLOAD_X86_64_H_INCLUDED
+#define VBR_PAYLOAD_X86_64_H_INCLUDED
 
 #include "../../kernel/include/Base.h"
 
@@ -86,4 +86,4 @@ typedef X86_64_PDPT_ENTRY* LPPDPT;
 typedef X86_64_PAGE_DIRECTORY_ENTRY* LPPAGE_DIRECTORY;
 typedef X86_64_PAGE_TABLE_ENTRY* LPPAGE_TABLE;
 
-#endif // LONG_MODE_STRUCTURES_H_INCLUDED
+#endif // VBR_PAYLOAD_X86_64_H_INCLUDED

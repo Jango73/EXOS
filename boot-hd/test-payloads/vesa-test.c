@@ -28,7 +28,7 @@
 #include "../../kernel/include/arch/i386/i386.h"
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
-#include "../include/SegOfs.h"
+#include "../include/vbr-realmode-utils.h"
 
 /************************************************************************/
 

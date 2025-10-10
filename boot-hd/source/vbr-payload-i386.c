@@ -23,7 +23,7 @@
 
 #include "../../kernel/include/arch/i386/i386-Memory.h"
 #include "../../kernel/include/arch/i386/i386.h"
-#include "../include/VbrPayloadShared.h"
+#include "../include/vbr-payload-shared.h"
 
 /************************************************************************/
 
