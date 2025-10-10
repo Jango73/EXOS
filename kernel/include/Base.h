@@ -433,7 +433,7 @@ typedef U32 BOOL;
 // These macros give the offset of a structure member and true if a structure
 // of a specified size contains the specified member
 
-#define MEMBER_OFFSET(struc, member) ((U32)(&(((struc*)NULL)->member)))
+#define MEMBER_OFFSET(struc, member) ((UINT)(&(((struc*)NULL)->member)))
 #define HAS_MEMBER(struc, member, struc_size) (MEMBER_OFFSET(struc, member) < struc_size)
 
 /***************************************************************************/
