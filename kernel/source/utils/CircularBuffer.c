@@ -36,8 +36,8 @@ static BOOL CircularBuffer_TryGrow(LPCIRCULAR_BUFFER Buffer, U32 AdditionalBytes
         return FALSE;
     }
 
-    U32 RequiredSize = Buffer->DataLength + AdditionalBytes;
-    U32 NewSize = Buffer->Size;
+    UINT RequiredSize = Buffer->DataLength + AdditionalBytes;
+    UINT NewSize = Buffer->Size;
 
     if (RequiredSize <= NewSize) {
         return TRUE;
@@ -65,16 +65,16 @@ static BOOL CircularBuffer_TryGrow(LPCIRCULAR_BUFFER Buffer, U32 AdditionalBytes
     }
 
     if (Buffer->DataLength > 0) {
-        U32 ReadPos = Buffer->ReadOffset % Buffer->Size;
-        U32 FirstChunk = Buffer->Size - ReadPos;
+        UINT ReadPos = Buffer->ReadOffset % Buffer->Size;
+        UINT FirstChunk = Buffer->Size - ReadPos;
         if (FirstChunk > Buffer->DataLength) {
             FirstChunk = Buffer->DataLength;
         }
 
-        MemoryCopy(NewData, &Buffer->Data[ReadPos], FirstChunk);
+        MemoryCopy(NewData, &Buffer->Data[ReadPos], (U32)FirstChunk);
 
         if (Buffer->DataLength > FirstChunk) {
-            MemoryCopy(NewData + FirstChunk, &Buffer->Data[0], Buffer->DataLength - FirstChunk);
+            MemoryCopy(NewData + FirstChunk, &Buffer->Data[0], (U32)(Buffer->DataLength - FirstChunk));
         }
     }
 
@@ -84,7 +84,7 @@ static BOOL CircularBuffer_TryGrow(LPCIRCULAR_BUFFER Buffer, U32 AdditionalBytes
     Buffer->AllocatedData = NewData;
     Buffer->Size = NewSize;
     Buffer->ReadOffset = 0;
-    Buffer->WriteOffset = Buffer->DataLength;
+    Buffer->WriteOffset = (U32)Buffer->DataLength;
 
     if (OldAllocated) {
         KernelHeapFree(OldAllocated);
@@ -125,17 +125,17 @@ U32 CircularBuffer_Write(LPCIRCULAR_BUFFER Buffer, const U8* Data, U32 Length) {
         return 0;
     }
 
-    U32 AvailableSpace = Buffer->Size - Buffer->DataLength;
+    UINT AvailableSpace = (Buffer->Size > Buffer->DataLength) ? (Buffer->Size - Buffer->DataLength) : 0;
 
     if (Length > AvailableSpace) {
         if (CircularBuffer_TryGrow(Buffer, Length)) {
-            AvailableSpace = Buffer->Size - Buffer->DataLength;
+            AvailableSpace = (Buffer->Size > Buffer->DataLength) ? (Buffer->Size - Buffer->DataLength) : 0;
         } else {
             Buffer->Overflowed = TRUE;
         }
     }
 
-    U32 BytesToWrite = (Length < AvailableSpace) ? Length : AvailableSpace;
+    UINT BytesToWrite = (Length < AvailableSpace) ? Length : AvailableSpace;
 
     if (BytesToWrite == 0) {
         if (Length > 0) {
@@ -145,26 +145,26 @@ U32 CircularBuffer_Write(LPCIRCULAR_BUFFER Buffer, const U8* Data, U32 Length) {
     }
 
     // Calculate actual write position in circular buffer
-    U32 WritePos = Buffer->WriteOffset % Buffer->Size;
-    U32 SpaceToEnd = Buffer->Size - WritePos;
+    UINT WritePos = Buffer->WriteOffset % Buffer->Size;
+    UINT SpaceToEnd = Buffer->Size - WritePos;
 
     if (BytesToWrite <= SpaceToEnd) {
         // Data fits without wrapping
-        MemoryCopy(&Buffer->Data[WritePos], Data, BytesToWrite);
+        MemoryCopy(&Buffer->Data[WritePos], Data, (U32)BytesToWrite);
     } else {
         // Need to wrap around
-        MemoryCopy(&Buffer->Data[WritePos], Data, SpaceToEnd);
-        MemoryCopy(&Buffer->Data[0], Data + SpaceToEnd, BytesToWrite - SpaceToEnd);
+        MemoryCopy(&Buffer->Data[WritePos], Data, (U32)SpaceToEnd);
+        MemoryCopy(&Buffer->Data[0], Data + SpaceToEnd, (U32)(BytesToWrite - SpaceToEnd));
     }
 
-    Buffer->WriteOffset += BytesToWrite;
+    Buffer->WriteOffset += (U32)BytesToWrite;
     Buffer->DataLength += BytesToWrite;
 
     if (BytesToWrite < Length) {
         Buffer->Overflowed = TRUE;
     }
 
-    return BytesToWrite;
+    return (U32)BytesToWrite;
 }
 
 /************************************************************************/
@@ -178,23 +178,24 @@ U32 CircularBuffer_Read(LPCIRCULAR_BUFFER Buffer, U8* Data, U32 Length) {
     }
 
     // Calculate available data
-    U32 BytesToRead = (Length < Buffer->DataLength) ? Length : Buffer->DataLength;
+    UINT BytesAvailable = Buffer->DataLength;
+    U32 BytesToRead = (Length < (U32)BytesAvailable) ? Length : (U32)BytesAvailable;
 
     if (BytesToRead == 0) {
         return 0;
     }
 
     // Calculate actual read position in circular buffer
-    U32 ReadPos = Buffer->ReadOffset % Buffer->Size;
-    U32 DataToEnd = Buffer->Size - ReadPos;
+    UINT ReadPos = Buffer->ReadOffset % Buffer->Size;
+    UINT DataToEnd = Buffer->Size - ReadPos;
 
     if (BytesToRead <= DataToEnd) {
         // Data fits without wrapping
         MemoryCopy(Data, &Buffer->Data[ReadPos], BytesToRead);
     } else {
         // Need to wrap around
-        MemoryCopy(Data, &Buffer->Data[ReadPos], DataToEnd);
-        MemoryCopy(Data + DataToEnd, &Buffer->Data[0], BytesToRead - DataToEnd);
+        MemoryCopy(Data, &Buffer->Data[ReadPos], (U32)DataToEnd);
+        MemoryCopy(Data + DataToEnd, &Buffer->Data[0], BytesToRead - (U32)DataToEnd);
     }
 
     Buffer->ReadOffset += BytesToRead;
@@ -218,7 +219,7 @@ U32 CircularBuffer_GetAvailableData(LPCIRCULAR_BUFFER Buffer) {
     if (!Buffer) {
         return 0;
     }
-    return Buffer->DataLength;
+    return (Buffer->DataLength > (UINT)MAX_U32) ? MAX_U32 : (U32)Buffer->DataLength;
 }
 
 /************************************************************************/
@@ -230,7 +231,8 @@ U32 CircularBuffer_GetAvailableSpace(LPCIRCULAR_BUFFER Buffer) {
     if (!Buffer) {
         return 0;
     }
-    return Buffer->Size - Buffer->DataLength;
+    UINT Available = (Buffer->Size > Buffer->DataLength) ? (Buffer->Size - Buffer->DataLength) : 0;
+    return (Available > (UINT)MAX_U32) ? MAX_U32 : (U32)Available;
 }
 
 /************************************************************************/

@@ -150,7 +150,7 @@ U32 Notification_Unregister(LPNOTIFICATION_CONTEXT Context, U32 EventID, NOTIFIC
  * @param Data Event data.
  * @param DataSize Size of event data.
  */
-void Notification_Send(LPNOTIFICATION_CONTEXT Context, U32 EventID, LPVOID Data, U32 DataSize) {
+void Notification_Send(LPNOTIFICATION_CONTEXT Context, U32 EventID, LPVOID Data, UINT DataSize) {
     LPNOTIFICATION_ENTRY Current;
     NOTIFICATION_DATA NotificationData;
     U32 CallbackCount = 0;
@@ -165,7 +165,7 @@ void Notification_Send(LPNOTIFICATION_CONTEXT Context, U32 EventID, LPVOID Data,
     NotificationData.Data = Data;
     NotificationData.DataSize = DataSize;
 
-    DEBUG(TEXT("[Notification_Send] Sending event %x with %u bytes data"), EventID, DataSize);
+    DEBUG(TEXT("[Notification_Send] Sending event %x with %lu bytes data"), EventID, DataSize);
 
     Size = ListGetSize(Context->NotificationList);
     for (Index = 0; Index < Size; Index++) {

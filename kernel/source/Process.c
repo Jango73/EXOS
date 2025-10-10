@@ -76,8 +76,8 @@ void InitializeKernelProcess(void) {
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
     KernelProcess.HeapSize = N_1MB;
 
-    DEBUG(TEXT("[InitializeKernelProcess] Memory : %x"), KernelStartup.MemorySize);
-    DEBUG(TEXT("[InitializeKernelProcess] Pages : %x"), KernelStartup.PageCount);
+    DEBUG(TEXT("[InitializeKernelProcess] Memory : %lX"), KernelStartup.MemorySize);
+    DEBUG(TEXT("[InitializeKernelProcess] Pages : %lX"), KernelStartup.PageCount);
 
     LINEAR HeapBase = AllocKernelRegion(0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 

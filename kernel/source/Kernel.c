@@ -229,8 +229,8 @@ void DumpCriticalInformation(void) {
     DEBUG(TEXT("  StackTop = %X"), KernelStartup.StackTop);
     DEBUG(TEXT("  IRQMask_21_RM = %X"), KernelStartup.IRQMask_21_RM);
     DEBUG(TEXT("  IRQMask_A1_RM = %X"), KernelStartup.IRQMask_A1_RM);
-    DEBUG(TEXT("  MemorySize = %X"), KernelStartup.MemorySize);
-    DEBUG(TEXT("  PageCount = %X"), KernelStartup.PageCount);
+    DEBUG(TEXT("  MemorySize = %lX"), KernelStartup.MemorySize);
+    DEBUG(TEXT("  PageCount = %lX"), KernelStartup.PageCount);
     DEBUG(TEXT("  E820 entry count = %X"), KernelStartup.E820_Count);
 }
 
@@ -249,7 +249,7 @@ static void Welcome(void) {
     //-------------------------------------
     // Print information on memory
 
-    ConsolePrint(TEXT("Physical memory : %d"), KernelStartup.MemorySize / 1024);
+    ConsolePrint(TEXT("Physical memory : %lu"), KernelStartup.MemorySize / 1024);
     ConsolePrint(Text_Space);
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);

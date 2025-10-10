@@ -349,10 +349,10 @@ static void MarkUsedPhysicalMemoryInternal(void) {
             }
         }
 
-        KernelStartup.MemorySize = (U32)MaxUsableRAM;
+        KernelStartup.MemorySize = MaxUsableRAM;
         KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
 
-        DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %x"), KernelStartup.MemorySize);
+        DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %lX"), KernelStartup.MemorySize);
     }
 }
 
@@ -896,7 +896,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
 
     // Can't allocate more than 25% of total memory at once
     if (Size > KernelStartup.MemorySize / 4) {
-        ERROR(TEXT("[AllocRegion] Size %x exceeds 25%% of memory (%x)"), Size, KernelStartup.MemorySize / 4);
+        ERROR(TEXT("[AllocRegion] Size %x exceeds 25%% of memory (%lX)"), Size, KernelStartup.MemorySize / 4);
         return NULL;
     }
 
@@ -997,7 +997,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
     }
 
     if (NewSize > KernelStartup.MemorySize / 4) {
-        ERROR(TEXT("[ResizeRegion] New size %x exceeds 25%% of memory (%x)"),
+        ERROR(TEXT("[ResizeRegion] New size %x exceeds 25%% of memory (%lX)"),
               NewSize,
               KernelStartup.MemorySize / 4);
         return FALSE;

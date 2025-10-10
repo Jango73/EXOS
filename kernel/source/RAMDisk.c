@@ -53,7 +53,7 @@ DRIVER RAMDiskDriver = {
 typedef struct tag_RAMDISK {
     PHYSICALDISK Header;
     LINEAR Base;
-    U32 Size;
+    UINT Size;
     U32 Access;  // Access parameters
 } RAMDISK, *LPRAMDISK;
 
