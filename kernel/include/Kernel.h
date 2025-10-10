@@ -77,7 +77,7 @@ typedef struct tag_CPUINFORMATION {
 #define EXOS_USER_CALL 0x70
 #define EXOS_DRIVER_CALL 0x71
 
-typedef U32 (*SYSCALLFUNC)(U32);
+typedef UINT (*SYSCALLFUNC)(UINT);
 
 typedef struct tag_SYSCALLENTRY {
     SYSCALLFUNC Function;
