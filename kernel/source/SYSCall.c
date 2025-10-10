@@ -893,7 +893,7 @@ UINT SysCall_GetCurrentUser(UINT Parameter) {
     StringCopy(UserInfo->UserName, Account->UserName);
     UserInfo->Privilege = Account->Privilege;
     // Use simple timestamp - set both LO and HI parts
-    UserInfo->LoginTime = U64_FromU32(GetSystemTime());
+    UserInfo->LoginTime = U64_FromUINT(GetSystemTime());
     UserInfo->SessionID = Session->SessionID;
 
     return TRUE;

@@ -556,9 +556,9 @@ void DHCP_Start(LPDEVICE Device) {
 
 void DHCP_Tick(LPDEVICE Device) {
     LPDHCP_CONTEXT Context;
-    U32 CurrentMillis;
-    U32 ElapsedMillis;
-    U32 ElapsedSeconds;
+    UINT CurrentMillis;
+    UINT ElapsedMillis;
+    UINT ElapsedSeconds;
 
     if (Device == NULL) return;
 

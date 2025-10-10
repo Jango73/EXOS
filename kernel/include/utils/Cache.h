@@ -58,7 +58,7 @@ void CacheInit(LPCACHE Cache, U32 Capacity);
 void CacheDeinit(LPCACHE Cache);
 BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS);
 LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context);
-void CacheCleanup(LPCACHE Cache, U32 CurrentTime);
+void CacheCleanup(LPCACHE Cache, UINT CurrentTime);
 LPCACHE_ENTRY CacheFindLowestScoreEntry(LPCACHE Cache);
 
 /************************************************************************/

@@ -60,7 +60,7 @@ static TASKLIST TaskList = {.Freeze = 0, .SchedulerTime = 0, .NumTasks = 0, .Cur
  * periodically by the scheduler or timer interrupt.
  */
 static void WakeUpExpiredTasks(void) {
-    U32 CurrentTime = GetSystemTime();
+    UINT CurrentTime = GetSystemTime();
 
     for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
@@ -616,7 +616,7 @@ static UINT GetObjectExitCode(LPVOID Object) {
 
 U32 Wait(LPWAITINFO WaitInfo) {
     UINT Index;
-    U32 StartTime;
+    UINT StartTime;
     LPTASK CurrentTask;
 
     if (WaitInfo == NULL || WaitInfo->Count == 0 || WaitInfo->Count > WAITINFO_MAX_OBJECTS) {
@@ -629,7 +629,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
     }
 
     StartTime = GetSystemTime();
-    U32 LastDebugTime = StartTime;
+    UINT LastDebugTime = StartTime;
 
     FOREVER {
         UINT SignaledCount = 0;
@@ -659,7 +659,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
             }
         }
 
-        U32 CurrentTime = GetSystemTime();
+        UINT CurrentTime = GetSystemTime();
 
         if (WaitInfo->MilliSeconds != INFINITY) {
             if (CurrentTime - StartTime >= WaitInfo->MilliSeconds) {
@@ -670,7 +670,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
         // Periodic debug output every 2 seconds
         if (CurrentTime - LastDebugTime >= 2000) {
             DEBUG(TEXT("[Wait] Task %x waiting for %u objects for %u ms"),
-                  CurrentTask, WaitInfo->Count, CurrentTime - StartTime);
+                  CurrentTask, WaitInfo->Count, (U32)(CurrentTime - StartTime));
             LastDebugTime = CurrentTime;
         }
 

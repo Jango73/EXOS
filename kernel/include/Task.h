@@ -61,7 +61,7 @@ struct tag_TASK {
     UINT ExitCode;            // This task's exit code
     U32 Flags;                // Task creation flags
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
-    U32 WakeUpTime;           // System time at which to wake up the task
+    UINT WakeUpTime;          // System time at which to wake up the task
     MUTEX MessageMutex;       // Mutex to access message queue
     LPLIST Message;           // This task's message queue
 };
@@ -79,7 +79,7 @@ U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
 U32 GetTaskStatus(LPTASK Task);
 void SetTaskStatus(LPTASK Task, U32 Status);
-void SetTaskWakeUpTime(LPTASK Task, U32 WakeupTime);
+void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
 U32 ComputeTaskQuantumTime(U32 Priority);
 BOOL PostMessage(HANDLE, U32, U32, U32);
 U32 SendMessage(HANDLE, U32, U32, U32);

@@ -84,8 +84,8 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
     STR TextBuffer[MAX_STRING_BUFFER];
     VarArgList Args;
 
-    U32 Time = GetSystemTime();
-    StringPrintFormat(TimeBuffer, TEXT("T%u> "), Time);
+    UINT Time = GetSystemTime();
+    StringPrintFormat(TimeBuffer, TEXT("T%u> "), (U32)Time);
 
     VarArgStart(Args, Format);
     StringPrintFormatArgs(TextBuffer, Format, Args);

@@ -667,6 +667,13 @@ static inline U64 U64_FromU32(U32 Value) {
     return Result;
 }
 
+static inline U64 U64_FromUINT(UINT Value) {
+    U64 Result;
+    Result.LO = Value;
+    Result.HI = 0;
+    return Result;
+}
+
 static inline U64 U64_ShiftRight8(U64 Value) {
     U64 Result;
     Result.LO = (Value.LO >> 8) | ((Value.HI & 0xFF) << 24);
@@ -723,6 +730,10 @@ static inline U64 U64_Xor(U64 A, U64 B) {
 static inline BOOL U64_IsOdd(U64 Value) { return (Value & 1ull) != 0; }
 
 static inline U64 U64_FromU32(U32 Value) {
+    return (U64)Value;
+}
+
+static inline U64 U64_FromUINT(UINT Value) {
     return (U64)Value;
 }
 

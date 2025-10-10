@@ -747,12 +747,12 @@ void SetTaskStatus(LPTASK Task, U32 Status) {
  * @param Task Pointer to task to modify
  * @param WakeupTime Wake-up time in milliseconds
  */
-void SetTaskWakeUpTime(LPTASK Task, U32 WakeupTime) {
+void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime) {
     if (Task == NULL) return;
 
     LockMutex(&(Task->Mutex), INFINITY);
 
-    Task->WakeUpTime = GetSystemTime() + Kernel.MinimumQuantum + WakeupTime;
+    Task->WakeUpTime = GetSystemTime() + (UINT)Kernel.MinimumQuantum + WakeupTime;
 
     UnlockMutex(&(Task->Mutex));
 }
@@ -1335,12 +1335,12 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("Priority        : %x"), Task->Priority);
     VERBOSE(TEXT("Function        : %x"), Task->Function);
     VERBOSE(TEXT("Parameter       : %x"), Task->Parameter);
-    VERBOSE(TEXT("ExitCode        : %x"), Task->ExitCode);
+    VERBOSE(TEXT("ExitCode        : %x"), (U32)Task->ExitCode);
     VERBOSE(TEXT("StackBase       : %x"), Task->Arch.StackBase);
     VERBOSE(TEXT("StackSize       : %x"), Task->Arch.StackSize);
     VERBOSE(TEXT("SysStackBase    : %x"), Task->Arch.SysStackBase);
     VERBOSE(TEXT("SysStackSize    : %x"), Task->Arch.SysStackSize);
-    VERBOSE(TEXT("WakeUpTime      : %d"), Task->WakeUpTime);
+    VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
     VERBOSE(TEXT("Queued messages : %d"), Task->Message->NumItems);
 
     UnlockMutex(&(Task->Mutex));

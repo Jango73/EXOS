@@ -122,7 +122,7 @@ void CacheDeinit(LPCACHE Cache) {
 BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
     LockMutex(&Cache->Mutex, INFINITY);
 
-    U32 CurrentTime = GetSystemTime();
+    UINT CurrentTime = GetSystemTime();
     U32 FreeIndex = MAX_U32;
 
     CacheDecayScoresLocked(Cache);
@@ -166,7 +166,7 @@ BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
         }
 
         LowestEntry->Data = Data;
-        LowestEntry->ExpirationTime = CurrentTime + TTL_MS;
+        LowestEntry->ExpirationTime = (U32)(CurrentTime + TTL_MS);
         LowestEntry->TTL = TTL_MS;
         LowestEntry->Score = 1;
 
@@ -175,7 +175,7 @@ BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
     }
 
     Cache->Entries[FreeIndex].Data = Data;
-    Cache->Entries[FreeIndex].ExpirationTime = CurrentTime + TTL_MS;
+    Cache->Entries[FreeIndex].ExpirationTime = (U32)(CurrentTime + TTL_MS);
     Cache->Entries[FreeIndex].TTL = TTL_MS;
     Cache->Entries[FreeIndex].Score = 1;
     Cache->Entries[FreeIndex].Valid = TRUE;
@@ -197,7 +197,7 @@ BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
 LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context) {
     LockMutex(&Cache->Mutex, INFINITY);
 
-    U32 CurrentTime = GetSystemTime();
+    UINT CurrentTime = GetSystemTime();
 
     for (U32 Index = 0; Index < Cache->Capacity; Index++) {
         if (Cache->Entries[Index].Valid) {
@@ -220,7 +220,8 @@ LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LP
             if (Matcher(Cache->Entries[Index].Data, Context)) {
                 LPVOID Result = Cache->Entries[Index].Data;
                 Cache->Entries[Index].Score++;
-                Cache->Entries[Index].ExpirationTime = CurrentTime + Cache->Entries[Index].TTL;
+                Cache->Entries[Index].ExpirationTime =
+                    (U32)(CurrentTime + Cache->Entries[Index].TTL);
                 DEBUG(TEXT("[CacheFind] Found at index %u"), Index);
                 UnlockMutex(&Cache->Mutex);
                 return Result;
@@ -243,7 +244,7 @@ LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LP
  * @param Cache Cache structure
  * @param CurrentTime Current system time
  */
-void CacheCleanup(LPCACHE Cache, U32 CurrentTime) {
+void CacheCleanup(LPCACHE Cache, UINT CurrentTime) {
     LockMutex(&Cache->Mutex, INFINITY);
 
     U32 RemovedCount = 0;

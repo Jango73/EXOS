@@ -181,8 +181,8 @@ U32 ClockTestTask(LPVOID Param) {
     U32 OldX = 0;
     U32 OldY = 0;
 
-    U32 Time = 0;
-    U32 OldTime = 0;
+    UINT Time = 0;
+    UINT OldTime = 0;
 
     FOREVER {
         Time = DoSystemCall(SYSCALL_GetSystemTime, 0);

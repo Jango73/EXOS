@@ -210,7 +210,7 @@ static U16 TCP_GetNextEphemeralPort(U32 localIP) {
     // Initialize with a pseudo-random port if not set
     if (GlobalTCP.NextEphemeralPort == 0) {
         // Simple pseudo-random based on system time and IP
-        U32 seed = GetSystemTime() ^ (localIP & 0xFFFF);
+        UINT seed = GetSystemTime() ^ (localIP & 0xFFFF);
         GlobalTCP.NextEphemeralPort = startPort + (seed % (maxPort - startPort + 1));
     }
 
@@ -1263,7 +1263,7 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 /************************************************************************/
 
 void TCP_Update(void) {
-    U32 CurrentTime = GetSystemTime();
+    UINT CurrentTime = GetSystemTime();
 
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)Kernel.TCPConnection->First;
     while (Conn != NULL) {

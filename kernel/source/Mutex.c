@@ -149,8 +149,8 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                         //-------------------------------------
                         // Wait for mutex to be unlocked by its owner task
 
-                        U32 StartWaitTime = GetSystemTime();
-                        U32 LastDebugTime = StartWaitTime;
+                        UINT StartWaitTime = GetSystemTime();
+                        UINT LastDebugTime = StartWaitTime;
 
                         FOREVER {
                             //-------------------------------------
@@ -171,10 +171,11 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                             //-------------------------------------
                             // Periodic debug output every 2 seconds
 
-                            U32 CurrentTime = GetSystemTime();
+                            UINT CurrentTime = GetSystemTime();
                             if (CurrentTime - LastDebugTime >= 2000) {
                                 DEBUG("[LockMutex] Task %p waiting for mutex %p (owned by task %p) for %u ms",
-                                      Task, Mutex, Mutex->Task, CurrentTime - StartWaitTime);
+                                      Task, Mutex, Mutex->Task,
+                                      (U32)(CurrentTime - StartWaitTime));
                                 LastDebugTime = CurrentTime;
                             }
 

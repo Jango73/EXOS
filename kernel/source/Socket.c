@@ -615,10 +615,10 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
         }
 
         // Wait for network to be ready with timeout
-        U32 WaitStartMillis = GetSystemTime();
-        U32 TimeoutMs = 60000; // 60 seconds timeout
+        UINT WaitStartMillis = GetSystemTime();
+        UINT TimeoutMs = 60000; // 60 seconds timeout
         while (!NetworkManager_IsDeviceReady(NetworkDevice)) {
-            U32 ElapsedMs = GetSystemTime() - WaitStartMillis;
+            UINT ElapsedMs = GetSystemTime() - WaitStartMillis;
 
             if (ElapsedMs > TimeoutMs) {
                 ERROR(TEXT("[SocketConnect] Timeout waiting for network to be ready"));
@@ -777,7 +777,7 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
             } else {
                 // No data available - check timeout
                 if (Socket->ReceiveTimeout > 0) {
-                    U32 CurrentTime = GetSystemTime();
+                    UINT CurrentTime = GetSystemTime();
 
                     // Initialize timeout start time on first call
                     if (Socket->ReceiveTimeoutStartTime == 0) {
@@ -787,7 +787,8 @@ I32 SocketReceive(U32 SocketHandle, void* Buffer, U32 Length, U32 Flags) {
                     // Check if timeout exceeded
                     if ((CurrentTime - Socket->ReceiveTimeoutStartTime) >= Socket->ReceiveTimeout) {
                         Socket->ReceiveTimeoutStartTime = 0; // Reset for next operation
-                        DEBUG(TEXT("[SocketReceive] Receive timeout (%u ms) exceeded for socket %x"), Socket->ReceiveTimeout, SocketHandle);
+                        DEBUG(TEXT("[SocketReceive] Receive timeout (%u ms) exceeded for socket %x"),
+                              Socket->ReceiveTimeout, SocketHandle);
                         DEBUG(TEXT("[SocketReceive] User space may retry if the connection is still alive"));
                         return SOCKET_ERROR_TIMEOUT;
                     }
