@@ -9,6 +9,8 @@ ifeq ($(ARCH),i386)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf
 ARCH_AUTOTEST_EXCLUDES =
+ARCH_C_DEFINES = -D__EXOS_ARCH_I386__
+ARCH_ASM_DEFINES = -d__EXOS_ARCH_I386__
 CC              = $(TOOLCHAIN_PREFIX)-gcc
 LD              = $(TOOLCHAIN_PREFIX)-ld
 NM              = $(TOOLCHAIN_PREFIX)-nm
@@ -17,6 +19,8 @@ READELF         = $(TOOLCHAIN_PREFIX)-readelf
 else ifeq ($(ARCH),x86-64)
 NASM_FORMAT = elf64
 ARCH_AUTOTEST_EXCLUDES = source/autotest/Autotest-i386-Asm.c
+ARCH_C_DEFINES = -D__EXOS_ARCH_X86_64__
+ARCH_ASM_DEFINES = -d__EXOS_ARCH_X86_64__
 CC              = gcc
 LD              = ld
 NM              = nm
@@ -39,6 +43,7 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
                   -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
                   -Iinclude -I../third/include -I../runtime/include
+CFLAGS         += $(ARCH_C_DEFINES)
 
 NASM            = nasm
 
@@ -49,6 +54,7 @@ AFLAGS_INCLUDES += -I source/arch/i386/asm/
 endif
 
 AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) $(AFLAGS_INCLUDES)
+AFLAGS         += $(ARCH_ASM_DEFINES)
 
 LDFLAGS_ELF     = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
 

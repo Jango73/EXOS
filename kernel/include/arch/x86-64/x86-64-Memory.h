@@ -30,7 +30,7 @@
 /*************************************************************************/
 #define PAGE_SIZE N_4KB
 #define PAGE_SIZE_MUL MUL_4KB
-#define PAGE_SIZE_MASK ((U64)PAGE_SIZE - 1ull)
+#define PAGE_SIZE_MASK (((U64)PAGE_SIZE) - (U64)1)
 
 #define PAGE_TABLE_ENTRY_SIZE ((UINT)sizeof(U64))
 #define PAGE_TABLE_NUM_ENTRIES 512u
@@ -38,24 +38,24 @@
 #define PAGE_TABLE_SIZE_MUL MUL_4KB
 #define PAGE_TABLE_CAPACITY (PAGE_TABLE_NUM_ENTRIES * PAGE_SIZE)
 #define PAGE_TABLE_CAPACITY_MUL MUL_2MB
-#define PAGE_TABLE_CAPACITY_MASK ((U64)PAGE_TABLE_CAPACITY - 1ull)
+#define PAGE_TABLE_CAPACITY_MASK (((U64)PAGE_TABLE_CAPACITY) - (U64)1)
 
-#define PAGE_MASK (~((U64)PAGE_SIZE - 1ull))
+#define PAGE_MASK (~(((U64)PAGE_SIZE) - (U64)1))
 
 #define PAGE_PRIVILEGE_KERNEL 0u
 #define PAGE_PRIVILEGE_USER 1u
 
-#define PAGE_FLAG_PRESENT (1ull << 0)
-#define PAGE_FLAG_READ_WRITE (1ull << 1)
-#define PAGE_FLAG_USER (1ull << 2)
-#define PAGE_FLAG_WRITE_THROUGH (1ull << 3)
-#define PAGE_FLAG_CACHE_DISABLED (1ull << 4)
-#define PAGE_FLAG_ACCESSED (1ull << 5)
-#define PAGE_FLAG_DIRTY (1ull << 6)
-#define PAGE_FLAG_PAGE_SIZE (1ull << 7)
-#define PAGE_FLAG_GLOBAL (1ull << 8)
-#define PAGE_FLAG_FIXED (1ull << 9)
-#define PAGE_FLAG_NO_EXECUTE (1ull << 63)
+#define PAGE_FLAG_PRESENT ((U64)1 << 0)
+#define PAGE_FLAG_READ_WRITE ((U64)1 << 1)
+#define PAGE_FLAG_USER ((U64)1 << 2)
+#define PAGE_FLAG_WRITE_THROUGH ((U64)1 << 3)
+#define PAGE_FLAG_CACHE_DISABLED ((U64)1 << 4)
+#define PAGE_FLAG_ACCESSED ((U64)1 << 5)
+#define PAGE_FLAG_DIRTY ((U64)1 << 6)
+#define PAGE_FLAG_PAGE_SIZE ((U64)1 << 7)
+#define PAGE_FLAG_GLOBAL ((U64)1 << 8)
+#define PAGE_FLAG_FIXED ((U64)1 << 9)
+#define PAGE_FLAG_NO_EXECUTE ((U64)1 << 63)
 
 #define PML4_ENTRY_COUNT 512u
 #define PDPT_ENTRY_COUNT 512u
@@ -63,18 +63,18 @@
 #define PML4_RECURSIVE_SLOT 510u
 #define PD_RECURSIVE_SLOT PML4_RECURSIVE_SLOT
 
-#define VMA_RAM 0x0000000000000000ull
-#define VMA_VIDEO 0x00000000000A0000ull
-#define VMA_CONSOLE 0x00000000000B8000ull
-#define VMA_USER 0x0000000000400000ull
-#define VMA_LIBRARY 0x00007F0000000000ull
+#define VMA_RAM ((U64)0x00000000u)
+#define VMA_VIDEO ((U64)0x000A0000u)
+#define VMA_CONSOLE ((U64)0x000B8000u)
+#define VMA_USER ((U64)0x00400000u)
+#define VMA_LIBRARY (((U64)0x00007F00u) << 32)
 #define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)
-#define VMA_KERNEL 0xFFFFFFFF80000000ull
+#define VMA_KERNEL ((((U64)0xFFFFFFFFu) << 32) | (U64)0x80000000u)
 
 #define PAGE_PRIVILEGE(Address) \
     (((U64)(Address) >= VMA_USER && (U64)(Address) < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
-#define PAGE_ALIGN(Address) (((U64)(Address) + PAGE_SIZE - 1ull) & PAGE_MASK)
+#define PAGE_ALIGN(Address) (((U64)(Address) + ((U64)PAGE_SIZE - (U64)1)) & PAGE_MASK)
 /*************************************************************************/
 // typedefs
 /*************************************************************************/
@@ -116,12 +116,12 @@ typedef struct tag_ARCH_PAGE_ITERATOR {
 // inlines
 /*************************************************************************/
 static inline U64 ArchCanonicalizeAddress(U64 Address) {
-    const U64 SignBit = 1ull << 47;
-    const U64 Mask = (1ull << 48) - 1ull;
+    const U64 SignBit = (U64)1 << 47;
+    const U64 Mask = ((U64)1 << 48) - (U64)1;
 
     Address &= Mask;
     if ((Address & SignBit) != 0) {
-        Address |= 0xFFFF000000000000ull;
+        Address |= ((U64)0xFFFF0000u) << 32;
     }
 
     return Address;
@@ -234,19 +234,19 @@ static inline BOOL PageTableEntryIsFixed(const LPPAGE_TABLE Table, UINT Index) {
 }
 
 static inline void ClearPageDirectoryEntry(LPPAGE_DIRECTORY Directory, UINT Index) {
-    WritePageDirectoryEntryValue(Directory, Index, 0ull);
+    WritePageDirectoryEntryValue(Directory, Index, (U64)0);
 }
 
 static inline void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index) {
-    WritePageTableEntryValue(Table, Index, 0ull);
+    WritePageTableEntryValue(Table, Index, (U64)0);
 }
 
 static inline U64 ArchGetMaxLinearAddressPlusOne(void) {
-    return 1ull << 48;
+    return (U64)1 << 48;
 }
 
 static inline U64 ArchGetMaxPhysicalAddressPlusOne(void) {
-    return 1ull << 52;
+    return (U64)1 << 52;
 }
 
 static inline BOOL ArchClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UINT* OutLength) {

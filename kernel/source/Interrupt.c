@@ -191,9 +191,9 @@ X86_64_IDT_ENTRY SECTION(".data") IDT[IDT_SIZE / sizeof(X86_64_IDT_ENTRY)];
 /***************************************************************************/
 
 static void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY This, U64 Offset) {
-    This->Offset_00_15 = (U16)(Offset & 0x0000FFFFull);
-    This->Offset_16_31 = (U16)((Offset >> 0x10) & 0x0000FFFFull);
-    This->Offset_32_63 = (U32)((Offset >> 0x20) & 0xFFFFFFFFull);
+    This->Offset_00_15 = (U16)(Offset & (U64)0x0000FFFFu);
+    This->Offset_16_31 = (U16)((Offset >> 0x10) & (U64)0x0000FFFFu);
+    This->Offset_32_63 = (U32)((Offset >> 0x20) & (U64)0xFFFFFFFFu);
     This->Reserved_2 = 0;
 }
 

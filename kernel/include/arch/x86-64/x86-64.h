@@ -80,8 +80,8 @@
 #define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 #define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
-#define RFLAGS_ALWAYS_1 0x0000000000000002ull
-#define RFLAGS_IF 0x0000000000000200ull
+#define RFLAGS_ALWAYS_1 ((U64)1 << 1)
+#define RFLAGS_IF ((U64)1 << 9)
 
 /***************************************************************************/
 

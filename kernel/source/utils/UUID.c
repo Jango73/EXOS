@@ -75,19 +75,22 @@ void UUID_Generate(U8* Out)
 
 U64 UUID_ToU64(const U8* uuid)
 {
-    unsigned long long low = 0;
-    unsigned long long high = 0;
-
-    for (U32 i = 0; i < 8; ++i) {
-        low = (low << 8) | uuid[i];
+    if (uuid == NULL) {
+        return U64_0;
     }
 
-    for (U32 i = 8; i < 16; ++i) {
-        high = (high << 8) | uuid[i];
+    U64 Low = U64_0;
+    U64 High = U64_0;
+
+    for (U32 Index = 0; Index < 8; ++Index) {
+        Low = U64_Add(U64_ShiftLeft8(Low), U64_FromU32((U32)uuid[Index]));
     }
 
-    unsigned long long combined = low ^ high;
-    return U64_Make((U32)(combined >> 32), (U32)(combined & 0xFFFFFFFFu));
+    for (U32 Index = 8; Index < 16; ++Index) {
+        High = U64_Add(U64_ShiftLeft8(High), U64_FromU32((U32)uuid[Index]));
+    }
+
+    return U64_Xor(Low, High);
 }
 
 /***************************************************************************/

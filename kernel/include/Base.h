@@ -37,12 +37,14 @@ extern "C" {
 /***************************************************************************/
 // Target architecture detection
 
-#if defined(__i386__) || defined(_M_IX86)
-    #define __EXOS_ARCH_I386__
-#elif defined(__x86_64__) || defined(_M_X64)
-    #define __EXOS_ARCH_X86_64__
-#else
-    #error "Unsupported target architecture for EXOS"
+#if !defined(__EXOS_ARCH_I386__) && !defined(__EXOS_ARCH_X86_64__)
+    #if defined(__i386__) || defined(_M_IX86)
+        #define __EXOS_ARCH_I386__
+    #elif defined(__x86_64__) || defined(_M_X64)
+        #define __EXOS_ARCH_X86_64__
+    #else
+        #error "Unsupported target architecture for EXOS"
+    #endif
 #endif
 
 /***************************************************************************/
@@ -154,11 +156,11 @@ typedef struct tag_U48 {
     #define U64_0 { .LO = 0, .HI = 0 }
     #define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
 #else
-    typedef unsigned long long  U64;
-    typedef signed long long    I64;
+    typedef UINT U64;
+    typedef INT I64;
 
-    #define U64_0 0
-    #define U64_EQUAL(a, b) (a == b)
+    #define U64_0 ((U64)0)
+    #define U64_EQUAL(a, b) ((a) == (b))
 #endif
 
 /***************************************************************************/
@@ -182,7 +184,7 @@ typedef struct tag_U128 {
 #define MAX_U32 ((U32)0xFFFFFFFF)
 
 #ifdef __EXOS_64__
-    #define MAX_U64 0xFFFFFFFFFFFFFFFF
+    #define MAX_U64 ((U64)~(U64)0)
 #endif
 
 /***************************************************************************/
@@ -669,6 +671,13 @@ static inline U64 U64_ShiftRight8(U64 Value) {
     return Result;
 }
 
+static inline U64 U64_ShiftLeft8(U64 Value) {
+    U64 Result;
+    Result.HI = (Value.HI << 8) | ((Value.LO >> 24) & 0xFFu);
+    Result.LO = Value.LO << 8;
+    return Result;
+}
+
 static inline U32 U64_High32(U64 Value) {
     return Value.HI;
 }
@@ -703,7 +712,7 @@ static inline int U64_Cmp(U64 a, U64 b) {
 
 // Convert U64 to 32-bit if <= 0xFFFFFFFF, else clip
 static inline U32 U64_ToU32_Clip(U64 v) {
-    return (v > 0xFFFFFFFFull) ? 0xFFFFFFFFu : (U32)v;
+    return (v > (U64)0xFFFFFFFFu) ? 0xFFFFFFFFu : (U32)v;
 }
 
 // Helper functions for U64 operations in CRC64
@@ -715,7 +724,7 @@ static inline U64 U64_Xor(U64 A, U64 B) {
     return A ^ B;
 }
 
-static inline BOOL U64_IsOdd(U64 Value) { return (Value & 1ull) != 0; }
+static inline BOOL U64_IsOdd(U64 Value) { return (Value & (U64)1) != 0; }
 
 static inline U64 U64_FromU32(U32 Value) {
     return (U64)Value;
@@ -725,12 +734,16 @@ static inline U64 U64_ShiftRight8(U64 Value) {
     return Value >> 8;
 }
 
+static inline U64 U64_ShiftLeft8(U64 Value) {
+    return Value << 8;
+}
+
 static inline U32 U64_High32(U64 Value) {
     return (U32)(Value >> 32);
 }
 
 static inline U32 U64_Low32(U64 Value) {
-    return (U32)(Value & 0xFFFFFFFFull);
+    return (U32)(Value & (U64)0xFFFFFFFFu);
 }
 
 #endif
