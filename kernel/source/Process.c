@@ -738,11 +738,11 @@ UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
         DEBUG(TEXT("[Spawn] Process wait timed out"));
         return MAX_UINT;
     } else if (Result != WAIT_OBJECT_0) {
-        DEBUG(TEXT("[Spawn] Process wait failed: %lu"), Result);
+        DEBUG(TEXT("[Spawn] Process wait failed: %u"), Result);
         return MAX_UINT;
     }
 
-    DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %lu"), WaitInfo.ExitCodes[0]);
+    DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %u"), WaitInfo.ExitCodes[0]);
     return WaitInfo.ExitCodes[0];
 }
 

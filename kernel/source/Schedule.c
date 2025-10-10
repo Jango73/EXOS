@@ -602,7 +602,7 @@ static UINT GetObjectExitCode(LPVOID Object) {
     );
 
     SAFE_USE(TermState) {
-        DEBUG(TEXT("[GetObjectExitCode] Object %x found in termination cache, ExitCode=%lu"), Object, TermState->ExitCode);
+        DEBUG(TEXT("[GetObjectExitCode] Object %x found in termination cache, ExitCode=%u"), Object, TermState->ExitCode);
         UnlockMutex(MUTEX_KERNEL);
         return TermState->ExitCode;
     }

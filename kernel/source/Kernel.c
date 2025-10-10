@@ -314,7 +314,7 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     U64 ObjectID = U64_0;
     U32 Index;
 
-    DEBUG(TEXT("[CreateKernelObject] Creating object of size %lu with ID %x"), Size, ObjectTypeID);
+    DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
 
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
@@ -497,7 +497,7 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
             TermState->ID = KernelObject->ID;
             CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
 
-            DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%lu"),
+            DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%u"),
                   KernelObject,
                   IdHigh,
                   IdLow,

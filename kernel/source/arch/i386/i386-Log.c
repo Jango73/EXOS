@@ -514,14 +514,14 @@ void LogTask(U32 LogType, const LPTASK Task) {
              "  Priority : %x\n"
              "  Function : %x\n"
              "  Parameter : %x\n"
-             "  ExitCode : %lx\n"
+             "  ExitCode : %x\n"
              "  StackBase : %x\n"
              "  StackSize : %x\n"
              "  SysStackBase : %x\n"
              "  SysStackSize : %x\n"
              "  WakeUpTime : %x"),
         (LINEAR)Task, Task->Name, (U32)Task->Process, (Task->Process == &KernelProcess ? "K" : "U"), (U32)Task->Type,
-        (U32)Task->Status, (U32)Task->Priority, (U32)Task->Function, (U32)Task->Parameter, Task->ExitCode,
+        (U32)Task->Status, (U32)Task->Priority, (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ExitCode,
         (U32)Task->Arch.StackBase, (U32)Task->Arch.StackSize, (U32)Task->Arch.SysStackBase, (U32)Task->Arch.SysStackSize,
         (U32)Task->WakeUpTime);
 }

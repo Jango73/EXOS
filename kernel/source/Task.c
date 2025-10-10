@@ -1335,7 +1335,7 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("Priority        : %x"), Task->Priority);
     VERBOSE(TEXT("Function        : %x"), Task->Function);
     VERBOSE(TEXT("Parameter       : %x"), Task->Parameter);
-    VERBOSE(TEXT("ExitCode        : %lx"), Task->ExitCode);
+    VERBOSE(TEXT("ExitCode        : %x"), Task->ExitCode);
     VERBOSE(TEXT("StackBase       : %x"), Task->Arch.StackBase);
     VERBOSE(TEXT("StackSize       : %x"), Task->Arch.StackSize);
     VERBOSE(TEXT("SysStackBase    : %x"), Task->Arch.SysStackBase);
