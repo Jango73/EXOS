@@ -26,4 +26,7 @@
 
 #include "arch/x86-64/x86-64.h"
 
+LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UINT StackPointer);
+void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, UINT StackPointer);
+
 #endif

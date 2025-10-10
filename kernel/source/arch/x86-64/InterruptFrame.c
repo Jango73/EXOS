@@ -21,4 +21,30 @@
 
 \************************************************************************/
 
-#error "x86-64 interrupt frame helpers not implemented yet"
+#include "InterruptFrame.h"
+
+#include "Log.h"
+#include "Text.h"
+
+/************************************************************************/
+
+LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UINT StackPointer) {
+    UNUSED(InterruptNumber);
+    UNUSED(HasErrorCode);
+    UNUSED(StackPointer);
+
+    WARNING(TEXT("[BuildInterruptFrame] x86-64 support is not implemented yet"));
+    return NULL;
+}
+
+/************************************************************************/
+
+void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, UINT StackPointer) {
+    UNUSED(NextFrame);
+    UNUSED(StackPointer);
+
+    WARNING(TEXT("[RestoreFromInterruptFrame] x86-64 support is not implemented yet"));
+}
+
+/************************************************************************/
+

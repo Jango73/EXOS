@@ -182,14 +182,17 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
         DEBUG(TEXT("[FindACPITable] Searching XSDT with %d entries"), EntryCount);
 
         for (U32 i = 0; i < EntryCount; i++) {
+            U64 EntryAddress = G_XSDT->Entry[i];
+            U32 EntryHigh = U64_High32(EntryAddress);
+            U32 EntryLow = U64_Low32(EntryAddress);
+
             // For 32-bit systems, we only use the lower 32 bits of the 64-bit pointer
-            if (G_XSDT->Entry[i].HI != 0) {
-                DEBUG(TEXT("[FindACPITable] Skipping 64-bit address 0x%08X%08X"),
-                      G_XSDT->Entry[i].HI, G_XSDT->Entry[i].LO);
+            if (EntryHigh != 0) {
+                DEBUG(TEXT("[FindACPITable] Skipping 64-bit address 0x%08X%08X"), EntryHigh, EntryLow);
                 continue;
             }
 
-            U32 PhysicalAddress = G_XSDT->Entry[i].LO;
+            U32 PhysicalAddress = EntryLow;
             LINEAR TableAddress;
 
             // Map the physical address to virtual address
@@ -419,8 +422,8 @@ BOOL InitializeACPI(void) {
     }
 
     // Map and validate XSDT if available (ACPI 2.0+)
-    if (G_RSDP->Revision >= 2 && G_RSDP->XsdtAddress.LO != 0 && G_RSDP->XsdtAddress.HI == 0) {
-        U32 XsdtPhysical = G_RSDP->XsdtAddress.LO;
+    if (G_RSDP->Revision >= 2 && U64_Low32(G_RSDP->XsdtAddress) != 0 && U64_High32(G_RSDP->XsdtAddress) == 0) {
+        U32 XsdtPhysical = U64_Low32(G_RSDP->XsdtAddress);
         DEBUG(TEXT("[InitializeACPI] XSDT physical address: 0x%08X"), XsdtPhysical);
 
         // Check if XSDT is in low memory (first 1MB) or needs mapping

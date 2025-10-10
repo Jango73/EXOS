@@ -49,7 +49,7 @@ struct tag_LISTNODE {
 /*************************************************************************************************/
 
 typedef void (*LISTITEMDESTRUCTOR)(LPVOID);
-typedef LPVOID (*MEMALLOCFUNC)(U32);
+typedef LPVOID (*MEMALLOCFUNC)(UINT);
 typedef void (*MEMFREEFUNC)(LPVOID);
 
 typedef struct tag_LIST {

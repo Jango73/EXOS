@@ -8,7 +8,13 @@ Be aware that it generates A LOT of COM2 output, the scheduler is called every 1
 
 ## Architecture
 
-To be completed.
+Work to bring the long-mode kernel build closer to parity with the i386
+port continues. The x86-64 backend now exposes placeholder scheduler and
+context-switch helpers so common code can compile while the full task
+switching path is implemented. The interrupt bootstrap has also been
+rebuilt around the 16-byte IDT format, providing stubs for each vector so
+the C runtime reaches the scheduler before the final entry/exit sequences
+are written.
 
 ### Paging abstractions
 

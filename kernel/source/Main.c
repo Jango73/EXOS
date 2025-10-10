@@ -84,16 +84,15 @@ void KernelMain(void) {
 
     // Process memory map if available
     if (MultibootInfo->flags & MULTIBOOT_INFO_MEM_MAP) {
-        multiboot_memory_map_t* MmapEntry = (multiboot_memory_map_t*)MultibootInfo->mmap_addr;
-        U32 MmapEnd = MultibootInfo->mmap_addr + MultibootInfo->mmap_length;
+        PHYSICAL MmapCursor = MultibootInfo->mmap_addr;
+        PHYSICAL MmapEnd = MultibootInfo->mmap_addr + MultibootInfo->mmap_length;
         U32 E820Count = 0;
 
-        while ((U32)MmapEntry < MmapEnd && E820Count < (N_4KB / sizeof(E820ENTRY))) {
+        while (MmapCursor < MmapEnd && E820Count < (N_4KB / sizeof(E820ENTRY))) {
+            multiboot_memory_map_t* MmapEntry = (multiboot_memory_map_t*)(UINT)MmapCursor;
             // Fill E820 entry with Multiboot data
-            KernelStartup.E820[E820Count].Base.LO = MmapEntry->addr_low;
-            KernelStartup.E820[E820Count].Base.HI = MmapEntry->addr_high;
-            KernelStartup.E820[E820Count].Size.LO = MmapEntry->len_low;
-            KernelStartup.E820[E820Count].Size.HI = MmapEntry->len_high;
+            KernelStartup.E820[E820Count].Base = U64_Make(MmapEntry->addr_high, MmapEntry->addr_low);
+            KernelStartup.E820[E820Count].Size = U64_Make(MmapEntry->len_high, MmapEntry->len_low);
             KernelStartup.E820[E820Count].Attributes = 0;
 
             // Map Multiboot types to E820 types
@@ -117,7 +116,7 @@ void KernelMain(void) {
             E820Count++;
 
             // Move to next entry (size field is at the beginning and doesn't include itself)
-            MmapEntry = (multiboot_memory_map_t*)((U8*)MmapEntry + MmapEntry->size + sizeof(MmapEntry->size));
+            MmapCursor += MmapEntry->size + sizeof(MmapEntry->size);
         }
 
         KernelStartup.E820_Count = E820Count;

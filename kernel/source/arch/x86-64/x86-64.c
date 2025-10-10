@@ -30,6 +30,15 @@
 #include "System.h"
 #include "Text.h"
 
+/***************************************************************************/
+
+KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
+    .IDT = NULL,
+    .GDT = NULL,
+    .TSS = NULL,
+    .PPB = NULL,
+};
+
 /************************************************************************/
 
 /**
@@ -764,6 +773,103 @@ Out_Error64:
  */
 void MemoryArchInitializeManager(void) {
     // TODO: provide x86-64 specific memory initialization.
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize the architecture-specific context for a task.
+ *
+ * Allocates kernel and user stacks for the task, clears the interrupt frame,
+ * and seeds the register snapshot so the generic scheduler can operate while
+ * the long mode context-switching code is under construction.
+ */
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+    LINEAR BaseVMA = VMA_KERNEL;
+    SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
+    SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
+    U64 StackTop;
+    U64 SysStackTop;
+    U64 ControlRegister4 = 0;
+
+    DEBUG(TEXT("[SetupTask] Enter"));
+
+    if (Process->Privilege == PRIVILEGE_USER) {
+        BaseVMA = VMA_USER;
+        CodeSelector = SELECTOR_USER_CODE;
+        DataSelector = SELECTOR_USER_DATA;
+    }
+
+    Task->Arch.StackSize = Info->StackSize;
+    Task->Arch.SysStackSize = TASK_SYSTEM_STACK_SIZE * 4u;
+
+    Task->Arch.StackBase = AllocRegion(BaseVMA, 0, Task->Arch.StackSize,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Task->Arch.SysStackBase = AllocKernelRegion(
+        0, Task->Arch.SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (Task->Arch.StackBase == 0 || Task->Arch.SysStackBase == 0) {
+        if (Task->Arch.StackBase != 0) {
+            FreeRegion(Task->Arch.StackBase, Task->Arch.StackSize);
+            Task->Arch.StackBase = 0;
+            Task->Arch.StackSize = 0;
+        }
+
+        if (Task->Arch.SysStackBase != 0) {
+            FreeRegion(Task->Arch.SysStackBase, Task->Arch.SysStackSize);
+            Task->Arch.SysStackBase = 0;
+            Task->Arch.SysStackSize = 0;
+        }
+
+        ERROR(TEXT("[SetupTask] Stack allocation failed"));
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[SetupTask] Stack (%X bytes) allocated at %llX"), Task->Arch.StackSize,
+        (unsigned long long)Task->Arch.StackBase);
+    DEBUG(TEXT("[SetupTask] System stack (%X bytes) allocated at %llX"), Task->Arch.SysStackSize,
+        (unsigned long long)Task->Arch.SysStackBase);
+
+    MemorySet((void*)Task->Arch.StackBase, 0, Task->Arch.StackSize);
+    MemorySet((void*)Task->Arch.SysStackBase, 0, Task->Arch.SysStackSize);
+    MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
+
+    Task->Arch.Context.Registers.RAX = (U64)(UINT)Task->Parameter;
+    Task->Arch.Context.Registers.RBX = (U64)(UINT)Task->Function;
+    Task->Arch.Context.Registers.CS = CodeSelector;
+    Task->Arch.Context.Registers.DS = DataSelector;
+    Task->Arch.Context.Registers.ES = DataSelector;
+    Task->Arch.Context.Registers.FS = DataSelector;
+    Task->Arch.Context.Registers.GS = DataSelector;
+    Task->Arch.Context.Registers.SS = DataSelector;
+    Task->Arch.Context.Registers.RFlags = RFLAGS_IF | RFLAGS_ALWAYS_1;
+    Task->Arch.Context.Registers.CR3 = (U64)Process->PageDirectory;
+
+    __asm__ __volatile__("mov %%cr4, %0" : "=r"(ControlRegister4));
+    Task->Arch.Context.Registers.CR4 = ControlRegister4;
+    Task->Arch.Context.Registers.RIP = (U64)VMA_TASK_RUNNER;
+
+    StackTop = Task->Arch.StackBase + (U64)Task->Arch.StackSize;
+    SysStackTop = Task->Arch.SysStackBase + (U64)Task->Arch.SysStackSize;
+
+    if (Process->Privilege == PRIVILEGE_KERNEL) {
+        Task->Arch.Context.Registers.RSP = StackTop - STACK_SAFETY_MARGIN;
+        Task->Arch.Context.Registers.RBP = StackTop - STACK_SAFETY_MARGIN;
+    } else {
+        Task->Arch.Context.Registers.RSP = SysStackTop - STACK_SAFETY_MARGIN;
+        Task->Arch.Context.Registers.RBP = SysStackTop - STACK_SAFETY_MARGIN;
+    }
+
+    Task->Arch.Context.SS0 = SELECTOR_KERNEL_DATA;
+    Task->Arch.Context.RSP0 = SysStackTop - STACK_SAFETY_MARGIN;
+
+    if ((Info->Flags & TASK_CREATE_MAIN_KERNEL) != 0u) {
+        Task->Status = TASK_STATUS_RUNNING;
+        WARNING(TEXT("[SetupTask] Main kernel stack handoff not implemented on x86-64"));
+    }
+
+    DEBUG(TEXT("[SetupTask] Exit"));
+    return TRUE;
 }
 
 /************************************************************************/

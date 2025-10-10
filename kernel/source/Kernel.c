@@ -212,8 +212,8 @@ U32 ClockTestTask(LPVOID Param) {
 
 void DumpCriticalInformation(void) {
     for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
-        DEBUG(TEXT("E820 entry %X : %X, %X, %X"), Index, (U32)KernelStartup.E820[Index].Base.LO,
-            (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
+        DEBUG(TEXT("E820 entry %X : %X, %X, %X"), Index, U64_Low32(KernelStartup.E820[Index].Base),
+            U64_Low32(KernelStartup.E820[Index].Size), (U32)KernelStartup.E820[Index].Type);
     }
 
     DEBUG(TEXT("Virtual addresses"));
@@ -489,8 +489,8 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
             KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
 
         SAFE_USE(TermState) {
-            U32 IdHigh = KernelObject->ID.HI;
-            U32 IdLow = KernelObject->ID.LO;
+            U32 IdHigh = U64_High32(KernelObject->ID);
+            U32 IdLow = U64_Low32(KernelObject->ID);
 
             TermState->Object = KernelObject;
             TermState->ExitCode = ExitCode;
@@ -502,6 +502,9 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
                   IdHigh,
                   IdLow,
                   ExitCode);
+
+            UNUSED(IdHigh);
+            UNUSED(IdLow);
         }
 
         return;
@@ -741,9 +744,11 @@ void InitializeKernel(void) {
 
     DEBUG(TEXT("[KernelMain] Memory manager initialized"));
 
+#if defined(__EXOS_ARCH_I386__)
     InitializeTaskSegments();
 
     DEBUG(TEXT("[KernelMain] Task segments initialized"));
+#endif
 
     //-------------------------------------
     // Check data integrity
