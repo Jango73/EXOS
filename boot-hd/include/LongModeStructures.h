@@ -34,6 +34,36 @@
 #define PML4_RECURSIVE_SLOT 510u
 
 /************************************************************************/
+// Size helpers derived from the raw entry layout
+/************************************************************************/
+#define PAGE_TABLE_ENTRY_SIZE ((UINT)sizeof(VBR_X86_64_PAGING_ENTRY))
+#define PAGE_TABLE_SIZE (PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_ENTRY_SIZE)
+
+typedef struct tag_SEGMENT_DESCRIPTOR {
+    U32 Limit_00_15 : 16;
+    U32 Base_00_15 : 16;
+    U32 Base_16_23 : 8;
+    U32 Accessed : 1;
+    U32 CanWrite : 1;
+    U32 ConformExpand : 1;
+    U32 Type : 1;
+    U32 Segment : 1;
+    U32 Privilege : 2;
+    U32 Present : 1;
+    U32 Limit_16_19 : 4;
+    U32 Available : 1;
+    U32 Unused : 1;
+    U32 OperandSize : 1;
+    U32 Granularity : 1;
+    U32 Base_24_31 : 8;
+} SEGMENT_DESCRIPTOR, *LPSEGMENT_DESCRIPTOR;
+
+typedef struct {
+    U16 Limit;
+    U32 Base;
+} GDT_REGISTER;
+
+/************************************************************************/
 // Raw paging entries usable from 32-bit code
 /************************************************************************/
 typedef struct tag_VBR_X86_64_PAGING_ENTRY {
@@ -55,11 +85,5 @@ typedef X86_64_PML4_ENTRY* LPPML4;
 typedef X86_64_PDPT_ENTRY* LPPDPT;
 typedef X86_64_PAGE_DIRECTORY_ENTRY* LPPAGE_DIRECTORY;
 typedef X86_64_PAGE_TABLE_ENTRY* LPPAGE_TABLE;
-
-/************************************************************************/
-// Size helpers derived from the raw entry layout
-/************************************************************************/
-#define PAGE_TABLE_ENTRY_SIZE ((UINT)sizeof(VBR_X86_64_PAGING_ENTRY))
-#define PAGE_TABLE_SIZE (PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_ENTRY_SIZE)
 
 #endif // LONG_MODE_STRUCTURES_H_INCLUDED

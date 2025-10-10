@@ -21,7 +21,6 @@
 
 \************************************************************************/
 
-#include "../../kernel/include/arch/i386/i386.h"
 #include "../include/LongModeStructures.h"
 #include "../include/VbrPayloadShared.h"
 

@@ -27,6 +27,16 @@
 #include "Multiboot.h"
 #include "SegOfs.h"
 
+/* Low memory pages reserved by VBR */
+#define LOW_MEMORY_PAGE_1 0x1000
+#define LOW_MEMORY_PAGE_2 0x2000
+#define LOW_MEMORY_PAGE_3 0x3000
+#define LOW_MEMORY_PAGE_4 0x4000
+#define LOW_MEMORY_PAGE_5 0x5000
+#define LOW_MEMORY_PAGE_6 0x6000
+#define LOW_MEMORY_PAGE_7 0x7000
+#define LOW_MEMORY_PAGE_8 0x8000
+
 /************************************************************************/
 // E820 memory map
 /************************************************************************/
