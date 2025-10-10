@@ -117,8 +117,8 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     DEBUG(TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
 #endif
 
-    if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)KernelHeapAlloc;
-    if (MemFree == NULL) MemFree = (MEMFREEFUNC)KernelHeapFree;
+    if (MemAlloc == NULL) MemAlloc = KernelHeapAlloc;
+    if (MemFree == NULL) MemFree = KernelHeapFree;
 
     This = (LPLIST)MemAlloc(sizeof(LIST));
 

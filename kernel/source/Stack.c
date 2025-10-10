@@ -31,6 +31,34 @@
 
 /************************************************************************/
 
+#if defined(__EXOS_ARCH_I386__)
+static inline SELECTOR StackReadCodeSegment(void) {
+    U32 SegmentValue;
+
+    GetCS(SegmentValue);
+
+    return (SELECTOR)SegmentValue;
+}
+
+static inline UINT StackGetSavedPointer(LPTASK Task) {
+    return Task->Arch.Context.Registers.ESP;
+}
+#else
+static inline SELECTOR StackReadCodeSegment(void) {
+    SELECTOR SegmentValue;
+
+    __asm__ __volatile__("movw %%cs, %0" : "=r"(SegmentValue));
+
+    return SegmentValue;
+}
+
+static inline UINT StackGetSavedPointer(LPTASK Task) {
+    return (UINT)Task->Arch.Context.Registers.RSP;
+}
+#endif
+
+/************************************************************************/
+
 /**
  * @brief Copies stack content and adjusts EBP chain pointers.
  *
@@ -119,6 +147,7 @@ BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
  * @return TRUE if stack switch successful, FALSE if copy failed or ESP out of range
  */
 BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
+#if defined(__EXOS_ARCH_I386__)
     if (!CopyStack(DestStackTop, SourceStackTop, Size)) {
         return FALSE;
     }
@@ -161,6 +190,15 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
             SourceStackTop);
         return FALSE;
     }
+#else
+    UNUSED(DestStackTop);
+    UNUSED(SourceStackTop);
+    UNUSED(Size);
+
+    WARNING(TEXT("[SwitchStack] Not implemented for this architecture"));
+
+    return FALSE;
+#endif
 }
 
 /************************************************************************/
@@ -178,9 +216,9 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
  */
 BOOL CheckStack(void) {
     LPTASK CurrentTask;
-    U32 CurrentESP;
-    U32 CurrentCS;
-    U32 StackBase, StackTop;
+    UINT CurrentESP;
+    SELECTOR CurrentCS;
+    UINT StackBase, StackTop;
     BOOL InKernelMode;
 
     CurrentTask = GetCurrentTask();
@@ -194,13 +232,13 @@ BOOL CheckStack(void) {
         return TRUE;
     }
 
-    GetCS(CurrentCS);
+    CurrentCS = StackReadCodeSegment();
     InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
 
     // Determine which ESP to check and which stack bounds to use
     if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
         // Kernel tasks always use their normal stack
-        CurrentESP = CurrentTask->Arch.Context.Registers.ESP;
+        CurrentESP = StackGetSavedPointer(CurrentTask);
         StackBase = CurrentTask->Arch.StackBase;
         StackTop = StackBase + CurrentTask->Arch.StackSize;
     } else if (InKernelMode) {
@@ -220,7 +258,7 @@ BOOL CheckStack(void) {
         return TRUE;
     } else {
         // User task in user mode - check saved user stack ESP
-        CurrentESP = CurrentTask->Arch.Context.Registers.ESP;
+        CurrentESP = StackGetSavedPointer(CurrentTask);
         StackBase = CurrentTask->Arch.StackBase;
         StackTop = StackBase + CurrentTask->Arch.StackSize;
     }

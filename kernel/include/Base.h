@@ -530,7 +530,7 @@ typedef struct tag_DATETIME {
 // are not used in userland, otherwise you get a nice page fault, at best.
 // Will implement pointer masking soon.
 
-typedef U32 HANDLE;
+typedef UINT HANDLE;
 
 /************************************************************************/
 // Maximum string lengths
@@ -669,6 +669,14 @@ static inline U64 U64_ShiftRight8(U64 Value) {
     return Result;
 }
 
+static inline U32 U64_High32(U64 Value) {
+    return Value.HI;
+}
+
+static inline U32 U64_Low32(U64 Value) {
+    return Value.LO;
+}
+
 #else
 
 // Make U64 from hi/lo
@@ -715,6 +723,14 @@ static inline U64 U64_FromU32(U32 Value) {
 
 static inline U64 U64_ShiftRight8(U64 Value) {
     return Value >> 8;
+}
+
+static inline U32 U64_High32(U64 Value) {
+    return (U32)(Value >> 32);
+}
+
+static inline U32 U64_Low32(U64 Value) {
+    return (U32)(Value & 0xFFFFFFFFull);
 }
 
 #endif

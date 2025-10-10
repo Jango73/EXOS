@@ -60,16 +60,16 @@ U64 CRC64_Hash(const void* Data, U32 Length) {
         CRC64_InitTable();
     }
 
-    U64 Crc = {0xFFFFFFFF, 0xFFFFFFFF};  // Initial value: all ones
+    U64 Crc = U64_Make(0xFFFFFFFFu, 0xFFFFFFFFu);  // Initial value: all ones
     const U8* Bytes = (const U8*)Data;
 
     for (U32 ByteIndex = 0; ByteIndex < Length; ByteIndex++) {
-        U8 TableIndex = (U8)(Crc.LO ^ Bytes[ByteIndex]);
+        U8 TableIndex = (U8)(U64_Low32(Crc) ^ Bytes[ByteIndex]);
         Crc = U64_Xor(U64_ShiftRight8(Crc), CRC64_Table[TableIndex]);
     }
 
     // Final XOR with all ones
-    U64 FinalMask = {0xFFFFFFFF, 0xFFFFFFFF};
+    U64 FinalMask = U64_Make(0xFFFFFFFFu, 0xFFFFFFFFu);
     return U64_Xor(Crc, FinalMask);
 }
 

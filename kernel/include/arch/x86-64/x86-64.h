@@ -31,6 +31,70 @@
 #include "arch/x86-64/x86-64-Memory.h"
 
 /***************************************************************************/
+// Descriptor and selector helpers
+/***************************************************************************/
+
+#define IDT_SIZE N_4KB
+#define GDT_SIZE N_8KB
+#define NUM_INTERRUPTS 48
+#define NUM_TASKS 128
+
+#define BIOS_E820_TYPE_USABLE 1
+#define BIOS_E820_TYPE_RESERVED 2
+#define BIOS_E820_TYPE_ACPI 3
+#define BIOS_E820_TYPE_ACPI_NVS 4
+#define BIOS_E820_TYPE_BAD_MEM 5
+
+#define GATE_TYPE_386_INT 0x0E
+#define GATE_TYPE_386_TRAP 0x0F
+
+#define SELECTOR_RPL_BITS 2u
+#define SELECTOR_RPL_MASK 0x0003u
+#define SELECTOR_RPL_SHIFT 0u
+
+#define SELECTOR_TI_MASK 0x0001u
+#define SELECTOR_TI_SHIFT 2u
+#define SELECTOR_TABLE_GDT 0u
+#define SELECTOR_TABLE_LDT 1u
+
+#define SELECTOR_INDEX_SHIFT 3u
+
+#define SELECTOR_INDEX(sel) ((U16)(sel) >> SELECTOR_INDEX_SHIFT)
+#define SELECTOR_RPL(sel) ((U16)(sel) & SELECTOR_RPL_MASK)
+#define SELECTOR_TI(sel) ((((U16)(sel)) >> SELECTOR_TI_SHIFT) & SELECTOR_TI_MASK)
+
+#define MAKE_SELECTOR(index, ti, rpl) \
+    ((U16)((((U16)(index)) << SELECTOR_INDEX_SHIFT) | ((((U16)(ti)) & SELECTOR_TI_MASK) << SELECTOR_TI_SHIFT) | \
+            (((U16)(rpl)) & SELECTOR_RPL_MASK)))
+#define MAKE_GDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_GDT, (rpl))
+#define MAKE_LDT_SELECTOR(index, rpl) MAKE_SELECTOR((index), SELECTOR_TABLE_LDT, (rpl))
+
+#define SELECTOR_GLOBAL 0x00
+#define SELECTOR_LOCAL 0x04
+
+#define SELECTOR_NULL 0x00
+#define SELECTOR_KERNEL_CODE (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_KERNEL_DATA (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_USER_CODE (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+#define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+#define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+
+#define RFLAGS_ALWAYS_1 0x0000000000000002ull
+#define RFLAGS_IF 0x0000000000000200ull
+
+/***************************************************************************/
+
+#define TRACED_FUNCTION
+#define TRACED_EPILOGUE(FunctionName)
+
+#define SwitchToNextTask_2(prev, next) ((void)(prev), (void)(next))
+#define ArchPrepareNextTaskSwitch(CurrentTask, NextTask) ((void)(CurrentTask), (void)(NextTask))
+#define SetupStackForKernelMode(Task, StackTop) ((void)(Task), (void)(StackTop))
+#define JumpToReadyTask(Task, StackTop) ((void)(Task), (void)(StackTop))
+#define SetupStackForUserMode(Task, StackTop, UserESP) ((void)(Task), (void)(StackTop), (void)(UserESP))
+
+/***************************************************************************/
 
 // PIC and IRQ helpers
 
@@ -127,6 +191,27 @@
 
 /***************************************************************************/
 
+typedef struct tag_SEGMENT_DESCRIPTOR {
+    U32 Limit_00_15 : 16;
+    U32 Base_00_15 : 16;
+    U32 Base_16_23 : 8;
+    U32 Accessed : 1;
+    U32 CanWrite : 1;
+    U32 ConformExpand : 1;
+    U32 Type : 1;
+    U32 Segment : 1;
+    U32 Privilege : 2;
+    U32 Present : 1;
+    U32 Limit_16_19 : 4;
+    U32 Available : 1;
+    U32 Unused : 1;
+    U32 OperandSize : 1;
+    U32 Granularity : 1;
+    U32 Base_24_31 : 8;
+} SEGMENT_DESCRIPTOR, *LPSEGMENT_DESCRIPTOR;
+
+/***************************************************************************/
+
 // General purpose register snapshot for 64-bit mode
 
 typedef struct tag_INTEL_64_GENERAL_REGISTERS {
@@ -208,6 +293,35 @@ typedef struct tag_ARCH_TASK_DATA {
 /***************************************************************************/
 
 #pragma pack(pop)
+
+/***************************************************************************/
+
+typedef struct tag_GDT_REGISTER {
+    U16 Limit;
+    U64 Base;
+} GDT_REGISTER;
+
+/***************************************************************************/
+
+typedef U16 SELECTOR;
+typedef U64 OFFSET;
+
+typedef struct tag_KERNELDATA_X86_64 {
+    LPX86_64_IDT_ENTRY IDT;
+    LPVOID GDT;
+    LPVOID TSS;
+    LPPAGEBITMAP PPB;
+} KERNELDATA_X86_64, *LPKERNELDATA_X86_64;
+
+/***************************************************************************/
+
+extern KERNELDATA_X86_64 Kernel_i386;
+
+struct tag_TASK;
+struct tag_PROCESS;
+struct tag_TASKINFO;
+
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
 
 /***************************************************************************/
 
