@@ -1,11 +1,28 @@
 BUILD_DIR = ../../build
 
-CC      = i686-elf-gcc
-LD      = i686-elf-ld
+ARCH ?= i386
 
-CFLAGS  = -ffreestanding -m32 -Wall -Wextra -O0 -g -fno-pic -fno-stack-protector -fno-builtin
+ifeq ($(ARCH),i386)
+TOOLCHAIN_PREFIX = i686-elf
+CC      = $(TOOLCHAIN_PREFIX)-gcc
+LD      = $(TOOLCHAIN_PREFIX)-ld
+NM      = $(TOOLCHAIN_PREFIX)-nm
+ARCH_CFLAGS =
+ARCH_LDFLAGS =
+else ifeq ($(ARCH),x86-64)
+CC      = gcc
+LD      = ld
+NM      = nm
+ARCH_CFLAGS = -m64
+ARCH_LDFLAGS = -m elf_x86_64
+else
+$(error Unsupported architecture $(ARCH))
+endif
 
-LDFLAGS = -T tictactoe.ld -nostdlib -Map=$(BUILD_DIR)/system/tictactoe/tictactoe.map
+CFLAGS  = -ffreestanding -Wall -Wextra -O0 -g -fno-pic -fno-stack-protector -fno-builtin \
+          $(ARCH_CFLAGS)
+
+LDFLAGS = -T tictactoe.ld -nostdlib -Map=$(BUILD_DIR)/system/tictactoe/tictactoe.map $(ARCH_LDFLAGS)
 
 TICTACTOE   = $(BUILD_DIR)/system/tictactoe/tictactoe
 TICTACTOE_SYMBOLS = $(BUILD_DIR)/system/tictactoe/tictactoe.sym
@@ -26,7 +43,7 @@ $(BUILD_DIR)/system/tictactoe/%.o: source/%.c
 
 $(TICTACTOE_SYMBOLS): $(TICTACTOE)
 	@echo "Extracting tictactoe symbols for Bochs debugging"
-	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 clean:
 	rm -rf $(BUILD_DIR)/system/tictactoe/*.o $(BUILD_DIR)/system/tictactoe/*.elf $(BUILD_DIR)/system/tictactoe/*.map $(TICTACTOE_SYMBOLS)

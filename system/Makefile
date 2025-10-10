@@ -1,19 +1,22 @@
 ################################################################################
 #
-#	EXOS System Programs
-#	Copyright (c) 1999-2025 Jango73
+#       EXOS System Programs
+#       Copyright (c) 1999-2025 Jango73
 #
 ################################################################################
 
-# Generic and compiler options
-CC			= i686-elf-gcc
-AS			= i686-elf-as
-LD			= i686-elf-ld
-OBJCOPY		= i686-elf-objcopy
+# Architecture selection (default to i386)
+ARCH ?= i386
 
-CCOPT       = -DNAME="__KERNEL__" -g -Wall -Wextra -O0 -falign-functions=16 -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables -fvisibility=hidden -mno-red-zone -Werror-implicit-function-declaration -Wstrict-prototypes -DBARE_METAL=0 -DDEBUG_OUTPUT=0 -DSCHEDULING_DEBUG_OUTPUT=0 -DTRACE_STACK_USAGE=0
+ifeq ($(ARCH),i386)
+# Using i386 cross-toolchain
+else ifeq ($(ARCH),x86-64)
+# Using host toolchain for x86-64 builds
+else
+$(error Unsupported architecture $(ARCH))
+endif
 
-INCLUDES    = -I../runtime/include
+SUBMAKE = $(MAKE) ARCH=$(ARCH)
 
 ################################################################################
 
@@ -26,60 +29,60 @@ all: hello portal tictactoe netget master slave
 
 hello:
 	@echo "[ Building hello ]"
-	$(MAKE) -C hello all
+	$(SUBMAKE) -C hello all
 
 hello_clean:
-	$(MAKE) -C hello clean
+	$(SUBMAKE) -C hello clean
 
 ################################################################################
 # Portal program
 
 portal:
 	@echo "[ Building portal ]"
-	$(MAKE) -C portal all
+	$(SUBMAKE) -C portal all
 
 portal_clean:
-	$(MAKE) -C portal clean
+	$(SUBMAKE) -C portal clean
 
 ################################################################################
 # TicTacToe program
 
 tictactoe:
 	@echo "[ Building tictactoe ]"
-	$(MAKE) -C tictactoe all
+	$(SUBMAKE) -C tictactoe all
 
 tictactoe_clean:
-	$(MAKE) -C tictactoe clean
+	$(SUBMAKE) -C tictactoe clean
 
 ################################################################################
 # NetGet program
 
 netget:
 	@echo "[ Building netget ]"
-	$(MAKE) -C netget all
+	$(SUBMAKE) -C netget all
 
 netget_clean:
-	$(MAKE) -C netget clean
+	$(SUBMAKE) -C netget clean
 
 ################################################################################
 # Master test program
 
 master:
 	@echo "[ Building master ]"
-	$(MAKE) -C test/master all
+	$(SUBMAKE) -C test/master all
 
 master_clean:
-	$(MAKE) -C test/master clean
+	$(SUBMAKE) -C test/master clean
 
 ################################################################################
 # Slave test program
 
 slave:
 	@echo "[ Building slave ]"
-	$(MAKE) -C test/slave all
+	$(SUBMAKE) -C test/slave all
 
 slave_clean:
-	$(MAKE) -C test/slave clean
+	$(SUBMAKE) -C test/slave clean
 
 ################################################################################
 
