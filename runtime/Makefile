@@ -47,7 +47,7 @@ RUNTIME_LIB = $(BUILD_DIR)/runtime/libexos.a
 
 SRC_C   = $(wildcard source/*.c) ../kernel/source/String.c ../kernel/source/utils/AdaptiveDelay.c
 SRC_CXX = $(wildcard source/*.cpp)
-SRC_S   = $(wildcard source/*.asm)
+SRC_S   = $(wildcard source/*.asm) $(wildcard source/$(ARCH)/*.asm)
 
 OBJ_C   = $(patsubst source/%.c, $(BUILD_DIR)/runtime/%.o, $(filter source/%.c, $(SRC_C))) $(patsubst ../kernel/source/%.c, $(BUILD_DIR)/runtime/%.o, $(filter ../kernel/source/%.c, $(SRC_C)))
 # OBJ_CXX = $(patsubst source/%.cpp, $(BUILD_DIR)/runtime/%.o, $(SRC_CXX))
