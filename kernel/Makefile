@@ -5,6 +5,8 @@ BUILD_DIR = ../build
 
 ARCH ?= i386
 
+ARCH_CFLAGS :=
+
 ifeq ($(ARCH),i386)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf
@@ -22,6 +24,7 @@ LD              = ld
 NM              = nm
 OBJCOPY         = objcopy
 READELF         = readelf
+ARCH_CFLAGS     = -m64 -mcmodel=large
 else
 $(error Unsupported architecture $(ARCH))
 endif
@@ -39,6 +42,7 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
                   -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
                   -Iinclude -I../third/include -I../runtime/include
+CFLAGS         += $(ARCH_CFLAGS)
 
 NASM            = nasm
 
