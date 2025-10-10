@@ -77,6 +77,10 @@ SRC_S  = $(wildcard source/asm/*.asm) \
          $(wildcard source/arch/$(ARCH)/asm/*.asm)
 
 ifeq ($(ARCH),x86-64)
+SRC_S := $(filter-out source/asm/RealModeCalls.asm, $(SRC_S))
+endif
+
+ifeq ($(ARCH),x86-64)
 SRC_S += ../runtime/source/x86-64/exos-runtime-a.asm
 else
 SRC_S += ../runtime/source/i386/exos-runtime-a.asm
