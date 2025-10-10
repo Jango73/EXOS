@@ -60,9 +60,55 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   $(ARCH_DEFINES)
 
 NASM            = nasm
-CC              = $(TOOLCHAIN_PREFIX)-gcc
-LD              = $(TOOLCHAIN_PREFIX)-ld
-NM              = $(TOOLCHAIN_PREFIX)-nm
+
+define find_tool
+$(firstword $(foreach t,$(1),$(if $(shell command -v $(t) 2>/dev/null),$(t),)))
+endef
+
+CROSS_CC        = $(TOOLCHAIN_PREFIX)-gcc
+CROSS_LD        = $(TOOLCHAIN_PREFIX)-ld
+CROSS_NM        = $(TOOLCHAIN_PREFIX)-nm
+
+CC              :=
+LD              :=
+NM              :=
+LD_ARCH_FLAGS   :=
+TOOLCHAIN_DESC  :=
+TOOLCHAIN_MSG   :=
+
+ifneq ($(shell command -v $(CROSS_CC) 2>/dev/null),)
+ifneq ($(shell command -v $(CROSS_LD) 2>/dev/null),)
+ifneq ($(shell command -v $(CROSS_NM) 2>/dev/null),)
+CC             := $(CROSS_CC)
+LD             := $(CROSS_LD)
+NM             := $(CROSS_NM)
+TOOLCHAIN_DESC := cross
+TOOLCHAIN_MSG  := Using cross toolchain ($(CC), $(LD), $(NM)).
+endif
+endif
+endif
+
+ifeq ($(TOOLCHAIN_DESC),)
+HOST_CC         := $(call find_tool,gcc)
+HOST_LD         := $(call find_tool,ld)
+HOST_NM         := $(call find_tool,nm)
+ifneq ($(HOST_CC),)
+ifneq ($(HOST_LD),)
+ifneq ($(HOST_NM),)
+CC             := $(HOST_CC)
+LD             := $(HOST_LD)
+NM             := $(HOST_NM)
+LD_ARCH_FLAGS  := -m elf_i386
+TOOLCHAIN_DESC := host
+TOOLCHAIN_MSG  := Using host toolchain ($(CC), $(LD), $(NM)). Cross compiler $(CROSS_CC) was not found.
+endif
+endif
+endif
+endif
+
+ifeq ($(TOOLCHAIN_DESC),)
+$(error No suitable toolchain found. Please install $(CROSS_CC) or ensure GCC/binutils are available.)
+endif
 LDFLAGS         = -nostdlib -no-pie
 LDDEFS          = --defsym=PAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
@@ -188,8 +234,10 @@ all: check_tools $(FINAL_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/pa
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
 	@command -v parted >/dev/null 2>&1 || { echo "parted is not installed. Please run: sudo apt install parted"; exit 1; }
-	@command -v $(CC) >/dev/null 2>&1 || { echo "$(CC) is not installed. Please install your cross toolchain."; exit 1; }
-	@command -v $(LD) >/dev/null 2>&1 || { echo "$(LD) is not installed. Please install your cross toolchain."; exit 1; }
+	@command -v $(CC) >/dev/null 2>&1 || { echo "$(CC) is not installed. Please install the required compiler."; exit 1; }
+	@command -v $(LD) >/dev/null 2>&1 || { echo "$(LD) is not installed. Please install the required linker."; exit 1; }
+	@command -v $(NM) >/dev/null 2>&1 || { echo "$(NM) is not installed. Please install the required binutils."; exit 1; }
+	@echo "$(TOOLCHAIN_MSG)"
 	$(FS_SPECIFIC_CHECK)
 
 $(MBR_BIN): $(MBR_SOURCE)
@@ -219,11 +267,11 @@ $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 
 $(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
-	$(LD) $(LDDEFS) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O)
+	$(LD) $(LD_ARCH_FLAGS) $(LDDEFS) -T $(PAYLOAD_BIN_LD) $(LDFLAGS) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O)
 
 $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_ELF_LD)
 	@echo "Linking payload stub + C into elf binary..."
-	$(LD) $(LDDEFS) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O)
+	$(LD) $(LD_ARCH_FLAGS) $(LDDEFS) -T $(PAYLOAD_ELF_LD) $(LDFLAGS) -Map=$(PAYLOAD_MAP) -o $@ $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O)
 
 $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	# @echo "Extracting payload symbols for Bochs debugging"
