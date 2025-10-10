@@ -56,7 +56,7 @@
 
 /***************************************************************************/
 
-typedef U32 (*DRVFUNC)(UINT Function, UINT Parameter);
+typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
 
 /***************************************************************************/
 

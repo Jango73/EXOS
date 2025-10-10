@@ -36,7 +36,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 SerialMouseCommands(UINT, UINT);
+UINT SerialMouseCommands(UINT, UINT);
 
 DRIVER SerialMouseDriver = {
     .TypeID = KOID_DRIVER,
@@ -471,23 +471,23 @@ void MouseHandler(void) {
 
 /***************************************************************************/
 
-U32 SerialMouseCommands(UINT Function, UINT Parameter) {
+UINT SerialMouseCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
 
     switch (Function) {
         case DF_LOAD:
-            return (U32)MouseInitialize();
+            return (UINT)MouseInitialize();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:
             return 0;
         case DF_MOUSE_GETDELTAX:
-            return (U32)GetDeltaX();
+            return (UINT)GetDeltaX();
         case DF_MOUSE_GETDELTAY:
-            return (U32)GetDeltaY();
+            return (UINT)GetDeltaY();
         case DF_MOUSE_GETBUTTONS:
-            return (U32)GetButtons();
+            return (UINT)GetButtons();
     }
 
-    return MAX_U32;
+    return (UINT)MAX_U32;
 }

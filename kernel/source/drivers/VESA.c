@@ -44,7 +44,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 VESACommands(UINT, UINT);
+UINT VESACommands(UINT, UINT);
 
 DRIVER VESADriver = {
     .TypeID = KOID_DRIVER,
@@ -1409,20 +1409,20 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 
 /***************************************************************************/
 
-U32 VESACommands(UINT Function, UINT Param) {
+UINT VESACommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
-            return (U32)VESAInitialize();
+            return (UINT)VESAInitialize();
         case DF_UNLOAD:
-            return (U32)VESAUninitialize();
+            return (UINT)VESAUninitialize();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GFX_SETMODE:
             return SetVideoMode((LPGRAPHICSMODEINFO)Param);
         case DF_GFX_CREATEBRUSH:
-            return (U32)VESA_CreateBrush((LPBRUSHINFO)Param);
+            return (UINT)VESA_CreateBrush((LPBRUSHINFO)Param);
         case DF_GFX_CREATEPEN:
-            return (U32)VESA_CreatePen((LPPENINFO)Param);
+            return (UINT)VESA_CreatePen((LPPENINFO)Param);
         case DF_GFX_SETPIXEL:
             return VESA_SetPixel((LPPIXELINFO)Param);
         case DF_GFX_GETPIXEL:

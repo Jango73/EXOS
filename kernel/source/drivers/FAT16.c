@@ -31,7 +31,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 FAT16Commands(UINT, UINT);
+UINT FAT16Commands(UINT, UINT);
 
 DRIVER FAT16Driver = {
     .TypeID = KOID_DRIVER,
@@ -912,7 +912,7 @@ static U32 WriteFile(LPFATFILE File) {
 
 /***************************************************************************/
 
-U32 FAT16Commands(UINT Function, UINT Parameter) {
+UINT FAT16Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
@@ -929,19 +929,19 @@ U32 FAT16Commands(UINT Function, UINT Parameter) {
         case DF_FS_RENAMEFOLDER:
             return DF_ERROR_NOTIMPL;
         case DF_FS_OPENFILE:
-            return (U32)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
-            return (U32)OpenNext((LPFATFILE)Parameter);
+            return (UINT)OpenNext((LPFATFILE)Parameter);
         case DF_FS_CLOSEFILE:
-            return (U32)CloseFile((LPFATFILE)Parameter);
+            return (UINT)CloseFile((LPFATFILE)Parameter);
         case DF_FS_DELETEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_RENAMEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_READ:
-            return (U32)ReadFile((LPFATFILE)Parameter);
+            return (UINT)ReadFile((LPFATFILE)Parameter);
         case DF_FS_WRITE:
-            return (U32)WriteFile((LPFATFILE)Parameter);
+            return (UINT)WriteFile((LPFATFILE)Parameter);
     }
 
     return DF_ERROR_NOTIMPL;

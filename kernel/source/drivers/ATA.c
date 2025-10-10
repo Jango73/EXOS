@@ -38,7 +38,7 @@
 
 /***************************************************************************/
 
-U32 ATADiskCommands(UINT, UINT);
+UINT ATADiskCommands(UINT, UINT);
 
 DRIVER ATADiskDriver = {
     .TypeID = KOID_DRIVER,
@@ -551,7 +551,7 @@ void HardDriveHandler(void) {
 
 /***************************************************************************/
 
-U32 ATADiskCommands(UINT Function, UINT Parameter) {
+UINT ATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return InitializeATA();

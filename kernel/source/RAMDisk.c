@@ -32,7 +32,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 RAMDiskCommands(UINT, UINT);
+UINT RAMDiskCommands(UINT, UINT);
 
 DRIVER RAMDiskDriver = {
     .TypeID = KOID_DRIVER,
@@ -622,7 +622,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 /***************************************************************************/
 
-U32 RAMDiskCommands(UINT Function, UINT Parameter) {
+UINT RAMDiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return RAMDiskInitialize();

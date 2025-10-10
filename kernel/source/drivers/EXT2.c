@@ -153,7 +153,7 @@ static U32 ReadFile(LPEXT2FILE File);
 static U32 WriteFile(LPEXT2FILE File);
 
 BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
-U32 EXT2Commands(UINT Function, UINT Parameter);
+UINT EXT2Commands(UINT Function, UINT Parameter);
 
 /************************************************************************/
 
@@ -2455,7 +2455,7 @@ BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
  * @param Parameter Optional parameter pointer or value.
  * @return Driver-specific result or error code.
  */
-U32 EXT2Commands(UINT Function, UINT Parameter) {
+UINT EXT2Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
@@ -2464,7 +2464,7 @@ U32 EXT2Commands(UINT Function, UINT Parameter) {
         case DF_FS_CREATEFOLDER:
             return CreateNode((LPFILEINFO)Parameter, TRUE);
         case DF_FS_OPENFILE:
-            return (U32)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
             return OpenNext((LPEXT2FILE)Parameter);
         case DF_FS_CLOSEFILE:

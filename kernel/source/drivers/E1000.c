@@ -112,7 +112,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-static U32 E1000Commands(UINT Function, UINT Param);
+static UINT E1000Commands(UINT Function, UINT Param);
 
 /************************************************************************/
 // MMIO helpers
@@ -1068,7 +1068,7 @@ static U32 E1000_OnGetLastFunc(void) { return DF_NT_POLL; }
  * @param Param Optional pointer to parameters.
  * @return DF_ERROR_* code depending on operation.
  */
-static U32 E1000Commands(UINT Function, UINT Param) {
+static UINT E1000Commands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
             return E1000_OnLoad();

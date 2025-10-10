@@ -33,7 +33,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 FAT32Commands(UINT, UINT);
+UINT FAT32Commands(UINT, UINT);
 
 DRIVER FAT32Driver = {
     .TypeID = KOID_DRIVER,
@@ -1806,7 +1806,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
  * @param Parameter Optional parameter pointer.
  * @return DF_ERROR_* result code.
  */
-U32 FAT32Commands(UINT Function, UINT Parameter) {
+UINT FAT32Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
@@ -1817,27 +1817,27 @@ U32 FAT32Commands(UINT Function, UINT Parameter) {
         case DF_FS_SETVOLUMEINFO:
             return DF_ERROR_NOTIMPL;
         case DF_FS_CREATEFOLDER:
-            return (U32)CreateFile((LPFILEINFO)Parameter, TRUE);
+            return (UINT)CreateFile((LPFILEINFO)Parameter, TRUE);
         case DF_FS_DELETEFOLDER:
-            return (U32)DeleteFolder((LPFILEINFO)Parameter);
+            return (UINT)DeleteFolder((LPFILEINFO)Parameter);
         case DF_FS_RENAMEFOLDER:
-            return (U32)RenameFolder((LPFILEINFO)Parameter);
+            return (UINT)RenameFolder((LPFILEINFO)Parameter);
         case DF_FS_OPENFILE:
-            return (U32)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
-            return (U32)OpenNext((LPFATFILE)Parameter);
+            return (UINT)OpenNext((LPFATFILE)Parameter);
         case DF_FS_CLOSEFILE:
-            return (U32)CloseFile((LPFATFILE)Parameter);
+            return (UINT)CloseFile((LPFATFILE)Parameter);
         case DF_FS_DELETEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_RENAMEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_READ:
-            return (U32)ReadFile((LPFATFILE)Parameter);
+            return (UINT)ReadFile((LPFATFILE)Parameter);
         case DF_FS_WRITE:
-            return (U32)WriteFile((LPFATFILE)Parameter);
+            return (UINT)WriteFile((LPFATFILE)Parameter);
         case DF_FS_CREATEPARTITION:
-            return (U32)CreatePartition((LPPARTITION_CREATION)Parameter);
+            return (UINT)CreatePartition((LPPARTITION_CREATION)Parameter);
     }
 
     return DF_ERROR_NOTIMPL;

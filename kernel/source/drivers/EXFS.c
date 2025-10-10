@@ -33,7 +33,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 EXFSCommands(UINT, UINT);
+UINT EXFSCommands(UINT, UINT);
 
 DRIVER EXFSDriver = {
     .TypeID = KOID_DRIVER,
@@ -867,7 +867,7 @@ static U32 CloseFile(LPEXFSFILE File) {
  * @param Parameter Command parameter.
  * @return Driver-specific result code.
  */
-U32 EXFSCommands(UINT Function, UINT Parameter) {
+UINT EXFSCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
@@ -884,11 +884,11 @@ U32 EXFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_RENAMEFOLDER:
             return DF_ERROR_NOTIMPL;
         case DF_FS_OPENFILE:
-            return (U32)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
-            return (U32)OpenNext((LPEXFSFILE)Parameter);
+            return (UINT)OpenNext((LPEXFSFILE)Parameter);
         case DF_FS_CLOSEFILE:
-            return (U32)CloseFile((LPEXFSFILE)Parameter);
+            return (UINT)CloseFile((LPEXFSFILE)Parameter);
         case DF_FS_DELETEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_RENAMEFILE:

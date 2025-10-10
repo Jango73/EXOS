@@ -52,7 +52,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 SystemFSCommands(UINT, UINT);
+UINT SystemFSCommands(UINT, UINT);
 
 DRIVER SystemFSDriver = {
     .TypeID = KOID_DRIVER,
@@ -839,7 +839,7 @@ static BOOL FileExists(LPFILEINFO Info) {
 
 /************************************************************************/
 
-U32 SystemFSCommands(UINT Function, UINT Parameter) {
+UINT SystemFSCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
@@ -864,21 +864,21 @@ U32 SystemFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_UNMOUNTOBJECT:
             return UnmountObject((LPFS_UNMOUNT_CONTROL)Parameter);
         case DF_FS_PATHEXISTS:
-            return (U32)PathExists((LPFS_PATHCHECK)Parameter);
+            return (UINT)PathExists((LPFS_PATHCHECK)Parameter);
         case DF_FS_FILEEXISTS:
-            return (U32)FileExists((LPFILEINFO)Parameter);
+            return (UINT)FileExists((LPFILEINFO)Parameter);
         case DF_FS_OPENFILE:
-            return (U32)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
-            return (U32)OpenNext((LPSYSFSFILE)Parameter);
+            return (UINT)OpenNext((LPSYSFSFILE)Parameter);
         case DF_FS_CLOSEFILE:
-            return (U32)CloseFile((LPSYSFSFILE)Parameter);
+            return (UINT)CloseFile((LPSYSFSFILE)Parameter);
         case DF_FS_DELETEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_READ:
-            return (U32)ReadFile((LPSYSFSFILE)Parameter);
+            return (UINT)ReadFile((LPSYSFSFILE)Parameter);
         case DF_FS_WRITE:
-            return (U32)WriteFile((LPSYSFSFILE)Parameter);
+            return (UINT)WriteFile((LPSYSFSFILE)Parameter);
         case DF_FS_GETPOSITION:
             return DF_ERROR_NOTIMPL;
         case DF_FS_SETPOSITION:

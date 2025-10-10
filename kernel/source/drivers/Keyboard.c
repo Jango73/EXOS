@@ -38,7 +38,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 StdKeyboardCommands(UINT, UINT);
+UINT StdKeyboardCommands(UINT, UINT);
 
 DRIVER StdKeyboardDriver = {
     .TypeID = KOID_DRIVER,
@@ -790,7 +790,7 @@ static U32 InitializeKeyboard(void) {
 
 /***************************************************************************/
 
-U32 StdKeyboardCommands(UINT Function, UINT Parameter) {
+UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return InitializeKeyboard();
@@ -801,13 +801,13 @@ U32 StdKeyboardCommands(UINT Function, UINT Parameter) {
         case DF_KEY_GETSTATE:
             return 0;
         case DF_KEY_ISKEY:
-            return (U32)PeekChar();
+            return (UINT)PeekChar();
         case DF_KEY_GETKEY:
-            return (U32)GetKeyCode((LPKEYCODE)Parameter);
+            return (UINT)GetKeyCode((LPKEYCODE)Parameter);
         case DF_KEY_GETLED:
-            return (U32)GetKeyboardLEDs();
+            return (UINT)GetKeyboardLEDs();
         case DF_KEY_SETLED:
-            return (U32)SetKeyboardLEDs(Parameter);
+            return (UINT)SetKeyboardLEDs(Parameter);
         case DF_KEY_GETDELAY:
             return 0;
         case DF_KEY_SETDELAY:

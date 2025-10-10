@@ -48,7 +48,7 @@
 
 /***************************************************************************/
 
-U32 SATADiskCommands(UINT, UINT);
+UINT SATADiskCommands(UINT, UINT);
 
 DRIVER SATADiskDriver = {
     .TypeID = KOID_DRIVER,
@@ -824,7 +824,7 @@ void AHCIInterruptHandler(void) {
 
 /***************************************************************************/
 
-U32 SATADiskCommands(UINT Function, UINT Parameter) {
+UINT SATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return DF_ERROR_SUCCESS;
