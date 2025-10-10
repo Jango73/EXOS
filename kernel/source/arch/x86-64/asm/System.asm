@@ -136,6 +136,52 @@ CR0_PAGING  equ 0x0000000080000000
 
 ;----------------------------------------------------------------------------
 
+SYS_FUNC_BEGIN GetCR4
+    mov     rax, cr4
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN GetESP
+    mov     rax, rsp
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN GetEBP
+    mov     rax, rbp
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN GetDR6
+    mov     rax, dr6
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN GetDR7
+    mov     rax, dr7
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN SetDR6
+    mov     eax, edi
+    mov     dr6, rax
+    xor     eax, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN SetDR7
+    mov     eax, edi
+    mov     dr7, rax
+    xor     eax, eax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
 SYS_FUNC_BEGIN GetCPUID
     push    rbx
 
