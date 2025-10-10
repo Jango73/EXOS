@@ -72,8 +72,13 @@ SRC_C  = $(wildcard source/*.c) \
          ../runtime/source/exos-runtime-c.c
 SRC_C := $(filter-out $(ARCH_AUTOTEST_EXCLUDES), $(SRC_C))
 SRC_S  = $(wildcard source/asm/*.asm) \
-         $(wildcard source/arch/$(ARCH)/asm/*.asm) \
-         ../runtime/source/exos-runtime-a.asm
+         $(wildcard source/arch/$(ARCH)/asm/*.asm)
+
+ifeq ($(ARCH),x86-64)
+SRC_S += ../runtime/source/exos-runtime-x86-64-a.asm
+else
+SRC_S += ../runtime/source/exos-runtime-a.asm
+endif
 
 OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \
          $(patsubst ../third/bcrypt/%.c, $(BUILD_DIR)/kernel/bcrypt_%.o, $(filter ../third/bcrypt/%.c, $(SRC_C))) \
