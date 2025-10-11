@@ -29,60 +29,60 @@ all: hello portal tictactoe netget master slave
 
 hello:
 	@echo "[ Building hello ]"
-	$(SUBMAKE) -C hello all
+	+$(SUBMAKE) -C hello all
 
 hello_clean:
-	$(SUBMAKE) -C hello clean
+	+$(SUBMAKE) -C hello clean
 
 ################################################################################
 # Portal program
 
 portal:
 	@echo "[ Building portal ]"
-	$(SUBMAKE) -C portal all
+	+$(SUBMAKE) -C portal all
 
 portal_clean:
-	$(SUBMAKE) -C portal clean
+	+$(SUBMAKE) -C portal clean
 
 ################################################################################
 # TicTacToe program
 
 tictactoe:
 	@echo "[ Building tictactoe ]"
-	$(SUBMAKE) -C tictactoe all
+	+$(SUBMAKE) -C tictactoe all
 
 tictactoe_clean:
-	$(SUBMAKE) -C tictactoe clean
+	+$(SUBMAKE) -C tictactoe clean
 
 ################################################################################
 # NetGet program
 
 netget:
 	@echo "[ Building netget ]"
-	$(SUBMAKE) -C netget all
+	+$(SUBMAKE) -C netget all
 
 netget_clean:
-	$(SUBMAKE) -C netget clean
+	+$(SUBMAKE) -C netget clean
 
 ################################################################################
 # Master test program
 
 master:
 	@echo "[ Building master ]"
-	$(SUBMAKE) -C test/master all
+	+$(SUBMAKE) -C test/master all
 
 master_clean:
-	$(SUBMAKE) -C test/master clean
+	+$(SUBMAKE) -C test/master clean
 
 ################################################################################
 # Slave test program
 
 slave:
 	@echo "[ Building slave ]"
-	$(SUBMAKE) -C test/slave all
+	+$(SUBMAKE) -C test/slave all
 
 slave_clean:
-	$(SUBMAKE) -C test/slave clean
+	+$(SUBMAKE) -C test/slave clean
 
 ################################################################################
 
