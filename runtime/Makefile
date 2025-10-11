@@ -1,7 +1,7 @@
 
-BUILD_DIR = ../build
-
 ARCH ?= i386
+
+BUILD_DIR := ../build/$(ARCH)
 
 NASM    = nasm
 

@@ -5,9 +5,9 @@
 #
 ################################################################################
 
-BUILD_DIR = ../../build
-
 ARCH ?= i386
+
+BUILD_DIR := ../../build/$(ARCH)
 
 ifeq ($(ARCH),i386)
 TOOLCHAIN_PREFIX = i686-elf

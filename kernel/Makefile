@@ -1,9 +1,9 @@
 
 SHELL = /bin/bash
 
-BUILD_DIR = ../build
-
 ARCH ?= i386
+
+BUILD_DIR := ../build/$(ARCH)
 
 ARCH_CFLAGS :=
 

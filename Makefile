@@ -1,3 +1,7 @@
+ARCH ?= i386
+
+SUBMAKE = $(MAKE) ARCH=$(ARCH)
+
 .PHONY: all kernel runtime system boot-qemu boot-hd tools clean
 
 all: log kernel runtime system boot-hd tools
@@ -7,29 +11,29 @@ log:
 
 kernel:
 	@echo "[ Building kernel ]"
-	@$(MAKE) -C kernel
+	@$(SUBMAKE) -C kernel
 
 runtime:
 	@echo "[ Building runtime ]"
-	@$(MAKE) -C runtime
+	@$(SUBMAKE) -C runtime
 
 system: runtime
 	@echo "[ Building system programs ]"
-	@$(MAKE) -C system
+	@$(SUBMAKE) -C system
 
 boot-hd: kernel system
 	@echo "[ Building Qemu HD image ]"
-	@$(MAKE) -C boot-hd
+	@$(SUBMAKE) -C boot-hd
 
 tools:
 	@echo "[ Building tools ]"
-	@$(MAKE) -C tools
+	@$(SUBMAKE) -C tools
 
 clean:
 	@echo "[ Cleaning all ]"
-	@$(MAKE) -C kernel clean
-	@$(MAKE) -C runtime clean
-	@$(MAKE) -C system clean
-	@$(MAKE) -C boot-freedos clean
-	@$(MAKE) -C boot-hd clean
-	@$(MAKE) -C tools clean
+	@$(SUBMAKE) -C kernel clean
+	@$(SUBMAKE) -C runtime clean
+	@$(SUBMAKE) -C system clean
+	@$(SUBMAKE) -C boot-freedos clean
+	@$(SUBMAKE) -C boot-hd clean
+	@$(SUBMAKE) -C tools clean
