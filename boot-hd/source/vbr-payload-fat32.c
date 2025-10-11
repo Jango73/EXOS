@@ -32,7 +32,7 @@
 #define FAT32_EOC_MIN 0x0FFFFFF8
 #define FAT32_BAD_CLUSTER 0x0FFFFFF7
 
-#define MAX_SECTORS_PER_CLUSTER (((USABLE_RAM_SIZE / SECTORSIZE) < 128U) ? (USABLE_RAM_SIZE / SECTORSIZE) : 128U)
+#define MAX_SECTORS_PER_CLUSTER (((LOW_SCRATCH_SIZE / SECTORSIZE) < 128U) ? (LOW_SCRATCH_SIZE / SECTORSIZE) : 128U)
 
 /************************************************************************/
 
@@ -87,7 +87,7 @@ typedef struct __attribute__((packed)) tag_FAT_DIR_ENTRY {
 
 static FAT32_BOOT_SECTOR BootSector;
 static U8 FatBuffer[SECTORSIZE];
-static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
+static U8* const ClusterBuffer = (U8*)(LOW_SCRATCH_START);
 
 /************************************************************************/
 

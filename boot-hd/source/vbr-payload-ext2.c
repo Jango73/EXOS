@@ -123,7 +123,7 @@ typedef struct tag_EXT2_CONTEXT {
 
 /************************************************************************/
 
-static U8* const Ext2Scratch = (U8*)(USABLE_RAM_START);
+static U8* const Ext2Scratch = (U8*)(LOW_SCRATCH_START);
 
 /************************************************************************/
 

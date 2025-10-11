@@ -115,8 +115,8 @@ static void KernelLoadContextInit(KERNEL_LOAD_CONTEXT* Context) {
         return;
     }
 
-    Context->BufferBase = LOW_BUFFER_START;
-    Context->BufferSize = LOW_BUFFER_SIZE;
+    Context->BufferBase = KERNEL_BUFFER_LOW_START;
+    Context->BufferSize = KERNEL_BUFFER_LOW_SIZE;
     Context->BufferUsed = 0U;
     Context->KernelPhysical = KERNEL_LOAD_PHYSICAL;
     Context->TotalReserved = 0U;
