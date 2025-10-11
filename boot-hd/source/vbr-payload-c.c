@@ -53,7 +53,6 @@ static void WriteString(LPCSTR Str);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
-static U8* const ChecksumScratch = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 
@@ -182,47 +181,73 @@ static void BuildKernelExt2Name(char* Out, U32 OutSize) {
 
 /************************************************************************/
 
-static void LinearRead(U32 SourceLinear, void* Destination, U32 Size) {
-    if (Size == 0U) {
-        return;
-    }
+static U32 KernelChecksumFileSizeTracked = 0;
+static U32 KernelChecksumDataBytes = 0;
+static U32 KernelChecksumProcessed = 0;
+static U32 KernelChecksumComputedValue = 0;
+static U32 KernelChecksumStoredValue = 0;
+static U8 KernelChecksumTail[8];
+static U32 KernelChecksumTailCount = 0;
 
-    UnrealMemoryCopy((U32)(UINT)Destination, SourceLinear, Size);
+/************************************************************************/
+
+static void KernelChecksumResetTail(void) {
+    MemorySet(KernelChecksumTail, 0, sizeof(KernelChecksumTail));
+    KernelChecksumTailCount = 0;
 }
 
 /************************************************************************/
 
-static U32 ComputeChecksum(U32 SourceLinear, U32 Size) {
-    if (Size == 0U) {
-        return 0U;
+static void KernelChecksumAppendTail(U8 Byte) {
+    if (KernelChecksumTailCount < 8U) {
+        KernelChecksumTail[KernelChecksumTailCount] = Byte;
+        KernelChecksumTailCount++;
+        return;
     }
 
-    const U32 ScratchLinear = (U32)(UINT)ChecksumScratch;
-    U32 Remaining = Size;
-    U32 Offset = 0U;
-    U32 Accumulator = 0U;
+    for (U32 Index = 0; Index < 7U; ++Index) {
+        KernelChecksumTail[Index] = KernelChecksumTail[Index + 1U];
+    }
+    KernelChecksumTail[7] = Byte;
+}
 
-    while (Remaining > 0U) {
-        U32 Chunk = Remaining;
-        if (Chunk > USABLE_RAM_SIZE) {
-            Chunk = USABLE_RAM_SIZE;
-        }
+/************************************************************************/
 
-        if (Chunk == 0U) {
+void KernelChecksumBegin(U32 FileSize) {
+    KernelChecksumFileSizeTracked = FileSize;
+    KernelChecksumDataBytes = (FileSize > 4U) ? FileSize - 4U : 0U;
+    KernelChecksumProcessed = 0;
+    KernelChecksumComputedValue = 0;
+    KernelChecksumStoredValue = 0;
+    KernelChecksumResetTail();
+}
+
+/************************************************************************/
+
+void KernelChecksumFeed(const U8* Data, U32 Count) {
+    if (Data == NULL || Count == 0U) {
+        return;
+    }
+
+    for (U32 Index = 0; Index < Count; ++Index) {
+        if (KernelChecksumProcessed >= KernelChecksumFileSizeTracked) {
             break;
         }
 
-        UnrealMemoryCopy(ScratchLinear, SourceLinear + Offset, Chunk);
+        U8 Byte = Data[Index];
+        KernelChecksumAppendTail(Byte);
 
-        for (U32 Index = 0; Index < Chunk; ++Index) {
-            Accumulator += ChecksumScratch[Index];
+        if (KernelChecksumProcessed < KernelChecksumDataBytes) {
+            KernelChecksumComputedValue += Byte;
+        } else {
+            U32 Shift = KernelChecksumProcessed - KernelChecksumDataBytes;
+            if (Shift < 4U) {
+                KernelChecksumStoredValue |= ((U32)Byte) << (Shift * 8U);
+            }
         }
 
-        Offset += Chunk;
-        Remaining -= Chunk;
+        KernelChecksumProcessed++;
     }
-
-    return Accumulator;
 }
 
 /************************************************************************/
@@ -233,27 +258,46 @@ static void VerifyKernelImage(U32 FileSize) {
         Hang();
     }
 
-    const U32 FileStartLinear = KERNEL_LINEAR_LOAD_ADDRESS;
-    const U32 ChecksumLinear = FileStartLinear + FileSize - sizeof(U32);
+    if (KernelChecksumFileSizeTracked != FileSize) {
+        BootErrorPrint(TEXT("[VBR] Checksum tracking mismatch. Halting.\r\n"));
+        Hang();
+    }
+
+    if (KernelChecksumProcessed != FileSize) {
+        BootErrorPrint(TEXT("[VBR] Checksum byte count mismatch. Halting.\r\n"));
+        Hang();
+    }
 
     StringPrintFormat(
         TempString,
         TEXT("[VBR] VerifyKernelImage scanning %u data bytes\r\n"),
-        FileSize - (U32)sizeof(U32));
+        KernelChecksumDataBytes);
     BootVerbosePrint(TempString);
 
-    U32 TailWords[2] = {0U, 0U};
-    LinearRead(FileStartLinear + FileSize - 8U, TailWords, sizeof(TailWords));
-    const U32 LastBytes1 = TailWords[0];
-    const U32 LastBytes2 = TailWords[1];
+    U32 LastBytes1 = 0;
+    U32 LastBytes2 = 0;
+
+    if (KernelChecksumTailCount >= 8U) {
+        for (U32 Index = 0; Index < 4U; ++Index) {
+            LastBytes1 |= ((U32)KernelChecksumTail[Index]) << (Index * 8U);
+            LastBytes2 |= ((U32)KernelChecksumTail[Index + 4U]) << (Index * 8U);
+        }
+    } else {
+        for (U32 Index = 0; Index < KernelChecksumTailCount; ++Index) {
+            U32 Value = (U32)KernelChecksumTail[Index];
+            if (Index < 4U) {
+                LastBytes1 |= Value << (Index * 8U);
+            } else {
+                LastBytes2 |= Value << ((Index - 4U) * 8U);
+            }
+        }
+    }
 
     StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
     BootDebugPrint(TempString);
 
-    const U32 Computed = ComputeChecksum(FileStartLinear, FileSize - (U32)sizeof(U32));
-
-    U32 Stored = 0U;
-    LinearRead(ChecksumLinear, &Stored, sizeof(Stored));
+    U32 Computed = KernelChecksumComputedValue;
+    U32 Stored = KernelChecksumStoredValue;
 
     StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
     BootDebugPrint(TempString);
@@ -349,8 +393,9 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     StringPrintFormat(
         TempString,
-        TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
-        KERNEL_LINEAR_LOAD_ADDRESS);
+        TEXT("[VBR] Loading and running binary OS at %x:%x\r\n"),
+        LOADADDRESS_SEG,
+        LOADADDRESS_OFS);
     BootDebugPrint(TempString);
 
     char Ext2KernelName[32];

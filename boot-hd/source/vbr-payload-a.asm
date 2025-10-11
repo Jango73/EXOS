@@ -32,7 +32,7 @@ BITS 16
 %endif
 
 ORIGIN equ PAYLOAD_OFFSET
-KERNEL_LOAD_ADDRESS      equ 0x200000
+KERNEL_LOAD_ADDRESS      equ 0x20000
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -275,7 +275,7 @@ MemoryCopy :
     mov     esi, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
-    a32 rep movsb
+    rep     movsb
 
     pop     es
     pop     edi
@@ -307,7 +307,7 @@ UnrealMemoryCopy:
     mov     esi, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
-    a32 rep movsb
+    rep     movsb
 
     call    LeaveUnrealMode
 

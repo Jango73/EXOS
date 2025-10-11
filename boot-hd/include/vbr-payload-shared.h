@@ -89,4 +89,7 @@ void VbrSetSegmentDescriptor(
     U32 Gran4K,
     U32 LongMode);
 
+void KernelChecksumBegin(U32 FileSize);
+void KernelChecksumFeed(const U8* Data, U32 Count);
+
 #endif // VBR_PAYLOAD_SHARED_H_INCLUDED

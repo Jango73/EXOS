@@ -23,8 +23,7 @@
 \************************************************************************/
 
 #include "arch/i386/i386.h"
-#include "String.h"
-#include "../include/vbr-realmode-utils.h"
+#include "../include/vbr-payload-shared.h"
 
 /************************************************************************/
 
@@ -242,8 +241,11 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
     StringPrintFormat(TempString, TEXT("[VBR] FAT32 kernel size %08X bytes\r\n"), FileSize);
     BootDebugPrint(TempString);
 
+    KernelChecksumBegin(FileSize);
+
     U32 Remaining = FileSize;
-    U32 DestLinear = KERNEL_LINEAR_LOAD_ADDRESS;
+    U16 DestSeg = LOADADDRESS_SEG;
+    U16 DestOfs = LOADADDRESS_OFS;
     U32 Cluster = FileCluster;
     CurrentFatSector = 0xFFFFFFFFU;
     U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SECTORSIZE;
@@ -251,27 +253,32 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
     U32 ClusterCount = 0;
 
     while (Remaining > 0U && Cluster >= 2U && Cluster < FAT32_EOC_MIN) {
+        U32 DestLinear = SegOfsToLinear(DestSeg, DestOfs);
         U32 Lba = FirstDataSector + (Cluster - 2U) * SectorsPerCluster;
-        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
+        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, PackSegOfs(DestSeg, DestOfs))) {
             StringPrintFormat(TempString, TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
             BootErrorPrint(TempString);
             Hang();
         }
 
-        U32 BytesToCopy = (Remaining < ClusterBytes) ? Remaining : ClusterBytes;
-        UnrealMemoryCopy(DestLinear, (U32)(UINT)ClusterBuffer, BytesToCopy);
-
-        DestLinear += BytesToCopy;
-        Remaining -= BytesToCopy;
-
-        ++ClusterCount;
-        if (ClusterCount > (MaxClusters + 8U)) {
-            BootErrorPrint(TEXT("[VBR] FAT32 cluster chain too long. Halting.\r\n"));
-            Hang();
+        U32 ValidBytes = ClusterBytes;
+        if (ValidBytes > Remaining) {
+            ValidBytes = Remaining;
         }
 
-        if (Remaining == 0U) {
-            break;
+        KernelChecksumFeed((const U8*)DestLinear, ValidBytes);
+
+        U32 AdvanceBytes = ClusterBytes;
+        DestSeg += (AdvanceBytes >> 4);
+        DestOfs += (U16)(AdvanceBytes & 0xF);
+        if (DestOfs < (U16)(AdvanceBytes & 0xF)) {
+            DestSeg += 1U;
+        }
+
+        if (Remaining <= AdvanceBytes) {
+            Remaining = 0U;
+        } else {
+            Remaining -= AdvanceBytes;
         }
 
         U32 Next = ReadFatEntry(BootDrive, FatStartSector, Cluster, &CurrentFatSector);
@@ -281,6 +288,10 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
         }
 
         Cluster = Next;
+        if (++ClusterCount > (MaxClusters + 8U)) {
+            BootErrorPrint(TEXT("[VBR] FAT32 cluster chain too long. Halting.\r\n"));
+            Hang();
+        }
     }
 
     if (FileSizeOut != NULL) {

@@ -23,8 +23,7 @@
 \************************************************************************/
 
 #include "arch/i386/i386.h"
-#include "String.h"
-#include "../include/vbr-realmode-utils.h"
+#include "../include/vbr-payload-shared.h"
 
 /************************************************************************/
 
@@ -233,88 +232,56 @@ static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, c
 
 /************************************************************************/
 
-static U32 Ext2IndirectSpan(const EXT2_CONTEXT* Ctx, U32 Level) {
-    U32 Span = Ctx->BlockSize;
-    while (Level > 1U && Ctx->EntriesPerBlock != 0U) {
-        if (Span > 0xFFFFFFFFU / Ctx->EntriesPerBlock) {
-            return 0xFFFFFFFFU;
-        }
-        Span *= Ctx->EntriesPerBlock;
-        --Level;
-    }
-    return Span;
-}
-
-/************************************************************************/
-
-static void Ext2ZeroFill(const EXT2_CONTEXT* Ctx, U32* DestLinear, U32* Remaining, U32 Bytes) {
-    while (Bytes > 0U && *Remaining > 0U) {
-        U32 Chunk = Bytes;
-        if (Chunk > Ctx->BlockSize) {
-            Chunk = Ctx->BlockSize;
-        }
-        if (Chunk > *Remaining) {
-            Chunk = *Remaining;
-        }
-        if (Chunk == 0U) {
-            break;
-        }
-
-        MemorySet(Ext2Scratch, 0, Chunk);
-        UnrealMemoryCopy(*DestLinear, (U32)(UINT)Ext2Scratch, Chunk);
-
-        *DestLinear += Chunk;
-        *Remaining -= Chunk;
-        Bytes -= Chunk;
-    }
+static void Ext2AdvanceDestination(const EXT2_CONTEXT* Ctx, U16* DestSeg, U16* DestOfs) {
+    U32 AdvanceBytes = Ctx->BlockSize;
+    U16 Low = (U16)(AdvanceBytes & 0xF);
+    U16 NewOfs = (U16)(*DestOfs + Low);
+    U16 Carry = (NewOfs < *DestOfs) ? 1U : 0U;
+    *DestSeg += (U16)(AdvanceBytes >> 4) + Carry;
+    *DestOfs = NewOfs;
 }
 
 /************************************************************************/
 
 static void Ext2LoadBlockToDestination(
-    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32* DestLinear, U32* Remaining) {
-    if (*Remaining == 0U) return;
+    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U16* DestSeg, U16* DestOfs, U32* Remaining) {
+    if (BlockNumber == 0 || *Remaining == 0) return;
 
-    U32 BytesToCopy = (*Remaining < Ctx->BlockSize) ? *Remaining : Ctx->BlockSize;
+    U32 DestLinear = SegOfsToLinear(*DestSeg, *DestOfs);
+    Ext2ReadBlock(Ctx, BlockNumber, PackSegOfs(*DestSeg, *DestOfs));
 
-    if (BlockNumber != 0U) {
-        Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
-    } else {
-        MemorySet(Ext2Scratch, 0, BytesToCopy);
+    U32 ValidBytes = Ctx->BlockSize;
+    if (ValidBytes > *Remaining) {
+        ValidBytes = *Remaining;
     }
 
-    UnrealMemoryCopy(*DestLinear, (U32)(UINT)Ext2Scratch, BytesToCopy);
+    KernelChecksumFeed((const U8*)DestLinear, ValidBytes);
+    Ext2AdvanceDestination(Ctx, DestSeg, DestOfs);
 
-    *DestLinear += BytesToCopy;
-    *Remaining -= BytesToCopy;
+    if (*Remaining <= Ctx->BlockSize) {
+        *Remaining = 0;
+    } else {
+        *Remaining -= Ctx->BlockSize;
+    }
 }
 
 /************************************************************************/
 
 static void Ext2LoadIndirect(
-    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, U32* DestLinear, U32* Remaining) {
-    if (*Remaining == 0U) return;
-
-    if (BlockNumber == 0U) {
-        Ext2ZeroFill(Ctx, DestLinear, Remaining, Ext2IndirectSpan(Ctx, Level));
-        return;
-    }
+    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, U16* DestSeg, U16* DestOfs, U32* Remaining) {
+    if (BlockNumber == 0 || *Remaining == 0) return;
 
     Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
     U32* Entries = (U32*)Ext2Scratch;
 
-    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && *Remaining > 0U; ++Index) {
+    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && *Remaining > 0; ++Index) {
         U32 Child = Entries[Index];
-        if (Child == 0U) {
-            U32 Span = (Level == 1U) ? Ctx->BlockSize : Ext2IndirectSpan(Ctx, Level - 1U);
-            Ext2ZeroFill(Ctx, DestLinear, Remaining, Span);
-            continue;
-        }
+        if (Child == 0) continue;
 
-        if (Level == 1U) {
-            Ext2LoadBlockToDestination(Ctx, Child, DestLinear, Remaining);
+        if (Level == 1) {
+            Ext2LoadBlockToDestination(Ctx, Child, DestSeg, DestOfs, Remaining);
         } else {
-            Ext2LoadIndirect(Ctx, Child, Level - 1U, DestLinear, Remaining);
+            Ext2LoadIndirect(Ctx, Child, Level - 1, DestSeg, DestOfs, Remaining);
         }
     }
 }
@@ -368,11 +335,14 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     StringPrintFormat(TempString, TEXT("[VBR] EXT2 kernel size %08X bytes\r\n"), FileSize);
     BootDebugPrint(TempString);
 
-    U32 DestLinear = KERNEL_LINEAR_LOAD_ADDRESS;
+    KernelChecksumBegin(FileSize);
+
+    U16 DestSeg = LOADADDRESS_SEG;
+    U16 DestOfs = LOADADDRESS_OFS;
     U32 Remaining = FileSize;
 
     for (U32 i = 0; i < EXT2_DIRECT_BLOCK_COUNT && Remaining > 0; ++i) {
-        Ext2LoadBlockToDestination(&Ctx, KernelInode.Block[i], &DestLinear, &Remaining);
+        Ext2LoadBlockToDestination(&Ctx, KernelInode.Block[i], &DestSeg, &DestOfs, &Remaining);
     }
 
     if (Remaining > 0 && KernelInode.Block[EXT2_SINGLE_INDIRECT_BLOCK_INDEX] != 0) {
@@ -380,7 +350,8 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
             &Ctx,
             KernelInode.Block[EXT2_SINGLE_INDIRECT_BLOCK_INDEX],
             1,
-            &DestLinear,
+            &DestSeg,
+            &DestOfs,
             &Remaining);
     }
 
@@ -389,7 +360,8 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
             &Ctx,
             KernelInode.Block[EXT2_DOUBLE_INDIRECT_BLOCK_INDEX],
             2,
-            &DestLinear,
+            &DestSeg,
+            &DestOfs,
             &Remaining);
     }
 
@@ -398,7 +370,8 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
             &Ctx,
             KernelInode.Block[EXT2_TRIPLE_INDIRECT_BLOCK_INDEX],
             3,
-            &DestLinear,
+            &DestSeg,
+            &DestOfs,
             &Remaining);
     }
 
