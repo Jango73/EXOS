@@ -233,13 +233,56 @@ static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, c
 
 /************************************************************************/
 
+static U32 Ext2IndirectSpan(const EXT2_CONTEXT* Ctx, U32 Level) {
+    U32 Span = Ctx->BlockSize;
+    while (Level > 1U && Ctx->EntriesPerBlock != 0U) {
+        if (Span > 0xFFFFFFFFU / Ctx->EntriesPerBlock) {
+            return 0xFFFFFFFFU;
+        }
+        Span *= Ctx->EntriesPerBlock;
+        --Level;
+    }
+    return Span;
+}
+
+/************************************************************************/
+
+static void Ext2ZeroFill(const EXT2_CONTEXT* Ctx, U32* DestLinear, U32* Remaining, U32 Bytes) {
+    while (Bytes > 0U && *Remaining > 0U) {
+        U32 Chunk = Bytes;
+        if (Chunk > Ctx->BlockSize) {
+            Chunk = Ctx->BlockSize;
+        }
+        if (Chunk > *Remaining) {
+            Chunk = *Remaining;
+        }
+        if (Chunk == 0U) {
+            break;
+        }
+
+        MemorySet(Ext2Scratch, 0, Chunk);
+        UnrealMemoryCopy(*DestLinear, (U32)(UINT)Ext2Scratch, Chunk);
+
+        *DestLinear += Chunk;
+        *Remaining -= Chunk;
+        Bytes -= Chunk;
+    }
+}
+
+/************************************************************************/
+
 static void Ext2LoadBlockToDestination(
     const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32* DestLinear, U32* Remaining) {
-    if (BlockNumber == 0 || *Remaining == 0) return;
-
-    Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
+    if (*Remaining == 0U) return;
 
     U32 BytesToCopy = (*Remaining < Ctx->BlockSize) ? *Remaining : Ctx->BlockSize;
+
+    if (BlockNumber != 0U) {
+        Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
+    } else {
+        MemorySet(Ext2Scratch, 0, BytesToCopy);
+    }
+
     UnrealMemoryCopy(*DestLinear, (U32)(UINT)Ext2Scratch, BytesToCopy);
 
     *DestLinear += BytesToCopy;
@@ -250,19 +293,28 @@ static void Ext2LoadBlockToDestination(
 
 static void Ext2LoadIndirect(
     const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, U32* DestLinear, U32* Remaining) {
-    if (BlockNumber == 0 || *Remaining == 0) return;
+    if (*Remaining == 0U) return;
+
+    if (BlockNumber == 0U) {
+        Ext2ZeroFill(Ctx, DestLinear, Remaining, Ext2IndirectSpan(Ctx, Level));
+        return;
+    }
 
     Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
     U32* Entries = (U32*)Ext2Scratch;
 
-    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && *Remaining > 0; ++Index) {
+    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && *Remaining > 0U; ++Index) {
         U32 Child = Entries[Index];
-        if (Child == 0) continue;
+        if (Child == 0U) {
+            U32 Span = (Level == 1U) ? Ctx->BlockSize : Ext2IndirectSpan(Ctx, Level - 1U);
+            Ext2ZeroFill(Ctx, DestLinear, Remaining, Span);
+            continue;
+        }
 
-        if (Level == 1) {
+        if (Level == 1U) {
             Ext2LoadBlockToDestination(Ctx, Child, DestLinear, Remaining);
         } else {
-            Ext2LoadIndirect(Ctx, Child, Level - 1, DestLinear, Remaining);
+            Ext2LoadIndirect(Ctx, Child, Level - 1U, DestLinear, Remaining);
         }
     }
 }
