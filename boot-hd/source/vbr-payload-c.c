@@ -54,6 +54,9 @@ static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
 
 /************************************************************************/
 
+/**
+ * @brief Initializes debugging output according to the configured mode.
+ */
 static void InitDebug(void) {
 #if DEBUG_OUTPUT == 2
     SerialReset(0);
@@ -62,6 +65,11 @@ static void InitDebug(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Outputs a single character either through the serial port or BIOS TTY.
+ *
+ * @param Char Character to transmit.
+ */
 static void OutputChar(U8 Char) {
 #if DEBUG_OUTPUT == 2
     SerialOut(0, Char);
@@ -78,6 +86,11 @@ static void OutputChar(U8 Char) {
 
 /************************************************************************/
 
+/**
+ * @brief Writes a null-terminated string using the configured debug output.
+ *
+ * @param Str String to write.
+ */
 static void WriteString(LPCSTR Str) {
     while (*Str) {
         OutputChar((U8)*Str++);
@@ -86,6 +99,11 @@ static void WriteString(LPCSTR Str) {
 
 /************************************************************************/
 
+/**
+ * @brief Emits a debug string when debug output is enabled.
+ *
+ * @param Str String to print.
+ */
 void BootDebugPrint(LPCSTR Str) {
 #if DEBUG_OUTPUT == 0
     UNUSED(Str);
@@ -96,14 +114,37 @@ void BootDebugPrint(LPCSTR Str) {
 
 /************************************************************************/
 
+/**
+ * @brief Emits a verbose log string unconditionally.
+ *
+ * @param Str String to print.
+ */
 void BootVerbosePrint(LPCSTR Str) { WriteString(Str); }
 
 /************************************************************************/
 
+/**
+ * @brief Emits an error log string.
+ *
+ * @param Str String to print.
+ */
 void BootErrorPrint(LPCSTR Str) { WriteString(Str); }
 
 /************************************************************************/
 
+/**
+ * @brief Fills a segment descriptor with the provided attributes.
+ *
+ * @param Descriptor Target descriptor to program.
+ * @param Base Segment base address.
+ * @param Limit Segment limit.
+ * @param Type Segment type (1 for code, 0 for data).
+ * @param CanWrite Whether the segment is writable.
+ * @param Privilege Requested privilege level.
+ * @param Operand32 Whether the segment uses 32-bit operands.
+ * @param Gran4K Enables 4KB granularity when set.
+ * @param LongMode Marks the descriptor as long mode capable when set.
+ */
 void VbrSetSegmentDescriptor(
     struct tag_SEGMENT_DESCRIPTOR* Descriptor,
     U32 Base,
@@ -136,6 +177,13 @@ void VbrSetSegmentDescriptor(
 
 /************************************************************************/
 
+/**
+ * @brief Extracts the file name component from a path string.
+ *
+ * @param Path Full path to inspect.
+ *
+ * @return Pointer to the file name portion of the path.
+ */
 const char* BootGetFileName(const char* Path) {
     if (Path == NULL) {
         return "";
@@ -153,6 +201,13 @@ const char* BootGetFileName(const char* Path) {
 
 /************************************************************************/
 
+/**
+ * @brief Converts an ASCII character to lowercase.
+ *
+ * @param C Character to convert.
+ *
+ * @return Lowercase variant of the character when applicable.
+ */
 static char ToLowerChar(char C) {
     if (C >= 'A' && C <= 'Z') {
         return (char)(C - 'A' + 'a');
@@ -162,6 +217,12 @@ static char ToLowerChar(char C) {
 
 /************************************************************************/
 
+/**
+ * @brief Builds the EXT2-friendly kernel file name.
+ *
+ * @param Out Output buffer that receives the name.
+ * @param OutSize Size of the output buffer in characters.
+ */
 static void BuildKernelExt2Name(char* Out, U32 OutSize) {
     if (Out == NULL || OutSize == 0U) {
         return;
@@ -189,6 +250,9 @@ static U32 KernelChecksumTailCount = 0;
 
 /************************************************************************/
 
+/**
+ * @brief Resets the sliding checksum tail buffer.
+ */
 static void KernelChecksumResetTail(void) {
     MemorySet(KernelChecksumTail, 0, sizeof(KernelChecksumTail));
     KernelChecksumTailCount = 0;
@@ -196,6 +260,11 @@ static void KernelChecksumResetTail(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Adds a byte to the checksum tail buffer, keeping the last eight bytes.
+ *
+ * @param Byte Byte to append.
+ */
 static void KernelChecksumAppendTail(U8 Byte) {
     if (KernelChecksumTailCount < 8U) {
         KernelChecksumTail[KernelChecksumTailCount] = Byte;
@@ -211,6 +280,11 @@ static void KernelChecksumAppendTail(U8 Byte) {
 
 /************************************************************************/
 
+/**
+ * @brief Initializes the kernel checksum tracking structures.
+ *
+ * @param FileSize Expected kernel file size.
+ */
 void KernelChecksumBegin(U32 FileSize) {
     KernelChecksumFileSizeTracked = FileSize;
     KernelChecksumDataBytes = (FileSize > 4U) ? FileSize - 4U : 0U;
@@ -222,6 +296,12 @@ void KernelChecksumBegin(U32 FileSize) {
 
 /************************************************************************/
 
+/**
+ * @brief Feeds kernel data bytes into the checksum calculator.
+ *
+ * @param Data Pointer to the data block.
+ * @param Count Number of bytes to process.
+ */
 void KernelChecksumFeed(const U8* Data, U32 Count) {
     if (Data == NULL || Count == 0U) {
         return;
@@ -250,6 +330,11 @@ void KernelChecksumFeed(const U8* Data, U32 Count) {
 
 /************************************************************************/
 
+/**
+ * @brief Verifies the checksum of the loaded kernel image.
+ *
+ * @param FileSize Size of the kernel file in bytes.
+ */
 static void VerifyKernelImage(U32 FileSize) {
     if (FileSize < 8U) {
         BootErrorPrint(TEXT("[VBR] ERROR: FileSize too small for checksum. Halting.\r\n"));
@@ -325,6 +410,13 @@ const char KernelCmdLine[] = KERNEL_FILE;
 /************************************************************************/
 // Low-level I/O
 
+/**
+ * @brief Reads a byte from an I/O port.
+ *
+ * @param Port Port number to read from.
+ *
+ * @return Value read from the port.
+ */
 static inline U8 InPortByte(U16 Port) {
     U8 Val;
     __asm__ __volatile__("inb %1, %0" : "=a"(Val) : "Nd"(Port));
@@ -333,10 +425,21 @@ static inline U8 InPortByte(U16 Port) {
 
 /************************************************************************/
 
+/**
+ * @brief Writes a byte to an I/O port.
+ *
+ * @param Port Port number to write to.
+ * @param Val Value to write.
+ */
 static inline void OutPortByte(U16 Port, U8 Val) { __asm__ __volatile__("outb %0, %1" ::"a"(Val), "Nd"(Port)); }
 
 /************************************************************************/
 
+/**
+ * @brief Initializes a serial port with the bootloader defaults.
+ *
+ * @param Which Serial port index.
+ */
 void SerialReset(U8 Which) {
     if (Which > 3) return;
     U16 base = COMPorts[Which];
@@ -363,6 +466,12 @@ void SerialReset(U8 Which) {
 
 /************************************************************************/
 
+/**
+ * @brief Sends a character through a configured serial port.
+ *
+ * @param Which Serial port index.
+ * @param Char Character to send.
+ */
 void SerialOut(U8 Which, U8 Char) {
     if (Which > 3) return;
     U16 base = COMPorts[Which];
@@ -380,6 +489,9 @@ void SerialOut(U8 Which, U8 Char) {
 
 /************************************************************************/
 
+/**
+ * @brief Retrieves the BIOS E820 memory map into shared buffers.
+ */
 static void RetrieveMemoryMap(void) {
     MemorySet((void*)E820_Map, 0, E820_SIZE);
     E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
@@ -387,6 +499,12 @@ static void RetrieveMemoryMap(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Main entry point for the VBR payload.
+ *
+ * @param BootDrive BIOS drive identifier.
+ * @param PartitionLba Starting LBA of the active partition.
+ */
 void BootMain(U32 BootDrive, U32 PartitionLba) {
     InitDebug();
 
@@ -432,6 +550,14 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
 /************************************************************************/
 
+/**
+ * @brief Builds the Multiboot information structure for the loaded kernel.
+ *
+ * @param KernelPhysBase Physical address of the loaded kernel.
+ * @param FileSize Size of the kernel image in bytes.
+ *
+ * @return Physical address of the multiboot information structure.
+ */
 U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
     // Clear the multiboot info structure
     MemorySet(&MultibootInfo, 0, sizeof(multiboot_info_t));

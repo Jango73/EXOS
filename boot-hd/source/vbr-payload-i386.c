@@ -45,6 +45,9 @@ static GDT_REGISTER Gdtr;
 
 /************************************************************************/
 
+/**
+ * @brief Clears the temporary page directory and page tables used during boot.
+ */
 static void ClearPdPt(void) {
     MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
     MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
@@ -53,6 +56,12 @@ static void ClearPdPt(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Configures a page directory entry to point to the provided page table.
+ *
+ * @param Entry Pointer to the page directory entry to update.
+ * @param PageTablePhysical Physical address of the page table.
+ */
 static void SetPageDirectoryEntry(LPPAGE_DIRECTORY Entry, U32 PageTablePhysical) {
     Entry->Present = 1;
     Entry->ReadWrite = 1;
@@ -70,6 +79,12 @@ static void SetPageDirectoryEntry(LPPAGE_DIRECTORY Entry, U32 PageTablePhysical)
 
 /************************************************************************/
 
+/**
+ * @brief Initializes a page table entry for the specified physical page.
+ *
+ * @param Entry Pointer to the page table entry being initialized.
+ * @param Physical Physical address to map in the entry.
+ */
 static void SetPageTableEntry(LPPAGE_TABLE Entry, U32 Physical) {
     BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
 
@@ -89,6 +104,13 @@ static void SetPageTableEntry(LPPAGE_TABLE Entry, U32 Physical) {
 
 /************************************************************************/
 
+/**
+ * @brief Builds identity and kernel paging structures for protected mode entry.
+ *
+ * @param KernelPhysBase Physical base address of the kernel image.
+ * @param KernelVirtBase Virtual base address where the kernel will be mapped.
+ * @param MapSize Size of the kernel mapping to establish.
+ */
 static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
     ClearPdPt();
 
@@ -111,6 +133,9 @@ static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
 
 /************************************************************************/
 
+/**
+ * @brief Builds a flat GDT with code and data segments for the transition.
+ */
 static void BuildGdtFlat(void) {
     BootDebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
 
@@ -127,6 +152,11 @@ static void BuildGdtFlat(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Enables paging and jumps to the loaded kernel entry point.
+ *
+ * @param FileSize Size of the loaded kernel image in bytes.
+ */
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     const U32 KernelPhysBase = SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
     const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);

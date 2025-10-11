@@ -52,6 +52,14 @@ static GDT_REGISTER Gdtr;
 
 /************************************************************************/
 
+/**
+ * @brief Performs a right shift on a 64-bit value across platforms.
+ *
+ * @param Value Value to shift.
+ * @param Count Number of bits to shift.
+ *
+ * @return Shifted value.
+ */
 #ifdef __EXOS_32__
 static U64 VbrShiftRightU64(U64 Value, UINT Count) {
     U64 Result = { 0u, 0u };
@@ -85,6 +93,15 @@ static U64 VbrShiftRightU64(U64 Value, UINT Count) {
 
 /************************************************************************/
 
+/**
+ * @brief Extracts a bit field from a 64-bit value.
+ *
+ * @param Value Source value.
+ * @param Shift Starting bit position.
+ * @param Width Number of bits to extract.
+ *
+ * @return Extracted value as an unsigned integer.
+ */
 static UINT VbrExtractU64Bits(U64 Value, UINT Shift, UINT Width) {
     U64 Shifted = VbrShiftRightU64(Value, Shift);
 
@@ -109,6 +126,13 @@ static UINT VbrExtractU64Bits(U64 Value, UINT Shift, UINT Width) {
 
 /************************************************************************/
 
+/**
+ * @brief Converts a pointer to a physical 64-bit address representation.
+ *
+ * @param Pointer Pointer to convert.
+ *
+ * @return 64-bit physical address.
+ */
 static U64 VbrPointerToPhysical(const void* Pointer) {
 #ifdef __EXOS_32__
     return U64_FromU32((U32)(UINT)Pointer);
@@ -119,12 +143,22 @@ static U64 VbrPointerToPhysical(const void* Pointer) {
 
 /************************************************************************/
 
+/**
+ * @brief Aligns a value to the next 4KB page boundary.
+ *
+ * @param Value Value to align.
+ *
+ * @return Page-aligned value.
+ */
 static U32 VbrAlignToPage(U32 Value) {
     return (Value + (PAGE_SIZE - 1u)) & ~(PAGE_SIZE - 1u);
 }
 
 /************************************************************************/
 
+/**
+ * @brief Clears all temporary paging structures used for long mode transition.
+ */
 static void ClearLongModeStructures(void) {
     MemorySet(PageMapLevel4, 0, PAGE_TABLE_SIZE);
     MemorySet(PageDirectoryPointerLow, 0, PAGE_TABLE_SIZE);
@@ -136,6 +170,13 @@ static void ClearLongModeStructures(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Initializes a long mode paging entry.
+ *
+ * @param Entry Paging entry to populate.
+ * @param Physical Physical address to map.
+ * @param Global Indicates whether the mapping should be global.
+ */
 static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Global) {
     U32 Low = 0x00000003u;
     U32 High = 0u;
@@ -156,6 +197,13 @@ static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Glob
 
 /************************************************************************/
 
+/**
+ * @brief Builds paging structures for x86-64 protected mode transition.
+ *
+ * @param KernelPhysBase Physical base address of the kernel image.
+ * @param KernelVirtBase Virtual base address where the kernel is mapped.
+ * @param MapSize Size of the kernel mapping.
+ */
 static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     ClearLongModeStructures();
 
@@ -239,6 +287,9 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
 
 /************************************************************************/
 
+/**
+ * @brief Builds a flat GDT for long mode entry.
+ */
 static void BuildGdtFlat(void) {
     BootDebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
 
@@ -260,6 +311,11 @@ static void BuildGdtFlat(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Enables long mode paging and jumps to the kernel entry point.
+ *
+ * @param FileSize Size of the loaded kernel image in bytes.
+ */
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
     const U32 KernelPhysBase = SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
     const U32 MapSize = VbrAlignToPage(FileSize + N_512KB);

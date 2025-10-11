@@ -90,6 +90,13 @@ static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 
+/**
+ * @brief Converts an ASCII character to uppercase.
+ *
+ * @param C Character to convert.
+ *
+ * @return Uppercase variant when applicable.
+ */
 static char Fat32ToUpperChar(char C) {
     if (C >= 'a' && C <= 'z') {
         return (char)(C - 'a' + 'A');
@@ -99,6 +106,12 @@ static char Fat32ToUpperChar(char C) {
 
 /************************************************************************/
 
+/**
+ * @brief Creates the 8.3 FAT short name matching the requested kernel file.
+ *
+ * @param KernelFile Requested kernel file path.
+ * @param Out Output buffer receiving the formatted name.
+ */
 static void Fat32BuildShortName(const char* KernelFile, char Out[12]) {
     for (U32 i = 0; i < 11U; ++i) {
         Out[i] = ' ';
@@ -129,6 +142,15 @@ static void Fat32BuildShortName(const char* KernelFile, char Out[12]) {
 
 /************************************************************************/
 
+/**
+ * @brief Compares two memory regions.
+ *
+ * @param A First memory block.
+ * @param B Second memory block.
+ * @param Len Number of bytes to compare.
+ *
+ * @return 0 when equal, non-zero otherwise.
+ */
 static int MemCmp(const void* A, const void* B, int Len) {
     const U8* X = (const U8*)A;
     const U8* Y = (const U8*)B;
@@ -140,6 +162,16 @@ static int MemCmp(const void* A, const void* B, int Len) {
 
 /************************************************************************/
 
+/**
+ * @brief Reads the FAT entry for the specified cluster.
+ *
+ * @param BootDrive BIOS drive identifier.
+ * @param FatStartSector Starting sector of the FAT table.
+ * @param Cluster Cluster index to query.
+ * @param CurrentFatSector Cached FAT sector number.
+ *
+ * @return Next cluster value.
+ */
 static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* CurrentFatSector) {
     U32 FatSector = FatStartSector + ((Cluster * 4U) / SECTORSIZE);
     U32 EntryOffset = (Cluster * 4U) % SECTORSIZE;
@@ -159,6 +191,16 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 
 /************************************************************************/
 
+/**
+ * @brief Attempts to load the kernel image from a FAT32 filesystem.
+ *
+ * @param BootDrive BIOS drive identifier.
+ * @param PartitionLba Starting LBA of the FAT32 partition.
+ * @param KernelFile Kernel file path.
+ * @param FileSizeOut Optional pointer that receives the file size.
+ *
+ * @return TRUE on success, FALSE when the filesystem is not FAT32.
+ */
 BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut) {
     BootDebugPrint(TEXT("[VBR] Probing FAT32 filesystem\r\n"));
 

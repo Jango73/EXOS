@@ -126,6 +126,13 @@ static U8* const Ext2Scratch = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 
+/**
+ * @brief Returns the length of a null-terminated string.
+ *
+ * @param Str String to measure.
+ *
+ * @return Number of characters excluding the terminator.
+ */
 static U32 Ext2StringLength(const char* Str) {
     U32 Len = 0;
     while (Str[Len] != '\0') {
@@ -136,6 +143,16 @@ static U32 Ext2StringLength(const char* Str) {
 
 /************************************************************************/
 
+/**
+ * @brief Compares an EXT2 directory entry name to a target string.
+ *
+ * @param Name Pointer to the directory entry name bytes.
+ * @param NameLen Length of the directory entry name.
+ * @param Target Null-terminated string to compare.
+ * @param TargetLen Length of the target string.
+ *
+ * @return TRUE when the names match, FALSE otherwise.
+ */
 static BOOL Ext2NamesEqual(const U8* Name, U8 NameLen, const char* Target, U32 TargetLen) {
     if (NameLen != TargetLen) return FALSE;
     for (U32 Index = 0; Index < TargetLen; ++Index) {
@@ -146,6 +163,13 @@ static BOOL Ext2NamesEqual(const U8* Name, U8 NameLen, const char* Target, U32 T
 
 /************************************************************************/
 
+/**
+ * @brief Reads a filesystem block into memory.
+ *
+ * @param Ctx EXT2 context for disk access.
+ * @param BlockNumber Block index to load.
+ * @param DestFar Destination far pointer where the data is copied.
+ */
 static void Ext2ReadBlock(const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 DestFar) {
     U32 Lba = Ctx->PartitionLba + BlockNumber * Ctx->SectorsPerBlock;
     if (BiosReadSectors(Ctx->BootDrive, Lba, Ctx->SectorsPerBlock, DestFar)) {
@@ -156,6 +180,13 @@ static void Ext2ReadBlock(const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 DestFar)
 
 /************************************************************************/
 
+/**
+ * @brief Loads an EXT2 group descriptor from disk.
+ *
+ * @param Ctx EXT2 context for disk access.
+ * @param Group Block group index to read.
+ * @param Out Output descriptor pointer.
+ */
 static void Ext2LoadGroupDescriptor(const EXT2_CONTEXT* Ctx, U32 Group, EXT2_GROUP_DESC* Out) {
     U32 DescriptorsPerBlock = Ctx->BlockSize / sizeof(EXT2_GROUP_DESC);
     U32 Block = Ctx->BgdtBlock + (Group / DescriptorsPerBlock);
@@ -167,6 +198,13 @@ static void Ext2LoadGroupDescriptor(const EXT2_CONTEXT* Ctx, U32 Group, EXT2_GRO
 
 /************************************************************************/
 
+/**
+ * @brief Reads an inode structure from disk.
+ *
+ * @param Ctx EXT2 context for disk access.
+ * @param InodeNumber Inode number to read.
+ * @param Out Output inode buffer.
+ */
 static void Ext2ReadInode(const EXT2_CONTEXT* Ctx, U32 InodeNumber, EXT2_INODE* Out) {
     if (InodeNumber == 0) {
         BootErrorPrint(TEXT("[VBR] EXT2 invalid inode number. Halting.\r\n"));
@@ -197,6 +235,15 @@ static void Ext2ReadInode(const EXT2_CONTEXT* Ctx, U32 InodeNumber, EXT2_INODE* 
 
 /************************************************************************/
 
+/**
+ * @brief Searches a directory inode for an entry with the specified name.
+ *
+ * @param Ctx EXT2 context for disk access.
+ * @param Dir Directory inode to search.
+ * @param Name Entry name to locate.
+ *
+ * @return Inode number when found, otherwise 0.
+ */
 static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, const char* Name) {
     U32 TargetLen = Ext2StringLength(Name);
 
@@ -232,6 +279,13 @@ static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, c
 
 /************************************************************************/
 
+/**
+ * @brief Advances a far pointer by one block in the destination buffer.
+ *
+ * @param Ctx EXT2 context holding block size information.
+ * @param DestSeg Destination segment to update.
+ * @param DestOfs Destination offset to update.
+ */
 static void Ext2AdvanceDestination(const EXT2_CONTEXT* Ctx, U16* DestSeg, U16* DestOfs) {
     U32 AdvanceBytes = Ctx->BlockSize;
     U16 Low = (U16)(AdvanceBytes & 0xF);
@@ -243,6 +297,15 @@ static void Ext2AdvanceDestination(const EXT2_CONTEXT* Ctx, U16* DestSeg, U16* D
 
 /************************************************************************/
 
+/**
+ * @brief Loads a block into the kernel image buffer and updates checksum state.
+ *
+ * @param Ctx EXT2 context for disk access.
+ * @param BlockNumber Block index to load.
+ * @param DestSeg Destination segment pointer.
+ * @param DestOfs Destination offset pointer.
+ * @param Remaining Remaining bytes to transfer.
+ */
 static void Ext2LoadBlockToDestination(
     const EXT2_CONTEXT* Ctx, U32 BlockNumber, U16* DestSeg, U16* DestOfs, U32* Remaining) {
     if (BlockNumber == 0 || *Remaining == 0) return;
@@ -267,6 +330,16 @@ static void Ext2LoadBlockToDestination(
 
 /************************************************************************/
 
+/**
+ * @brief Walks indirect block structures to load data blocks.
+ *
+ * @param Ctx EXT2 context for disk access.
+ * @param BlockNumber Indirect block index to traverse.
+ * @param Level Indirection level (1, 2, or 3).
+ * @param DestSeg Destination segment pointer.
+ * @param DestOfs Destination offset pointer.
+ * @param Remaining Remaining bytes to transfer.
+ */
 static void Ext2LoadIndirect(
     const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, U16* DestSeg, U16* DestOfs, U32* Remaining) {
     if (BlockNumber == 0 || *Remaining == 0) return;
@@ -288,6 +361,16 @@ static void Ext2LoadIndirect(
 
 /************************************************************************/
 
+/**
+ * @brief Attempts to load the kernel image from an EXT2 filesystem.
+ *
+ * @param BootDrive BIOS drive identifier.
+ * @param PartitionLba Starting LBA of the EXT2 partition.
+ * @param KernelName Kernel file name in the filesystem.
+ * @param FileSizeOut Optional pointer that receives the file size.
+ *
+ * @return TRUE on success, FALSE when the filesystem is not EXT2.
+ */
 BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut) {
     BootDebugPrint(TEXT("[VBR] Probing EXT2 filesystem\r\n"));
 
