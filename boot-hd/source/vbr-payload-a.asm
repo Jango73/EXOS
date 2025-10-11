@@ -127,11 +127,11 @@ Start:
     hlt
     jmp         $
 
-/***************************************************************************/
+;***************************************************************************
 ; EnterUnrealMode
 ; Switch segment registers to descriptors with a 4GB limit while staying in
 ; real mode so that linear addresses above 1MB can be accessed safely.
-/***************************************************************************/
+;***************************************************************************
 
 EnterUnrealMode:
     push        eax
