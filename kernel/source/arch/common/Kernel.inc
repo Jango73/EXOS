@@ -57,7 +57,6 @@ LOW_MEMORY_PAGE_4   equ 0x00004000
 LOW_MEMORY_PAGE_5   equ 0x00005000  ; RMC code base
 LOW_MEMORY_PAGE_6   equ 0x00006000  ; RMC buffers
 LOW_MEMORY_PAGE_7   equ 0x00007000
-LOW_MEMORY_PAGE_8   equ 0x00008000
 
 ;-------------------------------------------------------------------------
 ; Shift values to multiply or divide by machine constants

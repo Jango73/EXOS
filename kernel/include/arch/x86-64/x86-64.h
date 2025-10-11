@@ -163,7 +163,6 @@
 #define LOW_MEMORY_PAGE_5 0x5000
 #define LOW_MEMORY_PAGE_6 0x6000
 #define LOW_MEMORY_PAGE_7 0x7000
-#define LOW_MEMORY_PAGE_8 0x8000
 
 /***************************************************************************/
 
