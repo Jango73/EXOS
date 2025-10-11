@@ -275,7 +275,7 @@ MemoryCopy :
     mov     esi, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
-    rep     movsb
+    a32 rep movsb
 
     pop     es
     pop     edi
@@ -307,7 +307,7 @@ UnrealMemoryCopy:
     mov     esi, [ebp+(PBN+4)]
     mov     ecx, [ebp+(PBN+8)]
     cld
-    rep     movsb
+    a32 rep movsb
 
     call    LeaveUnrealMode
 
