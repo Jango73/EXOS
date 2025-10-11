@@ -64,6 +64,8 @@ global BiosGetMemoryMap
 global VESAGetModeInfo
 global VESASetMode
 global SetPixel24
+global EnterUnrealMode
+global LeaveUnrealMode
 global EnableA20
 
 extern BootMain
@@ -448,37 +450,8 @@ SetPixel24:
     mov     esi, [ebp+20]           ; framebuffer base
     add     esi, ecx                ; add offset
 
-    ; Switch to unreal mode temporarily to access >1MB
-    push    eax
-    push    ebx
+    call    EnterUnrealMode
 
-    ; Save current DS
-    mov     ax, ds
-    push    ax
-
-    ; Enter protected mode briefly
-    cli
-    lgdt    [TempGDT]
-    mov     eax, cr0
-    or      al, 1
-    mov     cr0, eax
-
-    ; Load data segment with 4GB limit
-    mov     ax, 0x10
-    mov     ds, ax
-
-    ; Return to real mode but keep DS with 4GB limit
-    and     al, 0xFE
-    mov     cr0, eax
-
-    ; Restore segment registers except DS (keeps unreal mode)
-    pop     ax
-    ; Don't restore DS - it now has 4GB limit
-
-    pop     ebx
-    pop     eax
-
-    ; Get color
     mov     eax, [ebp+16]           ; color
 
     ; Write BGR (24-bit) using 32-bit addressing
@@ -490,7 +463,7 @@ SetPixel24:
     shr     eax, 8
     mov     byte [esi], al          ; Red
 
-    sti
+    call    LeaveUnrealMode
 
 .done:
     pop     ds
@@ -501,6 +474,62 @@ SetPixel24:
     pop     ebx
     pop     eax
     pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
+; Unreal mode helpers
+;-------------------------------------------------------------------------
+
+EnterUnrealMode:
+    push    eax
+    pushf
+    cli
+
+    mov     ax, ds
+    mov     [SavedDS], ax
+    mov     ax, es
+    mov     [SavedES], ax
+    mov     ax, fs
+    mov     [SavedFS], ax
+    mov     ax, gs
+    mov     [SavedGS], ax
+
+    lgdt    [TempGDT]
+
+    mov     eax, cr0
+    or      eax, 1
+    mov     cr0, eax
+
+    mov     ax, 0x10
+    mov     ds, ax
+    mov     es, ax
+    mov     fs, ax
+    mov     gs, ax
+
+    mov     eax, cr0
+    and     eax, 0xFFFFFFFE
+    mov     cr0, eax
+
+    popf
+    pop     eax
+    ret
+
+LeaveUnrealMode:
+    push    eax
+    pushf
+    cli
+
+    mov     ax, [SavedDS]
+    mov     ds, ax
+    mov     ax, [SavedES]
+    mov     es, ax
+    mov     ax, [SavedFS]
+    mov     fs, ax
+    mov     ax, [SavedGS]
+    mov     gs, ax
+
+    popf
+    pop     eax
     ret
 
 ;-------------------------------------------------------------------------
@@ -843,6 +872,11 @@ LongModeMultibootInfo:    dq 0
 LongModeMultibootMagic:   dd 0
 LongModePadding:          dd 0
 %endif
+
+SavedDS:    dw 0
+SavedES:    dw 0
+SavedFS:    dw 0
+SavedGS:    dw 0
 
 ; Temporary GDT for unreal mode
 align 16
