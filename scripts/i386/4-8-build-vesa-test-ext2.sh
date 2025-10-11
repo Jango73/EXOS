@@ -5,4 +5,4 @@ export TRACE_STACK_USAGE=0
 export KERNEL_FILE="exos.bin"
 export FILE_SYSTEM=ext2
 export PAYLOAD_SOURCE="test-payloads/vesa-test.c"
-make -j$(nproc)
+make ARCH=i386 -j$(nproc)

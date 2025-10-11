@@ -1,2 +1,2 @@
 pkill -9 bochs
-rm boot-hd/bin/exos.img.lock
+rm build/i386/boot-hd/exos.img.lock

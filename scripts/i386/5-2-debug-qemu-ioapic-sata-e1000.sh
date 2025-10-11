@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-IMG_1_PATH="build/boot-hd/exos.img"
+IMG_1_PATH="build/i386/boot-hd/exos.img"
 
 if [ ! -f "$IMG_1_PATH" ]; then
     echo "Image not found: $IMG_1_PATH"
@@ -24,13 +24,13 @@ echo "Starting QEMU with $IMG_1_PATH"
 -s -S &
 
 sleep 2
-# ddd --gdb --args gdb -ex 'symbol-file build/kernel/exos.elf' -ex 'target remote localhost:1234'
-# ddd --eval-command="symbol-file build/kernel/exos.elf" --eval-command="dir kernel/source" --eval-command="dir kernel/source/asm" --eval-command="target remote localhost:1234"
-# gdbgui -r localhost:1234 --args -ex symbol-file\ build/kernel/exos.elf
-# gdb build/kernel/exos.elf -ex "set architecture i386" -ex "show architecture" -ex "target remote localhost:1234"
-cgdb build/kernel/exos.elf -ex "set architecture i386" -ex "target remote localhost:1234" \
+# ddd --gdb --args gdb -ex 'symbol-file build/i386/kernel/exos.elf' -ex 'target remote localhost:1234'
+# ddd --eval-command="symbol-file build/i386/kernel/exos.elf" --eval-command="dir kernel/source" --eval-command="dir kernel/source/asm" --eval-command="target remote localhost:1234"
+# gdbgui -r localhost:1234 --args -ex symbol-file\ build/i386/kernel/exos.elf
+# gdb build/i386/kernel/exos.elf -ex "set architecture i386" -ex "show architecture" -ex "target remote localhost:1234"
+cgdb build/i386/kernel/exos.elf -ex "set architecture i386" -ex "target remote localhost:1234" \
 -ex "break EnableInterrupts"
 
 # -ex "break *0x00400000" -ex "break *0x00400020" -ex "break *0x9FFFF000"  -ex "break *0x9FFFF00C" \
 # -ex "display/x \$cr3" -ex "display/x \$eax" -ex "display/x \$ebx" -ex "display/x \$ecx" -ex "display/x \$edx"
-# gdb-multiarch ./build/kernel/exos.elf -ex "set architecture i386" -ex "show architecture" -ex "target remote localhost:1234"
+# gdb-multiarch ./build/i386/kernel/exos.elf -ex "set architecture i386" -ex "show architecture" -ex "target remote localhost:1234"

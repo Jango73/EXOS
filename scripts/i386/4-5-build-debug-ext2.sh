@@ -4,4 +4,4 @@ export SCHEDULING_DEBUG_OUTPUT=0
 export TRACE_STACK_USAGE=0
 export KERNEL_FILE="exos.bin"
 export FILE_SYSTEM=ext2
-make -j$(nproc)
+make ARCH=i386 -j$(nproc)

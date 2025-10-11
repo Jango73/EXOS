@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-IMG_1_PATH="build/boot-hd/exos.img"
+IMG_1_PATH="build/x86-64/boot-hd/exos.img"
 
 if [ ! -f "$IMG_1_PATH" ]; then
     echo "Image not found: $IMG_1_PATH"

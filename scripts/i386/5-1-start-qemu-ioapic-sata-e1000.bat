@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set "QEMU=c:\program files\qemu\qemu-system-i386"
-set "IMG_1_PATH=build/boot-hd/exos.img"
+set "IMG_1_PATH=build/i386/boot-hd/exos.img"
 
 if not exist "%IMG_1_PATH%" (
     echo Image not found: %IMG_1_PATH%
