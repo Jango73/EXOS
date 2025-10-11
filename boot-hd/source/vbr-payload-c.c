@@ -311,6 +311,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     EnterUnrealMode();
 
     RetrieveMemoryMap();
+    EnterUnrealMode();
 
     StringPrintFormat(
         TempString,

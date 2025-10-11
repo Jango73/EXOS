@@ -238,31 +238,26 @@ BiosReadSectors:
     ret
 
 BiosReadSectors_16:
-    push        ax
-    push        bx
-    push        cx
-    push        dx
-    push        si
-    push        di
-    push        ds
-    push        es
-
-    push        cs
-    pop         ds
+    push        eax
+    push        ebx
+    push        ecx
+    push        edx
+    push        esi
+    push        edi
 
     xor         ax, ax
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
     int         0x13                        ; BIOS disk operation
 
-    pop         es
-    pop         ds
-    pop         di
-    pop         si
-    pop         dx
-    pop         cx
-    pop         bx
-    pop         ax
+    call        EnterUnrealMode
+
+    pop         edi
+    pop         esi
+    pop         edx
+    pop         ecx
+    pop         ebx
+    pop         eax
     ret
 
 ;-------------------------------------------------------------------------
@@ -274,10 +269,6 @@ MemorySet :
 
     push        ecx
     push        edi
-    push        es
-
-    push        ds
-    pop         es
 
     mov         edi, [ebp+(PBN+0)]
     mov         eax, [ebp+(PBN+4)]
@@ -285,7 +276,6 @@ MemorySet :
     cld
     rep         stosb
 
-    pop         es
     pop         edi
     pop         ecx
 
@@ -302,10 +292,6 @@ MemoryCopy :
     push    ecx
     push    esi
     push    edi
-    push    es
-
-    push    ds
-    pop     es
 
     mov     edi, [ebp+(PBN+0)]
     mov     esi, [ebp+(PBN+4)]
@@ -313,7 +299,6 @@ MemoryCopy :
     cld
     rep     movsb
 
-    pop     es
     pop     edi
     pop     esi
     pop     ecx
@@ -371,6 +356,7 @@ BiosGetMemoryMap:
     jmp     .error
 
 .return:
+    call    EnterUnrealMode
     pop     edx
     pop     ecx
     pop     ebx
@@ -413,6 +399,7 @@ VESAGetModeInfo:
     xor     eax, eax
 
 .done:
+    call    EnterUnrealMode
     pop     edx
     pop     ecx
     pop     ebx
@@ -445,6 +432,7 @@ VESASetMode:
     xor     eax, eax
 
 .done:
+    call    EnterUnrealMode
     pop     ebx
     pop     ebp
     ret
