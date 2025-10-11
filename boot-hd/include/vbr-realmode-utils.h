@@ -40,8 +40,7 @@
 
 #define SECTORSIZE 512
 
-#define LOADADDRESS_SEG 0x2000
-#define LOADADDRESS_OFS 0x0000
+#define KERNEL_LINEAR_LOAD_ADDRESS 0x00200000u
 
 /************************************************************************/
 // Inline helpers for segment arithmetic
@@ -99,6 +98,7 @@ const char* BootGetFileName(const char* Path);
 extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
 extern void MemorySet(LPVOID Base, U32 What, U32 Size);
 extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
+extern void UnrealMemoryCopy(U32 DestinationLinear, U32 SourceLinear, U32 Size);
 extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
 extern U32 VESAGetModeInfo(U16 Mode, U32 Buffer);
 extern U32 VESASetMode(U16 Mode);

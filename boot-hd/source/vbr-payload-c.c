@@ -187,7 +187,7 @@ static void VerifyKernelImage(U32 FileSize) {
         Hang();
     }
 
-    const U8* const FileStart = (const U8*)SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
+    const U8* const FileStart = (const U8*)KERNEL_LINEAR_LOAD_ADDRESS;
     const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
 
     StringPrintFormat(
@@ -311,9 +311,8 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     StringPrintFormat(
         TempString,
-        TEXT("[VBR] Loading and running binary OS at %x:%x\r\n"),
-        LOADADDRESS_SEG,
-        LOADADDRESS_OFS);
+        TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
+        KERNEL_LINEAR_LOAD_ADDRESS);
     BootDebugPrint(TempString);
 
     char Ext2KernelName[32];
