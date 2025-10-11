@@ -223,7 +223,7 @@ static void VerifyKernelImage(U32 FileSize) {
     BootDebugPrint(TempString);
 
     if (Computed != Stored) {
-        StringPrintFormat(TempString, TEXT("[VBR] Checksum mismatch. Halting. Computed : %x\r\n"), Computed);
+        StringPrintFormat(TempString, TEXT("[VBR] Checksum mismatch. Halting. Stored : %x vs computed : %x\r\n"), Stored, Computed);
         BootErrorPrint(TempString);
         Hang();
     }
