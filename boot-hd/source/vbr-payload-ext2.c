@@ -29,6 +29,10 @@
 /************************************************************************/
 
 #define EXT2_SUPER_MAGIC 0xEF53
+#define EXT2_DIRECT_BLOCK_COUNT 12U
+#define EXT2_SINGLE_INDIRECT_BLOCK_INDEX 12U
+#define EXT2_DOUBLE_INDIRECT_BLOCK_INDEX 13U
+#define EXT2_TRIPLE_INDIRECT_BLOCK_INDEX 14U
 
 /************************************************************************/
 
@@ -197,7 +201,7 @@ static void Ext2ReadInode(const EXT2_CONTEXT* Ctx, U32 InodeNumber, EXT2_INODE* 
 static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, const char* Name) {
     U32 TargetLen = Ext2StringLength(Name);
 
-    for (U32 i = 0; i < 12; ++i) {
+    for (U32 i = 0; i < EXT2_DIRECT_BLOCK_COUNT; ++i) {
         U32 Block = Dir->Block[i];
         if (Block == 0) continue;
 
@@ -328,20 +332,38 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     U16 DestOfs = LOADADDRESS_OFS;
     U32 Remaining = FileSize;
 
-    for (U32 i = 0; i < 12 && Remaining > 0; ++i) {
+    for (U32 i = 0; i < EXT2_DIRECT_BLOCK_COUNT && Remaining > 0; ++i) {
         Ext2LoadBlockToDestination(&Ctx, KernelInode.Block[i], &DestSeg, &DestOfs, &Remaining);
     }
 
-    if (Remaining > 0 && KernelInode.Block[12] != 0) {
-        Ext2LoadIndirect(&Ctx, KernelInode.Block[12], 1, &DestSeg, &DestOfs, &Remaining);
+    if (Remaining > 0 && KernelInode.Block[EXT2_SINGLE_INDIRECT_BLOCK_INDEX] != 0) {
+        Ext2LoadIndirect(
+            &Ctx,
+            KernelInode.Block[EXT2_SINGLE_INDIRECT_BLOCK_INDEX],
+            1,
+            &DestSeg,
+            &DestOfs,
+            &Remaining);
     }
 
-    if (Remaining > 0 && KernelInode.Block[13] != 0) {
-        Ext2LoadIndirect(&Ctx, KernelInode.Block[13], 2, &DestSeg, &DestOfs, &Remaining);
+    if (Remaining > 0 && KernelInode.Block[EXT2_DOUBLE_INDIRECT_BLOCK_INDEX] != 0) {
+        Ext2LoadIndirect(
+            &Ctx,
+            KernelInode.Block[EXT2_DOUBLE_INDIRECT_BLOCK_INDEX],
+            2,
+            &DestSeg,
+            &DestOfs,
+            &Remaining);
     }
 
-    if (Remaining > 0 && KernelInode.Block[14] != 0) {
-        Ext2LoadIndirect(&Ctx, KernelInode.Block[14], 3, &DestSeg, &DestOfs, &Remaining);
+    if (Remaining > 0 && KernelInode.Block[EXT2_TRIPLE_INDIRECT_BLOCK_INDEX] != 0) {
+        Ext2LoadIndirect(
+            &Ctx,
+            KernelInode.Block[EXT2_TRIPLE_INDIRECT_BLOCK_INDEX],
+            3,
+            &DestSeg,
+            &DestOfs,
+            &Remaining);
     }
 
     if (Remaining > 0) {
