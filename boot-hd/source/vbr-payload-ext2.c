@@ -124,9 +124,6 @@ typedef struct tag_EXT2_CONTEXT {
 /************************************************************************/
 
 static U8* const Ext2Scratch = (U8*)(USABLE_RAM_START);
-static U32 Ext2PointerCacheLevel1[1024];
-static U32 Ext2PointerCacheLevel2[1024];
-static U32 Ext2PointerCacheLevel3[1024];
 
 /************************************************************************/
 
@@ -140,29 +137,25 @@ static U32 Ext2StringLength(const char* Str) {
 
 /************************************************************************/
 
-static U32* Ext2GetPointerCache(U32 Level, U32* CapacityOut) {
+static U32* Ext2GetPointerCache(const EXT2_CONTEXT* Ctx, U32 Level, U32* CapacityOut) {
     if (CapacityOut == NULL) {
         BootErrorPrint(TEXT("[VBR] EXT2 pointer cache capacity target missing. Halting.\r\n"));
         Hang();
     }
 
-    switch (Level) {
-        case 1U:
-            *CapacityOut = (U32)(sizeof(Ext2PointerCacheLevel1) / sizeof(Ext2PointerCacheLevel1[0]));
-            return Ext2PointerCacheLevel1;
-        case 2U:
-            *CapacityOut = (U32)(sizeof(Ext2PointerCacheLevel2) / sizeof(Ext2PointerCacheLevel2[0]));
-            return Ext2PointerCacheLevel2;
-        case 3U:
-            *CapacityOut = (U32)(sizeof(Ext2PointerCacheLevel3) / sizeof(Ext2PointerCacheLevel3[0]));
-            return Ext2PointerCacheLevel3;
-        default:
-            BootErrorPrint(TEXT("[VBR] EXT2 unsupported indirection level. Halting.\r\n"));
-            Hang();
-            break;
+    if (Level == 0U || Level > 3U) {
+        BootErrorPrint(TEXT("[VBR] EXT2 unsupported indirection level. Halting.\r\n"));
+        Hang();
     }
 
-    return NULL;
+    U32 Offset = Level * Ctx->BlockSize;
+    if ((Offset + Ctx->BlockSize) > USABLE_RAM_SIZE) {
+        BootErrorPrint(TEXT("[VBR] EXT2 pointer cache exceeds scratch space. Halting.\r\n"));
+        Hang();
+    }
+
+    *CapacityOut = Ctx->EntriesPerBlock;
+    return (U32*)(Ext2Scratch + Offset);
 }
 
 /************************************************************************/
@@ -333,7 +326,7 @@ static void Ext2LoadIndirect(
     Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
 
     U32 CacheCapacity = 0;
-    U32* Cache = Ext2GetPointerCache(Level, &CacheCapacity);
+    U32* Cache = Ext2GetPointerCache(Ctx, Level, &CacheCapacity);
 
     U32 EntriesCount = Ctx->EntriesPerBlock;
     if (EntriesCount > CacheCapacity) {
@@ -381,6 +374,10 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     Ctx.SectorsPerBlock = Ctx.BlockSize / SECTORSIZE;
     if (Ctx.SectorsPerBlock == 0) {
         BootErrorPrint(TEXT("[VBR] EXT2 block size invalid. Halting.\r\n"));
+        Hang();
+    }
+    if (Ctx.BlockSize > (USABLE_RAM_SIZE / 4U)) {
+        BootErrorPrint(TEXT("[VBR] EXT2 block size exceeds scratch budget. Halting.\r\n"));
         Hang();
     }
     Ctx.InodeSize = (Super->InodeSize != 0U) ? Super->InodeSize : 128U;
