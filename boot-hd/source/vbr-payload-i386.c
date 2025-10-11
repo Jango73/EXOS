@@ -151,4 +151,3 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
 
     __builtin_unreachable();
 }
-

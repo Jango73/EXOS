@@ -439,7 +439,7 @@ Out_Error:
 void MemoryArchInitializeManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
-    Kernel_i386.PPB = (LPPAGEBITMAP)LOW_MEMORY_HALF;
+    Kernel_i386.PPB = (LPPAGEBITMAP)(LOW_MEMORY_HALF + N_1MB);
     MemorySet(Kernel_i386.PPB, 0, N_128KB);
 
     MemoryMarkUsedPhysicalMemory();
