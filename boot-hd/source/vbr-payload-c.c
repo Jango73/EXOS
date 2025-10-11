@@ -42,8 +42,20 @@ __asm__(".code16gcc");
 /************************************************************************/
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
-BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut);
-BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut);
+BOOL LoadKernelFat32(
+    U32 BootDrive,
+    U32 PartitionLba,
+    const char* KernelFile,
+    KERNEL_BUFFER_REQUEST BufferRequest,
+    void* BufferContext,
+    U32* FileSizeOut);
+BOOL LoadKernelExt2(
+    U32 BootDrive,
+    U32 PartitionLba,
+    const char* KernelName,
+    KERNEL_BUFFER_REQUEST BufferRequest,
+    void* BufferContext,
+    U32* FileSizeOut);
 
 /************************************************************************/
 
@@ -84,6 +96,92 @@ static void WriteString(LPCSTR Str) {
     while (*Str) {
         OutputChar((U8)*Str++);
     }
+}
+
+/************************************************************************/
+
+typedef struct tag_KERNEL_LOAD_CONTEXT {
+    U32 BufferBase;
+    U32 BufferSize;
+    U32 BufferUsed;
+    U32 KernelPhysical;
+    U32 TotalReserved;
+} KERNEL_LOAD_CONTEXT;
+
+/************************************************************************/
+
+static void KernelLoadContextInit(KERNEL_LOAD_CONTEXT* Context) {
+    if (Context == NULL) {
+        return;
+    }
+
+    Context->BufferBase = LOW_BUFFER_START;
+    Context->BufferSize = LOW_BUFFER_SIZE;
+    Context->BufferUsed = 0U;
+    Context->KernelPhysical = KERNEL_LOAD_PHYSICAL;
+    Context->TotalReserved = 0U;
+}
+
+/************************************************************************/
+
+static void KernelLoadContextFlush(KERNEL_LOAD_CONTEXT* Context) {
+    if (Context == NULL || Context->BufferUsed == 0U) {
+        return;
+    }
+
+    StringPrintFormat(
+        TempString,
+        TEXT("[VBR] Flushing %u bytes to physical %08X\r\n"),
+        Context->BufferUsed,
+        Context->KernelPhysical);
+    BootVerbosePrint(TempString);
+
+    EnterUnrealMode();
+    MemoryCopy(
+        (void*)(U32)Context->KernelPhysical,
+        (const void*)(U32)Context->BufferBase,
+        Context->BufferUsed);
+    LeaveUnrealMode();
+
+    Context->KernelPhysical += Context->BufferUsed;
+    Context->BufferUsed = 0U;
+}
+
+/************************************************************************/
+
+static U32 KernelLoadReserve(void* UserContext, U32 Length) {
+    KERNEL_LOAD_CONTEXT* Context = (KERNEL_LOAD_CONTEXT*)UserContext;
+
+    if (Context == NULL) {
+        BootErrorPrint(TEXT("[VBR] Kernel load context is NULL. Halting.\r\n"));
+        Hang();
+    }
+
+    if (Length > Context->BufferSize) {
+        BootErrorPrint(TEXT("[VBR] Kernel chunk exceeds buffer capacity. Halting.\r\n"));
+        Hang();
+    }
+
+    if (Length > 0x10000U) {
+        BootErrorPrint(TEXT("[VBR] Kernel chunk larger than 64KB unsupported. Halting.\r\n"));
+        Hang();
+    }
+
+    if ((Context->BufferUsed + Length) > Context->BufferSize) {
+        KernelLoadContextFlush(Context);
+    }
+
+    U32 Linear = Context->BufferBase + Context->BufferUsed;
+    Context->BufferUsed += Length;
+    Context->TotalReserved += Length;
+
+    return MakeSegOfs((const void*)(U32)Linear);
+}
+
+/************************************************************************/
+
+static void KernelLoadContextFinalize(KERNEL_LOAD_CONTEXT* Context) {
+    KernelLoadContextFlush(Context);
 }
 
 /************************************************************************/
@@ -187,7 +285,9 @@ static void VerifyKernelImage(U32 FileSize) {
         Hang();
     }
 
-    const U8* const FileStart = (const U8*)SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
+    EnterUnrealMode();
+
+    const U8* const FileStart = (const U8*)(U32)KERNEL_LOAD_PHYSICAL;
     const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
 
     StringPrintFormat(
@@ -216,6 +316,8 @@ static void VerifyKernelImage(U32 FileSize) {
     for (int Index = 0; Index < 4; ++Index) {
         Stored |= ((U32)ChecksumPtr[Index]) << (Index * 8);
     }
+
+    LeaveUnrealMode();
 
     StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
     BootDebugPrint(TempString);
@@ -311,9 +413,8 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     StringPrintFormat(
         TempString,
-        TEXT("[VBR] Loading and running binary OS at %x:%x\r\n"),
-        LOADADDRESS_SEG,
-        LOADADDRESS_OFS);
+        TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
+        KERNEL_LOAD_PHYSICAL);
     BootDebugPrint(TempString);
 
     char Ext2KernelName[32];
@@ -322,16 +423,43 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     U32 FileSize = 0;
     const char* LoadedFs = NULL;
 
-    if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
+    KERNEL_LOAD_CONTEXT LoaderContext;
+    KernelLoadContextInit(&LoaderContext);
+
+    if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, KernelLoadReserve, &LoaderContext, &FileSize)) {
+        KernelLoadContextFinalize(&LoaderContext);
+        if (LoaderContext.TotalReserved < FileSize) {
+            BootErrorPrint(TEXT("[VBR] Kernel buffer smaller than file size. Halting.\r\n"));
+            Hang();
+        }
         LoadedFs = "FAT32";
-    } else if (LoadKernelExt2(BootDrive, PartitionLba, Ext2KernelName, &FileSize)) {
-        LoadedFs = "EXT2";
     } else {
+        KernelLoadContextInit(&LoaderContext);
+        if (LoadKernelExt2(
+                BootDrive,
+                PartitionLba,
+                Ext2KernelName,
+                KernelLoadReserve,
+                &LoaderContext,
+                &FileSize)) {
+            KernelLoadContextFinalize(&LoaderContext);
+            if (LoaderContext.TotalReserved < FileSize) {
+                BootErrorPrint(TEXT("[VBR] Kernel buffer smaller than file size. Halting.\r\n"));
+                Hang();
+            }
+            LoadedFs = "EXT2";
+        }
+    }
+
+    if (LoadedFs == NULL) {
         BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.\r\n"));
         Hang();
     }
 
     StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
+    BootDebugPrint(TempString);
+
+    StringPrintFormat(TempString, TEXT("[VBR] Buffered kernel bytes %08X\r\n"), LoaderContext.TotalReserved);
     BootDebugPrint(TempString);
 
     VerifyKernelImage(FileSize);

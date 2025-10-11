@@ -233,23 +233,16 @@ static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, c
 
 /************************************************************************/
 
-static void Ext2AdvanceDestination(const EXT2_CONTEXT* Ctx, U16* DestSeg, U16* DestOfs) {
-    U32 AdvanceBytes = Ctx->BlockSize;
-    U16 Low = (U16)(AdvanceBytes & 0xF);
-    U16 NewOfs = (U16)(*DestOfs + Low);
-    U16 Carry = (NewOfs < *DestOfs) ? 1U : 0U;
-    *DestSeg += (U16)(AdvanceBytes >> 4) + Carry;
-    *DestOfs = NewOfs;
-}
-
-/************************************************************************/
-
 static void Ext2LoadBlockToDestination(
-    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U16* DestSeg, U16* DestOfs, U32* Remaining) {
+    const EXT2_CONTEXT* Ctx,
+    U32 BlockNumber,
+    KERNEL_BUFFER_REQUEST BufferRequest,
+    void* BufferContext,
+    U32* Remaining) {
     if (BlockNumber == 0 || *Remaining == 0) return;
 
-    Ext2ReadBlock(Ctx, BlockNumber, PackSegOfs(*DestSeg, *DestOfs));
-    Ext2AdvanceDestination(Ctx, DestSeg, DestOfs);
+    U32 DestFar = BufferRequest(BufferContext, Ctx->BlockSize);
+    Ext2ReadBlock(Ctx, BlockNumber, DestFar);
 
     if (*Remaining <= Ctx->BlockSize) {
         *Remaining = 0;
@@ -261,7 +254,12 @@ static void Ext2LoadBlockToDestination(
 /************************************************************************/
 
 static void Ext2LoadIndirect(
-    const EXT2_CONTEXT* Ctx, U32 BlockNumber, U32 Level, U16* DestSeg, U16* DestOfs, U32* Remaining) {
+    const EXT2_CONTEXT* Ctx,
+    U32 BlockNumber,
+    U32 Level,
+    KERNEL_BUFFER_REQUEST BufferRequest,
+    void* BufferContext,
+    U32* Remaining) {
     if (BlockNumber == 0 || *Remaining == 0) return;
 
     Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
@@ -272,16 +270,22 @@ static void Ext2LoadIndirect(
         if (Child == 0) continue;
 
         if (Level == 1) {
-            Ext2LoadBlockToDestination(Ctx, Child, DestSeg, DestOfs, Remaining);
+            Ext2LoadBlockToDestination(Ctx, Child, BufferRequest, BufferContext, Remaining);
         } else {
-            Ext2LoadIndirect(Ctx, Child, Level - 1, DestSeg, DestOfs, Remaining);
+            Ext2LoadIndirect(Ctx, Child, Level - 1, BufferRequest, BufferContext, Remaining);
         }
     }
 }
 
 /************************************************************************/
 
-BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut) {
+BOOL LoadKernelExt2(
+    U32 BootDrive,
+    U32 PartitionLba,
+    const char* KernelName,
+    KERNEL_BUFFER_REQUEST BufferRequest,
+    void* BufferContext,
+    U32* FileSizeOut) {
     BootDebugPrint(TEXT("[VBR] Probing EXT2 filesystem\r\n"));
 
     if (BiosReadSectors(BootDrive, PartitionLba + 2U, 2U, MakeSegOfs(Ext2Scratch))) {
@@ -328,12 +332,15 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     StringPrintFormat(TempString, TEXT("[VBR] EXT2 kernel size %08X bytes\r\n"), FileSize);
     BootDebugPrint(TempString);
 
-    U16 DestSeg = LOADADDRESS_SEG;
-    U16 DestOfs = LOADADDRESS_OFS;
+    if (BufferRequest == NULL) {
+        BootErrorPrint(TEXT("[VBR] Missing kernel buffer callback. Halting.\r\n"));
+        Hang();
+    }
+
     U32 Remaining = FileSize;
 
     for (U32 i = 0; i < EXT2_DIRECT_BLOCK_COUNT && Remaining > 0; ++i) {
-        Ext2LoadBlockToDestination(&Ctx, KernelInode.Block[i], &DestSeg, &DestOfs, &Remaining);
+        Ext2LoadBlockToDestination(&Ctx, KernelInode.Block[i], BufferRequest, BufferContext, &Remaining);
     }
 
     if (Remaining > 0 && KernelInode.Block[EXT2_SINGLE_INDIRECT_BLOCK_INDEX] != 0) {
@@ -341,8 +348,8 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
             &Ctx,
             KernelInode.Block[EXT2_SINGLE_INDIRECT_BLOCK_INDEX],
             1,
-            &DestSeg,
-            &DestOfs,
+            BufferRequest,
+            BufferContext,
             &Remaining);
     }
 
@@ -351,8 +358,8 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
             &Ctx,
             KernelInode.Block[EXT2_DOUBLE_INDIRECT_BLOCK_INDEX],
             2,
-            &DestSeg,
-            &DestOfs,
+            BufferRequest,
+            BufferContext,
             &Remaining);
     }
 
@@ -361,8 +368,8 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
             &Ctx,
             KernelInode.Block[EXT2_TRIPLE_INDIRECT_BLOCK_INDEX],
             3,
-            &DestSeg,
-            &DestOfs,
+            BufferRequest,
+            BufferContext,
             &Remaining);
     }
 

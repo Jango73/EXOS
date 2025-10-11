@@ -34,14 +34,18 @@
 
 #define ORIGIN PAYLOAD_OFFSET
 #define STACK_SIZE 0x1000
-#define USABLE_RAM_START 0x1000
-#define USABLE_RAM_END (ORIGIN - STACK_SIZE)
-#define USABLE_RAM_SIZE (USABLE_RAM_END - USABLE_RAM_START)
+
+#define LOW_BUFFER_START 0x20000u
+#define LOW_BUFFER_END 0x80000u
+#define LOW_BUFFER_SIZE (LOW_BUFFER_END - LOW_BUFFER_START)
+
+#define USABLE_RAM_START LOW_BUFFER_START
+#define USABLE_RAM_END LOW_BUFFER_END
+#define USABLE_RAM_SIZE LOW_BUFFER_SIZE
 
 #define SECTORSIZE 512
 
-#define LOADADDRESS_SEG 0x2000
-#define LOADADDRESS_OFS 0x0000
+#define KERNEL_LOAD_PHYSICAL 0x200000u
 
 /************************************************************************/
 // Inline helpers for segment arithmetic
@@ -85,6 +89,11 @@ static inline void Hang(void) {
 
 /************************************************************************/
 // Shared helpers exposed by the common payload code
+
+typedef U32 (*KERNEL_BUFFER_REQUEST)(void* Context, U32 Length);
+
+void EnterUnrealMode(void);
+void LeaveUnrealMode(void);
 
 extern STR TempString[128];
 

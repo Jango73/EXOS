@@ -128,7 +128,7 @@ static void BuildGdtFlat(void) {
 /************************************************************************/
 
 void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
-    const U32 KernelPhysBase = SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
+    const U32 KernelPhysBase = KERNEL_LOAD_PHYSICAL;
     const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
 
     EnableA20();

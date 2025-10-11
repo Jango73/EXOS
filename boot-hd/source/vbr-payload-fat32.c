@@ -32,7 +32,7 @@
 #define FAT32_EOC_MIN 0x0FFFFFF8
 #define FAT32_BAD_CLUSTER 0x0FFFFFF7
 
-#define MAX_SECTORS_PER_CLUSTER (USABLE_RAM_SIZE / SECTORSIZE)
+#define MAX_SECTORS_PER_CLUSTER (((USABLE_RAM_SIZE / SECTORSIZE) < 128U) ? (USABLE_RAM_SIZE / SECTORSIZE) : 128U)
 
 /************************************************************************/
 
@@ -160,7 +160,13 @@ static U32 ReadFatEntry(U32 BootDrive, U32 FatStartSector, U32 Cluster, U32* Cur
 
 /************************************************************************/
 
-BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut) {
+BOOL LoadKernelFat32(
+    U32 BootDrive,
+    U32 PartitionLba,
+    const char* KernelFile,
+    KERNEL_BUFFER_REQUEST BufferRequest,
+    void* BufferContext,
+    U32* FileSizeOut) {
     BootDebugPrint(TEXT("[VBR] Probing FAT32 filesystem\r\n"));
 
     if (BiosReadSectors(BootDrive, PartitionLba, 1, MakeSegOfs(&BootSector))) {
@@ -242,9 +248,12 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
     StringPrintFormat(TempString, TEXT("[VBR] FAT32 kernel size %08X bytes\r\n"), FileSize);
     BootDebugPrint(TempString);
 
+    if (BufferRequest == NULL) {
+        BootErrorPrint(TEXT("[VBR] Missing kernel buffer callback. Halting.\r\n"));
+        Hang();
+    }
+
     U32 Remaining = FileSize;
-    U16 DestSeg = LOADADDRESS_SEG;
-    U16 DestOfs = LOADADDRESS_OFS;
     U32 Cluster = FileCluster;
     CurrentFatSector = 0xFFFFFFFFU;
     U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SECTORSIZE;
@@ -253,18 +262,14 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
 
     while (Remaining > 0U && Cluster >= 2U && Cluster < FAT32_EOC_MIN) {
         U32 Lba = FirstDataSector + (Cluster - 2U) * SectorsPerCluster;
-        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, PackSegOfs(DestSeg, DestOfs))) {
+        U32 DestFar = BufferRequest(BufferContext, ClusterBytes);
+        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, DestFar)) {
             StringPrintFormat(TempString, TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
             BootErrorPrint(TempString);
             Hang();
         }
 
         U32 AdvanceBytes = ClusterBytes;
-        DestSeg += (AdvanceBytes >> 4);
-        DestOfs += (U16)(AdvanceBytes & 0xF);
-        if (DestOfs < (U16)(AdvanceBytes & 0xF)) {
-            DestSeg += 1U;
-        }
 
         if (Remaining <= AdvanceBytes) {
             Remaining = 0U;
