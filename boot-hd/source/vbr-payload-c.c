@@ -22,8 +22,6 @@
 
 \************************************************************************/
 
-// i386 32 bits real mode payload entry point
-
 #include "../../kernel/include/arch/i386/i386.h"
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
@@ -311,12 +309,13 @@ static void VerifyKernelImage(U32 FileSize) {
 
 /************************************************************************/
 // E820 memory map buffers shared with architecture specific code
-/************************************************************************/
 
 U32 E820_EntryCount = 0;
 E820ENTRY E820_Map[E820_MAX_ENTRIES];
 
+/************************************************************************/
 // Multiboot structures - placed at a safe memory location
+
 multiboot_info_t MultibootInfo;
 multiboot_memory_map_t MultibootMemMap[E820_MAX_ENTRIES];
 multiboot_module_t KernelModule;
@@ -324,13 +323,15 @@ const char BootloaderName[] = "EXOS VBR";
 const char KernelCmdLine[] = KERNEL_FILE;
 
 /************************************************************************/
-// Low-level I/O + A20
+// Low-level I/O
 
 static inline U8 InPortByte(U16 Port) {
     U8 Val;
     __asm__ __volatile__("inb %1, %0" : "=a"(Val) : "Nd"(Port));
     return Val;
 }
+
+/************************************************************************/
 
 static inline void OutPortByte(U16 Port, U8 Val) { __asm__ __volatile__("outb %0, %1" ::"a"(Val), "Nd"(Port)); }
 
@@ -539,7 +540,3 @@ U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
 
     return (U32)&MultibootInfo;
 }
-
-/************************************************************************/
-
-// Implemented by architecture-specific translation units
