@@ -124,6 +124,9 @@ typedef struct tag_EXT2_CONTEXT {
 /************************************************************************/
 
 static U8* const Ext2Scratch = (U8*)(USABLE_RAM_START);
+static U32 Ext2PointerCacheLevel1[1024];
+static U32 Ext2PointerCacheLevel2[1024];
+static U32 Ext2PointerCacheLevel3[1024];
 
 /************************************************************************/
 
@@ -133,6 +136,33 @@ static U32 Ext2StringLength(const char* Str) {
         ++Len;
     }
     return Len;
+}
+
+/************************************************************************/
+
+static U32* Ext2GetPointerCache(U32 Level, U32* CapacityOut) {
+    if (CapacityOut == NULL) {
+        BootErrorPrint(TEXT("[VBR] EXT2 pointer cache capacity target missing. Halting.\r\n"));
+        Hang();
+    }
+
+    switch (Level) {
+        case 1U:
+            *CapacityOut = (U32)(sizeof(Ext2PointerCacheLevel1) / sizeof(Ext2PointerCacheLevel1[0]));
+            return Ext2PointerCacheLevel1;
+        case 2U:
+            *CapacityOut = (U32)(sizeof(Ext2PointerCacheLevel2) / sizeof(Ext2PointerCacheLevel2[0]));
+            return Ext2PointerCacheLevel2;
+        case 3U:
+            *CapacityOut = (U32)(sizeof(Ext2PointerCacheLevel3) / sizeof(Ext2PointerCacheLevel3[0]));
+            return Ext2PointerCacheLevel3;
+        default:
+            BootErrorPrint(TEXT("[VBR] EXT2 unsupported indirection level. Halting.\r\n"));
+            Hang();
+            break;
+    }
+
+    return NULL;
 }
 
 /************************************************************************/
@@ -301,10 +331,20 @@ static void Ext2LoadIndirect(
     }
 
     Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
-    U32* Entries = (U32*)Ext2Scratch;
 
-    for (U32 Index = 0; Index < Ctx->EntriesPerBlock && *Remaining > 0U; ++Index) {
-        U32 Child = Entries[Index];
+    U32 CacheCapacity = 0;
+    U32* Cache = Ext2GetPointerCache(Level, &CacheCapacity);
+
+    U32 EntriesCount = Ctx->EntriesPerBlock;
+    if (EntriesCount > CacheCapacity) {
+        BootErrorPrint(TEXT("[VBR] EXT2 pointer cache overflow. Halting.\r\n"));
+        Hang();
+    }
+
+    MemoryCopy(Cache, Ext2Scratch, EntriesCount * sizeof(U32));
+
+    for (U32 Index = 0; Index < EntriesCount && *Remaining > 0U; ++Index) {
+        U32 Child = Cache[Index];
         if (Child == 0U) {
             U32 Span = (Level == 1U) ? Ctx->BlockSize : Ext2IndirectSpan(Ctx, Level - 1U);
             Ext2ZeroFill(Ctx, DestLinear, Remaining, Span);
