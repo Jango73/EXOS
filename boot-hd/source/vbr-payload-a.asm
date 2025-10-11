@@ -59,6 +59,7 @@ global _start
 global BiosReadSectors
 global MemorySet
 global MemoryCopy
+global UnrealMemoryCopy
 global StubJumpToImage
 global BiosGetMemoryMap
 global VESAGetModeInfo
@@ -277,6 +278,39 @@ MemoryCopy :
     rep     movsb
 
     pop     es
+    pop     edi
+    pop     esi
+    pop     ecx
+
+    pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
+; UnrealMemoryCopy
+; In : EBP+8  = destination linear address
+;      EBP+12 = source linear address
+;      EBP+16 = size in bytes
+;-------------------------------------------------------------------------
+
+UnrealMemoryCopy:
+
+    push    ebp
+    mov     ebp, esp
+
+    push    ecx
+    push    esi
+    push    edi
+
+    call    EnterUnrealMode
+
+    mov     edi, [ebp+(PBN+0)]
+    mov     esi, [ebp+(PBN+4)]
+    mov     ecx, [ebp+(PBN+8)]
+    cld
+    rep     movsb
+
+    call    LeaveUnrealMode
+
     pop     edi
     pop     esi
     pop     ecx
