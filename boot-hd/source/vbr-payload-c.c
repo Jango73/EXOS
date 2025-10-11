@@ -24,14 +24,12 @@
 
 // i386 32 bits real mode payload entry point
 
-#include <stdint.h>
-
+#include "../../kernel/include/arch/i386/i386.h"
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/String.h"
 #include "../include/vbr-multiboot.h"
 #include "../include/vbr-realmode-utils.h"
 #include "../include/vbr-payload-shared.h"
-#include "../../kernel/include/arch/i386/i386.h"
 
 /************************************************************************/
 
@@ -313,7 +311,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     StringPrintFormat(
         TempString,
-        TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"),
+        TEXT("[VBR] Loading and running binary OS at %x:%x\r\n"),
         LOADADDRESS_SEG,
         LOADADDRESS_OFS);
     BootDebugPrint(TempString);

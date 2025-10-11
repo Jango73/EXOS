@@ -541,7 +541,7 @@ SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address,
 
             KernelHeapFree(PendingSocket);
 
-            DEBUG(TEXT("[SocketAccept] Connection accepted on socket %p, new socket %p"), (LPVOID)SocketHandle, (U64)NewSocketDescriptor);
+            DEBUG(TEXT("[SocketAccept] Connection accepted on socket %p, new socket %p"), (LPVOID)SocketHandle, NewSocket);
             return NewSocketDescriptor;
         } else {
             // SAFE_USE_VALID_ID failed, cleanup and return error

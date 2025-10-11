@@ -222,7 +222,6 @@ LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LP
                 Cache->Entries[Index].Score++;
                 Cache->Entries[Index].ExpirationTime =
                     (U32)(CurrentTime + Cache->Entries[Index].TTL);
-                DEBUG(TEXT("[CacheFind] Found at index %u"), Index);
                 UnlockMutex(&Cache->Mutex);
                 return Result;
             }
