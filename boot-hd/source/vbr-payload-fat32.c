@@ -91,6 +91,10 @@ static U8* const ClusterBuffer = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 
+static BOOL Fat32IsPowerOfTwo(U32 Value) { return (Value != 0U) && ((Value & (Value - 1U)) == 0U); }
+
+/************************************************************************/
+
 static char Fat32ToUpperChar(char C) {
     if (C >= 'a' && C <= 'z') {
         return (char)(C - 'a' + 'A');
@@ -171,21 +175,42 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
     char KernelShortName[12];
     Fat32BuildShortName(KernelFile, KernelShortName);
 
+    static const U8 ExpectedFatName[8] = {'F', 'A', 'T', '3', '2', ' ', ' ', ' '};
+
     if (BootSector.BiosMark != 0xAA55 || BootSector.BytesPerSector != SECTORSIZE) {
+        return FALSE;
+    }
+
+    if (MemCmp(BootSector.FatName, ExpectedFatName, 8) != 0) {
         return FALSE;
     }
 
     U32 SectorsPerCluster = BootSector.SectorsPerCluster;
     U32 RootCluster = BootSector.RootCluster;
 
-    if (SectorsPerCluster == 0 || RootCluster < 2) {
-        BootErrorPrint(TEXT("[VBR] Invalid FAT32 parameters. Halting.\r\n"));
-        Hang();
+    if (!Fat32IsPowerOfTwo(SectorsPerCluster)) {
+        return FALSE;
+    }
+
+    if (RootCluster < 2U) {
+        return FALSE;
     }
 
     if (SectorsPerCluster > MAX_SECTORS_PER_CLUSTER) {
         BootErrorPrint(TEXT("[VBR] Max sectors per cluster exceeded. Halting.\r\n"));
         Hang();
+    }
+
+    if (BootSector.NumberOfFats == 0U || BootSector.NumberOfFats > 2U) {
+        return FALSE;
+    }
+
+    if (BootSector.NumSectorsPerFat == 0U || BootSector.ReservedSectorCount == 0U) {
+        return FALSE;
+    }
+
+    if (BootSector.ExtendedSignature != 0x28U && BootSector.ExtendedSignature != 0x29U) {
+        return FALSE;
     }
 
     U32 FatStartSector = PartitionLba + BootSector.ReservedSectorCount;
