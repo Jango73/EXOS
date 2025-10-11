@@ -53,6 +53,7 @@ static void WriteString(LPCSTR Str);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
+static U8* const ChecksumScratch = (U8*)(USABLE_RAM_START);
 
 /************************************************************************/
 
@@ -181,14 +182,59 @@ static void BuildKernelExt2Name(char* Out, U32 OutSize) {
 
 /************************************************************************/
 
+static void LinearRead(U32 SourceLinear, void* Destination, U32 Size) {
+    if (Size == 0U) {
+        return;
+    }
+
+    UnrealMemoryCopy((U32)(UINT)Destination, SourceLinear, Size);
+}
+
+/************************************************************************/
+
+static U32 ComputeChecksum(U32 SourceLinear, U32 Size) {
+    if (Size == 0U) {
+        return 0U;
+    }
+
+    const U32 ScratchLinear = (U32)(UINT)ChecksumScratch;
+    U32 Remaining = Size;
+    U32 Offset = 0U;
+    U32 Accumulator = 0U;
+
+    while (Remaining > 0U) {
+        U32 Chunk = Remaining;
+        if (Chunk > USABLE_RAM_SIZE) {
+            Chunk = USABLE_RAM_SIZE;
+        }
+
+        if (Chunk == 0U) {
+            break;
+        }
+
+        UnrealMemoryCopy(ScratchLinear, SourceLinear + Offset, Chunk);
+
+        for (U32 Index = 0; Index < Chunk; ++Index) {
+            Accumulator += ChecksumScratch[Index];
+        }
+
+        Offset += Chunk;
+        Remaining -= Chunk;
+    }
+
+    return Accumulator;
+}
+
+/************************************************************************/
+
 static void VerifyKernelImage(U32 FileSize) {
     if (FileSize < 8U) {
         BootErrorPrint(TEXT("[VBR] ERROR: FileSize too small for checksum. Halting.\r\n"));
         Hang();
     }
 
-    const U8* const FileStart = (const U8*)KERNEL_LINEAR_LOAD_ADDRESS;
-    const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
+    const U32 FileStartLinear = KERNEL_LINEAR_LOAD_ADDRESS;
+    const U32 ChecksumLinear = FileStartLinear + FileSize - sizeof(U32);
 
     StringPrintFormat(
         TempString,
@@ -196,26 +242,18 @@ static void VerifyKernelImage(U32 FileSize) {
         FileSize - (U32)sizeof(U32));
     BootVerbosePrint(TempString);
 
-    U32 LastBytes1 = 0;
-    U32 LastBytes2 = 0;
-
-    for (int Index = 0; Index < 4; ++Index) {
-        LastBytes1 |= ((U32)FileStart[FileSize - 8U + (U32)Index]) << (Index * 8);
-        LastBytes2 |= ((U32)FileStart[FileSize - 4U + (U32)Index]) << (Index * 8);
-    }
+    U32 TailWords[2] = {0U, 0U};
+    LinearRead(FileStartLinear + FileSize - 8U, TailWords, sizeof(TailWords));
+    const U32 LastBytes1 = TailWords[0];
+    const U32 LastBytes2 = TailWords[1];
 
     StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
     BootDebugPrint(TempString);
 
-    U32 Computed = 0;
-    for (U32 Index = 0; Index < FileSize - sizeof(U32); ++Index) {
-        Computed += FileStart[Index];
-    }
+    const U32 Computed = ComputeChecksum(FileStartLinear, FileSize - (U32)sizeof(U32));
 
-    U32 Stored = 0;
-    for (int Index = 0; Index < 4; ++Index) {
-        Stored |= ((U32)ChecksumPtr[Index]) << (Index * 8);
-    }
+    U32 Stored = 0U;
+    LinearRead(ChecksumLinear, &Stored, sizeof(Stored));
 
     StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
     BootDebugPrint(TempString);
