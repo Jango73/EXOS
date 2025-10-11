@@ -40,8 +40,9 @@
 
 #define SECTORSIZE 512
 
-#define LOADADDRESS_SEG 0x2000
-#define LOADADDRESS_OFS 0x0000
+#define KERNEL_LOAD_LINEAR 0x00200000u
+#define KERNEL_BUFFER_SEG 0x2000
+#define KERNEL_BUFFER_OFS 0x0000
 
 /************************************************************************/
 // Inline helpers for segment arithmetic
@@ -104,6 +105,7 @@ extern U32 VESAGetModeInfo(U16 Mode, U32 Buffer);
 extern U32 VESASetMode(U16 Mode);
 extern void SetPixel24(U32 x, U32 y, U32 color, U32 framebuffer);
 extern void EnableA20(void);
+extern void EnterUnrealMode(void);
 
 extern void __attribute__((noreturn)) StubJumpToImage(
     U32 GDTR,

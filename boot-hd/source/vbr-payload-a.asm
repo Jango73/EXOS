@@ -32,7 +32,7 @@ BITS 16
 %endif
 
 ORIGIN equ PAYLOAD_OFFSET
-KERNEL_LOAD_ADDRESS      equ 0x20000
+KERNEL_LOAD_ADDRESS      equ 0x00200000
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -65,6 +65,7 @@ global VESAGetModeInfo
 global VESASetMode
 global SetPixel24
 global EnableA20
+global EnterUnrealMode
 
 extern BootMain
 
@@ -125,6 +126,44 @@ Start:
 
     hlt
     jmp         $
+
+/***************************************************************************/
+; EnterUnrealMode
+; Switch segment registers to descriptors with a 4GB limit while staying in
+; real mode so that linear addresses above 1MB can be accessed safely.
+/***************************************************************************/
+
+EnterUnrealMode:
+    push        eax
+    push        ebx
+    push        ecx
+    push        edx
+    pushf
+
+    cli
+    lgdt        [TempGDT]
+
+    mov         eax, cr0
+    or          eax, CR0_PROTECTED_MODE
+    mov         cr0, eax
+
+    mov         ax, 0x10
+    mov         ds, ax
+    mov         es, ax
+    mov         fs, ax
+    mov         gs, ax
+
+    mov         eax, cr0
+    and         eax, ~CR0_PROTECTED_MODE
+    mov         cr0, eax
+    jmp         $+2                         ; Flush prefetch queue
+
+    popf
+    pop         edx
+    pop         ecx
+    pop         ebx
+    pop         eax
+    ret
 
 ;-------------------------------------------------------------------------
 ; BiosReadSectors cdecl
