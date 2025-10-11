@@ -379,6 +379,66 @@ Fractional part = unusable space.
 | 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
 | 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
 
+## EXT2 strcture
+
+                ┌──────────────────────────────────────┐
+                │               INODE                  │
+                ├──────────────────────────────────────┤
+                │ Block[0] → [DATA BLOCK 0]            │
+                │ Block[1] → [DATA BLOCK 1]            │
+                │   ...                                │
+                │ Block[11] → [DATA BLOCK 11]          │
+                │ Block[12] → [SINGLE INDIRECT]        │
+                │ Block[13] → [DOUBLE INDIRECT]        │
+                │ Block[14] → [TRIPLE INDIRECT]        │
+                └──────────────────────────────────────┘
+                               │
+                               │
+                               ▼
+─────────────────────────────────────────────────────────────────────
+(1) SINGLE INDIRECT (Block[12])
+─────────────────────────────────────────────────────────────────────
+[SINGLE INDIRECT BLOCK]
+ ├── ptr[0] → [DATA BLOCK 12]
+ ├── ptr[1] → [DATA BLOCK 13]
+ ├── ptr[2] → [DATA BLOCK 14]
+ ...
+ └── ptr[1023] → [DATA BLOCK N]
+
+─────────────────────────────────────────────────────────────────────
+(2) DOUBLE INDIRECT (Block[13])
+─────────────────────────────────────────────────────────────────────
+[DOUBLE INDIRECT BLOCK]
+ ├── ptr[0] → [SINGLE INDIRECT BLOCK A]
+ │              ├── ptr[0] → [DATA BLOCK A0]
+ │              ├── ptr[1] → [DATA BLOCK A1]
+ │              └── ...
+ ├── ptr[1] → [SINGLE INDIRECT BLOCK B]
+ │              ├── ptr[0] → [DATA BLOCK B0]
+ │              ├── ptr[1] → [DATA BLOCK B1]
+ │              └── ...
+ └── ptr[1023] → [SINGLE INDIRECT BLOCK Z]
+                 ├── ...
+                 └── [DATA BLOCK Zx]
+
+─────────────────────────────────────────────────────────────────────
+(3) TRIPLE INDIRECT (Block[14])
+─────────────────────────────────────────────────────────────────────
+[TRIPLE INDIRECT BLOCK]
+ ├── ptr[0] → [DOUBLE INDIRECT BLOCK A]
+ │              ├── ptr[0] → [SINGLE INDIRECT BLOCK A1]
+ │              │              ├── ptr[0] → [DATA BLOCK A1-0]
+ │              │              └── ...
+ │              ├── ptr[1] → [SINGLE INDIRECT BLOCK A2]
+ │              │              ├── ptr[0] → [DATA BLOCK A2-0]
+ │              │              └── ...
+ │              └── ...
+ ├── ptr[1] → [DOUBLE INDIRECT BLOCK B]
+ │              └── ...
+ └── ...
+─────────────────────────────────────────────────────────────────────
+
+
 ## Tasks
 
 ### Architecture-specific task data
