@@ -202,7 +202,7 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
 
     while (!Found && DirCluster >= 2U && DirCluster < FAT32_EOC_MIN) {
         U32 Lba = FirstDataSector + (DirCluster - 2U) * SectorsPerCluster;
-        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
+        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfsScratch(ClusterBuffer))) {
             BootErrorPrint(TEXT("[VBR] DIR cluster read failed. Halting.\r\n"));
             Hang();
         }
@@ -252,7 +252,7 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
 
     while (Remaining > 0U && Cluster >= 2U && Cluster < FAT32_EOC_MIN) {
         U32 Lba = FirstDataSector + (Cluster - 2U) * SectorsPerCluster;
-        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
+        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfsScratch(ClusterBuffer))) {
             StringPrintFormat(TempString, TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
             BootErrorPrint(TempString);
             Hang();
