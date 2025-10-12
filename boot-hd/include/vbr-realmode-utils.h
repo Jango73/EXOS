@@ -61,7 +61,7 @@ static inline U32 SegOfsToLinear(U16 Seg, U16 Ofs) {
 
 // Build seg:ofs from a linear pointer. Aligns segment down to 16 bytes.
 static inline U32 MakeSegOfs(const void* Ptr) {
-    U32 Lin = (U32)Ptr;
+    U32 Lin = (U32)Ptr + PAYLOAD_ADDRESS;
     U16 Seg = (U16)(Lin >> 4);
     U16 Ofs = (U16)(Lin & 0xF);
     return PackSegOfs(Seg, Ofs);
