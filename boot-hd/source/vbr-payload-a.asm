@@ -27,11 +27,13 @@
 ; EAX : Partition Start LBA
 
 BITS 16
-%ifndef PAYLOAD_OFFSET
-%error "PAYLOAD_OFFSET is not defined"
+%ifndef PAYLOAD_ADDRESS
+%error "PAYLOAD_ADDRESS is not defined"
 %endif
 
-ORIGIN equ PAYLOAD_OFFSET
+%include "vbr-address.inc"
+
+ORIGIN equ PAYLOAD_ADDRESS
 KERNEL_LOAD_ADDRESS      equ 0x200000
 
 %macro DebugPrint 1
@@ -97,12 +99,13 @@ Start:
     mov         ax, cs
     mov         ds, ax
     mov         es, ax
+    mov         ax, LINEAR_TO_STACK_SEGMENT(PAYLOAD_ADDRESS)
     mov         ss, ax
 
     ; Setup a 32-bit stack
-    ; Just below PAYLOAD_OFFSET, do not care about this data
-    ; We won't be returning to MBR and VBR
-    mov         sp, ORIGIN
+    ; Just below PAYLOAD_ADDRESS, do not care about this data
+    ; We will not be returning to MBR and VBR
+    mov         sp, LINEAR_TO_STACK_OFFSET(PAYLOAD_ADDRESS)
     xor         eax, eax
     mov         ax, sp
     mov         esp, eax

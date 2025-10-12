@@ -22,7 +22,7 @@
 ;
 ;-------------------------------------------------------------------------
 
-; FAT32 VBR loader, loads some sectors at PAYLOAD_OFFSET and jumps
+; FAT32 VBR loader, loads some sectors at PAYLOAD_ADDRESS and jumps
 ; Registers at start
 ; DL : Boot drive
 ; EAX : Partition Start LBA
@@ -30,9 +30,15 @@
 BITS 16
 ORG (0x7E00 + 0x005A)
 
-%ifndef PAYLOAD_OFFSET
-%error "PAYLOAD_OFFSET is not defined"
+%ifndef PAYLOAD_ADDRESS
+%error "PAYLOAD_ADDRESS is not defined"
 %endif
+
+%include "vbr-address.inc"
+
+PAYLOAD_TARGET_SEGMENT equ LINEAR_TO_SEGMENT(PAYLOAD_ADDRESS)
+PAYLOAD_TARGET_OFFSET  equ LINEAR_TO_OFFSET(PAYLOAD_ADDRESS)
+VBR_STACK_OFFSET      equ 0x9000
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -72,9 +78,10 @@ Start:
     mov         dword [DAP_Start_LBA_High], 0
 
     cli                                     ; Disable interrupts
-    xor         ax, ax
+    mov         ax, cs
+    mov         ds, ax
     mov         ss, ax
-    mov         sp, PAYLOAD_OFFSET          ; Place stack just below PAYLOAD
+    mov         sp, VBR_STACK_OFFSET        ; Use dedicated VBR stack within this segment
     mov         ax, 0xB800
     mov         es, ax
     sti                                     ; Enable interrupts
@@ -86,8 +93,10 @@ Start:
     DebugPrint  Text_Loading
 
     ; DL already has the drive
-    mov         ax, ds
+    mov         ax, PAYLOAD_TARGET_SEGMENT
     mov         [DAP_Buffer_Segment], ax
+    mov         ax, PAYLOAD_TARGET_OFFSET
+    mov         [DAP_Buffer_Offset], ax
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
     int         0x13
@@ -95,9 +104,11 @@ Start:
 
     DebugPrint  Text_Jumping
 
-    ; Jump to loaded sector at PAYLOAD_OFFSET with partition start in EAX
+    ; Jump to loaded sector at PAYLOAD_ADDRESS with partition start in EAX
     mov         eax, [PartitionStartLBA]
-    jmp         PAYLOAD_OFFSET
+    push        word PAYLOAD_TARGET_SEGMENT
+    push        word PAYLOAD_TARGET_OFFSET
+    retf
 
 BootFailed:
     ErrorPrint  Text_Failed
@@ -161,8 +172,8 @@ DAP :
 DAP_Size : db 16
 DAP_Reserved : db 0
 DAP_NumSectors : dw RESERVED_SECTORS
-DAP_Buffer_Offset : dw PAYLOAD_OFFSET
-DAP_Buffer_Segment : dw 0x0000
+DAP_Buffer_Offset : dw PAYLOAD_TARGET_OFFSET
+DAP_Buffer_Segment : dw PAYLOAD_TARGET_SEGMENT
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
 
