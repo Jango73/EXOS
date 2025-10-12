@@ -762,6 +762,7 @@ PrintHex32Nibble:
 ; Param 6 : MultibootMagic (0x2BADB002)
 ;-------------------------------------------------------------------------
 
+%ifdef ARCH_X86_64
 StubJumpToImage:
     push        ebp
     mov         ebp, esp
@@ -792,7 +793,6 @@ ProtectedEntryPoint:
     mov         ss, ax
     mov         esp, 0x200000               ; Set stack halfway through low 4mb
 
-%ifdef ARCH_X86_64
     ; Preserve parameters for long mode entry
     mov         eax, [ebp + 24]             ; Multiboot info pointer
     mov         [LongModeMultibootInfo], eax
@@ -829,20 +829,7 @@ ProtectedEntryPoint:
 
     ; Jump to 64-bit mode
     jmp         0x08:LongModeEntry
-%else
-    ; Activate paging
-    mov         eax, cr0
-    or          eax, CR0_PAGING
-    mov         cr0, eax
-    jmp         $+2                         ; Pipeline flush
 
-    mov         eax, [ebp + 28]             ; Multiboot magic (0x2BADB002)
-    mov         ebx, [ebp + 24]             ; Physical address of multiboot_info_t
-    mov         edx, [ebp + 16]             ; Kernel entry virtual address
-    jmp         edx
-%endif
-
-%ifdef ARCH_X86_64
 [BITS 64]
 LongModeEntry:
     mov         ax, 0x10
@@ -859,9 +846,53 @@ LongModeEntry:
     mov         rbx, qword [LongModeMultibootInfo]
     mov         rdx, qword [LongModeKernelEntry]
     jmp         rdx
-%endif
 
 [BITS 32]
+%else
+StubJumpToImage:
+    push        ebp
+    mov         ebp, esp
+
+    cli
+
+    DebugPrint  Text_JumpingToPM
+
+    mov         eax, [ebp + 8]              ; GDTR
+    lgdt        [eax]
+
+    mov         eax, [ebp + 12]             ; Paging structure (cr3)
+    mov         cr3, eax
+
+    ; Activate protected mode
+    mov         eax, cr0
+    or          eax, CR0_PROTECTED_MODE
+    mov         cr0, eax
+
+    ; Jump far to 32 bits
+    jmp         0x08:ProtectedEntryPoint
+
+[BITS 32]
+ProtectedEntryPoint:
+    mov         ax, 0x10
+    mov         ds, ax
+    mov         es, ax
+    mov         ss, ax
+    mov         esp, 0x200000               ; Set stack halfway through low 4mb
+
+    ; Activate paging
+    mov         eax, cr0
+    or          eax, CR0_PAGING
+    mov         cr0, eax
+    jmp         $+2                         ; Pipeline flush
+
+    mov         eax, [ebp + 28]             ; Multiboot magic (0x2BADB002)
+    mov         ebx, [ebp + 24]             ; Physical address of multiboot_info_t
+    mov         edx, [ebp + 16]             ; Kernel entry virtual address
+    jmp         edx
+
+[BITS 32]
+%endif
+
 .hang:
     cli
     hlt
