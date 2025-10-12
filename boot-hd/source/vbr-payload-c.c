@@ -40,10 +40,10 @@ __asm__(".code16gcc");
 #endif
 
 /************************************************************************/
-void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
 BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut);
 BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut);
+void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
 /************************************************************************/
 
@@ -51,8 +51,17 @@ static void InitDebug(void);
 static void OutputChar(U8 Char);
 static void WriteString(LPCSTR Str);
 
-STR TempString[128];
-static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
+/************************************************************************/
+
+STR __attribute__((aligned(16))) TempString[128];
+static const U16 __attribute__((aligned(16))) COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
+U32 __attribute__((aligned(16))) E820_EntryCount = 0;
+E820ENTRY __attribute__((aligned(16))) E820_Map[E820_MAX_ENTRIES];
+multiboot_info_t __attribute__((aligned(16))) MultibootInfo;
+multiboot_memory_map_t __attribute__((aligned(16))) MultibootMemMap[E820_MAX_ENTRIES];
+multiboot_module_t __attribute__((aligned(16))) KernelModule;
+const char __attribute__((aligned(16))) BootloaderName[] = "EXOS VBR";
+const char __attribute__((aligned(16))) KernelCmdLine[] = KERNEL_FILE;
 
 /************************************************************************/
 
@@ -231,20 +240,6 @@ static void VerifyKernelImage(U32 FileSize) {
 }
 
 /************************************************************************/
-// E820 memory map buffers shared with architecture specific code
-/************************************************************************/
-
-U32 E820_EntryCount = 0;
-E820ENTRY E820_Map[E820_MAX_ENTRIES];
-
-// Multiboot structures - placed at a safe memory location
-multiboot_info_t MultibootInfo;
-multiboot_memory_map_t MultibootMemMap[E820_MAX_ENTRIES];
-multiboot_module_t KernelModule;
-const char BootloaderName[] = "EXOS VBR";
-const char KernelCmdLine[] = KERNEL_FILE;
-
-/************************************************************************/
 // Low-level I/O + A20
 
 static inline U8 InPortByte(U16 Port) {
@@ -302,7 +297,16 @@ void SerialOut(U8 Which, U8 Char) {
 
 static void RetrieveMemoryMap(void) {
     MemorySet((void*)E820_Map, 0, E820_SIZE);
-    E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
+    E820_EntryCount = BiosGetMemoryMap(LinearToSegOfs(E820_Map), E820_MAX_ENTRIES);
+}
+
+/************************************************************************/
+
+void DumpI386Info(void) {
+    U32 CS, DS, SS, SP;
+    GetCS(CS); GetDS(DS); GetSS(SS); GetSP(SP);
+    StringPrintFormat(TempString, TEXT("[VBR] %x, %x, %x, %x\r\n"), CS, DS, SS, SP);
+    BootVerbosePrint(TempString);
 }
 
 /************************************************************************/
@@ -312,11 +316,13 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     RetrieveMemoryMap();
 
+    DumpI386Info();
+
     StringPrintFormat(
         TempString,
-        TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
+        TEXT("[VBR] Loading and running binary OS at %x\r\n"),
         KERNEL_LINEAR_LOAD_ADDRESS);
-    BootDebugPrint(TempString);
+    BootVerbosePrint(TempString);
 
     char Ext2KernelName[32];
     BuildKernelExt2Name(Ext2KernelName, sizeof(Ext2KernelName));
@@ -341,7 +347,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
     BootDebugPrint(TempString);
 
-    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
+    StringPrintFormat(TempString, TEXT("[VBR] E820 entry count : %d\r\n"), E820_EntryCount);
     BootDebugPrint(TempString);
 
     EnterProtectedPagingAndJump(FileSize);
@@ -459,7 +465,3 @@ U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
 
     return (U32)&MultibootInfo;
 }
-
-/************************************************************************/
-
-// Implemented by architecture-specific translation units

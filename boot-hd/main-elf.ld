@@ -2,8 +2,7 @@ ENTRY(_start)
 
 SECTIONS
 {
-    ASSERT(DEFINED(PAYLOAD_ADDRESS), "PAYLOAD_ADDRESS must be defined")
-    . = PAYLOAD_ADDRESS;
+    . = 0;
 
     .start  : { *(.start) }
     .text   : { *(.text*) }

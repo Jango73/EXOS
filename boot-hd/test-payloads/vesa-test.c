@@ -209,7 +209,7 @@ void BootMain(U32 BootDrive, U32 Fat32Lba) {
 
     WriteString(TEXT("[VESA] Getting mode info for 640x480x24...\r\n"));
 
-    if (VESAGetModeInfo(VESA_MODE_640x480x24, MakeSegOfs(&ModeInfo)) != 0) {
+    if (VESAGetModeInfo(VESA_MODE_640x480x24, LinearToSegOfs(&ModeInfo)) != 0) {
         WriteString(TEXT("[VESA] ERROR: Failed to get mode info\r\n"));
         Hang();
     }

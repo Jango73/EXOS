@@ -60,7 +60,8 @@ static inline U32 SegOfsToLinear(U16 Seg, U16 Ofs) {
 /************************************************************************/
 
 // Build seg:ofs from a linear pointer. Aligns segment down to 16 bytes.
-static inline U32 MakeSegOfs(const void* Ptr) {
+// For linear 0x20000, you get 0x20000000 which represents 0x2000:0x0000
+static inline U32 LinearToSegOfs(const void* Ptr) {
     U32 Lin = (U32)Ptr;
     U16 Seg = (U16)(Lin >> 4);
     U16 Ofs = (U16)(Lin & 0xF);
@@ -81,6 +82,13 @@ static inline void Hang(void) {
             : "memory");
     } while (0);
 }
+
+/************************************************************************/
+
+#define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetSS(var) __asm__ volatile("movw %%ss, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetSP(var) __asm__ volatile("movw %%sp, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 
 /************************************************************************/
 // Shared helpers exposed by the common payload code

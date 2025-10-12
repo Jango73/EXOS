@@ -185,7 +185,7 @@ static void Ext2LoadGroupDescriptor(const EXT2_CONTEXT* Ctx, U32 Group, EXT2_GRO
     U32 Block = Ctx->BgdtBlock + (Group / DescriptorsPerBlock);
     U32 Index = Group % DescriptorsPerBlock;
 
-    Ext2ReadBlock(Ctx, Block, MakeSegOfs(Ext2Scratch));
+    Ext2ReadBlock(Ctx, Block, LinearToSegOfs(Ext2Scratch));
     MemoryCopy(Out, Ext2Scratch + Index * sizeof(EXT2_GROUP_DESC), sizeof(EXT2_GROUP_DESC));
 }
 
@@ -209,7 +209,7 @@ static void Ext2ReadInode(const EXT2_CONTEXT* Ctx, U32 InodeNumber, EXT2_INODE* 
     U32 BlockOffset = ByteOffset / Ctx->BlockSize;
     U32 OffsetWithinBlock = ByteOffset % Ctx->BlockSize;
 
-    Ext2ReadBlock(Ctx, InodeTableBlock + BlockOffset, MakeSegOfs(Ext2Scratch));
+    Ext2ReadBlock(Ctx, InodeTableBlock + BlockOffset, LinearToSegOfs(Ext2Scratch));
 
     MemorySet(Out, 0, sizeof(EXT2_INODE));
     U32 CopySize = Ctx->InodeSize;
@@ -228,7 +228,7 @@ static U32 Ext2FindInDirectory(const EXT2_CONTEXT* Ctx, const EXT2_INODE* Dir, c
         U32 Block = Dir->Block[i];
         if (Block == 0) continue;
 
-        Ext2ReadBlock(Ctx, Block, MakeSegOfs(Ext2Scratch));
+        Ext2ReadBlock(Ctx, Block, LinearToSegOfs(Ext2Scratch));
 
         U32 Offset = 0;
         while (Offset + sizeof(EXT2_DIR_ENTRY) <= Ctx->BlockSize) {
@@ -301,7 +301,7 @@ static void Ext2LoadBlockToDestination(
     U32 BytesToCopy = (*Remaining < Ctx->BlockSize) ? *Remaining : Ctx->BlockSize;
 
     if (BlockNumber != 0U) {
-        Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
+        Ext2ReadBlock(Ctx, BlockNumber, LinearToSegOfs(Ext2Scratch));
     } else {
         MemorySet(Ext2Scratch, 0, BytesToCopy);
     }
@@ -323,7 +323,7 @@ static void Ext2LoadIndirect(
         return;
     }
 
-    Ext2ReadBlock(Ctx, BlockNumber, MakeSegOfs(Ext2Scratch));
+    Ext2ReadBlock(Ctx, BlockNumber, LinearToSegOfs(Ext2Scratch));
 
     U32 CacheCapacity = 0;
     U32* Cache = Ext2GetPointerCache(Ctx, Level, &CacheCapacity);
@@ -357,7 +357,7 @@ static void Ext2LoadIndirect(
 BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut) {
     BootDebugPrint(TEXT("[VBR] Probing EXT2 filesystem\r\n"));
 
-    if (BiosReadSectors(BootDrive, PartitionLba + 2U, 2U, MakeSegOfs(Ext2Scratch))) {
+    if (BiosReadSectors(BootDrive, PartitionLba + 2U, 2U, LinearToSegOfs(Ext2Scratch))) {
         BootErrorPrint(TEXT("[VBR] EXT2 superblock read failed. Halting.\r\n"));
         Hang();
     }

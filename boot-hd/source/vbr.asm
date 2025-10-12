@@ -20,15 +20,14 @@
 ;
 ;   Volume Boot Record
 ;
+;   Registers on entry
+;   DL : Boot drive
+;   EAX : Partition Start LBA
+;
 ;-------------------------------------------------------------------------
 
-; FAT32 VBR loader, loads some sectors at PAYLOAD_ADDRESS and jumps
-; Registers at start
-; DL : Boot drive
-; EAX : Partition Start LBA
-
-BITS 16
-ORG (0x7E00 + 0x005A)
+VBR_LOAD_OFFSET     equ (0x7E00 + 0x005A)
+VBR_STACK_OFFSET    equ 0x9000
 
 %ifndef PAYLOAD_ADDRESS
 %error "PAYLOAD_ADDRESS is not defined"
@@ -38,7 +37,6 @@ ORG (0x7E00 + 0x005A)
 
 PAYLOAD_TARGET_SEGMENT equ LINEAR_TO_SEGMENT(PAYLOAD_ADDRESS)
 PAYLOAD_TARGET_OFFSET  equ LINEAR_TO_OFFSET(PAYLOAD_ADDRESS)
-VBR_STACK_OFFSET      equ 0x9000
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -59,6 +57,11 @@ VBR_STACK_OFFSET      equ 0x9000
     call        PrintString
 %endif
 %endmacro
+
+;-------------------------------------------------------------------------
+
+BITS 16
+ORG VBR_LOAD_OFFSET
 
     jmp         Start
     db          'VBR1'

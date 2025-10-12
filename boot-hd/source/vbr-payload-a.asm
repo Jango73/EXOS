@@ -27,13 +27,13 @@
 ; EAX : Partition Start LBA
 
 BITS 16
+
 %ifndef PAYLOAD_ADDRESS
 %error "PAYLOAD_ADDRESS is not defined"
 %endif
 
 %include "vbr-address.inc"
 
-ORIGIN equ PAYLOAD_ADDRESS
 KERNEL_LOAD_ADDRESS      equ 0x200000
 
 %macro DebugPrint 1
@@ -99,13 +99,12 @@ Start:
     mov         ax, cs
     mov         ds, ax
     mov         es, ax
-    mov         ax, LINEAR_TO_STACK_SEGMENT(PAYLOAD_ADDRESS)
-    mov         ss, ax
 
     ; Setup a 32-bit stack
-    ; Just below PAYLOAD_ADDRESS, do not care about this data
-    ; We will not be returning to MBR and VBR
+    mov         ax, LINEAR_TO_STACK_SEGMENT(PAYLOAD_ADDRESS)
+    mov         ss, ax
     mov         sp, LINEAR_TO_STACK_OFFSET(PAYLOAD_ADDRESS)
+
     xor         eax, eax
     mov         ax, sp
     mov         esp, eax
@@ -880,7 +879,7 @@ ProtectedEntryPoint:
     mov         ds, ax
     mov         es, ax
     mov         ss, ax
-    mov         esp, 0x200000               ; Set stack halfway through low 4mb
+    mov         esp, KERNEL_LOAD_ADDRESS    ; Set stack juste below kernel
 
     ; Activate paging
     mov         eax, cr0
