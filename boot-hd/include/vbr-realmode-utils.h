@@ -45,6 +45,9 @@
 /************************************************************************/
 // Inline helpers for segment arithmetic
 
+extern unsigned char __payload_start;
+extern unsigned char __payload_end;
+
 // Pack segment and offset into a single U32 (seg:ofs as 0xSSSSOOOO)
 static inline U32 PackSegOfs(U16 Seg, U16 Ofs) {
     return ((U32)Seg << 16) | (U32)Ofs;
@@ -52,19 +55,37 @@ static inline U32 PackSegOfs(U16 Seg, U16 Ofs) {
 
 /************************************************************************/
 
-// Convert segment:offset to linear address
+// Retrieve the current data segment base in linear space.
+static inline U32 GetCurrentLinearBase(void) {
+    U16 Segment;
+    __asm__ __volatile__("mov %%ds, %0" : "=r"(Segment));
+    return ((U32)Segment) << 4;
+}
+
+/************************************************************************/
+
+// Convert segment:offset to a flat linear address
 static inline U32 SegOfsToLinear(U16 Seg, U16 Ofs) {
     return ((U32)Seg << 4) | (U32)Ofs;
 }
 
 /************************************************************************/
 
-// Build seg:ofs from a linear pointer. Aligns segment down to 16 bytes.
-// For linear 0x20000, you get 0x20000000 which represents 0x2000:0x0000
+// Build seg:ofs from a pointer that is relative to the payload image.
+// The compiler emits addresses relative to the payload base, so convert
+// them back to physical addresses before packing them for BIOS services.
 static inline U32 LinearToSegOfs(const void* Ptr) {
-    U32 Lin = (U32)Ptr;
-    U16 Seg = (U16)(Lin >> 4);
-    U16 Ofs = (U16)(Lin & 0xF);
+    const U32 Linear = (U32)Ptr;
+    const U32 PayloadStart = (U32)&__payload_start;
+    const U32 PayloadEnd = (U32)&__payload_end;
+    U32 Physical = Linear;
+
+    if (Linear >= PayloadStart && Linear < PayloadEnd) {
+        Physical = GetCurrentLinearBase() + (Linear - PayloadStart);
+    }
+
+    U16 Seg = (U16)(Physical >> 4);
+    U16 Ofs = (U16)(Physical & 0xF);
     return PackSegOfs(Seg, Ofs);
 }
 

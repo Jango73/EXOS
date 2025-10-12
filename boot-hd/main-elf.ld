@@ -4,6 +4,7 @@ SECTIONS
 {
     . = 0;
 
+    __payload_start = .;
     .start  : { *(.start) }
     .text   : { *(.text*) }
     .rodata : { *(.rodata*) }
@@ -12,4 +13,5 @@ SECTIONS
         *(.bss*)
         *(COMMON)
     }
+    __payload_end = .;
 }
