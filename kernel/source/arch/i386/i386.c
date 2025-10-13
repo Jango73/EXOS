@@ -38,11 +38,15 @@
 
 /************************************************************************/
 
-KERNELDATA_I386 SECTION(".data") Kernel_i386 = {.GDT = 0, .TSS = 0};
+KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
+    .IDT = NULL,
+    .GDT = NULL,
+    .TSS = NULL
+};
 
 /************************************************************************/
 
-/************************************************************************//**
+/**
  * @brief Perform architecture-specific pre-initialization.
  */
 void ArchPreInitializeKernel(void) {
@@ -445,81 +449,6 @@ Out_Error:
 
 /************************************************************************/
 
-/**
- * @brief Architecture-specific memory manager initialization for i386.
- */
-void MemoryArchInitializeManager(void) {
-    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
-
-    Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
-    MemorySet(Kernel.PPB, 0, N_128KB);
-
-    MemoryMarkUsedPhysicalMemory();
-
-    if (KernelStartup.MemorySize == 0) {
-        ConsolePanic(TEXT("Detected memory = 0"));
-    }
-
-    LINEAR TempLinear1 = I386_TEMP_LINEAR_PAGE_1;
-    LINEAR TempLinear2 = I386_TEMP_LINEAR_PAGE_2;
-    LINEAR TempLinear3 = I386_TEMP_LINEAR_PAGE_3;
-
-    MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %x, %x, %x"), TempLinear1, TempLinear2, TempLinear3);
-
-    PHYSICAL NewPageDirectory = AllocPageDirectory();
-
-    LogPageDirectory(NewPageDirectory);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory ready"));
-
-    if (NewPageDirectory == NULL) {
-        ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %x"), NewPageDirectory);
-
-    LoadPageDirectory(NewPageDirectory);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %x"), NewPageDirectory);
-
-    FlushTLB();
-
-    DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
-
-    if (TempLinear1 == 0 || TempLinear2 == 0) {
-        ERROR(TEXT("[InitializeMemoryManager] Failed to reserve temp linear pages"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-
-    if (Kernel_i386.GDT == NULL) {
-        ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    InitGlobalDescriptorTable(Kernel_i386.GDT);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
-
-    LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
-
-    for (UINT Index = 0; Index < 10; Index++) {
-        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), Index, ((U32*)(Kernel_i386.GDT))[Index * 2 + 1],
-            ((U32*)(Kernel_i386.GDT))[Index * 2]);
-    }
-
-    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
-}
-
-/************************************************************************/
-
 void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type) {
     MemorySet(This, 0, sizeof(SEGMENT_DESCRIPTOR));
 
@@ -857,4 +786,79 @@ void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* Ne
     SetGS(NextTask->Arch.Context.Registers.GS);
 
     RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Architecture-specific memory manager initialization for i386.
+ */
+void MemoryArchInitializeManager(void) {
+    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
+
+    Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
+    MemorySet(Kernel.PPB, 0, N_128KB);
+
+    MemoryMarkUsedPhysicalMemory();
+
+    if (KernelStartup.MemorySize == 0) {
+        ConsolePanic(TEXT("Detected memory = 0"));
+    }
+
+    LINEAR TempLinear1 = I386_TEMP_LINEAR_PAGE_1;
+    LINEAR TempLinear2 = I386_TEMP_LINEAR_PAGE_2;
+    LINEAR TempLinear3 = I386_TEMP_LINEAR_PAGE_3;
+
+    MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %x, %x, %x"), TempLinear1, TempLinear2, TempLinear3);
+
+    PHYSICAL NewPageDirectory = AllocPageDirectory();
+
+    LogPageDirectory(NewPageDirectory);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory ready"));
+
+    if (NewPageDirectory == NULL) {
+        ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %x"), NewPageDirectory);
+
+    LoadPageDirectory(NewPageDirectory);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %x"), NewPageDirectory);
+
+    FlushTLB();
+
+    DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
+
+    if (TempLinear1 == 0 || TempLinear2 == 0) {
+        ERROR(TEXT("[InitializeMemoryManager] Failed to reserve temp linear pages"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (Kernel_i386.GDT == NULL) {
+        ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    InitGlobalDescriptorTable(Kernel_i386.GDT);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
+
+    LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
+
+    for (UINT Index = 0; Index < 10; Index++) {
+        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), Index, ((U32*)(Kernel_i386.GDT))[Index * 2 + 1],
+            ((U32*)(Kernel_i386.GDT))[Index * 2]);
+    }
+
+    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }
