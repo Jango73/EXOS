@@ -44,8 +44,10 @@ common kernel code.
 the architecture backend owns the low-level bootstrap steps. The i386
 implementation continues to reserve the bitmap in low memory, seed the
 temporary mapping slots, install the recursive page directory, and load
-the GDT, while the x86-64 tree exposes a stub ready to grow into the
-final long-mode bootstrap sequence.
+the GDT. The x86-64 path mirrors these steps, wiring the temporary
+linear aliases, building the initial PML4, and installing a long-mode
+GDT so higher-half execution can begin without architecture-specific
+hooks inside the generic memory manager.
 
 ### Kernel object identifiers
 

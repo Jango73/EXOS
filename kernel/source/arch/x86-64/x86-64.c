@@ -768,11 +768,159 @@ Out_Error64:
 
 /************************************************************************/
 
+static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable, U32 Privilege) {
+    MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
+
+    Descriptor->Limit_00_15 = 0xFFFFu;
+    Descriptor->Base_00_15 = 0x0000u;
+    Descriptor->Base_16_23 = 0x00u;
+    Descriptor->Accessed = 0u;
+    Descriptor->CanWrite = 1u;
+    Descriptor->ConformExpand = 0u;
+    Descriptor->Type = Executable ? 1u : 0u;
+    Descriptor->Segment = 1u;
+    Descriptor->Privilege = Privilege;
+    Descriptor->Present = 1u;
+    Descriptor->Limit_16_19 = 0x0Fu;
+    Descriptor->Available = 0u;
+    Descriptor->Unused = Executable ? 1u : 0u;
+    Descriptor->OperandSize = Executable ? 0u : 1u;
+    Descriptor->Granularity = 1u;
+    Descriptor->Base_24_31 = 0x00u;
+}
+
+/***************************************************************************/
+
+static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Privilege) {
+    InitLongModeSegmentDescriptor(Descriptor, FALSE, Privilege);
+    Descriptor->Unused = 0u;
+    Descriptor->OperandSize = 1u;
+}
+
+/***************************************************************************/
+
+static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable) {
+    MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
+
+    Descriptor->Limit_00_15 = 0xFFFFu;
+    Descriptor->Limit_16_19 = 0x0Fu;
+    Descriptor->Base_00_15 = 0x0000u;
+    Descriptor->Base_16_23 = 0x00u;
+    Descriptor->Base_24_31 = 0x00u;
+    Descriptor->Accessed = 0u;
+    Descriptor->CanWrite = 1u;
+    Descriptor->ConformExpand = 0u;
+    Descriptor->Type = Executable ? 1u : 0u;
+    Descriptor->Segment = 1u;
+    Descriptor->Privilege = PRIVILEGE_KERNEL;
+    Descriptor->Present = 1u;
+    Descriptor->Available = 0u;
+    Descriptor->Unused = 0u;
+    Descriptor->OperandSize = 0u;
+    Descriptor->Granularity = 0u;
+}
+
+/***************************************************************************/
+
+static void InitX86_64GlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
+    DEBUG(TEXT("[InitX86_64GlobalDescriptorTable] Enter"));
+
+    MemorySet(Table, 0, GDT_SIZE);
+
+    InitLongModeSegmentDescriptor(&Table[1], TRUE, PRIVILEGE_KERNEL);
+    InitLongModeDataDescriptor(&Table[2], PRIVILEGE_KERNEL);
+    InitLongModeSegmentDescriptor(&Table[3], TRUE, PRIVILEGE_USER);
+    InitLongModeDataDescriptor(&Table[4], PRIVILEGE_USER);
+    InitLegacySegmentDescriptor(&Table[5], TRUE);
+    InitLegacySegmentDescriptor(&Table[6], FALSE);
+
+    DEBUG(TEXT("[InitX86_64GlobalDescriptorTable] Exit"));
+}
+
+/***************************************************************************/
+
+static void LogPageDirectory64(PHYSICAL DirectoryPhysical) {
+    DEBUG(TEXT("[LogPageDirectory] PML4 PA=%llx"), (unsigned long long)DirectoryPhysical);
+}
+
+/***************************************************************************/
+
 /**
- * @brief Placeholder memory manager initialization for x86-64.
+ * @brief Architecture-specific memory manager initialization for x86-64.
  */
 void MemoryArchInitializeManager(void) {
-    // TODO: provide x86-64 specific memory initialization.
+    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
+
+    Kernel_i386.PPB = (LPPAGEBITMAP)(LOW_MEMORY_HALF + N_1MB);
+    MemorySet(Kernel_i386.PPB, 0, N_128KB);
+
+    MemoryMarkUsedPhysicalMemory();
+
+    if (KernelStartup.MemorySize == 0) {
+        ConsolePanic(TEXT("Detected memory = 0"));
+    }
+
+    LINEAR TempLinear1 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_1;
+    LINEAR TempLinear2 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_2;
+    LINEAR TempLinear3 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_3;
+
+    MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %llx, %llx, %llx"),
+        (unsigned long long)TempLinear1,
+        (unsigned long long)TempLinear2,
+        (unsigned long long)TempLinear3);
+
+    PHYSICAL NewPageDirectory = AllocPageDirectory();
+
+    LogPageDirectory64(NewPageDirectory);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory ready"));
+
+    if (NewPageDirectory == NULL) {
+        ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %llx"), (unsigned long long)NewPageDirectory);
+
+    LoadPageDirectory(NewPageDirectory);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %llx"), (unsigned long long)NewPageDirectory);
+
+    FlushTLB();
+
+    DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
+
+    if (TempLinear1 == 0 || TempLinear2 == 0) {
+        ERROR(TEXT("[InitializeMemoryManager] Failed to reserve temp linear pages"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    Kernel_i386.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (Kernel_i386.GDT == NULL) {
+        ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    InitX86_64GlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
+
+    LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
+
+    U64* RawEntries = (U64*)Kernel_i386.GDT;
+    for (UINT Index = 0; Index < 10; Index++) {
+        U64 Low = RawEntries[Index * 2u];
+        U64 High = RawEntries[Index * 2u + 1u];
+        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%llx %llx"), Index, (unsigned long long)High, (unsigned long long)Low);
+    }
+
+    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }
 
 /************************************************************************/

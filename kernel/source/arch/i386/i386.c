@@ -448,9 +448,9 @@ void MemoryArchInitializeManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    LINEAR TempLinear1 = 0xC0100000;
-    LINEAR TempLinear2 = 0xC0101000;
-    LINEAR TempLinear3 = 0xC0102000;
+    LINEAR TempLinear1 = I386_TEMP_LINEAR_PAGE_1;
+    LINEAR TempLinear2 = I386_TEMP_LINEAR_PAGE_2;
+    LINEAR TempLinear3 = I386_TEMP_LINEAR_PAGE_3;
 
     MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
 

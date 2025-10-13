@@ -59,6 +59,10 @@
 #define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)  // User alias for TaskRunner
 #define VMA_KERNEL 0xC0000000                      // Kernel
 
+#define I386_TEMP_LINEAR_PAGE_1 0xC0100000
+#define I386_TEMP_LINEAR_PAGE_2 0xC0101000
+#define I386_TEMP_LINEAR_PAGE_3 0xC0102000
+
 #define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
 #define PD_RECURSIVE_SLOT 1023u         // PDE index used for self-map
