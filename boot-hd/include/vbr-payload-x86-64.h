@@ -90,4 +90,33 @@ typedef X86_64_PDPT_ENTRY* LPPDPT;
 typedef X86_64_PAGE_DIRECTORY_ENTRY* LPPAGE_DIRECTORY;
 typedef X86_64_PAGE_TABLE_ENTRY* LPPAGE_TABLE;
 
+/************************************************************************/
+// Segment selector helpers shared between C and assembly
+
+#define VBR_GDT_ENTRY_LIST(OP) \
+    OP(VBR_GDT_ENTRY_NULL, 0u) \
+    OP(VBR_GDT_ENTRY_PROTECTED_CODE, 1u) \
+    OP(VBR_GDT_ENTRY_PROTECTED_DATA, 2u) \
+    OP(VBR_GDT_ENTRY_LONG_MODE_CODE, 3u)
+
+enum {
+#define VBR_GDT_ENTRY(Name, Value) Name = Value,
+    VBR_GDT_ENTRY_LIST(VBR_GDT_ENTRY)
+#undef VBR_GDT_ENTRY
+};
+
+#define VBR_GDT_SELECTOR_FROM_INDEX(Index) ((U16)((Index) * (U16)sizeof(SEGMENT_DESCRIPTOR)))
+
+enum {
+    VBR_PROTECTED_MODE_CODE_SELECTOR = VBR_GDT_SELECTOR_FROM_INDEX(VBR_GDT_ENTRY_PROTECTED_CODE),
+    VBR_PROTECTED_MODE_DATA_SELECTOR = VBR_GDT_SELECTOR_FROM_INDEX(VBR_GDT_ENTRY_PROTECTED_DATA),
+    VBR_LONG_MODE_CODE_SELECTOR = VBR_GDT_SELECTOR_FROM_INDEX(VBR_GDT_ENTRY_LONG_MODE_CODE),
+    VBR_LONG_MODE_DATA_SELECTOR = VBR_PROTECTED_MODE_DATA_SELECTOR
+};
+
+extern const U16 VbrProtectedModeCodeSelector;
+extern const U16 VbrProtectedModeDataSelector;
+extern const U16 VbrLongModeCodeSelector;
+extern const U16 VbrLongModeDataSelector;
+
 #endif // VBR_PAYLOAD_X86_64_H_INCLUDED

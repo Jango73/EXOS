@@ -46,8 +46,21 @@ static LPPDPT PageDirectoryPointerKernel = (LPPDPT)LOW_MEMORY_PAGE_4;
 static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_5;
 static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_6;
 static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_7;
-static SEGMENT_DESCRIPTOR GdtEntries[3];
+static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_CODE + 1u];
 static GDT_REGISTER Gdtr;
+
+typedef char VerifySegmentDescriptorSize[(sizeof(SEGMENT_DESCRIPTOR) == 8u) ? 1 : -1];
+typedef char VerifyProtectedCodeSelector[
+    (VBR_PROTECTED_MODE_CODE_SELECTOR == (U16)(VBR_GDT_ENTRY_PROTECTED_CODE * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
+typedef char VerifyProtectedDataSelector[
+    (VBR_PROTECTED_MODE_DATA_SELECTOR == (U16)(VBR_GDT_ENTRY_PROTECTED_DATA * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
+typedef char VerifyLongModeCodeSelector[
+    (VBR_LONG_MODE_CODE_SELECTOR == (U16)(VBR_GDT_ENTRY_LONG_MODE_CODE * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
+
+const U16 VbrProtectedModeCodeSelector = VBR_PROTECTED_MODE_CODE_SELECTOR;
+const U16 VbrProtectedModeDataSelector = VBR_PROTECTED_MODE_DATA_SELECTOR;
+const U16 VbrLongModeCodeSelector = VBR_LONG_MODE_CODE_SELECTOR;
+const U16 VbrLongModeDataSelector = VBR_LONG_MODE_DATA_SELECTOR;
 
 /************************************************************************/
 
@@ -239,8 +252,36 @@ static void BuildGdtFlat(void) {
 
     MemorySet(GdtEntries, 0, sizeof(GdtEntries));
 
-    VbrSetSegmentDescriptor(&GdtEntries[1], 0x00000000u, 0x00000000u, 1, 1, 0, 0, 1, 1);
-    VbrSetSegmentDescriptor(&GdtEntries[2], 0x00000000u, 0x000FFFFFu, 0, 1, 0, 1, 1, 0);
+    VbrSetSegmentDescriptor(
+        &GdtEntries[VBR_GDT_ENTRY_PROTECTED_CODE],
+        0x00000000u,
+        0x000FFFFFu,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0);
+    VbrSetSegmentDescriptor(
+        &GdtEntries[VBR_GDT_ENTRY_PROTECTED_DATA],
+        0x00000000u,
+        0x000FFFFFu,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0);
+    VbrSetSegmentDescriptor(
+        &GdtEntries[VBR_GDT_ENTRY_LONG_MODE_CODE],
+        0x00000000u,
+        0x00000000u,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1);
 
     MemoryCopy((void*)GdtPhysicalAddress, GdtEntries, sizeof(GdtEntries));
 

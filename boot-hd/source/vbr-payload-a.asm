@@ -70,6 +70,12 @@ global LeaveUnrealMode
 global EnableA20
 
 extern BootMain
+%ifdef ARCH_X86_64
+extern VbrProtectedModeCodeSelector
+extern VbrProtectedModeDataSelector
+extern VbrLongModeCodeSelector
+extern VbrLongModeDataSelector
+%endif
 
 PBN                         equ 0x08        ; Param base near
 PBF                         equ 0x0A        ; Param base far
@@ -783,11 +789,14 @@ StubJumpToImage:
     mov         cr0, eax
 
     ; Jump far to 32 bits
-    jmp         0x08:ProtectedEntryPoint
+    mov         eax, VbrProtectedModeCodeSelector
+    mov         ax, [eax]
+    mov         [ProtectedModeJumpTarget + 4], ax
+    jmp         dword far [ProtectedModeJumpTarget]
 
 [BITS 32]
 ProtectedEntryPoint:
-    mov         ax, 0x10
+    mov         ax, [VbrProtectedModeDataSelector]
     mov         ds, ax
     mov         es, ax
     mov         ss, ax
@@ -828,11 +837,13 @@ ProtectedEntryPoint:
     mov         cr0, eax
 
     ; Jump to 64-bit mode
-    jmp         0x08:LongModeEntry
+    mov         ax, [VbrLongModeCodeSelector]
+    mov         [LongModeJumpTarget + 4], ax
+    jmp         dword far [LongModeJumpTarget]
 
 [BITS 64]
 LongModeEntry:
-    mov         ax, 0x10
+    mov         ax, [rel VbrLongModeDataSelector]
     mov         ds, ax
     mov         es, ax
     mov         ss, ax
@@ -936,6 +947,12 @@ LongModeKernelEntry:      dq 0
 LongModeMultibootInfo:    dq 0
 LongModeMultibootMagic:   dd 0
 LongModePadding:          dd 0
+align 4
+ProtectedModeJumpTarget:  dd ProtectedEntryPoint
+                           dw 0
+align 4
+LongModeJumpTarget:        dd LongModeEntry
+                           dw 0
 %endif
 
 SavedDS:    dw 0
