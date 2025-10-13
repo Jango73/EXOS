@@ -23,6 +23,7 @@
 
 #include "arch/x86-64/x86-64.h"
 
+#include "Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"

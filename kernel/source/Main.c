@@ -51,7 +51,7 @@ KERNELSTARTUPINFO KernelStartup = {
  */
 void KernelMain(void) {
     U32 MultibootMagic;
-    U32 MultibootInfoPhys;
+    LINEAR MultibootInfoLinear;
 
     // No more interrupts
     DisableInterrupts();
@@ -62,10 +62,10 @@ void KernelMain(void) {
     register U64 StartupRbx __asm__("rbx");
 
     MultibootMagic = (U32)StartupRax;
-    MultibootInfoPhys = (U32)StartupRbx;
+    MultibootInfoLinear = (LINEAR)StartupRbx;
 #else
     __asm__ __volatile__("movl %%eax, %0" : "=m"(MultibootMagic));
-    __asm__ __volatile__("movl %%ebx, %0" : "=m"(MultibootInfoPhys));
+    __asm__ __volatile__("movl %%ebx, %0" : "=m"(MultibootInfoLinear));
 #endif
 
     // Validate Multiboot magic number
@@ -74,15 +74,16 @@ void KernelMain(void) {
     }
 
     // Map the multiboot info structure to access it
-    multiboot_info_t* MultibootInfo = (multiboot_info_t*)MultibootInfoPhys;
+    multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
 
     // Extract information from Multiboot structure
     // Get kernel address from first module
     if (MultibootInfo->flags & MULTIBOOT_INFO_MODS && MultibootInfo->mods_count > 0) {
-        multiboot_module_t* FirstModule = (multiboot_module_t*)MultibootInfo->mods_addr;
+        multiboot_module_t* FirstModule = (multiboot_module_t*)(UINT)(LINEAR)MultibootInfo->mods_addr;
         KernelStartup.StubAddress = FirstModule->mod_start;
         // Get the command line
-        StringCopy(KernelStartup.CommandLine, FirstModule->cmdline);
+        LPCSTR ModuleCommandLine = (LPCSTR)(UINT)(LINEAR)FirstModule->cmdline;
+        StringCopy(KernelStartup.CommandLine, ModuleCommandLine);
     } else {
         // Fallback - should not happen with our bootloader
         KernelStartup.StubAddress = 0;
