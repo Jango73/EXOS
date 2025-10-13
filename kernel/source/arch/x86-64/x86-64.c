@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "arch/x86-64/x86-64.h"
+#include "arch/x86-64/x86-64-Log.h"
 
 #include "Console.h"
 #include "Kernel.h"
@@ -832,12 +833,6 @@ static void InitX86_64GlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
 
 /***************************************************************************/
 
-static void LogPageDirectory64(PHYSICAL DirectoryPhysical) {
-    DEBUG(TEXT("[LogPageDirectory] PML4 PA=%llx"), (unsigned long long)DirectoryPhysical);
-}
-
-/************************************************************************/
-
 /**
  * @brief Initialize the architecture-specific context for a task.
  *
@@ -940,6 +935,9 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
  */
 void MemoryArchInitializeManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
+
+    PHYSICAL CurrentPageDirectory = (PHYSICAL)GetPageDirectory();
+    LogPageDirectory64(CurrentPageDirectory);
 
     Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
     MemorySet(Kernel.PPB, 0, N_128KB);
