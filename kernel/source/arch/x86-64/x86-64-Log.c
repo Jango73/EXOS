@@ -55,14 +55,13 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
     LINEAR Pml4Linear = MapTempPhysicalPage(Pml4Physical);
 
     if (Pml4Linear == 0) {
-        ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage failed for PML4 %llx"),
-            (unsigned long long)Pml4Physical);
+        ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage failed for PML4 %p"), (LPVOID)Pml4Physical);
         return;
     }
 
     LPPML4 Pml4 = (LPPML4)Pml4Linear;
 
-    DEBUG(TEXT("[LogPageDirectory64] PML4 PA=%llx contents:"), (unsigned long long)Pml4Physical);
+    DEBUG(TEXT("[LogPageDirectory64] PML4 PA=%p contents:"), (LPVOID)Pml4Physical);
 
     for (UINT Pml4Index = 0; Pml4Index < PML4_ENTRY_COUNT; Pml4Index++) {
         const X86_64_PML4_ENTRY *Pml4Entry = &Pml4[Pml4Index];
@@ -73,11 +72,11 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
         U64 LinearEnd = BuildRangeEnd(LinearBase, 1ull << 39);
         PHYSICAL PdptPhysical = (PHYSICAL)(Pml4Entry->Address << 12);
 
-        DEBUG(TEXT("[LogPageDirectory64] PML4E[%03u]: VA=%llx-%llx -> PDPT_PA=%llx Present=%u RW=%u Priv=%u NX=%u"),
+        DEBUG(TEXT("[LogPageDirectory64] PML4E[%03u]: VA=%p-%p -> PDPT_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
             Pml4Index,
-            (unsigned long long)LinearBase,
-            (unsigned long long)LinearEnd,
-            (unsigned long long)PdptPhysical,
+            (LPVOID)LinearBase,
+            (LPVOID)LinearEnd,
+            (LPVOID)PdptPhysical,
             (U32)Pml4Entry->Present,
             (U32)Pml4Entry->ReadWrite,
             (U32)Pml4Entry->Privilege,
@@ -86,8 +85,8 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
         LINEAR PdptLinear = MapTempPhysicalPage2(PdptPhysical);
 
         if (PdptLinear == 0) {
-            ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage2 failed for PDPT %llx"),
-                (unsigned long long)PdptPhysical);
+            ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage2 failed for PDPT %p"),
+                (LPVOID)PdptPhysical);
             continue;
         }
 
@@ -104,11 +103,11 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
             if (PdptEntry->PageSize) {
                 PHYSICAL HugePhysical = (PHYSICAL)(PdptEntry->Address << 12);
 
-                DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%03u]: VA=%llx-%llx -> 1GB page PA=%llx Present=%u RW=%u Priv=%u NX=%u"),
+                DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%03u]: VA=%p-%p -> 1GB page PA=%p Present=%u RW=%u Priv=%u NX=%u"),
                     PdptIndex,
-                    (unsigned long long)PdptBase,
-                    (unsigned long long)PdptEnd,
-                    (unsigned long long)HugePhysical,
+                    (LPVOID)PdptBase,
+                    (LPVOID)PdptEnd,
+                    (LPVOID)HugePhysical,
                     (U32)PdptEntry->Present,
                     (U32)PdptEntry->ReadWrite,
                     (U32)PdptEntry->Privilege,
@@ -118,11 +117,11 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
             PHYSICAL PageDirectoryPhysical = (PHYSICAL)(PdptEntry->Address << 12);
 
-            DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%03u]: VA=%llx-%llx -> PD_PA=%llx Present=%u RW=%u Priv=%u NX=%u"),
+            DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%03u]: VA=%p-%p -> PD_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
                 PdptIndex,
-                (unsigned long long)PdptBase,
-                (unsigned long long)PdptEnd,
-                (unsigned long long)PageDirectoryPhysical,
+                (LPVOID)PdptBase,
+                (LPVOID)PdptEnd,
+                (LPVOID)PageDirectoryPhysical,
                 (U32)PdptEntry->Present,
                 (U32)PdptEntry->ReadWrite,
                 (U32)PdptEntry->Privilege,
@@ -131,8 +130,8 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
             LINEAR DirectoryLinear = MapTempPhysicalPage3(PageDirectoryPhysical);
 
             if (DirectoryLinear == 0) {
-                ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage3 failed for directory %llx"),
-                    (unsigned long long)PageDirectoryPhysical);
+                ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage3 failed for directory %p"),
+                    (LPVOID)PageDirectoryPhysical);
                 continue;
             }
 
@@ -149,11 +148,11 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 if (DirectoryEntry->PageSize) {
                     PHYSICAL LargePhysical = (PHYSICAL)(DirectoryEntry->Address << 12);
 
-                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%llx-%llx -> 2MB page PA=%llx Present=%u RW=%u Priv=%u Global=%u NX=%u"),
+                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%d-%d -> 2MB page PA=%d Present=%u RW=%u Priv=%u Global=%u NX=%u"),
                         DirectoryIndex,
-                        (unsigned long long)DirectoryBase,
-                        (unsigned long long)DirectoryEnd,
-                        (unsigned long long)LargePhysical,
+                        (LPVOID)DirectoryBase,
+                        (LPVOID)DirectoryEnd,
+                        (LPVOID)LargePhysical,
                         (U32)DirectoryEntry->Present,
                         (U32)DirectoryEntry->ReadWrite,
                         (U32)DirectoryEntry->Privilege,
@@ -164,11 +163,11 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
                 PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntry->Address << 12);
 
-                DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%llx-%llx -> PT_PA=%llx Present=%u RW=%u Priv=%u Global=%u NX=%u"),
+                DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%p-%p -> PT_PA=%p Present=%u RW=%u Priv=%u Global=%u NX=%u"),
                     DirectoryIndex,
-                    (unsigned long long)DirectoryBase,
-                    (unsigned long long)DirectoryEnd,
-                    (unsigned long long)TablePhysical,
+                    (LPVOID)DirectoryBase,
+                    (LPVOID)DirectoryEnd,
+                    (LPVOID)TablePhysical,
                     (U32)DirectoryEntry->Present,
                     (U32)DirectoryEntry->ReadWrite,
                     (U32)DirectoryEntry->Privilege,
@@ -178,21 +177,21 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 LINEAR TableLinear = MapTempPhysicalPage2(TablePhysical);
 
                 if (TableLinear == 0) {
-                    ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage2 failed for table %llx"),
-                        (unsigned long long)TablePhysical);
+                    ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage2 failed for table %p"),
+                        (LPVOID)TablePhysical);
 
                     PdptLinear = MapTempPhysicalPage2(PdptPhysical);
                     if (PdptLinear == 0) {
-                        ERROR(TEXT("[LogPageDirectory64] Failed to restore PDPT mapping %llx"),
-                            (unsigned long long)PdptPhysical);
+                        ERROR(TEXT("[LogPageDirectory64] Failed to restore PDPT mapping %p"),
+                            (LPVOID)PdptPhysical);
                         return;
                     }
 
                     Pdpt = (LPPDPT)PdptLinear;
                     DirectoryLinear = MapTempPhysicalPage3(PageDirectoryPhysical);
                     if (DirectoryLinear == 0) {
-                        ERROR(TEXT("[LogPageDirectory64] Failed to restore directory mapping %llx"),
-                            (unsigned long long)PageDirectoryPhysical);
+                        ERROR(TEXT("[LogPageDirectory64] Failed to restore directory mapping %p"),
+                            (LPVOID)PageDirectoryPhysical);
                         return;
                     }
 
@@ -214,10 +213,10 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                         U64 TableVirtual = BuildLinearAddress(Pml4Index, PdptIndex, DirectoryIndex, TableIndex, 0);
                         PHYSICAL PagePhysical = (PHYSICAL)(TableEntry->Address << 12);
 
-                        DEBUG(TEXT("[LogPageDirectory64]       PTE[%03u]: VA=%llx -> PA=%llx Present=%u RW=%u Priv=%u Dirty=%u Global=%u NX=%u"),
+                        DEBUG(TEXT("[LogPageDirectory64]       PTE[%03u]: VA=%p -> PA=%p Present=%u RW=%u Priv=%u Dirty=%u Global=%u NX=%u"),
                             TableIndex,
-                            (unsigned long long)TableVirtual,
-                            (unsigned long long)PagePhysical,
+                            (LPVOID)TableVirtual,
+                            (LPVOID)PagePhysical,
                             (U32)TableEntry->Present,
                             (U32)TableEntry->ReadWrite,
                             (U32)TableEntry->Privilege,
@@ -239,8 +238,8 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
                 PdptLinear = MapTempPhysicalPage2(PdptPhysical);
                 if (PdptLinear == 0) {
-                    ERROR(TEXT("[LogPageDirectory64] Failed to restore PDPT mapping %llx"),
-                        (unsigned long long)PdptPhysical);
+                    ERROR(TEXT("[LogPageDirectory64] Failed to restore PDPT mapping %p"),
+                        (LPVOID)PdptPhysical);
                     return;
                 }
 
@@ -248,8 +247,8 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
                 DirectoryLinear = MapTempPhysicalPage3(PageDirectoryPhysical);
                 if (DirectoryLinear == 0) {
-                    ERROR(TEXT("[LogPageDirectory64] Failed to restore directory mapping %llx"),
-                        (unsigned long long)PageDirectoryPhysical);
+                    ERROR(TEXT("[LogPageDirectory64] Failed to restore directory mapping %p"),
+                        (LPVOID)PageDirectoryPhysical);
                     return;
                 }
 
