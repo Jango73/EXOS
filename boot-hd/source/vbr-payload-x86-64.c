@@ -27,7 +27,12 @@
 
 /************************************************************************/
 
-static U32 GdtPhysicalAddress = 0U;
+// Keep the GDT inside the identity-mapped low memory window so that the far
+// jumps executed while enabling long mode can safely fetch descriptors after
+// paging is turned on. Placing the GDT next to the kernel image (above
+// 0x200000) left it unmapped in the initial identity map and triggered a #PF
+// during the transition, ultimately causing a triple fault.
+static const U32 GdtPhysicalAddress = LOW_MEMORY_PAGE_1;
 #ifdef __EXOS_32__
 static const U64 KERNEL_LONG_MODE_BASE = { 0x80000000u, 0xFFFFFFFFu };
 #else
@@ -35,12 +40,12 @@ static const U64 KERNEL_LONG_MODE_BASE = 0xFFFFFFFF80000000ull;
 #endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 
-static LPPML4 PageMapLevel4 = (LPPML4)LOW_MEMORY_PAGE_1;
-static LPPDPT PageDirectoryPointerLow = (LPPDPT)LOW_MEMORY_PAGE_2;
-static LPPDPT PageDirectoryPointerKernel = (LPPDPT)LOW_MEMORY_PAGE_3;
-static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_4;
-static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_5;
-static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_6;
+static LPPML4 PageMapLevel4 = (LPPML4)LOW_MEMORY_PAGE_2;
+static LPPDPT PageDirectoryPointerLow = (LPPDPT)LOW_MEMORY_PAGE_3;
+static LPPDPT PageDirectoryPointerKernel = (LPPDPT)LOW_MEMORY_PAGE_4;
+static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_5;
+static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_6;
+static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_7;
 static SEGMENT_DESCRIPTOR GdtEntries[3];
 static GDT_REGISTER Gdtr;
 
@@ -225,13 +230,6 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
         ++TableIndex;
     }
 
-    // Keep the GDT inside the identity-mapped low memory window so that the
-    // far jumps executed while enabling long mode can safely fetch
-    // descriptors after paging is turned on. Placing the GDT next to the
-    // kernel image (above 0x200000) left it unmapped in the initial identity
-    // map and triggered a #PF during the transition, ultimately causing a
-    // triple fault.
-    GdtPhysicalAddress = LOW_MEMORY_PAGE_7;
 }
 
 /************************************************************************/
@@ -243,11 +241,6 @@ static void BuildGdtFlat(void) {
 
     VbrSetSegmentDescriptor(&GdtEntries[1], 0x00000000u, 0x00000000u, 1, 1, 0, 0, 1, 1);
     VbrSetSegmentDescriptor(&GdtEntries[2], 0x00000000u, 0x000FFFFFu, 0, 1, 0, 1, 1, 0);
-
-    if (GdtPhysicalAddress == 0U) {
-        BootErrorPrint(TEXT("[VBR x86-64] ERROR: Missing GDT physical address. Halting.\r\n"));
-        Hang();
-    }
 
     MemoryCopy((void*)GdtPhysicalAddress, GdtEntries, sizeof(GdtEntries));
 
