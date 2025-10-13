@@ -22,23 +22,22 @@
 %endmacro
 
 ;-------------------------------------------------------------------------
-; Kernel data layout shared with assembly
+; Bit layout of CR0
 
-STRUC KERNELDATA_X86_64
-    .IDT RESQ 1
-    .GDT RESQ 1
-    .TSS RESQ 1
-    .PPB RESQ 1
-ENDSTRUC
+CR0_PROTECTED_MODE equ 0x00000001
+CR0_PAGING         equ 0x80000000
 
 ;-------------------------------------------------------------------------
-; Descriptor and selector helpers shared with the legacy real-mode bridge
+; Physical and virtual memory addresses
 
 SEGMENT_DESCRIPTOR_SIZE equ 8
 GATE_DESCRIPTOR_SIZE    equ 8
 
 IDT_SIZE equ N_4KB
 GDT_SIZE equ N_8KB
+
+;-------------------------------------------------------------------------
+; Privilege levels and selectors
 
 PRIVILEGE_KERNEL   equ 0x00
 PRIVILEGE_DRIVERS  equ 0x01
@@ -56,7 +55,31 @@ SELECTOR_USER_DATA   equ (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
 SELECTOR_REAL_CODE   equ (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 SELECTOR_REAL_DATA   equ (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 
-CR0_PROTECTED_MODE equ 0x00000001
-CR0_PAGING         equ 0x80000000
+;-------------------------------------------------------------------------
+; KernelStartupInfo data layout (partial)
 
-%endif ; KERNEL_X86_64_INC
+STRUC KernelStartupInfo
+    .StubAddress        RESQ 1
+    .StackTop           RESQ 1
+    .PageDirectory      RESQ 1
+    .IRQMask_21_PM      RESB 4
+    .IRQMask_A1_PM      RESB 4
+    .IRQMask_21_RM      RESB 4
+    .IRQMask_A1_RM      RESB 4
+    ; Console cursor position now handled directly in InitializeConsole
+    .MemorySize         RESQ 1
+    .PageCount          RESQ 1
+    .E820_Count         RESB 4
+ENDSTRUC
+
+;-------------------------------------------------------------------------
+; Kernel data layout shared with assembly
+
+STRUC KERNELDATA_X86_64
+    .IDT RESQ 1
+    .GDT RESQ 1
+    .TSS RESQ 1
+    .PPB RESQ 1
+ENDSTRUC
+
+%endif  ; KERNEL_X86_64_INC

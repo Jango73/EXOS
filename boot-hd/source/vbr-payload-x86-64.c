@@ -27,12 +27,6 @@
 
 /************************************************************************/
 
-// Keep the GDT inside the identity-mapped low memory window so that the far
-// jumps executed while enabling long mode can safely fetch descriptors after
-// paging is turned on. Placing the GDT next to the kernel image (above
-// 0x200000) left it unmapped in the initial identity map and triggered a #PF
-// during the transition, ultimately causing a triple fault.
-static const U32 GdtPhysicalAddress = LOW_MEMORY_PAGE_1;
 #ifdef __EXOS_32__
 static const U64 KERNEL_LONG_MODE_BASE = { 0x80000000u, 0xFFFFFFFFu };
 #else
@@ -40,6 +34,7 @@ static const U64 KERNEL_LONG_MODE_BASE = 0xFFFFFFFF80000000ull;
 #endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 
+static const U32 GdtPhysicalAddress = LOW_MEMORY_PAGE_1;
 static LPPML4 PageMapLevel4 = (LPPML4)LOW_MEMORY_PAGE_2;
 static LPPDPT PageDirectoryPointerLow = (LPPDPT)LOW_MEMORY_PAGE_3;
 static LPPDPT PageDirectoryPointerKernel = (LPPDPT)LOW_MEMORY_PAGE_4;
@@ -199,8 +194,6 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     const U32 TotalPages = (MapSize + PAGE_SIZE - 1U) / PAGE_SIZE;
     const U32 TablesRequired = (TotalPages + PAGE_TABLE_NUM_ENTRIES - 1U) / PAGE_TABLE_NUM_ENTRIES;
 
-    BootDebugPrint(TEXT("[VBR x86-64] Long mode mapping %u pages (%u tables)\r\n"), TotalPages, TablesRequired);
-
     if (TablesRequired > MAX_KERNEL_PAGE_TABLES) {
         BootErrorPrint(
             TEXT("[VBR x86-64] ERROR: Required kernel tables %u exceed limit %u. Halting.\r\n"),
@@ -242,7 +235,6 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
         KernelPtIndex = 0;
         ++TableIndex;
     }
-
 }
 
 /************************************************************************/

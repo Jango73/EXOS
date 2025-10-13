@@ -74,18 +74,16 @@ REG_OFF_DR3    equ 220
 REG_OFF_DR6    equ 228
 REG_OFF_DR7    equ 236
 
-;----------------------------------------------------------------------------
+;-------------------------------------------------------------------------
 
 section .data
-BITS 64
+BITS 32
 
     global DeadBeef
 
-;--------------------------------------
+DeadBeef      dd 0xDEADBEEF
 
-DeadBeef      dq 0x00000000DEADBEEF
-
-;--------------------------------------
+;-------------------------------------------------------------------------
 
 section .text.stub
 BITS 64
@@ -104,11 +102,18 @@ Magic : db 'EXOS'
 
 FUNC_HEADER
 start:
-    ud2
-    hlt
-    jmp     start
 
-;----------------------------------------------------------------------------
+    mov         [KernelStartup + KernelStartupInfo.StackTop], rsp
+
+    call        KernelMain
+
+.hang:
+    cli         ; Should not return here, hang
+    hlt
+    jmp .hang
+    nop
+
+;-------------------------------------------------------------------------
 
 section .text
 BITS 64

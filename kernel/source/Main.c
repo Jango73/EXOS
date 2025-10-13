@@ -63,7 +63,6 @@ void KernelMain(void) {
     // Validate Multiboot magic number
     if (MultibootMagic != MULTIBOOT_BOOTLOADER_MAGIC) {
         ConsolePanic(TEXT("Multiboot information not valid"));
-        __builtin_unreachable();
     }
 
     // Map the multiboot info structure to access it
