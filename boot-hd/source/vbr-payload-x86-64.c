@@ -41,6 +41,7 @@ static LPPDPT PageDirectoryPointerKernel = (LPPDPT)LOW_MEMORY_PAGE_4;
 static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_5;
 static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_6;
 static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_7;
+static LPPAGE_TABLE PageTableLowHigh = (LPPAGE_TABLE)LOW_MEMORY_PAGE_8;
 static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_CODE + 1u];
 static GDT_REGISTER Gdtr;
 
@@ -139,6 +140,7 @@ static void ClearLongModeStructures(void) {
     MemorySet(PageDirectoryLow, 0, PAGE_TABLE_SIZE);
     MemorySet(PageDirectoryKernel, 0, PAGE_TABLE_SIZE);
     MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageTableLowHigh, 0, PAGE_TABLE_SIZE);
 }
 
 /************************************************************************/
@@ -169,10 +171,16 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + 0), VbrPointerToPhysical(PageDirectoryPointerLow), 0);
     SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryPointerLow + 0), VbrPointerToPhysical(PageDirectoryLow), 0);
     SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryLow + 0), VbrPointerToPhysical(PageTableLow), 0);
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryLow + 1), VbrPointerToPhysical(PageTableLowHigh), 0);
 
     for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; ++Index) {
         const U32 PhysicalValue = Index * PAGE_SIZE;
         SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageTableLow + Index), U64_FromU32(PhysicalValue), 1);
+    }
+
+    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; ++Index) {
+        const U32 PhysicalValue = (Index + PAGE_TABLE_NUM_ENTRIES) * PAGE_SIZE;
+        SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageTableLowHigh + Index), U64_FromU32(PhysicalValue), 1);
     }
 
     SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + PML4_RECURSIVE_SLOT), VbrPointerToPhysical(PageMapLevel4), 0);
