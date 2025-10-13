@@ -28,19 +28,15 @@
 
 /************************************************************************/
 
-#define PAGE_DIRECTORY_ADDRESS (MEMORY_BASE)
-#define PAGE_TABLE_LOW_ADDRESS (MEMORY_BASE + MEMORY_PAGE_SIZE)
-#define PAGE_TABLE_KERNEL_ADDRESS (MEMORY_BASE + (2u * MEMORY_PAGE_SIZE))
-
 #define PROTECTED_ZONE_START 0xC0000
 #define PROTECTED_ZONE_END 0xFFFFF
 
 /************************************************************************/
 
-static U32 GdtPhysicalAddress = MEMORY_BASE + (3u * MEMORY_PAGE_SIZE);
-static LPPAGE_DIRECTORY PageDirectory = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_ADDRESS;
-static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)PAGE_TABLE_LOW_ADDRESS;
-static LPPAGE_TABLE PageTableKrn = (LPPAGE_TABLE)PAGE_TABLE_KERNEL_ADDRESS;
+static U32 GdtPhysicalAddress = LOW_MEMORY_PAGE_4;
+static LPPAGE_DIRECTORY PageDirectory = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_1;
+static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_2;
+static LPPAGE_TABLE PageTableKrn = (LPPAGE_TABLE)LOW_MEMORY_PAGE_3;
 static SEGMENT_DESCRIPTOR GdtEntries[3];
 static GDT_REGISTER Gdtr;
 
