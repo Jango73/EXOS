@@ -203,14 +203,14 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 LPPAGE_TABLE Table = (LPPAGE_TABLE)TableLinear;
                 UINT MappedCount = 0;
 
-                for (UINT TableIndex = 0; TableIndex < PAGE_TABLE_ENTRY_COUNT; TableIndex++) {
+                for (UINT TableIndex = 0; TableIndex < PAGE_TABLE_NUM_ENTRIES; TableIndex++) {
                     const X86_64_PAGE_TABLE_ENTRY *TableEntry = &Table[TableIndex];
 
                     if (!TableEntry->Present) continue;
 
                     MappedCount++;
 
-                    if (MappedCount <= 3u || MappedCount >= PAGE_TABLE_ENTRY_COUNT - 2u) {
+                    if (MappedCount <= 3u || MappedCount >= PAGE_TABLE_NUM_ENTRIES - 2u) {
                         U64 TableVirtual = BuildLinearAddress(Pml4Index, PdptIndex, DirectoryIndex, TableIndex, 0);
                         PHYSICAL PagePhysical = (PHYSICAL)(TableEntry->Address << 12);
 
@@ -226,7 +226,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                             (U32)TableEntry->NoExecute);
                     } else if (MappedCount == 4u) {
                         DEBUG(TEXT("[LogPageDirectory64]       ... (%u more mapped pages) ..."),
-                            PAGE_TABLE_ENTRY_COUNT - 6u);
+                            PAGE_TABLE_NUM_ENTRIES - 6u);
                     }
                 }
 
@@ -234,7 +234,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                     DEBUG(TEXT("[LogPageDirectory64]       Total mapped pages in PT[%03u]: %u/%u"),
                         DirectoryIndex,
                         MappedCount,
-                        PAGE_TABLE_ENTRY_COUNT);
+                        PAGE_TABLE_NUM_ENTRIES);
                 }
 
                 PdptLinear = MapTempPhysicalPage2(PdptPhysical);
