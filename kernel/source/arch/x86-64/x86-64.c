@@ -37,7 +37,6 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL,
-    .PPB = NULL,
 };
 
 /************************************************************************/
@@ -852,8 +851,8 @@ static void LogPageDirectory64(PHYSICAL DirectoryPhysical) {
 void MemoryArchInitializeManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
-    Kernel_i386.PPB = (LPPAGEBITMAP)(LOW_MEMORY_HALF + N_1MB);
-    MemorySet(Kernel_i386.PPB, 0, N_128KB);
+    Kernel.PPB = (LPPAGEBITMAP)(LOW_MEMORY_HALF + N_1MB);
+    MemorySet(Kernel.PPB, 0, N_128KB);
 
     MemoryMarkUsedPhysicalMemory();
 

@@ -309,7 +309,6 @@ typedef struct tag_KERNELDATA_X86_64 {
     LPX86_64_IDT_ENTRY IDT;
     LPVOID GDT;
     LPVOID TSS;
-    LPPAGEBITMAP PPB;
 } KERNELDATA_X86_64, *LPKERNELDATA_X86_64;
 
 /***************************************************************************/

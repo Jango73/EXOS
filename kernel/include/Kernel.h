@@ -148,6 +148,7 @@ typedef struct tag_KERNELDATA {
     LPLIST UserSessions;         // List of active user sessions
     LPLIST UserAccount;          // List of user accounts
     CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
+    LPPAGEBITMAP PPB;            // Physical page bitmap shared across architectures
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;

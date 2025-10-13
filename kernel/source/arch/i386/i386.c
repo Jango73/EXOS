@@ -38,7 +38,7 @@
 
 /************************************************************************/
 
-KERNELDATA_I386 SECTION(".data") Kernel_i386 = {.GDT = 0, .TSS = 0, .PPB = (U8*)0};
+KERNELDATA_I386 SECTION(".data") Kernel_i386 = {.GDT = 0, .TSS = 0};
 
 /************************************************************************/
 
@@ -439,8 +439,8 @@ Out_Error:
 void MemoryArchInitializeManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
-    Kernel_i386.PPB = (LPPAGEBITMAP)(LOW_MEMORY_HALF + N_1MB);
-    MemorySet(Kernel_i386.PPB, 0, N_128KB);
+    Kernel.PPB = (LPPAGEBITMAP)(LOW_MEMORY_HALF + N_1MB);
+    MemorySet(Kernel.PPB, 0, N_128KB);
 
     MemoryMarkUsedPhysicalMemory();
 

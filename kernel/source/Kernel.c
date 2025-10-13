@@ -636,7 +636,7 @@ U32 GetPhysicalMemoryUsed(void) {
     for (Index = 0; Index < KernelStartup.PageCount; Index++) {
         Byte = Index >> MUL_8;
         Mask = (U32)0x01 << (Index & 0x07);
-        if (Kernel_i386.PPB[Byte] & Mask) NumPages++;
+        if (Kernel.PPB[Byte] & Mask) NumPages++;
     }
 
     UnlockMutex(MUTEX_MEMORY);

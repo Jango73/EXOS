@@ -245,9 +245,9 @@ static void SetPhysicalPageMark(UINT Page, UINT Used) {
     Value = (UINT)0x01 << (Page & 0x07);
 
     if (Used) {
-        Kernel_i386.PPB[Offset] |= (U8)Value;
+        Kernel.PPB[Offset] |= (U8)Value;
     } else {
-        Kernel_i386.PPB[Offset] &= (U8)(~Value);
+        Kernel.PPB[Offset] &= (U8)(~Value);
     }
 
     UnlockMutex(MUTEX_MEMORY);
@@ -273,7 +273,7 @@ static U32 GetPhysicalPageMark(U32 Page) {
     Offset = Page >> MUL_8;
     Value = (U32)0x01 << (Page & 0x07);
 
-    if (Kernel_i386.PPB[Offset] & Value) RetVal = 1;
+    if (Kernel.PPB[Offset] & Value) RetVal = 1;
 
     UnlockMutex(MUTEX_MEMORY);
 
@@ -302,9 +302,9 @@ static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) 
         UINT Byte = Page >> MUL_8;
         U8 Mask = (U8)(1u << (Page & 0x07)); /* bit within byte */
         if (Used) {
-            Kernel_i386.PPB[Byte] |= Mask;
+            Kernel.PPB[Byte] |= Mask;
         } else {
-            Kernel_i386.PPB[Byte] &= (U8)~Mask;
+            Kernel.PPB[Byte] &= (U8)~Mask;
         }
     }
 }
@@ -394,13 +394,13 @@ PHYSICAL AllocPhysicalPage(void) {
 
     /* Scan from StartByte upward */
     for (i = StartByte; i < MaxByte; i++) {
-        U8 v = Kernel_i386.PPB[i];
+        U8 v = Kernel.PPB[i];
         if (v != 0xFF) {
             page = (i << MUL_8); /* first page covered by this byte */
             for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
                 mask = 1u << bit;
                 if ((v & mask) == 0) {
-                    Kernel_i386.PPB[i] = (U8)(v | (U8)mask);
+                    Kernel.PPB[i] = (U8)(v | (U8)mask);
                     result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
                     goto Out;
                 }
@@ -458,14 +458,14 @@ void FreePhysicalPage(PHYSICAL Page) {
     U8 mask = (U8)(1u << (PageIndex & 0x07));  // bit within the byte
 
     // If already free, nothing to do
-    if ((Kernel_i386.PPB[ByteIndex] & mask) == 0) {
+    if ((Kernel.PPB[ByteIndex] & mask) == 0) {
         UnlockMutex(MUTEX_MEMORY);
         DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%x)"), Page);
         return;
     }
 
     // Mark page as free
-    Kernel_i386.PPB[ByteIndex] = (U8)(Kernel_i386.PPB[ByteIndex] & (U8)~mask);
+    Kernel.PPB[ByteIndex] = (U8)(Kernel.PPB[ByteIndex] & (U8)~mask);
 
     UnlockMutex(MUTEX_MEMORY);
 }

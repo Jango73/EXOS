@@ -165,4 +165,5 @@ KERNELDATA SECTION(".data") Kernel = {
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR",
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
-    .MinimumQuantum = 10};
+    .MinimumQuantum = 10,
+    .PPB = NULL};
