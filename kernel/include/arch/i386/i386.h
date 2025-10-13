@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -24,15 +25,14 @@
 #ifndef ARCH_I386_I386_H_INCLUDED
 #define ARCH_I386_I386_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
 #include "Base.h"
 #include "arch/x86/x86-Common.h"
 #include "arch/i386/i386-Memory.h"
 
-/***************************************************************************/
-/* #define declarations                                                    */
-/***************************************************************************/
+/************************************************************************/
+// #define declarations
 
 /* Segment descriptor attributes */
 #define GDT_TYPE_DATA 0x00
@@ -272,9 +272,8 @@
 #define LOW_MEMORY_PAGE_6 0x6000
 #define LOW_MEMORY_PAGE_7 0x7000
 
-/***************************************************************************/
-/* Typedef declarations                                                    */
-/***************************************************************************/
+/************************************************************************/
+// Typedef declarations
 
 #pragma pack(push, 1)
 
@@ -455,9 +454,8 @@ typedef struct tag_SEGMENT_INFO {
     U32 Present;
 } SEGMENT_INFO, *LPSEGMENT_INFO;
 
-/***************************************************************************/
-/* Inline helpers                                                          */
-/***************************************************************************/
+/************************************************************************/
+// Inline helpers
 
 #if defined(__EXOS_ARCH_I386__)
 
@@ -548,23 +546,11 @@ typedef struct tag_SEGMENT_INFO {
 #define GetDR7(var) __asm__ volatile("mov %%dr7, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define SetDR6(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr6" : : "r"(var) : "eax")
 #define SetDR7(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr7" : : "r"(var) : "eax")
-#define SET_HW_BREAKPOINT(addr)                      \
-    __asm__ volatile(                                \
-        "mov %0, %%eax; mov %%eax, %%dr0\n"          \
-        "mov $0x00000001, %%eax; mov %%eax, %%dr7\n" \
-        :                                            \
-        : "r"(addr)                                  \
-        : "eax")
 #define READ_DR6(var) __asm__ volatile("mov %%dr6, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define READ_DR0(var) __asm__ volatile("mov %%dr0, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define READ_DR7(var) __asm__ volatile("mov %%dr7, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define CLEAR_DR6() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr6" : : : "eax")
 #define CLEAR_DR7() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr7" : : : "eax")
-#define CLEAR_DEBUG_REGS() \
-    do {                   \
-        CLEAR_DR6();       \
-        CLEAR_DR7();       \
-    } while (0)
 #define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 #define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 #define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
@@ -575,9 +561,22 @@ typedef struct tag_SEGMENT_INFO {
 #define SetFS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%fs" : "=m"(var) : : "eax")
 #define SetGS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%gs" : "=m"(var) : : "eax")
 
-/***************************************************************************/
-/* External symbols                                                        */
-/***************************************************************************/
+#define SET_HW_BREAKPOINT(addr)                      \
+    __asm__ volatile(                                \
+        "mov %0, %%eax; mov %%eax, %%dr0\n"          \
+        "mov $0x00000001, %%eax; mov %%eax, %%dr7\n" \
+        :                                            \
+        : "r"(addr)                                  \
+        : "eax")
+
+#define CLEAR_DEBUG_REGS() \
+    do {                   \
+        CLEAR_DR6();       \
+        CLEAR_DR7();       \
+    } while (0)
+
+/************************************************************************/
+// External symbols
 
 extern KERNELDATA_I386 Kernel_i386;
 
