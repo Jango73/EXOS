@@ -41,6 +41,15 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
 
 /************************************************************************/
 
+/************************************************************************//**
+ * @brief Perform architecture-specific pre-initialization.
+ */
+void ArchPreInitializeKernel(void) {
+    // Nothing to do for x86-64 at the moment.
+}
+
+/************************************************************************/
+
 /**
  * @brief Allocate a new page directory.
  * @return Physical address of the page directory or MAX_U32 on failure.

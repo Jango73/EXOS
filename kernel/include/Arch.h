@@ -33,4 +33,6 @@
     #error "Unsupported architecture"
 #endif
 
+void ArchPreInitializeKernel(void);
+
 #endif  // ARCH_H_INCLUDED

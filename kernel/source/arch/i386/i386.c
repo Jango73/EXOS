@@ -42,6 +42,18 @@ KERNELDATA_I386 SECTION(".data") Kernel_i386 = {.GDT = 0, .TSS = 0};
 
 /************************************************************************/
 
+/************************************************************************//**
+ * @brief Perform architecture-specific pre-initialization.
+ */
+void ArchPreInitializeKernel(void) {
+    GDT_REGISTER Gdtr;
+
+    ReadGlobalDescriptorTable(&Gdtr);
+    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)(LINEAR)Gdtr.Base;
+}
+
+/************************************************************************/
+
 /**
  * @brief Allocate a new page directory.
  * @return Physical address of the page directory or MAX_U32 on failure.

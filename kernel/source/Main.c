@@ -134,14 +134,6 @@ void KernelMain(void) {
         ConsolePanic(TEXT("No physical address specified for the kernel"));
     }
 
-    //-------------------------------------
-    // Read current GDT base address
-
-    GDT_REGISTER gdtr;
-    ReadGlobalDescriptorTable(&gdtr);
-    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)gdtr.Base;
-
-    //-------------------------------------
     // Clear the BSS
 
     LINEAR BSSStart = (LINEAR)(&__bss_init_start);
