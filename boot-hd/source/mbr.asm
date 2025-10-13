@@ -127,6 +127,8 @@ PrintString:
 .done:
     ret
 
+%if DEBUG_OUTPUT
+
 SerialPrintString:
     lodsb
     or          al, al
@@ -168,6 +170,8 @@ InitSerial:
     out         dx, al
     ret
 
+%endif
+
 DAP :
 DAP_Size : db 16
 DAP_Reserved : db 0
@@ -178,9 +182,12 @@ DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
 
 ActivePartition : db 0
-Text_Loading: db "Loading VBR...",13,10,0
-Text_Jumping: db "Jumping to VBR...",13,10,0
 Text_Failed: db "VBR boot failed.",13,10,0
+
+%if DEBUG_OUTPUT
+Text_Loading: db "Loading VBR",13,10,0
+Text_Jumping: db "Jumping to VBR",13,10,0
+%endif
 
 times 446-($-$$) db 0
 
