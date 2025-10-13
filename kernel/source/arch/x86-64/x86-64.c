@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -41,7 +42,7 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
 
 /************************************************************************/
 
-/************************************************************************//**
+/**
  * @brief Perform architecture-specific pre-initialization.
  */
 void ArchPreInitializeKernel(void) {
@@ -70,7 +71,9 @@ typedef struct _STARTUP_REGION {
     LPPAGE_TABLE Table;
 } STARTUP_REGION;
 
-/************************************************************************//**
+/************************************************************************/
+
+/**
  * @brief Free the physical pages allocated for a startup region.
  * @param Region Region descriptor to release.
  */
@@ -86,7 +89,9 @@ static void FreeStartupRegion(STARTUP_REGION *Region) {
     MemorySet(Region, 0, sizeof(STARTUP_REGION));
 }
 
-/************************************************************************//**
+/************************************************************************/
+
+/**
  * @brief Populate the identity mapping for the low memory region.
  */
 typedef struct _LOW_REGION_CONTEXT {
@@ -178,12 +183,16 @@ static BOOL CreateStartupRegionTable(STARTUP_REGION *Region,
     return TRUE;
 }
 
+/************************************************************************/
+
 static BOOL ExtendStartupRegion(STARTUP_REGION *Region,
     UINT DirectoryIndex,
     STARTUP_REGION_POPULATE Populate,
     void *Context) {
     return CreateStartupRegionTable(Region, Region->Name, DirectoryIndex, Populate, Context, FALSE);
 }
+
+/************************************************************************/
 
 static void PopulateLowRegionTable(LPPAGE_TABLE Table, void *Context) {
     LOW_REGION_CONTEXT *LowContext = (LOW_REGION_CONTEXT *)Context;
@@ -220,7 +229,9 @@ typedef struct _KERNEL_REGION_CONTEXT {
     PHYSICAL PhysBase;
 } KERNEL_REGION_CONTEXT;
 
-/************************************************************************//**
+/************************************************************************/
+
+/**
  * @brief Populate the mapping for the kernel stub region.
  */
 static void PopulateKernelRegionTable(LPPAGE_TABLE Table, void *Context) {
@@ -247,7 +258,9 @@ typedef struct _TASK_RUNNER_REGION_CONTEXT {
     PHYSICAL Physical;
 } TASK_RUNNER_REGION_CONTEXT;
 
-/************************************************************************//**
+/************************************************************************/
+
+/**
  * @brief Populate the mapping for the task runner region.
  */
 static void PopulateTaskRunnerRegionTable(LPPAGE_TABLE Table, void *Context) {
