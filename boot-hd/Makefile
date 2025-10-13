@@ -24,6 +24,8 @@ FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
 PAYLOAD_ADDRESS ?= 0x8000
+MEMORY_BASE     ?= 0x10000
+MEMORY_SIZE     ?= 0x80000
 RESERVED_SECTORS= 64            # Reserved sectors for VBR payload
 VBR_CODE_OFFSET = 0x5A          # Offset of code in VBR sector
 
@@ -45,7 +47,7 @@ PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) $(NASM_ARCH_FLAGS)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) $(NASM_ARCH_FLAGS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -56,6 +58,8 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
                   -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) \
+                  -DMEMORY_BASE=$(MEMORY_BASE) \
+                  -DMEMORY_SIZE=$(MEMORY_SIZE) \
                   -Iinclude -I../kernel/include
 
 NASM            = nasm
@@ -349,6 +353,11 @@ check_payload_size: $(PAYLOAD_BIN)
 		MAX_SIZE=$$(( $(RESERVED_SECTORS) * 512 )); \
 		if [ $$PAYLOAD_SIZE -gt $$MAX_SIZE ]; then \
 			echo "ERROR: VBR payload size ($$PAYLOAD_SIZE bytes) exceeds reserved space ($$MAX_SIZE bytes)."; \
+			exit 1; \
+		fi; \
+		PAYLOAD_END=$$(( $(PAYLOAD_ADDRESS) + PAYLOAD_SIZE )); \
+		if [ $$PAYLOAD_END -ge $(MEMORY_BASE) ]; then \
+			echo "ERROR: Payload end address (0x$$(printf '%X' $$PAYLOAD_END)) overlaps memory base ($(MEMORY_BASE))."; \
 			exit 1; \
 		fi; \
 	}

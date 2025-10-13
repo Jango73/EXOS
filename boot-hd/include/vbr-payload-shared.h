@@ -30,15 +30,32 @@
 #include "vbr-realmode-utils.h"
 
 /************************************************************************/
+// Payload memory layout configuration
+
+#ifndef MEMORY_BASE
+#define MEMORY_BASE 0x10000u
+#endif
+
+#ifndef MEMORY_SIZE
+#define MEMORY_SIZE 0x80000u
+#endif
+
+#define MEMORY_PAGE_SIZE 0x1000u
+
+/************************************************************************/
 // Low memory pages reserved by VBR
 
-#define LOW_MEMORY_PAGE_1 0x1000
-#define LOW_MEMORY_PAGE_2 0x2000
-#define LOW_MEMORY_PAGE_3 0x3000
-#define LOW_MEMORY_PAGE_4 0x4000
-#define LOW_MEMORY_PAGE_5 0x5000
-#define LOW_MEMORY_PAGE_6 0x6000
-#define LOW_MEMORY_PAGE_7 0x7000
+#define LOW_MEMORY_PAGE_1 (MEMORY_BASE)
+#define LOW_MEMORY_PAGE_2 (MEMORY_BASE + MEMORY_PAGE_SIZE)
+#define LOW_MEMORY_PAGE_3 (MEMORY_BASE + (2u * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_4 (MEMORY_BASE + (3u * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_5 (MEMORY_BASE + (4u * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_6 (MEMORY_BASE + (5u * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_7 (MEMORY_BASE + (6u * MEMORY_PAGE_SIZE))
+
+#if ((7u * MEMORY_PAGE_SIZE) > MEMORY_SIZE)
+#error "MEMORY_SIZE is too small for the reserved payload structures"
+#endif
 
 /************************************************************************/
 // Constants shared with the architecture specific code

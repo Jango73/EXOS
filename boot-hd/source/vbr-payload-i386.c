@@ -28,16 +28,16 @@
 
 /************************************************************************/
 
-#define PAGE_DIRECTORY_ADDRESS LOW_MEMORY_PAGE_1
-#define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_2
-#define PAGE_TABLE_KERNEL_ADDRESS LOW_MEMORY_PAGE_3
+#define PAGE_DIRECTORY_ADDRESS (MEMORY_BASE)
+#define PAGE_TABLE_LOW_ADDRESS (MEMORY_BASE + MEMORY_PAGE_SIZE)
+#define PAGE_TABLE_KERNEL_ADDRESS (MEMORY_BASE + (2u * MEMORY_PAGE_SIZE))
 
 #define PROTECTED_ZONE_START 0xC0000
 #define PROTECTED_ZONE_END 0xFFFFF
 
 /************************************************************************/
 
-static U32 GdtPhysicalAddress = LOW_MEMORY_PAGE_4;
+static U32 GdtPhysicalAddress = MEMORY_BASE + (3u * MEMORY_PAGE_SIZE);
 static LPPAGE_DIRECTORY PageDirectory = (LPPAGE_DIRECTORY)PAGE_DIRECTORY_ADDRESS;
 static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)PAGE_TABLE_LOW_ADDRESS;
 static LPPAGE_TABLE PageTableKrn = (LPPAGE_TABLE)PAGE_TABLE_KERNEL_ADDRESS;
