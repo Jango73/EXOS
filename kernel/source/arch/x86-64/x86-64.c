@@ -860,7 +860,7 @@ static void LogPageDirectory64(PHYSICAL DirectoryPhysical) {
 void MemoryArchInitializeManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
-    Kernel.PPB = (LPPAGEBITMAP)(LOW_MEMORY_HALF + N_1MB);
+    Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
     MemorySet(Kernel.PPB, 0, N_128KB);
 
     MemoryMarkUsedPhysicalMemory();

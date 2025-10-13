@@ -673,16 +673,6 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /************************************************************************/
 
-static void KernelPreInitialize(void);
-
-/************************************************************************/
-
-static void KernelPreInitialize(void) {
-    ArchPreInitializeKernel();
-}
-
-/************************************************************************/
-
 static U32 MonitorKernel(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
@@ -725,7 +715,7 @@ void KernelIdle(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
-    KernelPreInitialize();
+    ArchPreInitializeKernel();
 
     //-------------------------------------
     // Gather startup information

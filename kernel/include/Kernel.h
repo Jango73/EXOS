@@ -91,6 +91,7 @@ typedef struct tag_SYSCALLENTRY {
 
 #define RESERVED_LOW_MEMORY N_4MB
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
+#define LOW_MEMORY_THREE_QUARTER ((RESERVED_LOW_MEMORY * 3) / 4)
 
 typedef struct tag_E820ENTRY {
     U64 Base;
