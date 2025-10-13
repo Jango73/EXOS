@@ -392,9 +392,7 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
 
     U32 KernelInodeNumber = Ext2FindInDirectory(&Ctx, &RootInode, KernelName);
     if (KernelInodeNumber == 0) {
-        STR Message[128];
-        StringPrintFormat(Message, TEXT("[VBR] Kernel %s not found on EXT2 volume.\r\n"), KernelName);
-        BootErrorPrint(Message);
+        BootErrorPrint(TEXT("[VBR] Kernel %s not found on EXT2 volume.\r\n"), KernelName);
         Hang();
     }
 
@@ -402,8 +400,7 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
     Ext2ReadInode(&Ctx, KernelInodeNumber, &KernelInode);
 
     U32 FileSize = KernelInode.SizeLow;
-    StringPrintFormat(TempString, TEXT("[VBR] EXT2 kernel size %08X bytes\r\n"), FileSize);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] EXT2 kernel size %08X bytes\r\n"), FileSize);
 
     U32 DestLinear = KERNEL_LINEAR_LOAD_ADDRESS;
     U32 Remaining = FileSize;

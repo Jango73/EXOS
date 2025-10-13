@@ -88,21 +88,37 @@ static void WriteString(LPCSTR Str) {
 
 /************************************************************************/
 
-void BootDebugPrint(LPCSTR Str) {
+void BootDebugPrint(LPCSTR Format, ...) {
 #if DEBUG_OUTPUT == 0
-    UNUSED(Str);
+    UNUSED(Format);
 #else
-    WriteString(Str);
+    VarArgList Args;
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(TempString, Format, Args);
+    VarArgEnd(Args);
+    WriteString(TempString);
 #endif
 }
 
 /************************************************************************/
 
-void BootVerbosePrint(LPCSTR Str) { WriteString(Str); }
+void BootVerbosePrint(LPCSTR Format, ...) {
+    VarArgList Args;
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(TempString, Format, Args);
+    VarArgEnd(Args);
+    WriteString(TempString);
+}
 
 /************************************************************************/
 
-void BootErrorPrint(LPCSTR Str) { WriteString(Str); }
+void BootErrorPrint(LPCSTR Format, ...) {
+    VarArgList Args;
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(TempString, Format, Args);
+    VarArgEnd(Args);
+    WriteString(TempString);
+}
 
 /************************************************************************/
 
@@ -190,11 +206,9 @@ static void VerifyKernelImage(U32 FileSize) {
     const U8* const FileStart = (const U8*)KERNEL_LINEAR_LOAD_ADDRESS;
     const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
 
-    StringPrintFormat(
-        TempString,
+    BootVerbosePrint(
         TEXT("[VBR] VerifyKernelImage scanning %u data bytes\r\n"),
         FileSize - (U32)sizeof(U32));
-    BootVerbosePrint(TempString);
 
     U32 LastBytes1 = 0;
     U32 LastBytes2 = 0;
@@ -204,8 +218,7 @@ static void VerifyKernelImage(U32 FileSize) {
         LastBytes2 |= ((U32)FileStart[FileSize - 4U + (U32)Index]) << (Index * 8);
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
 
     U32 Computed = 0;
     for (U32 Index = 0; Index < FileSize - sizeof(U32); ++Index) {
@@ -217,15 +230,18 @@ static void VerifyKernelImage(U32 FileSize) {
         Stored |= ((U32)ChecksumPtr[Index]) << (Index * 8);
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
 
     if (Computed == Stored) {
-        StringPrintFormat(TempString, TEXT("[VBR] Image checksum OK. Stored : %x vs computed : %x\r\n"), Stored, Computed);
-        BootVerbosePrint(TempString);
+        BootVerbosePrint(
+            TEXT("[VBR] Image checksum OK. Stored : %x vs computed : %x\r\n"),
+            Stored,
+            Computed);
     } else {
-        StringPrintFormat(TempString, TEXT("[VBR] Checksum mismatch. Halting. Stored : %x vs computed : %x\r\n"), Stored, Computed);
-        BootErrorPrint(TempString);
+        BootErrorPrint(
+            TEXT("[VBR] Checksum mismatch. Halting. Stored : %x vs computed : %x\r\n"),
+            Stored,
+            Computed);
         Hang();
     }
 }
@@ -408,10 +424,8 @@ U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
 
     // EXOS-specific extensions removed (cursor position now handled in Console module)
 
-    StringPrintFormat(TempString, TEXT("[VBR] Multiboot info at %x\r\n"), (U32)&MultibootInfo);
-    BootDebugPrint(TempString);
-    StringPrintFormat(TempString, TEXT("[VBR] mem_lower=%u KB, mem_upper=%u KB\r\n"), LowerMem, UpperMem);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Multiboot info at %x\r\n"), (U32)&MultibootInfo);
+    BootDebugPrint(TEXT("[VBR] mem_lower=%u KB, mem_upper=%u KB\r\n"), LowerMem, UpperMem);
 
     return (U32)&MultibootInfo;
 }
@@ -423,11 +437,9 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     RetrieveMemoryMap();
 
-    StringPrintFormat(
-        TempString,
+    BootDebugPrint(
         TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
         KERNEL_LINEAR_LOAD_ADDRESS);
-    BootDebugPrint(TempString);
 
     char Ext2KernelName[32];
     BuildKernelExt2Name(Ext2KernelName, sizeof(Ext2KernelName));
@@ -444,19 +456,15 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
         Hang();
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
 
     VerifyKernelImage(FileSize);
 
-    StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
 
-    StringPrintFormat(TempString, TEXT("[VBR] E820 entry count : %d\r\n"), E820_EntryCount);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] E820 entry count : %d\r\n"), E820_EntryCount);
 
-    StringPrintFormat(TempString, TEXT("[VBR] Calling architecture specific boot code\r\n"));
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Calling architecture specific boot code\r\n"));
 
     EnterProtectedPagingAndJump(FileSize);
 

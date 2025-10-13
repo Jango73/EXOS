@@ -181,16 +181,13 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     const U32 TotalPages = (MapSize + PAGE_SIZE - 1U) / PAGE_SIZE;
     const U32 TablesRequired = (TotalPages + PAGE_TABLE_NUM_ENTRIES - 1U) / PAGE_TABLE_NUM_ENTRIES;
 
-    StringPrintFormat(TempString, TEXT("[VBR x86-64] Long mode mapping %u pages (%u tables)\r\n"), TotalPages, TablesRequired);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR x86-64] Long mode mapping %u pages (%u tables)\r\n"), TotalPages, TablesRequired);
 
     if (TablesRequired > MAX_KERNEL_PAGE_TABLES) {
-        StringPrintFormat(
-            TempString,
+        BootErrorPrint(
             TEXT("[VBR x86-64] ERROR: Required kernel tables %u exceed limit %u. Halting.\r\n"),
             TablesRequired,
             MAX_KERNEL_PAGE_TABLES);
-        BootErrorPrint(TempString);
         Hang();
     }
 
@@ -274,8 +271,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize) {
         __asm__ __volatile__("nop");
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR x86-64] About to jump\r\n"));
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR x86-64] About to jump\r\n"));
 
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 

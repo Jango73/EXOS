@@ -89,9 +89,9 @@ static inline void Hang(void) {
 
 extern STR TempString[128];
 
-void BootDebugPrint(LPCSTR Str);
-void BootVerbosePrint(LPCSTR Str);
-void BootErrorPrint(LPCSTR Str);
+void BootDebugPrint(LPCSTR Format, ...);
+void BootVerbosePrint(LPCSTR Format, ...);
+void BootErrorPrint(LPCSTR Format, ...);
 const char* BootGetFileName(const char* Path);
 
 /************************************************************************/

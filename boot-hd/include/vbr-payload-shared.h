@@ -92,9 +92,9 @@ extern STR TempString[128];
 // Common helpers exposed to the architecture specific units
 
 U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize);
-void BootDebugPrint(LPCSTR Str);
-void BootVerbosePrint(LPCSTR Str);
-void BootErrorPrint(LPCSTR Str);
+void BootDebugPrint(LPCSTR Format, ...);
+void BootVerbosePrint(LPCSTR Format, ...);
+void BootErrorPrint(LPCSTR Format, ...);
 void VbrSetSegmentDescriptor(
     struct tag_SEGMENT_DESCRIPTOR* Descriptor,
     U32 Base,

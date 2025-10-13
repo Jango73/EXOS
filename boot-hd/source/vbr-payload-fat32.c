@@ -233,14 +233,11 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
     }
 
     if (!Found) {
-        STR Message[128];
-        StringPrintFormat(Message, TEXT("[VBR] Kernel %s not found on FAT32 volume.\r\n"), KernelFile);
-        BootErrorPrint(Message);
+        BootErrorPrint(TEXT("[VBR] Kernel %s not found on FAT32 volume.\r\n"), KernelFile);
         Hang();
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] FAT32 kernel size %08X bytes\r\n"), FileSize);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] FAT32 kernel size %08X bytes\r\n"), FileSize);
 
     U32 Remaining = FileSize;
     U32 DestLinear = KERNEL_LINEAR_LOAD_ADDRESS;
@@ -253,8 +250,7 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
     while (Remaining > 0U && Cluster >= 2U && Cluster < FAT32_EOC_MIN) {
         U32 Lba = FirstDataSector + (Cluster - 2U) * SectorsPerCluster;
         if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
-            StringPrintFormat(TempString, TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
-            BootErrorPrint(TempString);
+            BootErrorPrint(TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
             Hang();
         }
 
