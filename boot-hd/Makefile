@@ -356,7 +356,7 @@ check_payload_size: $(PAYLOAD_BIN)
 			exit 1; \
 		fi; \
 		PAYLOAD_END=$$(( $(PAYLOAD_ADDRESS) + PAYLOAD_SIZE )); \
-		if [ $$PAYLOAD_END -ge $(MEMORY_BASE) ]; then \
+                if (( PAYLOAD_END >= $(MEMORY_BASE) )); then \
 			echo "ERROR: Payload end address (0x$$(printf '%X' $$PAYLOAD_END)) overlaps memory base ($(MEMORY_BASE))."; \
 			exit 1; \
 		fi; \
