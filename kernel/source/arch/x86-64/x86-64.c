@@ -46,7 +46,10 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
  * @brief Perform architecture-specific pre-initialization.
  */
 void ArchPreInitializeKernel(void) {
-    // Nothing to do for x86-64 at the moment.
+    GDT_REGISTER Gdtr;
+
+    ReadGlobalDescriptorTable(&Gdtr);
+    Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
 }
 
 /************************************************************************/
