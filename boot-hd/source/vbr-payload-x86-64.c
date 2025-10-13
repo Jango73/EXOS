@@ -225,7 +225,13 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
         ++TableIndex;
     }
 
-    GdtPhysicalAddress = BaseTablePhysical + (TableIndex * PAGE_TABLE_SIZE);
+    // Keep the GDT inside the identity-mapped low memory window so that the
+    // far jumps executed while enabling long mode can safely fetch
+    // descriptors after paging is turned on. Placing the GDT next to the
+    // kernel image (above 0x200000) left it unmapped in the initial identity
+    // map and triggered a #PF during the transition, ultimately causing a
+    // triple fault.
+    GdtPhysicalAddress = LOW_MEMORY_PAGE_7;
 }
 
 /************************************************************************/
