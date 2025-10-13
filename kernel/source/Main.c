@@ -57,8 +57,16 @@ void KernelMain(void) {
     DisableInterrupts();
 
     // Retrieve Multiboot parameters from registers
+#if defined(__EXOS_ARCH_X86_64__)
+    register U64 StartupRax __asm__("rax");
+    register U64 StartupRbx __asm__("rbx");
+
+    MultibootMagic = (U32)StartupRax;
+    MultibootInfoPhys = (U32)StartupRbx;
+#else
     __asm__ __volatile__("movl %%eax, %0" : "=m"(MultibootMagic));
     __asm__ __volatile__("movl %%ebx, %0" : "=m"(MultibootInfoPhys));
+#endif
 
     // Validate Multiboot magic number
     if (MultibootMagic != MULTIBOOT_BOOTLOADER_MAGIC) {
