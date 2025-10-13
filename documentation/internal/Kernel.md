@@ -542,6 +542,15 @@ Interrupt_Clock
     └── KernelLogText
         └── ...
 
+### VarArg infrastructure
+
+The kernel-side `VarArg` helpers now forward directly to the compiler-provided
+builtins when building with GCC or Clang. This guarantees that 64-bit builds
+read variadic arguments from the correct register/stack slots while keeping the
+existing byte-based fallback for other compilers aligned on the native pointer
+size. Console paths such as `ConsolePanic` and the logging facilities therefore
+produce the expected output on both i386 and x86-64 targets.
+
 ## System calls
 
 ### System call full path
