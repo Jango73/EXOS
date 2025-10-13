@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Bootloader
@@ -21,9 +22,9 @@
 
 \************************************************************************/
 
-#include "../../kernel/include/arch/i386/i386-Memory.h"
-#include "../../kernel/include/arch/i386/i386.h"
 #include "../include/vbr-payload-shared.h"
+#include "arch/i386/i386-Memory.h"
+#include "arch/i386/i386.h"
 
 /************************************************************************/
 
@@ -127,7 +128,7 @@ static void BuildGdtFlat(void) {
 
 /************************************************************************/
 
-void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
+void NORETURN EnterProtectedPagingAndJump(U32 FileSize) {
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
     const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
 

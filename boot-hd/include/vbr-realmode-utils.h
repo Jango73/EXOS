@@ -25,14 +25,16 @@
 #ifndef VBR_REALMODE_UTILS_H_INCLUDED
 #define VBR_REALMODE_UTILS_H_INCLUDED
 
+#include "Base.h"
+
 /************************************************************************/
 // Common low-memory layout used by the VBR payload
 
-#ifndef PAYLOAD_OFFSET
-#error "PAYLOAD_OFFSET is not defined"
+#ifndef PAYLOAD_ADDRESS
+#error "PAYLOAD_ADDRESS is not defined"
 #endif
 
-#define ORIGIN PAYLOAD_OFFSET
+#define ORIGIN PAYLOAD_ADDRESS
 #define STACK_SIZE 0x1000
 #define USABLE_RAM_START 0x1000
 #define USABLE_RAM_END (ORIGIN - STACK_SIZE)
@@ -105,7 +107,7 @@ extern U32 VESASetMode(U16 Mode);
 extern void SetPixel24(U32 x, U32 y, U32 color, U32 framebuffer);
 extern void EnableA20(void);
 
-extern void __attribute__((noreturn)) StubJumpToImage(
+extern void NORETURN StubJumpToImage(
     U32 GDTR,
     U32 PageStructurePA,
     U32 KernelEntryLo,

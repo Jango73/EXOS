@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Bootloader
@@ -260,7 +261,7 @@ static void BuildGdtFlat(void) {
 
 /************************************************************************/
 
-void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
+void NORETURN EnterProtectedPagingAndJump(U32 FileSize) {
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
     const U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
 
@@ -284,4 +285,3 @@ void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
 
     __builtin_unreachable();
 }
-

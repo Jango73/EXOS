@@ -23,7 +23,7 @@ IMG_SIZE_MB     ?= 64
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
-PAYLOAD_OFFSET  ?= 0x8000
+PAYLOAD_ADDRESS ?= 0x8000
 RESERVED_SECTORS= 64            # Reserved sectors for VBR payload
 VBR_CODE_OFFSET = 0x5A          # Offset of code in VBR sector
 
@@ -45,7 +45,7 @@ PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) $(NASM_ARCH_FLAGS)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) $(NASM_ARCH_FLAGS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -55,7 +55,7 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DARCH=$(ARCH) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
-                  -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) \
+                  -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) \
                   -Iinclude -I../kernel/include
 
 NASM            = nasm
@@ -63,7 +63,7 @@ CC              = $(TOOLCHAIN_PREFIX)-gcc
 LD              = $(TOOLCHAIN_PREFIX)-ld
 NM              = $(TOOLCHAIN_PREFIX)-nm
 LDFLAGS         = -nostdlib -no-pie
-LDDEFS          = --defsym=PAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
+LDDEFS          = --defsym=PAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS)
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
@@ -337,7 +337,7 @@ hexdump-check: install-vbr-payload
 	@PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 	PAYLOAD_SECTOR_START=$$((PART_OFFSET / 512 - $(RESERVED_SECTORS))); \
 	PAYLOAD_OFF=$$((PAYLOAD_SECTOR_START * 512)); \
-	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o $(PAYLOAD_OFFSET) -
+	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o $(PAYLOAD_ADDRESS) -
 
 clean:
 	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym

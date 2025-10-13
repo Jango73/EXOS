@@ -98,7 +98,9 @@ extern "C" {
 
 #define CONST const
 #define FAR far
+#define PACKED __attribute__((packed))
 #define NAKEDCALL __declspec(naked)
+#define NORETURN __attribute__((noreturn))
 #define EXOSAPI
 #define APIENTRY
 #define REGISTER register

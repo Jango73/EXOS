@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
+#include "../include/vbr-realmode-utils.h"
 #include "arch/i386/i386.h"
 #include "String.h"
-#include "../include/vbr-realmode-utils.h"
 
 /************************************************************************/
 
@@ -36,7 +36,7 @@
 
 /************************************************************************/
 
-typedef struct __attribute__((packed)) tag_EXT2_SUPERBLOCK {
+typedef struct PACKED tag_EXT2_SUPERBLOCK {
     U32 InodesCount;
     U32 BlocksCount;
     U32 ReservedBlocksCount;
@@ -67,7 +67,7 @@ typedef struct __attribute__((packed)) tag_EXT2_SUPERBLOCK {
     U16 BlockGroupNumber;
 } EXT2_SUPERBLOCK;
 
-typedef struct __attribute__((packed)) tag_EXT2_GROUP_DESC {
+typedef struct PACKED tag_EXT2_GROUP_DESC {
     U32 BlockBitmap;
     U32 InodeBitmap;
     U32 InodeTable;
@@ -78,7 +78,7 @@ typedef struct __attribute__((packed)) tag_EXT2_GROUP_DESC {
     U32 Reserved[3];
 } EXT2_GROUP_DESC;
 
-typedef struct __attribute__((packed)) tag_EXT2_INODE {
+typedef struct PACKED tag_EXT2_INODE {
     U16 Mode;
     U16 Uid;
     U32 SizeLow;
@@ -99,7 +99,7 @@ typedef struct __attribute__((packed)) tag_EXT2_INODE {
     U32 Osd2[3];
 } EXT2_INODE;
 
-typedef struct __attribute__((packed)) tag_EXT2_DIR_ENTRY {
+typedef struct PACKED tag_EXT2_DIR_ENTRY {
     U32 Inode;
     U16 RecLen;
     U8 NameLen;

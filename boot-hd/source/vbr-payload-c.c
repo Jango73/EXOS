@@ -24,12 +24,12 @@
 
 // i386 32 bits real mode payload entry point
 
-#include "../../kernel/include/arch/i386/i386.h"
-#include "../../kernel/include/SerialPort.h"
-#include "../../kernel/include/String.h"
 #include "../include/vbr-multiboot.h"
 #include "../include/vbr-realmode-utils.h"
 #include "../include/vbr-payload-shared.h"
+#include "arch/i386/i386.h"
+#include "SerialPort.h"
+#include "String.h"
 
 /************************************************************************/
 
@@ -40,8 +40,8 @@ __asm__(".code16gcc");
 #endif
 
 /************************************************************************/
-void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
 
+void NORETURN EnterProtectedPagingAndJump(U32 FileSize);
 BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut);
 BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut);
 
@@ -307,50 +307,6 @@ static void RetrieveMemoryMap(void) {
 
 /************************************************************************/
 
-void BootMain(U32 BootDrive, U32 PartitionLba) {
-    InitDebug();
-
-    RetrieveMemoryMap();
-
-    StringPrintFormat(
-        TempString,
-        TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
-        KERNEL_LINEAR_LOAD_ADDRESS);
-    BootDebugPrint(TempString);
-
-    char Ext2KernelName[32];
-    BuildKernelExt2Name(Ext2KernelName, sizeof(Ext2KernelName));
-
-    U32 FileSize = 0;
-    const char* LoadedFs = NULL;
-
-    if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
-        LoadedFs = "FAT32";
-    } else if (LoadKernelExt2(BootDrive, PartitionLba, Ext2KernelName, &FileSize)) {
-        LoadedFs = "EXT2";
-    } else {
-        BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.\r\n"));
-        Hang();
-    }
-
-    StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
-    BootDebugPrint(TempString);
-
-    VerifyKernelImage(FileSize);
-
-    StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
-    BootDebugPrint(TempString);
-
-    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
-    BootDebugPrint(TempString);
-
-    EnterProtectedPagingAndJump(FileSize);
-
-    Hang();
-}
-
-/************************************************************************/
-
 U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
     // Clear the multiboot info structure
     MemorySet(&MultibootInfo, 0, sizeof(multiboot_info_t));
@@ -462,4 +418,44 @@ U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
 
 /************************************************************************/
 
-// Implemented by architecture-specific translation units
+void BootMain(U32 BootDrive, U32 PartitionLba) {
+    InitDebug();
+
+    RetrieveMemoryMap();
+
+    StringPrintFormat(
+        TempString,
+        TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
+        KERNEL_LINEAR_LOAD_ADDRESS);
+    BootDebugPrint(TempString);
+
+    char Ext2KernelName[32];
+    BuildKernelExt2Name(Ext2KernelName, sizeof(Ext2KernelName));
+
+    U32 FileSize = 0;
+    const char* LoadedFs = NULL;
+
+    if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
+        LoadedFs = "FAT32";
+    } else if (LoadKernelExt2(BootDrive, PartitionLba, Ext2KernelName, &FileSize)) {
+        LoadedFs = "EXT2";
+    } else {
+        BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.\r\n"));
+        Hang();
+    }
+
+    StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
+    BootDebugPrint(TempString);
+
+    VerifyKernelImage(FileSize);
+
+    StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
+    BootDebugPrint(TempString);
+
+    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
+    BootDebugPrint(TempString);
+
+    EnterProtectedPagingAndJump(FileSize);
+
+    Hang();
+}

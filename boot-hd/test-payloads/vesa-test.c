@@ -37,7 +37,7 @@ __asm__(".code16gcc");
 /************************************************************************/
 // VESA structures and constants
 
-typedef struct __attribute__((packed)) {
+typedef struct PACKED {
     U8 VESASignature[4];
     U16 VESAVersion;
     U32 OEMStringPtr;
@@ -52,7 +52,7 @@ typedef struct __attribute__((packed)) {
     U8 OEMData[256];
 } VESA_INFO;
 
-typedef struct __attribute__((packed)) {
+typedef struct PACKED {
     U16 ModeAttributes;
     U8 WinAAttributes;
     U8 WinBAttributes;

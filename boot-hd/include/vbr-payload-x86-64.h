@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Bootloader
@@ -20,14 +21,15 @@
     Long mode paging structures for the VBR payload
 
 \************************************************************************/
+
 #ifndef VBR_PAYLOAD_X86_64_H_INCLUDED
 #define VBR_PAYLOAD_X86_64_H_INCLUDED
 
-#include "../../kernel/include/Base.h"
+#include "Base.h"
 
 /************************************************************************/
 // Constants describing the long mode paging layout
-/************************************************************************/
+
 #define PAGE_SIZE N_4KB
 #define PAGE_TABLE_NUM_ENTRIES 512u
 #define PAGE_DIRECTORY_ENTRY_COUNT 512u
@@ -35,11 +37,13 @@
 
 /************************************************************************/
 // Size helpers derived from the raw entry layout
-/************************************************************************/
+
 #define PAGE_TABLE_ENTRY_SIZE ((UINT)sizeof(VBR_X86_64_PAGING_ENTRY))
 #define PAGE_TABLE_SIZE (PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_ENTRY_SIZE)
 
-typedef struct tag_SEGMENT_DESCRIPTOR {
+/************************************************************************/
+
+typedef struct PACKED tag_SEGMENT_DESCRIPTOR {
     U32 Limit_00_15 : 16;
     U32 Base_00_15 : 16;
     U32 Base_16_23 : 8;
@@ -58,15 +62,15 @@ typedef struct tag_SEGMENT_DESCRIPTOR {
     U32 Base_24_31 : 8;
 } SEGMENT_DESCRIPTOR, *LPSEGMENT_DESCRIPTOR;
 
-typedef struct {
+typedef struct PACKED tag_GDT_REGISTER {
     U16 Limit;
     U32 Base;
 } GDT_REGISTER;
 
 /************************************************************************/
 // Raw paging entries usable from 32-bit code
-/************************************************************************/
-typedef struct tag_VBR_X86_64_PAGING_ENTRY {
+
+typedef struct PACKED tag_VBR_X86_64_PAGING_ENTRY {
     U32 Low;
     U32 High;
 } VBR_X86_64_PAGING_ENTRY;

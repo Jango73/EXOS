@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -70,7 +71,7 @@ typedef struct {
     U32 len_low;
     U32 len_high;
     U32 type;
-} __attribute__((packed)) multiboot_memory_map_t;
+} PACKED multiboot_memory_map_t;
 
 // Multiboot module structure
 typedef struct {
@@ -78,7 +79,7 @@ typedef struct {
     U32 mod_end;       // Physical end address of module
     U32 cmdline;       // Physical address of ASCII string (module arguments, null-terminated)
     U32 reserved;      // Always 0 (padding for alignment)
-} __attribute__((packed)) multiboot_module_t;
+} PACKED multiboot_module_t;
 
 // Main Multiboot information structure
 typedef struct {
@@ -115,7 +116,7 @@ typedef struct {
     U8  framebuffer_bpp;       // +108
     U8  framebuffer_type;      // +109
     U8  color_info[6];         // +110-115
-} __attribute__((packed)) multiboot_info_t;
+} PACKED multiboot_info_t;
 
 
 // E820 memory map entry structure (for conversion) - renamed to avoid conflict
@@ -125,7 +126,7 @@ typedef struct {
     U32 LengthLow;
     U32 LengthHigh;
     U32 Type;
-} __attribute__((packed)) MULTIBOOT_E820ENTRY;
+} PACKED MULTIBOOT_E820ENTRY;
 
 /************************************************************************/
 

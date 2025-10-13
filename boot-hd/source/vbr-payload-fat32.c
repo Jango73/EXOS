@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
+#include "../include/vbr-realmode-utils.h"
 #include "arch/i386/i386.h"
 #include "String.h"
-#include "../include/vbr-realmode-utils.h"
 
 /************************************************************************/
 
@@ -36,7 +36,7 @@
 
 /************************************************************************/
 
-typedef struct __attribute__((packed)) tag_FAT32_BOOT_SECTOR {
+typedef struct PACKED tag_FAT32_BOOT_SECTOR {
     U8 Jump[3];
     U8 Oem[8];
     U16 BytesPerSector;
@@ -68,7 +68,7 @@ typedef struct __attribute__((packed)) tag_FAT32_BOOT_SECTOR {
     U16 BiosMark;
 } FAT32_BOOT_SECTOR;
 
-typedef struct __attribute__((packed)) tag_FAT_DIR_ENTRY {
+typedef struct PACKED tag_FAT_DIR_ENTRY {
     U8 Name[11];
     U8 Attributes;
     U8 NtReserved;
