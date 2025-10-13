@@ -181,13 +181,13 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     const U32 TotalPages = (MapSize + PAGE_SIZE - 1U) / PAGE_SIZE;
     const U32 TablesRequired = (TotalPages + PAGE_TABLE_NUM_ENTRIES - 1U) / PAGE_TABLE_NUM_ENTRIES;
 
-    StringPrintFormat(TempString, TEXT("[VBR] Long mode mapping %u pages (%u tables)\r\n"), TotalPages, TablesRequired);
+    StringPrintFormat(TempString, TEXT("[VBR x86-64] Long mode mapping %u pages (%u tables)\r\n"), TotalPages, TablesRequired);
     BootDebugPrint(TempString);
 
     if (TablesRequired > MAX_KERNEL_PAGE_TABLES) {
         StringPrintFormat(
             TempString,
-            TEXT("[VBR] ERROR: Required kernel tables %u exceed limit %u. Halting.\r\n"),
+            TEXT("[VBR x86-64] ERROR: Required kernel tables %u exceed limit %u. Halting.\r\n"),
             TablesRequired,
             MAX_KERNEL_PAGE_TABLES);
         BootErrorPrint(TempString);
@@ -201,7 +201,7 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
 
     while (RemainingPages > 0U) {
         if (KernelPdIndex >= PAGE_DIRECTORY_ENTRY_COUNT) {
-            BootErrorPrint(TEXT("[VBR] ERROR: Kernel page directory overflow. Halting.\r\n"));
+            BootErrorPrint(TEXT("[VBR x86-64] ERROR: Kernel page directory overflow. Halting.\r\n"));
             Hang();
         }
 
@@ -234,7 +234,7 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
 /************************************************************************/
 
 static void BuildGdtFlat(void) {
-    BootDebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
+    BootDebugPrint(TEXT("[VBR x86-64] BuildGdtFlat\r\n"));
 
     MemorySet(GdtEntries, 0, sizeof(GdtEntries));
 
@@ -242,7 +242,7 @@ static void BuildGdtFlat(void) {
     VbrSetSegmentDescriptor(&GdtEntries[2], 0x00000000u, 0x000FFFFFu, 0, 1, 0, 1, 1, 0);
 
     if (GdtPhysicalAddress == 0U) {
-        BootErrorPrint(TEXT("[VBR] ERROR: Missing GDT physical address. Halting.\r\n"));
+        BootErrorPrint(TEXT("[VBR x86-64] ERROR: Missing GDT physical address. Halting.\r\n"));
         Hang();
     }
 
@@ -273,6 +273,9 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize) {
     for (volatile int Delay = 0; Delay < 100000; ++Delay) {
         __asm__ __volatile__("nop");
     }
+
+    StringPrintFormat(TempString, TEXT("[VBR x86-64] About to jump\r\n"));
+    BootDebugPrint(TempString);
 
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 

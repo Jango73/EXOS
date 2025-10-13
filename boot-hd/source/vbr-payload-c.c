@@ -452,7 +452,10 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
     BootDebugPrint(TempString);
 
-    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
+    StringPrintFormat(TempString, TEXT("[VBR] E820 entry count : %d\r\n"), E820_EntryCount);
+    BootDebugPrint(TempString);
+
+    StringPrintFormat(TempString, TEXT("[VBR] Calling architecture specific boot code\r\n"));
     BootDebugPrint(TempString);
 
     EnterProtectedPagingAndJump(FileSize);
