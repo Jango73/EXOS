@@ -247,7 +247,7 @@ MemorySet :
     mov         eax, [ebp+(PBN+4)]
     mov         ecx, [ebp+(PBN+8)]
     cld
-    rep         stosb
+    a32 rep     stosb
 
     pop         es
     pop         edi
@@ -260,29 +260,29 @@ MemorySet :
 
 MemoryCopy :
 
-    push    ebp
-    mov     ebp, esp
+    push        ebp
+    mov         ebp, esp
 
-    push    ecx
-    push    esi
-    push    edi
-    push    es
+    push        ecx
+    push        esi
+    push        edi
+    push        es
 
-    push    ds
-    pop     es
+    push        ds
+    pop         es
 
-    mov     edi, [ebp+(PBN+0)]
-    mov     esi, [ebp+(PBN+4)]
-    mov     ecx, [ebp+(PBN+8)]
+    mov         edi, [ebp+(PBN+0)]
+    mov         esi, [ebp+(PBN+4)]
+    mov         ecx, [ebp+(PBN+8)]
     cld
-    a32 rep movsb
+    a32 rep     movsb
 
-    pop     es
-    pop     edi
-    pop     esi
-    pop     ecx
+    pop         es
+    pop         edi
+    pop         esi
+    pop         ecx
 
-    pop     ebp
+    pop         ebp
     ret
 
 ;-------------------------------------------------------------------------
@@ -294,28 +294,28 @@ MemoryCopy :
 
 UnrealMemoryCopy:
 
-    push    ebp
-    mov     ebp, esp
+    push        ebp
+    mov         ebp, esp
 
-    push    ecx
-    push    esi
-    push    edi
+    push        ecx
+    push        esi
+    push        edi
 
-    call    EnterUnrealMode
+    call        EnterUnrealMode
 
-    mov     edi, [ebp+(PBN+0)]
-    mov     esi, [ebp+(PBN+4)]
-    mov     ecx, [ebp+(PBN+8)]
+    mov         edi, [ebp+(PBN+0)]
+    mov         esi, [ebp+(PBN+4)]
+    mov         ecx, [ebp+(PBN+8)]
     cld
-    a32 rep movsb
+    a32 rep     movsb
 
-    call    LeaveUnrealMode
+    call        LeaveUnrealMode
 
-    pop     edi
-    pop     esi
-    pop     ecx
+    pop         edi
+    pop         esi
+    pop         ecx
 
-    pop     ebp
+    pop         ebp
     ret
 
 ;-------------------------------------------------------------------------

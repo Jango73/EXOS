@@ -319,6 +319,9 @@ void SerialOut(U8 Which, U8 Char) {
 static void RetrieveMemoryMap(void) {
     MemorySet((void*)E820_Map, 0, E820_SIZE);
     E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
+
+    BootDebugPrint(TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
+    BootDebugPrint(TEXT("[VBR] E820 entry count : %d\r\n"), E820_EntryCount);
 }
 
 /************************************************************************/
@@ -459,10 +462,6 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     BootDebugPrint(TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
 
     VerifyKernelImage(FileSize);
-
-    BootDebugPrint(TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
-
-    BootDebugPrint(TEXT("[VBR] E820 entry count : %d\r\n"), E820_EntryCount);
 
     BootDebugPrint(TEXT("[VBR] Calling architecture specific boot code\r\n"));
 
