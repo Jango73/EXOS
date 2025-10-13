@@ -723,6 +723,11 @@ void InitializeKernel(void) {
     KernelStartup.IRQMask_A1_RM = 0;
 
     //-------------------------------------
+    // Initialize the console
+
+    InitializeConsole();
+
+    //-------------------------------------
     // Init the kernel logger
 
     InitKernelLog();
@@ -733,7 +738,7 @@ void InitializeKernel(void) {
     // Check RealModeCall memory pages validity
 
     DEBUG(TEXT("[InitializeKernel] Console cursor : %d, %d"), Console.CursorX, Console.CursorY);
-    DEBUG(TEXT("[InitializeKernel] GDT base address read: %X"), Kernel_i386.GDT);
+    DEBUG(TEXT("[InitializeKernel] GDT base address read: %x"), Kernel_i386.GDT);
     DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_5 (%x) valid: %d"), LOW_MEMORY_PAGE_5, IsValidMemory(LOW_MEMORY_PAGE_5));
     DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_6 (%x) valid: %d"), LOW_MEMORY_PAGE_6, IsValidMemory(LOW_MEMORY_PAGE_6));
 
@@ -754,13 +759,6 @@ void InitializeKernel(void) {
     // Check data integrity
 
     CheckDataIntegrity();
-
-    //-------------------------------------
-    // Initialize the console
-
-    InitializeConsole();
-
-    DEBUG(TEXT("[InitializeKernel] Console initialized"));
 
     //-------------------------------------
     // Initialize interrupts
