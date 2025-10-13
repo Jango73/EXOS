@@ -936,9 +936,21 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 void MemoryArchInitializeManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
+    LINEAR TempLinear1 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_1;
+    LINEAR TempLinear2 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_2;
+    LINEAR TempLinear3 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_3;
+
+    MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
+        (LPVOID)TempLinear1,
+        (LPVOID)TempLinear2,
+        (LPVOID)TempLinear3);
+
     PHYSICAL CurrentPageDirectory = (PHYSICAL)GetPageDirectory();
     LogPageDirectory64(CurrentPageDirectory);
 
+    // Clear the physical page bitmap
     Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
     MemorySet(Kernel.PPB, 0, N_128KB);
 
@@ -947,17 +959,6 @@ void MemoryArchInitializeManager(void) {
     if (KernelStartup.MemorySize == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
-
-    LINEAR TempLinear1 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_1;
-    LINEAR TempLinear2 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_2;
-    LINEAR TempLinear3 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_3;
-
-    MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
-
-    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %llx, %llx, %llx"),
-        (unsigned long long)TempLinear1,
-        (unsigned long long)TempLinear2,
-        (unsigned long long)TempLinear3);
 
     PHYSICAL NewPageDirectory = AllocPageDirectory();
 
@@ -971,11 +972,11 @@ void MemoryArchInitializeManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %llx"), (unsigned long long)NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %p"), (LPVOID)NewPageDirectory);
 
     LoadPageDirectory(NewPageDirectory);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %llx"), (unsigned long long)NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %p"), (LPVOID)NewPageDirectory);
 
     FlushTLB();
 
@@ -1005,7 +1006,7 @@ void MemoryArchInitializeManager(void) {
     for (UINT Index = 0; Index < 10; Index++) {
         U64 Low = RawEntries[Index * 2u];
         U64 High = RawEntries[Index * 2u + 1u];
-        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%llx %llx"), Index, (unsigned long long)High, (unsigned long long)Low);
+        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%p %p"), Index, (LPVOID)High, (LPVOID)Low);
     }
 
     DEBUG(TEXT("[InitializeMemoryManager] Exit"));

@@ -740,9 +740,12 @@ void InitializeKernel(void) {
     // Check RealModeCall memory pages validity
 
     DEBUG(TEXT("[InitializeKernel] Console cursor : %d, %d"), Console.CursorX, Console.CursorY);
-    DEBUG(TEXT("[InitializeKernel] GDT base address read: %x"), Kernel_i386.GDT);
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_5 (%x) valid: %d"), LOW_MEMORY_PAGE_5, IsValidMemory(LOW_MEMORY_PAGE_5));
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_6 (%x) valid: %d"), LOW_MEMORY_PAGE_6, IsValidMemory(LOW_MEMORY_PAGE_6));
+    DEBUG(TEXT("[InitializeKernel] GDT base address read: %p"), Kernel_i386.GDT);
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_1 (%p) valid: %d"), LOW_MEMORY_PAGE_1, IsValidMemory(LOW_MEMORY_PAGE_1));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_2 (%p) valid: %d"), LOW_MEMORY_PAGE_2, IsValidMemory(LOW_MEMORY_PAGE_2));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_3 (%p) valid: %d"), LOW_MEMORY_PAGE_3, IsValidMemory(LOW_MEMORY_PAGE_3));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_5 (%p) valid: %d"), LOW_MEMORY_PAGE_5, IsValidMemory(LOW_MEMORY_PAGE_5));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_6 (%p) valid: %d"), LOW_MEMORY_PAGE_6, IsValidMemory(LOW_MEMORY_PAGE_6));
 
     //-------------------------------------
     // Initialize the memory manager
