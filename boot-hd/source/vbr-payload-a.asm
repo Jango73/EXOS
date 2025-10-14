@@ -57,8 +57,6 @@ KERNEL_LOAD_ADDRESS      equ 0x200000
 section .start
 global _start
 global BiosReadSectors
-global MemorySet
-global MemoryCopy
 global UnrealMemoryCopy
 global StubJumpToImage
 global BiosGetMemoryMap
@@ -236,60 +234,6 @@ BiosReadSectors_16:
     ret
 
 ;-------------------------------------------------------------------------
-
-MemorySet :
-
-    push        ebp
-    mov         ebp, esp
-
-    push        ecx
-    push        edi
-    push        es
-
-    push        ds
-    pop         es
-
-    mov         edi, [ebp+(PBN+0)]
-    mov         eax, [ebp+(PBN+4)]
-    mov         ecx, [ebp+(PBN+8)]
-    cld
-    a32 rep     stosb
-
-    pop         es
-    pop         edi
-    pop         ecx
-
-    pop         ebp
-    ret
-
-;--------------------------------------
-
-MemoryCopy :
-
-    push        ebp
-    mov         ebp, esp
-
-    push        ecx
-    push        esi
-    push        edi
-    push        es
-
-    push        ds
-    pop         es
-
-    mov         edi, [ebp+(PBN+0)]
-    mov         esi, [ebp+(PBN+4)]
-    mov         ecx, [ebp+(PBN+8)]
-    cld
-    a32 rep     movsb
-
-    pop         es
-    pop         edi
-    pop         esi
-    pop         ecx
-
-    pop         ebp
-    ret
 
 ;-------------------------------------------------------------------------
 ; UnrealMemoryCopy
