@@ -74,7 +74,7 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     Stack = (U64*)(StackPointer + sizeof(INTERRUPT_FRAME));
 
     if (IsValidMemory((LINEAR)Stack) == FALSE) {
-        DEBUG(TEXT("[BuildInterruptFrame] Invalid stack computed : %p"), Stack);
+        DEBUG(TEXT("[BuildInterruptFrame] Invalid stack computed : %p"), (LINEAR)Stack);
         DO_THE_SLEEPING_BEAUTY;
     }
 
@@ -90,11 +90,11 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     KernelLogText(
         LOG_DEBUG, TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"),
         InterruptNumber, HasErrorCode, UserMode);
-    DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), Stack);
+    DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
     KernelLogMem(LOG_DEBUG, (LINEAR)Stack, 256);
-    DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%llX CS=%x RFLAGS=%llX"),
-        (unsigned long long)Frame->Registers.RIP, Frame->Registers.CS,
-        (unsigned long long)Frame->Registers.RFlags);
+    DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%p CS=%x RFLAGS=%x"),
+        (LINEAR)Frame->Registers.RIP, Frame->Registers.CS,
+        (U64)Frame->Registers.RFlags);
 #endif
 
     Frame->Registers.RAX = Stack[INCOMING_RAX_INDEX];
