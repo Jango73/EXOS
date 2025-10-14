@@ -1,15 +1,9 @@
 # Kernel documentation
 
-## Debugging
-
-To have standard debug info, use scripts/4-2-clean-build-debug.sh or scripts/4-5-build-debug.sh.
-To have critical debug info like scheduling, use 4-3-clean-build-critical-debug.sh or scripts/4-6-build-critical-debug.sh.
-Be aware that it generates A LOT of COM2 output, the scheduler is called every 10ms...
-
 ## Architecture
 
 Work to bring the long-mode kernel build closer to parity with the i386
-port continues. The x86-64 backend now exposes placeholder scheduler and
+port continues. The x86-64 backend exposes placeholder scheduler and
 context-switch helpers so common code can compile while the full task
 switching path is implemented. The interrupt bootstrap has also been
 rebuilt around the 16-byte IDT format, providing stubs for each vector so
@@ -20,7 +14,7 @@ are written.
 
 The memory manager relies on `arch/Memory.h` to describe page hierarchy
 helpers exposed by the active architecture backend. The i386
-implementation (`arch/i386/i386-Memory.h`) now centralizes directory and
+implementation (`arch/i386/i386-Memory.h`) centralizes directory and
 table index calculations, exposes accessors for the self-mapped page
 directory, and provides helper routines to build raw page directory and
 page table entries. Kernel code constructs mappings through
@@ -30,7 +24,7 @@ This abstraction keeps `Memory.c` agnostic of the paging depth so that a
 future x86-64 backend can extend the hierarchy without refactoring the
 core allocator.
 
-`arch/i386/i386-Memory.h` now exposes a generic `ARCH_PAGE_ITERATOR`
+`arch/i386/i386-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR`
 helper that walks page mappings without assuming a fixed number of page
 table levels. Region management routines (`IsRegionFree`, `AllocRegion`,
 `FreeRegion`, and friends) advance the iterator rather than manually
@@ -40,7 +34,7 @@ also delegated to the architecture via `ArchClipPhysicalRange`, keeping
 future 64-bit backends free to extend address limits without touching the
 common kernel code.
 
-`InitializeMemoryManager` now defers to `MemoryArchInitializeManager` so
+`InitializeMemoryManager` defers to `MemoryArchInitializeManager` so
 the architecture backend owns the low-level bootstrap steps. The i386
 implementation continues to reserve the bitmap in low memory, seed the
 temporary mapping slots, install the recursive page directory, and load
@@ -51,7 +45,7 @@ hooks inside the generic memory manager.
 
 ### Kernel object identifiers
 
-Kernel objects now embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
+Kernel objects embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
 is assigned when `CreateKernelObject` allocates the structure and is derived
 from a randomly generated UUID. This value travels with the object for its
 entire lifetime and is persisted in the termination cache through
@@ -69,9 +63,9 @@ structure that embeds the editor instance and provides the shell-specific
 completion callback so the component remains agnostic of higher level shell
 logic.
 
-All reusable helpers—such as the command line editor, adaptive delay, string
+All reusable helpers —such as the command line editor, adaptive delay, string
 containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
-support, regex, hysteresis control, and network checksum helpers—now live under
+support, regex, hysteresis control, and network checksum helpers— live under
 `kernel/source/utils` with their public headers in `kernel/include/utils`. This
 keeps generic infrastructure separated from core subsystems and makes it easier
 to share common code across the kernel.
@@ -89,7 +83,7 @@ and hardware support code.
 The interactive shell keeps a persistent script interpreter context to run
 automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol`
 so scripts can inspect kernel state without bypassing the interpreter API. The
-shell now publishes the kernel process list under the global identifier
+shell publishes the kernel process list under the global identifier
 `process`. Scripts can iterate over the list (`process[0]`, `process[1]`, ...)
 and query per-process properties such as `Status`, `Flags`, `ExitCode`,
 `FileName`, `CommandLine`, and `WorkFolder`, enabling diagnostics like
@@ -447,7 +441,7 @@ Fractional part = unusable space.
 
 Each task embeds an `ARCH_TASK_DATA` structure (declared in `kernel/include/arch/i386/i386.h`) that
 contains the saved interrupt frame along with both the user and system stack descriptors. The
-generic `tag_TASK` definition in `kernel/include/Task.h` now exposes this structure as the `Arch`
+generic `tag_TASK` definition in `kernel/include/Task.h` exposes this structure as the `Arch`
 member so that all stack and context manipulations are scoped to the active architecture.
 
 The i386 implementation of `SetupTask` (`kernel/source/arch/i386/i386.c`) is responsible for
