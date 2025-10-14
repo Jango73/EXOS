@@ -739,6 +739,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Check RealModeCall memory pages validity
 
+    DEBUG(TEXT("[InitializeKernel] Register integer size : %d"), sizeof(UINT));
     DEBUG(TEXT("[InitializeKernel] Console cursor : %d, %d"), Console.CursorX, Console.CursorY);
     DEBUG(TEXT("[InitializeKernel] GDT base address read: %p"), Kernel_i386.GDT);
     DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_1 (%p) valid: %d"), LOW_MEMORY_PAGE_1, IsValidMemory(LOW_MEMORY_PAGE_1));

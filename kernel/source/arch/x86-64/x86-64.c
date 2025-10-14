@@ -952,7 +952,10 @@ void MemoryArchInitializeManager(void) {
 
     // Clear the physical page bitmap
     Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
-    MemorySet(Kernel.PPB, 0, N_128KB);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB: %p"), (LPVOID)Kernel.PPB);
+
+    MemorySet(Kernel.PPB, 0, N_1MB);
 
     MemoryMarkUsedPhysicalMemory();
 

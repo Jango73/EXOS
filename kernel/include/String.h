@@ -53,14 +53,14 @@ BOOL IsAlphaNumeric(STR);
 STR CharToLower(STR);
 STR CharToUpper(STR);
 BOOL StringEmpty(LPCSTR);
-U32 StringLength(LPCSTR);
+UINT StringLength(LPCSTR);
 void StringClear(LPSTR Str);                                // Clears Str
 void StringCopy(LPSTR Dst, LPCSTR Src);                     // Copies Src to Dst
-void StringCopyLimit(LPSTR Dst, LPCSTR Src, U32 MaxLength); // Copies Src to Dst, limiting length to Length
-void StringCopyNum(LPSTR Dst, LPCSTR Src, U32 Length);      // Copies Src to Dst using Length
+void StringCopyLimit(LPSTR Dst, LPCSTR Src, UINT MaxLength); // Copies Src to Dst, limiting length to Length
+void StringCopyNum(LPSTR Dst, LPCSTR Src, UINT Length);      // Copies Src to Dst using Length
 void StringConcat(LPSTR Dst, LPCSTR Src);                   // Concatenates Src to Dst
-I32 StringCompare(LPCSTR, LPCSTR);                          // Compares two strings WITH case sensitivity
-I32 StringCompareNC(LPCSTR, LPCSTR);                        // Compares with strings NO case sensitivity
+INT StringCompare(LPCSTR, LPCSTR);                          // Compares two strings WITH case sensitivity
+INT StringCompareNC(LPCSTR, LPCSTR);                        // Compares with strings NO case sensitivity
 LPSTR StringToLower(LPSTR);
 LPSTR StringToUpper(LPSTR);
 LPSTR StringFindChar(LPCSTR, STR);
@@ -79,10 +79,10 @@ U32 ParseIPAddress(LPCSTR ipStr);
 /************************************************************************/
 // Functions in System.asm
 
-void MemorySet(LPVOID Destination, U32 What, U32 Size);
-void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
-void MemoryMove(LPVOID Destination, LPCVOID Source, U32 Size);
-I32 MemoryCompare(LPCVOID First, LPCVOID Second, U32 Size);
+void MemorySet(LPVOID Destination, UINT What, UINT Size);
+void MemoryCopy(LPVOID Destination, LPCVOID Source, UINT Size);
+void MemoryMove(LPVOID Destination, LPCVOID Source, UINT Size);
+INT MemoryCompare(LPCVOID First, LPCVOID Second, UINT Size);
 
 /************************************************************************/
 

@@ -182,6 +182,7 @@ typedef struct tag_U128 {
 #define MAX_U8 ((U8)0xFF)
 #define MAX_U16 ((U16)0xFFFF)
 #define MAX_U32 ((U32)0xFFFFFFFF)
+
 #ifdef __EXOS_32__
     #define MAX_UINT ((UINT)0xFFFFFFFF)
 #else
@@ -199,8 +200,8 @@ typedef double F64;             // 64 bit float
 
 typedef U32 SIZE;
 
-typedef UINT LINEAR;             // Linear virtual address, paged or not
-typedef UINT PHYSICAL;           // Physical address
+typedef UINT LINEAR;            // Linear virtual address, paged or not
+typedef UINT PHYSICAL;          // Physical address
 typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/

@@ -643,18 +643,24 @@ SYS_FUNC_END
 ;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN MemorySet
-    mov     rcx, rdx
-    mov     eax, esi
+    mov     rcx, rdx        ; size
+    mov     eax, esi        ; fill byte (lower 8 bits)
+    mov     rdx, rdi        ; save original dst
     cld
     rep     stosb
+    mov     rax, rdx        ; return original pointer
+    ret
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN MemoryCopy
-    mov     rcx, rdx
+    mov     rcx, rdx        ; size
+    mov     rdx, rdi        ; save original dst
     cld
     rep     movsb
+    mov     rax, rdx        ; return original dst
+    ret
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------

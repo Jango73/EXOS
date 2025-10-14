@@ -120,9 +120,9 @@ BOOL StringEmpty(LPCSTR Src) {
  * @param Src String to measure (can be NULL)
  * @return Length of string in characters, 0 if NULL or empty
  */
-U32 StringLength(LPCSTR Src) {
-    U32 Index = 0;
-    U32 Size = 0;
+UINT StringLength(LPCSTR Src) {
+    UINT Index = 0;
+    UINT Size = 0;
 
     SAFE_USE(Src) {
         // Count characters until null terminator or safety limit
@@ -169,8 +169,8 @@ void StringCopy(LPSTR Dst, LPCSTR Src) {
 
 /***************************************************************************/
 
-void StringCopyLimit(LPSTR Dst, LPCSTR Src, U32 MaxLength) {
-    U32 Index;
+void StringCopyLimit(LPSTR Dst, LPCSTR Src, UINT MaxLength) {
+    UINT Index;
 
     if (Dst && Src) {
         // Copy characters until null terminator is found and copied
@@ -198,8 +198,8 @@ void StringCopyLimit(LPSTR Dst, LPCSTR Src, U32 MaxLength) {
  * @param Src Source data to copy
  * @param Len Number of characters to copy
  */
-void StringCopyNum(LPSTR Dst, LPCSTR Src, U32 Len) {
-    U32 Index;
+void StringCopyNum(LPSTR Dst, LPCSTR Src, UINT Len) {
+    UINT Index;
 
     if (Dst && Src) {
         // Copy exactly Len characters, regardless of null terminators
@@ -243,7 +243,7 @@ void StringConcat(LPSTR Dst, LPCSTR Src) {
  * @param Text2 Second string to compare
  * @return 0 if equal, <0 if Text1 < Text2, >0 if Text1 > Text2
  */
-I32 StringCompare(LPCSTR Text1, LPCSTR Text2) {
+INT StringCompare(LPCSTR Text1, LPCSTR Text2) {
     REGISTER I8 Result;
 
     FOREVER {
@@ -253,7 +253,7 @@ I32 StringCompare(LPCSTR Text1, LPCSTR Text2) {
         Text2++;
     }
 
-    return (I32)Result;
+    return (INT)Result;
 }
 
 /***************************************************************************/
@@ -268,7 +268,7 @@ I32 StringCompare(LPCSTR Text1, LPCSTR Text2) {
  * @param Text2 Second string to compare
  * @return 0 if equal, <0 if Text1 < Text2, >0 if Text1 > Text2
  */
-I32 StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
+INT StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
     REGISTER I8 Result;
 
     FOREVER {
@@ -278,7 +278,7 @@ I32 StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
         Text2++;
     }
 
-    return (I32)Result;
+    return (INT)Result;
 }
 
 /***************************************************************************/
