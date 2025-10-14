@@ -278,11 +278,11 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     // Check if device is present
     U32 ssts = Port->ssts;
     U32 det = ssts & AHCI_PORT_SSTS_DET_MASK;
-    DEBUG(TEXT("[InitializeAHCIPort] Port %u SSTS: 0x%08X, DET: 0x%X"), PortNum, ssts, det);
-    DEBUG(TEXT("[InitializeAHCIPort] Expected DET_ESTABLISHED: 0x%X"), AHCI_PORT_SSTS_DET_ESTABLISHED);
+    DEBUG(TEXT("[InitializeAHCIPort] Port %u SSTS: %x, DET: %x"), PortNum, ssts, det);
+    DEBUG(TEXT("[InitializeAHCIPort] Expected DET_ESTABLISHED: %x"), AHCI_PORT_SSTS_DET_ESTABLISHED);
 
     if (det == AHCI_PORT_SSTS_DET_NONE) {
-        DEBUG(TEXT("[InitializeAHCIPort] No device on port %u (DET=0x%X)"), PortNum, det);
+        DEBUG(TEXT("[InitializeAHCIPort] No device on port %u (DET=%x)"), PortNum, det);
         return FALSE;
     }
 
@@ -291,7 +291,7 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     } else if (det == AHCI_PORT_SSTS_DET_ESTABLISHED) {
         DEBUG(TEXT("[InitializeAHCIPort] Device communication established on port %u"), PortNum);
     } else {
-        DEBUG(TEXT("[InitializeAHCIPort] Unknown DET state 0x%X on port %u"), det, PortNum);
+        DEBUG(TEXT("[InitializeAHCIPort] Unknown DET state %x on port %u"), det, PortNum);
     }
 
     // Stop port
@@ -337,10 +337,10 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     Port->fb = FISBasePhys;
     Port->fbu = 0; // Assume 32-bit system
 
-    DEBUG(TEXT("[InitializeAHCIPort] CommandList: virt=0x%X phys=0x%X"),
-          (U32)AHCIPort->CommandList, CommandListPhys);
-    DEBUG(TEXT("[InitializeAHCIPort] FISBase: virt=0x%X phys=0x%X"),
-          (U32)AHCIPort->FISBase, FISBasePhys);
+    DEBUG(TEXT("[InitializeAHCIPort] CommandList: virt=%x phys=%x"),
+          (U32)AHCIPort->CommandList, (LINEAR)CommandListPhys);
+    DEBUG(TEXT("[InitializeAHCIPort] FISBase: virt=%x phys=%x"),
+          (U32)AHCIPort->FISBase, (LINEAR)FISBasePhys);
 
     // Set up command header for slot 0
     AHCIPort->CommandList[0].cfl = sizeof(FIS_REG_H2D) / 4; // FIS length
@@ -393,8 +393,8 @@ static U32 AHCIProbe(UINT Function, UINT Parameter) {
         return DF_ERROR_BADPARAM;
     }
 
-    DEBUG(TEXT("[AHCIProbe] Found AHCI controller %X:%X"),
-          (U32)PciInfo->VendorID, (U32)PciInfo->DeviceID);
+    DEBUG(TEXT("[AHCIProbe] Found AHCI controller %x:%x"),
+          (INT)PciInfo->VendorID, (INT)PciInfo->DeviceID);
 
     return DF_ERROR_SUCCESS;
 }
@@ -429,8 +429,8 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
     // Store the PCI device for interrupt handling
     AHCIState.Device = Device;
 
-    DEBUG(TEXT("[AHCIAttach] Attaching AHCI controller %X:%X.%u"),
-          (U32)Device->Info.Bus, (U32)Device->Info.Dev, (U32)Device->Info.Func);
+    DEBUG(TEXT("[AHCIAttach] Attaching AHCI controller %x:%x.%u"),
+          (INT)Device->Info.Bus, (INT)Device->Info.Dev, (INT)Device->Info.Func);
 
     // Get ABAR (AHCI Base Address Register) from BAR5
     U32 ABAR = PCI_GetBARBase(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 5);
@@ -440,20 +440,20 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
-    DEBUG(TEXT("[AHCIAttach] ABAR at 0x%X"), ABAR);
+    DEBUG(TEXT("[AHCIAttach] ABAR at %p"), (LINEAR)ABAR);
 
     // Verify ABAR is in a reasonable range
     if (ABAR < 0x1000 || ABAR > 0xFFFFF000) {
-        DEBUG(TEXT("[AHCIAttach] ABAR address 0x%X is out of range"), ABAR);
+        DEBUG(TEXT("[AHCIAttach] ABAR address %p is out of range"), (LINEAR)ABAR);
         KernelHeapFree(Device);
         return NULL;
     }
 
     // Map AHCI registers using MapIOMemory for MMIO
     // AHCI registers typically need 4KB (0x1000) of space
-    LINEAR MappedABAR = MapIOMemory(ABAR, 0x1000);
+    LINEAR MappedABAR = MapIOMemory(ABAR, N_4KB);
     if (MappedABAR == 0) {
-        DEBUG(TEXT("[AHCIAttach] Failed to map ABAR 0x%X"), ABAR);
+        DEBUG(TEXT("[AHCIAttach] Failed to map ABAR %p"), (LINEAR)ABAR);
         KernelHeapFree(Device);
         return NULL;
     }
@@ -482,7 +482,7 @@ static U32 InitializeAHCIController(void) {
     }
 
     DEBUG(TEXT("[InitializeAHCIController] Initializing AHCI HBA"));
-    DEBUG(TEXT("[InitializeAHCIController] Base address: 0x%X"), (U32)AHCIState.Base);
+    DEBUG(TEXT("[InitializeAHCIController] Base address: %p"), (LINEAR)AHCIState.Base);
 
     // Test read access to AHCI registers before proceeding
     volatile U32* testPtr = (volatile U32*)AHCIState.Base;
@@ -494,21 +494,21 @@ static U32 InitializeAHCIController(void) {
     // Check AHCI version - offset 0x10
     volatile U32* versionPtr = (volatile U32*)((U8*)AHCIState.Base + 0x10);
     U32 version = *versionPtr;
-    DEBUG(TEXT("[InitializeAHCIController] AHCI version %X.%X"),
+    DEBUG(TEXT("[InitializeAHCIController] AHCI version %x.%x"),
           (version >> 16) & 0xFFFF, version & 0xFFFF);
 
     // Get capabilities
     U32 cap = AHCIState.Base->cap;
     U32 nports = (cap & AHCI_CAP_NP_MASK) + 1;
 
-    DEBUG(TEXT("[InitializeAHCIController] %u ports, CAP=0x%X"), nports, cap);
+    DEBUG(TEXT("[InitializeAHCIController] %u ports, CAP=%x"), nports, cap);
 
     // Enable AHCI mode
     AHCIState.Base->ghc |= AHCI_GHC_AE;
 
     // Get ports implemented
     AHCIState.PortsImplemented = AHCIState.Base->pi;
-    DEBUG(TEXT("[InitializeAHCIController] Ports implemented: 0x%X"), AHCIState.PortsImplemented);
+    DEBUG(TEXT("[InitializeAHCIController] Ports implemented: %x"), AHCIState.PortsImplemented);
 
     // Initialize available ports
     for (U32 i = 0; i < nports && i < AHCI_MAX_PORTS; i++) {
@@ -540,7 +540,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
         return DF_ERROR_BADPARAM;
     }
 
-    // DEBUG(TEXT("[AHCICommand] Command=0x%02X, LBA=0x%08X, SectorCount=%u, IsWrite=%d"), Command, LBA, SectorCount, IsWrite);
+    // DEBUG(TEXT("[AHCICommand] Command=%x, LBA=%x, SectorCount=%u, IsWrite=%d"), Command, LBA, SectorCount, IsWrite);
 
     LPAHCI_HBA_PORT Port = AHCIPort->HBAPort;
     if (Port == NULL) {

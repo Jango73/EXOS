@@ -918,7 +918,7 @@ LPSTR FloatToString(LPSTR Text, F32 Value, I32 Precision) {
  */
 void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     LPCSTR Text = NULL;
-    unsigned long long NumberValue = 0ull;
+    UINT NumberValue = 0;
     BOOL NumberIsNegative = FALSE;
     BOOL NumberIsPreloaded = FALSE;
     BOOL QualifierIsLongLong = FALSE;
@@ -1044,7 +1044,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 }
                 Base = 16;
                 LINEAR PointerValue = (LINEAR)VarArg(Args, LPVOID);
-                NumberValue = (unsigned long long)PointerValue;
+                NumberValue = (UINT)PointerValue;
                 NumberIsPreloaded = TRUE;
                 NumberIsNegative = FALSE;
                 goto HandleNumber;

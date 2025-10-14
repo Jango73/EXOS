@@ -379,9 +379,9 @@ PHYSICAL AllocPageDirectory(void) {
 
     PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;
 
-    UINT LowPml4Index = GetPml4Entry(0ull);
-    UINT LowPdptIndex = GetPdptEntry(0ull);
-    UINT LowDirectoryIndex = GetDirectoryEntry(0ull);
+    UINT LowPml4Index = GetPml4Entry(0);
+    UINT LowPdptIndex = GetPdptEntry(0);
+    UINT LowDirectoryIndex = GetDirectoryEntry(0);
 
     UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
     UINT KernelPdptIndex = GetPdptEntry((U64)VMA_KERNEL);
@@ -443,14 +443,14 @@ PHYSICAL AllocPageDirectory(void) {
         goto Out_Error64;
     }
 
-    U64 TaskRunnerLinear = (U64)(unsigned long long)&__task_runner_start;
-    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + (PHYSICAL)(TaskRunnerLinear - (U64)VMA_KERNEL);
+    LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
+    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + (PHYSICAL)(TaskRunnerLinear - (LINEAR)VMA_KERNEL);
 
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%llx - %llx) = %x"),
-        (UINT)PhysBaseKernel,
-        (unsigned long long)TaskRunnerLinear,
-        (unsigned long long)VMA_KERNEL,
-        (UINT)TaskRunnerPhysical);
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"),
+        PhysBaseKernel,
+        TaskRunnerLinear,
+        VMA_KERNEL,
+        TaskRunnerPhysical);
 
     TASK_RUNNER_REGION_CONTEXT TaskRunnerContext = {
         .TableIndex = TaskRunnerTableIndex,
@@ -528,24 +528,24 @@ PHYSICAL AllocPageDirectory(void) {
 
     FlushTLB();
 
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u]=%llx, PML4[%u]=%llx, PML4[%u]=%llx, PML4[%u]=%llx"),
+    DEBUG(TEXT("[AllocPageDirectory] PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
         LowPml4Index,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
         KernelPml4Index,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
         TaskRunnerPml4Index,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
         PML4_RECURSIVE_SLOT,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
 
-    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%llx, KernelTable[0]=%llx, TaskRunnerTable[%u]=%llx"),
-        (unsigned long long)ReadPageTableEntryValue(LowRegion.Table, 0),
-        (unsigned long long)ReadPageTableEntryValue(KernelRegion.Table, 0),
+    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%p, KernelTable[0]=%p, TaskRunnerTable[%u]=%p"),
+        (LINEAR)ReadPageTableEntryValue(LowRegion.Table, 0),
+        (LINEAR)ReadPageTableEntryValue(KernelRegion.Table, 0),
         TaskRunnerTableIndex,
-        (unsigned long long)ReadPageTableEntryValue(TaskRunnerRegion.Table, TaskRunnerTableIndex));
+        (LINEAR)ReadPageTableEntryValue(TaskRunnerRegion.Table, TaskRunnerTableIndex));
 
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%llx -> Physical=%x"),
-        (unsigned long long)VMA_TASK_RUNNER,
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%p -> Physical=%p"),
+        (LINEAR)VMA_TASK_RUNNER,
         (UINT)TaskRunnerPhysical);
 
     DEBUG(TEXT("[AllocPageDirectory] Exit"));
@@ -577,9 +577,9 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;
 
-    UINT LowPml4Index = GetPml4Entry(0ull);
-    UINT LowPdptIndex = GetPdptEntry(0ull);
-    UINT LowDirectoryIndex = GetDirectoryEntry(0ull);
+    UINT LowPml4Index = GetPml4Entry(0);
+    UINT LowPdptIndex = GetPdptEntry(0);
+    UINT LowDirectoryIndex = GetDirectoryEntry(0);
 
     UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
     UINT KernelPdptIndex = GetPdptEntry((U64)VMA_KERNEL);
@@ -641,14 +641,14 @@ PHYSICAL AllocUserPageDirectory(void) {
         goto Out_Error64;
     }
 
-    U64 TaskRunnerLinear = (U64)(unsigned long long)&__task_runner_start;
-    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + (PHYSICAL)(TaskRunnerLinear - (U64)VMA_KERNEL);
+    LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
+    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + (PHYSICAL)(TaskRunnerLinear - (LINEAR)VMA_KERNEL);
 
-    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunnerPhysical = %x + (%llx - %llx) = %x"),
-        (UINT)PhysBaseKernel,
-        (unsigned long long)TaskRunnerLinear,
-        (unsigned long long)VMA_KERNEL,
-        (UINT)TaskRunnerPhysical);
+    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"),
+        PhysBaseKernel,
+        TaskRunnerLinear,
+        VMA_KERNEL,
+        TaskRunnerPhysical);
 
     TASK_RUNNER_REGION_CONTEXT TaskRunnerContext = {
         .TableIndex = TaskRunnerTableIndex,
@@ -726,24 +726,24 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     FlushTLB();
 
-    DEBUG(TEXT("[AllocUserPageDirectory] PML4[%u]=%llx, PML4[%u]=%llx, PML4[%u]=%llx, PML4[%u]=%llx"),
+    DEBUG(TEXT("[AllocUserPageDirectory] PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
         LowPml4Index,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
         KernelPml4Index,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
         TaskRunnerPml4Index,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
         PML4_RECURSIVE_SLOT,
-        (unsigned long long)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
 
-    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%llx, KernelTable[0]=%llx, TaskRunnerTable[%u]=%llx"),
-        (unsigned long long)ReadPageTableEntryValue(LowRegion.Table, 0),
-        (unsigned long long)ReadPageTableEntryValue(KernelRegion.Table, 0),
+    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%p, KernelTable[0]=%p, TaskRunnerTable[%u]=%p"),
+        (LINEAR)ReadPageTableEntryValue(LowRegion.Table, 0),
+        (LINEAR)ReadPageTableEntryValue(KernelRegion.Table, 0),
         TaskRunnerTableIndex,
-        (unsigned long long)ReadPageTableEntryValue(TaskRunnerRegion.Table, TaskRunnerTableIndex));
+        (LINEAR)ReadPageTableEntryValue(TaskRunnerRegion.Table, TaskRunnerTableIndex));
 
-    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner VMA=%llx -> Physical=%x"),
-        (unsigned long long)VMA_TASK_RUNNER,
+    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner VMA=%p -> Physical=%p"),
+        (LINEAR)VMA_TASK_RUNNER,
         (UINT)TaskRunnerPhysical);
 
     DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
@@ -881,10 +881,10 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
         return FALSE;
     }
 
-    DEBUG(TEXT("[ArchSetupTask] Stack (%X bytes) allocated at %llX"), Task->Arch.StackSize,
-        (unsigned long long)Task->Arch.StackBase);
-    DEBUG(TEXT("[ArchSetupTask] System stack (%X bytes) allocated at %llX"), Task->Arch.SysStackSize,
-        (unsigned long long)Task->Arch.SysStackBase);
+    DEBUG(TEXT("[ArchSetupTask] Stack (%x bytes) allocated at %p"), Task->Arch.StackSize,
+        (LINEAR)Task->Arch.StackBase);
+    DEBUG(TEXT("[ArchSetupTask] System stack (%x bytes) allocated at %p"), Task->Arch.SysStackSize,
+        (LINEAR)Task->Arch.SysStackBase);
 
     MemorySet((void*)Task->Arch.StackBase, 0, Task->Arch.StackSize);
     MemorySet((void*)Task->Arch.SysStackBase, 0, Task->Arch.SysStackSize);

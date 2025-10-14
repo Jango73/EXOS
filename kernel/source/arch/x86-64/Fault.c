@@ -41,9 +41,9 @@ static void HaltOnFault(LPINTERRUPT_FRAME Frame, LPCSTR Reason) {
     }
 
     ERROR(TEXT("[Fault64] %s"), Reason);
-    ERROR(TEXT("[Fault64] RIP=%llX RSP=%llX ERR=%X"),
-        (unsigned long long)Rip,
-        (unsigned long long)Rsp,
+    ERROR(TEXT("[Fault64] RIP=%p RSP=%p ERR=%x"),
+        (UINT)Rip,
+        (UINT)Rsp,
         ErrCode);
 
     DisableInterrupts();
@@ -61,29 +61,29 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
         return;
     }
 
-    ERROR(TEXT("[Fault64] RAX=%llX RBX=%llX RCX=%llX RDX=%llX"),
-        (unsigned long long)Frame->Registers.RAX,
-        (unsigned long long)Frame->Registers.RBX,
-        (unsigned long long)Frame->Registers.RCX,
-        (unsigned long long)Frame->Registers.RDX);
-    ERROR(TEXT("[Fault64] RSI=%llX RDI=%llX RBP=%llX RSP=%llX"),
-        (unsigned long long)Frame->Registers.RSI,
-        (unsigned long long)Frame->Registers.RDI,
-        (unsigned long long)Frame->Registers.RBP,
-        (unsigned long long)Frame->Registers.RSP);
-    ERROR(TEXT("[Fault64] R8=%llX R9=%llX R10=%llX R11=%llX"),
-        (unsigned long long)Frame->Registers.R8,
-        (unsigned long long)Frame->Registers.R9,
-        (unsigned long long)Frame->Registers.R10,
-        (unsigned long long)Frame->Registers.R11);
-    ERROR(TEXT("[Fault64] R12=%llX R13=%llX R14=%llX R15=%llX"),
-        (unsigned long long)Frame->Registers.R12,
-        (unsigned long long)Frame->Registers.R13,
-        (unsigned long long)Frame->Registers.R14,
-        (unsigned long long)Frame->Registers.R15);
-    ERROR(TEXT("[Fault64] RIP=%llX RFLAGS=%llX CR2 unavailable"),
-        (unsigned long long)Frame->Registers.RIP,
-        (unsigned long long)Frame->Registers.RFlags);
+    ERROR(TEXT("[Fault64] RAX=%p RBX=%p RCX=%p RDX=%p"),
+        (UINT)Frame->Registers.RAX,
+        (UINT)Frame->Registers.RBX,
+        (UINT)Frame->Registers.RCX,
+        (UINT)Frame->Registers.RDX);
+    ERROR(TEXT("[Fault64] RSI=%p RDI=%p RBP=%p RSP=%p"),
+        (UINT)Frame->Registers.RSI,
+        (UINT)Frame->Registers.RDI,
+        (UINT)Frame->Registers.RBP,
+        (UINT)Frame->Registers.RSP);
+    ERROR(TEXT("[Fault64] R8=%p R9=%p R10=%p R11=%p"),
+        (UINT)Frame->Registers.R8,
+        (UINT)Frame->Registers.R9,
+        (UINT)Frame->Registers.R10,
+        (UINT)Frame->Registers.R11);
+    ERROR(TEXT("[Fault64] R12=%p R13=%p R14=%p R15=%p"),
+        (UINT)Frame->Registers.R12,
+        (UINT)Frame->Registers.R13,
+        (UINT)Frame->Registers.R14,
+        (UINT)Frame->Registers.R15);
+    ERROR(TEXT("[Fault64] RIP=%p RFLAGS=%p CR2 unavailable"),
+        (UINT)Frame->Registers.RIP,
+        (UINT)Frame->Registers.RFlags);
 }
 
 /************************************************************************/
@@ -126,7 +126,7 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
     U64 FaultAddress = 0;
 
     __asm__ __volatile__("mov %%cr2, %0" : "=r"(FaultAddress));
-    ERROR(TEXT("[Fault64] Page fault at %llX"), (unsigned long long)FaultAddress);
+    ERROR(TEXT("[Fault64] Page fault at %p"), (LINEAR)FaultAddress);
     HaltOnFault(Frame, TEXT("Page fault"));
 }
 
@@ -135,6 +135,3 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
 DEFINE_FATAL_HANDLER(AlignmentCheckHandler, "Alignment check fault")
 DEFINE_FATAL_HANDLER(MachineCheckHandler, "Machine check fault")
 DEFINE_FATAL_HANDLER(FloatingPointHandler, "Floating point fault")
-
-/************************************************************************/
-
