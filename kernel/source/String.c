@@ -697,13 +697,23 @@ U32 StringToU32(LPCSTR Text) {
 /************************************************************************/
 
 // Helper macro for division with remainder - divides n by base and returns remainder
-#define DoDiv(n, base)                \
-    ({                                \
-        int __res;                    \
-        __res = ((U32)n) % (U32)Base; \
-        n = ((U32)n) / (U32)Base;     \
-        __res;                        \
-    })
+#ifdef __EXOS_64__
+    #define DoDiv(n, base)                     \
+        ({                                     \
+            int __res;                         \
+            __res = (int)((U64)(n) % (U64)(base)); \
+            (n) = (UINT)((U64)(n) / (U64)(base));  \
+            __res;                             \
+        })
+#else
+    #define DoDiv(n, base)                \
+        ({                                \
+            int __res;                    \
+            __res = ((U32)(n)) % (U32)(base); \
+            (n) = (UINT)((U32)(n) / (U32)(base)); \
+            __res;                        \
+        })
+#endif
 
 /************************************************************************/
 
@@ -1034,7 +1044,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 }
                 Base = 16;
                 LINEAR PointerValue = (LINEAR)VarArg(Args, LPVOID);
-                NumberValue = (UINT)PointerValue;
+                NumberValue = (unsigned long long)PointerValue;
                 NumberIsPreloaded = TRUE;
                 NumberIsNegative = FALSE;
                 goto HandleNumber;
