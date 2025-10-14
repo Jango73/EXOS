@@ -631,10 +631,9 @@ LPSTR NumberToString(LPSTR Text, UINT Number, I32 Base, I32 Size, I32 Precision,
 
     // Handle sign processing
     if (Type & PF_SIGN) {
-        if (Number < 0) {
+        if (IsNegative) {
             Sign = '-';  // Negative number
-            Number = -Number;
-            Size--;  // Reserve space for sign
+            Size--;      // Reserve space for sign
         } else if (Type & PF_PLUS) {
             Sign = '+';  // Force + for positive
             Size--;

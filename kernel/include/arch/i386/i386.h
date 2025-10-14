@@ -264,13 +264,27 @@
 #define KSS_ACK 0xFA
 
 /* Low memory pages reserved by VBR */
+#ifndef LOW_MEMORY_PAGE_1
 #define LOW_MEMORY_PAGE_1 0x1000
+#endif
+#ifndef LOW_MEMORY_PAGE_2
 #define LOW_MEMORY_PAGE_2 0x2000
+#endif
+#ifndef LOW_MEMORY_PAGE_3
 #define LOW_MEMORY_PAGE_3 0x3000
+#endif
+#ifndef LOW_MEMORY_PAGE_4
 #define LOW_MEMORY_PAGE_4 0x4000
+#endif
+#ifndef LOW_MEMORY_PAGE_5
 #define LOW_MEMORY_PAGE_5 0x5000
+#endif
+#ifndef LOW_MEMORY_PAGE_6
 #define LOW_MEMORY_PAGE_6 0x6000
+#endif
+#ifndef LOW_MEMORY_PAGE_7
 #define LOW_MEMORY_PAGE_7 0x7000
+#endif
 
 /************************************************************************/
 // Typedef declarations
