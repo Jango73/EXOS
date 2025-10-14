@@ -37,6 +37,13 @@
 #include "Kernel.h"
 
 /************************************************************************/
+// Uncomment below to mark BIOS memory pages "not present" in the page tables
+
+// #define PROTECT_BIOS
+#define PROTECTED_ZONE_START 0xC0000
+#define PROTECTED_ZONE_END 0xFFFFF
+
+/************************************************************************/
 
 KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
     .IDT = NULL,

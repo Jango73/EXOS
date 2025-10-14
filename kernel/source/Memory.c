@@ -170,11 +170,6 @@
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 /// Architecture-specific constants are defined in arch/i386/i386-Memory.h.
 
-// Uncomment below to mark BIOS memory pages "not present" in the page tables
-// #define PROTECT_BIOS
-#define PROTECTED_ZONE_START 0xC0000
-#define PROTECTED_ZONE_END 0xFFFFF
-
 // 3 on-demand temporary virtual pages, reserved at init.
 static LINEAR G_TempLinear1 = 0;
 static LINEAR G_TempLinear2 = 0;
