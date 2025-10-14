@@ -930,6 +930,64 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
 /***************************************************************************/
 
+static void EnsureLowMemoryIdentityMapping(void) {
+    U64 RangeLimit = (U64)LOW_MEMORY_THREE_QUARTER + (U64)N_128KB;
+    UINT LowPml4Index = GetPml4Entry(0ull);
+    UINT LowPdptIndex = GetPdptEntry(0ull);
+    UINT FirstDirectory = GetDirectoryEntry(0ull);
+    UINT LastDirectory = GetDirectoryEntry(RangeLimit > 0 ? RangeLimit - 1ull : 0ull);
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(0ull);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(0ull);
+
+    if (Pml4 == NULL || !PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pml4, LowPml4Index)) {
+        ERROR(TEXT("[EnsureLowMemoryIdentityMapping] Missing PML4E %u for low memory"), LowPml4Index);
+        ConsolePanic(TEXT("Missing bootstrap identity mapping"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    if (Pdpt == NULL || !PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pdpt, LowPdptIndex)) {
+        ERROR(TEXT("[EnsureLowMemoryIdentityMapping] Missing PDPTE %u for low memory"), LowPdptIndex);
+        ConsolePanic(TEXT("Missing bootstrap identity mapping"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    if (Directory == NULL) {
+        ERROR(TEXT("[EnsureLowMemoryIdentityMapping] Unable to access bootstrap page directory"));
+        ConsolePanic(TEXT("Missing bootstrap identity mapping"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    for (UINT DirectoryIndex = FirstDirectory; DirectoryIndex <= LastDirectory; DirectoryIndex++) {
+        if (!PageDirectoryEntryIsPresent(Directory, DirectoryIndex)) {
+            ERROR(TEXT("[EnsureLowMemoryIdentityMapping] Missing PDE %u for low memory"), DirectoryIndex);
+            ConsolePanic(TEXT("Missing bootstrap identity mapping"));
+            DO_THE_SLEEPING_BEAUTY;
+        }
+
+        U64 BaseLinear = (U64)DirectoryIndex << PAGE_TABLE_CAPACITY_MUL;
+        LPPAGE_TABLE Table = GetPageTableVAFor(BaseLinear);
+
+        if (Table == NULL) {
+            ERROR(TEXT("[EnsureLowMemoryIdentityMapping] Unable to access PT for directory %u"), DirectoryIndex);
+            ConsolePanic(TEXT("Missing bootstrap identity mapping"));
+            DO_THE_SLEEPING_BEAUTY;
+        }
+
+        LOW_REGION_CONTEXT Context = {
+            .PhysicalBase = (PHYSICAL)BaseLinear,
+        };
+
+        PopulateLowRegionTable(Table, &Context);
+    }
+
+    FlushTLB();
+
+    DEBUG(TEXT("[EnsureLowMemoryIdentityMapping] Low memory identity ensured up to %p"), (LPVOID)RangeLimit);
+}
+
+/***************************************************************************/
+
 /**
  * @brief Architecture-specific memory manager initialization for x86-64.
  */
@@ -949,6 +1007,8 @@ void MemoryArchInitializeManager(void) {
 
     PHYSICAL CurrentPageDirectory = (PHYSICAL)GetPageDirectory();
     LogPageDirectory64(CurrentPageDirectory);
+
+    EnsureLowMemoryIdentityMapping();
 
     // Clear the physical page bitmap
     Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
