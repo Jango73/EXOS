@@ -34,6 +34,12 @@ static const U64 KERNEL_LONG_MODE_BASE = 0xFFFFFFFF80000000ull;
 #endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 
+enum {
+    LONG_MODE_ENTRY_GLOBAL = 0x00000001u,
+    LONG_MODE_ENTRY_LARGE_PAGE = 0x00000002u,
+    LONG_MODE_ENTRY_NO_EXECUTE = 0x00000004u
+};
+
 static const U32 GdtPhysicalAddress = LOW_MEMORY_PAGE_1;
 static LPPML4 PageMapLevel4 = (LPPML4)LOW_MEMORY_PAGE_2;
 static LPPDPT PageDirectoryPointerLow = (LPPDPT)LOW_MEMORY_PAGE_3;
@@ -145,12 +151,16 @@ static void ClearLongModeStructures(void) {
 
 /************************************************************************/
 
-static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Global) {
+static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Flags) {
     U32 Low = 0x00000003u;
     U32 High = 0u;
 
-    if (Global != 0u) {
+    if ((Flags & LONG_MODE_ENTRY_GLOBAL) != 0u) {
         Low |= 0x00000100u;
+    }
+
+    if ((Flags & LONG_MODE_ENTRY_LARGE_PAGE) != 0u) {
+        Low |= 0x00000080u;
     }
 
     const U32 PhysicalLow = U64_Low32(Physical);
@@ -158,6 +168,10 @@ static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Glob
 
     Low |= (PhysicalLow & 0xFFFFF000u);
     High |= (PhysicalHigh & 0x000FFFFFu);
+
+    if ((Flags & LONG_MODE_ENTRY_NO_EXECUTE) != 0u) {
+        High |= 0x80000000u;
+    }
 
     Entry->Low = Low;
     Entry->High = High;
@@ -168,22 +182,18 @@ static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Glob
 static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     ClearLongModeStructures();
 
-    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + 0), VbrPointerToPhysical(PageDirectoryPointerLow), 0);
-    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryPointerLow + 0), VbrPointerToPhysical(PageDirectoryLow), 0);
-    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryLow + 0), VbrPointerToPhysical(PageTableLow), 0);
-    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryLow + 1), VbrPointerToPhysical(PageTableLowHigh), 0);
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + 0), VbrPointerToPhysical(PageDirectoryPointerLow), 0u);
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageDirectoryPointerLow + 0), VbrPointerToPhysical(PageDirectoryLow), 0u);
+    SetLongModeEntry(
+        (LPX86_64_PAGING_ENTRY)(PageDirectoryLow + 0),
+        U64_FromU32(0u),
+        LONG_MODE_ENTRY_GLOBAL | LONG_MODE_ENTRY_LARGE_PAGE);
+    SetLongModeEntry(
+        (LPX86_64_PAGING_ENTRY)(PageDirectoryLow + 1),
+        U64_FromU32(0x00200000u),
+        LONG_MODE_ENTRY_GLOBAL | LONG_MODE_ENTRY_LARGE_PAGE);
 
-    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; ++Index) {
-        const U32 PhysicalValue = Index * PAGE_SIZE;
-        SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageTableLow + Index), U64_FromU32(PhysicalValue), 1);
-    }
-
-    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; ++Index) {
-        const U32 PhysicalValue = (Index + PAGE_TABLE_NUM_ENTRIES) * PAGE_SIZE;
-        SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageTableLowHigh + Index), U64_FromU32(PhysicalValue), 1);
-    }
-
-    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + PML4_RECURSIVE_SLOT), VbrPointerToPhysical(PageMapLevel4), 0);
+    SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + PML4_RECURSIVE_SLOT), VbrPointerToPhysical(PageMapLevel4), 0u);
 
     const UINT KernelPml4Index = VbrExtractU64Bits(KernelVirtBase, 39u, 9u);
     const UINT KernelPdptIndex = VbrExtractU64Bits(KernelVirtBase, 30u, 9u);
@@ -193,11 +203,11 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     SetLongModeEntry(
         (LPX86_64_PAGING_ENTRY)(PageMapLevel4 + KernelPml4Index),
         VbrPointerToPhysical(PageDirectoryPointerKernel),
-        0);
+        0u);
     SetLongModeEntry(
         (LPX86_64_PAGING_ENTRY)(PageDirectoryPointerKernel + KernelPdptIndex),
         VbrPointerToPhysical(PageDirectoryKernel),
-        0);
+        0u);
 
     const U32 TotalPages = (MapSize + PAGE_SIZE - 1U) / PAGE_SIZE;
     const U32 TablesRequired = (TotalPages + PAGE_TABLE_NUM_ENTRIES - 1U) / PAGE_TABLE_NUM_ENTRIES;
@@ -228,13 +238,13 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
         SetLongModeEntry(
             (LPX86_64_PAGING_ENTRY)(PageDirectoryKernel + KernelPdIndex),
             U64_FromU32(TablePhysical),
-            0);
+            0u);
 
         for (UINT EntryIndex = KernelPtIndex; EntryIndex < PAGE_TABLE_NUM_ENTRIES && RemainingPages > 0U; ++EntryIndex) {
             SetLongModeEntry(
                 (LPX86_64_PAGING_ENTRY)(CurrentTable + EntryIndex),
                 U64_FromU32(PhysicalCursor),
-                1);
+                LONG_MODE_ENTRY_GLOBAL);
             PhysicalCursor += PAGE_SIZE;
             --RemainingPages;
         }
