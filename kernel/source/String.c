@@ -981,49 +981,55 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     HandleNumber:
         if (!NumberIsPreloaded) {
             if (Flags & PF_SIGN) {
+                #ifdef __EXOS_64__
                 if (QualifierIsLongLong) {
                     I64 SignedValue = VarArg(Args, I64);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-SignedValue);
+                        NumberValue = (UINT)(-SignedValue);
                     } else {
-                        NumberValue = (U64)SignedValue;
+                        NumberValue = (UINT)SignedValue;
                     }
-                } else if (Qualifier == 'l' || Qualifier == 'L') {
+                } else
+                #endif
+                if (Qualifier == 'l' || Qualifier == 'L') {
                     I32 SignedValue = VarArg(Args, I32);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-SignedValue);
+                        NumberValue = (UINT)(-SignedValue);
                     } else {
-                        NumberValue = (U64)SignedValue;
+                        NumberValue = (UINT)SignedValue;
                     }
                 } else if (Qualifier == 'h') {
                     INT RawValue = VarArg(Args, INT);
                     I16 ShortValue = (I16)RawValue;
                     if (ShortValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-(I64)ShortValue);
+                        NumberValue = (UINT)(-(INT)ShortValue);
                     } else {
-                        NumberValue = (U64)ShortValue;
+                        NumberValue = (UINT)ShortValue;
                     }
                 } else {
                     INT SignedValue = VarArg(Args, INT);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-SignedValue);
+                        NumberValue = (UINT)(-SignedValue);
                     } else {
-                        NumberValue = (U64)SignedValue;
+                        NumberValue = (UINT)SignedValue;
                     }
                 }
             } else {
+                #ifdef __EXOS_64__
                 if (QualifierIsLongLong) {
                     NumberValue = VarArg(Args, U64);
-                } else if (Qualifier == 'l' || Qualifier == 'L') {
-                    NumberValue = (U64)VarArg(Args, U32);
+                } else
+                #endif
+                if (Qualifier == 'l' || Qualifier == 'L') {
+                    NumberValue = (UINT)VarArg(Args, U32);
                 } else if (Qualifier == 'h') {
-                    NumberValue = (U64)(U16)VarArg(Args, UINT);
+                    NumberValue = (UINT)(U16)VarArg(Args, UINT);
                 } else {
-                    NumberValue = (U64)VarArg(Args, UINT);
+                    NumberValue = (UINT)VarArg(Args, UINT);
                 }
             }
         }
