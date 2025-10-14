@@ -1212,6 +1212,6 @@ LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
  * @brief Initialize the kernel memory manager.
  */
 void InitializeMemoryManager(void) {
-    MemoryArchInitializeManager();
+    ArchInitializeMemoryManager();
 }
 

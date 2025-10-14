@@ -32,6 +32,6 @@
     #error "Unsupported architecture for memory abstractions"
 #endif
 
-void MemoryArchInitializeManager(void);
+void ArchInitializeMemoryManager(void);
 
 #endif  // ARCH_MEMORY_H_INCLUDED

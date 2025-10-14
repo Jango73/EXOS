@@ -34,7 +34,7 @@ also delegated to the architecture via `ArchClipPhysicalRange`, keeping
 future 64-bit backends free to extend address limits without touching the
 common kernel code.
 
-`InitializeMemoryManager` defers to `MemoryArchInitializeManager` so
+`InitializeMemoryManager` defers to `ArchInitializeMemoryManager` so
 the architecture backend owns the low-level bootstrap steps. The i386
 implementation continues to reserve the bitmap in low memory, seed the
 temporary mapping slots, install the recursive page directory, and load

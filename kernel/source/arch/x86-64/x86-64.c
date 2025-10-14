@@ -933,7 +933,7 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
 /**
  * @brief Architecture-specific memory manager initialization for x86-64.
  */
-void MemoryArchInitializeManager(void) {
+void ArchInitializeMemoryManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
     LINEAR TempLinear1 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_1;

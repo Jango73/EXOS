@@ -800,7 +800,7 @@ void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* Ne
 /**
  * @brief Architecture-specific memory manager initialization for i386.
  */
-void MemoryArchInitializeManager(void) {
+void ArchInitializeMemoryManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
     Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
