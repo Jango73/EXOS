@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -20,14 +21,15 @@
     x86-64 memory-specific definitions
 
 \************************************************************************/
-#ifndef ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
-#define ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
+
+#ifndef X86_64_MEMORY_H_INCLUDED
+#define X86_64_MEMORY_H_INCLUDED
 
 #include "Base.h"
 
-/*************************************************************************/
+/************************************************************************/
 // #defines
-/*************************************************************************/
+
 #define PAGE_SIZE N_4KB
 #define PAGE_SIZE_MUL MUL_4KB
 #define PAGE_SIZE_MASK ((U64)PAGE_SIZE - 1ull)
@@ -79,9 +81,10 @@
     (((U64)(Address) >= VMA_USER && (U64)(Address) < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
 #define PAGE_ALIGN(Address) (((U64)(Address) + PAGE_SIZE - 1ull) & PAGE_MASK)
-/*************************************************************************/
+
+/************************************************************************/
 // typedefs
-/*************************************************************************/
+
 typedef struct tag_X86_64_PAGING_ENTRY {
     U64 Present : 1;
     U64 ReadWrite : 1;
@@ -116,9 +119,10 @@ typedef struct tag_ARCH_PAGE_ITERATOR {
     UINT DirectoryIndex;
     UINT TableIndex;
 } ARCH_PAGE_ITERATOR;
-/*************************************************************************/
+
+/************************************************************************/
 // inlines
-/*************************************************************************/
+
 static inline U64 ArchCanonicalizeAddress(U64 Address) {
     const U64 SignBit = 1ull << 47;
     const U64 Mask = (1ull << 48) - 1ull;
@@ -368,9 +372,5 @@ static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
     }
     return TRUE;
 }
-/*************************************************************************/
-// external symbols
-/*************************************************************************/
-// None.
 
-#endif  // ARCH_X86_64_X86_64_MEMORY_H_INCLUDED
+#endif  // X86_64_MEMORY_H_INCLUDED

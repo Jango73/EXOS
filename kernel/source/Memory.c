@@ -1214,4 +1214,3 @@ LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
 void InitializeMemoryManager(void) {
     ArchInitializeMemoryManager();
 }
-

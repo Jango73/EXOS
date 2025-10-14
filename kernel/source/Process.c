@@ -76,12 +76,12 @@ void InitializeKernelProcess(void) {
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
     KernelProcess.HeapSize = N_1MB;
 
-    DEBUG(TEXT("[InitializeKernelProcess] Memory : %lX"), KernelStartup.MemorySize);
-    DEBUG(TEXT("[InitializeKernelProcess] Pages : %lX"), KernelStartup.PageCount);
+    DEBUG(TEXT("[InitializeKernelProcess] Memory : %x"), KernelStartup.MemorySize);
+    DEBUG(TEXT("[InitializeKernelProcess] Pages : %x"), KernelStartup.PageCount);
 
     LINEAR HeapBase = AllocKernelRegion(0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
-    DEBUG(TEXT("[InitializeKernelProcess] HeapBase : %x"), HeapBase);
+    DEBUG(TEXT("[InitializeKernelProcess] HeapBase : %p"), (LINEAR)HeapBase);
 
     if (HeapBase == NULL) {
         DEBUG(TEXT("[InitializeKernelProcess] Could not create kernel heap, halting."));
@@ -110,7 +110,7 @@ void InitializeKernelProcess(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    DEBUG(TEXT("Kernel main task = %x (%s)"), KernelTask, KernelTask->Name);
+    DEBUG(TEXT("Kernel main task = %p (%s)"), (LINEAR)KernelTask, KernelTask->Name);
 
     KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
     MainDesktopWindow.Task = KernelTask;
@@ -203,14 +203,14 @@ void DeleteProcessCommit(LPPROCESS This) {
         // Free page directory if allocated
         // TODO : FREE ALL PD PAGES
         if (This->PageDirectory != 0) {
-            DEBUG(TEXT("[DeleteProcessCommit] Freeing page directory %x"), This->PageDirectory);
+            DEBUG(TEXT("[DeleteProcessCommit] Freeing page directory %p"), (LINEAR)This->PageDirectory);
             FreePhysicalPage(This->PageDirectory);
         }
 
         // Free process heap if allocated
         if (This->HeapBase != 0 && This->HeapSize != 0) {
-            DEBUG(TEXT("[DeleteProcessCommit] Freeing process heap base=%x size=%x"), This->HeapBase,
-                This->HeapSize);
+            DEBUG(TEXT("[DeleteProcessCommit] Freeing process heap base=%p size=%x"), (LINEAR)This->HeapBase,
+                (UINT)This->HeapSize);
             FreeRegion(This->HeapBase, This->HeapSize);
         }
 
@@ -556,13 +556,11 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         goto Out;
     }
 
-    DEBUG(TEXT("[CreateProcess] Page directory allocated at physical 0x%X"), Process->PageDirectory);
-
     //-------------------------------------
     // We can use the new page directory from now on
     // and switch back to the previous when done
 
-    DEBUG(TEXT("[CreateProcess] Switching page directory to new process : %x"), Process->PageDirectory);
+    DEBUG(TEXT("[CreateProcess] Switching page directory to new process : %p"), (LINEAR)Process->PageDirectory);
 
     PageDirectory = GetCurrentProcess()->PageDirectory;
 
@@ -646,7 +644,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Switch back to kernel page directory
 
-    DEBUG(TEXT("[CreateProcess] Switching back page directory to %x"), PageDirectory);
+    DEBUG(TEXT("[CreateProcess] Switching back page directory to %p"), (LINEAR)PageDirectory);
 
     LoadPageDirectory(PageDirectory);
 
@@ -800,13 +798,13 @@ void DumpProcess(LPPROCESS Process) {
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         LockMutex(&(Process->Mutex), INFINITY);
 
-        DEBUG(TEXT("Address        : %p\n"), Process);
+        DEBUG(TEXT("Address        : %p\n"), (LINEAR)Process);
         DEBUG(TEXT("References     : %d\n"), Process->References);
-        DEBUG(TEXT("OwnerProcess   : %p\n"), Process->OwnerProcess);
+        DEBUG(TEXT("OwnerProcess   : %p\n"), (LINEAR)Process->OwnerProcess);
         DEBUG(TEXT("Privilege      : %d\n"), Process->Privilege);
-        DEBUG(TEXT("Page directory : %p\n"), Process->PageDirectory);
+        DEBUG(TEXT("Page directory : %p\n"), (LINEAR)Process->PageDirectory);
         DEBUG(TEXT("File name      : %s\n"), Process->FileName);
-        DEBUG(TEXT("Heap base      : %p\n"), Process->HeapBase);
+        DEBUG(TEXT("Heap base      : %p\n"), (LINEAR)Process->HeapBase);
         DEBUG(TEXT("Heap size      : %d\n"), Process->HeapSize);
 
         UnlockMutex(&(Process->Mutex));

@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -21,14 +22,14 @@
 
 \************************************************************************/
 
-#ifndef ARCH_I386_I386_MEMORY_H_INCLUDED
-#define ARCH_I386_I386_MEMORY_H_INCLUDED
+#ifndef I386_MEMORY_H_INCLUDED
+#define I386_MEMORY_H_INCLUDED
 
 #include "Base.h"
 
-/*************************************************************************/
+/************************************************************************/
 // #defines
-/*************************************************************************/
+
 #define PAGE_SIZE N_4KB
 #define PAGE_SIZE_MUL MUL_4KB
 #define PAGE_SIZE_MASK (PAGE_SIZE - 1)
@@ -79,9 +80,9 @@
 #define PAGE_FLAG_PAGE_SIZE (1u << 7)
 #define PAGE_FLAG_GLOBAL (1u << 8)
 #define PAGE_FLAG_FIXED (1u << 9)
-/*************************************************************************/
+
+/************************************************************************/
 // typedefs
-/*************************************************************************/
 
 typedef struct tag_PAGE_DIRECTORY {
     U32 Present : 1;    // Is page present in RAM?
@@ -118,9 +119,10 @@ typedef struct tag_ARCH_PAGE_ITERATOR {
     UINT DirectoryIndex;
     UINT TableIndex;
 } ARCH_PAGE_ITERATOR;
-/*************************************************************************/
+
+/************************************************************************/
 // inlines
-/*************************************************************************/
+
 static inline UINT GetDirectoryEntry(LINEAR Address) {
     return Address >> PAGE_TABLE_CAPACITY_MUL;
 }
@@ -323,9 +325,5 @@ static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
     }
     return TRUE;
 }
-/*************************************************************************/
-// External symbols
-/*************************************************************************/
 
-/*************************************************************************/
-#endif  // ARCH_I386_I386_MEMORY_H_INCLUDED
+#endif  // I386_MEMORY_H_INCLUDED

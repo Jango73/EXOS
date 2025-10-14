@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -20,8 +21,9 @@
     Log I386Struct header
 
 \************************************************************************/
-#ifndef ARCH_I386_I386_LOG_H_INCLUDED
-#define ARCH_I386_I386_LOG_H_INCLUDED
+
+#ifndef I386_LOG_H_INCLUDED
+#define I386_LOG_H_INCLUDED
 
 /***************************************************************************/
 
@@ -51,4 +53,4 @@ void BacktraceFromCurrent(U32 MaxFrames);
 
 /***************************************************************************/
 
-#endif  // ARCH_I386_I386_LOG_H_INCLUDED
+#endif  // I386_LOG_H_INCLUDED

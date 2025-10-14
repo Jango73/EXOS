@@ -177,7 +177,7 @@
 
 /************************************************************************/
 
-LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
+LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, U32 ESP) {
     LPINTERRUPT_FRAME Frame;
     U32* Stack;
     U32 UserMode;
@@ -202,11 +202,11 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
     KernelLogText(
-        LOG_DEBUG, TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"), intNo,
-        HasErrorCode, UserMode);
-    DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), Stack);
+        LOG_DEBUG, TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - InterruptNumber=%d HasErrorCode=%d UserMode=%d"),
+        InterruptNumber, HasErrorCode, UserMode);
+    DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
     KernelLogMem(LOG_DEBUG, (U32)Stack, 256);
-    DEBUG(TEXT("[BuildInterruptFrame] Extracted: EIP=%p CS=%x EFlags=%x"), Frame->Registers.EIP,
+    DEBUG(TEXT("[BuildInterruptFrame] Extracted: EIP=%p CS=%x EFlags=%x"), (LINEAR)Frame->Registers.EIP,
         Frame->Registers.CS, Frame->Registers.EFlags);
 #endif
 
@@ -245,7 +245,7 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
 
     Frame->Registers.DR4 = 0;
     Frame->Registers.DR5 = 0;
-    Frame->IntNo = intNo;
+    Frame->IntNo = InterruptNumber;
 
     if (HasErrorCode) {
         Frame->ErrCode = Stack[INCOMING_ERROR_CODE_INDEX];

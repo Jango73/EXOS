@@ -92,9 +92,8 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
         InterruptNumber, HasErrorCode, UserMode);
     DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
     KernelLogMem(LOG_DEBUG, (LINEAR)Stack, 256);
-    DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%p CS=%x RFLAGS=%x"),
-        (LINEAR)Frame->Registers.RIP, Frame->Registers.CS,
-        (U64)Frame->Registers.RFlags);
+    DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%p CS=%x RFLAGS=%x"), (LINEAR)Frame->Registers.RIP, Frame->Registers.CS,
+        Frame->Registers.RFlags);
 #endif
 
     Frame->Registers.RAX = Stack[INCOMING_RAX_INDEX];
