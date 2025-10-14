@@ -143,12 +143,12 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 if (!DirectoryEntry->Present) continue;
 
                 U64 DirectoryBase = BuildLinearAddress(Pml4Index, PdptIndex, DirectoryIndex, 0, 0);
-                U64 DirectoryEnd = BuildRangeEnd(DirectoryBase, 1ull << 21);
+                U64 DirectoryEnd = BuildRangeEnd(DirectoryBase, (U64)1 << 21);
 
                 if (DirectoryEntry->PageSize) {
                     PHYSICAL LargePhysical = (PHYSICAL)(DirectoryEntry->Address << 12);
 
-                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%u]: VA=%d-%d -> 2MB page PA=%d Present=%u RW=%u Priv=%u Global=%u NX=%u"),
+                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%u]: VA=%p-%p -> 2MB page PA=%p Present=%u RW=%u Priv=%u Global=%u NX=%u"),
                         DirectoryIndex,
                         (LPVOID)DirectoryBase,
                         (LPVOID)DirectoryEnd,
