@@ -118,7 +118,7 @@ LPTASK NewTask(void) {
         return NULL;
     }
 
-    DEBUG(TEXT("[NewTask] Task pointer = %X"), (LINEAR)This);
+    DEBUG(TEXT("[NewTask] Task pointer = %p"), This);
 
     // Initialize task-specific fields (LISTNODE_FIELDS already initialized by CreateKernelObject)
     InitMutex(&This->Mutex);
@@ -126,7 +126,7 @@ LPTASK NewTask(void) {
     This->Type = TASK_TYPE_NONE;
     This->Status = TASK_STATUS_READY;
 
-    DEBUG(TEXT("[NewTask] Task initialized: Address=%x, Status=%x, TASK_STATUS_READY=%x"), (U32)This,
+    DEBUG(TEXT("[NewTask] Task initialized: Address=%p, Status=%x, TASK_STATUS_READY=%x"), This,
         This->Status, TASK_STATUS_READY);
 
     InitMutex(&(This->Mutex));
@@ -136,18 +136,9 @@ LPTASK NewTask(void) {
     // Initialize the message queue
 
     DEBUG(TEXT("[NewTask] Initialize task message queue"));
-    DEBUG(TEXT("[NewTask] MessageDestructor = %x"), (LINEAR)MessageDestructor);
-    DEBUG(TEXT("[NewTask] KernelHeapAlloc = %x"), (LINEAR)KernelHeapAlloc);
-    DEBUG(TEXT("[NewTask] KernelHeapFree = %x"), (LINEAR)KernelHeapFree);
-#if defined(__EXOS_ARCH_I386__)
-    LINEAR CurrentEbp;
-    GetEBP(CurrentEbp);
-    DEBUG(TEXT("[NewTask] EBP = %x"), CurrentEbp);
-#else
-    LINEAR CurrentEbp;
-    GetEBP(CurrentEbp);
-    DEBUG(TEXT("[NewTask] EBP = %x"), CurrentEbp);
-#endif
+    DEBUG(TEXT("[NewTask] MessageDestructor = %p"), MessageDestructor);
+    DEBUG(TEXT("[NewTask] KernelHeapAlloc = %p"), KernelHeapAlloc);
+    DEBUG(TEXT("[NewTask] KernelHeapFree = %p"), KernelHeapFree);
 
     This->Message = NewList(MessageDestructor, KernelHeapAlloc, KernelHeapFree);
 
@@ -557,18 +548,18 @@ void DeleteDeadTasksAndProcesses(void) {
             NextTask = (LPTASK)Task->Next;
 
             if (Task->Status == TASK_STATUS_DEAD) {
-                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] About to delete task %x"), (U32)Task);
+                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] About to delete task %p"), Task);
 
                 // DeleteTask will handle removing from list and cleanup
                 DeleteTask(Task);
 
-                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] Deleted task %x"), (U32)Task);
+                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] Deleted task %p"), Task);
             }
 
             Task = NextTask;
         }
         else {
-            ConsolePanic(TEXT("Corrupt task in task list : %x"), (U32)Task);
+            ConsolePanic(TEXT("Corrupt task in task list : %p"), Task);
         }
     }
 
@@ -595,7 +586,7 @@ void DeleteDeadTasksAndProcesses(void) {
             Process = NextProcess;
         }
         else {
-            ConsolePanic(TEXT("Corrupt process in process list : %x"), (U32)Process);
+            ConsolePanic(TEXT("Corrupt process in process list : %p"), Process);
         }
     }
 

@@ -553,27 +553,32 @@ typedef struct tag_SEGMENT_INFO {
         : "m"((Task)->Arch.Context.Registers.EAX), "m"((Task)->Arch.Context.Registers.EBX), "m"(StackPointer) \
         : "eax", "ebx", "memory")
 
+/************************************************************************/
+// Register getters/setters
+
 #define GetCR4(var) __asm__ volatile("mov %%cr4, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define GetESP(var) __asm__ volatile("mov %%esp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define GetEBP(var) __asm__ volatile("mov %%ebp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
-#define GetDR6(var) __asm__ volatile("mov %%dr6, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
-#define GetDR7(var) __asm__ volatile("mov %%dr7, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
-#define SetDR6(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr6" : : "r"(var) : "eax")
-#define SetDR7(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr7" : : "r"(var) : "eax")
-#define READ_DR6(var) __asm__ volatile("mov %%dr6, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
-#define READ_DR0(var) __asm__ volatile("mov %%dr0, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
-#define READ_DR7(var) __asm__ volatile("mov %%dr7, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
-#define CLEAR_DR6() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr6" : : : "eax")
-#define CLEAR_DR7() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr7" : : : "eax")
 #define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 #define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 #define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 #define GetFS(var) __asm__ volatile("movw %%fs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 #define GetGS(var) __asm__ volatile("movw %%gs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+
 #define SetDS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%ds" : "=m"(var) : : "eax")
 #define SetES(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%es" : "=m"(var) : : "eax")
 #define SetFS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%fs" : "=m"(var) : : "eax")
 #define SetGS(var) __asm__ volatile("movl %0, %%eax; movw %%ax, %%gs" : "=m"(var) : : "eax")
+
+#define GetDR0(var) __asm__ volatile("mov %%dr0, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+#define GetDR6(var) __asm__ volatile("mov %%dr6, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+#define GetDR7(var) __asm__ volatile("mov %%dr7, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+
+#define SetDR6(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr6" : : "r"(var) : "eax")
+#define SetDR7(var) __asm__ volatile("mov %0, %%eax; mov %%eax, %%dr7" : : "r"(var) : "eax")
+
+#define ClearDR6() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr6" : : : "eax")
+#define ClearDR7() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr7" : : : "eax")
 
 #define SET_HW_BREAKPOINT(addr)                      \
     __asm__ volatile(                                \
@@ -582,12 +587,6 @@ typedef struct tag_SEGMENT_INFO {
         :                                            \
         : "r"(addr)                                  \
         : "eax")
-
-#define CLEAR_DEBUG_REGS() \
-    do {                   \
-        CLEAR_DR6();       \
-        CLEAR_DR7();       \
-    } while (0)
 
 /************************************************************************/
 // External symbols

@@ -151,9 +151,9 @@ void DebugExceptionHandler(LPINTERRUPT_FRAME Frame) {
     ERROR(TEXT("FAULT: Debug exception"));
 
     // Read debug registers
-    READ_DR6(dr6);
-    READ_DR0(dr0);
-    READ_DR7(dr7);
+    GetDR0(dr0);
+    GetDR6(dr6);
+    GetDR7(dr7);
 
     if (dr6 & 0x1) {  // DR0 breakpoint hit
         ERROR(TEXT("=== HARDWARE BREAKPOINT HIT at %x ==="), dr0);
@@ -189,7 +189,8 @@ void DebugExceptionHandler(LPINTERRUPT_FRAME Frame) {
         }
 
         // Clear debug registers and continue
-        CLEAR_DEBUG_REGS();
+        ClearDR6();
+        ClearDR7();
         return;  // Don't die, continue execution
     }
 

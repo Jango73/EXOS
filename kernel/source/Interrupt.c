@@ -243,7 +243,7 @@ void InitializeInterrupts(void) {
 
     // Reset debug registers
 
-    SetDR7(0);
+    ClearDR7();
 
     //-------------------------------------
     // Note: Interrupt controller initialization moved to Kernel.c after IOAPIC init

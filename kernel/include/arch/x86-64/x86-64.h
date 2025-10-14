@@ -257,7 +257,7 @@ typedef struct tag_X86_64_IDT_ENTRY {
     U32 Reserved_2;
 } X86_64_IDT_ENTRY, *LPX86_64_IDT_ENTRY;
 
-/***************************************************************************/
+/************************************************************************/
 
 // System segment descriptor (e.g. TSS/LDT) layout for 64-bit mode (16 bytes)
 
@@ -278,7 +278,7 @@ typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
     U32 Reserved;
 } X86_64_SYSTEM_SEGMENT_DESCRIPTOR, *LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR;
 
-/***************************************************************************/
+/************************************************************************/
 
 // Interrupt context saved on entry
 
@@ -291,7 +291,7 @@ typedef struct tag_INTERRUPT_FRAME {
     U32 ErrCode;
 } INTERRUPT_FRAME, *LPINTERRUPT_FRAME;
 
-/***************************************************************************/
+/************************************************************************/
 
 // Architecture-specific task data
 
@@ -303,18 +303,18 @@ typedef struct tag_ARCH_TASK_DATA {
     UINT SysStackSize;
 } ARCH_TASK_DATA, *LPARCH_TASK_DATA;
 
-/***************************************************************************/
+/************************************************************************/
 
 #pragma pack(pop)
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef struct tag_GDT_REGISTER {
     U16 Limit;
     U64 Base;
 } GDT_REGISTER;
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef U16 SELECTOR;
 typedef U64 OFFSET;
@@ -325,39 +325,26 @@ typedef struct tag_KERNELDATA_X86_64 {
     LPVOID TSS;
 } KERNELDATA_X86_64, *LPKERNELDATA_X86_64;
 
-/***************************************************************************/
-
-/***************************************************************************/
-// Inline register helpers
-/***************************************************************************/
+/************************************************************************/
+// Register getters/setters
 
 #define GetCR4(var) __asm__ volatile("mov %%cr4, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetESP(var) __asm__ volatile("mov %%rsp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetEBP(var) __asm__ volatile("mov %%rbp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
+#define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
+#define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
+#define GetFS(var) __asm__ volatile("movw %%fs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
+#define GetGS(var) __asm__ volatile("movw %%gs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
+
 #define GetDR6(var) __asm__ volatile("mov %%dr6, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetDR7(var) __asm__ volatile("mov %%dr7, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 
-/************************************************************************/
+#define SetDR6(var) __asm__ volatile("mov %0, %%rax; mov %%rax, %%dr6" : : "r"(var) : "eax")
+#define SetDR7(var) __asm__ volatile("mov %0, %%rax; mov %%rax, %%dr7" : : "r"(var) : "eax")
 
-/**
- * @brief Write the debug status register (DR6).
- *
- * @param Value Value to store in DR6.
- */
-static inline void SetDR6(U64 Value) {
-    __asm__ __volatile__("mov %0, %%rax; mov %%rax, %%dr6" : : "r"(Value) : "rax");
-}
-
-/************************************************************************/
-
-/**
- * @brief Write the debug control register (DR7).
- *
- * @param Value Value to store in DR7.
- */
-static inline void SetDR7(U64 Value) {
-    __asm__ __volatile__("mov %0, %%rax; mov %%rax, %%dr7" : : "r"(Value) : "rax");
-}
+#define ClearDR6() __asm__ volatile("xor %%rax, %%rax; mov %%rax, %%dr6" : : : "eax")
+#define ClearDR7() __asm__ volatile("xor %%rax, %%rax; mov %%rax, %%dr7" : : : "eax")
 
 /***************************************************************************/
 
