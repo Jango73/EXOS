@@ -60,8 +60,34 @@ const defaultSettings = {
     persistLogs: true,
     notifyOnExit: true,
     renderThrottleMs: 100,
-    maxLogLines: 1000
+    maxLogLines: 1000,
+    logBatchSize: 50,
+    maxQueuedLogLines: 2000
 };
+
+function parsePositiveInteger(value) {
+    if (typeof value !== 'string' || value.trim() === '') return undefined;
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function loadEnvSettingsOverrides() {
+    const overrides = {};
+    const throttle = parsePositiveInteger(process.env.DASHBOARD_RENDER_THROTTLE_MS);
+    if (throttle !== undefined) overrides.renderThrottleMs = throttle;
+    const batchSize = parsePositiveInteger(process.env.DASHBOARD_LOG_BATCH_SIZE);
+    if (batchSize !== undefined) overrides.logBatchSize = batchSize;
+    const maxQueued = parsePositiveInteger(process.env.DASHBOARD_MAX_QUEUED_LOG_LINES);
+    if (maxQueued !== undefined) overrides.maxQueuedLogLines = maxQueued;
+    const maxLogLinesEnv = parsePositiveInteger(process.env.DASHBOARD_MAX_LOG_LINES);
+    if (maxLogLinesEnv !== undefined) overrides.maxLogLines = maxLogLinesEnv;
+    return overrides;
+}
+
+const envSettingsOverrides = loadEnvSettingsOverrides();
+let currentSettings = { ...defaultSettings, ...envSettingsOverrides };
+const logQueues = new Map();
+let screen = null;
 
 let logStream = null;
 
@@ -73,10 +99,60 @@ let renderScheduled = false;
 function scheduleRender() {
     if (renderScheduled) return;
     renderScheduled = true;
+    const delay = currentSettings.renderThrottleMs ?? defaultSettings.renderThrottleMs;
     setTimeout(() => {
-        scheduleRender();
         renderScheduled = false;
-    }, config.settings?.renderThrottleMs || 100);
+        if (screen && typeof screen.render === 'function') {
+            screen.render();
+        }
+    }, delay);
+}
+
+function ensureLogQueue(box) {
+    let entry = logQueues.get(box);
+    if (!entry) {
+        entry = { pending: [], processing: false, backlogDropped: false };
+        logQueues.set(box, entry);
+    }
+    return entry;
+}
+
+function flushLogQueue(box) {
+    const entry = logQueues.get(box);
+    if (!entry) return;
+    const batchSize = currentSettings.logBatchSize ?? defaultSettings.logBatchSize;
+    const batch = entry.pending.splice(0, batchSize);
+    if (entry.backlogDropped) {
+        box.log('... [log backlog trimmed to keep dashboard responsive] ...');
+        entry.backlogDropped = false;
+    }
+    for (const line of batch) {
+        box.log(line);
+    }
+    const maxLines = currentSettings.maxLogLines ?? defaultSettings.maxLogLines;
+    if (box.getLines().length > maxLines) {
+        box.setContent('... [log cleared to prevent memory overflow] ...\n');
+    }
+    scheduleRender();
+    if (entry.pending.length > 0) {
+        setImmediate(() => flushLogQueue(box));
+    } else {
+        entry.processing = false;
+    }
+}
+
+function enqueueLogLine(box, line) {
+    const entry = ensureLogQueue(box);
+    entry.pending.push(line);
+    const maxQueued = currentSettings.maxQueuedLogLines ?? defaultSettings.maxQueuedLogLines;
+    if (entry.pending.length > maxQueued) {
+        entry.pending = entry.pending.slice(entry.pending.length - maxQueued);
+        entry.backlogDropped = true;
+    }
+    if (!entry.processing) {
+        entry.processing = true;
+        setImmediate(() => flushLogQueue(box));
+    }
 }
 
 function initLogFile() {
@@ -120,16 +196,21 @@ function loadConfig() {
                                 ? inEvents.beforeStartProcess
                                 : normalizeMapToArray(legacyBSP)
         };
+        const computedSettings = {
+            ...defaultSettings,
+            ...envSettingsOverrides,
+            ...cfg.settings
+        };
+        currentSettings = computedSettings;
         return {
             ...cfg,
             events,
-            settings: {
-                ...defaultSettings,
-                ...cfg.settings
-            }
+            settings: computedSettings
         };
     } catch {
-        return { settings: { ...defaultSettings }, events: { onDashboardStart: [], beforeStartProcess: [] } };
+        const fallbackSettings = { ...defaultSettings, ...envSettingsOverrides };
+        currentSettings = fallbackSettings;
+        return { settings: fallbackSettings, events: { onDashboardStart: [], beforeStartProcess: [] } };
     }
 }
 
@@ -201,23 +282,20 @@ function setOutputLabel(label) {
 // interface LogWatcher { configPath: string; currentPath: string; box: blessed.Widgets.Log; tail: Tail; }
 function startTail(file, box) {
     if (!fs.existsSync(file)) fs.writeFileSync(file, '');
+    const entry = ensureLogQueue(box);
+    entry.pending = [];
+    entry.processing = false;
+    entry.backlogDropped = false;
     const tail = new Tail(file, {
         follow: true,
         useWatchFile: true,
         fsWatchOptions: { interval: 500 }
     });
     tail.on('line', (line) => {
-        box.log(line);
-        // Limit memory usage by clearing old lines
-        const maxLines = config.settings?.maxLogLines || 1000;
-        if (box.getLines().length > maxLines) {
-            box.setContent('... [log cleared to prevent memory overflow] ...\n');
-        }
-        scheduleRender();
+        enqueueLogLine(box, line);
     });
     tail.on('error', (err) => {
-        box.log(`Tail error: ${err.message}`);
-        scheduleRender();
+        enqueueLogLine(box, `Tail error: ${err.message}`);
     });
     return tail;
 }
@@ -226,7 +304,7 @@ const config = loadConfig();
 const scripts = loadScripts();
 
 // Initialize blessed screen
-const screen = blessed.screen({
+screen = blessed.screen({
     smartCSR: true,
     title: 'Script Runner'
 });
