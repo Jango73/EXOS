@@ -66,26 +66,40 @@ const defaultSettings = {
 };
 
 function parsePositiveInteger(value) {
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value) || value <= 0) return undefined;
+        return Math.floor(value);
+    }
     if (typeof value !== 'string' || value.trim() === '') return undefined;
     const parsed = parseInt(value, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function loadEnvSettingsOverrides() {
-    const overrides = {};
-    const throttle = parsePositiveInteger(process.env.DASHBOARD_RENDER_THROTTLE_MS);
-    if (throttle !== undefined) overrides.renderThrottleMs = throttle;
-    const batchSize = parsePositiveInteger(process.env.DASHBOARD_LOG_BATCH_SIZE);
-    if (batchSize !== undefined) overrides.logBatchSize = batchSize;
-    const maxQueued = parsePositiveInteger(process.env.DASHBOARD_MAX_QUEUED_LOG_LINES);
-    if (maxQueued !== undefined) overrides.maxQueuedLogLines = maxQueued;
-    const maxLogLinesEnv = parsePositiveInteger(process.env.DASHBOARD_MAX_LOG_LINES);
-    if (maxLogLinesEnv !== undefined) overrides.maxLogLines = maxLogLinesEnv;
-    return overrides;
+function normalizeSettings(overrides) {
+    const normalized = { ...defaultSettings };
+    if (!overrides || typeof overrides !== 'object') {
+        return normalized;
+    }
+
+    const booleanKeys = ['enableCommandHistory', 'persistLogs', 'notifyOnExit'];
+    for (const key of booleanKeys) {
+        if (typeof overrides[key] === 'boolean') {
+            normalized[key] = overrides[key];
+        }
+    }
+
+    const positiveIntegerKeys = ['renderThrottleMs', 'maxLogLines', 'logBatchSize', 'maxQueuedLogLines'];
+    for (const key of positiveIntegerKeys) {
+        const parsed = parsePositiveInteger(overrides[key]);
+        if (parsed !== undefined) {
+            normalized[key] = parsed;
+        }
+    }
+
+    return normalized;
 }
 
-const envSettingsOverrides = loadEnvSettingsOverrides();
-let currentSettings = { ...defaultSettings, ...envSettingsOverrides };
+let currentSettings = { ...defaultSettings };
 const logQueues = new Map();
 let screen = null;
 
@@ -196,11 +210,7 @@ function loadConfig() {
                                 ? inEvents.beforeStartProcess
                                 : normalizeMapToArray(legacyBSP)
         };
-        const computedSettings = {
-            ...defaultSettings,
-            ...envSettingsOverrides,
-            ...cfg.settings
-        };
+        const computedSettings = normalizeSettings(cfg.settings);
         currentSettings = computedSettings;
         return {
             ...cfg,
@@ -208,7 +218,7 @@ function loadConfig() {
             settings: computedSettings
         };
     } catch {
-        const fallbackSettings = { ...defaultSettings, ...envSettingsOverrides };
+        const fallbackSettings = normalizeSettings();
         currentSettings = fallbackSettings;
         return { settings: fallbackSettings, events: { onDashboardStart: [], beforeStartProcess: [] } };
     }
