@@ -144,7 +144,9 @@ LPTASK NewTask(void) {
     GetEBP(CurrentEbp);
     DEBUG(TEXT("[NewTask] EBP = %x"), CurrentEbp);
 #else
-    DEBUG(TEXT("[NewTask] EBP = %x"), (LINEAR)GetEBP());
+    LINEAR CurrentEbp;
+    GetEBP(CurrentEbp);
+    DEBUG(TEXT("[NewTask] EBP = %x"), CurrentEbp);
 #endif
 
     This->Message = NewList(MessageDestructor, KernelHeapAlloc, KernelHeapFree);

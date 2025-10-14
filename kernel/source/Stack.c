@@ -128,7 +128,9 @@ BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
     GetEBP(CurrentEbp);
     return CopyStackWithEBP(DestStackTop, SourceStackTop, Size, CurrentEbp);
 #else
-    return CopyStackWithEBP(DestStackTop, SourceStackTop, Size, GetEBP());
+    LINEAR CurrentEbp;
+    GetEBP(CurrentEbp);
+    return CopyStackWithEBP(DestStackTop, SourceStackTop, Size, CurrentEbp);
 #endif
 }
 
@@ -162,8 +164,8 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
     GetESP(CurrentEsp);
     GetEBP(CurrentEbp);
 #else
-    CurrentEsp = GetESP();
-    CurrentEbp = GetEBP();
+    GetESP(CurrentEsp);
+    GetEBP(CurrentEbp);
 #endif
 
     DEBUG(TEXT("[SwitchStack] Current ESP=%X, EBP=%X at switch time"), CurrentEsp, CurrentEbp);

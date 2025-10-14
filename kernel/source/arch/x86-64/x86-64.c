@@ -901,7 +901,7 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
     Task->Arch.Context.Registers.RFlags = RFLAGS_IF | RFLAGS_ALWAYS_1;
     Task->Arch.Context.Registers.CR3 = (U64)Process->PageDirectory;
 
-    ControlRegister4 = GetCR4();
+    GetCR4(ControlRegister4);
     Task->Arch.Context.Registers.CR4 = ControlRegister4;
     Task->Arch.Context.Registers.RIP = (U64)VMA_TASK_RUNNER;
 

@@ -331,41 +331,11 @@ typedef struct tag_KERNELDATA_X86_64 {
 // Inline register helpers
 /***************************************************************************/
 
-static inline U64 GetCR4(void) {
-    U64 Value;
-
-    __asm__ __volatile__("mov %%cr4, %0" : "=r"(Value));
-
-    return Value;
-}
-static inline U64 GetESP(void) {
-    U64 Value;
-
-    __asm__ __volatile__("mov %%rsp, %0" : "=r"(Value));
-
-    return Value;
-}
-static inline U64 GetEBP(void) {
-    U64 Value;
-
-    __asm__ __volatile__("mov %%rbp, %0" : "=r"(Value));
-
-    return Value;
-}
-static inline U64 GetDR6(void) {
-    U64 Value;
-
-    __asm__ __volatile__("mov %%dr6, %0" : "=r"(Value));
-
-    return Value;
-}
-static inline U64 GetDR7(void) {
-    U64 Value;
-
-    __asm__ __volatile__("mov %%dr7, %0" : "=r"(Value));
-
-    return Value;
-}
+#define GetCR4(var) __asm__ volatile("mov %%cr4, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetESP(var) __asm__ volatile("mov %%rsp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetEBP(var) __asm__ volatile("mov %%rbp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetDR6(var) __asm__ volatile("mov %%dr6, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetDR7(var) __asm__ volatile("mov %%dr7, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 
 /************************************************************************/
 
