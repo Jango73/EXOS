@@ -423,7 +423,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         KernelProcess.HeapSize);
     DEBUG(TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
-    if (SetupTask(Task, Process, Info) == FALSE) {
+    if (ArchSetupTask(Task, Process, Info) == FALSE) {
         DeleteTask(Task);
         Task = NULL;
 

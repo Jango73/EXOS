@@ -657,7 +657,7 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
  * architecture-neutral bookkeeping and delegates the hardware specific work to
  * this helper.
  */
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
@@ -676,8 +676,8 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.SysStackBase =
         AllocKernelRegion(0, Task->Arch.SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
-    DEBUG(TEXT("[SetupTask] BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
-    DEBUG(TEXT("[SetupTask] Actually got StackBase=%X"), Task->Arch.StackBase);
+    DEBUG(TEXT("[ArchSetupTask] BaseVMA=%X, Requested StackBase at BaseVMA"), BaseVMA);
+    DEBUG(TEXT("[ArchSetupTask] Actually got StackBase=%X"), Task->Arch.StackBase);
 
     if (Task->Arch.StackBase == NULL || Task->Arch.SysStackBase == NULL) {
         if (Task->Arch.StackBase) {
@@ -692,12 +692,12 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
             Task->Arch.SysStackSize = 0;
         }
 
-        ERROR(TEXT("[SetupTask] Stack or system stack allocation failed"));
+        ERROR(TEXT("[ArchSetupTask] Stack or system stack allocation failed"));
         return FALSE;
     }
 
-    DEBUG(TEXT("[SetupTask] Stack (%X bytes) allocated at %X"), Task->Arch.StackSize, Task->Arch.StackBase);
-    DEBUG(TEXT("[SetupTask] System stack (%X bytes) allocated at %X"), Task->Arch.SysStackSize, Task->Arch.SysStackBase);
+    DEBUG(TEXT("[ArchSetupTask] Stack (%X bytes) allocated at %X"), Task->Arch.StackSize, Task->Arch.StackBase);
+    DEBUG(TEXT("[ArchSetupTask] System stack (%X bytes) allocated at %X"), Task->Arch.SysStackSize, Task->Arch.SysStackBase);
 
     MemorySet((void*)(Task->Arch.StackBase), 0, Task->Arch.StackSize);
     MemorySet((void*)(Task->Arch.SysStackBase), 0, Task->Arch.SysStackSize);
@@ -726,11 +726,11 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     LINEAR SysStackTop = Task->Arch.SysStackBase + Task->Arch.SysStackSize;
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
-        DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
+        DEBUG(TEXT("[ArchSetupTask] Setting kernel privilege (ring 0)"));
         Task->Arch.Context.Registers.ESP = StackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.EBP = StackTop - STACK_SAFETY_MARGIN;
     } else {
-        DEBUG(TEXT("[SetupTask] Setting user privilege (ring 3)"));
+        DEBUG(TEXT("[ArchSetupTask] Setting user privilege (ring 3)"));
         Task->Arch.Context.Registers.ESP = SysStackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.EBP = SysStackTop - STACK_SAFETY_MARGIN;
     }
@@ -745,19 +745,19 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         GetESP(ESP);
         UINT StackUsed = (BootStackTop - ESP) + 256;
 
-        DEBUG(TEXT("[SetupTask] BootStackTop = %X"), BootStackTop);
-        DEBUG(TEXT("[SetupTask] StackTop = %X"), StackTop);
-        DEBUG(TEXT("[SetupTask] StackUsed = %X"), StackUsed);
-        DEBUG(TEXT("[SetupTask] Switching to new stack..."));
+        DEBUG(TEXT("[ArchSetupTask] BootStackTop = %X"), BootStackTop);
+        DEBUG(TEXT("[ArchSetupTask] StackTop = %X"), StackTop);
+        DEBUG(TEXT("[ArchSetupTask] StackUsed = %X"), StackUsed);
+        DEBUG(TEXT("[ArchSetupTask] Switching to new stack..."));
 
         if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
             Task->Arch.Context.Registers.ESP = 0;  // Not used for main task
             LINEAR CurrentEbp;
             GetEBP(CurrentEbp);
             Task->Arch.Context.Registers.EBP = CurrentEbp;
-            DEBUG(TEXT("[SetupTask] Main task stack switched successfully"));
+            DEBUG(TEXT("[ArchSetupTask] Main task stack switched successfully"));
         } else {
-            ERROR(TEXT("[SetupTask] Stack switch failed"));
+            ERROR(TEXT("[ArchSetupTask] Stack switch failed"));
         }
     }
 

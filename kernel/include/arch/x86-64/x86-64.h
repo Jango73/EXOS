@@ -424,7 +424,7 @@ struct tag_TASK;
 struct tag_PROCESS;
 struct tag_TASKINFO;
 
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
+BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
 void ArchPreInitializeKernel(void);
 
 /***************************************************************************/

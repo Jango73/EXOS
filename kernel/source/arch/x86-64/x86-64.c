@@ -840,7 +840,7 @@ static void InitX86_64GlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
  * and seeds the register snapshot so the generic scheduler can operate while
  * the long mode context-switching code is under construction.
  */
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
@@ -848,7 +848,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     U64 SysStackTop;
     U64 ControlRegister4 = 0;
 
-    DEBUG(TEXT("[SetupTask] Enter"));
+    DEBUG(TEXT("[ArchSetupTask] Enter"));
 
     if (Process->Privilege == PRIVILEGE_USER) {
         BaseVMA = VMA_USER;
@@ -877,13 +877,13 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
             Task->Arch.SysStackSize = 0;
         }
 
-        ERROR(TEXT("[SetupTask] Stack allocation failed"));
+        ERROR(TEXT("[ArchSetupTask] Stack allocation failed"));
         return FALSE;
     }
 
-    DEBUG(TEXT("[SetupTask] Stack (%X bytes) allocated at %llX"), Task->Arch.StackSize,
+    DEBUG(TEXT("[ArchSetupTask] Stack (%X bytes) allocated at %llX"), Task->Arch.StackSize,
         (unsigned long long)Task->Arch.StackBase);
-    DEBUG(TEXT("[SetupTask] System stack (%X bytes) allocated at %llX"), Task->Arch.SysStackSize,
+    DEBUG(TEXT("[ArchSetupTask] System stack (%X bytes) allocated at %llX"), Task->Arch.SysStackSize,
         (unsigned long long)Task->Arch.SysStackBase);
 
     MemorySet((void*)Task->Arch.StackBase, 0, Task->Arch.StackSize);
@@ -921,10 +921,10 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
     if ((Info->Flags & TASK_CREATE_MAIN_KERNEL) != 0u) {
         Task->Status = TASK_STATUS_RUNNING;
-        WARNING(TEXT("[SetupTask] Main kernel stack handoff not implemented on x86-64"));
+        WARNING(TEXT("[ArchSetupTask] Main kernel stack handoff not implemented on x86-64"));
     }
 
-    DEBUG(TEXT("[SetupTask] Exit"));
+    DEBUG(TEXT("[ArchSetupTask] Exit"));
     return TRUE;
 }
 
