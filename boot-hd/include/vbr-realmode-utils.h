@@ -98,8 +98,8 @@ const char* BootGetFileName(const char* Path);
 // Functions in vbr-payload-a.asm
 
 extern U32 BiosReadSectors(U32 Drive, U32 Lba, U32 Count, U32 Dest);
-extern void MemorySet(LPVOID Base, U32 What, U32 Size);
-extern void MemoryCopy(LPVOID Destination, LPCVOID Source, U32 Size);
+extern void MemorySet(LPVOID Base, UINT What, UINT Size);
+extern void MemoryCopy(LPVOID Destination, LPCVOID Source, UINT Size);
 extern void UnrealMemoryCopy(U32 DestinationLinear, U32 SourceLinear, U32 Size);
 extern U32 BiosGetMemoryMap(U32 Buffer, U32 MaxEntries);
 extern U32 VESAGetModeInfo(U16 Mode, U32 Buffer);
