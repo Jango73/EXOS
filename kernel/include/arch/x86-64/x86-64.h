@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -21,18 +22,17 @@
 
 \************************************************************************/
 
-#ifndef ARCH_X86_64_X86_64_H_INCLUDED
-#define ARCH_X86_64_X86_64_H_INCLUDED
+#ifndef X86_64_H_INCLUDED
+#define X86_64_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
 #include "Base.h"
 #include "arch/x86/x86-Common.h"
 #include "arch/x86-64/x86-64-Memory.h"
 
-/***************************************************************************/
+/************************************************************************/
 // Descriptor and selector helpers
-/***************************************************************************/
 
 #define IDT_SIZE N_4KB
 #define GDT_SIZE N_8KB
@@ -180,26 +180,6 @@
 
 /***************************************************************************/
 
-// Extended control register helpers
-
-#define READ_CR8(var) __asm__ volatile("mov %%cr8, %0" : "=r"(var))
-#define WRITE_CR8(value) __asm__ volatile("mov %0, %%cr8" : : "r"(value) : "memory")
-
-/***************************************************************************/
-
-// Swap GS base in long mode
-
-#define SWAPGS() __asm__ volatile("swapgs" : : : "memory")
-
-/***************************************************************************/
-
-// Read and write RFLAGS using 64-bit instructions
-
-#define READ_RFLAGS64(var) __asm__ volatile("pushfq; pop %0" : "=r"(var))
-#define WRITE_RFLAGS64(value) __asm__ volatile("push %0; popfq" : : "r"(value) : "memory", "cc")
-
-/***************************************************************************/
-
 #pragma pack(push, 1)
 
 /***************************************************************************/
@@ -329,6 +309,7 @@ typedef struct tag_KERNELDATA_X86_64 {
 // Register getters/setters
 
 #define GetCR4(var) __asm__ volatile("mov %%cr4, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetCR8(var) __asm__ volatile("mov %%cr8, %0" : "=r"(var))
 #define GetESP(var) __asm__ volatile("mov %%rsp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetEBP(var) __asm__ volatile("mov %%rbp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
@@ -336,6 +317,13 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
 #define GetFS(var) __asm__ volatile("movw %%fs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
 #define GetGS(var) __asm__ volatile("movw %%gs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
+
+#define SetCR8(value) __asm__ volatile("mov %0, %%cr8" : : "r"(value) : "memory")
+
+#define SwapGS() __asm__ volatile("swapgs" : : : "memory")
+
+#define GetRFLAGS64(var) __asm__ volatile("pushfq; pop %0" : "=r"(var))
+#define SetRFLAGS64(value) __asm__ volatile("push %0; popfq" : : "r"(value) : "memory", "cc")
 
 #define GetDR6(var) __asm__ volatile("mov %%dr6, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetDR7(var) __asm__ volatile("mov %%dr7, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
@@ -359,4 +347,4 @@ void ArchPreInitializeKernel(void);
 
 /***************************************************************************/
 
-#endif
+#endif  // X86_64_H_INCLUDED

@@ -24,6 +24,7 @@
 #ifndef ARCH_X86_64_INTERRUPT_FRAME_H_INCLUDED
 #define ARCH_X86_64_INTERRUPT_FRAME_H_INCLUDED
 
+#include "Base.h"
 #include "arch/x86-64/x86-64.h"
 
 LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UINT StackPointer);

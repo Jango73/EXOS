@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -45,6 +46,3 @@ void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, UINT StackPointer) {
 
     WARNING(TEXT("[RestoreFromInterruptFrame] x86-64 support is not implemented yet"));
 }
-
-/************************************************************************/
-

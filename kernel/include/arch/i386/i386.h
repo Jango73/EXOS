@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#ifndef ARCH_I386_I386_H_INCLUDED
-#define ARCH_I386_I386_H_INCLUDED
+#ifndef I386_H_INCLUDED
+#define I386_H_INCLUDED
 
 /************************************************************************/
 
@@ -614,4 +614,4 @@ void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* Ne
 
 /***************************************************************************/
 
-#endif  // ARCH_I386_I386_H_INCLUDED
+#endif  // I386_H_INCLUDED
