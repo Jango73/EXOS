@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Interrupt frame helpers (x86-64)
+    Interrupt Frame Management for x86-64
 
 \************************************************************************/
 
@@ -36,13 +36,4 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
 
     WARNING(TEXT("[BuildInterruptFrame] x86-64 support is not implemented yet"));
     return NULL;
-}
-
-/************************************************************************/
-
-void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, UINT StackPointer) {
-    UNUSED(NextFrame);
-    UNUSED(StackPointer);
-
-    WARNING(TEXT("[RestoreFromInterruptFrame] x86-64 support is not implemented yet"));
 }

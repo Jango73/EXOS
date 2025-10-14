@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Interrupt Frame Management
+    Interrupt Frame Management for i386
 
 --------------------------------------------------------------------------
 
@@ -188,7 +188,7 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
     Stack = (U32*)(ESP + sizeof(INTERRUPT_FRAME));
 
     if (IsValidMemory((LINEAR)Stack) == FALSE) {
-        DEBUG(TEXT("[BuildInterruptFrame] Invalid stack computed : %x"), Stack);
+        DEBUG(TEXT("[BuildInterruptFrame] Invalid stack computed : %p"), Stack);
         DO_THE_SLEEPING_BEAUTY;
     }
 
@@ -204,10 +204,9 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
     KernelLogText(
         LOG_DEBUG, TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"), intNo,
         HasErrorCode, UserMode);
-    DEBUG(TEXT("[BuildInterruptFrame] Stack at %x:"), Stack);
+    DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), Stack);
     KernelLogMem(LOG_DEBUG, (U32)Stack, 256);
-    KernelLogText(
-        LOG_DEBUG, TEXT("[BuildInterruptFrame] Extracted: EIP=%x CS=%x EFlags=%x"), Frame->Registers.EIP,
+    DEBUG(TEXT("[BuildInterruptFrame] Extracted: EIP=%p CS=%x EFlags=%x"), Frame->Registers.EIP,
         Frame->Registers.CS, Frame->Registers.EFlags);
 #endif
 
@@ -255,92 +254,4 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP) {
     }
 
     return Frame;
-}
-
-/************************************************************************/
-
-void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, U32 ESP) {
-    U32* Stack;
-    U32 UserMode;
-    U32 HasErrorCode = 0;  // Timer interrupts don't have error codes
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[RestoreFromInterruptFrame] Enter. ESP = %x"), ESP);
-#endif
-
-    SAFE_USE_VALID(NextFrame) {
-        Stack = (U32*)(ESP + sizeof(INTERRUPT_FRAME));
-        // For task switching via timer interrupt (32), HasErrorCode = 0
-        UserMode = (NextFrame->Registers.CS & SELECTOR_RPL_MASK) != 0;
-
-        // Restore segment registers
-        Stack[INCOMING_DS_INDEX] = NextFrame->Registers.DS;
-        Stack[INCOMING_ES_INDEX] = NextFrame->Registers.ES;
-        Stack[INCOMING_FS_INDEX] = NextFrame->Registers.FS;
-        Stack[INCOMING_GS_INDEX] = NextFrame->Registers.GS;
-
-        // Restore general-purpose registers
-        Stack[INCOMING_EAX_INDEX] = NextFrame->Registers.EAX;
-        Stack[INCOMING_EBX_INDEX] = NextFrame->Registers.EBX;
-        Stack[INCOMING_ECX_INDEX] = NextFrame->Registers.ECX;
-        Stack[INCOMING_EDX_INDEX] = NextFrame->Registers.EDX;
-        Stack[INCOMING_ESI_INDEX] = NextFrame->Registers.ESI;
-        Stack[INCOMING_EDI_INDEX] = NextFrame->Registers.EDI;
-        Stack[INCOMING_EBP_INDEX] = NextFrame->Registers.EBP;
-
-        // Restore stack-related registers based on privilege mode
-        // For user mode tasks, always use R3 positions for IRET
-        Stack[INCOMING_ESP_INDEX] = NextFrame->Registers.ESP;
-        Stack[INCOMING_SS_INDEX] = NextFrame->Registers.SS;
-
-        if (UserMode) {
-            Stack[INCOMING_R3_SS_INDEX + HasErrorCode] = NextFrame->Registers.SS;
-            Stack[INCOMING_R3_ESP_INDEX + HasErrorCode] = NextFrame->Registers.ESP;
-        }
-
-        // Restore CS, EIP, and EFLAGS
-        Stack[INCOMING_CS_INDEX + HasErrorCode] = NextFrame->Registers.CS;
-        Stack[INCOMING_EIP_INDEX + HasErrorCode] = NextFrame->Registers.EIP;
-        Stack[INCOMING_EFLAGS_INDEX + HasErrorCode] = NextFrame->Registers.EFlags;
-
-        // Restore error code if present
-        if (HasErrorCode) {
-            Stack[INCOMING_ERROR_CODE_INDEX] = NextFrame->ErrCode;
-        }
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-
-        DEBUG(TEXT("[RestoreFromInterruptFrame] CRITICAL DEBUG - Before Stack Restore"));
-        KernelLogText(
-            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] NextFrame: ESP=%x EIP=%x CS=%x"), NextFrame->Registers.ESP,
-            NextFrame->Registers.EIP, NextFrame->Registers.CS);
-        KernelLogText(
-            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] NextFrame: CR3=%x (page dir)"), NextFrame->Registers.CR3);
-        DEBUG(TEXT("[RestoreFromInterruptFrame] UserMode=%d"), UserMode);
-        DEBUG(TEXT("[RestoreFromInterruptFrame] ==== Stack at NextFrame->Registers.ESP:"));
-        KernelLogMem(LOG_DEBUG, NextFrame->Registers.ESP, 256);
-        DEBUG(TEXT("[RestoreFromInterruptFrame] ==== Current stack (ESP):"));
-        LINEAR CurrentEsp;
-        GetESP(CurrentEsp);
-        KernelLogMem(LOG_DEBUG, CurrentEsp, 256);
-
-        // Debug the stack data we're about to restore
-        DEBUG(TEXT("[RestoreFromInterruptFrame] Stack data restore:"));
-        KernelLogText(
-            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] EIP index %d: %x"), INCOMING_EIP_INDEX + HasErrorCode,
-            Stack[INCOMING_EIP_INDEX + HasErrorCode]);
-        KernelLogText(
-            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] CS index %d: %x"), INCOMING_CS_INDEX + HasErrorCode,
-            Stack[INCOMING_CS_INDEX + HasErrorCode]);
-        KernelLogText(
-            LOG_DEBUG, TEXT("[RestoreFromInterruptFrame] EFLAGS index %d: %x"), INCOMING_EFLAGS_INDEX + HasErrorCode,
-            Stack[INCOMING_EFLAGS_INDEX + HasErrorCode]);
-
-        DEBUG(TEXT("\n"));
-
-#endif
-    }
-    else {
-        ERROR(TEXT("[RestoreFromInterruptFrame] Invalid frame %x"), NextFrame);
-    }
 }

@@ -534,9 +534,6 @@ Interrupt_Clock
                                 └── ...
             └── UnlockMutex
                 └── ...
-└── RestoreFromInterruptFrame
-    └── KernelLogText
-        └── ...
 
 ## System calls
 

@@ -28,6 +28,5 @@
 #include "arch/i386/i386.h"
 
 LPINTERRUPT_FRAME BuildInterruptFrame(U32 intNo, U32 HasErrorCode, U32 ESP);
-void RestoreFromInterruptFrame(LPINTERRUPT_FRAME NextFrame, U32 ESP);
 
 #endif

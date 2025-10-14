@@ -33,7 +33,6 @@ BITS 32
 extern DisableIRQ
 extern EnableIRQ
 extern BuildInterruptFrame
-extern RestoreFromInterruptFrame
 extern LoadPageDirectory
 extern KernelLogText
 
