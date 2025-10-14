@@ -148,7 +148,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 if (DirectoryEntry->PageSize) {
                     PHYSICAL LargePhysical = (PHYSICAL)(DirectoryEntry->Address << 12);
 
-                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%d-%d -> 2MB page PA=%d Present=%u RW=%u Priv=%u Global=%u NX=%u"),
+                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%p-%p -> 2MB page PA=%p Present=%u RW=%u Priv=%u Global=%u NX=%u"),
                         DirectoryIndex,
                         (LPVOID)DirectoryBase,
                         (LPVOID)DirectoryEnd,
