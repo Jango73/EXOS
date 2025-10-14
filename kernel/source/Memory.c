@@ -312,9 +312,9 @@ static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) 
 /************************************************************************/
 
 /**
- * @brief Mark physical pages that are reserved or already used.
+ * @brief Public wrapper to mark reserved and used physical pages.
  */
-static void MarkUsedPhysicalMemoryInternal(void) {
+void MemoryMarkUsedPhysicalMemory(void) {
     UINT Start = 0;
     UINT End = (N_4MB) >> PAGE_SIZE_MUL;
     SetPhysicalPageRangeMark(Start, End, 1);
@@ -329,7 +329,7 @@ static void MarkUsedPhysicalMemoryInternal(void) {
             PHYSICAL Base = 0;
             UINT Size = 0;
 
-            DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %x, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
+            DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
 
             ArchClipPhysicalRange(Entry->Base, Entry->Size, &Base, &Size);
 
@@ -352,17 +352,8 @@ static void MarkUsedPhysicalMemoryInternal(void) {
         KernelStartup.MemorySize = MaxUsableRAM;
         KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
 
-        DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %lX"), KernelStartup.MemorySize);
+        DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %u"), KernelStartup.MemorySize);
     }
-}
-
-/************************************************************************/
-
-/**
- * @brief Public wrapper to mark reserved and used physical pages.
- */
-void MemoryMarkUsedPhysicalMemory(void) {
-    MarkUsedPhysicalMemoryInternal();
 }
 
 /************************************************************************/

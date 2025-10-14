@@ -811,7 +811,7 @@ void MemoryArchInitializeManager(void) {
 
     MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %x, %x, %x"), TempLinear1, TempLinear2, TempLinear3);
+    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %p, %p, %p"), TempLinear1, TempLinear2, TempLinear3);
 
     PHYSICAL NewPageDirectory = AllocPageDirectory();
 
@@ -825,11 +825,11 @@ void MemoryArchInitializeManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %x"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %p"), NewPageDirectory);
 
     LoadPageDirectory(NewPageDirectory);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %x"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %p"), NewPageDirectory);
 
     FlushTLB();
 

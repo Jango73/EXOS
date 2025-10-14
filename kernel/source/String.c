@@ -31,6 +31,118 @@
 /***************************************************************************/
 
 /**
+ * @brief Fills a memory region with a single byte value.
+ *
+ * Writes the lower 8 bits of the What parameter into each byte of the
+ * destination buffer for the requested size.
+ *
+ * @param Destination Pointer to the buffer to fill
+ * @param What Value whose low byte will be written
+ * @param Size Number of bytes to fill
+ */
+void MemorySet(LPVOID Destination, UINT What, UINT Size) {
+    SAFE_USE(Destination) {
+        U8* Dst = (U8*)Destination;
+        U8 Value = (U8)(What & 0xFF);
+
+        for (UINT Index = 0; Index < Size; Index++) {
+            Dst[Index] = Value;
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Copies a block of memory from source to destination.
+ *
+ * Performs a byte-by-byte copy of Size bytes. Behaviour is undefined when
+ * buffers overlap; use MemoryMove for overlapping regions.
+ *
+ * @param Destination Pointer to the destination buffer
+ * @param Source Pointer to the source buffer
+ * @param Size Number of bytes to copy
+ */
+void MemoryCopy(LPVOID Destination, LPCVOID Source, UINT Size) {
+    SAFE_USE_2(Destination, Source) {
+        U8* Dst = (U8*)Destination;
+        const U8* Src = (const U8*)Source;
+
+        for (UINT Index = 0; Index < Size; Index++) {
+            Dst[Index] = Src[Index];
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Compares two memory buffers.
+ *
+ * Compares Size bytes and returns -1, 0 or 1 depending on the lexical order
+ * of the buffers.
+ *
+ * @param First Pointer to the first buffer
+ * @param Second Pointer to the second buffer
+ * @param Size Number of bytes to compare
+ * @return Comparison result (-1, 0, 1)
+ */
+INT MemoryCompare(LPCVOID First, LPCVOID Second, UINT Size) {
+    if (Size == 0 || First == Second) return 0;
+
+    SAFE_USE_2(First, Second) {
+        const U8* Ptr1 = (const U8*)First;
+        const U8* Ptr2 = (const U8*)Second;
+
+        for (UINT Index = 0; Index < Size; Index++) {
+            if (Ptr1[Index] != Ptr2[Index]) {
+                return (Ptr1[Index] < Ptr2[Index]) ? -1 : 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Moves a block of memory, handling overlapping regions.
+ *
+ * Copies Size bytes from Source to Destination using forward or backward
+ * iteration depending on the layout of the buffers to ensure correct results
+ * when they overlap.
+ *
+ * @param Destination Pointer to the destination buffer
+ * @param Source Pointer to the source buffer
+ * @param Size Number of bytes to move
+ */
+void MemoryMove(LPVOID Destination, LPCVOID Source, UINT Size) {
+    if (Destination == Source || Size == 0) return;
+
+    SAFE_USE_2(Destination, Source) {
+        U8* Dst = (U8*)Destination;
+        const U8* Src = (const U8*)Source;
+
+        const U8* SrcEnd = Src + Size;
+
+        if (Dst < Src || Dst >= SrcEnd) {
+            for (UINT Index = 0; Index < Size; Index++) {
+                Dst[Index] = Src[Index];
+            }
+        } else {
+            UINT Index = Size;
+            while (Index > 0) {
+                Index--;
+                Dst[Index] = Src[Index];
+            }
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Tests if a character is alphabetic.
  *
  * @param Char Character to test
@@ -1117,117 +1229,3 @@ U32 ParseIPAddress(LPCSTR ipStr) {
 
     return Htonl((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]);
 }
-
-/***************************************************************************/
-
-/**
- * @brief Fills a memory region with a single byte value.
- *
- * Writes the lower 8 bits of the What parameter into each byte of the
- * destination buffer for the requested size.
- *
- * @param Destination Pointer to the buffer to fill
- * @param What Value whose low byte will be written
- * @param Size Number of bytes to fill
- */
-void MemorySet(LPVOID Destination, UINT What, UINT Size) {
-    SAFE_USE(Destination) {
-        U8* Dst = (U8*)Destination;
-        U8 Value = (U8)(What & 0xFF);
-
-        for (UINT Index = 0; Index < Size; Index++) {
-            Dst[Index] = Value;
-        }
-    }
-}
-
-/***************************************************************************/
-
-/**
- * @brief Copies a block of memory from source to destination.
- *
- * Performs a byte-by-byte copy of Size bytes. Behaviour is undefined when
- * buffers overlap; use MemoryMove for overlapping regions.
- *
- * @param Destination Pointer to the destination buffer
- * @param Source Pointer to the source buffer
- * @param Size Number of bytes to copy
- */
-void MemoryCopy(LPVOID Destination, LPCVOID Source, UINT Size) {
-    SAFE_USE_2(Destination, Source) {
-        U8* Dst = (U8*)Destination;
-        const U8* Src = (const U8*)Source;
-
-        for (UINT Index = 0; Index < Size; Index++) {
-            Dst[Index] = Src[Index];
-        }
-    }
-}
-
-/***************************************************************************/
-
-/**
- * @brief Compares two memory buffers.
- *
- * Compares Size bytes and returns -1, 0 or 1 depending on the lexical order
- * of the buffers.
- *
- * @param First Pointer to the first buffer
- * @param Second Pointer to the second buffer
- * @param Size Number of bytes to compare
- * @return Comparison result (-1, 0, 1)
- */
-INT MemoryCompare(LPCVOID First, LPCVOID Second, UINT Size) {
-    if (Size == 0 || First == Second) return 0;
-
-    SAFE_USE_2(First, Second) {
-        const U8* Ptr1 = (const U8*)First;
-        const U8* Ptr2 = (const U8*)Second;
-
-        for (UINT Index = 0; Index < Size; Index++) {
-            if (Ptr1[Index] != Ptr2[Index]) {
-                return (Ptr1[Index] < Ptr2[Index]) ? -1 : 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Moves a block of memory, handling overlapping regions.
- *
- * Copies Size bytes from Source to Destination using forward or backward
- * iteration depending on the layout of the buffers to ensure correct results
- * when they overlap.
- *
- * @param Destination Pointer to the destination buffer
- * @param Source Pointer to the source buffer
- * @param Size Number of bytes to move
- */
-void MemoryMove(LPVOID Destination, LPCVOID Source, UINT Size) {
-    if (Destination == Source || Size == 0) return;
-
-    SAFE_USE_2(Destination, Source) {
-        U8* Dst = (U8*)Destination;
-        const U8* Src = (const U8*)Source;
-
-        const U8* SrcEnd = Src + Size;
-
-        if (Dst < Src || Dst >= SrcEnd) {
-            for (UINT Index = 0; Index < Size; Index++) {
-                Dst[Index] = Src[Index];
-            }
-        } else {
-            UINT Index = Size;
-            while (Index > 0) {
-                Index--;
-                Dst[Index] = Src[Index];
-            }
-        }
-    }
-}
-
-/***************************************************************************/
