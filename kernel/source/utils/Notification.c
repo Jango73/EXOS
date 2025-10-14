@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -79,7 +80,7 @@ U32 Notification_Register(LPNOTIFICATION_CONTEXT Context, U32 EventID, NOTIFICAT
     LPNOTIFICATION_ENTRY Entry;
 
     if (!Context || !Callback) {
-        DEBUG(TEXT("[Notification_Register] Invalid parameters: Context=%x Callback=%x"), (U32)Context, (U32)Callback);
+        DEBUG(TEXT("[Notification_Register] Invalid parameters: Context=%p Callback=%p"), Context, Callback);
         return 0;
     }
 

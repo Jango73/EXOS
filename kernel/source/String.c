@@ -582,64 +582,18 @@ U32 StringToU32(LPCSTR Text) {
     return Value;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
-#ifdef __EXOS_32__
-// Helper union used to split a 64-bit magnitude without relying on compiler-provided
-// runtime helpers when targeting the 32-bit toolchain.
-typedef union tag_U64_SPLIT {
-    unsigned long long Value;
-    struct {
-        U32 Low;
-        U32 High;
-    } Parts;
-} U64_SPLIT;
+// Helper macro for division with remainder - divides n by base and returns remainder
+#define DoDiv(n, base)                \
+    ({                                \
+        int __res;                    \
+        __res = ((U32)n) % (U32)Base; \
+        n = ((U32)n) / (U32)Base;     \
+        __res;                        \
+    })
 
-// Manual 64-bit by 32-bit division that only relies on 32-bit operations. This keeps
-// the i386 build self-contained by avoiding references to __udivdi3/__umoddi3.
-static unsigned long long DivideUnsignedMagnitude(unsigned long long Value, U32 Base, U32* Remainder) {
-    U64_SPLIT Input;
-    U64_SPLIT Output;
-    U32 RemainderValue = 0;
-    const U32 BaseValue = Base;
-
-    Input.Value = Value;
-    Output.Parts.High = 0;
-    Output.Parts.Low = 0;
-
-    for (INT Bit = 31; Bit >= 0; Bit--) {
-        RemainderValue <<= 1;
-        if ((Input.Parts.High >> Bit) & 1u) {
-            RemainderValue |= 1u;
-        }
-        if (RemainderValue >= BaseValue) {
-            RemainderValue -= BaseValue;
-            Output.Parts.High |= (1u << Bit);
-        }
-    }
-
-    for (INT Bit = 31; Bit >= 0; Bit--) {
-        RemainderValue <<= 1;
-        if ((Input.Parts.Low >> Bit) & 1u) {
-            RemainderValue |= 1u;
-        }
-        if (RemainderValue >= BaseValue) {
-            RemainderValue -= BaseValue;
-            Output.Parts.Low |= (1u << Bit);
-        }
-    }
-
-    *Remainder = RemainderValue;
-    return Output.Value;
-}
-#else
-static unsigned long long DivideUnsignedMagnitude(unsigned long long Value, U32 Base, U32* Remainder) {
-    *Remainder = (U32)(Value % (unsigned long long)Base);
-    return Value / (unsigned long long)Base;
-}
-#endif
-
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Converts a number to formatted string representation in specified base.
@@ -657,8 +611,7 @@ static unsigned long long DivideUnsignedMagnitude(unsigned long long Value, U32 
  * @param IsNegative TRUE when the original value was negative
  * @return Pointer to end of formatted string
  */
-LPSTR NumberToString(
-    LPSTR Text, unsigned long long Number, I32 Base, I32 Size, I32 Precision, I32 Type, BOOL IsNegative) {
+LPSTR NumberToString(LPSTR Text, UINT Number, I32 Base, I32 Size, I32 Precision, I32 Type, BOOL IsNegative) {
     STR c, Sign, Temp[66];                                         // Temp buffer for digits (max needed for base 2)
     LPCSTR Digits = TEXT("0123456789abcdefghijklmnopqrstuvwxyz");  // Lowercase digits
     INT i;
@@ -678,9 +631,10 @@ LPSTR NumberToString(
 
     // Handle sign processing
     if (Type & PF_SIGN) {
-        if (IsNegative) {
+        if (Number < 0) {
             Sign = '-';  // Negative number
-            Size--;       // Reserve space for sign
+            Number = -Number;
+            Size--;  // Reserve space for sign
         } else if (Type & PF_PLUS) {
             Sign = '+';  // Force + for positive
             Size--;
@@ -693,23 +647,15 @@ LPSTR NumberToString(
     // Special prefixes ("0" for octal, "0x" for hex)
     if (Type & PF_SPECIAL) {
         if (Base == 8) Size--;  // Reserve space for "0"
-        else if (Base == 16) Size -= 2;  // Reserve space for "0x"
     }
 
     i = 0;
 
     // Convert number to digits (stored in reverse order)
-    if (Number == 0) {
+    if (Number == 0)
         Temp[i++] = '0';  // Special case for zero
-    } else {
-        unsigned long long WorkingNumber = Number;
-
-        while (WorkingNumber != 0ull) {
-            U32 Remainder = 0;
-            WorkingNumber = DivideUnsignedMagnitude(WorkingNumber, (U32)Base, &Remainder);
-            Temp[i++] = Digits[Remainder];
-        }
-    }
+    else
+        while (Number != 0) Temp[i++] = Digits[DoDiv(Number, Base)];
 
     // Ensure minimum precision (pad with zeros if needed)
     if (i > Precision) Precision = i;
@@ -730,7 +676,7 @@ LPSTR NumberToString(
             *Text++ = '0';  // Octal prefix
         else if (Base == 16) {
             *Text++ = '0';  // Hex prefix
-            *Text++ = (Type & PF_LARGE) ? 'X' : 'x';
+            *Text++ = 'x';
         }
     }
 
@@ -913,7 +859,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
             FieldWidth = SkipAToI(&Format);
         } else if (*Format == '*') {
             Format++;
-            FieldWidth = VarArg(Args, int);
+            FieldWidth = VarArg(Args, INT);
             if (FieldWidth < 0) {
                 FieldWidth = -FieldWidth;
                 Flags |= PF_LEFT;
@@ -927,7 +873,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 Precision = SkipAToI(&Format);
             } else if (*Format == '*') {
                 Format++;
-                Precision = VarArg(Args, int);
+                Precision = VarArg(Args, INT);
             }
             if (Precision < 0) Precision = 0;
         }
@@ -950,7 +896,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 if (!(Flags & PF_LEFT)) {
                     while (--FieldWidth > 0) *Dst++ = STR_SPACE;
                 }
-                *Dst++ = (STR)VarArg(Args, int);
+                *Dst++ = (STR)VarArg(Args, INT);
                 while (--FieldWidth > 0) *Dst++ = STR_SPACE;
                 continue;
 
@@ -976,8 +922,8 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                     Flags |= PF_ZEROPAD | PF_LARGE;
                 }
                 Base = 16;
-                LINEAR PointerValue = (LINEAR)VarArg(Args, void*);
-                NumberValue = (unsigned long long)PointerValue;
+                LINEAR PointerValue = (LINEAR)VarArg(Args, LPVOID);
+                NumberValue = (UINT)PointerValue;
                 NumberIsPreloaded = TRUE;
                 NumberIsNegative = FALSE;
                 goto HandleNumber;
@@ -1006,7 +952,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 break;
             case 'f':
                 {
-                    F32 FloatValue = (F32)VarArg(Args, double);
+                    F32 FloatValue = (F32)VarArg(Args, F64);
                     STR FloatBuffer[64];
                     FloatToString(FloatBuffer, FloatValue, Precision);
 
@@ -1036,48 +982,48 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
         if (!NumberIsPreloaded) {
             if (Flags & PF_SIGN) {
                 if (QualifierIsLongLong) {
-                    long long SignedValue = VarArg(Args, long long);
+                    I64 SignedValue = VarArg(Args, I64);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (unsigned long long)(-SignedValue);
+                        NumberValue = (U64)(-SignedValue);
                     } else {
-                        NumberValue = (unsigned long long)SignedValue;
+                        NumberValue = (U64)SignedValue;
                     }
                 } else if (Qualifier == 'l' || Qualifier == 'L') {
-                    long SignedValue = VarArg(Args, long);
+                    I32 SignedValue = VarArg(Args, I32);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (unsigned long long)(-SignedValue);
+                        NumberValue = (U64)(-SignedValue);
                     } else {
-                        NumberValue = (unsigned long long)SignedValue;
+                        NumberValue = (U64)SignedValue;
                     }
                 } else if (Qualifier == 'h') {
-                    int RawValue = VarArg(Args, int);
-                    short ShortValue = (short)RawValue;
+                    INT RawValue = VarArg(Args, INT);
+                    I16 ShortValue = (I16)RawValue;
                     if (ShortValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (unsigned long long)(-(long long)ShortValue);
+                        NumberValue = (U64)(-(I64)ShortValue);
                     } else {
-                        NumberValue = (unsigned long long)ShortValue;
+                        NumberValue = (U64)ShortValue;
                     }
                 } else {
-                    int SignedValue = VarArg(Args, int);
+                    INT SignedValue = VarArg(Args, INT);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (unsigned long long)(-SignedValue);
+                        NumberValue = (U64)(-SignedValue);
                     } else {
-                        NumberValue = (unsigned long long)SignedValue;
+                        NumberValue = (U64)SignedValue;
                     }
                 }
             } else {
                 if (QualifierIsLongLong) {
-                    NumberValue = VarArg(Args, unsigned long long);
+                    NumberValue = VarArg(Args, U64);
                 } else if (Qualifier == 'l' || Qualifier == 'L') {
-                    NumberValue = (unsigned long long)VarArg(Args, unsigned long);
+                    NumberValue = (U64)VarArg(Args, U32);
                 } else if (Qualifier == 'h') {
-                    NumberValue = (unsigned long long)(unsigned short)VarArg(Args, unsigned int);
+                    NumberValue = (U64)(U16)VarArg(Args, UINT);
                 } else {
-                    NumberValue = (unsigned long long)VarArg(Args, unsigned int);
+                    NumberValue = (U64)VarArg(Args, UINT);
                 }
             }
         }

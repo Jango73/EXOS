@@ -42,7 +42,7 @@ static U64 BuildLinearAddress(UINT Pml4Index, UINT PdptIndex, UINT DirectoryInde
 /***************************************************************************/
 
 static U64 BuildRangeEnd(U64 Base, U64 Span) {
-    return ArchCanonicalizeAddress(Base + (Span - 1ull));
+    return ArchCanonicalizeAddress(Base + (Span - 1));
 }
 
 /***************************************************************************/
@@ -72,7 +72,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
         U64 LinearEnd = BuildRangeEnd(LinearBase, 1ull << 39);
         PHYSICAL PdptPhysical = (PHYSICAL)(Pml4Entry->Address << 12);
 
-        DEBUG(TEXT("[LogPageDirectory64] PML4E[%03u]: VA=%p-%p -> PDPT_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
+        DEBUG(TEXT("[LogPageDirectory64] PML4E[%u]: VA=%p-%p -> PDPT_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
             Pml4Index,
             (LPVOID)LinearBase,
             (LPVOID)LinearEnd,
@@ -103,7 +103,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
             if (PdptEntry->PageSize) {
                 PHYSICAL HugePhysical = (PHYSICAL)(PdptEntry->Address << 12);
 
-                DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%03u]: VA=%p-%p -> 1GB page PA=%p Present=%u RW=%u Priv=%u NX=%u"),
+                DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%u]: VA=%p-%p -> 1GB page PA=%p Present=%u RW=%u Priv=%u NX=%u"),
                     PdptIndex,
                     (LPVOID)PdptBase,
                     (LPVOID)PdptEnd,
@@ -117,7 +117,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
             PHYSICAL PageDirectoryPhysical = (PHYSICAL)(PdptEntry->Address << 12);
 
-            DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%03u]: VA=%p-%p -> PD_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
+            DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%u]: VA=%p-%p -> PD_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
                 PdptIndex,
                 (LPVOID)PdptBase,
                 (LPVOID)PdptEnd,
@@ -148,31 +148,31 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 if (DirectoryEntry->PageSize) {
                     PHYSICAL LargePhysical = (PHYSICAL)(DirectoryEntry->Address << 12);
 
-                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%d-%d -> 2MB page PA=%d Present=%u RW=%u Priv=%u Global=%u NX=%u"),
+                    DEBUG(TEXT("[LogPageDirectory64]     PDE[%u]: VA=%d-%d -> 2MB page PA=%d Present=%u RW=%u Priv=%u Global=%u NX=%u"),
                         DirectoryIndex,
                         (LPVOID)DirectoryBase,
                         (LPVOID)DirectoryEnd,
                         (LPVOID)LargePhysical,
-                        (U32)DirectoryEntry->Present,
-                        (U32)DirectoryEntry->ReadWrite,
-                        (U32)DirectoryEntry->Privilege,
-                        (U32)DirectoryEntry->Global,
-                        (U32)DirectoryEntry->NoExecute);
+                        (UINT)DirectoryEntry->Present,
+                        (UINT)DirectoryEntry->ReadWrite,
+                        (UINT)DirectoryEntry->Privilege,
+                        (UINT)DirectoryEntry->Global,
+                        (UINT)DirectoryEntry->NoExecute);
                     continue;
                 }
 
                 PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntry->Address << 12);
 
-                DEBUG(TEXT("[LogPageDirectory64]     PDE[%03u]: VA=%p-%p -> PT_PA=%p Present=%u RW=%u Priv=%u Global=%u NX=%u"),
+                DEBUG(TEXT("[LogPageDirectory64]     PDE[%u]: VA=%p-%p -> PT_PA=%p Present=%u RW=%u Priv=%u Global=%u NX=%u"),
                     DirectoryIndex,
                     (LPVOID)DirectoryBase,
                     (LPVOID)DirectoryEnd,
                     (LPVOID)TablePhysical,
-                    (U32)DirectoryEntry->Present,
-                    (U32)DirectoryEntry->ReadWrite,
-                    (U32)DirectoryEntry->Privilege,
-                    (U32)DirectoryEntry->Global,
-                    (U32)DirectoryEntry->NoExecute);
+                    (UINT)DirectoryEntry->Present,
+                    (UINT)DirectoryEntry->ReadWrite,
+                    (UINT)DirectoryEntry->Privilege,
+                    (UINT)DirectoryEntry->Global,
+                    (UINT)DirectoryEntry->NoExecute);
 
                 LINEAR TableLinear = MapTempPhysicalPage2(TablePhysical);
 
@@ -213,7 +213,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                         U64 TableVirtual = BuildLinearAddress(Pml4Index, PdptIndex, DirectoryIndex, TableIndex, 0);
                         PHYSICAL PagePhysical = (PHYSICAL)(TableEntry->Address << 12);
 
-                        DEBUG(TEXT("[LogPageDirectory64]       PTE[%03u]: VA=%p -> PA=%p Present=%u RW=%u Priv=%u Dirty=%u Global=%u NX=%u"),
+                        DEBUG(TEXT("[LogPageDirectory64]       PTE[%u]: VA=%p -> PA=%p Present=%u RW=%u Priv=%u Dirty=%u Global=%u NX=%u"),
                             TableIndex,
                             (LPVOID)TableVirtual,
                             (LPVOID)PagePhysical,
@@ -230,7 +230,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 }
 
                 if (MappedCount > 0) {
-                    DEBUG(TEXT("[LogPageDirectory64]       Total mapped pages in PT[%03u]: %u/%u"),
+                    DEBUG(TEXT("[LogPageDirectory64]       Total mapped pages in PT[%u]: %u/%u"),
                         DirectoryIndex,
                         MappedCount,
                         PAGE_TABLE_NUM_ENTRIES);
@@ -259,5 +259,3 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
     DEBUG(TEXT("[LogPageDirectory64] End of page directory"));
 }
-
-/***************************************************************************/

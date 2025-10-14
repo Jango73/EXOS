@@ -71,8 +71,7 @@ void U32ToHexString(U32, LPSTR);
 U32 HexStringToU32(LPCSTR);
 I32 StringToI32(LPCSTR);
 U32 StringToU32(LPCSTR);
-LPSTR NumberToString(
-    LPSTR Text, unsigned long long Number, I32 Base, I32 Size, I32 Precision, I32 Type, BOOL IsNegative);
+LPSTR NumberToString(LPSTR Text, UINT Number, I32 Base, I32 Size, I32 Precision, I32 Type, BOOL IsNegative);
 void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args);
 void StringPrintFormat(LPSTR Destination, LPCSTR Format, ...);
 U32 ParseIPAddress(LPCSTR ipStr);
