@@ -1,15 +1,23 @@
-
-#ifndef string_h
-#define string_h
+#ifndef THIRD_INCLUDE_STRING_H
+#define THIRD_INCLUDE_STRING_H
 
 #include "sys/types.h"
 
-#error "MERDE"
+// Memory manipulation helpers provided by the runtime
+void memcpy(void* destination, const void* source, size_t length);
+void* memchr(const void* buffer, int value, size_t length);
+int memcmp(const void* left, const void* right, size_t length);
+void* memmove(void* destination, const void* source, size_t length);
+void memset(void* buffer, int value, size_t length);
 
-// Memory manipulation functions - implemented in runtime
-void* memcpy(void* dest, const void* src, size_t n);
-void* memmove(void* dest, const void* src, size_t n);
-void* memset(void* s, int c, size_t n);
-int memcmp(const void* s1, const void* s2, size_t n);
+// Basic string helpers provided by the runtime
+size_t strlen(const char* string);
+char* strcpy(char* destination, const char* source);
+char* strncpy(char* destination, const char* source, size_t length);
+char* strcat(char* destination, const char* source);
+int strcmp(const char* left, const char* right);
+int strncmp(const char* left, const char* right, size_t length);
+char* strchr(const char* string, int character);
+char* strstr(const char* haystack, const char* needle);
 
-#endif	// string_h
+#endif  // THIRD_INCLUDE_STRING_H

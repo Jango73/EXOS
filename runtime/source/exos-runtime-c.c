@@ -127,6 +127,21 @@ int memerror(void) {
 
 /************************************************************************/
 
+void* memchr(const void* buffer, int value, size_t length) {
+    const unsigned char* bytes = (const unsigned char*)buffer;
+    const unsigned char target = (unsigned char)value;
+
+    for (size_t index = 0; index < length; ++index) {
+        if (bytes[index] == target) {
+            return (void*)(bytes + index);
+        }
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
 int sprintf(char* str, const char* fmt, ...) {
     VarArgList Args;
     VarArgStart(Args, fmt);

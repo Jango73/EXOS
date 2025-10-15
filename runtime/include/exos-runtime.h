@@ -148,15 +148,16 @@ extern void debug(char* format, ...);
 
 extern uint_t exoscall(uint_t function, uint_t parameter);
 extern void __exit__(int_t code);
-extern unsigned strcmp(const char*, const char*);
-extern int strncmp(const char*, const char*, unsigned);
+extern unsigned strcmp(const char* left, const char* right);
+extern int strncmp(const char* left, const char* right, size_t length);
 extern char* strstr(const char* haystack, const char* needle);
 extern char* strchr(const char* string, int character);
-extern void memset(void*, int, int);
-extern void memcpy(void*, const void*, int);
-extern void* memmove(void*, const void*, int);
-extern unsigned strlen(const char*);
-extern char* strcpy(char*, const char*);
+extern void memset(void* buffer, int value, size_t length);
+extern void memcpy(void* destination, const void* source, size_t length);
+extern void* memchr(const void* buffer, int value, size_t length);
+extern void* memmove(void* destination, const void* source, size_t length);
+extern unsigned strlen(const char* string);
+extern char* strcpy(char* destination, const char* source);
 
 // Command line arguments
 extern int _argc;
