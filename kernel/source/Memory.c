@@ -307,6 +307,29 @@ static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) 
 /************************************************************************/
 
 /**
+ * @brief Mark a physical address range as used in the bitmap.
+ * @param Base Physical start address of the range.
+ * @param Length Length of the range in bytes.
+ */
+void MarkPhysicalRangeUsed(PHYSICAL Base, UINT Length) {
+    if (Length == 0u) return;
+
+    PHYSICAL Start = (PHYSICAL)((U64)Base & PAGE_MASK);
+    PHYSICAL End = (PHYSICAL)PAGE_ALIGN((U64)Base + (U64)Length);
+
+    if (End <= Start) return;
+
+    UINT FirstPage = (UINT)(Start >> PAGE_SIZE_MUL);
+    UINT PageCount = (UINT)((End - Start) >> PAGE_SIZE_MUL);
+
+    if (PageCount == 0u) PageCount = 1u;
+
+    SetPhysicalPageRangeMark(FirstPage, PageCount, 1u);
+}
+
+/************************************************************************/
+
+/**
  * @brief Update kernel memory metrics from the Multiboot memory map.
  */
 void UpdateKernelMemoryMetricsFromMultibootMap(void) {

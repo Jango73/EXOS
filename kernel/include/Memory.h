@@ -49,6 +49,7 @@ void InitializeMemoryManager(void);
 void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear3);
 void UpdateKernelMemoryMetricsFromMultibootMap(void);
 void MarkUsedPhysicalMemory(void);
+void MarkPhysicalRangeUsed(PHYSICAL Base, UINT Length);
 
 // Uses temp page tables to get access to random physical pages
 LINEAR MapTempPhysicalPage(PHYSICAL Physical);

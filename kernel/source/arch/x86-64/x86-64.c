@@ -973,6 +973,7 @@ void ArchInitializeMemoryManager(void) {
     DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %x"), BitmapBytesAligned);
 
     MemorySet(Kernel.PPB, 0, BitmapBytesAligned);
+    MarkPhysicalRangeUsed(PpbPhysical, BitmapBytesAligned);
 
     MarkUsedPhysicalMemory();
 
