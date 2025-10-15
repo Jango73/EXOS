@@ -25,7 +25,7 @@
 #include "utils/Regex.h"
 
 #include "Base.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 // Internal helpers

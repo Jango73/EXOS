@@ -27,7 +27,7 @@
 #include "Heap.h"
 #include "arch/intel/i386-Asm.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 

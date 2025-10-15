@@ -45,7 +45,7 @@
 #include "utils/Path.h"
 #include "Process.h"
 #include "Script.h"
-#include "String.h"
+#include "CoreString.h"
 #include "utils/StringArray.h"
 #include "System.h"
 #include "User.h"

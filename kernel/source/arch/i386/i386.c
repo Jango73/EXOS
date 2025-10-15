@@ -30,7 +30,7 @@
 #include "Process.h"
 #include "arch/i386/i386-Log.h"
 #include "Stack.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 #include "Task.h"
 #include "Text.h"

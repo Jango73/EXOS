@@ -29,7 +29,7 @@
 #include "../include/vbr-payload-shared.h"
 #include "arch/i386/i386.h"
 #include "SerialPort.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 

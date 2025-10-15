@@ -28,7 +28,7 @@
 #include "Log.h"
 #include "Mouse.h"
 #include "Process.h"
-#include "String.h"
+#include "CoreString.h"
 #include "User.h"
 
 /***************************************************************************/

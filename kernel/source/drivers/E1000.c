@@ -31,7 +31,7 @@
 #include "Memory.h"
 #include "Network.h"
 #include "drivers/PCI.h"
-#include "String.h"
+#include "CoreString.h"
 #include "User.h"
 
 /************************************************************************/

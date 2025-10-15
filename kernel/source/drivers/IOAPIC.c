@@ -28,7 +28,7 @@
 #include "InterruptController.h"
 #include "Memory.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /***************************************************************************/
 

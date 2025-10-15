@@ -31,7 +31,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Process.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 #include "Text.h"
 

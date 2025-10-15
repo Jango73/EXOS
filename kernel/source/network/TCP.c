@@ -33,7 +33,7 @@
 #include "Heap.h"
 #include "utils/Notification.h"
 #include "utils/Helpers.h"
-#include "String.h"
+#include "CoreString.h"
 #include "utils/NetworkChecksum.h"
 #include "utils/Hysteresis.h"
 #include "Device.h"

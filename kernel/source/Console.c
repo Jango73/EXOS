@@ -28,7 +28,7 @@
 #include "drivers/Keyboard.h"
 #include "Log.h"
 #include "Mutex.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 #include "VKey.h"
 #include "VarArg.h"

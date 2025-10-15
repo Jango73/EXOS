@@ -26,7 +26,7 @@
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /***************************************************************************/
 

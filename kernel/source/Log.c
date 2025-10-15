@@ -29,7 +29,7 @@
 #include "Memory.h"
 #include "Process.h"
 #include "SerialPort.h"
-#include "String.h"
+#include "CoreString.h"
 #include "Text.h"
 #include "VarArg.h"
 

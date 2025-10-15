@@ -37,7 +37,7 @@
 #include "Endianness.h"
 #include "Socket.h"
 #include "utils/Helpers.h"
-#include "String.h"
+#include "CoreString.h"
 #include "utils/TOML.h"
 
 /************************************************************************/

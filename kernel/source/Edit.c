@@ -30,7 +30,7 @@
 #include "drivers/Keyboard.h"
 #include "List.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 #include "User.h"
 #include "VKey.h"
 

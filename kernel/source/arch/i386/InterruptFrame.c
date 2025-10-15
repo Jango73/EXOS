@@ -149,7 +149,7 @@
 #include "arch/i386/i386.h"
 #include "Log.h"
 #include "Memory.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 
 /************************************************************************/

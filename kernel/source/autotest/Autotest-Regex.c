@@ -26,7 +26,7 @@
 #include "Base.h"
 #include "Log.h"
 #include "utils/Regex.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 

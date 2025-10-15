@@ -27,7 +27,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "network/IPv4.h"
-#include "String.h"
+#include "CoreString.h"
 #include "Endianness.h"
 
 /************************************************************************/

@@ -25,7 +25,7 @@
 #include "arch/intel/i386-Asm.h"
 
 #include "Heap.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 
 /*************************************************************************************************/

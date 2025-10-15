@@ -24,7 +24,7 @@
 
 #include "../include/vbr-realmode-utils.h"
 #include "arch/i386/i386.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 

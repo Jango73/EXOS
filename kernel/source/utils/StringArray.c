@@ -25,7 +25,7 @@
 #include "utils/StringArray.h"
 
 #include "Heap.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 

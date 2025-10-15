@@ -29,7 +29,7 @@
 #include "ID.h"
 #include "Log.h"
 #include "Memory.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 #include "utils/NetworkChecksum.h"
 

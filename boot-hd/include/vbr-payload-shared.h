@@ -25,7 +25,7 @@
 #ifndef VBR_PAYLOAD_SHARED_H_INCLUDED
 #define VBR_PAYLOAD_SHARED_H_INCLUDED
 
-#include "String.h"
+#include "CoreString.h"
 #include "vbr-multiboot.h"
 #include "vbr-realmode-utils.h"
 

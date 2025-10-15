@@ -45,7 +45,7 @@
 #include "List.h"
 #include "Memory.h"
 #include "vbr-multiboot.h"
-#include "String.h"
+#include "CoreString.h"
 #include "Text.h"
 #include "User.h"
 #include "UserAccount.h"

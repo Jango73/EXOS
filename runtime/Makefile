@@ -45,7 +45,7 @@ LDFLAGS = -T linker.ld -nostdlib -Map=$(BUILD_DIR)/runtime/exos-runtime.map
 
 RUNTIME_LIB = $(BUILD_DIR)/runtime/libexos.a
 
-SRC_C   = $(wildcard source/*.c) ../kernel/source/String.c ../kernel/source/utils/AdaptiveDelay.c
+SRC_C   = $(wildcard source/*.c) ../kernel/source/CoreString.c ../kernel/source/utils/AdaptiveDelay.c
 SRC_CXX = $(wildcard source/*.cpp)
 SRC_S   = $(wildcard source/*.asm) $(wildcard source/$(ARCH)/*.asm)
 

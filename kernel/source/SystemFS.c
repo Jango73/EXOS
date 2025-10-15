@@ -43,7 +43,7 @@
 #include "List.h"
 #include "Log.h"
 #include "utils/Path.h"
-#include "String.h"
+#include "CoreString.h"
 #include "utils/TOML.h"
 #include "User.h"
 

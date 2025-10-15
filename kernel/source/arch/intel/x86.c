@@ -23,7 +23,7 @@
 
 #include "arch/Disassemble.h"
 #include "Memory.h"
-#include "String.h"
+#include "CoreString.h"
 #include "arch/intel/i386-Asm.h"
 
 /***************************************************************************/

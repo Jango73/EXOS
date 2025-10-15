@@ -27,7 +27,7 @@
 #include "drivers/LocalAPIC.h"
 #include "Log.h"
 #include "Memory.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 
 /***************************************************************************/

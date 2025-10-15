@@ -28,7 +28,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "network/TCP.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 

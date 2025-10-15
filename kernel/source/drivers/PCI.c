@@ -27,7 +27,7 @@
 #include "Base.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /***************************************************************************/
 // PCI config mechanism #1 (0xCF8/0xCFC)

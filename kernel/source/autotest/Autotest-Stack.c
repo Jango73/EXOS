@@ -27,7 +27,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Stack.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 
