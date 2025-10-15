@@ -876,3 +876,5 @@ Text:
 
 TestFarCallEnd:
 
+section .note.GNU-stack noalloc noexec nowrite align=1
+

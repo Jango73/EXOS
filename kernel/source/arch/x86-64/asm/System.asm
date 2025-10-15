@@ -121,7 +121,7 @@ SYS_FUNC_END
 
 SYS_FUNC_BEGIN EnablePaging
     mov     rax, cr0
-    or      rax, CR0_PAGING
+    bts     rax, 31
     mov     cr0, rax
 SYS_FUNC_END
 
