@@ -1,8 +1,9 @@
-/* Empty zlib.h stub for kernel compilation */
-#ifndef ZLIB_H
-#define ZLIB_H
 
-/* Stub definitions to prevent compilation errors */
-typedef unsigned long uLong;
+#ifndef zlib_h
+#define zlib_h
 
-#endif /* ZLIB_H */
+// Empty zlib.h stub for kernel compilation
+
+#include "sys/types.h"
+
+#endif	// zlib_h

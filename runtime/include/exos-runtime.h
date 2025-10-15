@@ -73,6 +73,7 @@ extern "C" {
     typedef unsigned int uint_t;
     typedef signed int int_t;
     typedef unsigned int size_t;
+    typedef unsigned int fpos_t;
 #elif defined(__GNUC__) || defined(__clang__)
     typedef unsigned char uint8_t;
     typedef signed char int8_t;
@@ -83,6 +84,7 @@ extern "C" {
     typedef unsigned long uint_t;
     typedef signed long int_t;
     typedef unsigned long size_t;
+    typedef unsigned long fpos_t;
 #else
     #error "Unsupported compiler for Base.h"
 #endif
@@ -146,22 +148,26 @@ extern void debug(char* format, ...);
 
 /************************************************************************/
 
-extern uint_t exoscall(uint_t function, uint_t parameter);
-extern void __exit__(int_t code);
-extern unsigned strcmp(const char*, const char*);
-extern int strncmp(const char*, const char*, unsigned);
-extern char* strstr(const char* haystack, const char* needle);
-extern char* strchr(const char* string, int character);
-extern void memset(void*, int, int);
-extern void memcpy(void*, const void*, int);
-extern void* memmove(void*, const void*, int);
-extern unsigned strlen(const char*);
-extern char* strcpy(char*, const char*);
-
 // Command line arguments
 extern int _argc;
 extern char** _argv;
 extern void _SetupArguments(void);
+
+extern uint_t exoscall(uint_t function, uint_t parameter);
+extern void __exit__(int_t code);
+
+/************************************************************************/
+
+extern unsigned strcmp(const char*, const char*);
+extern int strncmp(const char*, const char*, unsigned);
+extern char* strstr(const char* haystack, const char* needle);
+extern char* strchr(const char* string, int character);
+extern void memset(void*, int, size_t);
+extern void memcpy(void*, const void*, size_t);
+extern void* memmove(void*, const void*, size_t);
+extern int memcmp(const void* s1, const void* s2, size_t n);
+extern unsigned strlen(const char*);
+extern char* strcpy(char*, const char*);
 
 /************************************************************************/
 
@@ -192,8 +198,6 @@ typedef struct __iobuf {
 } FILE;
 
 /************************************************************************/
-
-typedef long fpos_t;
 
 extern FILE* fopen(const char*, const char*);
 extern size_t fread(void*, size_t, size_t, FILE*);

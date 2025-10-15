@@ -24,7 +24,7 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-CFLAGS  = -g -Wall -Wextra -O0 \
+CFLAGS  = -g -Wall -Wextra -O0 -nostdinc \
 	-ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
