@@ -84,7 +84,7 @@ PHYSICAL AllocPageDirectory(void) {
 
     UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);           // 4MB directory slot for VMA_KERNEL
     UINT DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
-    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;                // Kernel physical base
+    PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;                // Kernel physical base
     UINT Index;
 
     // Allocate required physical pages (PD + 3 PTs)
@@ -299,7 +299,7 @@ PHYSICAL AllocUserPageDirectory(void) {
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
     UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);
-    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;
+    PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
     UINT Index;
 
     PMA_Directory = AllocPhysicalPage();
@@ -803,8 +803,26 @@ void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* Ne
 void ArchInitializeMemoryManager(void) {
     DEBUG(TEXT("[ArchInitializeMemoryManager] Enter"));
 
-    Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
-    MemorySet(Kernel.PPB, 0, N_128KB);
+    UpdateKernelMemoryMetricsFromE820();
+
+    if (KernelStartup.PageCount == 0) {
+        ConsolePanic(TEXT("Detected memory = 0"));
+    }
+
+    UINT BitmapBytes = (KernelStartup.PageCount + 7u) >> MUL_8;
+    UINT BitmapBytesAligned = (UINT)PAGE_ALIGN(BitmapBytes);
+
+    PHYSICAL KernelSpan = (PHYSICAL)KernelStartup.KernelSize + (PHYSICAL)N_512KB;
+    PHYSICAL MapSize = (PHYSICAL)PAGE_ALIGN(KernelSpan);
+    PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize;
+    PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
+
+    Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
+
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %lX"), BitmapBytesAligned);
+
+    MemorySet(Kernel.PPB, 0, BitmapBytesAligned);
 
     MarkUsedPhysicalMemory();
 

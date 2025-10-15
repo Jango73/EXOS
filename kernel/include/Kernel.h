@@ -101,7 +101,8 @@ typedef struct tag_E820ENTRY {
 } E820ENTRY, *LPE820ENTRY;
 
 typedef struct tag_KERNELSTARTUPINFO {
-    PHYSICAL StubAddress;
+    PHYSICAL KernelPhysicalBase;
+    UINT KernelSize;
     PHYSICAL StackTop;
     PHYSICAL PageDirectory;
     U32 IRQMask_21_PM;

@@ -80,13 +80,15 @@ void KernelMain(void) {
     // Get kernel address from first module
     if (MultibootInfo->flags & MULTIBOOT_INFO_MODS && MultibootInfo->mods_count > 0) {
         multiboot_module_t* FirstModule = (multiboot_module_t*)(UINT)(LINEAR)MultibootInfo->mods_addr;
-        KernelStartup.StubAddress = FirstModule->mod_start;
+        KernelStartup.KernelPhysicalBase = FirstModule->mod_start;
+        KernelStartup.KernelSize = (UINT)(FirstModule->mod_end - FirstModule->mod_start);
         // Get the command line
         LPCSTR ModuleCommandLine = (LPCSTR)(UINT)(LINEAR)FirstModule->cmdline;
         StringCopy(KernelStartup.CommandLine, ModuleCommandLine);
     } else {
         // Fallback - should not happen with our bootloader
-        KernelStartup.StubAddress = 0;
+        KernelStartup.KernelPhysicalBase = 0;
+        KernelStartup.KernelSize = 0;
         StringClear(KernelStartup.CommandLine);
     }
 
@@ -130,7 +132,9 @@ void KernelMain(void) {
         KernelStartup.E820_Count = E820Count;
     }
 
-    if (KernelStartup.StubAddress == 0) {
+    UpdateKernelMemoryMetricsFromE820();
+
+    if (KernelStartup.KernelPhysicalBase == 0) {
         ConsolePanic(TEXT("No physical address specified for the kernel"));
     }
 

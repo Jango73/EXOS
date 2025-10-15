@@ -225,7 +225,8 @@ void DumpCriticalInformation(void) {
     DEBUG(TEXT("  VMA_KERNEL = %X"), VMA_KERNEL);
 
     DEBUG(TEXT("Kernel startup info:"));
-    DEBUG(TEXT("  StubAddress = %X"), KernelStartup.StubAddress);
+    DEBUG(TEXT("  KernelPhysicalBase = %X"), KernelStartup.KernelPhysicalBase);
+    DEBUG(TEXT("  KernelSize = %lX"), KernelStartup.KernelSize);
     DEBUG(TEXT("  StackTop = %X"), KernelStartup.StackTop);
     DEBUG(TEXT("  IRQMask_21_RM = %X"), KernelStartup.IRQMask_21_RM);
     DEBUG(TEXT("  IRQMask_A1_RM = %X"), KernelStartup.IRQMask_A1_RM);

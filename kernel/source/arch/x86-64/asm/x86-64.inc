@@ -59,7 +59,8 @@ SELECTOR_REAL_DATA   equ (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 ; KernelStartupInfo data layout (partial)
 
 STRUC KernelStartupInfo
-    .StubAddress        RESQ 1
+    .KernelPhysicalBase RESQ 1
+    .KernelSize         RESQ 1
     .StackTop           RESQ 1
     .PageDirectory      RESQ 1
     .IRQMask_21_PM      RESB 4

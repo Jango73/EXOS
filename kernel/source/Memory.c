@@ -307,51 +307,78 @@ static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) 
 /************************************************************************/
 
 /**
+ * @brief Update kernel memory metrics from the BIOS E820 map.
+ */
+void UpdateKernelMemoryMetricsFromE820(void) {
+    PHYSICAL MaxUsableRAM = 0;
+
+    for (UINT Index = 0; Index < KernelStartup.E820_Count; Index++) {
+        const E820ENTRY *Entry = &KernelStartup.E820[Index];
+        PHYSICAL Base = 0;
+        UINT Size = 0;
+
+        if (ArchClipPhysicalRange(Entry->Base, Entry->Size, &Base, &Size) == FALSE) {
+            continue;
+        }
+
+        if (Entry->Type == BIOS_E820_TYPE_USABLE) {
+            PHYSICAL EntryEnd = Base + Size;
+            if (EntryEnd > MaxUsableRAM) {
+                MaxUsableRAM = EntryEnd;
+            }
+        }
+    }
+
+    KernelStartup.MemorySize = MaxUsableRAM;
+    if (KernelStartup.MemorySize == 0) {
+        KernelStartup.PageCount = 0;
+    } else {
+        KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Public wrapper to mark reserved and used physical pages.
  */
 void MarkUsedPhysicalMemory(void) {
-    UINT Start = 0;
-    UINT End = (N_4MB) >> PAGE_SIZE_MUL;
-
     DEBUG(TEXT("[MarkUsedPhysicalMemory] Enter"));
 
-    SetPhysicalPageRangeMark(Start, End, 1);
+    UpdateKernelMemoryMetricsFromE820();
+
+    if (KernelStartup.PageCount == 0) {
+        DEBUG(TEXT("[MarkUsedPhysicalMemory] No physical memory detected"));
+        return;
+    }
+
+    PHYSICAL PpbPhysicalBase = (PHYSICAL)(UINT)(Kernel.PPB);
+    UINT BitmapBytes = (KernelStartup.PageCount + 7u) >> MUL_8;
+    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + BitmapBytes);
+    UINT ReservedPageCount = (UINT)(ReservedEnd >> PAGE_SIZE_MUL);
+
+    SetPhysicalPageRangeMark(0, ReservedPageCount, 1);
 
     // Derive total memory size and number of pages from the E820 map
-    if (KernelStartup.E820_Count > 0) {
-        PHYSICAL MaxAddress = 0;
-        PHYSICAL MaxUsableRAM = 0;
+    for (UINT i = 0; i < KernelStartup.E820_Count; i++) {
+        const E820ENTRY *Entry = &KernelStartup.E820[i];
+        PHYSICAL Base = 0;
+        UINT Size = 0;
 
-        for (UINT i = 0; i < KernelStartup.E820_Count; i++) {
-            const E820ENTRY* Entry = &KernelStartup.E820[i];
-            PHYSICAL Base = 0;
-            UINT Size = 0;
+        DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
 
-            DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
-
-            ArchClipPhysicalRange(Entry->Base, Entry->Size, &Base, &Size);
-
-            PHYSICAL EntryEnd = Base + Size;
-            if (EntryEnd > MaxAddress) {
-                MaxAddress = EntryEnd;
-            }
-
-            if (Entry->Type == BIOS_E820_TYPE_USABLE) {
-                if (EntryEnd > MaxUsableRAM) {
-                    MaxUsableRAM = EntryEnd;
-                }
-            } else {
-                UINT FirstPage = (UINT)(Base >> PAGE_SIZE_MUL);
-                UINT PageCount = (UINT)((Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
-                SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
-            }
+        if (ArchClipPhysicalRange(Entry->Base, Entry->Size, &Base, &Size) == FALSE) {
+            continue;
         }
 
-        KernelStartup.MemorySize = MaxUsableRAM;
-        KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
-
-        DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %u"), KernelStartup.MemorySize);
+        if (Entry->Type != BIOS_E820_TYPE_USABLE) {
+            UINT FirstPage = (UINT)(Base >> PAGE_SIZE_MUL);
+            UINT PageCount = (UINT)((Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
+            SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+        }
     }
+
+    DEBUG(TEXT("[MarkUsedPhysicalMemory] Memory size = %u"), KernelStartup.MemorySize);
 }
 
 /************************************************************************/

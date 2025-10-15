@@ -377,7 +377,7 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
-    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;
+    PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
 
     UINT LowPml4Index = GetPml4Entry(0);
     UINT LowPdptIndex = GetPdptEntry(0);
@@ -575,7 +575,7 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
-    PHYSICAL PhysBaseKernel = KernelStartup.StubAddress;
+    PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
 
     UINT LowPml4Index = GetPml4Entry(0);
     UINT LowPdptIndex = GetPdptEntry(0);
@@ -950,12 +950,29 @@ void ArchInitializeMemoryManager(void) {
     PHYSICAL CurrentPageDirectory = (PHYSICAL)GetPageDirectory();
     LogPageDirectory64(CurrentPageDirectory);
 
-    // Clear the physical page bitmap
-    Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
+    UpdateKernelMemoryMetricsFromE820();
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB: %p"), (LPVOID)Kernel.PPB);
+    if (KernelStartup.PageCount == 0) {
+        ConsolePanic(TEXT("Detected memory = 0"));
+    }
 
-    MemorySet(Kernel.PPB, 0, N_1MB);
+    UINT BitmapBytes = (KernelStartup.PageCount + 7u) >> MUL_8;
+    UINT BitmapBytesAligned = (UINT)PAGE_ALIGN(BitmapBytes);
+
+    U64 KernelSpan = (U64)KernelStartup.KernelSize + (U64)N_512KB;
+    PHYSICAL MapSize = (PHYSICAL)PAGE_ALIGN(KernelSpan);
+    U64 TotalPages = (MapSize + PAGE_SIZE - 1ull) >> PAGE_SIZE_MUL;
+    U64 TablesRequired = (TotalPages + (U64)PAGE_TABLE_NUM_ENTRIES - 1ull) / (U64)PAGE_TABLE_NUM_ENTRIES;
+    PHYSICAL TablesSize = (PHYSICAL)(TablesRequired * (U64)PAGE_TABLE_SIZE);
+    PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize + TablesSize;
+    PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
+
+    Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
+
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %lX"), BitmapBytesAligned);
+
+    MemorySet(Kernel.PPB, 0, BitmapBytesAligned);
 
     MarkUsedPhysicalMemory();
 
