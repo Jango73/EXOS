@@ -353,8 +353,7 @@ void MarkUsedPhysicalMemory(void) {
     }
 
     PHYSICAL PpbPhysicalBase = (PHYSICAL)(UINT)(Kernel.PPB);
-    UINT BitmapBytes = (KernelStartup.PageCount + 7u) >> MUL_8;
-    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + BitmapBytes);
+    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)Kernel.PPBSize);
     UINT ReservedPageCount = (UINT)(ReservedEnd >> PAGE_SIZE_MUL);
 
     SetPhysicalPageRangeMark(0, ReservedPageCount, 1);

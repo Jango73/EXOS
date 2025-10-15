@@ -818,11 +818,12 @@ void ArchInitializeMemoryManager(void) {
     PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
 
     Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
+    Kernel.PPBSize = BitmapBytesAligned;
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
     DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %lX"), BitmapBytesAligned);
 
-    MemorySet(Kernel.PPB, 0, BitmapBytesAligned);
+    MemorySet(Kernel.PPB, 0, Kernel.PPBSize);
 
     MarkUsedPhysicalMemory();
 
