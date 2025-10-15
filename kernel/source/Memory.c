@@ -309,9 +309,12 @@ static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) 
 /**
  * @brief Public wrapper to mark reserved and used physical pages.
  */
-void MemoryMarkUsedPhysicalMemory(void) {
+void MarkUsedPhysicalMemory(void) {
     UINT Start = 0;
     UINT End = (N_4MB) >> PAGE_SIZE_MUL;
+
+    DEBUG(TEXT("[MarkUsedPhysicalMemory] Enter"));
+
     SetPhysicalPageRangeMark(Start, End, 1);
 
     // Derive total memory size and number of pages from the E820 map

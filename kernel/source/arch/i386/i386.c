@@ -806,7 +806,7 @@ void ArchInitializeMemoryManager(void) {
     Kernel.PPB = (LPPAGEBITMAP)LOW_MEMORY_THREE_QUARTER;
     MemorySet(Kernel.PPB, 0, N_128KB);
 
-    MemoryMarkUsedPhysicalMemory();
+    MarkUsedPhysicalMemory();
 
     if (KernelStartup.MemorySize == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));
