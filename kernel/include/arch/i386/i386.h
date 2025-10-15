@@ -590,7 +590,6 @@ BOOL GetSegmentInfo(LPSEGMENT_DESCRIPTOR This, LPSEGMENT_INFO Info);
 BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text);
 
 void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type);
-void InitGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);
 void InitializeTaskSegments(void);
 void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR Desc, U32 Base);
 void SetSegmentDescriptorLimit(LPSEGMENT_DESCRIPTOR Desc, U32 Limit);

@@ -478,10 +478,10 @@ void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type) {
 
 /***************************************************************************/
 
-void InitGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
-    DEBUG(TEXT("[InitGlobalDescriptorTable] Enter"));
+void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
+    DEBUG(TEXT("[InitializeGlobalDescriptorTable] Enter"));
 
-    DEBUG(TEXT("[InitGlobalDescriptorTable] GDT address = %X"), (U32)Table);
+    DEBUG(TEXT("[InitializeGlobalDescriptorTable] GDT address = %X"), (U32)Table);
 
     MemorySet(Table, 0, GDT_SIZE);
 
@@ -509,7 +509,7 @@ void InitGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
     Table[6].Granularity = GDT_GRANULAR_1B;
     SetSegmentDescriptorLimit(&Table[6], N_1MB_M1);
 
-    DEBUG(TEXT("[InitGlobalDescriptorTable] Exit"));
+    DEBUG(TEXT("[InitializeGlobalDescriptorTable] Exit"));
 }
 
 /***************************************************************************/
@@ -874,7 +874,7 @@ void ArchInitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    InitGlobalDescriptorTable(Kernel_i386.GDT);
+    InitializeGlobalDescriptorTable(Kernel_i386.GDT);
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] Loading GDT"));
 

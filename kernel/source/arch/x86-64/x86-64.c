@@ -816,8 +816,8 @@ static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Ex
 
 /***************************************************************************/
 
-static void InitX86_64GlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
-    DEBUG(TEXT("[InitX86_64GlobalDescriptorTable] Enter"));
+static void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
+    DEBUG(TEXT("[InitializeGlobalDescriptorTable] Enter"));
 
     MemorySet(Table, 0, GDT_SIZE);
 
@@ -828,7 +828,7 @@ static void InitX86_64GlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
     InitLegacySegmentDescriptor(&Table[5], TRUE);
     InitLegacySegmentDescriptor(&Table[6], FALSE);
 
-    DEBUG(TEXT("[InitX86_64GlobalDescriptorTable] Exit"));
+    DEBUG(TEXT("[InitializeGlobalDescriptorTable] Exit"));
 }
 
 /***************************************************************************/
@@ -1016,7 +1016,7 @@ void ArchInitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    InitX86_64GlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT);
+    InitializeGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT);
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] Loading GDT"));
 
