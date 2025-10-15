@@ -1,9 +1,7 @@
-/* Kernel stub for sys/time.h */
-#ifndef SYS_TIME_H
-#define SYS_TIME_H
 
-#include <sys/types.h>
+#ifndef sys_time_h
+#define sys_time_h
 
-/* Empty stub - no time functions needed for blowfish/wrapbf compilation */
+#include "sys/types.h"
 
-#endif /* SYS_TIME_H */
+#endif	// sys_time_h

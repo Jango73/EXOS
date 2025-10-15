@@ -1,7 +1,7 @@
-/* Kernel stub for stdio.h */
-#ifndef STDIO_H
-#define STDIO_H
 
-/* Empty stub - no stdio functions needed in kernel */
+#ifndef stdio_h
+#define stdio_h
 
-#endif /* STDIO_H */
+// Empty stub - no stdio functions needed in kernel
+
+#endif	// stdio_h

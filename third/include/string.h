@@ -1,13 +1,15 @@
-/* Kernel stub for string.h */
-#ifndef STRING_H
-#define STRING_H
 
-typedef unsigned long size_t;
+#ifndef string_h
+#define string_h
 
-/* Memory manipulation functions - implemented in runtime */
+#include "sys/types.h"
+
+#error "MERDE"
+
+// Memory manipulation functions - implemented in runtime
 void* memcpy(void* dest, const void* src, size_t n);
 void* memmove(void* dest, const void* src, size_t n);
 void* memset(void* s, int c, size_t n);
 int memcmp(const void* s1, const void* s2, size_t n);
 
-#endif /* STRING_H */
+#endif	// string_h

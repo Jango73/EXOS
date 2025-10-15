@@ -5,12 +5,11 @@ ARCH ?= i386
 
 BUILD_DIR := ../build/$(ARCH)
 
-ARCH_CFLAGS :=
+ARCH_CFLAGS =
 
 ifeq ($(ARCH),i386)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf
-ARCH_AUTOTEST_EXCLUDES =
 CC              = $(TOOLCHAIN_PREFIX)-gcc
 LD              = $(TOOLCHAIN_PREFIX)-ld
 NM              = $(TOOLCHAIN_PREFIX)-nm
@@ -18,7 +17,6 @@ OBJCOPY         = $(TOOLCHAIN_PREFIX)-objcopy
 READELF         = $(TOOLCHAIN_PREFIX)-readelf
 else ifeq ($(ARCH),x86-64)
 NASM_FORMAT = elf64
-ARCH_AUTOTEST_EXCLUDES = source/autotest/Autotest-i386-Asm.c
 CC              = gcc
 LD              = ld
 NM              = nm
@@ -35,7 +33,7 @@ SCHEDULING_DEBUG_OUTPUT ?= 0
 TRACE_STACK_USAGE       ?= 0
 
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
-CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
+CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 -nostdinc \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
                   -fvisibility=hidden -mno-red-zone \
@@ -72,7 +70,6 @@ SRC_C  = $(wildcard source/*.c) \
          ../third/bcrypt/wrapbf.c \
          ../third/bcrypt/endian.c \
          ../runtime/source/exos-runtime-c.c
-SRC_C := $(filter-out $(ARCH_AUTOTEST_EXCLUDES), $(SRC_C))
 SRC_S  = $(wildcard source/asm/*.asm) \
          $(wildcard source/arch/$(ARCH)/asm/*.asm)
 

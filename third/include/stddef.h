@@ -1,8 +1,9 @@
-/* Kernel stub for stddef.h */
-#ifndef STDDEF_H
-#define STDDEF_H
+
+#ifndef stddef_h
+#define stddef_h
+
+#include "sys/types.h"
 
 #define NULL ((void*)0)
-typedef unsigned long size_t;
 
-#endif /* STDDEF_H */
+#endif	// STDDEF_H
