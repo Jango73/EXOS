@@ -970,7 +970,7 @@ void ArchInitializeMemoryManager(void) {
     Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %lX"), BitmapBytesAligned);
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %x"), BitmapBytesAligned);
 
     MemorySet(Kernel.PPB, 0, BitmapBytesAligned);
 

@@ -861,17 +861,17 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Header.Flags = 0;
     DoSystemCall(SYSCALL_GetSystemInfo, (U32)&Info);
 
-    ConsolePrint(TEXT("Total physical memory     : %lu KB\n"), Info.TotalPhysicalMemory / 1024);
-    ConsolePrint(TEXT("Physical memory used      : %lu KB\n"), Info.PhysicalMemoryUsed / 1024);
-    ConsolePrint(TEXT("Physical memory available : %lu KB\n"), Info.PhysicalMemoryAvail / 1024);
-    ConsolePrint(TEXT("Total swap memory         : %lu KB\n"), Info.TotalSwapMemory / 1024);
-    ConsolePrint(TEXT("Swap memory used          : %lu KB\n"), Info.SwapMemoryUsed / 1024);
-    ConsolePrint(TEXT("Swap memory available     : %lu KB\n"), Info.SwapMemoryAvail / 1024);
-    ConsolePrint(TEXT("Total memory available    : %lu KB\n"), Info.TotalMemoryAvail / 1024);
-    ConsolePrint(TEXT("Processor page size       : %lu bytes\n"), Info.PageSize);
-    ConsolePrint(TEXT("Total physical pages      : %lu pages\n"), Info.TotalPhysicalPages);
-    ConsolePrint(TEXT("Minimum linear address    : %lX\n"), Info.MinimumLinearAddress);
-    ConsolePrint(TEXT("Maximum linear address    : %lX\n"), Info.MaximumLinearAddress);
+    ConsolePrint(TEXT("Total physical memory     : %u KB\n"), Info.TotalPhysicalMemory / N_1KB);
+    ConsolePrint(TEXT("Physical memory used      : %u KB\n"), Info.PhysicalMemoryUsed / N_1KB);
+    ConsolePrint(TEXT("Physical memory available : %u KB\n"), Info.PhysicalMemoryAvail / N_1KB);
+    ConsolePrint(TEXT("Total swap memory         : %u KB\n"), Info.TotalSwapMemory / N_1KB);
+    ConsolePrint(TEXT("Swap memory used          : %u KB\n"), Info.SwapMemoryUsed / N_1KB);
+    ConsolePrint(TEXT("Swap memory available     : %u KB\n"), Info.SwapMemoryAvail / N_1KB);
+    ConsolePrint(TEXT("Total memory available    : %u KB\n"), Info.TotalMemoryAvail / N_1KB);
+    ConsolePrint(TEXT("Processor page size       : %u bytes\n"), Info.PageSize);
+    ConsolePrint(TEXT("Total physical pages      : %u pages\n"), Info.TotalPhysicalPages);
+    ConsolePrint(TEXT("Minimum linear address    : %x\n"), Info.MinimumLinearAddress);
+    ConsolePrint(TEXT("Maximum linear address    : %x\n"), Info.MaximumLinearAddress);
     ConsolePrint(TEXT("User name                 : %s\n"), Info.UserName);
     ConsolePrint(TEXT("Number of processes       : %d\n"), Info.NumProcesses);
     ConsolePrint(TEXT("Number of tasks           : %d\n"), Info.NumTasks);
