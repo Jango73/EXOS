@@ -64,3 +64,6 @@ STUB_ISR Interrupt_HardDrive
 STUB_ISR Interrupt_SystemCall
 STUB_ISR Interrupt_DriverCall
 
+;----------------------------------------------------------------------------
+
+section .note.GNU-stack noalloc noexec nowrite align=1
