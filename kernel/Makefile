@@ -33,7 +33,7 @@ SCHEDULING_DEBUG_OUTPUT ?= 0
 TRACE_STACK_USAGE       ?= 0
 
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
-CFLAGS          = -D__KERNEL__ -H -g -Wall -Wextra -O0 -falign-functions=16 \
+CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -ffreestanding -fno-builtin -nostdinc \
                   -fno-pic -fno-pie -fno-stack-protector \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
