@@ -93,12 +93,11 @@ typedef struct tag_SYSCALLENTRY {
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
 #define LOW_MEMORY_THREE_QUARTER ((RESERVED_LOW_MEMORY * 3) / 4)
 
-typedef struct tag_E820ENTRY {
+typedef struct tag_MULTIBOOTMEMORYENTRY {
     U64 Base;
-    U64 Size;
+    U64 Length;
     U32 Type;
-    U32 Attributes;
-} E820ENTRY, *LPE820ENTRY;
+} MULTIBOOTMEMORYENTRY, *LPMULTIBOOTMEMORYENTRY;
 
 typedef struct tag_KERNELSTARTUPINFO {
     PHYSICAL KernelPhysicalBase;
@@ -111,8 +110,8 @@ typedef struct tag_KERNELSTARTUPINFO {
     U32 IRQMask_A1_RM;
     UINT MemorySize;  // Total memory size in bytes
     UINT PageCount;   // Total memory size in pages (4K)
-    U32 E820_Count;  // BIOS E820 function entries
-    E820ENTRY E820[N_4KB / sizeof(E820ENTRY)];
+    U32 MultibootMemoryEntryCount;
+    MULTIBOOTMEMORYENTRY MultibootMemoryEntries[N_4KB / sizeof(MULTIBOOTMEMORYENTRY)];
     STR CommandLine[MAX_COMMAND_LINE];
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 

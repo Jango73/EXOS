@@ -232,13 +232,6 @@
 #define CMOS_YEAR 0x09
 #define CMOS_CENTURY 0x32
 
-/* BIOS E820 memory map types */
-#define BIOS_E820_TYPE_USABLE 1
-#define BIOS_E820_TYPE_RESERVED 2
-#define BIOS_E820_TYPE_ACPI 3
-#define BIOS_E820_TYPE_ACPI_NVS 4
-#define BIOS_E820_TYPE_BAD_MEM 5
-
 /* PIT clock */
 #define CLOCK_COMMAND 0x0043
 #define CLOCK_DATA 0x0040

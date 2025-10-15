@@ -96,43 +96,24 @@ void KernelMain(void) {
     if (MultibootInfo->flags & MULTIBOOT_INFO_MEM_MAP) {
         PHYSICAL MmapCursor = MultibootInfo->mmap_addr;
         PHYSICAL MmapEnd = MultibootInfo->mmap_addr + MultibootInfo->mmap_length;
-        U32 E820Count = 0;
+        U32 EntryCount = 0;
 
-        while (MmapCursor < MmapEnd && E820Count < (N_4KB / sizeof(E820ENTRY))) {
+        while (MmapCursor < MmapEnd && EntryCount < (N_4KB / sizeof(MULTIBOOTMEMORYENTRY))) {
             multiboot_memory_map_t* MmapEntry = (multiboot_memory_map_t*)(UINT)MmapCursor;
-            // Fill E820 entry with Multiboot data
-            KernelStartup.E820[E820Count].Base = U64_Make(MmapEntry->addr_high, MmapEntry->addr_low);
-            KernelStartup.E820[E820Count].Size = U64_Make(MmapEntry->len_high, MmapEntry->len_low);
-            KernelStartup.E820[E820Count].Attributes = 0;
-
-            // Map Multiboot types to E820 types
-            switch (MmapEntry->type) {
-                case MULTIBOOT_MEMORY_AVAILABLE:
-                    KernelStartup.E820[E820Count].Type = E820_AVAILABLE;
-                    break;
-                case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
-                    KernelStartup.E820[E820Count].Type = E820_ACPI;
-                    break;
-                case MULTIBOOT_MEMORY_NVS:
-                    KernelStartup.E820[E820Count].Type = E820_NVS;
-                    break;
-                case MULTIBOOT_MEMORY_BADRAM:
-                    KernelStartup.E820[E820Count].Type = E820_UNUSABLE;
-                    break;
-                default:
-                    KernelStartup.E820[E820Count].Type = E820_RESERVED;
-                    break;
-            }
-            E820Count++;
+            // Duplicate Multiboot entry information
+            KernelStartup.MultibootMemoryEntries[EntryCount].Base = U64_Make(MmapEntry->addr_high, MmapEntry->addr_low);
+            KernelStartup.MultibootMemoryEntries[EntryCount].Length = U64_Make(MmapEntry->len_high, MmapEntry->len_low);
+            KernelStartup.MultibootMemoryEntries[EntryCount].Type = MmapEntry->type;
+            EntryCount++;
 
             // Move to next entry (size field is at the beginning and doesn't include itself)
             MmapCursor += MmapEntry->size + sizeof(MmapEntry->size);
         }
 
-        KernelStartup.E820_Count = E820Count;
+        KernelStartup.MultibootMemoryEntryCount = EntryCount;
     }
 
-    UpdateKernelMemoryMetricsFromE820();
+    UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.KernelPhysicalBase == 0) {
         ConsolePanic(TEXT("No physical address specified for the kernel"));

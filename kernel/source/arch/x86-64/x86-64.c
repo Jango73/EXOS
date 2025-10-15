@@ -950,7 +950,7 @@ void ArchInitializeMemoryManager(void) {
     PHYSICAL CurrentPageDirectory = (PHYSICAL)GetPageDirectory();
     LogPageDirectory64(CurrentPageDirectory);
 
-    UpdateKernelMemoryMetricsFromE820();
+    UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.PageCount == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));

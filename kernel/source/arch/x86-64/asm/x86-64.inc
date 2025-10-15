@@ -70,7 +70,7 @@ STRUC KernelStartupInfo
     ; Console cursor position now handled directly in InitializeConsole
     .MemorySize         RESQ 1
     .PageCount          RESQ 1
-    .E820_Count         RESB 4
+    .MultibootMemoryEntryCount RESB 4
 ENDSTRUC
 
 ;-------------------------------------------------------------------------

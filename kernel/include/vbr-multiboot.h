@@ -56,13 +56,6 @@
 #define MULTIBOOT_MEMORY_NVS          4
 #define MULTIBOOT_MEMORY_BADRAM       5
 
-// E820 memory types
-#define E820_AVAILABLE    1
-#define E820_RESERVED     2
-#define E820_ACPI         3
-#define E820_NVS          4
-#define E820_UNUSABLE     5
-
 // Multiboot memory map structure
 typedef struct {
     U32 size;
@@ -118,15 +111,6 @@ typedef struct {
     U8  color_info[6];         // +110-115
 } PACKED multiboot_info_t;
 
-
-// E820 memory map entry structure (for conversion) - renamed to avoid conflict
-typedef struct {
-    U32 BaseAddrLow;
-    U32 BaseAddrHigh;
-    U32 LengthLow;
-    U32 LengthHigh;
-    U32 Type;
-} PACKED MULTIBOOT_E820ENTRY;
 
 /************************************************************************/
 

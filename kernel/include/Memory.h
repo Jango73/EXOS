@@ -47,7 +47,7 @@ void InitializeMemoryManager(void);
 
 // Architecture helpers
 void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear3);
-void UpdateKernelMemoryMetricsFromE820(void);
+void UpdateKernelMemoryMetricsFromMultibootMap(void);
 void MarkUsedPhysicalMemory(void);
 
 // Uses temp page tables to get access to random physical pages

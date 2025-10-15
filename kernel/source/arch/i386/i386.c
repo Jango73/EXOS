@@ -803,7 +803,7 @@ void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* Ne
 void ArchInitializeMemoryManager(void) {
     DEBUG(TEXT("[ArchInitializeMemoryManager] Enter"));
 
-    UpdateKernelMemoryMetricsFromE820();
+    UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.PageCount == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));

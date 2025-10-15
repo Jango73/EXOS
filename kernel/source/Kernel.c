@@ -211,9 +211,11 @@ U32 ClockTestTask(LPVOID Param) {
  */
 
 void DumpCriticalInformation(void) {
-    for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
-        DEBUG(TEXT("E820 entry %X : %X, %X, %X"), Index, U64_Low32(KernelStartup.E820[Index].Base),
-            U64_Low32(KernelStartup.E820[Index].Size), (U32)KernelStartup.E820[Index].Type);
+    for (U32 Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        DEBUG(TEXT("Multiboot entry %X : %X, %X, %X"), Index,
+            U64_Low32(KernelStartup.MultibootMemoryEntries[Index].Base),
+            U64_Low32(KernelStartup.MultibootMemoryEntries[Index].Length),
+            (U32)KernelStartup.MultibootMemoryEntries[Index].Type);
     }
 
     DEBUG(TEXT("Virtual addresses"));
@@ -232,7 +234,7 @@ void DumpCriticalInformation(void) {
     DEBUG(TEXT("  IRQMask_A1_RM = %X"), KernelStartup.IRQMask_A1_RM);
     DEBUG(TEXT("  MemorySize = %lX"), KernelStartup.MemorySize);
     DEBUG(TEXT("  PageCount = %lX"), KernelStartup.PageCount);
-    DEBUG(TEXT("  E820 entry count = %X"), KernelStartup.E820_Count);
+    DEBUG(TEXT("  Multiboot entry count = %X"), KernelStartup.MultibootMemoryEntryCount);
 }
 
 /************************************************************************/

@@ -307,21 +307,21 @@ static void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) 
 /************************************************************************/
 
 /**
- * @brief Update kernel memory metrics from the BIOS E820 map.
+ * @brief Update kernel memory metrics from the Multiboot memory map.
  */
-void UpdateKernelMemoryMetricsFromE820(void) {
+void UpdateKernelMemoryMetricsFromMultibootMap(void) {
     PHYSICAL MaxUsableRAM = 0;
 
-    for (UINT Index = 0; Index < KernelStartup.E820_Count; Index++) {
-        const E820ENTRY *Entry = &KernelStartup.E820[Index];
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
         PHYSICAL Base = 0;
         UINT Size = 0;
 
-        if (ArchClipPhysicalRange(Entry->Base, Entry->Size, &Base, &Size) == FALSE) {
+        if (ArchClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
             continue;
         }
 
-        if (Entry->Type == BIOS_E820_TYPE_USABLE) {
+        if (Entry->Type == MULTIBOOT_MEMORY_AVAILABLE) {
             PHYSICAL EntryEnd = Base + Size;
             if (EntryEnd > MaxUsableRAM) {
                 MaxUsableRAM = EntryEnd;
@@ -345,7 +345,7 @@ void UpdateKernelMemoryMetricsFromE820(void) {
 void MarkUsedPhysicalMemory(void) {
     DEBUG(TEXT("[MarkUsedPhysicalMemory] Enter"));
 
-    UpdateKernelMemoryMetricsFromE820();
+    UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.PageCount == 0) {
         DEBUG(TEXT("[MarkUsedPhysicalMemory] No physical memory detected"));
@@ -359,19 +359,19 @@ void MarkUsedPhysicalMemory(void) {
 
     SetPhysicalPageRangeMark(0, ReservedPageCount, 1);
 
-    // Derive total memory size and number of pages from the E820 map
-    for (UINT i = 0; i < KernelStartup.E820_Count; i++) {
-        const E820ENTRY *Entry = &KernelStartup.E820[i];
+    // Derive total memory size and number of pages from the Multiboot map
+    for (UINT i = 0; i < KernelStartup.MultibootMemoryEntryCount; i++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[i];
         PHYSICAL Base = 0;
         UINT Size = 0;
 
-        DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Size, Entry->Type);
+        DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Length, Entry->Type);
 
-        if (ArchClipPhysicalRange(Entry->Base, Entry->Size, &Base, &Size) == FALSE) {
+        if (ArchClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
             continue;
         }
 
-        if (Entry->Type != BIOS_E820_TYPE_USABLE) {
+        if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
             UINT FirstPage = (UINT)(Base >> PAGE_SIZE_MUL);
             UINT PageCount = (UINT)((Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL);
             SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
