@@ -675,6 +675,10 @@ LINEAR AllocPageTable(LINEAR Base) {
 
 /************************************************************************/
 
+static BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable);
+
+/************************************************************************/
+
 /**
  * @brief Check if a linear region is free of mappings.
  * @param Base Base linear address.
@@ -684,8 +688,9 @@ LINEAR AllocPageTable(LINEAR Base) {
 BOOL IsRegionFree(LINEAR Base, UINT Size) {
     DEBUG(TEXT("[IsRegionFree] Enter: Base=%x Size=%x"), Base, Size);
 
+    Base = CanonicalizeLinearAddress(Base);
+
     UINT NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
     DEBUG(TEXT("[IsRegionFree] Traversing %u pages"), NumPages);
@@ -697,13 +702,17 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
 
         DEBUG(TEXT("[IsRegionFree] Page %u: Linear=%x Dir=%u Tab=%u"), i, CurrentLinear, DirEntry, TabEntry);
 
-        if (PageDirectoryEntryIsPresent(Directory, DirEntry)) {
+        LPPAGE_TABLE Table = NULL;
+        BOOL TableAvailable = TryGetPageTableForIterator(&Iterator, &Table);
+
+        if (TableAvailable) {
             DEBUG(TEXT("[IsRegionFree] PDE present for Dir=%u"), DirEntry);
-            LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
             if (PageTableEntryIsPresent(Table, TabEntry)) {
                 DEBUG(TEXT("[IsRegionFree] PTE present for Linear=%x"), CurrentLinear);
                 return FALSE;
             }
+        } else {
+            DEBUG(TEXT("[IsRegionFree] PDE not present for Dir=%u"), DirEntry);
         }
 
         MemoryPageIteratorStepPage(&Iterator);
