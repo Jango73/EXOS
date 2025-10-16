@@ -585,6 +585,11 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
         G_TempLinear1, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
 #if defined(__EXOS_ARCH_X86_64__)
+    // Ensure the CPU stops using the previous translation before callers touch the
+    // new physical page through the shared temporary slot.
+    FlushTLB();
+#endif
+#if defined(__EXOS_ARCH_X86_64__)
     U64 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0ull;
     DEBUG(TEXT("[MapTemporaryPhysicalPage1] Slot1 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
 #else
@@ -618,6 +623,11 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
         G_TempLinear2, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
 #if defined(__EXOS_ARCH_X86_64__)
+    // Ensure the CPU stops using the previous translation before callers touch the
+    // new physical page through the shared temporary slot.
+    FlushTLB();
+#endif
+#if defined(__EXOS_ARCH_X86_64__)
     U64 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0ull;
     DEBUG(TEXT("[MapTemporaryPhysicalPage2] Slot2 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
 #else
@@ -650,6 +660,11 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     MapOnePage(
         G_TempLinear3, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+#if defined(__EXOS_ARCH_X86_64__)
+    // Ensure the CPU stops using the previous translation before callers touch the
+    // new physical page through the shared temporary slot.
+    FlushTLB();
+#endif
 #if defined(__EXOS_ARCH_X86_64__)
     U64 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0ull;
     DEBUG(TEXT("[MapTemporaryPhysicalPage3] Slot3 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
