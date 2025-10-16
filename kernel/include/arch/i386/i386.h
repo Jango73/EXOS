@@ -464,8 +464,6 @@ typedef struct tag_SEGMENT_INFO {
 /************************************************************************/
 // Inline helpers
 
-#if defined(__EXOS_ARCH_I386__)
-
 #if TRACE_STACK_USAGE == 1
 #define TRACED_FUNCTION                                                                                           \
     LINEAR __StackTraceStart;                                                                                     \
@@ -494,11 +492,6 @@ typedef struct tag_SEGMENT_INFO {
     }
 #endif  // TRACE_STACK_USAGE == 1
 #else
-#define TRACED_EPILOGUE(FunctionName)
-#endif
-
-#else
-#define TRACED_FUNCTION
 #define TRACED_EPILOGUE(FunctionName)
 #endif
 

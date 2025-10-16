@@ -96,7 +96,6 @@ BITS 32
     global GetPageDirectory
     global InvalidatePage
     global FlushTLB
-    global SwitchToTask
     global SetTaskState
     global ClearTaskState
     global PeekConsoleWord
@@ -629,28 +628,6 @@ FlushTLB :
 
     mov     eax, cr3
     mov     cr3, eax
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-SwitchToTask :
-
-    push        ebp
-    mov         ebp, esp
-    sub         esp, 8                      ; reserve space for far pointer
-
-    xor         eax, eax
-    mov         dr6, eax
-    mov         dr7, eax
-
-    mov         eax, [ebp+PBN]
-    mov         dword [esp], 0              ; offset
-    mov         word [esp+4], ax            ; selector
-    jmp         far dword [esp]
-
-    add         esp, 8
-    pop         ebp
     ret
 
 ;--------------------------------------

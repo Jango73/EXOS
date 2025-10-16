@@ -48,9 +48,7 @@ typedef void (*TestFunction)(TEST_RESULTS*);
 void TestCopyStack(TEST_RESULTS* Results);
 void TestCircularBuffer(TEST_RESULTS* Results);
 void TestRegex(TEST_RESULTS* Results);
-#if defined(__EXOS_ARCH_I386__)
 void TestI386Disassembler(TEST_RESULTS* Results);
-#endif
 void TestBcrypt(TEST_RESULTS* Results);
 void TestE1000(TEST_RESULTS* Results);
 void TestIPv4(TEST_RESULTS* Results);

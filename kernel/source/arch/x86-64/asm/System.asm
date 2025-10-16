@@ -371,20 +371,6 @@ SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
-SYS_FUNC_BEGIN SwitchToTask
-    sub     rsp, 16
-    xor     eax, eax
-    mov     dr6, rax
-    mov     dr7, rax
-    mov     [rsp], rax
-    mov     [rsp + 8], rax
-    mov     word [rsp + 8], di
-    jmp     far [rsp]
-    add     rsp, 16
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
 SYS_FUNC_BEGIN SetTaskState
     mov     rax, cr0
     or      rax, CR0_TASKSWITCH

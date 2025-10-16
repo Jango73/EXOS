@@ -76,8 +76,8 @@ void InitializeKernelProcess(void) {
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
     KernelProcess.HeapSize = N_1MB;
 
-    DEBUG(TEXT("[InitializeKernelProcess] Memory : %x"), KernelStartup.MemorySize);
-    DEBUG(TEXT("[InitializeKernelProcess] Pages : %x"), KernelStartup.PageCount);
+    DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
+    DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
 
     LINEAR HeapBase = AllocKernelRegion(0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
@@ -500,7 +500,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         SAFE_USE_VALID_ID(ParentProcess, KOID_PROCESS) {
             StringCopy(Process->WorkFolder, ParentProcess->WorkFolder);
         } else {
-            StringCopy(Process->WorkFolder, ROOT);
+            StringCopy(Process->WorkFolder, TEXT(ROOT));
         }
     }
 

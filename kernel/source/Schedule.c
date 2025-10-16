@@ -28,9 +28,6 @@
 #include "Kernel.h"
 #include "List.h"
 #include "Log.h"
-#if defined(__EXOS_ARCH_I386__)
-#include "arch/i386/i386-Log.h"
-#endif
 #include "Memory.h"
 #include "Process.h"
 #include "Stack.h"
@@ -535,10 +532,6 @@ void Scheduler(void) {
             CurrentTask->Process->Privilege != NextTask->Process->Privilege) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[Scheduler] Different ring switch :"));
-#if defined(__EXOS_ARCH_I386__)
-            LogFrame(CurrentTask, &CurrentTask->Arch.Context);
-            LogFrame(NextTask, &NextTask->Arch.Context);
-#endif
 #endif
         }
 

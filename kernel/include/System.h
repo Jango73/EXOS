@@ -70,7 +70,6 @@ extern U32 GetTaskRegister(void);
 extern U32 GetPageDirectory(void);
 extern void InvalidatePage(U32 Address);
 extern void FlushTLB(void);
-extern U32 SwitchToTask(U32);
 extern U32 TaskRunner(void);
 extern void *__task_runner_start;
 extern void *__task_runner_end;
