@@ -206,6 +206,7 @@ static BOOL AllocateTableAndPopulate(
         Table->DirectoryIndex,
         Table->Physical);
 
+    UINT ProbeIndex = 0u;
     switch (Table->Mode) {
     case PAGE_TABLE_POPULATE_IDENTITY:
         for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
@@ -249,12 +250,21 @@ static BOOL AllocateTableAndPopulate(
                 /*CacheDisabled*/ 0,
                 Table->Data.Single.Global,
                 /*Fixed*/ 1));
+        ProbeIndex = Table->Data.Single.TableIndex;
         break;
 
     case PAGE_TABLE_POPULATE_EMPTY:
     default:
+        ProbeIndex = 0u;
         break;
     }
+
+    U64 ProbeValue = ReadPageTableEntryValue(TableVA, ProbeIndex);
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] probe entry[%u]=%p"),
+        Region->Label,
+        Table->DirectoryIndex,
+        ProbeIndex,
+        (LINEAR)ProbeValue);
 
     WritePageDirectoryEntryValue(
         Directory,
@@ -272,6 +282,12 @@ static BOOL AllocateTableAndPopulate(
         Region->Label,
         Table->DirectoryIndex,
         Table->Physical);
+
+    U64 DirectoryValue = ReadPageDirectoryEntryValue(Directory, Table->DirectoryIndex);
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] readback=%p"),
+        Region->Label,
+        Table->DirectoryIndex,
+        (LINEAR)DirectoryValue);
 
     return TRUE;
 }
@@ -681,6 +697,9 @@ PHYSICAL AllocPageDirectory(void) {
             /*Fixed*/ 1));
 
     DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> Low PDPT %p"), LowPml4Index, LowRegion.PdptPhysical);
+    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
+        LowPml4Index,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index));
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -695,6 +714,9 @@ PHYSICAL AllocPageDirectory(void) {
             /*Fixed*/ 1));
 
     DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> Kernel PDPT %p"), KernelPml4Index, KernelRegion.PdptPhysical);
+    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
+        KernelPml4Index,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index));
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -709,6 +731,9 @@ PHYSICAL AllocPageDirectory(void) {
             /*Fixed*/ 1));
 
     DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> TaskRunner PDPT %p"), TaskRunnerPml4Index, TaskRunnerRegion.PdptPhysical);
+    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
+        TaskRunnerPml4Index,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index));
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -723,10 +748,23 @@ PHYSICAL AllocPageDirectory(void) {
             /*Fixed*/ 1));
 
     DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> recursive %p"), PML4_RECURSIVE_SLOT, Pml4Physical);
+    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
+        PML4_RECURSIVE_SLOT,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
+
+    DEBUG(TEXT("[AllocPageDirectory] Pre-flush snapshot: PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
+        LowPml4Index,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
+        KernelPml4Index,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
+        TaskRunnerPml4Index,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
+        PML4_RECURSIVE_SLOT,
+        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
 
     FlushTLB();
 
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
+    DEBUG(TEXT("[AllocPageDirectory] Post-flush snapshot: PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
         LowPml4Index,
         (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
         KernelPml4Index,
