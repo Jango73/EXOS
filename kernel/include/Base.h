@@ -245,7 +245,7 @@ typedef U32 (*TASKFUNC)(LPVOID Param);
 /************************************************************************/
 // Boolean type
 
-typedef U32 BOOL;
+typedef UINT BOOL;
 
 #ifndef FALSE
 #define FALSE ((BOOL)0)
