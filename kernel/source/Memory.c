@@ -484,10 +484,6 @@ void FreePhysicalPage(PHYSICAL Page) {
 }
 
 /************************************************************************/
-// Paging helpers are provided by arch/i386/i386-Memory.h.
-/************************************************************************/
-
-/************************************************************************/
 // Map or remap a single virtual page by directly editing its PTE via the self-map.
 
 static inline void MapOnePage(
@@ -497,7 +493,7 @@ static inline void MapOnePage(
     UINT dir = GetDirectoryEntry(Linear);
 
     if (!PageDirectoryEntryIsPresent(Directory, dir)) {
-        ERROR(TEXT("[MapOnePage] PDE not present for VA %x (dir=%d)"), Linear, dir);
+        ERROR(TEXT("[MapOnePage] PDE not present for VA %p (dir=%d)"), Linear, dir);
         return;  // Or panic
     }
 
