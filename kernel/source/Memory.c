@@ -675,7 +675,10 @@ LINEAR AllocPageTable(LINEAR Base) {
 
 /************************************************************************/
 
-static BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable);
+static BOOL TryGetPageTableForIterator(
+    const ARCH_PAGE_ITERATOR* Iterator,
+    LPPAGE_TABLE* OutTable,
+    BOOL* OutLargePage);
 
 /************************************************************************/
 
@@ -696,23 +699,35 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
     DEBUG(TEXT("[IsRegionFree] Traversing %u pages"), NumPages);
 
     for (UINT i = 0; i < NumPages; i++) {
-        UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
-        LINEAR CurrentLinear = MemoryPageIteratorGetLinear(&Iterator);
 
-        DEBUG(TEXT("[IsRegionFree] Page %u: Linear=%x Dir=%u Tab=%u"), i, CurrentLinear, DirEntry, TabEntry);
+        DEBUG(TEXT("[IsRegionFree] Page %u: Linear=%x Dir=%u Tab=%u"),
+            i,
+            MemoryPageIteratorGetLinear(&Iterator),
+            MemoryPageIteratorGetDirectoryIndex(&Iterator),
+            TabEntry);
 
         LPPAGE_TABLE Table = NULL;
-        BOOL TableAvailable = TryGetPageTableForIterator(&Iterator, &Table);
+        BOOL IsLargePage = FALSE;
+        BOOL TableAvailable = TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
 
         if (TableAvailable) {
-            DEBUG(TEXT("[IsRegionFree] PDE present for Dir=%u"), DirEntry);
+            DEBUG(TEXT("[IsRegionFree] PDE present for Dir=%u"),
+                MemoryPageIteratorGetDirectoryIndex(&Iterator));
             if (PageTableEntryIsPresent(Table, TabEntry)) {
-                DEBUG(TEXT("[IsRegionFree] PTE present for Linear=%x"), CurrentLinear);
+                DEBUG(TEXT("[IsRegionFree] PTE present for Linear=%x"),
+                    MemoryPageIteratorGetLinear(&Iterator));
                 return FALSE;
             }
         } else {
-            DEBUG(TEXT("[IsRegionFree] PDE not present for Dir=%u"), DirEntry);
+            if (IsLargePage) {
+                DEBUG(TEXT("[IsRegionFree] PDE maps large page for Dir=%u"),
+                    MemoryPageIteratorGetDirectoryIndex(&Iterator));
+                return FALSE;
+            }
+
+            DEBUG(TEXT("[IsRegionFree] PDE not present for Dir=%u"),
+                MemoryPageIteratorGetDirectoryIndex(&Iterator));
         }
 
         MemoryPageIteratorStepPage(&Iterator);
@@ -1135,8 +1150,15 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
  * @param OutTable Receives the page table pointer when available.
  * @return TRUE when the table exists and is returned.
  */
-static BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable) {
+static BOOL TryGetPageTableForIterator(
+    const ARCH_PAGE_ITERATOR* Iterator,
+    LPPAGE_TABLE* OutTable,
+    BOOL* OutLargePage) {
     if (Iterator == NULL || OutTable == NULL) return FALSE;
+
+    if (OutLargePage != NULL) {
+        *OutLargePage = FALSE;
+    }
 
 #if defined(__EXOS_ARCH_X86_64__)
     LINEAR Linear = CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(Iterator));
@@ -1160,8 +1182,16 @@ static BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAG
 #endif
 
     UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
+    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 
-    if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) {
+    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        if (OutLargePage != NULL) {
+            *OutLargePage = TRUE;
+        }
         return FALSE;
     }
 
@@ -1191,7 +1221,9 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
     for (UINT Index = 0; Index < NumPages; Index++) {
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
 
-        if (TryGetPageTableForIterator(&Iterator, &Table) && PageTableEntryIsPresent(Table, TabEntry)) {
+        BOOL IsLargePage = FALSE;
+
+        if (TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) && PageTableEntryIsPresent(Table, TabEntry)) {
             PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
 
             /* Skip bitmap mark if it was an IO mapping (BAR) */
@@ -1200,6 +1232,9 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
             }
 
             ClearPageTableEntry(Table, TabEntry);
+        } else if (IsLargePage == TRUE) {
+            DEBUG(TEXT("[FreeRegion] Encountered large page mapping for Dir=%u"),
+                MemoryPageIteratorGetDirectoryIndex(&Iterator));
         }
 
         MemoryPageIteratorStepPage(&Iterator);
