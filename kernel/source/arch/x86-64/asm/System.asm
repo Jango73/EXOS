@@ -345,46 +345,6 @@ SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
-SYS_FUNC_BEGIN LoadLocalDescriptorTable
-    cli
-    sub     rsp, 16
-    mov     word [rsp], si
-    mov     qword [rsp + 2], rdi
-    lldt    [rsp]
-    add     rsp, 16
-    sti
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN LoadInterruptDescriptorTable
-    pushfq
-    cli
-    sub     rsp, 16
-    mov     word [rsp], si
-    mov     qword [rsp + 2], rdi
-    lidt    [rsp]
-    add     rsp, 16
-    popfq
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN LoadInitialTaskRegister
-    mov     ax, di
-    ltr     ax
-    pushfq
-    pop     rax
-    mov     rdx, EFLAGS_NT
-    not     rdx
-    and     rax, rdx
-    push    rax
-    popfq
-    clts
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
 SYS_FUNC_BEGIN GetTaskRegister
     xor     eax, eax
     str     ax

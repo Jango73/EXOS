@@ -92,9 +92,6 @@ BITS 32
     global EnableIRQ
     global LoadGlobalDescriptorTable
     global ReadGlobalDescriptorTable
-    global LoadLocalDescriptorTable
-    global LoadInterruptDescriptorTable
-    global LoadInitialTaskRegister
     global GetTaskRegister
     global GetPageDirectory
     global InvalidatePage
@@ -592,99 +589,6 @@ ReadGlobalDescriptorTable :
 
     pop     ebx
     pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-LoadLocalDescriptorTable :
-
-    cli
-    push ebp
-    mov  ebp, esp
-
-    ; Put parameters in correct order
-
-    mov  eax, [ebp+(PBN+0)]
-    mov  ebx, [ebp+(PBN+4)]
-
-    mov  [ebp+(PBN+0)], bx
-    mov  [ebp+(PBN+2)], eax
-
-    ; Load the Local Descriptor Table
-
-    lldt [ebp+PBN]
-
-    pop  ebp
-    sti
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-LoadInterruptDescriptorTable :
-
-    push    ebp
-    mov     ebp, esp
-    pushfd
-
-    cli
-
-    ;--------------------------------------
-    ; Put parameters in correct order
-
-    mov     eax, [ebp+(PBN+0)]
-    mov     ebx, [ebp+(PBN+4)]
-
-    mov     [ebp+(PBN+0)], bx
-    mov     [ebp+(PBN+2)], eax
-
-    ;--------------------------------------
-    ; Load the Interrupt Descriptor Table
-
-    lidt    [ebp+(PBN+0)]
-
-    popfd
-    pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-LoadInitialTaskRegister :
-
-    push        ebp
-    mov         ebp, esp
-    push        ebx
-
-    mov         eax, [ebp+PBN]
-    ltr         ax
-
-    ;--------------------------------------
-    ; Clear the nested task bit in eflags
-
-    pushfd
-    pop         eax
-    mov         ebx, EFLAGS_NT
-    not         ebx
-    and         eax, ebx
-    push        eax
-    popfd
-
-    ;--------------------------------------
-    ; Set the task switch flag in CR0
-
-;    mov     eax, cr0
-;    or      eax, CR0_TASKSWITCH
-;    mov     cr0, eax
-
-    ;--------------------------------------
-    ; Clear the task switch flag in CR0
-
-    clts
-
-    pop         ebx
-    pop         ebp
     ret
 
 ;--------------------------------------

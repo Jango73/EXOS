@@ -584,6 +584,82 @@ typedef struct tag_SEGMENT_INFO {
 /************************************************************************/
 // Inline helpers
 
+static inline U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit)
+{
+    struct PACKED
+    {
+        U16 Limit;
+        PHYSICAL Base;
+    } Descriptor;
+
+    Descriptor.Limit = (U16)Limit;
+    Descriptor.Base = Base;
+
+    __asm__ __volatile__(
+        "cli\n\t"
+        "lldt %0\n\t"
+        "sti"
+        :
+        : "m"(Descriptor.Limit)
+        : "memory");
+
+    return (U32)Base;
+}
+
+static inline U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit)
+{
+    struct PACKED
+    {
+        U16 Limit;
+        PHYSICAL Base;
+    } Descriptor;
+    U32 Flags;
+
+    Descriptor.Limit = (U16)Limit;
+    Descriptor.Base = Base;
+
+    __asm__ __volatile__(
+        "pushfd\n\t"
+        "pop %0\n\t"
+        "cli\n\t"
+        "lidt %1\n\t"
+        "push %0\n\t"
+        "popfd"
+        : "=&r"(Flags)
+        : "m"(Descriptor)
+        : "memory");
+
+    return (U32)Base;
+}
+
+static inline U32 LoadInitialTaskRegister(U32 TaskRegister)
+{
+    U16 Selector = (U16)TaskRegister;
+    U32 Flags;
+
+    __asm__ __volatile__("ltr %0" : : "m"(Selector) : "memory");
+
+    __asm__ __volatile__(
+        "pushfd\n\t"
+        "pop %0"
+        : "=r"(Flags)
+        :
+        : "memory");
+
+    Flags &= (U32)(~EFLAGS_NT);
+
+    __asm__ __volatile__(
+        "push %0\n\t"
+        "popfd"
+        :
+        : "r"(Flags)
+        : "memory", "cc");
+
+    __asm__ __volatile__("clts" : : : "memory");
+
+    return Flags;
+}
+
 static inline U32 LoadPageDirectory(PHYSICAL Base)
 {
     PHYSICAL Current;
