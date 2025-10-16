@@ -580,18 +580,7 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
     }
-    U64 EntryBeforeValue = 0ull;
-#if defined(__EXOS_ARCH_X86_64__)
-    volatile U64* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear1);
-    if (EntryPointer != NULL) {
-        EntryBeforeValue = *EntryPointer;
-    }
-#else
-    volatile U32* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear1);
-    if (EntryPointer != NULL) {
-        EntryBeforeValue = (U64)(*EntryPointer);
-    }
-#endif
+
     MapOnePage(
         G_TempLinear1, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
@@ -600,19 +589,6 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
     // new physical page through the shared temporary slot.
     FlushTLB();
 #endif
-    U64 EntryAfterValue = 0ull;
-    if (EntryPointer != NULL) {
-#if defined(__EXOS_ARCH_X86_64__)
-        EntryAfterValue = *EntryPointer;
-#else
-        EntryAfterValue = (U64)(*EntryPointer);
-#endif
-    }
-
-    DEBUG(TEXT("[MapTemporaryPhysicalPage1] Slot1 remapped to %p (before=%p, after=%p)"),
-        Physical,
-        (LINEAR)EntryBeforeValue,
-        (LINEAR)EntryAfterValue);
     return G_TempLinear1;
 }
 
@@ -629,18 +605,7 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
     }
-    U64 EntryBeforeValue = 0ull;
-#if defined(__EXOS_ARCH_X86_64__)
-    volatile U64* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear2);
-    if (EntryPointer != NULL) {
-        EntryBeforeValue = *EntryPointer;
-    }
-#else
-    volatile U32* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear2);
-    if (EntryPointer != NULL) {
-        EntryBeforeValue = (U64)(*EntryPointer);
-    }
-#endif
+
     MapOnePage(
         G_TempLinear2, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
@@ -649,19 +614,6 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
     // new physical page through the shared temporary slot.
     FlushTLB();
 #endif
-    U64 EntryAfterValue = 0ull;
-    if (EntryPointer != NULL) {
-#if defined(__EXOS_ARCH_X86_64__)
-        EntryAfterValue = *EntryPointer;
-#else
-        EntryAfterValue = (U64)(*EntryPointer);
-#endif
-    }
-
-    DEBUG(TEXT("[MapTemporaryPhysicalPage2] Slot2 remapped to %p (before=%p, after=%p)"),
-        Physical,
-        (LINEAR)EntryBeforeValue,
-        (LINEAR)EntryAfterValue);
     return G_TempLinear2;
 }
 
@@ -678,18 +630,7 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
     }
-    U64 EntryBeforeValue = 0ull;
-#if defined(__EXOS_ARCH_X86_64__)
-    volatile U64* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear3);
-    if (EntryPointer != NULL) {
-        EntryBeforeValue = *EntryPointer;
-    }
-#else
-    volatile U32* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear3);
-    if (EntryPointer != NULL) {
-        EntryBeforeValue = (U64)(*EntryPointer);
-    }
-#endif
+
     MapOnePage(
         G_TempLinear3, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
@@ -698,19 +639,6 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     // new physical page through the shared temporary slot.
     FlushTLB();
 #endif
-    U64 EntryAfterValue = 0ull;
-    if (EntryPointer != NULL) {
-#if defined(__EXOS_ARCH_X86_64__)
-        EntryAfterValue = *EntryPointer;
-#else
-        EntryAfterValue = (U64)(*EntryPointer);
-#endif
-    }
-
-    DEBUG(TEXT("[MapTemporaryPhysicalPage3] Slot3 remapped to %p (before=%p, after=%p)"),
-        Physical,
-        (LINEAR)EntryBeforeValue,
-        (LINEAR)EntryAfterValue);
     return G_TempLinear3;
 }
 
