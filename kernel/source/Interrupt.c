@@ -122,98 +122,11 @@ VOIDFUNC InterruptTable[] = {
 
 GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 
-/***************************************************************************/
-
-static void SetGateDescriptorOffset(LPGATE_DESCRIPTOR This, U32 Offset) {
-    This->Offset_00_15 = (Offset & (U32)0x0000FFFF) >> 0x00;
-    This->Offset_16_31 = (Offset & (U32)0xFFFF0000) >> 0x10;
-}
-
-/***************************************************************************/
-
-static void InitializeGateDescriptor(
-    LPGATE_DESCRIPTOR Descriptor,
-    U32 Handler,
-    U16 Type,
-    U16 Privilege) {
-    Descriptor->Selector = SELECTOR_KERNEL_CODE;
-    Descriptor->Reserved = 0;
-    Descriptor->Type = Type;
-    Descriptor->Privilege = Privilege;
-    Descriptor->Present = 1;
-
-    SetGateDescriptorOffset(Descriptor, Handler);
-}
-
-/***************************************************************************/
-
-void InitializeInterrupts(void) {
-    Kernel_i386.IDT = IDT;
-
-    //-------------------------------------
-    // Set all used interrupts
-
-    for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        InitializeGateDescriptor(IDT + Index, (U32)InterruptTable[Index], GATE_TYPE_386_INT, PRIVILEGE_KERNEL);
-    }
-
-    //-------------------------------------
-    // Set system call interrupt
-
-    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (U32)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
-
-    //-------------------------------------
-    // Set driver call interrupt
-
-    InitializeGateDescriptor(IDT + EXOS_DRIVER_CALL, (U32)Interrupt_DriverCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
-
-    //-------------------------------------
-
-    LoadInterruptDescriptorTable((PHYSICAL)IDT, sizeof(IDT) - 1);
-
-    // Reset debug registers
-
-    SetDR7(0);
-
-    //-------------------------------------
-    // Note: Interrupt controller initialization moved to Kernel.c after IOAPIC init
-
-    //-------------------------------------
-    // Initialize system calls
-
-    InitializeSystemCalls();
-}
-
 #elif defined(__EXOS_ARCH_X86_64__)
 
 X86_64_IDT_ENTRY SECTION(".data") IDT[IDT_SIZE / sizeof(X86_64_IDT_ENTRY)];
 
-/***************************************************************************/
-
-static void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY This, U64 Offset) {
-    This->Offset_00_15 = (U16)(Offset & 0x0000FFFFull);
-    This->Offset_16_31 = (U16)((Offset >> 0x10) & 0x0000FFFFull);
-    This->Offset_32_63 = (U32)((Offset >> 0x20) & 0xFFFFFFFFull);
-    This->Reserved_2 = 0;
-}
-
-/***************************************************************************/
-
-static void InitializeGateDescriptor(
-    LPX86_64_IDT_ENTRY Descriptor,
-    U64 Handler,
-    U16 Type,
-    U16 Privilege) {
-    Descriptor->Selector = SELECTOR_KERNEL_CODE;
-    Descriptor->InterruptStackTable = 0;
-    Descriptor->Reserved_0 = 0;
-    Descriptor->Type = Type;
-    Descriptor->Privilege = Privilege;
-    Descriptor->Present = 1;
-    Descriptor->Reserved_1 = 0;
-
-    SetGateDescriptorOffset(Descriptor, Handler);
-}
+#endif
 
 /***************************************************************************/
 
@@ -224,18 +137,18 @@ void InitializeInterrupts(void) {
     // Set all used interrupts
 
     for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        InitializeGateDescriptor(IDT + Index, (U64)InterruptTable[Index], GATE_TYPE_386_INT, PRIVILEGE_KERNEL);
+        InitializeGateDescriptor(IDT + Index, (LINEAR)InterruptTable[Index], GATE_TYPE_386_INT, PRIVILEGE_KERNEL);
     }
 
     //-------------------------------------
     // Set system call interrupt
 
-    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (U64)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
+    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (LINEAR)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
 
     //-------------------------------------
     // Set driver call interrupt
 
-    InitializeGateDescriptor(IDT + EXOS_DRIVER_CALL, (U64)Interrupt_DriverCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
+    InitializeGateDescriptor(IDT + EXOS_DRIVER_CALL, (LINEAR)Interrupt_DriverCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
 
     //-------------------------------------
 
@@ -253,8 +166,6 @@ void InitializeInterrupts(void) {
 
     InitializeSystemCalls();
 }
-
-#endif
 
 /***************************************************************************/
 

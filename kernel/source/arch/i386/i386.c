@@ -54,6 +54,43 @@ KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
 /************************************************************************/
 
 /**
+ * @brief Set the handler address for an IDT gate descriptor.
+ * @param Descriptor IDT entry to update.
+ * @param Handler Linear address of the interrupt handler.
+ */
+void SetGateDescriptorOffset(LPGATE_DESCRIPTOR Descriptor, LINEAR Handler) {
+    U32 Offset = (U32)Handler;
+
+    Descriptor->Offset_00_15 = (U16)(Offset & 0x0000FFFFu);
+    Descriptor->Offset_16_31 = (U16)((Offset >> 16) & 0x0000FFFFu);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Initialize an IDT gate descriptor.
+ * @param Descriptor IDT entry to configure.
+ * @param Handler Linear address of the interrupt handler.
+ * @param Type Gate type to install.
+ * @param Privilege Descriptor privilege level.
+ */
+void InitializeGateDescriptor(
+    LPGATE_DESCRIPTOR Descriptor,
+    LINEAR Handler,
+    U16 Type,
+    U16 Privilege) {
+    Descriptor->Selector = SELECTOR_KERNEL_CODE;
+    Descriptor->Reserved = 0;
+    Descriptor->Type = Type;
+    Descriptor->Privilege = Privilege;
+    Descriptor->Present = 1;
+
+    SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+/************************************************************************/
+
+/**
  * @brief Perform architecture-specific pre-initialization.
  */
 void ArchPreInitializeKernel(void) {

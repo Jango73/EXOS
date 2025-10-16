@@ -232,6 +232,13 @@ typedef struct tag_X86_64_IDT_ENTRY {
     U32 Reserved_2;
 } X86_64_IDT_ENTRY, *LPX86_64_IDT_ENTRY;
 
+void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY Descriptor, LINEAR Handler);
+void InitializeGateDescriptor(
+    LPX86_64_IDT_ENTRY Descriptor,
+    LINEAR Handler,
+    U16 Type,
+    U16 Privilege);
+
 /************************************************************************/
 
 // System segment descriptor (e.g. TSS/LDT) layout for 64-bit mode (16 bytes)

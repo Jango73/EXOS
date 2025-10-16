@@ -332,6 +332,13 @@ typedef struct tag_GATE_DESCRIPTOR {
     U32 Offset_16_31 : 16;  // Bits 16-31 of entry point offset
 } GATE_DESCRIPTOR, *LPGATE_DESCRIPTOR;
 
+void SetGateDescriptorOffset(LPGATE_DESCRIPTOR Descriptor, LINEAR Handler);
+void InitializeGateDescriptor(
+    LPGATE_DESCRIPTOR Descriptor,
+    LINEAR Handler,
+    U16 Type,
+    U16 Privilege);
+
 // The TSS descriptor
 
 typedef struct tag_TSS_DESCRIPTOR {
