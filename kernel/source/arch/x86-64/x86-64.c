@@ -634,6 +634,9 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
+    PHYSICAL CurrentCr3 = (PHYSICAL)GetPageDirectory();
+    DEBUG(TEXT("[AllocPageDirectory] Current CR3 = %p"), CurrentCr3);
+
     ResetRegionSetup(&LowRegion);
     ResetRegionSetup(&KernelRegion);
     ResetRegionSetup(&TaskRunnerRegion);
@@ -762,12 +765,38 @@ PHYSICAL AllocPageDirectory(void) {
         PML4_RECURSIVE_SLOT,
         (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
 
+    LINEAR PreFlushVerificationLinear = MapTemporaryPhysicalPage2(Pml4Physical);
+
+    if (PreFlushVerificationLinear != NULL) {
+        LPPAGE_DIRECTORY PreFlushVerification = (LPPAGE_DIRECTORY)PreFlushVerificationLinear;
+        DEBUG(TEXT("[AllocPageDirectory] Verification slot2 pre-flush PML4[%u]=%p, PML4[%u]=%p"),
+            LowPml4Index,
+            (LINEAR)ReadPageDirectoryEntryValue(PreFlushVerification, LowPml4Index),
+            KernelPml4Index,
+            (LINEAR)ReadPageDirectoryEntryValue(PreFlushVerification, KernelPml4Index));
+    } else {
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for pre-flush verification"));
+    }
+
     volatile U64* TempSlotEntry = GetPageTableEntryRawPointer((U64)Pml4Linear);
     DEBUG(TEXT("[AllocPageDirectory] Temp slot PTE before flush=%p"), (LINEAR)(*TempSlotEntry));
 
     FlushTLB();
 
     DEBUG(TEXT("[AllocPageDirectory] Temp slot PTE after flush=%p"), (LINEAR)(*TempSlotEntry));
+
+    LINEAR VerificationLinear = MapTemporaryPhysicalPage2(Pml4Physical);
+
+    if (VerificationLinear != NULL) {
+        LPPAGE_DIRECTORY VerificationPml4 = (LPPAGE_DIRECTORY)VerificationLinear;
+        DEBUG(TEXT("[AllocPageDirectory] Verification slot2 PML4[%u]=%p, PML4[%u]=%p"),
+            LowPml4Index,
+            (LINEAR)ReadPageDirectoryEntryValue(VerificationPml4, LowPml4Index),
+            KernelPml4Index,
+            (LINEAR)ReadPageDirectoryEntryValue(VerificationPml4, KernelPml4Index));
+    } else {
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for PML4 verification"));
+    }
 
     LINEAR RemappedPml4 = MapTemporaryPhysicalPage1(Pml4Physical);
     DEBUG(TEXT("[AllocPageDirectory] PML4 remapped at %p"), RemappedPml4);
