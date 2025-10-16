@@ -122,7 +122,7 @@ typedef struct tag_IOAPIC_REDIRECTION_ENTRY {
 
 typedef struct tag_IOAPIC_CONTROLLER {
     U8      IoApicId;               // I/O APIC ID from ACPI
-    U32     PhysicalAddress;        // Physical base address
+    PHYSICAL PhysicalAddress;       // Physical base address
     LINEAR  MappedAddress;          // Virtual address where I/O APIC is mapped
     U32     GlobalInterruptBase;    // Global system interrupt base
     U8      Version;                // I/O APIC version

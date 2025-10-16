@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "Heap.h"
 #include "CoreString.h"
 #include "System.h"
 
@@ -64,6 +65,104 @@ static U8 CalculateChecksum(LPCVOID Data, U32 Length) {
     }
 
     return Sum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Get a temporary linear address for an ACPI table physical address.
+ * @param PhysicalAddress Physical address of the table.
+ * @return Linear address or 0 if mapping failed.
+ */
+static LINEAR GetACPITableLinearAddress(PHYSICAL PhysicalAddress) {
+    LINEAR LinearAddress;
+
+    if (PhysicalAddress < 0x100000) {
+        LinearAddress = (LINEAR)PhysicalAddress;
+    } else {
+        PHYSICAL PageBase = PhysicalAddress & (PHYSICAL)~0xFFF;
+        LINEAR MappedAddress = MapTempPhysicalPage(PageBase);
+        if (MappedAddress == 0) {
+            DEBUG(TEXT("[GetACPITableLinearAddress] Failed to map physical 0x%08X"), (U32)PhysicalAddress);
+            return 0;
+        }
+        UINT Offset = (UINT)(PhysicalAddress & (PHYSICAL)0xFFF);
+        LinearAddress = MappedAddress + Offset;
+    }
+
+    if (!IsValidMemory(LinearAddress)) {
+        DEBUG(TEXT("[GetACPITableLinearAddress] Linear 0x%08X not accessible"), LinearAddress);
+        return 0;
+    }
+
+    return LinearAddress;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy a physical memory range into the kernel heap.
+ * @param PhysicalAddress Physical start address.
+ * @param Destination Destination buffer.
+ * @param Length Number of bytes to copy.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL CopyACPIPhysicalRange(PHYSICAL PhysicalAddress, U8* Destination, U32 Length) {
+    U32 Copied = 0;
+
+    while (Copied < Length) {
+        PHYSICAL CurrentPhysical = PhysicalAddress + (PHYSICAL)Copied;
+        LINEAR Source = GetACPITableLinearAddress(CurrentPhysical);
+        if (Source == 0) {
+            DEBUG(TEXT("[CopyACPIPhysicalRange] Failed to access physical 0x%08X"), (U32)CurrentPhysical);
+            return FALSE;
+        }
+
+        UINT PageOffset = (UINT)(CurrentPhysical & (PHYSICAL)0xFFF);
+        U32 Chunk = 0x1000 - PageOffset;
+        U32 Remaining = Length - Copied;
+        if (Chunk > Remaining) Chunk = Remaining;
+
+        MemoryCopy(Destination + Copied, (LPVOID)Source, Chunk);
+        Copied += Chunk;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Load an ACPI table from physical memory into kernel memory.
+ * @param PhysicalAddress Physical address of the table.
+ * @param Signature Expected signature for logging purposes.
+ * @return Pointer to copied table or NULL on failure.
+ */
+static LPACPI_TABLE_HEADER LoadACPITable(PHYSICAL PhysicalAddress, LPCSTR Signature) {
+    LINEAR HeaderLinear = GetACPITableLinearAddress(PhysicalAddress);
+    if (HeaderLinear == 0) return NULL;
+
+    LPACPI_TABLE_HEADER Header = (LPACPI_TABLE_HEADER)HeaderLinear;
+    U32 Length = Header->Length;
+
+    if (Length == 0) {
+        DEBUG(TEXT("[LoadACPITable] Table %.4s has invalid length 0"), Signature);
+        return NULL;
+    }
+
+    LPACPI_TABLE_HEADER TableCopy = (LPACPI_TABLE_HEADER)KernelHeapAlloc(Length);
+    if (TableCopy == NULL) {
+        ERROR(TEXT("[LoadACPITable] Out of memory allocating %u bytes for table %.4s"), Length, Signature);
+        return NULL;
+    }
+
+    if (!CopyACPIPhysicalRange(PhysicalAddress, (U8*)TableCopy, Length)) {
+        KernelHeapFree(TableCopy);
+        DEBUG(TEXT("[LoadACPITable] Failed to copy table %.4s from physical 0x%08X"), Signature, (U32)PhysicalAddress);
+        return NULL;
+    }
+
+    return TableCopy;
 }
 
 /************************************************************************/
@@ -192,35 +291,23 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
                 continue;
             }
 
-            U32 PhysicalAddress = EntryLow;
-            LINEAR TableAddress;
+            PHYSICAL PhysicalAddress = (PHYSICAL)EntryLow;
+            LINEAR TableAddress = GetACPITableLinearAddress(PhysicalAddress);
+            if (TableAddress == 0) continue;
 
-            // Map the physical address to virtual address
-            if (PhysicalAddress < 0x100000) {
-                // Table is in low memory, use direct mapping
-                TableAddress = PhysicalAddress;
-            } else {
-                // Table is in high memory, needs to be mapped
-                LINEAR MappedAddress = MapTempPhysicalPage(PhysicalAddress & ~0xFFF);
-                if (MappedAddress == 0) {
-                    DEBUG(TEXT("[FindACPITable] Failed to map table at 0x%08X"), PhysicalAddress);
-                    continue;
-                }
-                TableAddress = MappedAddress + (PhysicalAddress & 0xFFF);
-            }
+            LPACPI_TABLE_HEADER Header = (LPACPI_TABLE_HEADER)TableAddress;
+            if (MemoryCompare(Header->Signature, Signature, 4) == 0) {
+                LPACPI_TABLE_HEADER Table = LoadACPITable(PhysicalAddress, Signature);
+                if (Table == NULL) continue;
 
-            if (!IsValidMemory(TableAddress)) {
-                DEBUG(TEXT("[FindACPITable] Table at 0x%08X not accessible"), TableAddress);
-                continue;
-            }
-
-            LPACPI_TABLE_HEADER Table = (LPACPI_TABLE_HEADER)TableAddress;
-            if (MemoryCompare(Table->Signature, Signature, 4) == 0) {
                 if (ValidateACPITableChecksum(Table)) {
-                    DEBUG(TEXT("[FindACPITable] Found table %.4s at physical 0x%08X, virtual 0x%08X"),
-                          Signature, PhysicalAddress, TableAddress);
+                    DEBUG(TEXT("[FindACPITable] Found table %.4s at physical 0x%08X, stored at 0x%08X"),
+                          Signature, (U32)PhysicalAddress, (U32)Table);
                     return Table;
                 }
+
+                DEBUG(TEXT("[FindACPITable] Table %.4s failed checksum"), Signature);
+                KernelHeapFree(Table);
             }
         }
     }
@@ -231,35 +318,23 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
         DEBUG(TEXT("[FindACPITable] Searching RSDT with %d entries"), EntryCount);
 
         for (U32 i = 0; i < EntryCount; i++) {
-            U32 PhysicalAddress = G_RSDT->Entry[i];
-            LINEAR TableAddress;
+            PHYSICAL PhysicalAddress = (PHYSICAL)G_RSDT->Entry[i];
+            LINEAR TableAddress = GetACPITableLinearAddress(PhysicalAddress);
+            if (TableAddress == 0) continue;
 
-            // Map the physical address to virtual address
-            if (PhysicalAddress < 0x100000) {
-                // Table is in low memory, use direct mapping
-                TableAddress = PhysicalAddress;
-            } else {
-                // Table is in high memory, needs to be mapped
-                LINEAR MappedAddress = MapTempPhysicalPage(PhysicalAddress & ~0xFFF);
-                if (MappedAddress == 0) {
-                    DEBUG(TEXT("[FindACPITable] Failed to map table at 0x%08X"), PhysicalAddress);
-                    continue;
-                }
-                TableAddress = MappedAddress + (PhysicalAddress & 0xFFF);
-            }
+            LPACPI_TABLE_HEADER Header = (LPACPI_TABLE_HEADER)TableAddress;
+            if (MemoryCompare(Header->Signature, Signature, 4) == 0) {
+                LPACPI_TABLE_HEADER Table = LoadACPITable(PhysicalAddress, Signature);
+                if (Table == NULL) continue;
 
-            if (!IsValidMemory(TableAddress)) {
-                DEBUG(TEXT("[FindACPITable] Table at 0x%08X not accessible"), TableAddress);
-                continue;
-            }
-
-            LPACPI_TABLE_HEADER Table = (LPACPI_TABLE_HEADER)TableAddress;
-            if (MemoryCompare(Table->Signature, Signature, 4) == 0) {
                 if (ValidateACPITableChecksum(Table)) {
-                    DEBUG(TEXT("[FindACPITable] Found table %.4s at physical 0x%08X, virtual 0x%08X"),
-                          Signature, PhysicalAddress, TableAddress);
+                    DEBUG(TEXT("[FindACPITable] Found table %.4s at physical 0x%08X, stored at 0x%08X"),
+                          Signature, (U32)PhysicalAddress, (U32)Table);
                     return Table;
                 }
+
+                DEBUG(TEXT("[FindACPITable] Table %.4s failed checksum"), Signature);
+                KernelHeapFree(Table);
             }
         }
     }
@@ -277,6 +352,11 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
 BOOL ParseMADT(void) {
     DEBUG(TEXT("[ParseMADT] Enter"));
 
+    if (G_MADT != NULL) {
+        KernelHeapFree(G_MADT);
+        G_MADT = NULL;
+    }
+
     // Find MADT table
     G_MADT = (LPACPI_MADT)FindACPITable(TEXT("APIC"));
     if (G_MADT == NULL) {
@@ -288,7 +368,7 @@ BOOL ParseMADT(void) {
           G_MADT->LocalApicAddress, G_MADT->Flags);
 
     // Store Local APIC address
-    G_AcpiConfig.LocalApicAddress = G_MADT->LocalApicAddress;
+    G_AcpiConfig.LocalApicAddress = (PHYSICAL)G_MADT->LocalApicAddress;
 
     // Parse MADT entries
     U32 EntryOffset = 0;
@@ -320,7 +400,7 @@ BOOL ParseMADT(void) {
                 LPACPI_MADT_IO_APIC IoApic = (LPACPI_MADT_IO_APIC)Entry;
                 if (G_AcpiConfig.IoApicCount < 8) {
                     G_IoApicInfo[G_AcpiConfig.IoApicCount].IoApicId = IoApic->IoApicId;
-                    G_IoApicInfo[G_AcpiConfig.IoApicCount].IoApicAddress = IoApic->IoApicAddress;
+                    G_IoApicInfo[G_AcpiConfig.IoApicCount].IoApicAddress = (PHYSICAL)IoApic->IoApicAddress;
                     G_IoApicInfo[G_AcpiConfig.IoApicCount].GlobalSystemInterruptBase = IoApic->GlobalSystemInterruptBase;
                     G_IoApicInfo[G_AcpiConfig.IoApicCount].MaxRedirectionEntry = 0; // Will be read from I/O APIC later
                     G_AcpiConfig.IoApicCount++;
@@ -392,66 +472,42 @@ BOOL InitializeACPI(void) {
     if (G_RSDP->RsdtAddress != 0) {
         DEBUG(TEXT("[InitializeACPI] RSDT physical address: 0x%08X"), G_RSDP->RsdtAddress);
 
-        // Check if RSDT is in low memory (first 1MB) or needs mapping
-        if (G_RSDP->RsdtAddress < 0x100000) {
-            // RSDT is in low memory, use direct mapping
-            G_RSDT = (LPACPI_RSDT)G_RSDP->RsdtAddress;
-        } else {
-            // RSDT is in high memory, needs to be mapped
-            LINEAR MappedAddress = MapTempPhysicalPage(G_RSDP->RsdtAddress & ~0xFFF);
-            if (MappedAddress != 0) {
-                G_RSDT = (LPACPI_RSDT)(MappedAddress + (G_RSDP->RsdtAddress & 0xFFF));
-                DEBUG(TEXT("[InitializeACPI] RSDT mapped to virtual address: 0x%08X"), (U32)G_RSDT);
-            } else {
-                DEBUG(TEXT("[InitializeACPI] Failed to map RSDT"));
-                G_RSDT = NULL;
-            }
+        if (G_RSDT != NULL) {
+            KernelHeapFree(G_RSDT);
+            G_RSDT = NULL;
         }
 
-        SAFE_USE(G_RSDT) {
-            if (!IsValidMemory((LINEAR)G_RSDT)) {
-                DEBUG(TEXT("[InitializeACPI] RSDT not accessible in virtual memory"));
-                G_RSDT = NULL;
-            } else if (!ValidateACPITableChecksum(&G_RSDT->Header)) {
-                DEBUG(TEXT("[InitializeACPI] RSDT checksum validation failed"));
-                G_RSDT = NULL;
-            } else {
-                DEBUG(TEXT("[InitializeACPI] RSDT found and validated at 0x%08X"), (U32)G_RSDT);
-            }
+        LPACPI_TABLE_HEADER RsdtTable = LoadACPITable((PHYSICAL)G_RSDP->RsdtAddress, TEXT("RSDT"));
+        if (RsdtTable == NULL) {
+            DEBUG(TEXT("[InitializeACPI] Failed to load RSDT"));
+        } else if (!ValidateACPITableChecksum(RsdtTable)) {
+            DEBUG(TEXT("[InitializeACPI] RSDT checksum validation failed"));
+            KernelHeapFree(RsdtTable);
+        } else {
+            G_RSDT = (LPACPI_RSDT)RsdtTable;
+            DEBUG(TEXT("[InitializeACPI] RSDT loaded at 0x%08X"), (U32)G_RSDT);
         }
     }
 
     // Map and validate XSDT if available (ACPI 2.0+)
     if (G_RSDP->Revision >= 2 && U64_Low32(G_RSDP->XsdtAddress) != 0 && U64_High32(G_RSDP->XsdtAddress) == 0) {
-        U32 XsdtPhysical = U64_Low32(G_RSDP->XsdtAddress);
-        DEBUG(TEXT("[InitializeACPI] XSDT physical address: 0x%08X"), XsdtPhysical);
+        PHYSICAL XsdtPhysical = (PHYSICAL)U64_Low32(G_RSDP->XsdtAddress);
+        DEBUG(TEXT("[InitializeACPI] XSDT physical address: 0x%08X"), (U32)XsdtPhysical);
 
-        // Check if XSDT is in low memory (first 1MB) or needs mapping
-        if (XsdtPhysical < 0x100000) {
-            // XSDT is in low memory, use direct mapping
-            G_XSDT = (LPACPI_XSDT)XsdtPhysical;
-        } else {
-            // XSDT is in high memory, needs to be mapped
-            LINEAR MappedAddress = MapTempPhysicalPage(XsdtPhysical & ~0xFFF);
-            if (MappedAddress != 0) {
-                G_XSDT = (LPACPI_XSDT)(MappedAddress + (XsdtPhysical & 0xFFF));
-                DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: 0x%08X"), (U32)G_XSDT);
-            } else {
-                DEBUG(TEXT("[InitializeACPI] Failed to map XSDT"));
-                G_XSDT = NULL;
-            }
+        if (G_XSDT != NULL) {
+            KernelHeapFree(G_XSDT);
+            G_XSDT = NULL;
         }
 
-        SAFE_USE(G_XSDT) {
-            if (!IsValidMemory((LINEAR)G_XSDT)) {
-                DEBUG(TEXT("[InitializeACPI] XSDT not accessible in virtual memory"));
-                G_XSDT = NULL;
-            } else if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
-                DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
-                G_XSDT = NULL;
-            } else {
-                DEBUG(TEXT("[InitializeACPI] XSDT found and validated at 0x%08X"), (U32)G_XSDT);
-            }
+        LPACPI_TABLE_HEADER XsdtTable = LoadACPITable(XsdtPhysical, TEXT("XSDT"));
+        if (XsdtTable == NULL) {
+            DEBUG(TEXT("[InitializeACPI] Failed to load XSDT"));
+        } else if (!ValidateACPITableChecksum(XsdtTable)) {
+            DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
+            KernelHeapFree(XsdtTable);
+        } else {
+            G_XSDT = (LPACPI_XSDT)XsdtTable;
+            DEBUG(TEXT("[InitializeACPI] XSDT loaded at 0x%08X"), (U32)G_XSDT);
         }
     }
 

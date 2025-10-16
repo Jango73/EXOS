@@ -75,7 +75,7 @@ BOOL InitializeIOAPIC(void)
         }
 
         DEBUG(TEXT("[InitializeIOAPIC] Initializing controller %u: ID=%u, Address=%p, GSI Base=%u"),
-                  ControllerIndex, pIOAPICInfo->IoApicId, pIOAPICInfo->IoApicAddress,
+                  ControllerIndex, pIOAPICInfo->IoApicId, (LPVOID)(UINT)pIOAPICInfo->IoApicAddress,
                   pIOAPICInfo->GlobalSystemInterruptBase);
 
         // Store controller information

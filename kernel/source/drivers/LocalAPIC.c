@@ -54,7 +54,7 @@ static LOCAL_APIC_CONFIG g_LocalApicConfig = {0};
  */
 BOOL InitializeLocalAPIC(void) {
     LPACPI_CONFIG AcpiConfig;
-    U32 ApicBaseAddr;
+    PHYSICAL ApicBaseAddr;
 
     DEBUG(TEXT("[LocalAPIC] Initializing Local APIC..."));
 
@@ -71,11 +71,11 @@ BOOL InitializeLocalAPIC(void) {
     AcpiConfig = GetACPIConfig();
     if (AcpiConfig && AcpiConfig->Valid && AcpiConfig->UseLocalApic) {
         ApicBaseAddr = AcpiConfig->LocalApicAddress;
-        DEBUG(TEXT("[LocalAPIC] Using ACPI-provided Local APIC address: 0x%08X"), ApicBaseAddr);
+        DEBUG(TEXT("[LocalAPIC] Using ACPI-provided Local APIC address: 0x%08X"), (U32)ApicBaseAddr);
     } else {
         // Fall back to MSR
         ApicBaseAddr = GetLocalAPICBaseAddress();
-        DEBUG(TEXT("[LocalAPIC] Using MSR-provided Local APIC address: 0x%08X"), ApicBaseAddr);
+        DEBUG(TEXT("[LocalAPIC] Using MSR-provided Local APIC address: 0x%08X"), (U32)ApicBaseAddr);
     }
 
     if (ApicBaseAddr == 0) {
@@ -210,7 +210,7 @@ BOOL DisableLocalAPIC(void) {
  *
  * @return Physical base address of Local APIC
  */
-U32 GetLocalAPICBaseAddress(void) {
+PHYSICAL GetLocalAPICBaseAddress(void) {
     U32 ApicBaseLow;
 
     if (!IsLocalAPICPresent()) {
@@ -218,7 +218,7 @@ U32 GetLocalAPICBaseAddress(void) {
     }
 
     ApicBaseLow = ReadMSR(IA32_APIC_BASE_MSR);
-    return ApicBaseLow & IA32_APIC_BASE_ADDR_MASK;
+    return (PHYSICAL)(ApicBaseLow & IA32_APIC_BASE_ADDR_MASK);
 }
 
 /************************************************************************/
@@ -231,8 +231,9 @@ U32 GetLocalAPICBaseAddress(void) {
  * @param BaseAddress Physical base address to set
  * @return TRUE if successfully set, FALSE otherwise
  */
-BOOL SetLocalAPICBaseAddress(U32 BaseAddress) {
+BOOL SetLocalAPICBaseAddress(PHYSICAL BaseAddress) {
     U32 ApicBaseLow, ApicBaseHigh;
+    PHYSICAL MaskedAddress;
 
     if (!IsLocalAPICPresent()) {
         return FALSE;
@@ -243,7 +244,8 @@ BOOL SetLocalAPICBaseAddress(U32 BaseAddress) {
     ApicBaseHigh = 0;
 
     // Clear address bits and set new address
-    ApicBaseLow = (ApicBaseLow & ~IA32_APIC_BASE_ADDR_MASK) | (BaseAddress & IA32_APIC_BASE_ADDR_MASK);
+    MaskedAddress = BaseAddress & (PHYSICAL)IA32_APIC_BASE_ADDR_MASK;
+    ApicBaseLow = (ApicBaseLow & ~IA32_APIC_BASE_ADDR_MASK) | (U32)MaskedAddress;
 
     // Write back to MSR
     WriteMSR64(IA32_APIC_BASE_MSR, ApicBaseLow, ApicBaseHigh);

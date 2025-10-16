@@ -119,14 +119,14 @@
 // Local APIC configuration structure
 
 typedef struct tag_LOCAL_APIC_CONFIG {
-    BOOL    Present;            // TRUE if Local APIC is present
-    BOOL    Enabled;            // TRUE if Local APIC is enabled
-    U32     BaseAddress;        // Physical base address of Local APIC
-    LINEAR  MappedAddress;      // Virtual address where Local APIC is mapped
-    U8      ApicId;             // Local APIC ID
-    U8      Version;            // Local APIC version
-    U8      MaxLvtEntries;      // Maximum LVT entries supported
-    U32     SpuriousVector;     // Spurious interrupt vector
+    BOOL     Present;            // TRUE if Local APIC is present
+    BOOL     Enabled;            // TRUE if Local APIC is enabled
+    PHYSICAL BaseAddress;        // Physical base address of Local APIC
+    LINEAR   MappedAddress;      // Virtual address where Local APIC is mapped
+    U8       ApicId;             // Local APIC ID
+    U8       Version;            // Local APIC version
+    U8       MaxLvtEntries;      // Maximum LVT entries supported
+    U32      SpuriousVector;     // Spurious interrupt vector
 } LOCAL_APIC_CONFIG, *LPLOCAL_APIC_CONFIG;
 
 /***************************************************************************/
@@ -160,14 +160,14 @@ BOOL DisableLocalAPIC(void);
  * Read Local APIC base address from MSR
  * @return Physical base address of Local APIC
  */
-U32 GetLocalAPICBaseAddress(void);
+PHYSICAL GetLocalAPICBaseAddress(void);
 
 /**
  * Set Local APIC base address via MSR
  * @param BaseAddress Physical base address to set
  * @return TRUE if successfully set, FALSE otherwise
  */
-BOOL SetLocalAPICBaseAddress(U32 BaseAddress);
+BOOL SetLocalAPICBaseAddress(PHYSICAL BaseAddress);
 
 /**
  * Read from a Local APIC register
