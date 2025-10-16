@@ -283,7 +283,9 @@ static void PopulateTaskRunnerRegionTable(LPPAGE_TABLE Table, void *Context) {
             /*Fixed*/ 1));
 }
 
-/************************************************************************//**
+/************************************************************************/
+
+/**
  * @brief Allocate and populate a startup region mapping.
  * @param Region Region descriptor to fill.
  * @param RegionName Region label for logging purposes.
@@ -947,9 +949,6 @@ void ArchInitializeMemoryManager(void) {
         (LPVOID)TempLinear2,
         (LPVOID)TempLinear3);
 
-    PHYSICAL CurrentPageDirectory = (PHYSICAL)GetPageDirectory();
-    LogPageDirectory64(CurrentPageDirectory);
-
     UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.PageCount == 0) {
@@ -970,8 +969,8 @@ void ArchInitializeMemoryManager(void) {
     Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
     Kernel.PPBSize = BitmapBytesAligned;
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %x"), BitmapBytesAligned);
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB physical base: %p"), (LINEAR)Kernel.PPB);
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB size: %x"), Kernel.PPBSize);
 
     MemorySet(Kernel.PPB, 0, Kernel.PPBSize);
 
@@ -983,11 +982,7 @@ void ArchInitializeMemoryManager(void) {
 
     PHYSICAL NewPageDirectory = AllocPageDirectory();
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] New page directory: %p"), (LPVOID)NewPageDirectory);
-
-    LogPageDirectory64(NewPageDirectory);
-
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Page directory ready"));
+    DEBUG(TEXT("[ArchInitializeMemoryManager] New page directory: %p"), (LINEAR)NewPageDirectory);
 
     if (NewPageDirectory == NULL) {
         ERROR(TEXT("[ArchInitializeMemoryManager] AllocPageDirectory failed"));
@@ -997,17 +992,11 @@ void ArchInitializeMemoryManager(void) {
 
     LoadPageDirectory(NewPageDirectory);
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Page directory set: %p"), (LPVOID)NewPageDirectory);
+    LogPageDirectory64(NewPageDirectory);
 
     FlushTLB();
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] TLB flushed"));
-
-    if (TempLinear1 == 0 || TempLinear2 == 0) {
-        ERROR(TEXT("[ArchInitializeMemoryManager] Failed to reserve temp linear pages"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
 
     Kernel_i386.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
