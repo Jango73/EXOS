@@ -499,34 +499,12 @@ static inline void MapOnePage(
     LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
     UINT tab = GetTableEntry(Linear);
 
-    U64 EntryBeforeValue = 0ull;
-#if defined(__EXOS_ARCH_X86_64__)
-    volatile U64* EntryPointer = &((volatile U64*)Table)[tab];
-    EntryBeforeValue = *EntryPointer;
-#else
-    volatile U32* EntryPointer = &((volatile U32*)Table)[tab];
-    EntryBeforeValue = (U64)(*EntryPointer);
-#endif
-
     WritePageTableEntryValue(
         Table, tab, MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed));
 
     DEBUG(TEXT("[MapOnePage] Mapped %p to %p (Table = %p))"), Linear, Physical, Table);
 
     InvalidatePage(Linear);
-
-    U64 EntryAfterValue = 0ull;
-#if defined(__EXOS_ARCH_X86_64__)
-    EntryAfterValue = *EntryPointer;
-#else
-    EntryAfterValue = (U64)(*EntryPointer);
-#endif
-
-    DEBUG(TEXT("[MapOnePage] Updated VA %p -> PA %p (before=%p, after=%p)"),
-        Linear,
-        Physical,
-        (LINEAR)EntryBeforeValue,
-        (LINEAR)EntryAfterValue);
 }
 
 /************************************************************************/
@@ -586,11 +564,13 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
     MapOnePage(
         G_TempLinear1, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
 #if defined(__EXOS_ARCH_X86_64__)
     // Ensure the CPU stops using the previous translation before callers touch the
     // new physical page through the shared temporary slot.
     FlushTLB();
 #endif
+
     return G_TempLinear1;
 }
 
@@ -611,11 +591,13 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
     MapOnePage(
         G_TempLinear2, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
 #if defined(__EXOS_ARCH_X86_64__)
     // Ensure the CPU stops using the previous translation before callers touch the
     // new physical page through the shared temporary slot.
     FlushTLB();
 #endif
+
     return G_TempLinear2;
 }
 
@@ -636,11 +618,13 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     MapOnePage(
         G_TempLinear3, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
 #if defined(__EXOS_ARCH_X86_64__)
     // Ensure the CPU stops using the previous translation before callers touch the
     // new physical page through the shared temporary slot.
     FlushTLB();
 #endif
+
     return G_TempLinear3;
 }
 
