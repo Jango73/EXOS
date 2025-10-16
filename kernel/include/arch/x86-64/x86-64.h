@@ -347,7 +347,7 @@ static inline U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit)
         "lldt %0\n\t"
         "sti"
         :
-        : "m"(Descriptor.Limit)
+        : "m"(Descriptor)
         : "memory");
 
     return (U32)Base;
