@@ -438,6 +438,7 @@ typedef UINT BOOL;
 
 #define MEMBER_OFFSET(struc, member) ((UINT)(&(((struc*)NULL)->member)))
 #define HAS_MEMBER(struc, member, struc_size) (MEMBER_OFFSET(struc, member) < struc_size)
+#define ARRAY_COUNT(array) ((UINT)(sizeof(array) / sizeof((array)[0])))
 
 /***************************************************************************/
 // ASCII string types
