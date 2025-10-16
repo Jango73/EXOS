@@ -174,21 +174,12 @@ static BOOL AllocateTableAndPopulate(
     LPPAGE_DIRECTORY Directory) {
     Table->Physical = AllocPhysicalPage();
 
-    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] allocating table"),
-        Region->Label,
-        Table->DirectoryIndex);
-
     if (Table->Physical == NULL) {
         ERROR(TEXT("[AllocPageDirectory] %s region out of physical pages"), Region->Label);
         return FALSE;
     }
 
     LINEAR TableLinear = MapTemporaryPhysicalPage3(Table->Physical);
-
-    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] mapped temporary table at %p"),
-        Region->Label,
-        Table->DirectoryIndex,
-        TableLinear);
 
     if (TableLinear == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage3 failed for %s table"), Region->Label);
@@ -199,12 +190,6 @@ static BOOL AllocateTableAndPopulate(
 
     LPPAGE_TABLE TableVA = (LPPAGE_TABLE)TableLinear;
     MemorySet(TableVA, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] %s directory[%u] table cleared"), Region->Label, Table->DirectoryIndex);
-
-    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] table physical = %p"),
-        Region->Label,
-        Table->DirectoryIndex,
-        Table->Physical);
 
     UINT ProbeIndex = 0u;
     switch (Table->Mode) {
@@ -259,13 +244,6 @@ static BOOL AllocateTableAndPopulate(
         break;
     }
 
-    U64 ProbeValue = ReadPageTableEntryValue(TableVA, ProbeIndex);
-    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] probe entry[%u]=%p"),
-        Region->Label,
-        Table->DirectoryIndex,
-        ProbeIndex,
-        (LINEAR)ProbeValue);
-
     WritePageDirectoryEntryValue(
         Directory,
         Table->DirectoryIndex,
@@ -278,16 +256,10 @@ static BOOL AllocateTableAndPopulate(
             Table->Global,
             /*Fixed*/ 1));
 
-    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] entry -> table %p"),
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] table ready at %p"),
         Region->Label,
         Table->DirectoryIndex,
         Table->Physical);
-
-    U64 DirectoryValue = ReadPageDirectoryEntryValue(Directory, Table->DirectoryIndex);
-    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] readback=%p"),
-        Region->Label,
-        Table->DirectoryIndex,
-        (LINEAR)DirectoryValue);
 
     return TRUE;
 }
@@ -306,9 +278,7 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     Region->PdptPhysical = AllocPhysicalPage();
     Region->DirectoryPhysical = AllocPhysicalPage();
 
-    DEBUG(TEXT("[SetupLowRegion] PDPT physical = %p, directory physical = %p"),
-        Region->PdptPhysical,
-        Region->DirectoryPhysical);
+    DEBUG(TEXT("[SetupLowRegion] PDPT %p, directory %p"), Region->PdptPhysical, Region->DirectoryPhysical);
 
     if (Region->PdptPhysical == NULL || Region->DirectoryPhysical == NULL) {
         ERROR(TEXT("[AllocPageDirectory] Low region out of physical pages"));
@@ -317,19 +287,14 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
 
     LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(Region->PdptPhysical);
 
-    DEBUG(TEXT("[SetupLowRegion] PDPT mapped at %p"), Pdpt);
-
     if (Pdpt == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed for low PDPT"));
         return FALSE;
     }
 
     MemorySet(Pdpt, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] Low PDPT cleared"));
 
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
-
-    DEBUG(TEXT("[SetupLowRegion] Directory mapped at %p"), Directory);
 
     if (Directory == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for low directory"));
@@ -337,7 +302,6 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     }
 
     MemorySet(Directory, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] Low directory cleared"));
 
     WritePageDirectoryEntryValue(
         Pdpt,
@@ -350,12 +314,9 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
             /*CacheDisabled*/ 0,
             Region->Global,
             /*Fixed*/ 1));
-
-    DEBUG(TEXT("[SetupLowRegion] PDPT[%u] -> directory %p"), Region->PdptIndex, Region->DirectoryPhysical);
+    DEBUG(TEXT("[SetupLowRegion] PDPT[%u] -> %p"), Region->PdptIndex, Region->DirectoryPhysical);
 
     UINT LowDirectoryIndex = GetDirectoryEntry(0);
-
-    DEBUG(TEXT("[SetupLowRegion] Low directory index base = %u"), LowDirectoryIndex);
 
     Region->Tables[Region->TableCount].DirectoryIndex = LowDirectoryIndex;
     Region->Tables[Region->TableCount].ReadWrite = 1;
@@ -438,9 +399,7 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
     Region->PdptPhysical = AllocPhysicalPage();
     Region->DirectoryPhysical = AllocPhysicalPage();
 
-    DEBUG(TEXT("[SetupKernelRegion] PDPT physical = %p, directory physical = %p"),
-        Region->PdptPhysical,
-        Region->DirectoryPhysical);
+    DEBUG(TEXT("[SetupKernelRegion] PDPT %p, directory %p"), Region->PdptPhysical, Region->DirectoryPhysical);
 
     if (Region->PdptPhysical == NULL || Region->DirectoryPhysical == NULL) {
         ERROR(TEXT("[AllocPageDirectory] Kernel region out of physical pages"));
@@ -449,19 +408,14 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
 
     LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(Region->PdptPhysical);
 
-    DEBUG(TEXT("[SetupKernelRegion] PDPT mapped at %p"), Pdpt);
-
     if (Pdpt == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed for kernel PDPT"));
         return FALSE;
     }
 
     MemorySet(Pdpt, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] Kernel PDPT cleared"));
 
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
-
-    DEBUG(TEXT("[SetupKernelRegion] Directory mapped at %p"), Directory);
 
     if (Directory == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for kernel directory"));
@@ -469,7 +423,6 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
     }
 
     MemorySet(Directory, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] Kernel directory cleared"));
 
     WritePageDirectoryEntryValue(
         Pdpt,
@@ -482,15 +435,10 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
             /*CacheDisabled*/ 0,
             Region->Global,
             /*Fixed*/ 1));
-
-    DEBUG(TEXT("[SetupKernelRegion] PDPT[%u] -> directory %p"), Region->PdptIndex, Region->DirectoryPhysical);
+    DEBUG(TEXT("[SetupKernelRegion] PDPT[%u] -> %p"), Region->PdptIndex, Region->DirectoryPhysical);
 
     UINT DirectoryIndex = GetDirectoryEntry((U64)VMA_KERNEL);
     PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
-
-    DEBUG(TEXT("[SetupKernelRegion] Directory base index = %u, kernel physical base = %p"),
-        DirectoryIndex,
-        PhysBaseKernel);
 
     for (UINT TableIndex = 0; TableIndex < TableCountRequired; TableIndex++) {
         PAGE_TABLE_SETUP* Table = &Region->Tables[Region->TableCount];
@@ -505,8 +453,6 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
         if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) {
             return FALSE;
         }
-
-        DEBUG(TEXT("[SetupKernelRegion] Table %u covers physical base %p"), TableIndex, Table->Data.Identity.PhysicalBase);
         Region->TableCount++;
     }
 
@@ -530,9 +476,7 @@ static BOOL SetupTaskRunnerRegion(
     Region->PdptPhysical = AllocPhysicalPage();
     Region->DirectoryPhysical = AllocPhysicalPage();
 
-    DEBUG(TEXT("[SetupTaskRunnerRegion] PDPT physical = %p, directory physical = %p"),
-        Region->PdptPhysical,
-        Region->DirectoryPhysical);
+    DEBUG(TEXT("[SetupTaskRunnerRegion] PDPT %p, directory %p"), Region->PdptPhysical, Region->DirectoryPhysical);
 
     if (Region->PdptPhysical == NULL || Region->DirectoryPhysical == NULL) {
         ERROR(TEXT("[AllocPageDirectory] TaskRunner region out of physical pages"));
@@ -541,19 +485,14 @@ static BOOL SetupTaskRunnerRegion(
 
     LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(Region->PdptPhysical);
 
-    DEBUG(TEXT("[SetupTaskRunnerRegion] PDPT mapped at %p"), Pdpt);
-
     if (Pdpt == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed for TaskRunner PDPT"));
         return FALSE;
     }
 
     MemorySet(Pdpt, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner PDPT cleared"));
 
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
-
-    DEBUG(TEXT("[SetupTaskRunnerRegion] Directory mapped at %p"), Directory);
 
     if (Directory == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for TaskRunner directory"));
@@ -561,7 +500,6 @@ static BOOL SetupTaskRunnerRegion(
     }
 
     MemorySet(Directory, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner directory cleared"));
 
     WritePageDirectoryEntryValue(
         Pdpt,
@@ -574,8 +512,7 @@ static BOOL SetupTaskRunnerRegion(
             /*CacheDisabled*/ 0,
             Region->Global,
             /*Fixed*/ 1));
-
-    DEBUG(TEXT("[SetupTaskRunnerRegion] PDPT[%u] -> directory %p"), Region->PdptIndex, Region->DirectoryPhysical);
+    DEBUG(TEXT("[SetupTaskRunnerRegion] PDPT[%u] -> %p"), Region->PdptIndex, Region->DirectoryPhysical);
 
     PAGE_TABLE_SETUP* Table = &Region->Tables[Region->TableCount];
     Table->DirectoryIndex = GetDirectoryEntry((U64)VMA_TASK_RUNNER);
@@ -588,10 +525,6 @@ static BOOL SetupTaskRunnerRegion(
     Table->Data.Single.ReadWrite = 0;
     Table->Data.Single.Privilege = PAGE_PRIVILEGE_USER;
     Table->Data.Single.Global = 0;
-
-    DEBUG(TEXT("[SetupTaskRunnerRegion] Mapping TaskRunner table index %u to physical %p"),
-        Table->Data.Single.TableIndex,
-        Table->Data.Single.Physical);
 
     if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) {
         return FALSE;
@@ -634,9 +567,6 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
-    PHYSICAL CurrentCr3 = (PHYSICAL)GetPageDirectory();
-    DEBUG(TEXT("[AllocPageDirectory] Current CR3 = %p"), CurrentCr3);
-
     ResetRegionSetup(&LowRegion);
     ResetRegionSetup(&KernelRegion);
     ResetRegionSetup(&TaskRunnerRegion);
@@ -663,10 +593,6 @@ PHYSICAL AllocPageDirectory(void) {
         VMA_KERNEL,
         TaskRunnerPhysical);
 
-    DEBUG(TEXT("[AllocPageDirectory] Low PML4 index = %u"), LowPml4Index);
-    DEBUG(TEXT("[AllocPageDirectory] Kernel PML4 index = %u"), KernelPml4Index);
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner PML4 index = %u"), TaskRunnerPml4Index);
-
     if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
 
     Pml4Physical = AllocPhysicalPage();
@@ -685,7 +611,7 @@ PHYSICAL AllocPageDirectory(void) {
 
     LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Linear;
     MemorySet(Pml4, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] PML4 mapped at %p and cleared"), Pml4);
+    DEBUG(TEXT("[AllocPageDirectory] PML4 mapped at %p"), Pml4);
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -699,11 +625,6 @@ PHYSICAL AllocPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> Low PDPT %p"), LowPml4Index, LowRegion.PdptPhysical);
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
-        LowPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index));
-
     WritePageDirectoryEntryValue(
         Pml4,
         KernelPml4Index,
@@ -715,11 +636,6 @@ PHYSICAL AllocPageDirectory(void) {
             /*CacheDisabled*/ 0,
             /*Global*/ 0,
             /*Fixed*/ 1));
-
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> Kernel PDPT %p"), KernelPml4Index, KernelRegion.PdptPhysical);
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
-        KernelPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index));
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -733,11 +649,6 @@ PHYSICAL AllocPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> TaskRunner PDPT %p"), TaskRunnerPml4Index, TaskRunnerRegion.PdptPhysical);
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
-        TaskRunnerPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index));
-
     WritePageDirectoryEntryValue(
         Pml4,
         PML4_RECURSIVE_SLOT,
@@ -750,76 +661,18 @@ PHYSICAL AllocPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] -> recursive %p"), PML4_RECURSIVE_SLOT, Pml4Physical);
-    DEBUG(TEXT("[AllocPageDirectory] PML4[%u] immediate readback=%p"),
-        PML4_RECURSIVE_SLOT,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
+    U64 LowEntry = ReadPageDirectoryEntryValue(Pml4, LowPml4Index);
+    U64 KernelEntry = ReadPageDirectoryEntryValue(Pml4, KernelPml4Index);
+    U64 TaskEntry = ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index);
+    U64 RecursiveEntry = ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT);
 
-    DEBUG(TEXT("[AllocPageDirectory] Pre-flush snapshot: PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
-        LowPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
-        KernelPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
-        TaskRunnerPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
-        PML4_RECURSIVE_SLOT,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
-
-    LINEAR PreFlushVerificationLinear = MapTemporaryPhysicalPage2(Pml4Physical);
-
-    if (PreFlushVerificationLinear != NULL) {
-        LPPAGE_DIRECTORY PreFlushVerification = (LPPAGE_DIRECTORY)PreFlushVerificationLinear;
-        DEBUG(TEXT("[AllocPageDirectory] Verification slot2 pre-flush PML4[%u]=%p, PML4[%u]=%p"),
-            LowPml4Index,
-            (LINEAR)ReadPageDirectoryEntryValue(PreFlushVerification, LowPml4Index),
-            KernelPml4Index,
-            (LINEAR)ReadPageDirectoryEntryValue(PreFlushVerification, KernelPml4Index));
-    } else {
-        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for pre-flush verification"));
-    }
-
-    volatile U64* TempSlotEntry = GetPageTableEntryRawPointer((U64)Pml4Linear);
-    DEBUG(TEXT("[AllocPageDirectory] Temp slot PTE before flush=%p"), (LINEAR)(*TempSlotEntry));
+    DEBUG(TEXT("[AllocPageDirectory] PML4 entries set (low=%p, kernel=%p, task=%p, recursive=%p)"),
+        (LINEAR)LowEntry,
+        (LINEAR)KernelEntry,
+        (LINEAR)TaskEntry,
+        (LINEAR)RecursiveEntry);
 
     FlushTLB();
-
-    DEBUG(TEXT("[AllocPageDirectory] Temp slot PTE after flush=%p"), (LINEAR)(*TempSlotEntry));
-
-    LINEAR VerificationLinear = MapTemporaryPhysicalPage2(Pml4Physical);
-
-    if (VerificationLinear != NULL) {
-        LPPAGE_DIRECTORY VerificationPml4 = (LPPAGE_DIRECTORY)VerificationLinear;
-        DEBUG(TEXT("[AllocPageDirectory] Verification slot2 PML4[%u]=%p, PML4[%u]=%p"),
-            LowPml4Index,
-            (LINEAR)ReadPageDirectoryEntryValue(VerificationPml4, LowPml4Index),
-            KernelPml4Index,
-            (LINEAR)ReadPageDirectoryEntryValue(VerificationPml4, KernelPml4Index));
-    } else {
-        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for PML4 verification"));
-    }
-
-    LINEAR RemappedPml4 = MapTemporaryPhysicalPage1(Pml4Physical);
-    DEBUG(TEXT("[AllocPageDirectory] PML4 remapped at %p"), RemappedPml4);
-
-    DEBUG(TEXT("[AllocPageDirectory] Post-flush snapshot: PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
-        LowPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, LowPml4Index),
-        KernelPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, KernelPml4Index),
-        TaskRunnerPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, TaskRunnerPml4Index),
-        PML4_RECURSIVE_SLOT,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, PML4_RECURSIVE_SLOT));
-
-    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%p, KernelTable[0]=%p, TaskRunnerTable[%u]=%p"),
-        (LINEAR)ReadTableEntrySnapshot(LowRegion.Tables[0].Physical, 0),
-        (LINEAR)ReadTableEntrySnapshot(KernelRegion.Tables[0].Physical, 0),
-        TaskRunnerTableIndex,
-        (LINEAR)ReadTableEntrySnapshot(TaskRunnerRegion.Tables[0].Physical, TaskRunnerTableIndex));
-
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%p -> Physical=%p"),
-        (LINEAR)VMA_TASK_RUNNER,
-        (UINT)TaskRunnerPhysical);
 
     Success = TRUE;
 
@@ -899,7 +752,7 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Linear;
     MemorySet(Pml4, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocUserPageDirectory] PML4 cleared"));
+    DEBUG(TEXT("[AllocUserPageDirectory] PML4 mapped"));
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -949,35 +802,18 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    volatile U64* TempSlotEntry = GetPageTableEntryRawPointer((U64)Pml4Linear);
-    DEBUG(TEXT("[AllocUserPageDirectory] Temp slot PTE before flush=%p"), (LINEAR)(*TempSlotEntry));
+    U64 LowEntry = ReadPageDirectoryEntryValue(Pml4, LowPml4Index);
+    U64 KernelEntry = ReadPageDirectoryEntryValue(Pml4, KernelPml4Index);
+    U64 TaskEntry = ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index);
+    U64 RecursiveEntry = ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT);
+
+    DEBUG(TEXT("[AllocUserPageDirectory] PML4 entries set (low=%p, kernel=%p, task=%p, recursive=%p)"),
+        (LINEAR)LowEntry,
+        (LINEAR)KernelEntry,
+        (LINEAR)TaskEntry,
+        (LINEAR)RecursiveEntry);
 
     FlushTLB();
-
-    DEBUG(TEXT("[AllocUserPageDirectory] Temp slot PTE after flush=%p"), (LINEAR)(*TempSlotEntry));
-
-    LINEAR RemappedPml4 = MapTemporaryPhysicalPage1(Pml4Physical);
-    DEBUG(TEXT("[AllocUserPageDirectory] PML4 remapped at %p"), RemappedPml4);
-
-    DEBUG(TEXT("[AllocUserPageDirectory] PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
-        LowPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, LowPml4Index),
-        KernelPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, KernelPml4Index),
-        TaskRunnerPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, TaskRunnerPml4Index),
-        PML4_RECURSIVE_SLOT,
-        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, PML4_RECURSIVE_SLOT));
-
-    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%p, KernelTable[0]=%p, TaskRunnerTable[%u]=%p"),
-        (LINEAR)ReadTableEntrySnapshot(LowRegion.Tables[0].Physical, 0),
-        (LINEAR)ReadTableEntrySnapshot(KernelRegion.Tables[0].Physical, 0),
-        TaskRunnerTableIndex,
-        (LINEAR)ReadTableEntrySnapshot(TaskRunnerRegion.Tables[0].Physical, TaskRunnerTableIndex));
-
-    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner VMA=%p -> Physical=%p"),
-        (LINEAR)VMA_TASK_RUNNER,
-        (UINT)TaskRunnerPhysical);
 
     Success = TRUE;
 
