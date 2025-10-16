@@ -68,7 +68,6 @@ extern U32 LoadGlobalDescriptorTable(PHYSICAL Base, U32 Limit);
 extern void ReadGlobalDescriptorTable(LPVOID GdtrPointer);
 extern U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit);
 extern U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit);
-extern U32 LoadPageDirectory(PHYSICAL Base);
 extern U32 LoadInitialTaskRegister(U32 TaskRegister);
 extern U32 GetTaskRegister(void);
 extern U32 GetPageDirectory(void);

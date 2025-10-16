@@ -94,7 +94,6 @@ BITS 32
     global ReadGlobalDescriptorTable
     global LoadLocalDescriptorTable
     global LoadInterruptDescriptorTable
-    global LoadPageDirectory
     global LoadInitialTaskRegister
     global GetTaskRegister
     global GetPageDirectory
@@ -646,27 +645,6 @@ LoadInterruptDescriptorTable :
     lidt    [ebp+(PBN+0)]
 
     popfd
-    pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-LoadPageDirectory :
-
-    push    ebp
-    mov     ebp, esp
-    push    ebx
-
-    mov     eax, [ebp+PBN]
-    mov     ebx, cr3
-    cmp     eax, ebx
-    jz      .out
-
-    mov     cr3, eax
-
-.out:
-    pop     ebx
     pop     ebp
     ret
 

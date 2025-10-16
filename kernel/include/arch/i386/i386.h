@@ -582,6 +582,23 @@ typedef struct tag_SEGMENT_INFO {
         : "eax")
 
 /************************************************************************/
+// Inline helpers
+
+static inline U32 LoadPageDirectory(PHYSICAL Base)
+{
+    PHYSICAL Current;
+
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(Current));
+
+    if (Current != Base)
+    {
+        __asm__ __volatile__("mov %0, %%cr3" : : "r"(Base) : "memory");
+    }
+
+    return (U32)Base;
+}
+
+/************************************************************************/
 // External symbols
 
 extern KERNELDATA_I386 Kernel_i386;

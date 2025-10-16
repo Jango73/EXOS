@@ -370,18 +370,6 @@ SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
-SYS_FUNC_BEGIN LoadPageDirectory
-    mov     rax, rdi
-    mov     rdx, cr3
-    cmp     rax, rdx
-    je      .out
-    mov     cr3, rax
-
-.out:
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
 SYS_FUNC_BEGIN LoadInitialTaskRegister
     mov     ax, di
     ltr     ax

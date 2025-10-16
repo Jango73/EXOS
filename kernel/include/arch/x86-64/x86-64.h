@@ -329,6 +329,23 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define ClearDR7() __asm__ volatile("xor %%rax, %%rax; mov %%rax, %%dr7" : : : "eax")
 
 /***************************************************************************/
+// Inline helpers
+
+static inline U32 LoadPageDirectory(PHYSICAL Base)
+{
+    PHYSICAL Current;
+
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(Current));
+
+    if (Current != Base)
+    {
+        __asm__ __volatile__("mov %0, %%cr3" : : "r"(Base) : "memory");
+    }
+
+    return (U32)Base;
+}
+
+/***************************************************************************/
 
 extern KERNELDATA_X86_64 Kernel_i386;
 
