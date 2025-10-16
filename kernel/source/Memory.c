@@ -35,17 +35,6 @@
 #include "Schedule.h"
 #include "System.h"
 
-/************************************************************************/
-
-static inline LPPAGE_DIRECTORY GetDirectoryForLinear(LINEAR CanonicalLinear) {
-#if defined(__EXOS_ARCH_X86_64__)
-    return GetPageDirectoryVAFor((U64)CanonicalLinear);
-#else
-    UNUSED(CanonicalLinear);
-    return GetCurrentPageDirectoryVA();
-#endif
-}
-
 /************************************************************************\
 
     Virtual Address Space (32-bit)
@@ -500,25 +489,22 @@ void FreePhysicalPage(PHYSICAL Page) {
 static inline void MapOnePage(
     LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
     U32 Fixed) {
-    LINEAR CanonicalLinear = CanonicalizeLinearAddress(Linear);
-    LPPAGE_DIRECTORY Directory = GetDirectoryForLinear(CanonicalLinear);
-    UINT dir = GetDirectoryEntry(CanonicalLinear);
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+    UINT dir = GetDirectoryEntry(Linear);
 
     if (!PageDirectoryEntryIsPresent(Directory, dir)) {
-        ConsolePanic(TEXT("[MapOnePage] PDE not present for VA %p (dir=%d)"), CanonicalLinear, dir);
+        ConsolePanic(TEXT("[MapOnePage] PDE not present for VA %p (dir=%d)"), Linear, dir);
     }
 
-    LPPAGE_TABLE Table = GetPageTableVAFor(CanonicalLinear);
-    UINT tab = GetTableEntry(CanonicalLinear);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
+    UINT tab = GetTableEntry(Linear);
 
     WritePageTableEntryValue(
-        Table,
-        tab,
-        MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed));
+        Table, tab, MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed));
 
-    DEBUG(TEXT("[MapOnePage] Mapped %p to %p (Table = %p))"), CanonicalLinear, Physical, Table);
+    DEBUG(TEXT("[MapOnePage] Mapped %p to %p (Table = %p))"), Linear, Physical, Table);
 
-    InvalidatePage(CanonicalLinear);
+    InvalidatePage(Linear);
 }
 
 /************************************************************************/
@@ -542,11 +528,10 @@ static inline void UnmapOnePage(LINEAR Linear) {
  * @return TRUE if address is valid.
  */
 BOOL IsValidMemory(LINEAR Pointer) {
-    LINEAR CanonicalPointer = CanonicalizeLinearAddress(Pointer);
-    LPPAGE_DIRECTORY Directory = GetDirectoryForLinear(CanonicalPointer);
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
-    UINT dir = GetDirectoryEntry(CanonicalPointer);
-    UINT tab = GetTableEntry(CanonicalPointer);
+    UINT dir = GetDirectoryEntry(Pointer);
+    UINT tab = GetTableEntry(Pointer);
 
     // Bounds check
     if (dir >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
@@ -556,7 +541,7 @@ BOOL IsValidMemory(LINEAR Pointer) {
     if (!PageDirectoryEntryIsPresent(Directory, dir)) return FALSE;
 
     // Page table present?
-    LPPAGE_TABLE Table = GetPageTableVAFor(CanonicalPointer);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Pointer);
     if (!PageTableEntryIsPresent(Table, tab)) return FALSE;
 
     return TRUE;
@@ -659,12 +644,11 @@ LINEAR AllocPageTable(LINEAR Base) {
     }
 
     // Fill the directory entry that describes the new table
-    LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
-    UINT DirEntry = GetDirectoryEntry(CanonicalBase);
-    LPPAGE_DIRECTORY Directory = GetDirectoryForLinear(CanonicalBase);
+    UINT DirEntry = GetDirectoryEntry(Base);
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
     // Determine privilege: user space (< VMA_KERNEL) needs user privilege
-    U32 Privilege = PAGE_PRIVILEGE(CanonicalBase);
+    U32 Privilege = PAGE_PRIVILEGE(Base);
 
     WritePageDirectoryEntryValue(
         Directory,
@@ -686,7 +670,7 @@ LINEAR AllocPageTable(LINEAR Base) {
     FlushTLB();
 
     // Return the linear address of the table via the recursive window
-    return (LINEAR)GetPageTableVAFor(CanonicalBase);
+    return (LINEAR)GetPageTableVAFor(Base);
 }
 
 /************************************************************************/
@@ -698,36 +682,34 @@ LINEAR AllocPageTable(LINEAR Base) {
  * @return TRUE if region is free.
  */
 BOOL IsRegionFree(LINEAR Base, UINT Size) {
-    // DEBUG(TEXT("[IsRegionFree] Enter : %x; %x"), Base, Size);
+    DEBUG(TEXT("[IsRegionFree] Enter: Base=%x Size=%x"), Base, Size);
 
     UINT NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
-    LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
-    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(CanonicalBase);
-#if defined(__EXOS_ARCH_X86_64__)
-    LPPAGE_DIRECTORY Directory = NULL;
-#else
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-#endif
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
-    // DEBUG(TEXT("[IsRegionFree] Traversing pages"));
+    DEBUG(TEXT("[IsRegionFree] Traversing %u pages"), NumPages);
 
     for (UINT i = 0; i < NumPages; i++) {
-#if defined(__EXOS_ARCH_X86_64__)
-        LINEAR CurrentLinear = CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(&Iterator));
-        Directory = GetDirectoryForLinear(CurrentLinear);
-#endif
         UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
+        LINEAR CurrentLinear = MemoryPageIteratorGetLinear(&Iterator);
+
+        DEBUG(TEXT("[IsRegionFree] Page %u: Linear=%x Dir=%u Tab=%u"), i, CurrentLinear, DirEntry, TabEntry);
 
         if (PageDirectoryEntryIsPresent(Directory, DirEntry)) {
+            DEBUG(TEXT("[IsRegionFree] PDE present for Dir=%u"), DirEntry);
             LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
-            if (PageTableEntryIsPresent(Table, TabEntry)) return FALSE;
+            if (PageTableEntryIsPresent(Table, TabEntry)) {
+                DEBUG(TEXT("[IsRegionFree] PTE present for Linear=%x"), CurrentLinear);
+                return FALSE;
+            }
         }
 
         MemoryPageIteratorStepPage(&Iterator);
     }
 
-    // DEBUG(TEXT("[IsRegionFree] Exit"));
+    DEBUG(TEXT("[IsRegionFree] Exit: Region free"));
 
     return TRUE;
 }
@@ -743,7 +725,7 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
 static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
     LINEAR Base = N_4MB;
 
-    DEBUG(TEXT("[FindFreeRegion] Enter"));
+    DEBUG(TEXT("[FindFreeRegion] Enter: StartBase=%x Size=%x"), StartBase, Size);
 
     if (StartBase != 0) {
         LINEAR CanonStart = CanonicalizeLinearAddress(StartBase);
@@ -754,7 +736,14 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
     }
 
     while (TRUE) {
-        if (IsRegionFree(Base, Size) == TRUE) return Base;
+        DEBUG(TEXT("[FindFreeRegion] Testing base %x"), Base);
+
+        if (IsRegionFree(Base, Size) == TRUE) {
+            DEBUG(TEXT("[FindFreeRegion] Region free at %x"), Base);
+            return Base;
+        }
+
+        DEBUG(TEXT("[FindFreeRegion] Region not free at %x"), Base);
 
         LINEAR NextBase = CanonicalizeLinearAddress(Base + PAGE_SIZE);
         if (NextBase <= Base) {
@@ -762,6 +751,7 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
             return NULL;
         }
 
+        DEBUG(TEXT("[FindFreeRegion] Advancing to %x"), NextBase);
         Base = NextBase;
     }
 }
@@ -772,15 +762,11 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
  * @brief Release page tables that no longer contain mappings.
  */
 static void FreeEmptyPageTables(void) {
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(N_4MB);
     MemoryPageIteratorAlignToTableStart(&Iterator);
 
     while (MemoryPageIteratorGetLinear(&Iterator) < VMA_KERNEL) {
-#if defined(__EXOS_ARCH_X86_64__)
-        LPPAGE_DIRECTORY Directory = GetDirectoryForLinear((LINEAR)MemoryPageIteratorGetLinear(&Iterator));
-#else
-        LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-#endif
         UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
         PHYSICAL TablePhysical = PageDirectoryEntryGetPhysical(Directory, DirEntry);
 
@@ -805,13 +791,8 @@ static void FreeEmptyPageTables(void) {
  * @return Physical page number or MAX_U32 on failure.
  */
 PHYSICAL MapLinearToPhysical(LINEAR Address) {
-    LINEAR CanonicalAddress = CanonicalizeLinearAddress(Address);
-    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(CanonicalAddress);
-#if defined(__EXOS_ARCH_X86_64__)
-    LPPAGE_DIRECTORY Directory = GetDirectoryForLinear(CanonicalAddress);
-#else
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-#endif
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Address);
     UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
     UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
 
@@ -835,12 +816,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                                 U32 Flags,
                                 LINEAR RollbackBase,
                                 LPCSTR FunctionName) {
-    LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
-#if defined(__EXOS_ARCH_X86_64__)
-    LPPAGE_DIRECTORY Directory = NULL;
-#else
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-#endif
     LPPAGE_TABLE Table = NULL;
     PHYSICAL Physical = NULL;
     U32 ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
@@ -849,15 +825,25 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
     if (PteCacheDisabled) PteWriteThrough = 0;
 
-    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(CanonicalBase);
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
+
+    DEBUG(TEXT("[PopulateRegionPages] Enter: Base=%x Target=%x NumPages=%u Flags=%x Function=%s"),
+          Base,
+          Target,
+          NumPages,
+          Flags,
+          FunctionName);
 
     for (UINT Index = 0; Index < NumPages; Index++) {
         UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
-        LINEAR CurrentLinear = CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(&Iterator));
-#if defined(__EXOS_ARCH_X86_64__)
-        Directory = GetDirectoryForLinear(CurrentLinear);
-#endif
+        LINEAR CurrentLinear = MemoryPageIteratorGetLinear(&Iterator);
+
+        DEBUG(TEXT("[PopulateRegionPages] Page %u Linear=%x Dir=%u Tab=%u"),
+              Index,
+              CurrentLinear,
+              DirEntry,
+              TabEntry);
 
         if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) {
             if (AllocPageTable(CurrentLinear) == NULL) {
@@ -865,9 +851,8 @@ static BOOL PopulateRegionPages(LINEAR Base,
                 DEBUG(TEXT("[%s] AllocPageTable failed"), FunctionName);
                 return FALSE;
             }
-#if defined(__EXOS_ARCH_X86_64__)
-            Directory = GetDirectoryForLinear(CurrentLinear);
-#endif
+
+            DEBUG(TEXT("[PopulateRegionPages] Allocated page table for Dir=%u"), DirEntry);
         }
 
         Table = MemoryPageIteratorGetTable(&Iterator);
@@ -884,6 +869,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                 Physical = Target + (PHYSICAL)(Index << PAGE_SIZE_MUL);
 
                 if (Flags & ALLOC_PAGES_IO) {
+                    DEBUG(TEXT("[PopulateRegionPages] Mapping IO physical=%x"), Physical);
                     WritePageTableEntryValue(
                         Table,
                         TabEntry,
@@ -896,6 +882,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                             /*Global*/ 0,
                             /*Fixed*/ 1));
                 } else {
+                    DEBUG(TEXT("[PopulateRegionPages] Mapping physical=%x"), Physical);
                     SetPhysicalPageMark((UINT)(Physical >> PAGE_SIZE_MUL), 1);
                     WritePageTableEntryValue(
                         Table,
@@ -918,6 +905,8 @@ static BOOL PopulateRegionPages(LINEAR Base,
                     return FALSE;
                 }
 
+                DEBUG(TEXT("[PopulateRegionPages] AllocPhysicalPage returned %x"), Physical);
+
                 WritePageTableEntryValue(
                     Table,
                     TabEntry,
@@ -933,7 +922,10 @@ static BOOL PopulateRegionPages(LINEAR Base,
         }
 
         MemoryPageIteratorStepPage(&Iterator);
+        Base += PAGE_SIZE;
     }
+
+    DEBUG(TEXT("[PopulateRegionPages] Exit: Success"));
 
     return TRUE;
 }
