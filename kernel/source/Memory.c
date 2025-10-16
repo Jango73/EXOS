@@ -168,9 +168,7 @@
 \************************************************************************/
 
 // INTERNAL SELF-MAP + TEMP MAPPING ]
-/// Architecture-specific constants are defined in arch/i386/i386-Memory.h.
 
-// 3 on-demand temporary virtual pages, reserved at init.
 static LINEAR G_TempLinear1 = 0;
 static LINEAR G_TempLinear2 = 0;
 static LINEAR G_TempLinear3 = 0;
@@ -607,14 +605,6 @@ LINEAR MapTempPhysicalPage3(PHYSICAL Physical) {
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
     return G_TempLinear3;
 }
-
-/************************************************************************/
-
-/* AllocPageDirectory and AllocUserPageDirectory implementations are provided by
- * architecture-specific sources. */
-
-/************************************************************************/
-
 
 /************************************************************************/
 
