@@ -52,10 +52,10 @@ static U64 BuildRangeEnd(U64 Base, U64 Span) {
  * @param Pml4Physical Physical address of the PML4 to inspect.
  */
 void LogPageDirectory64(PHYSICAL Pml4Physical) {
-    LINEAR Pml4Linear = MapTempPhysicalPage(Pml4Physical);
+    LINEAR Pml4Linear = MapTemporaryPhysicalPage1(Pml4Physical);
 
     if (Pml4Linear == 0) {
-        ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage failed for PML4 %p"), (LPVOID)Pml4Physical);
+        ERROR(TEXT("[LogPageDirectory64] MapTemporaryPhysicalPage1 failed for PML4 %p"), (LPVOID)Pml4Physical);
         return;
     }
 
@@ -82,10 +82,10 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
             (U32)Pml4Entry->Privilege,
             (U32)Pml4Entry->NoExecute);
 
-        LINEAR PdptLinear = MapTempPhysicalPage2(PdptPhysical);
+        LINEAR PdptLinear = MapTemporaryPhysicalPage2(PdptPhysical);
 
         if (PdptLinear == 0) {
-            ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage2 failed for PDPT %p"),
+            ERROR(TEXT("[LogPageDirectory64] MapTemporaryPhysicalPage2 failed for PDPT %p"),
                 (LPVOID)PdptPhysical);
             continue;
         }
@@ -127,10 +127,10 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                 (U32)PdptEntry->Privilege,
                 (U32)PdptEntry->NoExecute);
 
-            LINEAR DirectoryLinear = MapTempPhysicalPage3(PageDirectoryPhysical);
+            LINEAR DirectoryLinear = MapTemporaryPhysicalPage3(PageDirectoryPhysical);
 
             if (DirectoryLinear == 0) {
-                ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage3 failed for directory %p"),
+                ERROR(TEXT("[LogPageDirectory64] MapTemporaryPhysicalPage3 failed for directory %p"),
                     (LPVOID)PageDirectoryPhysical);
                 continue;
             }
@@ -174,13 +174,13 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                     (UINT)DirectoryEntry->Global,
                     (UINT)DirectoryEntry->NoExecute);
 
-                LINEAR TableLinear = MapTempPhysicalPage2(TablePhysical);
+                LINEAR TableLinear = MapTemporaryPhysicalPage2(TablePhysical);
 
                 if (TableLinear == 0) {
-                    ERROR(TEXT("[LogPageDirectory64] MapTempPhysicalPage2 failed for table %p"),
+                    ERROR(TEXT("[LogPageDirectory64] MapTemporaryPhysicalPage2 failed for table %p"),
                         (LPVOID)TablePhysical);
 
-                    PdptLinear = MapTempPhysicalPage2(PdptPhysical);
+                    PdptLinear = MapTemporaryPhysicalPage2(PdptPhysical);
                     if (PdptLinear == 0) {
                         ERROR(TEXT("[LogPageDirectory64] Failed to restore PDPT mapping %p"),
                             (LPVOID)PdptPhysical);
@@ -188,7 +188,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                     }
 
                     Pdpt = (LPPDPT)PdptLinear;
-                    DirectoryLinear = MapTempPhysicalPage3(PageDirectoryPhysical);
+                    DirectoryLinear = MapTemporaryPhysicalPage3(PageDirectoryPhysical);
                     if (DirectoryLinear == 0) {
                         ERROR(TEXT("[LogPageDirectory64] Failed to restore directory mapping %p"),
                             (LPVOID)PageDirectoryPhysical);
@@ -236,7 +236,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                         PAGE_TABLE_NUM_ENTRIES);
                 }
 
-                PdptLinear = MapTempPhysicalPage2(PdptPhysical);
+                PdptLinear = MapTemporaryPhysicalPage2(PdptPhysical);
                 if (PdptLinear == 0) {
                     ERROR(TEXT("[LogPageDirectory64] Failed to restore PDPT mapping %p"),
                         (LPVOID)PdptPhysical);
@@ -245,7 +245,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
                 Pdpt = (LPPDPT)PdptLinear;
 
-                DirectoryLinear = MapTempPhysicalPage3(PageDirectoryPhysical);
+                DirectoryLinear = MapTemporaryPhysicalPage3(PageDirectoryPhysical);
                 if (DirectoryLinear == 0) {
                     ERROR(TEXT("[LogPageDirectory64] Failed to restore directory mapping %p"),
                         (LPVOID)PageDirectoryPhysical);

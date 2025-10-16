@@ -92,7 +92,7 @@
     - PDE[1023]      -> PD itself (self-map)
 
 
-    Temporary mapping mechanism (MapTempPhysicalPage):
+    Temporary mapping mechanism (MapTemporaryPhysicalPage1):
     1) Two VAs reserved dynamically (e.g., G_TempLinear1, G_TempLinear2).
     2) To map a physical frame P into G_TempLinear1:
        - Compute dir/tab of G_TempLinear1
@@ -557,9 +557,9 @@ BOOL IsValidMemory(LINEAR Pointer) {
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-LINEAR MapTempPhysicalPage(PHYSICAL Physical) {
+LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
     if (G_TempLinear1 == 0) {
-        ConsolePanic(TEXT("[MapTempPhysicalPage] Temp slot #1 not reserved"));
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
     }
     MapOnePage(
@@ -576,9 +576,9 @@ LINEAR MapTempPhysicalPage(PHYSICAL Physical) {
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-LINEAR MapTempPhysicalPage2(PHYSICAL Physical) {
+LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
     if (G_TempLinear2 == 0) {
-        ConsolePanic(TEXT("[MapTempPhysicalPage2] Temp slot #2 not reserved"));
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
     }
     MapOnePage(
@@ -595,9 +595,9 @@ LINEAR MapTempPhysicalPage2(PHYSICAL Physical) {
  * @param Physical Physical page number.
  * @return Linear address mapping or 0 on failure.
  */
-LINEAR MapTempPhysicalPage3(PHYSICAL Physical) {
+LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     if (G_TempLinear3 == 0) {
-        ConsolePanic(TEXT("[MapTempPhysicalPage3] Temp slot #3 not reserved"));
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
     }
     MapOnePage(
@@ -641,7 +641,7 @@ LINEAR AllocPageTable(LINEAR Base) {
             /*Fixed*/ 1));
 
     // Clear the new table by mapping its physical page temporarily.
-    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_Table);
+    LINEAR VMA_PT = MapTemporaryPhysicalPage2(PMA_Table);
     MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
 
     // Flush the Translation Look-up Buffer of the CPU

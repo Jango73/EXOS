@@ -115,9 +115,9 @@ static BOOL CreateStartupRegionTable(STARTUP_REGION *Region,
         return FALSE;
     }
 
-    LINEAR VmaTable = MapTempPhysicalPage3(TablePhysical);
+    LINEAR VmaTable = MapTemporaryPhysicalPage3(TablePhysical);
     if (VmaTable == NULL) {
-        ERROR(TEXT("[CreateStartupRegionTable] MapTempPhysicalPage3 failed for %s table"), RegionName);
+        ERROR(TEXT("[CreateStartupRegionTable] MapTemporaryPhysicalPage3 failed for %s table"), RegionName);
         FreePhysicalPage(TablePhysical);
         return FALSE;
     }
@@ -154,7 +154,7 @@ static BOOL CreateStartupRegionTable(STARTUP_REGION *Region,
         FreePhysicalPage(TablePhysical);
 
         if (Region->TablePhysical != NULL) {
-            LINEAR PrimaryVma = MapTempPhysicalPage3(Region->TablePhysical);
+            LINEAR PrimaryVma = MapTemporaryPhysicalPage3(Region->TablePhysical);
             if (PrimaryVma != NULL) Region->Table = (LPPAGE_TABLE)PrimaryVma;
         }
 
@@ -165,10 +165,10 @@ static BOOL CreateStartupRegionTable(STARTUP_REGION *Region,
     Region->AdditionalTableCount++;
 
     if (Region->TablePhysical != NULL) {
-        LINEAR PrimaryVma = MapTempPhysicalPage3(Region->TablePhysical);
+        LINEAR PrimaryVma = MapTemporaryPhysicalPage3(Region->TablePhysical);
 
         if (PrimaryVma == NULL) {
-            ERROR(TEXT("[CreateStartupRegionTable] MapTempPhysicalPage3 failed restoring %s primary table"), RegionName);
+            ERROR(TEXT("[CreateStartupRegionTable] MapTemporaryPhysicalPage3 failed restoring %s primary table"), RegionName);
 
             Region->AdditionalTableCount--;
             Region->AdditionalTablesPhysical[Region->AdditionalTableCount] = NULL;
@@ -323,18 +323,18 @@ static BOOL MapStartupRegion(STARTUP_REGION *Region,
         goto Out_Error;
     }
 
-    LINEAR VmaPdpt = MapTempPhysicalPage(Region->PdptPhysical);
+    LINEAR VmaPdpt = MapTemporaryPhysicalPage1(Region->PdptPhysical);
     if (VmaPdpt == NULL) {
-        ERROR(TEXT("[MapStartupRegion] MapTempPhysicalPage failed for %s PDPT"), RegionName);
+        ERROR(TEXT("[MapStartupRegion] MapTemporaryPhysicalPage1 failed for %s PDPT"), RegionName);
         goto Out_Error;
     }
     Region->Pdpt = (LPPAGE_DIRECTORY)VmaPdpt;
     MemorySet(Region->Pdpt, 0, PAGE_SIZE);
     DEBUG(TEXT("[MapStartupRegion] %s PDPT cleared"), RegionName);
 
-    LINEAR VmaDirectory = MapTempPhysicalPage2(Region->DirectoryPhysical);
+    LINEAR VmaDirectory = MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
     if (VmaDirectory == NULL) {
-        ERROR(TEXT("[MapStartupRegion] MapTempPhysicalPage2 failed for %s directory"), RegionName);
+        ERROR(TEXT("[MapStartupRegion] MapTemporaryPhysicalPage2 failed for %s directory"), RegionName);
         goto Out_Error;
     }
     Region->Directory = (LPPAGE_DIRECTORY)VmaDirectory;
@@ -471,9 +471,9 @@ PHYSICAL AllocPageDirectory(void) {
         goto Out_Error64;
     }
 
-    LINEAR VMA_Pml4 = MapTempPhysicalPage(Pml4Physical);
+    LINEAR VMA_Pml4 = MapTemporaryPhysicalPage1(Pml4Physical);
     if (VMA_Pml4 == NULL) {
-        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage failed on PML4"));
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed on PML4"));
         goto Out_Error64;
     }
     LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)VMA_Pml4;
@@ -669,9 +669,9 @@ PHYSICAL AllocUserPageDirectory(void) {
         goto Out_Error64;
     }
 
-    LINEAR VMA_Pml4 = MapTempPhysicalPage(Pml4Physical);
+    LINEAR VMA_Pml4 = MapTemporaryPhysicalPage1(Pml4Physical);
     if (VMA_Pml4 == NULL) {
-        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage failed on PML4"));
+        ERROR(TEXT("[AllocUserPageDirectory] MapTemporaryPhysicalPage1 failed on PML4"));
         goto Out_Error64;
     }
     LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)VMA_Pml4;

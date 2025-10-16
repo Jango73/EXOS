@@ -215,7 +215,7 @@ void LogPageDirectoryEntry(U32 LogType, const PAGE_DIRECTORY* PageDirectory) {
  * layout. Uses the temporary mapping helpers to walk the structures.
  */
 void LogPageDirectory(PHYSICAL DirectoryPhysical) {
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTempPhysicalPage(DirectoryPhysical);
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(DirectoryPhysical);
     UINT DirEntry = 0;
 
     DEBUG(TEXT("[LogPageDirectory] Page Directory PA=%x contents:"), DirectoryPhysical);
@@ -230,7 +230,7 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
                 Directory[DirEntry].ReadWrite, Directory[DirEntry].Privilege);
 
             PHYSICAL PageTablePhysical = Directory[DirEntry].Address << 12;
-            LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTempPhysicalPage2(PageTablePhysical);
+            LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTemporaryPhysicalPage2(PageTablePhysical);
 
             UINT TabEntry = 0;
             UINT MappedCount = 0;
@@ -247,7 +247,7 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
                             TabEntry, VirtualAddress, PhysicalAddress, Table[TabEntry].Present, Table[TabEntry].ReadWrite,
                             Table[TabEntry].Privilege, Table[TabEntry].Dirty, Table[TabEntry].Fixed);
 
-                        U8* Memory = (U8*)MapTempPhysicalPage3(PhysicalAddress);
+                        U8* Memory = (U8*)MapTemporaryPhysicalPage3(PhysicalAddress);
 
 #if DEBUG_OUTPUT == 1
                         LogMemoryLine16B(LOG_DEBUG, (LPCSTR)"[LogPageDirectory]     RAM: ", Memory);
@@ -356,7 +356,7 @@ void LogPageTableFromDirectory(U32 LogType, const PAGE_DIRECTORY* PageDirectoryE
     }
 
     PHYSICAL PageTablePhysicalAddress = PageDirectoryEntry->Address << PAGE_SIZE_MUL;
-    LINEAR PageTableVirtualAddress = MapTempPhysicalPage(PageTablePhysicalAddress);
+    LINEAR PageTableVirtualAddress = MapTemporaryPhysicalPage1(PageTablePhysicalAddress);
 
     KernelLogText(LogType, TEXT("\n8 first entries :"));
 

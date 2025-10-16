@@ -99,9 +99,9 @@ PHYSICAL AllocPageDirectory(void) {
     }
 
     // Clear and prepare the Page Directory
-    LINEAR VMA_PD = MapTempPhysicalPage(PMA_Directory);
+    LINEAR VMA_PD = MapTemporaryPhysicalPage1(PMA_Directory);
     if (VMA_PD == NULL) {
-        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage failed on Directory"));
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed on Directory"));
         goto Out_Error;
     }
     Directory = (LPPAGE_DIRECTORY)VMA_PD;
@@ -162,9 +162,9 @@ PHYSICAL AllocPageDirectory(void) {
             /*Fixed*/ 1));
 
     // Fill identity-mapped low table (0..4MB)
-    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
+    LINEAR VMA_PT = MapTemporaryPhysicalPage2(PMA_LowTable);
     if (VMA_PT == NULL) {
-        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
     LowTable = (LPPAGE_TABLE)VMA_PT;
@@ -199,9 +199,9 @@ PHYSICAL AllocPageDirectory(void) {
     }
 
     // Fill kernel mapping table by copying the current kernel PT
-    VMA_PT = MapTempPhysicalPage2(PMA_KernelTable);
+    VMA_PT = MapTemporaryPhysicalPage2(PMA_KernelTable);
     if (VMA_PT == NULL) {
-        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
     KernelTable = (LPPAGE_TABLE)VMA_PT;
@@ -226,9 +226,9 @@ PHYSICAL AllocPageDirectory(void) {
     }
 
     // Fill TaskRunner page table - only map the first page where TaskRunner is located
-    VMA_PT = MapTempPhysicalPage2(PMA_TaskRunnerTable);
+    VMA_PT = MapTemporaryPhysicalPage2(PMA_TaskRunnerTable);
     if (VMA_PT == NULL) {
-        ERROR(TEXT("[AllocPageDirectory] MapTempPhysicalPage2 failed on TaskRunnerTable"));
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed on TaskRunnerTable"));
         goto Out_Error;
     }
     TaskRunnerTable = (LPPAGE_TABLE)VMA_PT;
@@ -311,9 +311,9 @@ PHYSICAL AllocUserPageDirectory(void) {
         goto Out_Error;
     }
 
-    LINEAR VMA_PD = MapTempPhysicalPage(PMA_Directory);
+    LINEAR VMA_PD = MapTemporaryPhysicalPage1(PMA_Directory);
     if (VMA_PD == NULL) {
-        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage failed on Directory"));
+        ERROR(TEXT("[AllocUserPageDirectory] MapTemporaryPhysicalPage1 failed on Directory"));
         goto Out_Error;
     }
     Directory = (LPPAGE_DIRECTORY)VMA_PD;
@@ -371,9 +371,9 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    LINEAR VMA_PT = MapTempPhysicalPage2(PMA_LowTable);
+    LINEAR VMA_PT = MapTemporaryPhysicalPage2(PMA_LowTable);
     if (VMA_PT == NULL) {
-        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on LowTable"));
+        ERROR(TEXT("[AllocUserPageDirectory] MapTemporaryPhysicalPage2 failed on LowTable"));
         goto Out_Error;
     }
     LowTable = (LPPAGE_TABLE)VMA_PT;
@@ -407,9 +407,9 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     DEBUG(TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
 
-    VMA_PT = MapTempPhysicalPage2(PMA_KernelTable);
+    VMA_PT = MapTemporaryPhysicalPage2(PMA_KernelTable);
     if (VMA_PT == NULL) {
-        ERROR(TEXT("[AllocUserPageDirectory] MapTempPhysicalPage2 failed on KernelTable"));
+        ERROR(TEXT("[AllocUserPageDirectory] MapTemporaryPhysicalPage2 failed on KernelTable"));
         goto Out_Error;
     }
     KernelTable = (LPPAGE_TABLE)VMA_PT;

@@ -201,7 +201,7 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
                 TableAddress = PhysicalAddress;
             } else {
                 // Table is in high memory, needs to be mapped
-                LINEAR MappedAddress = MapTempPhysicalPage(PhysicalAddress & ~0xFFF);
+                LINEAR MappedAddress = MapTemporaryPhysicalPage1(PhysicalAddress & ~0xFFF);
                 if (MappedAddress == 0) {
                     DEBUG(TEXT("[FindACPITable] Failed to map table at 0x%08X"), PhysicalAddress);
                     continue;
@@ -240,7 +240,7 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
                 TableAddress = PhysicalAddress;
             } else {
                 // Table is in high memory, needs to be mapped
-                LINEAR MappedAddress = MapTempPhysicalPage(PhysicalAddress & ~0xFFF);
+                LINEAR MappedAddress = MapTemporaryPhysicalPage1(PhysicalAddress & ~0xFFF);
                 if (MappedAddress == 0) {
                     DEBUG(TEXT("[FindACPITable] Failed to map table at 0x%08X"), PhysicalAddress);
                     continue;
@@ -398,7 +398,7 @@ BOOL InitializeACPI(void) {
             G_RSDT = (LPACPI_RSDT)G_RSDP->RsdtAddress;
         } else {
             // RSDT is in high memory, needs to be mapped
-            LINEAR MappedAddress = MapTempPhysicalPage(G_RSDP->RsdtAddress & ~0xFFF);
+            LINEAR MappedAddress = MapTemporaryPhysicalPage1(G_RSDP->RsdtAddress & ~0xFFF);
             if (MappedAddress != 0) {
                 G_RSDT = (LPACPI_RSDT)(MappedAddress + (G_RSDP->RsdtAddress & 0xFFF));
                 DEBUG(TEXT("[InitializeACPI] RSDT mapped to virtual address: 0x%08X"), (U32)G_RSDT);
@@ -432,7 +432,7 @@ BOOL InitializeACPI(void) {
             G_XSDT = (LPACPI_XSDT)XsdtPhysical;
         } else {
             // XSDT is in high memory, needs to be mapped
-            LINEAR MappedAddress = MapTempPhysicalPage(XsdtPhysical & ~0xFFF);
+            LINEAR MappedAddress = MapTemporaryPhysicalPage1(XsdtPhysical & ~0xFFF);
             if (MappedAddress != 0) {
                 G_XSDT = (LPACPI_XSDT)(MappedAddress + (XsdtPhysical & 0xFFF));
                 DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: 0x%08X"), (U32)G_XSDT);

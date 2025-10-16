@@ -51,9 +51,9 @@ void UpdateKernelMemoryMetricsFromMultibootMap(void);
 void MarkUsedPhysicalMemory(void);
 
 // Uses temp page tables to get access to random physical pages
-LINEAR MapTempPhysicalPage(PHYSICAL Physical);
-LINEAR MapTempPhysicalPage2(PHYSICAL Physical);
-LINEAR MapTempPhysicalPage3(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical);
 
 // Allocates physical space for a new page directory
 PHYSICAL AllocPageDirectory(void);
