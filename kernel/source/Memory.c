@@ -500,9 +500,25 @@ static inline void MapOnePage(
     LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
     UINT tab = GetTableEntry(Linear);
 
+#if defined(__EXOS_ARCH_X86_64__)
+    volatile U64* EntryPointer = &((volatile U64*)Table)[tab];
+    U64 EntryBefore = *EntryPointer;
+#else
+    volatile U32* EntryPointer = &((volatile U32*)Table)[tab];
+    U32 EntryBefore = *EntryPointer;
+#endif
+
     WritePageTableEntryValue(
         Table, tab, MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed));
     InvalidatePage(Linear);
+
+#if defined(__EXOS_ARCH_X86_64__)
+    U64 EntryAfter = *EntryPointer;
+    DEBUG(TEXT("[MapOnePage] Updated VA %p -> PA %p (before=%p, after=%p)"), Linear, Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#else
+    U32 EntryAfter = *EntryPointer;
+    DEBUG(TEXT("[MapOnePage] Updated VA %p -> PA %p (before=%p, after=%p)"), Linear, Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#endif
 }
 
 /************************************************************************/
@@ -558,9 +574,23 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
     }
+#if defined(__EXOS_ARCH_X86_64__)
+    volatile U64* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear1);
+    U64 EntryBefore = (EntryPointer != NULL) ? *EntryPointer : 0ull;
+#else
+    volatile U32* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear1);
+    U32 EntryBefore = (EntryPointer != NULL) ? *EntryPointer : 0u;
+#endif
     MapOnePage(
         G_TempLinear1, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+#if defined(__EXOS_ARCH_X86_64__)
+    U64 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0ull;
+    DEBUG(TEXT("[MapTemporaryPhysicalPage1] Slot1 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#else
+    U32 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0u;
+    DEBUG(TEXT("[MapTemporaryPhysicalPage1] Slot1 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#endif
     return G_TempLinear1;
 }
 
@@ -577,9 +607,23 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
     }
+#if defined(__EXOS_ARCH_X86_64__)
+    volatile U64* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear2);
+    U64 EntryBefore = (EntryPointer != NULL) ? *EntryPointer : 0ull;
+#else
+    volatile U32* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear2);
+    U32 EntryBefore = (EntryPointer != NULL) ? *EntryPointer : 0u;
+#endif
     MapOnePage(
         G_TempLinear2, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+#if defined(__EXOS_ARCH_X86_64__)
+    U64 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0ull;
+    DEBUG(TEXT("[MapTemporaryPhysicalPage2] Slot2 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#else
+    U32 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0u;
+    DEBUG(TEXT("[MapTemporaryPhysicalPage2] Slot2 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#endif
     return G_TempLinear2;
 }
 
@@ -596,9 +640,23 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
     }
+#if defined(__EXOS_ARCH_X86_64__)
+    volatile U64* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear3);
+    U64 EntryBefore = (EntryPointer != NULL) ? *EntryPointer : 0ull;
+#else
+    volatile U32* EntryPointer = GetPageTableEntryRawPointer(G_TempLinear3);
+    U32 EntryBefore = (EntryPointer != NULL) ? *EntryPointer : 0u;
+#endif
     MapOnePage(
         G_TempLinear3, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+#if defined(__EXOS_ARCH_X86_64__)
+    U64 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0ull;
+    DEBUG(TEXT("[MapTemporaryPhysicalPage3] Slot3 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#else
+    U32 EntryAfter = (EntryPointer != NULL) ? *EntryPointer : 0u;
+    DEBUG(TEXT("[MapTemporaryPhysicalPage3] Slot3 remapped to %p (before=%p, after=%p)"), Physical, (LINEAR)EntryBefore, (LINEAR)EntryAfter);
+#endif
     return G_TempLinear3;
 }
 
