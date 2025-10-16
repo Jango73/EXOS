@@ -762,17 +762,25 @@ PHYSICAL AllocPageDirectory(void) {
         PML4_RECURSIVE_SLOT,
         (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
 
+    volatile U64* TempSlotEntry = GetPageTableEntryRawPointer((U64)Pml4Linear);
+    DEBUG(TEXT("[AllocPageDirectory] Temp slot PTE before flush=%p"), (LINEAR)(*TempSlotEntry));
+
     FlushTLB();
+
+    DEBUG(TEXT("[AllocPageDirectory] Temp slot PTE after flush=%p"), (LINEAR)(*TempSlotEntry));
+
+    LINEAR RemappedPml4 = MapTemporaryPhysicalPage1(Pml4Physical);
+    DEBUG(TEXT("[AllocPageDirectory] PML4 remapped at %p"), RemappedPml4);
 
     DEBUG(TEXT("[AllocPageDirectory] Post-flush snapshot: PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
         LowPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, LowPml4Index),
         KernelPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, KernelPml4Index),
         TaskRunnerPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, TaskRunnerPml4Index),
         PML4_RECURSIVE_SLOT,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, PML4_RECURSIVE_SLOT));
 
     DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%p, KernelTable[0]=%p, TaskRunnerTable[%u]=%p"),
         (LINEAR)ReadTableEntrySnapshot(LowRegion.Tables[0].Physical, 0),
@@ -912,17 +920,25 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
+    volatile U64* TempSlotEntry = GetPageTableEntryRawPointer((U64)Pml4Linear);
+    DEBUG(TEXT("[AllocUserPageDirectory] Temp slot PTE before flush=%p"), (LINEAR)(*TempSlotEntry));
+
     FlushTLB();
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Temp slot PTE after flush=%p"), (LINEAR)(*TempSlotEntry));
+
+    LINEAR RemappedPml4 = MapTemporaryPhysicalPage1(Pml4Physical);
+    DEBUG(TEXT("[AllocUserPageDirectory] PML4 remapped at %p"), RemappedPml4);
 
     DEBUG(TEXT("[AllocUserPageDirectory] PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p, PML4[%u]=%p"),
         LowPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, LowPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, LowPml4Index),
         KernelPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, KernelPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, KernelPml4Index),
         TaskRunnerPml4Index,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index),
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, TaskRunnerPml4Index),
         PML4_RECURSIVE_SLOT,
-        (LINEAR)ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT));
+        (LINEAR)ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)RemappedPml4, PML4_RECURSIVE_SLOT));
 
     DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%p, KernelTable[0]=%p, TaskRunnerTable[%u]=%p"),
         (LINEAR)ReadTableEntrySnapshot(LowRegion.Tables[0].Physical, 0),
