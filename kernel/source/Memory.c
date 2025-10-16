@@ -493,8 +493,7 @@ static inline void MapOnePage(
     UINT dir = GetDirectoryEntry(Linear);
 
     if (!PageDirectoryEntryIsPresent(Directory, dir)) {
-        ERROR(TEXT("[MapOnePage] PDE not present for VA %p (dir=%d)"), Linear, dir);
-        return;  // Or panic
+        ConsolePanic(TEXT("[MapOnePage] PDE not present for VA %p (dir=%d)"), Linear, dir);
     }
 
     LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
@@ -502,6 +501,9 @@ static inline void MapOnePage(
 
     WritePageTableEntryValue(
         Table, tab, MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed));
+
+    DEBUG(TEXT("[MapOnePage] Mapped %p to %p (Table = %p))"), Linear, Physical, Table);
+
     InvalidatePage(Linear);
 }
 
