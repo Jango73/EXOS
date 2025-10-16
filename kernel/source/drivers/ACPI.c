@@ -164,6 +164,98 @@ BOOL ValidateACPITableChecksum(LPACPI_TABLE_HEADER Table) {
 /************************************************************************/
 
 /**
+ * @brief Map an ACPI table entry if it matches the expected signature.
+ * @param PhysicalAddress Physical address of the table entry.
+ * @param Signature Expected 4-character signature.
+ * @param PermanentMapping Output flag set to TRUE if a permanent IO mapping was created.
+ * @param MappedLength Output length of the permanent mapping when created.
+ * @return Pointer to the mapped table when successful, NULL otherwise.
+ */
+static LPACPI_TABLE_HEADER AcquireACPITable(PHYSICAL PhysicalAddress,
+                                            LPCSTR Signature,
+                                            LPBOOL PermanentMapping,
+                                            LPUINT MappedLength) {
+    if (PermanentMapping != NULL) {
+        *PermanentMapping = FALSE;
+    }
+
+    if (MappedLength != NULL) {
+        *MappedLength = 0;
+    }
+
+    if (PhysicalAddress < 0x100000) {
+        LINEAR TableAddress = (LINEAR)PhysicalAddress;
+
+        if (!IsValidMemory(TableAddress)) {
+            DEBUG(TEXT("[AcquireACPITable] Table at %p not accessible"), (LPVOID)TableAddress);
+            return NULL;
+        }
+
+        LPACPI_TABLE_HEADER Table = (LPACPI_TABLE_HEADER)TableAddress;
+
+        if (MemoryCompare(Table->Signature, Signature, 4) != 0) {
+            return NULL;
+        }
+
+        return Table;
+    }
+
+    LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(PhysicalAddress & ~((PHYSICAL)0xFFF));
+    if (TemporaryAddress == 0) {
+        DEBUG(TEXT("[AcquireACPITable] Failed to map temporary page for physical %p"),
+              (LPVOID)(UINTN)PhysicalAddress);
+        return NULL;
+    }
+
+    LINEAR TemporaryTableAddress =
+        TemporaryAddress + (LINEAR)(PhysicalAddress & (PHYSICAL)(PAGE_SIZE - 1));
+
+    if (!IsValidMemory(TemporaryTableAddress)) {
+        DEBUG(TEXT("[AcquireACPITable] Temporary mapping for %p not accessible"),
+              (LPVOID)TemporaryTableAddress);
+        return NULL;
+    }
+
+    LPACPI_TABLE_HEADER TemporaryTable = (LPACPI_TABLE_HEADER)TemporaryTableAddress;
+
+    if (MemoryCompare(TemporaryTable->Signature, Signature, 4) != 0) {
+        return NULL;
+    }
+
+    UINT Length = TemporaryTable->Length;
+    if (Length == 0) {
+        DEBUG(TEXT("[AcquireACPITable] Table %.4s has invalid length 0"), Signature);
+        return NULL;
+    }
+
+    LINEAR PermanentAddress = MapIOMemory(PhysicalAddress, Length);
+    if (PermanentAddress == 0) {
+        DEBUG(TEXT("[AcquireACPITable] MapIOMemory failed for physical %p"),
+              (LPVOID)(UINTN)PhysicalAddress);
+        return NULL;
+    }
+
+    if (!IsValidMemory(PermanentAddress)) {
+        DEBUG(TEXT("[AcquireACPITable] Permanent mapping for %p not accessible"),
+              (LPVOID)PermanentAddress);
+        UnMapIOMemory(PermanentAddress, Length);
+        return NULL;
+    }
+
+    if (PermanentMapping != NULL) {
+        *PermanentMapping = TRUE;
+    }
+
+    if (MappedLength != NULL) {
+        *MappedLength = Length;
+    }
+
+    return (LPACPI_TABLE_HEADER)PermanentAddress;
+}
+
+/************************************************************************/
+
+/**
  * @brief Find an ACPI table by signature.
  * @param Signature 4-character table signature (e.g., "APIC").
  * @return Pointer to table if found and valid, NULL otherwise.
@@ -184,7 +276,7 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
         for (U32 i = 0; i < EntryCount; i++) {
             U64 EntryAddress = G_XSDT->Entry[i];
             U32 EntryHigh = U64_High32(EntryAddress);
-            U32 EntryLow = U64_Low32(EntryAddress);
+            PHYSICAL EntryLow = (PHYSICAL)U64_Low32(EntryAddress);
 
             // For 32-bit systems, we only use the lower 32 bits of the 64-bit pointer
             if (EntryHigh != 0) {
@@ -192,35 +284,24 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
                 continue;
             }
 
-            U32 PhysicalAddress = EntryLow;
-            LINEAR TableAddress;
+            PHYSICAL PhysicalAddress = EntryLow;
+            UINT MappedLength = 0;
+            BOOL PermanentMapping = FALSE;
 
-            // Map the physical address to virtual address
-            if (PhysicalAddress < 0x100000) {
-                // Table is in low memory, use direct mapping
-                TableAddress = PhysicalAddress;
-            } else {
-                // Table is in high memory, needs to be mapped
-                LINEAR MappedAddress = MapTemporaryPhysicalPage1(PhysicalAddress & ~0xFFF);
-                if (MappedAddress == 0) {
-                    DEBUG(TEXT("[FindACPITable] Failed to map table at 0x%08X"), PhysicalAddress);
-                    continue;
-                }
-                TableAddress = MappedAddress + (PhysicalAddress & 0xFFF);
-            }
-
-            if (!IsValidMemory(TableAddress)) {
-                DEBUG(TEXT("[FindACPITable] Table at 0x%08X not accessible"), TableAddress);
+            LPACPI_TABLE_HEADER Table =
+                AcquireACPITable(PhysicalAddress, Signature, &PermanentMapping, &MappedLength);
+            if (Table == NULL) {
                 continue;
             }
 
-            LPACPI_TABLE_HEADER Table = (LPACPI_TABLE_HEADER)TableAddress;
-            if (MemoryCompare(Table->Signature, Signature, 4) == 0) {
-                if (ValidateACPITableChecksum(Table)) {
-                    DEBUG(TEXT("[FindACPITable] Found table %.4s at physical 0x%08X, virtual 0x%08X"),
-                          Signature, PhysicalAddress, TableAddress);
-                    return Table;
-                }
+            if (ValidateACPITableChecksum(Table)) {
+                DEBUG(TEXT("[FindACPITable] Found table %.4s at physical %p, virtual %p"),
+                      Signature, (LPVOID)(UINTN)PhysicalAddress, (LPVOID)Table);
+                return Table;
+            }
+
+            if (PermanentMapping) {
+                UnMapIOMemory((LINEAR)Table, MappedLength);
             }
         }
     }
@@ -231,35 +312,24 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
         DEBUG(TEXT("[FindACPITable] Searching RSDT with %d entries"), EntryCount);
 
         for (U32 i = 0; i < EntryCount; i++) {
-            U32 PhysicalAddress = G_RSDT->Entry[i];
-            LINEAR TableAddress;
+            PHYSICAL PhysicalAddress = (PHYSICAL)G_RSDT->Entry[i];
+            UINT MappedLength = 0;
+            BOOL PermanentMapping = FALSE;
 
-            // Map the physical address to virtual address
-            if (PhysicalAddress < 0x100000) {
-                // Table is in low memory, use direct mapping
-                TableAddress = PhysicalAddress;
-            } else {
-                // Table is in high memory, needs to be mapped
-                LINEAR MappedAddress = MapTemporaryPhysicalPage1(PhysicalAddress & ~0xFFF);
-                if (MappedAddress == 0) {
-                    DEBUG(TEXT("[FindACPITable] Failed to map table at 0x%08X"), PhysicalAddress);
-                    continue;
-                }
-                TableAddress = MappedAddress + (PhysicalAddress & 0xFFF);
-            }
-
-            if (!IsValidMemory(TableAddress)) {
-                DEBUG(TEXT("[FindACPITable] Table at 0x%08X not accessible"), TableAddress);
+            LPACPI_TABLE_HEADER Table =
+                AcquireACPITable(PhysicalAddress, Signature, &PermanentMapping, &MappedLength);
+            if (Table == NULL) {
                 continue;
             }
 
-            LPACPI_TABLE_HEADER Table = (LPACPI_TABLE_HEADER)TableAddress;
-            if (MemoryCompare(Table->Signature, Signature, 4) == 0) {
-                if (ValidateACPITableChecksum(Table)) {
-                    DEBUG(TEXT("[FindACPITable] Found table %.4s at physical 0x%08X, virtual 0x%08X"),
-                          Signature, PhysicalAddress, TableAddress);
-                    return Table;
-                }
+            if (ValidateACPITableChecksum(Table)) {
+                DEBUG(TEXT("[FindACPITable] Found table %.4s at physical %p, virtual %p"),
+                      Signature, (LPVOID)(UINTN)PhysicalAddress, (LPVOID)Table);
+                return Table;
+            }
+
+            if (PermanentMapping) {
+                UnMapIOMemory((LINEAR)Table, MappedLength);
             }
         }
     }
@@ -390,18 +460,43 @@ BOOL InitializeACPI(void) {
 
     // Map and validate RSDT
     if (G_RSDP->RsdtAddress != 0) {
-        DEBUG(TEXT("[InitializeACPI] RSDT physical address: 0x%08X"), G_RSDP->RsdtAddress);
+        PHYSICAL RsdtPhysical = (PHYSICAL)G_RSDP->RsdtAddress;
+        DEBUG(TEXT("[InitializeACPI] RSDT physical address: %p"), (LPVOID)(UINTN)RsdtPhysical);
 
         // Check if RSDT is in low memory (first 1MB) or needs mapping
-        if (G_RSDP->RsdtAddress < 0x100000) {
+        if (RsdtPhysical < 0x100000) {
             // RSDT is in low memory, use direct mapping
-            G_RSDT = (LPACPI_RSDT)G_RSDP->RsdtAddress;
+            G_RSDT = (LPACPI_RSDT)(LINEAR)RsdtPhysical;
         } else {
             // RSDT is in high memory, needs to be mapped
-            LINEAR MappedAddress = MapTemporaryPhysicalPage1(G_RSDP->RsdtAddress & ~0xFFF);
-            if (MappedAddress != 0) {
-                G_RSDT = (LPACPI_RSDT)(MappedAddress + (G_RSDP->RsdtAddress & 0xFFF));
-                DEBUG(TEXT("[InitializeACPI] RSDT mapped to virtual address: 0x%08X"), (U32)G_RSDT);
+            LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(RsdtPhysical & ~((PHYSICAL)0xFFF));
+            if (TemporaryAddress != 0) {
+                LINEAR TemporaryTableAddress =
+                    TemporaryAddress + (LINEAR)(RsdtPhysical & (PHYSICAL)(PAGE_SIZE - 1));
+
+                if (!IsValidMemory(TemporaryTableAddress)) {
+                    DEBUG(TEXT("[InitializeACPI] Temporary RSDT at %p not accessible"),
+                          (LPVOID)TemporaryTableAddress);
+                    G_RSDT = NULL;
+                } else {
+                    LPACPI_RSDT TemporaryRsdt = (LPACPI_RSDT)TemporaryTableAddress;
+                    UINT RsdtLength = TemporaryRsdt->Header.Length;
+
+                    if (RsdtLength == 0) {
+                        DEBUG(TEXT("[InitializeACPI] RSDT length is 0"));
+                        G_RSDT = NULL;
+                    } else {
+                        LINEAR PermanentAddress = MapIOMemory(RsdtPhysical, RsdtLength);
+                        if (PermanentAddress != 0) {
+                            G_RSDT = (LPACPI_RSDT)PermanentAddress;
+                            DEBUG(TEXT("[InitializeACPI] RSDT mapped to virtual address: %p"),
+                                  (LPVOID)G_RSDT);
+                        } else {
+                            DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for RSDT"));
+                            G_RSDT = NULL;
+                        }
+                    }
+                }
             } else {
                 DEBUG(TEXT("[InitializeACPI] Failed to map RSDT"));
                 G_RSDT = NULL;
@@ -416,26 +511,50 @@ BOOL InitializeACPI(void) {
                 DEBUG(TEXT("[InitializeACPI] RSDT checksum validation failed"));
                 G_RSDT = NULL;
             } else {
-                DEBUG(TEXT("[InitializeACPI] RSDT found and validated at 0x%08X"), (U32)G_RSDT);
+                DEBUG(TEXT("[InitializeACPI] RSDT found and validated at %p"), (LPVOID)G_RSDT);
             }
         }
     }
 
     // Map and validate XSDT if available (ACPI 2.0+)
     if (G_RSDP->Revision >= 2 && U64_Low32(G_RSDP->XsdtAddress) != 0 && U64_High32(G_RSDP->XsdtAddress) == 0) {
-        U32 XsdtPhysical = U64_Low32(G_RSDP->XsdtAddress);
-        DEBUG(TEXT("[InitializeACPI] XSDT physical address: 0x%08X"), XsdtPhysical);
+        PHYSICAL XsdtPhysical = (PHYSICAL)U64_Low32(G_RSDP->XsdtAddress);
+        DEBUG(TEXT("[InitializeACPI] XSDT physical address: %p"), (LPVOID)(UINTN)XsdtPhysical);
 
         // Check if XSDT is in low memory (first 1MB) or needs mapping
         if (XsdtPhysical < 0x100000) {
             // XSDT is in low memory, use direct mapping
-            G_XSDT = (LPACPI_XSDT)XsdtPhysical;
+            G_XSDT = (LPACPI_XSDT)(LINEAR)XsdtPhysical;
         } else {
             // XSDT is in high memory, needs to be mapped
-            LINEAR MappedAddress = MapTemporaryPhysicalPage1(XsdtPhysical & ~0xFFF);
-            if (MappedAddress != 0) {
-                G_XSDT = (LPACPI_XSDT)(MappedAddress + (XsdtPhysical & 0xFFF));
-                DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: 0x%08X"), (U32)G_XSDT);
+            LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(XsdtPhysical & ~((PHYSICAL)0xFFF));
+            if (TemporaryAddress != 0) {
+                LINEAR TemporaryTableAddress =
+                    TemporaryAddress + (LINEAR)(XsdtPhysical & (PHYSICAL)(PAGE_SIZE - 1));
+
+                if (!IsValidMemory(TemporaryTableAddress)) {
+                    DEBUG(TEXT("[InitializeACPI] Temporary XSDT at %p not accessible"),
+                          (LPVOID)TemporaryTableAddress);
+                    G_XSDT = NULL;
+                } else {
+                    LPACPI_XSDT TemporaryXsdt = (LPACPI_XSDT)TemporaryTableAddress;
+                    UINT XsdtLength = TemporaryXsdt->Header.Length;
+
+                    if (XsdtLength == 0) {
+                        DEBUG(TEXT("[InitializeACPI] XSDT length is 0"));
+                        G_XSDT = NULL;
+                    } else {
+                        LINEAR PermanentAddress = MapIOMemory(XsdtPhysical, XsdtLength);
+                        if (PermanentAddress != 0) {
+                            G_XSDT = (LPACPI_XSDT)PermanentAddress;
+                            DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: %p"),
+                                  (LPVOID)G_XSDT);
+                        } else {
+                            DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for XSDT"));
+                            G_XSDT = NULL;
+                        }
+                    }
+                }
             } else {
                 DEBUG(TEXT("[InitializeACPI] Failed to map XSDT"));
                 G_XSDT = NULL;
@@ -450,7 +569,7 @@ BOOL InitializeACPI(void) {
                 DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
                 G_XSDT = NULL;
             } else {
-                DEBUG(TEXT("[InitializeACPI] XSDT found and validated at 0x%08X"), (U32)G_XSDT);
+                DEBUG(TEXT("[InitializeACPI] XSDT found and validated at %p"), (LPVOID)G_XSDT);
             }
         }
     }
