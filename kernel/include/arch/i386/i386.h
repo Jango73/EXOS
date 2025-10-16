@@ -621,12 +621,12 @@ static inline U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit)
     Descriptor.Base = Base;
 
     __asm__ __volatile__(
-        "pushfd\n\t"
+        "pushfl\n\t"
         "pop %0\n\t"
         "cli\n\t"
         "lidt %1\n\t"
         "push %0\n\t"
-        "popfd"
+        "popfl"
         : "=&r"(Flags)
         : "m"(Descriptor)
         : "memory");
@@ -642,7 +642,7 @@ static inline U32 LoadInitialTaskRegister(U32 TaskRegister)
     __asm__ __volatile__("ltr %0" : : "m"(Selector) : "memory");
 
     __asm__ __volatile__(
-        "pushfd\n\t"
+        "pushfl\n\t"
         "pop %0"
         : "=r"(Flags)
         :
@@ -652,7 +652,7 @@ static inline U32 LoadInitialTaskRegister(U32 TaskRegister)
 
     __asm__ __volatile__(
         "push %0\n\t"
-        "popfd"
+        "popfl"
         :
         : "r"(Flags)
         : "memory", "cc");
