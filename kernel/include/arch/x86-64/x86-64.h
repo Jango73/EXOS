@@ -76,6 +76,7 @@
 
 #define RFLAGS_ALWAYS_1 0x0000000000000002ull
 #define RFLAGS_IF 0x0000000000000200ull
+#define RFLAGS_NT 0x0000000000004000ull  // Nested task
 
 /***************************************************************************/
 
@@ -393,7 +394,7 @@ static inline U32 LoadInitialTaskRegister(U32 TaskRegister)
         :
         : "memory");
 
-    Flags &= ~((U64)EFLAGS_NT);
+    Flags &= ~((U64)RFLAGS_NT);
 
     __asm__ __volatile__(
         "push %0\n\t"
