@@ -173,15 +173,10 @@ BOOL ValidateACPITableChecksum(LPACPI_TABLE_HEADER Table) {
  */
 static LPACPI_TABLE_HEADER AcquireACPITable(PHYSICAL PhysicalAddress,
                                             LPCSTR Signature,
-                                            LPBOOL PermanentMapping,
-                                            LPUINT MappedLength) {
-    if (PermanentMapping != NULL) {
-        *PermanentMapping = FALSE;
-    }
-
-    if (MappedLength != NULL) {
-        *MappedLength = 0;
-    }
+                                            BOOL* PermanentMapping,
+                                            UINT* MappedLength) {
+    if (PermanentMapping != NULL) *PermanentMapping = FALSE;
+    if (MappedLength != NULL) *MappedLength = 0;
 
     if (PhysicalAddress < 0x100000) {
         LINEAR TableAddress = (LINEAR)PhysicalAddress;
@@ -203,7 +198,7 @@ static LPACPI_TABLE_HEADER AcquireACPITable(PHYSICAL PhysicalAddress,
     LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(PhysicalAddress & ~((PHYSICAL)0xFFF));
     if (TemporaryAddress == 0) {
         DEBUG(TEXT("[AcquireACPITable] Failed to map temporary page for physical %p"),
-              (LPVOID)(UINTN)PhysicalAddress);
+              (LPVOID)PhysicalAddress);
         return NULL;
     }
 
@@ -231,7 +226,7 @@ static LPACPI_TABLE_HEADER AcquireACPITable(PHYSICAL PhysicalAddress,
     LINEAR PermanentAddress = MapIOMemory(PhysicalAddress, Length);
     if (PermanentAddress == 0) {
         DEBUG(TEXT("[AcquireACPITable] MapIOMemory failed for physical %p"),
-              (LPVOID)(UINTN)PhysicalAddress);
+              (LPVOID)PhysicalAddress);
         return NULL;
     }
 
@@ -296,7 +291,7 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
 
             if (ValidateACPITableChecksum(Table)) {
                 DEBUG(TEXT("[FindACPITable] Found table %.4s at physical %p, virtual %p"),
-                      Signature, (LPVOID)(UINTN)PhysicalAddress, (LPVOID)Table);
+                      Signature, (LPVOID)PhysicalAddress, (LPVOID)Table);
                 return Table;
             }
 
@@ -324,7 +319,7 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
 
             if (ValidateACPITableChecksum(Table)) {
                 DEBUG(TEXT("[FindACPITable] Found table %.4s at physical %p, virtual %p"),
-                      Signature, (LPVOID)(UINTN)PhysicalAddress, (LPVOID)Table);
+                      Signature, (LPVOID)PhysicalAddress, (LPVOID)Table);
                 return Table;
             }
 
@@ -461,7 +456,7 @@ BOOL InitializeACPI(void) {
     // Map and validate RSDT
     if (G_RSDP->RsdtAddress != 0) {
         PHYSICAL RsdtPhysical = (PHYSICAL)G_RSDP->RsdtAddress;
-        DEBUG(TEXT("[InitializeACPI] RSDT physical address: %p"), (LPVOID)(UINTN)RsdtPhysical);
+        DEBUG(TEXT("[InitializeACPI] RSDT physical address: %p"), (LPVOID)RsdtPhysical);
 
         // Check if RSDT is in low memory (first 1MB) or needs mapping
         if (RsdtPhysical < 0x100000) {
@@ -519,7 +514,7 @@ BOOL InitializeACPI(void) {
     // Map and validate XSDT if available (ACPI 2.0+)
     if (G_RSDP->Revision >= 2 && U64_Low32(G_RSDP->XsdtAddress) != 0 && U64_High32(G_RSDP->XsdtAddress) == 0) {
         PHYSICAL XsdtPhysical = (PHYSICAL)U64_Low32(G_RSDP->XsdtAddress);
-        DEBUG(TEXT("[InitializeACPI] XSDT physical address: %p"), (LPVOID)(UINTN)XsdtPhysical);
+        DEBUG(TEXT("[InitializeACPI] XSDT physical address: %p"), (LPVOID)XsdtPhysical);
 
         // Check if XSDT is in low memory (first 1MB) or needs mapping
         if (XsdtPhysical < 0x100000) {
