@@ -91,8 +91,19 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
             AllocationEnd = AllocationStart + (LINEAR)(AllocationSize - 1);
         }
 
-        DEBUG(TEXT("[CacheInit] Allocation header=%p type=%x size=%u next=%p prev=%p"), AllocationHeader,
-            AllocationHeader->TypeID, AllocationHeader->Size, AllocationHeader->Next, AllocationHeader->Prev);
+        BOOL HeaderStartValid = IsValidMemory((LINEAR)AllocationHeader);
+        BOOL HeaderEndValid = IsValidMemory((LINEAR)AllocationHeader + (LINEAR)(sizeof(HEAPBLOCKHEADER) - 1));
+
+        DEBUG(TEXT("[CacheInit] Allocation header=%p startValid=%u endValid=%u"), AllocationHeader, HeaderStartValid,
+            HeaderEndValid);
+
+        if (HeaderStartValid && HeaderEndValid) {
+            DEBUG(TEXT("[CacheInit] Allocation header type=%x size=%u next=%p prev=%p"), AllocationHeader->TypeID,
+                AllocationHeader->Size, AllocationHeader->Next, AllocationHeader->Prev);
+        } else {
+            WARNING(TEXT("[CacheInit] Allocation header memory invalid"));
+        }
+
         DEBUG(TEXT("[CacheInit] Allocation range start=%p end=%p"), (LPVOID)AllocationStart, (LPVOID)AllocationEnd);
     }
 
