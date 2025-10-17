@@ -644,8 +644,40 @@ LINEAR AllocPageTable(LINEAR Base) {
     }
 
     // Fill the directory entry that describes the new table
+    Base = CanonicalizeLinearAddress(Base);
+
     UINT DirEntry = GetDirectoryEntry(Base);
+
+#if defined(__EXOS_ARCH_X86_64__)
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
+    UINT Pml4Index = MemoryPageIteratorGetPml4Index(&Iterator);
+    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(&Iterator);
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
+
+    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[AllocPageTable] PML4 entry %u not present"), Pml4Index);
+        return NULL;
+    }
+
+    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Base);
+    U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
+
+    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[AllocPageTable] PDPT entry %u not present"), PdptIndex);
+        return NULL;
+    }
+
+    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        DEBUG(TEXT("[AllocPageTable] PDPT entry %u is a large mapping"), PdptIndex);
+        return NULL;
+    }
+
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Base);
+#else
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+#endif
 
     // Determine privilege: user space (< VMA_KERNEL) needs user privilege
     U32 Privilege = PAGE_PRIVILEGE(Base);
@@ -840,7 +872,6 @@ static BOOL PopulateRegionPages(LINEAR Base,
                                 U32 Flags,
                                 LINEAR RollbackBase,
                                 LPCSTR FunctionName) {
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     LPPAGE_TABLE Table = NULL;
     PHYSICAL Physical = NULL;
     U32 ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
@@ -869,7 +900,18 @@ static BOOL PopulateRegionPages(LINEAR Base,
               DirEntry,
               TabEntry);
 
-        if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) {
+        BOOL TableAvailable = FALSE;
+        BOOL IsLargePage = FALSE;
+
+        TableAvailable = TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
+
+        if (!TableAvailable) {
+            if (IsLargePage) {
+                DEBUG(TEXT("[PopulateRegionPages] Large mapping prevents allocation in Dir=%u"), DirEntry);
+                FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
+                return FALSE;
+            }
+
             if (AllocPageTable(CurrentLinear) == NULL) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 DEBUG(TEXT("[%s] AllocPageTable failed"), FunctionName);
@@ -877,9 +919,14 @@ static BOOL PopulateRegionPages(LINEAR Base,
             }
 
             DEBUG(TEXT("[PopulateRegionPages] Allocated page table for Dir=%u"), DirEntry);
+
+            if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
+                FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
+                DEBUG(TEXT("[%s] Page table unavailable after allocation"), FunctionName);
+                return FALSE;
+            }
         }
 
-        Table = MemoryPageIteratorGetTable(&Iterator);
         U32 Privilege = PAGE_PRIVILEGE(CurrentLinear);
         U32 FixedFlag = (Flags & ALLOC_PAGES_IO) ? 1u : 0u;
         U32 BaseFlags = BuildPageFlags(ReadWrite, Privilege, PteWriteThrough, PteCacheDisabled, 0, FixedFlag);
@@ -1164,12 +1211,13 @@ static BOOL TryGetPageTableForIterator(
     LINEAR Linear = CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(Iterator));
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
     UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
+    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
 
     DEBUG(TEXT("[TryGetPageTableForIterator] Linear=%p Pml4=%u Pdpt=%u Dir=%u Tab=%u"),
         (LPVOID)Linear,
         Pml4Index,
         PdptIndex,
-        MemoryPageIteratorGetDirectoryIndex(Iterator),
+        DirEntry,
         MemoryPageIteratorGetTableIndex(Iterator));
 
     LPPML4 Pml4 = GetCurrentPml4VA();
@@ -1180,14 +1228,7 @@ static BOOL TryGetPageTableForIterator(
         return FALSE;
     }
 
-    PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
-    LPPDPT Pdpt = (LPPDPT)MapTemporaryPhysicalPage1(PdptPhysical);
-
-    if (Pdpt == NULL) {
-        DEBUG(TEXT("[TryGetPageTableForIterator] Unable to map PDPT for PML4=%u"), Pml4Index);
-        return FALSE;
-    }
-
+    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Linear);
     U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
 
     if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
@@ -1203,19 +1244,13 @@ static BOOL TryGetPageTableForIterator(
         return FALSE;
     }
 
-    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
-
-    if (Directory == NULL) {
-        DEBUG(TEXT("[TryGetPageTableForIterator] Unable to map page directory for PDPT=%u"), PdptIndex);
-        return FALSE;
-    }
-#else
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-#endif
-
-    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Linear);
     U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
+#else
+    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
+#endif
 
     if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
         DEBUG(TEXT("[TryGetPageTableForIterator] PDE %u not present"), DirEntry);
