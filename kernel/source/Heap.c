@@ -140,8 +140,6 @@ static void RemoveFromFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADE
  * Memory is 16-byte aligned for optimal performance.
  */
 void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
-    DEBUG("[HeapInit] Initializing heap at %x, size %x", HeapBase, HeapSize);
-
     MemorySet((LPVOID)HeapBase, 0, HeapSize);
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
@@ -159,8 +157,6 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
 
     // Set first unallocated to after control block, aligned to 16 bytes
     ControlBlock->FirstUnallocated = (LPVOID)((HeapBase + sizeof(HEAPCONTROLBLOCK) + 15) & ~15);
-
-    DEBUG("[HeapInit] Control block size: %x, first unallocated: %x", sizeof(HEAPCONTROLBLOCK), ControlBlock->FirstUnallocated);
 }
 
 /************************************************************************/
@@ -377,8 +373,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
  * - Otherwise, changes the size of the memory block, potentially moving it
  */
 LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOID Pointer, UINT Size) {
-    DEBUG(TEXT("[HeapRealloc_HBHS] HeapBase = %p, HeapSize = %d, Size = %d"), HeapBase, HeapSize, Size);
-
     if (Pointer == NULL) {
         return HeapAlloc_HBHS(Process, HeapBase, HeapSize, Size);
     }
@@ -394,8 +388,6 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
     }
     if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) return NULL;
 
-    DEBUG("[HeapRealloc_HBHS] Reallocating pointer %x to size %x", Pointer, Size);
-
     // Get the block header
     LPHEAPBLOCKHEADER Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
     if (Block->TypeID != KOID_HEAP) {
@@ -410,7 +402,6 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
 
     // If new size fits in current block, just return the same pointer
     if (NewTotalSize <= Block->Size) {
-        DEBUG("[HeapRealloc_HBHS] Reusing existing block");
         return Pointer;
     }
 
@@ -423,7 +414,6 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
         HeapFree_HBHS(HeapBase, HeapSize, Pointer);
     }
 
-    DEBUG("[HeapRealloc_HBHS] Allocated new block at %x", NewPointer);
     return NewPointer;
 }
 
@@ -484,7 +474,6 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
  * process's heap mutex before calling the core allocation function.
  */
 LPVOID HeapAlloc_P(LPPROCESS Process, UINT Size) {
-    DEBUG(TEXT("[HeapAlloc_P] Size = %d"), Size);
     LPVOID Pointer = NULL;
     LockMutex(&(Process->HeapMutex), INFINITY);
     Pointer = HeapAlloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Size);
@@ -538,7 +527,6 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
  * Convenience function for allocating memory from the kernel process heap.
  */
 LPVOID KernelHeapAlloc(UINT Size) {
-    DEBUG(TEXT("[KernelHeapAlloc] Size = %d"), Size);
     return HeapAlloc_P(&KernelProcess, Size);
 }
 

@@ -31,13 +31,13 @@
 /************************************************************************/
 
 // Copy stack content from source to destination and adjust frame pointers
-BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size);
+BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size);
 
 // Copy stack content with specified EBP instead of using GetEBP()
-BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINEAR StartEBP);
+BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size, LINEAR StartEBP);
 
 // Copy stack and switch ESP/EBP to new location
-BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size);
+BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size);
 
 // Check current task's stack safety
 BOOL CheckStack(void);

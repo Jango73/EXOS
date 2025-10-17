@@ -71,14 +71,14 @@ static inline UINT StackGetSavedPointer(LPTASK Task) {
  * @param StartEBP Starting EBP value to begin frame chain adjustment
  * @return TRUE on success, FALSE if parameters are invalid or EBP is out of range
  */
-BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINEAR StartEBP) {
+BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size, LINEAR StartEBP) {
     if (!DestStackTop || !SourceStackTop || Size == 0) {
         return FALSE;
     }
 
     LINEAR SourceStackStart = SourceStackTop - Size;
     LINEAR DestStackStart = DestStackTop - Size;
-    INT Delta = (INT)(DestStackTop - SourceStackTop);
+    UINT Delta = (INT)(DestStackTop - SourceStackTop);
 
     // Copy stack content from source to destination
     MemoryCopy((void *)DestStackStart, (const void *)SourceStackStart, Size);
@@ -122,7 +122,7 @@ BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINE
  * @param Size Number of bytes to copy
  * @return TRUE on success, FALSE on failure
  */
-BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
+BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size) {
 #if defined(__EXOS_ARCH_I386__)
     LINEAR CurrentEbp;
     GetEBP(CurrentEbp);
@@ -148,88 +148,54 @@ BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
  * @param Size Number of bytes to copy and switch
  * @return TRUE if stack switch successful, FALSE if copy failed or ESP out of range
  */
-BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
-#if defined(__EXOS_ARCH_I386__)
+BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size) {
     if (!CopyStack(DestStackTop, SourceStackTop, Size)) {
         return FALSE;
     }
 
     LINEAR SourceStackStart = SourceStackTop - Size;
-    I32 Delta = DestStackTop - SourceStackTop;
+    INT Delta = DestStackTop - SourceStackTop;
 
     // Get current ESP and EBP at the moment of switch
-    LINEAR CurrentEsp;
-    LINEAR CurrentEbp;
-#if defined(__EXOS_ARCH_I386__)
-    GetESP(CurrentEsp);
-    GetEBP(CurrentEbp);
-#else
-    GetESP(CurrentEsp);
-    GetEBP(CurrentEbp);
-#endif
+    LINEAR CurrentSP;
+    LINEAR CurrentBP;
 
-    DEBUG(TEXT("[SwitchStack] Current ESP=%X, EBP=%X at switch time"), CurrentEsp, CurrentEbp);
+    GetESP(CurrentSP);
+    GetEBP(CurrentBP);
+
+    DEBUG(TEXT("[SwitchStack] Current ESP=%p, EBP=%p at switch time"), CurrentSP, CurrentBP);
 
     // Check if we're within the source stack range
-    if (CurrentEsp >= SourceStackStart && CurrentEsp < SourceStackTop) {
-        LINEAR NewEsp = CurrentEsp + Delta;
-        LINEAR NewEbp = CurrentEbp + Delta;
+    if (CurrentSP >= SourceStackStart && CurrentSP < SourceStackTop) {
+        LINEAR NewSP = CurrentSP + Delta;
+        LINEAR NewBP = CurrentBP + Delta;
 
-        DEBUG(TEXT("[SwitchStack] Switching ESP %X -> %X, EBP %X -> %X"), CurrentEsp, NewEsp, CurrentEbp,
-            NewEbp);
+        DEBUG(TEXT("[SwitchStack] Switching SP %p -> %p, BP %p -> %p"), CurrentSP, NewSP, CurrentBP, NewBP);
 
-        // Switch ESP and EBP
+        // Switch SP and BP
+#if defined(__EXOS_ARCH_I386__)
         __asm__ __volatile__(
-            "movl %0, %%esp\n\t"
-            "movl %1, %%ebp"
+            "mov %0, %%esp\n\t"
+            "mov %1, %%ebp"
             :
-            : "r"(NewEsp), "r"(NewEbp)
+            : "r"(NewSP), "r"(NewBP)
             : "memory");
-
-        return TRUE;
-    } else {
-        DEBUG(TEXT("[SwitchStack] ESP %X not in source stack range [%X-%X]"), CurrentEsp, SourceStackStart,
-            SourceStackTop);
-        return FALSE;
-    }
 #else
-    if (!CopyStack(DestStackTop, SourceStackTop, Size)) {
-        return FALSE;
-    }
-
-    LINEAR SourceStackStart = SourceStackTop - Size;
-    INT Delta = (INT)(DestStackTop - SourceStackTop);
-
-    LINEAR CurrentRsp;
-    LINEAR CurrentRbp;
-    GetESP(CurrentRsp);
-    GetEBP(CurrentRbp);
-
-    DEBUG(TEXT("[SwitchStack] Current RSP=%p, RBP=%p at switch time"), (LPVOID)(UINT)CurrentRsp,
-        (LPVOID)(UINT)CurrentRbp);
-
-    if (CurrentRsp >= SourceStackStart && CurrentRsp < SourceStackTop) {
-        LINEAR NewRsp = CurrentRsp + (LINEAR)Delta;
-        LINEAR NewRbp = CurrentRbp + (LINEAR)Delta;
-
-        DEBUG(TEXT("[SwitchStack] Switching RSP %p -> %p, RBP %p -> %p"), (LPVOID)(UINT)CurrentRsp,
-            (LPVOID)(UINT)NewRsp, (LPVOID)(UINT)CurrentRbp, (LPVOID)(UINT)NewRbp);
-
         __asm__ __volatile__(
             "mov %0, %%rsp\n\t"
             "mov %1, %%rbp"
             :
-            : "r"(NewRsp), "r"(NewRbp)
+            : "r"(NewSP), "r"(NewBP)
             : "memory");
+#endif
 
         return TRUE;
     }
 
-    DEBUG(TEXT("[SwitchStack] RSP %p not in source stack range [%p-%p]"), (LPVOID)(UINT)CurrentRsp,
-        (LPVOID)(UINT)SourceStackStart, (LPVOID)(UINT)SourceStackTop);
+    DEBUG(TEXT("[SwitchStack] SP %p not in source stack range [%p-%p]"), CurrentSP, SourceStackStart,
+        SourceStackTop);
 
     return FALSE;
-#endif
 }
 
 /************************************************************************/
@@ -279,9 +245,7 @@ BOOL CheckStack(void) {
         // Instead, we just verify the task has a valid system stack allocated
         if (CurrentTask->Arch.SysStackBase == 0 || CurrentTask->Arch.SysStackSize == 0) {
             ERROR(TEXT("[CheckStack] User task in kernel mode without system stack!"));
-            KernelLogText(
-                LOG_ERROR, TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name,
-                CurrentTask->Process->FileName);
+            ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
             return FALSE;
         }
         // For userland tasks in kernel mode, skip ESP validation as the current ESP
@@ -296,21 +260,17 @@ BOOL CheckStack(void) {
 
     if (CurrentESP < StackBase || CurrentESP > StackTop) {
         ERROR(TEXT("[CheckStack] ESP OUTSIDE STACK BOUNDS!"));
-        KernelLogText(
-            LOG_ERROR, TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name,
-            CurrentTask->Process->FileName);
+        ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
         ERROR(TEXT("[CheckStack] ESP: %x"), CurrentESP);
         ERROR(TEXT("[CheckStack] StackBase: %x"), StackBase);
         ERROR(TEXT("[CheckStack] StackTop: %x"), StackTop);
         ERROR(TEXT("[CheckStack] InKernelMode: %u"), InKernelMode ? 1 : 0);
 
         if (CurrentESP < StackBase) {
-            KernelLogText(
-                LOG_ERROR, TEXT("[CheckStack] ESP is %u bytes below stack base (severe underflow)"),
+            ERROR(TEXT("[CheckStack] ESP is %u bytes below stack base (severe underflow)"),
                 StackBase - CurrentESP);
         } else {
-            KernelLogText(
-                LOG_ERROR, TEXT("[CheckStack] ESP is %u bytes above stack top (overflow)"), CurrentESP - StackTop);
+            ERROR(TEXT("[CheckStack] ESP is %u bytes above stack top (overflow)"), CurrentESP - StackTop);
         }
 
         return FALSE;
@@ -318,17 +278,13 @@ BOOL CheckStack(void) {
 
     if (CurrentESP <= (StackBase + STACK_SAFETY_MARGIN)) {
         ERROR(TEXT("[CheckStack] STACK OVERFLOW DETECTED!"));
-        KernelLogText(
-            LOG_ERROR, TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name,
-            CurrentTask->Process->FileName);
+        ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
         ERROR(TEXT("[CheckStack] Func: %x"), CurrentTask ? CurrentTask->Function : 0);
         ERROR(TEXT("[CheckStack] ESP: %x"), CurrentESP);
         ERROR(TEXT("[CheckStack] StackBase: %x"), StackBase);
         ERROR(TEXT("[CheckStack] StackTop: %x"), StackTop);
         ERROR(TEXT("[CheckStack] InKernelMode: %u"), InKernelMode ? 1 : 0);
-        KernelLogText(
-            LOG_ERROR, TEXT("[CheckStack] Safety margin violated by %u bytes"),
-            (StackBase + STACK_SAFETY_MARGIN) - CurrentESP);
+        ERROR(TEXT("[CheckStack] Safety margin violated by %u bytes"), (StackBase + STACK_SAFETY_MARGIN) - CurrentESP);
         return FALSE;
     }
 
