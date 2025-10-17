@@ -476,16 +476,16 @@ extern U32 OutPortByte(U32 Port, U32 Value);
         __asm__ __volatile__("frstor %0" : : "m"(*__restore_fpu_state) : "memory");             \
     } while (0)
 
-#define LoadGlobalDescriptorTable(Base, Limit)                                                                  \
+#define LoadGlobalDescriptorTable(GdtBase, GdtLimit)                                                            \
     ({                                                                                                         \
-        PHYSICAL __load_gdt_base = (PHYSICAL)(Base);                                                            \
-        U32 __load_gdt_limit = (U32)(Limit);                                                                    \
+        PHYSICAL __load_gdt_base = (PHYSICAL)(GdtBase);                                                        \
+        U32 __load_gdt_limit = (U32)(GdtLimit);                                                                \
         struct PACKED {                                                                                        \
-            U16 Limit;                                                                                          \
-            PHYSICAL Base;                                                                                      \
+            U16 LimitValue;                                                                                    \
+            PHYSICAL BaseValue;                                                                                \
         } __load_gdt_descriptor;                                                                                \
-        __load_gdt_descriptor.Limit = (U16)__load_gdt_limit;                                                    \
-        __load_gdt_descriptor.Base = __load_gdt_base;                                                           \
+        __load_gdt_descriptor.LimitValue = (U16)__load_gdt_limit;                                              \
+        __load_gdt_descriptor.BaseValue = __load_gdt_base;                                                     \
         __asm__ __volatile__(                                                                                   \
             "lgdt %[descriptor]\n\t"                                                                        \
             "pushq %[code]\n\t"                                                                            \
