@@ -73,13 +73,19 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
 
     Cache->Capacity = Capacity;
     Cache->Count = 0;
+
+    DEBUG(TEXT("[CacheInit] Cache structure start=%p size=%u"), Cache, (UINT)sizeof(CACHE));
+    DEBUG(TEXT("[CacheInit] Cache structure startValid=%u endValid=%u"), IsValidMemory((LINEAR)Cache),
+        IsValidMemory((LINEAR)Cache + (LINEAR)(sizeof(CACHE) - 1)));
+
     Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(AllocationSize);
 
     DEBUG(TEXT("[CacheInit] KernelHeapAlloc returned entries=%p"), Cache->Entries);
 
+    DEBUG(TEXT("[CacheInit] Preparing to initialize mutex at %p"), &(Cache->Mutex));
     Cache->Mutex = (MUTEX)EMPTY_MUTEX;
+    DEBUG(TEXT("[CacheInit] Mutex initialized lockCount=%u"), Cache->Mutex.Lock);
 
-    DEBUG(TEXT("[CacheInit] Mutex=%p lockCount=%u"), &(Cache->Mutex), Cache->Mutex.Lock);
     DEBUG(TEXT("[CacheInit] Entries pointer=%p size=%u"), Cache->Entries, AllocationSize);
 
     if (Cache->Entries != NULL) {
