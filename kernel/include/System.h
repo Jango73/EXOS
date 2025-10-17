@@ -46,8 +46,6 @@ extern U32 IRQMask_A1_RM;
 extern void GetCPUID(LPVOID);
 extern U32 DisablePaging(void);
 extern U32 EnablePaging(void);
-extern void DisableInterrupts(void);
-extern void EnableInterrupts(void);
 extern void SaveFPU(LPVOID StateBuffer);
 extern void RestoreFPU(LPVOID StateBuffer);
 extern U32 InPortByte(U32 Port);

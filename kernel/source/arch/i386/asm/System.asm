@@ -72,8 +72,6 @@ BITS 32
     global GetCPUID
     global DisablePaging
     global EnablePaging
-    global DisableInterrupts
-    global EnableInterrupts
     global SaveFPU
     global RestoreFPU
     global InPortByte
@@ -175,22 +173,6 @@ EnablePaging :
     or      eax, CR0_PAGING
     mov     cr0, eax
     ret
-
-;--------------------------------------
-
-FUNC_HEADER
-DisableInterrupts :
-
-   cli
-   ret
-
-;--------------------------------------
-
-FUNC_HEADER
-EnableInterrupts :
-
-   sti
-   ret
 
 ;--------------------------------------
 
