@@ -142,6 +142,8 @@ LPTASK NewTask(void) {
 
     This->Message = NewList(MessageDestructor, KernelHeapAlloc, KernelHeapFree);
 
+    DEBUG(TEXT("[NewTask] Message queue pointer = %p"), This->Message);
+
     DEBUG(TEXT("[NewTask] Exit"));
 
     TRACED_EPILOGUE("NewTask");

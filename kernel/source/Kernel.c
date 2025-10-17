@@ -321,6 +321,8 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
 
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
+    DEBUG(TEXT("[CreateKernelObject] KernelHeapAlloc returned %p"), Object);
+
     if (Object == NULL) {
         ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);
         return NULL;
@@ -333,12 +335,14 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object->TypeID = ObjectTypeID;
     Object->References = 1;
     Object->OwnerProcess = GetCurrentProcess();
+
+    DEBUG(TEXT("[CreateKernelObject] OwnerProcess=%p"), Object->OwnerProcess);
     Object->ID = ObjectID;
     Object->Next = NULL;
     Object->Prev = NULL;
 
-    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"),
-          (U32)Object, (U32)Object->OwnerProcess);
+    DEBUG(TEXT("[CreateKernelObject] Object created at %p, OwnerProcess: %p, RequestedSize=%u"),
+          Object, Object->OwnerProcess, Size);
 
     return Object;
 }
