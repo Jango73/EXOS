@@ -211,30 +211,31 @@ U32 ClockTestTask(LPVOID Param) {
  */
 
 void DumpCriticalInformation(void) {
+    DEBUG(TEXT("  Multiboot entry count = %d"), KernelStartup.MultibootMemoryEntryCount);
+
     for (U32 Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
-        DEBUG(TEXT("Multiboot entry %X : %X, %X, %X"), Index,
+        DEBUG(TEXT("Multiboot entry %d : %p, %d, %d"), Index,
             U64_Low32(KernelStartup.MultibootMemoryEntries[Index].Base),
             U64_Low32(KernelStartup.MultibootMemoryEntries[Index].Length),
             (U32)KernelStartup.MultibootMemoryEntries[Index].Type);
     }
 
     DEBUG(TEXT("Virtual addresses"));
-    DEBUG(TEXT("  VMA_RAM = %X"), VMA_RAM);
-    DEBUG(TEXT("  VMA_VIDEO = %X"), VMA_VIDEO);
-    DEBUG(TEXT("  VMA_CONSOLE = %X"), VMA_CONSOLE);
-    DEBUG(TEXT("  VMA_USER = %X"), VMA_USER);
-    DEBUG(TEXT("  VMA_LIBRARY = %X"), VMA_LIBRARY);
-    DEBUG(TEXT("  VMA_KERNEL = %X"), VMA_KERNEL);
+    DEBUG(TEXT("  VMA_RAM = %p"), VMA_RAM);
+    DEBUG(TEXT("  VMA_VIDEO = %p"), VMA_VIDEO);
+    DEBUG(TEXT("  VMA_CONSOLE = %p"), VMA_CONSOLE);
+    DEBUG(TEXT("  VMA_USER = %p"), VMA_USER);
+    DEBUG(TEXT("  VMA_LIBRARY = %p"), VMA_LIBRARY);
+    DEBUG(TEXT("  VMA_KERNEL = %p"), VMA_KERNEL);
 
     DEBUG(TEXT("Kernel startup info:"));
-    DEBUG(TEXT("  KernelPhysicalBase = %X"), KernelStartup.KernelPhysicalBase);
-    DEBUG(TEXT("  KernelSize = %lX"), KernelStartup.KernelSize);
-    DEBUG(TEXT("  StackTop = %X"), KernelStartup.StackTop);
-    DEBUG(TEXT("  IRQMask_21_RM = %X"), KernelStartup.IRQMask_21_RM);
-    DEBUG(TEXT("  IRQMask_A1_RM = %X"), KernelStartup.IRQMask_A1_RM);
-    DEBUG(TEXT("  MemorySize = %lX"), KernelStartup.MemorySize);
-    DEBUG(TEXT("  PageCount = %lX"), KernelStartup.PageCount);
-    DEBUG(TEXT("  Multiboot entry count = %X"), KernelStartup.MultibootMemoryEntryCount);
+    DEBUG(TEXT("  KernelPhysicalBase = %p"), KernelStartup.KernelPhysicalBase);
+    DEBUG(TEXT("  KernelSize = %d"), KernelStartup.KernelSize);
+    DEBUG(TEXT("  StackTop = %p"), KernelStartup.StackTop);
+    DEBUG(TEXT("  IRQMask_21_RM = %x"), KernelStartup.IRQMask_21_RM);
+    DEBUG(TEXT("  IRQMask_A1_RM = %x"), KernelStartup.IRQMask_A1_RM);
+    DEBUG(TEXT("  MemorySize = %d"), KernelStartup.MemorySize);
+    DEBUG(TEXT("  PageCount = %d"), KernelStartup.PageCount);
 }
 
 /************************************************************************/

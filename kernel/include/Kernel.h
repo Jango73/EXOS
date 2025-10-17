@@ -143,14 +143,14 @@ typedef struct tag_KERNELDATA {
     STR LanguageCode[8];
     STR KeyboardCode[8];
     CPUINFORMATION CPU;
-    U32 MinimumQuantum;          // Minimum quantum time in milliseconds (adjusted for emulation)
-    U32 MaximumQuantum;          // Maximum quantum time in milliseconds (adjusted for emulation)
-    BOOL DoLogin;                // Enable/disable login sequence (TRUE=enable, FALSE=disable)
-    LPLIST UserSessions;         // List of active user sessions
-    LPLIST UserAccount;          // List of user accounts
-    CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
-    LPPAGEBITMAP PPB;            // Physical page bitmap shared across architectures
-    UINT PPBSize;                // Size in bytes reserved for the physical page bitmap
+    UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
+    UINT MaximumQuantum;            // Maximum quantum time in milliseconds (adjusted for emulation)
+    BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
+    LPLIST UserSessions;            // List of active user sessions
+    LPLIST UserAccount;             // List of user accounts
+    CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
+    LPPAGEBITMAP PPB;               // Physical page bitmap
+    UINT PPBSize;                   // Size in bytes of the physical page bitmap
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
