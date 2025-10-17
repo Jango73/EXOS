@@ -1180,7 +1180,13 @@ static BOOL TryGetPageTableForIterator(
         return FALSE;
     }
 
-    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Linear);
+    PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
+    LPPDPT Pdpt = (LPPDPT)MapTemporaryPhysicalPage1(PdptPhysical);
+
+    if (Pdpt == NULL) {
+        DEBUG(TEXT("[TryGetPageTableForIterator] Unable to map PDPT for PML4=%u"), Pml4Index);
+        return FALSE;
+    }
 
     U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
 
@@ -1197,7 +1203,13 @@ static BOOL TryGetPageTableForIterator(
         return FALSE;
     }
 
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Linear);
+    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
+
+    if (Directory == NULL) {
+        DEBUG(TEXT("[TryGetPageTableForIterator] Unable to map page directory for PDPT=%u"), PdptIndex);
+        return FALSE;
+    }
 #else
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 #endif
