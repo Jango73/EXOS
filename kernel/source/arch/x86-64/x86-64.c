@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "Stack.h"
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"
@@ -918,8 +919,8 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
     LINEAR BaseVMA = VMA_KERNEL;
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
-    U64 StackTop;
-    U64 SysStackTop;
+    LINEAR StackTop;
+    LINEAR SysStackTop;
     U64 ControlRegister4 = 0;
 
     DEBUG(TEXT("[ArchSetupTask] Enter"));
@@ -979,8 +980,8 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
     Task->Arch.Context.Registers.CR4 = ControlRegister4;
     Task->Arch.Context.Registers.RIP = (U64)VMA_TASK_RUNNER;
 
-    StackTop = Task->Arch.StackBase + (U64)Task->Arch.StackSize;
-    SysStackTop = Task->Arch.SysStackBase + (U64)Task->Arch.SysStackSize;
+    StackTop = (LINEAR)(Task->Arch.StackBase + (U64)Task->Arch.StackSize);
+    SysStackTop = (LINEAR)(Task->Arch.SysStackBase + (U64)Task->Arch.SysStackSize);
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
         Task->Arch.Context.Registers.RSP = StackTop - STACK_SAFETY_MARGIN;
@@ -995,7 +996,41 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
 
     if ((Info->Flags & TASK_CREATE_MAIN_KERNEL) != 0u) {
         Task->Status = TASK_STATUS_RUNNING;
-        WARNING(TEXT("[ArchSetupTask] Main kernel stack handoff not implemented on x86-64"));
+
+        LINEAR BootStackTop = (LINEAR)KernelStartup.StackTop;
+        LINEAR CurrentRsp;
+        LINEAR StackUsedLinear;
+        U32 StackUsed;
+
+        GetESP(CurrentRsp);
+        if (CurrentRsp > BootStackTop) {
+            StackUsedLinear = 0x100u;
+        } else {
+            StackUsedLinear = (BootStackTop - CurrentRsp) + 0x100u;
+        }
+
+        if (StackUsedLinear > (LINEAR)MAX_U32) {
+            StackUsed = MAX_U32;
+        } else {
+            StackUsed = (U32)StackUsedLinear;
+        }
+
+        DEBUG(TEXT("[ArchSetupTask] BootStackTop = %p"), (LPVOID)(UINT)BootStackTop);
+        DEBUG(TEXT("[ArchSetupTask] StackTop = %p"), (LPVOID)(UINT)StackTop);
+        DEBUG(TEXT("[ArchSetupTask] StackUsed = %u"), StackUsed);
+        DEBUG(TEXT("[ArchSetupTask] Switching to new stack..."));
+
+        if (SwitchStack(StackTop, BootStackTop, StackUsed) == TRUE) {
+            LINEAR CurrentRbp;
+
+            Task->Arch.Context.Registers.RSP = 0;
+            GetEBP(CurrentRbp);
+            Task->Arch.Context.Registers.RBP = CurrentRbp;
+
+            DEBUG(TEXT("[ArchSetupTask] Main task stack switched successfully"));
+        } else {
+            ERROR(TEXT("[ArchSetupTask] Stack switch failed"));
+        }
     }
 
     DEBUG(TEXT("[ArchSetupTask] Exit"));

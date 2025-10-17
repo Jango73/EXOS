@@ -78,7 +78,7 @@ BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINE
 
     LINEAR SourceStackStart = SourceStackTop - Size;
     LINEAR DestStackStart = DestStackTop - Size;
-    I32 Delta = DestStackTop - SourceStackTop;
+    INT Delta = (INT)(DestStackTop - SourceStackTop);
 
     // Copy stack content from source to destination
     MemoryCopy((void *)DestStackStart, (const void *)SourceStackStart, Size);
@@ -88,16 +88,16 @@ BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size, LINE
 
     // Only adjust if current EBP is within source stack range
     if (CurrentEbp >= SourceStackStart && CurrentEbp < SourceStackTop) {
-        LINEAR AdjustedCurrentEbp = CurrentEbp + Delta;
+        LINEAR AdjustedCurrentEbp = CurrentEbp + (LINEAR)Delta;
         LINEAR WalkEbp = AdjustedCurrentEbp;
 
         while (WalkEbp >= DestStackStart && WalkEbp < DestStackTop) {
-            U32 *Fp = (U32 *)WalkEbp;
-            U32 SavedEbp = Fp[0];
+            LINEAR *Fp = (LINEAR *)(UINT)WalkEbp;
+            LINEAR SavedEbp = Fp[0];
 
             // If saved EBP points into the source stack, adjust it
             if (SavedEbp >= SourceStackStart && SavedEbp < SourceStackTop) {
-                U32 NewSavedEbp = SavedEbp + Delta;
+                LINEAR NewSavedEbp = SavedEbp + (LINEAR)Delta;
                 Fp[0] = NewSavedEbp;
                 WalkEbp = NewSavedEbp;  // Continue with adjusted value
             } else {
@@ -193,11 +193,40 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, U32 Size) {
         return FALSE;
     }
 #else
-    UNUSED(DestStackTop);
-    UNUSED(SourceStackTop);
-    UNUSED(Size);
+    if (!CopyStack(DestStackTop, SourceStackTop, Size)) {
+        return FALSE;
+    }
 
-    WARNING(TEXT("[SwitchStack] Not implemented for this architecture"));
+    LINEAR SourceStackStart = SourceStackTop - Size;
+    INT Delta = (INT)(DestStackTop - SourceStackTop);
+
+    LINEAR CurrentRsp;
+    LINEAR CurrentRbp;
+    GetESP(CurrentRsp);
+    GetEBP(CurrentRbp);
+
+    DEBUG(TEXT("[SwitchStack] Current RSP=%p, RBP=%p at switch time"), (LPVOID)(UINT)CurrentRsp,
+        (LPVOID)(UINT)CurrentRbp);
+
+    if (CurrentRsp >= SourceStackStart && CurrentRsp < SourceStackTop) {
+        LINEAR NewRsp = CurrentRsp + (LINEAR)Delta;
+        LINEAR NewRbp = CurrentRbp + (LINEAR)Delta;
+
+        DEBUG(TEXT("[SwitchStack] Switching RSP %p -> %p, RBP %p -> %p"), (LPVOID)(UINT)CurrentRsp,
+            (LPVOID)(UINT)NewRsp, (LPVOID)(UINT)CurrentRbp, (LPVOID)(UINT)NewRbp);
+
+        __asm__ __volatile__(
+            "mov %0, %%rsp\n\t"
+            "mov %1, %%rbp"
+            :
+            : "r"(NewRsp), "r"(NewRbp)
+            : "memory");
+
+        return TRUE;
+    }
+
+    DEBUG(TEXT("[SwitchStack] RSP %p not in source stack range [%p-%p]"), (LPVOID)(UINT)CurrentRsp,
+        (LPVOID)(UINT)SourceStackStart, (LPVOID)(UINT)SourceStackTop);
 
     return FALSE;
 #endif
