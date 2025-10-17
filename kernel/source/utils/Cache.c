@@ -79,6 +79,20 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
     DEBUG(TEXT("[CacheInit] Mutex=%p lockCount=%u"), &(Cache->Mutex), Cache->Mutex.Lock);
     DEBUG(TEXT("[CacheInit] Entries pointer=%p size=%u"), Cache->Entries, AllocationSize);
 
+    if (Cache->Entries != NULL) {
+        LPHEAPBLOCKHEADER AllocationHeader = (LPHEAPBLOCKHEADER)((LINEAR)Cache->Entries - sizeof(HEAPBLOCKHEADER));
+        LINEAR AllocationStart = (LINEAR)Cache->Entries;
+        LINEAR AllocationEnd = AllocationStart;
+
+        if (AllocationSize > 0) {
+            AllocationEnd = AllocationStart + (LINEAR)(AllocationSize - 1);
+        }
+
+        DEBUG(TEXT("[CacheInit] Allocation header=%p type=%x size=%u next=%p prev=%p"), AllocationHeader,
+            AllocationHeader->TypeID, AllocationHeader->Size, AllocationHeader->Next, AllocationHeader->Prev);
+        DEBUG(TEXT("[CacheInit] Allocation range start=%p end=%p"), (LPVOID)AllocationStart, (LPVOID)AllocationEnd);
+    }
+
     LINEAR EntriesLinear = (LINEAR)Cache->Entries;
     LINEAR EntriesEnd = EntriesLinear;
     if (AllocationSize > 0) {

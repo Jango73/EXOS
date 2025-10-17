@@ -560,13 +560,46 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
  * Convenience function for allocating memory from the kernel process heap.
  */
 LPVOID KernelHeapAlloc(UINT Size) {
+    LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)KernelProcess.HeapBase;
+    LPVOID FirstUnallocatedBefore = NULL;
+    LPVOID HeapLimit = NULL;
+
+    if (ControlBlock != NULL) {
+        FirstUnallocatedBefore = ControlBlock->FirstUnallocated;
+        HeapLimit = (LPVOID)(ControlBlock->HeapBase + ControlBlock->HeapSize);
+    }
+
+    DEBUG(TEXT("[KernelHeapAlloc] Request size=%u controlBlock=%p firstUnallocatedBefore=%p heapLimit=%p"), Size,
+        ControlBlock, FirstUnallocatedBefore, HeapLimit);
+
     LPVOID Pointer = HeapAlloc_P(&KernelProcess, Size);
 
     DEBUG(TEXT("[KernelHeapAlloc] Size=%u pointer=%p"), Size, Pointer);
 
     if (Pointer == NULL) {
         ERROR(TEXT("[KernelHeapAlloc] Allocation failed"));
+        return NULL;
     }
+
+    if (ControlBlock != NULL) {
+        DEBUG(TEXT("[KernelHeapAlloc] FirstUnallocatedAfter=%p"), ControlBlock->FirstUnallocated);
+    }
+
+    LPHEAPBLOCKHEADER Header = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
+    UINT DataSize = 0;
+    LINEAR DataStart = (LINEAR)Pointer;
+    LINEAR DataEnd = DataStart;
+
+    if (Header->Size >= sizeof(HEAPBLOCKHEADER)) {
+        DataSize = Header->Size - sizeof(HEAPBLOCKHEADER);
+        if (DataSize > 0) {
+            DataEnd = DataStart + (LINEAR)(DataSize - 1);
+        }
+    }
+
+    DEBUG(TEXT("[KernelHeapAlloc] Header=%p type=%x size=%u next=%p prev=%p"), Header, Header->TypeID,
+        Header->Size, Header->Next, Header->Prev);
+    DEBUG(TEXT("[KernelHeapAlloc] Data range start=%p end=%p size=%u"), (LPVOID)DataStart, (LPVOID)DataEnd, DataSize);
 
     return Pointer;
 }
