@@ -318,6 +318,8 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     U32 Index;
 
     DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
+    DEBUG(TEXT("[CreateKernelObject] KernelProcess=%p HeapBase=%p HeapSize=%u"), &KernelProcess,
+        (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize);
 
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 

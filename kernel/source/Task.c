@@ -101,6 +101,7 @@ LPTASK NewTask(void) {
     LPTASK This = NULL;
 
     DEBUG(TEXT("[NewTask] Enter"));
+    DEBUG(TEXT("[NewTask] RequestedSize=%u ObjectID=%x"), (UINT)sizeof(TASK), KOID_TASK);
 
     This = (LPTASK)CreateKernelObject(sizeof(TASK), KOID_TASK);
 
