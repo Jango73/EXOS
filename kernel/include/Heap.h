@@ -99,7 +99,7 @@ void KernelHeapFree(LPVOID Pointer);
 LPVOID HeapAlloc(UINT Size);
 
 // Reallocates memory space in the calling process' heap
-LPVOID HeapRealloc(LPVOID Pointer, U32 Size);
+LPVOID HeapRealloc(LPVOID Pointer, UINT Size);
 
 // Frees memory space in the calling process' heap
 void HeapFree(LPVOID Pointer);

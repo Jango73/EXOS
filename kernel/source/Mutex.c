@@ -120,12 +120,12 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
  * @param TimeOut Timeout value (currently unused).
  * @return Lock count on success, 0 on failure.
  */
-U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
+UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
     UNUSED(TimeOut);
     LPPROCESS Process;
     LPTASK Task;
-    U32 Flags;
-    U32 Ret = 0;
+    UINT Flags;
+    UINT Ret = 0;
 
     SaveFlags(&Flags);
     DisableInterrupts();
