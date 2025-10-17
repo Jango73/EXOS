@@ -28,6 +28,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Process.h"
+#include "Console.h"
 
 /************************************************************************/
 
@@ -640,7 +641,7 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
  */
 LPVOID KernelHeapAlloc(UINT Size) {
     LPVOID Pointer = NULL;
-    LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)KernelProcess.HeapBase;
+    LPHEAPCONTROLBLOCK ControlBlock = NULL;
     BOOL ControlBlockValid = FALSE;
     static LINEAR ExpectedKernelHeapBase = 0;
     static UINT ExpectedKernelHeapSize = 0;
@@ -648,52 +649,93 @@ LPVOID KernelHeapAlloc(UINT Size) {
     LINEAR HeapBaseValue = KernelProcess.HeapBase;
     UINT HeapSizeValue = KernelProcess.HeapSize;
     UINT HeapBaseOffset = 0;
+    BOOL RecoveredFromSwap = FALSE;
 
     if (HeapBaseValue >= VMA_KERNEL) {
         HeapBaseOffset = (UINT)(HeapBaseValue - VMA_KERNEL);
     }
 
-    DEBUG("[KernelHeapAlloc] Enter Size=%u", Size);
-    DEBUG("[KernelHeapAlloc] KernelProcess=%p HeapBase=%p HeapSize=%u HeapMutex=%p Lock=%u", &KernelProcess,
+    DEBUG(TEXT("[KernelHeapAlloc] Enter Size=%u"), Size);
+    DEBUG(TEXT("[KernelHeapAlloc] KernelProcess=%p HeapBase=%p HeapSize=%u HeapMutex=%p Lock=%u"), &KernelProcess,
         (LPVOID)HeapBaseValue, HeapSizeValue, &(KernelProcess.HeapMutex), KernelProcess.HeapMutex.Lock);
-    DEBUG("[KernelHeapAlloc] HeapBase offset from VMA_KERNEL=%x HeapSizeHex=%x", HeapBaseOffset, HeapSizeValue);
-
-    UNUSED(HeapBaseValue);
-    UNUSED(HeapSizeValue);
-    UNUSED(HeapBaseOffset);
-    DEBUG("[KernelHeapAlloc] Heap field addresses HeapBase@%p HeapSize@%p", &(KernelProcess.HeapBase),
+    DEBUG(TEXT("[KernelHeapAlloc] HeapBase offset from VMA_KERNEL=%x HeapSizeHex=%x"), HeapBaseOffset, HeapSizeValue);
+    DEBUG(TEXT("[KernelHeapAlloc] Heap field addresses HeapBase@%p HeapSize@%p"), &(KernelProcess.HeapBase),
         &(KernelProcess.HeapSize));
 
-    if (ExpectedKernelHeapBase == 0) {
-        ExpectedKernelHeapBase = KernelProcess.HeapBase;
-        ExpectedKernelHeapSize = KernelProcess.HeapSize;
-        DEBUG("[KernelHeapAlloc] Recorded initial kernel heap base %p size %u", (LPVOID)ExpectedKernelHeapBase,
-            ExpectedKernelHeapSize);
-    } else {
-        if (KernelProcess.HeapBase != ExpectedKernelHeapBase) {
-            ERROR("[KernelHeapAlloc] KernelProcess.HeapBase changed! Expected=%p Current=%p", (LPVOID)ExpectedKernelHeapBase,
-                (LPVOID)KernelProcess.HeapBase);
-            ExpectedKernelHeapBase = KernelProcess.HeapBase;
-        }
+    UNUSED(HeapBaseOffset);
 
-        if (KernelProcess.HeapSize != ExpectedKernelHeapSize) {
-            DEBUG("[KernelHeapAlloc] KernelProcess.HeapSize changed Expected=%u Current=%u", ExpectedKernelHeapSize,
-                KernelProcess.HeapSize);
-            ExpectedKernelHeapSize = KernelProcess.HeapSize;
-        }
-    }
-
-    if (ControlBlock != NULL) {
+    if (HeapBaseValue >= VMA_KERNEL) {
+        ControlBlock = (LPHEAPCONTROLBLOCK)HeapBaseValue;
         ControlBlockValid = IsValidMemory((LINEAR)ControlBlock);
-        DEBUG("[KernelHeapAlloc] ControlBlock pointer=%p Valid=%u", ControlBlock, ControlBlockValid);
-
-        if (ControlBlockValid != FALSE) {
-            DEBUG("[KernelHeapAlloc] ControlBlock TypeID=%x FirstUnallocated=%p Owner=%p HeapSize=%u",
-                ControlBlock->TypeID, ControlBlock->FirstUnallocated, ControlBlock->Owner, ControlBlock->HeapSize);
-        }
-    } else {
-        DEBUG("[KernelHeapAlloc] ControlBlock pointer is NULL");
     }
+
+    if (ControlBlockValid == FALSE && KernelProcess.HeapSize >= VMA_KERNEL) {
+        LPHEAPCONTROLBLOCK Candidate = (LPHEAPCONTROLBLOCK)KernelProcess.HeapSize;
+        if (IsValidMemory((LINEAR)Candidate) != FALSE && Candidate->TypeID == KOID_HEAP) {
+            ERROR(TEXT("[KernelHeapAlloc] Kernel heap base/size mismatch detected (Base=%p Size=%p). Using control block %p"),
+                (LPVOID)KernelProcess.HeapBase, (LPVOID)KernelProcess.HeapSize, Candidate);
+            KernelProcess.HeapBase = (LINEAR)Candidate;
+            KernelProcess.HeapSize = Candidate->HeapSize;
+            HeapBaseValue = KernelProcess.HeapBase;
+            HeapSizeValue = KernelProcess.HeapSize;
+            ControlBlock = Candidate;
+            ControlBlockValid = TRUE;
+            RecoveredFromSwap = TRUE;
+        }
+    }
+
+    if (ControlBlockValid == FALSE && ExpectedKernelHeapBase >= VMA_KERNEL) {
+        ERROR(TEXT("[KernelHeapAlloc] Restoring kernel heap base from expected snapshot Base=%p Size=%u"),
+            (LPVOID)ExpectedKernelHeapBase, ExpectedKernelHeapSize);
+        KernelProcess.HeapBase = ExpectedKernelHeapBase;
+        HeapBaseValue = KernelProcess.HeapBase;
+        ControlBlock = (LPHEAPCONTROLBLOCK)HeapBaseValue;
+        ControlBlockValid = IsValidMemory((LINEAR)ControlBlock);
+        if (ExpectedKernelHeapSize != 0) {
+            KernelProcess.HeapSize = ExpectedKernelHeapSize;
+            HeapSizeValue = KernelProcess.HeapSize;
+        }
+    }
+
+    if (ControlBlockValid == FALSE) {
+        ConsolePanic(TEXT("[KernelHeapAlloc] Kernel heap control block is unmapped"));
+    }
+
+    if (KernelProcess.HeapSize != ControlBlock->HeapSize) {
+        DEBUG(TEXT("[KernelHeapAlloc] Synchronizing kernel heap size from control block (Process=%u Control=%u)"),
+            KernelProcess.HeapSize, ControlBlock->HeapSize);
+        KernelProcess.HeapSize = ControlBlock->HeapSize;
+        HeapSizeValue = KernelProcess.HeapSize;
+    }
+
+    if (ExpectedKernelHeapBase == 0 && HeapBaseValue >= VMA_KERNEL) {
+        ExpectedKernelHeapBase = HeapBaseValue;
+        ExpectedKernelHeapSize = HeapSizeValue;
+        DEBUG(TEXT("[KernelHeapAlloc] Recorded initial kernel heap base %p size %u"), (LPVOID)ExpectedKernelHeapBase,
+            ExpectedKernelHeapSize);
+    } else if (ExpectedKernelHeapBase != 0) {
+        if (HeapBaseValue != ExpectedKernelHeapBase) {
+            ERROR(TEXT("[KernelHeapAlloc] KernelProcess.HeapBase changed! Expected=%p Current=%p"),
+                (LPVOID)ExpectedKernelHeapBase, (LPVOID)HeapBaseValue);
+            ExpectedKernelHeapBase = HeapBaseValue;
+        }
+
+        if (HeapSizeValue != ExpectedKernelHeapSize) {
+            DEBUG(TEXT("[KernelHeapAlloc] KernelProcess.HeapSize changed Expected=%u Current=%u"), ExpectedKernelHeapSize,
+                HeapSizeValue);
+            ExpectedKernelHeapSize = HeapSizeValue;
+        }
+    }
+
+    DEBUG(TEXT("[KernelHeapAlloc] ControlBlock pointer=%p Valid=%u"), ControlBlock, ControlBlockValid);
+
+    if (RecoveredFromSwap != FALSE) {
+        DEBUG(TEXT("[KernelHeapAlloc] Recovered kernel heap base=%p size=%u"), (LPVOID)KernelProcess.HeapBase,
+            KernelProcess.HeapSize);
+    }
+
+    DEBUG(TEXT("[KernelHeapAlloc] ControlBlock TypeID=%x FirstUnallocated=%p Owner=%p HeapSize=%u"), ControlBlock->TypeID,
+        ControlBlock->FirstUnallocated, ControlBlock->Owner, ControlBlock->HeapSize);
 
     Pointer = HeapAlloc_P(&KernelProcess, Size);
 
