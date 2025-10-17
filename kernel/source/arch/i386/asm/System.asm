@@ -82,10 +82,6 @@ BITS 32
     global OutPortLong
     global InPortStringWord
     global OutPortStringWord
-    global MaskIRQ
-    global UnmaskIRQ
-    global DisableIRQ
-    global EnableIRQ
     global LoadGlobalDescriptorTable
     global ReadGlobalDescriptorTable
     global GetTaskRegister
@@ -339,125 +335,6 @@ InPortStringWord :
     pop     edx
     pop     ecx
     pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-MaskIRQ :
-
-    push ebp
-    mov  ebp, esp
-    push ebx
-    push ecx
-    push edx
-
-    mov  ecx, [ebp+PBN]
-    and  ecx, 0x07
-    mov  eax, 1
-    shl  eax, cl
-    mov  ebx, [ebp+PBN]
-    cmp  ebx, 8
-    jge  _MaskIRQ_High
-
-    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]
-    or   edx, eax
-    mov  [KernelStartup + KernelStartupInfo.IRQMask_21_PM], edx
-    mov  eax, edx
-    out  PIC1_DATA, al
-    jmp  _MaskIRQ_Out
-
-_MaskIRQ_High :
-
-    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]
-    or   edx, eax
-    mov  [KernelStartup + KernelStartupInfo.IRQMask_A1_PM], edx
-    mov  eax, edx
-    out  PIC2_DATA, al
-
-_MaskIRQ_Out :
-
-    pop  edx
-    pop  ecx
-    pop  ebx
-    pop  ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-UnmaskIRQ :
-
-    push ebp
-    mov  ebp, esp
-    push ebx
-    push ecx
-    push edx
-
-    mov  ecx, [ebp+PBN]
-    and  ecx, 0x07
-    mov  eax, 1
-    shl  eax, cl
-    not  eax
-    mov  ebx, [ebp+PBN]
-    cmp  ebx, 8
-    jge  _UnmaskIRQ_High
-
-    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_21_PM]
-    and  edx, eax
-    mov  [KernelStartup + KernelStartupInfo.IRQMask_21_PM], edx
-    mov  eax, edx
-    out  PIC1_DATA, al
-    jmp  _UnmaskIRQ_Out
-
-_UnmaskIRQ_High :
-
-    mov  edx, [KernelStartup + KernelStartupInfo.IRQMask_A1_PM]
-    and  edx, eax
-    mov  [KernelStartup + KernelStartupInfo.IRQMask_A1_PM], edx
-    mov  eax, edx
-    out  PIC2_DATA, al
-
-_UnmaskIRQ_Out :
-
-    pop  edx
-    pop  ecx
-    pop  ebx
-    pop  ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-DisableIRQ :
-
-    push    ebp
-    mov     ebp, esp
-    pushfd
-    cli
-    mov     eax, [ebp+PBN]
-    push    eax
-    call MaskIRQ
-    add     esp, 4
-    popfd
-    pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-EnableIRQ :
-
-    push    ebp
-    mov     ebp, esp
-    pushfd
-    cli
-    mov     eax, [ebp+PBN]
-    push    eax
-    call UnmaskIRQ
-    add     esp, 4
-    popfd
-    pop  ebp
     ret
 
 ;--------------------------------------

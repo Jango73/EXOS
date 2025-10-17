@@ -339,6 +339,21 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define DisableInterrupts() __asm__ __volatile__("cli" : : : "memory")
 #define EnableInterrupts() __asm__ __volatile__("sti" : : : "memory")
 
+struct tag_KERNELSTARTUPINFO;
+extern struct tag_KERNELSTARTUPINFO KernelStartup;
+extern U32 OutPortByte(U32 Port, U32 Value);
+
+#define PIC_MASTER_DATA_PORT 0x21u
+#define PIC_SLAVE_DATA_PORT 0xA1u
+
+#define KERNELSTARTUP_IRQMASK_21_PM_OFFSET 0x20u
+#define KERNELSTARTUP_IRQMASK_A1_PM_OFFSET 0x24u
+
+#define KERNELSTARTUP_BASE_PTR ((volatile U8*)(void*)&KernelStartup)
+#define KERNELSTARTUP_MASK_PTR(offset) ((volatile U32*)(KERNELSTARTUP_BASE_PTR + (offset)))
+#define KERNELSTARTUP_IRQMASK_21_PM_PTR() KERNELSTARTUP_MASK_PTR(KERNELSTARTUP_IRQMASK_21_PM_OFFSET)
+#define KERNELSTARTUP_IRQMASK_A1_PM_PTR() KERNELSTARTUP_MASK_PTR(KERNELSTARTUP_IRQMASK_A1_PM_OFFSET)
+
 #define SaveFlags(Flags)                                                                                \
     do {                                                                                                \
         UINT Value;                                                                                     \
@@ -364,6 +379,64 @@ typedef struct tag_KERNELDATA_X86_64 {
             : "r"(Value)                                                                               \
             : "memory", "cc");                                                                         \
     } while (0)
+
+#define MaskIRQ(Irq)                                                                                             \
+    ({                                                                                                           \
+        U32 __mask_irq = (U32)(Irq);                                                                             \
+        U32 __mask_bit = 1u << (__mask_irq & 0x07u);                                                             \
+        U32 __mask_value;                                                                                        \
+        if (__mask_irq < 8u) {                                                                                   \
+            volatile U32* __mask_register = KERNELSTARTUP_IRQMASK_21_PM_PTR();                                   \
+            __mask_value = *__mask_register | __mask_bit;                                                        \
+            *__mask_register = __mask_value;                                                                     \
+            OutPortByte(PIC_MASTER_DATA_PORT, __mask_value & 0xFFu);                                             \
+        } else {                                                                                                 \
+            volatile U32* __mask_register = KERNELSTARTUP_IRQMASK_A1_PM_PTR();                                   \
+            __mask_value = *__mask_register | __mask_bit;                                                        \
+            *__mask_register = __mask_value;                                                                     \
+            OutPortByte(PIC_SLAVE_DATA_PORT, __mask_value & 0xFFu);                                              \
+        }                                                                                                        \
+        __mask_value;                                                                                            \
+    })
+
+#define UnmaskIRQ(Irq)                                                                                           \
+    ({                                                                                                           \
+        U32 __mask_irq = (U32)(Irq);                                                                             \
+        U32 __mask_bit = 1u << (__mask_irq & 0x07u);                                                             \
+        U32 __mask_value;                                                                                        \
+        if (__mask_irq < 8u) {                                                                                   \
+            volatile U32* __mask_register = KERNELSTARTUP_IRQMASK_21_PM_PTR();                                   \
+            __mask_value = *__mask_register & (~__mask_bit);                                                     \
+            *__mask_register = __mask_value;                                                                     \
+            OutPortByte(PIC_MASTER_DATA_PORT, __mask_value & 0xFFu);                                             \
+        } else {                                                                                                 \
+            volatile U32* __mask_register = KERNELSTARTUP_IRQMASK_A1_PM_PTR();                                   \
+            __mask_value = *__mask_register & (~__mask_bit);                                                     \
+            *__mask_register = __mask_value;                                                                     \
+            OutPortByte(PIC_SLAVE_DATA_PORT, __mask_value & 0xFFu);                                              \
+        }                                                                                                        \
+        __mask_value;                                                                                            \
+    })
+
+#define DisableIRQ(Irq)                                                                                          \
+    ({                                                                                                           \
+        UINT __disable_flags;                                                                                    \
+        SaveFlags(&__disable_flags);                                                                             \
+        DisableInterrupts();                                                                                     \
+        U32 __disable_mask = MaskIRQ(Irq);                                                                       \
+        RestoreFlags(&__disable_flags);                                                                          \
+        __disable_mask;                                                                                          \
+    })
+
+#define EnableIRQ(Irq)                                                                                           \
+    ({                                                                                                           \
+        UINT __enable_flags;                                                                                     \
+        SaveFlags(&__enable_flags);                                                                              \
+        DisableInterrupts();                                                                                     \
+        U32 __enable_mask = UnmaskIRQ(Irq);                                                                      \
+        RestoreFlags(&__enable_flags);                                                                           \
+        __enable_mask;                                                                                           \
+    })
 
 /***************************************************************************/
 // Inline helpers
