@@ -27,6 +27,7 @@
 #include "Clock.h"
 #include "Heap.h"
 #include "Log.h"
+#include "Memory.h"
 #include "Mutex.h"
 
 /************************************************************************/
@@ -76,13 +77,26 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
 
     DEBUG(TEXT("[CacheInit] Entries pointer=%p size=%u"), Cache->Entries, AllocationSize);
 
+    LINEAR EntriesLinear = (LINEAR)Cache->Entries;
+    LINEAR EntriesEnd = EntriesLinear;
+    if (AllocationSize > 0) {
+        EntriesEnd = EntriesLinear + (LINEAR)(AllocationSize - 1);
+    }
+
+    DEBUG(TEXT("[CacheInit] Entries range startValid=%u endValid=%u"), IsValidMemory(EntriesLinear),
+          IsValidMemory(EntriesEnd));
+
     if (Cache->Entries == NULL) {
         ERROR(TEXT("[CacheInit] KernelHeapAlloc failed"));
         return;
     }
 
     for (UINT Index = 0; Index < Capacity; Index++) {
-        DEBUG(TEXT("[CacheInit] Clearing entry %u at %p"), Index, &Cache->Entries[Index]);
+        LINEAR EntryStart = (LINEAR)&Cache->Entries[Index];
+        LINEAR EntryEnd = EntryStart + (LINEAR)(sizeof(CACHE_ENTRY) - 1);
+
+        DEBUG(TEXT("[CacheInit] Clearing entry %u at %p startValid=%u endValid=%u"), Index,
+              &Cache->Entries[Index], IsValidMemory(EntryStart), IsValidMemory(EntryEnd));
         Cache->Entries[Index].Data = NULL;
         Cache->Entries[Index].ExpirationTime = 0;
         Cache->Entries[Index].TTL = 0;

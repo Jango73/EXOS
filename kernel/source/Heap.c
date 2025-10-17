@@ -247,8 +247,12 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
     if (ControlBlock->TypeID != KOID_HEAP) return NULL;
     if (Size == 0) return NULL;
 
+    LINEAR HeapLimit = ControlBlock->HeapBase + ControlBlock->HeapSize;
+
     DEBUG(TEXT("[HeapAlloc_HBHS] Request size=%u heapBase=%p firstUnallocated=%p heapSize=%u"), Size,
         (LPVOID)HeapBase, ControlBlock->FirstUnallocated, ControlBlock->HeapSize);
+    DEBUG(TEXT("[HeapAlloc_HBHS] Process=%p controlBlock=%p heapLimit=%p"), Process, ControlBlock,
+        (LPVOID)HeapLimit);
 
     // Determine size class and actual allocation size
     SizeClass = GetSizeClass(Size);
@@ -353,8 +357,13 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     ControlBlock->FirstUnallocated = (LPVOID)(NewBlockAddr + TotalSize);
 
+    LINEAR DataStart = NewBlockAddr + (LINEAR)sizeof(HEAPBLOCKHEADER);
+    LINEAR DataEnd = NewBlockAddr + (LINEAR)(TotalSize - 1);
+
     DEBUG(TEXT("[HeapAlloc_HBHS] Allocated new block header=%p data=%p nextUnallocated=%p"), Block,
-        (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER)), ControlBlock->FirstUnallocated);
+        (LPVOID)DataStart, ControlBlock->FirstUnallocated);
+    DEBUG(TEXT("[HeapAlloc_HBHS] Block range dataStart=%p dataEnd=%p heapLimit=%p"), (LPVOID)DataStart,
+        (LPVOID)DataEnd, (LPVOID)HeapLimit);
 
     return (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER));
 }
