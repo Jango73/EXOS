@@ -247,7 +247,8 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
     if (ControlBlock->TypeID != KOID_HEAP) return NULL;
     if (Size == 0) return NULL;
 
-    // DEBUG("[HeapAlloc_HBHS] Allocating size %x", Size);
+    DEBUG(TEXT("[HeapAlloc_HBHS] Request size=%u heapBase=%p firstUnallocated=%p heapSize=%u"), Size,
+        (LPVOID)HeapBase, ControlBlock->FirstUnallocated, ControlBlock->HeapSize);
 
     // Determine size class and actual allocation size
     SizeClass = GetSizeClass(Size);
@@ -268,7 +269,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
         Block = ControlBlock->FreeLists[SizeClass];
         if (Block != NULL && Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
             RemoveFromFreeList(ControlBlock, Block, SizeClass);
-            // DEBUG("[HeapAlloc_HBHS] Found block in size class %x at %x", SizeClass, Block);
+            DEBUG(TEXT("[HeapAlloc_HBHS] Using freelist block sizeClass=%x block=%p"), SizeClass, Block);
             return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
         }
 
@@ -295,7 +296,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                // DEBUG("[HeapAlloc_HBHS] Found larger block in size class %x at %x", i, Block);
+                DEBUG(TEXT("[HeapAlloc_HBHS] Using larger freelist block sizeClass=%x block=%p"), i, Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
         }
@@ -323,7 +324,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                // DEBUG("[HeapAlloc_HBHS] Found large block at %x", Block);
+                DEBUG(TEXT("[HeapAlloc_HBHS] Using large freelist block=%p"), Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
             Block = Block->Next;
@@ -352,7 +353,8 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     ControlBlock->FirstUnallocated = (LPVOID)(NewBlockAddr + TotalSize);
 
-    // DEBUG("[HeapAlloc_HBHS] Allocated new block at %x, next unallocated: %x", Block, ControlBlock->FirstUnallocated);
+    DEBUG(TEXT("[HeapAlloc_HBHS] Allocated new block header=%p data=%p nextUnallocated=%p"), Block,
+        (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER)), ControlBlock->FirstUnallocated);
 
     return (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER));
 }

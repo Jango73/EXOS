@@ -82,6 +82,7 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
     }
 
     for (UINT Index = 0; Index < Capacity; Index++) {
+        DEBUG(TEXT("[CacheInit] Clearing entry %u at %p"), Index, &Cache->Entries[Index]);
         Cache->Entries[Index].Data = NULL;
         Cache->Entries[Index].ExpirationTime = 0;
         Cache->Entries[Index].TTL = 0;
