@@ -249,6 +249,17 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
     UNUSED(HeapSize);
 
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
+    BOOL ControlBlockValid = FALSE;
+
+    if (ControlBlock != NULL) {
+        ControlBlockValid = IsValidMemory((LINEAR)ControlBlock);
+    }
+
+    if (ControlBlockValid == FALSE) {
+        ERROR("[HeapAlloc_HBHS] ControlBlock %p is invalid (HeapBase=%p Size=%u)", ControlBlock, (LPVOID)HeapBase, Size);
+        return NULL;
+    }
+
     if (Process != NULL) {
         ControlBlock->Owner = Process;
     }
@@ -631,11 +642,34 @@ LPVOID KernelHeapAlloc(UINT Size) {
     LPVOID Pointer = NULL;
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)KernelProcess.HeapBase;
     BOOL ControlBlockValid = FALSE;
+    static LINEAR ExpectedKernelHeapBase = 0;
+    static UINT ExpectedKernelHeapSize = 0;
 
     DEBUG("[KernelHeapAlloc] Enter Size=%u", Size);
     DEBUG("[KernelHeapAlloc] KernelProcess=%p HeapBase=%p HeapSize=%u HeapMutex=%p Lock=%u", &KernelProcess,
         (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize, &(KernelProcess.HeapMutex),
         KernelProcess.HeapMutex.Lock);
+    DEBUG("[KernelHeapAlloc] Heap field addresses HeapBase@%p HeapSize@%p", &(KernelProcess.HeapBase),
+        &(KernelProcess.HeapSize));
+
+    if (ExpectedKernelHeapBase == 0) {
+        ExpectedKernelHeapBase = KernelProcess.HeapBase;
+        ExpectedKernelHeapSize = KernelProcess.HeapSize;
+        DEBUG("[KernelHeapAlloc] Recorded initial kernel heap base %p size %u", (LPVOID)ExpectedKernelHeapBase,
+            ExpectedKernelHeapSize);
+    } else {
+        if (KernelProcess.HeapBase != ExpectedKernelHeapBase) {
+            ERROR("[KernelHeapAlloc] KernelProcess.HeapBase changed! Expected=%p Current=%p", (LPVOID)ExpectedKernelHeapBase,
+                (LPVOID)KernelProcess.HeapBase);
+            ExpectedKernelHeapBase = KernelProcess.HeapBase;
+        }
+
+        if (KernelProcess.HeapSize != ExpectedKernelHeapSize) {
+            DEBUG("[KernelHeapAlloc] KernelProcess.HeapSize changed Expected=%u Current=%u", ExpectedKernelHeapSize,
+                KernelProcess.HeapSize);
+            ExpectedKernelHeapSize = KernelProcess.HeapSize;
+        }
+    }
 
     if (ControlBlock != NULL) {
         ControlBlockValid = IsValidMemory((LINEAR)ControlBlock);
