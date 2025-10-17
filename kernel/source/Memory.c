@@ -1268,7 +1268,7 @@ static BOOL TryGetPageTableForIterator(
 #else
     UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
+    UINT DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 #endif
 
     if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
