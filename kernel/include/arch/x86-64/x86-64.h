@@ -438,6 +438,106 @@ extern U32 OutPortByte(U32 Port, U32 Value);
         __enable_mask;                                                                                           \
     })
 
+#define SaveFPU(StateBuffer)                                                                           \
+    do {                                                                                               \
+        LPINTEL_FPU_REGISTERS __save_fpu_state = (LPINTEL_FPU_REGISTERS)(StateBuffer);                 \
+        __asm__ __volatile__("fsave %0" : "=m"(*__save_fpu_state) : : "memory");                  \
+    } while (0)
+
+#define RestoreFPU(StateBuffer)                                                                        \
+    do {                                                                                               \
+        LPINTEL_FPU_REGISTERS __restore_fpu_state = (LPINTEL_FPU_REGISTERS)(StateBuffer);              \
+        __asm__ __volatile__("frstor %0" : : "m"(*__restore_fpu_state) : "memory");             \
+    } while (0)
+
+#define LoadGlobalDescriptorTable(Base, Limit)                                                                  \
+    ({                                                                                                         \
+        PHYSICAL __load_gdt_base = (PHYSICAL)(Base);                                                            \
+        U32 __load_gdt_limit = (U32)(Limit);                                                                    \
+        struct PACKED {                                                                                        \
+            U16 Limit;                                                                                          \
+            PHYSICAL Base;                                                                                      \
+        } __load_gdt_descriptor;                                                                                \
+        __load_gdt_descriptor.Limit = (U16)__load_gdt_limit;                                                    \
+        __load_gdt_descriptor.Base = __load_gdt_base;                                                           \
+        __asm__ __volatile__(                                                                                   \
+            "lgdt %[descriptor]\n\t"                                                                        \
+            "pushq %[code]\n\t"                                                                            \
+            "leaq 1f(%%rip), %%rax\n\t"                                                                   \
+            "pushq %%rax\n\t"                                                                              \
+            "lretq\n"                                                                                        \
+            "1:\n\t"                                                                                          \
+            "movw %[data], %%ax\n\t"                                                                         \
+            "movw %%ax, %%ss\n\t"                                                                           \
+            "movw %%ax, %%ds\n\t"                                                                           \
+            "movw %%ax, %%es\n\t"                                                                           \
+            "movw %%ax, %%fs\n\t"                                                                           \
+            "movw %%ax, %%gs"                                                                                \
+            :                                                                                                   \
+            : [descriptor] "m"(__load_gdt_descriptor),                                                         \
+              [code] "i"(SELECTOR_KERNEL_CODE),                                                                \
+              [data] "i"(SELECTOR_KERNEL_DATA)                                                                 \
+            : "rax", "memory");                                                                               \
+        __load_gdt_base;                                                                                        \
+    })
+
+#define ReadGlobalDescriptorTable(GdtrPointer)                                                           \
+    do {                                                                                                 \
+        struct PACKED {                                                                                  \
+            U16 Limit;                                                                                   \
+            PHYSICAL Base;                                                                               \
+        }* __gdtr_pointer = (void*)(GdtrPointer);                                                        \
+        __asm__ __volatile__("sgdt %0" : "=m"(*__gdtr_pointer));                                       \
+    } while (0)
+
+#define GetTaskRegister()                                                                                         \
+    ({                                                                                                           \
+        U16 __task_register_value;                                                                               \
+        __asm__ __volatile__("str %0" : "=m"(__task_register_value));                                         \
+        (U32)__task_register_value;                                                                              \
+    })
+
+#define GetPageDirectory()                                                                                        \
+    ({                                                                                                           \
+        PHYSICAL __page_directory;                                                                               \
+        __asm__ __volatile__("mov %%cr3, %0" : "=r"(__page_directory));                                       \
+        __page_directory;                                                                                        \
+    })
+
+#define InvalidatePage(Address)                                                                           \
+    do {                                                                                                 \
+        LINEAR __invalidate_address = (LINEAR)(Address);                                                  \
+        __asm__ __volatile__("invlpg (%0)" : : "r"(__invalidate_address) : "memory");               \
+    } while (0)
+
+#define FlushTLB()                                                                                       \
+    do {                                                                                                \
+        PHYSICAL __flush_tlb_value;                                                                     \
+        __asm__ __volatile__(                                                                            \
+            "mov %%cr3, %0\n\t"                                                                       \
+            "mov %0, %%cr3"                                                                            \
+            : "=&r"(__flush_tlb_value)                                                                  \
+            :                                                                                           \
+            : "memory");                                                                               \
+    } while (0)
+
+#define SetTaskState()                                                                                    \
+    do {                                                                                                 \
+        UINT __set_task_state_value;                                                                      \
+        __asm__ __volatile__(                                                                            \
+            "mov %%cr0, %0\n\t"                                                                       \
+            "or %1, %0\n\t"                                                                          \
+            "mov %0, %%cr0"                                                                            \
+            : "=&r"(__set_task_state_value)                                                             \
+            : "i"(CR0_TASKSWITCH)                                                                       \
+            : "memory");                                                                               \
+    } while (0)
+
+#define ClearTaskState()                                                                                 \
+    do {                                                                                                \
+        __asm__ __volatile__("clts" : : : "memory");                                                  \
+    } while (0)
+
 /***************************************************************************/
 // Inline helpers
 

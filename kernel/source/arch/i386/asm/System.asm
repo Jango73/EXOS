@@ -72,8 +72,6 @@ BITS 32
     global GetCPUID
     global DisablePaging
     global EnablePaging
-    global SaveFPU
-    global RestoreFPU
     global InPortByte
     global OutPortByte
     global InPortWord
@@ -82,14 +80,6 @@ BITS 32
     global OutPortLong
     global InPortStringWord
     global OutPortStringWord
-    global LoadGlobalDescriptorTable
-    global ReadGlobalDescriptorTable
-    global GetTaskRegister
-    global GetPageDirectory
-    global InvalidatePage
-    global FlushTLB
-    global SetTaskState
-    global ClearTaskState
     global PeekConsoleWord
     global PokeConsoleWord
     global SaveRegisters
@@ -169,44 +159,6 @@ EnablePaging :
     or      eax, CR0_PAGING
     mov     cr0, eax
     ret
-
-;--------------------------------------
-
-FUNC_HEADER
-SaveFPU :
-
-    push    ebp
-    mov     ebp, esp
-    push    edi
-
-    mov     edi, [ebp+(PBN+0)]
-    fsave   [edi]
-
-    xor     eax, eax
-
-    pop     edi
-    pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-RestoreFPU :
-
-    push    ebp
-    mov     ebp, esp
-    push    edi
-
-    mov     edi, [ebp+(PBN+0)]
-    frstor  [edi]
-
-    xor     eax, eax
-
-    pop     edi
-    pop     ebp
-    ret
-
-;--------------------------------------
 
 FUNC_HEADER
 InPortByte :
@@ -336,136 +288,6 @@ InPortStringWord :
     pop     ecx
     pop     ebp
     ret
-
-;--------------------------------------
-
-FUNC_HEADER
-LoadGlobalDescriptorTable :
-
-    push        ebp
-    mov         ebp, esp
-
-    push        ebx
-    push        esi
-
-    ;--------------------------------------
-    ; Version 1
-
-    ; Put parameters in correct order
-
-    mov         eax, [ebp+(PBN+0)]
-    mov         ebx, [ebp+(PBN+4)]
-
-    mov         [ebp+(PBN+0)], bx
-    mov         [ebp+(PBN+2)], eax
-
-    ; Load the Global Descriptor Table
-
-    lgdt        [ebp+PBN]
-
-    jmp         SELECTOR_KERNEL_CODE:.flush
-
-.flush :
-
-    mov         ax, SELECTOR_KERNEL_DATA    ; data selector
-    mov         ss, ax
-
-    nop
-    nop
-    nop
-    nop
-
-    mov         ds, ax
-    mov         es, ax
-    mov         fs, ax
-    mov         gs, ax
-
-_LGDT_Out :
-
-    pop  esi
-    pop  ebx
-
-    pop  ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-ReadGlobalDescriptorTable :
-
-    ; void ReadGlobalDescriptorTable(GDTR* gdtr_ptr)
-    ; Parameter: pointer to GDTR structure (6 bytes: 2 limit + 4 base)
-
-    push    ebp
-    mov     ebp, esp
-    push    ebx
-
-    mov     ebx, [ebp+(PBN+0)]  ; Get pointer to GDTR structure
-    sgdt    [ebx]               ; Store GDTR at the provided address
-
-    pop     ebx
-    pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-GetTaskRegister :
-
-    xor         eax, eax
-    str         ax
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-GetPageDirectory :
-
-    mov     eax, cr3
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-InvalidatePage :
-
-    push        ebp
-    mov         ebp, esp
-
-    mov         eax, [ebp+(PBN+0)]
-    invlpg      [eax]
-
-    pop         ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-FlushTLB :
-
-    mov     eax, cr3
-    mov     cr3, eax
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-SetTaskState :
-
-    mov     eax, cr0
-    or      eax, CR0_TASKSWITCH
-    mov     cr0, eax
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-ClearTaskState :
-
-    clts
-    ret
-
-;--------------------------------------
 
 FUNC_HEADER
 PeekConsoleWord :

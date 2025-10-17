@@ -127,20 +127,6 @@ SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
-SYS_FUNC_BEGIN SaveFPU
-    fsave   [rdi]
-    xor     eax, eax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN RestoreFPU
-    frstor  [rdi]
-    xor     eax, eax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
 SYS_FUNC_BEGIN InPortByte
     mov     dx, di
     xor     eax, eax
@@ -206,77 +192,6 @@ SYS_FUNC_BEGIN OutPortStringWord
     rep     outsw
     xor     eax, eax
 SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN LoadGlobalDescriptorTable
-    sub     rsp, 32
-    mov     word [rsp], si
-    mov     qword [rsp + 2], rdi
-    lgdt    [rsp]
-
-    lea     rax, [rel .flush]
-    mov     qword [rsp + 16], rax
-    mov     word [rsp + 24], SELECTOR_KERNEL_CODE
-    jmp     far [rsp + 16]
-
-.flush:
-    add     rsp, 32
-    mov     ax, SELECTOR_KERNEL_DATA
-    mov     ss, ax
-    mov     ds, ax
-    mov     es, ax
-    mov     fs, ax
-    mov     gs, ax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN ReadGlobalDescriptorTable
-    sgdt    [rdi]
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN GetTaskRegister
-    xor     eax, eax
-    str     ax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN GetPageDirectory
-    mov     rax, cr3
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN InvalidatePage
-    invlpg  [rdi]
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN FlushTLB
-    mov     rax, cr3
-    mov     cr3, rax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN SetTaskState
-    mov     rax, cr0
-    or      rax, CR0_TASKSWITCH
-    mov     cr0, rax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN ClearTaskState
-    clts
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN PeekConsoleWord
     mov     rax, rdi
