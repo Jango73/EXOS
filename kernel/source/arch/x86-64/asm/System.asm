@@ -127,18 +127,6 @@ SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
-SYS_FUNC_BEGIN DisableInterrupts
-    cli
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN EnableInterrupts
-    sti
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
 SYS_FUNC_BEGIN SaveFPU
     fsave   [rdi]
     xor     eax, eax

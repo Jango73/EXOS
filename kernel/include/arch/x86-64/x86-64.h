@@ -336,6 +336,9 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define ClearDR6() __asm__ volatile("xor %%rax, %%rax; mov %%rax, %%dr6" : : : "eax")
 #define ClearDR7() __asm__ volatile("xor %%rax, %%rax; mov %%rax, %%dr7" : : : "eax")
 
+#define DisableInterrupts() __asm__ __volatile__("cli" : : : "memory")
+#define EnableInterrupts() __asm__ __volatile__("sti" : : : "memory")
+
 #define SaveFlags(Flags)                                                                                \
     do {                                                                                                \
         UINT Value;                                                                                     \

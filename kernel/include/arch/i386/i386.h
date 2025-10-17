@@ -573,6 +573,9 @@ typedef struct tag_SEGMENT_INFO {
 #define ClearDR6() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr6" : : : "eax")
 #define ClearDR7() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr7" : : : "eax")
 
+#define DisableInterrupts() __asm__ __volatile__("cli" : : : "memory")
+#define EnableInterrupts() __asm__ __volatile__("sti" : : : "memory")
+
 #define SaveFlags(Flags)                                                                                \
     do {                                                                                                \
         UINT Value;                                                                                     \
