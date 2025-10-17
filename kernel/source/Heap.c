@@ -179,6 +179,11 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     UINT AdditionalRequired = (UINT)RequiredSize;
     UINT DesiredSize = CurrentSize << 1;
 
+    DEBUG(TEXT("[TryExpandHeap] Enter controlBlock=%p requiredSize=%u currentSize=%u limit=%u firstUnallocated=%p"),
+        ControlBlock, RequiredSize, CurrentSize, Limit, ControlBlock->FirstUnallocated);
+    DEBUG(TEXT("[TryExpandHeap] Process=%p heapBase=%p heapSize=%u privilege=%u"), Process, (LPVOID)Process->HeapBase,
+        Process->HeapSize, Process->Privilege);
+
     if (DesiredSize < CurrentSize) {
         DesiredSize = Limit;
     }
@@ -196,6 +201,9 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
         DesiredSize = Limit;
     }
 
+    DEBUG(TEXT("[TryExpandHeap] Computed desiredSize=%u minimumRequired=%u additionalRequired=%u"), DesiredSize,
+        MinimumRequired, AdditionalRequired);
+
     if (DesiredSize <= CurrentSize) {
         ERROR("[TryExpandHeap] Heap limit reached (Current=%x Limit=%x)", CurrentSize, Limit);
         return FALSE;
@@ -212,8 +220,13 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
         return FALSE;
     }
 
+    DEBUG(TEXT("[TryExpandHeap] ResizeRegion succeeded newSize=%u"), DesiredSize);
+
     ControlBlock->HeapSize = DesiredSize;
     Process->HeapSize = DesiredSize;
+
+    DEBUG(TEXT("[TryExpandHeap] Updated controlBlock heapSize=%u firstUnallocated=%p"), ControlBlock->HeapSize,
+        ControlBlock->FirstUnallocated);
 
     return TRUE;
 }
@@ -265,7 +278,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     TotalSize = ActualSize + sizeof(HEAPBLOCKHEADER);
 
-    // DEBUG("[HeapAlloc_HBHS] Size class: %x, actual size: %x, total size: %x", SizeClass, ActualSize, TotalSize);
+    DEBUG(TEXT("[HeapAlloc_HBHS] SizeClass=%u actualSize=%u totalSize=%u"), SizeClass, ActualSize, TotalSize);
 
     // Try to find a block in the appropriate freelist
     if (SizeClass != 0xFF) {
@@ -564,6 +577,10 @@ LPVOID KernelHeapAlloc(UINT Size) {
     LPVOID FirstUnallocatedBefore = NULL;
     LPVOID HeapLimit = NULL;
 
+    DEBUG(TEXT("[KernelHeapAlloc] KernelProcess heapBase=%p heapSize=%u maxMemory=%u firstUnallocated=%p mutexLock=%u"),
+        (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize, KernelProcess.MaximumAllocatedMemory,
+        ControlBlock != NULL ? ControlBlock->FirstUnallocated : NULL, KernelProcess.HeapMutex.Lock);
+
     if (ControlBlock != NULL) {
         FirstUnallocatedBefore = ControlBlock->FirstUnallocated;
         HeapLimit = (LPVOID)(ControlBlock->HeapBase + ControlBlock->HeapSize);
@@ -573,6 +590,8 @@ LPVOID KernelHeapAlloc(UINT Size) {
         ControlBlock, FirstUnallocatedBefore, HeapLimit);
 
     LPVOID Pointer = HeapAlloc_P(&KernelProcess, Size);
+
+    DEBUG(TEXT("[KernelHeapAlloc] Post-HeapAlloc_P mutexLock=%u"), KernelProcess.HeapMutex.Lock);
 
     DEBUG(TEXT("[KernelHeapAlloc] Size=%u pointer=%p"), Size, Pointer);
 
