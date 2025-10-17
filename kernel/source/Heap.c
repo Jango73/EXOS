@@ -527,7 +527,15 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
  * Convenience function for allocating memory from the kernel process heap.
  */
 LPVOID KernelHeapAlloc(UINT Size) {
-    return HeapAlloc_P(&KernelProcess, Size);
+    LPVOID Pointer = HeapAlloc_P(&KernelProcess, Size);
+
+    DEBUG(TEXT("[KernelHeapAlloc] Size=%u pointer=%p"), Size, Pointer);
+
+    if (Pointer == NULL) {
+        ERROR(TEXT("[KernelHeapAlloc] Allocation failed"));
+    }
+
+    return Pointer;
 }
 
 /************************************************************************/

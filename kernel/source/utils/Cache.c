@@ -65,12 +65,21 @@ static LPCACHE_ENTRY CacheFindLowestScoreEntryInternal(LPCACHE Cache) {
  * @param Capacity Maximum number of entries
  */
 void CacheInit(LPCACHE Cache, UINT Capacity) {
-    DEBUG(TEXT("[CacheInit] Capacity: %u"), Capacity);
+    UINT AllocationSize = (UINT)(Capacity * sizeof(CACHE_ENTRY));
+
+    DEBUG(TEXT("[CacheInit] Cache=%p capacity=%u"), Cache, Capacity);
 
     Cache->Capacity = Capacity;
     Cache->Count = 0;
-    Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(Capacity * sizeof(CACHE_ENTRY));
+    Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(AllocationSize);
     Cache->Mutex = (MUTEX)EMPTY_MUTEX;
+
+    DEBUG(TEXT("[CacheInit] Entries pointer=%p size=%u"), Cache->Entries, AllocationSize);
+
+    if (Cache->Entries == NULL) {
+        ERROR(TEXT("[CacheInit] KernelHeapAlloc failed"));
+        return;
+    }
 
     for (UINT Index = 0; Index < Capacity; Index++) {
         Cache->Entries[Index].Data = NULL;
@@ -79,6 +88,8 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
         Cache->Entries[Index].Score = 0;
         Cache->Entries[Index].Valid = FALSE;
     }
+
+    DEBUG(TEXT("[CacheInit] Initialization complete"));
 }
 
 /************************************************************************/
