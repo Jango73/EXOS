@@ -675,7 +675,8 @@ LINEAR AllocPageTable(LINEAR Base) {
         return NULL;
     }
 
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Base);
+    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
 #else
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 #endif
@@ -683,20 +684,35 @@ LINEAR AllocPageTable(LINEAR Base) {
     // Determine privilege: user space (< VMA_KERNEL) needs user privilege
     U32 Privilege = PAGE_PRIVILEGE(Base);
 
-    WritePageDirectoryEntryValue(
-        Directory,
-        DirEntry,
-        MakePageDirectoryEntryValue(
-            PMA_Table,
-            /*ReadWrite*/ 1,
-            Privilege,
-            /*WriteThrough*/ 0,
-            /*CacheDisabled*/ 0,
-            /*Global*/ 0,
-            /*Fixed*/ 1));
+#if defined(__EXOS_ARCH_X86_64__)
+    U64 DirectoryEntryValue = MakePageDirectoryEntryValue(
+        PMA_Table,
+        /*ReadWrite*/ 1,
+        Privilege,
+        /*WriteThrough*/ 0,
+        /*CacheDisabled*/ 0,
+        /*Global*/ 0,
+        /*Fixed*/ 1);
+#else
+    U32 DirectoryEntryValue = MakePageDirectoryEntryValue(
+        PMA_Table,
+        /*ReadWrite*/ 1,
+        Privilege,
+        /*WriteThrough*/ 0,
+        /*CacheDisabled*/ 0,
+        /*Global*/ 0,
+        /*Fixed*/ 1);
+#endif
 
+    WritePageDirectoryEntryValue(Directory, DirEntry, DirectoryEntryValue);
+
+#if defined(__EXOS_ARCH_X86_64__)
+    // Clear the new table by mapping its physical page temporarily.
+    LINEAR VMA_PT = MapTemporaryPhysicalPage3(PMA_Table);
+#else
     // Clear the new table by mapping its physical page temporarily.
     LINEAR VMA_PT = MapTemporaryPhysicalPage2(PMA_Table);
+#endif
     MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
 
     // Flush the Translation Look-up Buffer of the CPU
