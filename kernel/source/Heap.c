@@ -264,6 +264,10 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     TotalSize = ActualSize + sizeof(HEAPBLOCKHEADER);
 
+    // Ensure block, including header, is 16-byte aligned so returned pointer
+    // keeps the required alignment for 64-bit data and SIMD state.
+    TotalSize = (TotalSize + 0x0F) & ~0x0F;
+
     // DEBUG("[HeapAlloc_HBHS] Size class: %x, actual size: %x, total size: %x", SizeClass, ActualSize, TotalSize);
 
     // Try to find a block in the appropriate freelist
