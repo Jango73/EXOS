@@ -60,6 +60,9 @@ struct tag_TASK {
     LPVOID Parameter;         // Parameter passed to the function
     UINT ExitCode;            // This task's exit code
     U32 Flags;                // Task creation flags
+#ifdef __EXOS_64__
+    U8 ArchAlignmentPadding[4];  // Align ARCH_TASK_DATA on 16-byte boundary for FXSAVE/FXRSTOR
+#endif
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
     UINT WakeUpTime;          // System time at which to wake up the task
     MUTEX MessageMutex;       // Mutex to access message queue
