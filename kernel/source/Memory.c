@@ -502,8 +502,6 @@ static inline void MapOnePage(
     WritePageTableEntryValue(
         Table, tab, MakePageTableEntryValue(Physical, ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed));
 
-    DEBUG(TEXT("[MapOnePage] Mapped %p to %p (Table = %p))"), Linear, Physical, Table);
-
     InvalidatePage(Linear);
 }
 
@@ -630,6 +628,7 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
 
 /************************************************************************/
 
+#if defined(__EXOS_ARCH_X86_64__)
 /**
  * @brief Allocate a page table for the given base address.
  * @param Base Base linear address.
@@ -643,12 +642,9 @@ LINEAR AllocPageTable(LINEAR Base) {
         return NULL;
     }
 
-    // Fill the directory entry that describes the new table
     Base = CanonicalizeLinearAddress(Base);
 
     UINT DirEntry = GetDirectoryEntry(Base);
-
-#if defined(__EXOS_ARCH_X86_64__)
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(&Iterator);
     UINT PdptIndex = MemoryPageIteratorGetPdptIndex(&Iterator);
@@ -657,7 +653,6 @@ LINEAR AllocPageTable(LINEAR Base) {
     U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
 
     if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
-        DEBUG(TEXT("[AllocPageTable] PML4 entry %u not present"), Pml4Index);
         return NULL;
     }
 
@@ -666,25 +661,17 @@ LINEAR AllocPageTable(LINEAR Base) {
     U64 PdptEntryValue = ReadPageDirectoryEntryValue(PdptLinear, PdptIndex);
 
     if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        DEBUG(TEXT("[AllocPageTable] PDPT entry %u not present"), PdptIndex);
         return NULL;
     }
 
     if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        DEBUG(TEXT("[AllocPageTable] PDPT entry %u is a large mapping"), PdptIndex);
         return NULL;
     }
 
     PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
-#else
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-#endif
 
-    // Determine privilege: user space (< VMA_KERNEL) needs user privilege
     U32 Privilege = PAGE_PRIVILEGE(Base);
-
-#if defined(__EXOS_ARCH_X86_64__)
     U64 DirectoryEntryValue = MakePageDirectoryEntryValue(
         PMA_Table,
         /*ReadWrite*/ 1,
@@ -693,7 +680,36 @@ LINEAR AllocPageTable(LINEAR Base) {
         /*CacheDisabled*/ 0,
         /*Global*/ 0,
         /*Fixed*/ 1);
+
+    WritePageDirectoryEntryValue(Directory, DirEntry, DirectoryEntryValue);
+
+    LINEAR VMA_PT = MapTemporaryPhysicalPage3(PMA_Table);
+    MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
+
+    FlushTLB();
+
+    return (LINEAR)GetPageTableVAFor(Base);
+}
 #else
+/**
+ * @brief Allocate a page table for the given base address.
+ * @param Base Base linear address.
+ * @return Linear address of the new table or 0.
+ */
+LINEAR AllocPageTable(LINEAR Base) {
+    PHYSICAL PMA_Table = AllocPhysicalPage();
+
+    if (PMA_Table == NULL) {
+        ERROR(TEXT("[AllocPageTable] Out of physical pages"));
+        return NULL;
+    }
+
+    Base = CanonicalizeLinearAddress(Base);
+
+    UINT DirEntry = GetDirectoryEntry(Base);
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+
+    U32 Privilege = PAGE_PRIVILEGE(Base);
     U32 DirectoryEntryValue = MakePageDirectoryEntryValue(
         PMA_Table,
         /*ReadWrite*/ 1,
@@ -702,25 +718,17 @@ LINEAR AllocPageTable(LINEAR Base) {
         /*CacheDisabled*/ 0,
         /*Global*/ 0,
         /*Fixed*/ 1);
-#endif
 
     WritePageDirectoryEntryValue(Directory, DirEntry, DirectoryEntryValue);
 
-#if defined(__EXOS_ARCH_X86_64__)
-    // Clear the new table by mapping its physical page temporarily.
-    LINEAR VMA_PT = MapTemporaryPhysicalPage3(PMA_Table);
-#else
-    // Clear the new table by mapping its physical page temporarily.
     LINEAR VMA_PT = MapTemporaryPhysicalPage2(PMA_Table);
-#endif
     MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
 
-    // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
-    // Return the linear address of the table via the recursive window
     return (LINEAR)GetPageTableVAFor(Base);
 }
+#endif
 
 /************************************************************************/
 
@@ -738,51 +746,30 @@ static BOOL TryGetPageTableForIterator(
  * @return TRUE if region is free.
  */
 BOOL IsRegionFree(LINEAR Base, UINT Size) {
-    DEBUG(TEXT("[IsRegionFree] Enter: Base=%x Size=%x"), Base, Size);
-
     Base = CanonicalizeLinearAddress(Base);
 
     UINT NumPages = (Size + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
-    DEBUG(TEXT("[IsRegionFree] Traversing %u pages"), NumPages);
-
     for (UINT i = 0; i < NumPages; i++) {
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
-
-        DEBUG(TEXT("[IsRegionFree] Page %u: Linear=%x Dir=%u Tab=%u"),
-            i,
-            MemoryPageIteratorGetLinear(&Iterator),
-            MemoryPageIteratorGetDirectoryIndex(&Iterator),
-            TabEntry);
 
         LPPAGE_TABLE Table = NULL;
         BOOL IsLargePage = FALSE;
         BOOL TableAvailable = TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
 
         if (TableAvailable) {
-            DEBUG(TEXT("[IsRegionFree] PDE present for Dir=%u"),
-                MemoryPageIteratorGetDirectoryIndex(&Iterator));
             if (PageTableEntryIsPresent(Table, TabEntry)) {
-                DEBUG(TEXT("[IsRegionFree] PTE present for Linear=%x"),
-                    MemoryPageIteratorGetLinear(&Iterator));
                 return FALSE;
             }
         } else {
             if (IsLargePage) {
-                DEBUG(TEXT("[IsRegionFree] Large mapping covers Dir=%u"),
-                    MemoryPageIteratorGetDirectoryIndex(&Iterator));
                 return FALSE;
             }
-
-            DEBUG(TEXT("[IsRegionFree] PDE not present for Dir=%u"),
-                MemoryPageIteratorGetDirectoryIndex(&Iterator));
         }
 
         MemoryPageIteratorStepPage(&Iterator);
     }
-
-    DEBUG(TEXT("[IsRegionFree] Exit: Region free"));
 
     return TRUE;
 }
@@ -798,33 +785,22 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
 static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
     LINEAR Base = N_4MB;
 
-    DEBUG(TEXT("[FindFreeRegion] Enter: StartBase=%x Size=%x"), StartBase, Size);
-
     if (StartBase != 0) {
         LINEAR CanonStart = CanonicalizeLinearAddress(StartBase);
         if (CanonStart >= Base) {
             Base = CanonStart;
         }
-        DEBUG(TEXT("[FindFreeRegion] Starting at %x"), Base);
     }
 
     while (TRUE) {
-        DEBUG(TEXT("[FindFreeRegion] Testing base %x"), Base);
-
         if (IsRegionFree(Base, Size) == TRUE) {
-            DEBUG(TEXT("[FindFreeRegion] Region free at %x"), Base);
             return Base;
         }
 
-        DEBUG(TEXT("[FindFreeRegion] Region not free at %x"), Base);
-
         LINEAR NextBase = CanonicalizeLinearAddress(Base + PAGE_SIZE);
         if (NextBase <= Base) {
-            DEBUG(TEXT("[FindFreeRegion] Address space exhausted"));
             return NULL;
         }
-
-        DEBUG(TEXT("[FindFreeRegion] Advancing to %x"), NextBase);
         Base = NextBase;
     }
 }
@@ -899,48 +875,25 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
-    DEBUG(TEXT("[PopulateRegionPages] Enter: Base=%x Target=%x NumPages=%u Flags=%x Function=%s"),
-          Base,
-          Target,
-          NumPages,
-          Flags,
-          FunctionName);
-
     for (UINT Index = 0; Index < NumPages; Index++) {
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
         LINEAR CurrentLinear = MemoryPageIteratorGetLinear(&Iterator);
 
-        DEBUG(TEXT("[PopulateRegionPages] Page %u Linear=%x Dir=%u Tab=%u"),
-              Index,
-              CurrentLinear,
-              MemoryPageIteratorGetDirectoryIndex(&Iterator),
-              TabEntry);
-
-        BOOL TableAvailable = FALSE;
         BOOL IsLargePage = FALSE;
 
-        TableAvailable = TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
-
-        if (!TableAvailable) {
+        if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
             if (IsLargePage) {
-                DEBUG(TEXT("[PopulateRegionPages] Large mapping prevents allocation in Dir=%u"),
-                    MemoryPageIteratorGetDirectoryIndex(&Iterator));
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 return FALSE;
             }
 
             if (AllocPageTable(CurrentLinear) == NULL) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
-                DEBUG(TEXT("[%s] AllocPageTable failed"), FunctionName);
                 return FALSE;
             }
 
-            DEBUG(TEXT("[PopulateRegionPages] Allocated page table for Dir=%u"),
-                MemoryPageIteratorGetDirectoryIndex(&Iterator));
-
             if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
-                DEBUG(TEXT("[%s] Page table unavailable after allocation"), FunctionName);
                 return FALSE;
             }
         }
@@ -958,7 +911,6 @@ static BOOL PopulateRegionPages(LINEAR Base,
                 Physical = Target + (PHYSICAL)(Index << PAGE_SIZE_MUL);
 
                 if (Flags & ALLOC_PAGES_IO) {
-                    DEBUG(TEXT("[PopulateRegionPages] Mapping IO physical=%x"), Physical);
                     WritePageTableEntryValue(
                         Table,
                         TabEntry,
@@ -971,7 +923,6 @@ static BOOL PopulateRegionPages(LINEAR Base,
                             /*Global*/ 0,
                             /*Fixed*/ 1));
                 } else {
-                    DEBUG(TEXT("[PopulateRegionPages] Mapping physical=%x"), Physical);
                     SetPhysicalPageMark((UINT)(Physical >> PAGE_SIZE_MUL), 1);
                     WritePageTableEntryValue(
                         Table,
@@ -994,8 +945,6 @@ static BOOL PopulateRegionPages(LINEAR Base,
                     return FALSE;
                 }
 
-                DEBUG(TEXT("[PopulateRegionPages] AllocPhysicalPage returned %x"), Physical);
-
                 WritePageTableEntryValue(
                     Table,
                     TabEntry,
@@ -1013,8 +962,6 @@ static BOOL PopulateRegionPages(LINEAR Base,
         MemoryPageIteratorStepPage(&Iterator);
         Base += PAGE_SIZE;
     }
-
-    DEBUG(TEXT("[PopulateRegionPages] Exit: Success"));
 
     return TRUE;
 }
@@ -1215,6 +1162,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
  * @param OutTable Receives the page table pointer when available.
  * @return TRUE when the table exists and is returned.
  */
+#if defined(__EXOS_ARCH_X86_64__)
 static BOOL TryGetPageTableForIterator(
     const ARCH_PAGE_ITERATOR* Iterator,
     LPPAGE_TABLE* OutTable,
@@ -1225,23 +1173,14 @@ static BOOL TryGetPageTableForIterator(
         *OutLargePage = FALSE;
     }
 
-#if defined(__EXOS_ARCH_X86_64__)
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
     UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
     UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
-
-    DEBUG(TEXT("[TryGetPageTableForIterator] Linear=%p Pml4=%u Pdpt=%u Dir=%u Tab=%u"),
-        (LPVOID)CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(Iterator)),
-        Pml4Index,
-        PdptIndex,
-        DirEntry,
-        MemoryPageIteratorGetTableIndex(Iterator));
 
     LPPML4 Pml4 = GetCurrentPml4VA();
     U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
 
     if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
-        DEBUG(TEXT("[TryGetPageTableForIterator] PML4 entry %u not present"), Pml4Index);
         return FALSE;
     }
 
@@ -1250,12 +1189,10 @@ static BOOL TryGetPageTableForIterator(
     U64 PdptEntryValue = ReadPageDirectoryEntryValue(PdptLinear, PdptIndex);
 
     if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        DEBUG(TEXT("[TryGetPageTableForIterator] PDPT entry %u not present"), PdptIndex);
         return FALSE;
     }
 
     if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        DEBUG(TEXT("[TryGetPageTableForIterator] PDPT entry %u is a large mapping"), PdptIndex);
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
         }
@@ -1265,30 +1202,51 @@ static BOOL TryGetPageTableForIterator(
     PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
     U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
-#else
-    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    UINT DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
-#endif
 
     if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        DEBUG(TEXT("[TryGetPageTableForIterator] PDE %u not present"), DirEntry);
         return FALSE;
     }
 
     if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        DEBUG(TEXT("[TryGetPageTableForIterator] PDE %u is a large mapping"), DirEntry);
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
         }
         return FALSE;
     }
 
-    DEBUG(TEXT("[TryGetPageTableForIterator] Page table available for Dir=%u"), DirEntry);
+    *OutTable = MemoryPageIteratorGetTable(Iterator);
+    return TRUE;
+}
+#else
+static BOOL TryGetPageTableForIterator(
+    const ARCH_PAGE_ITERATOR* Iterator,
+    LPPAGE_TABLE* OutTable,
+    BOOL* OutLargePage) {
+    if (Iterator == NULL || OutTable == NULL) return FALSE;
+
+    if (OutLargePage != NULL) {
+        *OutLargePage = FALSE;
+    }
+
+    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+    UINT DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
+
+    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        if (OutLargePage != NULL) {
+            *OutLargePage = TRUE;
+        }
+        return FALSE;
+    }
 
     *OutTable = MemoryPageIteratorGetTable(Iterator);
     return TRUE;
 }
+#endif
 
 /************************************************************************/
 
