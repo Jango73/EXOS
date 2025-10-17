@@ -295,6 +295,9 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                         SplitBlock->Size = RemainingSize;
                         SplitBlock->Next = NULL;
                         SplitBlock->Prev = NULL;
+#ifdef __EXOS_64__
+                        SplitBlock->AlignmentPadding = 0;
+#endif
 
                         U32 SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAPBLOCKHEADER));
                         AddToFreeList(ControlBlock, SplitBlock, SplitSizeClass);
@@ -323,6 +326,9 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                         SplitBlock->Size = RemainingSize;
                         SplitBlock->Next = NULL;
                         SplitBlock->Prev = NULL;
+#ifdef __EXOS_64__
+                        SplitBlock->AlignmentPadding = 0;
+#endif
 
                         AddToFreeList(ControlBlock, SplitBlock, 0xFF);
 
@@ -356,6 +362,9 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
     Block->Size = TotalSize;
     Block->Next = NULL;
     Block->Prev = NULL;
+#ifdef __EXOS_64__
+    Block->AlignmentPadding = 0;
+#endif
 
     ControlBlock->FirstUnallocated = (LPVOID)(NewBlockAddr + TotalSize);
 

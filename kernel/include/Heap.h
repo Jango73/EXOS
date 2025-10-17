@@ -47,6 +47,9 @@ typedef struct tag_HEAPBLOCKHEADER {
     UINT Size;
     struct tag_HEAPBLOCKHEADER* Next;
     struct tag_HEAPBLOCKHEADER* Prev;
+#ifdef __EXOS_64__
+    U32 AlignmentPadding;  // Ensures header size is a multiple of 16 for aligned payloads
+#endif
 } HEAPBLOCKHEADER, *LPHEAPBLOCKHEADER;
 
 /***************************************************************************/
