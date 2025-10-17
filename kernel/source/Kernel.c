@@ -38,6 +38,7 @@
 #include "File.h"
 #include "FileSystem.h"
 #include "drivers/ATA.h"
+#include "Memory.h"
 #include "drivers/SATA.h"
 #include "Interrupt.h"
 #include "drivers/Keyboard.h"
@@ -324,6 +325,11 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
     DEBUG(TEXT("[CreateKernelObject] KernelHeapAlloc returned %p"), Object);
+
+    if (Object != NULL) {
+        BOOL ObjectValid = IsValidMemory((LINEAR)Object);
+        DEBUG(TEXT("[CreateKernelObject] Object pointer valid = %u"), ObjectValid);
+    }
 
     if (Object == NULL) {
         ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);

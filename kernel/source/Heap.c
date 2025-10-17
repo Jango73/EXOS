@@ -26,6 +26,7 @@
 
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
 #include "Process.h"
 
 /************************************************************************/
@@ -538,32 +539,45 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
 LPVOID HeapAlloc_P(LPPROCESS Process, UINT Size) {
     LPVOID Pointer = NULL;
     LPHEAPCONTROLBLOCK ControlBlock = NULL;
+    BOOL ProcessValid = FALSE;
+    BOOL ControlBlockValid = FALSE;
 
     if (Process != NULL) {
-        ControlBlock = (LPHEAPCONTROLBLOCK)Process->HeapBase;
+        ProcessValid = IsValidMemory((LINEAR)Process);
+        DEBUG("[HeapAlloc_P] Process pointer=%p Valid=%u", Process, ProcessValid);
+
+        if (ProcessValid != FALSE) {
+            ControlBlock = (LPHEAPCONTROLBLOCK)Process->HeapBase;
+            ControlBlockValid = IsValidMemory((LINEAR)ControlBlock);
+            DEBUG("[HeapAlloc_P] ControlBlock pointer=%p Valid=%u", ControlBlock, ControlBlockValid);
+
+            if (ControlBlockValid != FALSE) {
+                DEBUG("[HeapAlloc_P] HeapBase=%p HeapSize=%u FirstUnallocated=%p MaximumAllocated=%u HeapMutex=%p Lock=%u",
+                    (LPVOID)Process->HeapBase, Process->HeapSize, ControlBlock->FirstUnallocated,
+                    Process->MaximumAllocatedMemory, &(Process->HeapMutex), Process->HeapMutex.Lock);
+            }
+        }
     }
 
-    DEBUG("[HeapAlloc_P] Enter Process=%p HeapBase=%p HeapSize=%u ControlType=%x FirstUnallocated=%p MaximumAllocated=%u"
-          " HeapMutex=%p Lock=%u", Process, (Process != NULL) ? (LPVOID)Process->HeapBase : NULL,
-        (Process != NULL) ? Process->HeapSize : 0, (ControlBlock != NULL) ? ControlBlock->TypeID : 0xFFFFFFFF,
-        (ControlBlock != NULL) ? ControlBlock->FirstUnallocated : NULL,
-        (Process != NULL) ? Process->MaximumAllocatedMemory : 0,
-        (Process != NULL) ? &(Process->HeapMutex) : NULL,
-        (Process != NULL) ? Process->HeapMutex.Lock : 0);
+    if (Process == NULL) {
+        DEBUG("[HeapAlloc_P] Process is NULL for allocation of size %u", Size);
+        return NULL;
+    }
 
-    DEBUG("[HeapAlloc_P] Lock mutex Process=%p Mutex=%p", Process, (Process != NULL) ? &(Process->HeapMutex) : NULL);
+    DEBUG("[HeapAlloc_P] Lock mutex Process=%p Mutex=%p", Process, &(Process->HeapMutex));
     LockMutex(&(Process->HeapMutex), INFINITY);
-    DEBUG("[HeapAlloc_P] Locked mutex Process=%p Mutex=%p Lock=%u", Process,
-        (Process != NULL) ? &(Process->HeapMutex) : NULL,
-        (Process != NULL) ? Process->HeapMutex.Lock : 0);
+    DEBUG("[HeapAlloc_P] Locked mutex Process=%p Mutex=%p Lock=%u", Process, &(Process->HeapMutex), Process->HeapMutex.Lock);
 
     Pointer = HeapAlloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Size);
 
-    DEBUG("[HeapAlloc_P] Unlock mutex Process=%p Mutex=%p", Process, (Process != NULL) ? &(Process->HeapMutex) : NULL);
+    DEBUG("[HeapAlloc_P] Unlock mutex Process=%p Mutex=%p", Process, &(Process->HeapMutex));
     UnlockMutex(&(Process->HeapMutex));
-    DEBUG("[HeapAlloc_P] Process=%p Size=%u Pointer=%p FirstUnallocated=%p MutexLock=%u", Process, Size, Pointer,
-        (ControlBlock != NULL) ? ControlBlock->FirstUnallocated : NULL,
-        (Process != NULL) ? Process->HeapMutex.Lock : 0);
+    DEBUG("[HeapAlloc_P] Result Process=%p Size=%u Pointer=%p", Process, Size, Pointer);
+
+    if (ControlBlock != NULL && ControlBlockValid != FALSE) {
+        DEBUG("[HeapAlloc_P] Post-alloc FirstUnallocated=%p HeapSize=%u", ControlBlock->FirstUnallocated,
+            ControlBlock->HeapSize);
+    }
 
     return Pointer;
 }
@@ -616,23 +630,43 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
 LPVOID KernelHeapAlloc(UINT Size) {
     LPVOID Pointer = NULL;
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)KernelProcess.HeapBase;
+    BOOL ControlBlockValid = FALSE;
 
-    DEBUG("[KernelHeapAlloc] Request Size=%u HeapBase=%p HeapSize=%u FirstUnallocated=%p Owner=%p HeapMutex=%p Lock=%u",
-        Size, (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize,
-        (ControlBlock != NULL) ? ControlBlock->FirstUnallocated : NULL,
-        (ControlBlock != NULL) ? ControlBlock->Owner : NULL, &(KernelProcess.HeapMutex),
+    DEBUG("[KernelHeapAlloc] Enter Size=%u", Size);
+    DEBUG("[KernelHeapAlloc] KernelProcess=%p HeapBase=%p HeapSize=%u HeapMutex=%p Lock=%u", &KernelProcess,
+        (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize, &(KernelProcess.HeapMutex),
         KernelProcess.HeapMutex.Lock);
+
+    if (ControlBlock != NULL) {
+        ControlBlockValid = IsValidMemory((LINEAR)ControlBlock);
+        DEBUG("[KernelHeapAlloc] ControlBlock pointer=%p Valid=%u", ControlBlock, ControlBlockValid);
+
+        if (ControlBlockValid != FALSE) {
+            DEBUG("[KernelHeapAlloc] ControlBlock TypeID=%x FirstUnallocated=%p Owner=%p HeapSize=%u",
+                ControlBlock->TypeID, ControlBlock->FirstUnallocated, ControlBlock->Owner, ControlBlock->HeapSize);
+        }
+    } else {
+        DEBUG("[KernelHeapAlloc] ControlBlock pointer is NULL");
+    }
 
     Pointer = HeapAlloc_P(&KernelProcess, Size);
 
-    if (Pointer != NULL && ControlBlock != NULL) {
-        LINEAR HeaderAddress = ((LINEAR)Pointer) - sizeof(HEAPBLOCKHEADER);
-        LPHEAPBLOCKHEADER Header = (LPHEAPBLOCKHEADER)HeaderAddress;
-        DEBUG("[KernelHeapAlloc] Result Pointer=%p Header=%p BlockSize=%u TypeID=%x Next=%p Prev=%p NextUnallocated=%p",
-            Pointer, Header, Header->Size, Header->TypeID, Header->Next, Header->Prev,
-            ControlBlock->FirstUnallocated);
+    if (Pointer != NULL) {
+        DEBUG("[KernelHeapAlloc] Allocation succeeded Pointer=%p", Pointer);
+
+        if (ControlBlock != NULL && ControlBlockValid != FALSE) {
+            LINEAR HeaderAddress = ((LINEAR)Pointer) - sizeof(HEAPBLOCKHEADER);
+            LPHEAPBLOCKHEADER Header = (LPHEAPBLOCKHEADER)HeaderAddress;
+            BOOL HeaderValid = IsValidMemory((LINEAR)Header);
+            DEBUG("[KernelHeapAlloc] Header=%p Valid=%u", Header, HeaderValid);
+
+            if (HeaderValid != FALSE) {
+                DEBUG("[KernelHeapAlloc] HeaderSize=%u TypeID=%x Next=%p Prev=%p NextUnallocated=%p", Header->Size,
+                    Header->TypeID, Header->Next, Header->Prev, ControlBlock->FirstUnallocated);
+            }
+        }
     } else {
-        DEBUG("[KernelHeapAlloc] Result Pointer=%p ControlBlock=%p", Pointer, ControlBlock);
+        DEBUG("[KernelHeapAlloc] Allocation failed Pointer=NULL ControlBlockValid=%u", ControlBlockValid);
     }
 
     return Pointer;
