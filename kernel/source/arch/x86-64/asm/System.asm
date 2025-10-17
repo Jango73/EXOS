@@ -139,24 +139,6 @@ SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
-SYS_FUNC_BEGIN SaveFlags
-    pushfq
-    pop     rax
-    mov     dword [rdi], eax
-    xor     eax, eax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN RestoreFlags
-    mov     eax, dword [rdi]
-    push    rax
-    popfq
-    xor     eax, eax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
 SYS_FUNC_BEGIN SaveFPU
     fsave   [rdi]
     xor     eax, eax

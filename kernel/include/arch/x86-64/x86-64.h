@@ -336,6 +336,32 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define ClearDR6() __asm__ volatile("xor %%rax, %%rax; mov %%rax, %%dr6" : : : "eax")
 #define ClearDR7() __asm__ volatile("xor %%rax, %%rax; mov %%rax, %%dr7" : : : "eax")
 
+#define SaveFlags(Flags)                                                                                \
+    do {                                                                                                \
+        UINT Value;                                                                                     \
+                                                                                                        \
+        __asm__ __volatile__(                                                                           \
+            "pushfq\n\t"                                                                                \
+            "pop %0"                                                                                    \
+            : "=r"(Value)                                                                               \
+            :                                                                                           \
+            : "memory");                                                                               \
+                                                                                                        \
+        *(Flags) = Value;                                                                               \
+    } while (0)
+
+#define RestoreFlags(Flags)                                                                             \
+    do {                                                                                                \
+        U64 Value = (U64)(*(Flags));                                                                    \
+                                                                                                        \
+        __asm__ __volatile__(                                                                           \
+            "push %0\n\t"                                                                              \
+            "popfq"                                                                                    \
+            :                                                                                           \
+            : "r"(Value)                                                                               \
+            : "memory", "cc");                                                                         \
+    } while (0)
+
 /***************************************************************************/
 // Inline helpers
 

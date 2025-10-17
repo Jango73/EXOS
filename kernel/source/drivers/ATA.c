@@ -28,6 +28,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "InterruptController.h"
+#include "System.h"
 #include "utils/Cache.h"
 
 /***************************************************************************/

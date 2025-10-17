@@ -74,8 +74,6 @@ BITS 32
     global EnablePaging
     global DisableInterrupts
     global EnableInterrupts
-    global SaveFlags
-    global RestoreFlags
     global SaveFPU
     global RestoreFPU
     global InPortByte
@@ -193,46 +191,6 @@ EnableInterrupts :
 
    sti
    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-SaveFlags :
-
-    push    ebp
-    mov     ebp, esp
-    push    edi
-
-    mov     edi, [ebp+(PBN+0)]
-    pushfd
-    pop     eax
-    mov     [edi], eax
-
-    xor     eax, eax
-
-    pop     edi
-    pop     ebp
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-RestoreFlags :
-
-    push    ebp
-    mov     ebp, esp
-    push    edi
-
-    mov     edi, [ebp+(PBN+0)]
-    mov     eax, [edi]
-    push    eax
-    popfd
-
-    xor     eax, eax
-
-    pop     edi
-    pop     ebp
-    ret
 
 ;--------------------------------------
 

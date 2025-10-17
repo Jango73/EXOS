@@ -573,6 +573,32 @@ typedef struct tag_SEGMENT_INFO {
 #define ClearDR6() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr6" : : : "eax")
 #define ClearDR7() __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%dr7" : : : "eax")
 
+#define SaveFlags(Flags)                                                                                \
+    do {                                                                                                \
+        UINT Value;                                                                                     \
+                                                                                                        \
+        __asm__ __volatile__(                                                                           \
+            "pushfd\n\t"                                                                                \
+            "pop %0"                                                                                    \
+            : "=r"(Value)                                                                               \
+            :                                                                                           \
+            : "memory");                                                                               \
+                                                                                                        \
+        *(Flags) = Value;                                                                               \
+    } while (0)
+
+#define RestoreFlags(Flags)                                                                             \
+    do {                                                                                                \
+        UINT Value = *(Flags);                                                                          \
+                                                                                                        \
+        __asm__ __volatile__(                                                                           \
+            "push %0\n\t"                                                                              \
+            "popfd"                                                                                    \
+            :                                                                                           \
+            : "r"(Value)                                                                               \
+            : "memory", "cc");                                                                         \
+    } while (0)
+
 #define SET_HW_BREAKPOINT(addr)                      \
     __asm__ volatile(                                \
         "mov %0, %%eax; mov %%eax, %%dr0\n"          \
