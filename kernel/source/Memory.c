@@ -721,7 +721,7 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
             }
         } else {
             if (IsLargePage) {
-                DEBUG(TEXT("[IsRegionFree] PDE maps large page for Dir=%u"),
+                DEBUG(TEXT("[IsRegionFree] Large mapping covers Dir=%u"),
                     MemoryPageIteratorGetDirectoryIndex(&Iterator));
                 return FALSE;
             }
@@ -1164,15 +1164,25 @@ static BOOL TryGetPageTableForIterator(
     LINEAR Linear = CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(Iterator));
     LPPML4 Pml4 = GetCurrentPml4VA();
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
+    U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
 
-    if ((ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index) & PAGE_FLAG_PRESENT) == 0) {
+    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
         return FALSE;
     }
 
     LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Linear);
     UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
 
-    if ((ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex) & PAGE_FLAG_PRESENT) == 0) {
+    U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
+
+    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        if (OutLargePage != NULL) {
+            *OutLargePage = TRUE;
+        }
         return FALSE;
     }
 
@@ -1233,7 +1243,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 
             ClearPageTableEntry(Table, TabEntry);
         } else if (IsLargePage == TRUE) {
-            DEBUG(TEXT("[FreeRegion] Encountered large page mapping for Dir=%u"),
+            DEBUG(TEXT("[FreeRegion] Large mapping covers Dir=%u"),
                 MemoryPageIteratorGetDirectoryIndex(&Iterator));
         }
 
