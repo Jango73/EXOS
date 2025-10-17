@@ -537,25 +537,34 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
  */
 LPVOID HeapAlloc_P(LPPROCESS Process, UINT Size) {
     LPVOID Pointer = NULL;
-#if DEBUG_OUTPUT
     LPHEAPCONTROLBLOCK ControlBlock = NULL;
 
     if (Process != NULL) {
         ControlBlock = (LPHEAPCONTROLBLOCK)Process->HeapBase;
     }
 
-    DEBUG("[HeapAlloc_P] Enter Process=%p HeapBase=%p HeapSize=%u ControlType=%x FirstUnallocated=%p", Process,
-        (Process != NULL) ? (LPVOID)Process->HeapBase : NULL, (Process != NULL) ? Process->HeapSize : 0,
-        (ControlBlock != NULL) ? ControlBlock->TypeID : 0xFFFFFFFF,
-        (ControlBlock != NULL) ? ControlBlock->FirstUnallocated : NULL);
-#endif
+    DEBUG("[HeapAlloc_P] Enter Process=%p HeapBase=%p HeapSize=%u ControlType=%x FirstUnallocated=%p MaximumAllocated=%u"
+          " HeapMutex=%p Lock=%u", Process, (Process != NULL) ? (LPVOID)Process->HeapBase : NULL,
+        (Process != NULL) ? Process->HeapSize : 0, (ControlBlock != NULL) ? ControlBlock->TypeID : 0xFFFFFFFF,
+        (ControlBlock != NULL) ? ControlBlock->FirstUnallocated : NULL,
+        (Process != NULL) ? Process->MaximumAllocatedMemory : 0,
+        (Process != NULL) ? &(Process->HeapMutex) : NULL,
+        (Process != NULL) ? Process->HeapMutex.Lock : 0);
 
+    DEBUG("[HeapAlloc_P] Lock mutex Process=%p Mutex=%p", Process, (Process != NULL) ? &(Process->HeapMutex) : NULL);
     LockMutex(&(Process->HeapMutex), INFINITY);
+    DEBUG("[HeapAlloc_P] Locked mutex Process=%p Mutex=%p Lock=%u", Process,
+        (Process != NULL) ? &(Process->HeapMutex) : NULL,
+        (Process != NULL) ? Process->HeapMutex.Lock : 0);
+
     Pointer = HeapAlloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Size);
+
+    DEBUG("[HeapAlloc_P] Unlock mutex Process=%p Mutex=%p", Process, (Process != NULL) ? &(Process->HeapMutex) : NULL);
     UnlockMutex(&(Process->HeapMutex));
-#if DEBUG_OUTPUT
-    DEBUG("[HeapAlloc_P] Process=%p Size=%u Pointer=%p", Process, Size, Pointer);
-#endif
+    DEBUG("[HeapAlloc_P] Process=%p Size=%u Pointer=%p FirstUnallocated=%p MutexLock=%u", Process, Size, Pointer,
+        (ControlBlock != NULL) ? ControlBlock->FirstUnallocated : NULL,
+        (Process != NULL) ? Process->HeapMutex.Lock : 0);
+
     return Pointer;
 }
 
@@ -606,26 +615,25 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
  */
 LPVOID KernelHeapAlloc(UINT Size) {
     LPVOID Pointer = NULL;
-#if DEBUG_OUTPUT
     LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)KernelProcess.HeapBase;
-    DEBUG("[KernelHeapAlloc] Request Size=%u HeapBase=%p HeapSize=%u FirstUnallocated=%p Owner=%p", Size,
-        (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize,
+
+    DEBUG("[KernelHeapAlloc] Request Size=%u HeapBase=%p HeapSize=%u FirstUnallocated=%p Owner=%p HeapMutex=%p Lock=%u",
+        Size, (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize,
         (ControlBlock != NULL) ? ControlBlock->FirstUnallocated : NULL,
-        (ControlBlock != NULL) ? ControlBlock->Owner : NULL);
+        (ControlBlock != NULL) ? ControlBlock->Owner : NULL, &(KernelProcess.HeapMutex),
+        KernelProcess.HeapMutex.Lock);
 
     Pointer = HeapAlloc_P(&KernelProcess, Size);
 
     if (Pointer != NULL && ControlBlock != NULL) {
         LINEAR HeaderAddress = ((LINEAR)Pointer) - sizeof(HEAPBLOCKHEADER);
         LPHEAPBLOCKHEADER Header = (LPHEAPBLOCKHEADER)HeaderAddress;
-        DEBUG("[KernelHeapAlloc] Result Pointer=%p Header=%p BlockSize=%u Next=%p Prev=%p NextUnallocated=%p", Pointer,
-            Header, Header->Size, Header->Next, Header->Prev, ControlBlock->FirstUnallocated);
+        DEBUG("[KernelHeapAlloc] Result Pointer=%p Header=%p BlockSize=%u TypeID=%x Next=%p Prev=%p NextUnallocated=%p",
+            Pointer, Header, Header->Size, Header->TypeID, Header->Next, Header->Prev,
+            ControlBlock->FirstUnallocated);
     } else {
-        DEBUG("[KernelHeapAlloc] Result Pointer=%p", Pointer);
+        DEBUG("[KernelHeapAlloc] Result Pointer=%p ControlBlock=%p", Pointer, ControlBlock);
     }
-#else
-    Pointer = HeapAlloc_P(&KernelProcess, Size);
-#endif
 
     return Pointer;
 }
