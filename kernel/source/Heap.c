@@ -486,9 +486,31 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
  */
 LPVOID HeapAlloc_P(LPPROCESS Process, UINT Size) {
     LPVOID Pointer = NULL;
+
+    DEBUG(TEXT("[HeapAlloc_P] Process=%p size=%u"), Process, Size);
+
+    if (Process == NULL) {
+        ERROR(TEXT("[HeapAlloc_P] Process pointer is NULL"));
+        return NULL;
+    }
+
+    LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)Process->HeapBase;
+
+    DEBUG(TEXT("[HeapAlloc_P] HeapBase=%p heapSize=%u controlBlock=%p firstUnallocated=%p"),
+        (LPVOID)Process->HeapBase, Process->HeapSize, ControlBlock,
+        ControlBlock != NULL ? ControlBlock->FirstUnallocated : NULL);
+    DEBUG(TEXT("[HeapAlloc_P] HeapMutex=%p lockCount=%u"), &(Process->HeapMutex), Process->HeapMutex.Lock);
+
     LockMutex(&(Process->HeapMutex), INFINITY);
     Pointer = HeapAlloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Size);
     UnlockMutex(&(Process->HeapMutex));
+
+    if (ControlBlock != NULL) {
+        DEBUG(TEXT("[HeapAlloc_P] Post-alloc firstUnallocated=%p"), ControlBlock->FirstUnallocated);
+    }
+
+    DEBUG(TEXT("[HeapAlloc_P] Returning pointer=%p"), Pointer);
+
     return Pointer;
 }
 

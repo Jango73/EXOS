@@ -828,9 +828,15 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize object termination cache
 
+    DEBUG(TEXT("[InitializeKernel] Object termination cache before init struct=%p entries=%p capacity=%u count=%u"),
+        &Kernel.ObjectTerminationCache, Kernel.ObjectTerminationCache.Entries,
+        Kernel.ObjectTerminationCache.Capacity, Kernel.ObjectTerminationCache.Count);
+
     CacheInit(&Kernel.ObjectTerminationCache, CACHE_DEFAULT_CAPACITY);
 
-    DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
+    DEBUG(TEXT("[InitializeKernel] Object termination cache initialized entries=%p capacity=%u count=%u mutex=%p"),
+        Kernel.ObjectTerminationCache.Entries, Kernel.ObjectTerminationCache.Capacity,
+        Kernel.ObjectTerminationCache.Count, &Kernel.ObjectTerminationCache.Mutex);
 
     //-------------------------------------
     // Run auto tests
