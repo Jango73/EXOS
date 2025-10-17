@@ -1162,24 +1162,35 @@ static BOOL TryGetPageTableForIterator(
 
 #if defined(__EXOS_ARCH_X86_64__)
     LINEAR Linear = CanonicalizeLinearAddress((LINEAR)MemoryPageIteratorGetLinear(Iterator));
-    LPPML4 Pml4 = GetCurrentPml4VA();
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
+    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
+
+    DEBUG(TEXT("[TryGetPageTableForIterator] Linear=%p Pml4=%u Pdpt=%u Dir=%u Tab=%u"),
+        (LPVOID)Linear,
+        Pml4Index,
+        PdptIndex,
+        MemoryPageIteratorGetDirectoryIndex(Iterator),
+        MemoryPageIteratorGetTableIndex(Iterator));
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
     U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
 
     if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[TryGetPageTableForIterator] PML4 entry %u not present"), Pml4Index);
         return FALSE;
     }
 
     LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Linear);
-    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
 
     U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
 
     if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[TryGetPageTableForIterator] PDPT entry %u not present"), PdptIndex);
         return FALSE;
     }
 
     if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        DEBUG(TEXT("[TryGetPageTableForIterator] PDPT entry %u is a large mapping"), PdptIndex);
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
         }
@@ -1195,15 +1206,19 @@ static BOOL TryGetPageTableForIterator(
     U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 
     if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[TryGetPageTableForIterator] PDE %u not present"), DirEntry);
         return FALSE;
     }
 
     if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        DEBUG(TEXT("[TryGetPageTableForIterator] PDE %u is a large mapping"), DirEntry);
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
         }
         return FALSE;
     }
+
+    DEBUG(TEXT("[TryGetPageTableForIterator] Page table available for Dir=%u"), DirEntry);
 
     *OutTable = MemoryPageIteratorGetTable(Iterator);
     return TRUE;
