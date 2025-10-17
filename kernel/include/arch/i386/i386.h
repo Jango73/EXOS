@@ -576,30 +576,30 @@ typedef struct tag_SEGMENT_INFO {
 #define DisableInterrupts() __asm__ __volatile__("cli" : : : "memory")
 #define EnableInterrupts() __asm__ __volatile__("sti" : : : "memory")
 
-#define SaveFlags(Flags)                                                                                \
-    do {                                                                                                \
-        UINT Value;                                                                                     \
-                                                                                                        \
-        __asm__ __volatile__(                                                                           \
-            "pushfd\n\t"                                                                                \
-            "pop %0"                                                                                    \
-            : "=r"(Value)                                                                               \
-            :                                                                                           \
-            : "memory");                                                                               \
-                                                                                                        \
-        *(Flags) = Value;                                                                               \
+#define SaveFlags(Flags)                             \
+    do {                                             \
+        UINT Value;                                  \
+                                                     \
+        __asm__ __volatile__(                        \
+            "pushfl\n\t"                             \
+            "pop %0"                                 \
+            : "=r"(Value)                            \
+            :                                        \
+            : "memory");                             \
+                                                     \
+        *(Flags) = Value;                            \
     } while (0)
 
-#define RestoreFlags(Flags)                                                                             \
-    do {                                                                                                \
-        UINT Value = *(Flags);                                                                          \
-                                                                                                        \
-        __asm__ __volatile__(                                                                           \
-            "push %0\n\t"                                                                              \
-            "popfd"                                                                                    \
-            :                                                                                           \
-            : "r"(Value)                                                                               \
-            : "memory", "cc");                                                                         \
+#define RestoreFlags(Flags)                          \
+    do {                                             \
+        UINT Value = *(Flags);                       \
+                                                     \
+        __asm__ __volatile__(                        \
+            "push %0\n\t"                            \
+            "popfl"                                  \
+            :                                        \
+            : "r"(Value)                             \
+            : "memory", "cc");                       \
     } while (0)
 
 #define SET_HW_BREAKPOINT(addr)                      \
