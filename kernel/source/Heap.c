@@ -645,10 +645,22 @@ LPVOID KernelHeapAlloc(UINT Size) {
     static LINEAR ExpectedKernelHeapBase = 0;
     static UINT ExpectedKernelHeapSize = 0;
 
+    LINEAR HeapBaseValue = KernelProcess.HeapBase;
+    UINT HeapSizeValue = KernelProcess.HeapSize;
+    UINT HeapBaseOffset = 0;
+
+    if (HeapBaseValue >= VMA_KERNEL) {
+        HeapBaseOffset = (UINT)(HeapBaseValue - VMA_KERNEL);
+    }
+
     DEBUG("[KernelHeapAlloc] Enter Size=%u", Size);
     DEBUG("[KernelHeapAlloc] KernelProcess=%p HeapBase=%p HeapSize=%u HeapMutex=%p Lock=%u", &KernelProcess,
-        (LPVOID)KernelProcess.HeapBase, KernelProcess.HeapSize, &(KernelProcess.HeapMutex),
-        KernelProcess.HeapMutex.Lock);
+        (LPVOID)HeapBaseValue, HeapSizeValue, &(KernelProcess.HeapMutex), KernelProcess.HeapMutex.Lock);
+    DEBUG("[KernelHeapAlloc] HeapBase offset from VMA_KERNEL=%x HeapSizeHex=%x", HeapBaseOffset, HeapSizeValue);
+
+    UNUSED(HeapBaseValue);
+    UNUSED(HeapSizeValue);
+    UNUSED(HeapBaseOffset);
     DEBUG("[KernelHeapAlloc] Heap field addresses HeapBase@%p HeapSize@%p", &(KernelProcess.HeapBase),
         &(KernelProcess.HeapSize));
 

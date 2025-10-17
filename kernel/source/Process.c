@@ -106,8 +106,7 @@ void InitializeKernelProcess(void) {
     LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
 
     if (KernelTask == NULL) {
-        DEBUG(TEXT("Could not create kernel task, halting."));
-        DO_THE_SLEEPING_BEAUTY;
+        ConsolePanic(TEXT("Could not create kernel task"));
     }
 
     DEBUG(TEXT("Kernel main task = %p (%s)"), (LINEAR)KernelTask, KernelTask->Name);

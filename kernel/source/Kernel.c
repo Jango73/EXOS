@@ -332,7 +332,23 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     }
 
     if (Object == NULL) {
-        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);
+        STR ObjectTypeText[5];
+        U32 Index;
+
+        ObjectTypeText[0] = (STR)(ObjectTypeID & 0xFF);
+        ObjectTypeText[1] = (STR)((ObjectTypeID >> 8) & 0xFF);
+        ObjectTypeText[2] = (STR)((ObjectTypeID >> 16) & 0xFF);
+        ObjectTypeText[3] = (STR)((ObjectTypeID >> 24) & 0xFF);
+        ObjectTypeText[4] = STR_NULL;
+
+        for (Index = 0; Index < 4; Index++) {
+            if (ObjectTypeText[Index] < STR_SPACE || ObjectTypeText[Index] > 0x7E) {
+                ObjectTypeText[Index] = '?';
+            }
+        }
+
+        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %x (%s)"), ObjectTypeID,
+            ObjectTypeText);
         return NULL;
     }
 
