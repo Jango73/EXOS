@@ -74,6 +74,9 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
     Cache->Capacity = Capacity;
     Cache->Count = 0;
     Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(AllocationSize);
+
+    DEBUG(TEXT("[CacheInit] KernelHeapAlloc returned entries=%p"), Cache->Entries);
+
     Cache->Mutex = (MUTEX)EMPTY_MUTEX;
 
     DEBUG(TEXT("[CacheInit] Mutex=%p lockCount=%u"), &(Cache->Mutex), Cache->Mutex.Lock);
@@ -101,6 +104,8 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
 
     DEBUG(TEXT("[CacheInit] Entries range startValid=%u endValid=%u"), IsValidMemory(EntriesLinear),
           IsValidMemory(EntriesEnd));
+    DEBUG(TEXT("[CacheInit] Cache structure address=%p cacheStartValid=%u"), Cache,
+          IsValidMemory((LINEAR)Cache));
 
     if (Cache->Entries == NULL) {
         ERROR(TEXT("[CacheInit] KernelHeapAlloc failed"));
@@ -120,6 +125,10 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
         Cache->Entries[Index].TTL = 0;
         Cache->Entries[Index].Score = 0;
         Cache->Entries[Index].Valid = FALSE;
+
+        DEBUG(TEXT("[CacheInit] Entry %u cleared data=%p expiration=%u ttl=%u score=%u valid=%u"), Index,
+              Cache->Entries[Index].Data, Cache->Entries[Index].ExpirationTime, Cache->Entries[Index].TTL,
+              Cache->Entries[Index].Score, Cache->Entries[Index].Valid);
     }
 
     DEBUG(TEXT("[CacheInit] Initialization complete"));

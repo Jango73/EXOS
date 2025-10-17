@@ -27,6 +27,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Process.h"
+#include "Memory.h"
 
 /************************************************************************/
 
@@ -619,6 +620,8 @@ LPVOID KernelHeapAlloc(UINT Size) {
     DEBUG(TEXT("[KernelHeapAlloc] Header=%p type=%x size=%u next=%p prev=%p"), Header, Header->TypeID,
         Header->Size, Header->Next, Header->Prev);
     DEBUG(TEXT("[KernelHeapAlloc] Data range start=%p end=%p size=%u"), (LPVOID)DataStart, (LPVOID)DataEnd, DataSize);
+    DEBUG(TEXT("[KernelHeapAlloc] Data startValid=%u endValid=%u headerValid=%u"),
+        IsValidMemory((LINEAR)DataStart), IsValidMemory((LINEAR)DataEnd), IsValidMemory((LINEAR)Header));
 
     return Pointer;
 }
