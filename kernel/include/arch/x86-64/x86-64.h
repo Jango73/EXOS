@@ -339,6 +339,32 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define DisableInterrupts() __asm__ __volatile__("cli" : : : "memory")
 #define EnableInterrupts() __asm__ __volatile__("sti" : : : "memory")
 
+#define DisablePaging()                                                                                          \
+    ({                                                                                                           \
+        U64 __disable_paging_value;                                                                              \
+        __asm__ __volatile__(                                                                                    \
+            "mov %%cr0, %0\n\t"                                                                               \
+            "btrq $31, %0\n\t"                                                                                \
+            "mov %0, %%cr0"                                                                                    \
+            : "=&r"(__disable_paging_value)                                                                      \
+            :                                                                                                    \
+            : "cc", "memory");                                                                                  \
+        __disable_paging_value;                                                                                  \
+    })
+
+#define EnablePaging()                                                                                           \
+    ({                                                                                                           \
+        U64 __enable_paging_value;                                                                               \
+        __asm__ __volatile__(                                                                                    \
+            "mov %%cr0, %0\n\t"                                                                               \
+            "btsq $31, %0\n\t"                                                                                \
+            "mov %0, %%cr0"                                                                                    \
+            : "=&r"(__enable_paging_value)                                                                       \
+            :                                                                                                    \
+            : "cc", "memory");                                                                                  \
+        __enable_paging_value;                                                                                   \
+    })
+
 struct tag_KERNELSTARTUPINFO;
 extern struct tag_KERNELSTARTUPINFO KernelStartup;
 extern U32 OutPortByte(U32 Port, U32 Value);

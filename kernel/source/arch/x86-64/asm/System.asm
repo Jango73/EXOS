@@ -109,24 +109,6 @@ SYS_FUNC_BEGIN GetCPUID
     pop     rbx
 SYS_FUNC_END
 
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN DisablePaging
-    mov     rax, cr0
-    btr     rax, 31
-    mov     cr0, rax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN EnablePaging
-    mov     rax, cr0
-    bts     rax, 31
-    mov     cr0, rax
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
-
 SYS_FUNC_BEGIN InPortByte
     mov     dx, di
     xor     eax, eax

@@ -70,8 +70,6 @@ section .text
 BITS 32
 
     global GetCPUID
-    global DisablePaging
-    global EnablePaging
     global InPortByte
     global OutPortByte
     global InPortWord
@@ -141,24 +139,6 @@ GetCPUID :
     ret
 
 ;--------------------------------------
-
-FUNC_HEADER
-DisablePaging :
-
-    mov     eax, cr0
-    and     eax, 0x7FFFFFFF
-    mov     cr0, eax
-    ret
-
-;--------------------------------------
-
-FUNC_HEADER
-EnablePaging :
-
-    mov     eax, cr0
-    or      eax, CR0_PAGING
-    mov     cr0, eax
-    ret
 
 FUNC_HEADER
 InPortByte :
