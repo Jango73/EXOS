@@ -725,6 +725,9 @@ static void ScriptInitParser(LPSCRIPT_PARSER Parser, LPCSTR Input, LPSCRIPT_CONT
     Parser->CurrentScope = Context->CurrentScope;
     Parser->Context = Context;
 
+    U32 Length = Input ? StringLength(Input) : 0;
+    DEBUG(TEXT("[ScriptInitParser] Parser=%p Input=%p Length=%u"), Parser, Input, Length);
+
     ScriptNextToken(Parser);
 }
 
@@ -744,8 +747,15 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
     Parser->CurrentToken.Position = *Pos;
     ScriptCalculateLineColumn(Input, *Pos, &Parser->CurrentToken.Line, &Parser->CurrentToken.Column);
 
+    Parser->CurrentToken.Value[0] = STR_NULL;
+    Parser->CurrentToken.NumValue = 0.0f;
+
     if (Input[*Pos] == STR_NULL) {
         Parser->CurrentToken.Type = TOKEN_EOF;
+        DEBUG(TEXT("[ScriptNextToken] Reached EOF (Pos=%u Line=%u Column=%u)"),
+              *Pos,
+              Parser->CurrentToken.Line,
+              Parser->CurrentToken.Column);
         return;
     }
 
@@ -962,6 +972,14 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         Parser->CurrentToken.Value[1] = STR_NULL;
         (*Pos)++;
     }
+
+    DEBUG(TEXT("[ScriptNextToken] Token=%s Value='%s' Num=%f Pos=%u Line=%u Column=%u"),
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Value,
+          Parser->CurrentToken.NumValue,
+          Parser->CurrentToken.Position,
+          Parser->CurrentToken.Line,
+          Parser->CurrentToken.Column);
 }
 
 /************************************************************************/
@@ -977,6 +995,8 @@ static LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
         *Error = SCRIPT_ERROR_SYNTAX;
         return NULL;
     }
+
+    DEBUG(TEXT("[ScriptParseAssignmentAST] Begin Var=%s"), Parser->CurrentToken.Value);
 
     LPAST_NODE Node = ScriptCreateASTNode(AST_ASSIGNMENT);
     if (Node == NULL) {
@@ -1025,6 +1045,10 @@ static LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
         return NULL;
     }
 
+    DEBUG(TEXT("[ScriptParseAssignmentAST] Parsed assignment Var=%s Array=%u"),
+          Node->Data.Assignment.VarName,
+          Node->Data.Assignment.IsArrayAccess);
+
     return Node;
 }
 
@@ -1037,6 +1061,10 @@ static LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
  * @return AST expression node or NULL on failure
  */
 static LPAST_NODE ScriptParseComparisonAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    DEBUG(TEXT("[ScriptParseComparisonAST] Enter Token=%s Value='%s'"),
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Value);
+
     LPAST_NODE Left = ScriptParseExpressionAST(Parser, Error);
     if (*Error != SCRIPT_OK || Left == NULL) return NULL;
 
@@ -1062,6 +1090,8 @@ static LPAST_NODE ScriptParseComparisonAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
 
         CompNode->Data.Expression.Right = Right;
         Left = CompNode;
+
+        DEBUG(TEXT("[ScriptParseComparisonAST] Comparison operator %s"), CompNode->Data.Expression.Value);
     }
 
     return Left;
@@ -1076,6 +1106,10 @@ static LPAST_NODE ScriptParseComparisonAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
  * @return AST expression node or NULL on failure
  */
 static LPAST_NODE ScriptParseExpressionAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    DEBUG(TEXT("[ScriptParseExpressionAST] Enter Token=%s Value='%s'"),
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Value);
+
     LPAST_NODE Left = ScriptParseTermAST(Parser, Error);
     if (*Error != SCRIPT_OK || Left == NULL) return NULL;
 
@@ -1103,6 +1137,8 @@ static LPAST_NODE ScriptParseExpressionAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
 
         OpNode->Data.Expression.Right = Right;
         Left = OpNode;
+
+        DEBUG(TEXT("[ScriptParseExpressionAST] Operator %c"), OpNode->Data.Expression.Value[0]);
     }
 
     return Left;
@@ -1117,6 +1153,10 @@ static LPAST_NODE ScriptParseExpressionAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
  * @return AST expression node or NULL on failure
  */
 static LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    DEBUG(TEXT("[ScriptParseTermAST] Enter Token=%s Value='%s'"),
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Value);
+
     LPAST_NODE Left = ScriptParseFactorAST(Parser, Error);
     if (*Error != SCRIPT_OK || Left == NULL) return NULL;
 
@@ -1144,6 +1184,8 @@ static LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error
 
         OpNode->Data.Expression.Right = Right;
         Left = OpNode;
+
+        DEBUG(TEXT("[ScriptParseTermAST] Operator %c"), OpNode->Data.Expression.Value[0]);
     }
 
     return Left;
@@ -1158,6 +1200,10 @@ static LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error
  * @return AST expression node or NULL on failure
  */
 static LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    DEBUG(TEXT("[ScriptParseFactorAST] Token=%s Value='%s'"),
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Value);
+
     // NUMBER
     if (Parser->CurrentToken.Type == TOKEN_NUMBER) {
         LPAST_NODE Node = ScriptCreateASTNode(AST_EXPRESSION);
@@ -1323,6 +1369,7 @@ static LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Err
     }
 
     *Error = SCRIPT_ERROR_SYNTAX;
+    DEBUG(TEXT("[ScriptParseFactorAST] Syntax error"));
     return NULL;
 }
 
@@ -1354,6 +1401,9 @@ LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity) {
         DEBUG(TEXT("[ScriptCreateArray] Failed to allocate element storage"));
         return NULL;
     }
+
+    MemorySet(Array->Elements, 0, InitialCapacity * sizeof(LPVOID));
+    MemorySet(Array->ElementTypes, 0, InitialCapacity * sizeof(SCRIPT_VAR_TYPE));
 
     Array->Size = 0;
     Array->Capacity = InitialCapacity;
@@ -1415,6 +1465,9 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
             return SCRIPT_ERROR_OUT_OF_MEMORY;
         }
 
+        MemorySet(NewElements, 0, NewCapacity * sizeof(LPVOID));
+        MemorySet(NewTypes, 0, NewCapacity * sizeof(SCRIPT_VAR_TYPE));
+
         // Copy existing elements
         for (U32 i = 0; i < Array->Size; i++) {
             NewElements[i] = Array->Elements[i];
@@ -1430,9 +1483,15 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
         DEBUG(TEXT("[ScriptArraySet] Resized array %p to capacity %u"), Array, Array->Capacity);
     }
 
-    // Free existing string value if overwriting
-    if (Index < Array->Size && Array->ElementTypes[Index] == SCRIPT_VAR_STRING && Array->Elements[Index]) {
-        HeapFree(Array->Elements[Index]);
+    // Free existing value if overwriting
+    if (Index < Array->Size && Array->Elements[Index]) {
+        if (Array->ElementTypes[Index] == SCRIPT_VAR_STRING ||
+            Array->ElementTypes[Index] == SCRIPT_VAR_INTEGER ||
+            Array->ElementTypes[Index] == SCRIPT_VAR_FLOAT) {
+            HeapFree(Array->Elements[Index]);
+            DEBUG(TEXT("[ScriptArraySet] Freed previous scalar at index %u"), Index);
+        }
+        Array->Elements[Index] = NULL;
     }
 
     Array->ElementTypes[Index] = Type;
@@ -2647,16 +2706,30 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
  * @return AST node or NULL on failure
  */
 static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    DEBUG(TEXT("[ScriptParseStatementAST] Token=%s Value='%s'"),
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Value);
+
     if (Parser->CurrentToken.Type == TOKEN_IF) {
-        return ScriptParseIfStatementAST(Parser, Error);
+        LPAST_NODE IfNode = ScriptParseIfStatementAST(Parser, Error);
+        DEBUG(TEXT("[ScriptParseStatementAST] Parsed IF statement Node=%p Error=%u"), IfNode, *Error);
+        return IfNode;
     } else if (Parser->CurrentToken.Type == TOKEN_FOR) {
-        return ScriptParseForStatementAST(Parser, Error);
+        LPAST_NODE ForNode = ScriptParseForStatementAST(Parser, Error);
+        DEBUG(TEXT("[ScriptParseStatementAST] Parsed FOR statement Node=%p Error=%u"), ForNode, *Error);
+        return ForNode;
     } else if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
-        return ScriptParseBlockAST(Parser, Error);
+        LPAST_NODE BlockNode = ScriptParseBlockAST(Parser, Error);
+        DEBUG(TEXT("[ScriptParseStatementAST] Parsed BLOCK Node=%p Error=%u"), BlockNode, *Error);
+        return BlockNode;
     } else if (Parser->CurrentToken.Type == TOKEN_PATH) {
-        return ScriptParseShellCommandExpression(Parser, Error);
+        LPAST_NODE CommandNode = ScriptParseShellCommandExpression(Parser, Error);
+        DEBUG(TEXT("[ScriptParseStatementAST] Parsed PATH command Node=%p Error=%u"), CommandNode, *Error);
+        return CommandNode;
     } else if (Parser->CurrentToken.Type == TOKEN_STRING) {
-        return ScriptParseShellCommandExpression(Parser, Error);
+        LPAST_NODE CommandNode = ScriptParseShellCommandExpression(Parser, Error);
+        DEBUG(TEXT("[ScriptParseStatementAST] Parsed STRING command Node=%p Error=%u"), CommandNode, *Error);
+        return CommandNode;
     } else if (Parser->CurrentToken.Type == TOKEN_IDENTIFIER) {
         // Could be assignment, expression statement (function call) or shell command
         U32 SavedPosition = Parser->Position;
@@ -2668,25 +2741,35 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
         if (Parser->CurrentToken.Type == TOKEN_OPERATOR && Parser->CurrentToken.Value[0] == '=') {
             Parser->Position = SavedPosition;
             Parser->CurrentToken = SavedToken;
-            return ScriptParseAssignmentAST(Parser, Error);
+            LPAST_NODE Assignment = ScriptParseAssignmentAST(Parser, Error);
+            DEBUG(TEXT("[ScriptParseStatementAST] Parsed assignment Node=%p Error=%u"), Assignment, *Error);
+            return Assignment;
         } else if (Parser->CurrentToken.Type == TOKEN_LBRACKET) {
             Parser->Position = SavedPosition;
             Parser->CurrentToken = SavedToken;
-            return ScriptParseAssignmentAST(Parser, Error);
+            LPAST_NODE Assignment = ScriptParseAssignmentAST(Parser, Error);
+            DEBUG(TEXT("[ScriptParseStatementAST] Parsed array assignment Node=%p Error=%u"), Assignment, *Error);
+            return Assignment;
         } else if (Parser->CurrentToken.Type == TOKEN_LPAREN) {
             Parser->Position = SavedPosition;
             Parser->CurrentToken = SavedToken;
-            return ScriptParseComparisonAST(Parser, Error);
+            LPAST_NODE Expression = ScriptParseComparisonAST(Parser, Error);
+            DEBUG(TEXT("[ScriptParseStatementAST] Parsed function expression Node=%p Error=%u"), Expression, *Error);
+            return Expression;
         }
 
         Parser->Position = SavedPosition;
         Parser->CurrentToken = SavedToken;
 
         if (ScriptShouldParseShellCommand(Parser)) {
-            return ScriptParseShellCommandExpression(Parser, Error);
+            LPAST_NODE CommandNode = ScriptParseShellCommandExpression(Parser, Error);
+            DEBUG(TEXT("[ScriptParseStatementAST] Parsed implicit command Node=%p Error=%u"), CommandNode, *Error);
+            return CommandNode;
         }
 
-        return ScriptParseComparisonAST(Parser, Error);
+        LPAST_NODE Expression = ScriptParseComparisonAST(Parser, Error);
+        DEBUG(TEXT("[ScriptParseStatementAST] Parsed expression Node=%p Error=%u"), Expression, *Error);
+        return Expression;
     }
 
     *Error = SCRIPT_ERROR_SYNTAX;
@@ -2741,6 +2824,10 @@ static LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRI
     if (Parser == NULL || Error == NULL) {
         return NULL;
     }
+
+    DEBUG(TEXT("[ScriptParseShellCommandExpression] Begin Token=%s Value='%s'"),
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Value);
 
     LPCSTR Input = Parser->Input;
     U32 Start = Parser->CurrentToken.Position;
@@ -2845,6 +2932,8 @@ static LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRI
     Parser->Position = Scan;
     ScriptNextToken(Parser);
 
+    DEBUG(TEXT("[ScriptParseShellCommandExpression] Command='%s'"), Node->Data.Expression.CommandLine);
+
     *Error = SCRIPT_OK;
     return Node;
 }
@@ -2862,6 +2951,7 @@ static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
         *Error = SCRIPT_ERROR_SYNTAX;
         return NULL;
     }
+    DEBUG(TEXT("[ScriptParseBlockAST] Enter"));
     ScriptNextToken(Parser);
 
     LPAST_NODE BlockNode = ScriptCreateASTNode(AST_BLOCK);
@@ -2905,6 +2995,7 @@ static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
         }
 
         BlockNode->Data.Block.Statements[BlockNode->Data.Block.Count++] = Statement;
+        DEBUG(TEXT("[ScriptParseBlockAST] Added statement %u"), BlockNode->Data.Block.Count);
 
         // Semicolon is mandatory after assignments, optional after blocks/if/for
         if (Statement->Type == AST_ASSIGNMENT) {
@@ -2931,6 +3022,7 @@ static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
     }
     ScriptNextToken(Parser);
 
+    DEBUG(TEXT("[ScriptParseBlockAST] Exit Count=%u"), BlockNode->Data.Block.Count);
     return BlockNode;
 }
 
@@ -2947,6 +3039,7 @@ static LPAST_NODE ScriptParseIfStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR
         *Error = SCRIPT_ERROR_SYNTAX;
         return NULL;
     }
+    DEBUG(TEXT("[ScriptParseIfStatementAST] Enter"));
     ScriptNextToken(Parser);
 
     // Expect opening parenthesis
@@ -2996,6 +3089,7 @@ static LPAST_NODE ScriptParseIfStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR
         }
     }
 
+    DEBUG(TEXT("[ScriptParseIfStatementAST] Exit Then=%p Else=%p"), IfNode->Data.If.Then, IfNode->Data.If.Else);
     return IfNode;
 }
 
@@ -3012,6 +3106,7 @@ static LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERRO
         *Error = SCRIPT_ERROR_SYNTAX;
         return NULL;
     }
+    DEBUG(TEXT("[ScriptParseForStatementAST] Enter"));
     ScriptNextToken(Parser);
 
     // Expect opening parenthesis
@@ -3080,6 +3175,7 @@ static LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERRO
         return NULL;
     }
 
+    DEBUG(TEXT("[ScriptParseForStatementAST] Exit Body=%p"), ForNode->Data.For.Body);
     return ForNode;
 }
 
