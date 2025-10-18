@@ -469,11 +469,7 @@ BOOL InitializeACPI(void) {
                 LINEAR TemporaryTableAddress =
                     TemporaryAddress + (LINEAR)(RsdtPhysical & (PHYSICAL)(PAGE_SIZE - 1));
 
-                if (!IsValidMemory(TemporaryTableAddress)) {
-                    DEBUG(TEXT("[InitializeACPI] Temporary RSDT at %p not accessible"),
-                          (LPVOID)TemporaryTableAddress);
-                    G_RSDT = NULL;
-                } else {
+                SAFE_USE(TemporaryTableAddress) {
                     LPACPI_RSDT TemporaryRsdt = (LPACPI_RSDT)TemporaryTableAddress;
                     UINT RsdtLength = TemporaryRsdt->Header.Length;
 
@@ -491,6 +487,9 @@ BOOL InitializeACPI(void) {
                             G_RSDT = NULL;
                         }
                     }
+                } else {
+                    DEBUG(TEXT("[InitializeACPI] Failed to map RSDT. TemporaryTableAddress is NULL"));
+                    G_RSDT = NULL;
                 }
             } else {
                 DEBUG(TEXT("[InitializeACPI] Failed to map RSDT"));
@@ -499,10 +498,7 @@ BOOL InitializeACPI(void) {
         }
 
         SAFE_USE(G_RSDT) {
-            if (!IsValidMemory((LINEAR)G_RSDT)) {
-                DEBUG(TEXT("[InitializeACPI] RSDT not accessible in virtual memory"));
-                G_RSDT = NULL;
-            } else if (!ValidateACPITableChecksum(&G_RSDT->Header)) {
+            if (!ValidateACPITableChecksum(&G_RSDT->Header)) {
                 DEBUG(TEXT("[InitializeACPI] RSDT checksum validation failed"));
                 G_RSDT = NULL;
             } else {
@@ -527,11 +523,7 @@ BOOL InitializeACPI(void) {
                 LINEAR TemporaryTableAddress =
                     TemporaryAddress + (LINEAR)(XsdtPhysical & (PHYSICAL)(PAGE_SIZE - 1));
 
-                if (!IsValidMemory(TemporaryTableAddress)) {
-                    DEBUG(TEXT("[InitializeACPI] Temporary XSDT at %p not accessible"),
-                          (LPVOID)TemporaryTableAddress);
-                    G_XSDT = NULL;
-                } else {
+                SAFE_USE(TemporaryTableAddress) {
                     LPACPI_XSDT TemporaryXsdt = (LPACPI_XSDT)TemporaryTableAddress;
                     UINT XsdtLength = TemporaryXsdt->Header.Length;
 
@@ -549,6 +541,9 @@ BOOL InitializeACPI(void) {
                             G_XSDT = NULL;
                         }
                     }
+                } else {
+                    DEBUG(TEXT("[InitializeACPI] Failed to map XSDT. TemporaryTableAddress is NULL"));
+                    G_XSDT = NULL;
                 }
             } else {
                 DEBUG(TEXT("[InitializeACPI] Failed to map XSDT"));
@@ -557,10 +552,7 @@ BOOL InitializeACPI(void) {
         }
 
         SAFE_USE(G_XSDT) {
-            if (!IsValidMemory((LINEAR)G_XSDT)) {
-                DEBUG(TEXT("[InitializeACPI] XSDT not accessible in virtual memory"));
-                G_XSDT = NULL;
-            } else if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
+            if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
                 DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
                 G_XSDT = NULL;
             } else {
