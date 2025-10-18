@@ -1273,6 +1273,9 @@ LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity) {
         return NULL;
     }
 
+    MemorySet(Array->Elements, 0, InitialCapacity * sizeof(LPVOID));
+    MemorySet(Array->ElementTypes, 0, InitialCapacity * sizeof(SCRIPT_VAR_TYPE));
+
     Array->Size = 0;
     Array->Capacity = InitialCapacity;
 
@@ -1288,10 +1291,25 @@ LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity) {
 void ScriptDestroyArray(LPSCRIPT_ARRAY Array) {
     if (Array == NULL) return;
 
-    // Free all string elements
+    // Free all owned elements
     for (U32 i = 0; i < Array->Size; i++) {
-        if (Array->ElementTypes[i] == SCRIPT_VAR_STRING && Array->Elements[i]) {
-            HeapFree(Array->Elements[i]);
+        switch (Array->ElementTypes[i]) {
+            case SCRIPT_VAR_STRING:
+            case SCRIPT_VAR_INTEGER:
+            case SCRIPT_VAR_FLOAT:
+                if (Array->Elements[i]) {
+                    HeapFree(Array->Elements[i]);
+                }
+                break;
+
+            case SCRIPT_VAR_ARRAY:
+                if (Array->Elements[i]) {
+                    ScriptDestroyArray((LPSCRIPT_ARRAY)Array->Elements[i]);
+                }
+                break;
+
+            default:
+                break;
         }
     }
 
@@ -1327,6 +1345,9 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
             return SCRIPT_ERROR_OUT_OF_MEMORY;
         }
 
+        MemorySet(NewElements, 0, NewCapacity * sizeof(LPVOID));
+        MemorySet(NewTypes, 0, NewCapacity * sizeof(SCRIPT_VAR_TYPE));
+
         // Copy existing elements
         for (U32 i = 0; i < Array->Size; i++) {
             NewElements[i] = Array->Elements[i];
@@ -1340,34 +1361,86 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
         Array->Capacity = NewCapacity;
     }
 
-    // Free existing string value if overwriting
-    if (Index < Array->Size && Array->ElementTypes[Index] == SCRIPT_VAR_STRING && Array->Elements[Index]) {
-        HeapFree(Array->Elements[Index]);
+    LPVOID NewElement = NULL;
+
+    switch (Type) {
+        case SCRIPT_VAR_STRING:
+            if (Value.String) {
+                U32 Len = StringLength(Value.String) + 1;
+                LPSTR Copy = (LPSTR)HeapAlloc(Len);
+                if (Copy == NULL) {
+                    return SCRIPT_ERROR_OUT_OF_MEMORY;
+                }
+                StringCopy(Copy, Value.String);
+                NewElement = Copy;
+            }
+            break;
+
+        case SCRIPT_VAR_INTEGER: {
+            I32* IntPtr = (I32*)HeapAlloc(sizeof(I32));
+            if (IntPtr == NULL) {
+                return SCRIPT_ERROR_OUT_OF_MEMORY;
+            }
+            *IntPtr = Value.Integer;
+            NewElement = IntPtr;
+            break;
+        }
+
+        case SCRIPT_VAR_FLOAT: {
+            F32* FloatPtr = (F32*)HeapAlloc(sizeof(F32));
+            if (FloatPtr == NULL) {
+                return SCRIPT_ERROR_OUT_OF_MEMORY;
+            }
+            *FloatPtr = Value.Float;
+            NewElement = FloatPtr;
+            break;
+        }
+
+        case SCRIPT_VAR_ARRAY:
+            NewElement = Value.Array;
+            break;
+
+        case SCRIPT_VAR_HOST_HANDLE:
+            NewElement = Value.HostHandle;
+            break;
+
+        default:
+            NewElement = NULL;
+            break;
     }
 
+    if (Index < Array->Size) {
+        switch (Array->ElementTypes[Index]) {
+            case SCRIPT_VAR_STRING:
+            case SCRIPT_VAR_INTEGER:
+            case SCRIPT_VAR_FLOAT:
+                if (Array->Elements[Index]) {
+                    HeapFree(Array->Elements[Index]);
+                }
+                break;
+
+            case SCRIPT_VAR_ARRAY:
+                if (Array->Elements[Index] && Array->Elements[Index] != NewElement) {
+                    ScriptDestroyArray((LPSCRIPT_ARRAY)Array->Elements[Index]);
+                }
+                break;
+
+            default:
+                break;
+        }
+    } else {
+        for (U32 Fill = Array->Size; Fill < Index; Fill++) {
+            Array->Elements[Fill] = NULL;
+            Array->ElementTypes[Fill] = SCRIPT_VAR_STRING;
+        }
+    }
+
+    Array->Elements[Index] = NewElement;
     Array->ElementTypes[Index] = Type;
 
-    // Copy value based on type
-    if (Type == SCRIPT_VAR_STRING && Value.String) {
-        U32 Len = StringLength(Value.String) + 1;
-        Array->Elements[Index] = HeapAlloc(Len);
-        if (Array->Elements[Index] == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
-        StringCopy((LPSTR)Array->Elements[Index], Value.String);
-    } else if (Type == SCRIPT_VAR_INTEGER) {
-        I32* IntPtr = (I32*)HeapAlloc(sizeof(I32));
-        if (IntPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
-        *IntPtr = Value.Integer;
-        Array->Elements[Index] = IntPtr;
-    } else if (Type == SCRIPT_VAR_FLOAT) {
-        F32* FloatPtr = (F32*)HeapAlloc(sizeof(F32));
-        if (FloatPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
-        *FloatPtr = Value.Float;
-        Array->Elements[Index] = FloatPtr;
-    } else {
-        Array->Elements[Index] = NULL;
+    if (Index >= Array->Size) {
+        Array->Size = Index + 1;
     }
-
-    if (Index >= Array->Size) Array->Size = Index + 1;
 
     return SCRIPT_OK;
 }
@@ -1388,14 +1461,35 @@ SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Ty
 
     *Type = Array->ElementTypes[Index];
 
-    if (*Type == SCRIPT_VAR_STRING) {
-        Value->String = (LPSTR)Array->Elements[Index];
-    } else if (*Type == SCRIPT_VAR_INTEGER) {
-        Value->Integer = *(I32*)Array->Elements[Index];
-    } else if (*Type == SCRIPT_VAR_FLOAT) {
-        Value->Float = *(F32*)Array->Elements[Index];
-    } else {
-        return SCRIPT_ERROR_TYPE_MISMATCH;
+    switch (*Type) {
+        case SCRIPT_VAR_STRING:
+            Value->String = (LPSTR)Array->Elements[Index];
+            break;
+
+        case SCRIPT_VAR_INTEGER:
+            if (Array->Elements[Index] == NULL) {
+                return SCRIPT_ERROR_TYPE_MISMATCH;
+            }
+            Value->Integer = *((I32*)Array->Elements[Index]);
+            break;
+
+        case SCRIPT_VAR_FLOAT:
+            if (Array->Elements[Index] == NULL) {
+                return SCRIPT_ERROR_TYPE_MISMATCH;
+            }
+            Value->Float = *((F32*)Array->Elements[Index]);
+            break;
+
+        case SCRIPT_VAR_ARRAY:
+            Value->Array = (LPSCRIPT_ARRAY)Array->Elements[Index];
+            break;
+
+        case SCRIPT_VAR_HOST_HANDLE:
+            Value->HostHandle = Array->Elements[Index];
+            break;
+
+        default:
+            return SCRIPT_ERROR_TYPE_MISMATCH;
     }
 
     return SCRIPT_OK;
@@ -3003,6 +3097,9 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
         if (ExistingVar->Type == SCRIPT_VAR_STRING && ExistingVar->Value.String) {
             HeapFree(ExistingVar->Value.String);
             ExistingVar->Value.String = NULL;
+        } else if (ExistingVar->Type == SCRIPT_VAR_ARRAY && ExistingVar->Value.Array) {
+            ScriptDestroyArray(ExistingVar->Value.Array);
+            ExistingVar->Value.Array = NULL;
         }
 
         ExistingVar->Type = Type;
