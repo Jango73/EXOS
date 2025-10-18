@@ -260,6 +260,10 @@ typedef struct {
     LPSCRIPT_CALLBACKS Callbacks;
     LPSCRIPT_SCOPE CurrentScope;
     LPSCRIPT_CONTEXT Context;
+    U32 InputLength;
+    BOOL InputPointerValid;
+    BOOL InputTailValid;
+    BOOL InputTerminated;
 } SCRIPT_PARSER, *LPSCRIPT_PARSER;
 
 struct tag_SCRIPT_CONTEXT {
