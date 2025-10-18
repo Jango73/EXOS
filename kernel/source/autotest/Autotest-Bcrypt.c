@@ -36,15 +36,15 @@
 #define ENCRYPT 0
 #define DECRYPT 1
 
-typedef unsigned long uLong;
+typedef U32 uLong;
 
 typedef struct {
-    unsigned char remove;
-    unsigned char standardout;
-    unsigned char compression;
-    unsigned char type;
+    U8 remove;
+    U8 standardout;
+    U8 compression;
+    U8 type;
     uLong origsize;
-    unsigned char securedelete;
+    U8 securedelete;
 } BCoptions;
 
 /************************************************************************/
@@ -82,7 +82,7 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     U32 WorkingSize = 0;
     U32 KeyLength = 0;
     BOOL TestPassed = FALSE;
-    const U32 BlockSize = (U32)(sizeof(uInt32) * 2U);
+    const U32 BlockSize = 8U;
 
     DEBUG(TEXT("[TestBcrypt] Starting test: %s"), TestName);
     DEBUG(TEXT("[TestBcrypt] Data size: %u"), DataSize);
