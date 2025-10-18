@@ -1160,9 +1160,12 @@ BOOL IsValidMemory(LINEAR Address) {
         return FALSE;
     }
 
-    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Address);
+    PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
+    DEBUG(TEXT("[IsValidMemory] PDPT physical=%p"), (LPVOID)PdptPhysical);
+
+    LPPDPT Pdpt = (LPPDPT)MapTemporaryPhysicalPage2(PdptPhysical);
     if (Pdpt == NULL) {
-        ERROR(TEXT("[IsValidMemory] Failed to obtain PDPT VA for %p"), (LPVOID)Address);
+        ERROR(TEXT("[IsValidMemory] Failed to map PDPT for %p"), (LPVOID)Address);
         return FALSE;
     }
 
@@ -1184,9 +1187,12 @@ BOOL IsValidMemory(LINEAR Address) {
         return TRUE;
     }
 
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Address);
+    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
+    DEBUG(TEXT("[IsValidMemory] Directory physical=%p"), (LPVOID)DirectoryPhysical);
+
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage3(DirectoryPhysical);
     if (Directory == NULL) {
-        ERROR(TEXT("[IsValidMemory] Failed to obtain page directory VA for %p"), (LPVOID)Address);
+        ERROR(TEXT("[IsValidMemory] Failed to map page directory for %p"), (LPVOID)Address);
         return FALSE;
     }
 
@@ -1208,9 +1214,12 @@ BOOL IsValidMemory(LINEAR Address) {
         return TRUE;
     }
 
-    LPPAGE_TABLE Table = GetPageTableVAFor(Address);
+    PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntryValue & PAGE_MASK);
+    DEBUG(TEXT("[IsValidMemory] Table physical=%p"), (LPVOID)TablePhysical);
+
+    LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTemporaryPhysicalPage2(TablePhysical);
     if (Table == NULL) {
-        ERROR(TEXT("[IsValidMemory] Failed to obtain page table VA for %p"), (LPVOID)Address);
+        ERROR(TEXT("[IsValidMemory] Failed to map page table for %p"), (LPVOID)Address);
         return FALSE;
     }
 
