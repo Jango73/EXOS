@@ -918,7 +918,7 @@ LPSTR FloatToString(LPSTR Text, F32 Value, I32 Precision) {
  */
 void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     LPCSTR Text = NULL;
-    UINT NumberValue = 0;
+    U64 NumberValue = 0;
     BOOL NumberIsNegative = FALSE;
     BOOL NumberIsPreloaded = FALSE;
     BOOL QualifierIsLongLong = FALSE;
@@ -980,7 +980,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
             FieldWidth = SkipAToI(&Format);
         } else if (*Format == '*') {
             Format++;
-            FieldWidth = VarArg(Args, INT);
+            FieldWidth = VarArg(Args, I32);
             if (FieldWidth < 0) {
                 FieldWidth = -FieldWidth;
                 Flags |= PF_LEFT;
@@ -994,7 +994,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 Precision = SkipAToI(&Format);
             } else if (*Format == '*') {
                 Format++;
-                Precision = VarArg(Args, INT);
+                Precision = VarArg(Args, I32);
             }
             if (Precision < 0) Precision = 0;
         }
@@ -1017,7 +1017,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 if (!(Flags & PF_LEFT)) {
                     while (--FieldWidth > 0) *Dst++ = STR_SPACE;
                 }
-                *Dst++ = (STR)VarArg(Args, INT);
+                *Dst++ = (STR)VarArg(Args, I32);
                 while (--FieldWidth > 0) *Dst++ = STR_SPACE;
                 continue;
 
@@ -1044,7 +1044,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 }
                 Base = 16;
                 LINEAR PointerValue = (LINEAR)VarArg(Args, LPVOID);
-                NumberValue = (UINT)PointerValue;
+                NumberValue = (U64)PointerValue;
                 NumberIsPreloaded = TRUE;
                 NumberIsNegative = FALSE;
                 goto HandleNumber;
@@ -1107,57 +1107,65 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                     I64 SignedValue = VarArg(Args, I64);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (UINT)(-SignedValue);
+                        NumberValue = (U64)(-SignedValue);
                     } else {
-                        NumberValue = (UINT)SignedValue;
+                        NumberValue = (U64)SignedValue;
                     }
                 } else
                 #endif
                 if (Qualifier == 'l' || Qualifier == 'L') {
+#ifdef __EXOS_64__
+                    I64 SignedValue = VarArg(Args, I64);
+#else
                     I32 SignedValue = VarArg(Args, I32);
+#endif
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (UINT)(-SignedValue);
+                        NumberValue = (U64)(-SignedValue);
                     } else {
-                        NumberValue = (UINT)SignedValue;
+                        NumberValue = (U64)SignedValue;
                     }
                 } else if (Qualifier == 'h') {
-                    INT RawValue = VarArg(Args, INT);
+                    I32 RawValue = VarArg(Args, I32);
                     I16 ShortValue = (I16)RawValue;
                     if (ShortValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (UINT)(-(INT)ShortValue);
+                        NumberValue = (U64)(-(I32)ShortValue);
                     } else {
-                        NumberValue = (UINT)ShortValue;
+                        NumberValue = (U64)ShortValue;
                     }
                 } else {
-                    INT SignedValue = VarArg(Args, INT);
+                    I32 SignedValue = VarArg(Args, I32);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (UINT)(-SignedValue);
+                        NumberValue = (U64)(-SignedValue);
                     } else {
-                        NumberValue = (UINT)SignedValue;
+                        NumberValue = (U64)SignedValue;
                     }
                 }
             } else {
-                #ifdef __EXOS_64__
+#ifdef __EXOS_64__
                 if (QualifierIsLongLong) {
                     NumberValue = VarArg(Args, U64);
                 } else
-                #endif
+#endif
                 if (Qualifier == 'l' || Qualifier == 'L') {
-                    NumberValue = (UINT)VarArg(Args, U32);
+#ifdef __EXOS_64__
+                    NumberValue = (U64)VarArg(Args, U64);
+#else
+                    NumberValue = (U64)VarArg(Args, U32);
+#endif
                 } else if (Qualifier == 'h') {
-                    NumberValue = (UINT)(U16)VarArg(Args, UINT);
+                    NumberValue = (U64)(U16)VarArg(Args, U32);
                 } else {
-                    NumberValue = (UINT)VarArg(Args, UINT);
+                    NumberValue = (U64)VarArg(Args, U32);
                 }
             }
         }
 
         // Convert number to formatted string and copy to output
         STR Temp[128];
-        NumberToString(Temp, NumberValue, Base, FieldWidth, Precision, Flags, NumberIsNegative);
+        NumberToString(Temp, (UINT)NumberValue, Base, FieldWidth, Precision, Flags, NumberIsNegative);
         NumberIsPreloaded = FALSE;
         NumberIsNegative = FALSE;
         for (i = 0; Temp[i] != STR_NULL; i++) {
