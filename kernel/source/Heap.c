@@ -27,6 +27,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Process.h"
+#include "Memory.h"
 
 /************************************************************************/
 
@@ -475,9 +476,16 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
  */
 LPVOID HeapAlloc_P(LPPROCESS Process, UINT Size) {
     LPVOID Pointer = NULL;
+
+    if (Process == NULL) {
+        ERROR(TEXT("[HeapAlloc_P] Process pointer is NULL"));
+        return NULL;
+    }
+
     LockMutex(&(Process->HeapMutex), INFINITY);
     Pointer = HeapAlloc_HBHS(Process, Process->HeapBase, Process->HeapSize, Size);
     UnlockMutex(&(Process->HeapMutex));
+
     return Pointer;
 }
 
@@ -527,7 +535,13 @@ void HeapFree_P(LPPROCESS Process, LPVOID Pointer) {
  * Convenience function for allocating memory from the kernel process heap.
  */
 LPVOID KernelHeapAlloc(UINT Size) {
-    return HeapAlloc_P(&KernelProcess, Size);
+    LPVOID Pointer = HeapAlloc_P(&KernelProcess, Size);
+
+    if (Pointer == NULL) {
+        ERROR(TEXT("[KernelHeapAlloc] Allocation failed"));
+    }
+
+    return Pointer;
 }
 
 /************************************************************************/
@@ -567,7 +581,6 @@ void KernelHeapFree(LPVOID Pointer) { HeapFree_P(&KernelProcess, Pointer); }
 LPVOID HeapAlloc(UINT Size) {
     LPPROCESS Process = GetCurrentProcess();
     if (Process == NULL) return NULL;
-
     return HeapAlloc_P(Process, Size);
 }
 
@@ -583,7 +596,6 @@ LPVOID HeapAlloc(UINT Size) {
 void HeapFree(LPVOID Pointer) {
     LPPROCESS Process = GetCurrentProcess();
     if (Process == NULL) return;
-
     HeapFree_P(Process, Pointer);
 }
 
@@ -601,6 +613,5 @@ void HeapFree(LPVOID Pointer) {
 LPVOID HeapRealloc(LPVOID Pointer, UINT Size) {
     LPPROCESS Process = GetCurrentProcess();
     if (Process == NULL) return NULL;
-
     return HeapRealloc_P(Process, Pointer, Size);
 }

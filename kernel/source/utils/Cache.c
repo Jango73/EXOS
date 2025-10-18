@@ -27,7 +27,7 @@
 #include "Clock.h"
 #include "Heap.h"
 #include "Log.h"
-#include "Mutex.h"
+#include "Memory.h"
 
 /************************************************************************/
 
@@ -65,12 +65,16 @@ static LPCACHE_ENTRY CacheFindLowestScoreEntryInternal(LPCACHE Cache) {
  * @param Capacity Maximum number of entries
  */
 void CacheInit(LPCACHE Cache, UINT Capacity) {
-    DEBUG(TEXT("[CacheInit] Capacity: %u"), Capacity);
+    UINT AllocationSize = (UINT)(Capacity * sizeof(CACHE_ENTRY));
 
+    InitMutex(&Cache->Mutex);
     Cache->Capacity = Capacity;
     Cache->Count = 0;
-    Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(Capacity * sizeof(CACHE_ENTRY));
-    Cache->Mutex = (MUTEX)EMPTY_MUTEX;
+    Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(AllocationSize);
+
+    if (Cache->Entries == NULL) {
+        ERROR(TEXT("[CacheInit] KernelHeapAlloc failed"));
+    }
 
     for (UINT Index = 0; Index < Capacity; Index++) {
         Cache->Entries[Index].Data = NULL;
@@ -206,11 +210,13 @@ LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LP
                 if (Cache->Entries[Index].Data) {
                     KernelHeapFree(Cache->Entries[Index].Data);
                 }
+
                 Cache->Entries[Index].Data = NULL;
                 Cache->Entries[Index].ExpirationTime = 0;
                 Cache->Entries[Index].TTL = 0;
                 Cache->Entries[Index].Score = 0;
                 Cache->Entries[Index].Valid = FALSE;
+
                 if (Cache->Count > 0) {
                     Cache->Count--;
                 }
@@ -265,10 +271,6 @@ void CacheCleanup(LPCACHE Cache, UINT CurrentTime) {
                 RemovedCount++;
             }
         }
-    }
-
-    if (RemovedCount > 0) {
-        DEBUG(TEXT("[CacheCleanup] Removed %u expired entries"), RemovedCount);
     }
 
     UnlockMutex(&Cache->Mutex);
