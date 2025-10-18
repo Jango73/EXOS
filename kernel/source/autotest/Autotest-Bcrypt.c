@@ -78,6 +78,9 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     U32 PaddedSize;
     BOOL TestPassed = FALSE;
 
+    DEBUG(TEXT("[TestBcrypt] Starting test: %s"), TestName);
+    DEBUG(TEXT("[TestBcrypt] Data size: %u"), DataSize);
+
     // Calculate required size
     PaddedSize = DataSize + MAXKEYBYTES;
     if (PaddedSize % 8 != 0) {
@@ -95,6 +98,7 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     MemorySet(InputBuffer, 0, sizeof(InputBuffer));
     MemoryCopy(InputBuffer, OriginalData, DataSize);
     MemoryCopy(InputBuffer + DataSize, Key, MAXKEYBYTES);
+    DEBUG(TEXT("[TestBcrypt] Input buffer prepared"));
 
     // Initialize options
     Options.remove = 0;
@@ -107,22 +111,27 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     // Prepare key2 (alternate key for endian handling)
     MemorySet(Key2, 0, sizeof(Key2));
     MemoryCopy(Key2, Key, MAXKEYBYTES);
+    DEBUG(TEXT("[TestBcrypt] Keys initialized"));
 
     // Test encryption
+    DEBUG(TEXT("[TestBcrypt] Calling BFEncrypt"));
     EncryptedSize = BFEncrypt(&BufferPtr, (char *)Key, DataSize + MAXKEYBYTES, &Options);
     if (EncryptedSize == 0) {
         DEBUG(TEXT("[TestBcrypt] Encryption failed for test: %s"), TestName);
         Results->TestsRun++;
         return FALSE;
     }
+    DEBUG(TEXT("[TestBcrypt] Encryption finished, size: %u"), EncryptedSize);
 
     // Test decryption
+    DEBUG(TEXT("[TestBcrypt] Calling BFDecrypt"));
     DecryptedSize = BFDecrypt(&BufferPtr, (char *)Key, Key2, EncryptedSize, &Options);
     if (DecryptedSize == 0) {
         DEBUG(TEXT("[TestBcrypt] Decryption failed for test: %s"), TestName);
         Results->TestsRun++;
         return FALSE;
     }
+    DEBUG(TEXT("[TestBcrypt] Decryption finished, size: %u"), DecryptedSize);
 
     // Verify decrypted data matches original
     if (DataSize == 0) {
@@ -137,6 +146,7 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
 
     Results->TestsRun++;
     if (TestPassed) Results->TestsPassed++;
+    DEBUG(TEXT("[TestBcrypt] Test result for %s: %s"), TestName, TestPassed ? TEXT("PASS") : TEXT("FAIL"));
     return TestPassed;
 }
 
@@ -152,6 +162,8 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
 void TestBcrypt(TEST_RESULTS* Results) {
     Results->TestsRun = 0;
     Results->TestsPassed = 0;
+
+    DEBUG(TEXT("[TestBcrypt] Starting bcrypt autotests"));
 
     // Test 1: Simple short string
     TestEncryptDecrypt("Simple string", "Hello World!", 12, "mypassword123456", Results);
@@ -171,4 +183,6 @@ void TestBcrypt(TEST_RESULTS* Results) {
     // Test 6: Binary-like data (with null bytes)
     char BinaryData[] = {0x01, 0x02, 0x00, 0x03, 0x04, 0xFF, 0x00, 0x05};
     TestEncryptDecrypt("Binary data", BinaryData, 8, "binarykey1234567", Results);
+
+    DEBUG(TEXT("[TestBcrypt] Completed bcrypt autotests. Tests run: %u, passed: %u"), Results->TestsRun, Results->TestsPassed);
 }
