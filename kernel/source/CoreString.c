@@ -918,7 +918,7 @@ LPSTR FloatToString(LPSTR Text, F32 Value, I32 Precision) {
  */
 void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     LPCSTR Text = NULL;
-    U64 NumberValue = 0;
+    UINT NumberValue = 0;
     BOOL NumberIsNegative = FALSE;
     BOOL NumberIsPreloaded = FALSE;
     BOOL QualifierIsLongLong = FALSE;
@@ -949,7 +949,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
         Flags = 0;
         NumberIsPreloaded = FALSE;
         NumberIsNegative = FALSE;
-        NumberValue = 0ull;
+        NumberValue = 0;
 
         // Parse format flags (-, +, space, #, 0) - can appear in any combination
     Repeat:
@@ -1044,7 +1044,7 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                 }
                 Base = 16;
                 LINEAR PointerValue = (LINEAR)VarArg(Args, LPVOID);
-                NumberValue = (U64)PointerValue;
+                NumberValue = (UINT)PointerValue;
                 NumberIsPreloaded = TRUE;
                 NumberIsNegative = FALSE;
                 goto HandleNumber;
@@ -1107,9 +1107,9 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
                     I64 SignedValue = VarArg(Args, I64);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-SignedValue);
+                        NumberValue = (UINT)(-SignedValue);
                     } else {
-                        NumberValue = (U64)SignedValue;
+                        NumberValue = (UINT)SignedValue;
                     }
                 } else
                 #endif
@@ -1121,44 +1121,44 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
 #endif
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-SignedValue);
+                        NumberValue = (UINT)(-SignedValue);
                     } else {
-                        NumberValue = (U64)SignedValue;
+                        NumberValue = (UINT)SignedValue;
                     }
                 } else if (Qualifier == 'h') {
                     I32 RawValue = VarArg(Args, I32);
                     I16 ShortValue = (I16)RawValue;
                     if (ShortValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-(I32)ShortValue);
+                        NumberValue = (UINT)(-(I32)ShortValue);
                     } else {
-                        NumberValue = (U64)ShortValue;
+                        NumberValue = (UINT)ShortValue;
                     }
                 } else {
                     I32 SignedValue = VarArg(Args, I32);
                     if (SignedValue < 0) {
                         NumberIsNegative = TRUE;
-                        NumberValue = (U64)(-SignedValue);
+                        NumberValue = (UINT)(-SignedValue);
                     } else {
-                        NumberValue = (U64)SignedValue;
+                        NumberValue = (UINT)SignedValue;
                     }
                 }
             } else {
 #ifdef __EXOS_64__
                 if (QualifierIsLongLong) {
-                    NumberValue = VarArg(Args, U64);
+                    NumberValue = (UINT)VarArg(Args, U64);
                 } else
 #endif
                 if (Qualifier == 'l' || Qualifier == 'L') {
 #ifdef __EXOS_64__
-                    NumberValue = (U64)VarArg(Args, U64);
+                    NumberValue = (UINT)VarArg(Args, U64);
 #else
-                    NumberValue = (U64)VarArg(Args, U32);
+                    NumberValue = (UINT)VarArg(Args, U32);
 #endif
                 } else if (Qualifier == 'h') {
-                    NumberValue = (U64)(U16)VarArg(Args, U32);
+                    NumberValue = (UINT)(U16)VarArg(Args, U32);
                 } else {
-                    NumberValue = (U64)VarArg(Args, U32);
+                    NumberValue = (UINT)VarArg(Args, U32);
                 }
             }
         }
