@@ -82,9 +82,39 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
 
     DEBUG(TEXT("[CacheInit] KernelHeapAlloc returned entries=%p"), Cache->Entries);
 
-    DEBUG(TEXT("[CacheInit] Preparing to initialize mutex at %p"), &(Cache->Mutex));
+    LPMUTEX CacheMutex = &(Cache->Mutex);
+    UINT MutexSize = (UINT)sizeof(MUTEX);
+    LINEAR MutexStart = (LINEAR)CacheMutex;
+    LINEAR MutexEnd = MutexStart;
+
+    if (MutexSize > 0) {
+        MutexEnd = MutexStart + (LINEAR)(MutexSize - 1);
+    }
+
+    DEBUG(TEXT("[CacheInit] Mutex structure start=%p size=%u"), CacheMutex, MutexSize);
+    DEBUG(TEXT("[CacheInit] Mutex structure startValid=%u endValid=%u"), IsValidMemory(MutexStart), IsValidMemory(MutexEnd));
+
+    BOOL MutexRangeValid = TRUE;
+
+    for (UINT Offset = 0; Offset < MutexSize; Offset++) {
+        LINEAR TestAddress = MutexStart + (LINEAR)Offset;
+
+        if (!IsValidMemory(TestAddress)) {
+            WARNING(TEXT("[CacheInit] Mutex byte at offset %u address=%p invalid"), Offset, (LPVOID)TestAddress);
+            MutexRangeValid = FALSE;
+            break;
+        }
+    }
+
+    if (MutexRangeValid) {
+        DEBUG(TEXT("[CacheInit] Mutex range validated start=%p end=%p"), (LPVOID)MutexStart, (LPVOID)MutexEnd);
+    } else {
+        ERROR(TEXT("[CacheInit] Mutex range validation failed start=%p end=%p"), (LPVOID)MutexStart, (LPVOID)MutexEnd);
+    }
+
+    DEBUG(TEXT("[CacheInit] Preparing to initialize mutex at %p"), CacheMutex);
     Cache->Mutex = (MUTEX)EMPTY_MUTEX;
-    DEBUG(TEXT("[CacheInit] Mutex initialized lockCount=%u"), Cache->Mutex.Lock);
+    DEBUG(TEXT("[CacheInit] Mutex initialized lockCount=%u type=%x"), Cache->Mutex.Lock, Cache->Mutex.TypeID);
 
     DEBUG(TEXT("[CacheInit] Entries pointer=%p size=%u"), Cache->Entries, AllocationSize);
 
