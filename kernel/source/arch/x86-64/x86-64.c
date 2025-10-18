@@ -1143,19 +1143,17 @@ BOOL IsValidMemory(LINEAR Address) {
     U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
     if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
 
-    PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
-    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(PdptPhysical);
+    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Address);
     if (Pdpt == NULL) return FALSE;
 
     UINT PdptIndex = GetPdptEntry(Address);
     if (PdptIndex >= PDPT_ENTRY_COUNT) return FALSE;
 
-    U64 PdptEntryValue = ReadPageDirectoryEntryValue(Pdpt, PdptIndex);
+    U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
     if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
     if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) return TRUE;  // 1GB page
 
-    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Address);
     if (Directory == NULL) return FALSE;
 
     UINT DirectoryIndex = GetDirectoryEntry(Address);
@@ -1165,8 +1163,7 @@ BOOL IsValidMemory(LINEAR Address) {
     if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
     if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) return TRUE;  // 2MB page
 
-    PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntryValue & PAGE_MASK);
-    LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTemporaryPhysicalPage3(TablePhysical);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Address);
     if (Table == NULL) return FALSE;
 
     UINT TableIndex = GetTableEntry(Address);
