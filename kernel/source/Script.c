@@ -66,6 +66,68 @@ static LPSCRIPT_HOST_SYMBOL ScriptFindHostSymbol(LPSCRIPT_HOST_REGISTRY Registry
 
 /************************************************************************/
 
+static LPCSTR ScriptVarTypeToString(SCRIPT_VAR_TYPE Type) {
+    switch (Type) {
+        case SCRIPT_VAR_FLOAT:
+            return TEXT("Float");
+        case SCRIPT_VAR_INTEGER:
+            return TEXT("Integer");
+        case SCRIPT_VAR_STRING:
+            return TEXT("String");
+        case SCRIPT_VAR_ARRAY:
+            return TEXT("Array");
+        case SCRIPT_VAR_HOST_HANDLE:
+            return TEXT("HostHandle");
+        default:
+            return TEXT("Unknown");
+    }
+}
+
+/************************************************************************/
+
+static LPCSTR ScriptTokenTypeToString(TOKEN_TYPE Type) {
+    switch (Type) {
+        case TOKEN_EOF:
+            return TEXT("EOF");
+        case TOKEN_NUMBER:
+            return TEXT("Number");
+        case TOKEN_STRING:
+            return TEXT("String");
+        case TOKEN_IDENTIFIER:
+            return TEXT("Identifier");
+        case TOKEN_OPERATOR:
+            return TEXT("Operator");
+        case TOKEN_LPAREN:
+            return TEXT("LeftParen");
+        case TOKEN_RPAREN:
+            return TEXT("RightParen");
+        case TOKEN_LBRACE:
+            return TEXT("LeftBrace");
+        case TOKEN_RBRACE:
+            return TEXT("RightBrace");
+        case TOKEN_SEMICOLON:
+            return TEXT("Semicolon");
+        case TOKEN_IF:
+            return TEXT("If");
+        case TOKEN_ELSE:
+            return TEXT("Else");
+        case TOKEN_FOR:
+            return TEXT("For");
+        case TOKEN_COMMA:
+            return TEXT("Comma");
+        case TOKEN_LBRACKET:
+            return TEXT("LeftBracket");
+        case TOKEN_RBRACKET:
+            return TEXT("RightBracket");
+        case TOKEN_PATH:
+            return TEXT("Path");
+        default:
+            return TEXT("Unknown");
+    }
+}
+
+/************************************************************************/
+
 /**
  * @brief Create a new script context with callback bindings.
  * @param Callbacks Pointer to callback structure for external integration
@@ -102,6 +164,7 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
 
     Context->ErrorCode = SCRIPT_OK;
 
+    DEBUG(TEXT("[ScriptCreateContext] Context %p created (GlobalScope=%p)"), Context, Context->GlobalScope);
     return Context;
 }
 
@@ -113,6 +176,8 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
  */
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context) {
     if (Context == NULL) return;
+
+    DEBUG(TEXT("[ScriptDestroyContext] Destroying context %p"), Context);
 
     ScriptClearHostRegistryInternal(&Context->HostRegistry);
 
@@ -137,6 +202,8 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
         DEBUG(TEXT("[ScriptExecute] NULL parameters"));
         return SCRIPT_ERROR_SYNTAX;
     }
+
+    DEBUG(TEXT("[ScriptExecute] Starting execution (Context=%p, ScriptPtr=%p)"), Context, Script);
 
     Context->ErrorCode = SCRIPT_OK;
     Context->ErrorMessage[0] = STR_NULL;
@@ -193,6 +260,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
         }
 
         Root->Data.Block.Statements[Root->Data.Block.Count++] = Statement;
+        DEBUG(TEXT("[ScriptExecute] Parsed statement %u (Type=%u)"), Root->Data.Block.Count, Statement->Type);
 
         // Semicolon is mandatory after assignments, optional after blocks/if/for
         if (Statement->Type == AST_ASSIGNMENT) {
@@ -215,6 +283,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
     // PASS 2: Execute AST - Execute statements directly without creating a new scope
     for (U32 i = 0; i < Root->Data.Block.Count; i++) {
+        DEBUG(TEXT("[ScriptExecute] Executing statement %u/%u"), i + 1, Root->Data.Block.Count);
         Error = ScriptExecuteAST(&Parser, Root->Data.Block.Statements[i]);
         if (Error != SCRIPT_OK) {
             break;
@@ -232,6 +301,9 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
             StringCopy(Context->ErrorMessage, TEXT("Execution error"));
         }
         Context->ErrorCode = Error;
+        DEBUG(TEXT("[ScriptExecute] Execution finished with error %u"), Error);
+    } else {
+        DEBUG(TEXT("[ScriptExecute] Execution finished successfully"));
     }
 
     return Error;
@@ -489,6 +561,8 @@ static void ScriptCalculateLineColumn(LPCSTR Input, U32 Position, U32* Line, U32
 static void ScriptFreeVariable(LPSCRIPT_VARIABLE Variable) {
     if (Variable == NULL) return;
 
+    DEBUG(TEXT("[ScriptFreeVariable] Freeing variable %p (Type=%s)"), Variable, ScriptVarTypeToString(Variable->Type));
+
     if (Variable->Type == SCRIPT_VAR_STRING && Variable->Value.String) {
         HeapFree(Variable->Value.String);
     } else if (Variable->Type == SCRIPT_VAR_ARRAY && Variable->Value.Array) {
@@ -519,6 +593,8 @@ static void ScriptValueRelease(SCRIPT_VALUE* Value) {
     if (Value == NULL) {
         return;
     }
+
+    DEBUG(TEXT("[ScriptValueRelease] Releasing value (Type=%s, Owns=%u)"), ScriptVarTypeToString(Value->Type), Value->OwnsValue);
 
     if (Value->Type == SCRIPT_VAR_STRING && Value->OwnsValue && Value->Value.String) {
         HeapFree(Value->Value.String);
@@ -1258,10 +1334,15 @@ static LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Err
  * @return Pointer to new array or NULL on failure
  */
 LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity) {
+    DEBUG(TEXT("[ScriptCreateArray] Requested capacity %u"), InitialCapacity);
+
     if (InitialCapacity == 0) InitialCapacity = 4;
 
     LPSCRIPT_ARRAY Array = (LPSCRIPT_ARRAY)HeapAlloc(sizeof(SCRIPT_ARRAY));
-    if (Array == NULL) return NULL;
+    if (Array == NULL) {
+        DEBUG(TEXT("[ScriptCreateArray] Failed to allocate array header"));
+        return NULL;
+    }
 
     Array->Elements = (LPVOID*)HeapAlloc(InitialCapacity * sizeof(LPVOID));
     Array->ElementTypes = (SCRIPT_VAR_TYPE*)HeapAlloc(InitialCapacity * sizeof(SCRIPT_VAR_TYPE));
@@ -1270,15 +1351,14 @@ LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity) {
         if (Array->Elements) HeapFree(Array->Elements);
         if (Array->ElementTypes) HeapFree(Array->ElementTypes);
         HeapFree(Array);
+        DEBUG(TEXT("[ScriptCreateArray] Failed to allocate element storage"));
         return NULL;
     }
-
-    MemorySet(Array->Elements, 0, InitialCapacity * sizeof(LPVOID));
-    MemorySet(Array->ElementTypes, 0, InitialCapacity * sizeof(SCRIPT_VAR_TYPE));
 
     Array->Size = 0;
     Array->Capacity = InitialCapacity;
 
+    DEBUG(TEXT("[ScriptCreateArray] Array %p created (Capacity=%u)"), Array, Array->Capacity);
     return Array;
 }
 
@@ -1291,25 +1371,12 @@ LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity) {
 void ScriptDestroyArray(LPSCRIPT_ARRAY Array) {
     if (Array == NULL) return;
 
-    // Free all owned elements
+    DEBUG(TEXT("[ScriptDestroyArray] Destroying array %p (Size=%u, Capacity=%u)"), Array, Array->Size, Array->Capacity);
+
+    // Free all string elements
     for (U32 i = 0; i < Array->Size; i++) {
-        switch (Array->ElementTypes[i]) {
-            case SCRIPT_VAR_STRING:
-            case SCRIPT_VAR_INTEGER:
-            case SCRIPT_VAR_FLOAT:
-                if (Array->Elements[i]) {
-                    HeapFree(Array->Elements[i]);
-                }
-                break;
-
-            case SCRIPT_VAR_ARRAY:
-                if (Array->Elements[i]) {
-                    ScriptDestroyArray((LPSCRIPT_ARRAY)Array->Elements[i]);
-                }
-                break;
-
-            default:
-                break;
+        if (Array->ElementTypes[i] == SCRIPT_VAR_STRING && Array->Elements[i]) {
+            HeapFree(Array->Elements[i]);
         }
     }
 
@@ -1331,6 +1398,8 @@ void ScriptDestroyArray(LPSCRIPT_ARRAY Array) {
 SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value) {
     if (Array == NULL) return SCRIPT_ERROR_SYNTAX;
 
+    DEBUG(TEXT("[ScriptArraySet] Array=%p Index=%u Type=%s Size=%u Capacity=%u"), Array, Index, ScriptVarTypeToString(Type), Array->Size, Array->Capacity);
+
     // Resize array if necessary
     if (Index >= Array->Capacity) {
         U32 NewCapacity = Index + 1;
@@ -1342,11 +1411,9 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
         if (NewElements == NULL || NewTypes == NULL) {
             if (NewElements) HeapFree(NewElements);
             if (NewTypes) HeapFree(NewTypes);
+            DEBUG(TEXT("[ScriptArraySet] Failed to grow array to capacity %u"), NewCapacity);
             return SCRIPT_ERROR_OUT_OF_MEMORY;
         }
-
-        MemorySet(NewElements, 0, NewCapacity * sizeof(LPVOID));
-        MemorySet(NewTypes, 0, NewCapacity * sizeof(SCRIPT_VAR_TYPE));
 
         // Copy existing elements
         for (U32 i = 0; i < Array->Size; i++) {
@@ -1359,88 +1426,44 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
         Array->Elements = NewElements;
         Array->ElementTypes = NewTypes;
         Array->Capacity = NewCapacity;
+
+        DEBUG(TEXT("[ScriptArraySet] Resized array %p to capacity %u"), Array, Array->Capacity);
     }
 
-    LPVOID NewElement = NULL;
-
-    switch (Type) {
-        case SCRIPT_VAR_STRING:
-            if (Value.String) {
-                U32 Len = StringLength(Value.String) + 1;
-                LPSTR Copy = (LPSTR)HeapAlloc(Len);
-                if (Copy == NULL) {
-                    return SCRIPT_ERROR_OUT_OF_MEMORY;
-                }
-                StringCopy(Copy, Value.String);
-                NewElement = Copy;
-            }
-            break;
-
-        case SCRIPT_VAR_INTEGER: {
-            I32* IntPtr = (I32*)HeapAlloc(sizeof(I32));
-            if (IntPtr == NULL) {
-                return SCRIPT_ERROR_OUT_OF_MEMORY;
-            }
-            *IntPtr = Value.Integer;
-            NewElement = IntPtr;
-            break;
-        }
-
-        case SCRIPT_VAR_FLOAT: {
-            F32* FloatPtr = (F32*)HeapAlloc(sizeof(F32));
-            if (FloatPtr == NULL) {
-                return SCRIPT_ERROR_OUT_OF_MEMORY;
-            }
-            *FloatPtr = Value.Float;
-            NewElement = FloatPtr;
-            break;
-        }
-
-        case SCRIPT_VAR_ARRAY:
-            NewElement = Value.Array;
-            break;
-
-        case SCRIPT_VAR_HOST_HANDLE:
-            NewElement = Value.HostHandle;
-            break;
-
-        default:
-            NewElement = NULL;
-            break;
+    // Free existing string value if overwriting
+    if (Index < Array->Size && Array->ElementTypes[Index] == SCRIPT_VAR_STRING && Array->Elements[Index]) {
+        HeapFree(Array->Elements[Index]);
     }
 
-    if (Index < Array->Size) {
-        switch (Array->ElementTypes[Index]) {
-            case SCRIPT_VAR_STRING:
-            case SCRIPT_VAR_INTEGER:
-            case SCRIPT_VAR_FLOAT:
-                if (Array->Elements[Index]) {
-                    HeapFree(Array->Elements[Index]);
-                }
-                break;
-
-            case SCRIPT_VAR_ARRAY:
-                if (Array->Elements[Index] && Array->Elements[Index] != NewElement) {
-                    ScriptDestroyArray((LPSCRIPT_ARRAY)Array->Elements[Index]);
-                }
-                break;
-
-            default:
-                break;
-        }
-    } else {
-        for (U32 Fill = Array->Size; Fill < Index; Fill++) {
-            Array->Elements[Fill] = NULL;
-            Array->ElementTypes[Fill] = SCRIPT_VAR_STRING;
-        }
-    }
-
-    Array->Elements[Index] = NewElement;
     Array->ElementTypes[Index] = Type;
 
-    if (Index >= Array->Size) {
-        Array->Size = Index + 1;
+    // Copy value based on type
+    if (Type == SCRIPT_VAR_STRING && Value.String) {
+        U32 Len = StringLength(Value.String) + 1;
+        Array->Elements[Index] = HeapAlloc(Len);
+        if (Array->Elements[Index] == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
+        StringCopy((LPSTR)Array->Elements[Index], Value.String);
+        DEBUG(TEXT("[ScriptArraySet] Stored string length %u at index %u"), Len, Index);
+    } else if (Type == SCRIPT_VAR_INTEGER) {
+        I32* IntPtr = (I32*)HeapAlloc(sizeof(I32));
+        if (IntPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
+        *IntPtr = Value.Integer;
+        Array->Elements[Index] = IntPtr;
+        DEBUG(TEXT("[ScriptArraySet] Stored integer %d at index %u"), Value.Integer, Index);
+    } else if (Type == SCRIPT_VAR_FLOAT) {
+        F32* FloatPtr = (F32*)HeapAlloc(sizeof(F32));
+        if (FloatPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
+        *FloatPtr = Value.Float;
+        Array->Elements[Index] = FloatPtr;
+        DEBUG(TEXT("[ScriptArraySet] Stored float %f at index %u"), Value.Float, Index);
+    } else {
+        Array->Elements[Index] = NULL;
+        DEBUG(TEXT("[ScriptArraySet] Stored null element at index %u (Type=%s)"), Index, ScriptVarTypeToString(Type));
     }
+
+    if (Index >= Array->Size) Array->Size = Index + 1;
+
+    DEBUG(TEXT("[ScriptArraySet] Array size is now %u"), Array->Size);
 
     return SCRIPT_OK;
 }
@@ -1461,35 +1484,18 @@ SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Ty
 
     *Type = Array->ElementTypes[Index];
 
-    switch (*Type) {
-        case SCRIPT_VAR_STRING:
-            Value->String = (LPSTR)Array->Elements[Index];
-            break;
-
-        case SCRIPT_VAR_INTEGER:
-            if (Array->Elements[Index] == NULL) {
-                return SCRIPT_ERROR_TYPE_MISMATCH;
-            }
-            Value->Integer = *((I32*)Array->Elements[Index]);
-            break;
-
-        case SCRIPT_VAR_FLOAT:
-            if (Array->Elements[Index] == NULL) {
-                return SCRIPT_ERROR_TYPE_MISMATCH;
-            }
-            Value->Float = *((F32*)Array->Elements[Index]);
-            break;
-
-        case SCRIPT_VAR_ARRAY:
-            Value->Array = (LPSCRIPT_ARRAY)Array->Elements[Index];
-            break;
-
-        case SCRIPT_VAR_HOST_HANDLE:
-            Value->HostHandle = Array->Elements[Index];
-            break;
-
-        default:
-            return SCRIPT_ERROR_TYPE_MISMATCH;
+    if (*Type == SCRIPT_VAR_STRING) {
+        Value->String = (LPSTR)Array->Elements[Index];
+        DEBUG(TEXT("[ScriptArrayGet] Returning string element at index %u"), Index);
+    } else if (*Type == SCRIPT_VAR_INTEGER) {
+        Value->Integer = *(I32*)Array->Elements[Index];
+        DEBUG(TEXT("[ScriptArrayGet] Returning integer %d at index %u"), Value->Integer, Index);
+    } else if (*Type == SCRIPT_VAR_FLOAT) {
+        Value->Float = *(F32*)Array->Elements[Index];
+        DEBUG(TEXT("[ScriptArrayGet] Returning float %f at index %u"), Value->Float, Index);
+    } else {
+        DEBUG(TEXT("[ScriptArrayGet] Type mismatch at index %u (Type=%s)"), Index, ScriptVarTypeToString(*Type));
+        return SCRIPT_ERROR_TYPE_MISMATCH;
     }
 
     return SCRIPT_OK;
@@ -1509,6 +1515,8 @@ SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Ty
 LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value) {
     if (Context == NULL || Name == NULL) return NULL;
 
+    DEBUG(TEXT("[ScriptSetArrayElement] Context=%p Name=%s Index=%u Type=%s"), Context, Name, Index, ScriptVarTypeToString(Type));
+
     LPSCRIPT_VARIABLE Variable = ScriptGetVariable(Context, Name);
 
     // Create array variable if it doesn't exist
@@ -1522,15 +1530,21 @@ LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U
             ScriptDestroyArray(ArrayValue.Array);
             return NULL;
         }
+
+        DEBUG(TEXT("[ScriptSetArrayElement] Created new array variable %s"), Name);
     }
 
     // Ensure variable is an array
     if (Variable->Type != SCRIPT_VAR_ARRAY) {
+        DEBUG(TEXT("[ScriptSetArrayElement] Variable %s is not an array (Type=%s)"), Name, ScriptVarTypeToString(Variable->Type));
         return NULL;
     }
 
     SCRIPT_ERROR Error = ScriptArraySet(Variable->Value.Array, Index, Type, Value);
-    if (Error != SCRIPT_OK) return NULL;
+    if (Error != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptSetArrayElement] ScriptArraySet failed with error %u"), Error);
+        return NULL;
+    }
 
     return Variable;
 }
@@ -1547,14 +1561,22 @@ LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U
 LPSCRIPT_VARIABLE ScriptGetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U32 Index) {
     if (Context == NULL || Name == NULL) return NULL;
 
+    DEBUG(TEXT("[ScriptGetArrayElement] Context=%p Name=%s Index=%u"), Context, Name, Index);
+
     LPSCRIPT_VARIABLE Variable = ScriptGetVariable(Context, Name);
-    if (Variable == NULL || Variable->Type != SCRIPT_VAR_ARRAY) return NULL;
+    if (Variable == NULL || Variable->Type != SCRIPT_VAR_ARRAY) {
+        DEBUG(TEXT("[ScriptGetArrayElement] Variable %s missing or not array"), Name);
+        return NULL;
+    }
 
     SCRIPT_VAR_TYPE ElementType;
     SCRIPT_VAR_VALUE ElementValue;
 
     SCRIPT_ERROR Error = ScriptArrayGet(Variable->Value.Array, Index, &ElementType, &ElementValue);
-    if (Error != SCRIPT_OK) return NULL;
+    if (Error != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptGetArrayElement] ScriptArrayGet failed with error %u"), Error);
+        return NULL;
+    }
 
     // Create a temporary variable to hold the element value
     LPSCRIPT_VARIABLE TempVar = (LPSCRIPT_VARIABLE)HeapAlloc(sizeof(SCRIPT_VARIABLE));
@@ -1736,16 +1758,25 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
     SCRIPT_VALUE Result;
     ScriptValueInit(&Result);
 
+    DEBUG(TEXT("[ScriptEvaluateExpression] Begin (Expr=%p)"), Expr);
+
     if (Error) {
         *Error = SCRIPT_OK;
     }
 
     if (Expr == NULL || Expr->Type != AST_EXPRESSION) {
+        DEBUG(TEXT("[ScriptEvaluateExpression] Invalid expression node"));
         if (Error) {
             *Error = SCRIPT_ERROR_SYNTAX;
         }
         return Result;
     }
+
+    DEBUG(TEXT("[ScriptEvaluateExpression] Token=%s Func=%u Array=%u Property=%u"),
+          ScriptTokenTypeToString(Expr->Data.Expression.TokenType),
+          Expr->Data.Expression.IsFunctionCall,
+          Expr->Data.Expression.IsArrayAccess,
+          Expr->Data.Expression.IsPropertyAccess);
 
     if (Expr->Data.Expression.IsPropertyAccess) {
         return ScriptEvaluateHostProperty(Parser, Expr, Error);
@@ -1759,12 +1790,14 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
         case TOKEN_NUMBER:
             Result.Type = SCRIPT_VAR_FLOAT;
             Result.Value.Float = Expr->Data.Expression.NumValue;
+            DEBUG(TEXT("[ScriptEvaluateExpression] Number literal %f"), Result.Value.Float);
             return Result;
 
         case TOKEN_STRING: {
             U32 Length = StringLength(Expr->Data.Expression.Value) + 1;
             Result.Value.String = (LPSTR)HeapAlloc(Length);
             if (Result.Value.String == NULL) {
+                DEBUG(TEXT("[ScriptEvaluateExpression] Failed to allocate string literal of length %u"), Length);
                 if (Error) {
                     *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
                 }
@@ -1773,6 +1806,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
             StringCopy(Result.Value.String, Expr->Data.Expression.Value);
             Result.Type = SCRIPT_VAR_STRING;
             Result.OwnsValue = TRUE;
+            DEBUG(TEXT("[ScriptEvaluateExpression] String literal '%s'"), Result.Value.String);
             return Result;
         }
 
@@ -1784,6 +1818,8 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         LPCSTR CommandLine = Expr->Data.Expression.CommandLine ?
                             Expr->Data.Expression.CommandLine : Expr->Data.Expression.Value;
                         U32 Status = Parser->Callbacks->ExecuteCommand(CommandLine, Parser->Callbacks->UserData);
+
+                        DEBUG(TEXT("[ScriptEvaluateExpression] ExecuteCommand '%s' returned 0x%08X"), CommandLine, Status);
 
                         if (Status == DF_ERROR_SUCCESS) {
                             Result.Type = SCRIPT_VAR_FLOAT;
@@ -1799,6 +1835,8 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                             }
                         }
 
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Command execution failed (0x%08X)"), Status);
+
                         if (Error) {
                             *Error = SCRIPT_ERROR_SYNTAX;
                         }
@@ -1813,6 +1851,8 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         }
                     }
 
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Command callback missing"));
+
                     if (Error) {
                         *Error = SCRIPT_ERROR_SYNTAX;
                     }
@@ -1820,6 +1860,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 }
 
                 if (Expr->Data.Expression.TokenType == TOKEN_PATH) {
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Unexpected PATH token in function call"));
                     if (Error) {
                         *Error = SCRIPT_ERROR_SYNTAX;
                     }
@@ -1835,20 +1876,24 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                     if (Expr->Data.Expression.Left) {
                         if (Expr->Data.Expression.Left->Data.Expression.TokenType == TOKEN_STRING) {
                             ArgString = Expr->Data.Expression.Left->Data.Expression.Value;
+                            DEBUG(TEXT("[ScriptEvaluateExpression] Using string argument '%s'"), ArgString);
                         } else {
                             ArgValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
                             HasEvaluatedArg = TRUE;
 
                             if (Error && *Error != SCRIPT_OK) {
+                                DEBUG(TEXT("[ScriptEvaluateExpression] Argument evaluation failed"));
                                 ScriptValueRelease(&ArgValue);
                                 return Result;
                             }
 
                             if (ArgValue.Type == SCRIPT_VAR_STRING) {
                                 ArgString = ArgValue.Value.String ? ArgValue.Value.String : TEXT("");
+                                DEBUG(TEXT("[ScriptEvaluateExpression] Converted argument to string '%s'"), ArgString);
                             } else {
                                 F32 ArgNumeric;
                                 if (!ScriptValueToFloat(&ArgValue, &ArgNumeric)) {
+                                    DEBUG(TEXT("[ScriptEvaluateExpression] Failed to convert argument to float"));
                                     if (Error) {
                                         *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                                     }
@@ -1863,6 +1908,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                                 }
 
                                 ArgString = ArgBuffer;
+                                DEBUG(TEXT("[ScriptEvaluateExpression] Numeric argument converted to '%s'"), ArgBuffer);
                             }
                         }
                     }
@@ -1871,6 +1917,8 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         Expr->Data.Expression.Value,
                         ArgString,
                         Parser->Callbacks->UserData);
+
+                    DEBUG(TEXT("[ScriptEvaluateExpression] CallFunction '%s' status 0x%08X"), Expr->Data.Expression.Value, Status);
 
                     if (HasEvaluatedArg) {
                         ScriptValueRelease(&ArgValue);
@@ -1889,6 +1937,8 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                     }
                 }
 
+                DEBUG(TEXT("[ScriptEvaluateExpression] Function callback missing"));
+
                 if (Error) {
                     *Error = SCRIPT_ERROR_SYNTAX;
                 }
@@ -1898,12 +1948,14 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
             if (Expr->Data.Expression.IsArrayAccess && Expr->Data.Expression.BaseExpression == NULL) {
                 SCRIPT_VALUE IndexValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.ArrayIndexExpr, Error);
                 if (Error && *Error != SCRIPT_OK) {
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Array index evaluation failed"));
                     ScriptValueRelease(&IndexValue);
                     return Result;
                 }
 
                 F32 IndexNumeric;
                 if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Array index conversion failed"));
                     if (Error) {
                         *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                     }
@@ -1914,9 +1966,12 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 U32 ArrayIndex = (U32)IndexNumeric;
                 ScriptValueRelease(&IndexValue);
 
+                DEBUG(TEXT("[ScriptEvaluateExpression] Accessing array %s index %u"), Expr->Data.Expression.Value, ArrayIndex);
+
                 LPSCRIPT_HOST_SYMBOL HostArray = ScriptFindHostSymbol(&Parser->Context->HostRegistry, Expr->Data.Expression.Value);
                 if (HostArray) {
                     if (HostArray->Descriptor == NULL || HostArray->Descriptor->GetElement == NULL) {
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Host array missing GetElement"));
                         if (Error) {
                             *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                         }
@@ -1928,6 +1983,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                     LPVOID HostCtx = HostArray->Context ? HostArray->Context : HostArray->Descriptor->Context;
                     SCRIPT_ERROR HostError = HostArray->Descriptor->GetElement(HostCtx, HostArray->Handle, ArrayIndex, &HostValue);
                     if (HostError != SCRIPT_OK) {
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Host GetElement failed with error %u"), HostError);
                         if (Error) {
                             *Error = HostError;
                         }
@@ -1937,6 +1993,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
                     HostError = ScriptPrepareHostValue(&HostValue, HostArray->Descriptor, HostCtx);
                     if (HostError != SCRIPT_OK) {
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Host value preparation failed with error %u"), HostError);
                         if (Error) {
                             *Error = HostError;
                         }
@@ -1944,11 +2001,13 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         return Result;
                     }
 
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Returning host array element"));
                     return HostValue;
                 }
 
                 LPSCRIPT_VARIABLE Element = ScriptGetArrayElement(Parser->Context, Expr->Data.Expression.Value, ArrayIndex);
                 if (Element == NULL) {
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Script array element missing"));
                     if (Error) {
                         *Error = SCRIPT_ERROR_UNDEFINED_VAR;
                     }
@@ -1960,6 +2019,8 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 Result.OwnsValue = FALSE;
 
                 HeapFree(Element);
+
+                DEBUG(TEXT("[ScriptEvaluateExpression] Returning array element type=%s"), ScriptVarTypeToString(Result.Type));
                 return Result;
             }
 
@@ -1969,6 +2030,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
                 if (HostSymbol->Kind == SCRIPT_HOST_SYMBOL_PROPERTY) {
                     if (HostSymbol->Descriptor == NULL || HostSymbol->Descriptor->GetProperty == NULL) {
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Host property missing accessor"));
                         if (Error) {
                             *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                         }
@@ -1983,6 +2045,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         HostSymbol->Name,
                         &HostValue);
                     if (HostError != SCRIPT_OK) {
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Host property getter error %u"), HostError);
                         if (Error) {
                             *Error = HostError;
                         }
@@ -1992,6 +2055,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
                     HostError = ScriptPrepareHostValue(&HostValue, HostSymbol->Descriptor, HostCtx);
                     if (HostError != SCRIPT_OK) {
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Host property preparation failed %u"), HostError);
                         if (Error) {
                             *Error = HostError;
                         }
@@ -1999,6 +2063,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         return Result;
                     }
 
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Returning host property value"));
                     return HostValue;
                 }
 
@@ -2007,6 +2072,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 Result.HostDescriptor = HostSymbol->Descriptor;
                 Result.HostContext = HostCtx;
                 Result.OwnsValue = FALSE;
+                DEBUG(TEXT("[ScriptEvaluateExpression] Returning host handle"));
                 return Result;
             }
 
@@ -2019,6 +2085,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
             LPSCRIPT_VARIABLE Variable = ScriptFindVariableInScope(Parser->CurrentScope, Expr->Data.Expression.Value, TRUE);
             if (Variable == NULL) {
+                DEBUG(TEXT("[ScriptEvaluateExpression] Variable %s not found"), Expr->Data.Expression.Value);
                 if (Error) {
                     *Error = SCRIPT_ERROR_UNDEFINED_VAR;
                 }
@@ -2028,12 +2095,14 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
             if (Variable->Type == SCRIPT_VAR_INTEGER) {
                 Result.Type = SCRIPT_VAR_INTEGER;
                 Result.Value.Integer = Variable->Value.Integer;
+                DEBUG(TEXT("[ScriptEvaluateExpression] Returning integer variable %s = %d"), Expr->Data.Expression.Value, Result.Value.Integer);
                 return Result;
             }
 
             if (Variable->Type == SCRIPT_VAR_FLOAT) {
                 Result.Type = SCRIPT_VAR_FLOAT;
                 Result.Value.Float = Variable->Value.Float;
+                DEBUG(TEXT("[ScriptEvaluateExpression] Returning float variable %s = %f"), Expr->Data.Expression.Value, Result.Value.Float);
                 return Result;
             }
 
@@ -2041,6 +2110,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 Result.Type = SCRIPT_VAR_STRING;
                 Result.Value.String = Variable->Value.String;
                 Result.OwnsValue = FALSE;
+                DEBUG(TEXT("[ScriptEvaluateExpression] Returning string variable %s"), Expr->Data.Expression.Value);
                 return Result;
             }
 
@@ -2070,6 +2140,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
             if (!ScriptValueToFloat(&LeftValue, &LeftNumeric) ||
                 !ScriptValueToFloat(&RightValue, &RightNumeric)) {
+                DEBUG(TEXT("[ScriptEvaluateExpression] Operand conversion failed for operator %s"), Expr->Data.Expression.Value);
                 if (Error) {
                     *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                 }
@@ -2085,12 +2156,16 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
                 if (Operator == '+') {
                     Result.Value.Float = LeftNumeric + RightNumeric;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Addition %f + %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (Operator == '-') {
                     Result.Value.Float = LeftNumeric - RightNumeric;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Subtraction %f - %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (Operator == '*') {
                     Result.Value.Float = LeftNumeric * RightNumeric;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Multiplication %f * %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (Operator == '/') {
                     if (RightNumeric == 0.0f) {
+                        DEBUG(TEXT("[ScriptEvaluateExpression] Division by zero"));
                         if (Error) {
                             *Error = SCRIPT_ERROR_DIVISION_BY_ZERO;
                         }
@@ -2104,7 +2179,9 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                     } else {
                         Result.Value.Float = LeftNumeric / RightNumeric;
                     }
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Division %f / %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else {
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Unknown operator %s"), Expr->Data.Expression.Value);
                     if (Error) {
                         *Error = SCRIPT_ERROR_SYNTAX;
                     }
@@ -2112,17 +2189,24 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
             } else {
                 if (StringCompare(Expr->Data.Expression.Value, TEXT("<")) == 0) {
                     Result.Value.Float = (LeftNumeric < RightNumeric) ? 1.0f : 0.0f;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f < %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("<=")) == 0) {
                     Result.Value.Float = (LeftNumeric <= RightNumeric) ? 1.0f : 0.0f;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f <= %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">")) == 0) {
                     Result.Value.Float = (LeftNumeric > RightNumeric) ? 1.0f : 0.0f;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f > %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">=")) == 0) {
                     Result.Value.Float = (LeftNumeric >= RightNumeric) ? 1.0f : 0.0f;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f >= %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0) {
                     Result.Value.Float = (LeftNumeric == RightNumeric) ? 1.0f : 0.0f;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f == %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("!=")) == 0) {
                     Result.Value.Float = (LeftNumeric != RightNumeric) ? 1.0f : 0.0f;
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f != %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
                 } else {
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Unknown comparison %s"), Expr->Data.Expression.Value);
                     if (Error) {
                         *Error = SCRIPT_ERROR_SYNTAX;
                     }
@@ -2131,6 +2215,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
             ScriptValueRelease(&LeftValue);
             ScriptValueRelease(&RightValue);
+            DEBUG(TEXT("[ScriptEvaluateExpression] Binary operation result type=%s"), ScriptVarTypeToString(Result.Type));
             return Result;
         }
 
@@ -2148,14 +2233,18 @@ static SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NOD
     SCRIPT_VALUE Result;
     ScriptValueInit(&Result);
 
+    DEBUG(TEXT("[ScriptEvaluateHostProperty] Begin (Expr=%p)"), Expr);
+
     SCRIPT_VALUE BaseValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.BaseExpression, Error);
     if (Error && *Error != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptEvaluateHostProperty] Base expression failed"));
         ScriptValueRelease(&BaseValue);
         return Result;
     }
 
     if (BaseValue.Type != SCRIPT_VAR_HOST_HANDLE || BaseValue.HostDescriptor == NULL ||
         BaseValue.HostDescriptor->GetProperty == NULL) {
+        DEBUG(TEXT("[ScriptEvaluateHostProperty] Base value not host handle"));
         if (Error) {
             *Error = SCRIPT_ERROR_TYPE_MISMATCH;
         }
@@ -2177,6 +2266,7 @@ static SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NOD
     ScriptValueRelease(&BaseValue);
 
     if (HostError != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptEvaluateHostProperty] GetProperty error %u"), HostError);
         if (Error) {
             *Error = HostError;
         }
@@ -2186,6 +2276,7 @@ static SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NOD
 
     HostError = ScriptPrepareHostValue(&HostValue, HostValue.HostDescriptor ? HostValue.HostDescriptor : DefaultDescriptor, HostCtx);
     if (HostError != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptEvaluateHostProperty] PrepareHostValue error %u"), HostError);
         if (Error) {
             *Error = HostError;
         }
@@ -2200,6 +2291,7 @@ static SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NOD
         HostValue.HostContext = HostCtx;
     }
 
+    DEBUG(TEXT("[ScriptEvaluateHostProperty] Returning property %s"), Expr->Data.Expression.PropertyName);
     return HostValue;
 }
 
@@ -2209,14 +2301,18 @@ static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE
     SCRIPT_VALUE Result;
     ScriptValueInit(&Result);
 
+    DEBUG(TEXT("[ScriptEvaluateArrayAccess] Begin (Expr=%p)"), Expr);
+
     SCRIPT_VALUE BaseValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.BaseExpression, Error);
     if (Error && *Error != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptEvaluateArrayAccess] Base expression failed"));
         ScriptValueRelease(&BaseValue);
         return Result;
     }
 
     SCRIPT_VALUE IndexValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.ArrayIndexExpr, Error);
     if (Error && *Error != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptEvaluateArrayAccess] Index expression failed"));
         ScriptValueRelease(&BaseValue);
         ScriptValueRelease(&IndexValue);
         return Result;
@@ -2224,6 +2320,7 @@ static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE
 
     F32 IndexNumeric;
     if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+        DEBUG(TEXT("[ScriptEvaluateArrayAccess] Index conversion failed"));
         if (Error) {
             *Error = SCRIPT_ERROR_TYPE_MISMATCH;
         }
@@ -2233,6 +2330,8 @@ static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE
     }
 
     ScriptValueRelease(&IndexValue);
+
+    DEBUG(TEXT("[ScriptEvaluateArrayAccess] Index numeric %f"), IndexNumeric);
 
     if (BaseValue.Type == SCRIPT_VAR_HOST_HANDLE &&
         BaseValue.HostDescriptor && BaseValue.HostDescriptor->GetElement) {
@@ -2250,6 +2349,7 @@ static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE
         ScriptValueRelease(&BaseValue);
 
         if (HostError != SCRIPT_OK) {
+            DEBUG(TEXT("[ScriptEvaluateArrayAccess] Host GetElement error %u"), HostError);
             if (Error) {
                 *Error = HostError;
             }
@@ -2259,6 +2359,7 @@ static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE
 
         HostError = ScriptPrepareHostValue(&HostValue, DefaultDescriptor, HostCtx);
         if (HostError != SCRIPT_OK) {
+            DEBUG(TEXT("[ScriptEvaluateArrayAccess] Host value preparation error %u"), HostError);
             if (Error) {
                 *Error = HostError;
             }
@@ -2273,8 +2374,11 @@ static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE
             HostValue.HostContext = HostCtx;
         }
 
+        DEBUG(TEXT("[ScriptEvaluateArrayAccess] Returning host array element"));
         return HostValue;
     }
+
+    DEBUG(TEXT("[ScriptEvaluateArrayAccess] Base value not host array"));
 
     ScriptValueRelease(&BaseValue);
 
@@ -2297,6 +2401,8 @@ static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE N
         return SCRIPT_ERROR_SYNTAX;
     }
 
+    DEBUG(TEXT("[ScriptExecuteAssignment] Variable=%s IsArray=%u"), Node->Data.Assignment.VarName, Node->Data.Assignment.IsArrayAccess);
+
     // Prevent assignment to host-exposed identifiers
     if (ScriptFindHostSymbol(&Parser->Context->HostRegistry, Node->Data.Assignment.VarName)) {
         return SCRIPT_ERROR_SYNTAX;
@@ -2306,9 +2412,12 @@ static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE N
     SCRIPT_ERROR Error = SCRIPT_OK;
     SCRIPT_VALUE EvaluatedValue = ScriptEvaluateExpression(Parser, Node->Data.Assignment.Expression, &Error);
     if (Error != SCRIPT_OK) {
+        DEBUG(TEXT("[ScriptExecuteAssignment] Expression evaluation failed with error %u"), Error);
         ScriptValueRelease(&EvaluatedValue);
         return Error;
     }
+
+    DEBUG(TEXT("[ScriptExecuteAssignment] Evaluated type=%s"), ScriptVarTypeToString(EvaluatedValue.Type));
 
     if (EvaluatedValue.Type == SCRIPT_VAR_HOST_HANDLE) {
         ScriptValueRelease(&EvaluatedValue);
@@ -2335,12 +2444,15 @@ static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE N
         }
     }
 
+    DEBUG(TEXT("[ScriptExecuteAssignment] Final type=%s"), ScriptVarTypeToString(VarType));
+
     LPSCRIPT_CONTEXT Context = Parser->Context;
 
     if (Node->Data.Assignment.IsArrayAccess) {
         // Evaluate array index
         SCRIPT_VALUE IndexValue = ScriptEvaluateExpression(Parser, Node->Data.Assignment.ArrayIndexExpr, &Error);
         if (Error != SCRIPT_OK) {
+            DEBUG(TEXT("[ScriptExecuteAssignment] Array index evaluation failed with error %u"), Error);
             ScriptValueRelease(&EvaluatedValue);
             ScriptValueRelease(&IndexValue);
             return Error;
@@ -2348,6 +2460,7 @@ static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE N
 
         F32 IndexNumeric;
         if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+            DEBUG(TEXT("[ScriptExecuteAssignment] Array index conversion failed"));
             ScriptValueRelease(&EvaluatedValue);
             ScriptValueRelease(&IndexValue);
             return SCRIPT_ERROR_TYPE_MISMATCH;
@@ -2356,20 +2469,26 @@ static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE N
         U32 ArrayIndex = (U32)IndexNumeric;
         ScriptValueRelease(&IndexValue);
 
+        DEBUG(TEXT("[ScriptExecuteAssignment] Setting array index %u"), ArrayIndex);
+
         // Set array element
         if (ScriptSetArrayElement(Context, Node->Data.Assignment.VarName, ArrayIndex, VarType, VarValue) == NULL) {
+            DEBUG(TEXT("[ScriptExecuteAssignment] ScriptSetArrayElement failed"));
             ScriptValueRelease(&EvaluatedValue);
             return SCRIPT_ERROR_SYNTAX;
         }
     } else {
         // Set regular variable in current scope
         if (ScriptSetVariableInScope(Parser->CurrentScope, Node->Data.Assignment.VarName, VarType, VarValue) == NULL) {
+            DEBUG(TEXT("[ScriptExecuteAssignment] ScriptSetVariableInScope failed"));
             ScriptValueRelease(&EvaluatedValue);
             return SCRIPT_ERROR_SYNTAX;
         }
     }
 
     ScriptValueRelease(&EvaluatedValue);
+
+    DEBUG(TEXT("[ScriptExecuteAssignment] Assignment completed for %s"), Node->Data.Assignment.VarName);
 
     return SCRIPT_OK;
 }
@@ -2387,10 +2506,13 @@ static SCRIPT_ERROR ScriptExecuteBlock(LPSCRIPT_PARSER Parser, LPAST_NODE Node) 
         return SCRIPT_ERROR_SYNTAX;
     }
 
+    DEBUG(TEXT("[ScriptExecuteBlock] Executing block %p with %u statements"), Node, Node->Data.Block.Count);
+
     // Execute all statements in the block without creating a new scope
     // This allows variables created in loops/if bodies to persist
     SCRIPT_ERROR Error = SCRIPT_OK;
     for (U32 i = 0; i < Node->Data.Block.Count; i++) {
+        DEBUG(TEXT("[ScriptExecuteBlock] Statement %u/%u"), i + 1, Node->Data.Block.Count);
         Error = ScriptExecuteAST(Parser, Node->Data.Block.Statements[i]);
         if (Error != SCRIPT_OK) {
             break;
@@ -2413,14 +2535,19 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
         return SCRIPT_OK;
     }
 
+    DEBUG(TEXT("[ScriptExecuteAST] Node=%p Type=%u"), Node, Node->Type);
+
     switch (Node->Type) {
         case AST_ASSIGNMENT:
+            DEBUG(TEXT("[ScriptExecuteAST] Dispatching assignment"));
             return ScriptExecuteAssignment(Parser, Node);
 
         case AST_BLOCK:
+            DEBUG(TEXT("[ScriptExecuteAST] Dispatching block"));
             return ScriptExecuteBlock(Parser, Node);
 
         case AST_IF: {
+            DEBUG(TEXT("[ScriptExecuteAST] Evaluating if condition"));
             // Evaluate condition
             SCRIPT_ERROR Error = SCRIPT_OK;
             SCRIPT_VALUE ConditionValue = ScriptEvaluateExpression(Parser, Node->Data.If.Condition, &Error);
@@ -2439,8 +2566,10 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
 
             // Execute then or else branch
             if (ConditionNumeric != 0.0f) {
+                DEBUG(TEXT("[ScriptExecuteAST] Condition true"));
                 return ScriptExecuteAST(Parser, Node->Data.If.Then);
             } else if (Node->Data.If.Else != NULL) {
+                DEBUG(TEXT("[ScriptExecuteAST] Condition false, executing else"));
                 return ScriptExecuteAST(Parser, Node->Data.If.Else);
             }
 
@@ -2448,6 +2577,7 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
         }
 
         case AST_FOR: {
+            DEBUG(TEXT("[ScriptExecuteAST] Entering for loop"));
             // Execute initialization
             SCRIPT_ERROR Error = ScriptExecuteAST(Parser, Node->Data.For.Init);
             if (Error != SCRIPT_OK) return Error;
@@ -2474,6 +2604,8 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
 
                 if (ConditionNumeric == 0.0f) break;
 
+                DEBUG(TEXT("[ScriptExecuteAST] For loop iteration %u"), LoopCount + 1);
+
                 // Execute body
                 Error = ScriptExecuteAST(Parser, Node->Data.For.Body);
                 if (Error != SCRIPT_OK) return Error;
@@ -2493,6 +2625,7 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
         }
 
         case AST_EXPRESSION: {
+            DEBUG(TEXT("[ScriptExecuteAST] Evaluating standalone expression"));
             // Standalone expression - evaluate it (for function calls)
             SCRIPT_ERROR Error = SCRIPT_OK;
             SCRIPT_VALUE Temp = ScriptEvaluateExpression(Parser, Node, &Error);
@@ -3097,9 +3230,6 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
         if (ExistingVar->Type == SCRIPT_VAR_STRING && ExistingVar->Value.String) {
             HeapFree(ExistingVar->Value.String);
             ExistingVar->Value.String = NULL;
-        } else if (ExistingVar->Type == SCRIPT_VAR_ARRAY && ExistingVar->Value.Array) {
-            ScriptDestroyArray(ExistingVar->Value.Array);
-            ExistingVar->Value.Array = NULL;
         }
 
         ExistingVar->Type = Type;
