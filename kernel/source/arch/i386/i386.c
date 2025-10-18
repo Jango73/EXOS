@@ -896,6 +896,8 @@ void ArchInitializeMemoryManager(void) {
 
     FlushTLB();
 
+    KernelSafeValidationAvailable = TRUE;
+
     DEBUG(TEXT("[ArchInitializeMemoryManager] TLB flushed"));
 
     if (TempLinear1 == 0 || TempLinear2 == 0) {

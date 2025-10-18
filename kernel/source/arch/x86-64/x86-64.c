@@ -1103,6 +1103,8 @@ void ArchInitializeMemoryManager(void) {
 
     FlushTLB();
 
+    KernelSafeValidationAvailable = TRUE;
+
     DEBUG(TEXT("[ArchInitializeMemoryManager] TLB flushed"));
 
     Kernel_i386.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);

@@ -70,6 +70,8 @@ void FreePhysicalPage(PHYSICAL Page);
 // Returns TRUE if a pointer is an valid address (mapped in the calling process space)
 BOOL IsValidMemory(LINEAR Pointer);
 
+extern BOOL KernelSafeValidationAvailable;
+
 // Returns the physical address for a given virtual address
 PHYSICAL MapLinearToPhysical(LINEAR Address);
 

@@ -264,14 +264,38 @@ typedef UINT BOOL;
 #define SAFE_USE_3(a, b, c) if ((a) != NULL && (b) != NULL && (c) != NULL)
 #define SAFE_USE_ID(a, i) if ((a) != NULL && (a->TypeID == i))
 #define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->TypeID == i) && (b) != NULL && (b->TypeID == i))
-#define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
-#define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
-#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i))
-#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i) \
-        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->TypeID == i)))
 
-// This is called before dereferencing a user-provided pointer to a parameter structure
-#define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
+#if defined(__KERNEL__)
+extern BOOL KernelSafeValidationAvailable;
+
+#define SAFE_USE_VALID(a) \
+    if ((a) != NULL && (KernelSafeValidationAvailable == FALSE || IsValidMemory((LINEAR)(a))))
+
+#define SAFE_USE_VALID_2(a, b) \
+    if ((a) != NULL && (KernelSafeValidationAvailable == FALSE || IsValidMemory((LINEAR)(a))) && (b) != NULL \
+        && (KernelSafeValidationAvailable == FALSE || IsValidMemory((LINEAR)(b))))
+
+#define SAFE_USE_VALID_ID(a, i) \
+    if ((a) != NULL && (KernelSafeValidationAvailable == FALSE || IsValidMemory((LINEAR)(a))) && ((a)->TypeID == (i)))
+
+#define SAFE_USE_VALID_ID_2(a, b, i) \
+    if ((a) != NULL && (KernelSafeValidationAvailable == FALSE || IsValidMemory((LINEAR)(a))) && ((a)->TypeID == (i)) \
+        && (b) != NULL && (KernelSafeValidationAvailable == FALSE || IsValidMemory((LINEAR)(b))) \
+        && ((b)->TypeID == (i)))
+
+#define SAFE_USE_INPUT_POINTER(p, s) \
+    if ((p) != NULL && (KernelSafeValidationAvailable == FALSE || IsValidMemory((LINEAR)(p))) \
+        && (p)->Header.Size >= sizeof(s))
+
+#else
+
+#define SAFE_USE_VALID(a) if ((a) != NULL)
+#define SAFE_USE_VALID_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && ((a)->TypeID == (i)))
+#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && ((a)->TypeID == (i)) && (b) != NULL && ((b)->TypeID == (i)))
+#define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && (p)->Header.Size >= sizeof(s))
+
+#endif
 
 // Do an infinite loop
 #define FOREVER while(1)

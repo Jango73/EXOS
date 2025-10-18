@@ -35,6 +35,10 @@
 #include "Schedule.h"
 #include "System.h"
 
+/************************************************************************/
+
+BOOL KernelSafeValidationAvailable = FALSE;
+
 /************************************************************************\
 
     Virtual Address Space (32-bit)
