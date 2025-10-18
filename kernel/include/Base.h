@@ -511,8 +511,8 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 // A kernel object header
 
 #define OBJECT_FIELDS       \
-    U32 TypeID;             \
-    U32 References;         \
+    UINT TypeID;            \
+    UINT References;        \
     U64 ID;                 \
     LPPROCESS OwnerProcess; \
 
