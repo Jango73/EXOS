@@ -69,6 +69,8 @@ static void ScriptClearHostRegistryInternal(LPSCRIPT_HOST_REGISTRY Registry);
 static LPSCRIPT_HOST_SYMBOL ScriptFindHostSymbol(LPSCRIPT_HOST_REGISTRY Registry, LPCSTR Name);
 static BOOL ScriptParserEnsureRange(LPSCRIPT_PARSER Parser, U32 Offset, LPCSTR Stage);
 static void ScriptDebugDumpInputPreview(LPCSTR Input, U32 PreviewLimit);
+static void ScriptDebugDumpParserState(LPSCRIPT_PARSER Parser, LPCSTR Stage);
+static void ScriptDebugDumpMemoryWindow(LPCSTR Base, U32 Offset, U32 Span, LPCSTR Label);
 
 /************************************************************************/
 
@@ -161,6 +163,8 @@ static BOOL ScriptParserEnsureRange(LPSCRIPT_PARSER Parser, U32 Offset, LPCSTR S
               Parser->Input,
               Parser->InputLength,
               Parser->Position);
+        ScriptDebugDumpParserState(Parser, Stage);
+        ScriptDebugDumpMemoryWindow(Parser->Input, Offset, 8U, Stage);
         return FALSE;
     }
 
@@ -214,6 +218,135 @@ static void ScriptDebugDumpInputPreview(LPCSTR Input, U32 PreviewLimit) {
           Captured,
           PreviewLimit,
           Terminated);
+}
+
+/************************************************************************/
+
+static void ScriptDebugDumpMemoryWindow(LPCSTR Base, U32 Offset, U32 Span, LPCSTR Label) {
+    LPCSTR Stage = Label ? Label : TEXT("<null>");
+
+    if (Base == NULL) {
+        DEBUG(TEXT("[ScriptDebugDumpMemoryWindow] Stage=%s Base=NULL"), Stage);
+        return;
+    }
+
+    if (Span == 0) {
+        Span = 8U;
+    }
+
+    if (Span > SCRIPT_PARSER_MAX_PREVIEW) {
+        Span = SCRIPT_PARSER_MAX_PREVIEW;
+    }
+
+    BOOL BaseValid = IsValidMemory((LINEAR)Base);
+    DEBUG(TEXT("[ScriptDebugDumpMemoryWindow] Stage=%s Base=%p Offset=%u Span=%u BaseValid=%u"),
+          Stage,
+          Base,
+          Offset,
+          Span,
+          BaseValid);
+
+    if (!BaseValid) {
+        ERROR(TEXT("[ScriptDebugDumpMemoryWindow] Stage=%s base pointer invalid %p"), Stage, Base);
+        return;
+    }
+
+    U32 StartOffset = 0;
+    if (Offset > Span) {
+        StartOffset = Offset - Span;
+    }
+
+    U32 EndOffset = Offset + Span;
+    if (EndOffset < Offset) {
+        EndOffset = Offset;
+    }
+
+    U32 Steps = EndOffset - StartOffset + 1U;
+    if (Steps > (SCRIPT_PARSER_MAX_PREVIEW * 2U + 1U)) {
+        Steps = SCRIPT_PARSER_MAX_PREVIEW * 2U + 1U;
+    }
+
+    for (U32 Index = 0; Index < Steps; Index++) {
+        U32 CurrentOffset = StartOffset + Index;
+        LPCSTR Address = Base + CurrentOffset;
+        BOOL AddressValid = IsValidMemory((LINEAR)Address);
+        STR CharValue = 0;
+
+        if (AddressValid) {
+            CharValue = *Address;
+        }
+
+        STR Printable = '.';
+        if (CharValue >= ' ' && CharValue <= '~') {
+            Printable = CharValue;
+        }
+
+        DEBUG(TEXT("[ScriptDebugDumpMemoryWindow] Stage=%s Offset=%u Address=%p Valid=%u Char=0x%x Printable='%c'"),
+              Stage,
+              CurrentOffset,
+              Address,
+              AddressValid,
+              (U8)CharValue,
+              (STR)Printable);
+    }
+}
+
+/************************************************************************/
+
+static void ScriptDebugDumpParserState(LPSCRIPT_PARSER Parser, LPCSTR Stage) {
+    LPCSTR StageName = Stage ? Stage : TEXT("<null>");
+
+    if (Parser == NULL) {
+        DEBUG(TEXT("[ScriptDebugDumpParserState] Stage=%s Parser=NULL"), StageName);
+        return;
+    }
+
+    BOOL ParserValid = IsValidMemory((LINEAR)Parser);
+    DEBUG(TEXT("[ScriptDebugDumpParserState] Stage=%s Parser=%p ParserValid=%u"), StageName, Parser, ParserValid);
+
+    if (!ParserValid) {
+        return;
+    }
+
+    DEBUG(TEXT("[ScriptDebugDumpParserState] Stage=%s Input=%p Position=%u Length=%u InputValid=%u TailValid=%u Terminated=%u"),
+          StageName,
+          Parser->Input,
+          Parser->Position,
+          Parser->InputLength,
+          Parser->InputPointerValid,
+          Parser->InputTailValid,
+          Parser->InputTerminated);
+
+    DEBUG(TEXT("[ScriptDebugDumpParserState] Stage=%s Scope=%p Variables=%p Callbacks=%p Context=%p"),
+          StageName,
+          Parser->CurrentScope,
+          Parser->Variables,
+          Parser->Callbacks,
+          Parser->Context);
+
+    U32 NumBits = 0;
+    MemoryCopy(&NumBits, &Parser->CurrentToken.NumValue, sizeof(U32));
+
+    DEBUG(TEXT("[ScriptDebugDumpParserState] Stage=%s TokenType=%s RawType=%u TokenPos=%u Line=%u Column=%u NumBits=0x%x"),
+          StageName,
+          ScriptTokenTypeToString(Parser->CurrentToken.Type),
+          Parser->CurrentToken.Type,
+          Parser->CurrentToken.Position,
+          Parser->CurrentToken.Line,
+          Parser->CurrentToken.Column,
+          NumBits);
+
+    BOOL ValuePrintable = Parser->CurrentToken.Value[0] != STR_NULL;
+    DEBUG(TEXT("[ScriptDebugDumpParserState] Stage=%s TokenValueValid=%u TokenValue='%s'"),
+          StageName,
+          ValuePrintable,
+          Parser->CurrentToken.Value);
+
+    if (Parser->InputPointerValid) {
+        ScriptDebugDumpMemoryWindow(Parser->Input, Parser->Position, 8U, StageName);
+    } else {
+        ERROR(TEXT("[ScriptDebugDumpParserState] Stage=%s input pointer invalid"), StageName);
+    }
 }
 
 /************************************************************************/
@@ -294,11 +427,24 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
     }
 
     DEBUG(TEXT("[ScriptExecute] Starting execution (Context=%p, ScriptPtr=%p)"), Context, Script);
+    DEBUG(TEXT("[ScriptExecute] HostRegistry=%p CurrentScope=%p GlobalScope=%p"),
+          &Context->HostRegistry,
+          Context->CurrentScope,
+          Context->GlobalScope);
+
+    BOOL ScriptPointerValid = IsValidMemory((LINEAR)Script);
+    DEBUG(TEXT("[ScriptExecute] Script pointer valid=%u"), ScriptPointerValid);
+    if (ScriptPointerValid) {
+        ScriptDebugDumpMemoryWindow(Script, 0, 32U, TEXT("ScriptExecute-Start"));
+    } else {
+        ERROR(TEXT("[ScriptExecute] Script pointer invalid %p"), Script);
+    }
 
     Context->ErrorCode = SCRIPT_OK;
     Context->ErrorMessage[0] = STR_NULL;
 
     SCRIPT_PARSER Parser;
+    MemorySet(&Parser, 0, sizeof(SCRIPT_PARSER));
     ScriptInitParser(&Parser, Script, Context);
 
     // PASS 1: Parse script and build AST
@@ -647,12 +793,14 @@ static void ScriptCalculateLineColumn(LPCSTR Input, U32 Position, U32* Line, U32
         }
 
         STR Current = Input[i];
+        DEBUG(TEXT("[ScriptCalculateLineColumn] Offset=%u Address=%p Char=0x%x"), i, Address, (U8)Current);
         if (Current == STR_NULL) {
             DEBUG(TEXT("[ScriptCalculateLineColumn] Terminator at offset %u before position %u"), i, Position);
             break;
         }
 
         if (Current == '\n') {
+            DEBUG(TEXT("[ScriptCalculateLineColumn] Newline encountered at offset %u"), i);
             CurrentLine++;
             CurrentColumn = 1;
         } else {
@@ -901,6 +1049,7 @@ static void ScriptInitParser(LPSCRIPT_PARSER Parser, LPCSTR Input, LPSCRIPT_CONT
         ScriptDebugDumpInputPreview(Input, SCRIPT_PARSER_MAX_PREVIEW);
     }
 
+    ScriptDebugDumpParserState(Parser, TEXT("ScriptInitParser-BeforeFirstToken"));
     ScriptNextToken(Parser);
 }
 
@@ -914,6 +1063,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
     LPCSTR Input = Parser->Input;
     U32* Pos = &Parser->Position;
 
+    ScriptDebugDumpParserState(Parser, TEXT("ScriptNextToken-Entry"));
     DEBUG(TEXT("[ScriptNextToken] Begin Parser=%p Input=%p Pos=%u Length=%u InputValid=%u"),
           Parser,
           Input,
@@ -952,7 +1102,9 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
     }
 
     Parser->CurrentToken.Position = *Pos;
+    DEBUG(TEXT("[ScriptNextToken] Calculating line/column (Input=%p Pos=%u)"), Input, *Pos);
     ScriptCalculateLineColumn(Input, *Pos, &Parser->CurrentToken.Line, &Parser->CurrentToken.Column);
+    ScriptDebugDumpParserState(Parser, TEXT("ScriptNextToken-PostLineColumn"));
 
     if (!ScriptParserEnsureRange(Parser, *Pos, TEXT("TokenStart"))) {
         Parser->CurrentToken.Type = TOKEN_EOF;
@@ -977,6 +1129,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
     if (Ch >= '0' && Ch <= '9') {
         Parser->CurrentToken.Type = TOKEN_NUMBER;
+        DEBUG(TEXT("[ScriptNextToken] Detected numeric token at Pos=%u"), *Pos);
         U32 Start = *Pos;
 
         while (TRUE) {
@@ -1000,6 +1153,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
     } else if ((Ch >= 'a' && Ch <= 'z') || (Ch >= 'A' && Ch <= 'Z') || Ch == '_') {
         Parser->CurrentToken.Type = TOKEN_IDENTIFIER;
+        DEBUG(TEXT("[ScriptNextToken] Detected identifier token at Pos=%u"), *Pos);
         U32 Start = *Pos;
 
         while (TRUE) {
@@ -1035,6 +1189,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
     } else if (Ch == '"' || Ch == '\'') {
         Parser->CurrentToken.Type = TOKEN_STRING;
+        DEBUG(TEXT("[ScriptNextToken] Detected string token at Pos=%u"), *Pos);
         STR Quote = Ch;
         (*Pos)++;
         U32 Start = *Pos;
@@ -1112,6 +1267,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
         if (TreatAsPath) {
             Parser->CurrentToken.Type = TOKEN_PATH;
+            DEBUG(TEXT("[ScriptNextToken] Detected path token at Pos=%u"), *Pos);
             U32 Start = *Pos;
             (*Pos)++;
 
@@ -1135,6 +1291,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
             Parser->CurrentToken.Value[Len] = STR_NULL;
         } else {
             Parser->CurrentToken.Type = TOKEN_OPERATOR;
+            DEBUG(TEXT("[ScriptNextToken] Treating '/' as operator at Pos=%u"), *Pos);
             Parser->CurrentToken.Value[0] = Ch;
             Parser->CurrentToken.Value[1] = STR_NULL;
             (*Pos)++;
@@ -1144,29 +1301,46 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         Parser->CurrentToken.Type = (Ch == '(') ? TOKEN_LPAREN : TOKEN_RPAREN;
         Parser->CurrentToken.Value[0] = Ch;
         Parser->CurrentToken.Value[1] = STR_NULL;
+        if (Ch == '(') {
+            DEBUG(TEXT("[ScriptNextToken] Parsed left parenthesis at Pos=%u"), *Pos);
+        } else {
+            DEBUG(TEXT("[ScriptNextToken] Parsed right parenthesis at Pos=%u"), *Pos);
+        }
         (*Pos)++;
 
     } else if (Ch == '[' || Ch == ']') {
         Parser->CurrentToken.Type = (Ch == '[') ? TOKEN_LBRACKET : TOKEN_RBRACKET;
         Parser->CurrentToken.Value[0] = Ch;
         Parser->CurrentToken.Value[1] = STR_NULL;
+        if (Ch == '[') {
+            DEBUG(TEXT("[ScriptNextToken] Parsed left bracket at Pos=%u"), *Pos);
+        } else {
+            DEBUG(TEXT("[ScriptNextToken] Parsed right bracket at Pos=%u"), *Pos);
+        }
         (*Pos)++;
 
     } else if (Ch == ';') {
         Parser->CurrentToken.Type = TOKEN_SEMICOLON;
         Parser->CurrentToken.Value[0] = Ch;
         Parser->CurrentToken.Value[1] = STR_NULL;
+        DEBUG(TEXT("[ScriptNextToken] Parsed semicolon at Pos=%u"), *Pos);
         (*Pos)++;
 
     } else if (Ch == '{' || Ch == '}') {
         Parser->CurrentToken.Type = (Ch == '{') ? TOKEN_LBRACE : TOKEN_RBRACE;
         Parser->CurrentToken.Value[0] = Ch;
         Parser->CurrentToken.Value[1] = STR_NULL;
+        if (Ch == '{') {
+            DEBUG(TEXT("[ScriptNextToken] Parsed left brace at Pos=%u"), *Pos);
+        } else {
+            DEBUG(TEXT("[ScriptNextToken] Parsed right brace at Pos=%u"), *Pos);
+        }
         (*Pos)++;
 
     } else if (Ch == '<' || Ch == '>' || Ch == '!') {
         Parser->CurrentToken.Type = TOKEN_COMPARISON;
         Parser->CurrentToken.Value[0] = Ch;
+        DEBUG(TEXT("[ScriptNextToken] Parsing comparison operator at Pos=%u"), *Pos);
         (*Pos)++;
 
         if (ScriptParserEnsureRange(Parser, *Pos, TEXT("ComparisonLookahead")) &&
@@ -1175,6 +1349,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
              (Ch == '!' && Input[*Pos] == '='))) {
             Parser->CurrentToken.Value[1] = Input[*Pos];
             Parser->CurrentToken.Value[2] = STR_NULL;
+            DEBUG(TEXT("[ScriptNextToken] Comparison operator has two-character form"));
             (*Pos)++;
         } else {
             Parser->CurrentToken.Value[1] = STR_NULL;
@@ -1182,22 +1357,26 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
     } else if (Ch == '=') {
         Parser->CurrentToken.Value[0] = Ch;
+        DEBUG(TEXT("[ScriptNextToken] Parsing equals/operator at Pos=%u"), *Pos);
         (*Pos)++;
 
         if (ScriptParserEnsureRange(Parser, *Pos, TEXT("EqualsLookahead")) && Input[*Pos] == '=') {
             Parser->CurrentToken.Type = TOKEN_COMPARISON;
             Parser->CurrentToken.Value[1] = Input[*Pos];
             Parser->CurrentToken.Value[2] = STR_NULL;
+            DEBUG(TEXT("[ScriptNextToken] Equality comparison detected"));
             (*Pos)++;
         } else {
             Parser->CurrentToken.Type = TOKEN_OPERATOR;
             Parser->CurrentToken.Value[1] = STR_NULL;
+            DEBUG(TEXT("[ScriptNextToken] Single '=' treated as operator"));
         }
 
     } else {
         Parser->CurrentToken.Type = TOKEN_OPERATOR;
         Parser->CurrentToken.Value[0] = Ch;
         Parser->CurrentToken.Value[1] = STR_NULL;
+        DEBUG(TEXT("[ScriptNextToken] Default operator char=0x%x"), (U8)Ch);
         (*Pos)++;
     }
 
@@ -1208,6 +1387,7 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
           Parser->CurrentToken.Position,
           Parser->CurrentToken.Line,
           Parser->CurrentToken.Column);
+    ScriptDebugDumpParserState(Parser, TEXT("ScriptNextToken-Exit"));
 }
 
 /************************************************************************/
