@@ -152,8 +152,7 @@ void InitializeQuantumTime(void) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
     // Double quantum when scheduling debug is enabled (logs slow down execution)
     Kernel.MinimumQuantum *= 2;
-    KernelLogText(
-        LOG_VERBOSE, TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
+    DEBUG(TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
         Kernel.MinimumQuantum);
 #endif
 

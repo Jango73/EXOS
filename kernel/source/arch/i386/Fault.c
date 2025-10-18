@@ -181,8 +181,7 @@ void DebugExceptionHandler(LPINTERRUPT_FRAME Frame) {
         if (pd[pde_idx] & 1) {
             U32* pt = (U32*)(0xFFC00000 + pde_idx * 0x1000);  // PT_BASE_VA
             U32 pte = pt[pte_idx];
-            KernelLogText(
-                LOG_ERROR, TEXT("PDE[%d]=%08x PTE[%d]=%08x (Present=%d User=%d RW=%d)"), pde_idx, pd[pde_idx], pte_idx,
+            ERROR(TEXT("PDE[%d]=%08x PTE[%d]=%08x (Present=%d User=%d RW=%d)"), pde_idx, pd[pde_idx], pte_idx,
                 pte, pte & 1, (pte >> 2) & 1, (pte >> 1) & 1);
         } else {
             ERROR(TEXT("PDE[%d]=%08x NOT PRESENT!"), pde_idx, pd[pde_idx]);

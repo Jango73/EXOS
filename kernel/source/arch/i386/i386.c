@@ -925,3 +925,30 @@ void ArchInitializeMemoryManager(void) {
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] Exit"));
 }
+
+/************************************************************************/
+
+/**
+ * @brief Check if a linear address is mapped and accessible.
+ * @param Address Linear address to test.
+ * @return TRUE if the address resolves to a present page table entry.
+ */
+BOOL IsValidMemory(LINEAR Address) {
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+    UINT DirectoryIndex = GetDirectoryEntry(Address);
+    UINT TableIndex = GetTableEntry(Address);
+
+    if (Directory == NULL) return FALSE;
+    if (DirectoryIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+
+    if (PageDirectoryEntryIsPresent(Directory, DirectoryIndex) == FALSE) return FALSE;
+
+    LPPAGE_TABLE Table = GetPageTableVAFor(Address);
+    if (Table == NULL) return FALSE;
+    if (PageTableEntryIsPresent(Table, TableIndex) == FALSE) return FALSE;
+
+    return TRUE;
+}
+
+/************************************************************************/

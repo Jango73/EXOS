@@ -201,8 +201,7 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, U32
     Frame->Registers.CS = Stack[INCOMING_CS_INDEX + HasErrorCode] & MAX_U16;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    KernelLogText(
-        LOG_DEBUG, TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - InterruptNumber=%d HasErrorCode=%d UserMode=%d"),
+    DEBUG(TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - InterruptNumber=%d HasErrorCode=%d UserMode=%d"),
         InterruptNumber, HasErrorCode, UserMode);
     DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
     KernelLogMem(LOG_DEBUG, (U32)Stack, 256);

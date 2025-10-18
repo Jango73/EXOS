@@ -925,7 +925,7 @@ static BOOL SaveFile(LPEDITFILE File) {
         File->Modified = FALSE;
         DoSystemCall(SYSCALL_DeleteObject, Handle);
     } else {
-        KernelLogText(LOG_VERBOSE, TEXT("Could not save file '%s'\n"), File->Name);
+        VERBOSE(TEXT("Could not save file '%s'\n"), File->Name);
     }
 
     return FALSE;

@@ -779,8 +779,7 @@ void ARP_DumpCache(LPDEVICE Device) {
         if (!Entry->IsValid) continue;
 
         U32 HostOrder = Ntohl(Entry->IPv4_Be);
-        KernelLogText(
-            LOG_DEBUG, TEXT("[ARP] %u.%u.%u.%u -> %x:%x:%x:%x:%x:%x ttl=%u"), (U32)((HostOrder >> 24) & 0xFF),
+        DEBUG(TEXT("[ARP] %u.%u.%u.%u -> %x:%x:%x:%x:%x:%x ttl=%u"), (U32)((HostOrder >> 24) & 0xFF),
             (U32)((HostOrder >> 16) & 0xFF), (U32)((HostOrder >> 8) & 0xFF), (U32)((HostOrder >> 0) & 0xFF),
             (U32)Entry->MacAddress[0], (U32)Entry->MacAddress[1], (U32)Entry->MacAddress[2], (U32)Entry->MacAddress[3],
             (U32)Entry->MacAddress[4], (U32)Entry->MacAddress[5], (U32)Entry->TimeToLive);

@@ -133,7 +133,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
     //-------------------------------------
     // Check validity of parameters
 
-    SAFE_USE_VALID_ID(Mutex, KOID_MUTEX) {
+    SAFE_USE_ID(Mutex, KOID_MUTEX) {
         // Have at leat two tasks
         SAFE_USE_ID_2(Kernel.Task->First, Kernel.Task->First->Next, KOID_TASK) {
             Task = GetCurrentTask();

@@ -34,67 +34,7 @@
 #include "System.h"
 #include "Text.h"
 
-/***************************************************************************/
-
-KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
-    .IDT = NULL,
-    .GDT = NULL,
-    .TSS = NULL,
-};
-
 /************************************************************************/
-
-/**
- * @brief Set the handler address for a 64-bit IDT gate descriptor.
- * @param Descriptor IDT entry to update.
- * @param Handler Linear address of the interrupt handler.
- */
-void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY Descriptor, LINEAR Handler) {
-    U64 Offset = (U64)Handler;
-
-    Descriptor->Offset_00_15 = (U16)(Offset & 0x0000FFFFull);
-    Descriptor->Offset_16_31 = (U16)((Offset >> 16) & 0x0000FFFFull);
-    Descriptor->Offset_32_63 = (U32)((Offset >> 32) & 0xFFFFFFFFull);
-    Descriptor->Reserved_2 = 0;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Initialize a 64-bit IDT gate descriptor.
- * @param Descriptor IDT entry to configure.
- * @param Handler Linear address of the interrupt handler.
- * @param Type Gate type to install.
- * @param Privilege Descriptor privilege level.
- */
-void InitializeGateDescriptor(
-    LPX86_64_IDT_ENTRY Descriptor,
-    LINEAR Handler,
-    U16 Type,
-    U16 Privilege) {
-    Descriptor->Selector = SELECTOR_KERNEL_CODE;
-    Descriptor->InterruptStackTable = 0;
-    Descriptor->Reserved_0 = 0;
-    Descriptor->Type = Type;
-    Descriptor->Privilege = Privilege;
-    Descriptor->Present = 1;
-    Descriptor->Reserved_1 = 0;
-
-    SetGateDescriptorOffset(Descriptor, Handler);
-}
-
-/************************************************************************/
-
-/**
- * @brief Perform architecture-specific pre-initialization.
- */
-void ArchPreInitializeKernel(void) {
-    GDT_REGISTER Gdtr;
-
-    ReadGlobalDescriptorTable(&Gdtr);
-    Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
-}
-
 
 typedef enum _PAGE_TABLE_POPULATE_MODE {
     PAGE_TABLE_POPULATE_IDENTITY,
@@ -137,6 +77,67 @@ typedef struct _REGION_SETUP {
     PAGE_TABLE_SETUP Tables[64];
     UINT TableCount;
 } REGION_SETUP;
+
+/************************************************************************/
+
+KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
+    .IDT = NULL,
+    .GDT = NULL,
+    .TSS = NULL,
+};
+
+/************************************************************************/
+
+/**
+ * @brief Set the handler address for a 64-bit IDT gate descriptor.
+ * @param Descriptor IDT entry to update.
+ * @param Handler Linear address of the interrupt handler.
+ */
+void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY Descriptor, LINEAR Handler) {
+    U64 Offset = (U64)Handler;
+
+    Descriptor->Offset_00_15 = (U16)(Offset & 0x0000FFFFull);
+    Descriptor->Offset_16_31 = (U16)((Offset >> 16) & 0x0000FFFFull);
+    Descriptor->Offset_32_63 = (U32)((Offset >> 32) & 0xFFFFFFFFull);
+    Descriptor->Reserved_2 = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize a 64-bit IDT gate descriptor.
+ * @param Descriptor IDT entry to configure.
+ * @param Handler Linear address of the interrupt handler.
+ * @param Type Gate type to install.
+ * @param Privilege Descriptor privilege level.
+ */
+void InitializeGateDescriptor(
+    LPX86_64_IDT_ENTRY Descriptor,
+    LINEAR Handler,
+    U16 Type,
+    U16 Privilege) {
+    Descriptor->Selector = SELECTOR_KERNEL_CODE;
+    Descriptor->InterruptStackTable = 0;
+    Descriptor->Reserved_0 = 0;
+    Descriptor->Type = Type;
+    Descriptor->Privilege = Privilege;
+    Descriptor->Present = 1;
+    Descriptor->Reserved_1 = 0;
+
+    SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Perform architecture-specific pre-initialization.
+ */
+void ArchPreInitializeKernel(void) {
+    GDT_REGISTER Gdtr;
+
+    ReadGlobalDescriptorTable(&Gdtr);
+    Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
+}
 
 /************************************************************************/
 
@@ -553,8 +554,6 @@ static U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
 
 /************************************************************************/
 
-/************************************************************************/
-
 /**
  * @brief Allocate a new page directory.
  * @return Physical address of the page directory or NULL on failure.
@@ -694,8 +693,6 @@ Out:
 
 /************************************************************************/
 
-/************************************************************************/
-
 /**
  * @brief Allocate a new page directory for userland processes.
  * @return Physical address of the page directory or NULL on failure.
@@ -832,8 +829,6 @@ Out:
     DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
     return Pml4Physical;
 }
-
-/************************************************************************/
 
 /************************************************************************/
 
@@ -1128,3 +1123,46 @@ void ArchInitializeMemoryManager(void) {
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] Exit"));
 }
+
+/************************************************************************/
+
+/**
+ * @brief Check if a linear address is mapped and accessible.
+ * @param Address Linear address to test.
+ * @return TRUE if the address resolves to a present page table entry.
+ */
+BOOL IsValidMemory(LINEAR Address) {
+    if (ArchCanonicalizeAddress(Address) != Address) return FALSE;
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    if (Pml4 == NULL) return FALSE;
+
+    UINT Pml4Index = GetPml4Entry(Address);
+    if (Pml4Index >= PML4_ENTRY_COUNT) return FALSE;
+    if (PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pml4, Pml4Index) == FALSE) return FALSE;
+
+    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Address);
+    if (Pdpt == NULL) return FALSE;
+
+    UINT PdptIndex = GetPdptEntry(Address);
+    if (PdptIndex >= PDPT_ENTRY_COUNT) return FALSE;
+    if (PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pdpt, PdptIndex) == FALSE) return FALSE;
+
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Address);
+    if (Directory == NULL) return FALSE;
+
+    UINT DirectoryIndex = GetDirectoryEntry(Address);
+    if (DirectoryIndex >= PAGE_DIRECTORY_ENTRY_COUNT) return FALSE;
+    if (PageDirectoryEntryIsPresent(Directory, DirectoryIndex) == FALSE) return FALSE;
+
+    LPPAGE_TABLE Table = GetPageTableVAFor(Address);
+    if (Table == NULL) return FALSE;
+
+    UINT TableIndex = GetTableEntry(Address);
+    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+    if (PageTableEntryIsPresent(Table, TableIndex) == FALSE) return FALSE;
+
+    return TRUE;
+}
+
+/************************************************************************/

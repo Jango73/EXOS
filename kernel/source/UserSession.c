@@ -70,8 +70,7 @@ void ShutdownSessionSystem(void) {
             SAFE_USE(Session) {
                 U32 UserIdHigh = U64_High32(Session->UserID);
                 U32 UserIdLow = U64_Low32(Session->UserID);
-                KernelLogText(
-                    LOG_VERBOSE, TEXT("Cleaning up session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
+                VERBOSE(TEXT("Cleaning up session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
                 UNUSED(UserIdHigh);
                 UNUSED(UserIdLow);
             }

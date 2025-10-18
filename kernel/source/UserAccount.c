@@ -151,7 +151,7 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
     }
 
     DEBUG(TEXT("[CreateUserAccount] User created successfully"));
-    KernelLogText(LOG_VERBOSE, TEXT("Created user account: %s"), UserName);
+    VERBOSE(TEXT("Created user account: %s"), UserName);
     return NewUser;
 }
 
@@ -184,7 +184,7 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
-    KernelLogText(LOG_VERBOSE, TEXT("Deleted user account: %s"), UserName);
+    VERBOSE(TEXT("Deleted user account: %s"), UserName);
     return TRUE;
 }
 
@@ -267,7 +267,7 @@ BOOL ChangeUserPassword(LPCSTR UserName, LPCSTR OldPassword, LPCSTR NewPassword)
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
-    KernelLogText(LOG_VERBOSE, TEXT("Password changed for user: %s"), UserName);
+    VERBOSE(TEXT("Password changed for user: %s"), UserName);
     return TRUE;
 }
 
@@ -356,7 +356,7 @@ BOOL SaveUserDatabase(void) {
         return FALSE;
     }
 
-    KernelLogText(LOG_VERBOSE, TEXT("Saved %u user accounts to database"), SavedCount);
+    VERBOSE(TEXT("Saved %u user accounts to database"), SavedCount);
     return TRUE;
 }
 

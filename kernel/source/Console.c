@@ -263,7 +263,7 @@ static void ConsolePrintString(LPCSTR Text) {
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
-    SAFE_USE_VALID(Text) {
+    SAFE_USE(Text) {
         for (Index = 0; Index < MAX_STRING_BUFFER; Index++) {
             if (Text[Index] == STR_NULL) break;
             ConsolePrintChar(Text[Index]);

@@ -89,8 +89,7 @@ static UINT RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
 
         if (GetTaskStatus(Task) == TASK_STATUS_DEAD && Task != ExceptTask) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
-            KernelLogText(
-                LOG_DEBUG, TEXT("[RemoveDeadTasksFromQueue] Removing dead task %s at index %d"), Task->Name, Index);
+            DEBUG(TEXT("[RemoveDeadTasksFromQueue] Removing dead task %s at index %d"), Task->Name, Index);
 #endif
 
             // Shift remaining tasks down
@@ -368,8 +367,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 #endif
 
     if (NextTask->Status > TASK_STATUS_DEAD) {
-        KernelLogText(
-            LOG_ERROR, TEXT("[SwitchToNextTask_3] MEMORY CORRUPTION: Task status %x is out of range"),
+        ERROR(TEXT("[SwitchToNextTask_3] MEMORY CORRUPTION: Task status %x is out of range"),
             NextTask->Status);
         return;
     }
@@ -497,8 +495,7 @@ void Scheduler(void) {
         LPTASK NextTask = TaskList.Tasks[NextIndex];
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-        KernelLogText(
-            LOG_DEBUG, TEXT("[Scheduler] Switch between task index %u (%s @ %s) and %u (%s @ %s)"),
+        DEBUG(TEXT("[Scheduler] Switch between task index %u (%s @ %s) and %u (%s @ %s)"),
             TaskList.CurrentIndex, CurrentTask ? CurrentTask->Name : TEXT("NULL"),
             CurrentTask ? CurrentTask->Process->FileName : TEXT("NULL"), NextIndex, NextTask->Name,
             NextTask->Process->FileName);

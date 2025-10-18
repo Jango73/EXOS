@@ -35,6 +35,8 @@
 #include "Schedule.h"
 #include "System.h"
 
+/************************************************************************/
+
 /************************************************************************\
 
     Virtual Address Space (32-bit)
@@ -518,34 +520,6 @@ static inline void UnmapOnePage(LINEAR Linear) {
     InvalidatePage(Linear);
 }
 
-/************************************************************************/
-
-/**
- * @brief Check if a linear address is mapped and accessible.
- * @param Pointer Linear address to test.
- * @return TRUE if address is valid.
- */
-BOOL IsValidMemory(LINEAR Pointer) {
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-
-    UINT dir = GetDirectoryEntry(Pointer);
-    UINT tab = GetTableEntry(Pointer);
-
-    // Bounds check
-    if (dir >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
-    if (tab >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
-
-    // Page directory present?
-    if (!PageDirectoryEntryIsPresent(Directory, dir)) return FALSE;
-
-    // Page table present?
-    LPPAGE_TABLE Table = GetPageTableVAFor(Pointer);
-    if (!PageTableEntryIsPresent(Table, tab)) return FALSE;
-
-    return TRUE;
-}
-
-/************************************************************************/
 // Public temporary map #1
 
 /**
