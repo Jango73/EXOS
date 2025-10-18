@@ -30,7 +30,7 @@ uLong BFEncrypt(char **input, char *key, uLong sz, BCoptions *options) {
 
   Blowfish_Init (&ctx, key, MAXKEYBYTES);
 
-  for (i = 2; i < sz; i+=(j*2)) {	/* start just after tags */
+  for (i = 2; i < sz; i+=(j*2)) {       /* start just after tags */
     memcpy(&L, *input+i, j);
     memcpy(&R, *input+i+j, j);
     Blowfish_Encrypt(&ctx, &L, &R);
@@ -51,8 +51,8 @@ uLong BFEncrypt(char **input, char *key, uLong sz, BCoptions *options) {
   return(sz);
 }
 
-uLong BFDecrypt(char **input, char *key, char *key2, uLong sz, 
-	BCoptions *options) {
+uLong BFDecrypt(char **input, char *key, char *key2, uLong sz,
+        BCoptions *options) {
   uInt32 L, R;
   uLong i;
   BLOWFISH_CTX ctx;
@@ -103,15 +103,39 @@ uLong BFDecrypt(char **input, char *key, char *key2, uLong sz,
     memcpy(*input+i+j, &R, j);
   }
 
-  while (memcmp(*input+(sz-1), "\0", 1) == 0)  /* strip excess nulls   */
-    sz--;                                       /* from decrypted files */
+  while ((sz > MAXKEYBYTES) &&
+         (memcmp(*input + (sz - MAXKEYBYTES), mykey, MAXKEYBYTES) != 0)) {
+    if ((*input)[sz - 1] != '\0') {
+      goto cleanup_fail;
+    }
+
+    sz--;
+  }
+
+  if (sz < MAXKEYBYTES) {
+    goto cleanup_fail;
+  }
+
+  if (memcmp(*input + (sz - MAXKEYBYTES), mykey, MAXKEYBYTES) != 0) {
+    goto cleanup_fail;
+  }
 
   sz -= MAXKEYBYTES;
 
-  if (memcmp(*input+sz, mykey, MAXKEYBYTES) != 0)
-    return(0);
+  while ((sz > 0) && ((*input)[sz - 1] == '\0')) {
+    sz--;
+  }
 
   free(mykey);
   free(myEndian);
   return(sz);
+
+cleanup_fail:
+  if (mykey != NULL) {
+    free(mykey);
+  }
+  if (myEndian != NULL) {
+    free(myEndian);
+  }
+  return(0);
 }
