@@ -573,6 +573,7 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
 
     MapOnePage(
         G_TempLinear2, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
 
 #if defined(__EXOS_ARCH_X86_64__)
     // Ensure the CPU stops using the previous translation before callers touch the
@@ -602,6 +603,7 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
 
     MapOnePage(
         G_TempLinear3, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
 
 #if defined(__EXOS_ARCH_X86_64__)
     // Ensure the CPU stops using the previous translation before callers touch the
