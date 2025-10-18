@@ -146,8 +146,6 @@ void KernelLogMem(U32 Type, LINEAR Memory, U32 Size) {
     U32* Pointer = (U32*)Memory;
     U32 LineCount = Size / (sizeof(U32) * 8);
 
-    if (KernelSafeValidationAvailable == FALSE) return;
-
     if (LineCount < 1) LineCount = 1;
 
     for (U32 Line = 0; Line < LineCount; Line++) {
