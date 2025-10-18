@@ -1146,14 +1146,20 @@ BOOL IsValidMemory(LINEAR Address) {
 
     UINT PdptIndex = GetPdptEntry(Address);
     if (PdptIndex >= PDPT_ENTRY_COUNT) return FALSE;
-    if (PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pdpt, PdptIndex) == FALSE) return FALSE;
+
+    U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
+    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
+    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) return TRUE;  // 1GB page
 
     LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Address);
     if (Directory == NULL) return FALSE;
 
     UINT DirectoryIndex = GetDirectoryEntry(Address);
     if (DirectoryIndex >= PAGE_DIRECTORY_ENTRY_COUNT) return FALSE;
-    if (PageDirectoryEntryIsPresent(Directory, DirectoryIndex) == FALSE) return FALSE;
+
+    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirectoryIndex);
+    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
+    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) return TRUE;  // 2MB page
 
     LPPAGE_TABLE Table = GetPageTableVAFor(Address);
     if (Table == NULL) return FALSE;
