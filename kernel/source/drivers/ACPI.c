@@ -69,28 +69,84 @@ static U8 CalculateChecksum(LPCVOID Data, U32 Length) {
 /************************************************************************/
 
 /**
- * @brief Search for RSDP in a memory range.
- * @param StartAddress Start of search range.
+ * @brief Search for RSDP in a physical memory range.
+ * @param StartAddress Physical start of search range.
  * @param Length Length of search range.
  * @return Pointer to RSDP if found, NULL otherwise.
  */
-static LPACPI_RSDP SearchRSDPInRange(LINEAR StartAddress, U32 Length) {
-    DEBUG(TEXT("[SearchRSDPInRange] Searching range 0x%08X - 0x%08X"), StartAddress, StartAddress + Length);
+static LPACPI_RSDP SearchRSDPInRange(PHYSICAL StartAddress, U32 Length) {
+    DEBUG(TEXT("[SearchRSDPInRange] Searching range 0x%08X - 0x%08X"),
+          StartAddress, StartAddress + Length);
 
-    for (LINEAR Address = StartAddress; Address < StartAddress + Length; Address += 16) {
-        if (!IsValidMemory(Address)) continue;
+    for (PHYSICAL Offset = 0; Offset < Length; Offset += 16) {
+        PHYSICAL CurrentPhysical = StartAddress + Offset;
+        PHYSICAL PagePhysical = CurrentPhysical & ~((PHYSICAL)0xFFF);
+        LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(PagePhysical);
 
-        LPACPI_RSDP Rsdp = (LPACPI_RSDP)Address;
+        if (TemporaryAddress == 0) {
+            DEBUG(TEXT("[SearchRSDPInRange] Failed to map physical %p"), (LPVOID)CurrentPhysical);
+            continue;
+        }
 
-        // Check signature "RSD PTR "
-        if (MemoryCompare(Rsdp->Signature, "RSD PTR ", 8) == 0) {
-            // Validate checksum for ACPI 1.0 portion
-            U8 Checksum = CalculateChecksum(Rsdp, 20);
-            if (Checksum == 0) {
-                DEBUG(TEXT("[SearchRSDPInRange] Found valid RSDP at 0x%08X"), Address);
-                return Rsdp;
+        UINT PageOffset = (UINT)(CurrentPhysical & (PHYSICAL)(PAGE_SIZE - 1));
+        ACPI_RSDP Candidate;
+        UINT HeaderSize = sizeof(ACPI_RSDP);
+        UINT FirstChunk = PAGE_SIZE - PageOffset;
+
+        if (FirstChunk > HeaderSize) {
+            FirstChunk = HeaderSize;
+        }
+
+        MemoryCopy(&Candidate, (LPCVOID)(TemporaryAddress + PageOffset), FirstChunk);
+
+        if (FirstChunk < HeaderSize) {
+            LINEAR NextTemporary = MapTemporaryPhysicalPage1(PagePhysical + PAGE_SIZE);
+
+            if (NextTemporary == 0) {
+                DEBUG(TEXT("[SearchRSDPInRange] Failed to map second page for physical %p"),
+                      (LPVOID)CurrentPhysical);
+                continue;
+            }
+
+            MemoryCopy(((U8*)&Candidate) + FirstChunk,
+                       (LPCVOID)NextTemporary,
+                       HeaderSize - FirstChunk);
+        }
+
+        if (MemoryCompare(Candidate.Signature, "RSD PTR ", 8) != 0) {
+            continue;
+        }
+
+        U8 Checksum = CalculateChecksum(&Candidate, 20);
+        if (Checksum != 0) {
+            continue;
+        }
+
+        UINT MappingLength = 20;
+
+        if (Candidate.Revision >= 2 && Candidate.Length != 0) {
+            if (Candidate.Length < 20 || Candidate.Length > sizeof(ACPI_RSDP)) {
+                continue;
+            }
+
+            MappingLength = Candidate.Length;
+
+            U8 ExtendedChecksum = CalculateChecksum(&Candidate, Candidate.Length);
+            if (ExtendedChecksum != 0) {
+                continue;
             }
         }
+
+        LINEAR PermanentAddress = MapIOMemory(CurrentPhysical, MappingLength);
+
+        if (PermanentAddress == 0) {
+            DEBUG(TEXT("[SearchRSDPInRange] MapIOMemory failed for physical %p"),
+                  (LPVOID)CurrentPhysical);
+            continue;
+        }
+
+        DEBUG(TEXT("[SearchRSDPInRange] Found valid RSDP at physical %p"), (LPVOID)CurrentPhysical);
+        return (LPACPI_RSDP)PermanentAddress;
     }
 
     return NULL;
@@ -109,13 +165,20 @@ LPACPI_RSDP FindRSDP(void) {
 
     // Search in EBDA (Extended BIOS Data Area)
     // EBDA segment is stored at 0x40E (physical address 0x40E)
-    U16* EbdaSegment = (U16*)0x40E;
-    if (IsValidMemory((LINEAR)EbdaSegment)) {
-        LINEAR EbdaAddress = (*EbdaSegment) << 4;  // Convert segment to linear address
+    PHYSICAL EbdaSegmentPhysical = 0x40E;
+    LINEAR EbdaSegmentPage = MapTemporaryPhysicalPage1(EbdaSegmentPhysical & ~((PHYSICAL)0xFFF));
+
+    if (EbdaSegmentPage != 0) {
+        UINT EbdaOffset = (UINT)(EbdaSegmentPhysical & (PHYSICAL)(PAGE_SIZE - 1));
+        U16 EbdaSegmentValue = *((U16*)(EbdaSegmentPage + EbdaOffset));
+        PHYSICAL EbdaAddress = ((PHYSICAL)EbdaSegmentValue) << 4;  // Convert segment to physical address
+
         if (EbdaAddress != 0 && EbdaAddress < 0x100000) {
-            DEBUG(TEXT("[FindRSDP] Searching EBDA at 0x%08X"), EbdaAddress);
+            DEBUG(TEXT("[FindRSDP] Searching EBDA at physical 0x%08X"), EbdaAddress);
             Rsdp = SearchRSDPInRange(EbdaAddress, 1024);  // Search first 1KB of EBDA
         }
+    } else {
+        DEBUG(TEXT("[FindRSDP] Failed to map EBDA segment"));
     }
 
     // If not found in EBDA, search in standard BIOS ROM area (0xE0000 - 0xFFFFF)
@@ -127,10 +190,9 @@ LPACPI_RSDP FindRSDP(void) {
     SAFE_USE(Rsdp) {
         DEBUG(TEXT("[FindRSDP] RSDP found at 0x%08X, revision %d"), (U32)Rsdp, Rsdp->Revision);
 
-        // For ACPI 2.0+, validate extended checksum
+        // For ACPI 2.0+, validate extended checksum again using the permanent mapping
         if (Rsdp->Revision >= 2) {
-            U8 ExtendedChecksum = CalculateChecksum(Rsdp, Rsdp->Length);
-            if (ExtendedChecksum != 0) {
+            if (Rsdp->Length == 0 || CalculateChecksum(Rsdp, Rsdp->Length) != 0) {
                 DEBUG(TEXT("[FindRSDP] Extended checksum validation failed"));
                 return NULL;
             }
@@ -178,46 +240,42 @@ static LPACPI_TABLE_HEADER AcquireACPITable(PHYSICAL PhysicalAddress,
     if (PermanentMapping != NULL) *PermanentMapping = FALSE;
     if (MappedLength != NULL) *MappedLength = 0;
 
-    if (PhysicalAddress < 0x100000) {
-        LINEAR TableAddress = (LINEAR)PhysicalAddress;
-
-        if (!IsValidMemory(TableAddress)) {
-            DEBUG(TEXT("[AcquireACPITable] Table at %p not accessible"), (LPVOID)TableAddress);
-            return NULL;
-        }
-
-        LPACPI_TABLE_HEADER Table = (LPACPI_TABLE_HEADER)TableAddress;
-
-        if (MemoryCompare(Table->Signature, Signature, 4) != 0) {
-            return NULL;
-        }
-
-        return Table;
-    }
-
-    LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(PhysicalAddress & ~((PHYSICAL)0xFFF));
+    PHYSICAL PagePhysical = PhysicalAddress & ~((PHYSICAL)0xFFF);
+    LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(PagePhysical);
     if (TemporaryAddress == 0) {
         DEBUG(TEXT("[AcquireACPITable] Failed to map temporary page for physical %p"),
               (LPVOID)PhysicalAddress);
         return NULL;
     }
 
-    LINEAR TemporaryTableAddress =
-        TemporaryAddress + (LINEAR)(PhysicalAddress & (PHYSICAL)(PAGE_SIZE - 1));
+    UINT PageOffset = (UINT)(PhysicalAddress & (PHYSICAL)(PAGE_SIZE - 1));
+    ACPI_TABLE_HEADER Header;
+    UINT HeaderSize = sizeof(ACPI_TABLE_HEADER);
+    UINT FirstChunk = PAGE_SIZE - PageOffset;
 
-    if (!IsValidMemory(TemporaryTableAddress)) {
-        DEBUG(TEXT("[AcquireACPITable] Temporary mapping for %p not accessible"),
-              (LPVOID)TemporaryTableAddress);
+    if (FirstChunk > HeaderSize) {
+        FirstChunk = HeaderSize;
+    }
+
+    MemoryCopy(&Header, (LPCVOID)(TemporaryAddress + PageOffset), FirstChunk);
+
+    if (FirstChunk < HeaderSize) {
+        LINEAR NextTemporary = MapTemporaryPhysicalPage1(PagePhysical + PAGE_SIZE);
+
+        if (NextTemporary == 0) {
+            DEBUG(TEXT("[AcquireACPITable] Failed to map second page for physical %p"),
+                  (LPVOID)PhysicalAddress);
+            return NULL;
+        }
+
+        MemoryCopy(((U8*)&Header) + FirstChunk, (LPCVOID)NextTemporary, HeaderSize - FirstChunk);
+    }
+
+    if (MemoryCompare(Header.Signature, Signature, 4) != 0) {
         return NULL;
     }
 
-    LPACPI_TABLE_HEADER TemporaryTable = (LPACPI_TABLE_HEADER)TemporaryTableAddress;
-
-    if (MemoryCompare(TemporaryTable->Signature, Signature, 4) != 0) {
-        return NULL;
-    }
-
-    UINT Length = TemporaryTable->Length;
+    UINT Length = Header.Length;
     if (Length == 0) {
         DEBUG(TEXT("[AcquireACPITable] Table %.4s has invalid length 0"), Signature);
         return NULL;
@@ -458,52 +516,27 @@ BOOL InitializeACPI(void) {
         PHYSICAL RsdtPhysical = (PHYSICAL)G_RSDP->RsdtAddress;
         DEBUG(TEXT("[InitializeACPI] RSDT physical address: %p"), (LPVOID)RsdtPhysical);
 
-        // Check if RSDT is in low memory (first 1MB) or needs mapping
-        if (RsdtPhysical < 0x100000) {
-            // RSDT is in low memory, use direct mapping
-            G_RSDT = (LPACPI_RSDT)(LINEAR)RsdtPhysical;
-        } else {
-            // RSDT is in high memory, needs to be mapped
-            LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(RsdtPhysical & ~((PHYSICAL)0xFFF));
-            if (TemporaryAddress != 0) {
-                LINEAR TemporaryTableAddress =
-                    TemporaryAddress + (LINEAR)(RsdtPhysical & (PHYSICAL)(PAGE_SIZE - 1));
+        BOOL RsdtPermanent = FALSE;
+        UINT RsdtMappedLength = 0;
+        LPACPI_TABLE_HEADER RsdtTable =
+            AcquireACPITable(RsdtPhysical, TEXT("RSDT"), &RsdtPermanent, &RsdtMappedLength);
 
-                SAFE_USE(TemporaryTableAddress) {
-                    LPACPI_RSDT TemporaryRsdt = (LPACPI_RSDT)TemporaryTableAddress;
-                    UINT RsdtLength = TemporaryRsdt->Header.Length;
+        if (RsdtTable != NULL) {
+            G_RSDT = (LPACPI_RSDT)RsdtTable;
 
-                    if (RsdtLength == 0) {
-                        DEBUG(TEXT("[InitializeACPI] RSDT length is 0"));
-                        G_RSDT = NULL;
-                    } else {
-                        LINEAR PermanentAddress = MapIOMemory(RsdtPhysical, RsdtLength);
-                        if (PermanentAddress != 0) {
-                            G_RSDT = (LPACPI_RSDT)PermanentAddress;
-                            DEBUG(TEXT("[InitializeACPI] RSDT mapped to virtual address: %p"),
-                                  (LPVOID)G_RSDT);
-                        } else {
-                            DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for RSDT"));
-                            G_RSDT = NULL;
-                        }
-                    }
-                } else {
-                    DEBUG(TEXT("[InitializeACPI] Failed to map RSDT. TemporaryTableAddress is NULL"));
-                    G_RSDT = NULL;
-                }
-            } else {
-                DEBUG(TEXT("[InitializeACPI] Failed to map RSDT"));
-                G_RSDT = NULL;
-            }
-        }
-
-        SAFE_USE(G_RSDT) {
             if (!ValidateACPITableChecksum(&G_RSDT->Header)) {
                 DEBUG(TEXT("[InitializeACPI] RSDT checksum validation failed"));
+
+                if (RsdtPermanent) {
+                    UnMapIOMemory((LINEAR)G_RSDT, RsdtMappedLength);
+                }
+
                 G_RSDT = NULL;
             } else {
                 DEBUG(TEXT("[InitializeACPI] RSDT found and validated at %p"), (LPVOID)G_RSDT);
             }
+        } else {
+            DEBUG(TEXT("[InitializeACPI] Failed to acquire RSDT"));
         }
     }
 
@@ -512,52 +545,27 @@ BOOL InitializeACPI(void) {
         PHYSICAL XsdtPhysical = (PHYSICAL)U64_Low32(G_RSDP->XsdtAddress);
         DEBUG(TEXT("[InitializeACPI] XSDT physical address: %p"), (LPVOID)XsdtPhysical);
 
-        // Check if XSDT is in low memory (first 1MB) or needs mapping
-        if (XsdtPhysical < 0x100000) {
-            // XSDT is in low memory, use direct mapping
-            G_XSDT = (LPACPI_XSDT)(LINEAR)XsdtPhysical;
-        } else {
-            // XSDT is in high memory, needs to be mapped
-            LINEAR TemporaryAddress = MapTemporaryPhysicalPage1(XsdtPhysical & ~((PHYSICAL)0xFFF));
-            if (TemporaryAddress != 0) {
-                LINEAR TemporaryTableAddress =
-                    TemporaryAddress + (LINEAR)(XsdtPhysical & (PHYSICAL)(PAGE_SIZE - 1));
+        BOOL XsdtPermanent = FALSE;
+        UINT XsdtMappedLength = 0;
+        LPACPI_TABLE_HEADER XsdtTable =
+            AcquireACPITable(XsdtPhysical, TEXT("XSDT"), &XsdtPermanent, &XsdtMappedLength);
 
-                SAFE_USE(TemporaryTableAddress) {
-                    LPACPI_XSDT TemporaryXsdt = (LPACPI_XSDT)TemporaryTableAddress;
-                    UINT XsdtLength = TemporaryXsdt->Header.Length;
+        if (XsdtTable != NULL) {
+            G_XSDT = (LPACPI_XSDT)XsdtTable;
 
-                    if (XsdtLength == 0) {
-                        DEBUG(TEXT("[InitializeACPI] XSDT length is 0"));
-                        G_XSDT = NULL;
-                    } else {
-                        LINEAR PermanentAddress = MapIOMemory(XsdtPhysical, XsdtLength);
-                        if (PermanentAddress != 0) {
-                            G_XSDT = (LPACPI_XSDT)PermanentAddress;
-                            DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: %p"),
-                                  (LPVOID)G_XSDT);
-                        } else {
-                            DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for XSDT"));
-                            G_XSDT = NULL;
-                        }
-                    }
-                } else {
-                    DEBUG(TEXT("[InitializeACPI] Failed to map XSDT. TemporaryTableAddress is NULL"));
-                    G_XSDT = NULL;
-                }
-            } else {
-                DEBUG(TEXT("[InitializeACPI] Failed to map XSDT"));
-                G_XSDT = NULL;
-            }
-        }
-
-        SAFE_USE(G_XSDT) {
             if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
                 DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
+
+                if (XsdtPermanent) {
+                    UnMapIOMemory((LINEAR)G_XSDT, XsdtMappedLength);
+                }
+
                 G_XSDT = NULL;
             } else {
                 DEBUG(TEXT("[InitializeACPI] XSDT found and validated at %p"), (LPVOID)G_XSDT);
             }
+        } else {
+            DEBUG(TEXT("[InitializeACPI] Failed to acquire XSDT"));
         }
     }
 
