@@ -187,6 +187,11 @@ void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear
     G_TempLinear1 = Linear1;
     G_TempLinear2 = Linear2;
     G_TempLinear3 = Linear3;
+
+    DEBUG(TEXT("[MemorySetTemporaryLinearPages] Configured temp slots: %p, %p, %p"),
+        (LPVOID)G_TempLinear1,
+        (LPVOID)G_TempLinear2,
+        (LPVOID)G_TempLinear3);
 }
 
 /************************************************************************/
@@ -529,9 +534,12 @@ static inline void UnmapOnePage(LINEAR Linear) {
  */
 LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
     if (G_TempLinear1 == 0) {
+        ERROR(TEXT("[MapTemporaryPhysicalPage1] Requested physical %p but temp slot #1 not reserved"), (LPVOID)Physical);
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
     }
+
+    DEBUG(TEXT("[MapTemporaryPhysicalPage1] Mapping physical %p at %p"), (LPVOID)Physical, (LPVOID)G_TempLinear1);
 
     MapOnePage(
         G_TempLinear1, Physical,
@@ -556,13 +564,15 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
  */
 LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
     if (G_TempLinear2 == 0) {
+        ERROR(TEXT("[MapTemporaryPhysicalPage2] Requested physical %p but temp slot #2 not reserved"), (LPVOID)Physical);
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
     }
 
+    DEBUG(TEXT("[MapTemporaryPhysicalPage2] Mapping physical %p at %p"), (LPVOID)Physical, (LPVOID)G_TempLinear2);
+
     MapOnePage(
         G_TempLinear2, Physical,
-        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
 
 #if defined(__EXOS_ARCH_X86_64__)
     // Ensure the CPU stops using the previous translation before callers touch the
@@ -583,13 +593,15 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
  */
 LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     if (G_TempLinear3 == 0) {
+        ERROR(TEXT("[MapTemporaryPhysicalPage3] Requested physical %p but temp slot #3 not reserved"), (LPVOID)Physical);
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
     }
 
+    DEBUG(TEXT("[MapTemporaryPhysicalPage3] Mapping physical %p at %p"), (LPVOID)Physical, (LPVOID)G_TempLinear3);
+
     MapOnePage(
         G_TempLinear3, Physical,
-        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
 
 #if defined(__EXOS_ARCH_X86_64__)
     // Ensure the CPU stops using the previous translation before callers touch the

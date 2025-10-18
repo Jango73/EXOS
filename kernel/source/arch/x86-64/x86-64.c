@@ -1132,46 +1132,103 @@ void ArchInitializeMemoryManager(void) {
  * @return TRUE if the address resolves to a present page table entry.
  */
 BOOL IsValidMemory(LINEAR Address) {
-    if (ArchCanonicalizeAddress(Address) != Address) return FALSE;
+    DEBUG(TEXT("[IsValidMemory] Checking address %p"), (LPVOID)Address);
+
+    LINEAR Canonical = ArchCanonicalizeAddress(Address);
+    if (Canonical != Address) {
+        DEBUG(TEXT("[IsValidMemory] Address %p is not canonical (canonical %p)"), (LPVOID)Address, (LPVOID)Canonical);
+        return FALSE;
+    }
 
     LPPML4 Pml4 = GetCurrentPml4VA();
-    if (Pml4 == NULL) return FALSE;
+    if (Pml4 == NULL) {
+        ERROR(TEXT("[IsValidMemory] Recursive PML4 mapping unavailable"));
+        return FALSE;
+    }
 
     UINT Pml4Index = GetPml4Entry(Address);
-    if (Pml4Index >= PML4_ENTRY_COUNT) return FALSE;
+    DEBUG(TEXT("[IsValidMemory] PML4 index %u"), Pml4Index);
+    if (Pml4Index >= PML4_ENTRY_COUNT) {
+        DEBUG(TEXT("[IsValidMemory] PML4 index %u out of bounds"), Pml4Index);
+        return FALSE;
+    }
 
     U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
-    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
+    DEBUG(TEXT("[IsValidMemory] PML4[%u] value=%p"), Pml4Index, (LPVOID)Pml4EntryValue);
+    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[IsValidMemory] PML4[%u] not present"), Pml4Index);
+        return FALSE;
+    }
 
     LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Address);
-    if (Pdpt == NULL) return FALSE;
+    if (Pdpt == NULL) {
+        ERROR(TEXT("[IsValidMemory] Failed to obtain PDPT VA for %p"), (LPVOID)Address);
+        return FALSE;
+    }
 
     UINT PdptIndex = GetPdptEntry(Address);
-    if (PdptIndex >= PDPT_ENTRY_COUNT) return FALSE;
+    DEBUG(TEXT("[IsValidMemory] PDPT index %u"), PdptIndex);
+    if (PdptIndex >= PDPT_ENTRY_COUNT) {
+        DEBUG(TEXT("[IsValidMemory] PDPT index %u out of bounds"), PdptIndex);
+        return FALSE;
+    }
 
     U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
-    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
-    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) return TRUE;  // 1GB page
+    DEBUG(TEXT("[IsValidMemory] PDPTE[%u] value=%p"), PdptIndex, (LPVOID)PdptEntryValue);
+    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[IsValidMemory] PDPTE[%u] not present"), PdptIndex);
+        return FALSE;
+    }
+    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        DEBUG(TEXT("[IsValidMemory] PDPTE[%u] maps 1GB page"), PdptIndex);
+        return TRUE;
+    }
 
     LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Address);
-    if (Directory == NULL) return FALSE;
+    if (Directory == NULL) {
+        ERROR(TEXT("[IsValidMemory] Failed to obtain page directory VA for %p"), (LPVOID)Address);
+        return FALSE;
+    }
 
     UINT DirectoryIndex = GetDirectoryEntry(Address);
-    if (DirectoryIndex >= PAGE_DIRECTORY_ENTRY_COUNT) return FALSE;
+    DEBUG(TEXT("[IsValidMemory] Directory index %u"), DirectoryIndex);
+    if (DirectoryIndex >= PAGE_DIRECTORY_ENTRY_COUNT) {
+        DEBUG(TEXT("[IsValidMemory] Directory index %u out of bounds"), DirectoryIndex);
+        return FALSE;
+    }
 
     U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirectoryIndex);
-    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
-    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) return TRUE;  // 2MB page
+    DEBUG(TEXT("[IsValidMemory] PDE[%u] value=%p"), DirectoryIndex, (LPVOID)DirectoryEntryValue);
+    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[IsValidMemory] PDE[%u] not present"), DirectoryIndex);
+        return FALSE;
+    }
+    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        DEBUG(TEXT("[IsValidMemory] PDE[%u] maps 2MB page"), DirectoryIndex);
+        return TRUE;
+    }
 
     LPPAGE_TABLE Table = GetPageTableVAFor(Address);
-    if (Table == NULL) return FALSE;
+    if (Table == NULL) {
+        ERROR(TEXT("[IsValidMemory] Failed to obtain page table VA for %p"), (LPVOID)Address);
+        return FALSE;
+    }
 
     UINT TableIndex = GetTableEntry(Address);
-    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+    DEBUG(TEXT("[IsValidMemory] Table index %u"), TableIndex);
+    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) {
+        DEBUG(TEXT("[IsValidMemory] Table index %u out of bounds"), TableIndex);
+        return FALSE;
+    }
 
     U64 TableEntryValue = ReadPageTableEntryValue(Table, TableIndex);
-    if ((TableEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
+    DEBUG(TEXT("[IsValidMemory] PTE[%u] value=%p"), TableIndex, (LPVOID)TableEntryValue);
+    if ((TableEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        DEBUG(TEXT("[IsValidMemory] PTE[%u] not present"), TableIndex);
+        return FALSE;
+    }
 
+    DEBUG(TEXT("[IsValidMemory] Address %p is mapped"), (LPVOID)Address);
     return TRUE;
 }
 
