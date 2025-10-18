@@ -113,8 +113,46 @@ void CacheInit(LPCACHE Cache, UINT Capacity) {
     }
 
     DEBUG(TEXT("[CacheInit] Preparing to initialize mutex at %p"), CacheMutex);
-    Cache->Mutex = (MUTEX)EMPTY_MUTEX;
-    DEBUG(TEXT("[CacheInit] Mutex initialized lockCount=%u type=%x"), Cache->Mutex.Lock, Cache->Mutex.TypeID);
+
+    DEBUG(TEXT("[CacheInit] Mutex TypeID address=%p"), &CacheMutex->TypeID);
+    CacheMutex->TypeID = KOID_MUTEX;
+    DEBUG(TEXT("[CacheInit] Mutex TypeID=%x"), CacheMutex->TypeID);
+
+    DEBUG(TEXT("[CacheInit] Mutex References address=%p"), &CacheMutex->References);
+    CacheMutex->References = 1;
+    DEBUG(TEXT("[CacheInit] Mutex References=%u"), CacheMutex->References);
+
+    DEBUG(TEXT("[CacheInit] Mutex ID address=%p"), &CacheMutex->ID);
+    CacheMutex->ID = 0;
+    DEBUG(TEXT("[CacheInit] Mutex ID=%llx"), CacheMutex->ID);
+
+    DEBUG(TEXT("[CacheInit] Mutex OwnerProcess address=%p"), &CacheMutex->OwnerProcess);
+    CacheMutex->OwnerProcess = NULL;
+    DEBUG(TEXT("[CacheInit] Mutex OwnerProcess=%p"), CacheMutex->OwnerProcess);
+
+    DEBUG(TEXT("[CacheInit] Mutex Next address=%p"), &CacheMutex->Next);
+    CacheMutex->Next = NULL;
+    DEBUG(TEXT("[CacheInit] Mutex Next=%p"), CacheMutex->Next);
+
+    DEBUG(TEXT("[CacheInit] Mutex Prev address=%p"), &CacheMutex->Prev);
+    CacheMutex->Prev = NULL;
+    DEBUG(TEXT("[CacheInit] Mutex Prev=%p"), CacheMutex->Prev);
+
+    DEBUG(TEXT("[CacheInit] Mutex Owner address=%p"), &CacheMutex->Owner);
+    CacheMutex->Owner = NULL;
+    DEBUG(TEXT("[CacheInit] Mutex Owner=%p"), CacheMutex->Owner);
+
+    DEBUG(TEXT("[CacheInit] Mutex Process address=%p"), &CacheMutex->Process);
+    CacheMutex->Process = NULL;
+    DEBUG(TEXT("[CacheInit] Mutex Process=%p"), CacheMutex->Process);
+
+    DEBUG(TEXT("[CacheInit] Mutex Task address=%p"), &CacheMutex->Task);
+    CacheMutex->Task = NULL;
+    DEBUG(TEXT("[CacheInit] Mutex Task=%p"), CacheMutex->Task);
+
+    DEBUG(TEXT("[CacheInit] Mutex Lock address=%p"), &CacheMutex->Lock);
+    CacheMutex->Lock = 0;
+    DEBUG(TEXT("[CacheInit] Mutex Lock=%u"), CacheMutex->Lock);
 
     DEBUG(TEXT("[CacheInit] Entries pointer=%p size=%u"), Cache->Entries, AllocationSize);
 
