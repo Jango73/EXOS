@@ -80,6 +80,8 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
 
     DEBUG(TEXT("[TestBcrypt] Starting test: %s"), TestName);
     DEBUG(TEXT("[TestBcrypt] Data size: %u"), DataSize);
+    DEBUG(TEXT("[TestBcrypt] Input buffer address: %p"), InputBuffer);
+    DEBUG(TEXT("[TestBcrypt] Buffer pointer initial value: %p"), BufferPtr);
 
     // Calculate required size
     PaddedSize = DataSize + MAXKEYBYTES;
@@ -87,6 +89,8 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
         PaddedSize += (8 - (PaddedSize % 8));
     }
     PaddedSize += 16;  // Extra space for headers and padding
+
+    DEBUG(TEXT("[TestBcrypt] Computed padded size: %u"), PaddedSize);
 
     // Check if data fits in static buffer
     if (PaddedSize > sizeof(InputBuffer)) {
@@ -99,6 +103,7 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     MemoryCopy(InputBuffer, OriginalData, DataSize);
     MemoryCopy(InputBuffer + DataSize, Key, MAXKEYBYTES);
     DEBUG(TEXT("[TestBcrypt] Input buffer prepared"));
+    DEBUG(TEXT("[TestBcrypt] Buffer pointer before encrypt call: %p"), BufferPtr);
 
     // Initialize options
     Options.remove = 0;
@@ -112,9 +117,11 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     MemorySet(Key2, 0, sizeof(Key2));
     MemoryCopy(Key2, Key, MAXKEYBYTES);
     DEBUG(TEXT("[TestBcrypt] Keys initialized"));
+    DEBUG(TEXT("[TestBcrypt] Options struct address: %p"), &Options);
+    DEBUG(TEXT("[TestBcrypt] Options.type: %x"), Options.type);
 
     // Test encryption
-    DEBUG(TEXT("[TestBcrypt] Calling BFEncrypt"));
+    DEBUG(TEXT("[TestBcrypt] Calling BFEncrypt with pointer: %p, key: %p, size: %u"), BufferPtr, Key, DataSize + MAXKEYBYTES);
     EncryptedSize = BFEncrypt(&BufferPtr, (char *)Key, DataSize + MAXKEYBYTES, &Options);
     if (EncryptedSize == 0) {
         DEBUG(TEXT("[TestBcrypt] Encryption failed for test: %s"), TestName);
@@ -122,9 +129,10 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
         return FALSE;
     }
     DEBUG(TEXT("[TestBcrypt] Encryption finished, size: %u"), EncryptedSize);
+    DEBUG(TEXT("[TestBcrypt] Buffer pointer after encrypt: %p"), BufferPtr);
 
     // Test decryption
-    DEBUG(TEXT("[TestBcrypt] Calling BFDecrypt"));
+    DEBUG(TEXT("[TestBcrypt] Calling BFDecrypt with pointer: %p, key: %p, key2: %p, size: %u"), BufferPtr, Key, Key2, EncryptedSize);
     DecryptedSize = BFDecrypt(&BufferPtr, (char *)Key, Key2, EncryptedSize, &Options);
     if (DecryptedSize == 0) {
         DEBUG(TEXT("[TestBcrypt] Decryption failed for test: %s"), TestName);
@@ -132,6 +140,7 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
         return FALSE;
     }
     DEBUG(TEXT("[TestBcrypt] Decryption finished, size: %u"), DecryptedSize);
+    DEBUG(TEXT("[TestBcrypt] Buffer pointer after decrypt: %p"), BufferPtr);
 
     // Verify decrypted data matches original
     if (DataSize == 0) {
