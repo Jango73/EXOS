@@ -200,8 +200,13 @@ typedef double F64;             // 64 bit float
 
 typedef U32 SIZE;
 
+#if defined(__EXOS_64__)
+typedef U64 LINEAR;             // Linear virtual address, paged or not
+typedef U64 PHYSICAL;           // Physical address
+#else
 typedef UINT LINEAR;            // Linear virtual address, paged or not
 typedef UINT PHYSICAL;          // Physical address
+#endif
 typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/
