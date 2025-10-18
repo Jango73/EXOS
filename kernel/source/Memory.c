@@ -525,10 +525,10 @@ static inline void UnmapOnePage(LINEAR Linear) {
  * @param Pointer Linear address to test.
  * @return TRUE if address is valid.
  */
+#if defined(__EXOS_ARCH_X86_64__)
 BOOL IsValidMemory(LINEAR Pointer) {
     Pointer = CanonicalizeLinearAddress(Pointer);
 
-#if defined(__EXOS_ARCH_X86_64__)
     UINT Pml4Index = GetPml4Entry(Pointer);
     UINT PdptIndex = GetPdptEntry(Pointer);
     UINT DirIndex = GetDirectoryEntry(Pointer);
@@ -565,7 +565,11 @@ BOOL IsValidMemory(LINEAR Pointer) {
 
     LPPAGE_TABLE Table = GetPageTableVAFor(Pointer);
     return PageTableEntryIsPresent(Table, TableIndex);
+}
 #else
+BOOL IsValidMemory(LINEAR Pointer) {
+    Pointer = CanonicalizeLinearAddress(Pointer);
+
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
     UINT DirIndex = GetDirectoryEntry(Pointer);
@@ -583,8 +587,8 @@ BOOL IsValidMemory(LINEAR Pointer) {
     if (!PageTableEntryIsPresent(Table, TableIndex)) return FALSE;
 
     return TRUE;
-#endif
 }
+#endif
 
 /************************************************************************/
 // Public temporary map #1
