@@ -187,24 +187,54 @@ uLong BFDecrypt(char **input, char *key, char *key2, uLong sz,
     DEBUG(TEXT("[BFDecrypt] Post-decrypt block stored L=%x R=%x"), L, R);
   }
 
-  while (memcmp(*input+(sz-1), "\0", 1) == 0) { /* strip excess nulls   */
+  while ((sz > MAXKEYBYTES) &&
+         (memcmp(*input + (sz - MAXKEYBYTES), mykey, MAXKEYBYTES) != 0)) {
+    if ((*input)[sz - 1] != '\0') {
+      DEBUG(TEXT("[BFDecrypt] Non-null trailer 0x%x encountered at offset=%u"),
+            (U32)(U8)(*input)[sz - 1],
+            (U32)(sz - 1));
+      goto cleanup_fail;
+    }
+
     DEBUG(TEXT("[BFDecrypt] Trailing null detected at offset=%u"), (U32)(sz - 1));
-    sz--;                                       /* from decrypted files */
+    sz--;
   }
 
-  DEBUG(TEXT("[BFDecrypt] Size after trimming nulls=%u"), (U32)sz);
+  if (sz < MAXKEYBYTES) {
+    DEBUG(TEXT("[BFDecrypt] Buffer shorter than expected key trailer (size=%u)"), (U32)sz);
+    goto cleanup_fail;
+  }
+
+  if (memcmp(*input + (sz - MAXKEYBYTES), mykey, MAXKEYBYTES) != 0) {
+    DEBUG(TEXT("[BFDecrypt] Key trailer mismatch after alignment"));
+    goto cleanup_fail;
+  }
+
+  DEBUG(TEXT("[BFDecrypt] Key trailer verified at offset=%u"), (U32)(sz - MAXKEYBYTES));
 
   sz -= MAXKEYBYTES;
 
   DEBUG(TEXT("[BFDecrypt] Size after removing key trailer=%u"), (U32)sz);
 
-  if (memcmp(*input+sz, mykey, MAXKEYBYTES) != 0) {
-    DEBUG(TEXT("[BFDecrypt] Key verification failed"));
-    return(0);
+  while ((sz > 0) && ((*input)[sz - 1] == '\0')) {
+    DEBUG(TEXT("[BFDecrypt] Trailing null in payload at offset=%u"), (U32)(sz - 1));
+    sz--;
   }
+
+  DEBUG(TEXT("[BFDecrypt] Payload size after trimming padding=%u"), (U32)sz);
 
   free(mykey);
   free(myEndian);
   DEBUG(TEXT("[BFDecrypt] Leaving function with buffer=%p final size=%u"), (void *)*input, (U32)sz);
   return(sz);
+
+cleanup_fail:
+  if (mykey != NULL) {
+    free(mykey);
+  }
+  if (myEndian != NULL) {
+    free(myEndian);
+  }
+  DEBUG(TEXT("[BFDecrypt] Failure encountered, returning size 0"));
+  return(0);
 }
