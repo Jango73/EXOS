@@ -24,6 +24,13 @@ This abstraction keeps `Memory.c` agnostic of the paging depth so that a
 future x86-64 backend can extend the hierarchy without refactoring the
 core allocator.
 
+`IsValidMemory()` mirrors that architecture split. The helper now
+canonicalizes requested addresses and, on long-mode builds, validates the
+PML4 and PDPT entries before dereferencing the recursive slot. This keeps
+guard checks from faulting when they probe higher-half mappings and
+returns success immediately for large pages (1 GiB or 2 MiB) without
+descending into the final page-table level.
+
 `arch/i386/i386-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR`
 helper that walks page mappings without assuming a fixed number of page
 table levels. Region management routines (`IsRegionFree`, `AllocRegion`,

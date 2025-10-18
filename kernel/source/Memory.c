@@ -526,23 +526,64 @@ static inline void UnmapOnePage(LINEAR Linear) {
  * @return TRUE if address is valid.
  */
 BOOL IsValidMemory(LINEAR Pointer) {
+    Pointer = CanonicalizeLinearAddress(Pointer);
+
+#if defined(__EXOS_ARCH_X86_64__)
+    UINT Pml4Index = GetPml4Entry(Pointer);
+    UINT PdptIndex = GetPdptEntry(Pointer);
+    UINT DirIndex = GetDirectoryEntry(Pointer);
+    UINT TableIndex = GetTableEntry(Pointer);
+
+    if (DirIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
+    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Pdpt = GetPageDirectoryPointerTableVAFor(Pointer);
+    U64 PdptEntryValue = ReadPageDirectoryEntryValue(Pdpt, PdptIndex);
+    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        return TRUE;
+    }
+
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pointer);
+    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirIndex);
+    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        return FALSE;
+    }
+
+    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        return TRUE;
+    }
+
+    LPPAGE_TABLE Table = GetPageTableVAFor(Pointer);
+    return PageTableEntryIsPresent(Table, TableIndex);
+#else
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
 
-    UINT dir = GetDirectoryEntry(Pointer);
-    UINT tab = GetTableEntry(Pointer);
+    UINT DirIndex = GetDirectoryEntry(Pointer);
+    UINT TableIndex = GetTableEntry(Pointer);
 
     // Bounds check
-    if (dir >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
-    if (tab >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+    if (DirIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
+    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
 
     // Page directory present?
-    if (!PageDirectoryEntryIsPresent(Directory, dir)) return FALSE;
+    if (!PageDirectoryEntryIsPresent(Directory, DirIndex)) return FALSE;
 
     // Page table present?
     LPPAGE_TABLE Table = GetPageTableVAFor(Pointer);
-    if (!PageTableEntryIsPresent(Table, tab)) return FALSE;
+    if (!PageTableEntryIsPresent(Table, TableIndex)) return FALSE;
 
     return TRUE;
+#endif
 }
 
 /************************************************************************/
