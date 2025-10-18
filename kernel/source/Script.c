@@ -71,6 +71,7 @@ static BOOL ScriptParserEnsureRange(LPSCRIPT_PARSER Parser, U32 Offset, LPCSTR S
 static void ScriptDebugDumpInputPreview(LPCSTR Input, U32 PreviewLimit);
 static void ScriptDebugDumpParserState(LPSCRIPT_PARSER Parser, LPCSTR Stage);
 static void ScriptDebugDumpMemoryWindow(LPCSTR Base, U32 Offset, U32 Span, LPCSTR Label);
+static U32 ScriptFloatToBits(F32 Value);
 
 /************************************************************************/
 
@@ -144,6 +145,17 @@ static BOOL ScriptParserEnsureRange(LPSCRIPT_PARSER Parser, U32 Offset, LPCSTR S
 
     if (Parser->Input == NULL) {
         ERROR(TEXT("[ScriptParserEnsureRange] Stage=%s input NULL (Parser=%p)"), Stage ? Stage : TEXT("<null>"), Parser);
+        return FALSE;
+    }
+
+    if (Parser->InputTerminated && Offset > Parser->InputLength) {
+        ERROR(TEXT("[ScriptParserEnsureRange] Stage=%s offset %u beyond length %u (Input=%p)"),
+              Stage ? Stage : TEXT("<null>"),
+              Offset,
+              Parser->InputLength,
+              Parser->Input);
+        ScriptDebugDumpParserState(Parser, Stage);
+        ScriptDebugDumpMemoryWindow(Parser->Input, Parser->InputLength, 8U, Stage);
         return FALSE;
     }
 
@@ -351,6 +363,14 @@ static void ScriptDebugDumpParserState(LPSCRIPT_PARSER Parser, LPCSTR Stage) {
 
 /************************************************************************/
 
+static U32 ScriptFloatToBits(F32 Value) {
+    U32 Bits = 0;
+    MemoryCopy(&Bits, &Value, sizeof(U32));
+    return Bits;
+}
+
+/************************************************************************/
+
 /**
  * @brief Create a new script context with callback bindings.
  * @param Callbacks Pointer to callback structure for external integration
@@ -469,7 +489,28 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
     // Parse all statements until EOF
     while (Parser.CurrentToken.Type != TOKEN_EOF) {
+        DEBUG(TEXT("[ScriptExecute] Preparing statement parse Token=%s Value='%s' Pos=%u"),
+              ScriptTokenTypeToString(Parser.CurrentToken.Type),
+              Parser.CurrentToken.Value,
+              Parser.CurrentToken.Position);
+        U32 BeforeStatementPos = Parser.Position;
+
         LPAST_NODE Statement = ScriptParseStatementAST(&Parser, &Error);
+        DEBUG(TEXT("[ScriptExecute] Statement parse result Node=%p Error=%u NextToken=%s Value='%s' Pos=%u"),
+              Statement,
+              Error,
+              ScriptTokenTypeToString(Parser.CurrentToken.Type),
+              Parser.CurrentToken.Value,
+              Parser.CurrentToken.Position);
+
+        if (Parser.Position <= BeforeStatementPos && Parser.CurrentToken.Type != TOKEN_EOF) {
+            ERROR(TEXT("[ScriptExecute] Parser position did not advance (Before=%u After=%u Token=%s)"),
+                  BeforeStatementPos,
+                  Parser.Position,
+                  ScriptTokenTypeToString(Parser.CurrentToken.Type));
+            ScriptDebugDumpParserState(&Parser, TEXT("ScriptExecute-NoAdvance"));
+        }
+
         if (Error != SCRIPT_OK) {
             StringPrintFormat(Context->ErrorMessage, TEXT("Syntax error (l:%d,c:%d)"), Parser.CurrentToken.Line, Parser.CurrentToken.Column);
             Context->ErrorCode = Error;
@@ -1062,6 +1103,7 @@ static void ScriptInitParser(LPSCRIPT_PARSER Parser, LPCSTR Input, LPSCRIPT_CONT
 static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
     LPCSTR Input = Parser->Input;
     U32* Pos = &Parser->Position;
+    U32 StartPos = *Pos;
 
     ScriptDebugDumpParserState(Parser, TEXT("ScriptNextToken-Entry"));
     DEBUG(TEXT("[ScriptNextToken] Begin Parser=%p Input=%p Pos=%u Length=%u InputValid=%u"),
@@ -1380,14 +1422,25 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         (*Pos)++;
     }
 
-    DEBUG(TEXT("[ScriptNextToken] Token=%s Value='%s' Num=%f Pos=%u Line=%u Column=%u"),
+    DEBUG(TEXT("[ScriptNextToken] Token=%s Value='%s' NumBits=0x%x StartPos=%u EndPos=%u Line=%u Column=%u"),
           ScriptTokenTypeToString(Parser->CurrentToken.Type),
           Parser->CurrentToken.Value,
-          Parser->CurrentToken.NumValue,
-          Parser->CurrentToken.Position,
+          ScriptFloatToBits(Parser->CurrentToken.NumValue),
+          StartPos,
+          *Pos,
           Parser->CurrentToken.Line,
           Parser->CurrentToken.Column);
-    ScriptDebugDumpParserState(Parser, TEXT("ScriptNextToken-Exit"));
+
+    if (*Pos <= StartPos && Parser->CurrentToken.Type != TOKEN_EOF) {
+        ERROR(TEXT("[ScriptNextToken] No progress detected (Start=%u End=%u Type=%s Value='%s')"),
+              StartPos,
+              *Pos,
+              ScriptTokenTypeToString(Parser->CurrentToken.Type),
+              Parser->CurrentToken.Value);
+        ScriptDebugDumpParserState(Parser, TEXT("ScriptNextToken-NoProgress"));
+    } else {
+        ScriptDebugDumpParserState(Parser, TEXT("ScriptNextToken-Exit"));
+    }
 }
 
 /************************************************************************/
@@ -1922,7 +1975,9 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
         if (FloatPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
         *FloatPtr = Value.Float;
         Array->Elements[Index] = FloatPtr;
-        DEBUG(TEXT("[ScriptArraySet] Stored float %f at index %u"), Value.Float, Index);
+        DEBUG(TEXT("[ScriptArraySet] Stored float bits=0x%x at index %u"),
+              ScriptFloatToBits(Value.Float),
+              Index);
     } else {
         Array->Elements[Index] = NULL;
         DEBUG(TEXT("[ScriptArraySet] Stored null element at index %u (Type=%s)"), Index, ScriptVarTypeToString(Type));
@@ -1959,7 +2014,9 @@ SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Ty
         DEBUG(TEXT("[ScriptArrayGet] Returning integer %d at index %u"), Value->Integer, Index);
     } else if (*Type == SCRIPT_VAR_FLOAT) {
         Value->Float = *(F32*)Array->Elements[Index];
-        DEBUG(TEXT("[ScriptArrayGet] Returning float %f at index %u"), Value->Float, Index);
+        DEBUG(TEXT("[ScriptArrayGet] Returning float bits=0x%x at index %u"),
+              ScriptFloatToBits(Value->Float),
+              Index);
     } else {
         DEBUG(TEXT("[ScriptArrayGet] Type mismatch at index %u (Type=%s)"), Index, ScriptVarTypeToString(*Type));
         return SCRIPT_ERROR_TYPE_MISMATCH;
@@ -2257,7 +2314,8 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
         case TOKEN_NUMBER:
             Result.Type = SCRIPT_VAR_FLOAT;
             Result.Value.Float = Expr->Data.Expression.NumValue;
-            DEBUG(TEXT("[ScriptEvaluateExpression] Number literal %f"), Result.Value.Float);
+            DEBUG(TEXT("[ScriptEvaluateExpression] Number literal bits=0x%x"),
+                  ScriptFloatToBits(Result.Value.Float));
             return Result;
 
         case TOKEN_STRING: {
@@ -2569,7 +2627,9 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
             if (Variable->Type == SCRIPT_VAR_FLOAT) {
                 Result.Type = SCRIPT_VAR_FLOAT;
                 Result.Value.Float = Variable->Value.Float;
-                DEBUG(TEXT("[ScriptEvaluateExpression] Returning float variable %s = %f"), Expr->Data.Expression.Value, Result.Value.Float);
+                DEBUG(TEXT("[ScriptEvaluateExpression] Returning float variable %s bits=0x%x"),
+                      Expr->Data.Expression.Value,
+                      ScriptFloatToBits(Result.Value.Float));
                 return Result;
             }
 
@@ -2623,13 +2683,22 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
 
                 if (Operator == '+') {
                     Result.Value.Float = LeftNumeric + RightNumeric;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Addition %f + %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Addition bits=0x%x + 0x%x = 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (Operator == '-') {
                     Result.Value.Float = LeftNumeric - RightNumeric;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Subtraction %f - %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Subtraction bits=0x%x - 0x%x = 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (Operator == '*') {
                     Result.Value.Float = LeftNumeric * RightNumeric;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Multiplication %f * %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Multiplication bits=0x%x * 0x%x = 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (Operator == '/') {
                     if (RightNumeric == 0.0f) {
                         DEBUG(TEXT("[ScriptEvaluateExpression] Division by zero"));
@@ -2646,7 +2715,10 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                     } else {
                         Result.Value.Float = LeftNumeric / RightNumeric;
                     }
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Division %f / %f = %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Division bits=0x%x / 0x%x = 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else {
                     DEBUG(TEXT("[ScriptEvaluateExpression] Unknown operator %s"), Expr->Data.Expression.Value);
                     if (Error) {
@@ -2656,22 +2728,40 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
             } else {
                 if (StringCompare(Expr->Data.Expression.Value, TEXT("<")) == 0) {
                     Result.Value.Float = (LeftNumeric < RightNumeric) ? 1.0f : 0.0f;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f < %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison < bits=0x%x vs 0x%x => 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("<=")) == 0) {
                     Result.Value.Float = (LeftNumeric <= RightNumeric) ? 1.0f : 0.0f;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f <= %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison <= bits=0x%x vs 0x%x => 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">")) == 0) {
                     Result.Value.Float = (LeftNumeric > RightNumeric) ? 1.0f : 0.0f;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f > %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison > bits=0x%x vs 0x%x => 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">=")) == 0) {
                     Result.Value.Float = (LeftNumeric >= RightNumeric) ? 1.0f : 0.0f;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f >= %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison >= bits=0x%x vs 0x%x => 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0) {
                     Result.Value.Float = (LeftNumeric == RightNumeric) ? 1.0f : 0.0f;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f == %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison == bits=0x%x vs 0x%x => 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("!=")) == 0) {
                     Result.Value.Float = (LeftNumeric != RightNumeric) ? 1.0f : 0.0f;
-                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison %f != %f => %f"), LeftNumeric, RightNumeric, Result.Value.Float);
+                    DEBUG(TEXT("[ScriptEvaluateExpression] Comparison != bits=0x%x vs 0x%x => 0x%x"),
+                          ScriptFloatToBits(LeftNumeric),
+                          ScriptFloatToBits(RightNumeric),
+                          ScriptFloatToBits(Result.Value.Float));
                 } else {
                     DEBUG(TEXT("[ScriptEvaluateExpression] Unknown comparison %s"), Expr->Data.Expression.Value);
                     if (Error) {
@@ -2798,7 +2888,7 @@ static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE
 
     ScriptValueRelease(&IndexValue);
 
-    DEBUG(TEXT("[ScriptEvaluateArrayAccess] Index numeric %f"), IndexNumeric);
+    DEBUG(TEXT("[ScriptEvaluateArrayAccess] Index numeric bits=0x%x"), ScriptFloatToBits(IndexNumeric));
 
     if (BaseValue.Type == SCRIPT_VAR_HOST_HANDLE &&
         BaseValue.HostDescriptor && BaseValue.HostDescriptor->GetElement) {
