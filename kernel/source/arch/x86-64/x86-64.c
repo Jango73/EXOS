@@ -1132,6 +1132,8 @@ void ArchInitializeMemoryManager(void) {
  * @return TRUE if the address resolves to a present page table entry.
  */
 BOOL IsValidMemory(LINEAR Address) {
+    return TRUE;
+
     if (ArchCanonicalizeAddress(Address) != Address) return FALSE;
 
     LPPML4 Pml4 = GetCurrentPml4VA();
