@@ -25,7 +25,6 @@
 #include "Autotest.h"
 #include "Base.h"
 #include "Heap.h"
-#include "Log.h"
 #include "CoreString.h"
 #include "System.h"
 
@@ -71,7 +70,6 @@ uLong BFDecrypt(char **input, char *key, char *key2, uLong sz, BCoptions *option
 static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U32 DataSize, const char *Key, TEST_RESULTS* Results) {
     BCoptions Options = {0};
     char *BufferPtr = NULL;
-    char *InitialBuffer = NULL;
     char PrimaryKey[MAXKEYBYTES];
     char SecondaryKey[MAXKEYBYTES];
     uLong EncryptedSize = 0;
@@ -83,9 +81,6 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     U32 KeyLength = 0;
     BOOL TestPassed = FALSE;
     const U32 BlockSize = 8U;
-
-    DEBUG(TEXT("[TestBcrypt] Starting test: %s"), TestName);
-    DEBUG(TEXT("[TestBcrypt] Data size: %u"), DataSize);
 
     PayloadSize = DataSize + MAXKEYBYTES;
     if (PayloadSize < BlockSize) {
@@ -99,20 +94,12 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     WorkingSize = PayloadSize + PaddingSize;
     AllocationSize = WorkingSize + 16U;
 
-    DEBUG(TEXT("[TestBcrypt] Payload size: %u"), PayloadSize);
-    DEBUG(TEXT("[TestBcrypt] Padding size: %u"), PaddingSize);
-    DEBUG(TEXT("[TestBcrypt] Working size (aligned): %u"), WorkingSize);
-    DEBUG(TEXT("[TestBcrypt] Allocation size with headroom: %u"), AllocationSize);
-
     BufferPtr = (char *)KernelHeapAlloc(AllocationSize);
     if (BufferPtr == NULL) {
-        DEBUG(TEXT("[TestBcrypt] KernelHeapAlloc failed"));
         goto cleanup;
     }
 
     MemorySet(BufferPtr, 0, AllocationSize);
-    InitialBuffer = BufferPtr;
-    DEBUG(TEXT("[TestBcrypt] Allocated buffer at: %p"), InitialBuffer);
 
     MemorySet(PrimaryKey, 0, sizeof(PrimaryKey));
     MemorySet(SecondaryKey, 0, sizeof(SecondaryKey));
@@ -126,43 +113,25 @@ static BOOL TestEncryptDecrypt(const char *TestName, const char *OriginalData, U
     MemoryCopy(BufferPtr, OriginalData, DataSize);
     MemoryCopy(BufferPtr + DataSize, PrimaryKey, MAXKEYBYTES);
 
-    DEBUG(TEXT("[TestBcrypt] Buffer pointer before encrypt call: %p"), BufferPtr);
-
     Options.remove = 0;
     Options.standardout = 0;
     Options.compression = 0;
     Options.type = ENCRYPT;
     Options.origsize = 0;
     Options.securedelete = 0;
-
-    DEBUG(TEXT("[TestBcrypt] Options struct address: %p"), &Options);
-    DEBUG(TEXT("[TestBcrypt] Calling BFEncrypt with pointer: %p, key: %p, size: %u"), BufferPtr, PrimaryKey, WorkingSize);
     EncryptedSize = BFEncrypt(&BufferPtr, PrimaryKey, WorkingSize, &Options);
     if (EncryptedSize == 0) {
-        DEBUG(TEXT("[TestBcrypt] Encryption failed for test: %s"), TestName);
         goto cleanup;
     }
-
-    DEBUG(TEXT("[TestBcrypt] Encryption finished, size: %u"), (U32)EncryptedSize);
-    DEBUG(TEXT("[TestBcrypt] Buffer pointer after encrypt: %p"), BufferPtr);
-
-    DEBUG(TEXT("[TestBcrypt] Calling BFDecrypt with pointer: %p, key: %p, key2: %p, size: %u"), BufferPtr, PrimaryKey, SecondaryKey, (U32)EncryptedSize);
     DecryptedSize = BFDecrypt(&BufferPtr, PrimaryKey, SecondaryKey, EncryptedSize, &Options);
     if (DecryptedSize == 0) {
-        DEBUG(TEXT("[TestBcrypt] Decryption failed for test: %s"), TestName);
         goto cleanup;
     }
-
-    DEBUG(TEXT("[TestBcrypt] Decryption finished, size: %u"), (U32)DecryptedSize);
-    DEBUG(TEXT("[TestBcrypt] Buffer pointer after decrypt: %p"), BufferPtr);
 
     if (DataSize == 0U) {
         TestPassed = TRUE;
     } else if ((DecryptedSize >= DataSize) && (MemoryCompare(BufferPtr, OriginalData, DataSize) == 0)) {
         TestPassed = TRUE;
-    } else {
-        DEBUG(TEXT("[TestBcrypt] Data verification failed for test: %s"), TestName);
-        DEBUG(TEXT("[TestBcrypt] Expected size: %u, Got size: %u"), DataSize, (U32)DecryptedSize);
     }
 
 cleanup:
@@ -176,7 +145,6 @@ cleanup:
         Results->TestsPassed++;
     }
 
-    DEBUG(TEXT("[TestBcrypt] Test result for %s: %s"), TestName, TestPassed ? TEXT("PASS") : TEXT("FAIL"));
     return TestPassed;
 }
 
@@ -192,8 +160,6 @@ cleanup:
 void TestBcrypt(TEST_RESULTS* Results) {
     Results->TestsRun = 0;
     Results->TestsPassed = 0;
-
-    DEBUG(TEXT("[TestBcrypt] Starting bcrypt autotests"));
 
     // Test 1: Simple short string
     TestEncryptDecrypt("Simple string", "Hello World!", 12, "mypassword123456", Results);
@@ -214,5 +180,4 @@ void TestBcrypt(TEST_RESULTS* Results) {
     char BinaryData[] = {0x01, 0x02, 0x00, 0x03, 0x04, 0xFF, 0x00, 0x05};
     TestEncryptDecrypt("Binary data", BinaryData, 8, "binarykey1234567", Results);
 
-    DEBUG(TEXT("[TestBcrypt] Completed bcrypt autotests. Tests run: %u, passed: %u"), Results->TestsRun, Results->TestsPassed);
 }
