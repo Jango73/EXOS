@@ -36,7 +36,138 @@
 #include "Text.h"
 #include "Kernel.h"
 
-/************************************************************************/
+/************************************************************************\
+
+    Virtual Address Space (32-bit)
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ 0x00000000 .................................................. 0xBFFFFFFF │
+    │                [User space]  (PDE 0..KernelDir-1)                        │
+    ├──────────────────────────────────────────────────────────────────────────┤
+    │ 0xC0000000 .................................................. 0xFFFFEFFF │
+    │                [Kernel space] (PDE KernelDir .. 1022)                    │
+    ├──────────────────────────────────────────────────────────────────────────┤
+    │ 0xFFFFF000 .................................................. 0xFFFFFFFF │
+    │                [Self-map window]                                         │
+    │                0xFFFFF000 = PD_VA (Page Directory as an array of PDEs)   │
+    │                0xFFC00000 = PT_BASE_VA (all Page Tables visible)         │
+    └──────────────────────────────────────────────────────────────────────────┘
+
+    Page Directory (1024 PDEs, each 4B)
+    dir = (VMA >> 22)
+    tab = (VMA >> 12) & 0x3FF
+    ofs =  VMA & 0xFFF
+
+                      PDE index
+            ┌────────────┬────────────┬────────────┬────────────┬─────────────┐
+            │     0      │     1      │   ...      │ KernelDir  │   1023      │
+            ├────────────┼────────────┼────────────┼────────────┼─────────── ─┤
+    points→ │  Low PT    │   PT #1    │   ...      │ Kernel PT  │  SELF-MAP   │
+    to PA   │ (0..4MB)   │            │            │ (VMA_KERNEL)│ (PD itself)│
+            └────────────┴────────────┴────────────┴────────────┴─────────────┘
+                                                              ^
+                                                              |
+                                         PDE[1023] -> PD physical page (recursive)
+                                                              |
+                                                              v
+    PD_VA = 0xFFFFF000 ----------------------------------> Page Directory (VA alias)
+
+
+    All Page Tables via the recursive window:
+    PT_BASE_VA = 0xFFC00000
+    PT for PDE = D is at:   PT_VA(D) = 0xFFC00000 + D * 0x1000
+
+    Examples:
+    - PT of PDE 0:        0xFFC00000
+    - PT of KernelDir:    0xFFC00000 + KernelDir*0x1000
+    - PT of PDE 1023:     0xFFC00000 + 1023*0x1000  (not used for mappings)
+
+
+    Resolution path for any VMA:
+           VMA
+            │
+       dir = VMA>>22  ------>  PD_VA[dir] (PDE)  ------>  PT_VA(dir)[tab] (PTE)  ------>  PA + ofs
+
+    Kernel mappings installed at init:
+    - PDE[0]         -> Low PT (identity map 0..4MB)
+    - PDE[KernelDir] -> Kernel PT (maps VMA_KERNEL .. VMA_KERNEL+4MB-1)
+    - PDE[1023]      -> PD itself (self-map)
+
+
+    Temporary mapping mechanism (MapTemporaryPhysicalPage1):
+    1) Two VAs reserved dynamically (e.g., G_TempLinear1, G_TempLinear2).
+    2) To map a physical frame P into G_TempLinear1:
+       - Compute dir/tab of G_TempLinear1
+       - Write the PTE via the PT window:
+           PT_VA(dir) = PT_BASE_VA + dir*0x1000, entry [tab]
+       - Execute `invlpg [G_TempLinear1]`
+       - The physical frame P is now accessible via the VA G_TempLinear1
+
+    Simplified view of the two temporary pages:
+
+                         (reserved via AllocRegion, not present by default)
+    G_TempLinear1  -\    ┌────────────────────────────────────────────┐
+                    |-─> │ PTE < (Present=1, RW=1, ..., Address=P>>12)│  map/unmap to chosen PA
+    G_TempLinear2  -/    └────────────────────────────────────────────┘
+                                   ^
+                                   │ (written through) PT_VA(dir(G_TempLinearX)) = PT_BASE_VA + dir*0x1000
+                                   │
+                              PD self-map (PD_VA, PT_BASE_VA)
+
+    PDE[1023] points to the Page Directory itself.
+    PD_VA = 0xFFFFF000 gives access to the current PD (as PTE-like entries).
+    PT_BASE_VA = 0xFFC00000 provides a window for Page Tables:
+    PT for directory index D is at PT_BASE_VA + (D * PAGE_SIZE).
+
+    Temporary physical access is done by remapping two reserved
+    linear pages (G_TempLinear1, G_TempLinear2, G_TempLinear3) on demand.
+
+    =================================================================
+
+    PCI BAR mapping process (example: Intel E1000 NIC)
+
+    ┌───────────────────────────┐
+    │  PCI Configuration Space  │
+    │  (accessed via PCI config │
+    │   reads/writes)           │
+    └───────────┬───────────────┘
+                │
+                │ Read BAR0 (Base Address Register #0)
+                ▼
+    ┌────────────────────────────────┐
+    │ BAR0 value = Physical address  │
+    │ of device registers (MMIO)     │
+    │ + resource size                │
+    └───────────┬────────────────────┘
+                │
+                │ Map physical MMIO region into
+                │ kernel virtual space
+                │ (uncached for DMA safety)
+                ▼
+    ┌───────────────────────────┐
+    │ AllocRegion(Base=0,       │
+    │   Target=BAR0,            │
+    │   Size=MMIO size,         │
+    │   Flags=ALLOC_PAGES_COMMIT│
+    │         | ALLOC_PAGES_UC) │
+    └───────────┬───────────────┘
+                │
+                │ Returns Linear (VMA) address
+                │ where the driver can access MMIO
+                ▼
+    ┌───────────────────────────────┐
+    │ Driver reads/writes registers │
+    │ via *(volatile U32*)(VMA+ofs) │
+    │ Example: E1000_CTRL register  │
+    └───────────────────────────────┘
+
+    NOTES:
+    - MMIO (Memory-Mapped I/O) must be UNCACHED (UC) to avoid
+     stale data and incorrect ordering.
+    - BARs can also point to I/O port ranges instead of MMIO.
+    - PCI devices can have multiple BARs for different resources.
+
+\************************************************************************/
+
 // Uncomment below to mark BIOS memory pages "not present" in the page tables
 
 // #define PROTECT_BIOS

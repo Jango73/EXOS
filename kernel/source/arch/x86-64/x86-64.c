@@ -34,7 +34,93 @@
 #include "System.h"
 #include "Text.h"
 
-/************************************************************************/
+/************************************************************************\
+
+                              ┌──────────────────────────────────────────┐
+                              │        48-bit Virtual Address            │
+                              │  [ 47 ................. 0 ]              │
+                              └──────────────────────────────────────────┘
+                                               │
+                                               ▼
+    ────────────────────────────────────────────────────────────────────────────
+     Step 1: PML4 (Page-Map Level-4 Table)
+    ────────────────────────────────────────────────────────────────────────────
+     Virtual bits [47:39] = index into the PML4 table (512 entries)
+     Each PML4E → points to one Page-Directory-Pointer Table (PDPT)
+
+            +------------------+
+            | PML4 Entry (PML4E) ───► PDPT base address
+            +------------------+
+                     │
+                     ▼
+    ────────────────────────────────────────────────────────────────────────────
+     Step 2: PDPT (Page-Directory-Pointer Table)
+    ────────────────────────────────────────────────────────────────────────────
+     Virtual bits [38:30] = index into PDPT (512 entries)
+     Each PDPTE normally points to a Page Directory.
+     But if bit 7 (PS) = 1 → 1 GiB *large page*.
+
+             ┌──────────────────────────────┐
+             │ PDPTE                       │
+             │ ─ bit 7 (PS) = 1 → 1 GiB page│────► Physical 1 GiB page
+             │ ─ bit 7 (PS) = 0 → Page Dir. │────► PD base address
+             └──────────────────────────────┘
+                     │
+                     ▼
+    ────────────────────────────────────────────────────────────────────────────
+     Step 3: PD (Page Directory)
+    ────────────────────────────────────────────────────────────────────────────
+     Virtual bits [29:21] = index into PD (512 entries)
+     Each PDE normally points to a Page Table.
+     But if bit 7 (PS) = 1 → 2 MiB *large page*.
+
+             ┌──────────────────────────────┐
+             │ PDE                         │
+             │ ─ bit 7 (PS) = 1 → 2 MiB page│────► Physical 2 MiB page
+             │ ─ bit 7 (PS) = 0 → Page Tbl. │────► PT base address
+             └──────────────────────────────┘
+                     │
+                     ▼
+    ────────────────────────────────────────────────────────────────────────────
+     Step 4: PT (Page Table)
+    ────────────────────────────────────────────────────────────────────────────
+     Virtual bits [20:12] = index into PT (512 entries)
+     Each PTE points to a 4 KiB physical page.
+
+             ┌──────────────────────────────┐
+             │ PTE → Physical 4 KiB page    │
+             └──────────────────────────────┘
+                     │
+                     ▼
+    ────────────────────────────────────────────────────────────────────────────
+     Step 5: Physical Address
+    ────────────────────────────────────────────────────────────────────────────
+     Offset bits [11:0] select the byte within the final page.
+
+             Physical Address = { FrameBase[51:12], VA[11:0] }
+
+    ────────────────────────────────────────────────────────────────────────────
+     Summary of page sizes per level (4-level paging)
+    ────────────────────────────────────────────────────────────────────────────
+
+     | Level | Table name | Page size (if PS=1) | Entries | Coverage per entry |
+     |--------|-------------|--------------------|----------|--------------------|
+     | PML4   | PML4 table  | —                  | 512      | 512 GiB            |
+     | PDPT   | PDP table   | 1 GiB (PS=1)       | 512      | 1 GiB              |
+     | PD     | Page Dir.   | 2 MiB (PS=1)       | 512      | 2 MiB              |
+     | PT     | Page Table  | 4 KiB              | 512      | 4 KiB              |
+
+    ────────────────────────────────────────────────────────────────────────────
+     Example:
+       0x00007F12_3456_789A
+       ├─[47:39]→ PML4 index
+       ├─[38:30]→ PDPT index
+       ├─[29:21]→ PD index
+       ├─[20:12]→ PT index
+       └─[11:0] → Offset inside 4 KiB page
+    ────────────────────────────────────────────────────────────────────────────
+
+\************************************************************************/
 
 typedef enum _PAGE_TABLE_POPULATE_MODE {
     PAGE_TABLE_POPULATE_IDENTITY,
@@ -1173,8 +1259,6 @@ void ArchInitializeMemoryManager(void) {
     }
 
     LoadPageDirectory(NewPageDirectory);
-
-    LogPageDirectory64(NewPageDirectory);
 
     FlushTLB();
 

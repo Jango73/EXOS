@@ -468,8 +468,8 @@ BOOL KillTask(LPTASK Task) {
         DEBUG(TEXT("[KillTask] Enter"));
 
         if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
-            ERROR(TEXT("[KillTask] Can't kill kernel task, halting"));
-            DO_THE_SLEEPING_BEAUTY;
+            ERROR(TEXT("[KillTask] Can't kill kernel task"));
+            ConsolePanic("Can't kill kernel task");
             return FALSE;
         }
 
