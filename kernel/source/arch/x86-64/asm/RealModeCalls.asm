@@ -130,10 +130,6 @@ RealModeCall:
     ;--------------------------------------
     ; Compute relocations
 
-    ; 64-bit offset for jump to RMC code
-    lea     rsi, [rel RelJmp]
-    mov     [rsi], rbx
-
     ; 64-bit offset for GDT label
     lea     rsi, [rbx + Rel1 - RMCSetup]
     add     dword [rsi], ebx
@@ -166,12 +162,8 @@ RealModeCall:
     lea     rsi, [rbx + Rel5 - RMCSetup]
     add     dword [rsi], ebx
 
-    ; 32-bit offset for the long mode return stub
-    lea     rsi, [rbx + ReturnToLong - RMCSetup]
-    add     dword [rsi], ebx
-
     ; 64-bit return target for the long mode trampoline
-    lea     rdi, [rbx + ReturnToLongTarget - RMCSetup]
+    lea     rdi, [rbx + ReturnToLong - RMCSetup]
     lea     rax, [rel RealModeCall_Back]
     mov     [rdi], rax
 
@@ -201,10 +193,9 @@ RealModeCall:
 
 RMCJump1:
 
-    jmp     far [rel RelJmp]
-RelJmp:
-    dq      0
-    dw      SELECTOR_KERNEL_CODE
+    push    SELECTOR_KERNEL_CODE
+    push    rbx
+    retfq
 
 RealModeCall_Back:
 
@@ -694,20 +685,8 @@ bits 32
 
     db      0xEA                       ; jmp far
 ReturnToLong:
-    dd      ReturnToLongStub - RMCSetup
-    dw      SELECTOR_KERNEL_CODE
-
-bits 64
-
-ReturnToLongStub:
-
-    mov     rax, [rel ReturnToLongTarget]
-    jmp     rax
-
-ReturnToLongTarget:
     dq      0
-
-bits 32
+    dw      SELECTOR_KERNEL_CODE
 
     ;--------------------------------------
 
