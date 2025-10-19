@@ -929,6 +929,30 @@ void ArchInitializeMemoryManager(void) {
 /************************************************************************/
 
 /**
+ * @brief Translate a linear address to its physical counterpart (page-level granularity).
+ * @param Address Linear address.
+ * @return Physical address or 0 when unmapped.
+ */
+PHYSICAL MapLinearToPhysical(LINEAR Address) {
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Address);
+    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
+    UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
+
+    if (!PageDirectoryEntryIsPresent(Directory, DirEntry)) return 0;
+
+    LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
+    if (!PageTableEntryIsPresent(Table, TabEntry)) return 0;
+
+    PHYSICAL PagePhysical = PageTableEntryGetPhysical(Table, TabEntry);
+    if (PagePhysical == 0) return 0;
+
+    return (PHYSICAL)(PagePhysical | (Address & (PAGE_SIZE - 1)));
+}
+
+/************************************************************************/
+
+/**
  * @brief Check if a linear address is mapped and accessible.
  * @param Address Linear address to test.
  * @return TRUE if the address resolves to a present page table entry.

@@ -1127,6 +1127,55 @@ void ArchInitializeMemoryManager(void) {
 /************************************************************************/
 
 /**
+ * @brief Translate a linear address to its physical counterpart (page-level granularity).
+ * @param Address Linear address.
+ * @return Physical address or 0 when unmapped.
+ */
+PHYSICAL MapLinearToPhysical(LINEAR Address) {
+    Address = CanonicalizeLinearAddress(Address);
+
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Address);
+    UINT Pml4Index = MemoryPageIteratorGetPml4Index(&Iterator);
+    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(&Iterator);
+    UINT DirIndex = MemoryPageIteratorGetDirectoryIndex(&Iterator);
+    UINT TabIndex = MemoryPageIteratorGetTableIndex(&Iterator);
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
+    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) return 0;
+
+    PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
+    LPPAGE_DIRECTORY PdptLinear = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(PdptPhysical);
+    U64 PdptEntryValue = ReadPageDirectoryEntryValue(PdptLinear, PdptIndex);
+    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) return 0;
+
+    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        PHYSICAL LargeBase = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
+        return (PHYSICAL)(LargeBase | (Address & (N_1GB - 1)));
+    }
+
+    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
+    LPPAGE_DIRECTORY DirectoryLinear = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
+    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(DirectoryLinear, DirIndex);
+    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) return 0;
+
+    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        PHYSICAL LargeBase = (PHYSICAL)(DirectoryEntryValue & PAGE_MASK);
+        return (PHYSICAL)(LargeBase | (Address & (N_2MB - 1)));
+    }
+
+    LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
+    if (!PageTableEntryIsPresent(Table, TabIndex)) return 0;
+
+    PHYSICAL PagePhysical = PageTableEntryGetPhysical(Table, TabIndex);
+    if (PagePhysical == 0) return 0;
+
+    return (PHYSICAL)(PagePhysical | (Address & (PAGE_SIZE - 1)));
+}
+
+/************************************************************************/
+
+/**
  * @brief Check if a linear address is mapped and accessible.
  * @param Address Linear address to test.
  * @return TRUE if the address resolves to a present page table entry.
