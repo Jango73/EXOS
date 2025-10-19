@@ -35,27 +35,22 @@
  * @param State Pointer to the delay state structure.
  */
 void AdaptiveDelay_Initialize(LPADAPTIVE_DELAY_STATE State) {
-    if (State == NULL) {
-        DEBUG(TEXT("[AdaptiveDelay_Initialize] NULL state pointer"));
-        return;
+    // DEBUG("[AdaptiveDelay_Initialize] State = %x", State);
+
+    SAFE_USE(State) {
+        State->CurrentDelay = ADAPTIVE_DELAY_MIN_TICKS;
+        State->AttemptCount = 0;
+        State->MinDelay = ADAPTIVE_DELAY_MIN_TICKS;
+        State->MaxDelay = ADAPTIVE_DELAY_MAX_TICKS;
+        State->BackoffFactor = ADAPTIVE_DELAY_BACKOFF_FACTOR;
+        State->MaxAttempts = ADAPTIVE_DELAY_MAX_ATTEMPTS;
+        State->IsActive = FALSE;
+
+        /*
+        DEBUG(TEXT("[AdaptiveDelay_Initialize] Initialized with MinDelay=%u MaxDelay=%u MaxAttempts=%u"),
+              State->MinDelay, State->MaxDelay, State->MaxAttempts);
+              */
     }
-
-    DEBUG(TEXT("[AdaptiveDelay_Initialize] Initializing state %p"), State);
-
-    State->CurrentDelay = ADAPTIVE_DELAY_MIN_TICKS;
-    State->AttemptCount = 0;
-    State->MinDelay = ADAPTIVE_DELAY_MIN_TICKS;
-    State->MaxDelay = ADAPTIVE_DELAY_MAX_TICKS;
-    State->BackoffFactor = ADAPTIVE_DELAY_BACKOFF_FACTOR;
-    State->MaxAttempts = ADAPTIVE_DELAY_MAX_ATTEMPTS;
-    State->IsActive = FALSE;
-
-    DEBUG(TEXT("[AdaptiveDelay_Initialize] State %p initialized (Min=%u Max=%u Attempts=%u Factor=%u)"),
-          State,
-          State->MinDelay,
-          State->MaxDelay,
-          State->MaxAttempts,
-          State->BackoffFactor);
 }
 
 /************************************************************************/

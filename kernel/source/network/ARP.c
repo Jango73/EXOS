@@ -512,78 +512,36 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
     BOOL Success = FALSE;
     BOOL MacRetrieved = FALSE;
 
-    DEBUG(TEXT("[ARP_Initialize] Enter Device=%p LocalIPv4_Be=%x DeviceInfo=%p"),
-          Device,
-          LocalIPv4_Be,
-          DeviceInfo);
-
-    if (Device == NULL) {
-        DEBUG(TEXT("[ARP_Initialize] Device pointer is NULL"));
-        return;
-    }
+    if (Device == NULL) return;
 
     Context = (LPARP_CONTEXT)KernelHeapAlloc(sizeof(ARP_CONTEXT));
-    if (Context == NULL) {
-        DEBUG(TEXT("[ARP_Initialize] Failed to allocate context (size=%u)"), (U32)sizeof(ARP_CONTEXT));
-        return;
-    }
-
-    DEBUG(TEXT("[ARP_Initialize] Context allocated at %p"), Context);
+    if (Context == NULL) return;
 
     Context->Device = Device;
     Context->LocalIPv4_Be = LocalIPv4_Be;
     Context->NotificationContext = Notification_CreateContext();
-    DEBUG(TEXT("[ARP_Initialize] Notification_CreateContext returned %p"), Context->NotificationContext);
-    DEBUG(TEXT("[ARP_Initialize] Context base=%p size=%u NotificationContext=%p"),
-          Context,
-          (UINT)sizeof(ARP_CONTEXT),
-          Context->NotificationContext);
-    DEBUG(TEXT("[ARP_Initialize] Cache base=%p entrySize=%u firstDelayState=%p"),
-          &(Context->Cache[0]),
-          (UINT)sizeof(ARP_CACHE_ENTRY),
-          &(Context->Cache[0].DelayState));
     if (Context->NotificationContext == NULL) {
         DEBUG(TEXT("[ARP_Initialize] Failed to create notification context"));
         goto Out;
     }
 
-    DEBUG(TEXT("[ARP_Initialize] Preparing ARP cache entries (count=%u)"), ARP_CACHE_SIZE);
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
-        DEBUG(TEXT("[ARP_Initialize] Clearing cache entry %u at %p"), Index, &(Context->Cache[Index]));
         Context->Cache[Index].IsValid = 0;
         Context->Cache[Index].IsProbing = 0;
         Context->Cache[Index].TimeToLive = 0;
         Context->Cache[Index].IPv4_Be = 0;
         AdaptiveDelay_Initialize(&Context->Cache[Index].DelayState);
-        DEBUG(TEXT("[ARP_Initialize] Cache entry %u cleared"), Index);
     }
-    DEBUG(TEXT("[ARP_Initialize] All cache entries prepared"));
 
-    DEBUG(TEXT("[ARP_Initialize] Locking device mutex %p (TypeID=%x OwnerTask=%p Lock=%u)"),
-          &(Device->Mutex),
-          Device->Mutex.TypeID,
-          Device->Mutex.Task,
-          Device->Mutex.Lock);
     LockMutex(&(Device->Mutex), INFINITY);
-    DEBUG(TEXT("[ARP_Initialize] Device mutex locked (OwnerTask=%p Lock=%u)"),
-          Device->Mutex.Task,
-          Device->Mutex.Lock);
 
     if (DeviceInfo != NULL) {
-        DEBUG(TEXT("[ARP_Initialize] Using cached device information to populate MAC"));
         Context->LocalMacAddress[0] = DeviceInfo->MAC[0];
         Context->LocalMacAddress[1] = DeviceInfo->MAC[1];
         Context->LocalMacAddress[2] = DeviceInfo->MAC[2];
         Context->LocalMacAddress[3] = DeviceInfo->MAC[3];
         Context->LocalMacAddress[4] = DeviceInfo->MAC[4];
         Context->LocalMacAddress[5] = DeviceInfo->MAC[5];
-        DEBUG(TEXT("[ARP_Initialize] Cached MAC %02x:%02x:%02x:%02x:%02x:%02x"),
-              (U32)Context->LocalMacAddress[0],
-              (U32)Context->LocalMacAddress[1],
-              (U32)Context->LocalMacAddress[2],
-              (U32)Context->LocalMacAddress[3],
-              (U32)Context->LocalMacAddress[4],
-              (U32)Context->LocalMacAddress[5]);
         MacRetrieved = TRUE;
     } else {
         NETWORKGETINFO GetInfo;
@@ -596,8 +554,13 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
         SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
             SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
                 if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
-                    DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"), (U32)Info.MAC[0], (U32)Info.MAC[1],
-                          (U32)Info.MAC[2], (U32)Info.MAC[3], (U32)Info.MAC[4], (U32)Info.MAC[5]);
+                    DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"),
+                          (U32)Info.MAC[0],
+                          (U32)Info.MAC[1],
+                          (U32)Info.MAC[2],
+                          (U32)Info.MAC[3],
+                          (U32)Info.MAC[4],
+                          (U32)Info.MAC[5]);
 
                     Context->LocalMacAddress[0] = Info.MAC[0];
                     Context->LocalMacAddress[1] = Info.MAC[1];
@@ -605,13 +568,6 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
                     Context->LocalMacAddress[3] = Info.MAC[3];
                     Context->LocalMacAddress[4] = Info.MAC[4];
                     Context->LocalMacAddress[5] = Info.MAC[5];
-                    DEBUG(TEXT("[ARP_Initialize] Driver provided MAC %02x:%02x:%02x:%02x:%02x:%02x"),
-                          (U32)Context->LocalMacAddress[0],
-                          (U32)Context->LocalMacAddress[1],
-                          (U32)Context->LocalMacAddress[2],
-                          (U32)Context->LocalMacAddress[3],
-                          (U32)Context->LocalMacAddress[4],
-                          (U32)Context->LocalMacAddress[5]);
                     MacRetrieved = TRUE;
 
                     DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
@@ -627,29 +583,22 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
     }
 
     if (!MacRetrieved) {
-        DEBUG(TEXT("[ARP_Initialize] Failed to retrieve MAC, aborting"));
         UnlockMutex(&(Device->Mutex));
         goto Out;
     }
 
-    DEBUG(TEXT("[ARP_Initialize] Setting ARP context %p on device %p"), Context, Device);
     SetDeviceContext(Device, KOID_ARP, Context);
     Success = TRUE;
 
     UnlockMutex(&(Device->Mutex));
-    DEBUG(TEXT("[ARP_Initialize] Device mutex unlocked"));
 
 Out:
     if (!Success) {
-        DEBUG(TEXT("[ARP_Initialize] Initialization failed, cleaning up context %p"), Context);
         if (Context->NotificationContext) {
             Notification_DestroyContext(Context->NotificationContext);
             Context->NotificationContext = NULL;
         }
         KernelHeapFree(Context);
-        DEBUG(TEXT("[ARP_Initialize] Context memory released"));
-    } else {
-        DEBUG(TEXT("[ARP_Initialize] Initialization succeeded for context %p"), Context);
     }
 }
 
