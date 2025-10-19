@@ -32,6 +32,87 @@
 
 /***************************************************************************/
 
+static BOOL RegisterOpenedFile(LPFILE File, LPCSTR RequestedName, LPCSTR SourceTag) {
+    LPCSTR Name = (RequestedName != NULL) ? RequestedName : TEXT("<null>");
+    LPCSTR Tag = (SourceTag != NULL) ? SourceTag : TEXT("<unknown>");
+
+    if (Kernel.File == NULL) {
+        DEBUG(TEXT("[OpenFile] Unable to register %s from %s because Kernel.File is NULL"), Name, Tag);
+        return FALSE;
+    }
+
+    if (IsValidMemory((LINEAR)Kernel.File) == FALSE) {
+        DEBUG(TEXT("[OpenFile] Kernel.File list pointer %p is invalid while registering %s from %s"),
+              Kernel.File,
+              Name,
+              Tag);
+        return FALSE;
+    }
+
+    if ((File == NULL) || (IsValidMemory((LINEAR)File) == FALSE)) {
+        DEBUG(TEXT("[OpenFile] Rejecting registration of %s from %s due to invalid file pointer %p"), Name, Tag, File);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[OpenFile] Registering file %p (%s) from %s type %x refs %u next %p prev %p fs %p"),
+          File,
+          Name,
+          Tag,
+          File->TypeID,
+          File->References,
+          File->Next,
+          File->Prev,
+          File->FileSystem);
+
+    if (File->TypeID != KOID_FILE) {
+        DEBUG(TEXT("[OpenFile] Registration aborted for %s from %s due to unexpected type %x"),
+              Name,
+              Tag,
+              File->TypeID);
+        return FALSE;
+    }
+
+    if (File->FileSystem == NULL) {
+        DEBUG(TEXT("[OpenFile] Registration aborted for %s from %s because FileSystem pointer is NULL"), Name, Tag);
+        return FALSE;
+    }
+
+    if (IsValidMemory((LINEAR)File->FileSystem) == FALSE) {
+        DEBUG(TEXT("[OpenFile] FileSystem pointer %p for %s from %s is invalid"), File->FileSystem, Name, Tag);
+        return FALSE;
+    }
+
+    if (File->Next != NULL) {
+        DEBUG(TEXT("[OpenFile] Clearing stale Next pointer %p before registering %s from %s"), File->Next, Name, Tag);
+    }
+
+    if (File->Prev != NULL) {
+        DEBUG(TEXT("[OpenFile] Clearing stale Prev pointer %p before registering %s from %s"), File->Prev, Name, Tag);
+    }
+
+    File->Next = NULL;
+    File->Prev = NULL;
+
+    if (ListAddItem(Kernel.File, File) == FALSE) {
+        DEBUG(TEXT("[OpenFile] ListAddItem failed while registering %s from %s"), Name, Tag);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[OpenFile] Registered file %p for %s from %s (items %u first %p last %p)"),
+          File,
+          Name,
+          Tag,
+          Kernel.File->NumItems,
+          Kernel.File->First,
+          Kernel.File->Last);
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/***************************************************************************/
+
 /**
  * @brief Opens a file based on provided information
  * @param Info Pointer to file open information structure
@@ -178,14 +259,38 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
+            BOOL Registered = FALSE;
+            BOOL ValidFileObject = FALSE;
+
             LockMutex(MUTEX_FILE, INFINITY);
 
-            File->OwnerTask = GetCurrentTask();
-            File->OpenFlags = Info->Flags;
-
-            ListAddItem(Kernel.File, File);
+            if ((IsValidMemory((LINEAR)File) != FALSE) && (File->TypeID == KOID_FILE)) {
+                ValidFileObject = TRUE;
+                File->OwnerTask = GetCurrentTask();
+                File->OpenFlags = Info->Flags;
+                Registered = RegisterOpenedFile(File, RequestedName, TEXT("SystemFS"));
+            } else {
+                DEBUG(TEXT("[OpenFile] SystemFS returned invalid file object %p type %x"),
+                      File,
+                      IsValidMemory((LINEAR)File) != FALSE ? File->TypeID : 0);
+            }
 
             UnlockMutex(MUTEX_FILE);
+
+            if (Registered == FALSE) {
+                if (ValidFileObject != FALSE) {
+                    DEBUG(TEXT("[OpenFile] Closing SystemFS file %p for %s due to registration failure"),
+                          File,
+                          RequestedName);
+                    CloseFile(File);
+                } else {
+                    DEBUG(TEXT("[OpenFile] Dropping SystemFS file pointer %p for %s without closing"),
+                          File,
+                          RequestedName);
+                }
+
+                File = NULL;
+            }
         } else {
             DEBUG(TEXT("[OpenFile] SystemFS open returned NULL for %s"), RequestedName);
         }
@@ -213,17 +318,45 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
+            BOOL Registered = FALSE;
+            BOOL ValidFileObject = FALSE;
+
             DEBUG(TEXT("[OpenFile] Found %s in %s"), RequestedName, FileSystem->Driver->Product);
 
             LockMutex(MUTEX_FILE, INFINITY);
 
-            File->OwnerTask = GetCurrentTask();
-            File->OpenFlags = Info->Flags;
-
-            ListAddItem(Kernel.File, File);
+            if ((IsValidMemory((LINEAR)File) != FALSE) && (File->TypeID == KOID_FILE)) {
+                ValidFileObject = TRUE;
+                File->OwnerTask = GetCurrentTask();
+                File->OpenFlags = Info->Flags;
+                Registered = RegisterOpenedFile(File, RequestedName, FileSystem->Driver->Product);
+            } else {
+                DEBUG(TEXT("[OpenFile] Filesystem %s returned invalid file object %p type %x"),
+                      FileSystem->Driver->Product,
+                      File,
+                      IsValidMemory((LINEAR)File) != FALSE ? File->TypeID : 0);
+            }
 
             UnlockMutex(MUTEX_FILE);
-            break;
+
+            if (Registered != FALSE) {
+                break;
+            }
+
+            if (ValidFileObject != FALSE) {
+                DEBUG(TEXT("[OpenFile] Closing file %p for %s from %s due to registration failure"),
+                      File,
+                      RequestedName,
+                      FileSystem->Driver->Product);
+                CloseFile(File);
+            } else {
+                DEBUG(TEXT("[OpenFile] Dropping invalid file pointer %p for %s from %s"),
+                      File,
+                      RequestedName,
+                      FileSystem->Driver->Product);
+            }
+
+            File = NULL;
         } else {
             DEBUG(TEXT("[OpenFile] Filesystem %s did not contain %s"), FileSystem->Driver->Product, RequestedName);
         }
