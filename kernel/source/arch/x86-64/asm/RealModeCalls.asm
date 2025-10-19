@@ -52,12 +52,25 @@ extern SerialWriteString64
 %define LOCAL_PARAM_INT         0x48
 %define LOCAL_PARAM_PTR         0x50
 
+%macro RMC_LOG64 1
+    push    rax
+    push    rdx
+    push    rdi
+    lea     rdi, [rel %1]
+    call    SerialWriteString64
+    pop     rdi
+    pop     rdx
+    pop     rax
+%endmacro
+
 ;----------------------------------------------------------------------------
 
 section .rodata
     align 8
 
 RMCLog64Enter:              db "[RealModeCall] Enter 64-bit stage\n", 0
+RMCLog64AfterPIC:           db "[RealModeCall] 64-bit PIC ready\n", 0
+RMCLog64RelocationDone:     db "[RealModeCall] 64-bit relocation complete\n", 0
 RMCLog64CopyComplete:       db "[RealModeCall] Copy complete, jumping to trampoline\n", 0
 RMCLog64Return:             db "[RealModeCall] Return to 64-bit stage\n", 0
 
@@ -86,14 +99,7 @@ RealModeCall:
     mov     rbp, rsp
     sub     rsp, LOCAL_STACK_SIZE
 
-    push    rax
-    push    rdx
-    push    rdi
-    lea     rdi, [rel RMCLog64Enter]
-    call    SerialWriteString64
-    pop     rdi
-    pop     rdx
-    pop     rax
+    RMC_LOG64 RMCLog64Enter
 
     ;--------------------------------------
     ; Save all registers and CPU state
@@ -124,6 +130,8 @@ RealModeCall:
     ; Switch to PIC mode for real mode call
 
     call    SwitchToPICForRealMode
+
+    RMC_LOG64 RMCLog64AfterPIC
 
     ;--------------------------------------
     ; Set the address of the RMC code
@@ -198,6 +206,8 @@ RealModeCall:
     lea     rax, [rel RealModeCall_Back]
     mov     [rdi], rax
 
+    RMC_LOG64 RMCLog64RelocationDone
+
     ;--------------------------------------
     ; Transfer register parameters to low memory buffer
 
@@ -224,27 +234,13 @@ RealModeCall:
 
 RMCJump1:
 
-    push    rax
-    push    rdx
-    push    rdi
-    lea     rdi, [rel RMCLog64CopyComplete]
-    call    SerialWriteString64
-    pop     rdi
-    pop     rdx
-    pop     rax
+    RMC_LOG64 RMCLog64CopyComplete
 
     jmp     far [rbx + RMCJump1Pointer - RMCSetup]
 
 RealModeCall_Back:
 
-    push    rax
-    push    rdx
-    push    rdi
-    lea     rdi, [rel RMCLog64Return]
-    call    SerialWriteString64
-    pop     rdi
-    pop     rdx
-    pop     rax
+    RMC_LOG64 RMCLog64Return
 
     ;--------------------------------------
     ; Restore IOAPIC mode
@@ -359,6 +355,10 @@ Save_INT: dd 0
 Save_PRM: dq 0
 Save_IRQ: dd 0
     dd 0                              ; padding
+LogScratchEAX: dd 0
+LogScratchEDX: dd 0
+LogScratchESI: dd 0
+    dd 0                              ; padding to keep alignment
 
 ReturnToLongTarget:
     dq 0
@@ -378,11 +378,29 @@ Param_EFL  : dd 0
 
 RMCLog32Enter:                db "[RealModeCall] Enter 32-bit stage\n", 0
 RMCLog32BeforePagingOff:      db "[RealModeCall] 32-bit disabling paging\n", 0
+RMCLog32PagingDisabled:       db "[RealModeCall] 32-bit paging disabled\n", 0
+RMCLog32LmeCleared:           db "[RealModeCall] 32-bit IA32_EFER.LME cleared\n", 0
+RMCLog32PaeCleared:           db "[RealModeCall] 32-bit CR4.PAE cleared\n", 0
+RMCLog32TempTablesLoaded:     db "[RealModeCall] 32-bit temporary tables loaded\n", 0
+RMCLog32BeforeRealJump:       db "[RealModeCall] 32-bit jumping to compatibility stub\n", 0
 RMCLog16Enter:                db "[RealModeCall] Enter 16-bit stage\n", 0
 RMCLog16BeforeDispatch:       db "[RealModeCall] 16-bit dispatch\n", 0
 RMCLog16AfterCall:            db "[RealModeCall] 16-bit call complete\n", 0
 RMCLog16InterruptPath:        db "[RealModeCall] 16-bit interrupt\n", 0
 RMCLog16FarCallPath:          db "[RealModeCall] 16-bit far call\n", 0
+RMCLog16AfterA20:             db "[RealModeCall] 16-bit A20 restored\n", 0
+RMCLog16BeforeReturn32:       db "[RealModeCall] 16-bit returning to 32-bit stage\n", 0
+
+%macro RMC_LOG32 1
+    mov     [ebx + LogScratchEAX - RMCSetup], eax
+    mov     [ebx + LogScratchEDX - RMCSetup], edx
+    mov     [ebx + LogScratchESI - RMCSetup], esi
+    lea     esi, [ebx + %1 - RMCSetup]
+    call    RMCSerialWriteString32
+    mov     eax, [ebx + LogScratchEAX - RMCSetup]
+    mov     edx, [ebx + LogScratchEDX - RMCSetup]
+    mov     esi, [ebx + LogScratchESI - RMCSetup]
+%endmacro
 
 RMCEntry64:
 
@@ -437,32 +455,20 @@ Start:
     ; instructions so we can reuse the legacy trampoline logic while long
     ; mode is active.
 
-    push    eax
-    push    edx
-    push    esi
-    lea     esi, [ebx + RMCLog32Enter - RMCSetup]
-    call    RMCSerialWriteString32
-    pop     esi
-    pop     edx
-    pop     eax
+    RMC_LOG32 RMCLog32Enter
 
     ;--------------------------------------
     ; Disable paging and flush TLB
 
-    push    eax
-    push    edx
-    push    esi
-    lea     esi, [ebx + RMCLog32BeforePagingOff - RMCSetup]
-    call    RMCSerialWriteString32
-    pop     esi
-    pop     edx
-    pop     eax
+    RMC_LOG32 RMCLog32BeforePagingOff
 
     mov     eax, [ebx + Save_CR0 - RMCSetup]
     and     eax, ~CR0_PAGING
     mov     cr0, eax
     xor     eax, eax
     mov     cr3, eax
+
+    RMC_LOG32 RMCLog32PagingDisabled
 
     ;--------------------------------------
     ; Disable IA-32e extensions
@@ -473,9 +479,13 @@ Start:
     and     eax, ~IA32_EFER_LME
     wrmsr
 
+    RMC_LOG32 RMCLog32LmeCleared
+
     mov     eax, [ebx + Save_CR4 - RMCSetup]
     and     eax, ~CR4_PAE
     mov     cr4, eax
+
+    RMC_LOG32 RMCLog32PaeCleared
 
     ;--------------------------------------
     ; Load the real mode IDT (IVT at 0x0000:0x0000)
@@ -490,8 +500,12 @@ Start:
     lea     esi, [ebx + Temp_GDT_Label - RMCSetup]
     lgdt    [esi]
 
+    RMC_LOG32 RMCLog32TempTablesLoaded
+
     ;--------------------------------------
     ; Jump to next instruction with 16-bit code selector
+
+    RMC_LOG32 RMCLog32BeforeRealJump
 
 RMCJump16:
 
@@ -562,6 +576,10 @@ bits 16
     ; Clear the A20 line
 
     call    Clear_A20_Line
+
+    mov     si, bx
+    add     si, RMCLog16AfterA20 - RMCSetup
+    call    RMCSerialWriteString16
 
     mov     si, bx
     add     si, RMCLog16BeforeDispatch - RMCSetup
@@ -773,6 +791,8 @@ bits 32
     mov     gs, ax
     mov     fs, ax
 
+    RMC_LOG32 RMCLog16BeforeReturn32
+
     ;--------------------------------------
     ; Restore CR4, IA32_EFER, CR3 and CR0
 
@@ -840,10 +860,7 @@ ReturnToLongStub:
 bits 32
 
 RMCSerialWriteChar32:
-    push    eax
-    push    dx
-
-    mov     ah, al
+    mov     cl, al
 
 .wait_char32:
     mov     dx, COMPort_Debug + 5
@@ -852,16 +869,11 @@ RMCSerialWriteChar32:
     jz      .wait_char32
 
     mov     dx, COMPort_Debug
-    mov     al, ah
+    mov     al, cl
     out     dx, al
-
-    pop     dx
-    pop     eax
     ret
 
 RMCSerialWriteString32:
-    push    esi
-
 .loop_string32:
     mov     al, [esi]
     test    al, al
@@ -872,7 +884,6 @@ RMCSerialWriteString32:
     jmp     .loop_string32
 
 .done_string32:
-    pop     esi
     ret
 
 RMCSetup_Hang:
