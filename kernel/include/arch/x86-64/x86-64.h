@@ -224,12 +224,12 @@ typedef struct tag_INTEL_64_GENERAL_REGISTERS {
 typedef struct tag_X86_64_IDT_ENTRY {
     U16 Offset_00_15;
     U16 Selector;
-    U16 InterruptStackTable : 3;
-    U16 Reserved_0 : 5;
-    U16 Type : 4;
-    U16 Privilege : 2;
-    U16 Present : 1;
-    U16 Reserved_1 : 1;
+    U8 InterruptStackTable : 3;
+    U8 Reserved_0 : 5;
+    U8 Type : 4;
+    U8 Reserved_1 : 1;
+    U8 Privilege : 2;
+    U8 Present : 1;
     U16 Offset_16_31;
     U32 Offset_32_63;
     U32 Reserved_2;
