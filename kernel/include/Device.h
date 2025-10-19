@@ -34,6 +34,10 @@
 
 /***************************************************************************/
 
+#pragma pack(push, 1)
+
+/***************************************************************************/
+
 #define DEVICE_FIELDS       \
     LISTNODE_FIELDS         \
     MUTEX Mutex;            \
@@ -51,6 +55,10 @@ BOOL GetDefaultDeviceName(LPSTR Name, LPDEVICE Device, U32 DeviceType);
 LPVOID GetDeviceContext(LPDEVICE Device, U32 ID);
 U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context);
 U32 RemoveDeviceContext(LPDEVICE Device, U32 ID);
+
+/***************************************************************************/
+
+#pragma pack(pop)
 
 /***************************************************************************/
 
