@@ -129,6 +129,22 @@ void InitializeGateDescriptor(
 
 /************************************************************************/
 
+static void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U32 Limit) {
+    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFFu);
+    Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0Fu);
+}
+
+/************************************************************************/
+
+static void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U64 Base) {
+    Descriptor->Base_00_15 = (U16)(Base & 0xFFFFu);
+    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFFu);
+    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFFu);
+    Descriptor->Base_32_63 = (U32)((Base >> 32) & 0xFFFFFFFFu);
+}
+
+/************************************************************************/
+
 /**
  * @brief Perform architecture-specific pre-initialization.
  */
@@ -903,6 +919,50 @@ static void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
 
 /***************************************************************************/
 
+void InitializeTaskSegments(void) {
+    DEBUG(TEXT("[InitializeTaskSegments] Enter"));
+
+    UINT TssSize = sizeof(X86_64_TASK_STATE_SEGMENT);
+
+    Kernel_i386.TSS = (LPX86_64_TASK_STATE_SEGMENT)AllocKernelRegion(
+        0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (Kernel_i386.TSS == NULL) {
+        ERROR(TEXT("[InitializeTaskSegments] AllocKernelRegion for TSS failed"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    MemorySet(Kernel_i386.TSS, 0, TssSize);
+    Kernel_i386.TSS->IOMapBase = (U16)TssSize;
+
+    LINEAR CurrentRsp;
+    GetESP(CurrentRsp);
+    Kernel_i386.TSS->RSP0 = (U64)CurrentRsp;
+    Kernel_i386.TSS->IST1 = (U64)CurrentRsp;
+
+    LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor =
+        (LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR)((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT + GDT_TSS_INDEX);
+
+    MemorySet(Descriptor, 0, sizeof(X86_64_SYSTEM_SEGMENT_DESCRIPTOR));
+    SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1u);
+    SetSystemSegmentDescriptorBase(Descriptor, (U64)(UINT)Kernel_i386.TSS);
+
+    Descriptor->Type = GDT_TYPE_TSS_AVAILABLE;
+    Descriptor->Zero0 = 0u;
+    Descriptor->Privilege = PRIVILEGE_KERNEL;
+    Descriptor->Present = 1u;
+    Descriptor->Limit_16_19 = (U8)(Descriptor->Limit_16_19 & 0x0Fu);
+    Descriptor->Available = 0u;
+    Descriptor->Zero1 = 0u;
+    Descriptor->Granularity = 0u;
+    Descriptor->Reserved = 0u;
+
+    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), (LPVOID)(UINT)Kernel_i386.TSS);
+    DEBUG(TEXT("[InitializeTaskSegments] Exit"));
+}
+
+/***************************************************************************/
+
 /**
  * @brief Initialize the architecture-specific context for a task.
  *
@@ -1030,6 +1090,22 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
 
     DEBUG(TEXT("[ArchSetupTask] Exit"));
     return TRUE;
+}
+
+/***************************************************************************/
+
+void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
+    UNUSED(CurrentTask);
+
+    if (Kernel_i386.TSS == NULL || NextTask == NULL) {
+        return;
+    }
+
+    LPX86_64_TASK_STATE_SEGMENT Tss = Kernel_i386.TSS;
+
+    Tss->RSP0 = NextTask->Arch.Context.RSP0;
+    Tss->IST1 = NextTask->Arch.Context.RSP0;
+    Tss->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
 }
 
 /***************************************************************************/

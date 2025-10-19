@@ -41,6 +41,8 @@
 
 #define GATE_TYPE_386_INT 0x0E
 #define GATE_TYPE_386_TRAP 0x0F
+#define GDT_TYPE_TSS_AVAILABLE 0x09
+#define GDT_TYPE_TSS_BUSY 0x0B
 
 #define SELECTOR_RPL_BITS 2u
 #define SELECTOR_RPL_MASK 0x0003u
@@ -73,6 +75,8 @@
 #define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
 #define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 #define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+#define GDT_TSS_INDEX 7u
+#define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, PRIVILEGE_KERNEL)
 
 #define RFLAGS_ALWAYS_1 0x0000000000000002ull
 #define RFLAGS_IF 0x0000000000000200ull
@@ -84,7 +88,6 @@
 #define TRACED_EPILOGUE(FunctionName)
 
 #define SwitchToNextTask_2(prev, next) ((void)(prev), (void)(next))
-#define ArchPrepareNextTaskSwitch(CurrentTask, NextTask) ((void)(CurrentTask), (void)(NextTask))
 #define SetupStackForKernelMode(Task, StackTop) ((void)(Task), (void)(StackTop))
 #define JumpToReadyTask(Task, StackTop) ((void)(Task), (void)(StackTop))
 #define SetupStackForUserMode(Task, StackTop, UserESP) ((void)(Task), (void)(StackTop), (void)(UserESP))
@@ -262,6 +265,26 @@ typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
 
 /************************************************************************/
 
+typedef struct PACKED tag_X86_64_TASK_STATE_SEGMENT {
+    U32 Reserved0;
+    U64 RSP0;
+    U64 RSP1;
+    U64 RSP2;
+    U64 Reserved1;
+    U64 IST1;
+    U64 IST2;
+    U64 IST3;
+    U64 IST4;
+    U64 IST5;
+    U64 IST6;
+    U64 IST7;
+    U64 Reserved2;
+    U16 Reserved3;
+    U16 IOMapBase;
+} X86_64_TASK_STATE_SEGMENT, *LPX86_64_TASK_STATE_SEGMENT;
+
+/************************************************************************/
+
 // Interrupt context saved on entry
 
 typedef struct tag_INTERRUPT_FRAME {
@@ -304,7 +327,7 @@ typedef U64 OFFSET;
 typedef struct tag_KERNELDATA_X86_64 {
     LPX86_64_IDT_ENTRY IDT;
     LPVOID GDT;
-    LPVOID TSS;
+    LPX86_64_TASK_STATE_SEGMENT TSS;
 } KERNELDATA_X86_64, *LPKERNELDATA_X86_64;
 
 /************************************************************************/
@@ -468,6 +491,8 @@ struct tag_TASKINFO;
 
 BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
 void ArchPreInitializeKernel(void);
+void InitializeTaskSegments(void);
+void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 
 /***************************************************************************/
 

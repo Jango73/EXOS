@@ -118,7 +118,7 @@ void InitializeKernelProcess(void) {
 
     DEBUG(TEXT("[InitializeKernelProcess] Loading TR"));
 
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_I386__) || defined(__EXOS_ARCH_X86_64__)
     LoadInitialTaskRegister(SELECTOR_TSS);
 #endif
 

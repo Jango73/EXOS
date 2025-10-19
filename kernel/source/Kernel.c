@@ -758,7 +758,7 @@ void InitializeKernel(void) {
 
     DEBUG(TEXT("[KernelMain] Memory manager initialized"));
 
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_I386__) || defined(__EXOS_ARCH_X86_64__)
     InitializeTaskSegments();
 
     DEBUG(TEXT("[KernelMain] Task segments initialized"));
