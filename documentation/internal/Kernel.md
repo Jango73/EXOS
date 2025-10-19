@@ -797,7 +797,7 @@ typedef struct ArpCacheEntryTag {
 ```
 
 **API Functions:**
-- `ARP_Initialize(Device, LocalIPv4_Be)`: Initialize ARP context for device
+- `ARP_Initialize(Device, LocalIPv4_Be, DeviceInfo)`: Initialize ARP context for device, optionally using cached link information
 - `ARP_Destroy(Device)`: Cleanup ARP context
 - `ARP_Resolve(Device, TargetIPv4_Be, OutMacAddress[])`: Resolve IPv4 to MAC
 - `ARP_Tick(Device)`: Age cache entries (call every 1 second)
@@ -954,7 +954,7 @@ The buffer capacities default to 32768 bytes each when the configuration entries
 InitializeNetworkManager();
 
 // 2. For each device, Network Manager automatically:
-//    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE)
+//    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE, CachedInfo)
 //    b. Calls IPv4_Initialize(Device, DEFAULT_LOCAL_IP_BE)
 //    c. Calls TCP_Initialize() (once globally)
 

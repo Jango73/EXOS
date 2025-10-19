@@ -506,7 +506,7 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
 /************************************************************************/
 // Public API
 
-void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
+void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* DeviceInfo) {
     LPARP_CONTEXT Context;
     U32 Index;
     BOOL Success = FALSE;
@@ -533,48 +533,53 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
         AdaptiveDelay_Initialize(&Context->Cache[Index].DelayState);
     }
 
-    /* Query local MAC through DF_NT_GETINFO */
-    NETWORKGETINFO GetInfo;
-    NETWORKINFO Info;
-    MemorySet(&GetInfo, 0, sizeof(GetInfo));
-    MemorySet(&Info, 0, sizeof(Info));
-    GetInfo.Device = NULL;
-    GetInfo.Info = &Info;
-
     LockMutex(&(Device->Mutex), INFINITY);
 
-    GetInfo.Device = (LPPCI_DEVICE)Device;
+    if (DeviceInfo != NULL) {
+        Context->LocalMacAddress[0] = DeviceInfo->MAC[0];
+        Context->LocalMacAddress[1] = DeviceInfo->MAC[1];
+        Context->LocalMacAddress[2] = DeviceInfo->MAC[2];
+        Context->LocalMacAddress[3] = DeviceInfo->MAC[3];
+        Context->LocalMacAddress[4] = DeviceInfo->MAC[4];
+        Context->LocalMacAddress[5] = DeviceInfo->MAC[5];
+        MacRetrieved = TRUE;
+    } else {
+        NETWORKGETINFO GetInfo;
+        NETWORKINFO Info;
+        MemorySet(&GetInfo, 0, sizeof(GetInfo));
+        MemorySet(&Info, 0, sizeof(Info));
+        GetInfo.Device = (LPPCI_DEVICE)Device;
+        GetInfo.Info = &Info;
 
-    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
-                DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"), (U32)Info.MAC[0], (U32)Info.MAC[1],
-                      (U32)Info.MAC[2], (U32)Info.MAC[3], (U32)Info.MAC[4], (U32)Info.MAC[5]);
+        SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+            SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
+                if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
+                    DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"),
+                          (U32)Info.MAC[0],
+                          (U32)Info.MAC[1],
+                          (U32)Info.MAC[2],
+                          (U32)Info.MAC[3],
+                          (U32)Info.MAC[4],
+                          (U32)Info.MAC[5]);
 
-                Context->LocalMacAddress[0] = Info.MAC[0];
-                Context->LocalMacAddress[1] = Info.MAC[1];
-                Context->LocalMacAddress[2] = Info.MAC[2];
-                Context->LocalMacAddress[3] = Info.MAC[3];
-                Context->LocalMacAddress[4] = Info.MAC[4];
-                Context->LocalMacAddress[5] = Info.MAC[5];
-                MacRetrieved = TRUE;
+                    Context->LocalMacAddress[0] = Info.MAC[0];
+                    Context->LocalMacAddress[1] = Info.MAC[1];
+                    Context->LocalMacAddress[2] = Info.MAC[2];
+                    Context->LocalMacAddress[3] = Info.MAC[3];
+                    Context->LocalMacAddress[4] = Info.MAC[4];
+                    Context->LocalMacAddress[5] = Info.MAC[5];
+                    MacRetrieved = TRUE;
 
-                /* NOTE: Do not register RX callback directly - NetworkManager handles this */
-                /* NETWORKSETRXCB SetRxCallback;
-                SetRxCallback.Device = (LPPCI_DEVICE)Device;
-                SetRxCallback.Callback = ARP_OnEthernetFrame;
-                DEBUG(TEXT("[ARP_Initialize] Registering RX callback %x for device %x"), (U32)ARP_OnEthernetFrame, (U32)Device);
-                U32 Result = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SETRXCB, (UINT)(LPVOID)&SetRxCallback);
-                DEBUG(TEXT("[ARP_Initialize] RX callback registration result: %u"), Result); */
-                DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
+                    DEBUG(TEXT("[ARP_Initialize] ARP layer initialized, callbacks handled by NetworkManager"));
+                } else {
+                    DEBUG(TEXT("[ARP_Initialize] DF_NT_GETINFO failed"));
+                }
             } else {
-                DEBUG(TEXT("[ARP_Initialize] DF_NT_GETINFO failed"));
+                DEBUG(TEXT("[ARP_Initialize] Device driver not valid"));
             }
         } else {
-            DEBUG(TEXT("[ARP_Initialize] Device driver not valid"));
+            DEBUG(TEXT("[ARP_Initialize] Device not valid"));
         }
-    } else {
-        DEBUG(TEXT("[ARP_Initialize] Device not valid"));
     }
 
     if (!MacRetrieved) {
