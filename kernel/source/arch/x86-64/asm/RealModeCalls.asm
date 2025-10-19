@@ -166,8 +166,12 @@ RealModeCall:
     lea     rsi, [rbx + Rel5 - RMCSetup]
     add     dword [rsi], ebx
 
+    ; 32-bit offset for the long mode return stub
+    lea     rsi, [rbx + ReturnToLong - RMCSetup]
+    add     dword [rsi], ebx
+
     ; 64-bit return target for the long mode trampoline
-    lea     rdi, [rbx + ReturnToLong - RMCSetup]
+    lea     rdi, [rbx + ReturnToLongTarget - RMCSetup]
     lea     rax, [rel RealModeCall_Back]
     mov     [rdi], rax
 
@@ -690,8 +694,20 @@ bits 32
 
     db      0xEA                       ; jmp far
 ReturnToLong:
-    dq      0
+    dd      ReturnToLongStub - RMCSetup
     dw      SELECTOR_KERNEL_CODE
+
+bits 64
+
+ReturnToLongStub:
+
+    mov     rax, [rel ReturnToLongTarget]
+    jmp     rax
+
+ReturnToLongTarget:
+    dq      0
+
+bits 32
 
     ;--------------------------------------
 
