@@ -36,15 +36,39 @@
  * @return Pointer to the new context or NULL on failure.
  */
 LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
+    DEBUG(TEXT("[Notification_CreateContext] Enter"));
+    DEBUG(TEXT("[Notification_CreateContext] Requesting %u bytes for context"), (UINT)sizeof(NOTIFICATION_CONTEXT));
+
     LPNOTIFICATION_CONTEXT Context = (LPNOTIFICATION_CONTEXT)KernelHeapAlloc(sizeof(NOTIFICATION_CONTEXT));
-    if (Context) {
-        Context->NotificationList = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
-        if (!Context->NotificationList) {
-            KernelHeapFree(Context);
-            return NULL;
-        }
-        DEBUG(TEXT("[Notification_CreateContext] Created context at %x"), (U32)Context);
+    if (Context == NULL) {
+        DEBUG(TEXT("[Notification_CreateContext] KernelHeapAlloc returned NULL"));
+        return NULL;
     }
+
+    DEBUG(TEXT("[Notification_CreateContext] Context allocated at %p (valid=%u)"),
+          (LPVOID)Context,
+          IsValidMemory((LINEAR)Context));
+
+    Context->NotificationList = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    DEBUG(TEXT("[Notification_CreateContext] NewList returned %p"), (LPVOID)Context->NotificationList);
+
+    if (Context->NotificationList == NULL) {
+        DEBUG(TEXT("[Notification_CreateContext] NewList failed, freeing context %p"), (LPVOID)Context);
+        KernelHeapFree(Context);
+        return NULL;
+    }
+
+    DEBUG(TEXT("[Notification_CreateContext] NotificationList valid=%u First=%p Last=%p NumItems=%u"),
+          IsValidMemory((LINEAR)Context->NotificationList),
+          (LPVOID)Context->NotificationList->First,
+          (LPVOID)Context->NotificationList->Last,
+          Context->NotificationList->NumItems);
+    DEBUG(TEXT("[Notification_CreateContext] Allocator=%p Free=%p Destructor=%p"),
+          (LPVOID)Context->NotificationList->MemAllocFunc,
+          (LPVOID)Context->NotificationList->MemFreeFunc,
+          (LPVOID)Context->NotificationList->Destructor);
+    DEBUG(TEXT("[Notification_CreateContext] Exit with context %p"), (LPVOID)Context);
+
     return Context;
 }
 
@@ -57,9 +81,10 @@ LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
 void Notification_DestroyContext(LPNOTIFICATION_CONTEXT Context) {
     if (!Context) return;
 
-    DEBUG(TEXT("[Notification_DestroyContext] Destroying context at %x"), (U32)Context);
+    DEBUG(TEXT("[Notification_DestroyContext] Destroying context at %p"), (LPVOID)Context);
 
     if (Context->NotificationList) {
+        DEBUG(TEXT("[Notification_DestroyContext] Deleting list %p"), (LPVOID)Context->NotificationList);
         DeleteList(Context->NotificationList);
     }
 

@@ -110,6 +110,11 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
     LPLIST This = NULL;
 
+    DEBUG(TEXT("[NewList] Enter ItemDestructor=%p MemAlloc=%p MemFree=%p"),
+          (LPVOID)ItemDestructor,
+          (LPVOID)MemAlloc,
+          (LPVOID)MemFree);
+
 #if SCHEDULING_DEBUG_OUTPUT == 1
     DEBUG(TEXT("[NewList] Enter"));
     DEBUG(TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
@@ -120,13 +125,20 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     if (MemAlloc == NULL) MemAlloc = KernelHeapAlloc;
     if (MemFree == NULL) MemFree = KernelHeapFree;
 
+    DEBUG(TEXT("[NewList] Using alloc=%p free=%p"), (LPVOID)MemAlloc, (LPVOID)MemFree);
+
     This = (LPLIST)MemAlloc(sizeof(LIST));
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
     DEBUG(TEXT("[NewList] List pointer = %X"), (LINEAR)This);
 #endif
 
-    if (This == NULL) return NULL;
+    DEBUG(TEXT("[NewList] Allocation result %p (size=%u)"), (LPVOID)This, (UINT)sizeof(LIST));
+
+    if (This == NULL) {
+        DEBUG(TEXT("[NewList] Allocation failed"));
+        return NULL;
+    }
 
     This->First = NULL;
     This->Last = NULL;
@@ -139,6 +151,17 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
 #if SCHEDULING_DEBUG_OUTPUT == 1
     DEBUG(TEXT("[NewList] Exit"));
 #endif
+
+    DEBUG(TEXT("[NewList] Initialized list=%p First=%p Last=%p NumItems=%u"),
+          (LPVOID)This,
+          (LPVOID)This->First,
+          (LPVOID)This->Last,
+          This->NumItems);
+    DEBUG(TEXT("[NewList] Allocator=%p Free=%p Destructor=%p"),
+          (LPVOID)This->MemAllocFunc,
+          (LPVOID)This->MemFreeFunc,
+          (LPVOID)This->Destructor);
+    DEBUG(TEXT("[NewList] Exit list=%p"), (LPVOID)This);
 
     return This;
 }
