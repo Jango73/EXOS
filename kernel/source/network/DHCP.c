@@ -205,9 +205,15 @@ static void DHCP_SendDiscover(LPDEVICE Device) {
     U8 MessageType;
     U8 ParameterList[4];
 
-    if (Device == NULL) return;
+    DEBUG(TEXT("[DHCP_SendDiscover] Enter Device=%p"), Device);
+
+    if (Device == NULL) {
+        DEBUG(TEXT("[DHCP_SendDiscover] Null device pointer"));
+        return;
+    }
 
     Context = DHCP_GetContext(Device);
+    DEBUG(TEXT("[DHCP_SendDiscover] Context=%p"), Context);
     SAFE_USE(Context) {
         DEBUG(TEXT("[DHCP_SendDiscover] Sending DHCP DISCOVER"));
 
@@ -244,11 +250,14 @@ static void DHCP_SendDiscover(LPDEVICE Device) {
         // Option 255: End
         Message.Options[OptionsOffset++] = DHCP_OPTION_END;
 
+        DEBUG(TEXT("[DHCP_SendDiscover] Payload size=%u"), (UINT)sizeof(DHCP_MESSAGE));
+
         // Send via UDP (broadcast to 255.255.255.255:67)
         UDP_Send(Device, 0xFFFFFFFF, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (const U8*)&Message, sizeof(DHCP_MESSAGE));
 
         Context->State = DHCP_STATE_SELECTING;
         Context->StartMillis = GetSystemTime();
+        DEBUG(TEXT("[DHCP_SendDiscover] State=%u StartMillis=%u"), Context->State, Context->StartMillis);
     }
 }
 
@@ -268,9 +277,15 @@ static void DHCP_SendRequest(LPDEVICE Device) {
     U32 RequestedIP_Be;
     U32 ServerID_Be;
 
-    if (Device == NULL) return;
+    DEBUG(TEXT("[DHCP_SendRequest] Enter Device=%p"), Device);
+
+    if (Device == NULL) {
+        DEBUG(TEXT("[DHCP_SendRequest] Null device pointer"));
+        return;
+    }
 
     Context = DHCP_GetContext(Device);
+    DEBUG(TEXT("[DHCP_SendRequest] Context=%p"), Context);
     SAFE_USE(Context) {
         DEBUG(TEXT("[DHCP_SendRequest] Sending DHCP REQUEST"));
 
@@ -308,11 +323,14 @@ static void DHCP_SendRequest(LPDEVICE Device) {
         // Option 255: End
         Message.Options[OptionsOffset++] = DHCP_OPTION_END;
 
+        DEBUG(TEXT("[DHCP_SendRequest] Payload size=%u"), (UINT)sizeof(DHCP_MESSAGE));
+
         // Send via UDP (broadcast to 255.255.255.255:67)
         UDP_Send(Device, 0xFFFFFFFF, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (const U8*)&Message, sizeof(DHCP_MESSAGE));
 
         Context->State = DHCP_STATE_REQUESTING;
         Context->StartMillis = GetSystemTime();
+        DEBUG(TEXT("[DHCP_SendRequest] State=%u StartMillis=%u"), Context->State, Context->StartMillis);
     }
 }
 
@@ -456,13 +474,21 @@ void DHCP_Initialize(LPDEVICE Device) {
     NETWORKGETINFO GetInfo;
     NETWORKINFO Info;
 
-    if (Device == NULL) return;
+    DEBUG(TEXT("[DHCP_Initialize] Enter Device=%p"), Device);
 
+    if (Device == NULL) {
+        DEBUG(TEXT("[DHCP_Initialize] Null device pointer"));
+        return;
+    }
+
+    DEBUG(TEXT("[DHCP_Initialize] Allocating context of size %u"), (UINT)sizeof(DHCP_CONTEXT));
     Context = (LPDHCP_CONTEXT)KernelHeapAlloc(sizeof(DHCP_CONTEXT));
     if (Context == NULL) {
         ERROR(TEXT("[DHCP_Initialize] Failed to allocate DHCP context"));
         return;
     }
+
+    DEBUG(TEXT("[DHCP_Initialize] Context allocated at %p"), Context);
 
     MemorySet(Context, 0, sizeof(DHCP_CONTEXT));
     Context->Device = Device;
@@ -490,12 +516,15 @@ void DHCP_Initialize(LPDEVICE Device) {
         }
     }
 
+    DEBUG(TEXT("[DHCP_Initialize] Setting device context with KOID %x"), KOID_DHCP);
     SetDeviceContext(Device, KOID_DHCP, (LPVOID)Context);
 
     // Store global device reference
     g_DHCPDevice = Device;
+    DEBUG(TEXT("[DHCP_Initialize] Global DHCP device set to %p"), g_DHCPDevice);
 
     // Register UDP port handler for DHCP client port
+    DEBUG(TEXT("[DHCP_Initialize] Registering UDP handler for port %u"), DHCP_CLIENT_PORT);
     UDP_RegisterPortHandler(Device, DHCP_CLIENT_PORT, DHCP_OnUDPPacket);
 
     DEBUG(TEXT("[DHCP_Initialize] DHCP initialized for device"));
@@ -534,14 +563,21 @@ void DHCP_Destroy(LPDEVICE Device) {
 void DHCP_Start(LPDEVICE Device) {
     LPDHCP_CONTEXT Context;
 
-    if (Device == NULL) return;
+    DEBUG(TEXT("[DHCP_Start] Enter Device=%p"), Device);
+
+    if (Device == NULL) {
+        DEBUG(TEXT("[DHCP_Start] Null device pointer"));
+        return;
+    }
 
     Context = DHCP_GetContext(Device);
+    DEBUG(TEXT("[DHCP_Start] Retrieved context %p"), Context);
     SAFE_USE(Context) {
         DEBUG(TEXT("[DHCP_Start] Starting DHCP discovery"));
         Context->State = DHCP_STATE_INIT;
         Context->TransactionID = DHCP_GenerateXID();
         Context->RetryCount = 0;
+        DEBUG(TEXT("[DHCP_Start] TransactionID=%x RetryCount=%u"), Context->TransactionID, Context->RetryCount);
         DHCP_SendDiscover(Device);
     }
 }
