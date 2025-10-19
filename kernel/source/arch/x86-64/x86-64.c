@@ -958,6 +958,10 @@ void InitializeTaskSegments(void) {
     Descriptor->Reserved = 0u;
 
     DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), (LPVOID)(UINT)Kernel_i386.TSS);
+
+    DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
+    LoadInitialTaskRegister(SELECTOR_TSS);
+
     DEBUG(TEXT("[InitializeTaskSegments] Exit"));
 }
 
