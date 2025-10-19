@@ -197,7 +197,7 @@ RealModeCall:
 
 RMCJump1:
 
-    db      0xEA                       ; jmp far
+    jmp     far [rel RelJmp]
 RelJmp:
     dd      0
     dw      SELECTOR_KERNEL_CODE
