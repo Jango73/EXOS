@@ -24,8 +24,10 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Schedule.h"
 #include "System.h"
 #include "Text.h"
+#include "arch/x86-64/x86-64-Log.h"
 
 /************************************************************************/
 
@@ -40,33 +42,16 @@
 
 void LogCPUState(LPINTERRUPT_FRAME Frame) {
     if (Frame == NULL) {
-        ERROR(TEXT("[Fault64] No interrupt frame available"));
+        ERROR(TEXT("[LogCPUState] No interrupt frame available"));
         return;
     }
 
-    ERROR(TEXT("[Fault64] RAX=%p RBX=%p RCX=%p RDX=%p"),
-        (UINT)Frame->Registers.RAX,
-        (UINT)Frame->Registers.RBX,
-        (UINT)Frame->Registers.RCX,
-        (UINT)Frame->Registers.RDX);
-    ERROR(TEXT("[Fault64] RSI=%p RDI=%p RBP=%p RSP=%p"),
-        (UINT)Frame->Registers.RSI,
-        (UINT)Frame->Registers.RDI,
-        (UINT)Frame->Registers.RBP,
-        (UINT)Frame->Registers.RSP);
-    ERROR(TEXT("[Fault64] R8=%p R9=%p R10=%p R11=%p"),
-        (UINT)Frame->Registers.R8,
-        (UINT)Frame->Registers.R9,
-        (UINT)Frame->Registers.R10,
-        (UINT)Frame->Registers.R11);
-    ERROR(TEXT("[Fault64] R12=%p R13=%p R14=%p R15=%p"),
-        (UINT)Frame->Registers.R12,
-        (UINT)Frame->Registers.R13,
-        (UINT)Frame->Registers.R14,
-        (UINT)Frame->Registers.R15);
-    ERROR(TEXT("[Fault64] RIP=%p RFLAGS=%p CR2 unavailable"),
-        (UINT)Frame->Registers.RIP,
-        (UINT)Frame->Registers.RFlags);
+    LPTASK Task = GetCurrentTask();
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LogFrame(Task, Frame);
+        BacktraceFrom(Frame->Registers.RBP, 10u);
+    }
 }
 
 /************************************************************************/

@@ -25,8 +25,57 @@
 
 #include "Log.h"
 #include "Memory.h"
+#include "Process.h"
+#include "Task.h"
 #include "Text.h"
 #include "arch/x86-64/x86-64-Memory.h"
+
+/***************************************************************************/
+
+static void LogRegisters64(const LPINTEL_64_GENERAL_REGISTERS Regs) {
+    if (Regs == NULL) {
+        KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] No register snapshot available"));
+        return;
+    }
+
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] CS : %x DS : %x SS : %x"), (U32)Regs->CS, (U32)Regs->DS, (U32)Regs->SS);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] ES : %x FS : %x GS : %x"), (U32)Regs->ES, (U32)Regs->FS, (U32)Regs->GS);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] RAX : %p RBX : %p RCX : %p RDX : %p"),
+        (LPVOID)Regs->RAX,
+        (LPVOID)Regs->RBX,
+        (LPVOID)Regs->RCX,
+        (LPVOID)Regs->RDX);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] RSI : %p RDI : %p RBP : %p RSP : %p"),
+        (LPVOID)Regs->RSI,
+        (LPVOID)Regs->RDI,
+        (LPVOID)Regs->RBP,
+        (LPVOID)Regs->RSP);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] R8 : %p R9 : %p R10 : %p R11 : %p"),
+        (LPVOID)Regs->R8,
+        (LPVOID)Regs->R9,
+        (LPVOID)Regs->R10,
+        (LPVOID)Regs->R11);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] R12 : %p R13 : %p R14 : %p R15 : %p"),
+        (LPVOID)Regs->R12,
+        (LPVOID)Regs->R13,
+        (LPVOID)Regs->R14,
+        (LPVOID)Regs->R15);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] RIP : %p RFLAGS : %p"), (LPVOID)Regs->RIP, (LPVOID)Regs->RFlags);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] CR0 : %p CR2 : %p CR3 : %p CR4 : %p"),
+        (LPVOID)Regs->CR0,
+        (LPVOID)Regs->CR2,
+        (LPVOID)Regs->CR3,
+        (LPVOID)Regs->CR4);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] CR8 : %p"), (LPVOID)Regs->CR8);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] DR0 : %p DR1 : %p DR2 : %p"),
+        (LPVOID)Regs->DR0,
+        (LPVOID)Regs->DR1,
+        (LPVOID)Regs->DR2);
+    KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] DR3 : %p DR6 : %p DR7 : %p"),
+        (LPVOID)Regs->DR3,
+        (LPVOID)Regs->DR6,
+        (LPVOID)Regs->DR7);
+}
 
 /***************************************************************************/
 
@@ -258,4 +307,79 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
     }
 
     DEBUG(TEXT("[LogPageDirectory64] End of page directory"));
+}
+
+/***************************************************************************/
+
+void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
+    if (Frame == NULL) {
+        ERROR(TEXT("[LogFrame] No interrupt frame provided"));
+        return;
+    }
+
+    if (Task == NULL) {
+        Task = GetCurrentTask();
+    }
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LPPROCESS Process = Task->Process;
+        LPCSTR ProcessName = TEXT("<no process>");
+
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+            ProcessName = Process->FileName;
+        }
+
+        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Task : %p (%s @ %s)"), (LPVOID)Task, Task->Name, ProcessName);
+        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
+        LogRegisters64(&(Frame->Registers));
+    }
+}
+
+/***************************************************************************/
+
+void BacktraceFrom(U64 StartRbp, U32 MaxFrames) {
+    U32 Depth = 0;
+    U64 Rbp = StartRbp;
+
+    KernelLogText(LOG_VERBOSE, TEXT("[BacktraceFrom] Backtrace (RBP=%p, max=%u)"), (LPVOID)StartRbp, MaxFrames);
+
+    while (Rbp != 0 && Depth < MaxFrames) {
+        if (IsValidMemory((LINEAR)Rbp) == FALSE) {
+            KernelLogText(LOG_VERBOSE, TEXT("[BacktraceFrom] #%u  RBP=%p  [stop: invalid frame]"), Depth, (LPVOID)Rbp);
+            break;
+        }
+
+        U64* FramePointer = (U64*)Rbp;
+        U64 NextRbp = FramePointer[0];
+        U64 ReturnAddress = FramePointer[1];
+
+        if (ReturnAddress == 0) {
+            KernelLogText(LOG_VERBOSE, TEXT("[BacktraceFrom] #%u  RBP=%p  RET=? [null]"), Depth, (LPVOID)Rbp);
+            break;
+        }
+
+        KernelLogText(LOG_VERBOSE, TEXT("[BacktraceFrom] #%u  RIP=%p  RBP=%p"), Depth, (LPVOID)ReturnAddress, (LPVOID)Rbp);
+
+        if (NextRbp == Rbp) {
+            KernelLogText(LOG_VERBOSE,
+                TEXT("[BacktraceFrom] #%u  Next frame pointer %p equals current frame (stop)"), Depth, (LPVOID)NextRbp);
+            Depth++;
+            break;
+        }
+
+        if (NextRbp != 0 && NextRbp <= Rbp) {
+            KernelLogText(LOG_VERBOSE,
+                TEXT("[BacktraceFrom] #%u  Next frame pointer %p is not greater than current %p (stop)"),
+                Depth,
+                (LPVOID)NextRbp,
+                (LPVOID)Rbp);
+            Depth++;
+            break;
+        }
+
+        Rbp = NextRbp;
+        Depth++;
+    }
+
+    KernelLogText(LOG_VERBOSE, TEXT("[BacktraceFrom] Backtrace end (frames=%u)"), Depth);
 }
