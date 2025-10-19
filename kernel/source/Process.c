@@ -118,7 +118,8 @@ void InitializeKernelProcess(void) {
 
     DEBUG(TEXT("[InitializeKernelProcess] Loading TR"));
 
-#if defined(__EXOS_ARCH_I386__) || defined(__EXOS_ARCH_X86_64__)
+#if defined(__EXOS_ARCH_I386__)
+    // On x86-64 the task register is loaded during InitializeTaskSegments().
     LoadInitialTaskRegister(SELECTOR_TSS);
 #endif
 
