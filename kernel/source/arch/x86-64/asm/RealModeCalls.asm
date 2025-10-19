@@ -132,7 +132,7 @@ RealModeCall:
 
     ; 64-bit offset for jump to RMC code
     lea     rsi, [rel RelJmp]
-    mov     dword [rsi], ebx
+    mov     [rsi], rbx
 
     ; 64-bit offset for GDT label
     lea     rsi, [rbx + Rel1 - RMCSetup]
@@ -199,7 +199,7 @@ RMCJump1:
 
     jmp     far [rel RelJmp]
 RelJmp:
-    dd      0
+    dq      0
     dw      SELECTOR_KERNEL_CODE
 
 RealModeCall_Back:
