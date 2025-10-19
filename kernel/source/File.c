@@ -122,7 +122,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             ListAddItem(Kernel.File, File);
 
             UnlockMutex(MUTEX_FILE);
-        } SAFE_USE_ELSE {
+        } else {
             DEBUG(TEXT("[OpenFile] SystemFS open returned NULL for %s"), RequestedName);
         }
 
@@ -160,7 +160,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
             UnlockMutex(MUTEX_FILE);
             break;
-        } SAFE_USE_ELSE {
+        } else {
             DEBUG(TEXT("[OpenFile] Filesystem %s did not contain %s"), FileSystem->Driver->Product, RequestedName);
         }
     }
@@ -418,7 +418,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
             ReadFile(&FileOp);
             ((LPSTR)Buffer)[*Size] = STR_NULL;
             DEBUG(TEXT("[FileReadAll] Read %u bytes into %p"), *Size, Buffer);
-        } SAFE_USE_ELSE {
+        } else {
             DEBUG(TEXT("[FileReadAll] KernelHeapAlloc failed for %s"), RequestedName);
         }
 
