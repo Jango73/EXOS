@@ -175,8 +175,39 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
  * @return TRUE on success.
  */
 U32 DeleteList(LPLIST This) {
+    if (This == NULL) {
+        DEBUG(TEXT("[DeleteList] NULL list pointer"));
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[DeleteList] Enter list=%p First=%p Last=%p NumItems=%u"),
+          (LPVOID)This,
+          (LPVOID)This->First,
+          (LPVOID)This->Last,
+          This->NumItems);
+    DEBUG(TEXT("[DeleteList] List hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)This) >> 32),
+          (U32)(((U64)(LINEAR)This) & 0xFFFFFFFFU));
+    DEBUG(TEXT("[DeleteList] Alloc=%p Free=%p Destructor=%p"),
+          (LPVOID)This->MemAllocFunc,
+          (LPVOID)This->MemFreeFunc,
+          (LPVOID)This->Destructor);
+    DEBUG(TEXT("[DeleteList] Alloc hi=%08x lo=%08x Free hi=%08x lo=%08x Destructor hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)This->MemAllocFunc) >> 32),
+          (U32)(((U64)(LINEAR)This->MemAllocFunc) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)This->MemFreeFunc) >> 32),
+          (U32)(((U64)(LINEAR)This->MemFreeFunc) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)This->Destructor) >> 32),
+          (U32)(((U64)(LINEAR)This->Destructor) & 0xFFFFFFFFU));
+
     ListReset(This);
+
+    DEBUG(TEXT("[DeleteList] After reset First=%p Last=%p NumItems=%u"),
+          (LPVOID)This->First,
+          (LPVOID)This->Last,
+          This->NumItems);
     This->MemFreeFunc(This);
+    DEBUG(TEXT("[DeleteList] Exit list=%p"), (LPVOID)This);
 
     return TRUE;
 }
@@ -203,6 +234,23 @@ U32 ListGetSize(LPLIST This) { return This->NumItems; }
 U32 ListAddItem(LPLIST This, LPVOID Item) {
     LPLISTNODE NewNode = (LPLISTNODE)Item;
 
+    if (This == NULL || Item == NULL) {
+        DEBUG(TEXT("[ListAddItem] Invalid parameters List=%p Item=%p"), (LPVOID)This, Item);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[ListAddItem] Enter list=%p item=%p First=%p Last=%p NumItems=%u"),
+          (LPVOID)This,
+          Item,
+          (LPVOID)This->First,
+          (LPVOID)This->Last,
+          This->NumItems);
+    DEBUG(TEXT("[ListAddItem] List hi=%08x lo=%08x Item hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)This) >> 32),
+          (U32)(((U64)(LINEAR)This) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)Item) >> 32),
+          (U32)(((U64)(LINEAR)Item) & 0xFFFFFFFFU));
+
     SAFE_USE_VALID_2(This, Item) {
         if (NewNode) {
             if (This->First == NULL) {
@@ -217,10 +265,15 @@ U32 ListAddItem(LPLIST This, LPVOID Item) {
 
             This->NumItems++;
 
+            DEBUG(TEXT("[ListAddItem] Updated list First=%p Last=%p NumItems=%u"),
+                  (LPVOID)This->First,
+                  (LPVOID)This->Last,
+                  This->NumItems);
             return TRUE;
         }
     }
 
+    DEBUG(TEXT("[ListAddItem] SAFE_USE_VALID_2 rejected parameters"));
     return FALSE;
 }
 
@@ -239,6 +292,29 @@ U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
     LPLISTNODE PrevNode = NULL;
     LPLISTNODE NewNode = (LPLISTNODE)NewItem;
     LPLISTNODE RefNode = (LPLISTNODE)RefItem;
+
+    if (This == NULL || NewItem == NULL) {
+        DEBUG(TEXT("[ListAddBefore] Invalid parameters List=%p Ref=%p New=%p"),
+              (LPVOID)This,
+              RefItem,
+              NewItem);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[ListAddBefore] Enter list=%p ref=%p new=%p First=%p Last=%p NumItems=%u"),
+          (LPVOID)This,
+          RefItem,
+          NewItem,
+          (LPVOID)This->First,
+          (LPVOID)This->Last,
+          This->NumItems);
+    DEBUG(TEXT("[ListAddBefore] List hi=%08x lo=%08x Ref hi=%08x lo=%08x New hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)This) >> 32),
+          (U32)(((U64)(LINEAR)This) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)RefItem) >> 32),
+          (U32)(((U64)(LINEAR)RefItem) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)NewItem) >> 32),
+          (U32)(((U64)(LINEAR)NewItem) & 0xFFFFFFFFU));
 
     if (This->First == NULL) return ListAddItem(This, NewItem);
 
@@ -289,6 +365,29 @@ U32 ListAddAfter(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
     LPLISTNODE NextNode = NULL;
     LPLISTNODE NewNode = (LPLISTNODE)NewItem;
     LPLISTNODE RefNode = (LPLISTNODE)RefItem;
+
+    if (This == NULL || NewItem == NULL) {
+        DEBUG(TEXT("[ListAddAfter] Invalid parameters List=%p Ref=%p New=%p"),
+              (LPVOID)This,
+              RefItem,
+              NewItem);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[ListAddAfter] Enter list=%p ref=%p new=%p First=%p Last=%p NumItems=%u"),
+          (LPVOID)This,
+          RefItem,
+          NewItem,
+          (LPVOID)This->First,
+          (LPVOID)This->Last,
+          This->NumItems);
+    DEBUG(TEXT("[ListAddAfter] List hi=%08x lo=%08x Ref hi=%08x lo=%08x New hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)This) >> 32),
+          (U32)(((U64)(LINEAR)This) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)RefItem) >> 32),
+          (U32)(((U64)(LINEAR)RefItem) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)NewItem) >> 32),
+          (U32)(((U64)(LINEAR)NewItem) & 0xFFFFFFFFU));
 
     if (This->First == NULL) return ListAddItem(This, NewItem);
 
@@ -466,11 +565,37 @@ U32 ListEraseItem(LPLIST This, LPVOID Item) {
  * @param This Pointer to the list.
  */
 void ListReset(LPLIST This) {
+    if (This == NULL) {
+        DEBUG(TEXT("[ListReset] NULL list pointer"));
+        return;
+    }
+
     LPLISTNODE Node = This->First;
+    DEBUG(TEXT("[ListReset] Enter list=%p First=%p Last=%p NumItems=%u"),
+          (LPVOID)This,
+          (LPVOID)This->First,
+          (LPVOID)This->Last,
+          This->NumItems);
+    DEBUG(TEXT("[ListReset] List hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)This) >> 32),
+          (U32)(((U64)(LINEAR)This) & 0xFFFFFFFFU));
+    DEBUG(TEXT("[ListReset] Destructor=%p hi=%08x lo=%08x"),
+          (LPVOID)This->Destructor,
+          (U32)(((U64)(LINEAR)This->Destructor) >> 32),
+          (U32)(((U64)(LINEAR)This->Destructor) & 0xFFFFFFFFU));
 
     while (Node) {
         This->Current = Node;
         Node = This->Current->Next;
+
+        DEBUG(TEXT("[ListReset] Visiting node=%p next=%p"),
+              (LPVOID)This->Current,
+              (LPVOID)Node);
+        DEBUG(TEXT("[ListReset] Node hi=%08x lo=%08x next hi=%08x lo=%08x"),
+              (U32)(((U64)(LINEAR)This->Current) >> 32),
+              (U32)(((U64)(LINEAR)This->Current) & 0xFFFFFFFFU),
+              (U32)(((U64)(LINEAR)Node) >> 32),
+              (U32)(((U64)(LINEAR)Node) & 0xFFFFFFFFU));
 
         SAFE_USE(This->Destructor) {
             This->Destructor(This->Current);
@@ -483,6 +608,8 @@ void ListReset(LPLIST This) {
     This->Current = NULL;
     This->Last = NULL;
     This->NumItems = 0;
+
+    DEBUG(TEXT("[ListReset] Exit list=%p"), (LPVOID)This);
 }
 
 /*************************************************************************************************/

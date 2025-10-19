@@ -40,6 +40,14 @@ LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
     DEBUG(TEXT("[Notification_CreateContext] Requesting %u bytes for context (entry size=%u)"),
           (UINT)sizeof(NOTIFICATION_CONTEXT),
           (UINT)sizeof(NOTIFICATION_ENTRY));
+    DEBUG(TEXT("[Notification_CreateContext] AllocFunc=%p FreeFunc=%p"),
+          (LPVOID)KernelHeapAlloc,
+          (LPVOID)KernelHeapFree);
+    DEBUG(TEXT("[Notification_CreateContext] AllocFunc hi=%08x lo=%08x FreeFunc hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)KernelHeapAlloc) >> 32),
+          (U32)(((U64)(LINEAR)KernelHeapAlloc) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)KernelHeapFree) >> 32),
+          (U32)(((U64)(LINEAR)KernelHeapFree) & 0xFFFFFFFFU));
 
     LPNOTIFICATION_CONTEXT Context = (LPNOTIFICATION_CONTEXT)KernelHeapAlloc(sizeof(NOTIFICATION_CONTEXT));
     if (Context == NULL) {
@@ -50,6 +58,9 @@ LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
     DEBUG(TEXT("[Notification_CreateContext] Context allocated at %p (valid=%u)"),
           (LPVOID)Context,
           IsValidMemory((LINEAR)Context));
+    DEBUG(TEXT("[Notification_CreateContext] Context hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)Context) >> 32),
+          (U32)(((U64)(LINEAR)Context) & 0xFFFFFFFFU));
 
     Context->NotificationList = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     DEBUG(TEXT("[Notification_CreateContext] NewList returned %p"), (LPVOID)Context->NotificationList);
@@ -69,6 +80,16 @@ LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
           (LPVOID)Context->NotificationList->MemAllocFunc,
           (LPVOID)Context->NotificationList->MemFreeFunc,
           (LPVOID)Context->NotificationList->Destructor);
+    DEBUG(TEXT("[Notification_CreateContext] List hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)Context->NotificationList) >> 32),
+          (U32)(((U64)(LINEAR)Context->NotificationList) & 0xFFFFFFFFU));
+    DEBUG(TEXT("[Notification_CreateContext] List allocator hi=%08x lo=%08x free hi=%08x lo=%08x destructor hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)Context->NotificationList->MemAllocFunc) >> 32),
+          (U32)(((U64)(LINEAR)Context->NotificationList->MemAllocFunc) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)Context->NotificationList->MemFreeFunc) >> 32),
+          (U32)(((U64)(LINEAR)Context->NotificationList->MemFreeFunc) & 0xFFFFFFFFU),
+          (U32)(((U64)(LINEAR)Context->NotificationList->Destructor) >> 32),
+          (U32)(((U64)(LINEAR)Context->NotificationList->Destructor) & 0xFFFFFFFFU));
     DEBUG(TEXT("[Notification_CreateContext] Exit with context %p"), (LPVOID)Context);
 
     return Context;
@@ -85,8 +106,26 @@ void Notification_DestroyContext(LPNOTIFICATION_CONTEXT Context) {
 
     DEBUG(TEXT("[Notification_DestroyContext] Destroying context at %p"), (LPVOID)Context);
 
+    DEBUG(TEXT("[Notification_DestroyContext] Context hi=%08x lo=%08x"),
+          (U32)(((U64)(LINEAR)Context) >> 32),
+          (U32)(((U64)(LINEAR)Context) & 0xFFFFFFFFU));
+
     if (Context->NotificationList) {
         DEBUG(TEXT("[Notification_DestroyContext] Deleting list %p"), (LPVOID)Context->NotificationList);
+        DEBUG(TEXT("[Notification_DestroyContext] List hi=%08x lo=%08x"),
+              (U32)(((U64)(LINEAR)Context->NotificationList) >> 32),
+              (U32)(((U64)(LINEAR)Context->NotificationList) & 0xFFFFFFFFU));
+        DEBUG(TEXT("[Notification_DestroyContext] List allocator=%p free=%p destructor=%p"),
+              (LPVOID)Context->NotificationList->MemAllocFunc,
+              (LPVOID)Context->NotificationList->MemFreeFunc,
+              (LPVOID)Context->NotificationList->Destructor);
+        DEBUG(TEXT("[Notification_DestroyContext] List allocator hi=%08x lo=%08x free hi=%08x lo=%08x destructor hi=%08x lo=%08x"),
+              (U32)(((U64)(LINEAR)Context->NotificationList->MemAllocFunc) >> 32),
+              (U32)(((U64)(LINEAR)Context->NotificationList->MemAllocFunc) & 0xFFFFFFFFU),
+              (U32)(((U64)(LINEAR)Context->NotificationList->MemFreeFunc) >> 32),
+              (U32)(((U64)(LINEAR)Context->NotificationList->MemFreeFunc) & 0xFFFFFFFFU),
+              (U32)(((U64)(LINEAR)Context->NotificationList->Destructor) >> 32),
+              (U32)(((U64)(LINEAR)Context->NotificationList->Destructor) & 0xFFFFFFFFU));
         DeleteList(Context->NotificationList);
     }
 
