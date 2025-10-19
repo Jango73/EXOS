@@ -27,7 +27,6 @@ extern Kernel_i386
 extern SwitchToPICForRealMode
 extern RestoreIOAPICAfterRealMode
 extern SerialWriteString64
-extern SerialWriteString
 
 %define IA32_EFER               0xC0000080
 %define IA32_EFER_LME           0x00000100
@@ -442,7 +441,7 @@ Start:
     push    edx
     push    esi
     lea     esi, [ebx + RMCLog32Enter - RMCSetup]
-    call    SerialWriteString
+    call    RMCSerialWriteString32
     pop     esi
     pop     edx
     pop     eax
@@ -454,7 +453,7 @@ Start:
     push    edx
     push    esi
     lea     esi, [ebx + RMCLog32BeforePagingOff - RMCSetup]
-    call    SerialWriteString
+    call    RMCSerialWriteString32
     pop     esi
     pop     edx
     pop     eax
@@ -839,6 +838,42 @@ ReturnToLongStub:
     jmp     rax
 
 bits 32
+
+RMCSerialWriteChar32:
+    push    eax
+    push    dx
+
+    mov     ah, al
+
+.wait_char32:
+    mov     dx, COMPort_Debug + 5
+    in      al, dx
+    test    al, 0x20
+    jz      .wait_char32
+
+    mov     dx, COMPort_Debug
+    mov     al, ah
+    out     dx, al
+
+    pop     dx
+    pop     eax
+    ret
+
+RMCSerialWriteString32:
+    push    esi
+
+.loop_string32:
+    mov     al, [esi]
+    test    al, al
+    jz      .done_string32
+
+    call    RMCSerialWriteChar32
+    inc     esi
+    jmp     .loop_string32
+
+.done_string32:
+    pop     esi
+    ret
 
 RMCSetup_Hang:
 
