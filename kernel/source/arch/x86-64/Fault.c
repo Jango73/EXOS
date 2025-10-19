@@ -29,29 +29,11 @@
 
 /************************************************************************/
 
-static void HaltOnFault(LPINTERRUPT_FRAME Frame, LPCSTR Reason) {
-    U64 Rip = 0;
-    U64 Rsp = 0;
-    U32 ErrCode = 0;
-
-    if (Frame != NULL) {
-        Rip = Frame->Registers.RIP;
-        Rsp = Frame->Registers.RSP;
-        ErrCode = Frame->ErrCode;
+#define DEFINE_FATAL_HANDLER(FunctionName, Description) \
+    void FunctionName(LPINTERRUPT_FRAME Frame) { \
+        LogCPUState(Frame); \
+        Die(); \
     }
-
-    ERROR(TEXT("[Fault64] %s"), Reason);
-    ERROR(TEXT("[Fault64] RIP=%p RSP=%p ERR=%x"),
-        (UINT)Rip,
-        (UINT)Rsp,
-        ErrCode);
-
-    DisableInterrupts();
-
-    for (;;) {
-        __asm__ __volatile__("hlt" : : : "memory");
-    }
-}
 
 /************************************************************************/
 
@@ -89,7 +71,40 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
 /************************************************************************/
 
 void Die(void) {
-    HaltOnFault(NULL, TEXT("Die() invoked"));
+    LPTASK Task;
+
+    DEBUG(TEXT("[DIE] Enter"));
+
+    Task = GetCurrentTask();
+
+    SAFE_USE(Task) {
+        LockMutex(MUTEX_KERNEL, INFINITY);
+        LockMutex(MUTEX_MEMORY, INFINITY);
+        LockMutex(MUTEX_CONSOLE, INFINITY);
+
+        FreezeScheduler();
+
+        KillTask(Task);
+
+        UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_MEMORY);
+        UnlockMutex(MUTEX_KERNEL);
+
+        UnfreezeScheduler();
+
+        EnableInterrupts();
+    }
+
+    // Wait forever
+    do {
+        __asm__ __volatile__(
+            "1:\n\t"
+            "hlt\n\t"
+            "jmp 1b\n\t"
+            :
+            :
+            : "memory");
+    } while (0);
 }
 
 /************************************************************************/
@@ -100,24 +115,58 @@ void DefaultHandler(LPINTERRUPT_FRAME Frame) {
 
 /************************************************************************/
 
-#define DEFINE_FATAL_HANDLER(FunctionName, Description) \
-    void FunctionName(LPINTERRUPT_FRAME Frame) { \
-        HaltOnFault(Frame, TEXT(Description)); \
-    }
-
 DEFINE_FATAL_HANDLER(DivideErrorHandler, "Divide error fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(DebugExceptionHandler, "Debug exception fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(NMIHandler, "Non-maskable interrupt")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(BreakPointHandler, "Breakpoint fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(OverflowHandler, "Overflow fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(BoundRangeHandler, "BOUND range fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(InvalidOpcodeHandler, "Invalid opcode fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(DeviceNotAvailHandler, "Device not available fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(DoubleFaultHandler, "Double fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(MathOverflowHandler, "Coprocessor segment overrun")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(InvalidTSSHandler, "Invalid TSS fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(SegmentFaultHandler, "Segment not present fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(StackFaultHandler, "Stack fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(GeneralProtectionHandler, "General protection fault")
 
 /************************************************************************/
@@ -127,11 +176,18 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
 
     __asm__ __volatile__("mov %%cr2, %0" : "=r"(FaultAddress));
     ERROR(TEXT("[Fault64] Page fault at %p"), (LINEAR)FaultAddress);
-    HaltOnFault(Frame, TEXT("Page fault"));
+    LogCPUState(Frame);
+    Die();
 }
 
 /************************************************************************/
 
 DEFINE_FATAL_HANDLER(AlignmentCheckHandler, "Alignment check fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(MachineCheckHandler, "Machine check fault")
+
+/************************************************************************/
+
 DEFINE_FATAL_HANDLER(FloatingPointHandler, "Floating point fault")
