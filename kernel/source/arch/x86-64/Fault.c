@@ -29,10 +29,11 @@
 
 /************************************************************************/
 
-#define DEFINE_FATAL_HANDLER(FunctionName, Description) \
-    void FunctionName(LPINTERRUPT_FRAME Frame) { \
-        LogCPUState(Frame); \
-        Die(); \
+#define DEFINE_FATAL_HANDLER(FunctionName, Description)                                       \
+    void FunctionName(LPINTERRUPT_FRAME Frame) {                                               \
+        ERROR(TEXT("[" #FunctionName "] %s"), TEXT(Description));                            \
+        LogCPUState(Frame);                                                                    \
+        Die();                                                                                 \
     }
 
 /************************************************************************/
@@ -175,7 +176,7 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
     U64 FaultAddress = 0;
 
     __asm__ __volatile__("mov %%cr2, %0" : "=r"(FaultAddress));
-    ERROR(TEXT("[Fault64] Page fault at %p"), (LINEAR)FaultAddress);
+    ERROR(TEXT("[PageFaultHandler] Page fault at %p"), (LINEAR)FaultAddress);
     LogCPUState(Frame);
     Die();
 }
