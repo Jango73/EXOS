@@ -44,6 +44,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
     LPCSTR RequestedName = NULL;
+    UINT NodeIndex = 0;
 
     //-------------------------------------
     // Check validity of parameters
@@ -67,12 +68,57 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
     DEBUG(TEXT("[OpenFile] Checking already opened files"));
 
+    SAFE_USE(Kernel.File) {
+        DEBUG(TEXT("[OpenFile] Open list %p items %u first %p last %p current %p"),
+              Kernel.File,
+              Kernel.File->NumItems,
+              Kernel.File->First,
+              Kernel.File->Last,
+              Kernel.File->Current);
+    } else {
+        DEBUG(TEXT("[OpenFile] Kernel.File list pointer is NULL"));
+    }
+
     LockMutex(MUTEX_FILE, INFINITY);
 
-    for (Node = Kernel.File->First; Node; Node = Node->Next) {
+    for (Node = Kernel.File ? Kernel.File->First : NULL; Node; Node = Node->Next) {
+        NodeIndex++;
+        DEBUG(TEXT("[OpenFile] Inspecting node #%u at %p"), NodeIndex, Node);
+
+        if (IsValidMemory((LINEAR)Node) == FALSE) {
+            DEBUG(TEXT("[OpenFile] Node #%u pointer %p is not a valid memory address"), NodeIndex, Node);
+            continue;
+        }
+
+        DEBUG(TEXT("[OpenFile] Node #%u type %x refs %u next %p prev %p"),
+              NodeIndex,
+              Node->TypeID,
+              Node->References,
+              Node->Next,
+              Node->Prev);
+
+        if (Node->TypeID != KOID_FILE) {
+            DEBUG(TEXT("[OpenFile] Node #%u has unexpected type %x (expected %x)"), NodeIndex, Node->TypeID, KOID_FILE);
+            continue;
+        }
+
         AlreadyOpen = (LPFILE)Node;
 
+        DEBUG(TEXT("[OpenFile] Node #%u file %p name %s owner %p flags %x position %u buffer %p fs %p"),
+              NodeIndex,
+              AlreadyOpen,
+              AlreadyOpen->Name,
+              AlreadyOpen->OwnerTask,
+              AlreadyOpen->OpenFlags,
+              AlreadyOpen->Position,
+              AlreadyOpen->Buffer,
+              AlreadyOpen->FileSystem);
+
+        DEBUG(TEXT("[OpenFile] Locking mutex %p for file %s"), &(AlreadyOpen->Mutex), AlreadyOpen->Name);
+
         LockMutex(&(AlreadyOpen->Mutex), INFINITY);
+
+        DEBUG(TEXT("[OpenFile] Locked file %s (refs %u)"), AlreadyOpen->Name, AlreadyOpen->References);
 
         if (STRINGS_EQUAL(AlreadyOpen->Name, Info->Name)) {
             DEBUG(TEXT("[OpenFile] Found existing entry %s owned by task %p with flags %x"), RequestedName, AlreadyOpen->OwnerTask, AlreadyOpen->OpenFlags);
@@ -85,6 +131,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
                     UnlockMutex(&(AlreadyOpen->Mutex));
                     UnlockMutex(MUTEX_FILE);
+                    DEBUG(TEXT("[OpenFile] Reuse succeeded after %u nodes"), NodeIndex);
                     goto Out;
                 }
                 DEBUG(TEXT("[OpenFile] Flags mismatch, requested %x, existing %x"), Info->Flags, AlreadyOpen->OpenFlags);
@@ -94,8 +141,12 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             }
         }
 
+        DEBUG(TEXT("[OpenFile] Unlocking file %s"), AlreadyOpen->Name);
+
         UnlockMutex(&(AlreadyOpen->Mutex));
     }
+
+    DEBUG(TEXT("[OpenFile] Completed scan of %u nodes without match"), NodeIndex);
 
     UnlockMutex(MUTEX_FILE);
 
