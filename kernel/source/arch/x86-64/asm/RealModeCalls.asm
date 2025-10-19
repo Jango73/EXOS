@@ -395,8 +395,30 @@ RMCLog16BeforeReturn32:       db "[RealModeCall] 16-bit returning to 32-bit stag
     mov     [ebx + LogScratchEAX - RMCSetup], eax
     mov     [ebx + LogScratchEDX - RMCSetup], edx
     mov     [ebx + LogScratchESI - RMCSetup], esi
+
     lea     esi, [ebx + %1 - RMCSetup]
-    call    RMCSerialWriteString32
+
+.Loop%+%1:
+    mov     al, [esi]
+    test    al, al
+    jz      .Done%+%1
+
+    mov     ah, al
+
+.WaitTx%+%1:
+    mov     dx, COMPort_Debug + 5
+    in      al, dx
+    test    al, 0x20
+    jz      .WaitTx%+%1
+
+    mov     dx, COMPort_Debug
+    mov     al, ah
+    out     dx, al
+
+    inc     esi
+    jmp     .Loop%+%1
+
+.Done%+%1:
     mov     eax, [ebx + LogScratchEAX - RMCSetup]
     mov     edx, [ebx + LogScratchEDX - RMCSetup]
     mov     esi, [ebx + LogScratchESI - RMCSetup]
@@ -858,33 +880,6 @@ ReturnToLongStub:
     jmp     rax
 
 bits 32
-
-RMCSerialWriteChar32:
-    mov     cl, al
-
-.wait_char32:
-    mov     dx, COMPort_Debug + 5
-    in      al, dx
-    test    al, 0x20
-    jz      .wait_char32
-
-    mov     dx, COMPort_Debug
-    mov     al, cl
-    out     dx, al
-    ret
-
-RMCSerialWriteString32:
-.loop_string32:
-    mov     al, [esi]
-    test    al, al
-    jz      .done_string32
-
-    call    RMCSerialWriteChar32
-    inc     esi
-    jmp     .loop_string32
-
-.done_string32:
-    ret
 
 RMCSetup_Hang:
 
