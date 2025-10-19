@@ -701,15 +701,3 @@ Delay :
     dw      0x00EB                     ; jmp $+2
     ret
 
-;-------------------------------------------------------------------------
-
-section .data
-
-clock_throttle_counter:    dd 0                    ; Throttling counter for Interrupt_Clock
-
-debug_msg_pre_restore:     db "[Interrupt_Clock] PRE-RESTORE: NextFrame=%x", 0
-debug_msg_pre_cr3:         db "[Interrupt_Clock] PRE-CR3: NextFrame=%x CR3=%x", 0
-debug_msg_post_cr3:        db "[Interrupt_Clock] POST-CR3: CR3 switch complete", 0
-debug_msg_pre_iret:        db "[Interrupt_Clock] PRE-IRET: About to IRETD", 0
-
-;-------------------------------------------------------------------------
