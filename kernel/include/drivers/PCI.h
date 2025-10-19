@@ -33,6 +33,9 @@
 
 /***************************************************************************/
 
+// Structures that mirror PCI configuration space must be tightly packed,
+// but higher-level runtime objects (DEVICE/DRIVER) need the default
+// alignment so that their layout matches the generic kernel definitions.
 #pragma pack(push, 1)
 
 /***************************************************************************/
@@ -130,6 +133,7 @@ typedef struct tag_PCI_INFO {
     U8 IRQLine;
     U8 IRQLegacyPin; /* INTA=1..INTD=4 or 0 if none */
 } PCI_INFO, *LPPCI_INFO;
+#pragma pack(pop)
 
 // Runtime description of a PCI device
 #define PCI_DEVICE_FIELDS \
@@ -188,7 +192,5 @@ U32 PCI_GetBARSize(U8 bus, U8 dev, U8 func, U8 barIndex);
 U8 PCI_FindCapability(U8 bus, U8 dev, U8 func, U8 capId);
 
 /***************************************************************************/
-
-#pragma pack(pop)
 
 #endif  // PCI_H_INCLUDED
