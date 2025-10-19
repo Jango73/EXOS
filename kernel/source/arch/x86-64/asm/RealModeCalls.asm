@@ -26,10 +26,13 @@
 extern Kernel_i386
 extern SwitchToPICForRealMode
 extern RestoreIOAPICAfterRealMode
+extern SerialWriteString64
+extern SerialWriteString
 
 %define IA32_EFER               0xC0000080
 %define IA32_EFER_LME           0x00000100
 %define CR4_PAE                 0x00000020
+%define COMPort_Debug           0x2F8
 
 ;----------------------------------------------------------------------------
 ;
@@ -51,6 +54,13 @@ extern RestoreIOAPICAfterRealMode
 %define LOCAL_PARAM_PTR         0x50
 
 ;----------------------------------------------------------------------------
+
+section .rodata
+    align 8
+
+RMCLog64Enter:              db "[RealModeCall] Enter 64-bit stage\n", 0
+RMCLog64CopyComplete:       db "[RealModeCall] Copy complete, jumping to trampoline\n", 0
+RMCLog64Return:             db "[RealModeCall] Return to 64-bit stage\n", 0
 
 section .text
 bits 64
@@ -76,6 +86,15 @@ RealModeCall:
     push    rbp
     mov     rbp, rsp
     sub     rsp, LOCAL_STACK_SIZE
+
+    push    rax
+    push    rdx
+    push    rdi
+    lea     rdi, [rel RMCLog64Enter]
+    call    SerialWriteString64
+    pop     rdi
+    pop     rdx
+    pop     rax
 
     ;--------------------------------------
     ; Save all registers and CPU state
@@ -206,9 +225,27 @@ RealModeCall:
 
 RMCJump1:
 
+    push    rax
+    push    rdx
+    push    rdi
+    lea     rdi, [rel RMCLog64CopyComplete]
+    call    SerialWriteString64
+    pop     rdi
+    pop     rdx
+    pop     rax
+
     jmp     far [rbx + RMCJump1Pointer - RMCSetup]
 
 RealModeCall_Back:
+
+    push    rax
+    push    rdx
+    push    rdi
+    lea     rdi, [rel RMCLog64Return]
+    call    SerialWriteString64
+    pop     rdi
+    pop     rdx
+    pop     rax
 
     ;--------------------------------------
     ; Restore IOAPIC mode
@@ -340,6 +377,14 @@ Param_ESI  : dd 0
 Param_EDI  : dd 0
 Param_EFL  : dd 0
 
+RMCLog32Enter:                db "[RealModeCall] Enter 32-bit stage\n", 0
+RMCLog32BeforePagingOff:      db "[RealModeCall] 32-bit disabling paging\n", 0
+RMCLog16Enter:                db "[RealModeCall] Enter 16-bit stage\n", 0
+RMCLog16BeforeDispatch:       db "[RealModeCall] 16-bit dispatch\n", 0
+RMCLog16AfterCall:            db "[RealModeCall] 16-bit call complete\n", 0
+RMCLog16InterruptPath:        db "[RealModeCall] 16-bit interrupt\n", 0
+RMCLog16FarCallPath:          db "[RealModeCall] 16-bit far call\n", 0
+
 RMCEntry64:
 
     ;--------------------------------------
@@ -393,8 +438,26 @@ Start:
     ; instructions so we can reuse the legacy trampoline logic while long
     ; mode is active.
 
+    push    eax
+    push    edx
+    push    esi
+    lea     esi, [ebx + RMCLog32Enter - RMCSetup]
+    call    SerialWriteString
+    pop     esi
+    pop     edx
+    pop     eax
+
     ;--------------------------------------
     ; Disable paging and flush TLB
+
+    push    eax
+    push    edx
+    push    esi
+    lea     esi, [ebx + RMCLog32BeforePagingOff - RMCSetup]
+    call    SerialWriteString
+    pop     esi
+    pop     edx
+    pop     eax
 
     mov     eax, [ebx + Save_CR0 - RMCSetup]
     and     eax, ~CR0_PAGING
@@ -487,6 +550,10 @@ bits 16
 
     mov     sp, LOW_MEMORY_PAGE_5
 
+    mov     si, bx
+    add     si, RMCLog16Enter - RMCSetup
+    call    RMCSerialWriteString16
+
     ;--------------------------------------
     ; Save our base address
 
@@ -496,6 +563,10 @@ bits 16
     ; Clear the A20 line
 
     call    Clear_A20_Line
+
+    mov     si, bx
+    add     si, RMCLog16BeforeDispatch - RMCSetup
+    call    RMCSerialWriteString16
 
     ;--------------------------------------
     ; Check if we are doing an interrupt call
@@ -516,6 +587,10 @@ DoFarCall:
 
     ;--------------------------------------
     ; Set the segment:offset of the call
+
+    mov     si, bx
+    add     si, RMCLog16FarCallPath - RMCSetup
+    call    RMCSerialWriteString16
 
     mov     esi, Save_INT - RMCSetup
     mov     eax, [esi]
@@ -576,6 +651,10 @@ DoInterrupt:
     ;--------------------------------------
     ; Adjust interrupt number
 
+    mov     si, bx
+    add     si, RMCLog16InterruptPath - RMCSetup
+    call    RMCSerialWriteString16
+
     mov     esi, Save_INT - RMCSetup
     mov     eax, [esi]
     mov     esi, (RMCIntCall - RMCSetup) + 1
@@ -630,6 +709,14 @@ RMCIntCall:
     ; Interrupt or far call returns here
 
 ReturnFromCall:
+
+    ;--------------------------------------
+    push    bp
+    mov     bp, sp
+    mov     si, [bp]
+    pop     bp
+    add     si, RMCLog16AfterCall - RMCSetup
+    call    RMCSerialWriteString16
 
     ;--------------------------------------
     ; Set the A20 line
@@ -760,6 +847,47 @@ RMCSetup_Hang:
     ;--------------------------------------
 
 bits 16
+
+RMCSerialWriteChar16:
+    push    ax
+    push    dx
+
+    mov     ah, al
+
+.wait_char16:
+    mov     dx, COMPort_Debug + 5
+    in      al, dx
+    test    al, 0x20
+    jz      .wait_char16
+
+    mov     dx, COMPort_Debug
+    mov     al, ah
+    out     dx, al
+
+    pop     dx
+    pop     ax
+    ret
+
+RMCSerialWriteString16:
+    push    ax
+    push    dx
+    push    si
+
+.loop_string16:
+    lodsb
+    test    al, al
+    jz      .done_string16
+
+    call    RMCSerialWriteChar16
+    jmp     .loop_string16
+
+.done_string16:
+    pop     si
+    pop     dx
+    pop     ax
+    ret
+
+    ;--------------------------------------
 
 Set_A20_Line:
 

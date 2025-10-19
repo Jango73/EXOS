@@ -26,6 +26,72 @@
 
 COMPort_Debug equ 0x2F8
 
+section .text.serial64
+bits 64
+
+    global SerialWriteChar64
+    global SerialWriteString64
+
+;--------------------------------------
+; Write a single character to COM (64-bit)
+; DIL - character to send
+SerialWriteChar64:
+    push    rdx
+    push    rax
+
+    movzx   eax, dil
+    mov     dl, al
+
+.wait:
+    mov     dx, COMPort_Debug + 5
+    in      al, dx
+    test    al, 0x20
+    jz      .wait
+
+    mov     dx, COMPort_Debug
+    mov     al, dl
+    out     dx, al
+
+    pop     rax
+    pop     rdx
+    ret
+
+;--------------------------------------
+; Write a zero-terminated string to COM (64-bit)
+; RDI - pointer to string
+SerialWriteString64:
+    push    rax
+    push    rdx
+    push    r8
+
+.loop:
+    mov     al, [rdi]
+    test    al, al
+    jz      .done
+
+    mov     r8b, al
+
+.wait_tx:
+    mov     dx, COMPort_Debug + 5
+    in      al, dx
+    test    al, 0x20
+    jz      .wait_tx
+
+    mov     dx, COMPort_Debug
+    mov     al, r8b
+    out     dx, al
+
+    inc     rdi
+    jmp     .loop
+
+.done:
+    pop     r8
+    pop     rdx
+    pop     rax
+    ret
+
+;--------------------------------------
+
 section .text.stub2
 bits 32
 
@@ -170,6 +236,59 @@ PrintHexNibble:
     add     bl, '0'
     mov     al, bl
     call    SerialWriteChar
+    ret
+
+;----------------------------------------------------------------------------
+
+section .text.stub16
+bits 16
+
+    global SerialWriteChar16
+    global SerialWriteString16
+
+;--------------------------------------
+; Write a single character to COM (16-bit)
+; AL - character to send
+SerialWriteChar16:
+    push    ax
+    push    dx
+
+    mov     ah, al
+
+.wait16:
+    mov     dx, COMPort_Debug + 5
+    in      al, dx
+    test    al, 0x20
+    jz      .wait16
+
+    mov     dx, COMPort_Debug
+    mov     al, ah
+    out     dx, al
+
+    pop     dx
+    pop     ax
+    ret
+
+;--------------------------------------
+; Write a zero-terminated string to COM (16-bit)
+; DS:SI - pointer to string
+SerialWriteString16:
+    push    ax
+    push    dx
+    push    si
+
+.loop16:
+    lodsb
+    test    al, al
+    jz      .done16
+
+    call    SerialWriteChar16
+    jmp     .loop16
+
+.done16:
+    pop     si
+    pop     dx
+    pop     ax
     ret
 
 ;----------------------------------------------------------------------------
