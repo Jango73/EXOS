@@ -539,13 +539,17 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
         goto Out;
     }
 
+    DEBUG(TEXT("[ARP_Initialize] Preparing ARP cache entries (count=%u)"), ARP_CACHE_SIZE);
     for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
+        DEBUG(TEXT("[ARP_Initialize] Clearing cache entry %u at %p"), Index, &(Context->Cache[Index]));
         Context->Cache[Index].IsValid = 0;
         Context->Cache[Index].IsProbing = 0;
         Context->Cache[Index].TimeToLive = 0;
         Context->Cache[Index].IPv4_Be = 0;
         AdaptiveDelay_Initialize(&Context->Cache[Index].DelayState);
+        DEBUG(TEXT("[ARP_Initialize] Cache entry %u cleared"), Index);
     }
+    DEBUG(TEXT("[ARP_Initialize] All cache entries prepared"));
 
     DEBUG(TEXT("[ARP_Initialize] Locking device mutex %p"), &(Device->Mutex));
     LockMutex(&(Device->Mutex), INFINITY);
