@@ -66,49 +66,6 @@ static U8 CalculateChecksum(LPCVOID Data, U32 Length) {
     return Sum;
 }
 
-/************************************************************************/
-
-/**
- * @brief Read physical memory into a buffer using temporary mappings.
- * @param PhysicalAddress Physical address to read from.
- * @param Buffer Destination buffer.
- * @param Length Number of bytes to copy.
- * @return TRUE on success, FALSE otherwise.
- */
-static BOOL ReadPhysicalMemory(PHYSICAL PhysicalAddress, LPVOID Buffer, UINT Length) {
-    if (Length == 0 || Buffer == NULL) {
-        return FALSE;
-    }
-
-    UINT Remaining = Length;
-    UINT Copied = 0;
-
-    while (Remaining > 0) {
-        PHYSICAL PagePhysical = (PhysicalAddress + Copied) & ~((PHYSICAL)(PAGE_SIZE - 1));
-        LINEAR Mapping = MapTemporaryPhysicalPage1(PagePhysical);
-        if (Mapping == 0) {
-            DEBUG(TEXT("[ReadPhysicalMemory] Failed to map physical %p"),
-                  (LPVOID)(LINEAR)(PhysicalAddress + Copied));
-            return FALSE;
-        }
-
-        UINT PageOffset = (UINT)((PhysicalAddress + Copied) - PagePhysical);
-        UINT Chunk = PAGE_SIZE - PageOffset;
-        if (Chunk > Remaining) {
-            Chunk = Remaining;
-        }
-
-        MemoryCopy((U8*)Buffer + Copied, (LPCVOID)(Mapping + PageOffset), Chunk);
-
-        Copied += Chunk;
-        Remaining -= Chunk;
-    }
-
-    return TRUE;
-}
-
-/************************************************************************/
-
 /**
  * @brief Search for RSDP in a memory range.
  * @param StartPhysical Start of search range (physical address).

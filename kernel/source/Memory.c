@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Arch.h"
 #include "Log.h"
+#include "CoreString.h"
 #if defined(__EXOS_ARCH_I386__)
 #include "arch/i386/i386-Log.h"
 #endif
@@ -86,6 +87,47 @@ static BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
 
     return (ClippedBase == Base && ClippedLength == RequestedLength);
 #endif
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read physical memory into a caller-provided buffer.
+ * @param PhysicalAddress Physical address to read from.
+ * @param Buffer Destination buffer.
+ * @param Length Number of bytes to copy.
+ * @return TRUE when the entire range was copied, FALSE otherwise.
+ */
+BOOL ReadPhysicalMemory(PHYSICAL PhysicalAddress, LPVOID Buffer, UINT Length) {
+    if (Length == 0 || Buffer == NULL) {
+        return FALSE;
+    }
+
+    UINT Remaining = Length;
+    UINT Copied = 0;
+
+    while (Remaining > 0) {
+        PHYSICAL PagePhysical = (PhysicalAddress + Copied) & ~((PHYSICAL)(PAGE_SIZE - 1));
+        LINEAR Mapping = MapTemporaryPhysicalPage1(PagePhysical);
+        if (Mapping == 0) {
+            DEBUG(TEXT("[ReadPhysicalMemory] Failed to map physical %p"),
+                  (LPVOID)(LINEAR)(PhysicalAddress + Copied));
+            return FALSE;
+        }
+
+        UINT PageOffset = (UINT)((PhysicalAddress + Copied) - PagePhysical);
+        UINT Chunk = PAGE_SIZE - PageOffset;
+        if (Chunk > Remaining) {
+            Chunk = Remaining;
+        }
+
+        MemoryCopy((U8*)Buffer + Copied, (LPCVOID)(Mapping + PageOffset), Chunk);
+
+        Copied += Chunk;
+        Remaining -= Chunk;
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/
