@@ -262,8 +262,8 @@ static LPACPI_TABLE_HEADER AcquireACPITable(PHYSICAL PhysicalAddress,
         return NULL;
     }
 
-    if (Header.Length == 0) {
-        DEBUG(TEXT("[AcquireACPITable] Table %.4s has invalid length 0"), Signature);
+    if (Header.Length < sizeof(ACPI_TABLE_HEADER)) {
+        DEBUG(TEXT("[AcquireACPITable] Table %.4s has invalid length %u"), Signature, Header.Length);
         return NULL;
     }
 
@@ -271,13 +271,6 @@ static LPACPI_TABLE_HEADER AcquireACPITable(PHYSICAL PhysicalAddress,
     if (PermanentAddress == 0) {
         DEBUG(TEXT("[AcquireACPITable] MapIOMemory failed for physical %p"),
               (LPVOID)(LINEAR)PhysicalAddress);
-        return NULL;
-    }
-
-    if (!IsValidMemory(PermanentAddress)) {
-        DEBUG(TEXT("[AcquireACPITable] Permanent mapping for %p not accessible"),
-              (LPVOID)PermanentAddress);
-        UnMapIOMemory(PermanentAddress, Header.Length);
         return NULL;
     }
 
@@ -506,8 +499,8 @@ BOOL InitializeACPI(void) {
         if (!ReadPhysicalMemory(RsdtPhysical, &RsdtHeader, sizeof(RsdtHeader))) {
             DEBUG(TEXT("[InitializeACPI] Failed to read RSDT header"));
             G_RSDT = NULL;
-        } else if (RsdtHeader.Length == 0) {
-            DEBUG(TEXT("[InitializeACPI] RSDT length is 0"));
+        } else if (RsdtHeader.Length < sizeof(ACPI_TABLE_HEADER)) {
+            DEBUG(TEXT("[InitializeACPI] RSDT length %u invalid"), RsdtHeader.Length);
             G_RSDT = NULL;
         } else {
             LINEAR PermanentAddress = MapIOMemory(RsdtPhysical, RsdtHeader.Length);
@@ -520,12 +513,14 @@ BOOL InitializeACPI(void) {
             }
         }
 
-        SAFE_USE(G_RSDT) {
-            if (!IsValidMemory((LINEAR)G_RSDT)) {
-                DEBUG(TEXT("[InitializeACPI] RSDT not accessible in virtual memory"));
+        if (G_RSDT != NULL) {
+            if (G_RSDT->Header.Length < sizeof(ACPI_TABLE_HEADER)) {
+                DEBUG(TEXT("[InitializeACPI] RSDT length %u smaller than header"), G_RSDT->Header.Length);
+                UnMapIOMemory((LINEAR)G_RSDT, RsdtHeader.Length);
                 G_RSDT = NULL;
             } else if (!ValidateACPITableChecksum(&G_RSDT->Header)) {
                 DEBUG(TEXT("[InitializeACPI] RSDT checksum validation failed"));
+                UnMapIOMemory((LINEAR)G_RSDT, RsdtHeader.Length);
                 G_RSDT = NULL;
             } else {
                 DEBUG(TEXT("[InitializeACPI] RSDT found and validated at %p"), (LPVOID)G_RSDT);
@@ -542,8 +537,8 @@ BOOL InitializeACPI(void) {
         if (!ReadPhysicalMemory(XsdtPhysical, &XsdtHeader, sizeof(XsdtHeader))) {
             DEBUG(TEXT("[InitializeACPI] Failed to read XSDT header"));
             G_XSDT = NULL;
-        } else if (XsdtHeader.Length == 0) {
-            DEBUG(TEXT("[InitializeACPI] XSDT length is 0"));
+        } else if (XsdtHeader.Length < sizeof(ACPI_TABLE_HEADER)) {
+            DEBUG(TEXT("[InitializeACPI] XSDT length %u invalid"), XsdtHeader.Length);
             G_XSDT = NULL;
         } else {
             LINEAR PermanentAddress = MapIOMemory(XsdtPhysical, XsdtHeader.Length);
@@ -556,12 +551,14 @@ BOOL InitializeACPI(void) {
             }
         }
 
-        SAFE_USE(G_XSDT) {
-            if (!IsValidMemory((LINEAR)G_XSDT)) {
-                DEBUG(TEXT("[InitializeACPI] XSDT not accessible in virtual memory"));
+        if (G_XSDT != NULL) {
+            if (G_XSDT->Header.Length < sizeof(ACPI_TABLE_HEADER)) {
+                DEBUG(TEXT("[InitializeACPI] XSDT length %u smaller than header"), G_XSDT->Header.Length);
+                UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
                 G_XSDT = NULL;
             } else if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
                 DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
+                UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
                 G_XSDT = NULL;
             } else {
                 DEBUG(TEXT("[InitializeACPI] XSDT found and validated at %p"), (LPVOID)G_XSDT);
