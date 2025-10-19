@@ -46,12 +46,8 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
         return;
     }
 
-    LPTASK Task = GetCurrentTask();
-
-    SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        LogFrame(Task, Frame);
-        BacktraceFrom(Frame->Registers.RBP, 10u);
-    }
+    LogFrame(NULL, Frame);
+    BacktraceFrom(Frame->Registers.RBP, 10u);
 }
 
 /************************************************************************/
@@ -59,7 +55,7 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
 void Die(void) {
     LPTASK Task;
 
-    DEBUG(TEXT("[DIE] Enter"));
+    DEBUG(TEXT("[Die] Enter"));
 
     Task = GetCurrentTask();
 

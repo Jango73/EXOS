@@ -332,6 +332,10 @@ void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
         KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Task : %p (%s @ %s)"), (LPVOID)Task, Task->Name, ProcessName);
         KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
         LogRegisters64(&(Frame->Registers));
+    } else {
+        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Task : ?"));
+        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
+        LogRegisters64(&(Frame->Registers));
     }
 }
 
