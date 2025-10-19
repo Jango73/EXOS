@@ -27,6 +27,10 @@ extern Kernel_i386
 extern SwitchToPICForRealMode
 extern RestoreIOAPICAfterRealMode
 
+%define IA32_EFER               0xC0000080
+%define IA32_EFER_LME           0x00000100
+%define CR4_PAE                 0x00000020
+
 ;----------------------------------------------------------------------------
 ;
 ; Helper values to access function parameters and local variables
@@ -130,6 +134,10 @@ RealModeCall:
     ;--------------------------------------
     ; Compute relocations
 
+    ; 64-bit far pointer for initial jump to the trampoline copy
+    lea     rsi, [rbx + RMCJump1Pointer - RMCSetup]
+    mov     qword [rsi], rbx
+
     ; 64-bit offset for GDT label
     lea     rsi, [rbx + Rel1 - RMCSetup]
     add     dword [rsi], ebx
@@ -162,8 +170,13 @@ RealModeCall:
     lea     rsi, [rbx + Rel5 - RMCSetup]
     add     dword [rsi], ebx
 
-    ; 64-bit return target for the long mode trampoline
+    ; 64-bit far pointer used when returning to long mode
     lea     rdi, [rbx + ReturnToLong - RMCSetup]
+    lea     rax, [rbx + ReturnToLongStub - RMCSetup]
+    mov     [rdi], rax
+
+    ; 64-bit target address executed after the long mode stub restores state
+    lea     rdi, [rbx + ReturnToLongTarget - RMCSetup]
     lea     rax, [rel RealModeCall_Back]
     mov     [rdi], rax
 
@@ -193,9 +206,7 @@ RealModeCall:
 
 RMCJump1:
 
-    push    SELECTOR_KERNEL_CODE
-    push    rbx
-    retfq
+    jmp     far [rbx + RMCJump1Pointer - RMCSetup]
 
 RealModeCall_Back:
 
@@ -251,14 +262,18 @@ RealModeCall_Back:
 ; This code executes at address in rbx
 ; Register contents upon entry :
 ; EAX : Interrupt number
-; ECX : Pointer to regs or segment:offset func pointer (low 32 bits)
+; ECX : Pointer to regs or segment:offset func pointer
 ; EDX : Real mode IRQ masks
 
-bits 32
+bits 64
 
 RMCSetup:
 
-    jmp     Start
+    jmp     RMCEntry64
+
+RMCJump1Pointer:
+    dq 0
+    dw SELECTOR_KERNEL_CODE
 
     db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
@@ -295,11 +310,22 @@ Real_GDT_Label:
 
 Save_REG:
 Save_SEG: dw 0, 0, 0, 0, 0           ; ds, ss, es, fs, gs
-Save_STR: dd 0, 0                    ; esp, ebp
-Save_CTL: dd 0, 0                    ; cr0, cr3
+    align 8
+Save_RSP: dq 0
+Save_RBP: dq 0
+Save_CR0: dq 0
+Save_CR3: dq 0
+Save_CR4: dq 0
+Save_EFER: dq 0
 Save_INT: dd 0
-Save_PRM: dd 0
+    dd 0                              ; padding to keep 8-byte alignment
+    align 8
+Save_PRM: dq 0
 Save_IRQ: dd 0
+    dd 0                              ; padding
+
+ReturnToLongTarget:
+    dq 0
 
 Param_REGS:
 Param_DS   : dw 0
@@ -314,68 +340,87 @@ Param_ESI  : dd 0
 Param_EDI  : dd 0
 Param_EFL  : dd 0
 
-Start:
+RMCEntry64:
 
     ;--------------------------------------
-    ; Save arguments and IRQ masks
+    ; Save arguments and CPU state required to restore long mode
 
-    mov     esi, ebx
-    add     esi, Save_INT - RMCSetup
-    mov     [esi], eax
+    lea     rsi, [rbx + Save_INT - RMCSetup]
+    mov     [rsi], eax
 
-    mov     esi, ebx
-    add     esi, Save_PRM - RMCSetup
-    mov     [esi], ecx
+    lea     rsi, [rbx + Save_PRM - RMCSetup]
+    mov     [rsi], rcx
 
-    mov     esi, ebx
-    add     esi, Save_IRQ - RMCSetup
-    mov     [esi], edx
+    lea     rsi, [rbx + Save_IRQ - RMCSetup]
+    mov     [rsi], rdx
 
-    ;--------------------------------------
-    ; Save registers
-
-    mov     esi, ebx
-    add     esi, Save_REG - RMCSetup
-
+    lea     rsi, [rbx + Save_SEG - RMCSetup]
     mov     ax, ds
-    mov     [esi+0], ax
+    mov     [rsi + 0], ax
     mov     ax, ss
-    mov     [esi+2], ax
+    mov     [rsi + 2], ax
     mov     ax, es
-    mov     [esi+4], ax
+    mov     [rsi + 4], ax
     mov     ax, fs
-    mov     [esi+6], ax
+    mov     [rsi + 6], ax
     mov     ax, gs
-    mov     [esi+8], ax
-    mov     [esi+10], esp
-    mov     [esi+14], ebp
-    mov     eax, cr0
-    mov     [esi+18], eax
-    mov     eax, cr3
-    mov     [esi+22], eax
+    mov     [rsi + 8], ax
+
+    mov     [rbx + Save_RSP - RMCSetup], rsp
+    mov     [rbx + Save_RBP - RMCSetup], rbp
+
+    mov     rax, cr0
+    mov     [rbx + Save_CR0 - RMCSetup], rax
+    mov     rax, cr3
+    mov     [rbx + Save_CR3 - RMCSetup], rax
+    mov     rax, cr4
+    mov     [rbx + Save_CR4 - RMCSetup], rax
+
+    mov     ecx, IA32_EFER
+    rdmsr
+    shl     rdx, 32
+    or      rax, rdx
+    mov     [rbx + Save_EFER - RMCSetup], rax
+
+    jmp     Start
+
+bits 32
+
+Start:
 
     ;--------------------------------------
     ; Disable paging and flush TLB
 
-    mov     eax, cr0
+    mov     eax, [ebx + Save_CR0 - RMCSetup]
     and     eax, ~CR0_PAGING
     mov     cr0, eax
     xor     eax, eax
     mov     cr3, eax
 
     ;--------------------------------------
+    ; Disable IA-32e extensions
+
+    mov     ecx, IA32_EFER
+    mov     eax, [ebx + Save_EFER - RMCSetup]
+    mov     edx, [ebx + Save_EFER - RMCSetup + 4]
+    and     eax, ~IA32_EFER_LME
+    wrmsr
+
+    mov     eax, [ebx + Save_CR4 - RMCSetup]
+    and     eax, ~CR4_PAE
+    mov     cr4, eax
+
+    ;--------------------------------------
     ; Load the real mode IDT (IVT at 0x0000:0x0000)
     ; In real mode, the IVT is always at physical address 0
 
-    mov     esi, ebx
-    add     esi, Temp_IDT_Label - RMCSetup
+    lea     esi, [ebx + Temp_IDT_Label - RMCSetup]
     lidt    [esi]
 
     ;--------------------------------------
     ; Load the temporary GDT
 
-    mov     esi, ebx
-    add     esi, Temp_GDT_Label - RMCSetup
+    lea     esi, [ebx + Temp_GDT_Label - RMCSetup]
     lgdt    [esi]
 
     ;--------------------------------------
@@ -638,47 +683,49 @@ bits 32
     mov     fs, ax
 
     ;--------------------------------------
-    ; Restore cr0 and cr3
+    ; Restore CR4, IA32_EFER, CR3 and CR0
 
-    mov     esi, ebx
-    add     esi, Save_REG - RMCSetup
-    mov     eax, [esi+22]
+    mov     eax, [ebx + Save_CR4 - RMCSetup]
+    mov     cr4, eax
+
+    mov     ecx, IA32_EFER
+    mov     eax, [ebx + Save_EFER - RMCSetup]
+    mov     edx, [ebx + Save_EFER - RMCSetup + 4]
+    wrmsr
+
+    mov     eax, [ebx + Save_CR3 - RMCSetup]
     mov     cr3, eax
-    mov     eax, [esi+18]
+
+    mov     eax, [ebx + Save_CR0 - RMCSetup]
     mov     cr0, eax
 
     ;--------------------------------------
     ; Load the real IDT
 
-    mov     esi, ebx
-    add     esi, Real_IDT_Label - RMCSetup
+    lea     esi, [ebx + Real_IDT_Label - RMCSetup]
     lidt    [esi]
 
     ;--------------------------------------
     ; Load the real GDT
 
-    mov     esi, ebx
-    add     esi, Real_GDT_Label - RMCSetup
+    lea     esi, [ebx + Real_GDT_Label - RMCSetup]
     lgdt    [esi]
 
     ;--------------------------------------
     ; Restore registers
 
-    mov     esi, ebx
-    add     esi, Save_REG - RMCSetup
+    lea     esi, [ebx + Save_SEG - RMCSetup]
 
-    mov     ax, [esi+0]
+    mov     ax, [esi + 0]
     mov     ds, ax
-    mov     ax, [esi+2]
+    mov     ax, [esi + 2]
     mov     ss, ax
-    mov     ax, [esi+4]
+    mov     ax, [esi + 4]
     mov     es, ax
-    mov     ax, [esi+6]
+    mov     ax, [esi + 6]
     mov     fs, ax
-    mov     ax, [esi+8]
+    mov     ax, [esi + 8]
     mov     gs, ax
-    mov     esp, [esi+10]
-    mov     ebp, [esi+14]
 
     ;--------------------------------------
     ; Return to kernel code
@@ -689,6 +736,17 @@ ReturnToLong:
     dw      SELECTOR_KERNEL_CODE
 
     ;--------------------------------------
+
+bits 64
+
+ReturnToLongStub:
+
+    mov     rsp, [rbx + Save_RSP - RMCSetup]
+    mov     rbp, [rbx + Save_RBP - RMCSetup]
+    mov     rax, [rbx + ReturnToLongTarget - RMCSetup]
+    jmp     rax
+
+bits 32
 
 RMCSetup_Hang:
 
