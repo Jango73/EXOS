@@ -534,6 +534,14 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
     Context->LocalIPv4_Be = LocalIPv4_Be;
     Context->NotificationContext = Notification_CreateContext();
     DEBUG(TEXT("[ARP_Initialize] Notification_CreateContext returned %p"), Context->NotificationContext);
+    DEBUG(TEXT("[ARP_Initialize] Context base=%p size=%u NotificationContext=%p"),
+          Context,
+          (UINT)sizeof(ARP_CONTEXT),
+          Context->NotificationContext);
+    DEBUG(TEXT("[ARP_Initialize] Cache base=%p entrySize=%u firstDelayState=%p"),
+          &(Context->Cache[0]),
+          (UINT)sizeof(ARP_CACHE_ENTRY),
+          &(Context->Cache[0].DelayState));
     if (Context->NotificationContext == NULL) {
         DEBUG(TEXT("[ARP_Initialize] Failed to create notification context"));
         goto Out;
@@ -551,9 +559,15 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
     }
     DEBUG(TEXT("[ARP_Initialize] All cache entries prepared"));
 
-    DEBUG(TEXT("[ARP_Initialize] Locking device mutex %p"), &(Device->Mutex));
+    DEBUG(TEXT("[ARP_Initialize] Locking device mutex %p (TypeID=%x OwnerTask=%p Lock=%u)"),
+          &(Device->Mutex),
+          Device->Mutex.TypeID,
+          Device->Mutex.Task,
+          Device->Mutex.Lock);
     LockMutex(&(Device->Mutex), INFINITY);
-    DEBUG(TEXT("[ARP_Initialize] Device mutex locked"));
+    DEBUG(TEXT("[ARP_Initialize] Device mutex locked (OwnerTask=%p Lock=%u)"),
+          Device->Mutex.Task,
+          Device->Mutex.Lock);
 
     if (DeviceInfo != NULL) {
         DEBUG(TEXT("[ARP_Initialize] Using cached device information to populate MAC"));

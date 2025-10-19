@@ -29,6 +29,7 @@
 #include "CoreString.h"
 #include "Text.h"
 #include "Kernel.h"
+#include "Log.h"
 
 /************************************************************************/
 
@@ -111,11 +112,20 @@ LPVOID GetDeviceContext(LPDEVICE Device, U32 ID) {
 U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context) {
     LPDEVICE_CONTEXT DeviceContext;
 
-    if (Device == NULL) return 0;
+    DEBUG(TEXT("[SetDeviceContext] Enter Device=%p ID=%x Context=%p"), Device, ID, Context);
+
+    if (Device == NULL) {
+        DEBUG(TEXT("[SetDeviceContext] Device pointer is NULL"));
+        return 0;
+    }
 
     DeviceContext = (LPDEVICE_CONTEXT)Device->Contexts.First;
     while (DeviceContext != NULL) {
         if (DeviceContext->ContextID == ID) {
+            DEBUG(TEXT("[SetDeviceContext] Updating existing node %p (previous=%p new=%p)"),
+                  DeviceContext,
+                  DeviceContext->Context,
+                  Context);
             DeviceContext->Context = Context;
             return 1;
         }
@@ -123,7 +133,13 @@ U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context) {
     }
 
     DeviceContext = (LPDEVICE_CONTEXT)KernelHeapAlloc(sizeof(DEVICE_CONTEXT));
-    if (DeviceContext == NULL) return 0;
+    DEBUG(TEXT("[SetDeviceContext] Allocated node %p size=%u"),
+          DeviceContext,
+          (UINT)sizeof(DEVICE_CONTEXT));
+    if (DeviceContext == NULL) {
+        DEBUG(TEXT("[SetDeviceContext] Allocation failed"));
+        return 0;
+    }
 
     DeviceContext->TypeID = KOID_NONE;
     DeviceContext->References = 1;
@@ -132,7 +148,18 @@ U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context) {
     DeviceContext->ContextID = ID;
     DeviceContext->Context = Context;
 
+    DEBUG(TEXT("[SetDeviceContext] Inserting node %p into contexts list %p (First=%p Last=%p Count=%u)"),
+          DeviceContext,
+          &(Device->Contexts),
+          Device->Contexts.First,
+          Device->Contexts.Last,
+          Device->Contexts.NumItems);
     ListAddTail(&Device->Contexts, DeviceContext);
+
+    DEBUG(TEXT("[SetDeviceContext] Post-insert list state First=%p Last=%p Count=%u"),
+          Device->Contexts.First,
+          Device->Contexts.Last,
+          Device->Contexts.NumItems);
 
     return 1;
 }

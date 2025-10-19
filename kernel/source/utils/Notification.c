@@ -37,7 +37,9 @@
  */
 LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
     DEBUG(TEXT("[Notification_CreateContext] Enter"));
-    DEBUG(TEXT("[Notification_CreateContext] Requesting %u bytes for context"), (UINT)sizeof(NOTIFICATION_CONTEXT));
+    DEBUG(TEXT("[Notification_CreateContext] Requesting %u bytes for context (entry size=%u)"),
+          (UINT)sizeof(NOTIFICATION_CONTEXT),
+          (UINT)sizeof(NOTIFICATION_ENTRY));
 
     LPNOTIFICATION_CONTEXT Context = (LPNOTIFICATION_CONTEXT)KernelHeapAlloc(sizeof(NOTIFICATION_CONTEXT));
     if (Context == NULL) {
