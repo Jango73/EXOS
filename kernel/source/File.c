@@ -41,6 +41,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     FILEINFO Find;
     LPFILESYSTEM FileSystem = NULL;
     LPLISTNODE Node = NULL;
+    LPLISTNODE NextNode = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
     LPCSTR RequestedName = NULL;
@@ -81,14 +82,17 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
     LockMutex(MUTEX_FILE, INFINITY);
 
-    for (Node = Kernel.File ? Kernel.File->First : NULL; Node; Node = Node->Next) {
+    for (Node = Kernel.File ? Kernel.File->First : NULL; Node; Node = NextNode) {
         NodeIndex++;
         DEBUG(TEXT("[OpenFile] Inspecting node #%u at %p"), NodeIndex, Node);
 
         if (IsValidMemory((LINEAR)Node) == FALSE) {
             DEBUG(TEXT("[OpenFile] Node #%u pointer %p is not a valid memory address"), NodeIndex, Node);
-            continue;
+            DEBUG(TEXT("[OpenFile] Aborting scan because node #%u cannot be dereferenced"), NodeIndex);
+            break;
         }
+
+        NextNode = Node->Next;
 
         DEBUG(TEXT("[OpenFile] Node #%u type %x refs %u next %p prev %p"),
               NodeIndex,
@@ -99,6 +103,10 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         if (Node->TypeID != KOID_FILE) {
             DEBUG(TEXT("[OpenFile] Node #%u has unexpected type %x (expected %x)"), NodeIndex, Node->TypeID, KOID_FILE);
+            if ((NextNode != NULL) && (IsValidMemory((LINEAR)NextNode) == FALSE)) {
+                DEBUG(TEXT("[OpenFile] Next pointer %p is invalid, aborting scan"), NextNode);
+                break;
+            }
             continue;
         }
 
@@ -144,6 +152,11 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         DEBUG(TEXT("[OpenFile] Unlocking file %s"), AlreadyOpen->Name);
 
         UnlockMutex(&(AlreadyOpen->Mutex));
+
+        if ((NextNode != NULL) && (IsValidMemory((LINEAR)NextNode) == FALSE)) {
+            DEBUG(TEXT("[OpenFile] Next pointer %p after node #%u is invalid, stopping scan"), NextNode, NodeIndex);
+            break;
+        }
     }
 
     DEBUG(TEXT("[OpenFile] Completed scan of %u nodes without match"), NodeIndex);
