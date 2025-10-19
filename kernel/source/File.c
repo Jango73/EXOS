@@ -43,11 +43,19 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
+    LPCSTR RequestedName = NULL;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Info == NULL) return NULL;
+    if (Info == NULL) {
+        DEBUG(TEXT("[OpenFile] Info parameter is NULL"));
+        return NULL;
+    }
+
+    RequestedName = (Info->Name != NULL) ? Info->Name : TEXT("<null>");
+
+    DEBUG(TEXT("[OpenFile] Request name %s, flags %x"), RequestedName, Info->Flags);
 
     //-------------------------------------
     // Lock access to file systems
@@ -57,6 +65,8 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     //-------------------------------------
     // Check if the file is already open
 
+    DEBUG(TEXT("[OpenFile] Checking already opened files"));
+
     LockMutex(MUTEX_FILE, INFINITY);
 
     for (Node = Kernel.File->First; Node; Node = Node->Next) {
@@ -65,15 +75,22 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
         if (STRINGS_EQUAL(AlreadyOpen->Name, Info->Name)) {
+            DEBUG(TEXT("[OpenFile] Found existing entry %s owned by task %p with flags %x"), RequestedName, AlreadyOpen->OwnerTask, AlreadyOpen->OpenFlags);
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
                 if (AlreadyOpen->OpenFlags == Info->Flags) {
                     File = AlreadyOpen;
                     File->References++;
 
+                    DEBUG(TEXT("[OpenFile] Reusing existing handle %p, reference count %u"), File, File->References);
+
                     UnlockMutex(&(AlreadyOpen->Mutex));
                     UnlockMutex(MUTEX_FILE);
                     goto Out;
                 }
+                DEBUG(TEXT("[OpenFile] Flags mismatch, requested %x, existing %x"), Info->Flags, AlreadyOpen->OpenFlags);
+            }
+            if (AlreadyOpen->OwnerTask != GetCurrentTask()) {
+                DEBUG(TEXT("[OpenFile] Owner mismatch, requested task %p, existing task %p"), GetCurrentTask(), AlreadyOpen->OwnerTask);
             }
         }
 
@@ -85,7 +102,9 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     //-------------------------------------
     // Use SystemFS if an absolute path is provided
 
-    if (Info->Name[0] == PATH_SEP) {
+    if ((Info->Name != NULL) && (Info->Name[0] == PATH_SEP)) {
+        DEBUG(TEXT("[OpenFile] Absolute path detected, using SystemFS"));
+
         Find.Size = sizeof Find;
         Find.FileSystem = GetSystemFS();
         Find.Attributes = MAX_U32;
@@ -103,6 +122,8 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             ListAddItem(Kernel.File, File);
 
             UnlockMutex(MUTEX_FILE);
+        } SAFE_USE_ELSE {
+            DEBUG(TEXT("[OpenFile] SystemFS open returned NULL for %s"), RequestedName);
         }
 
         goto Out;
@@ -112,10 +133,12 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     // Get the name of the volume in which the file
     // is supposed to be located
 
-    DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), Info->Name);
+    DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), RequestedName);
 
     for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
+
+        DEBUG(TEXT("[OpenFile] Trying filesystem %s"), FileSystem->Driver->Product);
 
         Find.Size = sizeof Find;
         Find.FileSystem = FileSystem;
@@ -126,7 +149,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
-            DEBUG(TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
+            DEBUG(TEXT("[OpenFile] Found %s in %s"), RequestedName, FileSystem->Driver->Product);
 
             LockMutex(MUTEX_FILE, INFINITY);
 
@@ -137,12 +160,20 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
             UnlockMutex(MUTEX_FILE);
             break;
+        } SAFE_USE_ELSE {
+            DEBUG(TEXT("[OpenFile] Filesystem %s did not contain %s"), FileSystem->Driver->Product, RequestedName);
         }
     }
 
 Out:
 
     UnlockMutex(MUTEX_FILESYSTEM);
+
+    if (File == NULL) {
+        DEBUG(TEXT("[OpenFile] Returning NULL for %s"), RequestedName);
+    } else {
+        DEBUG(TEXT("[OpenFile] Returning handle %p for %s"), File, RequestedName);
+    }
 
     return File;
 }
@@ -352,8 +383,9 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
     FILEOPERATION FileOp;
     LPFILE File = NULL;
     LPVOID Buffer = NULL;
+    LPCSTR RequestedName = (Name != NULL) ? Name : TEXT("<null>");
 
-    DEBUG(TEXT("[FileReadAll] Name = %s"), Name);
+    DEBUG(TEXT("[FileReadAll] Name = %s"), RequestedName);
 
     SAFE_USE_2(Name, Size) {
         //-------------------------------------
@@ -364,7 +396,10 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
         OpenInfo.Flags = FILE_OPEN_READ;
         File = OpenFile(&OpenInfo);
 
-        if (File == NULL) return NULL;
+        if (File == NULL) {
+            DEBUG(TEXT("[FileReadAll] OpenFile returned NULL for %s"), RequestedName);
+            return NULL;
+        }
 
         DEBUG(TEXT("[FileReadAll] File found"));
 
@@ -372,6 +407,7 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
         // Allocate buffer and read content
 
         *Size = GetFileSize(File);
+        DEBUG(TEXT("[FileReadAll] Size %u"), *Size);
         Buffer = KernelHeapAlloc(*Size + 1);
 
         SAFE_USE(Buffer) {
@@ -381,12 +417,19 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
             FileOp.NumBytes = *Size;
             ReadFile(&FileOp);
             ((LPSTR)Buffer)[*Size] = STR_NULL;
+            DEBUG(TEXT("[FileReadAll] Read %u bytes into %p"), *Size, Buffer);
+        } SAFE_USE_ELSE {
+            DEBUG(TEXT("[FileReadAll] KernelHeapAlloc failed for %s"), RequestedName);
         }
 
         CloseFile(File);
 
+        DEBUG(TEXT("[FileReadAll] Completed for %s"), RequestedName);
+
         return Buffer;
     }
+
+    DEBUG(TEXT("[FileReadAll] Invalid parameters"));
 
     return NULL;
 }
