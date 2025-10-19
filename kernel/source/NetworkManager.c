@@ -293,7 +293,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Initialize ARP subsystem for this device
             DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing ARP layer"));
-            ARP_Initialize((LPDEVICE)Device, LocalIPv4_Be);
+            ARP_Initialize((LPDEVICE)Device, LocalIPv4_Be, &Info);
 
             // Initialize IPv4 subsystem for this device
             DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing IPv4 layer"));
