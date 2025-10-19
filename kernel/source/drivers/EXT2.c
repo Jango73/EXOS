@@ -2147,7 +2147,7 @@ static U32 CloseFile(LPEXT2FILE File) {
         ReleaseDirectoryResources(File);
     }
 
-    KernelHeapFree(File);
+    ReleaseKernelObject(File);
 
     return DF_ERROR_SUCCESS;
 }

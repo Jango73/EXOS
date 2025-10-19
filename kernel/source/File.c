@@ -165,8 +165,6 @@ U32 CloseFile(LPFILE File) {
     // Call filesystem-specific close function
     File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
 
-    ReleaseKernelObject(File);
-
     UnlockMutex(&(File->Mutex));
 
     return 1;
