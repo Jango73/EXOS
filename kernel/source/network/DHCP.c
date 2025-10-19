@@ -481,6 +481,17 @@ void DHCP_Initialize(LPDEVICE Device) {
         return;
     }
 
+    if (!IsValidMemory((LINEAR)Device)) {
+        ERROR(TEXT("[DHCP_Initialize] Device pointer failed validation"));
+        return;
+    }
+
+    DEBUG(TEXT("[DHCP_Initialize] Device TypeID=%x expected=%x"), Device->TypeID, KOID_PCIDEVICE);
+    if (Device->TypeID != KOID_PCIDEVICE) {
+        ERROR(TEXT("[DHCP_Initialize] Device TypeID mismatch"));
+        return;
+    }
+
     DEBUG(TEXT("[DHCP_Initialize] Allocating context of size %u"), (UINT)sizeof(DHCP_CONTEXT));
     Context = (LPDHCP_CONTEXT)KernelHeapAlloc(sizeof(DHCP_CONTEXT));
     if (Context == NULL) {
@@ -494,16 +505,61 @@ void DHCP_Initialize(LPDEVICE Device) {
     Context->Device = Device;
     Context->State = DHCP_STATE_INIT;
     Context->TransactionID = DHCP_GenerateXID();
+    DEBUG(TEXT("[DHCP_Initialize] Context initialized State=%u TransactionID=%x"),
+          (UINT)Context->State, Context->TransactionID);
 
     // Get MAC address
     MemorySet(&GetInfo, 0, sizeof(GetInfo));
     MemorySet(&Info, 0, sizeof(Info));
     GetInfo.Device = (LPPCI_DEVICE)Device;
     GetInfo.Info = &Info;
+    DEBUG(TEXT("[DHCP_Initialize] NETWORKGETINFO=%p NETWORKINFO=%p"), &GetInfo, &Info);
+
+    DEBUG(TEXT("[DHCP_Initialize] PCI device pointer=%p"), GetInfo.Device);
+    if (!IsValidMemory((LINEAR)GetInfo.Device)) {
+        ERROR(TEXT("[DHCP_Initialize] PCI device pointer failed validation"));
+        KernelHeapFree(Context);
+        return;
+    }
+
+    DEBUG(TEXT("[DHCP_Initialize] Device driver pointer=%p"), Device->Driver);
+    if (Device->Driver == NULL) {
+        ERROR(TEXT("[DHCP_Initialize] Device driver pointer is NULL"));
+        KernelHeapFree(Context);
+        return;
+    }
+
+    if (!IsValidMemory((LINEAR)Device->Driver)) {
+        ERROR(TEXT("[DHCP_Initialize] Device driver pointer failed validation"));
+        KernelHeapFree(Context);
+        return;
+    }
+
+    DEBUG(TEXT("[DHCP_Initialize] Driver TypeID=%x expected=%x"), Device->Driver->TypeID, KOID_DRIVER);
+    if (Device->Driver->TypeID != KOID_DRIVER) {
+        ERROR(TEXT("[DHCP_Initialize] Driver TypeID mismatch"));
+        KernelHeapFree(Context);
+        return;
+    }
+
+    if (Device->Driver->Command == NULL) {
+        ERROR(TEXT("[DHCP_Initialize] Driver Command pointer is NULL"));
+        KernelHeapFree(Context);
+        return;
+    }
+
+    U64 CommandAddress = 0;
+    MemoryCopy(&CommandAddress, &Device->Driver->Command, (UINT)sizeof(Device->Driver->Command));
+    DEBUG(TEXT("[DHCP_Initialize] Driver Command address hi=%x lo=%x"),
+          (U32)(CommandAddress >> 32), (U32)(CommandAddress & 0xFFFFFFFF));
+
+    DEBUG(TEXT("[DHCP_Initialize] Issuing DF_NT_GETINFO (%x)"), DF_NT_GETINFO);
 
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
+            UINT CommandResult = ((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
+            DEBUG(TEXT("[DHCP_Initialize] DF_NT_GETINFO returned %x"), CommandResult);
+            if (CommandResult == DF_ERROR_SUCCESS) {
                 MemoryCopy(Context->LocalMacAddress, Info.MAC, 6);
                 DEBUG(TEXT("[DHCP_Initialize] MAC: %x:%x:%x:%x:%x:%x"),
                       (U32)Info.MAC[0], (U32)Info.MAC[1], (U32)Info.MAC[2],
