@@ -1345,49 +1345,13 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
  * @return TRUE if the address resolves to a present page table entry.
  */
 BOOL IsValidMemory(LINEAR Address) {
-    if (ArchCanonicalizeAddress(Address) != Address) return FALSE;
+    LINEAR Canonical = CanonicalizeLinearAddress(Address);
 
-    LPPML4 Pml4 = GetCurrentPml4VA();
-    if (Pml4 == NULL) return FALSE;
-
-    UINT Pml4Index = GetPml4Entry(Address);
-    if (Pml4Index >= PML4_ENTRY_COUNT) return FALSE;
-    if (PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pml4, Pml4Index) == FALSE) return FALSE;
-
-    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Address);
-    if (Pdpt == NULL) return FALSE;
-
-    UINT PdptIndex = GetPdptEntry(Address);
-    if (PdptIndex >= PDPT_ENTRY_COUNT) return FALSE;
-    U64 PdptEntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pdpt, PdptIndex);
-
-    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
-
-    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        return TRUE;
+    if (Canonical != Address) {
+        return FALSE;
     }
 
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Address);
-    if (Directory == NULL) return FALSE;
-
-    UINT DirectoryIndex = GetDirectoryEntry(Address);
-    if (DirectoryIndex >= PAGE_DIRECTORY_ENTRY_COUNT) return FALSE;
-    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirectoryIndex);
-
-    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) return FALSE;
-
-    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        return TRUE;
-    }
-
-    LPPAGE_TABLE Table = GetPageTableVAFor(Address);
-    if (Table == NULL) return FALSE;
-
-    UINT TableIndex = GetTableEntry(Address);
-    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) return FALSE;
-    if (PageTableEntryIsPresent(Table, TableIndex) == FALSE) return FALSE;
-
-    return TRUE;
+    return MapLinearToPhysical(Canonical) != 0;
 }
 
 /************************************************************************/
