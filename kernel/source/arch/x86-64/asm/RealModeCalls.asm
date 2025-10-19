@@ -170,10 +170,10 @@ RealModeCall:
     lea     rsi, [rbx + Rel5 - RMCSetup]
     add     dword [rsi], ebx
 
-    ; 64-bit far pointer used when returning to long mode
+    ; 32-bit far pointer used when returning to the long mode stub
     lea     rdi, [rbx + ReturnToLong - RMCSetup]
     lea     rax, [rbx + ReturnToLongStub - RMCSetup]
-    mov     [rdi], rax
+    mov     dword [rdi], eax
 
     ; 64-bit target address executed after the long mode stub restores state
     lea     rdi, [rbx + ReturnToLongTarget - RMCSetup]
@@ -387,6 +387,11 @@ RMCEntry64:
 bits 32
 
 Start:
+
+    ; NOTE: We are still executing with the 64-bit kernel code selector at
+    ; this point. The `bits 32` directive only changes how NASM encodes the
+    ; instructions so we can reuse the legacy trampoline logic while long
+    ; mode is active.
 
     ;--------------------------------------
     ; Disable paging and flush TLB
@@ -732,7 +737,7 @@ bits 32
 
     db      0xEA                       ; jmp far
 ReturnToLong:
-    dq      0
+    dd      0
     dw      SELECTOR_KERNEL_CODE
 
     ;--------------------------------------
