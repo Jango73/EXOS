@@ -758,11 +758,9 @@ void InitializeKernel(void) {
 
     DEBUG(TEXT("[KernelMain] Memory manager initialized"));
 
-#if defined(__EXOS_ARCH_I386__) || defined(__EXOS_ARCH_X86_64__)
     InitializeTaskSegments();
 
     DEBUG(TEXT("[KernelMain] Task segments initialized"));
-#endif
 
     //-------------------------------------
     // Check data integrity
@@ -925,7 +923,9 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the graphics card
 
+#if defined(__EXOS_ARCH_I386__)
     LoadDriver(&VESADriver, TEXT("VESA"));
+#endif
 
     DEBUG(TEXT("[InitializeKernel] VESA driver initialized"));
 

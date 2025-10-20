@@ -31,9 +31,9 @@
 // Constants describing the long mode paging layout
 
 #define PAGE_SIZE N_4KB
-#define PAGE_TABLE_NUM_ENTRIES 512u
-#define PAGE_DIRECTORY_ENTRY_COUNT 512u
-#define PML4_RECURSIVE_SLOT 510u
+#define PAGE_TABLE_NUM_ENTRIES 512
+#define PAGE_DIRECTORY_ENTRY_COUNT 512
+#define PML4_RECURSIVE_SLOT 510
 
 /************************************************************************/
 // Size helpers derived from the raw entry layout

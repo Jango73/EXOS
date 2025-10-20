@@ -47,12 +47,12 @@
 
 #define LOW_MEMORY_PAGE_1 (MEMORY_BASE)
 #define LOW_MEMORY_PAGE_2 (MEMORY_BASE + MEMORY_PAGE_SIZE)
-#define LOW_MEMORY_PAGE_3 (MEMORY_BASE + (2u * MEMORY_PAGE_SIZE))
-#define LOW_MEMORY_PAGE_4 (MEMORY_BASE + (3u * MEMORY_PAGE_SIZE))
-#define LOW_MEMORY_PAGE_5 (MEMORY_BASE + (4u * MEMORY_PAGE_SIZE))
-#define LOW_MEMORY_PAGE_6 (MEMORY_BASE + (5u * MEMORY_PAGE_SIZE))
-#define LOW_MEMORY_PAGE_7 (MEMORY_BASE + (6u * MEMORY_PAGE_SIZE))
-#define LOW_MEMORY_PAGE_8 (MEMORY_BASE + (7u * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_3 (MEMORY_BASE + (2 * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_4 (MEMORY_BASE + (3 * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_5 (MEMORY_BASE + (4 * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_6 (MEMORY_BASE + (5 * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_7 (MEMORY_BASE + (6 * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_8 (MEMORY_BASE + (7 * MEMORY_PAGE_SIZE))
 
 #if ((8u * MEMORY_PAGE_SIZE) > MEMORY_SIZE)
 #error "MEMORY_SIZE is too small for the reserved payload structures"
@@ -61,8 +61,8 @@
 /************************************************************************/
 // Constants shared with the architecture specific code
 
-#define E820_MAX_ENTRIES 32u
-#define E820_ENTRY_SIZE 24u
+#define E820_MAX_ENTRIES 32
+#define E820_ENTRY_SIZE 24
 #define E820_SIZE (E820_MAX_ENTRIES * E820_ENTRY_SIZE)
 
 /************************************************************************/
@@ -107,4 +107,4 @@ void VbrSetSegmentDescriptor(
     U32 Gran4K,
     U32 LongMode);
 
-#endif // VBR_PAYLOAD_SHARED_H_INCLUDED
+#endif  // VBR_PAYLOAD_SHARED_H_INCLUDED
