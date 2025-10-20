@@ -425,7 +425,7 @@ void Scheduler(void) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
     U32 Flags;
     SaveFlags(&Flags);
-    DEBUG(TEXT("[Scheduler] Enter : INT = %x, IF = %x"), Frame->IntNo, Flags & 0x200);
+    DEBUG(TEXT("[Scheduler] Enter : IF = %x"), Flags & 0x200);
 #endif
 
     // If scheduler is frozen, don't switch (atomic read - safe in interrupt context)

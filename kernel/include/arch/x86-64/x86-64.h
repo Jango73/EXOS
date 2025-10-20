@@ -420,11 +420,16 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define GetCR8(var) __asm__ volatile("mov %%cr8, %0" : "=r"(var))
 #define GetESP(var) __asm__ volatile("mov %%rsp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetEBP(var) __asm__ volatile("mov %%rbp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
-#define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
-#define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
-#define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
-#define GetFS(var) __asm__ volatile("movw %%fs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
-#define GetGS(var) __asm__ volatile("movw %%gs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetCS(var) __asm__ volatile("movw %%cs, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetDS(var) __asm__ volatile("movw %%ds, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetES(var) __asm__ volatile("movw %%es, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetFS(var) __asm__ volatile("movw %%fs, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetGS(var) __asm__ volatile("movw %%gs, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
+
+#define SetDS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%ds" : "=m"(var) : : "rax")
+#define SetES(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%es" : "=m"(var) : : "rax")
+#define SetFS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%fs" : "=m"(var) : : "rax")
+#define SetGS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%gs" : "=m"(var) : : "rax")
 
 #define SetCR8(value) __asm__ volatile("mov %0, %%cr8" : : "r"(value) : "memory")
 
@@ -433,6 +438,7 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define GetRFLAGS64(var) __asm__ volatile("pushfq; pop %0" : "=r"(var))
 #define SetRFLAGS64(value) __asm__ volatile("push %0; popfq" : : "r"(value) : "memory", "cc")
 
+#define GetDR0(var) __asm__ volatile("mov %%dr0, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetDR6(var) __asm__ volatile("mov %%dr6, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetDR7(var) __asm__ volatile("mov %%dr7, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 
@@ -444,26 +450,6 @@ typedef struct tag_KERNELDATA_X86_64 {
 
 #define DisableInterrupts() __asm__ __volatile__("cli" : : : "memory")
 #define EnableInterrupts() __asm__ __volatile__("sti" : : : "memory")
-
-static inline void SetDS(U16 Value)
-{
-    __asm__ volatile("mov %0, %%ax; mov %%ax, %%ds" : : "r"(Value) : "ax");
-}
-
-static inline void SetES(U16 Value)
-{
-    __asm__ volatile("mov %0, %%ax; mov %%ax, %%es" : : "r"(Value) : "ax");
-}
-
-static inline void SetFS(U16 Value)
-{
-    __asm__ volatile("mov %0, %%ax; mov %%ax, %%fs" : : "r"(Value) : "ax");
-}
-
-static inline void SetGS(U16 Value)
-{
-    __asm__ volatile("mov %0, %%ax; mov %%ax, %%gs" : : "r"(Value) : "ax");
-}
 
 #define SaveFlags(Flags)                                                                                \
     do {                                                                                                \
