@@ -46,7 +46,6 @@ static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
 void InitializeMemoryManager(void);
 
 // Architecture helpers
-void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear3);
 void UpdateKernelMemoryMetricsFromMultibootMap(void);
 void MarkUsedPhysicalMemory(void);
 

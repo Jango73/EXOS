@@ -43,25 +43,15 @@
 static LINEAR G_TempLinear1 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_1;
 static LINEAR G_TempLinear2 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_2;
 static LINEAR G_TempLinear3 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_3;
+#elif defined(__EXOS_ARCH_I386__)
+static LINEAR G_TempLinear1 = I386_TEMP_LINEAR_PAGE_1;
+static LINEAR G_TempLinear2 = I386_TEMP_LINEAR_PAGE_2;
+static LINEAR G_TempLinear3 = I386_TEMP_LINEAR_PAGE_3;
 #else
 static LINEAR G_TempLinear1 = 0;
 static LINEAR G_TempLinear2 = 0;
 static LINEAR G_TempLinear3 = 0;
 #endif
-
-/************************************************************************/
-
-/**
- * @brief Configure the reserved temporary linear mapping slots.
- * @param Linear1 First temporary linear address.
- * @param Linear2 Second temporary linear address.
- * @param Linear3 Third temporary linear address.
- */
-void MemorySetTemporaryLinearPages(LINEAR Linear1, LINEAR Linear2, LINEAR Linear3) {
-    G_TempLinear1 = Linear1;
-    G_TempLinear2 = Linear2;
-    G_TempLinear3 = Linear3;
-}
 
 /************************************************************************/
 

@@ -999,13 +999,10 @@ void ArchInitializeMemoryManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    LINEAR TempLinear1 = I386_TEMP_LINEAR_PAGE_1;
-    LINEAR TempLinear2 = I386_TEMP_LINEAR_PAGE_2;
-    LINEAR TempLinear3 = I386_TEMP_LINEAR_PAGE_3;
-
-    MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
-
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Temp pages reserved: %p, %p, %p"), TempLinear1, TempLinear2, TempLinear3);
+    DEBUG(TEXT("[ArchInitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
+        I386_TEMP_LINEAR_PAGE_1,
+        I386_TEMP_LINEAR_PAGE_2,
+        I386_TEMP_LINEAR_PAGE_3);
 
     PHYSICAL NewPageDirectory = AllocPageDirectory();
 
@@ -1029,7 +1026,7 @@ void ArchInitializeMemoryManager(void) {
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] TLB flushed"));
 
-    if (TempLinear1 == 0 || TempLinear2 == 0) {
+    if (I386_TEMP_LINEAR_PAGE_1 == 0 || I386_TEMP_LINEAR_PAGE_2 == 0) {
         ERROR(TEXT("[ArchInitializeMemoryManager] Failed to reserve temp linear pages"));
         ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;

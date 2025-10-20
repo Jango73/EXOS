@@ -1206,16 +1206,10 @@ void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* Ne
 void ArchInitializeMemoryManager(void) {
     DEBUG(TEXT("[ArchInitializeMemoryManager] Enter"));
 
-    LINEAR TempLinear1 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_1;
-    LINEAR TempLinear2 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_2;
-    LINEAR TempLinear3 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_3;
-
-    MemorySetTemporaryLinearPages(TempLinear1, TempLinear2, TempLinear3);
-
     DEBUG(TEXT("[ArchInitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
-        (LPVOID)TempLinear1,
-        (LPVOID)TempLinear2,
-        (LPVOID)TempLinear3);
+        (LPVOID)(LINEAR)X86_64_TEMP_LINEAR_PAGE_1,
+        (LPVOID)(LINEAR)X86_64_TEMP_LINEAR_PAGE_2,
+        (LPVOID)(LINEAR)X86_64_TEMP_LINEAR_PAGE_3);
 
     UpdateKernelMemoryMetricsFromMultibootMap();
 
