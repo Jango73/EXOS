@@ -502,6 +502,9 @@ typedef struct tag_SEGMENT_INFO {
 #define TRACED_EPILOGUE(FunctionName)
 #endif
 
+/************************************************************************/
+// Context switching
+
 #define SetupStackForKernelMode(Task, StackTop)                    \
     (StackTop) -= 3;                                               \
     ((U32*)(StackTop))[2] = (Task)->Arch.Context.Registers.EFlags; \
