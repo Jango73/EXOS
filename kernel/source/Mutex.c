@@ -173,8 +173,9 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
 
                             UINT CurrentTime = GetSystemTime();
                             if (CurrentTime - LastDebugTime >= 2000) {
-                                DEBUG("[LockMutex] Task %p waiting for mutex %p (owned by task %p) for %u ms",
-                                      Task, Mutex, Mutex->Task,
+                                DEBUG("[LockMutex] Task %p (%s) waiting for mutex %p owned by task %p (%s) for %u ms",
+                                      Task, Task->Name,
+                                      Mutex, Mutex->Task, Mutex->Task->Name,
                                       (U32)(CurrentTime - StartWaitTime));
                                 LastDebugTime = CurrentTime;
                             }

@@ -363,7 +363,7 @@ BOOL UnfreezeScheduler(void) {
 
 void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask] Enter %x"), NextTask);
+    DEBUG(TEXT("[SwitchToNextTask] Enter %p (%s)"), NextTask, NextTask->Name);
 #endif
 
     if (NextTask->Status > TASK_STATUS_DEAD) {
