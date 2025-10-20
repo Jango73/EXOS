@@ -56,3 +56,21 @@ La TSS longue se limite à stocker les pointeurs de piles RSP0–RSP2, sept entr
 ## Différences clés à retenir
 - La TSS longue remplace l'image complète des registres par un simple répartiteur de piles (RSP0–RSP2 + IST1–IST7), d'où la duplication de RSP0 dans IST1 sur x86-64 alors que i386 se contente de SS0/ESP0 pour toutes les transitions.【F:kernel/include/arch/x86-64/x86-64.h†L258-L287】【F:kernel/source/arch/x86-64/x86-64.c†L1187-L1208】【F:kernel/source/arch/i386/i386.c†L945-L963】
 - Le trampoline x86-64 doit gérer manuellement les registres supplémentaires r8–r15 et utiliser des emplacements 64 bits pour les cadres de retour, tandis que la version i386 exploite `pusha`/`iret` pour encapsuler la même logique en 32 bits.【F:kernel/include/arch/x86-64/x86-64.h†L333-L414】【F:kernel/include/arch/i386/i386.h†L508-L550】
+
+## Annexe — Registres et structures clés
+
+### CR3 (Directory Table Base Register)
+- **i386** : `ArchSetupTask` sauvegarde le CR3 courant de la tâche pour permettre au planificateur de restaurer le bon répertoire de pages lors d'une commutation. Ce registre contient la base physique du `page directory` 32 bits, ce qui conditionne l'espace d'adressage de la tâche.【F:kernel/source/arch/i386/i386.c†L875-L904】【F:kernel/source/arch/i386/i386.c†L951-L963】
+- **x86-64** : la version longue conserve également CR3 afin de relier chaque tâche à son niveau PML4 spécifique, nécessaire aux tables de pages en 4 niveaux du mode long.【F:kernel/source/arch/x86-64/x86-64.c†L1113-L1126】【F:kernel/source/arch/x86-64/x86-64.c†L1196-L1221】
+
+### CR4 (Control Register 4)
+- **i386** : la capture de CR4 s'assure que les extensions activées (par exemple PAE) restent cohérentes entre deux tâches, bien que seules certaines fonctionnalités soient pertinentes en 32 bits.【F:kernel/source/arch/i386/i386.c†L875-L904】
+- **x86-64** : EXOS mémorise également CR4 pour chaque tâche car le mode long exige certaines capacités (PAE, PGE) et peut activer des fonctionnalités supplémentaires comme SMEP/SMAP selon la configuration matérielle.【F:kernel/source/arch/x86-64/x86-64.c†L1113-L1126】
+
+### TSS (Task State Segment)
+- **i386** : la TSS matérielle contient l'ensemble des registres généraux, des sélecteurs et des pointeurs de pile. EXOS s'appuie principalement sur SS0/ESP0 pour forcer le retour sur la pile noyau commune lors d'un passage du ring 3 vers le ring 0.【F:kernel/include/arch/i386/i386.h†L361-L423】【F:kernel/source/arch/i386/i386.c†L945-L950】
+- **x86-64** : la TSS longue réduit son rôle à la gestion des pointeurs de piles privilégiées (RSP0–RSP2) et de l'Interrupt Stack Table. Elle inclut également `IOMapBase` pour neutraliser la carte d'E/S en positionnant le pointeur en fin de structure.【F:kernel/include/arch/x86-64/x86-64.h†L258-L287】【F:kernel/source/arch/x86-64/x86-64.c†L1187-L1208】
+
+### IST1 (Interrupt Stack Table niveau 1)
+- **x86-64 uniquement** : EXOS recopie systématiquement le RSP0 de la tâche entrante dans l'entrée IST1 afin d'attribuer une pile dédiée aux exceptions les plus critiques (double faute, NMI selon la configuration). Ce mécanisme évite d'utiliser une pile potentiellement corrompue par la tâche sortante.【F:kernel/source/arch/x86-64/x86-64.c†L1187-L1208】
+- **i386** : aucune IST n'existe, la protection repose sur l'unique couple SS0/ESP0, d'où l'absence de duplication de pile dédiée dans la TSS héritée.【F:kernel/include/arch/i386/i386.h†L361-L423】【F:kernel/source/arch/i386/i386.c†L945-L963】
