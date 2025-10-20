@@ -1109,8 +1109,8 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
     MemorySet((void*)Task->Arch.SysStackBase, 0, Task->Arch.SysStackSize);
     MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
 
-    Task->Arch.Context.Registers.RAX = (U64)(UINT)Task->Parameter;
-    Task->Arch.Context.Registers.RBX = (U64)(UINT)Task->Function;
+    Task->Arch.Context.Registers.RAX = (U64)(LINEAR)Task->Parameter;
+    Task->Arch.Context.Registers.RBX = (U64)(LINEAR)Task->Function;
     Task->Arch.Context.Registers.CS = CodeSelector;
     Task->Arch.Context.Registers.DS = DataSelector;
     Task->Arch.Context.Registers.ES = DataSelector;
