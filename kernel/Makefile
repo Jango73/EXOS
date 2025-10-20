@@ -63,6 +63,7 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/arch/intel/*.c) \
          $(wildcard source/arch/$(ARCH)/*.c) \
          $(wildcard source/network/*.c) \
+         $(wildcard source/process/*.c) \
          $(wildcard source/drivers/*.c) \
          $(wildcard source/utils/*.c) \
          $(wildcard source/test/*.c) \
