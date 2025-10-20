@@ -30,7 +30,7 @@
 #include "InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "VKey.h"
 
 /***************************************************************************/

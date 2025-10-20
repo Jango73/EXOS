@@ -28,7 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "Task.h"
+#include "process/Task.h"
 #include "arch/i386/i386.h"
 #include "arch/i386/InterruptFrame.h"
 

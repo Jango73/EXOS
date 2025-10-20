@@ -27,7 +27,7 @@
 #include "InterruptController.h"
 #include "Log.h"
 #include "Mouse.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "CoreString.h"
 #include "User.h"
 

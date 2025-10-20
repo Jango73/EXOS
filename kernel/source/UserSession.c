@@ -32,8 +32,8 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Mutex.h"
-#include "Schedule.h"
-#include "Task.h"
+#include "process/Schedule.h"
+#include "process/Task.h"
 #include "UserAccount.h"
 
 /************************************************************************/

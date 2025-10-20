@@ -28,7 +28,7 @@
 #include "InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Schedule.h"
+#include "process/Schedule.h"
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"

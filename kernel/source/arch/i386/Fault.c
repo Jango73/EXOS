@@ -30,7 +30,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"

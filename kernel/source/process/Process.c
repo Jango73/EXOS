@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "Process.h"
+#include "process/Process.h"
 
 #include "Console.h"
 #include "Executable.h"

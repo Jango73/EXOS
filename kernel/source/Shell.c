@@ -43,7 +43,7 @@
 #include "network/Network.h"
 #include "network/NetworkManager.h"
 #include "utils/Path.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "Script.h"
 #include "CoreString.h"
 #include "utils/StringArray.h"

@@ -33,7 +33,7 @@
 #if defined(__EXOS_ARCH_I386__)
 #include "arch/i386/i386-Log.h"
 #endif
-#include "Schedule.h"
+#include "process/Schedule.h"
 #include "System.h"
 
 /************************************************************************/

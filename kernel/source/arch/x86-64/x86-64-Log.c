@@ -25,8 +25,8 @@
 
 #include "Log.h"
 #include "Memory.h"
-#include "Process.h"
-#include "Task.h"
+#include "process/Process.h"
+#include "process/Task.h"
 #include "Text.h"
 #include "arch/x86-64/x86-64-Memory.h"
 

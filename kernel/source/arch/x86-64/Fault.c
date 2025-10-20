@@ -24,7 +24,7 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Schedule.h"
+#include "process/Schedule.h"
 #include "System.h"
 #include "Text.h"
 #include "arch/x86-64/x86-64-Log.h"

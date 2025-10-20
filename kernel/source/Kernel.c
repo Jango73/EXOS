@@ -24,7 +24,7 @@
 
 #include "Kernel.h"
 #include "Arch.h"
-#include "Process.h"
+#include "process/Process.h"
 
 #include "drivers/ACPI.h"
 #include "drivers/LocalAPIC.h"

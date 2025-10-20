@@ -29,10 +29,10 @@
 #include "List.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "Stack.h"
 #include "System.h"
-#include "Task.h"
+#include "process/Task.h"
 
 /***************************************************************************/
 

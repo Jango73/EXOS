@@ -449,7 +449,7 @@ Fractional part = unusable space.
 
 Each task embeds an `ARCH_TASK_DATA` structure (declared in `kernel/include/arch/i386/i386.h`) that
 contains the saved interrupt frame along with both the user and system stack descriptors. The
-generic `tag_TASK` definition in `kernel/include/Task.h` exposes this structure as the `Arch`
+generic `tag_TASK` definition in `kernel/include/process/Task.h` exposes this structure as the `Arch`
 member so that all stack and context manipulations are scoped to the active architecture.
 
 The i386 implementation of `ArchSetupTask` (`kernel/source/arch/i386/i386.c`) is responsible for

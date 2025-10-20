@@ -27,7 +27,7 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Process.h"
+#include "process/Process.h"
 
 /************************************************************************/
 
