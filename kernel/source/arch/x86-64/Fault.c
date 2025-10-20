@@ -97,58 +97,114 @@ void DefaultHandler(LPINTERRUPT_FRAME Frame) {
 
 /************************************************************************/
 
+/**
+ * @brief Handle divide-by-zero faults.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(DivideErrorHandler, "Divide error fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle debug exceptions.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(DebugExceptionHandler, "Debug exception fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle non-maskable interrupts.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(NMIHandler, "Non-maskable interrupt")
 
 /************************************************************************/
 
+/**
+ * @brief Handle breakpoint exceptions.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(BreakPointHandler, "Breakpoint fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle overflow exceptions.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(OverflowHandler, "Overflow fault")
 
 /************************************************************************/
 
-DEFINE_FATAL_HANDLER(BoundRangeHandler, "BOUND range fault")
+/**
+ * @brief Handle bound range exceeded faults.
+ * @param Frame Interrupt frame context.
+ */
+DEFINE_FATAL_HANDLER(BoundRangeHandler, "Bound range fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle invalid opcode faults.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(InvalidOpcodeHandler, "Invalid opcode fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle device-not-available faults.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(DeviceNotAvailHandler, "Device not available fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle double fault exceptions.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(DoubleFaultHandler, "Double fault")
 
 /************************************************************************/
 
-DEFINE_FATAL_HANDLER(MathOverflowHandler, "Coprocessor segment overrun")
+/**
+ * @brief Handle math overflow exceptions.
+ * @param Frame Interrupt frame context.
+ */
+DEFINE_FATAL_HANDLER(MathOverflowHandler, "Math overflow fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle invalid TSS faults.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(InvalidTSSHandler, "Invalid TSS fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle segment not present faults.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(SegmentFaultHandler, "Segment not present fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle stack fault exceptions.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(StackFaultHandler, "Stack fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle general protection faults.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(GeneralProtectionHandler, "General protection fault")
 
 /************************************************************************/
@@ -164,12 +220,24 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
 
 /************************************************************************/
 
+/**
+ * @brief Handle alignment check faults.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(AlignmentCheckHandler, "Alignment check fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle machine check exceptions.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(MachineCheckHandler, "Machine check fault")
 
 /************************************************************************/
 
+/**
+ * @brief Handle floating point exceptions.
+ * @param Frame Interrupt frame context.
+ */
 DEFINE_FATAL_HANDLER(FloatingPointHandler, "Floating point fault")
