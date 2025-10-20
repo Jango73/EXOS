@@ -832,7 +832,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Run auto tests
 
-    // RunAllTests();
+    RunAllTests();
 
     //-------------------------------------
     // Initialize the keyboard

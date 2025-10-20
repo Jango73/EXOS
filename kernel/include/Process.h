@@ -111,10 +111,16 @@ struct tag_MESSAGE {
 #define PROCESS_STATUS_ALIVE 0x00
 #define PROCESS_STATUS_DEAD 0xFF
 
-// Miscellaneous task values
+// Task stack values
 
+#ifdef __EXOS_32__
 #define TASK_MINIMUM_STACK_SIZE N_64KB
 #define TASK_SYSTEM_STACK_SIZE N_16KB
+#else
+#define TASK_MINIMUM_STACK_SIZE N_128KB
+#define TASK_SYSTEM_STACK_SIZE N_32KB
+#endif
+
 #define STACK_SAFETY_MARGIN 128
 
 // Task creation flags

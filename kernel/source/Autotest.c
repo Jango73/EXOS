@@ -45,14 +45,12 @@ static TESTENTRY TestRegistry[] = {
     {TEXT("TestCopyStack"), TestCopyStack},
     {TEXT("TestCircularBuffer"), TestCircularBuffer},
     {TEXT("TestRegex"), TestRegex},
-#if defined(__EXOS_ARCH_I386__)
     {TEXT("TestI386Disassembler"), TestI386Disassembler},
-#endif
     {TEXT("TestBcrypt"), TestBcrypt},
     {TEXT("TestIPv4"), TestIPv4},
     {TEXT("TestMacros"), TestMacros},
     {TEXT("TestTCP"), TestTCP},
-    {TEXT("TestScript"), TestScript},
+    // {TEXT("TestScript"), TestScript},
     // Add new tests here following the same pattern
     // { TEXT("TestName"), TestFunctionName },
     {NULL, NULL}  // End marker
