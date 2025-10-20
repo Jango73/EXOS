@@ -1227,12 +1227,3 @@ LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
     return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
 }
-
-/************************************************************************/
-
-/**
- * @brief Initialize the kernel memory manager.
- */
-void InitializeMemoryManager(void) {
-    ArchInitializeMemoryManager();
-}

@@ -968,8 +968,8 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
 /**
  * @brief Architecture-specific memory manager initialization for i386.
  */
-void ArchInitializeMemoryManager(void) {
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Enter"));
+void InitializeMemoryManager(void) {
+    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
     UpdateKernelMemoryMetricsFromMultibootMap();
 
@@ -988,8 +988,8 @@ void ArchInitializeMemoryManager(void) {
     Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
     Kernel.PPBSize = BitmapBytesAligned;
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Kernel.PPB bytes (aligned): %lX"), BitmapBytesAligned);
+    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
+    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB bytes (aligned): %lX"), BitmapBytesAligned);
 
     MemorySet(Kernel.PPB, 0, Kernel.PPBSize);
 
@@ -999,7 +999,7 @@ void ArchInitializeMemoryManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
+    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
         I386_TEMP_LINEAR_PAGE_1,
         I386_TEMP_LINEAR_PAGE_2,
         I386_TEMP_LINEAR_PAGE_3);
@@ -1008,44 +1008,44 @@ void ArchInitializeMemoryManager(void) {
 
     LogPageDirectory(NewPageDirectory);
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Page directory ready"));
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory ready"));
 
     if (NewPageDirectory == NULL) {
-        ERROR(TEXT("[ArchInitializeMemoryManager] AllocPageDirectory failed"));
+        ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
         ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] New page directory: %p"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %p"), NewPageDirectory);
 
     LoadPageDirectory(NewPageDirectory);
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Page directory set: %p"), NewPageDirectory);
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %p"), NewPageDirectory);
 
     FlushTLB();
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] TLB flushed"));
+    DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
 
     Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Kernel_i386.GDT == NULL) {
-        ERROR(TEXT("[ArchInitializeMemoryManager] AllocRegion for GDT failed"));
+        ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
         ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
     InitializeGlobalDescriptorTable(Kernel_i386.GDT);
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Loading GDT"));
+    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
 
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
     for (UINT Index = 0; Index < 10; Index++) {
-        DEBUG(TEXT("[ArchInitializeMemoryManager] GDT[%u]=%x %x"), Index, ((U32*)(Kernel_i386.GDT))[Index * 2 + 1],
+        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%x %x"), Index, ((U32*)(Kernel_i386.GDT))[Index * 2 + 1],
             ((U32*)(Kernel_i386.GDT))[Index * 2]);
     }
 
-    DEBUG(TEXT("[ArchInitializeMemoryManager] Exit"));
+    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }
 
 /************************************************************************/

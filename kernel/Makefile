@@ -9,20 +9,20 @@ ARCH_CFLAGS =
 
 ifeq ($(ARCH),i386)
 TOOLCHAIN_PREFIX = i686-elf
-NASM_FORMAT = elf
-CC              = $(TOOLCHAIN_PREFIX)-gcc
-LD              = $(TOOLCHAIN_PREFIX)-ld
-NM              = $(TOOLCHAIN_PREFIX)-nm
-OBJCOPY         = $(TOOLCHAIN_PREFIX)-objcopy
-READELF         = $(TOOLCHAIN_PREFIX)-readelf
+NASM_FORMAT      = elf
+CC               = $(TOOLCHAIN_PREFIX)-gcc
+LD               = $(TOOLCHAIN_PREFIX)-ld
+NM               = $(TOOLCHAIN_PREFIX)-nm
+OBJCOPY          = $(TOOLCHAIN_PREFIX)-objcopy
+READELF          = $(TOOLCHAIN_PREFIX)-readelf
 else ifeq ($(ARCH),x86-64)
-NASM_FORMAT = elf64
-CC              = gcc
-LD              = ld
-NM              = nm
-OBJCOPY         = objcopy
-READELF         = readelf
-ARCH_CFLAGS     = -m64 -mcmodel=large
+NASM_FORMAT      = elf64
+CC               = gcc
+LD               = ld
+NM               = nm
+OBJCOPY          = objcopy
+READELF          = readelf
+ARCH_CFLAGS      = -m64 -mcmodel=large
 else
 $(error Unsupported architecture $(ARCH))
 endif
@@ -73,10 +73,6 @@ SRC_C  = $(wildcard source/*.c) \
          ../runtime/source/exos-runtime-c.c
 SRC_S  = $(wildcard source/asm/*.asm) \
          $(wildcard source/arch/$(ARCH)/asm/*.asm)
-
-ifeq ($(ARCH),x86-64)
-SRC_S := $(filter-out source/asm/RealModeCalls.asm, $(SRC_S))
-endif
 
 ifeq ($(ARCH),x86-64)
 SRC_S += ../runtime/source/x86-64/exos-runtime-a.asm
