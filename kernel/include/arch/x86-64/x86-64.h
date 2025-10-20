@@ -366,15 +366,17 @@ typedef struct tag_KERNELDATA_X86_64 {
             "push %%r13\n\t"                                                                                \
             "push %%r14\n\t"                                                                                \
             "push %%r15\n\t"                                                                                \
-            "mov %%rsp, %0\n\t"                                                                            \
-            "lea 1f(%%rip), %%rax\n\t"                                                                      \
-            "mov %%rax, %1\n\t"                                                                             \
-            "mov %2, %%rsp\n\t"                                                                            \
+            "movq %%rsp, %0\n\t"                                                                           \
+            "leaq 1f(%%rip), %%rax\n\t"                                                                     \
+            "movq %%rax, %1\n\t"                                                                            \
+            "movq %2, %%rsp\n\t"                                                                           \
             "mov %3, %%rdi\n\t"                                                                            \
             "mov %4, %%rsi\n\t"                                                                            \
             "push %4\n\t"                                                                                   \
             "push %3\n\t"                                                                                   \
+            "sub $8, %%rsp\n\t"                                                                             \
             "call SwitchToNextTask_3\n\t"                                                                  \
+            "add $8, %%rsp\n\t"                                                                             \
             "1:\n\t"                                                                                       \
             "add $16, %%rsp\n\t"                                                                            \
             "pop %%r15\n\t"                                                                                \
@@ -418,11 +420,11 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define GetCR8(var) __asm__ volatile("mov %%cr8, %0" : "=r"(var))
 #define GetESP(var) __asm__ volatile("mov %%rsp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetEBP(var) __asm__ volatile("mov %%rbp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
-#define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
-#define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
-#define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
-#define GetFS(var) __asm__ volatile("movw %%fs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
-#define GetGS(var) __asm__ volatile("movw %%gs, %%ax; movl %%rax, %0" : "=m"(var) : : "eax")
+#define GetCS(var) __asm__ volatile("movw %%cs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetDS(var) __asm__ volatile("movw %%ds, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetES(var) __asm__ volatile("movw %%es, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetFS(var) __asm__ volatile("movw %%fs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
+#define GetGS(var) __asm__ volatile("movw %%gs, %%ax; movl %%eax, %0" : "=m"(var) : : "eax")
 
 #define SetCR8(value) __asm__ volatile("mov %0, %%cr8" : : "r"(value) : "memory")
 
@@ -442,6 +444,26 @@ typedef struct tag_KERNELDATA_X86_64 {
 
 #define DisableInterrupts() __asm__ __volatile__("cli" : : : "memory")
 #define EnableInterrupts() __asm__ __volatile__("sti" : : : "memory")
+
+static inline void SetDS(U16 Value)
+{
+    __asm__ volatile("mov %0, %%ax; mov %%ax, %%ds" : : "r"(Value) : "ax");
+}
+
+static inline void SetES(U16 Value)
+{
+    __asm__ volatile("mov %0, %%ax; mov %%ax, %%es" : : "r"(Value) : "ax");
+}
+
+static inline void SetFS(U16 Value)
+{
+    __asm__ volatile("mov %0, %%ax; mov %%ax, %%fs" : : "r"(Value) : "ax");
+}
+
+static inline void SetGS(U16 Value)
+{
+    __asm__ volatile("mov %0, %%ax; mov %%ax, %%gs" : : "r"(Value) : "ax");
+}
 
 #define SaveFlags(Flags)                                                                                \
     do {                                                                                                \

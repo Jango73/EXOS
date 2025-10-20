@@ -78,7 +78,11 @@ extern U32 SaveRegisters(LPINTEL_386_REGISTERS Registers);
 #elif defined(__EXOS_ARCH_X86_64__)
 extern U32 SaveRegisters(LPINTEL_64_GENERAL_REGISTERS Registers);
 #endif
+#if defined(__EXOS_ARCH_X86_64__)
+extern UINT DoSystemCall(U32 Number, UINT Parameter);
+#else
 extern U32 DoSystemCall(U32 Number, U32 Parameter);
+#endif
 extern void IdleCPU(void);
 extern void DeadCPU(void);
 extern void Reboot(void);

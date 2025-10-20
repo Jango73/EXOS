@@ -1185,17 +1185,32 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
 /***************************************************************************/
 
 void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
-    UNUSED(CurrentTask);
-
-    if (Kernel_i386.TSS == NULL || NextTask == NULL) {
+    if (NextTask == NULL) {
         return;
+    }
+
+    if (CurrentTask != NULL) {
+        GetFS(CurrentTask->Arch.Context.Registers.FS);
+        GetGS(CurrentTask->Arch.Context.Registers.GS);
+        SaveFPU(&(CurrentTask->Arch.Context.FPURegisters));
     }
 
     LPX86_64_TASK_STATE_SEGMENT Tss = Kernel_i386.TSS;
 
-    Tss->RSP0 = NextTask->Arch.Context.RSP0;
-    Tss->IST1 = NextTask->Arch.Context.RSP0;
-    Tss->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
+    if (Tss != NULL) {
+        Tss->RSP0 = NextTask->Arch.Context.RSP0;
+        Tss->IST1 = NextTask->Arch.Context.RSP0;
+        Tss->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
+    }
+
+    LoadPageDirectory(NextTask->Process->PageDirectory);
+
+    SetDS(NextTask->Arch.Context.Registers.DS);
+    SetES(NextTask->Arch.Context.Registers.ES);
+    SetFS(NextTask->Arch.Context.Registers.FS);
+    SetGS(NextTask->Arch.Context.Registers.GS);
+
+    RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
 }
 
 /***************************************************************************/
