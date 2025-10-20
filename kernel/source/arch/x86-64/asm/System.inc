@@ -50,6 +50,9 @@ CR0_PAGING              equ 0x80000000  ; Paging on/off
 
 CONSOLE_TEXT_BUFFER_BASE    equ 0x00000000000B8000
 
+LOG_DEBUG   equ 0x0001
+LOG_ERROR   equ 0x0008
+
 REG_OFF_RFLAGS equ 0
 REG_OFF_RAX    equ 8
 REG_OFF_RBX    equ 16

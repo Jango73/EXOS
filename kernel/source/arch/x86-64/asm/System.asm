@@ -540,8 +540,20 @@ section .shared_text
 BITS 64
 
 SYS_FUNC_BEGIN TaskRunner
-    mov     r8, rax
-    mov     r9, rbx
+    mov     r12, rax
+    mov     r13, rbx
+
+    mov     rdi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogEntry]
+    mov     rdx, r13
+    mov     rcx, r12
+    mov     r8, rsp
+    xor     r9d, r9d
+    xor     eax, eax
+    call    KernelLogText
+
+    mov     r8, r12
+    mov     r9, r13
 
     xor     ecx, ecx
     xor     edx, edx
@@ -556,12 +568,37 @@ SYS_FUNC_BEGIN TaskRunner
 
     mov     rbx, r9
     test    rbx, rbx
-    je      _TaskRunner_Exit
+    jne     _TaskRunner_Invoke
+
+    mov     rdi, LOG_ERROR
+    lea     rsi, [rel TaskRunnerLogMissingEntry]
+    mov     rdx, r8
+    mov     rcx, rsp
+    xor     r8d, r8d
+    xor     r9d, r9d
+    xor     eax, eax
+    call    KernelLogText
+
+    xor     eax, eax
+    jmp     _TaskRunner_Exit
+
+_TaskRunner_Invoke:
 
     mov     rdi, r8
     call    rbx
 
 _TaskRunner_Exit:
+    mov     r12, rax
+    mov     rdi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogExit]
+    mov     rdx, r12
+    mov     rcx, rsp
+    xor     r8d, r8d
+    xor     r9d, r9d
+    xor     eax, eax
+    call    KernelLogText
+
+    mov     rax, r12
     mov     rbx, rax
     mov     eax, 0x33
     int     EXOS_USER_CALL
@@ -572,6 +609,14 @@ _TaskRunner_Exit:
     int     EXOS_USER_CALL
     jmp     .sleep
 SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+section .rodata
+
+TaskRunnerLogEntry db '[TaskRunner] Entry function=%p argument=%p stack=%p', 0
+TaskRunnerLogMissingEntry db '[TaskRunner] Missing entry point (argument=%p stack=%p)', 0
+TaskRunnerLogExit db '[TaskRunner] Exit code=%p stack=%p', 0
 
 ;----------------------------------------------------------------------------
 
