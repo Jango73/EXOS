@@ -30,13 +30,6 @@
 
 /************************************************************************/
 
-// Inlines
-#ifndef HAS_ARCH_CANONICALIZE_LINEAR_ADDRESS
-static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
-    return Address;
-}
-#endif
-
 // External symbols
 // Initializes the memory manager
 void InitializeMemoryManager(void);

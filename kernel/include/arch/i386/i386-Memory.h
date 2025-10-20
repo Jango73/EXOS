@@ -27,8 +27,6 @@
 
 #include "Base.h"
 
-#define HAS_ARCH_CANONICALIZE_LINEAR_ADDRESS 1
-
 /************************************************************************/
 // #defines
 
