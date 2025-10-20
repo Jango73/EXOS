@@ -85,13 +85,13 @@ static U64 BuildLinearAddress(UINT Pml4Index, UINT PdptIndex, UINT DirectoryInde
         | ((U64)DirectoryIndex << 21)
         | ((U64)TableIndex << 12)
         | (Offset & PAGE_SIZE_MASK);
-    return ArchCanonicalizeAddress(Address);
+    return CanonicalizeLinearAddress(Address);
 }
 
 /***************************************************************************/
 
 static U64 BuildRangeEnd(U64 Base, U64 Span) {
-    return ArchCanonicalizeAddress(Base + (Span - 1));
+    return CanonicalizeLinearAddress(Base + (Span - 1));
 }
 
 /***************************************************************************/
@@ -118,7 +118,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
         if (!Pml4Entry->Present) continue;
 
         U64 LinearBase = BuildLinearAddress(Pml4Index, 0, 0, 0, 0);
-        U64 LinearEnd = BuildRangeEnd(LinearBase, 1ull << 39);
+        U64 LinearEnd = BuildRangeEnd(LinearBase, (U64)1 << 39);
         PHYSICAL PdptPhysical = (PHYSICAL)(Pml4Entry->Address << 12);
 
         DEBUG(TEXT("[LogPageDirectory64] PML4E[%u]: VA=%p-%p -> PDPT_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
@@ -147,7 +147,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
             if (!PdptEntry->Present) continue;
 
             U64 PdptBase = BuildLinearAddress(Pml4Index, PdptIndex, 0, 0, 0);
-            U64 PdptEnd = BuildRangeEnd(PdptBase, 1ull << 30);
+            U64 PdptEnd = BuildRangeEnd(PdptBase, (U64)1 << 30);
 
             if (PdptEntry->PageSize) {
                 PHYSICAL HugePhysical = (PHYSICAL)(PdptEntry->Address << 12);

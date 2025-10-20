@@ -27,12 +27,14 @@
 
 #include "Base.h"
 
+#define HAS_ARCH_CANONICALIZE_LINEAR_ADDRESS 1
+
 /************************************************************************/
 // #defines
 
 #define PAGE_SIZE N_4KB
 #define PAGE_SIZE_MUL MUL_4KB
-#define PAGE_SIZE_MASK ((U64)PAGE_SIZE - 1ull)
+#define PAGE_SIZE_MASK ((U64)PAGE_SIZE - (U64)1)
 
 #define PAGE_TABLE_ENTRY_SIZE ((UINT)sizeof(U64))
 #define PAGE_TABLE_NUM_ENTRIES 512u
@@ -40,24 +42,24 @@
 #define PAGE_TABLE_SIZE_MUL MUL_4KB
 #define PAGE_TABLE_CAPACITY (PAGE_TABLE_NUM_ENTRIES * PAGE_SIZE)
 #define PAGE_TABLE_CAPACITY_MUL MUL_2MB
-#define PAGE_TABLE_CAPACITY_MASK ((U64)PAGE_TABLE_CAPACITY - 1ull)
+#define PAGE_TABLE_CAPACITY_MASK ((U64)PAGE_TABLE_CAPACITY - (U64)1)
 
-#define PAGE_MASK (~((U64)PAGE_SIZE - 1ull))
+#define PAGE_MASK (~((U64)PAGE_SIZE - (U64)1))
 
 #define PAGE_PRIVILEGE_KERNEL 0u
 #define PAGE_PRIVILEGE_USER 1u
 
-#define PAGE_FLAG_PRESENT (1ull << 0)
-#define PAGE_FLAG_READ_WRITE (1ull << 1)
-#define PAGE_FLAG_USER (1ull << 2)
-#define PAGE_FLAG_WRITE_THROUGH (1ull << 3)
-#define PAGE_FLAG_CACHE_DISABLED (1ull << 4)
-#define PAGE_FLAG_ACCESSED (1ull << 5)
-#define PAGE_FLAG_DIRTY (1ull << 6)
-#define PAGE_FLAG_PAGE_SIZE (1ull << 7)
-#define PAGE_FLAG_GLOBAL (1ull << 8)
-#define PAGE_FLAG_FIXED (1ull << 9)
-#define PAGE_FLAG_NO_EXECUTE (1ull << 63)
+#define PAGE_FLAG_PRESENT ((U64)1 << 0)
+#define PAGE_FLAG_READ_WRITE ((U64)1 << 1)
+#define PAGE_FLAG_USER ((U64)1 << 2)
+#define PAGE_FLAG_WRITE_THROUGH ((U64)1 << 3)
+#define PAGE_FLAG_CACHE_DISABLED ((U64)1 << 4)
+#define PAGE_FLAG_ACCESSED ((U64)1 << 5)
+#define PAGE_FLAG_DIRTY ((U64)1 << 6)
+#define PAGE_FLAG_PAGE_SIZE ((U64)1 << 7)
+#define PAGE_FLAG_GLOBAL ((U64)1 << 8)
+#define PAGE_FLAG_FIXED ((U64)1 << 9)
+#define PAGE_FLAG_NO_EXECUTE ((U64)1 << 63)
 
 #define PML4_ENTRY_COUNT 512u
 #define PDPT_ENTRY_COUNT 512u
@@ -65,22 +67,22 @@
 #define PML4_RECURSIVE_SLOT 510u
 #define PD_RECURSIVE_SLOT PML4_RECURSIVE_SLOT
 
-#define VMA_RAM 0x0000000000000000ull
-#define VMA_VIDEO 0x00000000000A0000ull
-#define VMA_CONSOLE 0x00000000000B8000ull
-#define VMA_USER 0x0000000000400000ull
-#define VMA_LIBRARY 0x00007F0000000000ull
+#define VMA_RAM ((U64)0x0000000000000000)
+#define VMA_VIDEO ((U64)0x00000000000A0000)
+#define VMA_CONSOLE ((U64)0x00000000000B8000)
+#define VMA_USER ((U64)0x0000000000400000)
+#define VMA_LIBRARY ((U64)0x00007F0000000000)
 #define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)
-#define VMA_KERNEL 0xFFFFFFFF80000000ull
+#define VMA_KERNEL ((U64)0xFFFFFFFF80000000)
 
-#define X86_64_TEMP_LINEAR_PAGE_1 0xFFFFFFFF80100000ull
-#define X86_64_TEMP_LINEAR_PAGE_2 0xFFFFFFFF80101000ull
-#define X86_64_TEMP_LINEAR_PAGE_3 0xFFFFFFFF80102000ull
+#define X86_64_TEMP_LINEAR_PAGE_1 ((U64)0xFFFFFFFF80100000)
+#define X86_64_TEMP_LINEAR_PAGE_2 ((U64)0xFFFFFFFF80101000)
+#define X86_64_TEMP_LINEAR_PAGE_3 ((U64)0xFFFFFFFF80102000)
 
 #define PAGE_PRIVILEGE(Address) \
     (((U64)(Address) >= VMA_USER && (U64)(Address) < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
-#define PAGE_ALIGN(Address) (((U64)(Address) + PAGE_SIZE - 1ull) & PAGE_MASK)
+#define PAGE_ALIGN(Address) (((U64)(Address) + PAGE_SIZE - (U64)1) & PAGE_MASK)
 
 /************************************************************************/
 // typedefs
@@ -123,22 +125,22 @@ typedef struct tag_ARCH_PAGE_ITERATOR {
 /************************************************************************/
 // inlines
 
-static inline U64 ArchCanonicalizeAddress(U64 Address) {
-    const U64 SignBit = 1ull << 47;
-    const U64 Mask = (1ull << 48) - 1ull;
+static inline U64 CanonicalizeLinearAddress(U64 Address) {
+    const U64 SignBit = (U64)1 << 47;
+    const U64 Mask = ((U64)1 << 48) - (U64)1;
 
     Address &= Mask;
     if ((Address & SignBit) != 0) {
-        Address |= 0xFFFF000000000000ull;
+        Address |= (U64)0xFFFF000000000000;
     }
 
     return Address;
 }
 
-static inline U64 ArchBuildRecursiveAddress(UINT Pml4, UINT Pdpt, UINT Directory, UINT Table, U64 Offset) {
+static inline U64 BuildRecursiveAddress(UINT Pml4, UINT Pdpt, UINT Directory, UINT Table, U64 Offset) {
     U64 Address = ((U64)Pml4 << 39) | ((U64)Pdpt << 30) | ((U64)Directory << 21) | ((U64)Table << 12) |
         (Offset & PAGE_SIZE_MASK);
-    return ArchCanonicalizeAddress(Address);
+    return CanonicalizeLinearAddress(Address);
 }
 
 static inline UINT GetPml4Entry(U64 Address) {
@@ -242,19 +244,19 @@ static inline BOOL PageTableEntryIsFixed(const LPPAGE_TABLE Table, UINT Index) {
 }
 
 static inline void ClearPageDirectoryEntry(LPPAGE_DIRECTORY Directory, UINT Index) {
-    WritePageDirectoryEntryValue(Directory, Index, 0ull);
+    WritePageDirectoryEntryValue(Directory, Index, (U64)0);
 }
 
 static inline void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index) {
-    WritePageTableEntryValue(Table, Index, 0ull);
+    WritePageTableEntryValue(Table, Index, (U64)0);
 }
 
 static inline U64 ArchGetMaxLinearAddressPlusOne(void) {
-    return 1ull << 48;
+    return (U64)1 << 48;
 }
 
 static inline U64 ArchGetMaxPhysicalAddressPlusOne(void) {
-    return 1ull << 52;
+    return (U64)1 << 52;
 }
 
 static inline BOOL ArchClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UINT* OutLength) {
@@ -275,24 +277,24 @@ static inline BOOL ArchClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase
 }
 
 static inline LPPML4 GetCurrentPml4VA(void) {
-    return (LPPML4)ArchBuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, 0);
+    return (LPPML4)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, 0);
 }
 
 static inline LPPAGE_DIRECTORY GetCurrentPageDirectoryVA(void) {
-    return (LPPAGE_DIRECTORY)ArchBuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, 0u, 0u, 0);
+    return (LPPAGE_DIRECTORY)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, 0u, 0u, 0);
 }
 
 static inline LPPDPT GetPageDirectoryPointerTableVAFor(U64 Address) {
-    return (LPPDPT)ArchBuildRecursiveAddress(PML4_RECURSIVE_SLOT, GetPml4Entry(Address), 0u, 0u, 0);
+    return (LPPDPT)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, GetPml4Entry(Address), 0u, 0u, 0);
 }
 
 static inline LPPAGE_DIRECTORY GetPageDirectoryVAFor(U64 Address) {
-    return (LPPAGE_DIRECTORY)ArchBuildRecursiveAddress(
+    return (LPPAGE_DIRECTORY)BuildRecursiveAddress(
         PML4_RECURSIVE_SLOT, GetPml4Entry(Address), GetPdptEntry(Address), 0u, 0);
 }
 
 static inline LPPAGE_TABLE GetPageTableVAFor(U64 Address) {
-    return (LPPAGE_TABLE)ArchBuildRecursiveAddress(
+    return (LPPAGE_TABLE)BuildRecursiveAddress(
         PML4_RECURSIVE_SLOT, GetPml4Entry(Address), GetPdptEntry(Address), GetDirectoryEntry(Address), 0);
 }
 

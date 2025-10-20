@@ -31,11 +31,7 @@
 /************************************************************************/
 
 // Inlines
-#if defined(__EXOS_ARCH_X86_64__)
-static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
-    return (LINEAR)ArchCanonicalizeAddress((U64)Address);
-}
-#else
+#ifndef HAS_ARCH_CANONICALIZE_LINEAR_ADDRESS
 static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
     return Address;
 }

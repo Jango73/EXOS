@@ -27,6 +27,8 @@
 
 #include "Base.h"
 
+#define HAS_ARCH_CANONICALIZE_LINEAR_ADDRESS 1
+
 /************************************************************************/
 // #defines
 
@@ -122,6 +124,10 @@ typedef struct tag_ARCH_PAGE_ITERATOR {
 
 /************************************************************************/
 // inlines
+
+static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
+    return Address;
+}
 
 static inline UINT GetDirectoryEntry(LINEAR Address) {
     return Address >> PAGE_TABLE_CAPACITY_MUL;
