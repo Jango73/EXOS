@@ -33,6 +33,8 @@ static const U64 KERNEL_LONG_MODE_BASE = { 0x80000000u, 0xFFFFFFFFu };
 static const U64 KERNEL_LONG_MODE_BASE = 0xFFFFFFFF80000000ull;
 #endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
+static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
+static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
 
 enum {
     LONG_MODE_ENTRY_GLOBAL = 0x00000001u,
@@ -319,7 +321,11 @@ static void BuildGdtFlat(void) {
 
 void NORETURN EnterProtectedPagingAndJump(U32 FileSize) {
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
-    const U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
+    U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
+
+    if (MapSize < TEMP_LINEAR_REQUIRED_SPAN) {
+        MapSize = TEMP_LINEAR_REQUIRED_SPAN;
+    }
 
     EnableA20();
 

@@ -39,9 +39,15 @@
 /************************************************************************/
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 
+#if defined(__EXOS_ARCH_X86_64__)
+static LINEAR G_TempLinear1 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_1;
+static LINEAR G_TempLinear2 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_2;
+static LINEAR G_TempLinear3 = (LINEAR)X86_64_TEMP_LINEAR_PAGE_3;
+#else
 static LINEAR G_TempLinear1 = 0;
 static LINEAR G_TempLinear2 = 0;
 static LINEAR G_TempLinear3 = 0;
+#endif
 
 /************************************************************************/
 
