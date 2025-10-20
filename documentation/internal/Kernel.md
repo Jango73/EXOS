@@ -456,7 +456,11 @@ The i386 implementation of `ArchSetupTask` (`kernel/source/arch/i386/i386.c`) is
 allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and
 performing the bootstrap stack switch for the main kernel task. `CreateTask` calls this helper after
 finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic
-while allowing future architectures to provide their own `ArchSetupTask` specialisation.
+while allowing future architectures to provide their own `ArchSetupTask` specialisation. The
+x86-64 variant (`kernel/source/arch/x86-64/x86-64.c`) mirrors the allocation logic and additionally
+pre-builds the first interrupt frame for newly created tasks. By pre-populating the IRET frame,
+the generic scheduler can jump straight into the task runner without touching the target stack,
+which avoids corrupting the frame while it is still executing on the previous task's stack.
 
 ### IRQ scheduling
 

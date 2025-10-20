@@ -398,8 +398,12 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
+#if defined(__EXOS_ARCH_X86_64__)
+            LINEAR ESP = NextTask->Arch.Context.Registers.RSP;
+#else
             LINEAR ESP = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
             SetupStackForKernelMode(NextTask, ESP);
+#endif
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
@@ -407,9 +411,13 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             JumpToReadyTask(NextTask, ESP);
         } else {
+#if defined(__EXOS_ARCH_X86_64__)
+            LINEAR ESP = NextTask->Arch.Context.Registers.RSP;
+#else
             LINEAR ESP = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
             SetupStackForUserMode(
                 NextTask, ESP, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
+#endif
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));

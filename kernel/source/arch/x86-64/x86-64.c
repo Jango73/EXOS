@@ -1128,16 +1128,43 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
     StackTop = (LINEAR)(Task->Arch.StackBase + (U64)Task->Arch.StackSize);
     SysStackTop = (LINEAR)(Task->Arch.SysStackBase + (U64)Task->Arch.SysStackSize);
 
+    LINEAR TaskStackPointer = StackTop - STACK_SAFETY_MARGIN;
+    LINEAR SystemStackPointer = SysStackTop - STACK_SAFETY_MARGIN;
+
     if (Process->Privilege == PRIVILEGE_KERNEL) {
-        Task->Arch.Context.Registers.RSP = StackTop - STACK_SAFETY_MARGIN;
-        Task->Arch.Context.Registers.RBP = StackTop - STACK_SAFETY_MARGIN;
+        Task->Arch.Context.Registers.RSP = TaskStackPointer;
+        Task->Arch.Context.Registers.RBP = TaskStackPointer;
     } else {
-        Task->Arch.Context.Registers.RSP = SysStackTop - STACK_SAFETY_MARGIN;
-        Task->Arch.Context.Registers.RBP = SysStackTop - STACK_SAFETY_MARGIN;
+        Task->Arch.Context.Registers.RSP = SystemStackPointer;
+        Task->Arch.Context.Registers.RBP = SystemStackPointer;
     }
 
     Task->Arch.Context.SS0 = SELECTOR_KERNEL_DATA;
-    Task->Arch.Context.RSP0 = SysStackTop - STACK_SAFETY_MARGIN;
+    Task->Arch.Context.RSP0 = SystemStackPointer;
+
+    if ((Info->Flags & TASK_CREATE_MAIN_KERNEL) == 0u) {
+        if (Process->Privilege == PRIVILEGE_KERNEL) {
+            LINEAR FramePointer = TaskStackPointer - (LINEAR)(3u * sizeof(U64));
+
+            ((U64*)FramePointer)[0] = Task->Arch.Context.Registers.RIP;
+            ((U64*)FramePointer)[1] = (U64)Task->Arch.Context.Registers.CS;
+            ((U64*)FramePointer)[2] = Task->Arch.Context.Registers.RFlags;
+
+            Task->Arch.Context.Registers.RSP = FramePointer;
+        } else {
+            LINEAR UserStackPointer = TaskStackPointer;
+            LINEAR FramePointer = SystemStackPointer - (LINEAR)(5u * sizeof(U64));
+
+            ((U64*)FramePointer)[0] = Task->Arch.Context.Registers.RIP;
+            ((U64*)FramePointer)[1] = (U64)Task->Arch.Context.Registers.CS;
+            ((U64*)FramePointer)[2] = Task->Arch.Context.Registers.RFlags;
+            ((U64*)FramePointer)[3] = UserStackPointer;
+            ((U64*)FramePointer)[4] = (U64)Task->Arch.Context.Registers.SS;
+
+            Task->Arch.Context.Registers.RSP = FramePointer;
+            Task->Arch.Context.Registers.RBP = UserStackPointer;
+        }
+    }
 
     if ((Info->Flags & TASK_CREATE_MAIN_KERNEL) != 0u) {
         Task->Status = TASK_STATUS_RUNNING;
