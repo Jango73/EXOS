@@ -102,7 +102,7 @@ typedef struct tag_ACPI_XSDT {
 
 typedef struct tag_ACPI_MADT {
     ACPI_TABLE_HEADER Header;  // Standard ACPI table header
-    PHYSICAL LocalApicAddress; // Physical address of Local APIC
+    U32 LocalApicAddress;      // Physical address of Local APIC (32-bit per spec)
     U32 Flags;                 // Multiple APIC flags
     U8  InterruptController[]; // Array of interrupt controller entries
 } ACPI_MADT, *LPACPI_MADT;
@@ -150,7 +150,7 @@ typedef struct tag_ACPI_MADT_IO_APIC {
     ACPI_MADT_ENTRY_HEADER Header;
     U8  IoApicId;              // I/O APIC ID
     U8  Reserved;              // Reserved (must be zero)
-    PHYSICAL IoApicAddress;    // Physical address of I/O APIC
+    U32 IoApicAddress;         // Physical address of I/O APIC (32-bit per spec)
     U32 GlobalSystemInterruptBase; // Global system interrupt where this I/O APIC's interrupts start
 } ACPI_MADT_IO_APIC, *LPACPI_MADT_IO_APIC;
 

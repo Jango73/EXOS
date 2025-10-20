@@ -351,7 +351,7 @@ BOOL ParseMADT(void) {
           G_MADT->LocalApicAddress, G_MADT->Flags);
 
     // Store Local APIC address
-    G_AcpiConfig.LocalApicAddress = G_MADT->LocalApicAddress;
+    G_AcpiConfig.LocalApicAddress = (PHYSICAL)G_MADT->LocalApicAddress;
 
     // Parse MADT entries
     U32 EntryOffset = 0;
@@ -383,7 +383,7 @@ BOOL ParseMADT(void) {
                 LPACPI_MADT_IO_APIC IoApic = (LPACPI_MADT_IO_APIC)Entry;
                 if (G_AcpiConfig.IoApicCount < 8) {
                     G_IoApicInfo[G_AcpiConfig.IoApicCount].IoApicId = IoApic->IoApicId;
-                    G_IoApicInfo[G_AcpiConfig.IoApicCount].IoApicAddress = IoApic->IoApicAddress;
+                    G_IoApicInfo[G_AcpiConfig.IoApicCount].IoApicAddress = (PHYSICAL)IoApic->IoApicAddress;
                     G_IoApicInfo[G_AcpiConfig.IoApicCount].GlobalSystemInterruptBase = IoApic->GlobalSystemInterruptBase;
                     G_IoApicInfo[G_AcpiConfig.IoApicCount].MaxRedirectionEntry = 0; // Will be read from I/O APIC later
                     G_AcpiConfig.IoApicCount++;

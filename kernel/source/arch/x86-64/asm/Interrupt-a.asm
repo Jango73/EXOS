@@ -26,6 +26,19 @@
 BITS 64
 
 extern BuildInterruptFrame
+extern SendEOI
+extern ClockHandler
+extern KeyboardHandler
+extern PIC2Handler
+extern COM2Handler
+extern COM1Handler
+extern RTCHandler
+extern PCIHandler
+extern MouseHandler
+extern FPUHandler
+extern HardDriveHandler
+extern SystemCallHandler
+extern DriverCallHandler
 
 INTERRUPT_FRAME_size          equ 366
 INTERRUPT_FRAME_PADDING       equ 16
@@ -258,28 +271,231 @@ FUNC_HEADER
 Interrupt_FloatingPoint:
     ISR_HANDLER_ERR 19, FloatingPointHandler
 
-%macro STUB_ISR 1
-%1:
-    cli
-    ud2
-%%halt:
-    hlt
-    jmp     %%halt
+%macro PUSH_GPRS 0
+    push    rax
+    push    rcx
+    push    rdx
+    push    rbx
+    push    rbp
+    push    rsi
+    push    rdi
+    push    r8
+    push    r9
+    push    r10
+    push    r11
+    push    r12
+    push    r13
+    push    r14
+    push    r15
 %endmacro
 
-STUB_ISR Interrupt_Clock
-STUB_ISR Interrupt_Clock_Iret
-STUB_ISR Interrupt_Keyboard
-STUB_ISR Interrupt_PIC2
-STUB_ISR Interrupt_COM2
-STUB_ISR Interrupt_COM1
-STUB_ISR Interrupt_RTC
-STUB_ISR Interrupt_PCI
-STUB_ISR Interrupt_Mouse
-STUB_ISR Interrupt_FPU
-STUB_ISR Interrupt_HardDrive
-STUB_ISR Interrupt_SystemCall
-STUB_ISR Interrupt_DriverCall
+%macro POP_GPRS 0
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     r11
+    pop     r10
+    pop     r9
+    pop     r8
+    pop     rdi
+    pop     rsi
+    pop     rbp
+    pop     rbx
+    pop     rdx
+    pop     rcx
+    pop     rax
+%endmacro
+
+%macro PUSH_SEGMENTS 0
+    mov     ax, ds
+    movzx   eax, ax
+    push    rax
+    mov     ax, es
+    movzx   eax, ax
+    push    rax
+    mov     ax, fs
+    movzx   eax, ax
+    push    rax
+    mov     ax, gs
+    movzx   eax, ax
+    push    rax
+%endmacro
+
+%macro POP_SEGMENTS 0
+    pop     rax
+    mov     gs, ax
+    pop     rax
+    mov     fs, ax
+    pop     rax
+    mov     es, ax
+    pop     rax
+    mov     ds, ax
+%endmacro
+
+%macro ALIGN_STACK_AND_CALL 1
+    xor     r10d, r10d
+    mov     rax, rsp
+    and     rax, 0x0F
+    jz      %%aligned
+    mov     r10, rax
+    sub     rsp, r10
+%%aligned:
+    call    %1
+    add     rsp, r10
+%endmacro
+
+SYSCALL_RAX_OFFSET     equ 144
+SYSCALL_RBX_OFFSET     equ 120
+
+FUNC_HEADER
+Interrupt_Clock:
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL SendEOI
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL ClockHandler
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_Clock_Iret:
+    iretq
+
+FUNC_HEADER
+Interrupt_Keyboard:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL KeyboardHandler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_PIC2:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL PIC2Handler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_COM2:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL COM2Handler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_COM1:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL COM1Handler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_RTC:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL RTCHandler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_PCI:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL PCIHandler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_Mouse:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL MouseHandler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_FPU:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL FPUHandler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_HardDrive:
+    cli
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    ALIGN_STACK_AND_CALL HardDriveHandler
+    ALIGN_STACK_AND_CALL SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_SystemCall:
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    mov     rdi, [rsp + SYSCALL_RAX_OFFSET]
+    mov     rsi, [rsp + SYSCALL_RBX_OFFSET]
+    ALIGN_STACK_AND_CALL SystemCallHandler
+    mov     [rsp + SYSCALL_RAX_OFFSET], rax
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
+
+FUNC_HEADER
+Interrupt_DriverCall:
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    ALIGN_STACK_AND_CALL EnterKernel
+    mov     rdi, [rsp + SYSCALL_RAX_OFFSET]
+    mov     rsi, [rsp + SYSCALL_RBX_OFFSET]
+    ALIGN_STACK_AND_CALL DriverCallHandler
+    mov     [rsp + SYSCALL_RAX_OFFSET], rax
+    POP_SEGMENTS
+    POP_GPRS
+    iretq
 
 FUNC_HEADER
 EnterKernel:
