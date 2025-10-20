@@ -237,7 +237,8 @@ void KillProcess(LPPROCESS This) {
 
         DEBUG(TEXT("[KillProcess] Killing process %s and all its children"), This->FileName);
 
-        // Lock the process list early and keep it locked throughout the entire operation
+        // Lock mutexes in consistent order to avoid deadlocks with the monitor task
+        LockMutex(MUTEX_KERNEL, INFINITY);
         LockMutex(MUTEX_PROCESS, INFINITY);
 
         // Create a temporary list to collect all child processes
@@ -245,6 +246,7 @@ void KillProcess(LPPROCESS This) {
         if (ChildProcesses == NULL) {
             ERROR(TEXT("[KillProcess] Failed to create temporary list"));
             UnlockMutex(MUTEX_PROCESS);
+            UnlockMutex(MUTEX_KERNEL);
             TRACED_EPILOGUE("KillProcess");
             return;
         }
@@ -356,6 +358,7 @@ void KillProcess(LPPROCESS This) {
 
         // Finally unlock the process mutex
         UnlockMutex(MUTEX_PROCESS);
+        UnlockMutex(MUTEX_KERNEL);
 
         DEBUG(TEXT("[KillProcess] Process and children marked for deletion"));
     }
