@@ -87,10 +87,86 @@
 #define TRACED_FUNCTION
 #define TRACED_EPILOGUE(FunctionName)
 
-#define SwitchToNextTask_2(prev, next) ((void)(prev), (void)(next))
-#define SetupStackForKernelMode(Task, StackTop) ((void)(Task), (void)(StackTop))
-#define JumpToReadyTask(Task, StackTop) ((void)(Task), (void)(StackTop))
-#define SetupStackForUserMode(Task, StackTop, UserESP) ((void)(Task), (void)(StackTop), (void)(UserESP))
+#define SwitchToNextTask_2(prev, next)                                                                       \
+    do {                                                                                                     \
+        __asm__ __volatile__(                                                                                \
+            "push %%rbp\n\t"                                                                                \
+            "push %%rax\n\t"                                                                                \
+            "push %%rbx\n\t"                                                                                \
+            "push %%rcx\n\t"                                                                                \
+            "push %%rdx\n\t"                                                                                \
+            "push %%rsi\n\t"                                                                                \
+            "push %%rdi\n\t"                                                                                \
+            "push %%r8\n\t"                                                                                 \
+            "push %%r9\n\t"                                                                                 \
+            "push %%r10\n\t"                                                                                \
+            "push %%r11\n\t"                                                                                \
+            "push %%r12\n\t"                                                                                \
+            "push %%r13\n\t"                                                                                \
+            "push %%r14\n\t"                                                                                \
+            "push %%r15\n\t"                                                                                \
+            "mov %%rsp, %0\n\t"                                                                            \
+            "lea 1f(%%rip), %%rax\n\t"                                                                      \
+            "mov %%rax, %1\n\t"                                                                             \
+            "mov %2, %%rsp\n\t"                                                                            \
+            "mov %3, %%rdi\n\t"                                                                            \
+            "mov %4, %%rsi\n\t"                                                                            \
+            "push %4\n\t"                                                                                   \
+            "push %3\n\t"                                                                                   \
+            "call SwitchToNextTask_3\n\t"                                                                  \
+            "1:\n\t"                                                                                       \
+            "add $16, %%rsp\n\t"                                                                            \
+            "pop %%r15\n\t"                                                                                \
+            "pop %%r14\n\t"                                                                                \
+            "pop %%r13\n\t"                                                                                \
+            "pop %%r12\n\t"                                                                                \
+            "pop %%r11\n\t"                                                                                \
+            "pop %%r10\n\t"                                                                                \
+            "pop %%r9\n\t"                                                                                 \
+            "pop %%r8\n\t"                                                                                 \
+            "pop %%rdi\n\t"                                                                                \
+            "pop %%rsi\n\t"                                                                                \
+            "pop %%rdx\n\t"                                                                                \
+            "pop %%rcx\n\t"                                                                                \
+            "pop %%rbx\n\t"                                                                                \
+            "pop %%rax\n\t"                                                                                \
+            "pop %%rbp"                                                                                      \
+            : "=m"((prev)->Arch.Context.Registers.RSP),                                                     \
+              "=m"((prev)->Arch.Context.Registers.RIP)                                                      \
+            : "m"((next)->Arch.Context.Registers.RSP), "r"(prev), "r"(next)                                \
+            : "rax", "rdi", "rsi", "memory");                                                            \
+    } while (0)
+
+#define SetupStackForKernelMode(Task, StackTop)                                                              \
+    do {                                                                                                     \
+        (StackTop) -= (LINEAR)(3u * sizeof(U64));                                                            \
+        ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                                          \
+        ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                                      \
+        ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                                       \
+    } while (0)
+
+#define JumpToReadyTask(Task, StackTop)                                                                      \
+    __asm__ __volatile__(                                                                                    \
+        "finit\n\t"                                                                                         \
+        "mov %0, %%rax\n\t"                                                                                \
+        "mov %1, %%rbx\n\t"                                                                                \
+        "mov %2, %%rsp\n\t"                                                                                \
+        "iretq"                                                                                              \
+        :                                                                                                    \
+        : "m"((Task)->Arch.Context.Registers.RAX),                                                          \
+          "m"((Task)->Arch.Context.Registers.RBX),                                                          \
+          "m"(StackTop)                                                                                     \
+        : "rax", "rbx", "memory")
+
+#define SetupStackForUserMode(Task, StackTop, UserESP)                                                       \
+    do {                                                                                                     \
+        (StackTop) -= (LINEAR)(5u * sizeof(U64));                                                            \
+        ((U64*)(StackTop))[4] = (U64)(Task)->Arch.Context.Registers.SS;                                      \
+        ((U64*)(StackTop))[3] = (U64)(UserESP);                                                              \
+        ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                                       \
+        ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                                      \
+        ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                                          \
+    } while (0)
 
 /***************************************************************************/
 
