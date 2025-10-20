@@ -94,6 +94,20 @@ void CheckDataIntegrity(void) {
 /************************************************************************/
 
 /**
+ * @brief Converts a kernel symbol address to its corresponding physical
+ *        address.
+ *
+ * @param Symbol Linear address of the kernel symbol to translate.
+ * @return Physical address associated with the provided symbol.
+ */
+
+PHYSICAL KernelToPhysical(LINEAR Symbol) {
+    return KernelStartup.KernelPhysicalBase + (PHYSICAL)(Symbol - (LINEAR)VMA_KERNEL);
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieves basic CPU identification data.
  *
  * Populates the provided structure using CPUID information, including

@@ -405,7 +405,7 @@ PHYSICAL AllocPageDirectory(void) {
     DEBUG(TEXT("[AllocPageDirectory] TaskRunner table cleared"));
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
-    PHYSICAL TaskRunnerPhysical = PhysBaseKernel + (PHYSICAL)(TaskRunnerLinear - VMA_KERNEL);
+    PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
 
     DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %x + (%x - %x) = %x"),
         (UINT)PhysBaseKernel, (UINT)TaskRunnerLinear, (UINT)VMA_KERNEL, (UINT)TaskRunnerPhysical);

@@ -166,6 +166,7 @@ U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
 void StoreObjectTerminationState(LPVOID Object, UINT ExitCode);
+PHYSICAL KernelToPhysical(LINEAR Symbol);
 
 void KernelObjectDestructor(LPVOID);
 LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID);

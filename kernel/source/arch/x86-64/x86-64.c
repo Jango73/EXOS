@@ -686,8 +686,7 @@ PHYSICAL AllocPageDirectory(void) {
     if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
-    PHYSICAL TaskRunnerPhysical = KernelStartup.KernelPhysicalBase +
-        (PHYSICAL)(TaskRunnerLinear - (LINEAR)VMA_KERNEL);
+    PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
 
     DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"),
         KernelStartup.KernelPhysicalBase,
@@ -825,8 +824,7 @@ PHYSICAL AllocUserPageDirectory(void) {
     if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
-    PHYSICAL TaskRunnerPhysical = KernelStartup.KernelPhysicalBase +
-        (PHYSICAL)(TaskRunnerLinear - (LINEAR)VMA_KERNEL);
+    PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
 
     DEBUG(TEXT("[AllocUserPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"),
         KernelStartup.KernelPhysicalBase,
