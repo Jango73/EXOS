@@ -1193,7 +1193,7 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
         return;
     }
 
-    if (CurrentTask != NULL) {
+    SAFE_USE(CurrentTask) {
         GetFS(CurrentTask->Arch.Context.Registers.FS);
         GetGS(CurrentTask->Arch.Context.Registers.GS);
         SaveFPU(&(CurrentTask->Arch.Context.FPURegisters));
@@ -1201,7 +1201,7 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
 
     LPX86_64_TASK_STATE_SEGMENT Tss = Kernel_i386.TSS;
 
-    if (Tss != NULL) {
+    SAFE_USE(Tss) {
         Tss->RSP0 = NextTask->Arch.Context.RSP0;
         Tss->IST1 = NextTask->Arch.Context.RSP0;
         Tss->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
@@ -1211,14 +1211,16 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
     DEBUG(TEXT("[PrepareNextTaskSwitch] LoadPageDirectory"));
 #endif
 
-    LoadPageDirectory(NextTask->Process->PageDirectory);
+    SAFE_USE(NextTask) {
+        LoadPageDirectory(NextTask->Process->PageDirectory);
 
-    SetDS(NextTask->Arch.Context.Registers.DS);
-    SetES(NextTask->Arch.Context.Registers.ES);
-    SetFS(NextTask->Arch.Context.Registers.FS);
-    SetGS(NextTask->Arch.Context.Registers.GS);
+        SetDS(NextTask->Arch.Context.Registers.DS);
+        SetES(NextTask->Arch.Context.Registers.ES);
+        SetFS(NextTask->Arch.Context.Registers.FS);
+        SetGS(NextTask->Arch.Context.Registers.GS);
 
-    RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
+        RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
+    }
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
     DEBUG(TEXT("[PrepareNextTaskSwitch] Exit"));

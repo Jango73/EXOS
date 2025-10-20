@@ -948,19 +948,23 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
     Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
     Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
 
-    GetFS(CurrentTask->Arch.Context.Registers.FS);
-    GetGS(CurrentTask->Arch.Context.Registers.GS);
+    SAFE_USE(CurrentTask) {
+        GetFS(CurrentTask->Arch.Context.Registers.FS);
+        GetGS(CurrentTask->Arch.Context.Registers.GS);
 
-    SaveFPU((LPVOID)&(CurrentTask->Arch.Context.FPURegisters));
+        SaveFPU((LPVOID)&(CurrentTask->Arch.Context.FPURegisters));
+    }
 
-    LoadPageDirectory(NextTask->Process->PageDirectory);
+    SAFE_USE(NextTask) {
+        LoadPageDirectory(NextTask->Process->PageDirectory);
 
-    SetDS(NextTask->Arch.Context.Registers.DS);
-    SetES(NextTask->Arch.Context.Registers.ES);
-    SetFS(NextTask->Arch.Context.Registers.FS);
-    SetGS(NextTask->Arch.Context.Registers.GS);
+        SetDS(NextTask->Arch.Context.Registers.DS);
+        SetES(NextTask->Arch.Context.Registers.ES);
+        SetFS(NextTask->Arch.Context.Registers.FS);
+        SetGS(NextTask->Arch.Context.Registers.GS);
 
-    RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
+        RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
+    }
 }
 
 /************************************************************************/
