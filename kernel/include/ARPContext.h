@@ -27,7 +27,7 @@
 
 #include "Base.h"
 #include "Device.h"
-#include "Network.h"
+#include "network/Network.h"
 #include "Endianness.h"
 #include "utils/Notification.h"
 #include "utils/AdaptiveDelay.h"

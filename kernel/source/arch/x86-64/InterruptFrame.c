@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "InterruptFrame.h"
+#include "arch/InterruptFrame.h"
 
 #include "Log.h"
 #include "Memory.h"

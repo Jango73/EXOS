@@ -711,7 +711,7 @@ typedef struct DeviceTag {
 
 ### Network Manager
 
-**Location:** `kernel/source/NetworkManager.c`, `kernel/include/NetworkManager.h`
+**Location:** `kernel/source/network/NetworkManager.c`, `kernel/include/network/NetworkManager.h`
 
 The Network Manager provides centralized network device discovery, initialization, and maintenance.
 

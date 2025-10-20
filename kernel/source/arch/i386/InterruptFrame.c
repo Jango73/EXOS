@@ -143,7 +143,7 @@
 
 \************************************************************************/
 
-#include "InterruptFrame.h"
+#include "arch/InterruptFrame.h"
 
 #include "Base.h"
 #include "arch/i386/i386.h"

@@ -33,7 +33,7 @@
 #include "CoreString.h"
 #include "System.h"
 #include "Clock.h"
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
 #include "Kernel.h"
 
 /************************************************************************/

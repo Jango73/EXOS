@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
 
 #include "network/ARP.h"
 #include "network/IPv4.h"
@@ -32,7 +32,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Network.h"
+#include "network/Network.h"
 #include "Driver.h"
 #include "Endianness.h"
 #include "Socket.h"

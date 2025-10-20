@@ -27,7 +27,7 @@
 
 #include "Base.h"
 #include "List.h"
-#include "Network.h"
+#include "network/Network.h"
 #include "network/TCP.h"
 #include "ID.h"
 #include "utils/CircularBuffer.h"

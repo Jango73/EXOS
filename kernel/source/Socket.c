@@ -31,7 +31,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
 #include "System.h"
 #include "network/TCP.h"
 #include "utils/CircularBuffer.h"

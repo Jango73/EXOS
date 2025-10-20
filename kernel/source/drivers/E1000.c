@@ -29,7 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Network.h"
+#include "network/Network.h"
 #include "drivers/PCI.h"
 #include "CoreString.h"
 #include "User.h"

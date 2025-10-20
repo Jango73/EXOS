@@ -51,7 +51,7 @@
 #include "utils/TOML.h"
 #include "UserAccount.h"
 #include "UserSession.h"
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
 #include "utils/UUID.h"
 
 /************************************************************************/

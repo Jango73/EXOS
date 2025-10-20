@@ -29,7 +29,7 @@
 #include "ID.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Network.h"
+#include "network/Network.h"
 #include "System.h"
 #include "utils/Notification.h"
 #include "utils/AdaptiveDelay.h"
