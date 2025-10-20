@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -20,8 +21,9 @@
     Architecture disassembly helpers
 
 \************************************************************************/
-#ifndef ARCH_DISASSEMBLE_H_INCLUDED
-#define ARCH_DISASSEMBLE_H_INCLUDED
+
+#ifndef DISASSEMBLE_H_INCLUDED
+#define DISASSEMBLE_H_INCLUDED
 
 /***************************************************************************/
 
@@ -33,4 +35,4 @@ void Disassemble(LPSTR Buffer, LINEAR InstructionPointer, U32 NumInstructions, U
 
 /***************************************************************************/
 
-#endif  // ARCH_DISASSEMBLE_H_INCLUDED
+#endif  // DISASSEMBLE_H_INCLUDED
