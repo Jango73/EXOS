@@ -403,6 +403,11 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
+            DEBUG(TEXT("[SwitchToNextTask_3] Context RIP=%p RSP=%p RBX=%p RAX=%p"),
+                (LINEAR)NextTask->Arch.Context.Registers.RIP,
+                ESP,
+                (LINEAR)NextTask->Arch.Context.Registers.RBX,
+                (LINEAR)NextTask->Arch.Context.Registers.RAX);
 #endif
 
             JumpToReadyTask(NextTask, ESP);
@@ -413,6 +418,11 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
+            DEBUG(TEXT("[SwitchToNextTask_3] Context RIP=%p RSP=%p RBX=%p RAX=%p"),
+                (LINEAR)NextTask->Arch.Context.Registers.RIP,
+                ESP,
+                (LINEAR)NextTask->Arch.Context.Registers.RBX,
+                (LINEAR)NextTask->Arch.Context.Registers.RAX);
 #endif
 
             JumpToReadyTask(NextTask, ESP);
