@@ -1185,6 +1185,10 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
 /***************************************************************************/
 
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    DEBUG(TEXT("[PrepareNextTaskSwitch] Enter"));
+#endif
+
     if (NextTask == NULL) {
         return;
     }
@@ -1203,6 +1207,10 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
         Tss->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
     }
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    DEBUG(TEXT("[PrepareNextTaskSwitch] LoadPageDirectory"));
+#endif
+
     LoadPageDirectory(NextTask->Process->PageDirectory);
 
     SetDS(NextTask->Arch.Context.Registers.DS);
@@ -1211,6 +1219,10 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
     SetGS(NextTask->Arch.Context.Registers.GS);
 
     RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    DEBUG(TEXT("[PrepareNextTaskSwitch] Exit"));
+#endif
 }
 
 /***************************************************************************/

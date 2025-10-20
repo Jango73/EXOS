@@ -709,6 +709,10 @@ U32 GetTaskStatus(LPTASK Task) {
  * @param Status New status value to set
  */
 void SetTaskStatus(LPTASK Task, U32 Status) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        DEBUG(TEXT("[SetTaskStatus] Enter"));
+#endif
+
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         U32 OldStatus = Task->Status;
         UNUSED(OldStatus);
@@ -730,6 +734,10 @@ void SetTaskStatus(LPTASK Task, U32 Status) {
         UnfreezeScheduler();
         UnlockMutex(&(Task->Mutex));
     }
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        DEBUG(TEXT("[SetTaskStatus] Exit"));
+#endif
 }
 
 /************************************************************************/

@@ -385,6 +385,9 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 /************************************************************************/
 
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    DEBUG(TEXT("[SwitchToNextTask_3] Enter"));
+#endif
 
     PrepareNextTaskSwitch(CurrentTask, NextTask);
 
@@ -397,14 +400,28 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
             LINEAR ESP = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
             SetupStackForKernelMode(NextTask, ESP);
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
+#endif
+
             JumpToReadyTask(NextTask, ESP);
         } else {
             LINEAR ESP = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
             SetupStackForUserMode(
                 NextTask, ESP, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
+#endif
+
             JumpToReadyTask(NextTask, ESP);
         }
     }
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    DEBUG(TEXT("[SwitchToNextTask_3] Exit"));
+#endif
 
     // Returning normally to next task
 }
