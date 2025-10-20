@@ -374,9 +374,11 @@ typedef struct tag_KERNELDATA_X86_64 {
             "mov %4, %%rsi\n\t"                                                                            \
             "push %4\n\t"                                                                                   \
             "push %3\n\t"                                                                                   \
-            "sub $8, %%rsp\n\t"                                                                             \
+            "mov %%rsp, %%rbx\n\t"                                                                          \
+            "and $0x0F, %%rbx\n\t"                                                                          \
+            "sub %%rbx, %%rsp\n\t"                                                                           \
             "call SwitchToNextTask_3\n\t"                                                                  \
-            "add $8, %%rsp\n\t"                                                                             \
+            "add %%rbx, %%rsp\n\t"                                                                           \
             "1:\n\t"                                                                                       \
             "add $16, %%rsp\n\t"                                                                            \
             "pop %%r15\n\t"                                                                                \
