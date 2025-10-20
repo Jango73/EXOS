@@ -1064,6 +1064,7 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
     LINEAR StackTop;
     LINEAR SysStackTop;
+    LINEAR TaskRunnerKernelEntry = (LINEAR)&__task_runner_start;
     U64 ControlRegister4 = 0;
 
     DEBUG(TEXT("[ArchSetupTask] Enter"));
@@ -1121,7 +1122,11 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
 
     GetCR4(ControlRegister4);
     Task->Arch.Context.Registers.CR4 = ControlRegister4;
-    Task->Arch.Context.Registers.RIP = (U64)VMA_TASK_RUNNER;
+    if (Process->Privilege == PRIVILEGE_KERNEL) {
+        Task->Arch.Context.Registers.RIP = (U64)TaskRunnerKernelEntry;
+    } else {
+        Task->Arch.Context.Registers.RIP = (U64)VMA_TASK_RUNNER;
+    }
 
     StackTop = (LINEAR)(Task->Arch.StackBase + (U64)Task->Arch.StackSize);
     SysStackTop = (LINEAR)(Task->Arch.SysStackBase + (U64)Task->Arch.SysStackSize);
