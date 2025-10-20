@@ -265,15 +265,19 @@ LPACPI_TABLE_HEADER FindACPITable(LPCSTR Signature) {
         for (U32 i = 0; i < EntryCount; i++) {
             U64 EntryAddress = G_XSDT->Entry[i];
             U32 EntryHigh = U64_High32(EntryAddress);
-            PHYSICAL EntryLow = (PHYSICAL)U64_Low32(EntryAddress);
+            U32 EntryLow = U64_Low32(EntryAddress);
 
-            // For 32-bit systems, we only use the lower 32 bits of the 64-bit pointer
+#if defined(__EXOS_32__)
             if (EntryHigh != 0) {
                 DEBUG(TEXT("[FindACPITable] Skipping 64-bit address 0x%08X%08X"), EntryHigh, EntryLow);
                 continue;
             }
 
-            PHYSICAL PhysicalAddress = EntryLow;
+            PHYSICAL PhysicalAddress = (PHYSICAL)EntryLow;
+#else
+            PHYSICAL PhysicalAddress = (PHYSICAL)EntryAddress;
+            DEBUG(TEXT("[FindACPITable] Examining 64-bit address 0x%08X%08X"), EntryHigh, EntryLow);
+#endif
             UINT MappedLength = 0;
             BOOL PermanentMapping = FALSE;
 
@@ -486,39 +490,60 @@ BOOL InitializeACPI(void) {
     }
 
     // Map and validate XSDT if available (ACPI 2.0+)
-    if (G_RSDP->Revision >= 2 && U64_Low32(G_RSDP->XsdtAddress) != 0 && U64_High32(G_RSDP->XsdtAddress) == 0) {
-        PHYSICAL XsdtPhysical = (PHYSICAL)U64_Low32(G_RSDP->XsdtAddress);
-        DEBUG(TEXT("[InitializeACPI] XSDT physical address: %p"), (LPVOID)XsdtPhysical);
+    if (G_RSDP->Revision >= 2) {
+        BOOL HasXsdt = FALSE;
+        PHYSICAL XsdtPhysical = 0;
 
-        ACPI_TABLE_HEADER XsdtHeader;
-        if (!ReadPhysicalMemory(XsdtPhysical, &XsdtHeader, sizeof(XsdtHeader))) {
-            DEBUG(TEXT("[InitializeACPI] Failed to read XSDT header"));
-            G_XSDT = NULL;
-        } else if (XsdtHeader.Length < sizeof(ACPI_TABLE_HEADER)) {
-            DEBUG(TEXT("[InitializeACPI] XSDT length %u invalid"), XsdtHeader.Length);
-            G_XSDT = NULL;
-        } else {
-            LINEAR PermanentAddress = MapIOMemory(XsdtPhysical, XsdtHeader.Length);
-            if (PermanentAddress != 0) {
-                G_XSDT = (LPACPI_XSDT)PermanentAddress;
-                DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: %p"), (LPVOID)G_XSDT);
+#if defined(__EXOS_32__)
+        if (U64_Low32(G_RSDP->XsdtAddress) != 0 || U64_High32(G_RSDP->XsdtAddress) != 0) {
+            if (U64_High32(G_RSDP->XsdtAddress) != 0) {
+                DEBUG(TEXT("[InitializeACPI] Ignoring XSDT above 4GB on 32-bit build (0x%08X%08X)"),
+                      U64_High32(G_RSDP->XsdtAddress), U64_Low32(G_RSDP->XsdtAddress));
             } else {
-                DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for XSDT"));
-                G_XSDT = NULL;
+                HasXsdt = TRUE;
+                XsdtPhysical = (PHYSICAL)U64_Low32(G_RSDP->XsdtAddress);
             }
         }
+#else
+        if (!U64_EQUAL(G_RSDP->XsdtAddress, U64_0)) {
+            HasXsdt = TRUE;
+            XsdtPhysical = (PHYSICAL)G_RSDP->XsdtAddress;
+        }
+#endif
 
-        if (G_XSDT != NULL) {
-            if (G_XSDT->Header.Length < sizeof(ACPI_TABLE_HEADER)) {
-                DEBUG(TEXT("[InitializeACPI] XSDT length %u smaller than header"), G_XSDT->Header.Length);
-                UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
+        if (HasXsdt) {
+            DEBUG(TEXT("[InitializeACPI] XSDT physical address: %p"), (LPVOID)XsdtPhysical);
+
+            ACPI_TABLE_HEADER XsdtHeader;
+            if (!ReadPhysicalMemory(XsdtPhysical, &XsdtHeader, sizeof(XsdtHeader))) {
+                DEBUG(TEXT("[InitializeACPI] Failed to read XSDT header"));
                 G_XSDT = NULL;
-            } else if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
-                DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
-                UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
+            } else if (XsdtHeader.Length < sizeof(ACPI_TABLE_HEADER)) {
+                DEBUG(TEXT("[InitializeACPI] XSDT length %u invalid"), XsdtHeader.Length);
                 G_XSDT = NULL;
             } else {
-                DEBUG(TEXT("[InitializeACPI] XSDT found and validated at %p"), (LPVOID)G_XSDT);
+                LINEAR PermanentAddress = MapIOMemory(XsdtPhysical, XsdtHeader.Length);
+                if (PermanentAddress != 0) {
+                    G_XSDT = (LPACPI_XSDT)PermanentAddress;
+                    DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: %p"), (LPVOID)G_XSDT);
+                } else {
+                    DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for XSDT"));
+                    G_XSDT = NULL;
+                }
+            }
+
+            if (G_XSDT != NULL) {
+                if (G_XSDT->Header.Length < sizeof(ACPI_TABLE_HEADER)) {
+                    DEBUG(TEXT("[InitializeACPI] XSDT length %u smaller than header"), G_XSDT->Header.Length);
+                    UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
+                    G_XSDT = NULL;
+                } else if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
+                    DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
+                    UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
+                    G_XSDT = NULL;
+                } else {
+                    DEBUG(TEXT("[InitializeACPI] XSDT found and validated at %p"), (LPVOID)G_XSDT);
+                }
             }
         }
     }
