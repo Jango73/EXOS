@@ -1026,12 +1026,6 @@ void ArchInitializeMemoryManager(void) {
 
     DEBUG(TEXT("[ArchInitializeMemoryManager] TLB flushed"));
 
-    if (I386_TEMP_LINEAR_PAGE_1 == 0 || I386_TEMP_LINEAR_PAGE_2 == 0) {
-        ERROR(TEXT("[ArchInitializeMemoryManager] Failed to reserve temp linear pages"));
-        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
     Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     if (Kernel_i386.GDT == NULL) {
