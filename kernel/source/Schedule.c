@@ -386,7 +386,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
-    ArchPrepareNextTaskSwitch(CurrentTask, NextTask);
+    PrepareNextTaskSwitch(CurrentTask, NextTask);
 
     U32 CurrentTaskStatus = GetTaskStatus(NextTask);
 

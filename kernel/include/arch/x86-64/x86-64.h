@@ -595,7 +595,7 @@ struct tag_TASKINFO;
 BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
 void ArchPreInitializeKernel(void);
 void InitializeTaskSegments(void);
-void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
+void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 
 /***************************************************************************/
 

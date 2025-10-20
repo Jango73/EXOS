@@ -942,7 +942,7 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
  * segment and FPU state so that SwitchToNextTask_3 can perform the generic
  * scheduling steps.
  */
-void ArchPrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
+void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
     LINEAR NextSysStackTop = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize;
 
     Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
