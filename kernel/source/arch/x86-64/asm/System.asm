@@ -543,6 +543,11 @@ SYS_FUNC_BEGIN TaskRunner
     mov     r12, rax
     mov     r13, rbx
 
+    xor     eax, eax
+    mov     ax, cs
+    test    eax, 0x03
+    jne     .skip_entry_log
+
     mov     rdi, LOG_DEBUG
     lea     rsi, [rel TaskRunnerLogEntry]
     mov     rdx, r13
@@ -551,6 +556,8 @@ SYS_FUNC_BEGIN TaskRunner
     xor     r9d, r9d
     xor     eax, eax
     call    KernelLogText
+
+.skip_entry_log:
 
     mov     r8, r12
     mov     r9, r13
@@ -569,6 +576,11 @@ SYS_FUNC_BEGIN TaskRunner
     mov     rbx, r9
     test    rbx, rbx
     jne     _TaskRunner_Invoke
+
+    xor     eax, eax
+    mov     ax, cs
+    test    eax, 0x03
+    jne     _TaskRunner_Exit
 
     mov     rdi, LOG_ERROR
     lea     rsi, [rel TaskRunnerLogMissingEntry]
@@ -589,6 +601,11 @@ _TaskRunner_Invoke:
 
 _TaskRunner_Exit:
     mov     r12, rax
+    xor     eax, eax
+    mov     ax, cs
+    test    eax, 0x03
+    jne     .skip_exit_log
+
     mov     rdi, LOG_DEBUG
     lea     rsi, [rel TaskRunnerLogExit]
     mov     rdx, r12
@@ -597,6 +614,8 @@ _TaskRunner_Exit:
     xor     r9d, r9d
     xor     eax, eax
     call    KernelLogText
+
+.skip_exit_log:
 
     mov     rax, r12
     mov     rbx, rax
