@@ -689,7 +689,7 @@ U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Addr
  * @param Flags Send flags (currently unused)
  * @return Number of bytes sent on success, or negative error code on failure
  */
-I32 SocketSend(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32 Flags) {
+I32 SocketSend(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags) {
     UNUSED(Flags);
     if (!Buffer || Length == 0) {
         ERROR(TEXT("[SocketSend] Invalid buffer or length"));
@@ -736,7 +736,7 @@ I32 SocketSend(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32 F
  * @param Flags Receive flags (currently unused)
  * @return Number of bytes received on success, or negative error code on failure
  */
-I32 SocketReceive(SOCKET_HANDLE SocketHandle, void* Buffer, U32 Length, U32 Flags) {
+I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags) {
     UNUSED(Flags);
     if (!Buffer || Length == 0) {
         ERROR(TEXT("[SocketReceive] Invalid buffer or length"));
@@ -828,7 +828,7 @@ I32 SocketReceive(SOCKET_HANDLE SocketHandle, void* Buffer, U32 Length, U32 Flag
  * @param AddressLength Size of the destination address structure
  * @return Number of bytes sent on success, or negative error code on failure
  */
-I32 SocketSendTo(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32 Flags,
+I32 SocketSendTo(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags,
                  LPSOCKET_ADDRESS DestinationAddress, U32 AddressLength) {
     UNUSED(SocketHandle);
     UNUSED(Buffer);
@@ -857,7 +857,7 @@ I32 SocketSendTo(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32
  * @param AddressLength Pointer to the size of the source address buffer
  * @return Number of bytes received on success, or negative error code on failure
  */
-I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, void* Buffer, U32 Length, U32 Flags,
+I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags,
                       LPSOCKET_ADDRESS SourceAddress, U32* AddressLength) {
     UNUSED(SocketHandle);
     UNUSED(Buffer);
@@ -950,7 +950,7 @@ U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32
  * @param OptionLength Pointer to the size of the option value buffer
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, void* OptionValue, U32* OptionLength) {
+U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPVOID OptionValue, U32* OptionLength) {
     UNUSED(Level);
     UNUSED(OptionName);
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
@@ -984,7 +984,7 @@ U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, void*
  * @param OptionLength Size of the option value
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
-U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, const void* OptionValue, U32 OptionLength) {
+U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionValue, U32 OptionLength) {
     UNUSED(Level);
     UNUSED(OptionName);
     UNUSED(OptionLength);

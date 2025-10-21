@@ -136,7 +136,7 @@ typedef struct tag_PCI_INFO {
     DEVICE_FIELDS         \
     PCI_INFO Info;        \
     U32 BARPhys[6];       \
-    volatile void* BARMapped[6];
+    volatile LPVOID BARMapped[6];
 
 typedef struct tag_PCI_DEVICE {
     PCI_DEVICE_FIELDS

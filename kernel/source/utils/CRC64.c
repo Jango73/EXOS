@@ -55,7 +55,7 @@ void CRC64_InitTable(void) {
 
 /************************************************************************/
 
-U64 CRC64_Hash(const void* Data, U32 Length) {
+U64 CRC64_Hash(LPCVOID Data, U32 Length) {
     if (!CRC64_TableInitialized) {
         CRC64_InitTable();
     }

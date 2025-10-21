@@ -158,14 +158,14 @@ SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address,
 U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength);
 
 // Data transmission
-I32 SocketSend(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32 Flags);
-I32 SocketReceive(SOCKET_HANDLE SocketHandle, void* Buffer, U32 Length, U32 Flags);
-I32 SocketSendTo(SOCKET_HANDLE SocketHandle, const void* Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS DestinationAddress, U32 AddressLength);
-I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, void* Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS SourceAddress, U32* AddressLength);
+I32 SocketSend(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags);
+I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags);
+I32 SocketSendTo(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS DestinationAddress, U32 AddressLength);
+I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS SourceAddress, U32* AddressLength);
 
 // Socket options and information
-U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, void* OptionValue, U32* OptionLength);
-U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, const void* OptionValue, U32 OptionLength);
+U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPVOID OptionValue, U32* OptionLength);
+U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionValue, U32 OptionLength);
 U32 SocketGetPeerName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength);
 U32 SocketGetSocketName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength);
 

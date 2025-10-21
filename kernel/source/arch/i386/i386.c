@@ -867,8 +867,8 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     DEBUG(TEXT("[SetupTask] Stack (%X bytes) allocated at %X"), Task->Arch.StackSize, Task->Arch.StackBase);
     DEBUG(TEXT("[SetupTask] System stack (%X bytes) allocated at %X"), Task->Arch.SysStackSize, Task->Arch.SysStackBase);
 
-    MemorySet((void*)(Task->Arch.StackBase), 0, Task->Arch.StackSize);
-    MemorySet((void*)(Task->Arch.SysStackBase), 0, Task->Arch.SysStackSize);
+    MemorySet((LPVOID)(Task->Arch.StackBase), 0, Task->Arch.StackSize);
+    MemorySet((LPVOID)(Task->Arch.SysStackBase), 0, Task->Arch.SysStackSize);
 
     MemorySet(&(Task->Arch.Context), 0, sizeof(INTERRUPT_FRAME));
 
