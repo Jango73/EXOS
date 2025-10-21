@@ -336,6 +336,7 @@ typedef struct tag_KERNELDATA_X86_64 {
         ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                                          \
         ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                                      \
         ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                                       \
+        (Task)->Arch.Context.Registers.RSP = (StackTop);                                                     \
     } while (0)
 
 #define SetupStackForUserMode(Task, StackTop, UserESP)                                                       \
@@ -346,6 +347,7 @@ typedef struct tag_KERNELDATA_X86_64 {
         ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                                       \
         ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                                      \
         ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                                          \
+        (Task)->Arch.Context.Registers.RSP = (StackTop);                                                     \
     } while (0)
 
 #define SwitchToNextTask_2(prev, next)                                                                       \

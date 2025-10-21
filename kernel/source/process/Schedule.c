@@ -398,34 +398,45 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
-            LINEAR ESP = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
-            SetupStackForKernelMode(NextTask, ESP);
+            LINEAR StackPointer = NextTask->Arch.Context.Registers.RSP;
+
+            if (StackPointer == 0) {
+                StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
+            }
+
+            SetupStackForKernelMode(NextTask, StackPointer);
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
             DEBUG(TEXT("[SwitchToNextTask_3] Context RIP=%p RSP=%p RBX=%p RAX=%p"),
                 (LINEAR)NextTask->Arch.Context.Registers.RIP,
-                ESP,
+                StackPointer,
                 (LINEAR)NextTask->Arch.Context.Registers.RBX,
                 (LINEAR)NextTask->Arch.Context.Registers.RAX);
 #endif
 
-            JumpToReadyTask(NextTask, ESP);
+            JumpToReadyTask(NextTask, StackPointer);
         } else {
-            LINEAR ESP = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
-            SetupStackForUserMode(
-                NextTask, ESP, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
+            LINEAR KernelStackPointer = NextTask->Arch.Context.Registers.RSP;
+
+            if (KernelStackPointer == 0) {
+                KernelStackPointer = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
+            }
+
+            LINEAR UserStackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
+
+            SetupStackForUserMode(NextTask, KernelStackPointer, UserStackPointer);
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
             DEBUG(TEXT("[SwitchToNextTask_3] Context RIP=%p RSP=%p RBX=%p RAX=%p"),
                 (LINEAR)NextTask->Arch.Context.Registers.RIP,
-                ESP,
+                KernelStackPointer,
                 (LINEAR)NextTask->Arch.Context.Registers.RBX,
                 (LINEAR)NextTask->Arch.Context.Registers.RAX);
 #endif
 
-            JumpToReadyTask(NextTask, ESP);
+            JumpToReadyTask(NextTask, KernelStackPointer);
         }
     }
 
