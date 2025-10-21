@@ -363,11 +363,12 @@ BOOL UnfreezeScheduler(void) {
 
 void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask] Enter %p (%s)"), NextTask, NextTask->Name);
+    DEBUG(TEXT("[SwitchToNextTask] CurrentTask = %p (%s), NextTask = %p (%s)"),
+        CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
 #endif
 
     if (NextTask->Status > TASK_STATUS_DEAD) {
-        ERROR(TEXT("[SwitchToNextTask_3] MEMORY CORRUPTION: Task status %x is out of range"),
+        ERROR(TEXT("[SwitchToNextTask] MEMORY CORRUPTION: Task status %x is out of range"),
             NextTask->Status);
         return;
     }
@@ -378,7 +379,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     // }
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask] Exit for task %p"), CurrentTask);
+        DEBUG(TEXT("[SwitchToNextTask] Exit for task %p"), CurrentTask);
 #endif
 }
 
@@ -386,7 +387,8 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask_3] Enter"));
+    DEBUG(TEXT("[SwitchToNextTask_3] CurrentTask = %p (%s), NextTask = %p (%s)"),
+        CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
 #endif
 
     PrepareNextTaskSwitch(CurrentTask, NextTask);

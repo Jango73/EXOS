@@ -923,7 +923,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         DEBUG(TEXT("[SetupTask] StackUsed = %u"), StackUsed);
         DEBUG(TEXT("[SetupTask] Switching to new stack..."));
 
-        if (SwitchStack(StackTop, BootStackTop, StackUsed)) {
+        if (SwitchStack(StackTop, BootStackTop, StackUsed) == TRUE) {
             Task->Arch.Context.Registers.ESP = 0;
             GetEBP(EBP);
             Task->Arch.Context.Registers.EBP = EBP;

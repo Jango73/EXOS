@@ -1175,7 +1175,16 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
     SAFE_USE(NextTask) {
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        DEBUG(TEXT("[PrepareNextTaskSwitch] CurrentTask = %p (%s), NextTask = %p (%s)"),
+            CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
+#endif
+
         LINEAR NextSysStackTop = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize;
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        DEBUG(TEXT("[PrepareNextTaskSwitch] NextSysStackTop = %p"), NextSysStackTop);
+#endif
 
         Kernel_i386.TSS->RSP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
         Kernel_i386.TSS->IST1 = NextSysStackTop - STACK_SAFETY_MARGIN;
