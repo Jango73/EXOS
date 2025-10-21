@@ -458,6 +458,11 @@ performing the bootstrap stack switch for the main kernel task. `CreateTask` cal
 finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic
 while allowing future architectures to provide their own `SetupTask` specialisation.
 
+Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
+`SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in
+bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids
+writing past the top of the allocated stack when seeding the initial `iret` frame for a task.
+
 ### IRQ scheduling
 
 #### IRQ 0 path
