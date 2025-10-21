@@ -398,11 +398,10 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
-            LINEAR StackPointer = NextTask->Arch.Context.Registers.RSP;
+            LINEAR StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
 
-            if (StackPointer == 0) {
-                StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
-            }
+            NextTask->Arch.Context.Registers.RAX = (U64)(LINEAR)NextTask->Parameter;
+            NextTask->Arch.Context.Registers.RBX = (U64)(LINEAR)NextTask->Function;
 
             SetupStackForKernelMode(NextTask, StackPointer);
 
@@ -417,13 +416,11 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             JumpToReadyTask(NextTask, StackPointer);
         } else {
-            LINEAR KernelStackPointer = NextTask->Arch.Context.Registers.RSP;
-
-            if (KernelStackPointer == 0) {
-                KernelStackPointer = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
-            }
-
+            LINEAR KernelStackPointer = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
             LINEAR UserStackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
+
+            NextTask->Arch.Context.Registers.RAX = (U64)(LINEAR)NextTask->Parameter;
+            NextTask->Arch.Context.Registers.RBX = (U64)(LINEAR)NextTask->Function;
 
             SetupStackForUserMode(NextTask, KernelStackPointer, UserStackPointer);
 
