@@ -124,17 +124,6 @@ STRUC KernelStartupInfo
 ENDSTRUC
 
 ;-------------------------------------------------------------------------
-; Kernel i386 data layout - used to fetch GDT/IDT pointers from C
-; Minimal mapping: first fields must match C struct order.
-; Keep this in sync with the C definition of 'Kernel_i386'.
-
-STRUC KERNELDATA_I386
-    .IDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
-    .GDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
-    .TSS                RESB 4        ; LPTASK_STATE_SEGMENT*
-ENDSTRUC
-
-;-------------------------------------------------------------------------
 ; Interrupt frame - MUST be synced with INTERRUPT_FRAME in arch/i386/i386.h
 ; /!\ Structure MUST BE IDENTICAL to struct INTERRUPT_FRAME in arch/i386/i386.h /!\
 
@@ -197,6 +186,17 @@ STRUC INTERRUPT_FRAME
     .ESP0               RESB 4      ; ESP in ring 0
     .IntNo              RESB 4      ; Interrupt / exception vector
     .ErrCode            RESB 4      ; CPU error code (0 for #UD)
+ENDSTRUC
+
+;-------------------------------------------------------------------------
+; Kernel i386 data layout - used to fetch GDT/IDT pointers from C
+; Minimal mapping: first fields must match C struct order.
+; Keep this in sync with the C definition of 'Kernel_i386'.
+
+STRUC KERNELDATA_I386
+    .IDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
+    .GDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
+    .TSS                RESB 4        ; LPTASK_STATE_SEGMENT*
 ENDSTRUC
 
 ;-------------------------------------------------------------------------

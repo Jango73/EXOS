@@ -320,7 +320,6 @@ typedef struct tag_KERNELDATA_X86_64 {
     LPX86_64_TASK_STATE_SEGMENT TSS;
 } KERNELDATA_X86_64, *LPKERNELDATA_X86_64;
 
-
 /***************************************************************************/
 // Inline helpers
 
@@ -344,64 +343,64 @@ typedef struct tag_KERNELDATA_X86_64 {
     ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;     \
     ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;
 
-#define SwitchToNextTask_2(prev, next)                      \
-    do {                                                    \
-        __asm__ __volatile__(                               \
-            "push %%rax\n\t"                                \
-            "push %%rbx\n\t"                                \
-            "push %%rcx\n\t"                                \
-            "push %%rdx\n\t"                                \
-            "push %%rsi\n\t"                                \
-            "push %%rdi\n\t"                                \
-            "push %%r8\n\t"                                 \
-            "push %%r9\n\t"                                 \
-            "push %%r10\n\t"                                \
-            "push %%r11\n\t"                                \
-            "push %%r12\n\t"                                \
-            "push %%r13\n\t"                                \
-            "push %%r14\n\t"                                \
-            "push %%r15\n\t"                                \
-            "movq %%rsp, %0\n\t"                            \
-            "movq %2, %%rsp\n\t"                            \
-            "leaq 1f(%%rip), %%rax\n\t"                     \
-            "movq %%rax, %1\n\t"                            \
-            "movq %4, %%rdi\n\t"                            \
-            "movq %5, %%rsi\n\t"                            \
-            "call SwitchToNextTask_3\n\t"                   \
-            "1:\n\t"                                        \
-            "pop %%r15\n\t"                                 \
-            "pop %%r14\n\t"                                 \
-            "pop %%r13\n\t"                                 \
-            "pop %%r12\n\t"                                 \
-            "pop %%r11\n\t"                                 \
-            "pop %%r10\n\t"                                 \
-            "pop %%r9\n\t"                                  \
-            "pop %%r8\n\t"                                  \
-            "pop %%rdi\n\t"                                 \
-            "pop %%rsi\n\t"                                 \
-            "pop %%rdx\n\t"                                 \
-            "pop %%rcx\n\t"                                 \
-            "pop %%rbx\n\t"                                 \
-            "pop %%rax\n\t"                                 \
-            : "=m"((prev)->Arch.Context.Registers.RSP),     \
-              "=m"((prev)->Arch.Context.Registers.RIP)      \
-            : "m"((next)->Arch.Context.Registers.RSP),      \
-              "m"((next)->Arch.Context.Registers.RIP),      \
-              "r"(prev), "r"(next)                          \
-            : "memory");                                    \
+#define SwitchToNextTask_2(prev, next)                                  \
+    do {                                                                \
+        __asm__ __volatile__(                                           \
+            "push %%rax\n\t"                                            \
+            "push %%rbx\n\t"                                            \
+            "push %%rcx\n\t"                                            \
+            "push %%rdx\n\t"                                            \
+            "push %%rsi\n\t"                                            \
+            "push %%rdi\n\t"                                            \
+            "push %%r8\n\t"                                             \
+            "push %%r9\n\t"                                             \
+            "push %%r10\n\t"                                            \
+            "push %%r11\n\t"                                            \
+            "push %%r12\n\t"                                            \
+            "push %%r13\n\t"                                            \
+            "push %%r14\n\t"                                            \
+            "push %%r15\n\t"                                            \
+            "movq %%rsp, %0\n\t"                                        \
+            "movq %2, %%rsp\n\t"                                        \
+            "leaq 1f(%%rip), %%rax\n\t"                                 \
+            "movq %%rax, %1\n\t"                                        \
+            "movq %4, %%rdi\n\t"                                        \
+            "movq %5, %%rsi\n\t"                                        \
+            "call SwitchToNextTask_3\n\t"                               \
+            "1:\n\t"                                                    \
+            "pop %%r15\n\t"                                             \
+            "pop %%r14\n\t"                                             \
+            "pop %%r13\n\t"                                             \
+            "pop %%r12\n\t"                                             \
+            "pop %%r11\n\t"                                             \
+            "pop %%r10\n\t"                                             \
+            "pop %%r9\n\t"                                              \
+            "pop %%r8\n\t"                                              \
+            "pop %%rdi\n\t"                                             \
+            "pop %%rsi\n\t"                                             \
+            "pop %%rdx\n\t"                                             \
+            "pop %%rcx\n\t"                                             \
+            "pop %%rbx\n\t"                                             \
+            "pop %%rax\n\t"                                             \
+            : "=m"((prev)->Arch.Context.Registers.RSP),                 \
+              "=m"((prev)->Arch.Context.Registers.RIP)                  \
+            : "m"((next)->Arch.Context.Registers.RSP),                  \
+              "m"((next)->Arch.Context.Registers.RIP),                  \
+              "r"(prev), "r"(next)                                      \
+            : "memory");                                                \
     } while (0)
 
-#define JumpToReadyTask(Task, StackTop)                                                                      \
-    __asm__ __volatile__(                                                                                    \
-        "finit\n\t"                                                                                         \
-        "mov %0, %%rax\n\t"                                                                                \
-        "mov %1, %%rbx\n\t"                                                                                \
-        "mov %2, %%rsp\n\t"                                                                                \
-        "iretq"                                                                                              \
-        :                                                                                                    \
-        : "m"((Task)->Arch.Context.Registers.RAX),                                                          \
-          "m"((Task)->Arch.Context.Registers.RBX),                                                          \
-          "m"(StackTop)                                                                                     \
+#define JumpToReadyTask(Task, StackTop)                                 \
+    __asm__ __volatile__(                                               \
+        "finit\n\t"                                                     \
+        "mov %0, %%rax\n\t"                                             \
+        "mov %1, %%rbx\n\t"                                             \
+        "mov %2, %%rsp\n\t"                                             \
+        "iretq"                                                         \
+        :                                                               \
+        : "m"((Task)->Arch.Context.Registers.RAX),                      \
+          "m"((Task)->Arch.Context.Registers.RBX),                      \
+          "m"(StackTop)                                                 \
         : "rax", "rbx", "memory")
 
 /************************************************************************/
