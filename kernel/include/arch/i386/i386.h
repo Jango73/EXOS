@@ -528,13 +528,13 @@ typedef struct tag_SEGMENT_INFO {
             "movl $1f, %1\n\t"                                                                         \
             "pushl %5\n\t"                                                                             \
             "pushl %4\n\t"                                                                             \
-            "call SwitchToNextTask_3\n"                                                                \
-            "1:\t"                                                                                     \
+            "call SwitchToNextTask_3\n\t"                                                              \
+            "1:\n\t"                                                                                   \
             "add $8, %%esp\n\t"                                                                        \
             "popa\n\t"                                                                                 \
             : "=m"((prev)->Arch.Context.Registers.ESP), "=m"((prev)->Arch.Context.Registers.EIP)       \
-            : "m"((next)->Arch.Context.Registers.ESP), "m"((next)->Arch.Context.Registers.EIP), "r"(prev), \
-              "r"(next)                                                                               \
+            : "m"((next)->Arch.Context.Registers.ESP), "m"((next)->Arch.Context.Registers.EIP),        \
+              "r"(prev), "r"(next)                                                                     \
             : "memory");                                                                               \
     } while (0)
 
