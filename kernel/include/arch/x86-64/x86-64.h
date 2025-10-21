@@ -364,12 +364,8 @@ typedef struct tag_KERNELDATA_X86_64 {
             "movq %%rsp, %0\n\t"                            \
             "leaq 1f(%%rip), %%rax\n\t"                     \
             "movq %%rax, %1\n\t"                            \
-            "movq %2, %%rax\n\t"                            \
-            "movq %%rax, %%rsp\n\t"                        \
-            "subq $128, %%rsp\n\t"                          \
-            "movq %5, %%rax\n\t"                            \
             "movq %4, %%rdi\n\t"                            \
-            "movq %%rax, %%rsi\n\t"                         \
+            "movq %5, %%rsi\n\t"                            \
             "call SwitchToNextTask_3\n\t"                   \
             "movq %2, %%rsp\n\t"                            \
             "1:\n\t"                                        \
