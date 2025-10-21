@@ -830,13 +830,13 @@ TaskRunner :
     ; EAX contains the parameter
 
     cmp         ebx, 0
-    je          _TaskRunner_Exit
+    je          .exit
 
     push        eax                         ; Argument for task function
     call        ebx                         ; Call task function
     add         esp, U32_SIZE               ; Adjust stack
 
-_TaskRunner_Exit :
+.exit :
 
     mov         ebx, eax                    ; Task exit code in ebx
     mov         eax, 0x33                   ; SYSCALL_Exit
@@ -851,13 +851,6 @@ _TaskRunner_Exit :
     int         EXOS_USER_CALL
 
     jmp         .sleep
-
-;----------------------------------------------------------------------------
-
-section .data
-BITS 32
-
-TaskRunnerLogMsg db '[TaskRunner] EAX=%x EBX=%x', 0
 
 ;----------------------------------------------------------------------------
 

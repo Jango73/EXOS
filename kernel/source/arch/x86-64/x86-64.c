@@ -1064,7 +1064,9 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
     LINEAR StackTop;
     LINEAR SysStackTop;
-    U64 ControlRegister4 = 0;
+    LINEAR BootStackTop;
+    LINEAR RSP, RBP;
+    U64 CR4;
 
     DEBUG(TEXT("[SetupTask] Enter"));
 
@@ -1077,39 +1079,44 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.StackSize = Info->StackSize;
     Task->Arch.SysStackSize = TASK_SYSTEM_STACK_SIZE * 4u;
 
-    Task->Arch.StackBase = AllocRegion(BaseVMA, 0, Task->Arch.StackSize,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
-    Task->Arch.SysStackBase = AllocKernelRegion(
-        0, Task->Arch.SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Task->Arch.StackBase =
+        AllocRegion(BaseVMA, 0, Task->Arch.StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Task->Arch.SysStackBase =
+        AllocKernelRegion(0, Task->Arch.SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
-    if (Task->Arch.StackBase == 0 || Task->Arch.SysStackBase == 0) {
-        if (Task->Arch.StackBase != 0) {
+    DEBUG(TEXT("[SetupTask] BaseVMA=%p, Requested StackBase at BaseVMA"), BaseVMA);
+    DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.StackBase);
+
+    if (Task->Arch.StackBase == NULL || Task->Arch.SysStackBase == NULL) {
+        if (Task->Arch.StackBase != NULL) {
             FreeRegion(Task->Arch.StackBase, Task->Arch.StackSize);
-            Task->Arch.StackBase = 0;
+            Task->Arch.StackBase = NULL;
             Task->Arch.StackSize = 0;
         }
 
-        if (Task->Arch.SysStackBase != 0) {
+        if (Task->Arch.SysStackBase != NULL) {
             FreeRegion(Task->Arch.SysStackBase, Task->Arch.SysStackSize);
-            Task->Arch.SysStackBase = 0;
+            Task->Arch.SysStackBase = NULL;
             Task->Arch.SysStackSize = 0;
         }
 
-        ERROR(TEXT("[SetupTask] Stack allocation failed"));
+        ERROR(TEXT("[SetupTask] Stack or system stack allocation failed"));
         return FALSE;
     }
 
-    DEBUG(TEXT("[SetupTask] Stack (%x bytes) allocated at %p"), Task->Arch.StackSize,
-        (LINEAR)Task->Arch.StackBase);
-    DEBUG(TEXT("[SetupTask] System stack (%x bytes) allocated at %p"), Task->Arch.SysStackSize,
-        (LINEAR)Task->Arch.SysStackBase);
+    DEBUG(TEXT("[SetupTask] Stack (%u bytes) allocated at %p"), Task->Arch.StackSize, Task->Arch.StackBase);
+    DEBUG(TEXT("[SetupTask] System stack (%u bytes) allocated at %p"), Task->Arch.SysStackSize, Task->Arch.SysStackBase);
 
-    MemorySet((LPVOID)Task->Arch.StackBase, 0, Task->Arch.StackSize);
-    MemorySet((LPVOID)Task->Arch.SysStackBase, 0, Task->Arch.SysStackSize);
+    MemorySet((LPVOID)(Task->Arch.StackBase), 0, Task->Arch.StackSize);
+    MemorySet((LPVOID)(Task->Arch.SysStackBase), 0, Task->Arch.SysStackSize);
     MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
 
-    Task->Arch.Context.Registers.RAX = (U64)(UINT)Task->Parameter;
-    Task->Arch.Context.Registers.RBX = (U64)(UINT)Task->Function;
+    GetCR4(CR4);
+
+    Task->Arch.Context.Registers.RAX = (UINT)Task->Parameter;
+    Task->Arch.Context.Registers.RBX = (LINEAR)Task->Function;
+    Task->Arch.Context.Registers.RCX = 0;
+    Task->Arch.Context.Registers.RDX = 0;
     Task->Arch.Context.Registers.CS = CodeSelector;
     Task->Arch.Context.Registers.DS = DataSelector;
     Task->Arch.Context.Registers.ES = DataSelector;
@@ -1117,59 +1124,43 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.GS = DataSelector;
     Task->Arch.Context.Registers.SS = DataSelector;
     Task->Arch.Context.Registers.RFlags = RFLAGS_IF | RFLAGS_ALWAYS_1;
-    Task->Arch.Context.Registers.CR3 = (U64)Process->PageDirectory;
+    Task->Arch.Context.Registers.CR3 = Process->PageDirectory;
+    Task->Arch.Context.Registers.CR4 = CR4;
+    Task->Arch.Context.Registers.RIP = VMA_TASK_RUNNER;
 
-    GetCR4(ControlRegister4);
-    Task->Arch.Context.Registers.CR4 = ControlRegister4;
-    Task->Arch.Context.Registers.RIP = (U64)VMA_TASK_RUNNER;
-
-    StackTop = (LINEAR)(Task->Arch.StackBase + (U64)Task->Arch.StackSize);
-    SysStackTop = (LINEAR)(Task->Arch.SysStackBase + (U64)Task->Arch.SysStackSize);
+    StackTop = Task->Arch.StackBase + Task->Arch.StackSize;
+    SysStackTop = Task->Arch.SysStackBase + Task->Arch.SysStackSize;
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
+        DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
         Task->Arch.Context.Registers.RSP = StackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.RBP = StackTop - STACK_SAFETY_MARGIN;
     } else {
+        DEBUG(TEXT("[SetupTask] Setting user privilege (ring 3)"));
         Task->Arch.Context.Registers.RSP = SysStackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.RBP = SysStackTop - STACK_SAFETY_MARGIN;
     }
 
-    Task->Arch.Context.SS0 = SELECTOR_KERNEL_DATA;
-    Task->Arch.Context.RSP0 = SysStackTop - STACK_SAFETY_MARGIN;
-
-    if ((Info->Flags & TASK_CREATE_MAIN_KERNEL) != 0u) {
+    if (Info->Flags & TASK_CREATE_MAIN_KERNEL) {
         Task->Status = TASK_STATUS_RUNNING;
 
-        LINEAR BootStackTop = (LINEAR)KernelStartup.StackTop;
-        LINEAR CurrentRsp;
-        LINEAR StackUsedLinear;
-        U32 StackUsed;
+        Task->Arch.Context.SS0 = SELECTOR_KERNEL_DATA;
+        Task->Arch.Context.RSP0 = SysStackTop - STACK_SAFETY_MARGIN;
 
-        GetESP(CurrentRsp);
-        if (CurrentRsp > BootStackTop) {
-            StackUsedLinear = 0x100u;
-        } else {
-            StackUsedLinear = (BootStackTop - CurrentRsp) + 0x100u;
-        }
+        BootStackTop = (LINEAR)KernelStartup.StackTop;
 
-        if (StackUsedLinear > (LINEAR)MAX_U32) {
-            StackUsed = MAX_U32;
-        } else {
-            StackUsed = (U32)StackUsedLinear;
-        }
+        GetESP(RSP);
+        UINT StackUsed = (BootStackTop - RSP) + 256;
 
-        DEBUG(TEXT("[SetupTask] BootStackTop = %p"), (LPVOID)(UINT)BootStackTop);
-        DEBUG(TEXT("[SetupTask] StackTop = %p"), (LPVOID)(UINT)StackTop);
+        DEBUG(TEXT("[SetupTask] BootStackTop = %p"), BootStackTop);
+        DEBUG(TEXT("[SetupTask] StackTop = %p"), StackTop);
         DEBUG(TEXT("[SetupTask] StackUsed = %u"), StackUsed);
         DEBUG(TEXT("[SetupTask] Switching to new stack..."));
 
         if (SwitchStack(StackTop, BootStackTop, StackUsed) == TRUE) {
-            LINEAR CurrentRbp;
-
             Task->Arch.Context.Registers.RSP = 0;
-            GetEBP(CurrentRbp);
-            Task->Arch.Context.Registers.RBP = CurrentRbp;
-
+            GetEBP(RBP);
+            Task->Arch.Context.Registers.RBP = RBP;
             DEBUG(TEXT("[SetupTask] Main task stack switched successfully"));
         } else {
             ERROR(TEXT("[SetupTask] Stack switch failed"));
@@ -1183,33 +1174,19 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 /***************************************************************************/
 
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[PrepareNextTaskSwitch] Enter"));
-#endif
-
-    if (NextTask == NULL) {
-        return;
-    }
-
-    SAFE_USE(CurrentTask) {
-        GetFS(CurrentTask->Arch.Context.Registers.FS);
-        GetGS(CurrentTask->Arch.Context.Registers.GS);
-        SaveFPU(&(CurrentTask->Arch.Context.FPURegisters));
-    }
-
-    LPX86_64_TASK_STATE_SEGMENT Tss = Kernel_i386.TSS;
-
-    SAFE_USE(Tss) {
-        Tss->RSP0 = NextTask->Arch.Context.RSP0;
-        Tss->IST1 = NextTask->Arch.Context.RSP0;
-        Tss->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
-    }
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[PrepareNextTaskSwitch] LoadPageDirectory"));
-#endif
-
     SAFE_USE(NextTask) {
+        LINEAR NextSysStackTop = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize;
+
+        Kernel_i386.TSS->RSP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
+        Kernel_i386.TSS->IST1 = NextSysStackTop - STACK_SAFETY_MARGIN;
+        Kernel_i386.TSS->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
+
+        SAFE_USE(CurrentTask) {
+            GetFS(CurrentTask->Arch.Context.Registers.FS);
+            GetGS(CurrentTask->Arch.Context.Registers.GS);
+            SaveFPU(&(CurrentTask->Arch.Context.FPURegisters));
+        }
+
         LoadPageDirectory(NextTask->Process->PageDirectory);
 
         SetDS(NextTask->Arch.Context.Registers.DS);
@@ -1219,10 +1196,6 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
 
         RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
     }
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[PrepareNextTaskSwitch] Exit"));
-#endif
 }
 
 /***************************************************************************/

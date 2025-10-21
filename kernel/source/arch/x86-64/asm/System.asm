@@ -556,12 +556,12 @@ SYS_FUNC_BEGIN TaskRunner
 
     mov     rbx, r9
     test    rbx, rbx
-    je      _TaskRunner_Exit
+    je      .exit
 
     mov     rdi, r8
     call    rbx
 
-_TaskRunner_Exit:
+.exit:
     mov     rbx, rax
     mov     eax, 0x33
     int     EXOS_USER_CALL

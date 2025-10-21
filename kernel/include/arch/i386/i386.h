@@ -523,9 +523,9 @@ typedef struct tag_SEGMENT_INFO {
     do {                                                                                               \
         __asm__ __volatile__(                                                                          \
             "pusha\n\t"                                                                                \
-            "movl %%esp,%0\n\t"                                                                        \
-            "movl %2,%%esp\n\t"                                                                        \
-            "movl $1f,%1\n\t"                                                                          \
+            "movl %%esp, %0\n\t"                                                                       \
+            "movl %2, %%esp\n\t"                                                                       \
+            "movl $1f, %1\n\t"                                                                         \
             "pushl %5\n\t"                                                                             \
             "pushl %4\n\t"                                                                             \
             "call SwitchToNextTask_3\n"                                                                \

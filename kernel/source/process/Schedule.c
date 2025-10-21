@@ -398,24 +398,24 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
-            LINEAR ESP = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
-            SetupStackForKernelMode(NextTask, ESP);
+            LINEAR StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
+            SetupStackForKernelMode(NextTask, StackPointer);
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
 #endif
 
-            JumpToReadyTask(NextTask, ESP);
+            JumpToReadyTask(NextTask, StackPointer);
         } else {
-            LINEAR ESP = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
+            LINEAR StackPointer = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
             SetupStackForUserMode(
-                NextTask, ESP, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
+                NextTask, StackPointer, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
 #endif
 
-            JumpToReadyTask(NextTask, ESP);
+            JumpToReadyTask(NextTask, StackPointer);
         }
     }
 

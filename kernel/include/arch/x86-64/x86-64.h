@@ -330,23 +330,19 @@ typedef struct tag_KERNELDATA_X86_64 {
 /************************************************************************/
 // Context switching
 
-#define SetupStackForKernelMode(Task, StackTop)                                                              \
-    do {                                                                                                     \
-        (StackTop) -= (LINEAR)(3u * sizeof(U64));                                                            \
-        ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                                          \
-        ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                                      \
-        ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                                       \
-    } while (0)
+#define SetupStackForKernelMode(Task, StackTop)                         \
+    (StackTop) -= 3;                                                    \
+    ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;      \
+    ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;     \
+    ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;
 
-#define SetupStackForUserMode(Task, StackTop, UserESP)                                                       \
-    do {                                                                                                     \
-        (StackTop) -= (LINEAR)(5u * sizeof(U64));                                                            \
-        ((U64*)(StackTop))[4] = (U64)(Task)->Arch.Context.Registers.SS;                                      \
-        ((U64*)(StackTop))[3] = (U64)(UserESP);                                                              \
-        ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                                       \
-        ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                                      \
-        ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                                          \
-    } while (0)
+#define SetupStackForUserMode(Task, StackTop, UserESP)                  \
+    (StackTop) -= 5;                                                    \
+    ((U64*)(StackTop))[4] = (U64)(Task)->Arch.Context.Registers.SS;     \
+    ((U64*)(StackTop))[3] = (U64)(UserESP);                             \
+    ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;      \
+    ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;     \
+    ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;
 
 #define SwitchToNextTask_2(prev, next)                                                                       \
     do {                                                                                                     \
@@ -374,9 +370,7 @@ typedef struct tag_KERNELDATA_X86_64 {
             "mov %4, %%rsi\n\t"                                                                            \
             "push %4\n\t"                                                                                   \
             "push %3\n\t"                                                                                   \
-            "sub $8, %%rsp\n\t"                                                                             \
             "call SwitchToNextTask_3\n\t"                                                                  \
-            "add $8, %%rsp\n\t"                                                                             \
             "1:\n\t"                                                                                       \
             "add $16, %%rsp\n\t"                                                                            \
             "pop %%r15\n\t"                                                                                \
