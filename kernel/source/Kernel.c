@@ -74,6 +74,15 @@ U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
 
 /************************************************************************/
 
+void DoPageFault(void) {
+    UINT* Table = (UINT*)0;
+    for (UINT Index = 0; Index < KernelStartup.MemorySize / sizeof(UINT); Index++) {
+        Table[Index] = 0;
+    }
+}
+
+/************************************************************************/
+
 /**
  * @brief Checks that the DeadBeef sentinel retains its expected value.
  *

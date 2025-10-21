@@ -173,6 +173,8 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
 
+void DoPageFault(void);
+
 // Functions in MemoryEditor.c
 
 void PrintMemory(U32, U32);
