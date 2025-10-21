@@ -121,7 +121,7 @@ struct tag_MESSAGE {
 #define TASK_SYSTEM_STACK_SIZE N_32KB
 #endif
 
-#define STACK_SAFETY_MARGIN 128
+#define STACK_SAFETY_MARGIN 256
 
 // Task creation flags
 

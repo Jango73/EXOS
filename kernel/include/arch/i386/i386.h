@@ -541,17 +541,19 @@ typedef struct tag_SEGMENT_INFO {
     } while (0)
 
 #define JumpToReadyTask(Task, StackPointer)                         \
-    __asm__ __volatile__(                                           \
-        "finit\n\t"                                                 \
-        "mov %0, %%eax\n\t"                                         \
-        "mov %1, %%ebx\n\t"                                         \
-        "mov %2, %%esp\n\t"                                         \
-        "iret"                                                      \
-        :                                                           \
-        : "m"((Task)->Arch.Context.Registers.EAX),                  \
-          "m"((Task)->Arch.Context.Registers.EBX),                  \
-          "m"(StackPointer)                                         \
-        : "eax", "ebx", "memory")
+    do {                                                            \
+        __asm__ __volatile__(                                       \
+            "finit\n\t"                                             \
+            "mov %0, %%eax\n\t"                                     \
+            "mov %1, %%ebx\n\t"                                     \
+            "mov %2, %%esp\n\t"                                     \
+            "iret"                                                  \
+            :                                                       \
+            : "m"((Task)->Arch.Context.Registers.EAX),              \
+              "m"((Task)->Arch.Context.Registers.EBX),              \
+              "m"(StackPointer)                                     \
+            : "eax", "ebx", "memory");                              \
+    } while (0)
 
 /************************************************************************/
 // Register getters/setters

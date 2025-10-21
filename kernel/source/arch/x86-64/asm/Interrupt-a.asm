@@ -81,6 +81,8 @@ section .text
     global Interrupt_DriverCall
     global EnterKernel
 
+;-------------------------------------------------------------------------
+
 %macro ISR_HANDLER 3
     push    rax
     push    rcx
@@ -133,6 +135,7 @@ section .text
     jz      %%build_aligned
     mov     r10, rax
     sub     rsp, r10
+
 %%build_aligned:
 
     mov     rdx, r11
@@ -149,7 +152,9 @@ section .text
     jz      %%handler_aligned
     mov     r10, rax
     sub     rsp, r10
+
 %%handler_aligned:
+
     call    %2
     add     rsp, r10
 
@@ -194,6 +199,8 @@ section .text
 %macro ISR_HANDLER_ERR 2
     ISR_HANDLER %1, %2, 1
 %endmacro
+
+;-------------------------------------------------------------------------
 
 FUNC_HEADER
 Interrupt_Default:

@@ -89,8 +89,8 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
 #if SCHEDULING_DEBUG_OUTPUT == 1
     DEBUG(TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"),
         InterruptNumber, HasErrorCode, UserMode);
-    DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
-    KernelLogMem(LOG_DEBUG, (LINEAR)Stack, 256);
+    // DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
+    // KernelLogMem(LOG_DEBUG, (LINEAR)Stack, 256);
     DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%p CS=%x RFLAGS=%x"), (LINEAR)Frame->Registers.RIP, Frame->Registers.CS,
         Frame->Registers.RFlags);
 #endif

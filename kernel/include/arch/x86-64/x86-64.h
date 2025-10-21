@@ -387,21 +387,23 @@ typedef struct tag_KERNELDATA_X86_64 {
             : "m"((next)->Arch.Context.Registers.RSP),                  \
               "m"((next)->Arch.Context.Registers.RIP),                  \
               "r"(prev), "r"(next)                                      \
-            : "memory");                                                \
+            : "rax", "rsi", "rdi", "memory");                           \
     } while (0)
 
 #define JumpToReadyTask(Task, StackTop)                                 \
-    __asm__ __volatile__(                                               \
-        "finit\n\t"                                                     \
-        "mov %0, %%rax\n\t"                                             \
-        "mov %1, %%rbx\n\t"                                             \
-        "mov %2, %%rsp\n\t"                                             \
-        "iretq"                                                         \
-        :                                                               \
-        : "m"((Task)->Arch.Context.Registers.RAX),                      \
-          "m"((Task)->Arch.Context.Registers.RBX),                      \
-          "m"(StackTop)                                                 \
-        : "rax", "rbx", "memory")
+    do {                                                                \
+        __asm__ __volatile__(                                           \
+            "finit\n\t"                                                 \
+            "mov %0, %%rax\n\t"                                         \
+            "mov %1, %%rbx\n\t"                                         \
+            "mov %2, %%rsp\n\t"                                         \
+            "iretq"                                                     \
+            :                                                           \
+            : "m"((Task)->Arch.Context.Registers.RAX),                  \
+              "m"((Task)->Arch.Context.Registers.RBX),                  \
+              "m"(StackTop)                                             \
+            : "rax", "rbx", "memory");                                  \
+    } while (0)
 
 /************************************************************************/
 // Register getters/setters
