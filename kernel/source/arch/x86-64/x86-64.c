@@ -1058,7 +1058,7 @@ void InitializeTaskSegments(void) {
  * and seeds the register snapshot so the generic scheduler can operate while
  * the long mode context-switching code is under construction.
  */
-BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
@@ -1066,7 +1066,7 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
     LINEAR SysStackTop;
     U64 ControlRegister4 = 0;
 
-    DEBUG(TEXT("[ArchSetupTask] Enter"));
+    DEBUG(TEXT("[SetupTask] Enter"));
 
     if (Process->Privilege == PRIVILEGE_USER) {
         BaseVMA = VMA_USER;
@@ -1095,13 +1095,13 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
             Task->Arch.SysStackSize = 0;
         }
 
-        ERROR(TEXT("[ArchSetupTask] Stack allocation failed"));
+        ERROR(TEXT("[SetupTask] Stack allocation failed"));
         return FALSE;
     }
 
-    DEBUG(TEXT("[ArchSetupTask] Stack (%x bytes) allocated at %p"), Task->Arch.StackSize,
+    DEBUG(TEXT("[SetupTask] Stack (%x bytes) allocated at %p"), Task->Arch.StackSize,
         (LINEAR)Task->Arch.StackBase);
-    DEBUG(TEXT("[ArchSetupTask] System stack (%x bytes) allocated at %p"), Task->Arch.SysStackSize,
+    DEBUG(TEXT("[SetupTask] System stack (%x bytes) allocated at %p"), Task->Arch.SysStackSize,
         (LINEAR)Task->Arch.SysStackBase);
 
     MemorySet((void*)Task->Arch.StackBase, 0, Task->Arch.StackSize);
@@ -1158,10 +1158,10 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
             StackUsed = (U32)StackUsedLinear;
         }
 
-        DEBUG(TEXT("[ArchSetupTask] BootStackTop = %p"), (LPVOID)(UINT)BootStackTop);
-        DEBUG(TEXT("[ArchSetupTask] StackTop = %p"), (LPVOID)(UINT)StackTop);
-        DEBUG(TEXT("[ArchSetupTask] StackUsed = %u"), StackUsed);
-        DEBUG(TEXT("[ArchSetupTask] Switching to new stack..."));
+        DEBUG(TEXT("[SetupTask] BootStackTop = %p"), (LPVOID)(UINT)BootStackTop);
+        DEBUG(TEXT("[SetupTask] StackTop = %p"), (LPVOID)(UINT)StackTop);
+        DEBUG(TEXT("[SetupTask] StackUsed = %u"), StackUsed);
+        DEBUG(TEXT("[SetupTask] Switching to new stack..."));
 
         if (SwitchStack(StackTop, BootStackTop, StackUsed) == TRUE) {
             LINEAR CurrentRbp;
@@ -1170,13 +1170,13 @@ BOOL ArchSetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct ta
             GetEBP(CurrentRbp);
             Task->Arch.Context.Registers.RBP = CurrentRbp;
 
-            DEBUG(TEXT("[ArchSetupTask] Main task stack switched successfully"));
+            DEBUG(TEXT("[SetupTask] Main task stack switched successfully"));
         } else {
-            ERROR(TEXT("[ArchSetupTask] Stack switch failed"));
+            ERROR(TEXT("[SetupTask] Stack switch failed"));
         }
     }
 
-    DEBUG(TEXT("[ArchSetupTask] Exit"));
+    DEBUG(TEXT("[SetupTask] Exit"));
     return TRUE;
 }
 
