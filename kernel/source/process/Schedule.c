@@ -179,7 +179,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     TRACED_FUNCTION;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[AddTaskToQueue] NewTask = %x"), NewTask);
+    DEBUG(TEXT("[AddTaskToQueue] NewTask = %p"), NewTask);
 #endif
 
     FreezeScheduler();
@@ -188,7 +188,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
     SAFE_USE_VALID_ID(NewTask, KOID_TASK) {
         // Check if task queue is full
         if (TaskList.NumTasks >= NUM_TASKS) {
-            ERROR(TEXT("[AddTaskToQueue] Cannot add %x, too many tasks"), NewTask);
+            ERROR(TEXT("[AddTaskToQueue] Cannot add task %p, too many tasks"), NewTask);
             UnfreezeScheduler();
 
             TRACED_EPILOGUE("AddTaskToQueue");
@@ -207,7 +207,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
 
         // Add task to queue
 #if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[AddTaskToQueue] Adding %X"), NewTask);
+        DEBUG(TEXT("[AddTaskToQueue] Adding %p"), NewTask);
 #endif
 
         TaskList.Tasks[TaskList.NumTasks] = NewTask;
@@ -378,7 +378,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     // }
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask] Exit for task %x"), CurrentTask);
+    DEBUG(TEXT("[SwitchToNextTask] Exit for task %p"), CurrentTask);
 #endif
 }
 

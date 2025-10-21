@@ -123,8 +123,8 @@ static UINT E1000Commands(UINT Function, UINT Param);
 /************************************************************************/
 // Small busy wait
 
-static void E1000_Delay(U32 Iterations) {
-    volatile U32 Index;
+static void E1000_Delay(UINT Iterations) {
+    volatile UINT Index;
     for (Index = 0; Index < Iterations; Index++) {
         asm volatile("nop");
     }
@@ -133,7 +133,7 @@ static void E1000_Delay(U32 Iterations) {
 /************************************************************************/
 // Device structure
 
-typedef struct tag_E1000DEVICE {
+typedef struct PACKED tag_E1000DEVICE {
     PCI_DEVICE_FIELDS
 
     // MMIO mapping
@@ -251,7 +251,7 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
             Device->Mac[3] = (low >> 24) & 0xFF;
             Device->Mac[4] = (high >> 0) & 0xFF;
             Device->Mac[5] = (high >> 8) & 0xFF;
-            DEBUG(TEXT("[E1000_ReadMac] Using valid RAL/RAH MAC: %X:%X:%X:%X:%X:%X"),
+            DEBUG(TEXT("[E1000_ReadMac] Using valid RAL/RAH MAC: %x:%x:%x:%x:%x:%x"),
                   Device->Mac[0], Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
             return;
         }
@@ -288,7 +288,7 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAL0, low);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAH0, high);
 
-    DEBUG(TEXT("[E1000_ReadMac] Final MAC from EEPROM: %X:%X:%X:%X:%X:%X"),
+    DEBUG(TEXT("[E1000_ReadMac] Final MAC from EEPROM: %x:%x:%x:%x:%x:%x"),
           Device->Mac[0], Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
 }
 
@@ -364,7 +364,7 @@ static void E1000_SetupMacFilters(LPE1000DEVICE Device) {
  */
 static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
     DEBUG(TEXT("[E1000_SetupReceive] Begin"));
-    U32 Index;
+    UINT Index;
 
     Device->RxRingCount = E1000_RX_DESC_COUNT;
 
@@ -409,8 +409,8 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
             // Ensure physical addresses are properly aligned and valid
             PHYSICAL BufferPhys = Device->RxBufPhysical[Index];
             if (BufferPhys == 0 || (BufferPhys & 0xF) != 0) {
-                ERROR(TEXT("[E1000_SetupReceive] Invalid/unaligned buffer physical address %x at index %u"),
-                      (U32)BufferPhys, Index);
+                ERROR(TEXT("[E1000_SetupReceive] Invalid/unaligned buffer physical address %p at index %u"),
+                      BufferPhys, Index);
                 return FALSE;
             }
 
@@ -431,12 +431,12 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
 
         // Additional verification: check descriptor ring alignment
         if ((Device->RxRingPhysical & 0xF) != 0) {
-            ERROR(TEXT("[E1000_SetupReceive] Descriptor ring not 16-byte aligned: %x"),
-                  (U32)Device->RxRingPhysical);
+            ERROR(TEXT("[E1000_SetupReceive] Descriptor ring not 16-byte aligned: %p"),
+                  Device->RxRingPhysical);
             return FALSE;
         }
-        DEBUG(TEXT("[E1000_SetupReceive] Descriptor ring properly aligned at %x"),
-              (U32)Device->RxRingPhysical);
+        DEBUG(TEXT("[E1000_SetupReceive] Descriptor ring properly aligned at %p"),
+              Device->RxRingPhysical);
     }
 
     // Then program NIC registers
@@ -484,8 +484,8 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
         // Verify ring base address registers
         U32 RdbalRead = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDBAL);
         U32 RdbahRead = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDBAH);
-        DEBUG(TEXT("[E1000_SetupReceive] RDBAL=%x RDBAH=%x (expected phys=%x)"),
-              RdbalRead, RdbahRead, (U32)Device->RxRingPhysical);
+        DEBUG(TEXT("[E1000_SetupReceive] RDBAL=%x RDBAH=%x (expected phys=%p)"),
+              RdbalRead, RdbahRead, Device->RxRingPhysical);
 
         // Debug first descriptor
         LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
@@ -596,8 +596,8 @@ static BOOL E1000_SetupTransmit(LPE1000DEVICE Device) {
             // Ensure TX physical addresses are properly aligned and valid
             PHYSICAL BufferPhys = Device->TxBufPhysical[Index];
             if (BufferPhys == 0 || (BufferPhys & 0xF) != 0) {
-                ERROR(TEXT("[E1000_SetupTransmit] Invalid/unaligned TX buffer physical address %x at index %u"),
-                      (U32)BufferPhys, Index);
+                ERROR(TEXT("[E1000_SetupTransmit] Invalid/unaligned TX buffer physical address %p at index %u"),
+                      BufferPhys, Index);
                 return FALSE;
             }
 
@@ -611,20 +611,20 @@ static BOOL E1000_SetupTransmit(LPE1000DEVICE Device) {
             Ring[Index].Special = 0;
 
             if (Index < 3) {
-                DEBUG(TEXT("[E1000_SetupTransmit] TX[%u]: PhysAddr=%x Linear=%x (aligned=%s)"),
-                      Index, (U32)BufferPhys, (U32)Device->TxBufLinear[Index],
+                DEBUG(TEXT("[E1000_SetupTransmit] TX[%u]: PhysAddr=%p Linear=%p (aligned=%s)"),
+                      Index, BufferPhys, Device->TxBufLinear[Index],
                       ((BufferPhys & 0xF) == 0) ? "YES" : "NO");
             }
         }
 
         // Additional verification: check TX descriptor ring alignment
         if ((Device->TxRingPhysical & 0xF) != 0) {
-            ERROR(TEXT("[E1000_SetupTransmit] TX descriptor ring not 16-byte aligned: %x"),
-                  (U32)Device->TxRingPhysical);
+            ERROR(TEXT("[E1000_SetupTransmit] TX descriptor ring not 16-byte aligned: %p"),
+                  Device->TxRingPhysical);
             return FALSE;
         }
-        DEBUG(TEXT("[E1000_SetupTransmit] TX descriptor ring properly aligned at %x"),
-              (U32)Device->TxRingPhysical);
+        DEBUG(TEXT("[E1000_SetupTransmit] TX descriptor ring properly aligned at %p"),
+              Device->TxRingPhysical);
     }
 
     // Program NIC registers
@@ -739,7 +739,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
     }
 
     DEBUG(TEXT("[E1000_Attach] TX setup complete"));
-    DEBUG(TEXT("[E1000_Attach] Attached %X:%X.%u MMIO=%X size=%X MAC=%X:%X:%X:%X:%X:%X"), (U32)Device->Info.Bus,
+    DEBUG(TEXT("[E1000_Attach] Attached %x:%x.%u MMIO=%x size=%x MAC=%x:%x:%x:%x:%x:%x"), (U32)Device->Info.Bus,
         (U32)Device->Info.Dev, (U32)Device->Info.Func, (U32)Device->MmioBase, (U32)Device->MmioSize,
         (U32)Device->Mac[0], (U32)Device->Mac[1], (U32)Device->Mac[2], (U32)Device->Mac[3], (U32)Device->Mac[4],
         (U32)Device->Mac[5]);
@@ -760,19 +760,19 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
 static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
     if (Length == 0 || Length > E1000_TX_BUF_SIZE) return DF_ERROR_BADPARAM;
 
-    DEBUG(TEXT("[E1000_TransmitSend] ENTRY len=%u TxTail=%u"), (U32)Length, Device->TxTail);
+    DEBUG(TEXT("[E1000_TransmitSend] ENTRY len=%u TxTail=%u"), Length, Device->TxTail);
 
     U32 Index = Device->TxTail;
     LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;
 
     // Log buffer addresses and TX ring state before
-    DEBUG(TEXT("[E1000_TransmitSend] Index=%u TxBufPhys=%x TxBufLinear=%x"), Index, Device->TxBufPhysical[Index], Device->TxBufLinear[Index]);
-    DEBUG(TEXT("[E1000_TransmitSend] BEFORE: Ring[%u].Addr=%x:%x Length=%u CMD=%x STA=%x"),
+    DEBUG(TEXT("[E1000_TransmitSend] Index=%u TxBufPhys=%p TxBufLinear=%p"), Index, Device->TxBufPhysical[Index], Device->TxBufLinear[Index]);
+    DEBUG(TEXT("[E1000_TransmitSend] BEFORE: Ring[%u].Addr=%p:%p Length=%u CMD=%x STA=%x"),
           Index, Ring[Index].BufferAddrHigh, Ring[Index].BufferAddrLow, Ring[Index].Length, Ring[Index].CMD, Ring[Index].STA);
 
     // Copy into pre-allocated TX buffer
     MemoryCopy((LPVOID)Device->TxBufLinear[Index], (LPVOID)Data, Length);
-    DEBUG(TEXT("[E1000_TransmitSend] Data copied to buffer, first 4 bytes: %02x%02x%02x%02x"),
+    DEBUG(TEXT("[E1000_TransmitSend] Data copied to buffer, first 4 bytes: %02x %02x %02x %02x"),
           Data[0], Data[1], Data[2], Data[3]);
 
     Ring[Index].Length = (U16)Length;
@@ -829,7 +829,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
     U32 MaxIterations = Device->RxRingCount * 2; // Safety limit: twice the ring size
     U32 ConsecutiveEmptyChecks = 0;
 
-    // DEBUG(TEXT("[E1000_ReceivePoll] Enter - Device=%x RxCallback=%x RxHead=%u"), (U32)Device, (U32)Device->RxCallback, Device->RxHead);
+    // DEBUG(TEXT("[E1000_ReceivePoll] Enter - Device=%p RxCallback=%p RxHead=%u"), Device, Device->RxCallback, Device->RxHead);
 
     while (Count < MaxIterations) {
         U32 NextIndex = (Device->RxHead) % Device->RxRingCount;
@@ -868,10 +868,10 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         if ((Status & E1000_RX_STA_EOP) != 0) {
             U16 Length = Ring[NextIndex].Length;
             const U8 *Frame = (const U8 *)Device->RxBufLinear[NextIndex];
-            // DEBUG(TEXT("[E1000_ReceivePoll] Frame length=%u, EthType=%x%x, RxCallback=%x"),
-            //       Length, Frame[12], Frame[13], (U32)Device->RxCallback);
+            // DEBUG(TEXT("[E1000_ReceivePoll] Frame length=%u, EthType=%x%x, RxCallback=%p"),
+            //       Length, Frame[12], Frame[13], Device->RxCallback);
             if (Device->RxCallback) {
-                // DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %x"), (U32)Device->RxCallback);
+                // DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %p"), Device->RxCallback);
                 Device->RxCallback(Frame, (U32)Length, Device->RxUserData);
                 // DEBUG(TEXT("[E1000_ReceivePoll] RxCallback returned"));
             } else {
@@ -975,15 +975,15 @@ static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
  * @return DF_ERROR_SUCCESS on success or error code.
  */
 static U32 E1000_OnSetReceiveCallback(const NETWORKSETRXCB *Set) {
-    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Entry Set=%X"), (U32)Set);
+    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Entry Set=%p"), Set);
     if (Set == NULL || Set->Device == NULL) {
-        DEBUG(TEXT("[E1000_OnSetReceiveCallback] Bad parameters: Set=%X Device=%X"), (U32)Set, Set ? (U32)Set->Device : 0);
+        DEBUG(TEXT("[E1000_OnSetReceiveCallback] Bad parameters: Set=%p Device=%p"), Set, Set ? Set->Device : 0);
         return DF_ERROR_BADPARAM;
     }
     LPE1000DEVICE Device = (LPE1000DEVICE)Set->Device;
     Device->RxCallback = Set->Callback;
     Device->RxUserData = Set->UserData;
-    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Callback set to %X with UserData %X for device %X"), (U32)Set->Callback, (U32)Set->UserData, (U32)Device);
+    DEBUG(TEXT("[E1000_OnSetReceiveCallback] Callback set to %p with UserData %x for device %p"), Set->Callback, Set->UserData, Device);
     return DF_ERROR_SUCCESS;
 }
 
@@ -1000,7 +1000,7 @@ static U32 E1000_OnSend(const NETWORKSEND *Send) {
         DEBUG(TEXT("[E1000_OnSend] ERROR: Bad parameters"));
         return DF_ERROR_BADPARAM;
     }
-    DEBUG(TEXT("[E1000_OnSend] Calling TxSend: Device=%x, Length=%u"), Send->Device, Send->Length);
+    DEBUG(TEXT("[E1000_OnSend] Calling TxSend: Device=%p, Length=%u"), Send->Device, Send->Length);
     U32 result = E1000_TransmitSend((LPE1000DEVICE)Send->Device, Send->Data, Send->Length);
     DEBUG(TEXT("[E1000_OnSend] TxSend result: %u"), result);
     return result;
