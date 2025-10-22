@@ -893,17 +893,18 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.EFlags = EFLAGS_IF | EFLAGS_A1;
     Task->Arch.Context.Registers.CR3 = Process->PageDirectory;
     Task->Arch.Context.Registers.CR4 = CR4;
-    Task->Arch.Context.Registers.EIP = VMA_TASK_RUNNER;
 
     StackTop = Task->Arch.StackBase + Task->Arch.StackSize;
     SysStackTop = Task->Arch.SysStackBase + Task->Arch.SysStackSize;
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
         DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
+        Task->Arch.Context.Registers.EIP = (LINEAR)TaskRunner;
         Task->Arch.Context.Registers.ESP = StackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.EBP = StackTop - STACK_SAFETY_MARGIN;
     } else {
         DEBUG(TEXT("[SetupTask] Setting user privilege (ring 3)"));
+        Task->Arch.Context.Registers.EIP = VMA_TASK_RUNNER;
         Task->Arch.Context.Registers.ESP = SysStackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.EBP = SysStackTop - STACK_SAFETY_MARGIN;
     }

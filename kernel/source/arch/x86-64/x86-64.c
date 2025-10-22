@@ -1126,17 +1126,18 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.RFlags = RFLAGS_IF | RFLAGS_ALWAYS_1;
     Task->Arch.Context.Registers.CR3 = Process->PageDirectory;
     Task->Arch.Context.Registers.CR4 = CR4;
-    Task->Arch.Context.Registers.RIP = VMA_TASK_RUNNER;
 
     StackTop = Task->Arch.StackBase + Task->Arch.StackSize;
     SysStackTop = Task->Arch.SysStackBase + Task->Arch.SysStackSize;
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
         DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
+        Task->Arch.Context.Registers.RIP = (LINEAR)TaskRunner;
         Task->Arch.Context.Registers.RSP = StackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.RBP = StackTop - STACK_SAFETY_MARGIN;
     } else {
         DEBUG(TEXT("[SetupTask] Setting user privilege (ring 3)"));
+        Task->Arch.Context.Registers.RIP = VMA_TASK_RUNNER;
         Task->Arch.Context.Registers.RSP = SysStackTop - STACK_SAFETY_MARGIN;
         Task->Arch.Context.Registers.RBP = SysStackTop - STACK_SAFETY_MARGIN;
     }
@@ -1260,6 +1261,8 @@ void InitializeMemoryManager(void) {
     LoadPageDirectory(NewPageDirectory);
 
     FlushTLB();
+
+    LogPageDirectory64(NewPageDirectory);
 
     DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
 
