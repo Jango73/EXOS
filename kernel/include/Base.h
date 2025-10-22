@@ -224,7 +224,7 @@ typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 #define WARNING(a, ...) KernelLogText(LOG_WARNING, (a), ##__VA_ARGS__)
 #define ERROR(a, ...) KernelLogText(LOG_ERROR, (a), ##__VA_ARGS__)
 
-#else
+#else   // __KERNEL__
 
 #if DEBUG_OUTPUT == 1
     #define DEBUG(a, ...) debug((a), ##__VA_ARGS__)
@@ -242,7 +242,7 @@ typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 #define WARNING(a, ...)
 #define ERROR(a, ...)
 
-#endif
+#endif  // __KERNEL__
 
 /************************************************************************/
 
