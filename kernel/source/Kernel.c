@@ -699,7 +699,7 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /************************************************************************/
 
-static U32 MonitorKernel(LPVOID Parameter) {
+static U32 KernelMonitor(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
 
@@ -709,8 +709,8 @@ static U32 MonitorKernel(LPVOID Parameter) {
         CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
 
         LogCounter++;
-        if (LogCounter >= 10) {  // 10 * 500ms = 5 seconds
-            DEBUG("[MonitorKernel] Monitor task running normally");
+        if (LogCounter >= 60) {  // 60 * 500ms = 30 seconds
+            DEBUG("[KernelMonitor] Monitor task running normally");
             LogCounter = 0;
         }
 
@@ -987,12 +987,12 @@ void InitializeKernel(void) {
         TaskInfo.Header.Size = sizeof(TASKINFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
-        TaskInfo.Func = MonitorKernel;
+        TaskInfo.Func = KernelMonitor;
         TaskInfo.Parameter = NULL;
         TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
         TaskInfo.Flags = 0;
-        StringCopy(TaskInfo.Name, TEXT("MonitorKernel"));
+        StringCopy(TaskInfo.Name, TEXT("KernelMonitor"));
 
         CreateTask(&KernelProcess, &TaskInfo);
 
