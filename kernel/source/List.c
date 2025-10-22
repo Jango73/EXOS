@@ -92,9 +92,12 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 
     Buffer = (U8*)KernelHeapAlloc(ItemSize);
 
-    RecursiveSort((U8*)Base, 0, NumItems - 1, ItemSize, Func, Buffer);
-
-    KernelHeapFree(Buffer);
+    SAFE_USE(Buffer) {
+        RecursiveSort((U8*)Base, 0, NumItems - 1, ItemSize, Func, Buffer);
+        KernelHeapFree(Buffer);
+    } else {
+        ERROR(TEXT("[QuickSort] Failed to allocate temporary buffer"));
+    }
 }
 
 /***************************************************************************/
@@ -148,7 +151,6 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
 U32 DeleteList(LPLIST This) {
     ListReset(This);
     This->MemFreeFunc(This);
-
     return TRUE;
 }
 
@@ -160,7 +162,9 @@ U32 DeleteList(LPLIST This) {
  * @param This Pointer to the list.
  * @return Number of items in the list.
  */
-U32 ListGetSize(LPLIST This) { return This->NumItems; }
+U32 ListGetSize(LPLIST This) {
+    return This->NumItems;
+}
 
 /*************************************************************************************************/
 
@@ -297,7 +301,9 @@ U32 ListAddAfter(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
  * @param Item Item to add at the head.
  * @return TRUE on success, FALSE on failure.
  */
-U32 ListAddHead(LPLIST This, LPVOID Item) { return ListAddBefore(This, This->First, Item); }
+U32 ListAddHead(LPLIST This, LPVOID Item) {
+    return ListAddBefore(This, This->First, Item);
+}
 
 /*************************************************************************************************/
 
@@ -308,7 +314,9 @@ U32 ListAddHead(LPLIST This, LPVOID Item) { return ListAddBefore(This, This->Fir
  * @param Item Item to add at the tail.
  * @return TRUE on success, FALSE on failure.
  */
-U32 ListAddTail(LPLIST This, LPVOID Item) { return ListAddAfter(This, This->Last, Item); }
+U32 ListAddTail(LPLIST This, LPVOID Item) {
+    return ListAddAfter(This, This->Last, Item);
+}
 
 /*************************************************************************************************/
 

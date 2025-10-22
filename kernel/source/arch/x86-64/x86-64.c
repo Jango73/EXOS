@@ -179,7 +179,7 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
  * @param Descriptor IDT entry to update.
  * @param Handler Linear address of the interrupt handler.
  */
-void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY Descriptor, LINEAR Handler) {
+void SetGateDescriptorOffset(LPGATE_DESCRIPTOR Descriptor, LINEAR Handler) {
     U64 Offset = (U64)Handler;
 
     Descriptor->Offset_00_15 = (U16)(Offset & 0x0000FFFFull);
@@ -198,7 +198,7 @@ void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY Descriptor, LINEAR Handler) {
  * @param Privilege Descriptor privilege level.
  */
 void InitializeGateDescriptor(
-    LPX86_64_IDT_ENTRY Descriptor,
+    LPGATE_DESCRIPTOR Descriptor,
     LINEAR Handler,
     U16 Type,
     U16 Privilege) {

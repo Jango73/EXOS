@@ -118,15 +118,7 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_HardDrive,          // 47  0x0F
 };
 
-#if defined(__EXOS_ARCH_I386__)
-
 GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
-
-#elif defined(__EXOS_ARCH_X86_64__)
-
-X86_64_IDT_ENTRY SECTION(".data") IDT[IDT_SIZE / sizeof(X86_64_IDT_ENTRY)];
-
-#endif
 
 /***************************************************************************/
 

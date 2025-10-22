@@ -211,7 +211,7 @@ typedef struct tag_INTEL_64_GENERAL_REGISTERS {
 
 // IDT entry layout for 64-bit mode (16 bytes)
 
-typedef struct tag_X86_64_IDT_ENTRY {
+typedef struct tag_GATE_DESCRIPTOR {
     U16 Offset_00_15;
     U16 Selector;
     U16 InterruptStackTable : 3;
@@ -223,11 +223,11 @@ typedef struct tag_X86_64_IDT_ENTRY {
     U16 Offset_16_31;
     U32 Offset_32_63;
     U32 Reserved_2;
-} X86_64_IDT_ENTRY, *LPX86_64_IDT_ENTRY;
+} GATE_DESCRIPTOR, *LPGATE_DESCRIPTOR;
 
-void SetGateDescriptorOffset(LPX86_64_IDT_ENTRY Descriptor, LINEAR Handler);
+void SetGateDescriptorOffset(LPGATE_DESCRIPTOR Descriptor, LINEAR Handler);
 void InitializeGateDescriptor(
-    LPX86_64_IDT_ENTRY Descriptor,
+    LPGATE_DESCRIPTOR Descriptor,
     LINEAR Handler,
     U16 Type,
     U16 Privilege);
@@ -311,7 +311,7 @@ typedef U16 SELECTOR;
 typedef U64 OFFSET;
 
 typedef struct tag_KERNELDATA_X86_64 {
-    LPX86_64_IDT_ENTRY IDT;
+    LPGATE_DESCRIPTOR IDT;
     LPVOID GDT;
     LPX86_64_TASK_STATE_SEGMENT TSS;
 } KERNELDATA_X86_64, *LPKERNELDATA_X86_64;
