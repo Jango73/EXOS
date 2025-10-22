@@ -1029,7 +1029,7 @@ void InitializeTaskSegments(void) {
 
     MemorySet(Descriptor, 0, sizeof(X86_64_SYSTEM_SEGMENT_DESCRIPTOR));
     SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1u);
-    SetSystemSegmentDescriptorBase(Descriptor, (U64)(UINT)Kernel_i386.TSS);
+    SetSystemSegmentDescriptorBase(Descriptor, (U64)Kernel_i386.TSS);
 
     Descriptor->Type = GDT_TYPE_TSS_AVAILABLE;
     Descriptor->Zero0 = 0u;
@@ -1041,7 +1041,7 @@ void InitializeTaskSegments(void) {
     Descriptor->Granularity = 0u;
     Descriptor->Reserved = 0u;
 
-    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), (LPVOID)(UINT)Kernel_i386.TSS);
+    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
 
     DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
     LoadInitialTaskRegister(SELECTOR_TSS);
