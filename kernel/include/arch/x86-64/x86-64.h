@@ -325,11 +325,11 @@ typedef struct tag_KERNELDATA_X86_64 {
 /************************************************************************/
 // Context switching
 
-#define SetupStackForKernelMode(Task, StackTop)                         \
+#define SetupStackForKernelMode(Task, StackTop, EntryPoint)              \
     (StackTop) -= (sizeof(U64) * 3u);                                   \
     ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;      \
     ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;     \
-    ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;
+    ((U64*)(StackTop))[0] = (EntryPoint);
 
 #define SetupStackForUserMode(Task, StackTop, UserESP)                  \
     (StackTop) -= (sizeof(U64) * 5u);                                   \

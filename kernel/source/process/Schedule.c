@@ -389,7 +389,10 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
             LINEAR StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
-            SetupStackForKernelMode(NextTask, StackPointer);
+            LINEAR EntryPoint = (LINEAR)&__task_runner_start;
+
+            NextTask->Arch.Context.Registers.RIP = EntryPoint;
+            SetupStackForKernelMode(NextTask, StackPointer, EntryPoint);
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
 
