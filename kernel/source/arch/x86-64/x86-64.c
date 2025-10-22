@@ -1126,7 +1126,14 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.RFlags = RFLAGS_IF | RFLAGS_ALWAYS_1;
     Task->Arch.Context.Registers.CR3 = Process->PageDirectory;
     Task->Arch.Context.Registers.CR4 = CR4;
-    Task->Arch.Context.Registers.RIP = VMA_TASK_RUNNER;
+
+    LINEAR TaskRunnerEntry = (LINEAR)VMA_TASK_RUNNER;
+
+    if (Process->Privilege == PRIVILEGE_KERNEL) {
+        TaskRunnerEntry = (LINEAR)&__task_runner_start;
+    }
+
+    Task->Arch.Context.Registers.RIP = TaskRunnerEntry;
 
     StackTop = Task->Arch.StackBase + Task->Arch.StackSize;
     SysStackTop = Task->Arch.SysStackBase + Task->Arch.SysStackSize;
