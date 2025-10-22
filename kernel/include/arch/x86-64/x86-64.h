@@ -212,16 +212,16 @@ typedef struct tag_INTEL_64_GENERAL_REGISTERS {
 // IDT entry layout for 64-bit mode (16 bytes)
 
 typedef struct tag_GATE_DESCRIPTOR {
-    U16 Offset_00_15;
+    U16 Offset_00_15;                   // Bits 0-15 of handler address
     U16 Selector;
-    U16 InterruptStackTable : 3;
+    U16 InterruptStackTable : 3;        // IST # to use for this gate
     U16 Reserved_0 : 5;
-    U16 Type : 4;
+    U16 Type : 4;                       // Type of gate (int, trap, ...)
     U16 Reserved_1 : 1;
-    U16 Privilege : 2;
-    U16 Present : 1;
-    U16 Offset_16_31;
-    U32 Offset_32_63;
+    U16 Privilege : 2;                  // Privilege level
+    U16 Present : 1;                    // Is this entry valid?
+    U16 Offset_16_31;                   // Bits 16-31 of handler address
+    U32 Offset_32_63;                   // Bits 32-63 of handler address
     U32 Reserved_2;
 } GATE_DESCRIPTOR, *LPGATE_DESCRIPTOR;
 

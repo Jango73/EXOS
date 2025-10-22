@@ -182,9 +182,9 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
 void SetGateDescriptorOffset(LPGATE_DESCRIPTOR Descriptor, LINEAR Handler) {
     U64 Offset = (U64)Handler;
 
-    Descriptor->Offset_00_15 = (U16)(Offset & 0x0000FFFFull);
-    Descriptor->Offset_16_31 = (U16)((Offset >> 16) & 0x0000FFFFull);
-    Descriptor->Offset_32_63 = (U32)((Offset >> 32) & 0xFFFFFFFFull);
+    Descriptor->Offset_00_15 = (U16)(Offset & 0x0000FFFF);
+    Descriptor->Offset_16_31 = (U16)((Offset >> 16) & 0x0000FFFF);
+    Descriptor->Offset_32_63 = (U32)((Offset >> 32) & 0xFFFFFFFF);
     Descriptor->Reserved_2 = 0;
 }
 
@@ -216,17 +216,17 @@ void InitializeGateDescriptor(
 /************************************************************************/
 
 static void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U32 Limit) {
-    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFFu);
-    Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0Fu);
+    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFF);
+    Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0F);
 }
 
 /************************************************************************/
 
 static void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U64 Base) {
-    Descriptor->Base_00_15 = (U16)(Base & 0xFFFFu);
-    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFFu);
-    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFFu);
-    Descriptor->Base_32_63 = (U32)((Base >> 32) & 0xFFFFFFFFu);
+    Descriptor->Base_00_15 = (U16)(Base & 0xFFFF);
+    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFF);
+    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFF);
+    Descriptor->Base_32_63 = (U32)((Base >> 32) & 0xFFFFFFFF);
 }
 
 /************************************************************************/
