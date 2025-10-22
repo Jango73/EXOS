@@ -214,6 +214,12 @@ typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
     #define DEBUG(a, ...)
 #endif
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
+#else
+    #define FINE_DEBUG(a, ...)
+#endif
+
 #define VERBOSE(a, ...) KernelLogText(LOG_VERBOSE, (a), ##__VA_ARGS__)
 #define WARNING(a, ...) KernelLogText(LOG_WARNING, (a), ##__VA_ARGS__)
 #define ERROR(a, ...) KernelLogText(LOG_ERROR, (a), ##__VA_ARGS__)
@@ -224,6 +230,12 @@ typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
     #define DEBUG(a, ...) debug((a), ##__VA_ARGS__)
 #else
     #define DEBUG(a, ...)
+#endif
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
+#else
+    #define FINE_DEBUG(a, ...)
 #endif
 
 #define VERBOSE(a, ...)

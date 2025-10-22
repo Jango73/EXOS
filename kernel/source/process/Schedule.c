@@ -88,9 +88,7 @@ static UINT RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
         LPTASK Task = TaskList.Tasks[Index];
 
         if (GetTaskStatus(Task) == TASK_STATUS_DEAD && Task != ExceptTask) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-            DEBUG(TEXT("[RemoveDeadTasksFromQueue] Removing dead task %s at index %d"), Task->Name, Index);
-#endif
+            FINE_DEBUG(TEXT("[RemoveDeadTasksFromQueue] Removing dead task %s at index %d"), Task->Name, Index);
 
             // Shift remaining tasks down
             for (UINT ShiftIndex = (UINT)Index; ShiftIndex < TaskList.NumTasks - 1; ShiftIndex++) {
@@ -178,9 +176,7 @@ UINT FindNextRunnableTask(UINT StartIndex) {
 BOOL AddTaskToQueue(LPTASK NewTask) {
     TRACED_FUNCTION;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[AddTaskToQueue] NewTask = %p"), NewTask);
-#endif
+    FINE_DEBUG(TEXT("[AddTaskToQueue] NewTask = %p"), NewTask);
 
     FreezeScheduler();
 
@@ -206,9 +202,7 @@ BOOL AddTaskToQueue(LPTASK NewTask) {
         }
 
         // Add task to queue
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[AddTaskToQueue] Adding %p"), NewTask);
-#endif
+        FINE_DEBUG(TEXT("[AddTaskToQueue] Adding %p"), NewTask);
 
         TaskList.Tasks[TaskList.NumTasks] = NewTask;
 
@@ -362,10 +356,8 @@ BOOL UnfreezeScheduler(void) {
 /************************************************************************/
 
 void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask] CurrentTask = %p (%s), NextTask = %p (%s)"),
+    FINE_DEBUG(TEXT("[SwitchToNextTask] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
-#endif
 
     if (NextTask->Status > TASK_STATUS_DEAD) {
         ERROR(TEXT("[SwitchToNextTask] MEMORY CORRUPTION: Task status %x is out of range"),
@@ -378,18 +370,14 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
         SwitchToNextTask_2(CurrentTask, NextTask);
     // }
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[SwitchToNextTask] Exit for task %p"), CurrentTask);
-#endif
+    FINE_DEBUG(TEXT("[SwitchToNextTask] Exit for task %p"), CurrentTask);
 }
 
 /************************************************************************/
 
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask_3] CurrentTask = %p (%s), NextTask = %p (%s)"),
+    FINE_DEBUG(TEXT("[SwitchToNextTask_3] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
-#endif
 
     PrepareNextTaskSwitch(CurrentTask, NextTask);
 
@@ -403,9 +391,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
             LINEAR StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
             SetupStackForKernelMode(NextTask, StackPointer);
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-            DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
-#endif
+            FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
 
             JumpToReadyTask(NextTask, StackPointer);
         } else {
@@ -413,17 +399,13 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
             SetupStackForUserMode(
                 NextTask, StackPointer, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-            DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
-#endif
+            FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
 
             JumpToReadyTask(NextTask, StackPointer);
         }
     }
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SwitchToNextTask_3] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[SwitchToNextTask_3] Exit"));
 
     // Returning normally to next task
 }
@@ -441,17 +423,14 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
  *
  */
 void Scheduler(void) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    U32 Flags;
+    U32 Flags = 0;
     SaveFlags(&Flags);
-    DEBUG(TEXT("[Scheduler] Enter : IF = %x"), Flags & 0x200);
-#endif
+    FINE_DEBUG(TEXT("[Scheduler] Enter : IF = %x"), Flags & 0x200);
+    UNUSED(Flags);
 
     // If scheduler is frozen, don't switch (atomic read - safe in interrupt context)
     if (TaskList.Freeze) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[Scheduler] TaskList frozen: Returning NULL"));
-#endif
+        FINE_DEBUG(TEXT("[Scheduler] TaskList frozen: Returning NULL"));
         return;
     }
 
@@ -489,18 +468,14 @@ void Scheduler(void) {
 
     // No runnable tasks - system idle
     if (RunnableCount == 0) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[Scheduler] No runnable tasks"));
-#endif
+        FINE_DEBUG(TEXT("[Scheduler] No runnable tasks"));
 
         return;
     }
 
     // If current task is still running and quantum not expired, keep it
     if (CurrentTask && CurrentTask->Status == TASK_STATUS_RUNNING && !QuantumExpired) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[Scheduler] Current task continues"));
-#endif
+        FINE_DEBUG(TEXT("[Scheduler] Current task continues"));
 
         return;
     }
@@ -513,18 +488,14 @@ void Scheduler(void) {
         LPTASK CurrentTask = (TaskList.CurrentIndex < TaskList.NumTasks) ? TaskList.Tasks[TaskList.CurrentIndex] : NULL;
         LPTASK NextTask = TaskList.Tasks[NextIndex];
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[Scheduler] Switch between task index %u (%s @ %s) and %u (%s @ %s)"),
+        FINE_DEBUG(TEXT("[Scheduler] Switch between task index %u (%s @ %s) and %u (%s @ %s)"),
             TaskList.CurrentIndex, CurrentTask ? CurrentTask->Name : TEXT("NULL"),
             CurrentTask ? CurrentTask->Process->FileName : TEXT("NULL"), NextIndex, NextTask->Name,
             NextTask->Process->FileName);
-#endif
 
         if (NextIndex >= TaskList.NumTasks) {
             // Should not happen if RunnableCount > 0, but safety check
-#if SCHEDULING_DEBUG_OUTPUT == 1
-            DEBUG(TEXT("[Scheduler] No next task found"));
-#endif
+            FINE_DEBUG(TEXT("[Scheduler] No next task found"));
 
             return;
         }
@@ -546,9 +517,7 @@ void Scheduler(void) {
 
         if (CurrentTask && CurrentTask->Process != NextTask->Process &&
             CurrentTask->Process->Privilege != NextTask->Process->Privilege) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-            DEBUG(TEXT("[Scheduler] Different ring switch :"));
-#endif
+            FINE_DEBUG(TEXT("[Scheduler] Different ring switch :"));
         }
 
         SwitchToNextTask(CurrentTask, NextTask);

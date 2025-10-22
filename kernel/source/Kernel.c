@@ -172,12 +172,12 @@ void InitializeQuantumTime(void) {
     DEBUG(TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), Kernel.MinimumQuantum);
 #endif
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    // Double quantum when scheduling debug is enabled (logs slow down execution)
-    Kernel.MinimumQuantum *= 2;
-    DEBUG(TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
-        Kernel.MinimumQuantum);
-#endif
+    if (SCHEDULING_DEBUG_OUTPUT == 1) {
+        // Double quantum when scheduling debug is enabled (logs slow down execution)
+        Kernel.MinimumQuantum *= 2;
+        FINE_DEBUG(TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
+            Kernel.MinimumQuantum);
+    }
 
     Kernel.MaximumQuantum = Kernel.MinimumQuantum * 4;
 }

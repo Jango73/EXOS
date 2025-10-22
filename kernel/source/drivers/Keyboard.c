@@ -412,9 +412,7 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
 static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     U32 Index;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SendKeyCodeToBuffer] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[SendKeyCodeToBuffer] Enter"));
 
     if (KeyCode->VirtualKey != 0 || KeyCode->ASCIICode != 0) {
         //-------------------------------------
@@ -428,9 +426,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
         }
     }
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SendKeyCodeToBuffer] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[SendKeyCodeToBuffer] Exit"));
 }
 
 /***************************************************************************/
@@ -479,9 +475,7 @@ static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[HandleScanCode] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[HandleScanCode] Enter"));
 
     if (ScanCode == 0) {
         PreviousCode = 0;
@@ -572,9 +566,7 @@ static void HandleScanCode(U32 ScanCode) {
         }
     }
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[HandleScanCode] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[HandleScanCode] Exit"));
 }
 
 /***************************************************************************/
@@ -582,9 +574,7 @@ static void HandleScanCode(U32 ScanCode) {
 BOOL PeekChar(void) {
     U32 Result = FALSE;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[PeekChar] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[PeekChar] Enter"));
 
     LockMutex(&(Keyboard.Mutex), INFINITY);
 
@@ -593,9 +583,7 @@ BOOL PeekChar(void) {
 
     UnlockMutex(&(Keyboard.Mutex));
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[PeekChar] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[PeekChar] Exit"));
 
     return Result;
 }
@@ -705,14 +693,10 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[KeyboardHandler] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[KeyboardHandler] Enter"));
 
     if (Busy) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[KeyboardHandler] Busy, exiting"));
-#endif
+        FINE_DEBUG(TEXT("[KeyboardHandler] Busy, exiting"));
 
         return;
     }
@@ -738,9 +722,7 @@ void KeyboardHandler(void) {
 
     Busy = 0;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[KeyboardHandler] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[KeyboardHandler] Exit"));
 }
 
 /***************************************************************************/
