@@ -480,24 +480,14 @@ typedef struct tag_SEGMENT_INFO {
 #endif  // TRACE_STACK_USAGE == 1
 
 #if TRACE_STACK_USAGE == 1
-#if SCHEDULING_DEBUG_OUTPUT == 1
 #define TRACED_EPILOGUE(FunctionName)                                                                              \
     LINEAR __StackTraceEnd;                                                                                        \
     __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__StackTraceEnd) : :);                                        \
     LINEAR __StackTraceUsed = __StackTraceStart - __StackTraceEnd;                                                 \
-    DEBUG(TEXT("ESP in " #FunctionName " = %x"), __StackTraceEnd);                                                  \
+    DEBUG(TEXT("ESP in " #FunctionName " = %x"), __StackTraceEnd);                                                \
     if (__StackTraceUsed > STACK_TRACE_WARNING) {                                                                  \
         WARNING(TEXT("Stack usage exceeds limit (%x) in " #FunctionName), __StackTraceUsed);                       \
     }
-#else
-#define TRACED_EPILOGUE(FunctionName)                                                                              \
-    LINEAR __StackTraceEnd;                                                                                        \
-    __asm__ __volatile__("movl %%esp, %0\n\t" : "=r"(__StackTraceEnd) : :);                                        \
-    LINEAR __StackTraceUsed = __StackTraceStart - __StackTraceEnd;                                                 \
-    if (__StackTraceUsed > STACK_TRACE_WARNING) {                                                                  \
-        WARNING(TEXT("Stack usage exceeds limit (%x) in " #FunctionName), __StackTraceUsed);                       \
-    }
-#endif  // TRACE_STACK_USAGE == 1
 #else
 #define TRACED_EPILOGUE(FunctionName)
 #endif

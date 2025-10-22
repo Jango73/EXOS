@@ -47,9 +47,7 @@ static UINT SchedulerTime = 0;
 static DATETIME CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-static logCount = 0;
-#endif
+static UINT LogCount = 0;
 
 /************************************************************************/
 
@@ -150,13 +148,13 @@ void ManageLocalTime(void) {
  * @brief Increment the internal millisecond counter.
  */
 void ClockHandler(void) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    logCount++;
-    if (logCount > 20000) {
-        DEBUG(TEXT("Too much flooding, halting system."));
-        DO_THE_SLEEPING_BEAUTY;
+    if (SCHEDULING_DEBUG_OUTPUT == 1) {
+        LogCount++;
+        if (LogCount > 20000) {
+            FINE_DEBUG(TEXT("Too much flooding, halting system."));
+            DO_THE_SLEEPING_BEAUTY;
+        }
     }
-#endif
 
     SystemUpTime += MILLIS;
     SchedulerTime += MILLIS;
