@@ -818,6 +818,7 @@ BITS 32
 FUNC_HEADER
 TaskRunner :
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
     push        ebx
     push        eax
     push        dword [esp]                 ; Argument copy for log
@@ -828,6 +829,7 @@ TaskRunner :
     add         esp, 16
     pop         eax
     pop         ebx
+%endif
 
     ; Clear registers
     xor         ecx, ecx
@@ -836,6 +838,7 @@ TaskRunner :
     xor         edi, edi
     xor         ebp, ebp
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
     push        ebx
     push        eax
     push        TaskRunnerLogCleared32
@@ -844,6 +847,7 @@ TaskRunner :
     add         esp, 8
     pop         eax
     pop         ebx
+%endif
 
     ;--------------------------------------
     ; EBX contains the function
@@ -852,6 +856,7 @@ TaskRunner :
     cmp         ebx, 0
     jne         .call_entry
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
     push        ebx
     push        eax
     push        TaskRunnerLogMissing32
@@ -860,10 +865,12 @@ TaskRunner :
     add         esp, 8
     pop         eax
     pop         ebx
+%endif
     jmp         .exit
 
 .call_entry:
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
     push        ebx
     push        eax
     push        dword [esp]
@@ -874,11 +881,13 @@ TaskRunner :
     add         esp, 16
     pop         eax
     pop         ebx
+%endif
 
     push        eax                         ; Argument for task function
     call        ebx                         ; Call task function
     add         esp, U32_SIZE               ; Adjust stack
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
     push        ebx
     push        eax
     push        dword [esp]
@@ -888,11 +897,13 @@ TaskRunner :
     add         esp, 12
     pop         eax
     pop         ebx
+%endif
 
 .exit :
 
     mov         ebx, eax                    ; Task exit code in ebx
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
     push        ebx
     push        eax
     push        dword [esp]
@@ -902,10 +913,12 @@ TaskRunner :
     add         esp, 12
     pop         eax
     pop         ebx
+%endif
 
     mov         eax, 0x33                   ; SYSCALL_Exit
     int         EXOS_USER_CALL
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
     push        ebx
     push        eax
     push        TaskRunnerLogSleep32
@@ -914,6 +927,7 @@ TaskRunner :
     add         esp, 8
     pop         eax
     pop         ebx
+%endif
 
     ;--------------------------------------
     ; Do an infinite loop, task will be removed by scheduler
@@ -930,6 +944,7 @@ TaskRunner :
 section .rodata
 align 4
 
+%if SCHEDULING_DEBUG_OUTPUT = 1
 TaskRunnerLogEntry32    db "[TaskRunner] Entry pointer=%p argument=%p", 0
 TaskRunnerLogCleared32  db "[TaskRunner] General purpose registers cleared", 0
 TaskRunnerLogMissing32  db "[TaskRunner] No entry pointer, skipping execution", 0
@@ -937,6 +952,7 @@ TaskRunnerLogInvoke32   db "[TaskRunner] Invoking entry=%p with argument=%p", 0
 TaskRunnerLogReturn32   db "[TaskRunner] Task function returned %p", 0
 TaskRunnerLogExit32     db "[TaskRunner] Exit syscall requested with code %p", 0
 TaskRunnerLogSleep32    db "[TaskRunner] Entering sleep loop", 0
+%endif
 
 ;----------------------------------------------------------------------------
 
