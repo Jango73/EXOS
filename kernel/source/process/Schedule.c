@@ -393,6 +393,10 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogMem(LOG_DEBUG, StackPointer, 256);
+#endif
+
             JumpToReadyTask(NextTask, StackPointer);
         } else {
             LINEAR StackPointer = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
@@ -400,6 +404,10 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
                 NextTask, StackPointer, NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN);
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+            KernelLogMem(LOG_DEBUG, StackPointer, 256);
+#endif
 
             JumpToReadyTask(NextTask, StackPointer);
         }
