@@ -696,6 +696,32 @@ PHYSICAL AllocPageDirectory(void) {
 
     if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
 
+    BOOL ShareLowPml4Entry = TaskRunnerPml4Index == LowPml4Index;
+
+    if (ShareLowPml4Entry) {
+        LPPAGE_DIRECTORY LowPdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(LowRegion.PdptPhysical);
+
+        if (LowPdpt == NULL) {
+            ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed while linking TaskRunner PDPT"));
+            goto Out;
+        }
+
+        WritePageDirectoryEntryValue(
+            LowPdpt,
+            TaskRunnerRegion.PdptIndex,
+            MakePageDirectoryEntryValue(
+                TaskRunnerRegion.DirectoryPhysical,
+                TaskRunnerRegion.ReadWrite,
+                TaskRunnerRegion.Privilege,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                TaskRunnerRegion.Global,
+                /*Fixed*/ 1));
+
+        FreePhysicalPage(TaskRunnerRegion.PdptPhysical);
+        TaskRunnerRegion.PdptPhysical = NULL;
+    }
+
     Pml4Physical = AllocPhysicalPage();
 
     if (Pml4Physical == NULL) {
@@ -738,17 +764,19 @@ PHYSICAL AllocPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    WritePageDirectoryEntryValue(
-        Pml4,
-        TaskRunnerPml4Index,
-        MakePageDirectoryEntryValue(
-            TaskRunnerRegion.PdptPhysical,
-            /*ReadWrite*/ 1,
-            PAGE_PRIVILEGE_USER,
-            /*WriteThrough*/ 0,
-            /*CacheDisabled*/ 0,
-            /*Global*/ 0,
-            /*Fixed*/ 1));
+    if (!ShareLowPml4Entry) {
+        WritePageDirectoryEntryValue(
+            Pml4,
+            TaskRunnerPml4Index,
+            MakePageDirectoryEntryValue(
+                TaskRunnerRegion.PdptPhysical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_USER,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+    }
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -834,6 +862,32 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
 
+    BOOL ShareLowPml4Entry = TaskRunnerPml4Index == LowPml4Index;
+
+    if (ShareLowPml4Entry) {
+        LPPAGE_DIRECTORY LowPdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(LowRegion.PdptPhysical);
+
+        if (LowPdpt == NULL) {
+            ERROR(TEXT("[AllocUserPageDirectory] MapTemporaryPhysicalPage1 failed while linking TaskRunner PDPT"));
+            goto Out;
+        }
+
+        WritePageDirectoryEntryValue(
+            LowPdpt,
+            TaskRunnerRegion.PdptIndex,
+            MakePageDirectoryEntryValue(
+                TaskRunnerRegion.DirectoryPhysical,
+                TaskRunnerRegion.ReadWrite,
+                TaskRunnerRegion.Privilege,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                TaskRunnerRegion.Global,
+                /*Fixed*/ 1));
+
+        FreePhysicalPage(TaskRunnerRegion.PdptPhysical);
+        TaskRunnerRegion.PdptPhysical = NULL;
+    }
+
     Pml4Physical = AllocPhysicalPage();
 
     if (Pml4Physical == NULL) {
@@ -876,17 +930,19 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    WritePageDirectoryEntryValue(
-        Pml4,
-        TaskRunnerPml4Index,
-        MakePageDirectoryEntryValue(
-            TaskRunnerRegion.PdptPhysical,
-            /*ReadWrite*/ 1,
-            PAGE_PRIVILEGE_USER,
-            /*WriteThrough*/ 0,
-            /*CacheDisabled*/ 0,
-            /*Global*/ 0,
-            /*Fixed*/ 1));
+    if (!ShareLowPml4Entry) {
+        WritePageDirectoryEntryValue(
+            Pml4,
+            TaskRunnerPml4Index,
+            MakePageDirectoryEntryValue(
+                TaskRunnerRegion.PdptPhysical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_USER,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+    }
 
     WritePageDirectoryEntryValue(
         Pml4,
