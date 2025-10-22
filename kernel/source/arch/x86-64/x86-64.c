@@ -276,6 +276,7 @@ static BOOL AllocateTableAndPopulate(
     REGION_SETUP* Region,
     PAGE_TABLE_SETUP* Table,
     LPPAGE_DIRECTORY Directory) {
+
     Table->Physical = AllocPhysicalPage();
 
     if (Table->Physical == NULL) {
@@ -295,7 +296,6 @@ static BOOL AllocateTableAndPopulate(
     LPPAGE_TABLE TableVA = (LPPAGE_TABLE)TableLinear;
     MemorySet(TableVA, 0, PAGE_SIZE);
 
-    UINT ProbeIndex = 0u;
     switch (Table->Mode) {
     case PAGE_TABLE_POPULATE_IDENTITY:
         for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
@@ -339,12 +339,10 @@ static BOOL AllocateTableAndPopulate(
                 /*CacheDisabled*/ 0,
                 Table->Data.Single.Global,
                 /*Fixed*/ 1));
-        ProbeIndex = Table->Data.Single.TableIndex;
         break;
 
     case PAGE_TABLE_POPULATE_EMPTY:
     default:
-        ProbeIndex = 0u;
         break;
     }
 
@@ -640,6 +638,7 @@ static BOOL SetupTaskRunnerRegion(
 
 /************************************************************************/
 
+/*
 static U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
     if (TablePhysical == NULL) {
         return 0;
@@ -653,6 +652,7 @@ static U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
 
     return ReadPageTableEntryValue((LPPAGE_TABLE)Linear, Index);
 }
+*/
 
 /************************************************************************/
 
@@ -935,30 +935,30 @@ Out:
 static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable, U32 Privilege) {
     MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
 
-    Descriptor->Limit_00_15 = 0xFFFFu;
-    Descriptor->Base_00_15 = 0x0000u;
-    Descriptor->Base_16_23 = 0x00u;
-    Descriptor->Accessed = 0u;
-    Descriptor->CanWrite = 1u;
-    Descriptor->ConformExpand = 0u;
-    Descriptor->Type = Executable ? 1u : 0u;
-    Descriptor->Segment = 1u;
+    Descriptor->Limit_00_15 = 0xFFFF;
+    Descriptor->Base_00_15 = 0x0000;
+    Descriptor->Base_16_23 = 0x00;
+    Descriptor->Accessed = 0;
+    Descriptor->CanWrite = 1;
+    Descriptor->ConformExpand = 0;
+    Descriptor->Type = Executable ? 1 : 0;
+    Descriptor->Segment = 1;
     Descriptor->Privilege = Privilege;
-    Descriptor->Present = 1u;
-    Descriptor->Limit_16_19 = 0x0Fu;
-    Descriptor->Available = 0u;
-    Descriptor->Unused = Executable ? 1u : 0u;
-    Descriptor->OperandSize = Executable ? 0u : 1u;
-    Descriptor->Granularity = 1u;
-    Descriptor->Base_24_31 = 0x00u;
+    Descriptor->Present = 1;
+    Descriptor->Limit_16_19 = 0x0F;
+    Descriptor->Available = 0;
+    Descriptor->Unused = Executable ? 1 : 0;
+    Descriptor->OperandSize = Executable ? 0 : 1;
+    Descriptor->Granularity = 1;
+    Descriptor->Base_24_31 = 0x00;
 }
 
 /***************************************************************************/
 
 static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Privilege) {
     InitLongModeSegmentDescriptor(Descriptor, FALSE, Privilege);
-    Descriptor->Unused = 0u;
-    Descriptor->OperandSize = 1u;
+    Descriptor->Unused = 0;
+    Descriptor->OperandSize = 1;
 }
 
 /***************************************************************************/
@@ -966,22 +966,22 @@ static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Priv
 static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable) {
     MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
 
-    Descriptor->Limit_00_15 = 0xFFFFu;
-    Descriptor->Limit_16_19 = 0x0Fu;
-    Descriptor->Base_00_15 = 0x0000u;
-    Descriptor->Base_16_23 = 0x00u;
-    Descriptor->Base_24_31 = 0x00u;
-    Descriptor->Accessed = 0u;
-    Descriptor->CanWrite = 1u;
-    Descriptor->ConformExpand = 0u;
-    Descriptor->Type = Executable ? 1u : 0u;
-    Descriptor->Segment = 1u;
+    Descriptor->Limit_00_15 = 0xFFFF;
+    Descriptor->Limit_16_19 = 0x0F;
+    Descriptor->Base_00_15 = 0x0000;
+    Descriptor->Base_16_23 = 0x00;
+    Descriptor->Base_24_31 = 0x00;
+    Descriptor->Accessed = 0;
+    Descriptor->CanWrite = 1;
+    Descriptor->ConformExpand = 0;
+    Descriptor->Type = Executable ? 1 : 0;
+    Descriptor->Segment = 1;
     Descriptor->Privilege = PRIVILEGE_KERNEL;
-    Descriptor->Present = 1u;
-    Descriptor->Available = 0u;
-    Descriptor->Unused = 0u;
-    Descriptor->OperandSize = 0u;
-    Descriptor->Granularity = 0u;
+    Descriptor->Present = 1;
+    Descriptor->Available = 0;
+    Descriptor->Unused = 0;
+    Descriptor->OperandSize = 0;
+    Descriptor->Granularity = 0;
 }
 
 /***************************************************************************/
@@ -1013,7 +1013,7 @@ void InitializeTaskSegments(void) {
 
     if (Kernel_i386.TSS == NULL) {
         ERROR(TEXT("[InitializeTaskSegments] AllocKernelRegion for TSS failed"));
-        DO_THE_SLEEPING_BEAUTY;
+        ConsolePanic(TEXT("AllocKernelRegion for TSS failed"));
     }
 
     MemorySet(Kernel_i386.TSS, 0, TssSize);
@@ -1028,22 +1028,23 @@ void InitializeTaskSegments(void) {
         (LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR)((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT + GDT_TSS_INDEX);
 
     MemorySet(Descriptor, 0, sizeof(X86_64_SYSTEM_SEGMENT_DESCRIPTOR));
-    SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1u);
-    SetSystemSegmentDescriptorBase(Descriptor, (U64)(UINT)Kernel_i386.TSS);
+
+    SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1);
+    SetSystemSegmentDescriptorBase(Descriptor, (UINT)Kernel_i386.TSS);
 
     Descriptor->Type = GDT_TYPE_TSS_AVAILABLE;
-    Descriptor->Zero0 = 0u;
+    Descriptor->Zero0 = 0;
     Descriptor->Privilege = PRIVILEGE_KERNEL;
-    Descriptor->Present = 1u;
-    Descriptor->Limit_16_19 = (U8)(Descriptor->Limit_16_19 & 0x0Fu);
-    Descriptor->Available = 0u;
-    Descriptor->Zero1 = 0u;
-    Descriptor->Granularity = 0u;
-    Descriptor->Reserved = 0u;
+    Descriptor->Present = 1;
+    Descriptor->Limit_16_19 = (U8)(Descriptor->Limit_16_19 & 0x0F);
+    Descriptor->Available = 0;
+    Descriptor->Zero1 = 0;
+    Descriptor->Granularity = 0;
+    Descriptor->Reserved = 0;
 
-    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), (LPVOID)(UINT)Kernel_i386.TSS);
-
+    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
     DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
+
     LoadInitialTaskRegister(SELECTOR_TSS);
 
     DEBUG(TEXT("[InitializeTaskSegments] Exit"));
@@ -1223,13 +1224,13 @@ void InitializeMemoryManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    UINT BitmapBytes = (KernelStartup.PageCount + 7u) >> MUL_8;
+    UINT BitmapBytes = (KernelStartup.PageCount + 7) >> MUL_8;
     UINT BitmapBytesAligned = (UINT)PAGE_ALIGN(BitmapBytes);
 
     U64 KernelSpan = (U64)KernelStartup.KernelSize + (U64)N_512KB;
     PHYSICAL MapSize = (PHYSICAL)PAGE_ALIGN(KernelSpan);
-    U64 TotalPages = (MapSize + PAGE_SIZE - 1ull) >> PAGE_SIZE_MUL;
-    U64 TablesRequired = (TotalPages + (U64)PAGE_TABLE_NUM_ENTRIES - 1ull) / (U64)PAGE_TABLE_NUM_ENTRIES;
+    U64 TotalPages = (MapSize + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
+    U64 TablesRequired = (TotalPages + (U64)PAGE_TABLE_NUM_ENTRIES - 1) / (U64)PAGE_TABLE_NUM_ENTRIES;
     PHYSICAL TablesSize = (PHYSICAL)(TablesRequired * (U64)PAGE_TABLE_SIZE);
     PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize + TablesSize;
     PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
