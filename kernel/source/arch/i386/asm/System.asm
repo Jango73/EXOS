@@ -818,6 +818,17 @@ BITS 32
 FUNC_HEADER
 TaskRunner :
 
+    push        ebx
+    push        eax
+    push        dword [esp]                 ; Argument copy for log
+    push        dword [esp+8]               ; Entry copy for log
+    push        TaskRunnerLogEntry32
+    push        LOG_DEBUG
+    call        KernelLogText
+    add         esp, 16
+    pop         eax
+    pop         ebx
+
     ; Clear registers
     xor         ecx, ecx
     xor         edx, edx
@@ -825,22 +836,84 @@ TaskRunner :
     xor         edi, edi
     xor         ebp, ebp
 
+    push        ebx
+    push        eax
+    push        TaskRunnerLogCleared32
+    push        LOG_DEBUG
+    call        KernelLogText
+    add         esp, 8
+    pop         eax
+    pop         ebx
+
     ;--------------------------------------
     ; EBX contains the function
     ; EAX contains the parameter
 
     cmp         ebx, 0
-    je          .exit
+    jne         .call_entry
+
+    push        ebx
+    push        eax
+    push        TaskRunnerLogMissing32
+    push        LOG_DEBUG
+    call        KernelLogText
+    add         esp, 8
+    pop         eax
+    pop         ebx
+    jmp         .exit
+
+.call_entry:
+
+    push        ebx
+    push        eax
+    push        dword [esp]
+    push        dword [esp+8]
+    push        TaskRunnerLogInvoke32
+    push        LOG_DEBUG
+    call        KernelLogText
+    add         esp, 16
+    pop         eax
+    pop         ebx
 
     push        eax                         ; Argument for task function
     call        ebx                         ; Call task function
     add         esp, U32_SIZE               ; Adjust stack
 
+    push        ebx
+    push        eax
+    push        dword [esp]
+    push        TaskRunnerLogReturn32
+    push        LOG_DEBUG
+    call        KernelLogText
+    add         esp, 12
+    pop         eax
+    pop         ebx
+
 .exit :
 
     mov         ebx, eax                    ; Task exit code in ebx
+
+    push        ebx
+    push        eax
+    push        dword [esp]
+    push        TaskRunnerLogExit32
+    push        LOG_DEBUG
+    call        KernelLogText
+    add         esp, 12
+    pop         eax
+    pop         ebx
+
     mov         eax, 0x33                   ; SYSCALL_Exit
     int         EXOS_USER_CALL
+
+    push        ebx
+    push        eax
+    push        TaskRunnerLogSleep32
+    push        LOG_DEBUG
+    call        KernelLogText
+    add         esp, 8
+    pop         eax
+    pop         ebx
 
     ;--------------------------------------
     ; Do an infinite loop, task will be removed by scheduler
@@ -851,6 +924,19 @@ TaskRunner :
     int         EXOS_USER_CALL
 
     jmp         .sleep
+
+;----------------------------------------------------------------------------
+
+section .rodata
+align 4
+
+TaskRunnerLogEntry32    db "[TaskRunner] Entry pointer=%p argument=%p", 0
+TaskRunnerLogCleared32  db "[TaskRunner] General purpose registers cleared", 0
+TaskRunnerLogMissing32  db "[TaskRunner] No entry pointer, skipping execution", 0
+TaskRunnerLogInvoke32   db "[TaskRunner] Invoking entry=%p with argument=%p", 0
+TaskRunnerLogReturn32   db "[TaskRunner] Task function returned %p", 0
+TaskRunnerLogExit32     db "[TaskRunner] Exit syscall requested with code %p", 0
+TaskRunnerLogSleep32    db "[TaskRunner] Entering sleep loop", 0
 
 ;----------------------------------------------------------------------------
 

@@ -540,8 +540,25 @@ section .shared_text
 BITS 64
 
 SYS_FUNC_BEGIN TaskRunner
+    sub     rsp, 32
+
     mov     r8, rax
     mov     r9, rbx
+
+    mov     [rsp + 0], r8
+    mov     [rsp + 8], r9
+
+    mov     r10, [rsp + 0]
+    mov     r11, [rsp + 8]
+    mov     edi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogEntry64]
+    mov     rdx, r11
+    mov     rcx, r10
+    call    KernelLogText
+    mov     r8, [rsp + 0]
+    mov     r9, [rsp + 8]
+    mov     rax, r8
+    mov     rbx, r9
 
     xor     ecx, ecx
     xor     edx, edx
@@ -554,17 +571,72 @@ SYS_FUNC_BEGIN TaskRunner
     xor     r14d, r14d
     xor     r15d, r15d
 
+    mov     edi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogCleared64]
+    call    KernelLogText
+    mov     r8, [rsp + 0]
+    mov     r9, [rsp + 8]
+    mov     rax, r8
+    mov     rbx, r9
+
     mov     rbx, r9
     test    rbx, rbx
-    je      .exit
+    jne     .call_entry
+
+    mov     edi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogMissing64]
+    call    KernelLogText
+    mov     r8, [rsp + 0]
+    mov     r9, [rsp + 8]
+    mov     rax, r8
+    mov     rbx, r9
+    jmp     .exit
+
+.call_entry:
+
+    mov     r10, [rsp + 0]
+    mov     r11, [rsp + 8]
+    mov     edi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogInvoke64]
+    mov     rdx, r11
+    mov     rcx, r10
+    call    KernelLogText
+    mov     r8, [rsp + 0]
+    mov     r9, [rsp + 8]
+    mov     rax, r8
+    mov     rbx, r9
 
     mov     rdi, r8
     call    rbx
 
+    mov     [rsp + 16], rax
+    mov     edi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogReturn64]
+    mov     rdx, [rsp + 16]
+    call    KernelLogText
+    mov     rax, [rsp + 16]
+    mov     r8, [rsp + 0]
+    mov     r9, [rsp + 8]
+
 .exit:
+    mov     [rsp + 16], rax
     mov     rbx, rax
+
+    mov     edi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogExit64]
+    mov     rdx, [rsp + 16]
+    call    KernelLogText
+    mov     rax, [rsp + 16]
+    mov     rbx, rax
+
+    add     rsp, 32
+
     mov     eax, 0x33
     int     EXOS_USER_CALL
+
+    mov     edi, LOG_DEBUG
+    lea     rsi, [rel TaskRunnerLogSleep64]
+    call    KernelLogText
 
 .sleep:
     mov     eax, 0x0E
@@ -572,6 +644,19 @@ SYS_FUNC_BEGIN TaskRunner
     int     EXOS_USER_CALL
     jmp     .sleep
 SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+section .rodata
+align 8
+
+TaskRunnerLogEntry64    db "[TaskRunner] Entry pointer=%p argument=%p", 0
+TaskRunnerLogCleared64  db "[TaskRunner] General purpose registers cleared", 0
+TaskRunnerLogMissing64  db "[TaskRunner] No entry pointer, skipping execution", 0
+TaskRunnerLogInvoke64   db "[TaskRunner] Invoking entry=%p with argument=%p", 0
+TaskRunnerLogReturn64   db "[TaskRunner] Task function returned %p", 0
+TaskRunnerLogExit64     db "[TaskRunner] Exit syscall requested with code %p", 0
+TaskRunnerLogSleep64    db "[TaskRunner] Entering sleep loop", 0
 
 ;----------------------------------------------------------------------------
 
