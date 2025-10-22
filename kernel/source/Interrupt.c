@@ -129,7 +129,7 @@ void InitializeInterrupts(void) {
     // Set all used interrupts
 
     for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        InitializeGateDescriptor(IDT + Index, (LINEAR)InterruptTable[Index], GATE_TYPE_386_INT, PRIVILEGE_KERNEL);
+        InitializeGateDescriptor(IDT + Index, (LINEAR)(InterruptTable[Index]), GATE_TYPE_386_INT, PRIVILEGE_KERNEL);
     }
 
     //-------------------------------------
@@ -144,7 +144,7 @@ void InitializeInterrupts(void) {
 
     //-------------------------------------
 
-    LoadInterruptDescriptorTable((PHYSICAL)IDT, sizeof(IDT) - 1);
+    LoadInterruptDescriptorTable((LINEAR)IDT, sizeof(IDT) - 1);
 
     // Reset debug registers
 

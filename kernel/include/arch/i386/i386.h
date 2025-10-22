@@ -622,30 +622,6 @@ typedef struct tag_SEGMENT_INFO {
 /************************************************************************/
 // Inline helpers
 
-#if defined(__EXOS_ARCH_I386__)
-
-static inline U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit)
-{
-    struct PACKED
-    {
-        U16 Limit;
-        PHYSICAL Base;
-    } Descriptor;
-
-    Descriptor.Limit = (U16)Limit;
-    Descriptor.Base = Base;
-
-    __asm__ __volatile__(
-        "cli\n\t"
-        "lldt %0\n\t"
-        "sti"
-        :
-        : "m"(Descriptor)
-        : "memory");
-
-    return (U32)Base;
-}
-
 static inline U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit)
 {
     struct PACKED
@@ -713,8 +689,6 @@ static inline U32 LoadPageDirectory(PHYSICAL Base)
 
     return (U32)Base;
 }
-
-#endif  // defined(__EXOS_ARCH_I386__)
 
 /************************************************************************/
 // External symbols

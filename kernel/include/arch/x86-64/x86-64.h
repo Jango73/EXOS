@@ -468,28 +468,6 @@ typedef struct tag_KERNELDATA_X86_64 {
 /***************************************************************************/
 // Inline helpers
 
-static inline U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit)
-{
-    struct PACKED
-    {
-        U16 Limit;
-        PHYSICAL Base;
-    } Descriptor;
-
-    Descriptor.Limit = (U16)Limit;
-    Descriptor.Base = Base;
-
-    __asm__ __volatile__(
-        "cli\n\t"
-        "lldt %0\n\t"
-        "sti"
-        :
-        : "m"(Descriptor)
-        : "memory");
-
-    return (U32)Base;
-}
-
 static inline U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit)
 {
     struct PACKED
