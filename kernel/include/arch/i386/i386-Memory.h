@@ -63,7 +63,7 @@
 #error "CONFIG_VMA_KERNEL is not defined"
 #endif
 
-#if (CONFIG_VMA_KERNEL) > 0xFFFFFFFFu
+#if defined(__KERNEL__) && (CONFIG_VMA_KERNEL) > 0xFFFFFFFFu
 #error "CONFIG_VMA_KERNEL does not fit in 32 bits"
 #endif
 
