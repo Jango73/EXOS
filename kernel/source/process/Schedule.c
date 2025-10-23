@@ -394,11 +394,11 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             SetupStackForKernelMode(NextTask, StackPointer);
 
-            FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
-
 #if SCHEDULING_DEBUG_OUTPUT == 1
             KernelLogMem(LOG_DEBUG, StackPointer, 256);
 #endif
+
+            FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask (StackPointer = %p)"), StackPointer);
 
             JumpToReadyTask(NextTask, StackPointer);
         } else {
@@ -410,11 +410,11 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             SetupStackForUserMode(NextTask, SysStackPointer, StackPointer);
 
-            FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask"));
-
 #if SCHEDULING_DEBUG_OUTPUT == 1
             KernelLogMem(LOG_DEBUG, SysStackPointer, 256);
 #endif
+
+            FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask (SysStackPointer = %p)"), SysStackPointer);
 
             JumpToReadyTask(NextTask, SysStackPointer);
         }
