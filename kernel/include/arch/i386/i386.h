@@ -705,6 +705,7 @@ void SetSegmentDescriptorLimit(LPSEGMENT_DESCRIPTOR Desc, U32 Limit);
 void SetTSSDescriptorBase(LPTSS_DESCRIPTOR Desc, U32 Base);
 void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR Desc, U32 Limit);
 void ArchPreInitializeKernel(void);
+void InitializeSysCall(void);
 
 struct tag_TASK;
 struct tag_PROCESS;

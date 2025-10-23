@@ -167,7 +167,6 @@ section .text
     global Interrupt_FPU
     global Interrupt_HardDrive
     global Interrupt_SystemCall
-    global Interrupt_DriverCall
     global EnterKernel
 
 ;--------------------------------------
@@ -635,38 +634,6 @@ Interrupt_SystemCall :
     call        SystemCallHandler
     add         esp, 8
     
-    ; Store return value in the saved EAX location on stack
-    ; pushad order: EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI
-    ; Stack after pushad: [ESP+0]=EDI, [ESP+4]=ESI, [ESP+8]=EBP, [ESP+12]=ESP, [ESP+16]=EBX, [ESP+20]=EDX, [ESP+24]=ECX, [ESP+28]=EAX
-    ; After 4 segment registers (16 bytes): EAX is at [esp + 28 + 16] = [esp + 44]
-    mov         [esp + 44], eax
-
-    pop         gs
-    pop         fs
-    pop         es
-    pop         ds
-    popad
-
-    iret
-
-;--------------------------------------
-
-FUNC_HEADER
-Interrupt_DriverCall :
-
-    pushad
-    push        ds
-    push        es
-    push        fs
-    push        gs
-
-    call        EnterKernel
-
-    push        ebx
-    push        eax
-    call        DriverCallHandler
-    add         esp, 8
-
     ; Store return value in the saved EAX location on stack
     ; pushad order: EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI
     ; Stack after pushad: [ESP+0]=EDI, [ESP+4]=ESI, [ESP+8]=EBP, [ESP+12]=ESP, [ESP+16]=EBX, [ESP+20]=EDX, [ESP+24]=ECX, [ESP+28]=EAX

@@ -30,7 +30,6 @@
 %endif
 
 EXOS_USER_CALL equ 0x70
-EXOS_DRIVER_CALL equ 0x71
 
 MAX_UINT    equ KERNEL_ARCH_MAX_UINT
 U32_SIZE    equ 4
@@ -171,7 +170,6 @@ extern ClockTestTask
 extern KernelLogText
 
 extern SystemCallHandler
-extern DriverCallHandler
 
 extern DefaultHandler
 extern DivideErrorHandler

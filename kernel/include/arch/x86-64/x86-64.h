@@ -83,8 +83,16 @@
 #define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, PRIVILEGE_KERNEL)
 
 #define RFLAGS_ALWAYS_1 0x0000000000000002ull
+#define RFLAGS_TF 0x0000000000000100ull
 #define RFLAGS_IF 0x0000000000000200ull
+#define RFLAGS_DF 0x0000000000000400ull
 #define RFLAGS_NT 0x0000000000004000ull  // Nested task
+
+#define IA32_EFER_MSR 0xC0000080u
+#define IA32_STAR_MSR 0xC0000081u
+#define IA32_LSTAR_MSR 0xC0000082u
+#define IA32_FMASK_MSR 0xC0000084u
+#define IA32_EFER_SCE 0x0000000000000001ull
 
 /***************************************************************************/
 
@@ -546,6 +554,7 @@ struct tag_TASKINFO;
 
 BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
 void ArchPreInitializeKernel(void);
+void InitializeSysCall(void);
 void InitializeTaskSegments(void);
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 

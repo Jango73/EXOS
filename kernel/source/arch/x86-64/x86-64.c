@@ -33,6 +33,7 @@
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"
+#include "drivers/LocalAPIC.h"
 
 /************************************************************************\
 
@@ -172,6 +173,17 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
     .TSS = NULL,
 };
 
+extern void Interrupt_SystemCall(void);
+
+static U64 ReadMSR64Local(U32 Msr) {
+    U32 Low;
+    U32 High;
+
+    __asm__ volatile ("rdmsr" : "=a"(Low), "=d"(High) : "c"(Msr));
+
+    return (((U64)High) << 32) | (U64)Low;
+}
+
 /************************************************************************/
 
 /**
@@ -211,6 +223,28 @@ void InitializeGateDescriptor(
     Descriptor->Reserved_1 = 0;
 
     SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+/************************************************************************/
+
+void InitializeSysCall(void) {
+    U64 StarValue;
+    U64 EntryPoint;
+    U64 MaskValue;
+    U64 EferValue;
+
+    StarValue = ((U64)SELECTOR_USER_CODE << 48) | ((U64)SELECTOR_KERNEL_CODE << 32);
+    WriteMSR64(IA32_STAR_MSR, (U32)(StarValue & 0xFFFFFFFFull), (U32)(StarValue >> 32));
+
+    EntryPoint = (U64)(LINEAR)Interrupt_SystemCall;
+    WriteMSR64(IA32_LSTAR_MSR, (U32)(EntryPoint & 0xFFFFFFFFull), (U32)(EntryPoint >> 32));
+
+    MaskValue = RFLAGS_TF | RFLAGS_IF | RFLAGS_DF;
+    WriteMSR64(IA32_FMASK_MSR, (U32)(MaskValue & 0xFFFFFFFFull), (U32)(MaskValue >> 32));
+
+    EferValue = ReadMSR64Local(IA32_EFER_MSR);
+    EferValue |= IA32_EFER_SCE;
+    WriteMSR64(IA32_EFER_MSR, (U32)(EferValue & 0xFFFFFFFFull), (U32)(EferValue >> 32));
 }
 
 /************************************************************************/

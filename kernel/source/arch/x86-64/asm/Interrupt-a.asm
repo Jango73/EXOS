@@ -38,7 +38,7 @@ extern MouseHandler
 extern FPUHandler
 extern HardDriveHandler
 extern SystemCallHandler
-extern DriverCallHandler
+extern Kernel_i386
 
 INTERRUPT_FRAME_size          equ 366
 INTERRUPT_FRAME_PADDING       equ 16
@@ -78,7 +78,6 @@ section .text
     global Interrupt_FPU
     global Interrupt_HardDrive
     global Interrupt_SystemCall
-    global Interrupt_DriverCall
     global EnterKernel
 
 ;-------------------------------------------------------------------------
@@ -352,8 +351,22 @@ Interrupt_FloatingPoint:
     add     rsp, r10
 %endmacro
 
-SYSCALL_RAX_OFFSET     equ 144
-SYSCALL_RBX_OFFSET     equ 120
+SYSCALL_SAVE_SIZE      equ (15 * 8)
+SYSCALL_SAVE_RAX       equ 0
+SYSCALL_SAVE_RBX       equ 8
+SYSCALL_SAVE_RCX       equ 16
+SYSCALL_SAVE_RDX       equ 24
+SYSCALL_SAVE_RBP       equ 32
+SYSCALL_SAVE_RSI       equ 40
+SYSCALL_SAVE_RDI       equ 48
+SYSCALL_SAVE_R8        equ 56
+SYSCALL_SAVE_R9        equ 64
+SYSCALL_SAVE_R10       equ 72
+SYSCALL_SAVE_R11       equ 80
+SYSCALL_SAVE_R12       equ 88
+SYSCALL_SAVE_R13       equ 96
+SYSCALL_SAVE_R14       equ 104
+SYSCALL_SAVE_R15       equ 112
 
 FUNC_HEADER
 Interrupt_Clock:
@@ -480,29 +493,52 @@ Interrupt_HardDrive:
 
 FUNC_HEADER
 Interrupt_SystemCall:
-    PUSH_GPRS
-    PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    mov     rdi, [rsp + SYSCALL_RAX_OFFSET]
-    mov     rsi, [rsp + SYSCALL_RBX_OFFSET]
-    ALIGN_STACK_AND_CALL SystemCallHandler
-    mov     [rsp + SYSCALL_RAX_OFFSET], rax
-    POP_SEGMENTS
-    POP_GPRS
-    iretq
+    push    r15
+    push    r14
+    push    r13
+    push    r12
+    push    r11
+    push    r10
+    push    r9
+    push    r8
+    push    rdi
+    push    rsi
+    push    rbp
+    push    rdx
+    push    rcx
+    push    rbx
+    push    rax
 
-FUNC_HEADER
-Interrupt_DriverCall:
-    PUSH_GPRS
-    PUSH_SEGMENTS
+    mov     r15, rsp
+
+    mov     rax, [rel Kernel_i386 + KERNELDATA_X86_64.TSS]
+    mov     rsp, [rax + X86_64_TASK_STATE_SEGMENT.RSP0]
+
     ALIGN_STACK_AND_CALL EnterKernel
-    mov     rdi, [rsp + SYSCALL_RAX_OFFSET]
-    mov     rsi, [rsp + SYSCALL_RBX_OFFSET]
-    ALIGN_STACK_AND_CALL DriverCallHandler
-    mov     [rsp + SYSCALL_RAX_OFFSET], rax
-    POP_SEGMENTS
-    POP_GPRS
-    iretq
+
+    mov     edi, dword [r15 + SYSCALL_SAVE_RAX]
+    mov     rsi, [r15 + SYSCALL_SAVE_RBX]
+    ALIGN_STACK_AND_CALL SystemCallHandler
+    mov     [r15 + SYSCALL_SAVE_RAX], rax
+
+    mov     rsp, r15
+
+    pop     rax
+    pop     rbx
+    pop     rcx
+    pop     rdx
+    pop     rbp
+    pop     rsi
+    pop     rdi
+    pop     r8
+    pop     r9
+    pop     r10
+    pop     r11
+    pop     r12
+    pop     r13
+    pop     r14
+    pop     r15
+    sysretq
 
 FUNC_HEADER
 EnterKernel:

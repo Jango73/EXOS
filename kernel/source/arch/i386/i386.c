@@ -182,6 +182,9 @@ KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
     .TSS = NULL
 };
 
+extern GATE_DESCRIPTOR IDT[];
+extern void Interrupt_SystemCall(void);
+
 /************************************************************************/
 
 /**
@@ -217,6 +220,12 @@ void InitializeGateDescriptor(
     Descriptor->Present = 1;
 
     SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+/***************************************************************************/
+
+void InitializeSysCall(void) {
+    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (LINEAR)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
 }
 
 /************************************************************************/

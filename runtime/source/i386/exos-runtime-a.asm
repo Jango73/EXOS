@@ -28,7 +28,6 @@ BITS 32
 ; EXOS syscall
 
 EXOS_USER_CALL equ 0x70
-EXOS_DRIVER_CALL equ 0x91
 
 ;----------------------------------------------------------------------------
 ; Helper values to access function parameters and local variables

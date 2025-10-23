@@ -14,8 +14,6 @@ BITS 64
 ;----------------------------------------------------------------------------
 ; EXOS syscall identifiers
 
-EXOS_USER_CALL  equ 0x70
-EXOS_DRIVER_CALL equ 0x91
 
 ;----------------------------------------------------------------------------
 ; Runtime symbols (only required outside of the kernel build)
@@ -106,7 +104,7 @@ exoscall:
 
     mov     eax, edi
     mov     rbx, rsi
-    int     EXOS_USER_CALL
+    syscall
 
     pop     rbx
     ret

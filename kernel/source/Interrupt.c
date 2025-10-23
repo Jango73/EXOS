@@ -62,8 +62,6 @@ extern void Interrupt_PCI(void);
 extern void Interrupt_Mouse(void);
 extern void Interrupt_FPU(void);
 extern void Interrupt_HardDrive(void);
-extern void Interrupt_SystemCall(void);
-extern void Interrupt_DriverCall(void);
 
 /***************************************************************************/
 
@@ -133,14 +131,9 @@ void InitializeInterrupts(void) {
     }
 
     //-------------------------------------
-    // Set system call interrupt
+    // Set system call mechanism
 
-    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (LINEAR)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
-
-    //-------------------------------------
-    // Set driver call interrupt
-
-    InitializeGateDescriptor(IDT + EXOS_DRIVER_CALL, (LINEAR)Interrupt_DriverCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
+    InitializeSysCall();
 
     //-------------------------------------
 

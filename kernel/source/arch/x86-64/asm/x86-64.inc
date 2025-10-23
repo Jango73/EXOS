@@ -75,6 +75,24 @@ STRUC KERNELDATA_X86_64
     .TSS RESQ 1
 ENDSTRUC
 
+STRUC X86_64_TASK_STATE_SEGMENT
+    .Reserved0 RESD 1
+    .RSP0 RESQ 1
+    .RSP1 RESQ 1
+    .RSP2 RESQ 1
+    .Reserved1 RESQ 1
+    .IST1 RESQ 1
+    .IST2 RESQ 1
+    .IST3 RESQ 1
+    .IST4 RESQ 1
+    .IST5 RESQ 1
+    .IST6 RESQ 1
+    .IST7 RESQ 1
+    .Reserved2 RESQ 1
+    .Reserved3 RESW 1
+    .IOMapBase RESW 1
+ENDSTRUC
+
 ;-------------------------------------------------------------------------
 ; Macros
 
