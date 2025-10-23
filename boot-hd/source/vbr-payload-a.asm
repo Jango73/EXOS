@@ -719,7 +719,7 @@ StubJumpToImage:
 
     cli
 
-    DebugPrint  Text_JumpingToPM
+    DebugPrint  Text_JumpingToLM
 
     mov         eax, [ebp + 8]              ; GDTR
     lgdt        [eax]
@@ -865,6 +865,7 @@ Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
 Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
 Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",10,13,10,13,0
+Text_JumpingToLM: db "[VBR C Stub] Jumping to long mode",10,13,10,13,0
 Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
 Text_E820Error: db "[VBR C Stub] E820 call failed",0
 Text_NewLine: db 10,13,0
