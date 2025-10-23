@@ -400,7 +400,25 @@ static inline void MapOnePage(
     UINT dir = GetDirectoryEntry(Linear);
 
     if (!PageDirectoryEntryIsPresent(Directory, dir)) {
-        ConsolePanic(TEXT("[MapOnePage] PDE not present for VA %p (dir=%d)"), Linear, dir);
+        PHYSICAL NewTable = AllocPhysicalPage();
+
+        if (NewTable == NULL) {
+            ConsolePanic(TEXT("[MapOnePage] Failed to allocate page table for VA %p (dir=%d)"), Linear, dir);
+        }
+
+        WritePageDirectoryEntryValue(
+            Directory,
+            dir,
+            MakePageDirectoryEntryValue(
+                NewTable,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE(Linear),
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+
+        MemorySet(GetPageTableVAFor(Linear), 0, PAGE_SIZE);
     }
 
     LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
