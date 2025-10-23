@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -20,14 +21,15 @@
     Common Intel x86 definitions shared between 32-bit and 64-bit builds
 
 \************************************************************************/
-#ifndef ARCH_X86_X86_COMMON_H_INCLUDED
-#define ARCH_X86_X86_COMMON_H_INCLUDED
+
+#ifndef X86_COMMON_H_INCLUDED
+#define X86_COMMON_H_INCLUDED
 
 #include "Base.h"
 
 /*************************************************************************/
-// #defines
-/*************************************************************************/
+// Defines
+
 #define INTEL_CPU_MASK_STEPPING 0x0000000F
 #define INTEL_CPU_MASK_MODEL 0x000000F0
 #define INTEL_CPU_MASK_FAMILY 0x00000F00
@@ -77,8 +79,8 @@
 #define INTEL_CPU_FEAT_RESI 0x80000000
 
 /*************************************************************************/
-// typedefs
-/*************************************************************************/
+// Structures
+
 typedef struct tag_INTEL_FPU_REGISTERS {
     U16 Control;
     U16 Status;
@@ -143,4 +145,4 @@ typedef union tag_INTEL_X86_REGISTERS {
     } E;
 } INTEL_X86_REGISTERS, *LPINTEL_X86_REGISTERS;
 
-#endif  // ARCH_X86_X86_COMMON_H_INCLUDED
+#endif  // X86_COMMON_H_INCLUDED
