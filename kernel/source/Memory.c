@@ -396,8 +396,65 @@ void FreePhysicalPage(PHYSICAL Page) {
 static inline void MapOnePage(
     LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
     U32 Fixed) {
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     UINT dir = GetDirectoryEntry(Linear);
+
+#if defined(__EXOS_ARCH_X86_64__)
+    UINT Pml4Index = GetPml4Entry(Linear);
+    UINT PdptIndex = GetPdptEntry(Linear);
+    LPPML4 Pml4 = GetCurrentPml4VA();
+
+    if (!PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pml4, Pml4Index)) {
+        PHYSICAL NewPdpt = AllocPhysicalPage();
+
+        if (NewPdpt == NULL) {
+            ConsolePanic(TEXT("[MapOnePage] Failed to allocate PDPT for VA %p (pml4=%u)"), Linear, Pml4Index);
+        }
+
+        WritePageDirectoryEntryValue(
+            (LPPAGE_DIRECTORY)Pml4,
+            Pml4Index,
+            MakePageDirectoryEntryValue(
+                NewPdpt,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE(Linear),
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+
+        LINEAR PdptLinear = MapTemporaryPhysicalPage1(NewPdpt);
+        MemorySet((LPVOID)PdptLinear, 0, PAGE_SIZE);
+    }
+
+    LPPDPT Pdpt = GetPageDirectoryPointerTableVAFor(Linear);
+
+    if (!PageDirectoryEntryIsPresent(Pdpt, PdptIndex)) {
+        PHYSICAL NewDirectory = AllocPhysicalPage();
+
+        if (NewDirectory == NULL) {
+            ConsolePanic(TEXT("[MapOnePage] Failed to allocate directory for VA %p (pdpt=%u)"), Linear, PdptIndex);
+        }
+
+        WritePageDirectoryEntryValue(
+            Pdpt,
+            PdptIndex,
+            MakePageDirectoryEntryValue(
+                NewDirectory,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE(Linear),
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+
+        LINEAR DirectoryLinear = MapTemporaryPhysicalPage1(NewDirectory);
+        MemorySet((LPVOID)DirectoryLinear, 0, PAGE_SIZE);
+    }
+
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Linear);
+#else
+    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
+#endif
 
     if (!PageDirectoryEntryIsPresent(Directory, dir)) {
         PHYSICAL NewTable = AllocPhysicalPage();
