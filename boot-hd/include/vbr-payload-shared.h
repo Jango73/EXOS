@@ -53,8 +53,9 @@
 #define LOW_MEMORY_PAGE_6 (MEMORY_BASE + (5 * MEMORY_PAGE_SIZE))
 #define LOW_MEMORY_PAGE_7 (MEMORY_BASE + (6 * MEMORY_PAGE_SIZE))
 #define LOW_MEMORY_PAGE_8 (MEMORY_BASE + (7 * MEMORY_PAGE_SIZE))
+#define LOW_MEMORY_PAGE_9 (MEMORY_BASE + (8 * MEMORY_PAGE_SIZE))
 
-#if ((8u * MEMORY_PAGE_SIZE) > MEMORY_SIZE)
+#if ((9u * MEMORY_PAGE_SIZE) > MEMORY_SIZE)
 #error "MEMORY_SIZE is too small for the reserved payload structures"
 #endif
 

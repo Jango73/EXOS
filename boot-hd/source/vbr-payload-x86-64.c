@@ -40,6 +40,8 @@ static const U64 KERNEL_LONG_MODE_BASE = {
 static const U64 KERNEL_LONG_MODE_BASE = (U64)CONFIG_VMA_KERNEL;
 #endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
+static const U32 TEMP_LINEAR_PAGE_OFFSET = 0x00004000u;
+static const U32 TEMP_LINEAR_FIRST_DELTA = TEMP_LINEAR_PAGE_OFFSET - 0x00001000u;
 static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
 static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
 
@@ -55,6 +57,7 @@ static LPPDPT PageDirectoryPointerLow = (LPPDPT)LOW_MEMORY_PAGE_3;
 static LPPDPT PageDirectoryPointerKernel = (LPPDPT)LOW_MEMORY_PAGE_4;
 static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_5;
 static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_6;
+static LPPAGE_DIRECTORY PageDirectoryTemp = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_9;
 static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_7;
 static LPPAGE_TABLE PageTableLowHigh = (LPPAGE_TABLE)LOW_MEMORY_PAGE_8;
 static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_CODE + 1u];
@@ -142,6 +145,20 @@ static U64 VbrPointerToPhysical(const void* Pointer) {
 
 /************************************************************************/
 
+static U64 VbrSubU64U32(U64 Value, U32 Amount) {
+#ifdef __EXOS_32__
+    U64 Result;
+    U32 Borrow = (Value.LO < Amount) ? 1u : 0u;
+    Result.LO = Value.LO - Amount;
+    Result.HI = Value.HI - Borrow;
+    return Result;
+#else
+    return Value - (U64)Amount;
+#endif
+}
+
+/************************************************************************/
+
 static U32 VbrAlignToPage(U32 Value) {
     return (Value + (PAGE_SIZE - 1u)) & ~(PAGE_SIZE - 1u);
 }
@@ -154,6 +171,7 @@ static void ClearLongModeStructures(void) {
     MemorySet(PageDirectoryPointerKernel, 0, PAGE_TABLE_SIZE);
     MemorySet(PageDirectoryLow, 0, PAGE_TABLE_SIZE);
     MemorySet(PageDirectoryKernel, 0, PAGE_TABLE_SIZE);
+    MemorySet(PageDirectoryTemp, 0, PAGE_TABLE_SIZE);
     MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
     MemorySet(PageTableLowHigh, 0, PAGE_TABLE_SIZE);
 }
@@ -224,6 +242,15 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     const UINT KernelPdptIndex = VbrExtractU64Bits(KernelVirtBase, 30u, 9u);
     UINT KernelPdIndex = VbrExtractU64Bits(KernelVirtBase, 21u, 9u);
     UINT KernelPtIndex = VbrExtractU64Bits(KernelVirtBase, 12u, 9u);
+    const U64 TempLinearPage1 = VbrSubU64U32(KernelVirtBase, TEMP_LINEAR_FIRST_DELTA);
+    const UINT TempPdptIndex = VbrExtractU64Bits(TempLinearPage1, 30u, 9u);
+    const UINT TempPdIndex = VbrExtractU64Bits(TempLinearPage1, 21u, 9u);
+    if (TempPdIndex >= PAGE_DIRECTORY_ENTRY_COUNT) {
+        BootErrorPrint(TEXT("[VBR x86-64] ERROR: Temp directory index overflow. Halting.\r\n"));
+        Hang();
+    }
+    const UINT TempSharesPdpt = (TempPdptIndex == KernelPdptIndex) ? 1u : 0u;
+    LPPAGE_DIRECTORY TempDirectory = TempSharesPdpt ? PageDirectoryKernel : PageDirectoryTemp;
 
     SetLongModeEntry(
         (LPX86_64_PAGING_ENTRY)(PageMapLevel4 + KernelPml4Index),
@@ -233,19 +260,35 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
         (LPX86_64_PAGING_ENTRY)(PageDirectoryPointerKernel + KernelPdptIndex),
         VbrPointerToPhysical(PageDirectoryKernel),
         0u);
+    if (!TempSharesPdpt) {
+        SetLongModeEntry(
+            (LPX86_64_PAGING_ENTRY)(PageDirectoryPointerKernel + TempPdptIndex),
+            VbrPointerToPhysical(PageDirectoryTemp),
+            0u);
+    }
 
     const U32 TotalPages = (MapSize + PAGE_SIZE - 1U) / PAGE_SIZE;
     const U32 TablesRequired = (TotalPages + PAGE_TABLE_NUM_ENTRIES - 1U) / PAGE_TABLE_NUM_ENTRIES;
+    const U32 ExtraTables = 1u;
+    const U32 TotalTables = TablesRequired + ExtraTables;
 
-    if (TablesRequired > MAX_KERNEL_PAGE_TABLES) {
+    if (TotalTables > MAX_KERNEL_PAGE_TABLES) {
         BootErrorPrint(
             TEXT("[VBR x86-64] ERROR: Required kernel tables %u exceed limit %u. Halting.\r\n"),
-            TablesRequired,
+            TotalTables,
             MAX_KERNEL_PAGE_TABLES);
         Hang();
     }
 
     const U32 BaseTablePhysical = KernelPhysBase + MapSize;
+    const U32 TempTablePhysical = BaseTablePhysical;
+    MemorySet((void*)(UINT)TempTablePhysical, 0, PAGE_TABLE_SIZE);
+    SetLongModeEntry(
+        (LPX86_64_PAGING_ENTRY)(TempDirectory + TempPdIndex),
+        U64_FromU32(TempTablePhysical),
+        0u);
+
+    U32 TablePhysicalBase = BaseTablePhysical + (ExtraTables * PAGE_TABLE_SIZE);
     U32 RemainingPages = TotalPages;
     U32 TableIndex = 0;
     U32 PhysicalCursor = KernelPhysBase;
@@ -256,7 +299,7 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
             Hang();
         }
 
-        const U32 TablePhysical = BaseTablePhysical + (TableIndex * PAGE_TABLE_SIZE);
+        const U32 TablePhysical = TablePhysicalBase + (TableIndex * PAGE_TABLE_SIZE);
         LPPAGE_TABLE CurrentTable = (LPPAGE_TABLE)(UINT)TablePhysical;
         MemorySet(CurrentTable, 0, PAGE_TABLE_SIZE);
 

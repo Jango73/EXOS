@@ -161,6 +161,8 @@ typedef struct _REGION_SETUP {
     U32 Global;
     PHYSICAL PdptPhysical;
     PHYSICAL DirectoryPhysical;
+    PHYSICAL TempDirectoryPhysical;
+    PHYSICAL TempTablePhysical;
     PAGE_TABLE_SETUP Tables[64];
     UINT TableCount;
 } REGION_SETUP;
@@ -289,10 +291,21 @@ static void ReleaseRegionSetup(REGION_SETUP* Region) {
         Region->PdptPhysical = NULL;
     }
 
-    if (Region->DirectoryPhysical != NULL) {
-        FreePhysicalPage(Region->DirectoryPhysical);
+    PHYSICAL DirectoryPhysical = Region->DirectoryPhysical;
+    if (DirectoryPhysical != NULL) {
+        FreePhysicalPage(DirectoryPhysical);
         Region->DirectoryPhysical = NULL;
     }
+
+    if (Region->TempDirectoryPhysical != NULL && Region->TempDirectoryPhysical != DirectoryPhysical) {
+        FreePhysicalPage(Region->TempDirectoryPhysical);
+    }
+    Region->TempDirectoryPhysical = NULL;
+
+    if (Region->TempTablePhysical != NULL) {
+        FreePhysicalPage(Region->TempTablePhysical);
+    }
+    Region->TempTablePhysical = NULL;
 
     for (UINT Index = 0; Index < Region->TableCount; Index++) {
         if (Region->Tables[Index].Physical != NULL) {
@@ -529,9 +542,10 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
 
     UINT DirectoryIndex = GetDirectoryEntry((U64)VMA_KERNEL);
     UINT TempDirectoryIndex = GetDirectoryEntry((U64)X86_64_TEMP_LINEAR_PAGE_1);
-    UINT ExtraTables = (TempDirectoryIndex == DirectoryIndex) ? 0u : 1u;
+    UINT TempPdptIndex = GetPdptEntry((U64)X86_64_TEMP_LINEAR_PAGE_1);
+    BOOL UseSeparateTempDirectory = (TempPdptIndex != Region->PdptIndex);
 
-    if (TableCountRequired + ExtraTables > ARRAY_COUNT(Region->Tables)) {
+    if (TableCountRequired > ARRAY_COUNT(Region->Tables)) {
         ERROR(TEXT("[AllocPageDirectory] Kernel region requires too many tables"));
         return FALSE;
     }
@@ -539,12 +553,25 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
     Region->PdptPhysical = AllocPhysicalPage();
     Region->DirectoryPhysical = AllocPhysicalPage();
 
-    DEBUG(TEXT("[SetupKernelRegion] PDPT %p, directory %p"), Region->PdptPhysical, Region->DirectoryPhysical);
-
     if (Region->PdptPhysical == NULL || Region->DirectoryPhysical == NULL) {
         ERROR(TEXT("[AllocPageDirectory] Kernel region out of physical pages"));
         return FALSE;
     }
+
+    if (UseSeparateTempDirectory) {
+        Region->TempDirectoryPhysical = AllocPhysicalPage();
+        if (Region->TempDirectoryPhysical == NULL) {
+            ERROR(TEXT("[AllocPageDirectory] Kernel temp directory out of physical pages"));
+            return FALSE;
+        }
+    } else {
+        Region->TempDirectoryPhysical = Region->DirectoryPhysical;
+    }
+
+    DEBUG(TEXT("[SetupKernelRegion] PDPT %p, directory %p, temp directory %p"),
+        Region->PdptPhysical,
+        Region->DirectoryPhysical,
+        Region->TempDirectoryPhysical);
 
     LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(Region->PdptPhysical);
 
@@ -555,14 +582,14 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
 
     MemorySet(Pdpt, 0, PAGE_SIZE);
 
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
+    LPPAGE_DIRECTORY KernelDirectory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
 
-    if (Directory == NULL) {
+    if (KernelDirectory == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for kernel directory"));
         return FALSE;
     }
 
-    MemorySet(Directory, 0, PAGE_SIZE);
+    MemorySet(KernelDirectory, 0, PAGE_SIZE);
 
     WritePageDirectoryEntryValue(
         Pdpt,
@@ -577,22 +604,62 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
             /*Fixed*/ 1));
     DEBUG(TEXT("[SetupKernelRegion] PDPT[%u] -> %p"), Region->PdptIndex, Region->DirectoryPhysical);
 
-    PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
+    LPPAGE_DIRECTORY TempDirectory = KernelDirectory;
 
-    if (ExtraTables != 0u) {
-        PAGE_TABLE_SETUP* TempTable = &Region->Tables[Region->TableCount];
-        TempTable->DirectoryIndex = TempDirectoryIndex;
-        TempTable->ReadWrite = 1;
-        TempTable->Privilege = PAGE_PRIVILEGE_KERNEL;
-        TempTable->Global = 0;
-        TempTable->Mode = PAGE_TABLE_POPULATE_EMPTY;
+    if (UseSeparateTempDirectory) {
+        TempDirectory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage3(Region->TempDirectoryPhysical);
 
-        if (AllocateTableAndPopulate(Region, TempTable, Directory) == FALSE) {
+        if (TempDirectory == NULL) {
+            ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage3 failed for kernel temp directory"));
             return FALSE;
         }
 
-        Region->TableCount++;
+        MemorySet(TempDirectory, 0, PAGE_SIZE);
     }
+
+    WritePageDirectoryEntryValue(
+        Pdpt,
+        TempPdptIndex,
+        MakePageDirectoryEntryValue(
+            Region->TempDirectoryPhysical,
+            Region->ReadWrite,
+            Region->Privilege,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            Region->Global,
+            /*Fixed*/ 1));
+    DEBUG(TEXT("[SetupKernelRegion] PDPT[%u] -> %p"), TempPdptIndex, Region->TempDirectoryPhysical);
+
+    Region->TempTablePhysical = AllocPhysicalPage();
+
+    if (Region->TempTablePhysical == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] Kernel temp table allocation failed"));
+        return FALSE;
+    }
+
+    LINEAR TempTableLinear = MapTemporaryPhysicalPage1(Region->TempTablePhysical);
+
+    if (TempTableLinear == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed for kernel temp table"));
+        return FALSE;
+    }
+
+    MemorySet((LPVOID)TempTableLinear, 0, PAGE_SIZE);
+
+    WritePageDirectoryEntryValue(
+        TempDirectory,
+        TempDirectoryIndex,
+        MakePageDirectoryEntryValue(
+            Region->TempTablePhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            Region->Global,
+            /*Fixed*/ 1));
+    DEBUG(TEXT("[SetupKernelRegion] Temp directory[%u] -> %p"), TempDirectoryIndex, Region->TempTablePhysical);
+
+    PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
 
     for (UINT TableIndex = 0; TableIndex < TableCountRequired; TableIndex++) {
         PAGE_TABLE_SETUP* Table = &Region->Tables[Region->TableCount];
@@ -604,7 +671,7 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
         Table->Data.Identity.PhysicalBase = PhysBaseKernel + ((PHYSICAL)TableIndex << PAGE_TABLE_CAPACITY_MUL);
         Table->Data.Identity.ProtectBios = FALSE;
 
-        if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) {
+        if (AllocateTableAndPopulate(Region, Table, KernelDirectory) == FALSE) {
             return FALSE;
         }
         Region->TableCount++;
