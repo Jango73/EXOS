@@ -24,6 +24,7 @@
 
 #include "drivers/ACPI.h"
 #include "Base.h"
+#include "arch/intel/x86-Common.h"
 #include "drivers/LocalAPIC.h"
 #include "Log.h"
 #include "Memory.h"
@@ -392,61 +393,3 @@ LPLOCAL_APIC_CONFIG GetLocalAPICConfig(void) {
     return &g_LocalApicConfig;
 }
 
-/************************************************************************/
-
-/**
- * @brief Read MSR (Model Specific Register).
- *
- * Reads a 32-bit value from the specified MSR. For 64-bit MSRs, only the low 32 bits are returned.
- *
- * @param Msr MSR index
- * @return MSR value (low 32 bits)
- */
-U32 ReadMSR(U32 Msr) {
-    U32 Low, High;
-
-    __asm__ volatile (
-        "rdmsr"
-        : "=a" (Low), "=d" (High)
-        : "c" (Msr)
-    );
-
-    return Low;
-}
-
-/************************************************************************/
-
-/**
- * @brief Write MSR (Model Specific Register).
- *
- * Writes a 32-bit value to the specified MSR. High 32 bits are set to 0.
- *
- * @param Msr MSR index
- * @param Value Value to write
- */
-void WriteMSR(U32 Msr, U32 Value) {
-    __asm__ volatile (
-        "wrmsr"
-        :
-        : "c" (Msr), "a" (Value), "d" (0)
-    );
-}
-
-/************************************************************************/
-
-/**
- * @brief Write 64-bit MSR (Model Specific Register).
- *
- * Writes a 64-bit value to the specified MSR.
- *
- * @param Msr MSR index
- * @param ValueLow Low 32 bits
- * @param ValueHigh High 32 bits
- */
-void WriteMSR64(U32 Msr, U32 ValueLow, U32 ValueHigh) {
-    __asm__ volatile (
-        "wrmsr"
-        :
-        : "c" (Msr), "a" (ValueLow), "d" (ValueHigh)
-    );
-}

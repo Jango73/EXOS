@@ -217,28 +217,6 @@ BOOL ConfigureLVTEntry(U32 LvtRegister, U8 Vector, U32 DeliveryMode, BOOL Masked
  */
 LPLOCAL_APIC_CONFIG GetLocalAPICConfig(void);
 
-/**
- * Read MSR (Model Specific Register)
- * @param Msr MSR index
- * @return MSR value (64-bit returned as U32, high 32 bits ignored for now)
- */
-U32 ReadMSR(U32 Msr);
-
-/**
- * Write MSR (Model Specific Register)
- * @param Msr MSR index
- * @param Value Value to write (32-bit, high 32 bits set to 0)
- */
-void WriteMSR(U32 Msr, U32 Value);
-
-/**
- * Write 64-bit MSR (Model Specific Register)
- * @param Msr MSR index
- * @param ValueLow Low 32 bits
- * @param ValueHigh High 32 bits
- */
-void WriteMSR64(U32 Msr, U32 ValueLow, U32 ValueHigh);
-
 /***************************************************************************/
 
 #pragma pack(pop)

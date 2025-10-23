@@ -145,4 +145,29 @@ typedef union tag_INTEL_X86_REGISTERS {
     } E;
 } INTEL_X86_REGISTERS, *LPINTEL_X86_REGISTERS;
 
+/*************************************************************************/
+// MSR helpers
+
+/**
+ * Read the low 32 bits of an MSR.
+ * @param Msr MSR index.
+ * @return Low 32 bits of the register value.
+ */
+U32 ReadMSR(U32 Msr);
+
+/**
+ * Write the low 32 bits of an MSR.
+ * @param Msr MSR index.
+ * @param Value 32-bit value to write.
+ */
+void WriteMSR(U32 Msr, U32 Value);
+
+/**
+ * Write a 64-bit MSR value.
+ * @param Msr MSR index.
+ * @param ValueLow Low 32 bits of the value.
+ * @param ValueHigh High 32 bits of the value.
+ */
+void WriteMSR64(U32 Msr, U32 ValueLow, U32 ValueHigh);
+
 #endif  // X86_COMMON_H_INCLUDED

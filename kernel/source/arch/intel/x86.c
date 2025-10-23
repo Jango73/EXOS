@@ -29,6 +29,58 @@
 
 /***************************************************************************/
 
+/**
+ * @brief Read the low 32 bits of a model-specific register.
+ * @param Msr MSR index to read.
+ * @return Low 32 bits of the MSR contents.
+ */
+U32 ReadMSR(U32 Msr) {
+    U32 Low;
+    U32 High;
+
+    __asm__ volatile (
+        "rdmsr"
+        : "=a" (Low), "=d" (High)
+        : "c" (Msr)
+    );
+
+    UNUSED(High);
+    return Low;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Write a 32-bit value to a model-specific register.
+ * @param Msr MSR index to update.
+ * @param Value 32-bit value written to the low portion of the register.
+ */
+void WriteMSR(U32 Msr, U32 Value) {
+    __asm__ volatile (
+        "wrmsr"
+        :
+        : "c" (Msr), "a" (Value), "d" (0)
+    );
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Write a full 64-bit value to a model-specific register.
+ * @param Msr MSR index to update.
+ * @param ValueLow Low 32 bits of the value.
+ * @param ValueHigh High 32 bits of the value.
+ */
+void WriteMSR64(U32 Msr, U32 ValueLow, U32 ValueHigh) {
+    __asm__ volatile (
+        "wrmsr"
+        :
+        : "c" (Msr), "a" (ValueLow), "d" (ValueHigh)
+    );
+}
+
+/***************************************************************************/
+
 static void SetDisassemblyAttributes(U32 NumBits) {
     switch (NumBits) {
         case 16:

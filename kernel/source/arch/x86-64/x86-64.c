@@ -33,7 +33,6 @@
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"
-#include "drivers/LocalAPIC.h"
 
 /************************************************************************\
 
@@ -175,6 +174,11 @@ KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
 
 extern void Interrupt_SystemCall(void);
 
+/**
+ * @brief Read a 64-bit value from the specified MSR.
+ * @param Msr Model-specific register index to read.
+ * @return Combined 64-bit value of the MSR contents.
+ */
 static U64 ReadMSR64Local(U32 Msr) {
     U32 Low;
     U32 High;
@@ -227,6 +231,9 @@ void InitializeGateDescriptor(
 
 /************************************************************************/
 
+/**
+ * @brief Configure MSRs required for SYSCALL/SYSRET transitions.
+ */
 void InitializeSysCall(void) {
     U64 StarValue;
     U64 EntryPoint;
@@ -249,6 +256,11 @@ void InitializeSysCall(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Populate the limit fields of a system segment descriptor.
+ * @param Descriptor Descriptor to update.
+ * @param Limit Segment limit value encoded on 20 bits.
+ */
 static void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U32 Limit) {
     Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFF);
     Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0F);
@@ -256,6 +268,11 @@ static void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR D
 
 /************************************************************************/
 
+/**
+ * @brief Populate the base fields of a system segment descriptor.
+ * @param Descriptor Descriptor to update.
+ * @param Base 64-bit base address of the segment.
+ */
 static void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U64 Base) {
     Descriptor->Base_00_15 = (U16)(Base & 0xFFFF);
     Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFF);
@@ -277,12 +294,20 @@ void ArchPreInitializeKernel(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Clear a REGION_SETUP structure to its default state.
+ * @param Region Structure to reset.
+ */
 static void ResetRegionSetup(REGION_SETUP* Region) {
     MemorySet(Region, 0, sizeof(REGION_SETUP));
 }
 
 /************************************************************************/
 
+/**
+ * @brief Release the physical resources owned by a REGION_SETUP.
+ * @param Region Structure that tracks the allocated tables.
+ */
 static void ReleaseRegionSetup(REGION_SETUP* Region) {
     if (Region->PdptPhysical != NULL) {
         FreePhysicalPage(Region->PdptPhysical);
@@ -306,6 +331,13 @@ static void ReleaseRegionSetup(REGION_SETUP* Region) {
 
 /************************************************************************/
 
+/**
+ * @brief Allocate a page table and populate it according to the setup entry.
+ * @param Region Parent region that will own the table.
+ * @param Table Table description containing allocation parameters.
+ * @param Directory Page-directory view used to link the table.
+ * @return TRUE on success, FALSE when allocation or mapping fails.
+ */
 static BOOL AllocateTableAndPopulate(
     REGION_SETUP* Region,
     PAGE_TABLE_SETUP* Table,
@@ -402,6 +434,12 @@ static BOOL AllocateTableAndPopulate(
 
 /************************************************************************/
 
+/**
+ * @brief Build identity-mapped tables for the low virtual address space.
+ * @param Region Region descriptor to populate.
+ * @param UserSeedTables Number of empty user tables to pre-allocate.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     ResetRegionSetup(Region);
 
@@ -494,6 +532,10 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
 
 /************************************************************************/
 
+/**
+ * @brief Compute the number of bytes of kernel memory that must be mapped.
+ * @return Size in bytes covered by kernel tables.
+ */
 static UINT ComputeKernelCoverageBytes(void) {
     PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
     PHYSICAL CoverageEnd = PhysBaseKernel + (PHYSICAL)KernelStartup.KernelSize;
@@ -518,6 +560,12 @@ static UINT ComputeKernelCoverageBytes(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Create identity mappings for the kernel virtual address space.
+ * @param Region Region descriptor to populate.
+ * @param TableCountRequired Number of tables that must be allocated.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
     ResetRegionSetup(Region);
 
@@ -597,6 +645,13 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
 
 /************************************************************************/
 
+/**
+ * @brief Map the user-mode task runner trampoline into the new address space.
+ * @param Region Region descriptor to populate.
+ * @param TaskRunnerPhysical Physical address of the task runner code.
+ * @param TaskRunnerTableIndex Page table index that contains the trampoline.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL SetupTaskRunnerRegion(
     REGION_SETUP* Region,
     PHYSICAL TaskRunnerPhysical,
@@ -966,6 +1021,12 @@ Out:
 
 /************************************************************************/
 
+/**
+ * @brief Initialize a long mode segment descriptor for code or data.
+ * @param Descriptor Descriptor to configure.
+ * @param Executable TRUE for a code segment, FALSE for data.
+ * @param Privilege Descriptor privilege level.
+ */
 static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable, U32 Privilege) {
     MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
 
@@ -989,6 +1050,11 @@ static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL 
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize a long mode data segment descriptor.
+ * @param Descriptor Descriptor to configure.
+ * @param Privilege Descriptor privilege level.
+ */
 static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Privilege) {
     InitLongModeSegmentDescriptor(Descriptor, FALSE, Privilege);
     Descriptor->Unused = 0;
@@ -997,6 +1063,11 @@ static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Priv
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize a 32-bit legacy segment descriptor for compatibility gates.
+ * @param Descriptor Descriptor to configure.
+ * @param Executable TRUE for a code segment, FALSE for data.
+ */
 static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable) {
     MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
 
@@ -1020,6 +1091,10 @@ static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Ex
 
 /***************************************************************************/
 
+/**
+ * @brief Populate the shared GDT with long mode and compatibility segments.
+ * @param Table Pointer to the descriptor table buffer.
+ */
 static void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
     DEBUG(TEXT("[InitializeGlobalDescriptorTable] Enter"));
 
@@ -1037,6 +1112,9 @@ static void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize the architecture task-state segment.
+ */
 void InitializeTaskSegments(void) {
     DEBUG(TEXT("[InitializeTaskSegments] Enter"));
 
@@ -1209,6 +1287,11 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
 /***************************************************************************/
 
+/**
+ * @brief Prepare architectural state ahead of a context switch.
+ * @param CurrentTask Task that is currently running (may be NULL).
+ * @param NextTask Task that will become active.
+ */
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
     SAFE_USE(NextTask) {
         FINE_DEBUG(TEXT("[PrepareNextTaskSwitch] CurrentTask = %p (%s), NextTask = %p (%s)"),
