@@ -462,9 +462,9 @@ Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
 `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in
 bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids
 writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On
-x86-64 the helpers also align the resulting stack pointer on a 16-byte boundary so that the `iretq`
-instruction observes the ABI-mandated alignment when restoring the frame of a freshly scheduled
-task.
+ x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte
+ aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution
+ resumes in the scheduled task.
 
 ### IRQ scheduling
 
