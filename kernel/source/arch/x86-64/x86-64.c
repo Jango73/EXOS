@@ -527,7 +527,11 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
     Region->Privilege = PAGE_PRIVILEGE_KERNEL;
     Region->Global = 0;
 
-    if (TableCountRequired > ARRAY_COUNT(Region->Tables)) {
+    UINT DirectoryIndex = GetDirectoryEntry((U64)VMA_KERNEL);
+    UINT TempDirectoryIndex = GetDirectoryEntry((U64)X86_64_TEMP_LINEAR_PAGE_1);
+    UINT ExtraTables = (TempDirectoryIndex == DirectoryIndex) ? 0u : 1u;
+
+    if (TableCountRequired + ExtraTables > ARRAY_COUNT(Region->Tables)) {
         ERROR(TEXT("[AllocPageDirectory] Kernel region requires too many tables"));
         return FALSE;
     }
@@ -573,8 +577,22 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
             /*Fixed*/ 1));
     DEBUG(TEXT("[SetupKernelRegion] PDPT[%u] -> %p"), Region->PdptIndex, Region->DirectoryPhysical);
 
-    UINT DirectoryIndex = GetDirectoryEntry((U64)VMA_KERNEL);
     PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
+
+    if (ExtraTables != 0u) {
+        PAGE_TABLE_SETUP* TempTable = &Region->Tables[Region->TableCount];
+        TempTable->DirectoryIndex = TempDirectoryIndex;
+        TempTable->ReadWrite = 1;
+        TempTable->Privilege = PAGE_PRIVILEGE_KERNEL;
+        TempTable->Global = 0;
+        TempTable->Mode = PAGE_TABLE_POPULATE_EMPTY;
+
+        if (AllocateTableAndPopulate(Region, TempTable, Directory) == FALSE) {
+            return FALSE;
+        }
+
+        Region->TableCount++;
+    }
 
     for (UINT TableIndex = 0; TableIndex < TableCountRequired; TableIndex++) {
         PAGE_TABLE_SETUP* Table = &Region->Tables[Region->TableCount];
