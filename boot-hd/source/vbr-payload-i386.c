@@ -130,7 +130,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize) {
 
     EnableA20();
 
-    const U32 KernelVirtBase = 0xC0000000U;
+    const U32 KernelVirtBase = (U32)CONFIG_VMA_KERNEL;
     BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);
     BuildGdtFlat();
 

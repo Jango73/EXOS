@@ -27,10 +27,17 @@
 
 /************************************************************************/
 
+#ifndef CONFIG_VMA_KERNEL
+#error "CONFIG_VMA_KERNEL is not defined"
+#endif
+
 #ifdef __EXOS_32__
-static const U64 KERNEL_LONG_MODE_BASE = { 0x80000000u, 0xFFFFFFFFu };
+static const U64 KERNEL_LONG_MODE_BASE = {
+    (U32)(CONFIG_VMA_KERNEL & 0xFFFFFFFFu),
+    (U32)((CONFIG_VMA_KERNEL >> 32) & 0xFFFFFFFFu)
+};
 #else
-static const U64 KERNEL_LONG_MODE_BASE = 0xFFFFFFFF80000000ull;
+static const U64 KERNEL_LONG_MODE_BASE = (U64)CONFIG_VMA_KERNEL;
 #endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;

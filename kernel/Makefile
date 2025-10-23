@@ -3,6 +3,12 @@ SHELL = /bin/bash
 
 ARCH ?= i386
 
+ifeq ($(ARCH),i386)
+VMA_KERNEL ?= 0xC0000000
+else ifeq ($(ARCH),x86-64)
+VMA_KERNEL ?= 0xFFFFFFFFC0000000
+endif
+
 BUILD_DIR := ../build/$(ARCH)
 
 ARCH_CFLAGS =
@@ -40,6 +46,7 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -fvisibility=hidden -mno-red-zone \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
                   -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
+                  -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -Iinclude -I../third/include -I../runtime/include
 CFLAGS         += $(ARCH_CFLAGS)
 
@@ -51,11 +58,11 @@ ifeq ($(ARCH),x86-64)
 AFLAGS_INCLUDES += -I source/arch/i386/asm/
 endif
 
-AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) $(AFLAGS_INCLUDES)
+AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(AFLAGS_INCLUDES)
 
 LINKER_SCRIPT   = exos-$(ARCH).ld
 
-LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
+LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-linker --defsym=__VMA_KERNEL=$(VMA_KERNEL) -Map=$(BUILD_DIR)/kernel/exos.map
 
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 

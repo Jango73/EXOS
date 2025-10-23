@@ -3,6 +3,12 @@ SHELL = /bin/bash
 
 ARCH ?= i386
 
+ifeq ($(ARCH),i386)
+VMA_KERNEL ?= 0xC0000000
+else ifeq ($(ARCH),x86-64)
+VMA_KERNEL ?= 0xFFFFFFFFC0000000
+endif
+
 BUILD_DIR := ../build/$(ARCH)
 
 ifeq ($(ARCH),i386)
@@ -47,7 +53,7 @@ PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) $(NASM_ARCH_FLAGS)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(NASM_ARCH_FLAGS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -60,6 +66,7 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) \
                   -DMEMORY_BASE=$(MEMORY_BASE) \
                   -DMEMORY_SIZE=$(MEMORY_SIZE) \
+                  -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -Iinclude -I../kernel/include
 
 NASM            = nasm

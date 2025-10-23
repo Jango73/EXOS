@@ -49,7 +49,7 @@ static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackH
         if (CurEbp < StackLow || CurEbp >= StackHigh) return FALSE;
     } else {
         // Heuristic bounds (typical higher-half kernel). Adjust if your layout differs.
-        if (CurEbp < 0xC0000000u) return FALSE;
+        if (CurEbp < VMA_KERNEL) return FALSE;
     }
     // 4-byte alignment is expected.
     if ((CurEbp & 3u) != 0) return FALSE;

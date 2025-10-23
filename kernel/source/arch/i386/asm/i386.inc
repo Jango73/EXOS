@@ -69,7 +69,11 @@ GDT_SIZE     equ N_8KB
 
 VMA_USER      equ 0x00400000
 VMA_LIBRARY   equ 0xA0000000
-VMA_KERNEL    equ 0xC0000000
+%ifndef CONFIG_VMA_KERNEL
+    %error "CONFIG_VMA_KERNEL is not defined"
+%endif
+
+VMA_KERNEL    equ CONFIG_VMA_KERNEL
 
 ;-------------------------------------------------------------------------
 ; Values related to IDT, GDT, LDT
