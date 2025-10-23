@@ -58,7 +58,16 @@
 #define VMA_USER 0x00400000                        // Start of user address space
 #define VMA_LIBRARY 0xA0000000                     // Dynamic Libraries
 #define VMA_TASK_RUNNER (VMA_LIBRARY - PAGE_SIZE)  // User alias for TaskRunner
-#define VMA_KERNEL 0xC0000000                      // Kernel
+
+#ifndef CONFIG_VMA_KERNEL
+#error "CONFIG_VMA_KERNEL is not defined"
+#endif
+
+#if (CONFIG_VMA_KERNEL) > 0xFFFFFFFFu
+#error "CONFIG_VMA_KERNEL does not fit in 32 bits"
+#endif
+
+#define VMA_KERNEL ((LINEAR)(CONFIG_VMA_KERNEL))   // Kernel
 
 #define I386_TEMP_LINEAR_PAGE_1 0xC0100000
 #define I386_TEMP_LINEAR_PAGE_2 0xC0101000

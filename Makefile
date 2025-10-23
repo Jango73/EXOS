@@ -1,6 +1,12 @@
 ARCH ?= i386
 
-SUBMAKE = $(MAKE) ARCH=$(ARCH)
+ifeq ($(ARCH),i386)
+VMA_KERNEL ?= 0xC0000000
+else ifeq ($(ARCH),x86-64)
+VMA_KERNEL ?= 0xFFFFFFFFC0000000
+endif
+
+SUBMAKE = $(MAKE) ARCH=$(ARCH) VMA_KERNEL=$(VMA_KERNEL)
 
 .PHONY: all kernel runtime system boot-qemu boot-hd tools clean
 

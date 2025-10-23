@@ -2,8 +2,10 @@ ENTRY(start)
 
 SECTIONS
 {
+    __kernel_vma = DEFINED(__VMA_KERNEL) ? __VMA_KERNEL : 0xC0000000;
+
     /* Code */
-    . = 0xC0000000;
+    . = __kernel_vma;
     .text : {
         *(.text.stub)
         *(.text .text.*)
