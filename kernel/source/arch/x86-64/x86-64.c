@@ -1043,7 +1043,7 @@ static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL 
     Descriptor->Limit_16_19 = 0x0F;
     Descriptor->Available = 0;
     Descriptor->Unused = Executable ? 1 : 0;
-    Descriptor->OperandSize = Executable ? 0 : 1;
+    Descriptor->OperandSize = 0;
     Descriptor->Granularity = 1;
     Descriptor->Base_24_31 = 0x00;
 }
@@ -1058,7 +1058,7 @@ static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL 
 static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Privilege) {
     InitLongModeSegmentDescriptor(Descriptor, FALSE, Privilege);
     Descriptor->Unused = 0;
-    Descriptor->OperandSize = 1;
+    Descriptor->OperandSize = 0;
 }
 
 /***************************************************************************/
