@@ -178,18 +178,34 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
     const U64* RawEntries = (const U64*)Table;
     U32 Index = 0;
 
+    const U64 NullDescriptor = U64_0;
+
     while (Index < Size) {
         U64 Raw = RawEntries[Index];
 
-        if (Raw == 0) {
-            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p (null)"), Index, (LPVOID)Raw);
+        U32 RawLow;
+        U32 RawHigh;
+
+#ifdef __EXOS_32__
+        RawLow = Raw.LO;
+        RawHigh = Raw.HI;
+#else
+        RawLow = (U32)(Raw & 0xFFFFFFFFu);
+        RawHigh = (U32)(Raw >> 32);
+#endif
+
+        if (U64_EQUAL(Raw, NullDescriptor)) {
+            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:32]=%x raw[31:0]=%x (null)"),
+                Index,
+                RawHigh,
+                RawLow);
             Index++;
             continue;
         }
 
         const SEGMENT_DESCRIPTOR* Descriptor = &Table[Index];
 
-        DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p"), Index, (LPVOID)Raw);
+        DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:32]=%x raw[31:0]=%x"), Index, RawHigh, RawLow);
         DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
             (U32)Descriptor->Limit_00_15,
             (U32)Descriptor->Limit_16_19);
@@ -213,7 +229,7 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
                 (U32)SystemDescriptor->Available,
                 (U32)SystemDescriptor->Unused,
                 (U32)SystemDescriptor->Granularity);
-            DEBUG(TEXT("[LogGlobalDescriptorTable]   Base=%p Limit=%x"), (LPVOID)(U64)Base, Limit);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Base=%p Limit=%x"), (LPVOID)(UINT)Base, Limit);
 
             Index++;
             continue;
@@ -241,7 +257,7 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
             (U32)Descriptor->Unused,
             (U32)Descriptor->OperandSize,
             (U32)Descriptor->Granularity);
-        DEBUG(TEXT("[LogGlobalDescriptorTable]   TypeBits=%x Base=%p Limit=%x"), TypeBits, (LPVOID)(U64)Base, Limit);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   TypeBits=%x Base=%p Limit=%x"), TypeBits, (LPVOID)(UINT)Base, Limit);
 
         Index++;
     }
