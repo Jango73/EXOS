@@ -170,17 +170,80 @@ void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
  * segmentation and privilege levels.
  */
 void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
+    if (Table == NULL || Size == 0) {
+        DEBUG(TEXT("[LogGlobalDescriptorTable] Table is empty"));
+        return;
+    }
+
+    const U64* RawEntries = (const U64*)Table;
     U32 Index = 0;
 
-    if (Table) {
-        SEGMENT_INFO Info;
-        STR Text[256];
+    while (Index < Size) {
+        U64 Raw = RawEntries[Index];
 
-        for (Index = 0; Index < Size; Index++) {
-            GetSegmentInfo(Table + Index, &Info);
-            SegmentInfoToString(&Info, Text);
-            DEBUG(Text);
+        if (Raw == 0) {
+            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p (null)"), Index, (LPVOID)Raw);
+            Index++;
+            continue;
         }
+
+        const SEGMENT_DESCRIPTOR* Descriptor = &Table[Index];
+
+        DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p"), Index, (LPVOID)Raw);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
+            (U32)Descriptor->Limit_00_15,
+            (U32)Descriptor->Limit_16_19);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Base_00_15=%x Base_16_23=%x Base_24_31=%x"),
+            (U32)Descriptor->Base_00_15,
+            (U32)Descriptor->Base_16_23,
+            (U32)Descriptor->Base_24_31);
+
+        if (Descriptor->Segment == 0) {
+            const TSS_DESCRIPTOR* SystemDescriptor = (const TSS_DESCRIPTOR*)Descriptor;
+            U32 Limit = ((U32)SystemDescriptor->Limit_00_15) | ((U32)SystemDescriptor->Limit_16_19 << 16);
+            U32 Base = (U32)SystemDescriptor->Base_00_15
+                | ((U32)SystemDescriptor->Base_16_23 << 16)
+                | ((U32)SystemDescriptor->Base_24_31 << 24);
+
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Type=%u Privilege=%u Present=%u"),
+                (U32)SystemDescriptor->Type,
+                (U32)SystemDescriptor->Privilege,
+                (U32)SystemDescriptor->Present);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Available=%u Unused=%u Granularity=%u"),
+                (U32)SystemDescriptor->Available,
+                (U32)SystemDescriptor->Unused,
+                (U32)SystemDescriptor->Granularity);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Base=%p Limit=%x"), (LPVOID)(U64)Base, Limit);
+
+            Index++;
+            continue;
+        }
+
+        U32 Limit = ((U32)Descriptor->Limit_00_15) | ((U32)Descriptor->Limit_16_19 << 16);
+        U32 Base = (U32)Descriptor->Base_00_15
+            | ((U32)Descriptor->Base_16_23 << 16)
+            | ((U32)Descriptor->Base_24_31 << 24);
+        U32 TypeBits = (U32)Descriptor->Accessed
+            | ((U32)Descriptor->CanWrite << 1u)
+            | ((U32)Descriptor->ConformExpand << 2u)
+            | ((U32)Descriptor->Type << 3u);
+
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Accessed=%u CanWrite=%u ConformExpand=%u Type=%u Segment=%u"),
+            (U32)Descriptor->Accessed,
+            (U32)Descriptor->CanWrite,
+            (U32)Descriptor->ConformExpand,
+            (U32)Descriptor->Type,
+            (U32)Descriptor->Segment);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Privilege=%u Present=%u Available=%u Unused=%u OperandSize=%u Granularity=%u"),
+            (U32)Descriptor->Privilege,
+            (U32)Descriptor->Present,
+            (U32)Descriptor->Available,
+            (U32)Descriptor->Unused,
+            (U32)Descriptor->OperandSize,
+            (U32)Descriptor->Granularity);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   TypeBits=%x Base=%p Limit=%x"), TypeBits, (LPVOID)(U64)Base, Limit);
+
+        Index++;
     }
 }
 
