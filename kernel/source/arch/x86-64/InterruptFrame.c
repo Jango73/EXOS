@@ -86,14 +86,14 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     Frame->Registers.RIP = Stack[INCOMING_RIP_INDEX + HasErrorCode];
     Frame->Registers.CS = (U16)(Stack[INCOMING_CS_INDEX + HasErrorCode] & MAX_U16);
 
+    FINE_DEBUG(TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"),
+        InterruptNumber, HasErrorCode, UserMode);
+    // FINE_DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
-        FINE_DEBUG(TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"),
-            InterruptNumber, HasErrorCode, UserMode);
-        // FINE_DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
         // KernelLogMem(LOG_DEBUG, (LINEAR)Stack, 256);
-        FINE_DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%p CS=%x RFLAGS=%x"), (LINEAR)Frame->Registers.RIP,
-            Frame->Registers.CS, Frame->Registers.RFlags);
     }
+    FINE_DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%p CS=%x RFLAGS=%x"), (LINEAR)Frame->Registers.RIP,
+        Frame->Registers.CS, Frame->Registers.RFlags);
 
     Frame->Registers.RAX = Stack[INCOMING_RAX_INDEX];
     Frame->Registers.RBX = Stack[INCOMING_RBX_INDEX];

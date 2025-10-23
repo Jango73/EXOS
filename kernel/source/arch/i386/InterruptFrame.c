@@ -200,14 +200,14 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, U32
     Frame->Registers.EIP = Stack[INCOMING_EIP_INDEX + HasErrorCode];
     Frame->Registers.CS = Stack[INCOMING_CS_INDEX + HasErrorCode] & MAX_U16;
 
+    FINE_DEBUG(TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - InterruptNumber=%d HasErrorCode=%d UserMode=%d"),
+        InterruptNumber, HasErrorCode, UserMode);
+    FINE_DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
-        FINE_DEBUG(TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - InterruptNumber=%d HasErrorCode=%d UserMode=%d"),
-            InterruptNumber, HasErrorCode, UserMode);
-        FINE_DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
         KernelLogMem(LOG_DEBUG, (U32)Stack, 256);
-        FINE_DEBUG(TEXT("[BuildInterruptFrame] Extracted: EIP=%p CS=%x EFlags=%x"), (LINEAR)Frame->Registers.EIP,
-            Frame->Registers.CS, Frame->Registers.EFlags);
     }
+    FINE_DEBUG(TEXT("[BuildInterruptFrame] Extracted: EIP=%p CS=%x EFlags=%x"), (LINEAR)Frame->Registers.EIP,
+        Frame->Registers.CS, Frame->Registers.EFlags);
 
     Frame->Registers.EAX = Stack[INCOMING_EAX_INDEX];
     Frame->Registers.EBX = Stack[INCOMING_EBX_INDEX];

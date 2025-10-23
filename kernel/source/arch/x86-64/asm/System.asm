@@ -540,9 +540,16 @@ section .shared_text
 BITS 64
 
 SYS_FUNC_BEGIN TaskRunner
+
+    ;--------------------------------------
+    ; EBX contains the function
+    ; EAX contains the parameter
+
+    ; Save rax and rbx
     mov     r8, rax
     mov     r9, rbx
 
+    ; Clear registers
     xor     ecx, ecx
     xor     edx, edx
     xor     esi, esi
@@ -558,18 +565,18 @@ SYS_FUNC_BEGIN TaskRunner
     test    rbx, rbx
     je      .exit
 
-    mov     rdi, r8
-    call    rbx
+    mov     rdi, r8             ; Argument for task function
+    call    rbx                 ; Call task function
 
 .exit:
-    mov     rbx, rax
-    mov     eax, 0x33
-    int     EXOS_USER_CALL
+    mov     rbx, rax            ; Task exit code in rbx
+    mov     eax, 0x33           ; SYSCALL_Exit
+    syscall
 
 .sleep:
-    mov     eax, 0x0E
+    mov     eax, 0x0F           ; SYSCALL_Sleep
     mov     rbx, MAX_UINT
-    int     EXOS_USER_CALL
+    syscall
     jmp     .sleep
 SYS_FUNC_END
 

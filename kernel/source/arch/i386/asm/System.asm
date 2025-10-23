@@ -846,8 +846,8 @@ TaskRunner :
     ; Do an infinite loop, task will be removed by scheduler
 
 .sleep
-    mov         eax, 0x0E
     mov         ebx, MAX_UINT
+    mov         eax, 0x0F                   ; SYSCALL_Sleep
     int         EXOS_USER_CALL
 
     jmp         .sleep
