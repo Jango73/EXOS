@@ -368,6 +368,7 @@ typedef struct tag_KERNELDATA_X86_64 {
             "push %%rdx\n\t"                                            \
             "push %%rsi\n\t"                                            \
             "push %%rdi\n\t"                                            \
+            "push %%rbp\n\t"                                            \
             "push %%r8\n\t"                                             \
             "push %%r9\n\t"                                             \
             "push %%r10\n\t"                                            \
@@ -377,11 +378,12 @@ typedef struct tag_KERNELDATA_X86_64 {
             "push %%r14\n\t"                                            \
             "push %%r15\n\t"                                            \
             "movq %%rsp, %0\n\t"                                        \
-            "movq %2, %%rsp\n\t"                                        \
+            "movq %%rbp, %2\n\t"                                        \
+            "movq %3, %%rsp\n\t"                                        \
             "leaq 1f(%%rip), %%rax\n\t"                                 \
             "movq %%rax, %1\n\t"                                        \
-            "movq %4, %%rdi\n\t"                                        \
-            "movq %5, %%rsi\n\t"                                        \
+            "movq %5, %%rdi\n\t"                                        \
+            "movq %6, %%rsi\n\t"                                        \
             "call SwitchToNextTask_3\n\t"                               \
             "1:\n\t"                                                    \
             "pop %%r15\n\t"                                             \
@@ -392,6 +394,7 @@ typedef struct tag_KERNELDATA_X86_64 {
             "pop %%r10\n\t"                                             \
             "pop %%r9\n\t"                                              \
             "pop %%r8\n\t"                                              \
+            "pop %%rbp\n\t"                                             \
             "pop %%rdi\n\t"                                             \
             "pop %%rsi\n\t"                                             \
             "pop %%rdx\n\t"                                             \
@@ -399,7 +402,8 @@ typedef struct tag_KERNELDATA_X86_64 {
             "pop %%rbx\n\t"                                             \
             "pop %%rax\n\t"                                             \
             : "=m"((prev)->Arch.Context.Registers.RSP),                 \
-              "=m"((prev)->Arch.Context.Registers.RIP)                  \
+              "=m"((prev)->Arch.Context.Registers.RIP),                 \
+              "=m"((prev)->Arch.Context.Registers.RBP)                  \
             : "m"((next)->Arch.Context.Registers.RSP),                  \
               "m"((next)->Arch.Context.Registers.RIP),                  \
               "r"(prev), "r"(next)                                      \

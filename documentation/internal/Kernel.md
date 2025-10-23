@@ -463,8 +463,16 @@ Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
 bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids
 writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On
  x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte
- aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution
- resumes in the scheduled task.
+aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution
+resumes in the scheduled task.
+
+The x86-64 low-level switch stub (`SwitchToNextTask_2` in `kernel/include/arch/x86-64/x86-64.h`)
+must save and restore **all** callee-saved registers before transferring control to
+`SwitchToNextTask_3`. Failing to preserve `RBP` corrupts the frame chain of the preempted task and
+leads to immediate stack unwinding into unmapped memory, which manifests as a triple fault when the
+scheduler performs the first ring 0 → ring 0 context switch. The stub therefore explicitly pushes,
+stores and later restores `RBP` together with the rest of the preserved state before resuming the
+previous task.
 
 ### IRQ scheduling
 
