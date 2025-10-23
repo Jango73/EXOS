@@ -1398,12 +1398,7 @@ void InitializeMemoryManager(void) {
 
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
-    U64* RawEntries = (U64*)Kernel_i386.GDT;
-    for (UINT Index = 0; Index < 10; Index++) {
-        U64 Low = RawEntries[Index * 2u];
-        U64 High = RawEntries[Index * 2u + 1u];
-        DEBUG(TEXT("[InitializeMemoryManager] GDT[%u]=%p %p"), Index, (LPVOID)High, (LPVOID)Low);
-    }
+    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 10u);
 
     DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }

@@ -37,6 +37,10 @@ void LogPageDirectory64(PHYSICAL Pml4Physical);
 
 /***************************************************************************/
 
+void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount);
+
+/***************************************************************************/
+
 void LogRegisters64(const LPINTEL_64_REGISTERS Regs);
 void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame);
 void BacktraceFrom(U64 StartRbp, U32 MaxFrames);

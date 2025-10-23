@@ -32,6 +32,105 @@
 
 /***************************************************************************/
 
+/**
+ * @brief Log the contents of the long mode global descriptor table.
+ * @param Table Pointer to the descriptor array.
+ * @param EntryCount Number of 8-byte slots to inspect.
+ */
+void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
+    if (Table == NULL || EntryCount == 0) {
+        DEBUG(TEXT("[LogGlobalDescriptorTable] Table is empty"));
+        return;
+    }
+
+    const U64* RawEntries = (const U64*)Table;
+    U32 Index = 0;
+
+    while (Index < EntryCount) {
+        U64 RawLow = RawEntries[Index];
+
+        if (RawLow == 0) {
+            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p (null)"), Index, (LPVOID)RawLow);
+            Index++;
+            continue;
+        }
+
+        const SEGMENT_DESCRIPTOR* Descriptor = &Table[Index];
+
+        if (Descriptor->Segment == 0 && (Index + 1u) < EntryCount) {
+            const X86_64_SYSTEM_SEGMENT_DESCRIPTOR* SystemDescriptor =
+                (const X86_64_SYSTEM_SEGMENT_DESCRIPTOR*)Descriptor;
+            U64 RawHigh = RawEntries[Index + 1u];
+            U32 Limit = ((U32)SystemDescriptor->Limit_00_15)
+                | ((U32)SystemDescriptor->Limit_16_19 << 16);
+            U64 Base = (U64)SystemDescriptor->Base_00_15
+                | ((U64)SystemDescriptor->Base_16_23 << 16)
+                | ((U64)SystemDescriptor->Base_24_31 << 24)
+                | ((U64)SystemDescriptor->Base_32_63 << 32);
+
+            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p raw[127:64]=%p"), Index, (LPVOID)RawLow, (LPVOID)RawHigh);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
+                (U32)SystemDescriptor->Limit_00_15,
+                (U32)SystemDescriptor->Limit_16_19);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Base_00_15=%x Base_16_23=%x Base_24_31=%x Base_32_63=%x"),
+                (U32)SystemDescriptor->Base_00_15,
+                (U32)SystemDescriptor->Base_16_23,
+                (U32)SystemDescriptor->Base_24_31,
+                (U32)SystemDescriptor->Base_32_63);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Type=%u Zero0=%u Privilege=%u Present=%u"),
+                (U32)SystemDescriptor->Type,
+                (U32)SystemDescriptor->Zero0,
+                (U32)SystemDescriptor->Privilege,
+                (U32)SystemDescriptor->Present);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Available=%u Zero1=%u Granularity=%u Reserved=%x"),
+                (U32)SystemDescriptor->Available,
+                (U32)SystemDescriptor->Zero1,
+                (U32)SystemDescriptor->Granularity,
+                (U32)SystemDescriptor->Reserved);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Base=%p Limit=%x"), (LPVOID)Base, Limit);
+
+            Index += 2u;
+            continue;
+        }
+
+        U32 Limit = ((U32)Descriptor->Limit_00_15) | ((U32)Descriptor->Limit_16_19 << 16);
+        U32 Base = (U32)Descriptor->Base_00_15
+            | ((U32)Descriptor->Base_16_23 << 16)
+            | ((U32)Descriptor->Base_24_31 << 24);
+        U32 TypeBits = (U32)Descriptor->Accessed
+            | ((U32)Descriptor->CanWrite << 1u)
+            | ((U32)Descriptor->ConformExpand << 2u)
+            | ((U32)Descriptor->Type << 3u);
+
+        DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p"), Index, (LPVOID)RawLow);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
+            (U32)Descriptor->Limit_00_15,
+            (U32)Descriptor->Limit_16_19);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Base_00_15=%x Base_16_23=%x Base_24_31=%x"),
+            (U32)Descriptor->Base_00_15,
+            (U32)Descriptor->Base_16_23,
+            (U32)Descriptor->Base_24_31);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Accessed=%u CanWrite=%u ConformExpand=%u Type=%u Segment=%u"),
+            (U32)Descriptor->Accessed,
+            (U32)Descriptor->CanWrite,
+            (U32)Descriptor->ConformExpand,
+            (U32)Descriptor->Type,
+            (U32)Descriptor->Segment);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Privilege=%u Present=%u Available=%u Unused=%u OperandSize=%u Granularity=%u"),
+            (U32)Descriptor->Privilege,
+            (U32)Descriptor->Present,
+            (U32)Descriptor->Available,
+            (U32)Descriptor->Unused,
+            (U32)Descriptor->OperandSize,
+            (U32)Descriptor->Granularity);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   TypeBits=%x Base=%p Limit=%x"), TypeBits, (LPVOID)(U64)Base, Limit);
+
+        Index++;
+    }
+}
+
+/***************************************************************************/
+
 void LogRegisters64(const LPINTEL_64_REGISTERS Regs) {
     if (Regs == NULL) {
         KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] No register snapshot available"));
