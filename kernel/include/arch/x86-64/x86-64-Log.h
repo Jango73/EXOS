@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -20,6 +21,7 @@
     x86-64 Logging helpers
 
 \************************************************************************/
+
 #ifndef ARCH_X86_64_X86_64_LOG_H_INCLUDED
 #define ARCH_X86_64_X86_64_LOG_H_INCLUDED
 
@@ -35,6 +37,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical);
 
 /***************************************************************************/
 
+void LogRegisters64(const LPINTEL_64_REGISTERS Regs);
 void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame);
 void BacktraceFrom(U64 StartRbp, U32 MaxFrames);
 

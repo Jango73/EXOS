@@ -203,7 +203,7 @@ typedef struct tag_SEGMENT_DESCRIPTOR {
 
 // General purpose register snapshot for 64-bit mode
 
-typedef struct tag_INTEL_64_GENERAL_REGISTERS {
+typedef struct tag_INTEL_64_REGISTERS {
     U64 RFlags;
     U64 RAX, RBX, RCX, RDX;
     U64 RSI, RDI, RBP, RSP;
@@ -213,7 +213,7 @@ typedef struct tag_INTEL_64_GENERAL_REGISTERS {
     U16 ES, FS, GS;
     U64 CR0, CR2, CR3, CR4, CR8;
     U64 DR0, DR1, DR2, DR3, DR6, DR7;
-} INTEL_64_GENERAL_REGISTERS, *LPINTEL_64_GENERAL_REGISTERS;
+} INTEL_64_REGISTERS, *LPINTEL_64_REGISTERS;
 
 /***************************************************************************/
 
@@ -286,7 +286,7 @@ typedef struct PACKED tag_X86_64_TASK_STATE_SEGMENT {
 // Interrupt context saved on entry
 
 typedef struct tag_INTERRUPT_FRAME {
-    INTEL_64_GENERAL_REGISTERS Registers;
+    INTEL_64_REGISTERS Registers;
     INTEL_FPU_REGISTERS FPURegisters;
     U64 SS0;
     U64 RSP0;

@@ -36,7 +36,7 @@
 
 void LogMemoryLine16B(U32 LogType, LPCSTR Prefix, const U8* Memory);
 void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length);
-void LogRegisters(LPINTEL_386_REGISTERS Regs);
+void LogRegisters32(LPINTEL_32_REGISTERS Regs);
 void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame);
 void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size);
 void LogPageDirectoryEntry(U32 LogType, const PAGE_DIRECTORY* PageDirectory);

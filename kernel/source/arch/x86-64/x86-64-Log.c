@@ -32,7 +32,7 @@
 
 /***************************************************************************/
 
-static void LogRegisters64(const LPINTEL_64_GENERAL_REGISTERS Regs) {
+void LogRegisters64(const LPINTEL_64_REGISTERS Regs) {
     if (Regs == NULL) {
         KernelLogText(LOG_VERBOSE, TEXT("[LogRegisters64] No register snapshot available"));
         return;
@@ -309,7 +309,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
     DEBUG(TEXT("[LogPageDirectory64] End of page directory"));
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
     if (Frame == NULL) {
@@ -323,15 +323,16 @@ void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LPPROCESS Process = Task->Process;
-        LPCSTR ProcessName = TEXT("<no process>");
 
-        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-            ProcessName = Process->FileName;
+        SAFE_USE(Process) {
+            KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task->Name, Process->FileName);
+            KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
+            LogRegisters64(&(Frame->Registers));
+        } else {
+            KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ ?)"), Task, Task->Name);
+            KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
+            LogRegisters64(&(Frame->Registers));
         }
-
-        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Task : %p (%s @ %s)"), (LPVOID)Task, Task->Name, ProcessName);
-        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
-        LogRegisters64(&(Frame->Registers));
     } else {
         KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Task : ?"));
         KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
@@ -339,7 +340,7 @@ void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void BacktraceFrom(U64 StartRbp, U32 MaxFrames) {
     U32 Depth = 0;

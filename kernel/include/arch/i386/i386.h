@@ -284,7 +284,7 @@
 
 #pragma pack(push, 1)
 
-typedef struct tag_INTEL_386_REGISTERS {
+typedef struct tag_INTEL_32_REGISTERS {
     U32 EFlags;
     U32 EAX, EBX, ECX, EDX;
     U32 ESI, EDI, ESP, EBP;
@@ -294,7 +294,7 @@ typedef struct tag_INTEL_386_REGISTERS {
     U32 CR0, CR2, CR3, CR4;
     U32 DR0, DR1, DR2, DR3;
     U32 DR4, DR5, DR6, DR7;
-} INTEL_386_REGISTERS, *LPINTEL_386_REGISTERS;
+} INTEL_32_REGISTERS, *LPINTEL_32_REGISTERS;
 
 // The segment descriptor
 // Size : 8 bytes
@@ -414,7 +414,7 @@ typedef struct tag_TASK_STATE_SEGMENT {
 // !! Structure MUST BE IDENTICAL to STRUC INTERRUPT_FRAME in i386.inc !!
 
 typedef struct tag_INTERRUPT_FRAME {
-    INTEL_386_REGISTERS Registers;
+    INTEL_32_REGISTERS Registers;
     INTEL_FPU_REGISTERS FPURegisters;
     U32 SS0;      // SS in ring 0
     U32 ESP0;     // ESP in ring 0

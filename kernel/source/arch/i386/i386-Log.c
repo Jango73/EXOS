@@ -101,7 +101,7 @@ void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length) {
  * and debug registers with their current values. Shows detailed debug
  * register flags for comprehensive processor state analysis.
  */
-void LogRegisters(LPINTEL_386_REGISTERS Regs) {
+void LogRegisters32(LPINTEL_32_REGISTERS Regs) {
     KernelLogText(LOG_VERBOSE, TEXT("CS : %x DS : %x SS : %x "), Regs->CS, Regs->DS, Regs->SS);
     KernelLogText(LOG_VERBOSE, TEXT("ES : %x FS : %x GS : %x "), Regs->ES, Regs->FS, Regs->GS);
     KernelLogText(
@@ -130,18 +130,31 @@ void LogRegisters(LPINTEL_386_REGISTERS Regs) {
  * @param Frame Interrupt frame with register snapshot.
  */
 void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
-    LPPROCESS Process;
+    if (Frame == NULL) {
+        ERROR(TEXT("[LogFrame] No interrupt frame provided"));
+        return;
+    }
 
-    if (Task == NULL) Task = GetCurrentTask();
+    if (Task == NULL) {
+        Task = GetCurrentTask();
+    }
 
-    SAFE_USE(Task) {
-        Process = Task->Process;
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LPPROCESS Process = Task->Process;
 
         SAFE_USE(Process) {
-            KernelLogText(LOG_VERBOSE, TEXT("Task : %x (%s @ %s)"), Task, Task->Name, Process->FileName);
+            KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task->Name, Process->FileName);
             KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
-            LogRegisters(&(Frame->Registers));
+            LogRegisters32(&(Frame->Registers));
+        } else {
+            KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ ?)"), Task, Task->Name);
+            KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
+            LogRegisters32(&(Frame->Registers));
         }
+    } else {
+        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Task : ?"));
+        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
+        LogRegisters32(&(Frame->Registers));
     }
 }
 

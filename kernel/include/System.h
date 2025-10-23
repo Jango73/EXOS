@@ -43,6 +43,18 @@ extern U32 IRQMask_A1_RM;
 
 // Functions in System.asm
 
+#if defined(__EXOS_ARCH_I386__)
+
+extern U32 SaveRegisters(LPINTEL_32_REGISTERS Registers);
+extern U32 DoSystemCall(U32 Number, U32 Parameter);
+
+#elif defined(__EXOS_ARCH_X86_64__)
+
+extern U32 SaveRegisters(LPINTEL_64_REGISTERS Registers);
+extern UINT DoSystemCall(U32 Number, UINT Parameter);
+
+#endif
+
 extern void GetCPUID(LPVOID);
 extern U32 DisablePaging(void);
 extern U32 EnablePaging(void);
@@ -73,16 +85,6 @@ extern U32 ClearTaskState(void);
 extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32 X, U32 Y);
-#if defined(__EXOS_ARCH_I386__)
-extern U32 SaveRegisters(LPINTEL_386_REGISTERS Registers);
-#elif defined(__EXOS_ARCH_X86_64__)
-extern U32 SaveRegisters(LPINTEL_64_GENERAL_REGISTERS Registers);
-#endif
-#if defined(__EXOS_ARCH_X86_64__)
-extern UINT DoSystemCall(U32 Number, UINT Parameter);
-#else
-extern U32 DoSystemCall(U32 Number, U32 Parameter);
-#endif
 extern void IdleCPU(void);
 extern void DeadCPU(void);
 extern void Reboot(void);
