@@ -46,7 +46,7 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
         return;
     }
 
-    LogFrame(NULL, Frame);
+    LogFrame(Frame);
     BacktraceFrom(Frame->Registers.RBP, 10u);
 }
 

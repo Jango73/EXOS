@@ -129,33 +129,18 @@ void LogRegisters32(LPINTEL_32_REGISTERS Regs) {
  * @brief Log register state for a task at fault.
  * @param Frame Interrupt frame with register snapshot.
  */
-void LogFrame(LPTASK Task, LPINTERRUPT_FRAME Frame) {
+void LogFrame(LPINTERRUPT_FRAME Frame) {
     if (Frame == NULL) {
         ERROR(TEXT("[LogFrame] No interrupt frame provided"));
         return;
     }
 
-    if (Task == NULL) {
-        Task = GetCurrentTask();
-    }
+    LPTASK Task = GetCurrentTask();
+    LPPROCESS Process = GetCurrentProcess();
 
-    SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        LPPROCESS Process = Task->Process;
-
-        SAFE_USE(Process) {
-            KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task->Name, Process->FileName);
-            KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
-            LogRegisters32(&(Frame->Registers));
-        } else {
-            KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ ?)"), Task, Task->Name);
-            KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
-            LogRegisters32(&(Frame->Registers));
-        }
-    } else {
-        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Task : ?"));
-        KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Registers :"));
-        LogRegisters32(&(Frame->Registers));
-    }
+    KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task ? Task->Name : "?", Process ? Process->FileName : "?");
+    KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
+    LogRegisters32(&(Frame->Registers));
 }
 
 /************************************************************************/

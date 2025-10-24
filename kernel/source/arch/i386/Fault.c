@@ -62,13 +62,10 @@ static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackH
 
 void LogCPUState(LPINTERRUPT_FRAME Frame) {
     STR DisasmBuffer[MAX_STRING_BUFFER];
-    LPTASK Task = GetCurrentTask();
-    SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        LogFrame(Task, Frame);
-        Disassemble(DisasmBuffer, Frame->Registers.EIP, 5, 32);
-        ERROR(TEXT("Code at EIP:\n%s"), DisasmBuffer);
-        BacktraceFrom(Frame->Registers.EBP, 10);
-    }
+    LogFrame(Frame);
+    Disassemble(DisasmBuffer, Frame->Registers.EIP, 5, 32);
+    ERROR(TEXT("Code at EIP:\n%s"), DisasmBuffer);
+    BacktraceFrom(Frame->Registers.EBP, 10);
 }
 
 /************************************************************************/
