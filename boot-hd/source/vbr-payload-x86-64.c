@@ -57,7 +57,7 @@ static LPPAGE_DIRECTORY PageDirectoryLow = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_5;
 static LPPAGE_DIRECTORY PageDirectoryKernel = (LPPAGE_DIRECTORY)LOW_MEMORY_PAGE_6;
 static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_7;
 static LPPAGE_TABLE PageTableLowHigh = (LPPAGE_TABLE)LOW_MEMORY_PAGE_8;
-static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_CODE + 1u];
+static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_DATA + 1u];
 static GDT_REGISTER Gdtr;
 
 typedef char VerifySegmentDescriptorSize[(sizeof(SEGMENT_DESCRIPTOR) == 8u) ? 1 : -1];
@@ -67,6 +67,8 @@ typedef char VerifyProtectedDataSelector[
     (VBR_PROTECTED_MODE_DATA_SELECTOR == (U16)(VBR_GDT_ENTRY_PROTECTED_DATA * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
 typedef char VerifyLongModeCodeSelector[
     (VBR_LONG_MODE_CODE_SELECTOR == (U16)(VBR_GDT_ENTRY_LONG_MODE_CODE * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
+typedef char VerifyLongModeDataSelector[
+    (VBR_LONG_MODE_DATA_SELECTOR == (U16)(VBR_GDT_ENTRY_LONG_MODE_DATA * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
 
 const U16 VbrProtectedModeCodeSelector = VBR_PROTECTED_MODE_CODE_SELECTOR;
 const U16 VbrProtectedModeDataSelector = VBR_PROTECTED_MODE_DATA_SELECTOR;
@@ -188,6 +190,34 @@ static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Flag
 
 /************************************************************************/
 
+static void SetSegmentDescriptorX8664(
+    LPSEGMENT_DESCRIPTOR Descriptor,
+    U32 Base,
+    U32 Limit,
+    U32 Type,
+    U32 Privilege,
+    BOOL LongMode,
+    BOOL DefaultSize,
+    BOOL Granularity) {
+    MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
+
+    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFFu);
+    Descriptor->Base_00_15 = (U16)(Base & 0xFFFFu);
+    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFFu);
+    Descriptor->Type = (U8)(Type & 0x0Fu);
+    Descriptor->S = 1;
+    Descriptor->DPL = (U8)(Privilege & 3U);
+    Descriptor->Present = 1;
+    Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0Fu);
+    Descriptor->AVL = 0;
+    Descriptor->LongMode = (U8)(LongMode ? 1U : 0U);
+    Descriptor->DefaultSize = (U8)(DefaultSize ? 1U : 0U);
+    Descriptor->Granularity = (U8)(Granularity ? 1U : 0U);
+    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFFu);
+}
+
+/************************************************************************/
+
 static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
     ClearLongModeStructures();
 
@@ -287,36 +317,42 @@ static void BuildGdtFlat(void) {
 
     MemorySet(GdtEntries, 0, sizeof(GdtEntries));
 
-    VbrSetSegmentDescriptor(
+    SetSegmentDescriptorX8664(
         &GdtEntries[VBR_GDT_ENTRY_PROTECTED_CODE],
         0x00000000u,
         0x000FFFFFu,
-        1,
-        1,
+        0x0Au,
         0,
-        1,
-        1,
-        0);
-    VbrSetSegmentDescriptor(
+        FALSE,
+        TRUE,
+        TRUE);
+    SetSegmentDescriptorX8664(
         &GdtEntries[VBR_GDT_ENTRY_PROTECTED_DATA],
         0x00000000u,
         0x000FFFFFu,
+        0x02u,
         0,
-        1,
-        0,
-        1,
-        1,
-        0);
-    VbrSetSegmentDescriptor(
+        FALSE,
+        TRUE,
+        TRUE);
+    SetSegmentDescriptorX8664(
         &GdtEntries[VBR_GDT_ENTRY_LONG_MODE_CODE],
         0x00000000u,
         0x00000000u,
-        1,
-        1,
+        0x0Au,
         0,
+        TRUE,
+        FALSE,
+        TRUE);
+    SetSegmentDescriptorX8664(
+        &GdtEntries[VBR_GDT_ENTRY_LONG_MODE_DATA],
+        0x00000000u,
+        0x00000000u,
+        0x02u,
         0,
-        1,
-        1);
+        FALSE,
+        FALSE,
+        TRUE);
 
     MemoryCopy((void*)GdtPhysicalAddress, GdtEntries, sizeof(GdtEntries));
 

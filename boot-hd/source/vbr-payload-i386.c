@@ -42,6 +42,35 @@ static GDT_REGISTER Gdtr;
 
 /************************************************************************/
 
+static void SetSegmentDescriptorI386(
+    LPSEGMENT_DESCRIPTOR Descriptor,
+    U32 Base,
+    U32 Limit,
+    BOOL Executable,
+    BOOL Writable,
+    U32 Privilege,
+    BOOL Operand32,
+    BOOL Granularity) {
+    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFFu);
+    Descriptor->Base_00_15 = (U16)(Base & 0xFFFFu);
+    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFFu);
+    Descriptor->Accessed = 0;
+    Descriptor->CanWrite = (Writable ? 1U : 0U);
+    Descriptor->ConformExpand = 0;
+    Descriptor->Type = (Executable ? 1U : 0U);
+    Descriptor->Segment = 1;
+    Descriptor->Privilege = (Privilege & 3U);
+    Descriptor->Present = 1;
+    Descriptor->Limit_16_19 = (U32)((Limit >> 16) & 0x0Fu);
+    Descriptor->Available = 0;
+    Descriptor->Unused = 0;
+    Descriptor->OperandSize = (Operand32 ? 1U : 0U);
+    Descriptor->Granularity = (Granularity ? 1U : 0U);
+    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFFu);
+}
+
+/************************************************************************/
+
 static void ClearPdPt(void) {
     MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
     MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
@@ -113,8 +142,8 @@ static void BuildGdtFlat(void) {
 
     MemorySet(GdtEntries, 0, sizeof(GdtEntries));
 
-    VbrSetSegmentDescriptor(&GdtEntries[1], 0x00000000u, 0x000FFFFFu, 1, 1, 0, 1, 1, 0);
-    VbrSetSegmentDescriptor(&GdtEntries[2], 0x00000000u, 0x000FFFFFu, 0, 1, 0, 1, 1, 0);
+    SetSegmentDescriptorI386(&GdtEntries[1], 0x00000000u, 0x000FFFFFu, TRUE, TRUE, 0, TRUE, TRUE);
+    SetSegmentDescriptorI386(&GdtEntries[2], 0x00000000u, 0x000FFFFFu, FALSE, TRUE, 0, TRUE, TRUE);
 
     MemoryCopy((void*)GdtPhysicalAddress, GdtEntries, sizeof(GdtEntries));
 

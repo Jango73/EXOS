@@ -122,35 +122,6 @@ void BootErrorPrint(LPCSTR Format, ...) {
 
 /************************************************************************/
 
-void VbrSetSegmentDescriptor(
-    struct tag_SEGMENT_DESCRIPTOR* Descriptor,
-    U32 Base,
-    U32 Limit,
-    U32 Type,
-    U32 CanWrite,
-    U32 Privilege,
-    U32 Operand32,
-    U32 Gran4K,
-    U32 LongMode) {
-    LPSEGMENT_DESCRIPTOR Entry = (LPSEGMENT_DESCRIPTOR)Descriptor;
-
-    Entry->Limit_00_15 = (U16)(Limit & 0xFFFFu);
-    Entry->Base_00_15 = (U16)(Base & 0xFFFFu);
-    Entry->Base_16_23 = (U8)((Base >> 16) & 0xFFu);
-    Entry->Type = (U8)(((Type ? 1U : 0U) << 3u) | (CanWrite ? 0x02u : 0u));
-    Entry->S = 1;
-    Entry->DPL = (U8)(Privilege & 3U);
-    Entry->Present = 1;
-    Entry->Limit_16_19 = (U8)((Limit >> 16) & 0x0Fu);
-    Entry->AVL = 0;
-    Entry->LongMode = (U8)(LongMode ? 1U : 0U);
-    Entry->DefaultSize = (U8)(Operand32 ? 1U : 0U);
-    Entry->Granularity = (U8)(Gran4K ? 1U : 0U);
-    Entry->Base_24_31 = (U8)((Base >> 24) & 0xFFu);
-}
-
-/************************************************************************/
-
 const char* BootGetFileName(const char* Path) {
     if (Path == NULL) {
         return "";

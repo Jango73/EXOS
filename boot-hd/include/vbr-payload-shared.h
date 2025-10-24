@@ -75,8 +75,6 @@ typedef struct PACKED tag_E820ENTRY {
     U32 Attributes;
 } E820ENTRY;
 
-struct tag_SEGMENT_DESCRIPTOR;
-
 /************************************************************************/
 // Globals provided by the common payload implementation
 
@@ -96,15 +94,5 @@ U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize);
 void BootDebugPrint(LPCSTR Format, ...);
 void BootVerbosePrint(LPCSTR Format, ...);
 void BootErrorPrint(LPCSTR Format, ...);
-void VbrSetSegmentDescriptor(
-    struct tag_SEGMENT_DESCRIPTOR* Descriptor,
-    U32 Base,
-    U32 Limit,
-    U32 Type,
-    U32 CanWrite,
-    U32 Privilege,
-    U32 Operand32,
-    U32 Gran4K,
-    U32 LongMode);
 
 #endif  // VBR_PAYLOAD_SHARED_H_INCLUDED
