@@ -540,7 +540,65 @@ void BacktraceFrom(U64 StartRbp, U32 MaxFrames) {
 
 /************************************************************************/
 
+/**
+ * @brief Logs entries from the Interrupt Descriptor Table (IDT).
+ * @param Type Log level to use when emitting messages.
+ * @param Table Pointer to the IDT gate descriptors.
+ * @param EntriesToLog Number of descriptors to dump starting at index 0.
+ */
+void LogInterruptDescriptorTable(U32 Type, const LPGATE_DESCRIPTOR Table, UINT EntriesToLog) {
+    if (Table == NULL) {
+        KernelLogText(Type, TEXT("[LogInterruptDescriptorTable] Table pointer is null"));
+        return;
+    }
+
+    if (EntriesToLog == 0) {
+        KernelLogText(Type, TEXT("[LogInterruptDescriptorTable] No entries requested"));
+        return;
+    }
+
+    KernelLogText(
+        Type,
+        TEXT("[LogInterruptDescriptorTable] Base=%p, dumping first %u entries"),
+        (const void*)Table,
+        EntriesToLog);
+
+    UINT Index;
+    for (Index = 0; Index < EntriesToLog; ++Index) {
+        const LPGATE_DESCRIPTOR Entry = Table + Index;
+        const U32* Raw = (const U32*)Entry;
+
+        KernelLogText(
+            Type,
+            TEXT("[LogInterruptDescriptorTable]   Entry %u: raw[31:0]=%x raw[63:32]=%x raw[95:64]=%x raw[127:96]=%x"),
+            Index,
+            Raw[0],
+            Raw[1],
+            Raw[2],
+            Raw[3]);
+        KernelLogText(
+            Type,
+            TEXT("[LogInterruptDescriptorTable]     Selector=%x Type=%u IST=%u DPL=%u Present=%u"),
+            (U32)Entry->Selector,
+            (U32)Entry->Type,
+            (U32)Entry->InterruptStackTable,
+            (U32)Entry->Privilege,
+            (U32)Entry->Present);
+        KernelLogText(
+            Type,
+            TEXT("[LogInterruptDescriptorTable]     Offset_32_63=%x Offset_16_31=%x Offset_00_15=%x"),
+            (U32)Entry->Offset_32_63,
+            (U32)Entry->Offset_16_31,
+            (U32)Entry->Offset_00_15);
+    }
+}
+
+/************************************************************************/
+
 void LogTaskSystemStructures(U32 Type) {
     LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 5);
+    const UINT EntriesToLog = 10;
+    const LPGATE_DESCRIPTOR Idt = (LPGATE_DESCRIPTOR)Kernel_i386.IDT;
+    LogInterruptDescriptorTable(Type, Idt, EntriesToLog);
     LogTaskStateSegment(Type, Kernel_i386.TSS);
 }

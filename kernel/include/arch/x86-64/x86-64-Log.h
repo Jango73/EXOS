@@ -38,6 +38,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical);
 /***************************************************************************/
 
 void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount);
+void LogInterruptDescriptorTable(U32 LogType, const LPGATE_DESCRIPTOR Table, UINT EntriesToLog);
 
 /***************************************************************************/
 
