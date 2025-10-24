@@ -30,6 +30,7 @@
 #include "Base.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/x86-64/x86-64-Memory.h"
+#include "process/TaskStack.h"
 
 /***************************************************************************/
 
@@ -310,12 +311,9 @@ typedef struct tag_INTERRUPT_FRAME {
 
 typedef struct tag_ARCH_TASK_DATA {
     INTERRUPT_FRAME Context;
-    U64 StackBase;
-    UINT StackSize;
-    U64 SysStackBase;
-    UINT SysStackSize;
-    U64 Ist1StackBase;
-    UINT Ist1StackSize;
+    STACK Stack;
+    STACK SysStack;
+    STACK Ist1Stack;
 } ARCH_TASK_DATA, *LPARCH_TASK_DATA;
 
 /************************************************************************/

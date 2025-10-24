@@ -198,23 +198,25 @@ void DeleteTask(LPTASK This) {
 
         DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
-        SAFE_USE(This->Arch.SysStackBase) {
-            DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->Arch.SysStackBase,
-                This->Arch.SysStackSize);
-            FreeRegion(This->Arch.SysStackBase, This->Arch.SysStackSize);
+        SAFE_USE(This->Arch.SysStack.Base) {
+            DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->Arch.SysStack.Base,
+                This->Arch.SysStack.Size);
+            FreeRegion(This->Arch.SysStack.Base, This->Arch.SysStack.Size);
         }
 
-        SAFE_USE(This->Arch.Ist1StackBase) {
-            DEBUG(TEXT("[DeleteTask] Freeing IST1 stack: base=%X, size=%X"), This->Arch.Ist1StackBase,
-                This->Arch.Ist1StackSize);
-            FreeRegion(This->Arch.Ist1StackBase, This->Arch.Ist1StackSize);
+#if defined(__EXOS_ARCH_X86_64__)
+        SAFE_USE(This->Arch.Ist1Stack.Base) {
+            DEBUG(TEXT("[DeleteTask] Freeing IST1 stack: base=%X, size=%X"), This->Arch.Ist1Stack.Base,
+                This->Arch.Ist1Stack.Size);
+            FreeRegion(This->Arch.Ist1Stack.Base, This->Arch.Ist1Stack.Size);
         }
+#endif
 
         SAFE_USE(This->Process) {
-            SAFE_USE(This->Arch.StackBase) {
-                DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->Arch.StackBase,
-                    This->Arch.StackSize);
-                FreeRegion(This->Arch.StackBase, This->Arch.StackSize);
+            SAFE_USE(This->Arch.Stack.Base) {
+                DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->Arch.Stack.Base,
+                    This->Arch.Stack.Size);
+                FreeRegion(This->Arch.Stack.Base, This->Arch.Stack.Size);
             }
         }
 
@@ -1337,12 +1339,14 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("Function        : %x"), Task->Function);
     VERBOSE(TEXT("Parameter       : %x"), Task->Parameter);
     VERBOSE(TEXT("ExitCode        : %x"), (U32)Task->ExitCode);
-    VERBOSE(TEXT("StackBase       : %x"), Task->Arch.StackBase);
-    VERBOSE(TEXT("StackSize       : %x"), Task->Arch.StackSize);
-    VERBOSE(TEXT("SysStackBase    : %x"), Task->Arch.SysStackBase);
-    VERBOSE(TEXT("SysStackSize    : %x"), Task->Arch.SysStackSize);
-    VERBOSE(TEXT("IST1StackBase   : %x"), Task->Arch.Ist1StackBase);
-    VERBOSE(TEXT("IST1StackSize   : %x"), Task->Arch.Ist1StackSize);
+    VERBOSE(TEXT("StackBase       : %x"), Task->Arch.Stack.Base);
+    VERBOSE(TEXT("StackSize       : %x"), Task->Arch.Stack.Size);
+    VERBOSE(TEXT("SysStackBase    : %x"), Task->Arch.SysStack.Base);
+    VERBOSE(TEXT("SysStackSize    : %x"), Task->Arch.SysStack.Size);
+#if defined(__EXOS_ARCH_X86_64__)
+    VERBOSE(TEXT("IST1StackBase   : %x"), Task->Arch.Ist1Stack.Base);
+    VERBOSE(TEXT("IST1StackSize   : %x"), Task->Arch.Ist1Stack.Size);
+#endif
     VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
     VERBOSE(TEXT("Queued messages : %d"), Task->Message->NumItems);
 

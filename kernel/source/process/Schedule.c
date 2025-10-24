@@ -388,7 +388,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
         if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
-            LINEAR StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
+            LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);
 
@@ -403,8 +403,9 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             JumpToReadyTask(NextTask, StackPointer);
         } else {
-            LINEAR StackPointer = NextTask->Arch.StackBase + NextTask->Arch.StackSize - STACK_SAFETY_MARGIN;
-            LINEAR SysStackPointer = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize - STACK_SAFETY_MARGIN;
+            LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
+            LINEAR SysStackPointer =
+                NextTask->Arch.SysStack.Base + NextTask->Arch.SysStack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] SysStackPointer = %p"), SysStackPointer);
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);
