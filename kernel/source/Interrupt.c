@@ -26,7 +26,6 @@
 #include "Kernel.h"
 #include "Arch.h"
 #include "SYSCall.h"
-#include "drivers/LocalAPIC.h"
 #include "InterruptController.h"
 #include "System.h"
 
