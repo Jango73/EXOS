@@ -225,17 +225,8 @@ void InitializeGateDescriptor(
     SetGateDescriptorOffset(Descriptor, Handler);
 }
 
-/***************************************************************************/
-
-static U8 SelectInterruptStackTable(U32 InterruptIndex) {
-    UNUSED(InterruptIndex);
-    return 0u;
-}
-
-/***************************************************************************/
-
 void InitializeInterrupts(void) {
-    InitializeInterruptDescriptors(SelectInterruptStackTable);
+    InitializeInterruptDescriptors(NULL);
 }
 
 /************************************************************************/
