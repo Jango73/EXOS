@@ -30,7 +30,9 @@
 #include "Base.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/i386/i386-Memory.h"
-#include "process/TaskStack.h"
+#define EXOS_TASK_STACK_ONLY
+#include "process/Task.h"
+#undef EXOS_TASK_STACK_ONLY
 
 /************************************************************************/
 // #define declarations

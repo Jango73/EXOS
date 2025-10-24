@@ -22,6 +22,20 @@
 
 \************************************************************************/
 
+#include "Base.h"
+
+#ifndef STACK_STRUCT_DEFINED
+#define STACK_STRUCT_DEFINED
+
+typedef struct tag_STACK {
+    LINEAR Base;
+    UINT Size;
+} STACK, *LPSTACK;
+
+#endif  // STACK_STRUCT_DEFINED
+
+#if !defined(EXOS_TASK_STACK_ONLY)
+
 #ifndef TASK_H_INCLUDED
 #define TASK_H_INCLUDED
 
@@ -31,8 +45,6 @@
 
 /************************************************************************/
 
-#include "Base.h"
-#include "process/TaskStack.h"
 #include "Arch.h"
 #include "List.h"
 #include "Mutex.h"
@@ -93,3 +105,5 @@ void DumpTask(LPTASK);
 #pragma pack(pop)
 
 #endif  // TASK_H_INCLUDED
+
+#endif  // !EXOS_TASK_STACK_ONLY

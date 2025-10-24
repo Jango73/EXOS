@@ -1330,22 +1330,22 @@ Out:
 void DumpTask(LPTASK Task) {
     LockMutex(&(Task->Mutex), INFINITY);
 
-    VERBOSE(TEXT("Address         : %x"), Task);
+    VERBOSE(TEXT("Address         : %p"), (LPVOID)Task);
     VERBOSE(TEXT("Task Name       : %s"), Task->Name);
     VERBOSE(TEXT("References      : %d"), Task->References);
-    VERBOSE(TEXT("Process         : %x"), Task->Process);
+    VERBOSE(TEXT("Process         : %p"), (LPVOID)Task->Process);
     VERBOSE(TEXT("Status          : %x"), Task->Status);
     VERBOSE(TEXT("Priority        : %x"), Task->Priority);
-    VERBOSE(TEXT("Function        : %x"), Task->Function);
-    VERBOSE(TEXT("Parameter       : %x"), Task->Parameter);
+    VERBOSE(TEXT("Function        : %p"), (LPVOID)(Task->Function));
+    VERBOSE(TEXT("Parameter       : %p"), Task->Parameter);
     VERBOSE(TEXT("ExitCode        : %x"), (U32)Task->ExitCode);
-    VERBOSE(TEXT("StackBase       : %x"), Task->Arch.Stack.Base);
-    VERBOSE(TEXT("StackSize       : %x"), Task->Arch.Stack.Size);
-    VERBOSE(TEXT("SysStackBase    : %x"), Task->Arch.SysStack.Base);
-    VERBOSE(TEXT("SysStackSize    : %x"), Task->Arch.SysStack.Size);
+    VERBOSE(TEXT("StackBase       : %p"), (LPVOID)Task->Arch.Stack.Base);
+    VERBOSE(TEXT("StackSize       : %u"), Task->Arch.Stack.Size);
+    VERBOSE(TEXT("SysStackBase    : %p"), (LPVOID)Task->Arch.SysStack.Base);
+    VERBOSE(TEXT("SysStackSize    : %u"), Task->Arch.SysStack.Size);
 #if defined(__EXOS_ARCH_X86_64__)
-    VERBOSE(TEXT("IST1StackBase   : %x"), Task->Arch.Ist1Stack.Base);
-    VERBOSE(TEXT("IST1StackSize   : %x"), Task->Arch.Ist1Stack.Size);
+    VERBOSE(TEXT("IST1StackBase   : %p"), (LPVOID)Task->Arch.Ist1Stack.Base);
+    VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);
 #endif
     VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
     VERBOSE(TEXT("Queued messages : %d"), Task->Message->NumItems);
