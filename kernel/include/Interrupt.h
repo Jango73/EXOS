@@ -25,11 +25,6 @@
 #ifndef INTERRUPT_H_INCLUDED
 #define INTERRUPT_H_INCLUDED
 
-#include "Base.h"
-
-typedef U8 (*INTERRUPT_STACK_SELECTOR)(U32 InterruptIndex);
-
-void InitializeInterruptDescriptors(INTERRUPT_STACK_SELECTOR SelectStack);
 void InitializeInterrupts(void);
 void SendEOI(void);
 

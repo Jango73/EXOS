@@ -36,6 +36,7 @@
 #include "Text.h"
 #include "Kernel.h"
 #include "Interrupt.h"
+#include "SYSCall.h"
 
 /************************************************************************\
 
@@ -185,6 +186,7 @@ KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
 
 extern GATE_DESCRIPTOR IDT[];
 extern void Interrupt_SystemCall(void);
+extern VOIDFUNC InterruptTable[];
 
 /************************************************************************/
 
@@ -226,7 +228,24 @@ void InitializeGateDescriptor(
 }
 
 void InitializeInterrupts(void) {
-    InitializeInterruptDescriptors(NULL);
+    Kernel_i386.IDT = IDT;
+
+    for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
+        InitializeGateDescriptor(
+            IDT + Index,
+            (LINEAR)(InterruptTable[Index]),
+            GATE_TYPE_386_INT,
+            PRIVILEGE_KERNEL,
+            0u);
+    }
+
+    InitializeSystemCall();
+
+    LoadInterruptDescriptorTable((LINEAR)IDT, sizeof(IDT) - 1);
+
+    ClearDR7();
+
+    InitializeSystemCalls();
 }
 
 /************************************************************************/

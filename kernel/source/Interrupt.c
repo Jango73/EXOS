@@ -25,7 +25,6 @@
 #include "Base.h"
 #include "Kernel.h"
 #include "Arch.h"
-#include "Interrupt.h"
 #include "SYSCall.h"
 #include "InterruptController.h"
 #include "System.h"
@@ -117,51 +116,6 @@ VOIDFUNC InterruptTable[] = {
 };
 
 GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
-
-/***************************************************************************/
-
-void InitializeInterruptDescriptors(INTERRUPT_STACK_SELECTOR SelectStack) {
-    Kernel_i386.IDT = IDT;
-
-    //-------------------------------------
-    // Set all used interrupts
-
-    for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        U8 InterruptStack = 0;
-
-        if (SelectStack != NULL) {
-            InterruptStack = SelectStack(Index);
-        }
-
-        InitializeGateDescriptor(
-            IDT + Index,
-            (LINEAR)(InterruptTable[Index]),
-            GATE_TYPE_386_INT,
-            PRIVILEGE_KERNEL,
-            InterruptStack);
-    }
-
-    //-------------------------------------
-    // Set system call mechanism
-
-    InitializeSystemCall();
-
-    //-------------------------------------
-
-    LoadInterruptDescriptorTable((LINEAR)IDT, sizeof(IDT) - 1);
-
-    // Reset debug registers
-
-    ClearDR7();
-
-    //-------------------------------------
-    // Note: Interrupt controller initialization moved to Kernel.c after IOAPIC init
-
-    //-------------------------------------
-    // Initialize system calls
-
-    InitializeSystemCalls();
-}
 
 /***************************************************************************/
 

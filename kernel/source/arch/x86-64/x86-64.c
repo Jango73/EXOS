@@ -34,6 +34,7 @@
 #include "System.h"
 #include "Text.h"
 #include "Interrupt.h"
+#include "SYSCall.h"
 
 /************************************************************************\
 
@@ -233,6 +234,11 @@ void InitializeGateDescriptor(
 
 /***************************************************************************/
 
+extern GATE_DESCRIPTOR IDT[];
+extern VOIDFUNC InterruptTable[];
+
+/***************************************************************************/
+
 static U8 SelectInterruptStackTable(U32 InterruptIndex) {
     switch (InterruptIndex) {
     case 8u:   // Double fault
@@ -250,7 +256,26 @@ static U8 SelectInterruptStackTable(U32 InterruptIndex) {
 /***************************************************************************/
 
 void InitializeInterrupts(void) {
-    InitializeInterruptDescriptors(SelectInterruptStackTable);
+    Kernel_i386.IDT = IDT;
+
+    for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
+        U8 InterruptStack = SelectInterruptStackTable(Index);
+
+        InitializeGateDescriptor(
+            IDT + Index,
+            (LINEAR)(InterruptTable[Index]),
+            GATE_TYPE_386_INT,
+            PRIVILEGE_KERNEL,
+            InterruptStack);
+    }
+
+    InitializeSystemCall();
+
+    LoadInterruptDescriptorTable((LINEAR)IDT, sizeof(IDT) - 1);
+
+    ClearDR7();
+
+    InitializeSystemCalls();
 }
 
 /************************************************************************/
