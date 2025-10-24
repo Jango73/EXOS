@@ -119,40 +119,6 @@ GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 
 /***************************************************************************/
 
-void InitializeInterrupts(void) {
-    Kernel_i386.IDT = IDT;
-
-    //-------------------------------------
-    // Set all used interrupts
-
-    for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        InitializeGateDescriptor(IDT + Index, (LINEAR)(InterruptTable[Index]), GATE_TYPE_386_INT, PRIVILEGE_KERNEL);
-    }
-
-    //-------------------------------------
-    // Set system call mechanism
-
-    InitializeSystemCall();
-
-    //-------------------------------------
-
-    LoadInterruptDescriptorTable((LINEAR)IDT, sizeof(IDT) - 1);
-
-    // Reset debug registers
-
-    ClearDR7();
-
-    //-------------------------------------
-    // Note: Interrupt controller initialization moved to Kernel.c after IOAPIC init
-
-    //-------------------------------------
-    // Initialize system calls
-
-    InitializeSystemCalls();
-}
-
-/***************************************************************************/
-
 /**
  * @brief Send End of Interrupt (EOI) signal.
  *

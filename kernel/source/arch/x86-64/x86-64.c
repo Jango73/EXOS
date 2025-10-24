@@ -33,6 +33,8 @@
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"
+#include "Interrupt.h"
+#include "SYSCall.h"
 
 /************************************************************************\
 
@@ -217,9 +219,10 @@ void InitializeGateDescriptor(
     LPGATE_DESCRIPTOR Descriptor,
     LINEAR Handler,
     U16 Type,
-    U16 Privilege) {
+    U16 Privilege,
+    U8 InterruptStackTable) {
     Descriptor->Selector = SELECTOR_KERNEL_CODE;
-    Descriptor->InterruptStackTable = 0;
+    Descriptor->InterruptStackTable = InterruptStackTable & 0x7u;
     Descriptor->Reserved_0 = 0;
     Descriptor->Type = Type;
     Descriptor->Privilege = Privilege;
@@ -227,6 +230,52 @@ void InitializeGateDescriptor(
     Descriptor->Reserved_1 = 0;
 
     SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+/***************************************************************************/
+
+extern GATE_DESCRIPTOR IDT[];
+extern VOIDFUNC InterruptTable[];
+
+/***************************************************************************/
+
+static U8 SelectInterruptStackTable(U32 InterruptIndex) {
+    switch (InterruptIndex) {
+    case 8u:   // Double fault
+    case 10u:  // Invalid TSS
+    case 11u:  // Segment not present
+    case 12u:  // Stack fault
+    case 13u:  // General protection fault
+    case 14u:  // Page fault
+        return 1u;
+    default:
+        return 0u;
+    }
+}
+
+/***************************************************************************/
+
+void InitializeInterrupts(void) {
+    Kernel_i386.IDT = IDT;
+
+    for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
+        U8 InterruptStack = SelectInterruptStackTable(Index);
+
+        InitializeGateDescriptor(
+            IDT + Index,
+            (LINEAR)(InterruptTable[Index]),
+            GATE_TYPE_386_INT,
+            PRIVILEGE_KERNEL,
+            InterruptStack);
+    }
+
+    InitializeSystemCall();
+
+    LoadInterruptDescriptorTable((LINEAR)IDT, IDT_SIZE - 1u);
+
+    ClearDR7();
+
+    InitializeSystemCalls();
 }
 
 /************************************************************************/

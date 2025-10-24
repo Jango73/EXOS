@@ -35,6 +35,8 @@
 #include "process/Task.h"
 #include "Text.h"
 #include "Kernel.h"
+#include "Interrupt.h"
+#include "SYSCall.h"
 
 /************************************************************************\
 
@@ -184,6 +186,7 @@ KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
 
 extern GATE_DESCRIPTOR IDT[];
 extern void Interrupt_SystemCall(void);
+extern VOIDFUNC InterruptTable[];
 
 /************************************************************************/
 
@@ -212,7 +215,9 @@ void InitializeGateDescriptor(
     LPGATE_DESCRIPTOR Descriptor,
     LINEAR Handler,
     U16 Type,
-    U16 Privilege) {
+    U16 Privilege,
+    U8 InterruptStackTable) {
+    UNUSED(InterruptStackTable);
     Descriptor->Selector = SELECTOR_KERNEL_CODE;
     Descriptor->Reserved = 0;
     Descriptor->Type = Type;
@@ -220,6 +225,27 @@ void InitializeGateDescriptor(
     Descriptor->Present = 1;
 
     SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+void InitializeInterrupts(void) {
+    Kernel_i386.IDT = IDT;
+
+    for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
+        InitializeGateDescriptor(
+            IDT + Index,
+            (LINEAR)(InterruptTable[Index]),
+            GATE_TYPE_386_INT,
+            PRIVILEGE_KERNEL,
+            0u);
+    }
+
+    InitializeSystemCall();
+
+    LoadInterruptDescriptorTable((LINEAR)IDT, IDT_SIZE - 1u);
+
+    ClearDR7();
+
+    InitializeSystemCalls();
 }
 
 /************************************************************************/
@@ -1114,7 +1140,12 @@ void PreInitializeKernel(void) {
 /***************************************************************************/
 
 void InitializeSystemCall(void) {
-    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (LINEAR)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
+    InitializeGateDescriptor(
+        IDT + EXOS_USER_CALL,
+        (LINEAR)Interrupt_SystemCall,
+        GATE_TYPE_386_TRAP,
+        PRIVILEGE_USER,
+        0u);
 }
 
 /************************************************************************/

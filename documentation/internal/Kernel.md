@@ -457,7 +457,12 @@ The i386 implementation of `SetupTask` (`kernel/source/arch/i386/i386.c`) is res
 allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and
 performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the
 same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults
-that require a reliable kernel stack even if the regular system stack becomes unusable.
+that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT
+initialisation the kernel now assigns IST1 to the fault vectors that are most likely to execute with
+a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection
+and page faults). This ensures the handlers always run on the emergency per-task stack, preventing
+the double-fault escalation that previously produced a triple fault when the active stack pointer
+was already invalid.
 `CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the
 scheduler and task manager architecture-agnostic while allowing future architectures to provide
 their own `SetupTask` specialisation.
