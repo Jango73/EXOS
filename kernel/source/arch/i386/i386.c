@@ -241,7 +241,7 @@ void InitializeInterrupts(void) {
 
     InitializeSystemCall();
 
-    LoadInterruptDescriptorTable((LINEAR)IDT, sizeof(IDT) - 1);
+    LoadInterruptDescriptorTable((LINEAR)IDT, IDT_SIZE - 1u);
 
     ClearDR7();
 
