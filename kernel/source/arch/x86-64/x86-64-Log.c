@@ -192,14 +192,14 @@ void LogTaskStateSegment(U32 LogType, const X86_64_TASK_STATE_SEGMENT* Tss) {
     KernelLogText(
         LogType,
         TEXT("[LogTaskStateSegment] TSS @ %p (sizeof=%u):\n"
-             "  Reserved0   = %X\n"
+             "  Reserved0   = %x\n"
              "  RSP0/1/2    = %p / %p / %p\n"
-             "  Reserved1   = %p\n"
+             "  Reserved1   = %x\n"
              "  IST1-4      = %p / %p / %p / %p\n"
              "  IST5-7      = %p / %p / %p\n"
-             "  Reserved2   = %p\n"
-             "  Reserved3   = %X\n"
-             "  IOMapBase   = %X (linear @ %p)"),
+             "  Reserved2   = %x\n"
+             "  Reserved3   = %x\n"
+             "  IOMapBase   = %x (linear @ %p)"),
         (const void*)Tss,
         (U32)sizeof(X86_64_TASK_STATE_SEGMENT),
         (U32)Tss->Reserved0,
