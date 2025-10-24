@@ -137,18 +137,15 @@ void VbrSetSegmentDescriptor(
     Entry->Limit_00_15 = (U16)(Limit & 0xFFFFu);
     Entry->Base_00_15 = (U16)(Base & 0xFFFFu);
     Entry->Base_16_23 = (U8)((Base >> 16) & 0xFFu);
-    Entry->Accessed = 0;
-    Entry->CanWrite = (CanWrite ? 1U : 0U);
-    Entry->ConformExpand = 0;
-    Entry->Type = (Type ? 1U : 0U);
-    Entry->Segment = 1;
-    Entry->Privilege = (Privilege & 3U);
+    Entry->Type = (U8)(((Type ? 1U : 0U) << 3u) | (CanWrite ? 0x02u : 0u));
+    Entry->S = 1;
+    Entry->DPL = (U8)(Privilege & 3U);
     Entry->Present = 1;
-    Entry->Limit_16_19 = (U32)((Limit >> 16) & 0xFu);
-    Entry->Available = 0;
-    Entry->Unused = (LongMode ? 1U : 0U);
-    Entry->OperandSize = (Operand32 ? 1U : 0U);
-    Entry->Granularity = (Gran4K ? 1U : 0U);
+    Entry->Limit_16_19 = (U8)((Limit >> 16) & 0x0Fu);
+    Entry->AVL = 0;
+    Entry->LongMode = (U8)(LongMode ? 1U : 0U);
+    Entry->DefaultSize = (U8)(Operand32 ? 1U : 0U);
+    Entry->Granularity = (U8)(Gran4K ? 1U : 0U);
     Entry->Base_24_31 = (U8)((Base >> 24) & 0xFFu);
 }
 

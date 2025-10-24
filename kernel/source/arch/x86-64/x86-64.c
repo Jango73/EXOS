@@ -1033,17 +1033,14 @@ static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL 
     Descriptor->Limit_00_15 = 0xFFFF;
     Descriptor->Base_00_15 = 0x0000;
     Descriptor->Base_16_23 = 0x00;
-    Descriptor->Accessed = 0;
-    Descriptor->CanWrite = 1;
-    Descriptor->ConformExpand = 0;
-    Descriptor->Type = Executable ? 1 : 0;
-    Descriptor->Segment = 1;
+    Descriptor->Type = Executable ? 0x0A : 0x02;
+    Descriptor->S = 1;
     Descriptor->Privilege = Privilege;
     Descriptor->Present = 1;
     Descriptor->Limit_16_19 = 0x0F;
     Descriptor->Available = 0;
-    Descriptor->Unused = Executable ? 1 : 0;
-    Descriptor->OperandSize = 0;
+    Descriptor->LongMode = Executable ? 1 : 0;
+    Descriptor->DefaultSize = 0;
     Descriptor->Granularity = 1;
     Descriptor->Base_24_31 = 0x00;
 }
@@ -1057,8 +1054,8 @@ static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL 
  */
 static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Privilege) {
     InitLongModeSegmentDescriptor(Descriptor, FALSE, Privilege);
-    Descriptor->Unused = 0;
-    Descriptor->OperandSize = 0;
+    Descriptor->LongMode = 0;
+    Descriptor->DefaultSize = 0;
 }
 
 /***************************************************************************/
@@ -1076,16 +1073,13 @@ static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Ex
     Descriptor->Base_00_15 = 0x0000;
     Descriptor->Base_16_23 = 0x00;
     Descriptor->Base_24_31 = 0x00;
-    Descriptor->Accessed = 0;
-    Descriptor->CanWrite = 1;
-    Descriptor->ConformExpand = 0;
-    Descriptor->Type = Executable ? 1 : 0;
-    Descriptor->Segment = 1;
+    Descriptor->Type = Executable ? 0x0A : 0x02;
+    Descriptor->S = 1;
     Descriptor->Privilege = PRIVILEGE_KERNEL;
     Descriptor->Present = 1;
     Descriptor->Available = 0;
-    Descriptor->Unused = 0;
-    Descriptor->OperandSize = 0;
+    Descriptor->LongMode = 0;
+    Descriptor->DefaultSize = 0;
     Descriptor->Granularity = 0;
 }
 
@@ -1145,12 +1139,13 @@ void InitializeTaskSegments(void) {
     SetSystemSegmentDescriptorBase(Descriptor, (UINT)Kernel_i386.TSS);
 
     Descriptor->Type = GDT_TYPE_TSS_AVAILABLE;
-    Descriptor->Zero0 = 0;
+    Descriptor->S = 0;
     Descriptor->Privilege = PRIVILEGE_KERNEL;
     Descriptor->Present = 1;
     Descriptor->Limit_16_19 = (U8)(Descriptor->Limit_16_19 & 0x0F);
     Descriptor->Available = 0;
-    Descriptor->Zero1 = 0;
+    Descriptor->LongMode = 0;
+    Descriptor->DefaultSize = 0;
     Descriptor->Granularity = 0;
     Descriptor->Reserved = 0;
 

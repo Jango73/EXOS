@@ -181,22 +181,22 @@
 /***************************************************************************/
 
 typedef struct tag_SEGMENT_DESCRIPTOR {
-    U32 Limit_00_15 : 16;
-    U32 Base_00_15 : 16;
-    U32 Base_16_23 : 8;
-    U32 Accessed : 1;
-    U32 CanWrite : 1;
-    U32 ConformExpand : 1;
-    U32 Type : 1;
-    U32 Segment : 1;
-    U32 Privilege : 2;
-    U32 Present : 1;
-    U32 Limit_16_19 : 4;
-    U32 Available : 1;
-    U32 Unused : 1;
-    U32 OperandSize : 1;
-    U32 Granularity : 1;
-    U32 Base_24_31 : 8;
+    U16 Limit_00_15;
+    U16 Base_00_15;
+    U8 Base_16_23;
+
+    U8 Type : 4;
+    U8 S : 1;
+    U8 Privilege : 2;
+    U8 Present : 1;
+
+    U8 Limit_16_19 : 4;
+    U8 Available : 1;
+    U8 LongMode : 1;
+    U8 DefaultSize : 1;
+    U8 Granularity : 1;
+
+    U8 Base_24_31;
 } SEGMENT_DESCRIPTOR, *LPSEGMENT_DESCRIPTOR;
 
 /***************************************************************************/
@@ -248,14 +248,18 @@ typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
     U16 Limit_00_15;
     U16 Base_00_15;
     U8 Base_16_23;
+
     U8 Type : 4;
-    U8 Zero0 : 1;
+    U8 S : 1;
     U8 Privilege : 2;
     U8 Present : 1;
+
     U8 Limit_16_19 : 4;
     U8 Available : 1;
-    U8 Zero1 : 2;
+    U8 LongMode : 1;
+    U8 DefaultSize : 1;
     U8 Granularity : 1;
+
     U8 Base_24_31;
     U32 Base_32_63;
     U32 Reserved;
