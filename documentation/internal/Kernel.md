@@ -1005,6 +1005,7 @@ The network stack successfully handles real network traffic across multiple devi
 
 ## Links
 
-RFCs        https://datatracker.ietf.org/
-RFC 791     Internet protocol               https://datatracker.ietf.org/doc/html/rfc791/
-RFC 793     Transmission Control Protocol   https://datatracker.ietf.org/doc/html/rfc793/
+RFCs        	https://datatracker.ietf.org/
+RFC 791     	Internet protocol               https://datatracker.ietf.org/doc/html/rfc791/
+RFC 793     	Transmission Control Protocol   https://datatracker.ietf.org/doc/html/rfc793/
+Intel x86-64	https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html
