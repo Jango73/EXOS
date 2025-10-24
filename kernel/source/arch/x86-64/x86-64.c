@@ -1322,6 +1322,9 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
         Kernel_i386.TSS->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
 
         SAFE_USE(CurrentTask) {
+            if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
+                GetSS(CurrentTask->Arch.Context.Registers.SS);
+            }
             GetFS(CurrentTask->Arch.Context.Registers.FS);
             GetGS(CurrentTask->Arch.Context.Registers.GS);
             SaveFPU(&(CurrentTask->Arch.Context.FPURegisters));
@@ -1333,6 +1336,10 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
         SetES(NextTask->Arch.Context.Registers.ES);
         SetFS(NextTask->Arch.Context.Registers.FS);
         SetGS(NextTask->Arch.Context.Registers.GS);
+
+        if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
+            SetSS(NextTask->Arch.Context.Registers.SS);
+        }
 
         RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
     }

@@ -431,11 +431,13 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define GetESP(var) __asm__ volatile("mov %%rsp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetEBP(var) __asm__ volatile("mov %%rbp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetCS(var) __asm__ volatile("movw %%cs, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetSS(var) __asm__ volatile("movw %%ss, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetDS(var) __asm__ volatile("movw %%ds, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetES(var) __asm__ volatile("movw %%es, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetFS(var) __asm__ volatile("movw %%fs, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetGS(var) __asm__ volatile("movw %%gs, %%ax; mov %%rax, %0" : "=m"(var) : : "rax")
 
+#define SetSS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%ss" : "=m"(var) : : "rax")
 #define SetDS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%ds" : "=m"(var) : : "rax")
 #define SetES(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%es" : "=m"(var) : : "rax")
 #define SetFS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%fs" : "=m"(var) : : "rax")
