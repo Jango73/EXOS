@@ -25,6 +25,7 @@
 #include "Base.h"
 #include "Kernel.h"
 #include "Arch.h"
+#include "Interrupt.h"
 #include "SYSCall.h"
 #include "InterruptController.h"
 #include "System.h"
@@ -119,37 +120,25 @@ GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 
 /***************************************************************************/
 
-void InitializeInterrupts(void) {
+void InitializeInterruptDescriptors(INTERRUPT_STACK_SELECTOR SelectStack) {
     Kernel_i386.IDT = IDT;
 
     //-------------------------------------
     // Set all used interrupts
 
     for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        U8 IstIndex = 0;
+        U8 InterruptStack = 0;
 
-#if defined(__EXOS_ARCH_X86_64__)
-        switch (Index) {
-        case 8u:   // Double fault
-        case 10u:  // Invalid TSS
-        case 11u:  // Segment not present
-        case 12u:  // Stack fault
-        case 13u:  // General protection fault
-        case 14u:  // Page fault
-            IstIndex = 1u;
-            break;
-        default:
-            IstIndex = 0u;
-            break;
+        if (SelectStack != NULL) {
+            InterruptStack = SelectStack(Index);
         }
-#endif
 
         InitializeGateDescriptor(
             IDT + Index,
             (LINEAR)(InterruptTable[Index]),
             GATE_TYPE_386_INT,
             PRIVILEGE_KERNEL,
-            IstIndex);
+            InterruptStack);
     }
 
     //-------------------------------------

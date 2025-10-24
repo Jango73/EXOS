@@ -35,6 +35,7 @@
 #include "process/Task.h"
 #include "Text.h"
 #include "Kernel.h"
+#include "Interrupt.h"
 
 /************************************************************************\
 
@@ -222,6 +223,19 @@ void InitializeGateDescriptor(
     Descriptor->Present = 1;
 
     SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+/***************************************************************************/
+
+static U8 SelectInterruptStackTable(U32 InterruptIndex) {
+    UNUSED(InterruptIndex);
+    return 0u;
+}
+
+/***************************************************************************/
+
+void InitializeInterrupts(void) {
+    InitializeInterruptDescriptors(SelectInterruptStackTable);
 }
 
 /************************************************************************/

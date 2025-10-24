@@ -33,6 +33,7 @@
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"
+#include "Interrupt.h"
 
 /************************************************************************\
 
@@ -228,6 +229,28 @@ void InitializeGateDescriptor(
     Descriptor->Reserved_1 = 0;
 
     SetGateDescriptorOffset(Descriptor, Handler);
+}
+
+/***************************************************************************/
+
+static U8 SelectInterruptStackTable(U32 InterruptIndex) {
+    switch (InterruptIndex) {
+    case 8u:   // Double fault
+    case 10u:  // Invalid TSS
+    case 11u:  // Segment not present
+    case 12u:  // Stack fault
+    case 13u:  // General protection fault
+    case 14u:  // Page fault
+        return 1u;
+    default:
+        return 0u;
+    }
+}
+
+/***************************************************************************/
+
+void InitializeInterrupts(void) {
+    InitializeInterruptDescriptors(SelectInterruptStackTable);
 }
 
 /************************************************************************/
