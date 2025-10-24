@@ -396,6 +396,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             KernelLogMem(LOG_DEBUG, StackPointer, 256);
+            LogTaskSystemStructures(LOG_DEBUG);
 #endif
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask (StackPointer = %p)"), StackPointer);
@@ -412,6 +413,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             KernelLogMem(LOG_DEBUG, SysStackPointer, 256);
+            LogTaskSystemStructures(LOG_DEBUG);
 #endif
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask (SysStackPointer = %p)"), SysStackPointer);

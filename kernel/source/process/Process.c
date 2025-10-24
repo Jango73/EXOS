@@ -116,13 +116,6 @@ void InitializeKernelProcess(void) {
     MainDesktopWindow.Task = KernelTask;
     MainDesktop.Task = KernelTask;
 
-    DEBUG(TEXT("[InitializeKernelProcess] Loading TR"));
-
-#if defined(__EXOS_ARCH_I386__)
-    // On x86-64 the task register is loaded during InitializeTaskSegments().
-    LoadInitialTaskRegister(SELECTOR_TSS);
-#endif
-
     DEBUG(TEXT("[InitializeKernelProcess] Exit"));
 
     TRACED_EPILOGUE("InitializeKernelProcess");

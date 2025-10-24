@@ -695,8 +695,11 @@ void InitializeTaskSegments(void) {
     SetTSSDescriptorBase(Desc, (U32)Kernel_i386.TSS);
     SetTSSDescriptorLimit(Desc, sizeof(TASK_STATE_SEGMENT) - 1);
 
-    DEBUG(TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
-    LogTaskStateSegment(LOG_DEBUG, Kernel_i386.TSS);
+    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
+    DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
+
+    LoadInitialTaskRegister(SELECTOR_TSS);
+
     DEBUG(TEXT("[InitializeTaskSegments] Exit"));
 }
 
@@ -1041,7 +1044,7 @@ void InitializeMemoryManager(void) {
 
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
-    LogGlobalDescriptorTable(Kernel_i386.GDT, 10u);
+    LogGlobalDescriptorTable(Kernel_i386.GDT, 10);
 
     DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }

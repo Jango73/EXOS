@@ -44,6 +44,7 @@
 void InitKernelLog(void);
 void KernelLogText(U32, LPCSTR, ...);
 void KernelLogMem(U32 Type, LINEAR Memory, U32 Size);
+void LogTaskSystemStructures(U32 Type);
 
 /***************************************************************************/
 

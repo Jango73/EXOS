@@ -685,3 +685,10 @@ void BacktraceFromCurrent(U32 MaxFrames) {
     GetEBP(CurrentEbp);
     BacktraceFrom(CurrentEbp, MaxFrames);
 }
+
+/************************************************************************/
+
+void LogTaskSystemStructures(U32 Type) {
+    LogGlobalDescriptorTable(Kernel_i386.GDT, 5);
+    LogTaskStateSegment(Type, Kernel_i386.TSS);
+}

@@ -537,3 +537,10 @@ void BacktraceFrom(U64 StartRbp, U32 MaxFrames) {
 
     KernelLogText(LOG_VERBOSE, TEXT("[BacktraceFrom] Backtrace end (frames=%u)"), Depth);
 }
+
+/************************************************************************/
+
+void LogTaskSystemStructures(U32 Type) {
+    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 5);
+    LogTaskStateSegment(Type, Kernel_i386.TSS);
+}

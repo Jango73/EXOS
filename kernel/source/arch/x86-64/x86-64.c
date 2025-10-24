@@ -1111,8 +1111,6 @@ void InitializeTaskSegments(void) {
 
     LoadInitialTaskRegister(SELECTOR_TSS);
 
-    LogTaskStateSegment(LOG_DEBUG, Kernel_i386.TSS);
-
     DEBUG(TEXT("[InitializeTaskSegments] Exit"));
 }
 
