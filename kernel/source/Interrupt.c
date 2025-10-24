@@ -133,7 +133,7 @@ void InitializeInterrupts(void) {
     //-------------------------------------
     // Set system call mechanism
 
-    InitializeSysCall();
+    InitializeSystemCall();
 
     //-------------------------------------
 

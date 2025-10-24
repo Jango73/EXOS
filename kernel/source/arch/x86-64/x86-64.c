@@ -232,31 +232,6 @@ void InitializeGateDescriptor(
 /************************************************************************/
 
 /**
- * @brief Configure MSRs required for SYSCALL/SYSRET transitions.
- */
-void InitializeSysCall(void) {
-    U64 StarValue;
-    U64 EntryPoint;
-    U64 MaskValue;
-    U64 EferValue;
-
-    StarValue = ((U64)SELECTOR_USER_CODE << 48) | ((U64)SELECTOR_KERNEL_CODE << 32);
-    WriteMSR64(IA32_STAR_MSR, (U32)(StarValue & 0xFFFFFFFFull), (U32)(StarValue >> 32));
-
-    EntryPoint = (U64)(LINEAR)Interrupt_SystemCall;
-    WriteMSR64(IA32_LSTAR_MSR, (U32)(EntryPoint & 0xFFFFFFFFull), (U32)(EntryPoint >> 32));
-
-    MaskValue = RFLAGS_TF | RFLAGS_IF | RFLAGS_DF;
-    WriteMSR64(IA32_FMASK_MSR, (U32)(MaskValue & 0xFFFFFFFFull), (U32)(MaskValue >> 32));
-
-    EferValue = ReadMSR64Local(IA32_EFER_MSR);
-    EferValue |= IA32_EFER_SCE;
-    WriteMSR64(IA32_EFER_MSR, (U32)(EferValue & 0xFFFFFFFFull), (U32)(EferValue >> 32));
-}
-
-/************************************************************************/
-
-/**
  * @brief Populate the limit fields of a system segment descriptor.
  * @param Descriptor Descriptor to update.
  * @param Limit Segment limit value encoded on 20 bits.
@@ -278,18 +253,6 @@ static void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR De
     Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFF);
     Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFF);
     Descriptor->Base_32_63 = (U32)((Base >> 32) & 0xFFFFFFFF);
-}
-
-/************************************************************************/
-
-/**
- * @brief Perform architecture-specific pre-initialization.
- */
-void PreInitializeKernel(void) {
-    GDT_REGISTER Gdtr;
-
-    ReadGlobalDescriptorTable(&Gdtr);
-    Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
 }
 
 /************************************************************************/
@@ -1464,6 +1427,43 @@ BOOL IsValidMemory(LINEAR Address) {
     }
 
     return MapLinearToPhysical(Canonical) != 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Perform architecture-specific pre-initialization.
+ */
+void PreInitializeKernel(void) {
+    GDT_REGISTER Gdtr;
+
+    ReadGlobalDescriptorTable(&Gdtr);
+    Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Configure MSRs required for SYSCALL/SYSRET transitions.
+ */
+void InitializeSystemCall(void) {
+    U64 StarValue;
+    U64 EntryPoint;
+    U64 MaskValue;
+    U64 EferValue;
+
+    StarValue = ((U64)SELECTOR_USER_CODE << 48) | ((U64)SELECTOR_KERNEL_CODE << 32);
+    WriteMSR64(IA32_STAR_MSR, (U32)(StarValue & 0xFFFFFFFFull), (U32)(StarValue >> 32));
+
+    EntryPoint = (U64)(LINEAR)Interrupt_SystemCall;
+    WriteMSR64(IA32_LSTAR_MSR, (U32)(EntryPoint & 0xFFFFFFFFull), (U32)(EntryPoint >> 32));
+
+    MaskValue = RFLAGS_TF | RFLAGS_IF | RFLAGS_DF;
+    WriteMSR64(IA32_FMASK_MSR, (U32)(MaskValue & 0xFFFFFFFFull), (U32)(MaskValue >> 32));
+
+    EferValue = ReadMSR64Local(IA32_EFER_MSR);
+    EferValue |= IA32_EFER_SCE;
+    WriteMSR64(IA32_EFER_MSR, (U32)(EferValue & 0xFFFFFFFFull), (U32)(EferValue >> 32));
 }
 
 /************************************************************************/

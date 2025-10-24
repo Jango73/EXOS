@@ -36,6 +36,6 @@
 #endif
 
 void PreInitializeKernel(void);
-void InitializeSysCall(void);
+void InitializeSystemCall(void);
 
 #endif  // ARCH_H_INCLUDED

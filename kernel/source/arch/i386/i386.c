@@ -222,24 +222,6 @@ void InitializeGateDescriptor(
     SetGateDescriptorOffset(Descriptor, Handler);
 }
 
-/***************************************************************************/
-
-void InitializeSysCall(void) {
-    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (LINEAR)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
-}
-
-/************************************************************************/
-
-/**
- * @brief Perform architecture-specific pre-initialization.
- */
-void PreInitializeKernel(void) {
-    GDT_REGISTER Gdtr;
-
-    ReadGlobalDescriptorTable(&Gdtr);
-    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)(LINEAR)Gdtr.Base;
-}
-
 /************************************************************************/
 
 /**
@@ -1111,6 +1093,24 @@ BOOL IsValidMemory(LINEAR Address) {
     if (PageTableEntryIsPresent(Table, TableIndex) == FALSE) return FALSE;
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Perform architecture-specific pre-initialization.
+ */
+void PreInitializeKernel(void) {
+    GDT_REGISTER Gdtr;
+
+    ReadGlobalDescriptorTable(&Gdtr);
+    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)(LINEAR)Gdtr.Base;
+}
+
+/***************************************************************************/
+
+void InitializeSystemCall(void) {
+    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (LINEAR)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
 }
 
 /************************************************************************/
