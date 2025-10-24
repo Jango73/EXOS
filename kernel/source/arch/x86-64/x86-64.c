@@ -986,64 +986,57 @@ Out:
 
 /**
  * @brief Initialize a long mode segment descriptor for code or data.
- * @param Descriptor Descriptor to configure.
+ * @param This Descriptor to configure.
  * @param Executable TRUE for a code segment, FALSE for data.
  * @param Privilege Descriptor privilege level.
  */
-static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable, U32 Privilege) {
-    MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
+static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, BOOL Executable, U32 Privilege) {
+    MemorySet(This, 0, sizeof(SEGMENT_DESCRIPTOR));
 
-    Descriptor->Limit_00_15 = 0xFFFF;
-    Descriptor->Base_00_15 = 0x0000;
-    Descriptor->Base_16_23 = 0x00;
-    Descriptor->Type = Executable ? 0x0A : 0x02;
-    Descriptor->S = 1;
-    Descriptor->Privilege = Privilege;
-    Descriptor->Present = 1;
-    Descriptor->Limit_16_19 = 0x0F;
-    Descriptor->Available = 0;
-    Descriptor->LongMode = Executable ? 1 : 0;
-    Descriptor->DefaultSize = 0;
-    Descriptor->Granularity = 1;
-    Descriptor->Base_24_31 = 0x00;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Initialize a long mode data segment descriptor.
- * @param Descriptor Descriptor to configure.
- * @param Privilege Descriptor privilege level.
- */
-static void InitLongModeDataDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, U32 Privilege) {
-    InitLongModeSegmentDescriptor(Descriptor, FALSE, Privilege);
-    Descriptor->LongMode = 0;
-    Descriptor->DefaultSize = 0;
+    This->Limit_00_15 = 0xFFFF;
+    This->Base_00_15 = 0x0000;
+    This->Base_16_23 = 0x00;
+    This->Accessed = 0;
+    This->CanWrite = 1;
+    This->ConformExpand = 0;
+    This->Code = Executable;
+    This->S = 1;
+    This->Privilege = Privilege;
+    This->Present = 1;
+    This->Limit_16_19 = 0x0F;
+    This->Available = 0;
+    This->LongMode = 1;
+    This->DefaultSize = 0;
+    This->Granularity = 1;
+    This->Base_24_31 = 0x00;
 }
 
 /***************************************************************************/
 
 /**
  * @brief Initialize a 32-bit legacy segment descriptor for compatibility gates.
- * @param Descriptor Descriptor to configure.
+ * @param This Descriptor to configure.
  * @param Executable TRUE for a code segment, FALSE for data.
  */
-static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR Descriptor, BOOL Executable) {
-    MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
+static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR This, BOOL Executable) {
+    MemorySet(This, 0, sizeof(SEGMENT_DESCRIPTOR));
 
-    Descriptor->Limit_00_15 = 0xFFFF;
-    Descriptor->Limit_16_19 = 0x0F;
-    Descriptor->Base_00_15 = 0x0000;
-    Descriptor->Base_16_23 = 0x00;
-    Descriptor->Base_24_31 = 0x00;
-    Descriptor->Type = Executable ? 0x0A : 0x02;
-    Descriptor->S = 1;
-    Descriptor->Privilege = PRIVILEGE_KERNEL;
-    Descriptor->Present = 1;
-    Descriptor->Available = 0;
-    Descriptor->LongMode = 0;
-    Descriptor->DefaultSize = 0;
-    Descriptor->Granularity = 0;
+    This->Limit_00_15 = 0xFFFF;
+    This->Limit_16_19 = 0x0F;
+    This->Base_00_15 = 0x0000;
+    This->Base_16_23 = 0x00;
+    This->Base_24_31 = 0x00;
+    This->Accessed = 0;
+    This->CanWrite = 1;
+    This->ConformExpand = 0;
+    This->Code = Executable;
+    This->S = 1;
+    This->Privilege = PRIVILEGE_KERNEL;
+    This->Present = 1;
+    This->Available = 0;
+    This->LongMode = 0;
+    This->DefaultSize = 0;
+    This->Granularity = 0;
 }
 
 /***************************************************************************/
@@ -1058,9 +1051,9 @@ static void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
     MemorySet(Table, 0, GDT_SIZE);
 
     InitLongModeSegmentDescriptor(&Table[1], TRUE, PRIVILEGE_KERNEL);
-    InitLongModeDataDescriptor(&Table[2], PRIVILEGE_KERNEL);
+    InitLongModeSegmentDescriptor(&Table[2], FALSE, PRIVILEGE_KERNEL);
     InitLongModeSegmentDescriptor(&Table[3], TRUE, PRIVILEGE_USER);
-    InitLongModeDataDescriptor(&Table[4], PRIVILEGE_USER);
+    InitLongModeSegmentDescriptor(&Table[4], FALSE, PRIVILEGE_USER);
     InitLegacySegmentDescriptor(&Table[5], TRUE);
     InitLegacySegmentDescriptor(&Table[6], FALSE);
 
@@ -1101,7 +1094,8 @@ void InitializeTaskSegments(void) {
     SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1);
     SetSystemSegmentDescriptorBase(Descriptor, (UINT)Kernel_i386.TSS);
 
-    Descriptor->Type = GDT_TYPE_TSS_AVAILABLE;
+    Descriptor->Accessed = 1;
+    Descriptor->Code = 1;
     Descriptor->S = 0;
     Descriptor->Privilege = PRIVILEGE_KERNEL;
     Descriptor->Present = 1;
@@ -1354,11 +1348,11 @@ void InitializeMemoryManager(void) {
 
     InitializeGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT);
 
+    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 10);
+
     DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
 
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
-
-    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 10u);
 
     DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }

@@ -48,7 +48,11 @@ typedef struct PACKED tag_SEGMENT_DESCRIPTOR {
     U16 Base_00_15;
     U8 Base_16_23;
 
-    U8 Type : 4;
+    U8 Accessed : 1;
+    U8 CanWrite : 1;
+    U8 ConformExpand : 1;
+    U8 Code : 1;
+    
     U8 S : 1;
     U8 DPL : 2;
     U8 Present : 1;

@@ -88,8 +88,12 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
                 (U32)SystemDescriptor->Base_16_23,
                 (U32)SystemDescriptor->Base_24_31,
                 (U32)SystemDescriptor->Base_32_63);
-            DEBUG(TEXT("[LogGlobalDescriptorTable]   Type=%u S=%u Privilege=%u Present=%u"),
-                (U32)SystemDescriptor->Type,
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   Accessed=%u CanWrite=%u ConformExpand=%u Code=%u"),
+                (U32)SystemDescriptor->Accessed,
+                (U32)SystemDescriptor->CanWrite,
+                (U32)SystemDescriptor->ConformExpand,
+                (U32)SystemDescriptor->Code);
+            DEBUG(TEXT("[LogGlobalDescriptorTable]   S=%u Privilege=%u Present=%u"),
                 (U32)SystemDescriptor->S,
                 (U32)SystemDescriptor->Privilege,
                 (U32)SystemDescriptor->Present);
@@ -109,7 +113,6 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
         U32 Base = (U32)Descriptor->Base_00_15
             | ((U32)Descriptor->Base_16_23 << 16)
             | ((U32)Descriptor->Base_24_31 << 24);
-        U32 TypeBits = (U32)Descriptor->Type;
 
         DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
             (U32)Descriptor->Limit_00_15,
@@ -118,8 +121,12 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
             (U32)Descriptor->Base_00_15,
             (U32)Descriptor->Base_16_23,
             (U32)Descriptor->Base_24_31);
-        DEBUG(TEXT("[LogGlobalDescriptorTable]   Type=%x S=%u Privilege=%u Present=%u"),
-            (U32)Descriptor->Type,
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   Accessed=%u CanWrite=%u ConformExpand=%u Code=%u"),
+            (U32)Descriptor->Accessed,
+            (U32)Descriptor->CanWrite,
+            (U32)Descriptor->ConformExpand,
+            (U32)Descriptor->Code);
+        DEBUG(TEXT("[LogGlobalDescriptorTable]   S=%u Privilege=%u Present=%u"),
             (U32)Descriptor->S,
             (U32)Descriptor->Privilege,
             (U32)Descriptor->Present);
@@ -128,7 +135,6 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
             (U32)Descriptor->LongMode,
             (U32)Descriptor->DefaultSize,
             (U32)Descriptor->Granularity);
-        DEBUG(TEXT("[LogGlobalDescriptorTable]   TypeBits=%x Base=%p Limit=%x"), TypeBits, (LPVOID)(U64)Base, Limit);
 
         Index++;
     }

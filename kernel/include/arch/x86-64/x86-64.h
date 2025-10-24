@@ -185,7 +185,11 @@ typedef struct tag_SEGMENT_DESCRIPTOR {
     U16 Base_00_15;
     U8 Base_16_23;
 
-    U8 Type : 4;
+    U8 Accessed : 1;
+    U8 CanWrite : 1;
+    U8 ConformExpand : 1;
+    U8 Code : 1;
+
     U8 S : 1;
     U8 Privilege : 2;
     U8 Present : 1;
@@ -199,8 +203,35 @@ typedef struct tag_SEGMENT_DESCRIPTOR {
     U8 Base_24_31;
 } SEGMENT_DESCRIPTOR, *LPSEGMENT_DESCRIPTOR;
 
-/***************************************************************************/
+/************************************************************************/
+// System segment descriptor (e.g. TSS/LDT) layout for 64-bit mode (16 bytes)
 
+typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
+    U16 Limit_00_15;
+    U16 Base_00_15;
+    U8 Base_16_23;
+
+    U8 Accessed : 1;
+    U8 CanWrite : 1;
+    U8 ConformExpand : 1;
+    U8 Code : 1;
+
+    U8 S : 1;
+    U8 Privilege : 2;
+    U8 Present : 1;
+
+    U8 Limit_16_19 : 4;
+    U8 Available : 1;
+    U8 LongMode : 1;
+    U8 DefaultSize : 1;
+    U8 Granularity : 1;
+
+    U8 Base_24_31;
+    U32 Base_32_63;
+    U32 Reserved;
+} X86_64_SYSTEM_SEGMENT_DESCRIPTOR, *LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR;
+
+/***************************************************************************/
 // General purpose register snapshot for 64-bit mode
 
 typedef struct tag_INTEL_64_REGISTERS {
@@ -239,31 +270,6 @@ void InitializeGateDescriptor(
     LINEAR Handler,
     U16 Type,
     U16 Privilege);
-
-/************************************************************************/
-
-// System segment descriptor (e.g. TSS/LDT) layout for 64-bit mode (16 bytes)
-
-typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
-    U16 Limit_00_15;
-    U16 Base_00_15;
-    U8 Base_16_23;
-
-    U8 Type : 4;
-    U8 S : 1;
-    U8 Privilege : 2;
-    U8 Present : 1;
-
-    U8 Limit_16_19 : 4;
-    U8 Available : 1;
-    U8 LongMode : 1;
-    U8 DefaultSize : 1;
-    U8 Granularity : 1;
-
-    U8 Base_24_31;
-    U32 Base_32_63;
-    U32 Reserved;
-} X86_64_SYSTEM_SEGMENT_DESCRIPTOR, *LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR;
 
 /************************************************************************/
 

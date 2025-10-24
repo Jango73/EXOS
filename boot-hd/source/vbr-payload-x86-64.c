@@ -194,26 +194,29 @@ static void SetSegmentDescriptorX8664(
     LPSEGMENT_DESCRIPTOR Descriptor,
     U32 Base,
     U32 Limit,
-    U32 Type,
     U32 Privilege,
+    BOOL Executable,
     BOOL LongMode,
     BOOL DefaultSize,
     BOOL Granularity) {
     MemorySet(Descriptor, 0, sizeof(SEGMENT_DESCRIPTOR));
 
-    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFFu);
-    Descriptor->Base_00_15 = (U16)(Base & 0xFFFFu);
-    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFFu);
-    Descriptor->Type = (U8)(Type & 0x0Fu);
+    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFF);
+    Descriptor->Base_00_15 = (U16)(Base & 0xFFFF);
+    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFF);
+    Descriptor->Accessed = 0;
+    Descriptor->CanWrite = 1;
+    Descriptor->ConformExpand = 0;
+    Descriptor->Code = Executable;
     Descriptor->S = 1;
-    Descriptor->DPL = (U8)(Privilege & 3U);
+    Descriptor->DPL = (U8)(Privilege & 3);
     Descriptor->Present = 1;
-    Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0Fu);
+    Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0F);
     Descriptor->AVL = 0;
-    Descriptor->LongMode = (U8)(LongMode ? 1U : 0U);
-    Descriptor->DefaultSize = (U8)(DefaultSize ? 1U : 0U);
-    Descriptor->Granularity = (U8)(Granularity ? 1U : 0U);
-    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFFu);
+    Descriptor->LongMode = (U8)(LongMode ? 1 : 0);
+    Descriptor->DefaultSize = (U8)(DefaultSize ? 1 : 0);
+    Descriptor->Granularity = (U8)(Granularity ? 1 : 0);
+    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFF);
 }
 
 /************************************************************************/
@@ -319,37 +322,37 @@ static void BuildGdtFlat(void) {
 
     SetSegmentDescriptorX8664(
         &GdtEntries[VBR_GDT_ENTRY_PROTECTED_CODE],
-        0x00000000u,
-        0x000FFFFFu,
-        0x0Au,
+        0x00000000,
+        0x000FFFFF,
         0,
+        TRUE,
         FALSE,
         TRUE,
         TRUE);
     SetSegmentDescriptorX8664(
         &GdtEntries[VBR_GDT_ENTRY_PROTECTED_DATA],
-        0x00000000u,
-        0x000FFFFFu,
-        0x02u,
+        0x00000000,
+        0x000FFFFF,
         0,
+        FALSE,
         FALSE,
         TRUE,
         TRUE);
     SetSegmentDescriptorX8664(
         &GdtEntries[VBR_GDT_ENTRY_LONG_MODE_CODE],
-        0x00000000u,
-        0x00000000u,
-        0x0Au,
+        0x00000000,
+        0x00000000,
         0,
+        TRUE,
         TRUE,
         FALSE,
         TRUE);
     SetSegmentDescriptorX8664(
         &GdtEntries[VBR_GDT_ENTRY_LONG_MODE_DATA],
-        0x00000000u,
-        0x00000000u,
-        0x02u,
+        0x00000000,
+        0x00000000,
         0,
+        FALSE,
         FALSE,
         FALSE,
         TRUE);

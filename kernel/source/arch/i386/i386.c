@@ -623,7 +623,7 @@ void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type) {
     This->Base_16_23 = 0x00;
     This->Accessed = 0;
     This->CanWrite = 1;
-    This->ConformExpand = 0;  // Expand-up for data, Conforming for code
+    This->ConformExpand = 0;
     This->Type = Type;
     This->Segment = 1;
     This->Privilege = PRIVILEGE_USER;
