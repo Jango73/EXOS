@@ -96,3 +96,26 @@ KERNELSTARTUP_IRQMASK_A1_PM equ 28
 extern KernelMain
 extern KernelLogText
 extern KernelStartup
+
+;----------------------------------------------------------------------------
+; Stack helpers
+;----------------------------------------------------------------------------
+
+; Align the current stack pointer on a 16-byte boundary. The macro stores the
+; adjustment that was applied on the stack and uses r11 as a temporary
+; register. r11 is caller-saved in the System V AMD64 ABI and is therefore free
+; to clobber in these low level helpers.
+%macro STACK_ALIGN_16_ENTER 0
+    mov     r11, rsp
+    and     r11, 0x0F
+    sub     rsp, r11
+    sub     rsp, 8
+    push    r11
+%endmacro
+
+; Restore the stack pointer after STACK_ALIGN_16_ENTER.
+%macro STACK_ALIGN_16_LEAVE 0
+    pop     r11
+    add     rsp, 8
+    add     rsp, r11
+%endmacro
