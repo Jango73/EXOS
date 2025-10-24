@@ -314,6 +314,8 @@ typedef struct tag_ARCH_TASK_DATA {
     UINT StackSize;
     U64 SysStackBase;
     UINT SysStackSize;
+    U64 Ist1StackBase;
+    UINT Ist1StackSize;
 } ARCH_TASK_DATA, *LPARCH_TASK_DATA;
 
 /************************************************************************/

@@ -1143,16 +1143,19 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
     Task->Arch.StackSize = Info->StackSize;
     Task->Arch.SysStackSize = TASK_SYSTEM_STACK_SIZE * 4u;
+    Task->Arch.Ist1StackSize = TASK_SYSTEM_STACK_SIZE * 4u;
 
     Task->Arch.StackBase =
         AllocRegion(BaseVMA, 0, Task->Arch.StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
     Task->Arch.SysStackBase =
         AllocKernelRegion(0, Task->Arch.SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Task->Arch.Ist1StackBase =
+        AllocKernelRegion(0, Task->Arch.Ist1StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     DEBUG(TEXT("[SetupTask] BaseVMA=%p, Requested StackBase at BaseVMA"), BaseVMA);
     DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.StackBase);
 
-    if (Task->Arch.StackBase == NULL || Task->Arch.SysStackBase == NULL) {
+    if (Task->Arch.StackBase == NULL || Task->Arch.SysStackBase == NULL || Task->Arch.Ist1StackBase == NULL) {
         if (Task->Arch.StackBase != NULL) {
             FreeRegion(Task->Arch.StackBase, Task->Arch.StackSize);
             Task->Arch.StackBase = NULL;
@@ -1165,15 +1168,23 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
             Task->Arch.SysStackSize = 0;
         }
 
+        if (Task->Arch.Ist1StackBase != NULL) {
+            FreeRegion(Task->Arch.Ist1StackBase, Task->Arch.Ist1StackSize);
+            Task->Arch.Ist1StackBase = NULL;
+            Task->Arch.Ist1StackSize = 0;
+        }
+
         ERROR(TEXT("[SetupTask] Stack or system stack allocation failed"));
         return FALSE;
     }
 
     DEBUG(TEXT("[SetupTask] Stack (%u bytes) allocated at %p"), Task->Arch.StackSize, Task->Arch.StackBase);
     DEBUG(TEXT("[SetupTask] System stack (%u bytes) allocated at %p"), Task->Arch.SysStackSize, Task->Arch.SysStackBase);
+    DEBUG(TEXT("[SetupTask] IST1 stack (%u bytes) allocated at %p"), Task->Arch.Ist1StackSize, Task->Arch.Ist1StackBase);
 
     MemorySet((LPVOID)(Task->Arch.StackBase), 0, Task->Arch.StackSize);
     MemorySet((LPVOID)(Task->Arch.SysStackBase), 0, Task->Arch.SysStackSize);
+    MemorySet((LPVOID)(Task->Arch.Ist1StackBase), 0, Task->Arch.Ist1StackSize);
     MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
 
     GetCR4(CR4);
@@ -1250,11 +1261,13 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
             CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
 
         LINEAR NextSysStackTop = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize;
+        LINEAR NextIst1StackTop = NextTask->Arch.Ist1StackBase + NextTask->Arch.Ist1StackSize;
 
         FINE_DEBUG(TEXT("[PrepareNextTaskSwitch] NextSysStackTop = %p"), NextSysStackTop);
+        FINE_DEBUG(TEXT("[PrepareNextTaskSwitch] NextIst1StackTop = %p"), NextIst1StackTop);
 
         Kernel_i386.TSS->RSP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
-        Kernel_i386.TSS->IST1 = NextSysStackTop - STACK_SAFETY_MARGIN;
+        Kernel_i386.TSS->IST1 = NextIst1StackTop - STACK_SAFETY_MARGIN;
         Kernel_i386.TSS->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
 
         SAFE_USE(CurrentTask) {

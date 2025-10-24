@@ -204,6 +204,12 @@ void DeleteTask(LPTASK This) {
             FreeRegion(This->Arch.SysStackBase, This->Arch.SysStackSize);
         }
 
+        SAFE_USE(This->Arch.Ist1StackBase) {
+            DEBUG(TEXT("[DeleteTask] Freeing IST1 stack: base=%X, size=%X"), This->Arch.Ist1StackBase,
+                This->Arch.Ist1StackSize);
+            FreeRegion(This->Arch.Ist1StackBase, This->Arch.Ist1StackSize);
+        }
+
         SAFE_USE(This->Process) {
             SAFE_USE(This->Arch.StackBase) {
                 DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->Arch.StackBase,
@@ -1335,6 +1341,8 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("StackSize       : %x"), Task->Arch.StackSize);
     VERBOSE(TEXT("SysStackBase    : %x"), Task->Arch.SysStackBase);
     VERBOSE(TEXT("SysStackSize    : %x"), Task->Arch.SysStackSize);
+    VERBOSE(TEXT("IST1StackBase   : %x"), Task->Arch.Ist1StackBase);
+    VERBOSE(TEXT("IST1StackSize   : %x"), Task->Arch.Ist1StackSize);
     VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
     VERBOSE(TEXT("Queued messages : %d"), Task->Message->NumItems);
 
