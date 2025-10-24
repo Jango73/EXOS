@@ -447,16 +447,20 @@ Fractional part = unusable space.
 
 ### Architecture-specific task data
 
-Each task embeds an `ARCH_TASK_DATA` structure (declared in `kernel/include/arch/i386/i386.h`) that
-contains the saved interrupt frame along with both the user and system stack descriptors. The
-generic `tag_TASK` definition in `kernel/include/process/Task.h` exposes this structure as the `Arch`
-member so that all stack and context manipulations are scoped to the active architecture.
+Each task embeds an `ARCH_TASK_DATA` structure (declared in the architecture-specific header under
+`kernel/include/arch/`) that contains the saved interrupt frame along with the user, system, and
+any auxiliary stack descriptors that the target CPU requires. The generic `tag_TASK` definition in
+`kernel/include/process/Task.h` exposes this structure as the `Arch` member so that all stack and
+context manipulations remain scoped to the active architecture.
 
 The i386 implementation of `SetupTask` (`kernel/source/arch/i386/i386.c`) is responsible for
 allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and
-performing the bootstrap stack switch for the main kernel task. `CreateTask` calls this helper after
-finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic
-while allowing future architectures to provide their own `SetupTask` specialisation.
+performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the
+same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults
+that require a reliable kernel stack even if the regular system stack becomes unusable.
+`CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the
+scheduler and task manager architecture-agnostic while allowing future architectures to provide
+their own `SetupTask` specialisation.
 
 Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
 `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in

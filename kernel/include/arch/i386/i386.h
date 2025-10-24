@@ -30,6 +30,7 @@
 #include "Base.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/i386/i386-Memory.h"
+#include "process/TaskStack.h"
 
 /************************************************************************/
 // #define declarations
@@ -424,10 +425,8 @@ typedef struct tag_INTERRUPT_FRAME {
 
 typedef struct tag_ARCH_TASK_DATA {
     INTERRUPT_FRAME Context;
-    LINEAR StackBase;
-    UINT StackSize;
-    LINEAR SysStackBase;
-    UINT SysStackSize;
+    STACK Stack;
+    STACK SysStack;
 } ARCH_TASK_DATA, *LPARCH_TASK_DATA;
 
 // The GDT register

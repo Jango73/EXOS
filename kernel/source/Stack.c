@@ -236,14 +236,14 @@ BOOL CheckStack(void) {
     if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
         // Kernel tasks always use their normal stack
         CurrentESP = StackGetSavedPointer(CurrentTask);
-        StackBase = CurrentTask->Arch.StackBase;
-        StackTop = StackBase + CurrentTask->Arch.StackSize;
+        StackBase = CurrentTask->Arch.Stack.Base;
+        StackTop = StackBase + CurrentTask->Arch.Stack.Size;
     } else if (InKernelMode) {
         // User task currently in kernel mode (via syscall/interrupt)
         // The hardware switches to ESP0 stack, which may not be the task's system stack
         // We cannot reliably validate the current ESP since it might be on a different kernel stack
         // Instead, we just verify the task has a valid system stack allocated
-        if (CurrentTask->Arch.SysStackBase == 0 || CurrentTask->Arch.SysStackSize == 0) {
+        if (CurrentTask->Arch.SysStack.Base == 0 || CurrentTask->Arch.SysStack.Size == 0) {
             ERROR(TEXT("[CheckStack] User task in kernel mode without system stack!"));
             ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
             return FALSE;
@@ -254,8 +254,8 @@ BOOL CheckStack(void) {
     } else {
         // User task in user mode - check saved user stack ESP
         CurrentESP = StackGetSavedPointer(CurrentTask);
-        StackBase = CurrentTask->Arch.StackBase;
-        StackTop = StackBase + CurrentTask->Arch.StackSize;
+        StackBase = CurrentTask->Arch.Stack.Base;
+        StackTop = StackBase + CurrentTask->Arch.Stack.Size;
     }
 
     if (CurrentESP < StackBase || CurrentESP > StackTop) {

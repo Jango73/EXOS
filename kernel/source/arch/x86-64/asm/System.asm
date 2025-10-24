@@ -541,6 +541,8 @@ BITS 64
 
 SYS_FUNC_BEGIN TaskRunner
 
+    STACK_ALIGN_16_ENTER
+
     ;--------------------------------------
     ; EBX contains the function
     ; EAX contains the parameter
@@ -566,7 +568,7 @@ SYS_FUNC_BEGIN TaskRunner
     je      .exit
 
     mov     rdi, r8             ; Argument for task function
-    call    rbx                 ; Call task function
+    call    rbx                 ; Call task function (stack already aligned)
 
 .exit:
     mov     rbx, rax            ; Task exit code in rbx
@@ -578,6 +580,8 @@ SYS_FUNC_BEGIN TaskRunner
     mov     rbx, MAX_UINT
     syscall
     jmp     .sleep
+
+    STACK_ALIGN_16_LEAVE
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------

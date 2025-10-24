@@ -597,6 +597,6 @@ void LogInterruptDescriptorTable(U32 Type, const LPGATE_DESCRIPTOR Table, UINT E
 
 void LogTaskSystemStructures(U32 Type) {
     LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 5);
-    LogInterruptDescriptorTable(Type, (LPGATE_DESCRIPTOR)Kernel_i386.IDT, 10);
+    LogInterruptDescriptorTable(Type, (LPGATE_DESCRIPTOR)Kernel_i386.IDT, 5);
     LogTaskStateSegment(Type, Kernel_i386.TSS);
 }

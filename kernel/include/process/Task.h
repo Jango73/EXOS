@@ -32,6 +32,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "process/TaskStack.h"
 #include "Arch.h"
 #include "List.h"
 #include "Mutex.h"

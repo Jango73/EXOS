@@ -838,39 +838,40 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         DataSelector = SELECTOR_USER_DATA;
     }
 
-    Task->Arch.StackSize = Info->StackSize;
-    Task->Arch.SysStackSize = TASK_SYSTEM_STACK_SIZE * 4;
+    Task->Arch.Stack.Size = Info->StackSize;
+    Task->Arch.SysStack.Size = TASK_SYSTEM_STACK_SIZE * 4;
 
-    Task->Arch.StackBase =
-        AllocRegion(BaseVMA, 0, Task->Arch.StackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
-    Task->Arch.SysStackBase =
-        AllocKernelRegion(0, Task->Arch.SysStackSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Task->Arch.Stack.Base = AllocRegion(BaseVMA, 0, Task->Arch.Stack.Size,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    Task->Arch.SysStack.Base =
+        AllocKernelRegion(0, Task->Arch.SysStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     DEBUG(TEXT("[SetupTask] BaseVMA=%p, Requested StackBase at BaseVMA"), BaseVMA);
-    DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.StackBase);
+    DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.Stack.Base);
 
-    if (Task->Arch.StackBase == NULL || Task->Arch.SysStackBase == NULL) {
-        if (Task->Arch.StackBase != NULL) {
-            FreeRegion(Task->Arch.StackBase, Task->Arch.StackSize);
-            Task->Arch.StackBase = NULL;
-            Task->Arch.StackSize = 0;
+    if (Task->Arch.Stack.Base == NULL || Task->Arch.SysStack.Base == NULL) {
+        if (Task->Arch.Stack.Base != NULL) {
+            FreeRegion(Task->Arch.Stack.Base, Task->Arch.Stack.Size);
+            Task->Arch.Stack.Base = 0;
+            Task->Arch.Stack.Size = 0;
         }
 
-        if (Task->Arch.SysStackBase != NULL) {
-            FreeRegion(Task->Arch.SysStackBase, Task->Arch.SysStackSize);
-            Task->Arch.SysStackBase = NULL;
-            Task->Arch.SysStackSize = 0;
+        if (Task->Arch.SysStack.Base != NULL) {
+            FreeRegion(Task->Arch.SysStack.Base, Task->Arch.SysStack.Size);
+            Task->Arch.SysStack.Base = 0;
+            Task->Arch.SysStack.Size = 0;
         }
 
         ERROR(TEXT("[SetupTask] Stack or system stack allocation failed"));
         return FALSE;
     }
 
-    DEBUG(TEXT("[SetupTask] Stack (%u bytes) allocated at %p"), Task->Arch.StackSize, Task->Arch.StackBase);
-    DEBUG(TEXT("[SetupTask] System stack (%u bytes) allocated at %p"), Task->Arch.SysStackSize, Task->Arch.SysStackBase);
+    DEBUG(TEXT("[SetupTask] Stack (%u bytes) allocated at %p"), Task->Arch.Stack.Size, Task->Arch.Stack.Base);
+    DEBUG(TEXT("[SetupTask] System stack (%u bytes) allocated at %p"), Task->Arch.SysStack.Size,
+        Task->Arch.SysStack.Base);
 
-    MemorySet((LPVOID)(Task->Arch.StackBase), 0, Task->Arch.StackSize);
-    MemorySet((LPVOID)(Task->Arch.SysStackBase), 0, Task->Arch.SysStackSize);
+    MemorySet((LPVOID)(Task->Arch.Stack.Base), 0, Task->Arch.Stack.Size);
+    MemorySet((LPVOID)(Task->Arch.SysStack.Base), 0, Task->Arch.SysStack.Size);
     MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
 
     GetCR4(CR4);
@@ -889,8 +890,8 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.CR3 = Process->PageDirectory;
     Task->Arch.Context.Registers.CR4 = CR4;
 
-    StackTop = Task->Arch.StackBase + Task->Arch.StackSize;
-    SysStackTop = Task->Arch.SysStackBase + Task->Arch.SysStackSize;
+    StackTop = Task->Arch.Stack.Base + Task->Arch.Stack.Size;
+    SysStackTop = Task->Arch.SysStack.Base + Task->Arch.SysStack.Size;
 
     if (Process->Privilege == PRIVILEGE_KERNEL) {
         DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
@@ -945,7 +946,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
  */
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
     SAFE_USE(NextTask) {
-        LINEAR NextSysStackTop = NextTask->Arch.SysStackBase + NextTask->Arch.SysStackSize;
+        LINEAR NextSysStackTop = NextTask->Arch.SysStack.Base + NextTask->Arch.SysStack.Size;
 
         Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
         Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
