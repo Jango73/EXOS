@@ -126,7 +126,30 @@ void InitializeInterrupts(void) {
     // Set all used interrupts
 
     for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        InitializeGateDescriptor(IDT + Index, (LINEAR)(InterruptTable[Index]), GATE_TYPE_386_INT, PRIVILEGE_KERNEL);
+        U8 IstIndex = 0;
+
+#if defined(__EXOS_ARCH_X86_64__)
+        switch (Index) {
+        case 8u:   // Double fault
+        case 10u:  // Invalid TSS
+        case 11u:  // Segment not present
+        case 12u:  // Stack fault
+        case 13u:  // General protection fault
+        case 14u:  // Page fault
+            IstIndex = 1u;
+            break;
+        default:
+            IstIndex = 0u;
+            break;
+        }
+#endif
+
+        InitializeGateDescriptor(
+            IDT + Index,
+            (LINEAR)(InterruptTable[Index]),
+            GATE_TYPE_386_INT,
+            PRIVILEGE_KERNEL,
+            IstIndex);
     }
 
     //-------------------------------------

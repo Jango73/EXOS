@@ -270,7 +270,8 @@ void InitializeGateDescriptor(
     LPGATE_DESCRIPTOR Descriptor,
     LINEAR Handler,
     U16 Type,
-    U16 Privilege);
+    U16 Privilege,
+    U8 InterruptStackTable);
 
 /************************************************************************/
 

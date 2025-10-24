@@ -217,9 +217,10 @@ void InitializeGateDescriptor(
     LPGATE_DESCRIPTOR Descriptor,
     LINEAR Handler,
     U16 Type,
-    U16 Privilege) {
+    U16 Privilege,
+    U8 InterruptStackTable) {
     Descriptor->Selector = SELECTOR_KERNEL_CODE;
-    Descriptor->InterruptStackTable = 0;
+    Descriptor->InterruptStackTable = InterruptStackTable & 0x7u;
     Descriptor->Reserved_0 = 0;
     Descriptor->Type = Type;
     Descriptor->Privilege = Privilege;

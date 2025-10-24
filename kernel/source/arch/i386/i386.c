@@ -212,7 +212,9 @@ void InitializeGateDescriptor(
     LPGATE_DESCRIPTOR Descriptor,
     LINEAR Handler,
     U16 Type,
-    U16 Privilege) {
+    U16 Privilege,
+    U8 InterruptStackTable) {
+    UNUSED(InterruptStackTable);
     Descriptor->Selector = SELECTOR_KERNEL_CODE;
     Descriptor->Reserved = 0;
     Descriptor->Type = Type;
@@ -1114,7 +1116,12 @@ void PreInitializeKernel(void) {
 /***************************************************************************/
 
 void InitializeSystemCall(void) {
-    InitializeGateDescriptor(IDT + EXOS_USER_CALL, (LINEAR)Interrupt_SystemCall, GATE_TYPE_386_TRAP, PRIVILEGE_USER);
+    InitializeGateDescriptor(
+        IDT + EXOS_USER_CALL,
+        (LINEAR)Interrupt_SystemCall,
+        GATE_TYPE_386_TRAP,
+        PRIVILEGE_USER,
+        0u);
 }
 
 /************************************************************************/
