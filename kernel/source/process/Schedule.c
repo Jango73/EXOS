@@ -370,7 +370,7 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
         SwitchToNextTask_2(CurrentTask, NextTask);
     // }
 
-    FINE_DEBUG(TEXT("[SwitchToNextTask] Exit for task %p"), CurrentTask);
+    FINE_DEBUG(TEXT("[SwitchToNextTask] Exit for task %p (%s)"), CurrentTask, CurrentTask->Name);
 }
 
 /************************************************************************/
@@ -392,7 +392,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);
 
-            SetupStackForKernelMode(NextTask, StackPointer);
+            SetupStackForKernelMode(NextTask, StackPointer, StackPointer);
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
             KernelLogMem(LOG_DEBUG, StackPointer, 256);
@@ -423,6 +423,12 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
     }
 
     FINE_DEBUG(TEXT("[SwitchToNextTask_3] Exit"));
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    LINEAR ESP; GetESP(ESP);
+    KernelLogMem(LOG_DEBUG, ESP, 256);
+    LogTaskSystemStructures(LOG_DEBUG);
+#endif
 
     // Returning normally to next task
 }

@@ -505,14 +505,14 @@ typedef struct tag_SEGMENT_INFO {
 /************************************************************************/
 // Context switching
 
-#define SetupStackForKernelMode(Task, StackTop)                     \
-    (StackTop) -= (sizeof(U32) * 3u);                               \
+#define SetupStackForKernelMode(Task, StackTop, UserESP)            \
+    (StackTop) -= (sizeof(U32) * 3);                                \
     ((U32*)(StackTop))[2] = (Task)->Arch.Context.Registers.EFlags;  \
     ((U32*)(StackTop))[1] = (Task)->Arch.Context.Registers.CS;      \
     ((U32*)(StackTop))[0] = (Task)->Arch.Context.Registers.EIP;
 
 #define SetupStackForUserMode(Task, StackTop, UserESP)              \
-    (StackTop) -= (sizeof(U32) * 5u);                               \
+    (StackTop) -= (sizeof(U32) * 5);                                \
     ((U32*)(StackTop))[4] = (Task)->Arch.Context.Registers.SS;      \
     ((U32*)(StackTop))[3] = (UserESP);                              \
     ((U32*)(StackTop))[2] = (Task)->Arch.Context.Registers.EFlags;  \

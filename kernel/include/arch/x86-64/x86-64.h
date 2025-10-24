@@ -343,14 +343,16 @@ typedef struct tag_KERNELDATA_X86_64 {
 /************************************************************************/
 // Context switching
 
-#define SetupStackForKernelMode(Task, StackTop)                                                 \
+#define SetupStackForKernelMode(Task, StackTop, UserESP)                                        \
     do {                                                                                        \
-        LINEAR _RequiredBytes = (LINEAR)(sizeof(U64) * 3u);                                     \
+        LINEAR _RequiredBytes = (LINEAR)(sizeof(U64) * 5);                                      \
         LINEAR _AlignmentBytes = ((StackTop) - _RequiredBytes - (LINEAR)0x08u) & (LINEAR)0x0Fu; \
                                                                                                 \
         (StackTop) -= _AlignmentBytes;                                                          \
         (StackTop) -= 8;                                                                        \
         (StackTop) -= _RequiredBytes;                                                           \
+        ((U64*)(StackTop))[4] = (U64)(Task)->Arch.Context.Registers.SS;                         \
+        ((U64*)(StackTop))[3] = (U64)(UserESP);                                                 \
         ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                          \
         ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                         \
         ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                             \
@@ -358,7 +360,7 @@ typedef struct tag_KERNELDATA_X86_64 {
 
 #define SetupStackForUserMode(Task, StackTop, UserESP)                                          \
     do {                                                                                        \
-        LINEAR _RequiredBytes = (LINEAR)(sizeof(U64) * 5u);                                     \
+        LINEAR _RequiredBytes = (LINEAR)(sizeof(U64) * 5);                                      \
         LINEAR _AlignmentBytes = ((StackTop) - _RequiredBytes - (LINEAR)0x08u) & (LINEAR)0x0Fu; \
                                                                                                 \
         (StackTop) -= _AlignmentBytes;                                                          \
@@ -381,7 +383,6 @@ typedef struct tag_KERNELDATA_X86_64 {
             "push %%rsi\n\t"                                            \
             "push %%rdi\n\t"                                            \
             "push %%rbp\n\t"                                            \
-            "push %%rsp\n\t"                                            \
             "push %%r8\n\t"                                             \
             "push %%r9\n\t"                                             \
             "push %%r10\n\t"                                            \
@@ -406,7 +407,6 @@ typedef struct tag_KERNELDATA_X86_64 {
             "pop %%r10\n\t"                                             \
             "pop %%r9\n\t"                                              \
             "pop %%r8\n\t"                                              \
-            "pop %%rsp\n\t"                                             \
             "pop %%rbp\n\t"                                             \
             "pop %%rdi\n\t"                                             \
             "pop %%rsi\n\t"                                             \
