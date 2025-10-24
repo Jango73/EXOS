@@ -183,6 +183,45 @@ void LogRegisters64(const LPINTEL_64_REGISTERS Regs) {
 
 /***************************************************************************/
 
+void LogTaskStateSegment(U32 LogType, const X86_64_TASK_STATE_SEGMENT* Tss) {
+    if (Tss == NULL) {
+        KernelLogText(LogType, TEXT("[LogTaskStateSegment] Null TSS pointer"));
+        return;
+    }
+
+    KernelLogText(
+        LogType,
+        TEXT("[LogTaskStateSegment] TSS @ %p (sizeof=%u):\n"
+             "  Reserved0   = %X\n"
+             "  RSP0/1/2    = %p / %p / %p\n"
+             "  Reserved1   = %p\n"
+             "  IST1-4      = %p / %p / %p / %p\n"
+             "  IST5-7      = %p / %p / %p\n"
+             "  Reserved2   = %p\n"
+             "  Reserved3   = %X\n"
+             "  IOMapBase   = %X (linear @ %p)"),
+        (const void*)Tss,
+        (U32)sizeof(X86_64_TASK_STATE_SEGMENT),
+        (U32)Tss->Reserved0,
+        (LPVOID)Tss->RSP0,
+        (LPVOID)Tss->RSP1,
+        (LPVOID)Tss->RSP2,
+        (LPVOID)Tss->Reserved1,
+        (LPVOID)Tss->IST1,
+        (LPVOID)Tss->IST2,
+        (LPVOID)Tss->IST3,
+        (LPVOID)Tss->IST4,
+        (LPVOID)Tss->IST5,
+        (LPVOID)Tss->IST6,
+        (LPVOID)Tss->IST7,
+        (LPVOID)Tss->Reserved2,
+        (U32)Tss->Reserved3,
+        (U32)Tss->IOMapBase,
+        (const void*)((const U8*)Tss + (UINT)Tss->IOMapBase));
+}
+
+/***************************************************************************/
+
 static U64 BuildLinearAddress(UINT Pml4Index, UINT PdptIndex, UINT DirectoryIndex, UINT TableIndex, U64 Offset) {
     U64 Address = ((U64)Pml4Index << 39)
         | ((U64)PdptIndex << 30)

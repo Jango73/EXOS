@@ -714,6 +714,7 @@ void InitializeTaskSegments(void) {
     SetTSSDescriptorLimit(Desc, sizeof(TASK_STATE_SEGMENT) - 1);
 
     DEBUG(TEXT("[InitializeTaskSegments] TSS = %X"), Kernel_i386.TSS);
+    LogTaskStateSegment(LOG_DEBUG, Kernel_i386.TSS);
     DEBUG(TEXT("[InitializeTaskSegments] Exit"));
 }
 
