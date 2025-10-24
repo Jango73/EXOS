@@ -233,7 +233,7 @@ void InitializeSysCall(void) {
 /**
  * @brief Perform architecture-specific pre-initialization.
  */
-void ArchPreInitializeKernel(void) {
+void PreInitializeKernel(void) {
     GDT_REGISTER Gdtr;
 
     ReadGlobalDescriptorTable(&Gdtr);

@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -20,6 +21,7 @@
     Architecture selection helper
 
 \************************************************************************/
+
 #ifndef ARCH_H_INCLUDED
 #define ARCH_H_INCLUDED
 
@@ -33,7 +35,7 @@
     #error "Unsupported architecture"
 #endif
 
-void ArchPreInitializeKernel(void);
+void PreInitializeKernel(void);
 void InitializeSysCall(void);
 
 #endif  // ARCH_H_INCLUDED

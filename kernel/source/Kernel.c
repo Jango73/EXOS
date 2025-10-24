@@ -741,7 +741,7 @@ void KernelIdle(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
-    ArchPreInitializeKernel();
+    PreInitializeKernel();
 
     //-------------------------------------
     // Gather startup information

@@ -285,7 +285,7 @@ static void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR De
 /**
  * @brief Perform architecture-specific pre-initialization.
  */
-void ArchPreInitializeKernel(void) {
+void PreInitializeKernel(void) {
     GDT_REGISTER Gdtr;
 
     ReadGlobalDescriptorTable(&Gdtr);

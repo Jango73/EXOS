@@ -534,7 +534,7 @@ void LogTSSDescriptor(U32 LogType, const TSS_DESCRIPTOR* TssDescriptor) {
 /***************************************************************************/
 
 /**
- * @brief Logs the complete contents of a Task State Segment
+ * @brief Logs the contents of a Task State Segment
  * @param LogType Type of log message (LOG_VERBOSE, LOG_DEBUG, etc.)
  * @param Tss Pointer to the TSS structure to log
  *
