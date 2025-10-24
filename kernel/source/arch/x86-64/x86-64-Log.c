@@ -48,19 +48,31 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
 
     while (Index < EntryCount) {
         U64 RawLow = RawEntries[Index];
+        U64 RawHigh = 0;
 
         if (RawLow == 0) {
-            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p (null)"), Index, (LPVOID)RawLow);
+            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p raw[127:64]=%p (null)"),
+                Index,
+                (LPVOID)RawLow,
+                (LPVOID)RawHigh);
             Index++;
             continue;
         }
 
         const SEGMENT_DESCRIPTOR* Descriptor = &Table[Index];
 
+        BOOL IsSystemDescriptor = FALSE;
+        const X86_64_SYSTEM_SEGMENT_DESCRIPTOR* SystemDescriptor = NULL;
+
         if (Descriptor->Segment == 0 && (Index + 1u) < EntryCount) {
-            const X86_64_SYSTEM_SEGMENT_DESCRIPTOR* SystemDescriptor =
-                (const X86_64_SYSTEM_SEGMENT_DESCRIPTOR*)Descriptor;
-            U64 RawHigh = RawEntries[Index + 1u];
+            SystemDescriptor = (const X86_64_SYSTEM_SEGMENT_DESCRIPTOR*)Descriptor;
+            RawHigh = RawEntries[Index + 1u];
+            IsSystemDescriptor = TRUE;
+        }
+
+        DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p raw[127:64]=%p"), Index, (LPVOID)RawLow, (LPVOID)RawHigh);
+
+        if (IsSystemDescriptor) {
             U32 Limit = ((U32)SystemDescriptor->Limit_00_15)
                 | ((U32)SystemDescriptor->Limit_16_19 << 16);
             U64 Base = (U64)SystemDescriptor->Base_00_15
@@ -68,7 +80,6 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
                 | ((U64)SystemDescriptor->Base_24_31 << 24)
                 | ((U64)SystemDescriptor->Base_32_63 << 32);
 
-            DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p raw[127:64]=%p"), Index, (LPVOID)RawLow, (LPVOID)RawHigh);
             DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
                 (U32)SystemDescriptor->Limit_00_15,
                 (U32)SystemDescriptor->Limit_16_19);
@@ -102,7 +113,6 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
             | ((U32)Descriptor->ConformExpand << 2u)
             | ((U32)Descriptor->Type << 3u);
 
-        DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p"), Index, (LPVOID)RawLow);
         DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
             (U32)Descriptor->Limit_00_15,
             (U32)Descriptor->Limit_16_19);
