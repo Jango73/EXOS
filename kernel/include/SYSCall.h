@@ -36,7 +36,7 @@
 
 /************************************************************************/
 
-extern void InitializeSystemCalls(void);
+extern void InitializeSystemCallTable(void);
 
 extern SYSCALLENTRY SysCallTable[SYSCALL_Last];
 

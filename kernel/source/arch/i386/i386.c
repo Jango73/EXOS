@@ -245,7 +245,7 @@ void InitializeInterrupts(void) {
 
     ClearDR7();
 
-    InitializeSystemCalls();
+    InitializeSystemCallTable();
 }
 
 /************************************************************************/
