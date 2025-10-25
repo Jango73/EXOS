@@ -436,8 +436,11 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
             SetupStackForKernelMode(NextTask, StackPointer, StackPointer);
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-            KernelLogMem(LOG_DEBUG, StackPointer, 256);
-            LogTaskSystemStructures(LOG_DEBUG);
+            // KernelLogMem relies on temporary mapping slots that are already in use while
+            // initializing a fresh task stack. Re-entering the mapper from an interrupt
+            // context corrupts those mappings and triggers the page faults seen while
+            // switching back to KernelMain, so keep the trace textual only.
+            DEBUG(TEXT("[SwitchToNextTask_3] Skipping stack dump for kernel task to avoid re-entrant memory probing"));
 #endif
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask (StackPointer = %p)"), StackPointer);
@@ -454,8 +457,8 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
             SetupStackForUserMode(NextTask, SysStackPointer, StackPointer);
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-            KernelLogMem(LOG_DEBUG, SysStackPointer, 256);
-            LogTaskSystemStructures(LOG_DEBUG);
+            // Same reasoning as above for Ring 3 stacks.
+            DEBUG(TEXT("[SwitchToNextTask_3] Skipping stack dump for user task to avoid re-entrant memory probing"));
 #endif
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] Calling JumpToReadyTask (SysStackPointer = %p)"), SysStackPointer);
@@ -482,9 +485,8 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
     FINE_DEBUG(TEXT("[SwitchToNextTask_3] Exit"));
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    LINEAR ESP; GetESP(ESP);
-    KernelLogMem(LOG_DEBUG, ESP, 256);
-    LogTaskSystemStructures(LOG_DEBUG);
+    // Avoid the post-switch memory dump for the same re-entrancy reasons.
+    DEBUG(TEXT("[SwitchToNextTask_3] Stack logging suppressed during scheduler interrupt"));
 #endif
 
     // Returning normally to next task
