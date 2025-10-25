@@ -168,7 +168,20 @@ void ClockHandler(void) {
 
     if (SchedulerTime >= (Kernel.MinimumQuantum + SCHEDULING_PERIOD_MILLIS)) {
         SchedulerTime = 0;
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        U64 PreSchedulerRsp = 0;
+        __asm__ volatile("mov %%rsp, %0" : "=r"(PreSchedulerRsp));
+        DEBUG(TEXT("[ClockHandler] Pre-scheduler RSP = %p"), (LPVOID)(U64)PreSchedulerRsp);
+#endif
+
         Scheduler();
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+        U64 PostSchedulerRsp = 0;
+        __asm__ volatile("mov %%rsp, %0" : "=r"(PostSchedulerRsp));
+        DEBUG(TEXT("[ClockHandler] Post-scheduler RSP = %p"), (LPVOID)(U64)PostSchedulerRsp);
+#endif
     }
 
     /*
