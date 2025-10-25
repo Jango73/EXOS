@@ -88,20 +88,20 @@ MUL_16MB    equ 24
 ;-------------------------------------------------------------------------
 ; Bit layout of the EFlags register
 
-EFLAGS_CF    equ 0x00000001
-EFLAGS_A1    equ 0x00000002
-EFLAGS_PF    equ 0x00000004
-EFLAGS_AF    equ 0x00000010
-EFLAGS_ZF    equ 0x00000040
-EFLAGS_SF    equ 0x00000080
-EFLAGS_TF    equ 0x00000100
-EFLAGS_IF    equ 0x00000200
-EFLAGS_OF    equ 0x00000800
-EFLAGS_IOPL1 equ 0x00001000
-EFLAGS_IOPL2 equ 0x00002000
-EFLAGS_NT    equ 0x00004000
-EFLAGS_RF    equ 0x00010000
-EFLAGS_VM    equ 0x00020000
+EFLAGS_CF    equ 0x00000001             ; Carry
+EFLAGS_A1    equ 0x00000002             ; Always 1
+EFLAGS_PF    equ 0x00000004             ; Parity
+EFLAGS_AF    equ 0x00000010             ;
+EFLAGS_ZF    equ 0x00000040             ; Zero
+EFLAGS_SF    equ 0x00000080             ; Sign
+EFLAGS_TF    equ 0x00000100             ; Trap
+EFLAGS_IF    equ 0x00000200             ; Interrupt
+EFLAGS_OF    equ 0x00000800             ; Overflow
+EFLAGS_IOPL1 equ 0x00001000             ; IO privilege level bit 1
+EFLAGS_IOPL2 equ 0x00002000             ; IO privilege level bit 2
+EFLAGS_NT    equ 0x00004000             ; Nested task
+EFLAGS_RF    equ 0x00010000             ; Resume
+EFLAGS_VM    equ 0x00020000             ; Virtual 8086 mode
 
 ;-------------------------------------------------------------------------
 ; Values related to IRQs and the PIC(S) (8259-1 & 8259-2)
