@@ -34,6 +34,10 @@
 #include "System.h"
 #include "process/Task.h"
 
+#if defined(__EXOS_ARCH_X86_64__)
+#include "arch/x86-64/x86-64-Memory.h"
+#endif
+
 /***************************************************************************/
 
 typedef struct tag_TASKLIST {
@@ -366,6 +370,29 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     DEBUG(TEXT("[SwitchToNextTask] Current SP = %p, current BP = %p"), CurrentStackPointer, CurrentFramePointer);
 #endif
 
+    SAFE_USE(CurrentTask) {
+        DEBUG(TEXT("[SwitchToNextTask] Current saved RSP = %p, saved RIP = %p"),
+            CurrentTask->Arch.Context.Registers.RSP,
+            CurrentTask->Arch.Context.Registers.RIP);
+    }
+
+    SAFE_USE(NextTask) {
+        DEBUG(TEXT("[SwitchToNextTask] Next saved RSP = %p, saved RIP = %p"),
+            NextTask->Arch.Context.Registers.RSP,
+            NextTask->Arch.Context.Registers.RIP);
+
+#if defined(__EXOS_ARCH_X86_64__)
+        U64 SavedRsp = (U64)NextTask->Arch.Context.Registers.RSP;
+        U64 CanonicalRsp = CanonicalizeLinearAddress(SavedRsp);
+
+        if (SavedRsp != CanonicalRsp) {
+            ERROR(TEXT("[SwitchToNextTask] Next saved RSP %p is not canonical (canonical = %p)"),
+                NextTask->Arch.Context.Registers.RSP,
+                (LINEAR)CanonicalRsp);
+        }
+#endif
+    }
+
     if (NextTask->Status > TASK_STATUS_DEAD) {
         ERROR(TEXT("[SwitchToNextTask] MEMORY CORRUPTION: Task status %x is out of range"),
             NextTask->Status);
@@ -435,6 +462,21 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
             JumpToReadyTask(NextTask, SysStackPointer);
         }
+    }
+
+    if (CurrentTaskStatus != TASK_STATUS_READY) {
+        FINE_DEBUG(TEXT("[SwitchToNextTask_3] Resuming task %p with saved RSP = %p, saved RIP = %p"),
+            NextTask, NextTask->Arch.Context.Registers.RSP, NextTask->Arch.Context.Registers.RIP);
+
+#if defined(__EXOS_ARCH_X86_64__)
+        U64 SavedRsp = (U64)NextTask->Arch.Context.Registers.RSP;
+        U64 CanonicalRsp = CanonicalizeLinearAddress(SavedRsp);
+
+        if (SavedRsp != CanonicalRsp) {
+            ERROR(TEXT("[SwitchToNextTask_3] Task %p has non-canonical RSP %p (canonical = %p)"),
+                NextTask, NextTask->Arch.Context.Registers.RSP, (LINEAR)CanonicalRsp);
+        }
+#endif
     }
 
     FINE_DEBUG(TEXT("[SwitchToNextTask_3] Exit"));
