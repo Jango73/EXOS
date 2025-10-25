@@ -477,7 +477,7 @@ BOOL KillTask(LPTASK Task) {
 
         if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
             ERROR(TEXT("[KillTask] Can't kill kernel task"));
-            ConsolePanic("Can't kill kernel task");
+            ConsolePanic(TEXT("Can't kill kernel task"));
             return FALSE;
         }
 
