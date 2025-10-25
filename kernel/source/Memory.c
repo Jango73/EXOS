@@ -663,23 +663,77 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
  */
 static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
     LINEAR Base = N_4MB;
+#if defined(__EXOS_ARCH_X86_64__)
+    LINEAR CanonStart = Base;
+#endif
 
     if (StartBase != 0) {
-        LINEAR CanonStart = CanonicalizeLinearAddress(StartBase);
-        if (CanonStart >= Base) {
-            Base = CanonStart;
+        LINEAR CanonicalStart = CanonicalizeLinearAddress(StartBase);
+        if (CanonicalStart >= Base) {
+            Base = CanonicalStart;
         }
+#if defined(__EXOS_ARCH_X86_64__)
+        CanonStart = CanonicalStart;
+#endif
     }
+#if defined(__EXOS_ARCH_X86_64__)
+    else {
+        CanonStart = Base;
+    }
+#endif
+
+#if defined(__EXOS_ARCH_X86_64__)
+    U32 StartPml4 = GetPml4Entry(Base);
+    U32 StartPdpt = GetPdptEntry(Base);
+    U32 LastLoggedPdpt = StartPdpt;
+    DEBUG(TEXT("[FindFreeRegion] Start %p (StartBase=%p Size=%x PML4=%u PDPT=%u)"),
+        Base,
+        StartBase,
+        Size,
+        StartPml4,
+        StartPdpt);
+    BOOL LoggedPml4Drift = FALSE;
+#endif
 
     while (TRUE) {
+#if defined(__EXOS_ARCH_X86_64__)
+        U32 CurrentPml4 = GetPml4Entry(Base);
+        U32 CurrentPdpt = GetPdptEntry(Base);
+
+        if (CurrentPdpt != LastLoggedPdpt) {
+            DEBUG(TEXT("[FindFreeRegion] Probing base %p in PML4=%u PDPT=%u"), Base, CurrentPml4, CurrentPdpt);
+            LastLoggedPdpt = CurrentPdpt;
+        }
+
+        if (!LoggedPml4Drift && CurrentPml4 != StartPml4) {
+            LoggedPml4Drift = TRUE;
+            ERROR(TEXT("[FindFreeRegion] Drifted to PML4=%u while searching from %p (expected PML4=%u)"),
+                CurrentPml4,
+                StartBase,
+                StartPml4);
+        }
+#endif
         if (IsRegionFree(Base, Size) == TRUE) {
             return Base;
         }
 
         LINEAR NextBase = CanonicalizeLinearAddress(Base + PAGE_SIZE);
         if (NextBase <= Base) {
+#if defined(__EXOS_ARCH_X86_64__)
+            ERROR(TEXT("[FindFreeRegion] Address space wrapped while searching from %p (last base %p)"),
+                StartBase,
+                Base);
+#endif
             return NULL;
         }
+#if defined(__EXOS_ARCH_X86_64__)
+        if (StartBase != 0 && NextBase < CanonStart) {
+            ERROR(TEXT("[FindFreeRegion] Next base %p fell below canonical start %p when searching from %p"),
+                NextBase,
+                CanonStart,
+                StartBase);
+        }
+#endif
         Base = NextBase;
     }
 }
@@ -907,6 +961,15 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
 
     // Set the return value to "Base".
     Pointer = Base;
+
+#if defined(__EXOS_ARCH_X86_64__)
+    DEBUG(TEXT("[AllocRegion] Using base %p (PML4=%u PDPT=%u DIR=%u TABLE=%u)"),
+        Base,
+        GetPml4Entry(Base),
+        GetPdptEntry(Base),
+        GetDirectoryEntry(Base),
+        GetTableEntry(Base));
+#endif
 
     DEBUG(TEXT("[AllocRegion] Allocating pages"));
 

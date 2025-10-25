@@ -1233,6 +1233,21 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     DEBUG(TEXT("[SetupTask] IST1 stack (%u bytes) allocated at %p"), Task->Arch.Ist1Stack.Size,
         Task->Arch.Ist1Stack.Base);
 
+#if defined(__EXOS_ARCH_X86_64__)
+    DEBUG(TEXT("[SetupTask] Stack indices: PML4=%u PDPT=%u DIR=%u"),
+        GetPml4Entry(Task->Arch.Stack.Base),
+        GetPdptEntry(Task->Arch.Stack.Base),
+        GetDirectoryEntry(Task->Arch.Stack.Base));
+    DEBUG(TEXT("[SetupTask] Sys stack indices: PML4=%u PDPT=%u DIR=%u"),
+        GetPml4Entry(Task->Arch.SysStack.Base),
+        GetPdptEntry(Task->Arch.SysStack.Base),
+        GetDirectoryEntry(Task->Arch.SysStack.Base));
+    DEBUG(TEXT("[SetupTask] IST1 stack indices: PML4=%u PDPT=%u DIR=%u"),
+        GetPml4Entry(Task->Arch.Ist1Stack.Base),
+        GetPdptEntry(Task->Arch.Ist1Stack.Base),
+        GetDirectoryEntry(Task->Arch.Ist1Stack.Base));
+#endif
+
     MemorySet((LPVOID)(Task->Arch.Stack.Base), 0, Task->Arch.Stack.Size);
     MemorySet((LPVOID)(Task->Arch.SysStack.Base), 0, Task->Arch.SysStack.Size);
     MemorySet((LPVOID)(Task->Arch.Ist1Stack.Base), 0, Task->Arch.Ist1Stack.Size);
