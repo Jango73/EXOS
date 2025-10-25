@@ -442,7 +442,6 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define SetES(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%es" : "=m"(var) : : "rax")
 #define SetFS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%fs" : "=m"(var) : : "rax")
 #define SetGS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%gs" : "=m"(var) : : "rax")
-#define SetSS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%ss" : "=m"(var) : : "rax")
 
 #define SetCR8(value) __asm__ volatile("mov %0, %%cr8" : : "r"(value) : "memory")
 

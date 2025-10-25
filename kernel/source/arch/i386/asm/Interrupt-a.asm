@@ -121,7 +121,6 @@ PBF equ 0x0A
     pop         ds
     popad
 
-    add         esp, 4
     iret
 %endmacro
 
