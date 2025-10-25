@@ -188,6 +188,9 @@ section .text
     pop     rcx
     pop     rax
 
+%if %3
+    add     rsp, 8
+%endif
     iretq
 %endmacro
 
