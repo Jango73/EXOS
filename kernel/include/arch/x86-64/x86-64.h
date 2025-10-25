@@ -384,7 +384,6 @@ typedef struct tag_KERNELDATA_X86_64 {
             "movq %5, %%rsi\n\t"                                        \
             "call SwitchToNextTask_3\n\t"                               \
             "1:\n\t"                                                    \
-            "add $8, %%rsp\n\t"                                        \
             "pop %%r15\n\t"                                             \
             "pop %%r14\n\t"                                             \
             "pop %%r13\n\t"                                             \
