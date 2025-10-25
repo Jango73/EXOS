@@ -384,7 +384,9 @@ typedef struct tag_KERNELDATA_X86_64 {
             "movq %5, %%rsi\n\t"                                        \
             "call SwitchToNextTask_3\n\t"                               \
             "1:\n\t"                                                    \
-            "add $8, %%rsp\n\t"                                        \
+            /* Keep the saved stack pointer intact when the previous task   \\
+             * resumes; the general-purpose register block already begins   \\
+             * at the restored RSP. */                                      \
             "pop %%r15\n\t"                                             \
             "pop %%r14\n\t"                                             \
             "pop %%r13\n\t"                                             \
@@ -440,6 +442,7 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define SetES(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%es" : "=m"(var) : : "rax")
 #define SetFS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%fs" : "=m"(var) : : "rax")
 #define SetGS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%gs" : "=m"(var) : : "rax")
+#define SetSS(var) __asm__ volatile("mov %0, %%rax; movw %%ax, %%ss" : "=m"(var) : : "rax")
 
 #define SetCR8(value) __asm__ volatile("mov %0, %%cr8" : : "r"(value) : "memory")
 

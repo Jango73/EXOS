@@ -1334,6 +1334,9 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
         SetFS(NextTask->Arch.Context.Registers.FS);
         SetGS(NextTask->Arch.Context.Registers.GS);
 
+        SELECTOR KernelStackSelector = SELECTOR_KERNEL_DATA;
+        SetSS(KernelStackSelector);
+
         RestoreFPU(&(NextTask->Arch.Context.FPURegisters));
     }
 }
