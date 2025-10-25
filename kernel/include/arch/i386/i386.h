@@ -558,6 +558,9 @@ typedef struct tag_SEGMENT_INFO {
 /************************************************************************/
 // Register getters/setters
 
+#define GetCurrentStackPointer(var) __asm__ volatile("mov %%esp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+#define GetCurrentFramePointer(var) __asm__ volatile("mov %%ebp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
+
 #define GetCR4(var) __asm__ volatile("mov %%cr4, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define GetESP(var) __asm__ volatile("mov %%esp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")
 #define GetEBP(var) __asm__ volatile("mov %%ebp, %%eax; mov %%eax, %0" : "=m"(var) : : "eax")

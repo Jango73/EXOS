@@ -183,7 +183,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             //-------------------------------------
                             // Sleep with proper interrupt handling
 
-                            Task->Status = TASK_STATUS_SLEEPING;
+                            SetTaskStatusDirect(Task, TASK_STATUS_SLEEPING);
                             Task->WakeUpTime = GetSystemTime() + 20;
 
                             // Keep interrupts disabled during critical section

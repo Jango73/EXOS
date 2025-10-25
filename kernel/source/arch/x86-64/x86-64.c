@@ -1244,6 +1244,16 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.RBX = (LINEAR)Task->Function;
     Task->Arch.Context.Registers.RCX = 0;
     Task->Arch.Context.Registers.RDX = 0;
+    Task->Arch.Context.Registers.RSI = 0;
+    Task->Arch.Context.Registers.RDI = 0;
+    Task->Arch.Context.Registers.R8 = 0;
+    Task->Arch.Context.Registers.R9 = 0;
+    Task->Arch.Context.Registers.R10 = 0;
+    Task->Arch.Context.Registers.R11 = 0;
+    Task->Arch.Context.Registers.R12 = 0;
+    Task->Arch.Context.Registers.R13 = 0;
+    Task->Arch.Context.Registers.R14 = 0;
+    Task->Arch.Context.Registers.R15 = 0x0000DEADBEEF0000;
     Task->Arch.Context.Registers.CS = CodeSelector;
     Task->Arch.Context.Registers.DS = DataSelector;
     Task->Arch.Context.Registers.ES = DataSelector;
@@ -1509,17 +1519,17 @@ void InitializeSystemCall(void) {
     U64 EferValue;
 
     StarValue = ((U64)SELECTOR_USER_CODE << 48) | ((U64)SELECTOR_KERNEL_CODE << 32);
-    WriteMSR64(IA32_STAR_MSR, (U32)(StarValue & 0xFFFFFFFFull), (U32)(StarValue >> 32));
+    WriteMSR64(IA32_STAR_MSR, (U32)(StarValue & 0xFFFFFFFF), (U32)(StarValue >> 32));
 
     EntryPoint = (U64)(LINEAR)Interrupt_SystemCall;
-    WriteMSR64(IA32_LSTAR_MSR, (U32)(EntryPoint & 0xFFFFFFFFull), (U32)(EntryPoint >> 32));
+    WriteMSR64(IA32_LSTAR_MSR, (U32)(EntryPoint & 0xFFFFFFFF), (U32)(EntryPoint >> 32));
 
     MaskValue = RFLAGS_TF | RFLAGS_IF | RFLAGS_DF;
-    WriteMSR64(IA32_FMASK_MSR, (U32)(MaskValue & 0xFFFFFFFFull), (U32)(MaskValue >> 32));
+    WriteMSR64(IA32_FMASK_MSR, (U32)(MaskValue & 0xFFFFFFFF), (U32)(MaskValue >> 32));
 
     EferValue = ReadMSR64Local(IA32_EFER_MSR);
     EferValue |= IA32_EFER_SCE;
-    WriteMSR64(IA32_EFER_MSR, (U32)(EferValue & 0xFFFFFFFFull), (U32)(EferValue >> 32));
+    WriteMSR64(IA32_EFER_MSR, (U32)(EferValue & 0xFFFFFFFF), (U32)(EferValue >> 32));
 }
 
 /************************************************************************/

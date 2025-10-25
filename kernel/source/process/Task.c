@@ -733,13 +733,32 @@ void SetTaskStatus(LPTASK Task, U32 Status) {
             StoreObjectTerminationState(Task, Task->ExitCode);
         }
 
-        FINE_DEBUG(TEXT("[SetTaskStatus] Task %x (%s): %X -> %x"), Task, Task->Name, OldStatus, Status);
+        FINE_DEBUG(TEXT("[SetTaskStatus] Task %p (%s): %u -> %u"), Task, Task->Name, OldStatus, Status);
 
         UnfreezeScheduler();
         UnlockMutex(&(Task->Mutex));
     }
 
     FINE_DEBUG(TEXT("[SetTaskStatus] Exit"));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets a task status to the specified value.
+ *
+ * @param Task Pointer to task to modify
+ * @param Status New status value to set
+ */
+void SetTaskStatusDirect(LPTASK Task, U32 Status) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        U32 OldStatus = Task->Status;
+        UNUSED(OldStatus);
+
+        Task->Status = Status;
+
+        FINE_DEBUG(TEXT("[SetTaskStatusDirect] Task %p (%s): %u -> %u"), Task, Task->Name, OldStatus, Status);
+    }
 }
 
 /************************************************************************/

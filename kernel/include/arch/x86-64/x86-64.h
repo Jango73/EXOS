@@ -80,23 +80,27 @@
 #define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
 #define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 #define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define GDT_TSS_INDEX 7u
+#define GDT_TSS_INDEX 7
 #define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, PRIVILEGE_KERNEL)
 
-#define RFLAGS_ALWAYS_1 0x0000000000000002ull
-#define RFLAGS_TF 0x0000000000000100ull
-#define RFLAGS_IF 0x0000000000000200ull
-#define RFLAGS_DF 0x0000000000000400ull
-#define RFLAGS_NT 0x0000000000004000ull  // Nested task
+#define RFLAGS_ALWAYS_1 0x0000000000000002
+#define RFLAGS_TF 0x0000000000000100
+#define RFLAGS_IF 0x0000000000000200
+#define RFLAGS_DF 0x0000000000000400
+#define RFLAGS_NT 0x0000000000004000        // Nested task
 
-#define IA32_EFER_MSR 0xC0000080u
-#define IA32_STAR_MSR 0xC0000081u
-#define IA32_LSTAR_MSR 0xC0000082u
-#define IA32_FMASK_MSR 0xC0000084u
-#define IA32_EFER_SCE 0x0000000000000001ull
+/************************************************************************/
+// Model Specific Registers
 
-/***************************************************************************/
+#define IA32_EFER_MSR 0xC0000080            // Extended Feature Enable Register 
+#define IA32_STAR_MSR 0xC0000081
+#define IA32_LSTAR_MSR 0xC0000082
+#define IA32_FMASK_MSR 0xC0000084
 
+#define IA32_EFER_SCE 0x1                   // SYSCALL enable
+#define IA32_EFER_LME 0x100                 // IA-32e mode operation
+
+/************************************************************************/
 // PIC and IRQ helpers
 
 #define INTERRUPT_COMMAND 0x0020
@@ -105,8 +109,7 @@
 #define IRQ_MOUSE 0x04
 #define IRQ_ATA 0x0E
 
-/***************************************************************************/
-
+/************************************************************************/
 // CMOS helpers
 
 #define CMOS_COMMAND 0x0070
@@ -424,6 +427,9 @@ typedef struct tag_KERNELDATA_X86_64 {
 
 /************************************************************************/
 // Register getters/setters
+
+#define GetCurrentStackPointer(var) __asm__ volatile("mov %%rsp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
+#define GetCurrentFramePointer(var) __asm__ volatile("mov %%rbp, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 
 #define GetCR4(var) __asm__ volatile("mov %%cr4, %%rax; mov %%rax, %0" : "=m"(var) : : "rax")
 #define GetCR8(var) __asm__ volatile("mov %%cr8, %0" : "=r"(var))

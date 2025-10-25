@@ -359,6 +359,13 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     FINE_DEBUG(TEXT("[SwitchToNextTask] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    LINEAR CurrentStackPointer, CurrentFramePointer;
+    GetCurrentStackPointer(CurrentStackPointer);
+    GetCurrentFramePointer(CurrentFramePointer);
+    DEBUG(TEXT("[SwitchToNextTask] Current SP = %p, current BP = %p"), CurrentStackPointer, CurrentFramePointer);
+#endif
+
     if (NextTask->Status > TASK_STATUS_DEAD) {
         ERROR(TEXT("[SwitchToNextTask] MEMORY CORRUPTION: Task status %x is out of range"),
             NextTask->Status);
@@ -378,6 +385,13 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
     FINE_DEBUG(TEXT("[SwitchToNextTask_3] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    LINEAR CurrentStackPointer, CurrentFramePointer;
+    GetCurrentStackPointer(CurrentStackPointer);
+    GetCurrentFramePointer(CurrentFramePointer);
+    DEBUG(TEXT("[SwitchToNextTask_3] Current SP = %p, current BP = %p"), CurrentStackPointer, CurrentFramePointer);
+#endif
 
     PrepareNextTaskSwitch(CurrentTask, NextTask);
 

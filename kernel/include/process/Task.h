@@ -80,6 +80,7 @@ U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
 U32 GetTaskStatus(LPTASK Task);
 void SetTaskStatus(LPTASK Task, U32 Status);
+void SetTaskStatusDirect(LPTASK Task, U32 Status);
 void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
 U32 ComputeTaskQuantumTime(U32 Priority);
 BOOL PostMessage(HANDLE, U32, U32, U32);

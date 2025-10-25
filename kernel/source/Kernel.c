@@ -703,6 +703,8 @@ static U32 KernelMonitor(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
 
+    FINE_DEBUG("[KernelMonitor] Enter");
+
     FOREVER {
         DeleteDeadTasksAndProcesses();
         DeleteUnreferencedObjects();

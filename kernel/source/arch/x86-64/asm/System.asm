@@ -556,13 +556,12 @@ SYS_FUNC_BEGIN TaskRunner
     xor     edx, edx
     xor     esi, esi
     xor     ebp, ebp
-    xor     r10d, r10d
-    xor     r11d, r11d
-    xor     r12d, r12d
-    xor     r13d, r13d
-    xor     r14d, r14d
-
-    mov     r15, 0x0000DEADBEEF0000
+    xor     r10, r10
+    xor     r11, r11
+    xor     r12, r12
+    xor     r13, r13
+    xor     r14, r14
+    mov     r15, r15
 
     mov     rbx, r9
     test    rbx, rbx
