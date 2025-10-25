@@ -561,7 +561,8 @@ SYS_FUNC_BEGIN TaskRunner
     xor     r12d, r12d
     xor     r13d, r13d
     xor     r14d, r14d
-    xor     r15d, r15d
+
+    mov     r15, 0x0000DEADBEEF0000
 
     mov     rbx, r9
     test    rbx, rbx

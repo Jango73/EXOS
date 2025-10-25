@@ -82,6 +82,8 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
 
     UserMode = (Stack[INCOMING_CS_INDEX + HasErrorCode] & SELECTOR_RPL_MASK) != 0;
 
+    Frame->Registers.SS = (U16)(Stack[INCOMING_USER_SS_INDEX + HasErrorCode] & MAX_U16);
+    Frame->Registers.RSP = Stack[INCOMING_USER_RSP_INDEX + HasErrorCode];
     Frame->Registers.RFlags = Stack[INCOMING_RFLAGS_INDEX + HasErrorCode];
     Frame->Registers.RIP = Stack[INCOMING_RIP_INDEX + HasErrorCode];
     Frame->Registers.CS = (U16)(Stack[INCOMING_CS_INDEX + HasErrorCode] & MAX_U16);
@@ -89,9 +91,9 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     FINE_DEBUG(TEXT("[BuildInterruptFrame] FRAME BUILD DEBUG - intNo=%d HasErrorCode=%d UserMode=%d"),
         InterruptNumber, HasErrorCode, UserMode);
     // FINE_DEBUG(TEXT("[BuildInterruptFrame] Stack at %p:"), (LINEAR)Stack);
-    if (SCHEDULING_DEBUG_OUTPUT == 1) {
+    // if (SCHEDULING_DEBUG_OUTPUT == 1) {
         // KernelLogMem(LOG_DEBUG, (LINEAR)Stack, 256);
-    }
+    // }
     FINE_DEBUG(TEXT("[BuildInterruptFrame] Extracted: RIP=%p CS=%x RFLAGS=%x"), (LINEAR)Frame->Registers.RIP,
         Frame->Registers.CS, Frame->Registers.RFlags);
 
@@ -117,11 +119,6 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     Frame->Registers.FS = (U16)(Stack[INCOMING_FS_INDEX] & MAX_U16);
     Frame->Registers.GS = (U16)(Stack[INCOMING_GS_INDEX] & MAX_U16);
     Frame->Registers.SS = (U16)(Stack[INCOMING_SS_INDEX] & MAX_U16);
-
-    if (UserMode != 0) {
-        Frame->Registers.RSP = Stack[INCOMING_USER_RSP_INDEX + HasErrorCode];
-        Frame->Registers.SS = (U16)(Stack[INCOMING_USER_SS_INDEX + HasErrorCode] & MAX_U16);
-    }
 
     __asm__ volatile("mov %%cr0, %0" : "=r"(Frame->Registers.CR0));
     __asm__ volatile("mov %%cr2, %0" : "=r"(Frame->Registers.CR2));
