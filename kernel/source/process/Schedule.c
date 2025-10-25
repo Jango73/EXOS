@@ -402,24 +402,6 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     // SAFE_USE_VALID_ID_2(CurrentTask, NextTask, KOID_TASK) {
         // __asm__ __volatile__("xchg %%bx,%%bx" : : );     // A breakpoint
         SwitchToNextTask_2(CurrentTask, NextTask);
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        U64 AfterSwitchRsp = 0;
-        __asm__ volatile("mov %%rsp, %0" : "=r"(AfterSwitchRsp));
-        DEBUG(TEXT("[SwitchToNextTask] After SwitchToNextTask_2 RSP = %p"), (LPVOID)(U64)AfterSwitchRsp);
-
-        SAFE_USE(CurrentTask) {
-            DEBUG(TEXT("[SwitchToNextTask] Saved current task RSP = %p, RIP = %p"),
-                (LPVOID)(U64)CurrentTask->Arch.Context.Registers.RSP,
-                (LPVOID)(U64)CurrentTask->Arch.Context.Registers.RIP);
-        }
-
-        SAFE_USE(NextTask) {
-            DEBUG(TEXT("[SwitchToNextTask] Saved next task RSP = %p, RIP = %p"),
-                (LPVOID)(U64)NextTask->Arch.Context.Registers.RSP,
-                (LPVOID)(U64)NextTask->Arch.Context.Registers.RIP);
-        }
-#endif
     // }
 
     FINE_DEBUG(TEXT("[SwitchToNextTask] Exit for task %p (%s)"), CurrentTask, CurrentTask->Name);
