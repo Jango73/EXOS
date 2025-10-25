@@ -20,6 +20,20 @@
 
     Interrupt Frame Management for x86-64
 
+    Intel® 64 and IA-32 Architectures Software Developer’s Manual :
+
+    In 64-bit mode, interrupt and exception handling is similar to what has been described for non-64-bit modes. The
+    following are the exceptions:
+
+    - All interrupt handlers pointed by the IDT are in 64-bit code (this does not apply to the SMI handler).
+    - The size of interrupt-stack pushes is fixed at 64 bits; and the processor uses 8-byte, zero extended stores.
+    - The stack pointer (SS:RSP) is pushed unconditionally on interrupts. In legacy modes, this push is conditional
+    and based on a change in current privilege level (CPL).
+    - The new SS is set to NULL if there is a change in CPL.
+    - IRET behavior changes.
+    - There is a new interrupt stack-switch mechanism and a new interrupt shadow stack-switch mechanism.
+    - The alignment of interrupt stack frame is different.
+
 \************************************************************************/
 
 #include "arch/InterruptFrame.h"
