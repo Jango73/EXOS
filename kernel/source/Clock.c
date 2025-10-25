@@ -48,7 +48,12 @@ static DATETIME CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-static logCount = 0;
+static UINT LogCount = 0;
+// When the scheduler selects a new task, the active stack changes while we are
+// still inside ClockHandler. Keep the recorded stack pointers in globals so the
+// compiler does not spill them to the pre-switch stack frame.
+static volatile U64 ClockLastPreSchedulerRsp = 0;
+static volatile U64 ClockLastPostSchedulerRsp = 0;
 #endif
 
 /************************************************************************/
@@ -151,8 +156,8 @@ void ManageLocalTime(void) {
  */
 void ClockHandler(void) {
 #if SCHEDULING_DEBUG_OUTPUT == 1
-    logCount++;
-    if (logCount > 20000) {
+    LogCount++;
+    if (LogCount > 20000) {
         DEBUG(TEXT("Too much flooding, halting system."));
         DO_THE_SLEEPING_BEAUTY;
     }
@@ -170,17 +175,15 @@ void ClockHandler(void) {
         SchedulerTime = 0;
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-        U64 PreSchedulerRsp = 0;
-        __asm__ volatile("mov %%rsp, %0" : "=r"(PreSchedulerRsp));
-        DEBUG(TEXT("[ClockHandler] Pre-scheduler RSP = %p"), (LPVOID)(U64)PreSchedulerRsp);
+        __asm__ volatile("mov %%rsp, %0" : "=m"(ClockLastPreSchedulerRsp));
+        DEBUG(TEXT("[ClockHandler] Pre-scheduler RSP = %p"), (LPVOID)(U64)ClockLastPreSchedulerRsp);
 #endif
 
         Scheduler();
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
-        U64 PostSchedulerRsp = 0;
-        __asm__ volatile("mov %%rsp, %0" : "=r"(PostSchedulerRsp));
-        DEBUG(TEXT("[ClockHandler] Post-scheduler RSP = %p"), (LPVOID)(U64)PostSchedulerRsp);
+        __asm__ volatile("mov %%rsp, %0" : "=m"(ClockLastPostSchedulerRsp));
+        DEBUG(TEXT("[ClockHandler] Post-scheduler RSP = %p"), (LPVOID)(U64)ClockLastPostSchedulerRsp);
 #endif
     }
 
