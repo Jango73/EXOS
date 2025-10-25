@@ -177,15 +177,15 @@
 
 /************************************************************************/
 
-LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, U32 ESP) {
+LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, U32 StackPointer) {
     LPINTERRUPT_FRAME Frame;
     U32* Stack;
     U32 UserMode;
 
     if (HasErrorCode > 1) HasErrorCode = 1;
 
-    Frame = (LPINTERRUPT_FRAME)ESP;
-    Stack = (U32*)(ESP + sizeof(INTERRUPT_FRAME));
+    Frame = (LPINTERRUPT_FRAME)StackPointer;
+    Stack = (U32*)(StackPointer + sizeof(INTERRUPT_FRAME));
 
     if (IsValidMemory((LINEAR)Stack) == FALSE) {
         DEBUG(TEXT("[BuildInterruptFrame] Invalid stack computed : %p"), Stack);
