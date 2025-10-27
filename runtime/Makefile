@@ -25,7 +25,7 @@ $(error Unsupported architecture $(ARCH))
 endif
 
 CFLAGS  = -g -Wall -Wextra -O0 -nostdinc \
-	-ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
+        -ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie -fcf-protection=none \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
 	-Werror-implicit-function-declaration -Wstrict-prototypes \
@@ -33,7 +33,7 @@ CFLAGS  = -g -Wall -Wextra -O0 -nostdinc \
 	$(CFLAGS_ARCH)
 
 CXXFLAGS = -g -Wall -Wextra -O0 -std=c++11 \
-	-ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
+        -ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie -fcf-protection=none \
 	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
 	-fvisibility=hidden -mno-red-zone \
 	-fno-rtti -fno-threadsafe-statics \

@@ -19,7 +19,7 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-CFLAGS  = -ffreestanding -Wall -Wextra -O0 -g -fno-pic -fno-stack-protector -fno-builtin \
+CFLAGS  = -ffreestanding -Wall -Wextra -O0 -g -fno-pic -fno-stack-protector -fno-builtin -fcf-protection=none \
           $(ARCH_CFLAGS)
 
 LDFLAGS = -T netget.ld -nostdlib -Map=$(BUILD_DIR)/system/netget/netget.map $(ARCH_LDFLAGS)

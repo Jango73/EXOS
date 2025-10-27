@@ -26,7 +26,7 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-CFLAGS  = -ffreestanding -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin \
+CFLAGS  = -ffreestanding -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -fcf-protection=none \
           $(ARCH_CFLAGS)
 
 LDFLAGS = -T master.ld -nostdlib -Map=$(BUILD_DIR)/system/test/master/master.map $(ARCH_LDFLAGS)
