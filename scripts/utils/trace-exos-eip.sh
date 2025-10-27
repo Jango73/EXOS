@@ -3,7 +3,8 @@
 # Script to parse EIP values from qemu.log and disassemble each instruction
 
 TRACE_LOG="log/qemu.log"
-ELF_FILE="kernel/bin/exos.elf"
+ELF_FILE="build/i386/kernel/exos.elf"
+ADDR_TO_SRC="scripts/utils/addr2src-kernel-i386.sh"
 
 if [ ! -f "$TRACE_LOG" ]; then
     echo "Error: $TRACE_LOG not found"
@@ -21,13 +22,7 @@ echo "======================================================================"
 # Extract all EIP values and disassemble each one
 grep "EIP=" "$TRACE_LOG" | sed 's/.*EIP=\([0-9a-fA-F]*\).*/\1/' | while read -r eip; do
     if [ -n "$eip" ]; then
-        # Use objdump to find the instruction at this address
-        instruction=$(objdump -d "$ELF_FILE" | grep -E "^\s*$eip:" | head -1)
-        if [ -n "$instruction" ]; then
-            echo "$instruction"
-        else
-            echo "EIP 0x$eip: <address not found in disassembly>"
-        fi
+        $ADDR_TO_SRC 0x$eip
     fi
 done
 
