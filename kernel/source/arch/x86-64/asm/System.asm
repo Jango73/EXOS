@@ -492,12 +492,31 @@ SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
 
+extern SystemCallHandler
+
 SYS_FUNC_BEGIN DoSystemCall
-    mov     r11, rbx
-    mov     eax, edi
-    mov     rbx, rsi
+    push    rbx                     ; Preserve callee-saved register
+
+    mov     ecx, edi                ; Save syscall number
+    mov     rdx, rsi                ; Preserve parameter value
+    mov     rbx, rsi                ; Parameter in RBX for user mode path
+
+    mov     ax, cs                  ; Check current privilege level
+    test    ax, 3
+    jnz     .user_mode
+
+    ; Kernel mode: invoke dispatcher directly to avoid sysret mismatches
+    mov     edi, ecx
+    mov     rsi, rdx
+    call    SystemCallHandler
+    pop     rbx
+    ret
+
+.user_mode:
+    mov     eax, ecx
     int     EXOS_USER_CALL
-    mov     rbx, r11
+    pop     rbx
+    ret
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------

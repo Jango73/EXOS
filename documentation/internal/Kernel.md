@@ -10,6 +10,17 @@ rebuilt around the 16-byte IDT format, providing stubs for each vector so
 the C runtime reaches the scheduler before the final entry/exit sequences
 are written.
 
+### System call bridge
+
+Kernel utilities that reuse the user-mode system call wrappers (for
+example the text editor invoked from startup scripts) now take a fast
+path on x86-64 builds. The `DoSystemCall` helper checks the current code
+segment and, when already running in ring 0, calls
+`SystemCallHandler` directly instead of issuing the interrupt. This
+avoids returning through `sysretq` with a kernel-space instruction
+pointer, which previously triggered an invalid opcode fault when startup
+automation launched commands that rely on console syscalls.
+
 ### Paging abstractions
 
 The memory manager relies on `arch/Memory.h` to describe page hierarchy
