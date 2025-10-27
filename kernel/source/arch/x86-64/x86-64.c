@@ -1339,8 +1339,9 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
 
         LoadPageDirectory(NextTask->Process->PageDirectory);
 
-        SetDS(NextTask->Arch.Context.Registers.DS);
-        SetES(NextTask->Arch.Context.Registers.ES);
+        // SetSS(NextTask->Arch.Context.Registers.SS);
+        // SetDS(NextTask->Arch.Context.Registers.DS);
+        // SetES(NextTask->Arch.Context.Registers.ES);
         SetFS(NextTask->Arch.Context.Registers.FS);
         SetGS(NextTask->Arch.Context.Registers.GS);
 

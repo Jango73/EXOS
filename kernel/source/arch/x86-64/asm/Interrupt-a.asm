@@ -142,16 +142,20 @@ section .text
     mov     ds, ax
 %endmacro
 
-%macro ALIGN_STACK_AND_CALL 1
-    xor     r10d, r10d
-    mov     rax, rsp
-    and     rax, 0x0F
-    jz      %%aligned
-    mov     r10, rax
-    sub     rsp, r10
+%macro ALIGN_STACK 0
+;    xor     r15, r15
+;    mov     rax, rsp
+;    and     rax, 0x0F
+;    jz      %%aligned
+;    mov     r15, rax
+;    push    r15
+;    sub     rsp, r15
 %%aligned:
-    call    %1
-    add     rsp, r10
+%endmacro
+
+%macro UNALIGN_STACK 0
+;    pop     r15
+;    add     rsp, r15
 %endmacro
 
 SYSCALL_SAVE_SIZE      equ (15 * 8)
@@ -303,122 +307,143 @@ Interrupt_FloatingPoint:
 
 FUNC_HEADER
 Interrupt_Clock:
+    cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL SendEOI
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL ClockHandler
+    call SendEOI
+    call EnterKernel
+    call ClockHandler
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
 Interrupt_Clock_Iret:
     iretq
 
 FUNC_HEADER
 Interrupt_Keyboard:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL KeyboardHandler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call KeyboardHandler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_PIC2:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL PIC2Handler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call PIC2Handler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_COM2:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL COM2Handler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call COM2Handler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_COM1:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL COM1Handler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call COM1Handler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_RTC:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL RTCHandler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call RTCHandler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_PCI:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL PCIHandler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call PCIHandler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_Mouse:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL MouseHandler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call MouseHandler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_FPU:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL FPUHandler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call FPUHandler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
 Interrupt_HardDrive:
     cli
+    ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    ALIGN_STACK_AND_CALL EnterKernel
-    ALIGN_STACK_AND_CALL HardDriveHandler
-    ALIGN_STACK_AND_CALL SendEOI
+    call EnterKernel
+    call HardDriveHandler
+    call SendEOI
     POP_SEGMENTS
     POP_GPRS
+    UNALIGN_STACK
     iretq
 
 FUNC_HEADER
@@ -444,11 +469,11 @@ Interrupt_SystemCall:
     mov     rax, [rel Kernel_i386 + KERNELDATA_X86_64.TSS]
     mov     rsp, [rax + X86_64_TASK_STATE_SEGMENT.RSP0]
 
-    ALIGN_STACK_AND_CALL EnterKernel
+    call    EnterKernel
 
     mov     edi, dword [r15 + SYSCALL_SAVE_RAX]
     mov     rsi, [r15 + SYSCALL_SAVE_RBX]
-    ALIGN_STACK_AND_CALL SystemCallHandler
+    call    SystemCallHandler
     mov     [r15 + SYSCALL_SAVE_RAX], rax
 
     mov     rsp, r15
