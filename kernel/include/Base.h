@@ -135,7 +135,7 @@ extern "C" {
 
 /***************************************************************************/
 
-typedef struct tag_U48 {
+typedef struct PACKED tag_U48 {
     U16 LO;
     U32 HI;
 } U48;
@@ -143,12 +143,12 @@ typedef struct tag_U48 {
 /***************************************************************************/
 
 #ifdef __EXOS_32__
-    typedef struct tag_U64 {
+    typedef struct PACKED tag_U64 {
         U32 LO;
         U32 HI;
     } U64;
 
-    typedef struct tag_I64 {
+    typedef struct PACKED tag_I64 {
         U32 LO;
         I32 HI;
     } I64;
@@ -165,14 +165,14 @@ typedef struct tag_U48 {
 
 /***************************************************************************/
 
-typedef struct tag_U80 {
+typedef struct PACKED tag_U80 {
     U16 LO;
     U64 HI;
 } U80;
 
 /***************************************************************************/
 
-typedef struct tag_U128 {
+typedef struct PACKED tag_U128 {
     U64 LO;
     U64 HI;
 } U128;

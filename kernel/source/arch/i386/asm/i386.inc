@@ -1,9 +1,3 @@
-%ifndef KERNEL_I386_INC
-%define KERNEL_I386_INC
-
-%define KERNEL_ARCH_MAX_UINT 0xFFFFFFFF
-
-%include "../../common/Kernel.inc"
 
 ;-------------------------------------------------------------------------
 ;
@@ -27,6 +21,13 @@
 ;   i386-specific kernel definitions shared with assembly sources
 ;
 ;-------------------------------------------------------------------------
+
+%ifndef KERNEL_I386_INC
+%define KERNEL_I386_INC
+
+%define KERNEL_ARCH_MAX_UINT 0xFFFFFFFF
+
+%include "../../common/Kernel.inc"
 
 ;-------------------------------------------------------------------------
 ; Bit layout of CR0
@@ -128,7 +129,7 @@ STRUC KernelStartupInfo
 ENDSTRUC
 
 ;-------------------------------------------------------------------------
-; Interrupt frame - MUST be synced with INTERRUPT_FRAME in arch/i386/i386.h
+; Interrupt frame
 ; /!\ Structure MUST BE IDENTICAL to struct INTERRUPT_FRAME in arch/i386/i386.h /!\
 
 STRUC INTERRUPT_FRAME

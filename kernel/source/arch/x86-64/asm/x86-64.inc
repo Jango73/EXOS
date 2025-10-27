@@ -1,9 +1,3 @@
-%ifndef KERNEL_X86_64_INC
-%define KERNEL_X86_64_INC
-
-%define KERNEL_ARCH_MAX_UINT 0xFFFFFFFFFFFFFFFF
-
-%include "../../common/Kernel.inc"
 
 ;-------------------------------------------------------------------------
 ;
@@ -13,6 +7,13 @@
 ;   Currently only exposes the macro helpers shared by the x86-64 stubs.
 ;
 ;-------------------------------------------------------------------------
+
+%ifndef KERNEL_X86_64_INC
+%define KERNEL_X86_64_INC
+
+%define KERNEL_ARCH_MAX_UINT 0xFFFFFFFFFFFFFFFF
+
+%include "../../common/Kernel.inc"
 
 ;-------------------------------------------------------------------------
 ; Bit layout of CR0
@@ -64,6 +65,78 @@ STRUC KernelStartupInfo
     .MemorySize         RESQ 1
     .PageCount          RESQ 1
     .MultibootMemoryEntryCount RESB 4
+ENDSTRUC
+
+;-------------------------------------------------------------------------
+; Interrupt frame
+; /!\ Structure MUST BE IDENTICAL to struct INTERRUPT_FRAME in arch/x86-64/x86-64.h /!\
+
+STRUC INTERRUPT_FRAME
+; CPU registers
+    .EFlags             RESQ 1
+    .RAX                RESQ 1
+    .RBX                RESQ 1
+    .RCX                RESQ 1
+    .RDX                RESQ 1
+    .RSI                RESQ 1
+    .RDI                RESQ 1
+    .RSP                RESQ 1
+    .RBP                RESQ 1
+    .R8                 RESQ 1
+    .R9                 RESQ 1
+    .R10                RESQ 1
+    .R11                RESQ 1
+    .R12                RESQ 1
+    .R13                RESQ 1
+    .R14                RESQ 1
+    .R15                RESQ 1
+    .RIP                RESQ 1
+    .CS                 RESQ 1
+    .DS                 RESQ 1
+    .SS                 RESQ 1
+    .ES                 RESQ 1
+    .FS                 RESQ 1
+    .GS                 RESQ 1
+    .CR0                RESQ 1
+    .CR2                RESQ 1
+    .CR3                RESQ 1
+    .CR4                RESQ 1
+    .CR8                RESQ 1
+    .DR0                RESQ 1
+    .DR1                RESQ 1
+    .DR2                RESQ 1
+    .DR3                RESQ 1
+    .DR6                RESQ 1
+    .DR7                RESQ 1
+; FPU registers
+    .FPU_Control        RESB 2      ; FPU Control register
+    .FPU_Status         RESB 2      ; FPU Status register
+    .FPU_Tag            RESB 2      ; FPU Tag register
+    .FPU_IP_LO          RESB 2      ; FPU Instruction Pointer (low 16 bits)
+    .FPU_IP_HI          RESB 4      ; FPU Instruction Pointer (high 32 bits)
+    .FPU_DP_LO          RESB 2      ; FPU Data Pointer (low 16 bits)
+    .FPU_DP_HI          RESB 4      ; FPU Data Pointer (high 32 bits)
+    .FPU_ST0_LO         RESB 2      ; ST0 register (low 16 bits)
+    .FPU_ST0_HI         RESB 8      ; ST0 register (high 64 bits)
+    .FPU_ST1_LO         RESB 2      ; ST1 register (low 16 bits)
+    .FPU_ST1_HI         RESB 8      ; ST1 register (high 64 bits)
+    .FPU_ST2_LO         RESB 2      ; ST2 register (low 16 bits)
+    .FPU_ST2_HI         RESB 8      ; ST2 register (high 64 bits)
+    .FPU_ST3_LO         RESB 2      ; ST3 register (low 16 bits)
+    .FPU_ST3_HI         RESB 8      ; ST3 register (high 64 bits)
+    .FPU_ST4_LO         RESB 2      ; ST4 register (low 16 bits)
+    .FPU_ST4_HI         RESB 8      ; ST4 register (high 64 bits)
+    .FPU_ST5_LO         RESB 2      ; ST5 register (low 16 bits)
+    .FPU_ST5_HI         RESB 8      ; ST5 register (high 64 bits)
+    .FPU_ST6_LO         RESB 2      ; ST6 register (low 16 bits)
+    .FPU_ST6_HI         RESB 8      ; ST6 register (high 64 bits)
+    .FPU_ST7_LO         RESB 2      ; ST7 register (low 16 bits)
+    .FPU_ST7_HI         RESB 8      ; ST7 register (high 64 bits)
+; Fault data
+    .SS0                RESQ 1      ; SS in ring 0
+    .RSP0               RESQ 1      ; RSP in ring 0
+    .IntNo              RESB 4      ; Interrupt / exception vector
+    .ErrCode            RESB 4      ; CPU error code (0 for #UD)
 ENDSTRUC
 
 ;-------------------------------------------------------------------------

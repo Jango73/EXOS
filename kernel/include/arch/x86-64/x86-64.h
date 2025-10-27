@@ -183,6 +183,22 @@
 #endif
 
 /***************************************************************************/
+// General purpose registers for 64-bit mode
+
+typedef struct tag_INTEL_64_REGISTERS {
+    U64 RFlags;
+    U64 RAX, RBX, RCX, RDX;
+    U64 RSI, RDI, RSP, RBP;
+    U64 R8, R9, R10, R11, R12, R13, R14, R15;
+    U64 RIP;
+    U64 CS, DS, SS;
+    U64 ES, FS, GS;
+    U64 CR0, CR2, CR3, CR4, CR8;
+    U64 DR0, DR1, DR2, DR3, DR6, DR7;
+} INTEL_64_REGISTERS, *LPINTEL_64_REGISTERS;
+
+/***************************************************************************/
+// Segment descriptor for 64-bit mode
 
 typedef struct tag_SEGMENT_DESCRIPTOR {
     U16 Limit_00_15;
@@ -208,7 +224,7 @@ typedef struct tag_SEGMENT_DESCRIPTOR {
 } SEGMENT_DESCRIPTOR, *LPSEGMENT_DESCRIPTOR;
 
 /************************************************************************/
-// System segment descriptor (e.g. TSS/LDT) layout for 64-bit mode (16 bytes)
+// System segment descriptor (e.g. TSS/LDT) for 64-bit mode (16 bytes)
 
 typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
     U16 Limit_00_15;
@@ -234,21 +250,6 @@ typedef struct tag_X86_64_SYSTEM_SEGMENT_DESCRIPTOR {
     U32 Base_32_63;
     U32 Reserved;
 } X86_64_SYSTEM_SEGMENT_DESCRIPTOR, *LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR;
-
-/***************************************************************************/
-// General purpose register snapshot for 64-bit mode
-
-typedef struct tag_INTEL_64_REGISTERS {
-    U64 RFlags;
-    U64 RAX, RBX, RCX, RDX;
-    U64 RSI, RDI, RBP, RSP;
-    U64 R8, R9, R10, R11, R12, R13, R14, R15;
-    U64 RIP;
-    U16 CS, DS, SS;
-    U16 ES, FS, GS;
-    U64 CR0, CR2, CR3, CR4, CR8;
-    U64 DR0, DR1, DR2, DR3, DR6, DR7;
-} INTEL_64_REGISTERS, *LPINTEL_64_REGISTERS;
 
 /***************************************************************************/
 
@@ -351,11 +352,11 @@ typedef struct tag_KERNELDATA_X86_64 {
     do {                                                                                        \
         LINEAR _RequiredBytes = (LINEAR)(sizeof(U64) * 5);                                      \
         (StackTop) -= _RequiredBytes;                                                           \
-        ((U64*)(StackTop))[4] = (U64)(Task)->Arch.Context.Registers.SS;                         \
+        ((U64*)(StackTop))[4] = (U64)((Task)->Arch.Context.Registers.SS);                       \
         ((U64*)(StackTop))[3] = (U64)(UserESP);                                                 \
         ((U64*)(StackTop))[2] = (Task)->Arch.Context.Registers.RFlags;                          \
-        ((U64*)(StackTop))[1] = (U64)(Task)->Arch.Context.Registers.CS;                         \
-        ((U64*)(StackTop))[0] = (Task)->Arch.Context.Registers.RIP;                             \
+        ((U64*)(StackTop))[1] = (U64)((Task)->Arch.Context.Registers.CS);                       \
+        ((U64*)(StackTop))[0] = (U64)((Task)->Arch.Context.Registers.RIP);                      \
     } while (0)
 
 #define SetupStackForUserMode(Task, StackTop, UserESP) \

@@ -40,10 +40,6 @@ extern HardDriveHandler
 extern SystemCallHandler
 extern Kernel_i386
 
-INTERRUPT_FRAME_size          equ 366
-INTERRUPT_FRAME_PADDING       equ 16
-INTERRUPT_FRAME_storage_size  equ (INTERRUPT_FRAME_size + INTERRUPT_FRAME_PADDING)
-
 section .text
 
     global Interrupt_Default
@@ -83,11 +79,12 @@ section .text
 ;-------------------------------------------------------------------------
 
 %macro PUSH_GPRS 0
-    push    rbp
     push    rax
     push    rcx
     push    rdx
     push    rbx
+    push    rsp
+    push    rbp
     push    rsi
     push    rdi
     push    r8
@@ -111,11 +108,12 @@ section .text
     pop     r8
     pop     rdi
     pop     rsi
+    pop     rbp
+    pop     rsp
     pop     rbx
     pop     rdx
     pop     rcx
     pop     rax
-    pop     rbp
 %endmacro
 
 %macro PUSH_SEGMENTS 0
@@ -159,19 +157,6 @@ section .text
 SYSCALL_SAVE_SIZE      equ (15 * 8)
 SYSCALL_SAVE_RAX       equ 0
 SYSCALL_SAVE_RBX       equ 8
-SYSCALL_SAVE_RCX       equ 16
-SYSCALL_SAVE_RDX       equ 24
-SYSCALL_SAVE_RBP       equ 32
-SYSCALL_SAVE_RSI       equ 40
-SYSCALL_SAVE_RDI       equ 48
-SYSCALL_SAVE_R8        equ 56
-SYSCALL_SAVE_R9        equ 64
-SYSCALL_SAVE_R10       equ 72
-SYSCALL_SAVE_R11       equ 80
-SYSCALL_SAVE_R12       equ 88
-SYSCALL_SAVE_R13       equ 96
-SYSCALL_SAVE_R14       equ 104
-SYSCALL_SAVE_R15       equ 112
 
 ;-------------------------------------------------------------------------
 
@@ -188,8 +173,8 @@ SYSCALL_SAVE_R15       equ 112
 
     call    EnterKernel
 
-    sub     rsp, INTERRUPT_FRAME_storage_size
-    lea     r11, [rsp + INTERRUPT_FRAME_PADDING]
+    sub     rsp, INTERRUPT_FRAME_size
+    lea     r11, [rsp]
 
     xor     r10d, r10d
     mov     rax, rsp
@@ -220,9 +205,9 @@ SYSCALL_SAVE_R15       equ 112
     call    %2
     add     rsp, r10
 
-    add     rsp, INTERRUPT_FRAME_storage_size
+    add     rsp, INTERRUPT_FRAME_size
 
-    add     rsp, 8
+    add     rsp, 8              ; SS
     pop     rbp
 
     POP_SEGMENTS
