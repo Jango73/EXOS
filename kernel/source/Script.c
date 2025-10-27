@@ -902,13 +902,19 @@ static LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR*
         return NULL;
     }
 
+    U32 IdentifierLength = StringLength(Parser->CurrentToken.Value);
+    if (IdentifierLength >= MAX_VAR_NAME) {
+        *Error = SCRIPT_ERROR_SYNTAX;
+        return NULL;
+    }
+
     LPAST_NODE Node = ScriptCreateASTNode(AST_ASSIGNMENT);
     if (Node == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         return NULL;
     }
 
-    StringCopy(Node->Data.Assignment.VarName, Parser->CurrentToken.Value);
+    StringCopyLimit(Node->Data.Assignment.VarName, Parser->CurrentToken.Value, MAX_VAR_NAME);
     Node->Data.Assignment.IsArrayAccess = FALSE;
     Node->Data.Assignment.ArrayIndexExpr = NULL;
 
@@ -2995,6 +3001,10 @@ LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, B
 LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value) {
     if (Scope == NULL || Name == NULL) return NULL;
 
+    if (StringLength(Name) >= MAX_VAR_NAME) {
+        return NULL;
+    }
+
     // First check if variable exists in current or parent scopes
     LPSCRIPT_VARIABLE ExistingVar = ScriptFindVariableInScope(Scope, Name, TRUE);
 
@@ -3028,7 +3038,7 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
     if (Variable == NULL) return NULL;
 
     MemorySet(Variable, 0, sizeof(SCRIPT_VARIABLE));
-    StringCopy(Variable->Name, Name);
+    StringCopyLimit(Variable->Name, Name, MAX_VAR_NAME);
     Variable->Type = Type;
     Variable->Value = Value;
     Variable->RefCount = 1;
