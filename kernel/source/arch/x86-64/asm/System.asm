@@ -24,6 +24,8 @@
 %include "x86-64.inc"
 %include "System.inc"
 
+extern SystemCallHandler
+
 ;-------------------------------------------------------------------------
 
 section .data
@@ -493,11 +495,30 @@ SYS_FUNC_END
 ;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN DoSystemCall
-    mov     r11, rbx
+    push    rbp
+    mov     rbp, rsp
+    push    rbx
+
+    ; Prepare syscall number and parameter
     mov     eax, edi
     mov     rbx, rsi
-    int     EXOS_USER_CALL
-    mov     rbx, r11
+
+    ; Check current privilege level (RPL bits of CS)
+    mov     r10w, cs
+    test    r10w, 0x3
+    jnz     .user_path
+
+    ; Kernel callers invoke the handler directly to avoid SYSRET issues
+    mov     rsi, rbx
+    call    SystemCallHandler
+    jmp     .done
+
+.user_path:
+    syscall
+
+.done:
+    pop     rbx
+    pop     rbp
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
