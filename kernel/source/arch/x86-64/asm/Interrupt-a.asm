@@ -82,13 +82,12 @@ section .text
 
 ;-------------------------------------------------------------------------
 
-%macro ISR_HANDLER 3
+%macro PUSH_GPRS 0
+    push    rbp
     push    rax
     push    rcx
     push    rdx
     push    rbx
-    push    rsp
-    push    rbp
     push    rsi
     push    rdi
     push    r8
@@ -99,22 +98,86 @@ section .text
     push    r13
     push    r14
     push    r15
+%endmacro
 
+%macro POP_GPRS 0
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     r11
+    pop     r10
+    pop     r9
+    pop     r8
+    pop     rdi
+    pop     rsi
+    pop     rbx
+    pop     rdx
+    pop     rcx
+    pop     rax
+    pop     rbp
+%endmacro
+
+%macro PUSH_SEGMENTS 0
     mov     ax, ds
     movzx   eax, ax
     push    rax
-
     mov     ax, es
     movzx   eax, ax
     push    rax
-
     mov     ax, fs
     movzx   eax, ax
     push    rax
-
     mov     ax, gs
     movzx   eax, ax
     push    rax
+%endmacro
+
+%macro POP_SEGMENTS 0
+    pop     rax
+    mov     gs, ax
+    pop     rax
+    mov     fs, ax
+    pop     rax
+    mov     es, ax
+    pop     rax
+    mov     ds, ax
+%endmacro
+
+%macro ALIGN_STACK_AND_CALL 1
+    xor     r10d, r10d
+    mov     rax, rsp
+    and     rax, 0x0F
+    jz      %%aligned
+    mov     r10, rax
+    sub     rsp, r10
+%%aligned:
+    call    %1
+    add     rsp, r10
+%endmacro
+
+SYSCALL_SAVE_SIZE      equ (15 * 8)
+SYSCALL_SAVE_RAX       equ 0
+SYSCALL_SAVE_RBX       equ 8
+SYSCALL_SAVE_RCX       equ 16
+SYSCALL_SAVE_RDX       equ 24
+SYSCALL_SAVE_RBP       equ 32
+SYSCALL_SAVE_RSI       equ 40
+SYSCALL_SAVE_RDI       equ 48
+SYSCALL_SAVE_R8        equ 56
+SYSCALL_SAVE_R9        equ 64
+SYSCALL_SAVE_R10       equ 72
+SYSCALL_SAVE_R11       equ 80
+SYSCALL_SAVE_R12       equ 88
+SYSCALL_SAVE_R13       equ 96
+SYSCALL_SAVE_R14       equ 104
+SYSCALL_SAVE_R15       equ 112
+
+;-------------------------------------------------------------------------
+
+%macro ISR_HANDLER 3
+    PUSH_GPRS
+    PUSH_SEGMENTS
 
     push    rbp
     mov     rbp, rsp
@@ -162,32 +225,8 @@ section .text
     add     rsp, 8
     pop     rbp
 
-    pop     rax
-    mov     gs, ax
-    pop     rax
-    mov     fs, ax
-    pop     rax
-    mov     es, ax
-    pop     rax
-    mov     ds, ax
-
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
-    pop     r11
-    pop     r10
-    pop     r9
-    pop     r8
-    pop     rdi
-    pop     rsi
-    pop     rbp
-    add     rsp, 8
-    pop     rbx
-    pop     rdx
-    pop     rcx
-    pop     rax
-
+    POP_SEGMENTS
+    POP_GPRS
     iretq
 %endmacro
 
@@ -277,97 +316,6 @@ FUNC_HEADER
 Interrupt_FloatingPoint:
     ISR_HANDLER_ERR 19, FloatingPointHandler
 
-%macro PUSH_GPRS 0
-    push    rax
-    push    rcx
-    push    rdx
-    push    rbx
-    push    rbp
-    push    rsi
-    push    rdi
-    push    r8
-    push    r9
-    push    r10
-    push    r11
-    push    r12
-    push    r13
-    push    r14
-    push    r15
-%endmacro
-
-%macro POP_GPRS 0
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
-    pop     r11
-    pop     r10
-    pop     r9
-    pop     r8
-    pop     rdi
-    pop     rsi
-    pop     rbp
-    pop     rbx
-    pop     rdx
-    pop     rcx
-    pop     rax
-%endmacro
-
-%macro PUSH_SEGMENTS 0
-    mov     ax, ds
-    movzx   eax, ax
-    push    rax
-    mov     ax, es
-    movzx   eax, ax
-    push    rax
-    mov     ax, fs
-    movzx   eax, ax
-    push    rax
-    mov     ax, gs
-    movzx   eax, ax
-    push    rax
-%endmacro
-
-%macro POP_SEGMENTS 0
-    pop     rax
-    mov     gs, ax
-    pop     rax
-    mov     fs, ax
-    pop     rax
-    mov     es, ax
-    pop     rax
-    mov     ds, ax
-%endmacro
-
-%macro ALIGN_STACK_AND_CALL 1
-    xor     r10d, r10d
-    mov     rax, rsp
-    and     rax, 0x0F
-    jz      %%aligned
-    mov     r10, rax
-    sub     rsp, r10
-%%aligned:
-    call    %1
-    add     rsp, r10
-%endmacro
-
-SYSCALL_SAVE_SIZE      equ (15 * 8)
-SYSCALL_SAVE_RAX       equ 0
-SYSCALL_SAVE_RBX       equ 8
-SYSCALL_SAVE_RCX       equ 16
-SYSCALL_SAVE_RDX       equ 24
-SYSCALL_SAVE_RBP       equ 32
-SYSCALL_SAVE_RSI       equ 40
-SYSCALL_SAVE_RDI       equ 48
-SYSCALL_SAVE_R8        equ 56
-SYSCALL_SAVE_R9        equ 64
-SYSCALL_SAVE_R10       equ 72
-SYSCALL_SAVE_R11       equ 80
-SYSCALL_SAVE_R12       equ 88
-SYSCALL_SAVE_R13       equ 96
-SYSCALL_SAVE_R14       equ 104
-SYSCALL_SAVE_R15       equ 112
-
 FUNC_HEADER
 Interrupt_Clock:
     PUSH_GPRS
@@ -377,9 +325,6 @@ Interrupt_Clock:
     ALIGN_STACK_AND_CALL ClockHandler
     POP_SEGMENTS
     POP_GPRS
-    iretq
-
-FUNC_HEADER
 Interrupt_Clock_Iret:
     iretq
 
