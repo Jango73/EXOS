@@ -1852,12 +1852,12 @@ static I32 Loop(LPEDITCONTEXT Context) {
 static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
     FILEOPENINFO Info;
     FILEOPERATION FileOperation;
-    LPEDITFILE File;
+    LPEDITFILE File = NULL;
     LPEDITLINE Line;
     HANDLE Handle;
     LPSTR LineStart;
     LPSTR LineData;
-    U8* Buffer;
+    U8* Buffer = NULL;
     U32 FileSize;
     U32 LineSize;
     U32 FinalLineSize;
@@ -1939,14 +1939,19 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                         }
                     }
                 }
-                HeapFree(Buffer);
+                if (Buffer) {
+                    HeapFree(Buffer);
+                    Buffer = NULL;
+                }
             }
         }
         if (File) {
             File->Modified = FALSE;
         }
         DoSystemCall(SYSCALL_DeleteObject, Handle);
-    } else {
+    }
+
+    if (File == NULL) {
         File = NewEditFile();
         if (File) {
             if (Name) {
