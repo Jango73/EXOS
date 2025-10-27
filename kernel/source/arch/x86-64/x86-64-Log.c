@@ -472,6 +472,8 @@ void LogFrame(LPINTERRUPT_FRAME Frame) {
     KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task ? Task->Name : "?", Process ? Process->FileName : "?");
     KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
     LogRegisters64(&(Frame->Registers));
+    KernelLogText(LOG_VERBOSE, TEXT("[LogFrame] Kernel stack snapshot: RSP0=%p SS0=%x"),
+        (LPVOID)Frame->RSP0, (U32)Frame->SS0);
 }
 
 /************************************************************************/

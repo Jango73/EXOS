@@ -118,7 +118,6 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     Frame->Registers.RSI = Stack[INCOMING_RSI_INDEX];
     Frame->Registers.RDI = Stack[INCOMING_RDI_INDEX];
     Frame->Registers.RBP = Stack[INCOMING_RBP_INDEX];
-    Frame->Registers.RSP = Stack[INCOMING_RSP_INDEX];
     Frame->Registers.R8 = Stack[INCOMING_R8_INDEX];
     Frame->Registers.R9 = Stack[INCOMING_R9_INDEX];
     Frame->Registers.R10 = Stack[INCOMING_R10_INDEX];
@@ -132,7 +131,8 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     Frame->Registers.ES = (U16)(Stack[INCOMING_ES_INDEX] & MAX_U16);
     Frame->Registers.FS = (U16)(Stack[INCOMING_FS_INDEX] & MAX_U16);
     Frame->Registers.GS = (U16)(Stack[INCOMING_GS_INDEX] & MAX_U16);
-    Frame->Registers.SS = (U16)(Stack[INCOMING_SS_INDEX] & MAX_U16);
+    Frame->RSP0 = Stack[INCOMING_RSP_INDEX];
+    Frame->SS0 = Stack[INCOMING_SS_INDEX] & MAX_U16;
 
     __asm__ volatile("mov %%cr0, %0" : "=r"(Frame->Registers.CR0));
     __asm__ volatile("mov %%cr2, %0" : "=r"(Frame->Registers.CR2));
