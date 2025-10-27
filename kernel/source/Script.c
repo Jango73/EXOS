@@ -1685,6 +1685,10 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
         case TOKEN_IDENTIFIER:
         case TOKEN_PATH: {
             if (Expr->Data.Expression.IsFunctionCall) {
+                if (Parser->Context) {
+                    Parser->Callbacks = &Parser->Context->Callbacks;
+                }
+
                 if (Expr->Data.Expression.IsShellCommand) {
                     if (Parser->Callbacks && Parser->Callbacks->ExecuteCommand) {
                         LPCSTR CommandLine = Expr->Data.Expression.CommandLine ?
@@ -1730,6 +1734,10 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                         *Error = SCRIPT_ERROR_SYNTAX;
                     }
                     return Result;
+                }
+
+                if (Parser->Context) {
+                    Parser->Callbacks = &Parser->Context->Callbacks;
                 }
 
                 if (Parser->Callbacks && Parser->Callbacks->CallFunction) {
