@@ -493,11 +493,11 @@ SYS_FUNC_END
 ;----------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN DoSystemCall
-    mov     r11, rbx
+    push    rbx
     mov     eax, edi
     mov     rbx, rsi
-    int     EXOS_USER_CALL
-    mov     rbx, r11
+    syscall
+    pop     rbx
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------
