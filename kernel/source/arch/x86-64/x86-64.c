@@ -1054,7 +1054,7 @@ static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, BOOL Execut
     This->Present = 1;
     This->Limit_16_19 = 0x0F;
     This->Available = 0;
-    This->LongMode = 1;
+    This->LongMode = Executable ? 1 : 0;
     This->DefaultSize = 0;
     This->Granularity = 1;
     This->Base_24_31 = 0x00;
