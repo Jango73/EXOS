@@ -17,6 +17,7 @@ if [ ! -f "$KERNEL_ELF" ]; then
     exit 1
 fi
 
+echo ""
 echo "=== Kernel Address $ADDR ==="
 
 # Get function name and source file:line
