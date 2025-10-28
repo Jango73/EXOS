@@ -2,6 +2,7 @@
 set -e
 
 IMG_1_PATH="build/x86-64/boot-hd/exos.img"
+DEBUG_FILE="scripts/x86-64/debug.gdb"
 
 if [ ! -f "$IMG_1_PATH" ]; then
     echo "Image not found: $IMG_1_PATH"
@@ -25,4 +26,4 @@ qemu-system-x86_64 \
 
 sleep 2
 cgdb build/x86-64/kernel/exos.elf -ex "set architecture x86-64" -ex "target remote localhost:1234" \
--ex "break KernelMain" -ex "break InitializeKernel"
+-ex "break SwitchToNextTask" -ex "source $DEBUG_FILE"
