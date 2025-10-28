@@ -38,12 +38,12 @@
 /***************************************************************************/
 
 typedef struct tag_EXECUTABLEINFO {
-    U32 EntryPoint;
-    U32 CodeBase;
+    UINT EntryPoint;
+    UINT CodeBase;
     UINT CodeSize;
-    U32 DataBase;
+    UINT DataBase;
     UINT DataSize;
-    U32 BssBase;
+    UINT BssBase;
     UINT BssSize;
     UINT StackMinimum;
     UINT StackRequested;
