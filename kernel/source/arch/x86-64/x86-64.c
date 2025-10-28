@@ -168,6 +168,93 @@ typedef struct _REGION_SETUP {
 
 /************************************************************************/
 
+typedef struct _LOW_REGION_SHARED_TABLES {
+    PHYSICAL BiosTablePhysical;
+    PHYSICAL IdentityTablePhysical;
+} LOW_REGION_SHARED_TABLES;
+
+static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
+    .BiosTablePhysical = NULL,
+    .IdentityTablePhysical = NULL,
+};
+
+/************************************************************************/
+
+static BOOL EnsureSharedLowTable(
+    PHYSICAL* TablePhysical,
+    PHYSICAL PhysicalBase,
+    BOOL ProtectBios,
+    LPCSTR Label) {
+
+    if (TablePhysical == NULL || Label == NULL) {
+        ERROR(TEXT("[SetupLowRegion] Invalid shared table parameters"));
+        return FALSE;
+    }
+
+    if (*TablePhysical != NULL) {
+        DEBUG(TEXT("[SetupLowRegion] Reusing shared %s table at %p"), Label, *TablePhysical);
+        return TRUE;
+    }
+
+    PHYSICAL Physical = AllocPhysicalPage();
+
+    if (Physical == NULL) {
+        ERROR(TEXT("[SetupLowRegion] Out of physical pages for shared %s table"), Label);
+        return FALSE;
+    }
+
+    LINEAR Linear = MapTemporaryPhysicalPage3(Physical);
+
+    if (Linear == NULL) {
+        ERROR(TEXT("[SetupLowRegion] MapTemporaryPhysicalPage3 failed for shared %s table"), Label);
+        FreePhysicalPage(Physical);
+        return FALSE;
+    }
+
+    LPPAGE_TABLE Table = (LPPAGE_TABLE)Linear;
+    MemorySet(Table, 0, PAGE_SIZE);
+
+#if !defined(PROTECT_BIOS)
+    UNUSED(ProtectBios);
+#endif
+
+    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+        PHYSICAL EntryPhysical = PhysicalBase + ((PHYSICAL)Index << PAGE_SIZE_MUL);
+
+#ifdef PROTECT_BIOS
+        if (ProtectBios) {
+            BOOL Protected =
+                (EntryPhysical == 0) || (EntryPhysical > PROTECTED_ZONE_START && EntryPhysical <= PROTECTED_ZONE_END);
+
+            if (Protected) {
+                ClearPageTableEntry(Table, Index);
+                continue;
+            }
+        }
+#endif
+
+        WritePageTableEntryValue(
+            Table,
+            Index,
+            MakePageTableEntryValue(
+                EntryPhysical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_KERNEL,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+    }
+
+    *TablePhysical = Physical;
+
+    DEBUG(TEXT("[SetupLowRegion] Shared %s table prepared at %p (base %p)"), Label, Physical, PhysicalBase);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
 KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
     .IDT = NULL,
     .GDT = NULL,
@@ -481,6 +568,18 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         Region->Privilege,
         UserSeedTables);
 
+    if (EnsureSharedLowTable(&LowRegionSharedTables.BiosTablePhysical, 0, TRUE, TEXT("BIOS")) == FALSE) {
+        return FALSE;
+    }
+
+    if (EnsureSharedLowTable(
+            &LowRegionSharedTables.IdentityTablePhysical,
+            ((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_SIZE_MUL),
+            FALSE,
+            TEXT("low identity")) == FALSE) {
+        return FALSE;
+    }
+
     Region->PdptPhysical = AllocPhysicalPage();
     Region->DirectoryPhysical = AllocPhysicalPage();
 
@@ -488,6 +587,14 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
 
     if (Region->PdptPhysical == NULL || Region->DirectoryPhysical == NULL) {
         ERROR(TEXT("[AllocPageDirectory] Low region out of physical pages"));
+        if (Region->PdptPhysical != NULL) {
+            FreePhysicalPage(Region->PdptPhysical);
+            Region->PdptPhysical = NULL;
+        }
+        if (Region->DirectoryPhysical != NULL) {
+            FreePhysicalPage(Region->DirectoryPhysical);
+            Region->DirectoryPhysical = NULL;
+        }
         return FALSE;
     }
 
@@ -528,31 +635,35 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
 
     UINT LowDirectoryIndex = GetDirectoryEntry(0);
 
-    Region->Tables[Region->TableCount].DirectoryIndex = LowDirectoryIndex;
-    Region->Tables[Region->TableCount].ReadWrite = 1;
-    Region->Tables[Region->TableCount].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Region->Tables[Region->TableCount].Global = 0;
-    Region->Tables[Region->TableCount].Mode = PAGE_TABLE_POPULATE_IDENTITY;
-    Region->Tables[Region->TableCount].Data.Identity.PhysicalBase = 0;
-    Region->Tables[Region->TableCount].Data.Identity.ProtectBios = TRUE;
-    DEBUG(TEXT("[SetupLowRegion] Preparing BIOS table index %u protect %u"),
-        Region->Tables[Region->TableCount].DirectoryIndex,
-        Region->Tables[Region->TableCount].Data.Identity.ProtectBios);
-    if (AllocateTableAndPopulate(Region, &Region->Tables[Region->TableCount], Directory) == FALSE) return FALSE;
-    Region->TableCount++;
+    WritePageDirectoryEntryValue(
+        Directory,
+        LowDirectoryIndex,
+        MakePageDirectoryEntryValue(
+            LowRegionSharedTables.BiosTablePhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+    DEBUG(TEXT("[SetupLowRegion] Directory[%u] -> shared BIOS table %p"),
+        LowDirectoryIndex,
+        LowRegionSharedTables.BiosTablePhysical);
 
-    Region->Tables[Region->TableCount].DirectoryIndex = LowDirectoryIndex + 1u;
-    Region->Tables[Region->TableCount].ReadWrite = 1;
-    Region->Tables[Region->TableCount].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Region->Tables[Region->TableCount].Global = 0;
-    Region->Tables[Region->TableCount].Mode = PAGE_TABLE_POPULATE_IDENTITY;
-    Region->Tables[Region->TableCount].Data.Identity.PhysicalBase = ((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_SIZE_MUL);
-    Region->Tables[Region->TableCount].Data.Identity.ProtectBios = FALSE;
-    DEBUG(TEXT("[SetupLowRegion] Preparing low identity table index %u base %p"),
-        Region->Tables[Region->TableCount].DirectoryIndex,
-        Region->Tables[Region->TableCount].Data.Identity.PhysicalBase);
-    if (AllocateTableAndPopulate(Region, &Region->Tables[Region->TableCount], Directory) == FALSE) return FALSE;
-    Region->TableCount++;
+    WritePageDirectoryEntryValue(
+        Directory,
+        LowDirectoryIndex + 1u,
+        MakePageDirectoryEntryValue(
+            LowRegionSharedTables.IdentityTablePhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+    DEBUG(TEXT("[SetupLowRegion] Directory[%u] -> shared identity table %p"),
+        LowDirectoryIndex + 1u,
+        LowRegionSharedTables.IdentityTablePhysical);
 
     if (UserSeedTables != 0u) {
         UINT BaseDirectory = GetDirectoryEntry((U64)VMA_USER);
@@ -570,7 +681,10 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         }
     }
 
-    DEBUG(TEXT("[SetupLowRegion] Completed table count %u"), Region->TableCount);
+    DEBUG(TEXT("[SetupLowRegion] Completed table count %u (shared bios=%p identity=%p)"),
+        Region->TableCount,
+        LowRegionSharedTables.BiosTablePhysical,
+        LowRegionSharedTables.IdentityTablePhysical);
 
     return TRUE;
 }
