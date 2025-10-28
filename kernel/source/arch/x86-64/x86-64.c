@@ -35,6 +35,7 @@
 #include "Text.h"
 #include "Interrupt.h"
 #include "SYSCall.h"
+#include "Heap.h"
 
 /************************************************************************\
 
@@ -428,6 +429,10 @@ static void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR De
  * @param Region Structure to reset.
  */
 static void ResetRegionSetup(REGION_SETUP* Region) {
+    if (Region == NULL) {
+        return;
+    }
+
     MemorySet(Region, 0, sizeof(REGION_SETUP));
 }
 
@@ -438,6 +443,10 @@ static void ResetRegionSetup(REGION_SETUP* Region) {
  * @param Region Structure that tracks the allocated tables.
  */
 static void ReleaseRegionSetup(REGION_SETUP* Region) {
+    if (Region == NULL) {
+        return;
+    }
+
     if (Region->PdptPhysical != NULL) {
         FreePhysicalPage(Region->PdptPhysical);
         Region->PdptPhysical = NULL;
@@ -456,6 +465,33 @@ static void ReleaseRegionSetup(REGION_SETUP* Region) {
     }
 
     Region->TableCount = 0;
+}
+
+/************************************************************************/
+
+static REGION_SETUP* AllocateRegionDescriptor(LPCSTR Label) {
+    REGION_SETUP* Region = (REGION_SETUP*)KernelHeapAlloc(sizeof(REGION_SETUP));
+
+    if (Region == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] Unable to allocate %s region descriptor"), Label);
+        return NULL;
+    }
+
+    ResetRegionSetup(Region);
+    Region->Label = Label;
+
+    return Region;
+}
+
+/************************************************************************/
+
+static void FreeRegionDescriptor(REGION_SETUP** RegionPtr) {
+    if (RegionPtr == NULL || *RegionPtr == NULL) {
+        return;
+    }
+
+    KernelHeapFree(*RegionPtr);
+    *RegionPtr = NULL;
 }
 
 /************************************************************************/
@@ -934,17 +970,21 @@ static U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
  * @return Physical address of the page directory or NULL on failure.
  */
 PHYSICAL AllocPageDirectory(void) {
-    REGION_SETUP LowRegion;
-    REGION_SETUP KernelRegion;
-    REGION_SETUP TaskRunnerRegion;
+    REGION_SETUP* LowRegion = NULL;
+    REGION_SETUP* KernelRegion = NULL;
+    REGION_SETUP* TaskRunnerRegion = NULL;
     PHYSICAL Pml4Physical = NULL;
     BOOL Success = FALSE;
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
-    ResetRegionSetup(&LowRegion);
-    ResetRegionSetup(&KernelRegion);
-    ResetRegionSetup(&TaskRunnerRegion);
+    LowRegion = AllocateRegionDescriptor(TEXT("Low"));
+    KernelRegion = AllocateRegionDescriptor(TEXT("Kernel"));
+    TaskRunnerRegion = AllocateRegionDescriptor(TEXT("TaskRunner"));
+
+    if (LowRegion == NULL || KernelRegion == NULL || TaskRunnerRegion == NULL) {
+        goto Out;
+    }
 
     UINT LowPml4Index = GetPml4Entry(0);
     UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
@@ -955,11 +995,11 @@ PHYSICAL AllocPageDirectory(void) {
     UINT KernelTableCount = KernelCoverageBytes >> PAGE_TABLE_CAPACITY_MUL;
     if (KernelTableCount == 0u) KernelTableCount = 1u;
 
-    if (SetupLowRegion(&LowRegion, 0u) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocPageDirectory] Low region tables=%u"), LowRegion.TableCount);
+    if (SetupLowRegion(LowRegion, 0u) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocPageDirectory] Low region tables=%u"), LowRegion->TableCount);
 
-    if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocPageDirectory] Kernel region tables=%u"), KernelRegion.TableCount);
+    if (SetupKernelRegion(KernelRegion, KernelTableCount) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocPageDirectory] Kernel region tables=%u"), KernelRegion->TableCount);
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
     PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
@@ -970,8 +1010,8 @@ PHYSICAL AllocPageDirectory(void) {
         VMA_KERNEL,
         TaskRunnerPhysical);
 
-    if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion.TableCount);
+    if (SetupTaskRunnerRegion(TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion->TableCount);
 
     Pml4Physical = AllocPhysicalPage();
 
@@ -995,9 +1035,9 @@ PHYSICAL AllocPageDirectory(void) {
         Pml4,
         LowPml4Index,
         MakePageDirectoryEntryValue(
-            LowRegion.PdptPhysical,
+            LowRegion->PdptPhysical,
             /*ReadWrite*/ 1,
-            LowRegion.Privilege,
+            LowRegion->Privilege,
             /*WriteThrough*/ 0,
             /*CacheDisabled*/ 0,
             /*Global*/ 0,
@@ -1007,7 +1047,7 @@ PHYSICAL AllocPageDirectory(void) {
         Pml4,
         KernelPml4Index,
         MakePageDirectoryEntryValue(
-            KernelRegion.PdptPhysical,
+            KernelRegion->PdptPhysical,
             /*ReadWrite*/ 1,
             PAGE_PRIVILEGE_KERNEL,
             /*WriteThrough*/ 0,
@@ -1019,7 +1059,7 @@ PHYSICAL AllocPageDirectory(void) {
         Pml4,
         TaskRunnerPml4Index,
         MakePageDirectoryEntryValue(
-            TaskRunnerRegion.PdptPhysical,
+            TaskRunnerRegion->PdptPhysical,
             /*ReadWrite*/ 1,
             PAGE_PRIVILEGE_USER,
             /*WriteThrough*/ 0,
@@ -1059,9 +1099,17 @@ Out:
         if (Pml4Physical != NULL) {
             FreePhysicalPage(Pml4Physical);
         }
-        ReleaseRegionSetup(&LowRegion);
-        ReleaseRegionSetup(&KernelRegion);
-        ReleaseRegionSetup(&TaskRunnerRegion);
+        ReleaseRegionSetup(LowRegion);
+        ReleaseRegionSetup(KernelRegion);
+        ReleaseRegionSetup(TaskRunnerRegion);
+    }
+
+Cleanup:
+    FreeRegionDescriptor(&LowRegion);
+    FreeRegionDescriptor(&KernelRegion);
+    FreeRegionDescriptor(&TaskRunnerRegion);
+
+    if (!Success) {
         return NULL;
     }
 
@@ -1076,17 +1124,21 @@ Out:
  * @return Physical address of the page directory or NULL on failure.
  */
 PHYSICAL AllocUserPageDirectory(void) {
-    REGION_SETUP LowRegion;
-    REGION_SETUP KernelRegion;
-    REGION_SETUP TaskRunnerRegion;
+    REGION_SETUP* LowRegion = NULL;
+    REGION_SETUP* KernelRegion = NULL;
+    REGION_SETUP* TaskRunnerRegion = NULL;
     PHYSICAL Pml4Physical = NULL;
     BOOL Success = FALSE;
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
-    ResetRegionSetup(&LowRegion);
-    ResetRegionSetup(&KernelRegion);
-    ResetRegionSetup(&TaskRunnerRegion);
+    LowRegion = AllocateRegionDescriptor(TEXT("Low"));
+    KernelRegion = AllocateRegionDescriptor(TEXT("Kernel"));
+    TaskRunnerRegion = AllocateRegionDescriptor(TEXT("TaskRunner"));
+
+    if (LowRegion == NULL || KernelRegion == NULL || TaskRunnerRegion == NULL) {
+        goto Out;
+    }
 
     UINT LowPml4Index = GetPml4Entry(0);
     UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
@@ -1097,11 +1149,11 @@ PHYSICAL AllocUserPageDirectory(void) {
     UINT KernelTableCount = KernelCoverageBytes >> PAGE_TABLE_CAPACITY_MUL;
     if (KernelTableCount == 0u) KernelTableCount = 1u;
 
-    if (SetupLowRegion(&LowRegion, USERLAND_SEEDED_TABLES) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocUserPageDirectory] Low region tables=%u"), LowRegion.TableCount);
+    if (SetupLowRegion(LowRegion, USERLAND_SEEDED_TABLES) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocUserPageDirectory] Low region tables=%u"), LowRegion->TableCount);
 
-    if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocUserPageDirectory] Kernel region tables=%u"), KernelRegion.TableCount);
+    if (SetupKernelRegion(KernelRegion, KernelTableCount) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocUserPageDirectory] Kernel region tables=%u"), KernelRegion->TableCount);
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
     PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
@@ -1112,19 +1164,19 @@ PHYSICAL AllocUserPageDirectory(void) {
         VMA_KERNEL,
         TaskRunnerPhysical);
 
-    if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion.TableCount);
+    if (SetupTaskRunnerRegion(TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion->TableCount);
 
     DEBUG(TEXT("[AllocUserPageDirectory] Regions low(pdpt=%p dir=%p priv=%u tables=%u) kernel(pdpt=%p dir=%p tables=%u) task(pdpt=%p dir=%p)"),
-        LowRegion.PdptPhysical,
-        LowRegion.DirectoryPhysical,
-        LowRegion.Privilege,
-        LowRegion.TableCount,
-        KernelRegion.PdptPhysical,
-        KernelRegion.DirectoryPhysical,
-        KernelRegion.TableCount,
-        TaskRunnerRegion.PdptPhysical,
-        TaskRunnerRegion.DirectoryPhysical);
+        LowRegion->PdptPhysical,
+        LowRegion->DirectoryPhysical,
+        LowRegion->Privilege,
+        LowRegion->TableCount,
+        KernelRegion->PdptPhysical,
+        KernelRegion->DirectoryPhysical,
+        KernelRegion->TableCount,
+        TaskRunnerRegion->PdptPhysical,
+        TaskRunnerRegion->DirectoryPhysical);
 
     Pml4Physical = AllocPhysicalPage();
 
@@ -1148,9 +1200,9 @@ PHYSICAL AllocUserPageDirectory(void) {
         Pml4,
         LowPml4Index,
         MakePageDirectoryEntryValue(
-            LowRegion.PdptPhysical,
+            LowRegion->PdptPhysical,
             /*ReadWrite*/ 1,
-            LowRegion.Privilege,
+            LowRegion->Privilege,
             /*WriteThrough*/ 0,
             /*CacheDisabled*/ 0,
             /*Global*/ 0,
@@ -1160,7 +1212,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         Pml4,
         KernelPml4Index,
         MakePageDirectoryEntryValue(
-            KernelRegion.PdptPhysical,
+            KernelRegion->PdptPhysical,
             /*ReadWrite*/ 1,
             PAGE_PRIVILEGE_KERNEL,
             /*WriteThrough*/ 0,
@@ -1172,7 +1224,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         Pml4,
         TaskRunnerPml4Index,
         MakePageDirectoryEntryValue(
-            TaskRunnerRegion.PdptPhysical,
+            TaskRunnerRegion->PdptPhysical,
             /*ReadWrite*/ 1,
             PAGE_PRIVILEGE_USER,
             /*WriteThrough*/ 0,
@@ -1212,9 +1264,17 @@ Out:
         if (Pml4Physical != NULL) {
             FreePhysicalPage(Pml4Physical);
         }
-        ReleaseRegionSetup(&LowRegion);
-        ReleaseRegionSetup(&KernelRegion);
-        ReleaseRegionSetup(&TaskRunnerRegion);
+        ReleaseRegionSetup(LowRegion);
+        ReleaseRegionSetup(KernelRegion);
+        ReleaseRegionSetup(TaskRunnerRegion);
+    }
+
+Cleanup:
+    FreeRegionDescriptor(&LowRegion);
+    FreeRegionDescriptor(&KernelRegion);
+    FreeRegionDescriptor(&TaskRunnerRegion);
+
+    if (!Success) {
         return NULL;
     }
 
