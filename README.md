@@ -65,17 +65,18 @@ This was a year-long solo project, developed the hard way:
 
 ## Things it does
 
-- Virtual memory management
+- Multi-architecture : i386, x86-64
+- Virtual memory management (paging)
 - Heap management (free lists)
 - Process spawning, task spawning, scheduling
 - File system management : FAT16, FAT32, EXT2, EXFS (EXOS file system)
 - I/O APIC management
 - PCI device management
-- ATA & SATA/AHCI Hard disk driver
-- ACPI Shutdown/reboot
+- ATA & SATA/AHCI hard disk drivers
+- ACPI shutdown/reboot
 - Console management
 - Basic keyboard and mouse management
-- Primitive graphics using VESA standard
+- Primitive graphics using VESA standard (broken)
 - Virtual file system with mount points
 - Scripted shell
 - Configuration with TOML format
@@ -86,12 +87,14 @@ This was a year-long solo project, developed the hard way:
 
 ## Metrics
 
+```
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              131          13610          13816          41192
-C/C++ Header                   128           3567           4234           8516
-Assembly                        16           1728           1092           4931
+C                              130          13683          13915          41583
+C/C++ Header                   129           3619           4264           8620
+Assembly                        16           1726           1104           4891
 -------------------------------------------------------------------------------
-SUM:                           275          18905          19142          54639
+SUM:                           275          19028          19283          55094
 -------------------------------------------------------------------------------
+```
