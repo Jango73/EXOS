@@ -257,51 +257,8 @@ static BOOL CreateSharedLowTable(
 
 /************************************************************************/
 
-static BOOL CaptureLowRegionSharedTables(void) {
-    if (LowRegionSharedTables.Captured) {
-        return TRUE;
-    }
-
-    LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(0);
-
-    if (CurrentDirectory == NULL) {
-        ERROR(TEXT("[SetupLowRegion] Unable to access current low directory to capture shared tables"));
-        return FALSE;
-    }
-
-    UINT LowDirectoryIndex = GetDirectoryEntry(0);
-    U64 BiosEntry = ReadPageDirectoryEntryValue(CurrentDirectory, LowDirectoryIndex);
-    U64 IdentityEntry = ReadPageDirectoryEntryValue(CurrentDirectory, LowDirectoryIndex + 1u);
-
-    if ((BiosEntry & PAGE_FLAG_PRESENT) == 0 || (BiosEntry & PAGE_FLAG_PAGE_SIZE) != 0) {
-        ERROR(TEXT("[SetupLowRegion] Current low directory[%u] not backed by a 4 KiB table"), LowDirectoryIndex);
-        return FALSE;
-    }
-
-    if ((IdentityEntry & PAGE_FLAG_PRESENT) == 0 || (IdentityEntry & PAGE_FLAG_PAGE_SIZE) != 0) {
-        ERROR(TEXT("[SetupLowRegion] Current low directory[%u] not backed by a 4 KiB table"), LowDirectoryIndex + 1u);
-        return FALSE;
-    }
-
-    LowRegionSharedTables.BiosTablePhysical = (PHYSICAL)(BiosEntry & PAGE_MASK);
-    LowRegionSharedTables.IdentityTablePhysical = (PHYSICAL)(IdentityEntry & PAGE_MASK);
-    LowRegionSharedTables.Captured = TRUE;
-
-    DEBUG(TEXT("[SetupLowRegion] Captured shared low tables bios=%p identity=%p"),
-        LowRegionSharedTables.BiosTablePhysical,
-        LowRegionSharedTables.IdentityTablePhysical);
-
-    return TRUE;
-}
-
-/************************************************************************/
-
 static BOOL EnsureLowRegionSharedTables(void) {
     if (LowRegionSharedTables.Captured) {
-        return TRUE;
-    }
-
-    if (CaptureLowRegionSharedTables()) {
         return TRUE;
     }
 
@@ -318,6 +275,10 @@ static BOOL EnsureLowRegionSharedTables(void) {
     }
 
     LowRegionSharedTables.Captured = TRUE;
+
+    DEBUG(TEXT("[SetupLowRegion] Initialized shared low tables bios=%p identity=%p"),
+        LowRegionSharedTables.BiosTablePhysical,
+        LowRegionSharedTables.IdentityTablePhysical);
 
     return TRUE;
 }
