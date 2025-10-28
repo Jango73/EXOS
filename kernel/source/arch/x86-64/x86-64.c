@@ -355,6 +355,8 @@ static BOOL AllocateTableAndPopulate(
     PAGE_TABLE_SETUP* Table,
     LPPAGE_DIRECTORY Directory) {
 
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] begin"), Region->Label, Table->DirectoryIndex);
+
     Table->Physical = AllocPhysicalPage();
 
     if (Table->Physical == NULL) {
@@ -451,6 +453,8 @@ static BOOL AllocateTableAndPopulate(
         Region->Label,
         Table->DirectoryIndex,
         Table->Physical);
+
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] complete"), Region->Label, Table->DirectoryIndex);
 
     return TRUE;
 }
@@ -566,6 +570,8 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         }
     }
 
+    DEBUG(TEXT("[SetupLowRegion] Completed table count %u"), Region->TableCount);
+
     return TRUE;
 }
 
@@ -679,6 +685,8 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
         Region->TableCount++;
     }
 
+    DEBUG(TEXT("[SetupKernelRegion] Completed table count %u"), Region->TableCount);
+
     return TRUE;
 }
 
@@ -761,6 +769,7 @@ static BOOL SetupTaskRunnerRegion(
     }
 
     Region->TableCount++;
+    DEBUG(TEXT("[SetupTaskRunnerRegion] Completed table count %u"), Region->TableCount);
     return TRUE;
 }
 
@@ -811,7 +820,10 @@ PHYSICAL AllocPageDirectory(void) {
     if (KernelTableCount == 0u) KernelTableCount = 1u;
 
     if (SetupLowRegion(&LowRegion, 0u) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocPageDirectory] Low region tables=%u"), LowRegion.TableCount);
+
     if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocPageDirectory] Kernel region tables=%u"), KernelRegion.TableCount);
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
     PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
@@ -823,6 +835,7 @@ PHYSICAL AllocPageDirectory(void) {
         TaskRunnerPhysical);
 
     if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion.TableCount);
 
     Pml4Physical = AllocPhysicalPage();
 
@@ -949,7 +962,10 @@ PHYSICAL AllocUserPageDirectory(void) {
     if (KernelTableCount == 0u) KernelTableCount = 1u;
 
     if (SetupLowRegion(&LowRegion, USERLAND_SEEDED_TABLES) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocUserPageDirectory] Low region tables=%u"), LowRegion.TableCount);
+
     if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocUserPageDirectory] Kernel region tables=%u"), KernelRegion.TableCount);
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
     PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
@@ -961,6 +977,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         TaskRunnerPhysical);
 
     if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
+    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion.TableCount);
 
     DEBUG(TEXT("[AllocUserPageDirectory] Regions low(pdpt=%p dir=%p priv=%u tables=%u) kernel(pdpt=%p dir=%p tables=%u) task(pdpt=%p dir=%p)"),
         LowRegion.PdptPhysical,
