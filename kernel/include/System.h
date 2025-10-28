@@ -46,7 +46,7 @@ extern U32 IRQMask_A1_RM;
 /***************************************************************************/
 // System call helpers
 
-#define SYSCALL_PARAM(Value) ((UINT)(LINEAR)(Value))
+#define SYSCALL_PARAM(Value) ((UINT)(Value))
 
 #if defined(__EXOS_ARCH_I386__)
 
