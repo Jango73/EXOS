@@ -362,6 +362,12 @@ static BOOL AllocateTableAndPopulate(
         return FALSE;
     }
 
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] physical %p mode %u"),
+        Region->Label,
+        Table->DirectoryIndex,
+        Table->Physical,
+        (UINT)Table->Mode);
+
     LINEAR TableLinear = MapTemporaryPhysicalPage3(Table->Physical);
 
     if (TableLinear == NULL) {
@@ -370,6 +376,11 @@ static BOOL AllocateTableAndPopulate(
         Table->Physical = NULL;
         return FALSE;
     }
+
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] mapped at %p"),
+        Region->Label,
+        Table->DirectoryIndex,
+        TableLinear);
 
     LPPAGE_TABLE TableVA = (LPPAGE_TABLE)TableLinear;
     MemorySet(TableVA, 0, PAGE_SIZE);
@@ -461,6 +472,11 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     Region->Privilege = (UserSeedTables != 0u) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL;
     Region->Global = 0;
 
+    DEBUG(TEXT("[SetupLowRegion] Config PdptIndex=%u Privilege=%u UserSeedTables=%u"),
+        Region->PdptIndex,
+        Region->Privilege,
+        UserSeedTables);
+
     Region->PdptPhysical = AllocPhysicalPage();
     Region->DirectoryPhysical = AllocPhysicalPage();
 
@@ -478,6 +494,8 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         return FALSE;
     }
 
+    DEBUG(TEXT("[SetupLowRegion] PDPT mapped at %p"), Pdpt);
+
     MemorySet(Pdpt, 0, PAGE_SIZE);
 
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
@@ -486,6 +504,8 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for low directory"));
         return FALSE;
     }
+
+    DEBUG(TEXT("[SetupLowRegion] Directory mapped at %p"), Directory);
 
     MemorySet(Directory, 0, PAGE_SIZE);
 
@@ -511,6 +531,9 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     Region->Tables[Region->TableCount].Mode = PAGE_TABLE_POPULATE_IDENTITY;
     Region->Tables[Region->TableCount].Data.Identity.PhysicalBase = 0;
     Region->Tables[Region->TableCount].Data.Identity.ProtectBios = TRUE;
+    DEBUG(TEXT("[SetupLowRegion] Preparing BIOS table index %u protect %u"),
+        Region->Tables[Region->TableCount].DirectoryIndex,
+        Region->Tables[Region->TableCount].Data.Identity.ProtectBios);
     if (AllocateTableAndPopulate(Region, &Region->Tables[Region->TableCount], Directory) == FALSE) return FALSE;
     Region->TableCount++;
 
@@ -521,6 +544,9 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     Region->Tables[Region->TableCount].Mode = PAGE_TABLE_POPULATE_IDENTITY;
     Region->Tables[Region->TableCount].Data.Identity.PhysicalBase = ((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_SIZE_MUL);
     Region->Tables[Region->TableCount].Data.Identity.ProtectBios = FALSE;
+    DEBUG(TEXT("[SetupLowRegion] Preparing low identity table index %u base %p"),
+        Region->Tables[Region->TableCount].DirectoryIndex,
+        Region->Tables[Region->TableCount].Data.Identity.PhysicalBase);
     if (AllocateTableAndPopulate(Region, &Region->Tables[Region->TableCount], Directory) == FALSE) return FALSE;
     Region->TableCount++;
 
@@ -534,6 +560,7 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
             Table->Privilege = PAGE_PRIVILEGE_USER;
             Table->Global = 0;
             Table->Mode = PAGE_TABLE_POPULATE_EMPTY;
+            DEBUG(TEXT("[SetupLowRegion] Preparing user seed table slot=%u"), Table->DirectoryIndex);
             if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) return FALSE;
             Region->TableCount++;
         }
@@ -935,6 +962,17 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
 
+    DEBUG(TEXT("[AllocUserPageDirectory] Regions low(pdpt=%p dir=%p priv=%u tables=%u) kernel(pdpt=%p dir=%p tables=%u) task(pdpt=%p dir=%p)"),
+        LowRegion.PdptPhysical,
+        LowRegion.DirectoryPhysical,
+        LowRegion.Privilege,
+        LowRegion.TableCount,
+        KernelRegion.PdptPhysical,
+        KernelRegion.DirectoryPhysical,
+        KernelRegion.TableCount,
+        TaskRunnerRegion.PdptPhysical,
+        TaskRunnerRegion.DirectoryPhysical);
+
     Pml4Physical = AllocPhysicalPage();
 
     if (Pml4Physical == NULL) {
@@ -951,7 +989,7 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Linear;
     MemorySet(Pml4, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocUserPageDirectory] PML4 mapped"));
+    DEBUG(TEXT("[AllocUserPageDirectory] PML4 mapped at %p"), Pml4);
 
     WritePageDirectoryEntryValue(
         Pml4,
