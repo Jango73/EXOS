@@ -58,7 +58,6 @@ typedef struct __attribute__((packed)) tag_EXOS_ELF32_PHDR {
     U32 p_align;
 } EXOS_ELF32_PHDR;
 
-#if defined(__EXOS_ARCH_X86_64__)
 typedef struct __attribute__((packed)) tag_EXOS_ELF64_EHDR {
     U8 e_ident[EI_NIDENT];
     U16 e_type;
@@ -86,7 +85,6 @@ typedef struct __attribute__((packed)) tag_EXOS_ELF64_PHDR {
     U64 p_memsz;
     U64 p_align;
 } EXOS_ELF64_PHDR;
-#endif
 
 /************************************************************************/
 // Local helpers
@@ -115,10 +113,8 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     FILEOPERATION FileOperation;
     EXOS_ELF32_EHDR Ehdr32;
     EXOS_ELF32_PHDR Phdr32;
-#if defined(__EXOS_ARCH_X86_64__)
     EXOS_ELF64_EHDR Ehdr64;
     EXOS_ELF64_PHDR Phdr64;
-#endif
     U32 FileSize;
     U32 Sig;
     U32 i;
@@ -277,6 +273,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
 
         DEBUG(TEXT("Exiting GetExecutableInfo_ELF (success)"));
         return TRUE;
+
 #if defined(__EXOS_ARCH_X86_64__)
     } else if (Class == ELFCLASS64) {
         UINT CodeMin = MAX_UINT, CodeMax = 0;
@@ -402,6 +399,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
         DEBUG(TEXT("Exiting GetExecutableInfo_ELF (success)"));
         return TRUE;
 #endif
+
     }
 
 Out_Error:
