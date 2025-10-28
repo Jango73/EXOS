@@ -33,6 +33,9 @@
 #include "Text.h"
 #include "VarArg.h"
 
+static STR G_LogTimeBuffer[128];
+static STR G_LogTextBuffer[MAX_STRING_BUFFER];
+
 /************************************************************************/
 
 /**
@@ -80,47 +83,45 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
     FreezeScheduler();
     DisableInterrupts();
 
-    STR TimeBuffer[128];
-    STR TextBuffer[MAX_STRING_BUFFER];
     VarArgList Args;
 
     UINT Time = GetSystemTime();
-    StringPrintFormat(TimeBuffer, TEXT("T%u> "), (U32)Time);
+    StringPrintFormat(G_LogTimeBuffer, TEXT("T%u> "), (U32)Time);
 
     VarArgStart(Args, Format);
-    StringPrintFormatArgs(TextBuffer, Format, Args);
+    StringPrintFormatArgs(G_LogTextBuffer, Format, Args);
     VarArgEnd(Args);
 
     switch (Type) {
         case LOG_DEBUG: {
-            KernelPrintString(TimeBuffer);
+            KernelPrintString(G_LogTimeBuffer);
             KernelPrintString(TEXT("DEBUG > "));
-            KernelPrintString(TextBuffer);
+            KernelPrintString(G_LogTextBuffer);
             KernelPrintString(Text_NewLine);
         } break;
 
         default:
         case LOG_VERBOSE: {
-            KernelPrintString(TimeBuffer);
-            KernelPrintString(TextBuffer);
+            KernelPrintString(G_LogTimeBuffer);
+            KernelPrintString(G_LogTextBuffer);
             KernelPrintString(Text_NewLine);
-            ConsolePrint(TextBuffer);
+            ConsolePrint(G_LogTextBuffer);
             ConsolePrint(Text_NewLine);
         } break;
 
         case LOG_WARNING: {
-            KernelPrintString(TimeBuffer);
+            KernelPrintString(G_LogTimeBuffer);
             KernelPrintString(TEXT("WARNING > "));
-            KernelPrintString(TextBuffer);
+            KernelPrintString(G_LogTextBuffer);
             KernelPrintString(Text_NewLine);
         } break;
 
         case LOG_ERROR: {
-            KernelPrintString(TimeBuffer);
+            KernelPrintString(G_LogTimeBuffer);
             KernelPrintString(TEXT("ERROR > "));
-            KernelPrintString(TextBuffer);
+            KernelPrintString(G_LogTextBuffer);
             KernelPrintString(Text_NewLine);
-            ConsolePrint(TextBuffer);
+            ConsolePrint(G_LogTextBuffer);
             ConsolePrint(Text_NewLine);
         } break;
     }

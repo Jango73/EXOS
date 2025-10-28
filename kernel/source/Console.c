@@ -33,6 +33,9 @@
 #include "VKey.h"
 #include "VarArg.h"
 
+static STR G_ConsoleFormatBuffer[MAX_STRING_BUFFER];
+static STR G_ConsolePanicBuffer[0x1000];
+
 /***************************************************************************/
 
 #define CHARATTR (Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07))
@@ -281,19 +284,19 @@ static void ConsolePrintString(LPCSTR Text) {
  * @return TRUE on success.
  */
 void ConsolePrint(LPCSTR Format, ...) {
-    STR Text[MAX_STRING_BUFFER];
     VarArgList Args;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     VarArgStart(Args, Format);
-    StringPrintFormatArgs(Text, Format, Args);
+    StringPrintFormatArgs(G_ConsoleFormatBuffer, Format, Args);
     VarArgEnd(Args);
 
-    ConsolePrintString(Text);
+    ConsolePrintString(G_ConsoleFormatBuffer);
 
     UnlockMutex(MUTEX_CONSOLE);
 }
+
 
 /***************************************************************************/
 
@@ -391,20 +394,20 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
  * @return TRUE on success.
  */
 void ConsolePanic(LPCSTR Format, ...) {
-    STR Text[0x1000];
     VarArgList Args;
 
     DisableInterrupts();
 
     VarArgStart(Args, Format);
-    StringPrintFormatArgs(Text, Format, Args);
+    StringPrintFormatArgs(G_ConsolePanicBuffer, Format, Args);
     VarArgEnd(Args);
 
-    ConsolePrintString(Text);
+    ConsolePrintString(G_ConsolePanicBuffer);
     ConsolePrintString(TEXT("\n>>> Halting system <<<"));
 
     DO_THE_SLEEPING_BEAUTY;
 }
+
 
 /***************************************************************************/
 
