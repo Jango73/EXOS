@@ -1503,9 +1503,22 @@ BOOL IsValidMemory(LINEAR Address) {
  */
 void PreInitializeKernel(void) {
     GDT_REGISTER Gdtr;
+    U64 Cr0;
+    U64 Cr4;
 
     ReadGlobalDescriptorTable(&Gdtr);
     Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
+
+    __asm__ volatile("mov %%cr0, %0" : "=r"(Cr0));
+    Cr0 |= (U64)CR0_COPROCESSOR;
+    Cr0 &= ~(U64)CR0_EMULATION;
+    __asm__ volatile("mov %0, %%cr0" : : "r"(Cr0));
+
+    __asm__ volatile("mov %%cr4, %0" : "=r"(Cr4));
+    Cr4 |= (U64)(CR4_OSFXSR | CR4_OSXMMEXCPT);
+    __asm__ volatile("mov %0, %%cr4" : : "r"(Cr4));
+
+    DEBUG(TEXT("[PreInitializeKernel] Enabled SSE support"));
 }
 
 /************************************************************************/
