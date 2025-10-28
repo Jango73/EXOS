@@ -25,4 +25,7 @@ qemu-system-x86_64 \
 -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
 -monitor telnet:127.0.0.1:4444,server,nowait \
 -serial file:"log/debug-com1.log" \
--serial file:"log/kernel.log"
+-serial file:"log/kernel.log" \
+-vga std \
+-no-reboot \
+-monitor stdio
