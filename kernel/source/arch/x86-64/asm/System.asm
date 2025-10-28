@@ -24,6 +24,8 @@
 %include "x86-64.inc"
 %include "System.inc"
 
+extern SystemCallHandler
+
 ;-------------------------------------------------------------------------
 
 section .data
@@ -494,9 +496,7 @@ SYS_FUNC_END
 
 SYS_FUNC_BEGIN DoSystemCall
     push    rbx
-    mov     eax, edi
-    mov     rbx, rsi
-    syscall
+    call    SystemCallHandler
     pop     rbx
 SYS_FUNC_END
 
