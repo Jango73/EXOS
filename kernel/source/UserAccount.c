@@ -356,7 +356,6 @@ BOOL SaveUserDatabase(void) {
         return FALSE;
     }
 
-    VERBOSE(TEXT("Saved %u user accounts to database"), SavedCount);
     return TRUE;
 }
 
