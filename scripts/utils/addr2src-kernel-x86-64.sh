@@ -36,14 +36,27 @@ echo ""
 
 # Extract file and line number
 FILE=$(echo "$LOCATION" | cut -d: -f1)
-LINE=$(echo "$LOCATION" | cut -d: -f2)
+LINE=$(echo "$LOCATION" | sed -n 's/.*:\([0-9][0-9]*\).*/\1/p')
+
+if [ -z "$LINE" ]; then
+    echo "Unable to parse line number from location: $LOCATION"
+    exit 1
+fi
 
 if [ -f "$FILE" ]; then
     echo "=== Source Code ==="
     # Show 5 lines before and after
     awk -v line="$LINE" '
-        NR >= line-5 && NR <= line+5 {
-            if (NR == line) 
+        BEGIN {
+            target = line + 0
+            start = target - 5
+            end = target + 5
+            if (start < 1) {
+                start = 1
+            }
+        }
+        NR >= start && NR <= end {
+            if (NR == target) 
                 printf ">>> %4d: %s\n", NR, $0
             else 
                 printf "    %4d: %s\n", NR, $0

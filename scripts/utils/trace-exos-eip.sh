@@ -19,8 +19,10 @@ fi
 echo "Parsing EIP values from $TRACE_LOG and disassembling each instruction..."
 echo "======================================================================"
 
-# Extract all EIP values and disassemble each one
-grep "EIP=" "$TRACE_LOG" | sed 's/.*EIP=\([0-9a-fA-F]*\).*/\1/' | while read -r eip; do
+# Extract all EIP values (EIP=xxxx or EIP : xxxx) and disassemble each one
+grep -E "EIP[[:space:]]*[=:]" "$TRACE_LOG" | \
+    sed -n 's/.*EIP[[:space:]]*[=:][[:space:]]*\([0-9a-fA-F]*\).*/\1/p' | \
+    while read -r eip; do
     if [ -n "$eip" ]; then
         $ADDR_TO_SRC 0x$eip
     fi
