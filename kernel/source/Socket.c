@@ -626,7 +626,7 @@ U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Addr
             }
 
             DEBUG(TEXT("[SocketConnect] Waiting for network to be ready..."));
-            DoSystemCall(SYSCALL_Sleep, 1000);
+            DoSystemCall(SYSCALL_Sleep, SYSCALL_PARAM(1000));
         }
 
         // Create TCP connection

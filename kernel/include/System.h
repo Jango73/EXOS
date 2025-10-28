@@ -43,6 +43,11 @@ extern U32 IRQMask_A1_RM;
 
 // Functions in System.asm
 
+/***************************************************************************/
+// System call helpers
+
+#define SYSCALL_PARAM(Value) ((UINT)(LINEAR)(Value))
+
 #if defined(__EXOS_ARCH_I386__)
 
 extern U32 SaveRegisters(LPINTEL_32_REGISTERS Registers);

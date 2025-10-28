@@ -859,7 +859,7 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Header.Size = sizeof Info;
     Info.Header.Version = EXOS_ABI_VERSION;
     Info.Header.Flags = 0;
-    DoSystemCall(SYSCALL_GetSystemInfo, (UINT)&Info);
+    DoSystemCall(SYSCALL_GetSystemInfo, SYSCALL_PARAM(&Info));
 
     ConsolePrint(TEXT("Total physical memory     : %u KB\n"), Info.TotalPhysicalMemory / N_1KB);
     ConsolePrint(TEXT("Physical memory used      : %u KB\n"), Info.PhysicalMemoryUsed / N_1KB);
@@ -988,10 +988,10 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
             FileOpenInfo.Name = FileName;
             FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
-            Handle = DoSystemCall(SYSCALL_OpenFile, (UINT)&FileOpenInfo);
+            Handle = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
 
             if (Handle) {
-                FileSize = DoSystemCall(SYSCALL_GetFileSize, Handle);
+                FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(Handle));
 
                 if (FileSize) {
                     Buffer = (U8*)HeapAlloc(FileSize + 1);
@@ -1004,7 +1004,7 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
                         FileOperation.NumBytes = FileSize;
                         FileOperation.Buffer = Buffer;
 
-                        if (DoSystemCall(SYSCALL_ReadFile, (UINT)&FileOperation)) {
+                        if (DoSystemCall(SYSCALL_ReadFile, SYSCALL_PARAM(&FileOperation))) {
                             Buffer[FileSize] = STR_NULL;
                             ConsolePrint((LPSTR)Buffer);
                         }
@@ -1012,7 +1012,7 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
                         HeapFree(Buffer);
                     }
                 }
-                DoSystemCall(SYSCALL_DeleteObject, Handle);
+                DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
             }
         }
     }
@@ -1047,7 +1047,7 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = SrcName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
-    SrcFile = DoSystemCall(SYSCALL_OpenFile, (UINT)&FileOpenInfo);
+    SrcFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
     if (SrcFile == NULL) return DF_ERROR_SUCCESS;
 
     FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
@@ -1055,13 +1055,13 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = DstName;
     FileOpenInfo.Flags = FILE_OPEN_WRITE;
-    DstFile = DoSystemCall(SYSCALL_OpenFile, (UINT)&FileOpenInfo);
+    DstFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
     if (DstFile == NULL) {
-        DoSystemCall(SYSCALL_DeleteObject, SrcFile);
+        DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
         return DF_ERROR_SUCCESS;
     }
 
-    FileSize = DoSystemCall(SYSCALL_GetFileSize, SrcFile);
+    FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(SrcFile));
 
     if (FileSize != 0) {
         for (Index = 0; Index < FileSize; Index += 1024) {
@@ -1088,8 +1088,8 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
         }
     }
 
-    DoSystemCall(SYSCALL_DeleteObject, SrcFile);
-    DoSystemCall(SYSCALL_DeleteObject, DstFile);
+    DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
+    DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(DstFile));
 
     return DF_ERROR_SUCCESS;
 }

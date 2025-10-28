@@ -888,7 +888,7 @@ static BOOL SaveFile(LPEDITFILE File) {
     Info.Name = File->Name;
     Info.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
 
-    Handle = DoSystemCall(SYSCALL_OpenFile, (UINT)&Info);
+    Handle = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&Info));
     if (Handle) {
         LPEDITLINE LastContentLine = NULL;
 
@@ -910,11 +910,11 @@ static BOOL SaveFile(LPEDITFILE File) {
                 Operation.File = Handle;
                 Operation.Buffer = Line->Chars;
                 Operation.NumBytes = Line->NumChars;
-                DoSystemCall(SYSCALL_WriteFile, (UINT)&Operation);
+                DoSystemCall(SYSCALL_WriteFile, SYSCALL_PARAM(&Operation));
 
                 Operation.Buffer = CRLF;
                 Operation.NumBytes = 2;
-                DoSystemCall(SYSCALL_WriteFile, (UINT)&Operation);
+                DoSystemCall(SYSCALL_WriteFile, SYSCALL_PARAM(&Operation));
 
                 if (Line == LastContentLine) {
                     break;
@@ -923,7 +923,7 @@ static BOOL SaveFile(LPEDITFILE File) {
         }
 
         File->Modified = FALSE;
-        DoSystemCall(SYSCALL_DeleteObject, Handle);
+        DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
     } else {
         VERBOSE(TEXT("Could not save file '%s'\n"), File->Name);
     }
@@ -1869,10 +1869,10 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
     Info.Name = Name;
     Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
-    Handle = DoSystemCall(SYSCALL_OpenFile, (UINT)&Info);
+    Handle = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&Info));
 
     if (Handle) {
-        FileSize = DoSystemCall(SYSCALL_GetFileSize, Handle);
+        FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(Handle));
         if (FileSize) {
             Buffer = HeapAlloc(FileSize + 1);
             if (Buffer) {
@@ -1885,7 +1885,7 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
                 FileOperation.NumBytes = FileSize;
                 FileOperation.Buffer = Buffer;
 
-                if (DoSystemCall(SYSCALL_ReadFile, (UINT)&FileOperation)) {
+                if (DoSystemCall(SYSCALL_ReadFile, SYSCALL_PARAM(&FileOperation))) {
                     File = NewEditFile();
                     if (File) {
                         File->Name = HeapAlloc(StringLength(Name) + 1);
@@ -1945,7 +1945,7 @@ static BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
         if (File) {
             File->Modified = FALSE;
         }
-        DoSystemCall(SYSCALL_DeleteObject, Handle);
+        DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
     } else {
         File = NewEditFile();
         if (File) {

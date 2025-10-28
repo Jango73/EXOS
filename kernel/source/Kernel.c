@@ -207,7 +207,7 @@ U32 ClockTestTask(LPVOID Param) {
     UINT OldTime = 0;
 
     FOREVER {
-        Time = DoSystemCall(SYSCALL_GetSystemTime, 0);
+        Time = DoSystemCall(SYSCALL_GetSystemTime, SYSCALL_PARAM(0));
 
         if (Time - OldTime >= 1000) {
             OldTime = Time;
@@ -219,7 +219,7 @@ U32 ClockTestTask(LPVOID Param) {
             SetConsoleCursorPosition(OldX, OldY);
         }
 
-        DoSystemCall(SYSCALL_Sleep, 500);
+        DoSystemCall(SYSCALL_Sleep, SYSCALL_PARAM(500));
     }
 
     TRACED_EPILOGUE("ClockTestTask");

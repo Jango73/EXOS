@@ -403,7 +403,7 @@ U32 NetworkManagerTask(LPVOID param) {
 
         tickCount++;
 
-        DoSystemCall(SYSCALL_Sleep, 5);
+        DoSystemCall(SYSCALL_Sleep, SYSCALL_PARAM(5));
     }
 
     return 0;
