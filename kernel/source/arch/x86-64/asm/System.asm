@@ -496,6 +496,9 @@ SYS_FUNC_END
 
 SYS_FUNC_BEGIN DoSystemCall
     push    rbx
+    mov     eax, edi                ; Ensure the syscall index is zero-extended
+    mov     rdi, rax                ; System V AMD64: first argument in RDI
+    ; The second argument (Parameter) is already provided in RSI by the caller
     call    SystemCallHandler
     pop     rbx
 SYS_FUNC_END
