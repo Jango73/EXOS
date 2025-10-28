@@ -49,7 +49,9 @@ low-memory and kernel PDPTs, wires the task-runner window, and programs
 the recursive slot before returning the new PML4. `AllocUserPageDirectory`
 reuses those helpers but also reserves an empty userland page table so
 `AllocRegion` can immediately populate process space without reconstructing
-the hierarchy first.
+the hierarchy first. The low-memory region builder keeps a cached pair of
+BIOS-protected and general identity tables so new page directories only
+consume fresh pages for their PDPT, directory, and any userland seed tables.
 
 ### Kernel object identifiers
 
