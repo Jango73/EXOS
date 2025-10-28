@@ -316,7 +316,7 @@ const scripts = loadScripts();
 // Initialize blessed screen
 screen = blessed.screen({
     smartCSR: true,
-    title: 'Script Runner'
+    title: 'Dashboard'
 });
 
 const sidebar = blessed.box({
