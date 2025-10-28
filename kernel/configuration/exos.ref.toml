@@ -14,7 +14,7 @@
 # Path="<path to an executable>"
 
 [General]
-# You may force a monotask system below
+# You may force a monotask system below, but a lot of things won't work (network, task & process termination, ...)
 # Mono=1
 # You may force a quantum time using the entry below
 # Quantum=10
