@@ -171,16 +171,18 @@ typedef struct _REGION_SETUP {
 typedef struct _LOW_REGION_SHARED_TABLES {
     PHYSICAL BiosTablePhysical;
     PHYSICAL IdentityTablePhysical;
+    BOOL Captured;
 } LOW_REGION_SHARED_TABLES;
 
 static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
     .BiosTablePhysical = NULL,
     .IdentityTablePhysical = NULL,
+    .Captured = FALSE,
 };
 
 /************************************************************************/
 
-static BOOL EnsureSharedLowTable(
+static BOOL CreateSharedLowTable(
     PHYSICAL* TablePhysical,
     PHYSICAL PhysicalBase,
     BOOL ProtectBios,
@@ -249,6 +251,73 @@ static BOOL EnsureSharedLowTable(
     *TablePhysical = Physical;
 
     DEBUG(TEXT("[SetupLowRegion] Shared %s table prepared at %p (base %p)"), Label, Physical, PhysicalBase);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL CaptureLowRegionSharedTables(void) {
+    if (LowRegionSharedTables.Captured) {
+        return TRUE;
+    }
+
+    LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(0);
+
+    if (CurrentDirectory == NULL) {
+        ERROR(TEXT("[SetupLowRegion] Unable to access current low directory to capture shared tables"));
+        return FALSE;
+    }
+
+    UINT LowDirectoryIndex = GetDirectoryEntry(0);
+    U64 BiosEntry = ReadPageDirectoryEntryValue(CurrentDirectory, LowDirectoryIndex);
+    U64 IdentityEntry = ReadPageDirectoryEntryValue(CurrentDirectory, LowDirectoryIndex + 1u);
+
+    if ((BiosEntry & PAGE_FLAG_PRESENT) == 0 || (BiosEntry & PAGE_FLAG_PAGE_SIZE) != 0) {
+        ERROR(TEXT("[SetupLowRegion] Current low directory[%u] not backed by a 4 KiB table"), LowDirectoryIndex);
+        return FALSE;
+    }
+
+    if ((IdentityEntry & PAGE_FLAG_PRESENT) == 0 || (IdentityEntry & PAGE_FLAG_PAGE_SIZE) != 0) {
+        ERROR(TEXT("[SetupLowRegion] Current low directory[%u] not backed by a 4 KiB table"), LowDirectoryIndex + 1u);
+        return FALSE;
+    }
+
+    LowRegionSharedTables.BiosTablePhysical = (PHYSICAL)(BiosEntry & PAGE_MASK);
+    LowRegionSharedTables.IdentityTablePhysical = (PHYSICAL)(IdentityEntry & PAGE_MASK);
+    LowRegionSharedTables.Captured = TRUE;
+
+    DEBUG(TEXT("[SetupLowRegion] Captured shared low tables bios=%p identity=%p"),
+        LowRegionSharedTables.BiosTablePhysical,
+        LowRegionSharedTables.IdentityTablePhysical);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL EnsureLowRegionSharedTables(void) {
+    if (LowRegionSharedTables.Captured) {
+        return TRUE;
+    }
+
+    if (CaptureLowRegionSharedTables()) {
+        return TRUE;
+    }
+
+    if (CreateSharedLowTable(&LowRegionSharedTables.BiosTablePhysical, 0, TRUE, TEXT("BIOS")) == FALSE) {
+        return FALSE;
+    }
+
+    if (CreateSharedLowTable(
+            &LowRegionSharedTables.IdentityTablePhysical,
+            ((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_SIZE_MUL),
+            FALSE,
+            TEXT("low identity")) == FALSE) {
+        return FALSE;
+    }
+
+    LowRegionSharedTables.Captured = TRUE;
 
     return TRUE;
 }
@@ -568,15 +637,7 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         Region->Privilege,
         UserSeedTables);
 
-    if (EnsureSharedLowTable(&LowRegionSharedTables.BiosTablePhysical, 0, TRUE, TEXT("BIOS")) == FALSE) {
-        return FALSE;
-    }
-
-    if (EnsureSharedLowTable(
-            &LowRegionSharedTables.IdentityTablePhysical,
-            ((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_SIZE_MUL),
-            FALSE,
-            TEXT("low identity")) == FALSE) {
+    if (EnsureLowRegionSharedTables() == FALSE) {
         return FALSE;
     }
 
