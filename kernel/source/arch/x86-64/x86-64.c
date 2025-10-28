@@ -458,7 +458,7 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     Region->Label = TEXT("Low");
     Region->PdptIndex = GetPdptEntry(0);
     Region->ReadWrite = 1;
-    Region->Privilege = PAGE_PRIVILEGE_KERNEL;
+    Region->Privilege = (UserSeedTables != 0u) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL;
     Region->Global = 0;
 
     Region->PdptPhysical = AllocPhysicalPage();
@@ -821,7 +821,7 @@ PHYSICAL AllocPageDirectory(void) {
         MakePageDirectoryEntryValue(
             LowRegion.PdptPhysical,
             /*ReadWrite*/ 1,
-            PAGE_PRIVILEGE_KERNEL,
+            LowRegion.Privilege,
             /*WriteThrough*/ 0,
             /*CacheDisabled*/ 0,
             /*Global*/ 0,
@@ -959,7 +959,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         MakePageDirectoryEntryValue(
             LowRegion.PdptPhysical,
             /*ReadWrite*/ 1,
-            PAGE_PRIVILEGE_KERNEL,
+            LowRegion.Privilege,
             /*WriteThrough*/ 0,
             /*CacheDisabled*/ 0,
             /*Global*/ 0,
