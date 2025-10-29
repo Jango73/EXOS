@@ -159,9 +159,24 @@ section .text
 ;    add     rsp, r15
 %endmacro
 
-SYSCALL_SAVE_SIZE      equ (15 * 8)
-SYSCALL_SAVE_RAX       equ 0
-SYSCALL_SAVE_RBX       equ 8
+SYSCALL_SAVE_SIZE          equ (15 * 8)
+SYSCALL_SAVE_RAX           equ 0
+SYSCALL_SAVE_RBX           equ 8
+SYSCALL_SAVE_RCX           equ (SYSCALL_SAVE_RBX + 8)
+SYSCALL_SAVE_RDX           equ (SYSCALL_SAVE_RCX + 8)
+SYSCALL_SAVE_RBP           equ (SYSCALL_SAVE_RDX + 8)
+SYSCALL_SAVE_RSI           equ (SYSCALL_SAVE_RBP + 8)
+SYSCALL_SAVE_RDI           equ (SYSCALL_SAVE_RSI + 8)
+SYSCALL_SAVE_R8            equ (SYSCALL_SAVE_RDI + 8)
+SYSCALL_SAVE_R9            equ (SYSCALL_SAVE_R8 + 8)
+SYSCALL_SAVE_R10           equ (SYSCALL_SAVE_R9 + 8)
+SYSCALL_SAVE_R11           equ (SYSCALL_SAVE_R10 + 8)
+SYSCALL_SAVE_R12           equ (SYSCALL_SAVE_R11 + 8)
+SYSCALL_SAVE_R13           equ (SYSCALL_SAVE_R12 + 8)
+SYSCALL_SAVE_R14           equ (SYSCALL_SAVE_R13 + 8)
+SYSCALL_SAVE_R15           equ (SYSCALL_SAVE_R14 + 8)
+SYSCALL_SAVE_USER_RBX      equ SYSCALL_SAVE_SIZE
+SYSCALL_SAVE_USER_RIP      equ (SYSCALL_SAVE_USER_RBX + 8)
 
 ;-------------------------------------------------------------------------
 
@@ -484,9 +499,15 @@ Interrupt_SystemCall:
 
     mov     rsp, r15
 
+    mov     rdx, [rsp + SYSCALL_SAVE_USER_RIP]
+    mov     r8, [rsp + SYSCALL_SAVE_RCX]
+    mov     [rsp + SYSCALL_SAVE_USER_RIP], r8
+    mov     rcx, rdx
+    mov     r11, [rsp + SYSCALL_SAVE_R11]
+
     pop     rax
     pop     rbx
-    pop     rcx
+    add     rsp, 8
     pop     rdx
     pop     rbp
     pop     rsi
@@ -494,11 +515,12 @@ Interrupt_SystemCall:
     pop     r8
     pop     r9
     pop     r10
-    pop     r11
+    add     rsp, 8
     pop     r12
     pop     r13
     pop     r14
     pop     r15
+    add     rsp, 16
     sysretq
 
 FUNC_HEADER

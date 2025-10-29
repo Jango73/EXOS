@@ -1803,7 +1803,7 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     U8* SavePtr;
     LINEAR StackPointer;
     LINEAR SavedRbxValue;
-    LINEAR ReturnAddress;
+    LINEAR SavedRcxValue;
 
     if (SaveArea == (LINEAR)0) {
         DEBUG(TEXT("[DebugLogSyscallFrame] SaveArea missing for Function=%u"), FunctionId);
@@ -1813,10 +1813,10 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     SavePtr = (U8*)(SaveArea);
     StackPointer = (LINEAR)(SaveArea + (LINEAR)SYSCALL_SAVE_AREA_SIZE);
     SavedRbxValue = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE));
-    ReturnAddress = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE + sizeof(LINEAR)));
+    SavedRcxValue = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE + sizeof(LINEAR)));
 
-    DEBUG(TEXT("[DebugLogSyscallFrame] Function=%u SaveArea=%p StackPtr=%p SavedRBX=%p Return=%p"),
-          FunctionId, (LPVOID)SaveArea, (LPVOID)StackPointer, (LPVOID)SavedRbxValue, (LPVOID)ReturnAddress);
+    DEBUG(TEXT("[DebugLogSyscallFrame] Function=%u SaveArea=%p StackPtr=%p SavedRBX=%p SavedRCX=%p"),
+          FunctionId, (LPVOID)SaveArea, (LPVOID)StackPointer, (LPVOID)SavedRbxValue, (LPVOID)SavedRcxValue);
 }
 
 /************************************************************************/
