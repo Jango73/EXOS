@@ -12,10 +12,6 @@
 BITS 64
 
 ;----------------------------------------------------------------------------
-; EXOS syscall identifiers
-
-
-;----------------------------------------------------------------------------
 ; Runtime symbols (only required outside of the kernel build)
 
 %ifndef __KERNEL__

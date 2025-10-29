@@ -67,7 +67,7 @@ extern "C" {
    - Version: per-struct or global EXOS_ABI_VERSION
    - Flags: reserved for extensions
 */
-typedef struct tag_ABI_HEADER {
+typedef struct PACKED tag_ABI_HEADER {
     U32 Size;
     U16 Version;
     U16 Flags;
@@ -259,7 +259,7 @@ typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
 // A function for volume enumeration
 typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, LPVOID);
 
-typedef struct tag_SYSTEMINFO {
+typedef struct PACKED tag_SYSTEMINFO {
     ABI_HEADER Header;
     UINT TotalPhysicalMemory;
     UINT PhysicalMemoryUsed;
@@ -279,11 +279,11 @@ typedef struct tag_SYSTEMINFO {
     STR KeyboardLayout[MAX_USER_NAME];
 } SYSTEMINFO, *LPSYSTEMINFO;
 
-typedef struct tag_SECURITYATTRIBUTES {
+typedef struct PACKED tag_SECURITYATTRIBUTES {
     U32 Nothing;
 } SECURITYATTRIBUTES, *LPSECURITYATTRIBUTES;
 
-typedef struct tag_PROCESSINFO {
+typedef struct PACKED tag_PROCESSINFO {
     ABI_HEADER Header;
     U32 Flags;
     STR CommandLine[MAX_PATH_NAME];
@@ -296,7 +296,7 @@ typedef struct tag_PROCESSINFO {
     SECURITYATTRIBUTES Security;
 } PROCESSINFO, *LPPROCESSINFO;
 
-typedef struct tag_TASKINFO {
+typedef struct PACKED tag_TASKINFO {
     ABI_HEADER Header;
     TASKFUNC Func;
     LPVOID Parameter;
@@ -307,7 +307,7 @@ typedef struct tag_TASKINFO {
     STR Name[MAX_USER_NAME];
 } TASKINFO, *LPTASKINFO;
 
-typedef struct tag_MESSAGEINFO {
+typedef struct PACKED tag_MESSAGEINFO {
     ABI_HEADER Header;
     DATETIME Time;
     U32 First;
@@ -319,13 +319,13 @@ typedef struct tag_MESSAGEINFO {
 } MESSAGEINFO, *LPMESSAGEINFO;
 
 // Describes a mutex and some delay
-typedef struct tag_MUTEXINFO {
+typedef struct PACKED tag_MUTEXINFO {
     ABI_HEADER Header;
     HANDLE Mutex;
     U32 MilliSeconds;
 } MUTEXINFO, *LPMUTEXINFO;
 
-typedef struct tag_WAITINFO {
+typedef struct PACKED tag_WAITINFO {
     ABI_HEADER Header;
     U32 Count;
     U32 MilliSeconds;
@@ -334,7 +334,7 @@ typedef struct tag_WAITINFO {
     UINT ExitCodes[WAITINFO_MAX_OBJECTS];
 } WAITINFO, *LPWAITINFO;
 
-typedef struct tag_ALLOCREGIONINFO {
+typedef struct PACKED tag_ALLOCREGIONINFO {
     ABI_HEADER Header;
     U32 Base;    // The base virtual address (0 = don't care)
     U32 Target;  // The physical address to map to (0 = don't care)
@@ -342,52 +342,52 @@ typedef struct tag_ALLOCREGIONINFO {
     U32 Flags;   // See ALLOC_PAGES_xxx
 } ALLOCREGIONINFO, *LPALLOCREGIONINFO;
 
-typedef struct tag_HEAPREALLOCINFO {
+typedef struct PACKED tag_HEAPREALLOCINFO {
     ABI_HEADER Header;
     LPVOID Pointer;  // Pointer to existing memory block, or NULL
     U32 Size;        // New size of memory block in bytes
 } HEAPREALLOCINFO, *LPHEAPREALLOCINFO;
 
-typedef struct tag_ENUMVOLUMESINFO {
+typedef struct PACKED tag_ENUMVOLUMESINFO {
     ABI_HEADER Header;
     ENUMVOLUMESFUNC Func;  // The callback for enumeration
     LPVOID Parameter;      //
 } ENUMVOLUMESINFO, *LPENUMVOLUMESINFO;
 
-typedef struct tag_VOLUMEINFO {
+typedef struct PACKED tag_VOLUMEINFO {
     U32 Size;
     HANDLE Volume;
     STR Name[MAX_FS_LOGICAL_NAME];
 } VOLUMEINFO, *LPVOLUMEINFO;
 
-typedef struct tag_FILEOPENINFO {
+typedef struct PACKED tag_FILEOPENINFO {
     ABI_HEADER Header;
     LPCSTR Name;
     U32 Flags;
 } FILEOPENINFO, *LPFILEOPENINFO;
 
-typedef struct tag_GRAPHICSMODEINFO {
+typedef struct PACKED tag_GRAPHICSMODEINFO {
     ABI_HEADER Header;
     U32 Width;
     U32 Height;
     U32 BitsPerPixel;
 } GRAPHICSMODEINFO, *LPGRAPHICSMODEINFO;
 
-typedef struct tag_FILECOPYINFO {
+typedef struct PACKED tag_FILECOPYINFO {
     ABI_HEADER Header;
     LPCSTR Source;
     LPCSTR Destination;
     U32 Flags;
 } FILECOPYINFO, *LPFILECOPYINFO;
 
-typedef struct tag_FILEOPERATION {
+typedef struct PACKED tag_FILEOPERATION {
     ABI_HEADER Header;
     HANDLE File;
     U32 NumBytes;
     LPVOID Buffer;
 } FILEOPERATION, *LPFILEOPERATION;
 
-typedef struct tag_NETWORKINFO {
+typedef struct PACKED tag_NETWORKINFO {
     ABI_HEADER Header;
     U8 MAC[6];       // MAC address
     U32 LinkUp;      // 1 = link up, 0 = link down
@@ -396,22 +396,22 @@ typedef struct tag_NETWORKINFO {
     U32 MTU;         // Maximum Transmission Unit
 } NETWORKINFO, *LPNETWORKINFO;
 
-typedef struct tag_KEYCODE {
+typedef struct PACKED tag_KEYCODE {
     U8 VirtualKey;
     STR ASCIICode;
     USTR Unicode;
 } KEYCODE, *LPKEYCODE;
 
-typedef struct tag_POINT {
+typedef struct PACKED tag_POINT {
     I32 X, Y;
 } POINT, *LPPOINT;
 
-typedef struct tag_RECT {
+typedef struct PACKED tag_RECT {
     I32 X1, Y1;
     I32 X2, Y2;
 } RECT, *LPRECT;
 
-typedef struct tag_WINDOWINFO {
+typedef struct PACKED tag_WINDOWINFO {
     ABI_HEADER Header;
     HANDLE Window;
     HANDLE Parent;
@@ -423,40 +423,40 @@ typedef struct tag_WINDOWINFO {
     BOOL ShowHide;
 } WINDOWINFO, *LPWINDOWINFO;
 
-typedef struct tag_PROPINFO {
+typedef struct PACKED tag_PROPINFO {
     ABI_HEADER Header;
     HANDLE Window;
     LPCSTR Name;
     U32 Value;
 } PROPINFO, *LPPROPINFO;
 
-typedef struct tag_WINDOWRECT {
+typedef struct PACKED tag_WINDOWRECT {
     ABI_HEADER Header;
     HANDLE Window;
     RECT Rect;
 } WINDOWRECT, *LPWINDOWRECT;
 
-typedef struct tag_GCSELECT {
+typedef struct PACKED tag_GCSELECT {
     ABI_HEADER Header;
     HANDLE GC;
     HANDLE Object;
 } GCSELECT, *LPGCSELECT;
 
-typedef struct tag_BRUSHINFO {
+typedef struct PACKED tag_BRUSHINFO {
     ABI_HEADER Header;
     COLOR Color;
     U32 Pattern;
     U32 Flags;
 } BRUSHINFO, *LPBRUSHINFO;
 
-typedef struct tag_PENINFO {
+typedef struct PACKED tag_PENINFO {
     ABI_HEADER Header;
     COLOR Color;
     U32 Pattern;
     U32 Flags;
 } PENINFO, *LPPENINFO;
 
-typedef struct tag_PIXELINFO {
+typedef struct PACKED tag_PIXELINFO {
     ABI_HEADER Header;
     HANDLE GC;
     I32 X;
@@ -464,7 +464,7 @@ typedef struct tag_PIXELINFO {
     COLOR Color;
 } PIXELINFO, *LPPIXELINFO;
 
-typedef struct tag_LINEINFO {
+typedef struct PACKED tag_LINEINFO {
     ABI_HEADER Header;
     HANDLE GC;
     I32 X1;
@@ -473,7 +473,7 @@ typedef struct tag_LINEINFO {
     I32 Y2;
 } LINEINFO, *LPLINEINFO;
 
-typedef struct tag_RECTINFO {
+typedef struct PACKED tag_RECTINFO {
     ABI_HEADER Header;
     HANDLE GC;
     I32 X1;
@@ -482,7 +482,7 @@ typedef struct tag_RECTINFO {
     I32 Y2;
 } RECTINFO, *LPRECTINFO;
 
-typedef struct tag_TRIANGLEINFO {
+typedef struct PACKED tag_TRIANGLEINFO {
     ABI_HEADER Header;
     HANDLE GC;
     POINT P1;
@@ -490,38 +490,38 @@ typedef struct tag_TRIANGLEINFO {
     POINT P3;
 } TRIANGLEINFO, *LPTRIANGLEINFO;
 
-typedef struct tag_LOGIN_INFO {
+typedef struct PACKED tag_LOGIN_INFO {
     ABI_HEADER Header;
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
 } LOGIN_INFO, *LPLOGIN_INFO;
 
-typedef struct tag_PASSWORD_CHANGE {
+typedef struct PACKED tag_PASSWORD_CHANGE {
     ABI_HEADER Header;
     STR OldPassword[MAX_USER_NAME];
     STR NewPassword[MAX_USER_NAME];
 } PASSWORD_CHANGE, *LPPASSWORD_CHANGE;
 
-typedef struct tag_USER_CREATE_INFO {
+typedef struct PACKED tag_USER_CREATE_INFO {
     ABI_HEADER Header;
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
     U32 Privilege;
 } USER_CREATE_INFO, *LPUSER_CREATE_INFO;
 
-typedef struct tag_USER_DELETE_INFO {
+typedef struct PACKED tag_USER_DELETE_INFO {
     ABI_HEADER Header;
     STR UserName[MAX_USER_NAME];
 } USER_DELETE_INFO, *LPUSER_DELETE_INFO;
 
-typedef struct tag_USER_LIST_INFO {
+typedef struct PACKED tag_USER_LIST_INFO {
     ABI_HEADER Header;
     U32 MaxUsers;
     U32 UserCount;
     STR UserNames[1][MAX_USER_NAME];
 } USER_LIST_INFO, *LPUSER_LIST_INFO;
 
-typedef struct tag_CURRENT_USER_INFO {
+typedef struct PACKED tag_CURRENT_USER_INFO {
     ABI_HEADER Header;
     STR UserName[MAX_USER_NAME];
     U32 Privilege;
@@ -532,41 +532,41 @@ typedef struct tag_CURRENT_USER_INFO {
 /************************************************************************/
 // Socket Syscall Structures
 
-typedef struct tag_SOCKET_CREATE_INFO {
+typedef struct PACKED tag_SOCKET_CREATE_INFO {
     ABI_HEADER Header;
     U16 AddressFamily;    // SOCKET_AF_INET
     U16 SocketType;       // SOCKET_TYPE_STREAM, SOCKET_TYPE_DGRAM
     U16 Protocol;         // SOCKET_PROTOCOL_TCP, SOCKET_PROTOCOL_UDP
 } SOCKET_CREATE_INFO, *LPSOCKET_CREATE_INFO;
 
-typedef struct tag_SOCKET_BIND_INFO {
+typedef struct PACKED tag_SOCKET_BIND_INFO {
     ABI_HEADER Header;
     SOCKET_HANDLE SocketHandle;
     U8 AddressData[16];  // Storage for socket address
     U32 AddressLength;
 } SOCKET_BIND_INFO, *LPSOCKET_BIND_INFO;
 
-typedef struct tag_SOCKET_LISTEN_INFO {
+typedef struct PACKED tag_SOCKET_LISTEN_INFO {
     ABI_HEADER Header;
     SOCKET_HANDLE SocketHandle;
     U32 Backlog;
 } SOCKET_LISTEN_INFO, *LPSOCKET_LISTEN_INFO;
 
-typedef struct tag_SOCKET_ACCEPT_INFO {
+typedef struct PACKED tag_SOCKET_ACCEPT_INFO {
     ABI_HEADER Header;
     SOCKET_HANDLE SocketHandle;
     LPVOID AddressBuffer;
     U32* AddressLength;
 } SOCKET_ACCEPT_INFO, *LPSOCKET_ACCEPT_INFO;
 
-typedef struct tag_SOCKET_CONNECT_INFO {
+typedef struct PACKED tag_SOCKET_CONNECT_INFO {
     ABI_HEADER Header;
     SOCKET_HANDLE SocketHandle;
     U8 AddressData[16];  // Storage for socket address
     U32 AddressLength;
 } SOCKET_CONNECT_INFO, *LPSOCKET_CONNECT_INFO;
 
-typedef struct tag_SOCKET_DATA_INFO {
+typedef struct PACKED tag_SOCKET_DATA_INFO {
     ABI_HEADER Header;
     SOCKET_HANDLE SocketHandle;
     LPVOID Buffer;
@@ -576,7 +576,7 @@ typedef struct tag_SOCKET_DATA_INFO {
     U32 AddressLength;
 } SOCKET_DATA_INFO, *LPSOCKET_DATA_INFO;
 
-typedef struct tag_SOCKET_OPTION_INFO {
+typedef struct PACKED tag_SOCKET_OPTION_INFO {
     ABI_HEADER Header;
     SOCKET_HANDLE SocketHandle;
     U32 Level;
@@ -585,7 +585,7 @@ typedef struct tag_SOCKET_OPTION_INFO {
     U32 OptionLength;
 } SOCKET_OPTION_INFO, *LPSOCKET_OPTION_INFO;
 
-typedef struct tag_SOCKET_SHUTDOWN_INFO {
+typedef struct PACKED tag_SOCKET_SHUTDOWN_INFO {
     ABI_HEADER Header;
     SOCKET_HANDLE SocketHandle;
     U32 How;  // SOCKET_SHUTDOWN_READ, SOCKET_SHUTDOWN_WRITE, SOCKET_SHUTDOWN_BOTH
@@ -594,12 +594,12 @@ typedef struct tag_SOCKET_SHUTDOWN_INFO {
 /************************************************************************/
 // Socket Address Structures
 
-typedef struct tag_SOCKET_ADDRESS {
+typedef struct PACKED tag_SOCKET_ADDRESS {
     U16 AddressFamily;
     U8  Data[14];
 } SOCKET_ADDRESS, *LPSOCKET_ADDRESS;
 
-typedef struct tag_SOCKET_ADDRESS_INET {
+typedef struct PACKED tag_SOCKET_ADDRESS_INET {
     U16 AddressFamily;      // SOCKET_AF_INET
     U16 Port;               // Port in network byte order
     U32 Address;            // IPv4 address in network byte order
