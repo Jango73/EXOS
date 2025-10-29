@@ -1784,7 +1784,7 @@ void InitializeSystemCall(void) {
     EntryPoint = (U64)(LINEAR)Interrupt_SystemCall;
     WriteMSR64(IA32_LSTAR_MSR, (U32)(EntryPoint & 0xFFFFFFFF), (U32)(EntryPoint >> 32));
 
-    MaskValue = RFLAGS_TF | RFLAGS_IF | RFLAGS_DF;
+    MaskValue = RFLAGS_TF | RFLAGS_DF;
     WriteMSR64(IA32_FMASK_MSR, (U32)(MaskValue & 0xFFFFFFFF), (U32)(MaskValue >> 32));
 
     EferValue = ReadMSR64Local(IA32_EFER_MSR);

@@ -176,6 +176,9 @@ SYSCALL_SAVE_R13       equ 96
 SYSCALL_SAVE_R14       equ 104
 SYSCALL_SAVE_R15       equ 112
 
+RFLAGS_ALWAYS_1        equ 0x0000000000000002
+RFLAGS_IF              equ 0x0000000000000200
+
 ;-------------------------------------------------------------------------
 
 %macro ISR_HANDLER 3
@@ -462,6 +465,7 @@ Interrupt_HardDrive:
 
 FUNC_HEADER
 Interrupt_SystemCall:
+    cli                     ; Ensure interrupts stay disabled while servicing the syscall
     push    r15
     push    r14
     push    r13
@@ -505,6 +509,7 @@ Interrupt_SystemCall:
     mov     r9,  [rdx + SYSCALL_SAVE_R9]
     mov     r10, [rdx + SYSCALL_SAVE_R10]
     mov     r11, [rdx + SYSCALL_SAVE_R11]
+    or      r11, RFLAGS_ALWAYS_1 | RFLAGS_IF  ; Restore reserved bit and re-enable interrupts for user mode
     mov     r12, [rdx + SYSCALL_SAVE_R12]
     mov     r13, [rdx + SYSCALL_SAVE_R13]
     mov     r14, [rdx + SYSCALL_SAVE_R14]
