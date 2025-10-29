@@ -1799,10 +1799,90 @@ void InitializeSystemCall(void) {
  * @param SaveArea Base address of the saved register block on the user stack.
  * @param FunctionId System call identifier that is about to complete.
  */
+BOOL DebugReadLinearBytes(LINEAR Address, U8* Buffer, UINT Length) {
+    UINT Index;
+
+    if (Buffer == NULL) {
+        return FALSE;
+    }
+
+    for (Index = 0u; Index < Length; Index++) {
+        LINEAR ByteAddress = Address + (LINEAR)Index;
+
+        if (!IsValidMemory(ByteAddress)) {
+            return FALSE;
+        }
+
+        Buffer[Index] = *((U8*)ByteAddress);
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+BOOL DebugFormatPrintableAscii(const U8* Buffer, UINT Length, LPSTR Output, UINT OutputLength) {
+    UINT Index;
+
+    if (Buffer == NULL || Output == NULL || OutputLength == 0u) {
+        return FALSE;
+    }
+
+    if (Length + 1u > OutputLength) {
+        return FALSE;
+    }
+
+    for (Index = 0u; Index < Length; Index++) {
+        U8 Byte = Buffer[Index];
+        STR Character = (STR)'.';
+
+        if (Byte >= 0x20u && Byte <= 0x7Eu) {
+            Character = (STR)Byte;
+        }
+
+        Output[Index] = Character;
+    }
+
+    Output[Length] = STR_NULL;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+BOOL DebugLoadPrintableAscii(LINEAR Address, UINT Length, LPSTR Output, UINT OutputLength) {
+    const UINT ScratchSize = 64u;
+    U8 Scratch[64];
+
+    if (Length == 0u) {
+        if (Output != NULL && OutputLength > 0u) {
+            Output[0] = STR_NULL;
+            return TRUE;
+        }
+
+        return FALSE;
+    }
+
+    if (Length > ScratchSize) {
+        return FALSE;
+    }
+
+    if (!DebugReadLinearBytes(Address, Scratch, Length)) {
+        return FALSE;
+    }
+
+    return DebugFormatPrintableAscii(Scratch, Length, Output, OutputLength);
+}
+
+/************************************************************************/
+
 void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     const UINT UserStackEntriesToLog = 8u;
     const UINT ReturnBytesToLog = 2u;
     const UINT RbxDataEntriesToLog = 4u;
+    const UINT AsciiChunkLength = (UINT)sizeof(U64);
+    STR AsciiBuffer[9];
+    STR RbxSample[33];
     U8* SavePtr;
     U64* SavedRegisters;
     LINEAR UserStackPointer;
@@ -1838,6 +1918,14 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
           (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R13], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R14],
           (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R15]);
 
+    for (Index = 0u; Index < 9u; Index++) {
+        AsciiBuffer[Index] = STR_NULL;
+    }
+
+    for (Index = 0u; Index < 33u; Index++) {
+        RbxSample[Index] = STR_NULL;
+    }
+
     for (Index = 0u; Index < UserStackEntriesToLog; Index++) {
         LINEAR EntryAddress = UserStackPointer + (LINEAR)(Index * sizeof(LINEAR));
         LINEAR Value = 0;
@@ -1852,6 +1940,10 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     }
 
     if (RbxPointer != (LINEAR)0) {
+        if (DebugLoadPrintableAscii(RbxPointer, 32u, RbxSample, sizeof RbxSample)) {
+            DEBUG(TEXT("[DebugLogSyscallFrame] RBXData sample = \"%s\""), (LPCSTR)RbxSample);
+        }
+
         for (Index = 0u; Index < RbxDataEntriesToLog; Index++) {
             LINEAR DataAddress = RbxPointer + (LINEAR)(Index * sizeof(U64));
             U64 DataValue = 0;
@@ -1863,6 +1955,10 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
 
             DataValue = *((U64*)DataAddress);
             DEBUG(TEXT("[DebugLogSyscallFrame] RBXData[%u] @ %p = %p"), Index, (LPVOID)DataAddress, (LPVOID)DataValue);
+
+            if (DebugLoadPrintableAscii(DataAddress, AsciiChunkLength, AsciiBuffer, sizeof AsciiBuffer)) {
+                DEBUG(TEXT("[DebugLogSyscallFrame] RBXData[%u] ascii = \"%s\""), Index, (LPCSTR)AsciiBuffer);
+            }
         }
     }
 
@@ -1878,6 +1974,10 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
         InstructionValue = *((U64*)InstructionAddress);
         DEBUG(TEXT("[DebugLogSyscallFrame] ReturnBytes[%u] @ %p = %p"), Index, (LPVOID)InstructionAddress,
               (LPVOID)InstructionValue);
+
+        if (DebugLoadPrintableAscii(InstructionAddress, AsciiChunkLength, AsciiBuffer, sizeof AsciiBuffer)) {
+            DEBUG(TEXT("[DebugLogSyscallFrame] ReturnBytes[%u] ascii = \"%s\""), Index, (LPCSTR)AsciiBuffer);
+        }
     }
 }
 

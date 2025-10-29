@@ -138,6 +138,9 @@
 /************************************************************************/
 
 void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId);
+BOOL DebugReadLinearBytes(LINEAR Address, U8* Buffer, UINT Length);
+BOOL DebugFormatPrintableAscii(const U8* Buffer, UINT Length, LPSTR Output, UINT OutputLength);
+BOOL DebugLoadPrintableAscii(LINEAR Address, UINT Length, LPSTR Output, UINT OutputLength);
 
 /************************************************************************/
 // CMOS helpers

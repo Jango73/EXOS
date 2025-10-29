@@ -24,6 +24,7 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
 #include "process/Schedule.h"
 #include "System.h"
 #include "Text.h"
@@ -40,18 +41,55 @@
 
 /************************************************************************/
 
+static void DebugReportRipRelation(LINEAR Rip, LINEAR Pointer, LPCSTR Label, LINEAR Range) {
+    if (Pointer == (LINEAR)0 || Label == NULL || Range == (LINEAR)0) {
+        return;
+    }
+
+    if (!IsValidMemory(Pointer)) {
+        return;
+    }
+
+    if (Rip < Pointer) {
+        return;
+    }
+
+    if ((Rip - Pointer) >= Range) {
+        return;
+    }
+
+    DEBUG(TEXT("[LogCPUState] RIP %p within %s @ %p (offset=%u)"),
+          (LPVOID)Rip,
+          Label,
+          (LPVOID)Pointer,
+          (UINT)(Rip - Pointer));
+}
+
+/************************************************************************/
+
 void LogCPUState(LPINTERRUPT_FRAME Frame) {
+    const UINT StackEntriesToLog = 8u;
+    const UINT CodeEntriesToLog = 4u;
+    const LINEAR RipCorrelationRange = (LINEAR)0x100;
+    LINEAR StackValues[8];
+    UINT LoggedStackCount = 0u;
+    UINT Index;
+
     if (Frame == NULL) {
         ERROR(TEXT("[LogCPUState] No interrupt frame available"));
         return;
     }
 
     LogFrame(Frame);
+
+    for (Index = 0u; Index < StackEntriesToLog; Index++) {
+        StackValues[Index] = (LINEAR)0;
+    }
+
     if (Frame->Registers.RSP != (LINEAR)0) {
         LINEAR StackPtr = Frame->Registers.RSP;
-        UINT Index;
 
-        for (Index = 0; Index < 8u; Index++) {
+        for (Index = 0u; Index < StackEntriesToLog; Index++) {
             LINEAR EntryAddress = StackPtr + (LINEAR)(Index * sizeof(LINEAR));
             LINEAR Value = 0;
 
@@ -62,19 +100,25 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
 
             Value = *((LINEAR*)EntryAddress);
             DEBUG(TEXT("[LogCPUState] Stack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
+            StackValues[LoggedStackCount++] = Value;
         }
     }
 
     if (Frame->Registers.RIP != (LINEAR)0) {
         LINEAR Rip = Frame->Registers.RIP;
         LINEAR WindowStart = Rip;
+        STR CodeAscii[9];
         UINT CodeIndex;
 
         if (Rip >= (LINEAR)(sizeof(U64) * 2u)) {
             WindowStart = Rip - (LINEAR)(sizeof(U64) * 2u);
         }
 
-        for (CodeIndex = 0; CodeIndex < 4u; CodeIndex++) {
+        for (Index = 0u; Index < 9u; Index++) {
+            CodeAscii[Index] = STR_NULL;
+        }
+
+        for (CodeIndex = 0; CodeIndex < CodeEntriesToLog; CodeIndex++) {
             LINEAR EntryAddress = WindowStart + (LINEAR)(CodeIndex * sizeof(U64));
             U64 InstructionValue = 0;
 
@@ -86,6 +130,10 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
             InstructionValue = *((U64*)EntryAddress);
             DEBUG(TEXT("[LogCPUState] Code[%u] @ %p = %p"), CodeIndex, (LPVOID)EntryAddress, (LPVOID)InstructionValue);
 
+            if (DebugLoadPrintableAscii(EntryAddress, (UINT)sizeof(U64), CodeAscii, sizeof CodeAscii)) {
+                DEBUG(TEXT("[LogCPUState] Code[%u] ascii = \"%s\""), CodeIndex, (LPCSTR)CodeAscii);
+            }
+
             if (EntryAddress <= Rip && Rip < EntryAddress + (LINEAR)sizeof(U64)) {
                 UINT Offset = (UINT)(Rip - EntryAddress);
                 DEBUG(TEXT("[LogCPUState] Code[%u] contains RIP %p (offset=%u)"),
@@ -94,7 +142,53 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
                       Offset);
             }
         }
+
+        {
+            PHYSICAL RipPhysical = MapLinearToPhysical(Rip);
+
+            if (RipPhysical != (PHYSICAL)0) {
+                DEBUG(TEXT("[LogCPUState] RIP %p physical = %p"), (LPVOID)Rip, (LPVOID)RipPhysical);
+            } else {
+                DEBUG(TEXT("[LogCPUState] RIP %p has no physical mapping"), (LPVOID)Rip);
+            }
+        }
+
+        DebugReportRipRelation(Rip, Frame->Registers.RBX, TEXT("RBX"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.RSP, TEXT("RSP"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.RBP, TEXT("RBP"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.RSI, TEXT("RSI"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.RDI, TEXT("RDI"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R8, TEXT("R8"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R9, TEXT("R9"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R10, TEXT("R10"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R11, TEXT("R11"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R12, TEXT("R12"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R13, TEXT("R13"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R14, TEXT("R14"), RipCorrelationRange);
+        DebugReportRipRelation(Rip, Frame->Registers.R15, TEXT("R15"), RipCorrelationRange);
+
+        for (Index = 0u; Index < LoggedStackCount; Index++) {
+            LINEAR StackValue = StackValues[Index];
+
+            if (StackValue == (LINEAR)0) {
+                continue;
+            }
+
+            if (StackValue == Rip) {
+                DEBUG(TEXT("[LogCPUState] RIP %p matches Stack[%u]"), (LPVOID)Rip, Index);
+                continue;
+            }
+
+            if (Rip > StackValue && (Rip - StackValue) < RipCorrelationRange) {
+                DEBUG(TEXT("[LogCPUState] RIP %p near Stack[%u] @ %p (offset=%u)"),
+                      (LPVOID)Rip,
+                      Index,
+                      (LPVOID)StackValue,
+                      (UINT)(Rip - StackValue));
+            }
+        }
     }
+
     BacktraceFrom(Frame->Registers.RBP, 10u);
 }
 
