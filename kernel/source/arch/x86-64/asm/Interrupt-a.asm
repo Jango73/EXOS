@@ -162,6 +162,19 @@ section .text
 SYSCALL_SAVE_SIZE      equ (15 * 8)
 SYSCALL_SAVE_RAX       equ 0
 SYSCALL_SAVE_RBX       equ 8
+SYSCALL_SAVE_RCX       equ 16
+SYSCALL_SAVE_RDX       equ 24
+SYSCALL_SAVE_RBP       equ 32
+SYSCALL_SAVE_RSI       equ 40
+SYSCALL_SAVE_RDI       equ 48
+SYSCALL_SAVE_R8        equ 56
+SYSCALL_SAVE_R9        equ 64
+SYSCALL_SAVE_R10       equ 72
+SYSCALL_SAVE_R11       equ 80
+SYSCALL_SAVE_R12       equ 88
+SYSCALL_SAVE_R13       equ 96
+SYSCALL_SAVE_R14       equ 104
+SYSCALL_SAVE_R15       equ 112
 
 ;-------------------------------------------------------------------------
 
