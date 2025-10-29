@@ -1805,6 +1805,7 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     LINEAR UserStackPointer;
     LINEAR ReturnAddress;
     LINEAR SavedFlags;
+    UINT Index;
 
     if (SaveArea == (LINEAR)0) {
         DEBUG(TEXT("[DebugLogSyscallFrame] SaveArea missing for Function=%u"), FunctionId);
@@ -1831,6 +1832,33 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     DEBUG(TEXT("[DebugLogSyscallFrame] SavedR13=%p SavedR14=%p SavedR15=%p"),
           (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R13], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R14],
           (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R15]);
+
+    for (Index = 0u; Index < 4u; Index++) {
+        LINEAR EntryAddress = UserStackPointer + (LINEAR)(Index * sizeof(LINEAR));
+        LINEAR Value = 0;
+
+        if (!IsValidMemory(EntryAddress)) {
+            DEBUG(TEXT("[DebugLogSyscallFrame] UserStack[%u] @ %p invalid"), Index, (LPVOID)EntryAddress);
+            break;
+        }
+
+        Value = *((LINEAR*)EntryAddress);
+        DEBUG(TEXT("[DebugLogSyscallFrame] UserStack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
+    }
+
+    for (Index = 0u; Index < 2u; Index++) {
+        LINEAR InstructionAddress = ReturnAddress + (LINEAR)(Index * sizeof(U64));
+        U64 InstructionValue = 0;
+
+        if (!IsValidMemory(InstructionAddress)) {
+            DEBUG(TEXT("[DebugLogSyscallFrame] ReturnBytes[%u] @ %p invalid"), Index, (LPVOID)InstructionAddress);
+            break;
+        }
+
+        InstructionValue = *((U64*)InstructionAddress);
+        DEBUG(TEXT("[DebugLogSyscallFrame] ReturnBytes[%u] @ %p = %p"), Index, (LPVOID)InstructionAddress,
+              (LPVOID)InstructionValue);
+    }
 }
 
 /************************************************************************/
