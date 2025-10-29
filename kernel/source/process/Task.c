@@ -224,6 +224,32 @@ LPTASK NewTask(void) {
     return This;
 }
 
+/**
+ * @brief Releases all mutexes owned by the specified task.
+ *
+ * Iterates through the global kernel mutex list and clears any mutex that is
+ * currently owned by the provided task. The function expects MUTEX_KERNEL to
+ * be locked by the caller to guarantee list consistency.
+ *
+ * @param Task Pointer to the task whose mutexes should be released.
+ */
+static void ReleaseTaskMutexes(LPTASK Task) {
+    LPLISTNODE Node = NULL;
+    LPMUTEX Mutex = NULL;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
+            Mutex = (LPMUTEX)Node;
+
+            if (Mutex->TypeID == KOID_MUTEX && Mutex->Task == Task) {
+                Mutex->Process = NULL;
+                Mutex->Task = NULL;
+                Mutex->Lock = 0;
+            }
+        }
+    }
+}
+
 /************************************************************************/
 
 /**
@@ -238,9 +264,6 @@ LPTASK NewTask(void) {
 void DeleteTask(LPTASK This) {
     TRACED_FUNCTION;
 
-    LPLISTNODE Node = NULL;
-    LPMUTEX Mutex = NULL;
-
     DEBUG(TEXT("[DeleteTask] Enter"));
 
     //-------------------------------------
@@ -253,14 +276,7 @@ void DeleteTask(LPTASK This) {
         //-------------------------------------
         // Unlock all mutexs locked by this task
 
-        for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
-            Mutex = (LPMUTEX)Node;
-
-            if (Mutex->TypeID == KOID_MUTEX && Mutex->Task == This) {
-                Mutex->Task = NULL;
-                Mutex->Lock = 0;
-            }
-        }
+        ReleaseTaskMutexes(This);
 
         //-------------------------------------
         // Delete the task's message queue
@@ -564,6 +580,11 @@ BOOL KillTask(LPTASK Task) {
 
         // Lock access to kernel data
         LockMutex(MUTEX_KERNEL, INFINITY);
+
+        //-------------------------------------
+        // Release all mutexes locked by this task
+
+        ReleaseTaskMutexes(Task);
 
         SetTaskStatus(Task, TASK_STATUS_DEAD);
 

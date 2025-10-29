@@ -616,7 +616,8 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 ### Lifecycle Flow
 
 **1. Task Termination:**
-- When a task terminates, `KillTask()` marks it as `TASK_STATUS_DEAD`
+- When a task terminates, `KillTask()` releases every mutex held by the task
+  before marking it as `TASK_STATUS_DEAD`
 - The task remains in the scheduler queue until the next context switch
 - `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
