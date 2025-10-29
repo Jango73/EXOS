@@ -1800,11 +1800,15 @@ void InitializeSystemCall(void) {
  * @param FunctionId System call identifier that is about to complete.
  */
 void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
+    const UINT UserStackEntriesToLog = 8u;
+    const UINT ReturnBytesToLog = 2u;
+    const UINT RbxDataEntriesToLog = 4u;
     U8* SavePtr;
     U64* SavedRegisters;
     LINEAR UserStackPointer;
     LINEAR ReturnAddress;
     LINEAR SavedFlags;
+    LINEAR RbxPointer;
     UINT Index;
 
     if (SaveArea == (LINEAR)0) {
@@ -1817,6 +1821,7 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     UserStackPointer = (LINEAR)(SaveArea + (LINEAR)SYSCALL_SAVE_AREA_SIZE);
     ReturnAddress = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RCX];
     SavedFlags = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_R11];
+    RbxPointer = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RBX];
 
     DEBUG(TEXT("[DebugLogSyscallFrame] Function=%u SaveArea=%p UserStack=%p Return=%p Flags=%p"), FunctionId,
           (LPVOID)SaveArea, (LPVOID)UserStackPointer, (LPVOID)ReturnAddress, (LPVOID)SavedFlags);
@@ -1833,7 +1838,7 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
           (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R13], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R14],
           (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R15]);
 
-    for (Index = 0u; Index < 4u; Index++) {
+    for (Index = 0u; Index < UserStackEntriesToLog; Index++) {
         LINEAR EntryAddress = UserStackPointer + (LINEAR)(Index * sizeof(LINEAR));
         LINEAR Value = 0;
 
@@ -1846,7 +1851,22 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
         DEBUG(TEXT("[DebugLogSyscallFrame] UserStack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
     }
 
-    for (Index = 0u; Index < 2u; Index++) {
+    if (RbxPointer != (LINEAR)0) {
+        for (Index = 0u; Index < RbxDataEntriesToLog; Index++) {
+            LINEAR DataAddress = RbxPointer + (LINEAR)(Index * sizeof(U64));
+            U64 DataValue = 0;
+
+            if (!IsValidMemory(DataAddress)) {
+                DEBUG(TEXT("[DebugLogSyscallFrame] RBXData[%u] @ %p invalid"), Index, (LPVOID)DataAddress);
+                break;
+            }
+
+            DataValue = *((U64*)DataAddress);
+            DEBUG(TEXT("[DebugLogSyscallFrame] RBXData[%u] @ %p = %p"), Index, (LPVOID)DataAddress, (LPVOID)DataValue);
+        }
+    }
+
+    for (Index = 0u; Index < ReturnBytesToLog; Index++) {
         LINEAR InstructionAddress = ReturnAddress + (LINEAR)(Index * sizeof(U64));
         U64 InstructionValue = 0;
 

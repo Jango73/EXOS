@@ -51,7 +51,7 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
         LINEAR StackPtr = Frame->Registers.RSP;
         UINT Index;
 
-        for (Index = 0; Index < 4u; Index++) {
+        for (Index = 0; Index < 8u; Index++) {
             LINEAR EntryAddress = StackPtr + (LINEAR)(Index * sizeof(LINEAR));
             LINEAR Value = 0;
 
@@ -62,6 +62,37 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
 
             Value = *((LINEAR*)EntryAddress);
             DEBUG(TEXT("[LogCPUState] Stack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
+        }
+    }
+
+    if (Frame->Registers.RIP != (LINEAR)0) {
+        LINEAR Rip = Frame->Registers.RIP;
+        LINEAR WindowStart = Rip;
+        UINT CodeIndex;
+
+        if (Rip >= (LINEAR)(sizeof(U64) * 2u)) {
+            WindowStart = Rip - (LINEAR)(sizeof(U64) * 2u);
+        }
+
+        for (CodeIndex = 0; CodeIndex < 4u; CodeIndex++) {
+            LINEAR EntryAddress = WindowStart + (LINEAR)(CodeIndex * sizeof(U64));
+            U64 InstructionValue = 0;
+
+            if (!IsValidMemory(EntryAddress)) {
+                DEBUG(TEXT("[LogCPUState] Code[%u] @ %p invalid"), CodeIndex, (LPVOID)EntryAddress);
+                continue;
+            }
+
+            InstructionValue = *((U64*)EntryAddress);
+            DEBUG(TEXT("[LogCPUState] Code[%u] @ %p = %p"), CodeIndex, (LPVOID)EntryAddress, (LPVOID)InstructionValue);
+
+            if (EntryAddress <= Rip && Rip < EntryAddress + (LINEAR)sizeof(U64)) {
+                UINT Offset = (UINT)(Rip - EntryAddress);
+                DEBUG(TEXT("[LogCPUState] Code[%u] contains RIP %p (offset=%u)"),
+                      CodeIndex,
+                      (LPVOID)Rip,
+                      Offset);
+            }
         }
     }
     BacktraceFrom(Frame->Registers.RBP, 10u);
