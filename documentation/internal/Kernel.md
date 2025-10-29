@@ -118,6 +118,18 @@ directly from the MBR, then calls `FileSystemSetActivePartition` to copy the
 mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName` for
 later use (for example, in the shell).
 
+### Syscall diagnostics
+
+The x86-64 backend exposes a dedicated syscall logger through
+`DebugLogSyscallFrame`. The routine now correlates the saved return address with
+pointer registers and the first user stack slots, reporting when execution is
+about to jump into data buffers. Helpers such as `DebugReadLinearBytes` and
+`DebugLoadPrintableAscii` pull userland bytes into printable samples so the log
+clearly exposes command-line strings or other payloads involved in a crash. The
+fault handler complements this with `LogCPUState`, which maps the faulting RIP
+to nearby registers and stack entries to highlight corruption in the user stack
+immediately after an exception.
+
 ## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
 Everything in this sequence runs in 16-bit real mode on i386+ processors.

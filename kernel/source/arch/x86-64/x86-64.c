@@ -1795,14 +1795,62 @@ void InitializeSystemCall(void) {
 /************************************************************************/
 
 /**
- * @brief Log syscall stack frame information before returning to userland.
- * @param SaveArea Base address of the saved register block on the user stack.
- * @param FunctionId System call identifier that is about to complete.
+ * @brief Report when two addresses are closely related for syscall diagnostics.
+ * @param Target Address being analysed.
+ * @param TargetLabel Name of the target for logging.
+ * @param Base Base address to compare against.
+ * @param BaseLabel Name of the base for logging.
+ * @param Range Maximum acceptable delta.
+ */
+static void DebugReportPointerRelation(LINEAR Target,
+                                      LPCSTR TargetLabel,
+                                      LINEAR Base,
+                                      LPCSTR BaseLabel,
+                                      LINEAR Range) {
+    if (Target == (LINEAR)0 || Base == (LINEAR)0 || Range == (LINEAR)0) {
+        return;
+    }
+
+    if (TargetLabel == NULL || BaseLabel == NULL) {
+        return;
+    }
+
+    if (!IsValidMemory(Base)) {
+        return;
+    }
+
+    if (Target == Base) {
+        DEBUG(TEXT("[DebugLogSyscallFrame] %s %p matches %s"),
+              TargetLabel,
+              (LPVOID)Target,
+              BaseLabel);
+        return;
+    }
+
+    if (Target > Base && (Target - Base) < Range) {
+        DEBUG(TEXT("[DebugLogSyscallFrame] %s %p near %s @ %p (offset=%u)"),
+              TargetLabel,
+              (LPVOID)Target,
+              BaseLabel,
+              (LPVOID)Base,
+              (UINT)(Target - Base));
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy userland bytes into a kernel buffer when the mapping is valid.
+ * @param Address Linear source address.
+ * @param Buffer Destination buffer.
+ * @param Length Number of bytes to copy.
+ * @return TRUE on success.
  */
 BOOL DebugReadLinearBytes(LINEAR Address, U8* Buffer, UINT Length) {
     UINT Index;
 
     if (Buffer == NULL) {
+        DEBUG(TEXT("[DebugReadLinearBytes] Buffer is NULL"));
         return FALSE;
     }
 
@@ -1810,6 +1858,7 @@ BOOL DebugReadLinearBytes(LINEAR Address, U8* Buffer, UINT Length) {
         LINEAR ByteAddress = Address + (LINEAR)Index;
 
         if (!IsValidMemory(ByteAddress)) {
+            DEBUG(TEXT("[DebugReadLinearBytes] Invalid address %p"), (LPVOID)ByteAddress);
             return FALSE;
         }
 
@@ -1821,14 +1870,26 @@ BOOL DebugReadLinearBytes(LINEAR Address, U8* Buffer, UINT Length) {
 
 /************************************************************************/
 
+/**
+ * @brief Convert raw bytes into a printable ASCII string for logs.
+ * @param Buffer Source byte buffer.
+ * @param Length Number of bytes to inspect.
+ * @param Output Destination character buffer.
+ * @param OutputLength Size of the destination buffer.
+ * @return TRUE when formatting succeeded.
+ */
 BOOL DebugFormatPrintableAscii(const U8* Buffer, UINT Length, LPSTR Output, UINT OutputLength) {
     UINT Index;
 
     if (Buffer == NULL || Output == NULL || OutputLength == 0u) {
+        DEBUG(TEXT("[DebugFormatPrintableAscii] Invalid parameters"));
         return FALSE;
     }
 
     if (Length + 1u > OutputLength) {
+        DEBUG(TEXT("[DebugFormatPrintableAscii] Output buffer too small (%u < %u)"),
+              OutputLength,
+              Length + 1u);
         return FALSE;
     }
 
@@ -1850,6 +1911,14 @@ BOOL DebugFormatPrintableAscii(const U8* Buffer, UINT Length, LPSTR Output, UINT
 
 /************************************************************************/
 
+/**
+ * @brief Load user bytes and format them as printable ASCII.
+ * @param Address Linear address to read.
+ * @param Length Number of bytes to copy.
+ * @param Output Destination string buffer.
+ * @param OutputLength Size of the destination buffer.
+ * @return TRUE when the bytes were loaded and formatted.
+ */
 BOOL DebugLoadPrintableAscii(LINEAR Address, UINT Length, LPSTR Output, UINT OutputLength) {
     const UINT ScratchSize = 64u;
     U8 Scratch[64];
@@ -1860,14 +1929,17 @@ BOOL DebugLoadPrintableAscii(LINEAR Address, UINT Length, LPSTR Output, UINT Out
             return TRUE;
         }
 
+        DEBUG(TEXT("[DebugLoadPrintableAscii] Length is zero and no output buffer"));
         return FALSE;
     }
 
     if (Length > ScratchSize) {
+        DEBUG(TEXT("[DebugLoadPrintableAscii] Length %u exceeds scratch size"), Length);
         return FALSE;
     }
 
     if (!DebugReadLinearBytes(Address, Scratch, Length)) {
+        DEBUG(TEXT("[DebugLoadPrintableAscii] Failed to read %u bytes @ %p"), Length, (LPVOID)Address);
         return FALSE;
     }
 
@@ -1876,11 +1948,17 @@ BOOL DebugLoadPrintableAscii(LINEAR Address, UINT Length, LPSTR Output, UINT Out
 
 /************************************************************************/
 
+/**
+ * @brief Log syscall stack frame information before returning to userland.
+ * @param SaveArea Base address of the saved register block on the user stack.
+ * @param FunctionId System call identifier that is about to complete.
+ */
 void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     const UINT UserStackEntriesToLog = 8u;
     const UINT ReturnBytesToLog = 2u;
     const UINT RbxDataEntriesToLog = 4u;
     const UINT AsciiChunkLength = (UINT)sizeof(U64);
+    const LINEAR PointerRelationRange = (LINEAR)0x100;
     STR AsciiBuffer[9];
     STR RbxSample[33];
     U8* SavePtr;
@@ -1889,6 +1967,8 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     LINEAR ReturnAddress;
     LINEAR SavedFlags;
     LINEAR RbxPointer;
+    LINEAR UserStackValues[UserStackEntriesToLog];
+    UINT LoggedUserStackCount = 0u;
     UINT Index;
 
     if (SaveArea == (LINEAR)0) {
@@ -1927,6 +2007,10 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     }
 
     for (Index = 0u; Index < UserStackEntriesToLog; Index++) {
+        UserStackValues[Index] = (LINEAR)0;
+    }
+
+    for (Index = 0u; Index < UserStackEntriesToLog; Index++) {
         LINEAR EntryAddress = UserStackPointer + (LINEAR)(Index * sizeof(LINEAR));
         LINEAR Value = 0;
 
@@ -1937,6 +2021,50 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
 
         Value = *((LINEAR*)EntryAddress);
         DEBUG(TEXT("[DebugLogSyscallFrame] UserStack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
+        UserStackValues[LoggedUserStackCount++] = Value;
+    }
+
+    DebugReportPointerRelation(ReturnAddress, TEXT("Return"), RbxPointer, TEXT("RBX"), PointerRelationRange);
+    DebugReportPointerRelation(ReturnAddress,
+                               TEXT("Return"),
+                               (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RSI],
+                               TEXT("RSI"),
+                               PointerRelationRange);
+    DebugReportPointerRelation(ReturnAddress,
+                               TEXT("Return"),
+                               (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RDI],
+                               TEXT("RDI"),
+                               PointerRelationRange);
+    DebugReportPointerRelation(ReturnAddress,
+                               TEXT("Return"),
+                               (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_R8],
+                               TEXT("R8"),
+                               PointerRelationRange);
+    DebugReportPointerRelation(ReturnAddress,
+                               TEXT("Return"),
+                               (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_R9],
+                               TEXT("R9"),
+                               PointerRelationRange);
+
+    for (Index = 0u; Index < LoggedUserStackCount; Index++) {
+        LINEAR Value = UserStackValues[Index];
+
+        if (Value == (LINEAR)0) {
+            continue;
+        }
+
+        if (ReturnAddress == Value) {
+            DEBUG(TEXT("[DebugLogSyscallFrame] Return %p matches UserStack[%u]"), (LPVOID)ReturnAddress, Index);
+            continue;
+        }
+
+        if (ReturnAddress > Value && (ReturnAddress - Value) < PointerRelationRange) {
+            DEBUG(TEXT("[DebugLogSyscallFrame] Return %p near UserStack[%u] @ %p (offset=%u)"),
+                  (LPVOID)ReturnAddress,
+                  Index,
+                  (LPVOID)Value,
+                  (UINT)(ReturnAddress - Value));
+        }
     }
 
     if (RbxPointer != (LINEAR)0) {

@@ -41,6 +41,13 @@
 
 /************************************************************************/
 
+/**
+ * @brief Highlight when RIP falls within the vicinity of a tracked pointer.
+ * @param Rip Faulting instruction pointer.
+ * @param Pointer Base pointer to compare against.
+ * @param Label Name of the base pointer for logging.
+ * @param Range Maximum delta considered related.
+ */
 static void DebugReportRipRelation(LINEAR Rip, LINEAR Pointer, LPCSTR Label, LINEAR Range) {
     if (Pointer == (LINEAR)0 || Label == NULL || Range == (LINEAR)0) {
         return;
