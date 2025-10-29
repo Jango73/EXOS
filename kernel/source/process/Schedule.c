@@ -685,8 +685,8 @@ U32 Wait(LPWAITINFO WaitInfo) {
 
         // Periodic debug output every 2 seconds
         if (CurrentTime - LastDebugTime >= 2000) {
-            DEBUG(TEXT("[Wait] Task %x waiting for %u objects for %u ms"),
-                  CurrentTask, WaitInfo->Count, (U32)(CurrentTime - StartTime));
+            DEBUG(TEXT("[Wait] Task %p (%s) waiting for %u objects for %u ms"),
+                  CurrentTask, CurrentTask->Name, WaitInfo->Count, (U32)(CurrentTime - StartTime));
             LastDebugTime = CurrentTime;
         }
 
