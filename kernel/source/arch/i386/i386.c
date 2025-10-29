@@ -267,6 +267,11 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
+    if (EnsureCurrentStackSpace(N_32KB) == FALSE) {
+        ERROR(TEXT("[AllocPageDirectory] Unable to ensure stack availability"));
+        return NULL;
+    }
+
     UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);           // 4MB directory slot for VMA_KERNEL
     UINT DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
     PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;                // Kernel physical base
@@ -482,6 +487,11 @@ PHYSICAL AllocUserPageDirectory(void) {
     LPPAGE_DIRECTORY CurrentPD = (LPPAGE_DIRECTORY)PD_VA;
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
+
+    if (EnsureCurrentStackSpace(N_32KB) == FALSE) {
+        ERROR(TEXT("[AllocUserPageDirectory] Unable to ensure stack availability"));
+        return NULL;
+    }
 
     UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);
     PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;

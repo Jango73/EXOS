@@ -23,11 +23,59 @@
 \************************************************************************/
 
 #include "Base.h"
+#include "Stack.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
 #include "process/Process.h"
 #include "CoreString.h"
+
+/************************************************************************/
+
+#define STACK_GROW_MIN_INCREMENT N_16KB
+#define STACK_GROW_EXTRA_HEADROOM N_16KB
+
+/************************************************************************/
+
+/**
+ * @brief Locate the active stack descriptor that contains the provided SP.
+ * @param Task Task owning the potential stacks.
+ * @param CurrentSP Linear stack pointer to classify.
+ * @return Pointer to the matching STACK descriptor or NULL if none matches.
+ */
+static LPSTACK StackLocateActiveDescriptor(LPTASK Task, LINEAR CurrentSP) {
+    if (Task == NULL) {
+        return NULL;
+    }
+
+    if (Task->Arch.Stack.Base != 0 && Task->Arch.Stack.Size != 0) {
+        LINEAR Base = Task->Arch.Stack.Base;
+        LINEAR Top = Base + (LINEAR)Task->Arch.Stack.Size;
+        if (CurrentSP >= Base && CurrentSP <= Top) {
+            return &(Task->Arch.Stack);
+        }
+    }
+
+    if (Task->Arch.SysStack.Base != 0 && Task->Arch.SysStack.Size != 0) {
+        LINEAR Base = Task->Arch.SysStack.Base;
+        LINEAR Top = Base + (LINEAR)Task->Arch.SysStack.Size;
+        if (CurrentSP >= Base && CurrentSP <= Top) {
+            return &(Task->Arch.SysStack);
+        }
+    }
+
+#if defined(__EXOS_ARCH_X86_64__)
+    if (Task->Arch.Ist1Stack.Base != 0 && Task->Arch.Ist1Stack.Size != 0) {
+        LINEAR Base = Task->Arch.Ist1Stack.Base;
+        LINEAR Top = Base + (LINEAR)Task->Arch.Ist1Stack.Size;
+        if (CurrentSP >= Base && CurrentSP <= Top) {
+            return &(Task->Arch.Ist1Stack);
+        }
+    }
+#endif
+
+    return NULL;
+}
 
 /************************************************************************/
 
@@ -289,4 +337,223 @@ BOOL CheckStack(void) {
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute the number of free bytes remaining on the current stack.
+ * @return Free byte count between the stack base and the current SP.
+ */
+UINT GetCurrentStackFreeBytes(void) {
+    LPTASK CurrentTask = GetCurrentTask();
+    if (CurrentTask == NULL) {
+        return MAX_UINT;
+    }
+
+    UINT RemainingBytes = 0;
+    BOOL TaskValidated = FALSE;
+
+    SAFE_USE_VALID_ID(CurrentTask, KOID_TASK) {
+        TaskValidated = TRUE;
+
+        LINEAR CurrentSP;
+        GetESP(CurrentSP);
+
+        LPSTACK ActiveStack = StackLocateActiveDescriptor(CurrentTask, CurrentSP);
+
+        if (ActiveStack != NULL && ActiveStack->Base != 0 && ActiveStack->Size != 0) {
+            LINEAR Base = ActiveStack->Base;
+            LINEAR Top = Base + (LINEAR)ActiveStack->Size;
+
+            if (CurrentSP < Base) {
+                ERROR(TEXT("[GetCurrentStackFreeBytes] SP %p below stack base %p"), CurrentSP, Base);
+            } else if (CurrentSP > Top) {
+                ERROR(TEXT("[GetCurrentStackFreeBytes] SP %p above stack top %p"), CurrentSP, Top);
+            } else {
+                RemainingBytes = (UINT)(CurrentSP - Base);
+            }
+        } else {
+            ERROR(TEXT("[GetCurrentStackFreeBytes] Unable to locate active stack for SP %p"), CurrentSP);
+        }
+    }
+
+    if (!TaskValidated) {
+        ERROR(TEXT("[GetCurrentStackFreeBytes] SAFE_USE_VALID_ID failed for current task %p"), CurrentTask);
+        return 0;
+    }
+
+    return RemainingBytes;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Expand the active stack by allocating additional space and migrating.
+ * @param AdditionalBytes Requested growth amount (rounded and clamped).
+ * @return TRUE on successful expansion, FALSE otherwise.
+ */
+BOOL GrowCurrentStack(UINT AdditionalBytes) {
+    if (AdditionalBytes == 0) {
+        AdditionalBytes = STACK_GROW_MIN_INCREMENT;
+    }
+
+    LPTASK CurrentTask = GetCurrentTask();
+    if (CurrentTask == NULL) {
+        ERROR(TEXT("[GrowCurrentStack] No current task"));
+        return FALSE;
+    }
+
+    BOOL Success = FALSE;
+    BOOL TaskValidated = FALSE;
+
+    SAFE_USE_VALID_ID(CurrentTask, KOID_TASK) {
+        TaskValidated = TRUE;
+
+        do {
+            LINEAR CurrentSP;
+            GetESP(CurrentSP);
+
+            LPSTACK ActiveStack = StackLocateActiveDescriptor(CurrentTask, CurrentSP);
+
+            if (ActiveStack == NULL || ActiveStack->Base == 0 || ActiveStack->Size == 0) {
+                ERROR(TEXT("[GrowCurrentStack] Active stack not found for SP %p"), CurrentSP);
+                break;
+            }
+
+            LINEAR Base = ActiveStack->Base;
+            UINT OldSize = ActiveStack->Size;
+            LINEAR OldTop = Base + (LINEAR)OldSize;
+
+            if (CurrentSP < Base || CurrentSP > OldTop) {
+                ERROR(TEXT("[GrowCurrentStack] SP %p outside stack range [%p-%p]"), CurrentSP, Base, OldTop);
+                break;
+            }
+
+            UINT UsedBytes = (UINT)(OldTop - CurrentSP);
+            UINT DesiredAdditional = AdditionalBytes;
+
+            if (DesiredAdditional < STACK_GROW_MIN_INCREMENT) {
+                DesiredAdditional = STACK_GROW_MIN_INCREMENT;
+            }
+
+            UINT DesiredSize = OldSize + DesiredAdditional;
+            DesiredSize = (UINT)PAGE_ALIGN(DesiredSize);
+
+            if (DesiredSize <= OldSize) {
+                DesiredSize = OldSize + PAGE_SIZE;
+                DesiredSize = (UINT)PAGE_ALIGN(DesiredSize);
+            }
+
+            U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER;
+
+            DEBUG(TEXT("[GrowCurrentStack] Base=%p Size=%u SP=%p Used=%u NewSize=%u"),
+                Base,
+                OldSize,
+                CurrentSP,
+                UsedBytes,
+                DesiredSize);
+
+            if (ResizeRegion(Base, 0, OldSize, DesiredSize, Flags) == FALSE) {
+                ERROR(TEXT("[GrowCurrentStack] ResizeRegion failed for base=%p size=%u -> %u"), Base, OldSize, DesiredSize);
+                break;
+            }
+
+            LINEAR NewTop = Base + (LINEAR)DesiredSize;
+            UINT CopySize = UsedBytes;
+
+            if (CopySize < STACK_SAFETY_MARGIN) {
+                CopySize = STACK_SAFETY_MARGIN;
+                if (CopySize > OldSize) {
+                    CopySize = OldSize;
+                }
+            }
+
+            if (CopySize == 0) {
+                CopySize = OldSize;
+            }
+
+            if (SwitchStack(NewTop, OldTop, CopySize) == FALSE) {
+                ERROR(TEXT("[GrowCurrentStack] SwitchStack failed (DestTop=%p SourceTop=%p Size=%u)"), NewTop, OldTop, CopySize);
+
+                if (ResizeRegion(Base, 0, DesiredSize, OldSize, Flags) == FALSE) {
+                    ERROR(TEXT("[GrowCurrentStack] Failed to roll back stack resize for base=%p"), Base);
+                }
+
+                break;
+            }
+
+            ActiveStack->Size = DesiredSize;
+
+            LINEAR UpdatedSP;
+            GetESP(UpdatedSP);
+            UINT RemainingBytes = (UINT)(UpdatedSP - Base);
+
+#if defined(__EXOS_ARCH_I386__)
+            if (ActiveStack == &(CurrentTask->Arch.Stack)) {
+                LINEAR Delta = NewTop - OldTop;
+                CurrentTask->Arch.Context.Registers.ESP += (UINT)Delta;
+                CurrentTask->Arch.Context.Registers.EBP += (UINT)Delta;
+            } else if (ActiveStack == &(CurrentTask->Arch.SysStack)) {
+                LINEAR SysTop = ActiveStack->Base + (LINEAR)ActiveStack->Size;
+                CurrentTask->Arch.Context.ESP0 = (U32)(SysTop - STACK_SAFETY_MARGIN);
+            }
+#else
+            if (ActiveStack == &(CurrentTask->Arch.Stack)) {
+                LINEAR Delta = NewTop - OldTop;
+                CurrentTask->Arch.Context.Registers.RSP += (U64)Delta;
+                CurrentTask->Arch.Context.Registers.RBP += (U64)Delta;
+            } else if (ActiveStack == &(CurrentTask->Arch.SysStack)) {
+                LINEAR SysTop = ActiveStack->Base + (LINEAR)ActiveStack->Size;
+                CurrentTask->Arch.Context.RSP0 = (U64)(SysTop - STACK_SAFETY_MARGIN);
+            }
+#endif
+
+            DEBUG(TEXT("[GrowCurrentStack] Resize complete: Size=%u Remaining=%u SP=%p"),
+                ActiveStack->Size,
+                RemainingBytes,
+                UpdatedSP);
+
+            Success = TRUE;
+        } while (0);
+    }
+
+    if (!TaskValidated) {
+        ERROR(TEXT("[GrowCurrentStack] SAFE_USE_VALID_ID failed for current task %p"), CurrentTask);
+    }
+
+    return Success;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Guarantee at least the requested stack headroom, growing if needed.
+ * @param MinimumFreeBytes Free byte threshold to enforce.
+ * @return TRUE when the stack already meets or successfully reaches the quota.
+ */
+BOOL EnsureCurrentStackSpace(UINT MinimumFreeBytes) {
+    if (MinimumFreeBytes == 0) {
+        return TRUE;
+    }
+
+    UINT Remaining = GetCurrentStackFreeBytes();
+
+    if (Remaining == MAX_UINT) {
+        return TRUE;
+    }
+
+    if (Remaining >= MinimumFreeBytes) {
+        return TRUE;
+    }
+
+    UINT Required = MinimumFreeBytes - Remaining;
+    UINT Additional = Required + STACK_GROW_EXTRA_HEADROOM;
+
+    DEBUG(TEXT("[EnsureCurrentStackSpace] Remaining=%u Required=%u Additional=%u"),
+        Remaining,
+        MinimumFreeBytes,
+        Additional);
+
+    return GrowCurrentStack(Additional);
 }

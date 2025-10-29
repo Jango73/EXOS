@@ -666,10 +666,32 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         LowRegionSharedTables.IdentityTablePhysical);
 
     if (UserSeedTables != 0u) {
+        UINT TableCapacity = (UINT)(sizeof(Region->Tables) / sizeof(Region->Tables[0]));
+        DEBUG(TEXT("[SetupLowRegion] User seed request=%u current=%u capacity=%u region=%p tables=%p"),
+            UserSeedTables,
+            Region->TableCount,
+            TableCapacity,
+            Region,
+            Region->Tables);
+
         UINT BaseDirectory = GetDirectoryEntry((U64)VMA_USER);
 
         for (UINT Index = 0; Index < UserSeedTables; Index++) {
+            if (Region->TableCount >= TableCapacity) {
+                ERROR(TEXT("[SetupLowRegion] User seed table overflow index=%u count=%u capacity=%u"),
+                    Index,
+                    Region->TableCount,
+                    TableCapacity);
+                return FALSE;
+            }
+
             PAGE_TABLE_SETUP* Table = &Region->Tables[Region->TableCount];
+            DEBUG(TEXT("[SetupLowRegion] Seeding idx=%u count=%u table=%p base=%u"),
+                Index,
+                Region->TableCount,
+                Table,
+                BaseDirectory);
+
             Table->DirectoryIndex = BaseDirectory + Index;
             Table->ReadWrite = 1;
             Table->Privilege = PAGE_PRIVILEGE_USER;
@@ -677,7 +699,11 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
             Table->Mode = PAGE_TABLE_POPULATE_EMPTY;
             DEBUG(TEXT("[SetupLowRegion] Preparing user seed table slot=%u"), Table->DirectoryIndex);
             if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) return FALSE;
+            DEBUG(TEXT("[SetupLowRegion] Seed slot=%u populated physical=%p"),
+                Table->DirectoryIndex,
+                Table->Physical);
             Region->TableCount++;
+            DEBUG(TEXT("[SetupLowRegion] Table count advanced to %u"), Region->TableCount);
         }
     }
 
@@ -920,6 +946,11 @@ PHYSICAL AllocPageDirectory(void) {
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
+    if (EnsureCurrentStackSpace(N_32KB) == FALSE) {
+        ERROR(TEXT("[AllocPageDirectory] Unable to ensure stack availability"));
+        return NULL;
+    }
+
     ResetRegionSetup(&LowRegion);
     ResetRegionSetup(&KernelRegion);
     ResetRegionSetup(&TaskRunnerRegion);
@@ -1061,6 +1092,11 @@ PHYSICAL AllocUserPageDirectory(void) {
     BOOL Success = FALSE;
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
+
+    if (EnsureCurrentStackSpace(N_32KB) == FALSE) {
+        ERROR(TEXT("[AllocUserPageDirectory] Unable to ensure stack availability"));
+        return NULL;
+    }
 
     ResetRegionSetup(&LowRegion);
     ResetRegionSetup(&KernelRegion);
