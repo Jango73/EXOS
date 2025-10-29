@@ -115,6 +115,16 @@
 #define IRQ_ATA 0x0E
 
 /************************************************************************/
+// Syscall register save layout
+
+#define SYSCALL_SAVE_REGISTER_COUNT 15u
+#define SYSCALL_SAVE_AREA_SIZE ((UINT)SYSCALL_SAVE_REGISTER_COUNT * sizeof(U64))
+
+/************************************************************************/
+
+void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId);
+
+/************************************************************************/
 // CMOS helpers
 
 #define CMOS_COMMAND 0x0070

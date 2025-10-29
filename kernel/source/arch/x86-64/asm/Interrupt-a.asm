@@ -39,6 +39,7 @@ extern FPUHandler
 extern HardDriveHandler
 extern SystemCallHandler
 extern Kernel_i386
+extern DebugLogSyscallFrame
 
 section .text
 
@@ -473,8 +474,13 @@ Interrupt_SystemCall:
 
     mov     edi, dword [r15 + SYSCALL_SAVE_RAX]
     mov     rsi, [r15 + SYSCALL_SAVE_RBX]
+    mov     r13d, edi
     call    SystemCallHandler
     mov     [r15 + SYSCALL_SAVE_RAX], rax
+
+    mov     rdi, r15
+    mov     esi, r13d
+    call    DebugLogSyscallFrame
 
     mov     rsp, r15
 

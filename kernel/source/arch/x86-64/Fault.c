@@ -47,6 +47,23 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
     }
 
     LogFrame(Frame);
+    if (Frame->Registers.RSP != (LINEAR)0) {
+        LINEAR StackPtr = Frame->Registers.RSP;
+        UINT Index;
+
+        for (Index = 0; Index < 4u; Index++) {
+            LINEAR EntryAddress = StackPtr + (LINEAR)(Index * sizeof(LINEAR));
+            LINEAR Value = 0;
+
+            if (!IsValidMemory(EntryAddress)) {
+                DEBUG(TEXT("[LogCPUState] Stack[%u] @ %p invalid"), Index, (LPVOID)EntryAddress);
+                break;
+            }
+
+            Value = *((LINEAR*)EntryAddress);
+            DEBUG(TEXT("[LogCPUState] Stack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
+        }
+    }
     BacktraceFrom(Frame->Registers.RBP, 10u);
 }
 
@@ -158,6 +175,7 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
 
     __asm__ __volatile__("mov %%cr2, %0" : "=r"(FaultAddress));
     ERROR(TEXT("[PageFaultHandler] Page fault at %p"), (LINEAR)FaultAddress);
+    ERROR(TEXT("[PageFaultHandler] Error code = %p"), (LINEAR)Frame->ErrCode);
     LogCPUState(Frame);
     Die();
 }

@@ -536,6 +536,12 @@ static BOOL AllocateTableAndPopulate(
             Table->Global,
             /*Fixed*/ 1));
 
+    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, Table->DirectoryIndex);
+    DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] entry value=%p"),
+        Region->Label,
+        Table->DirectoryIndex,
+        (LINEAR)DirectoryEntryValue);
+
     DEBUG(TEXT("[AllocateTableAndPopulate] %s directory[%u] table ready at %p"),
         Region->Label,
         Table->DirectoryIndex,
@@ -1090,6 +1096,7 @@ PHYSICAL AllocUserPageDirectory(void) {
     REGION_SETUP TaskRunnerRegion;
     PHYSICAL Pml4Physical = NULL;
     BOOL Success = FALSE;
+    BOOL TaskRunnerReused = FALSE;
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
@@ -1107,38 +1114,8 @@ PHYSICAL AllocUserPageDirectory(void) {
     UINT TaskRunnerPml4Index = GetPml4Entry((U64)VMA_TASK_RUNNER);
     UINT TaskRunnerTableIndex = GetTableEntry((U64)VMA_TASK_RUNNER);
 
-    UINT KernelCoverageBytes = ComputeKernelCoverageBytes();
-    UINT KernelTableCount = KernelCoverageBytes >> PAGE_TABLE_CAPACITY_MUL;
-    if (KernelTableCount == 0u) KernelTableCount = 1u;
-
     if (SetupLowRegion(&LowRegion, USERLAND_SEEDED_TABLES) == FALSE) goto Out;
     DEBUG(TEXT("[AllocUserPageDirectory] Low region tables=%u"), LowRegion.TableCount);
-
-    if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocUserPageDirectory] Kernel region tables=%u"), KernelRegion.TableCount);
-
-    LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
-    PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
-
-    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"),
-        KernelStartup.KernelPhysicalBase,
-        TaskRunnerLinear,
-        VMA_KERNEL,
-        TaskRunnerPhysical);
-
-    if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion.TableCount);
-
-    DEBUG(TEXT("[AllocUserPageDirectory] Regions low(pdpt=%p dir=%p priv=%u tables=%u) kernel(pdpt=%p dir=%p tables=%u) task(pdpt=%p dir=%p)"),
-        LowRegion.PdptPhysical,
-        LowRegion.DirectoryPhysical,
-        LowRegion.Privilege,
-        LowRegion.TableCount,
-        KernelRegion.PdptPhysical,
-        KernelRegion.DirectoryPhysical,
-        KernelRegion.TableCount,
-        TaskRunnerRegion.PdptPhysical,
-        TaskRunnerRegion.DirectoryPhysical);
 
     Pml4Physical = AllocPhysicalPage();
 
@@ -1158,6 +1135,12 @@ PHYSICAL AllocUserPageDirectory(void) {
     MemorySet(Pml4, 0, PAGE_SIZE);
     DEBUG(TEXT("[AllocUserPageDirectory] PML4 mapped at %p"), Pml4);
 
+    LPPML4 CurrentPml4 = GetCurrentPml4VA();
+    if (CurrentPml4 == NULL) {
+        ERROR(TEXT("[AllocUserPageDirectory] Current PML4 pointer is NULL"));
+        goto Out;
+    }
+
     WritePageDirectoryEntryValue(
         Pml4,
         LowPml4Index,
@@ -1170,29 +1153,85 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    WritePageDirectoryEntryValue(
-        Pml4,
-        KernelPml4Index,
-        MakePageDirectoryEntryValue(
-            KernelRegion.PdptPhysical,
-            /*ReadWrite*/ 1,
-            PAGE_PRIVILEGE_KERNEL,
-            /*WriteThrough*/ 0,
-            /*CacheDisabled*/ 0,
-            /*Global*/ 0,
-            /*Fixed*/ 1));
+    UINT KernelBaseIndex = PML4_ENTRY_COUNT / 2u;
+    UINT ClonedKernelEntries = 0u;
+    for (UINT Index = KernelBaseIndex; Index < PML4_ENTRY_COUNT; Index++) {
+        if (Index == PML4_RECURSIVE_SLOT) continue;
 
-    WritePageDirectoryEntryValue(
-        Pml4,
-        TaskRunnerPml4Index,
-        MakePageDirectoryEntryValue(
+        U64 EntryValue = ReadPageDirectoryEntryValue(CurrentPml4, Index);
+        if ((EntryValue & PAGE_FLAG_PRESENT) == 0) continue;
+
+        WritePageDirectoryEntryValue(Pml4, Index, EntryValue);
+        ClonedKernelEntries++;
+    }
+
+    if (ClonedKernelEntries == 0u) {
+        ERROR(TEXT("[AllocUserPageDirectory] No kernel PML4 entries copied from current directory"));
+        goto Out;
+    }
+
+    DEBUG(TEXT("[AllocUserPageDirectory] Cloned %u kernel PML4 entries from index %u"),
+        ClonedKernelEntries,
+        KernelBaseIndex);
+
+    U64 TaskRunnerEntryValue = ReadPageDirectoryEntryValue(CurrentPml4, TaskRunnerPml4Index);
+    if ((TaskRunnerEntryValue & PAGE_FLAG_PRESENT) != 0 && (TaskRunnerEntryValue & PAGE_FLAG_USER) != 0) {
+        TaskRunnerReused = TRUE;
+        DEBUG(TEXT("[AllocUserPageDirectory] Reusing existing task runner entry %p from current CR3"),
+            (LINEAR)TaskRunnerEntryValue);
+    } else {
+        LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
+        PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
+
+        DEBUG(TEXT("[AllocUserPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"),
+            KernelStartup.KernelPhysicalBase,
+            TaskRunnerLinear,
+            VMA_KERNEL,
+            TaskRunnerPhysical);
+
+        if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
+        DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion.TableCount);
+        DEBUG(TEXT("[AllocUserPageDirectory] Regions low(pdpt=%p dir=%p priv=%u tables=%u) kernel(reuse existing) task(pdpt=%p dir=%p)"),
+            LowRegion.PdptPhysical,
+            LowRegion.DirectoryPhysical,
+            LowRegion.Privilege,
+            LowRegion.TableCount,
+            TaskRunnerRegion.PdptPhysical,
+            TaskRunnerRegion.DirectoryPhysical);
+
+        TaskRunnerEntryValue = MakePageDirectoryEntryValue(
             TaskRunnerRegion.PdptPhysical,
             /*ReadWrite*/ 1,
             PAGE_PRIVILEGE_USER,
             /*WriteThrough*/ 0,
             /*CacheDisabled*/ 0,
             /*Global*/ 0,
-            /*Fixed*/ 1));
+            /*Fixed*/ 1);
+    }
+
+    WritePageDirectoryEntryValue(Pml4, TaskRunnerPml4Index, TaskRunnerEntryValue);
+
+    if (!TaskRunnerReused) {
+        LINEAR TaskRunnerDirectoryLinear = MapTemporaryPhysicalPage2(TaskRunnerRegion.DirectoryPhysical);
+        LINEAR TaskRunnerTableLinear = MapTemporaryPhysicalPage3(TaskRunnerRegion.Tables[0].Physical);
+
+        if (TaskRunnerDirectoryLinear != NULL && TaskRunnerTableLinear != NULL) {
+            UINT TaskRunnerDirectoryIndex = GetDirectoryEntry((U64)VMA_TASK_RUNNER);
+            U64 TaskDirectoryEntry =
+                ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)TaskRunnerDirectoryLinear, TaskRunnerDirectoryIndex);
+            U64 TaskTableEntry = ReadPageTableEntryValue((LPPAGE_TABLE)TaskRunnerTableLinear, TaskRunnerTableIndex);
+
+            DEBUG(TEXT("[AllocUserPageDirectory] TaskRunner PDE[%u]=%p PTE[%u]=%p"),
+                TaskRunnerDirectoryIndex,
+                (LINEAR)TaskDirectoryEntry,
+                TaskRunnerTableIndex,
+                (LINEAR)TaskTableEntry);
+        } else {
+            ERROR(TEXT("[AllocUserPageDirectory] Unable to map TaskRunner directory/table snapshot"));
+        }
+    } else {
+        DEBUG(TEXT("[AllocUserPageDirectory] Task runner entry reused without rebuilding tables"));
+    }
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -1216,6 +1255,8 @@ PHYSICAL AllocUserPageDirectory(void) {
         (LINEAR)KernelEntry,
         (LINEAR)TaskEntry,
         (LINEAR)RecursiveEntry);
+
+    LogPageDirectory64(Pml4Physical);
 
     FlushTLB();
 
@@ -1749,6 +1790,33 @@ void InitializeSystemCall(void) {
     EferValue = ReadMSR64Local(IA32_EFER_MSR);
     EferValue |= IA32_EFER_SCE;
     WriteMSR64(IA32_EFER_MSR, (U32)(EferValue & 0xFFFFFFFF), (U32)(EferValue >> 32));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Log syscall stack frame information before returning to userland.
+ * @param SaveArea Base address of the saved register block on the user stack.
+ * @param FunctionId System call identifier that is about to complete.
+ */
+void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
+    U8* SavePtr;
+    LINEAR StackPointer;
+    LINEAR SavedRbxValue;
+    LINEAR ReturnAddress;
+
+    if (SaveArea == (LINEAR)0) {
+        DEBUG(TEXT("[DebugLogSyscallFrame] SaveArea missing for Function=%u"), FunctionId);
+        return;
+    }
+
+    SavePtr = (U8*)(SaveArea);
+    StackPointer = (LINEAR)(SaveArea + (LINEAR)SYSCALL_SAVE_AREA_SIZE);
+    SavedRbxValue = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE));
+    ReturnAddress = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE + sizeof(LINEAR)));
+
+    DEBUG(TEXT("[DebugLogSyscallFrame] Function=%u SaveArea=%p StackPtr=%p SavedRBX=%p Return=%p"),
+          FunctionId, (LPVOID)SaveArea, (LPVOID)StackPointer, (LPVOID)SavedRbxValue, (LPVOID)ReturnAddress);
 }
 
 /************************************************************************/
