@@ -595,6 +595,11 @@ exos-runtime-c.c : malloc() (or any other function)
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
 
+The syscall stub now restores general-purpose registers explicitly from the
+saved area before issuing `sysretq`.  This avoids any transient pops on the
+user stack, guaranteeing that the caller’s return address and scratch values
+remain untouched even when diagnostics are enabled.
+
 ## Process and Task Lifecycle Management
 
 EXOS implements a lifecycle management system for both processes and tasks that ensures consistent cleanup and prevents resource leaks.

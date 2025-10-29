@@ -482,23 +482,23 @@ Interrupt_SystemCall:
     mov     esi, r13d
     call    DebugLogSyscallFrame
 
-    mov     rsp, r15
-
-    pop     rax
-    pop     rbx
-    pop     rcx
-    pop     rdx
-    pop     rbp
-    pop     rsi
-    pop     rdi
-    pop     r8
-    pop     r9
-    pop     r10
-    pop     r11
-    pop     r12
-    pop     r13
-    pop     r14
-    pop     r15
+    mov     rdx, r15
+    mov     rbx, [rdx + SYSCALL_SAVE_RBX]
+    mov     rcx, [rdx + SYSCALL_SAVE_RCX]
+    mov     rbp, [rdx + SYSCALL_SAVE_RBP]
+    mov     rsi, [rdx + SYSCALL_SAVE_RSI]
+    mov     rdi, [rdx + SYSCALL_SAVE_RDI]
+    mov     r8,  [rdx + SYSCALL_SAVE_R8]
+    mov     r9,  [rdx + SYSCALL_SAVE_R9]
+    mov     r10, [rdx + SYSCALL_SAVE_R10]
+    mov     r11, [rdx + SYSCALL_SAVE_R11]
+    mov     r12, [rdx + SYSCALL_SAVE_R12]
+    mov     r13, [rdx + SYSCALL_SAVE_R13]
+    mov     r14, [rdx + SYSCALL_SAVE_R14]
+    mov     r15, [rdx + SYSCALL_SAVE_R15]
+    mov     rax, [rdx + SYSCALL_SAVE_RAX]
+    lea     rsp, [rdx + SYSCALL_SAVE_SIZE]
+    mov     rdx, [rdx + SYSCALL_SAVE_RDX]
     sysretq
 
 FUNC_HEADER
