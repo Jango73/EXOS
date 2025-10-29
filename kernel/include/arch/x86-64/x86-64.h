@@ -117,7 +117,7 @@
 /************************************************************************/
 // Syscall register save layout
 
-#define SYSCALL_SAVE_REGISTER_COUNT 15u
+#define SYSCALL_SAVE_REGISTER_COUNT 16u
 #define SYSCALL_SAVE_OFFSET_RAX 0u
 #define SYSCALL_SAVE_OFFSET_RBX 1u
 #define SYSCALL_SAVE_OFFSET_RCX 2u
@@ -133,6 +133,7 @@
 #define SYSCALL_SAVE_OFFSET_R13 12u
 #define SYSCALL_SAVE_OFFSET_R14 13u
 #define SYSCALL_SAVE_OFFSET_R15 14u
+#define SYSCALL_SAVE_OFFSET_RSP 15u
 #define SYSCALL_SAVE_AREA_SIZE ((UINT)SYSCALL_SAVE_REGISTER_COUNT * sizeof(U64))
 
 /************************************************************************/

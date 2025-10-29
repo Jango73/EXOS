@@ -1978,7 +1978,7 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
 
     SavePtr = (U8*)(SaveArea);
     SavedRegisters = (U64*)SavePtr;
-    UserStackPointer = (LINEAR)(SaveArea + (LINEAR)SYSCALL_SAVE_AREA_SIZE);
+    UserStackPointer = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RSP];
     ReturnAddress = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RCX];
     SavedFlags = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_R11];
     RbxPointer = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RBX];

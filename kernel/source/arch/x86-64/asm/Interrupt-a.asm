@@ -41,6 +41,11 @@ extern SystemCallHandler
 extern Kernel_i386
 extern DebugLogSyscallFrame
 
+section .bss
+    align 8
+SyscallSavedRsp:
+    resq 1
+
 section .text
 
     global Interrupt_Default
@@ -159,7 +164,7 @@ section .text
 ;    add     rsp, r15
 %endmacro
 
-SYSCALL_SAVE_SIZE      equ (15 * 8)
+SYSCALL_SAVE_SIZE      equ (16 * 8)
 SYSCALL_SAVE_RAX       equ 0
 SYSCALL_SAVE_RBX       equ 8
 SYSCALL_SAVE_RCX       equ 16
@@ -175,6 +180,7 @@ SYSCALL_SAVE_R12       equ 88
 SYSCALL_SAVE_R13       equ 96
 SYSCALL_SAVE_R14       equ 104
 SYSCALL_SAVE_R15       equ 112
+SYSCALL_SAVE_RSP       equ 120
 
 RFLAGS_ALWAYS_1        equ 0x0000000000000002
 RFLAGS_IF              equ 0x0000000000000200
@@ -466,26 +472,32 @@ Interrupt_HardDrive:
 FUNC_HEADER
 Interrupt_SystemCall:
     cli                     ; Ensure interrupts stay disabled while servicing the syscall
-    push    r15
-    push    r14
-    push    r13
-    push    r12
-    push    r11
-    push    r10
-    push    r9
-    push    r8
-    push    rdi
-    push    rsi
-    push    rbp
-    push    rdx
-    push    rcx
-    push    rbx
-    push    rax
+    mov     [rel SyscallSavedRsp], rsp
 
+    mov     rsp, [rel Kernel_i386 + KERNELDATA_X86_64.TSS]
+    mov     rsp, [rsp + X86_64_TASK_STATE_SEGMENT.RSP0]
+    sub     rsp, SYSCALL_SAVE_SIZE
+
+    mov     [rsp + SYSCALL_SAVE_RAX], rax
+    mov     [rsp + SYSCALL_SAVE_RBX], rbx
+    mov     [rsp + SYSCALL_SAVE_RCX], rcx
+    mov     [rsp + SYSCALL_SAVE_RDX], rdx
+    mov     [rsp + SYSCALL_SAVE_RBP], rbp
+    mov     [rsp + SYSCALL_SAVE_RSI], rsi
+    mov     [rsp + SYSCALL_SAVE_RDI], rdi
+    mov     [rsp + SYSCALL_SAVE_R8],  r8
+    mov     [rsp + SYSCALL_SAVE_R9],  r9
+    mov     [rsp + SYSCALL_SAVE_R10], r10
+    mov     [rsp + SYSCALL_SAVE_R11], r11
+    mov     [rsp + SYSCALL_SAVE_R12], r12
+    mov     [rsp + SYSCALL_SAVE_R13], r13
+    mov     [rsp + SYSCALL_SAVE_R14], r14
+    mov     [rsp + SYSCALL_SAVE_R15], r15
+
+    mov     rax, [rel SyscallSavedRsp]
+    mov     [rsp + SYSCALL_SAVE_RSP], rax
     mov     r15, rsp
-
-    mov     rax, [rel Kernel_i386 + KERNELDATA_X86_64.TSS]
-    mov     rsp, [rax + X86_64_TASK_STATE_SEGMENT.RSP0]
+    mov     rax, [r15 + SYSCALL_SAVE_RAX]
 
     call    EnterKernel
 
@@ -499,24 +511,23 @@ Interrupt_SystemCall:
     mov     esi, r13d
     call    DebugLogSyscallFrame
 
-    mov     rdx, r15
-    mov     rbx, [rdx + SYSCALL_SAVE_RBX]
-    mov     rcx, [rdx + SYSCALL_SAVE_RCX]
-    mov     rbp, [rdx + SYSCALL_SAVE_RBP]
-    mov     rsi, [rdx + SYSCALL_SAVE_RSI]
-    mov     rdi, [rdx + SYSCALL_SAVE_RDI]
-    mov     r8,  [rdx + SYSCALL_SAVE_R8]
-    mov     r9,  [rdx + SYSCALL_SAVE_R9]
-    mov     r10, [rdx + SYSCALL_SAVE_R10]
-    mov     r11, [rdx + SYSCALL_SAVE_R11]
+    mov     rbx, [r15 + SYSCALL_SAVE_RBX]
+    mov     rcx, [r15 + SYSCALL_SAVE_RCX]
+    mov     rbp, [r15 + SYSCALL_SAVE_RBP]
+    mov     rsi, [r15 + SYSCALL_SAVE_RSI]
+    mov     rdi, [r15 + SYSCALL_SAVE_RDI]
+    mov     r8,  [r15 + SYSCALL_SAVE_R8]
+    mov     r9,  [r15 + SYSCALL_SAVE_R9]
+    mov     r10, [r15 + SYSCALL_SAVE_R10]
+    mov     r11, [r15 + SYSCALL_SAVE_R11]
     or      r11, RFLAGS_ALWAYS_1 | RFLAGS_IF  ; Restore reserved bit and re-enable interrupts for user mode
-    mov     r12, [rdx + SYSCALL_SAVE_R12]
-    mov     r13, [rdx + SYSCALL_SAVE_R13]
-    mov     r14, [rdx + SYSCALL_SAVE_R14]
-    mov     r15, [rdx + SYSCALL_SAVE_R15]
-    mov     rax, [rdx + SYSCALL_SAVE_RAX]
-    lea     rsp, [rdx + SYSCALL_SAVE_SIZE]
-    mov     rdx, [rdx + SYSCALL_SAVE_RDX]
+    mov     r12, [r15 + SYSCALL_SAVE_R12]
+    mov     r13, [r15 + SYSCALL_SAVE_R13]
+    mov     r14, [r15 + SYSCALL_SAVE_R14]
+    mov     rax, [r15 + SYSCALL_SAVE_RAX]
+    mov     rdx, [r15 + SYSCALL_SAVE_RDX]
+    mov     rsp, [r15 + SYSCALL_SAVE_RSP]
+    mov     r15, [r15 + SYSCALL_SAVE_R15]
     sysretq
 
 FUNC_HEADER
