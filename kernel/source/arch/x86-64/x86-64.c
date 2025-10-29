@@ -1801,9 +1801,10 @@ void InitializeSystemCall(void) {
  */
 void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     U8* SavePtr;
-    LINEAR StackPointer;
-    LINEAR SavedRbxValue;
+    U64* SavedRegisters;
+    LINEAR UserStackPointer;
     LINEAR ReturnAddress;
+    LINEAR SavedFlags;
 
     if (SaveArea == (LINEAR)0) {
         DEBUG(TEXT("[DebugLogSyscallFrame] SaveArea missing for Function=%u"), FunctionId);
@@ -1811,12 +1812,25 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     }
 
     SavePtr = (U8*)(SaveArea);
-    StackPointer = (LINEAR)(SaveArea + (LINEAR)SYSCALL_SAVE_AREA_SIZE);
-    SavedRbxValue = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE));
-    ReturnAddress = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE + sizeof(LINEAR)));
+    SavedRegisters = (U64*)SavePtr;
+    UserStackPointer = (LINEAR)(SaveArea + (LINEAR)SYSCALL_SAVE_AREA_SIZE);
+    ReturnAddress = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_RCX];
+    SavedFlags = (LINEAR)SavedRegisters[SYSCALL_SAVE_OFFSET_R11];
 
-    DEBUG(TEXT("[DebugLogSyscallFrame] Function=%u SaveArea=%p StackPtr=%p SavedRBX=%p Return=%p"),
-          FunctionId, (LPVOID)SaveArea, (LPVOID)StackPointer, (LPVOID)SavedRbxValue, (LPVOID)ReturnAddress);
+    DEBUG(TEXT("[DebugLogSyscallFrame] Function=%u SaveArea=%p UserStack=%p Return=%p Flags=%p"), FunctionId,
+          (LPVOID)SaveArea, (LPVOID)UserStackPointer, (LPVOID)ReturnAddress, (LPVOID)SavedFlags);
+    DEBUG(TEXT("[DebugLogSyscallFrame] SavedRAX=%p SavedRBX=%p SavedRCX=%p SavedRDX=%p"),
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_RAX], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_RBX],
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_RCX], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_RDX]);
+    DEBUG(TEXT("[DebugLogSyscallFrame] SavedRBP=%p SavedRSI=%p SavedRDI=%p SavedR8=%p"),
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_RBP], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_RSI],
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_RDI], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R8]);
+    DEBUG(TEXT("[DebugLogSyscallFrame] SavedR9=%p SavedR10=%p SavedR11=%p SavedR12=%p"),
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R9], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R10],
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R11], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R12]);
+    DEBUG(TEXT("[DebugLogSyscallFrame] SavedR13=%p SavedR14=%p SavedR15=%p"),
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R13], (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R14],
+          (LPVOID)SavedRegisters[SYSCALL_SAVE_OFFSET_R15]);
 }
 
 /************************************************************************/
