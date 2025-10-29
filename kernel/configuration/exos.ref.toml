@@ -14,12 +14,18 @@
 # Path="<path to an executable>"
 
 [General]
-# You may force a monotask system below, but a lot of things won't work (network, task & process termination, ...)
+# Force a monotask system below, but a lot of things won't work (network, task & process termination, ...)
 # Mono=1
-# You may force a quantum time using the entry below
+# Force a quantum time using the entry below
 # Quantum=10
 # Enable or disable login sequence (1=enable, 0=disable)
 DoLogin=1
+
+[Task]
+# Specify minimum size for a task's stack
+MinimumTaskStackSize=65536
+# Specify minimum size for a task's system stack (interrupts, syscalls)
+MinimumSystemStackSize=16384
 
 [[SystemFS.Mount]]
 FileSystem="hd0p0"

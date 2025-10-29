@@ -477,6 +477,15 @@ writing past the top of the allocated stack when seeding the initial `iret` fram
  aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution
  resumes in the scheduled task.
 
+### Stack sizing
+
+The minimum sizes for task and system stacks are driven by the configuration keys
+`Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`.
+At boot the task manager reads those values, but it clamps them to the architecture defaults
+(`64 KiB`/`16 KiB` on i386 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks.
+Increasing the values in the configuration grows every newly created task and keeps the auto stack
+growing logic operating on the larger baseline.
+
 ### IRQ scheduling
 
 #### IRQ 0 path

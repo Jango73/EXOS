@@ -991,7 +991,7 @@ void InitializeKernel(void) {
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = KernelMonitor;
         TaskInfo.Parameter = NULL;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("KernelMonitor"));
@@ -1009,7 +1009,7 @@ void InitializeKernel(void) {
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = ClockTestTask;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_LOWEST;
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("ClockTestTask"));
@@ -1030,7 +1030,7 @@ void InitializeKernel(void) {
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = NetworkManagerTask;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_LOWER;
         TaskInfo.Flags = 0;
         TaskInfo.Parameter = NULL;
@@ -1049,7 +1049,7 @@ void InitializeKernel(void) {
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = Shell;
         TaskInfo.Parameter = NULL;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("Shell"));

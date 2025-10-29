@@ -74,7 +74,12 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
-    KernelProcess.HeapSize = N_1MB;
+
+#if defined(__EXOS_ARCH_I386__)
+    KernelProcess.HeapSize = N_2MB;
+#else
+    KernelProcess.HeapSize = N_4MB;
+#endif
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
@@ -98,7 +103,7 @@ void InitializeKernelProcess(void) {
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
     TaskInfo.Func = (TASKFUNC)InitializeKernel;
-    TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+    TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
     TaskInfo.Priority = TASK_PRIORITY_LOWEST;
     TaskInfo.Flags = TASK_CREATE_MAIN_KERNEL;
     StringCopy(TaskInfo.Name, TEXT("KernelMain"));
@@ -513,8 +518,8 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         HeapSize = N_64KB;
     }
 
-    if (StackSize < TASK_MINIMUM_STACK_SIZE) {
-        StackSize = TASK_MINIMUM_STACK_SIZE;
+    if (StackSize < TASK_MINIMUM_TASK_STACK_SIZE) {
+        StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
     }
 
     //-------------------------------------

@@ -1396,8 +1396,8 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     }
 
     Task->Arch.Stack.Size = Info->StackSize;
-    Task->Arch.SysStack.Size = TASK_SYSTEM_STACK_SIZE * 4u;
-    Task->Arch.Ist1Stack.Size = TASK_SYSTEM_STACK_SIZE * 4u;
+    Task->Arch.SysStack.Size = TASK_MINIMUM_SYSTEM_STACK_SIZE;
+    Task->Arch.Ist1Stack.Size = TASK_MINIMUM_SYSTEM_STACK_SIZE;
 
     Task->Arch.Stack.Base = AllocRegion(BaseVMA, 0, Task->Arch.Stack.Size,
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);

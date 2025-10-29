@@ -398,7 +398,7 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
               TASKINFO TaskInfo;
               TaskInfo.Func      = Shell;
               TaskInfo.Parameter = NULL;
-              TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+              TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
               TaskInfo.Priority  = TASK_PRIORITY_MEDIUM;
               TaskInfo.Flags     = 0;
               CreateTask(&KernelProcess, &TaskInfo);
@@ -555,7 +555,7 @@ static void HandleScanCode(U32 ScanCode) {
                             TaskInfo.Header.Flags = 0;
                             TaskInfo.Func = Shell;
                             TaskInfo.Parameter = NULL;
-                            TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+                            TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
                             TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
                             TaskInfo.Flags = 0;
                             CreateTask(&KernelProcess, &TaskInfo);

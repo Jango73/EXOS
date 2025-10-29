@@ -28,6 +28,82 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "CoreString.h"
+#include "utils/Helpers.h"
+
+/************************************************************************/
+
+#if defined(__EXOS_32__)
+#define TASK_MINIMUM_TASK_STACK_SIZE_OTHER_DEFAULT N_128KB
+#define TASK_MINIMUM_SYSTEM_STACK_SIZE_OTHER_DEFAULT N_32KB
+#else
+#define TASK_MINIMUM_TASK_STACK_SIZE_OTHER_DEFAULT N_64KB
+#define TASK_MINIMUM_SYSTEM_STACK_SIZE_OTHER_DEFAULT N_16KB
+#endif
+
+/************************************************************************/
+
+static UINT TaskMinimumTaskStackSize = TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT;
+static UINT TaskMinimumSystemStackSize = TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT;
+static BOOL TaskStackConfigInitialized = FALSE;
+
+/************************************************************************/
+
+static void TaskInitializeStackConfig(void) {
+    if (TaskStackConfigInitialized) {
+        return;
+    }
+
+    TaskStackConfigInitialized = TRUE;
+
+    LPCSTR configValue = GetConfigurationValue(TEXT(CONFIG_TASK_MINIMUM_TASK_STACK_SIZE));
+
+    SAFE_USE(configValue) {
+        UINT parsedValue = StringToU32(configValue);
+
+        if (parsedValue >= TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT) {
+            TaskMinimumTaskStackSize = parsedValue;
+        } else if (parsedValue == TASK_MINIMUM_TASK_STACK_SIZE_OTHER_DEFAULT) {
+            VERBOSE(TEXT("[TaskInitializeStackConfig] MinimumTaskStackSize='%s' matches other architecture default, keeping %u"),
+                    configValue, TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT);
+        } else {
+            WARNING(TEXT("[TaskInitializeStackConfig] MinimumTaskStackSize='%s' resolves to %u which is below minimum %u, using default"),
+                    configValue, parsedValue, TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT);
+        }
+    }
+
+    configValue = GetConfigurationValue(TEXT(CONFIG_TASK_MINIMUM_SYSTEM_STACK_SIZE));
+
+    SAFE_USE(configValue) {
+        UINT parsedValue = StringToU32(configValue);
+
+        if (parsedValue >= TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT) {
+            TaskMinimumSystemStackSize = parsedValue;
+        } else if (parsedValue == TASK_MINIMUM_SYSTEM_STACK_SIZE_OTHER_DEFAULT) {
+            VERBOSE(TEXT("[TaskInitializeStackConfig] MinimumSystemStackSize='%s' matches other architecture default, keeping %u"),
+                    configValue, TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT);
+        } else {
+            WARNING(TEXT("[TaskInitializeStackConfig] MinimumSystemStackSize='%s' resolves to %u which is below minimum %u, using default"),
+                    configValue, parsedValue, TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT);
+        }
+    }
+}
+
+/************************************************************************/
+
+UINT TaskGetMinimumTaskStackSize(void) {
+    TaskInitializeStackConfig();
+
+    return TaskMinimumTaskStackSize;
+}
+
+/************************************************************************/
+
+UINT TaskGetMinimumSystemStackSize(void) {
+    TaskInitializeStackConfig();
+
+    return TaskMinimumSystemStackSize;
+}
 
 /************************************************************************/
 
@@ -347,8 +423,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         return NULL;
     }
 
-    if (Info->StackSize < TASK_MINIMUM_STACK_SIZE) {
-        Info->StackSize = TASK_MINIMUM_STACK_SIZE;
+    if (Info->StackSize < TASK_MINIMUM_TASK_STACK_SIZE) {
+        Info->StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
     }
 
     if (Info->Priority > TASK_PRIORITY_CRITICAL) {

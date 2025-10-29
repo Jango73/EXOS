@@ -43,6 +43,8 @@
 #define CONFIG_TCP_EPHEMERAL_START      "TCP.EphemeralPortStart"
 #define CONFIG_TCP_SEND_BUFFER_SIZE     "TCP.SendBufferSize"
 #define CONFIG_TCP_RECEIVE_BUFFER_SIZE  "TCP.ReceiveBufferSize"
+#define CONFIG_TASK_MINIMUM_TASK_STACK_SIZE   "Task.MinimumTaskStackSize"
+#define CONFIG_TASK_MINIMUM_SYSTEM_STACK_SIZE "Task.MinimumSystemStackSize"
 
 // Per-device network interface configuration (format strings for dynamic paths)
 #define CONFIG_NETWORK_INTERFACE_DEVICE_NAME_FMT  "NetworkInterface.%u.DeviceName"
