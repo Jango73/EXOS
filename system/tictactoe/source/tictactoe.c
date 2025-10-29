@@ -124,9 +124,14 @@ void DisplayFullScreen(void) {
     printf("                           +---+---+---+");
 
     if (gameState.gamesPlayed > 0) {
-        float winRate = (float)gameState.playerWins / (float)gameState.gamesPlayed * 100.0f;
+        unsigned int winRateTenths =
+            (unsigned int)((gameState.playerWins * 1000) + (gameState.gamesPlayed / 2)) /
+            (unsigned int)gameState.gamesPlayed;
+        unsigned int winRateWhole = winRateTenths / 10;
+        unsigned int winRateFraction = winRateTenths % 10;
+
         GotoCursor(0, 19);
-        printf("                      Player Win Rate: %.1f%%", winRate);
+        printf("                      Player Win Rate: %u.%u%%", winRateWhole, winRateFraction);
     }
 
     GotoCursor(0, 21);

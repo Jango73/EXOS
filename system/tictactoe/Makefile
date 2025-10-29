@@ -20,6 +20,7 @@ $(error Unsupported architecture $(ARCH))
 endif
 
 CFLAGS  = -ffreestanding -Wall -Wextra -O0 -g -fno-pic -fno-stack-protector -fno-builtin \
+          -fcf-protection=none \
           $(ARCH_CFLAGS)
 
 LDFLAGS = -T tictactoe.ld -nostdlib -Map=$(BUILD_DIR)/system/tictactoe/tictactoe.map $(ARCH_LDFLAGS)
