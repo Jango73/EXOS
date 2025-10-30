@@ -449,7 +449,7 @@ Interrupt_SystemCall:
     ; RCX = User RIP (return address)
     ; R11 = User RFLAGS
 
-    mov     rdx, rbx              ; Preserve parameter value
+    mov     rdx, rbx              ; Preserve user parameter before clobbering registers
 
     ; 1. Save callee-saved registers (System V ABI)
     push    rbp
@@ -458,16 +458,23 @@ Interrupt_SystemCall:
     push    r13
     push    r14
     push    r15
-    push    rcx          ; Save user RIP (for SYSRET)
-    push    r11          ; Save user RFLAGS (for SYSRET)
+    push    rcx                  ; Save user RIP (for SYSRET)
+    push    r11                  ; Save user RFLAGS (for SYSRET)
 
-    ; 2. Prepare arguments for C function
-    mov     rdi, rax              ; Function
-    mov     rsi, rdx              ; Parameter
+    ; 2. Stash syscall arguments on the stack for debugging parity
+    push    rdx                  ; Parameter
+    push    rax                  ; Function
+
+    ; 3. Prepare arguments for C function
+    mov     rdi, [rsp]           ; Function identifier
+    mov     rsi, [rsp + 8]       ; User parameter
 
     call    SystemCallHandler
 
-    ; 3. Restore registers
+    ; 4. Discard saved arguments
+    add     rsp, 16
+
+    ; 5. Restore registers
     pop     r11
     pop     rcx
     pop     r15
@@ -477,7 +484,7 @@ Interrupt_SystemCall:
     pop     rbx
     pop     rbp
 
-    ; 4. Return to user mode
+    ; 6. Return to user mode
     sysretq
 
 ;-------------------------------------------------------------------------
