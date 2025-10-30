@@ -547,8 +547,8 @@ SYS_FUNC_BEGIN TaskRunner
     STACK_ALIGN_16_ENTER
 
     ;--------------------------------------
-    ; EBX contains the function
-    ; EAX contains the parameter
+    ; RBX contains the function pointer passed by the kernel
+    ; RAX contains the task parameter
 
     ; Save rax and rbx
     mov     r8, rax
@@ -574,13 +574,16 @@ SYS_FUNC_BEGIN TaskRunner
     call    rbx                 ; Call task function (stack already aligned)
 
 .exit:
-    mov     rbx, rax            ; Task exit code in rbx
-    mov     eax, 0x33           ; SYSCALL_Exit
+    mov     rbx, rax            ; Preserve task exit code in RBX
+    mov     rdi, 0x33           ; SYSCALL_Exit
+    mov     rsi, rbx            ; Pass exit code as the syscall parameter
+    mov     eax, edi            ; Mirror syscall number in RAX for consistency
     syscall
 
 .sleep:
-    mov     eax, 0x0F           ; SYSCALL_Sleep
-    mov     rbx, MAX_UINT
+    mov     rdi, 0x0F           ; SYSCALL_Sleep
+    mov     rsi, MAX_UINT       ; Sleep forever while we wait for the scheduler
+    mov     eax, edi
     syscall
     jmp     .sleep
 
