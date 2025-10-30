@@ -40,6 +40,7 @@ extern HardDriveHandler
 extern SystemCallHandler
 extern Kernel_i386
 extern DebugLogSyscallFrame
+extern SystemCallHandler
 
 section .text
 
@@ -447,59 +448,62 @@ Interrupt_HardDrive:
     UNALIGN_STACK
     iretq
 
+;-------------------------------------------------------------------------
+; SYSCALL Handler - 64-bit Long Mode
+; Prototype: UINT SystemCallHandler(UINT Function, UINT Parameter)
+; UINT = uint64_t
+;-------------------------------------------------------------------------
+
 FUNC_HEADER
 Interrupt_SystemCall:
-    push    r15
-    push    r14
-    push    r13
-    push    r12
-    push    r11
-    push    r10
-    push    r9
-    push    r8
-    push    rdi
-    push    rsi
+    ; SYSCALL entry point:
+    ; RAX = Function (syscall number)
+    ; RDI = Parameter (single argument)
+    ; RCX = User RIP (return address)
+    ; R11 = User RFLAGS
+
+    ; 1. Save callee-saved registers (System V ABI)
     push    rbp
-    push    rdx
-    push    rcx
     push    rbx
-    push    rax
+    push    r12
+    push    r13
+    push    r14
+    push    r15
+    push    rcx          ; Save user RIP (for SYSRET)
+    push    r11          ; Save user RFLAGS (for SYSRET)
 
-    mov     r15, rsp
+    ; 2. Save syscall arguments
+    push    rdi          ; Parameter
+    push    rax          ; Function
 
-    mov     rax, [rel Kernel_i386 + KERNELDATA_X86_64.TSS]
-    mov     rsp, [rax + X86_64_TASK_STATE_SEGMENT.RSP0]
+    ; 3. Prepare arguments for C function:
+    ; RDI = Function  -> [rsp + 8]
+    ; RSI = Parameter -> [rsp + 16]
+    mov     rdi, [rsp + 8]        ; Function
+    mov     rsi, [rsp + 16]       ; Parameter
 
-    call    EnterKernel
-
-    mov     edi, dword [r15 + SYSCALL_SAVE_RAX]
-    mov     rsi, [r15 + SYSCALL_SAVE_RBX]
-    mov     r13d, edi
     call    SystemCallHandler
-    mov     [r15 + SYSCALL_SAVE_RAX], rax
 
-    mov     rdi, r15
-    mov     esi, r13d
-    call    DebugLogSyscallFrame
+    ; 4. Store return value in RAX position on stack
+    add     rsp, 16               ; Remove Function and Parameter from stack
+    mov     [rsp + 16], rax       ; Place return value where old RAX was
 
-    mov     rsp, r15
-
-    pop     rax
-    pop     rbx
-    pop     rcx
-    pop     rdx
-    pop     rbp
-    pop     rsi
-    pop     rdi
-    pop     r8
-    pop     r9
-    pop     r10
+    ; 5. Restore registers
     pop     r11
-    pop     r12
-    pop     r13
-    pop     r14
+    pop     rcx
     pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     rbx
+    pop     rbp
+
+    ; 6. Return to user mode
     sysretq
+
+;-------------------------------------------------------------------------
+
+%define SELECTOR_KERNEL_DATA    0x10
 
 FUNC_HEADER
 EnterKernel:
