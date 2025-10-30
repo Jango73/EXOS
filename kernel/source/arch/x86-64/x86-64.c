@@ -168,6 +168,15 @@ typedef struct _REGION_SETUP {
 
 /************************************************************************/
 
+#define MAX_KERNEL_STACK_MIRROR_PAGES 128u
+
+typedef struct tag_KERNEL_STACK_MAPPING {
+    LINEAR Linear;
+    U64 EntryValue;
+} KERNEL_STACK_MAPPING;
+
+/************************************************************************/
+
 typedef struct _LOW_REGION_SHARED_TABLES {
     PHYSICAL BiosTablePhysical;
     PHYSICAL IdentityTablePhysical;
@@ -722,6 +731,86 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Mirror a kernel-mode stack into the kernel page directory.
+ * @param StackLabel Descriptive label used for logging.
+ * @param Process Owning process of the task being prepared.
+ * @param Stack Stack descriptor to mirror.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL MirrorKernelStackIntoKernelDirectory(
+    LPCSTR StackLabel,
+    struct tag_PROCESS* Process,
+    const STACK* Stack) {
+    if (Process == &KernelProcess) {
+        return TRUE;
+    }
+
+    if (Stack == NULL || Stack->Base == 0 || Stack->Size == 0) {
+        return TRUE;
+    }
+
+    UINT PageCount = (Stack->Size + (PAGE_SIZE - 1u)) >> PAGE_SIZE_MUL;
+
+    if (PageCount > MAX_KERNEL_STACK_MIRROR_PAGES) {
+        ERROR(TEXT("[MirrorKernelStackIntoKernelDirectory] Stack %s uses %u pages (limit=%u)"),
+            StackLabel, PageCount, MAX_KERNEL_STACK_MIRROR_PAGES);
+        return FALSE;
+    }
+
+    KERNEL_STACK_MAPPING Mappings[MAX_KERNEL_STACK_MIRROR_PAGES];
+
+    for (UINT Index = 0; Index < PageCount; Index++) {
+        LINEAR Linear = Stack->Base + ((LINEAR)Index << PAGE_SIZE_MUL);
+        volatile U64* EntryPointer = GetPageTableEntryRawPointer(Linear);
+        U64 EntryValue = *EntryPointer;
+
+        if ((EntryValue & PAGE_FLAG_PRESENT) == 0) {
+            ERROR(TEXT("[MirrorKernelStackIntoKernelDirectory] Stack %s page at %p is not present"),
+                StackLabel, Linear);
+            return FALSE;
+        }
+
+        Mappings[Index].Linear = Linear;
+        Mappings[Index].EntryValue = EntryValue;
+    }
+
+    PHYSICAL OriginalDirectory = GetPageDirectory();
+
+    LoadPageDirectory(KernelProcess.PageDirectory);
+
+    BOOL Success = TRUE;
+    UINT MappedCount = 0u;
+
+    for (UINT Index = 0; Index < PageCount; Index++) {
+        LINEAR Linear = Mappings[Index].Linear;
+        U64 EntryValue = Mappings[Index].EntryValue;
+        PHYSICAL Physical = (PHYSICAL)(EntryValue & PAGE_MASK);
+
+        if (AllocRegion(Linear,
+                Physical,
+                PAGE_SIZE,
+                ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
+            ERROR(TEXT("[MirrorKernelStackIntoKernelDirectory] Failed to map stack %s page at %p"), StackLabel, Linear);
+            Success = FALSE;
+            break;
+        }
+
+        MappedCount++;
+    }
+
+    if (!Success) {
+        for (UINT Revert = 0; Revert < MappedCount; Revert++) {
+            FreeRegion(Mappings[Revert].Linear, PAGE_SIZE);
+        }
+    }
+
+    FlushTLB();
+    LoadPageDirectory(OriginalDirectory);
+
+    return Success;
+}
 
 /**
  * @brief Compute the number of bytes of kernel memory that must be mapped.
@@ -1483,6 +1572,35 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     MemorySet((LPVOID)(Task->Arch.SysStack.Base), 0, Task->Arch.SysStack.Size);
     MemorySet((LPVOID)(Task->Arch.Ist1Stack.Base), 0, Task->Arch.Ist1Stack.Size);
     MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
+
+    if (Process->Privilege == PRIVILEGE_USER) {
+        BOOL Mirrored = TRUE;
+
+        if (!MirrorKernelStackIntoKernelDirectory(TEXT("system"), Process, &(Task->Arch.SysStack))) {
+            Mirrored = FALSE;
+        }
+
+        if (Mirrored &&
+            !MirrorKernelStackIntoKernelDirectory(TEXT("ist1"), Process, &(Task->Arch.Ist1Stack))) {
+            Mirrored = FALSE;
+        }
+
+        if (!Mirrored) {
+            FreeRegion(Task->Arch.Stack.Base, Task->Arch.Stack.Size);
+            FreeRegion(Task->Arch.SysStack.Base, Task->Arch.SysStack.Size);
+            FreeRegion(Task->Arch.Ist1Stack.Base, Task->Arch.Ist1Stack.Size);
+
+            Task->Arch.Stack.Base = 0;
+            Task->Arch.Stack.Size = 0;
+            Task->Arch.SysStack.Base = 0;
+            Task->Arch.SysStack.Size = 0;
+            Task->Arch.Ist1Stack.Base = 0;
+            Task->Arch.Ist1Stack.Size = 0;
+
+            ERROR(TEXT("[SetupTask] Failed to mirror kernel stacks for user process"));
+            return FALSE;
+        }
+    }
 
     GetCR4(CR4);
 
