@@ -455,14 +455,19 @@ Interrupt_SystemCall:
 
     cli
 
+    mov     rdx, rsp                     ; Preserve user-mode stack pointer
+    mov     rax, [rel Kernel_i386 + KERNELDATA_X86_64.TSS]
+    mov     rsp, [rax + X86_64_TASK_STATE_SEGMENT.RSP0] ; Switch to task kernel stack
+
+    push    rdx                          ; Store user-mode stack pointer on kernel stack
     push    rbp
     push    rbx
     push    r12
     push    r13
     push    r14
     push    r15
-    push    rcx          ; Save user RIP (for SYSRET)
-    push    r11          ; Save user RFLAGS (for SYSRET)
+    push    rcx                          ; Save user RIP (for SYSRET)
+    push    r11                          ; Save user RFLAGS (for SYSRET)
 
     call    SystemCallHandler
 
@@ -475,6 +480,9 @@ Interrupt_SystemCall:
     pop     r12
     pop     rbx
     pop     rbp
+
+    pop     rdx                          ; Retrieve saved user-mode stack pointer
+    mov     rsp, rdx                     ; Restore user stack for SYSRET
 
     sysretq
 
