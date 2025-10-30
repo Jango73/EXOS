@@ -304,12 +304,34 @@ void DeleteTask(LPTASK This) {
         }
 #endif
 
+        BOOL SwitchedPageDirectory = FALSE;
+        PHYSICAL PreviousPageDirectory = 0;
+
         SAFE_USE(This->Process) {
+            if (This->Process != &KernelProcess) {
+                PHYSICAL TargetPageDirectory = This->Process->PageDirectory;
+
+                if (TargetPageDirectory != 0) {
+                    LPPROCESS CurrentProcess = GetCurrentProcess();
+
+                    SAFE_USE(CurrentProcess) { PreviousPageDirectory = CurrentProcess->PageDirectory; }
+
+                    if (PreviousPageDirectory != TargetPageDirectory) {
+                        LoadPageDirectory(TargetPageDirectory);
+                        SwitchedPageDirectory = TRUE;
+                    }
+                }
+            }
+
             SAFE_USE(This->Arch.Stack.Base) {
                 DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->Arch.Stack.Base,
                     This->Arch.Stack.Size);
                 FreeRegion(This->Arch.Stack.Base, This->Arch.Stack.Size);
             }
+        }
+
+        if (SwitchedPageDirectory) {
+            LoadPageDirectory(PreviousPageDirectory);
         }
 
         //-------------------------------------

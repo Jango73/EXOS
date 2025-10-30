@@ -651,6 +651,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - `DeleteDeadTasksAndProcesses()` is called periodically by the kernel monitor
 - First phase: Processes all `TASK_STATUS_DEAD` tasks
   - Calls `DeleteTask()` which frees stacks, message queues, etc.
+    - The kernel temporarily loads the dead task's page directory while freeing user stacks and restores the previous mapping afterward to keep page table teardown safe.
   - Updates process task counts and marks processes dead if needed
 - Second phase: Processes all `PROCESS_STATUS_DEAD` processes
   - Calls `ReleaseProcessKernelObjects()` to drop references held by the process on every kernel-managed list
