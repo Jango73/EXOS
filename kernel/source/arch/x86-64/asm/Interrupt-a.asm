@@ -484,7 +484,12 @@ Interrupt_SystemCall:
     pop     rdx                          ; Retrieve saved user-mode stack pointer
     mov     rsp, rdx                     ; Restore user stack for SYSRET
 
-    sysretq
+    ; NASM used in the build environment does not recognize the `sysretq`
+    ; mnemonic and silently treats it as a label, which results in the
+    ; syscall trampoline returning with a plain `ret` using a user-space
+    ; stack pointer. Encode the instruction manually to guarantee that the
+    ; CPU executes SYSRET in 64-bit mode.
+    db      0x48, 0x0F, 0x07      ; sysretq
 
 ;-------------------------------------------------------------------------
 
