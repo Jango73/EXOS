@@ -646,6 +646,14 @@ BOOL GetInterruptStatistics(U8 IRQ, U32* Count, U32* LastTimestamp) {
  */
 BOOL SwitchToPICForRealMode(void) {
     DEBUG(TEXT("[SwitchToPICForRealMode] Enter"));
+#if defined(__GNUC__)
+    LPVOID Caller0 = __builtin_return_address(0);
+    DEBUG(TEXT("[SwitchToPICForRealMode] return_address[0]=%p"), Caller0);
+    LPVOID Caller1 = __builtin_return_address(1);
+    if (Caller1 != NULL) {
+        DEBUG(TEXT("[SwitchToPICForRealMode] return_address[1]=%p"), Caller1);
+    }
+#endif
 
     if (g_InterruptControllerConfig.ActiveType != INTCTRL_TYPE_IOAPIC) {
         DEBUG(TEXT("[SwitchToPICForRealMode] Already in PIC mode, nothing to do"));

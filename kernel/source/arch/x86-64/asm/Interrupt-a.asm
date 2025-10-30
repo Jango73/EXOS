@@ -445,7 +445,7 @@ FUNC_HEADER
 Interrupt_SystemCall:
     ; SYSCALL entry point:
     ; RAX = Function (syscall number)
-    ; RBX = Parameter (single argument)
+    ; RDI = Parameter (single argument)
     ; RCX = User RIP (return address)
     ; R11 = User RFLAGS
 
@@ -459,13 +459,23 @@ Interrupt_SystemCall:
     push    rcx          ; Save user RIP (for SYSRET)
     push    r11          ; Save user RFLAGS (for SYSRET)
 
-    ; 2. Prepare arguments for C function:
-    mov     rdi, rax             ; Function identifier
-    mov     rsi, rbx             ; System call parameter
+    ; 2. Save syscall arguments
+    push    rdi          ; Parameter
+    push    rax          ; Function
+
+    ; 3. Prepare arguments for C function:
+    ; RDI = Function  -> [rsp + 8]
+    ; RSI = Parameter -> [rsp + 16]
+    mov     rdi, [rsp + 8]        ; Function
+    mov     rsi, [rsp + 16]       ; Parameter
 
     call    SystemCallHandler
 
-    ; 3. Restore registers
+    ; 4. Store return value in RAX position on stack
+    add     rsp, 16               ; Remove Function and Parameter from stack
+    mov     [rsp + 16], rax       ; Place return value where old RAX was
+
+    ; 5. Restore registers
     pop     r11
     pop     rcx
     pop     r15
@@ -475,7 +485,7 @@ Interrupt_SystemCall:
     pop     rbx
     pop     rbp
 
-    ; 4. Return to user mode
+    ; 6. Return to user mode
     sysretq
 
 ;-------------------------------------------------------------------------
