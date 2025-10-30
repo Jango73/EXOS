@@ -696,14 +696,19 @@ static void FreeEmptyPageTables(void) {
 
     while (MemoryPageIteratorGetLinear(&Iterator) < VMA_KERNEL) {
         UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
-        PHYSICAL TablePhysical = PageDirectoryEntryGetPhysical(Directory, DirEntry);
+        U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 
-        if (TablePhysical != 0) {
-            LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
+        if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) != 0 &&
+            (DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) == 0) {
+            PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntryValue & PAGE_MASK);
 
-            if (ArchPageTableIsEmpty(Table)) {
-                SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
-                ClearPageDirectoryEntry(Directory, DirEntry);
+            if (TablePhysical != 0) {
+                LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
+
+                if (ArchPageTableIsEmpty(Table)) {
+                    SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
+                    ClearPageDirectoryEntry(Directory, DirEntry);
+                }
             }
         }
 
