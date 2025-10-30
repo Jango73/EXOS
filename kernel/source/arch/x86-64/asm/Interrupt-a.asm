@@ -37,7 +37,6 @@ extern PCIHandler
 extern MouseHandler
 extern FPUHandler
 extern HardDriveHandler
-extern SystemCallHandler
 extern Kernel_i386
 extern DebugLogSyscallFrame
 extern SystemCallHandler
@@ -176,8 +175,6 @@ SYSCALL_SAVE_RBX       equ 8
     mov     ax, ss
     movzx   eax, ax
     push    rax
-
-    call    EnterKernel
 
     sub     rsp, INTERRUPT_FRAME_size
     lea     r11, [rsp]
@@ -448,21 +445,16 @@ Interrupt_HardDrive:
     UNALIGN_STACK
     iretq
 
-;-------------------------------------------------------------------------
-; SYSCALL Handler - 64-bit Long Mode
-; Prototype: UINT SystemCallHandler(UINT Function, UINT Parameter)
-; UINT = uint64_t
-;-------------------------------------------------------------------------
-
 FUNC_HEADER
 Interrupt_SystemCall:
     ; SYSCALL entry point:
-    ; RAX = Function (syscall number)
-    ; RDI = Parameter (single argument)
+    ; RDI = Function (syscall number)
+    ; RSI = Parameter (single argument)
     ; RCX = User RIP (return address)
     ; R11 = User RFLAGS
 
-    ; 1. Save callee-saved registers (System V ABI)
+    cli
+
     push    rbp
     push    rbx
     push    r12
@@ -472,23 +464,9 @@ Interrupt_SystemCall:
     push    rcx          ; Save user RIP (for SYSRET)
     push    r11          ; Save user RFLAGS (for SYSRET)
 
-    ; 2. Save syscall arguments
-    push    rdi          ; Parameter
-    push    rax          ; Function
-
-    ; 3. Prepare arguments for C function:
-    ; RDI = Function  -> [rsp + 8]
-    ; RSI = Parameter -> [rsp + 16]
-    mov     rdi, [rsp + 8]        ; Function
-    mov     rsi, [rsp + 16]       ; Parameter
-
     call    SystemCallHandler
 
-    ; 4. Store return value in RAX position on stack
-    add     rsp, 16               ; Remove Function and Parameter from stack
-    mov     [rsp + 16], rax       ; Place return value where old RAX was
-
-    ; 5. Restore registers
+    ; Restore registers
     pop     r11
     pop     rcx
     pop     r15
@@ -498,21 +476,13 @@ Interrupt_SystemCall:
     pop     rbx
     pop     rbp
 
-    ; 6. Return to user mode
     sysretq
 
 ;-------------------------------------------------------------------------
 
-%define SELECTOR_KERNEL_DATA    0x10
-
 FUNC_HEADER
 EnterKernel:
     push    rax
-    mov     ax, SELECTOR_KERNEL_DATA
-    mov     ds, ax
-    mov     es, ax
-    mov     fs, ax
-    mov     gs, ax
     pop     rax
     ret
 

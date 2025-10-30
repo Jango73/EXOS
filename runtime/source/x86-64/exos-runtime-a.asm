@@ -96,13 +96,7 @@ __exit__:
 ; exoscall : bridge to EXOS system services
 
 exoscall:
-    push    rbx
-
-    mov     eax, edi
-    mov     rbx, rsi
     syscall
-
-    pop     rbx
     ret
 %endif ; __KERNEL__
 
