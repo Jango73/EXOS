@@ -181,7 +181,7 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
 
         SAFE_USE_VALID_ID(CurrentProcess, KOID_PROCESS) {
             DEBUG(TEXT("[SysCall_GetProcessInfo] Info->CommandLine = %s"), Info->CommandLine);
-            DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%x"), CurrentProcess);
+            DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%p"), CurrentProcess);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
 
             // Copy the command line
@@ -209,11 +209,17 @@ UINT SysCall_CreateTask(UINT Parameter) {
 
 /***************************************************************************/
 
-UINT SysCall_KillTask(UINT Parameter) { return (UINT)KillTask((LPTASK)Parameter); }
+UINT SysCall_KillTask(UINT Parameter) {
+    DEBUG(TEXT("[SysCall_KillTask] Enter, Parameter=%x"), Parameter);
+
+    return (UINT)KillTask((LPTASK)Parameter);
+}
 
 /***************************************************************************/
 
 UINT SysCall_Exit(UINT Parameter) {
+    DEBUG(TEXT("[SysCall_Exit] Enter, Parameter=%x"), Parameter);
+
     LPTASK Task = GetCurrentTask();
     SetTaskExitCode(Task, Parameter);
     return (UINT)KillTask(Task);
