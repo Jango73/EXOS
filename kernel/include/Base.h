@@ -283,8 +283,7 @@ typedef UINT BOOL;
         && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->TypeID == i)))
 
 // This is called before dereferencing a user-provided pointer to a parameter structure
-#define SAFE_USE_INPUT_POINTER(p, s) \
-    if ((p) != NULL && IsValidUserBuffer((LINEAR)(p), (UINT)sizeof(s)) && (p)->Header.Size >= sizeof(s))
+#define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
 
 // Do an infinite loop
 #define FOREVER while(1)
