@@ -40,7 +40,7 @@
         "enableCommandHistory": true,
         "persistLogs": true,
         "notifyOnExit": true,
-        "renderThrottleMs": 100,
+        "renderThrottleMs": 50,
         "maxLogLines": 1000
     },
     "events": {
