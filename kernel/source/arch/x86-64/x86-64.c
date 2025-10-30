@@ -36,6 +36,8 @@
 #include "Interrupt.h"
 #include "SYSCall.h"
 
+extern LINEAR AllocPageTable(LINEAR Base);
+
 /************************************************************************\
 
                               ┌──────────────────────────────────────────┐
@@ -186,6 +188,55 @@ static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
     .BiosTablePhysical = NULL,
     .IdentityTablePhysical = NULL,
 };
+
+/************************************************************************/
+
+static BOOL EnsureProcessTableForStack(LINEAR Linear, LPPAGE_TABLE* OutTable) {
+    if (OutTable == NULL) {
+        return FALSE;
+    }
+
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Linear);
+    UINT Pml4Index = MemoryPageIteratorGetPml4Index(&Iterator);
+    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(&Iterator);
+    UINT DirectoryIndex = MemoryPageIteratorGetDirectoryIndex(&Iterator);
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    if (!PageDirectoryEntryIsPresent((LPPAGE_DIRECTORY)Pml4, Pml4Index)) {
+        return FALSE;
+    }
+
+    PHYSICAL PdptPhysical = PageDirectoryEntryGetPhysical((LPPAGE_DIRECTORY)Pml4, Pml4Index);
+    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(PdptPhysical);
+    U64 PdptEntryValue = ReadPageDirectoryEntryValue(Pdpt, PdptIndex);
+
+    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0 || (PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        return FALSE;
+    }
+
+    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
+    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirectoryIndex);
+
+    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
+        return FALSE;
+    }
+
+    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        if (AllocPageTable(Linear) == NULL) {
+            return FALSE;
+        }
+
+        DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirectoryIndex);
+
+        if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+            return FALSE;
+        }
+    }
+
+    *OutTable = GetPageTableVAFor(Linear);
+    return TRUE;
+}
 
 /************************************************************************/
 
@@ -777,32 +828,66 @@ static BOOL MirrorKernelStackIntoKernelDirectory(
     }
 
     PHYSICAL OriginalDirectory = GetPageDirectory();
+    BOOL DirectoryChanged = FALSE;
 
-    LoadPageDirectory(KernelProcess.PageDirectory);
+    if (OriginalDirectory != KernelProcess.PageDirectory) {
+        LoadPageDirectory(KernelProcess.PageDirectory);
+        DirectoryChanged = TRUE;
+    }
+
+    for (UINT Index = 0; Index < PageCount; Index++) {
+        LINEAR Linear = Mappings[Index].Linear;
+        volatile U64* EntryPointer = GetPageTableEntryRawPointer(Linear);
+        U64 EntryValue = *EntryPointer;
+
+        if ((EntryValue & PAGE_FLAG_PRESENT) == 0) {
+            if (DirectoryChanged) {
+                LoadPageDirectory(OriginalDirectory);
+            }
+
+            ERROR(TEXT("[MirrorKernelStackIntoKernelDirectory] Stack %s page at %p missing in kernel directory"),
+                StackLabel,
+                Linear);
+            return FALSE;
+        }
+
+        Mappings[Index].EntryValue = EntryValue;
+    }
+
+    if (DirectoryChanged) {
+        LoadPageDirectory(OriginalDirectory);
+    }
+
+    LoadPageDirectory(Process->PageDirectory);
 
     BOOL Success = TRUE;
     UINT MappedCount = 0u;
 
     for (UINT Index = 0; Index < PageCount; Index++) {
         LINEAR Linear = Mappings[Index].Linear;
-        U64 EntryValue = Mappings[Index].EntryValue;
-        PHYSICAL Physical = (PHYSICAL)(EntryValue & PAGE_MASK);
+        U64 EntryValue = Mappings[Index].EntryValue | PAGE_FLAG_FIXED;
+        LPPAGE_TABLE Table = NULL;
 
-        if (AllocRegion(Linear,
-                Physical,
-                PAGE_SIZE,
-                ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
-            ERROR(TEXT("[MirrorKernelStackIntoKernelDirectory] Failed to map stack %s page at %p"), StackLabel, Linear);
+        if (!EnsureProcessTableForStack(Linear, &Table)) {
+            ERROR(TEXT("[MirrorKernelStackIntoKernelDirectory] Stack %s page %p cannot ensure table"), StackLabel, Linear);
             Success = FALSE;
             break;
         }
 
+        UINT TableIndex = GetTableEntry(Linear);
+        WritePageTableEntryValue(Table, TableIndex, EntryValue);
         MappedCount++;
     }
 
     if (!Success) {
         for (UINT Revert = 0; Revert < MappedCount; Revert++) {
-            FreeRegion(Mappings[Revert].Linear, PAGE_SIZE);
+            LINEAR Linear = Mappings[Revert].Linear;
+            LPPAGE_TABLE Table = NULL;
+
+            if (EnsureProcessTableForStack(Linear, &Table)) {
+                UINT TableIndex = GetTableEntry(Linear);
+                ClearPageTableEntry(Table, TableIndex);
+            }
         }
     }
 
@@ -1516,6 +1601,9 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     LINEAR BootStackTop;
     LINEAR RSP, RBP;
     U64 CR4;
+    PHYSICAL CurrentDirectory = GetPageDirectory();
+    PHYSICAL KernelDirectory = KernelProcess.PageDirectory;
+    BOOL SwitchedForKernelStacks = FALSE;
 
     DEBUG(TEXT("[SetupTask] Enter"));
 
@@ -1531,10 +1619,29 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
     Task->Arch.Stack.Base = AllocRegion(BaseVMA, 0, Task->Arch.Stack.Size,
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+
+    if (Process->Privilege == PRIVILEGE_USER && CurrentDirectory != KernelDirectory) {
+        LoadPageDirectory(KernelDirectory);
+        SwitchedForKernelStacks = TRUE;
+    }
+
     Task->Arch.SysStack.Base =
         AllocKernelRegion(0, Task->Arch.SysStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (Task->Arch.SysStack.Base != NULL) {
+        MemorySet((LPVOID)(Task->Arch.SysStack.Base), 0, Task->Arch.SysStack.Size);
+    }
+
     Task->Arch.Ist1Stack.Base =
         AllocKernelRegion(0, Task->Arch.Ist1Stack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+
+    if (Task->Arch.Ist1Stack.Base != NULL) {
+        MemorySet((LPVOID)(Task->Arch.Ist1Stack.Base), 0, Task->Arch.Ist1Stack.Size);
+    }
+
+    if (SwitchedForKernelStacks) {
+        LoadPageDirectory(CurrentDirectory);
+    }
 
     DEBUG(TEXT("[SetupTask] BaseVMA=%p, Requested StackBase at BaseVMA"), BaseVMA);
     DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.Stack.Base);
@@ -1547,15 +1654,29 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         }
 
         if (Task->Arch.SysStack.Base != NULL) {
+            PHYSICAL ActiveDirectory = GetPageDirectory();
+            if (ActiveDirectory != KernelDirectory) {
+                LoadPageDirectory(KernelDirectory);
+            }
             FreeRegion(Task->Arch.SysStack.Base, Task->Arch.SysStack.Size);
             Task->Arch.SysStack.Base = 0;
             Task->Arch.SysStack.Size = 0;
+            if (ActiveDirectory != KernelDirectory) {
+                LoadPageDirectory(ActiveDirectory);
+            }
         }
 
         if (Task->Arch.Ist1Stack.Base != NULL) {
+            PHYSICAL ActiveDirectory = GetPageDirectory();
+            if (ActiveDirectory != KernelDirectory) {
+                LoadPageDirectory(KernelDirectory);
+            }
             FreeRegion(Task->Arch.Ist1Stack.Base, Task->Arch.Ist1Stack.Size);
             Task->Arch.Ist1Stack.Base = 0;
             Task->Arch.Ist1Stack.Size = 0;
+            if (ActiveDirectory != KernelDirectory) {
+                LoadPageDirectory(ActiveDirectory);
+            }
         }
 
         ERROR(TEXT("[SetupTask] Stack or system stack allocation failed"));
@@ -1569,8 +1690,6 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         Task->Arch.Ist1Stack.Base);
 
     MemorySet((LPVOID)(Task->Arch.Stack.Base), 0, Task->Arch.Stack.Size);
-    MemorySet((LPVOID)(Task->Arch.SysStack.Base), 0, Task->Arch.SysStack.Size);
-    MemorySet((LPVOID)(Task->Arch.Ist1Stack.Base), 0, Task->Arch.Ist1Stack.Size);
     MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
 
     if (Process->Privilege == PRIVILEGE_USER) {
@@ -1587,15 +1706,25 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
         if (!Mirrored) {
             FreeRegion(Task->Arch.Stack.Base, Task->Arch.Stack.Size);
+            Task->Arch.Stack.Base = 0;
+            Task->Arch.Stack.Size = 0;
+
+            PHYSICAL ActiveDirectory = GetPageDirectory();
+            if (ActiveDirectory != KernelDirectory) {
+                LoadPageDirectory(KernelDirectory);
+            }
+
             FreeRegion(Task->Arch.SysStack.Base, Task->Arch.SysStack.Size);
             FreeRegion(Task->Arch.Ist1Stack.Base, Task->Arch.Ist1Stack.Size);
 
-            Task->Arch.Stack.Base = 0;
-            Task->Arch.Stack.Size = 0;
             Task->Arch.SysStack.Base = 0;
             Task->Arch.SysStack.Size = 0;
             Task->Arch.Ist1Stack.Base = 0;
             Task->Arch.Ist1Stack.Size = 0;
+
+            if (ActiveDirectory != KernelDirectory) {
+                LoadPageDirectory(ActiveDirectory);
+            }
 
             ERROR(TEXT("[SetupTask] Failed to mirror kernel stacks for user process"));
             return FALSE;

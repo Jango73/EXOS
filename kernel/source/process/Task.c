@@ -290,6 +290,28 @@ void DeleteTask(LPTASK This) {
 
         DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
+        if (This->Process != NULL && This->Process->Privilege == PRIVILEGE_USER && This->Process->PageDirectory != 0) {
+            PHYSICAL ActiveDirectory = GetPageDirectory();
+
+            if (ActiveDirectory != This->Process->PageDirectory) {
+                LoadPageDirectory(This->Process->PageDirectory);
+            }
+
+            SAFE_USE(This->Arch.SysStack.Base) {
+                FreeRegion(This->Arch.SysStack.Base, This->Arch.SysStack.Size);
+            }
+
+#if defined(__EXOS_ARCH_X86_64__)
+            SAFE_USE(This->Arch.Ist1Stack.Base) {
+                FreeRegion(This->Arch.Ist1Stack.Base, This->Arch.Ist1Stack.Size);
+            }
+#endif
+
+            if (ActiveDirectory != This->Process->PageDirectory) {
+                LoadPageDirectory(ActiveDirectory);
+            }
+        }
+
         SAFE_USE(This->Arch.SysStack.Base) {
             DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->Arch.SysStack.Base,
                 This->Arch.SysStack.Size);
