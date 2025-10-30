@@ -573,12 +573,22 @@ Interrupt_Clock
 
 ## System calls
 
-### System call full path
+### System call full path - i386
 
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()
     └── calls int EXOS_USER_CALL
         └── trap lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
+
+### System call full path - x86-64
+
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── syscall instruction
+        └── syscall lands in interrupt-a.asm : Interrupt_SystemCall
             └── calls SYSCall.c : SystemCallHandler()
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
