@@ -76,7 +76,6 @@ section .text
     global Interrupt_FPU
     global Interrupt_HardDrive
     global Interrupt_SystemCall
-    global EnterKernel
 
 ;-------------------------------------------------------------------------
 
@@ -176,8 +175,6 @@ SYSCALL_SAVE_RBX       equ 8
     mov     ax, ss
     movzx   eax, ax
     push    rax
-
-    call    EnterKernel
 
     sub     rsp, INTERRUPT_FRAME_size
     lea     r11, [rsp]
@@ -314,7 +311,6 @@ Interrupt_Clock:
     PUSH_GPRS
     PUSH_SEGMENTS
     call SendEOI
-    call EnterKernel
     call ClockHandler
     POP_SEGMENTS
     POP_GPRS
@@ -328,7 +324,6 @@ Interrupt_Keyboard:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call KeyboardHandler
     call SendEOI
     POP_SEGMENTS
@@ -342,7 +337,6 @@ Interrupt_PIC2:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call PIC2Handler
     call SendEOI
     POP_SEGMENTS
@@ -356,7 +350,6 @@ Interrupt_COM2:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call COM2Handler
     call SendEOI
     POP_SEGMENTS
@@ -370,7 +363,6 @@ Interrupt_COM1:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call COM1Handler
     call SendEOI
     POP_SEGMENTS
@@ -384,7 +376,6 @@ Interrupt_RTC:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call RTCHandler
     call SendEOI
     POP_SEGMENTS
@@ -398,7 +389,6 @@ Interrupt_PCI:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call PCIHandler
     call SendEOI
     POP_SEGMENTS
@@ -412,7 +402,6 @@ Interrupt_Mouse:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call MouseHandler
     call SendEOI
     POP_SEGMENTS
@@ -426,7 +415,6 @@ Interrupt_FPU:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call FPUHandler
     call SendEOI
     POP_SEGMENTS
@@ -440,7 +428,6 @@ Interrupt_HardDrive:
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
-    call EnterKernel
     call HardDriveHandler
     call SendEOI
     POP_SEGMENTS
@@ -502,18 +489,5 @@ Interrupt_SystemCall:
     sysretq
 
 ;-------------------------------------------------------------------------
-
-%define SELECTOR_KERNEL_DATA    0x10
-
-FUNC_HEADER
-EnterKernel:
-    push    rax
-    mov     ax, SELECTOR_KERNEL_DATA
-    mov     ds, ax
-    mov     es, ax
-    mov     fs, ax
-    mov     gs, ax
-    pop     rax
-    ret
 
 section .note.GNU-stack noalloc noexec nowrite align=1
