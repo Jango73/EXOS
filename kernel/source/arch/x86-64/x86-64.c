@@ -180,6 +180,31 @@ static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
 
 /************************************************************************/
 
+/**
+ * @brief Determine how much of the low physical memory range must remain
+ *        identity-mapped.
+ *
+ * Ensures that shared resources located below the kernel's virtual base,
+ * such as the physical page bitmap, stay accessible even when executing with
+ * a userland page directory.
+ */
+static PHYSICAL GetRequiredLowMappingEnd(void) {
+    PHYSICAL Required = RESERVED_LOW_MEMORY;
+
+    if (Kernel.PPB != NULL && Kernel.PPBSize != 0) {
+        PHYSICAL PpbPhysicalBase = (PHYSICAL)(LINEAR)(Kernel.PPB);
+        PHYSICAL PpbPhysicalEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)Kernel.PPBSize);
+
+        if (PpbPhysicalEnd > Required) {
+            Required = PpbPhysicalEnd;
+        }
+    }
+
+    return Required;
+}
+
+/************************************************************************/
+
 static BOOL EnsureSharedLowTable(
     PHYSICAL* TablePhysical,
     PHYSICAL PhysicalBase,
@@ -670,6 +695,50 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     DEBUG(TEXT("[SetupLowRegion] Directory[%u] -> shared identity table %p"),
         LowDirectoryIndex + 1u,
         LowRegionSharedTables.IdentityTablePhysical);
+
+    PHYSICAL RequiredLowEnd = GetRequiredLowMappingEnd();
+    PHYSICAL CurrentCoverage = (PHYSICAL)((U64)PAGE_TABLE_CAPACITY * 2u);
+    if (RequiredLowEnd < CurrentCoverage) {
+        RequiredLowEnd = CurrentCoverage;
+    }
+
+    if (RequiredLowEnd > CurrentCoverage) {
+        UINT TableCapacity = (UINT)(sizeof(Region->Tables) / sizeof(Region->Tables[0]));
+        UINT AdditionalIndex = 0u;
+
+        while (CurrentCoverage < RequiredLowEnd) {
+            if (Region->TableCount >= TableCapacity) {
+                ERROR(TEXT("[SetupLowRegion] Additional identity tables overflow (count=%u capacity=%u)"),
+                    Region->TableCount,
+                    TableCapacity);
+                return FALSE;
+            }
+
+            PAGE_TABLE_SETUP* Table = &Region->Tables[Region->TableCount];
+            Table->DirectoryIndex = LowDirectoryIndex + 2u + AdditionalIndex;
+            Table->ReadWrite = 1u;
+            Table->Privilege = PAGE_PRIVILEGE_KERNEL;
+            Table->Global = 0u;
+            Table->Mode = PAGE_TABLE_POPULATE_IDENTITY;
+            Table->Data.Identity.PhysicalBase =
+                (PHYSICAL)(((U64)2u + (U64)AdditionalIndex) << PAGE_TABLE_CAPACITY_MUL);
+            Table->Data.Identity.ProtectBios = FALSE;
+
+            DEBUG(TEXT("[SetupLowRegion] Extending identity map dir=%u base=%p coverage=%p/%p"),
+                Table->DirectoryIndex,
+                (LINEAR)Table->Data.Identity.PhysicalBase,
+                (LINEAR)CurrentCoverage,
+                (LINEAR)RequiredLowEnd);
+
+            if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) {
+                return FALSE;
+            }
+
+            Region->TableCount++;
+            AdditionalIndex++;
+            CurrentCoverage += (PHYSICAL)PAGE_TABLE_CAPACITY;
+        }
+    }
 
     if (UserSeedTables != 0u) {
         UINT TableCapacity = (UINT)(sizeof(Region->Tables) / sizeof(Region->Tables[0]));
@@ -1625,7 +1694,7 @@ void InitializeMemoryManager(void) {
     PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize + TablesSize;
     PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
 
-    Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
+    Kernel.PPB = (LPPAGEBITMAP)(LINEAR)PpbPhysical;
     Kernel.PPBSize = BitmapBytesAligned;
 
     DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB physical base: %p"), (LINEAR)Kernel.PPB);

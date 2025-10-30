@@ -257,7 +257,7 @@ void MarkUsedPhysicalMemory(void) {
         return;
     }
 
-    PHYSICAL PpbPhysicalBase = (PHYSICAL)(UINT)(Kernel.PPB);
+    PHYSICAL PpbPhysicalBase = (PHYSICAL)(LINEAR)(Kernel.PPB);
     PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)Kernel.PPBSize);
     UINT ReservedPageCount = (UINT)(ReservedEnd >> PAGE_SIZE_MUL);
 
