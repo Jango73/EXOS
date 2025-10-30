@@ -59,6 +59,9 @@ void FreePhysicalPage(PHYSICAL Page);
 // Returns TRUE if a pointer is an valid address (mapped in the calling process space)
 BOOL IsValidMemory(LINEAR Pointer);
 
+// Returns TRUE if a complete user buffer is mapped in the calling process space
+BOOL IsValidUserBuffer(LINEAR Base, UINT Size);
+
 // Returns the physical address for a given virtual address
 PHYSICAL MapLinearToPhysical(LINEAR Address);
 

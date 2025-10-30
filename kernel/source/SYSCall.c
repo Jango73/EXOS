@@ -177,18 +177,26 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
             CurrentProcess = GetCurrentProcess();
         } else {
             CurrentProcess = (LPPROCESS)Info->Process;
+
+            if ((LINEAR)CurrentProcess < VMA_KERNEL) {
+                DEBUG(TEXT("[SysCall_GetProcessInfo] Rejecting non-kernel process pointer %p"),
+                      CurrentProcess);
+                CurrentProcess = NULL;
+            }
         }
 
-        SAFE_USE_VALID_ID(CurrentProcess, KOID_PROCESS) {
-            DEBUG(TEXT("[SysCall_GetProcessInfo] Info->CommandLine = %s"), Info->CommandLine);
-            DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%x"), CurrentProcess);
-            DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
+        if ((CurrentProcess != NULL) && ((LINEAR)CurrentProcess >= VMA_KERNEL)) {
+            SAFE_USE_VALID_ID(CurrentProcess, KOID_PROCESS) {
+                DEBUG(TEXT("[SysCall_GetProcessInfo] Info->CommandLine = %s"), Info->CommandLine);
+                DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%x"), CurrentProcess);
+                DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
 
-            // Copy the command line
-            StringCopy(Info->CommandLine, CurrentProcess->CommandLine);
-            StringCopy(Info->WorkFolder, CurrentProcess->WorkFolder);
+                // Copy the command line
+                StringCopy(Info->CommandLine, CurrentProcess->CommandLine);
+                StringCopy(Info->WorkFolder, CurrentProcess->WorkFolder);
 
-            return DF_ERROR_SUCCESS;
+                return DF_ERROR_SUCCESS;
+            }
         }
     }
 

@@ -507,6 +507,63 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
 
 /************************************************************************/
 
+/**
+ * @brief Validate that a user-provided linear buffer is fully accessible.
+ * @param Base Base linear address of the buffer.
+ * @param Size Size of the buffer in bytes.
+ * @return TRUE when the entire range is mapped in user space.
+ */
+BOOL IsValidUserBuffer(LINEAR Base, UINT Size) {
+    if (Size == 0) {
+        return FALSE;
+    }
+
+    LINEAR CanonBase = CanonicalizeLinearAddress(Base);
+
+    if (CanonBase != Base) {
+        return FALSE;
+    }
+
+    if (CanonBase < VMA_USER) {
+        return FALSE;
+    }
+
+    if (CanonBase >= VMA_KERNEL) {
+        return FALSE;
+    }
+
+    UINT MaxSpan = (UINT)(VMA_KERNEL - CanonBase);
+
+    if (Size > MaxSpan) {
+        return FALSE;
+    }
+
+    LINEAR End = CanonBase + (LINEAR)(Size - 1);
+    LINEAR Current = CanonBase;
+
+    while (TRUE) {
+        if (IsValidMemory(Current) == FALSE) {
+            return FALSE;
+        }
+
+        if (Current >= End) {
+            break;
+        }
+
+        LINEAR Next = CanonicalizeLinearAddress((Current & ~(LINEAR)(PAGE_SIZE - 1)) + PAGE_SIZE);
+
+        if (Next <= Current) {
+            return FALSE;
+        }
+
+        Current = Next;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
 #if defined(__EXOS_ARCH_X86_64__)
 /**
  * @brief Allocate a page table for the given base address.
