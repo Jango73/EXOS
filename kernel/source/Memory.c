@@ -30,60 +30,27 @@
 #include "Arch.h"
 #include "Log.h"
 #include "CoreString.h"
-#if defined(__EXOS_ARCH_I386__)
-#include "arch/i386/i386-Log.h"
-#endif
 #include "process/Schedule.h"
 #include "System.h"
+
+#ifndef ARCH_TEMP_LINEAR_PAGE_1
+#define ARCH_TEMP_LINEAR_PAGE_1 0
+#endif
+
+#ifndef ARCH_TEMP_LINEAR_PAGE_2
+#define ARCH_TEMP_LINEAR_PAGE_2 0
+#endif
+
+#ifndef ARCH_TEMP_LINEAR_PAGE_3
+#define ARCH_TEMP_LINEAR_PAGE_3 0
+#endif
 
 /************************************************************************/
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 
-#if defined(__EXOS_ARCH_X86_64__)
-static LINEAR G_TempLinear1 = X86_64_TEMP_LINEAR_PAGE_1;
-static LINEAR G_TempLinear2 = X86_64_TEMP_LINEAR_PAGE_2;
-static LINEAR G_TempLinear3 = X86_64_TEMP_LINEAR_PAGE_3;
-#elif defined(__EXOS_ARCH_I386__)
-static LINEAR G_TempLinear1 = I386_TEMP_LINEAR_PAGE_1;
-static LINEAR G_TempLinear2 = I386_TEMP_LINEAR_PAGE_2;
-static LINEAR G_TempLinear3 = I386_TEMP_LINEAR_PAGE_3;
-#else
-static LINEAR G_TempLinear1 = 0;
-static LINEAR G_TempLinear2 = 0;
-static LINEAR G_TempLinear3 = 0;
-#endif
-
-/************************************************************************/
-
-static BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
-    if (Base == 0 || NumPages == 0) return TRUE;
-
-    UINT RequestedLength = NumPages << PAGE_SIZE_MUL;
-
-#if defined(__EXOS_ARCH_I386__)
-    U64 RangeBase;
-    RangeBase.LO = (U32)Base;
-    RangeBase.HI = 0;
-
-    U64 RangeLength;
-    RangeLength.LO = (U32)RequestedLength;
-    RangeLength.HI = 0;
-
-    PHYSICAL ClippedBase = 0;
-    UINT ClippedLength = 0;
-
-    if (ArchClipPhysicalRange(RangeBase, RangeLength, &ClippedBase, &ClippedLength) == FALSE) return FALSE;
-
-    return (ClippedBase == Base && ClippedLength == RequestedLength);
-#else
-    PHYSICAL ClippedBase = 0;
-    UINT ClippedLength = 0;
-
-    if (ArchClipPhysicalRange((U64)Base, (U64)RequestedLength, &ClippedBase, &ClippedLength) == FALSE) return FALSE;
-
-    return (ClippedBase == Base && ClippedLength == RequestedLength);
-#endif
-}
+static LINEAR G_TempLinear1 = ARCH_TEMP_LINEAR_PAGE_1;
+static LINEAR G_TempLinear2 = ARCH_TEMP_LINEAR_PAGE_2;
+static LINEAR G_TempLinear3 = ARCH_TEMP_LINEAR_PAGE_3;
 
 /************************************************************************/
 
@@ -507,117 +474,6 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
 
 /************************************************************************/
 
-#if defined(__EXOS_ARCH_X86_64__)
-/**
- * @brief Allocate a page table for the given base address.
- * @param Base Base linear address.
- * @return Linear address of the new table or 0.
- */
-LINEAR AllocPageTable(LINEAR Base) {
-    PHYSICAL PMA_Table = AllocPhysicalPage();
-
-    if (PMA_Table == NULL) {
-        ERROR(TEXT("[AllocPageTable] Out of physical pages"));
-        return NULL;
-    }
-
-    Base = CanonicalizeLinearAddress(Base);
-
-    UINT DirEntry = GetDirectoryEntry(Base);
-    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
-    UINT Pml4Index = MemoryPageIteratorGetPml4Index(&Iterator);
-    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(&Iterator);
-
-    LPPML4 Pml4 = GetCurrentPml4VA();
-    U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
-
-    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
-        return NULL;
-    }
-
-    PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
-    LPPAGE_DIRECTORY PdptLinear = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(PdptPhysical);
-    U64 PdptEntryValue = ReadPageDirectoryEntryValue(PdptLinear, PdptIndex);
-
-    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        return NULL;
-    }
-
-    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        return NULL;
-    }
-
-    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
-
-    U32 Privilege = PAGE_PRIVILEGE(Base);
-    U64 DirectoryEntryValue = MakePageDirectoryEntryValue(
-        PMA_Table,
-        /*ReadWrite*/ 1,
-        Privilege,
-        /*WriteThrough*/ 0,
-        /*CacheDisabled*/ 0,
-        /*Global*/ 0,
-        /*Fixed*/ 1);
-
-    WritePageDirectoryEntryValue(Directory, DirEntry, DirectoryEntryValue);
-
-    LINEAR VMA_PT = MapTemporaryPhysicalPage3(PMA_Table);
-    MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
-
-    FlushTLB();
-
-    return (LINEAR)GetPageTableVAFor(Base);
-}
-#else
-/**
- * @brief Allocate a page table for the given base address.
- * @param Base Base linear address.
- * @return Linear address of the new table or 0.
- */
-LINEAR AllocPageTable(LINEAR Base) {
-    PHYSICAL PMA_Table = AllocPhysicalPage();
-
-    if (PMA_Table == NULL) {
-        ERROR(TEXT("[AllocPageTable] Out of physical pages"));
-        return NULL;
-    }
-
-    Base = CanonicalizeLinearAddress(Base);
-
-    UINT DirEntry = GetDirectoryEntry(Base);
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-
-    U32 Privilege = PAGE_PRIVILEGE(Base);
-    U32 DirectoryEntryValue = MakePageDirectoryEntryValue(
-        PMA_Table,
-        /*ReadWrite*/ 1,
-        Privilege,
-        /*WriteThrough*/ 0,
-        /*CacheDisabled*/ 0,
-        /*Global*/ 0,
-        /*Fixed*/ 1);
-
-    WritePageDirectoryEntryValue(Directory, DirEntry, DirectoryEntryValue);
-
-    LINEAR VMA_PT = MapTemporaryPhysicalPage2(PMA_Table);
-    MemorySet((LPVOID)VMA_PT, 0, PAGE_SIZE);
-
-    FlushTLB();
-
-    return (LINEAR)GetPageTableVAFor(Base);
-}
-#endif
-
-/************************************************************************/
-
-static BOOL TryGetPageTableForIterator(
-    const ARCH_PAGE_ITERATOR* Iterator,
-    LPPAGE_TABLE* OutTable,
-    BOOL* OutLargePage);
-
-/************************************************************************/
-
 /**
  * @brief Check if a linear region is free of mappings.
  * @param Base Base linear address.
@@ -635,7 +491,7 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
 
         LPPAGE_TABLE Table = NULL;
         BOOL IsLargePage = FALSE;
-        BOOL TableAvailable = TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
+        BOOL TableAvailable = ArchTryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
 
         if (TableAvailable) {
             if (PageTableEntryIsPresent(Table, TabEntry)) {
@@ -738,7 +594,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
         BOOL IsLargePage = FALSE;
 
-        if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
+        if (!ArchTryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
             if (IsLargePage) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 return FALSE;
@@ -749,7 +605,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                 return FALSE;
             }
 
-            if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
+            if (!ArchTryGetPageTableForIterator(&Iterator, &Table, NULL)) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 return FALSE;
             }
@@ -874,7 +730,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
             return NULL;
         }
 
-        if (ValidatePhysicalTargetRange(Target, NumPages) == FALSE) {
+        if (ArchValidatePhysicalTargetRange(Target, NumPages) == FALSE) {
             ERROR(TEXT("[AllocRegion] Target range cannot be addressed"));
             return NULL;
         }
@@ -1019,94 +875,6 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
  * @param OutTable Receives the page table pointer when available.
  * @return TRUE when the table exists and is returned.
  */
-#if defined(__EXOS_ARCH_X86_64__)
-static BOOL TryGetPageTableForIterator(
-    const ARCH_PAGE_ITERATOR* Iterator,
-    LPPAGE_TABLE* OutTable,
-    BOOL* OutLargePage) {
-    if (Iterator == NULL || OutTable == NULL) return FALSE;
-
-    if (OutLargePage != NULL) {
-        *OutLargePage = FALSE;
-    }
-
-    UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
-    UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
-    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
-
-    LPPML4 Pml4 = GetCurrentPml4VA();
-    U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
-
-    if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
-        return FALSE;
-    }
-
-    PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
-    LPPAGE_DIRECTORY PdptLinear = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(PdptPhysical);
-    U64 PdptEntryValue = ReadPageDirectoryEntryValue(PdptLinear, PdptIndex);
-
-    if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        return FALSE;
-    }
-
-    if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        if (OutLargePage != NULL) {
-            *OutLargePage = TRUE;
-        }
-        return FALSE;
-    }
-
-    PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
-    U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
-
-    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        return FALSE;
-    }
-
-    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        if (OutLargePage != NULL) {
-            *OutLargePage = TRUE;
-        }
-        return FALSE;
-    }
-
-    *OutTable = MemoryPageIteratorGetTable(Iterator);
-    return TRUE;
-}
-#else
-static BOOL TryGetPageTableForIterator(
-    const ARCH_PAGE_ITERATOR* Iterator,
-    LPPAGE_TABLE* OutTable,
-    BOOL* OutLargePage) {
-    if (Iterator == NULL || OutTable == NULL) return FALSE;
-
-    if (OutLargePage != NULL) {
-        *OutLargePage = FALSE;
-    }
-
-    UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
-    UINT DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
-
-    if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        return FALSE;
-    }
-
-    if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
-        if (OutLargePage != NULL) {
-            *OutLargePage = TRUE;
-        }
-        return FALSE;
-    }
-
-    *OutTable = MemoryPageIteratorGetTable(Iterator);
-    return TRUE;
-}
-#endif
-
-/************************************************************************/
-
 /**
  * @brief Unmap and free a linear region.
  * @param Base Base linear address.
@@ -1129,7 +897,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 
         BOOL IsLargePage = FALSE;
 
-        if (TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) && PageTableEntryIsPresent(Table, TabEntry)) {
+        if (ArchTryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) && PageTableEntryIsPresent(Table, TabEntry)) {
             PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
 
             /* Skip bitmap mark if it was an IO mapping (BAR) */

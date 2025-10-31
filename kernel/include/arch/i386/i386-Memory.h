@@ -73,6 +73,10 @@
 #define I386_TEMP_LINEAR_PAGE_2 (I386_TEMP_LINEAR_PAGE_1 + (LINEAR)0x00001000)
 #define I386_TEMP_LINEAR_PAGE_3 (I386_TEMP_LINEAR_PAGE_2 + (LINEAR)0x00001000)
 
+#define ARCH_TEMP_LINEAR_PAGE_1 I386_TEMP_LINEAR_PAGE_1
+#define ARCH_TEMP_LINEAR_PAGE_2 I386_TEMP_LINEAR_PAGE_2
+#define ARCH_TEMP_LINEAR_PAGE_3 I386_TEMP_LINEAR_PAGE_3
+
 #define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
 #define PD_RECURSIVE_SLOT 1023u         // PDE index used for self-map
@@ -186,6 +190,13 @@ static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
     UINT Table = GetTableEntry(Address);
     return (volatile U32*)&GetPageTableVAFor(Address)[Table];
 }
+
+/************************************************************************/
+// Architecture-specific helpers implemented in i386-Memory.c
+
+BOOL ArchValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages);
+BOOL ArchTryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable, BOOL* OutLargePage);
+LINEAR AllocPageTable(LINEAR Base);
 
 static inline U32 BuildPageFlags(
     U32 ReadWrite,

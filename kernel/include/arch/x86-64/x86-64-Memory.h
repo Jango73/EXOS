@@ -81,6 +81,10 @@
 #define X86_64_TEMP_LINEAR_PAGE_2 (X86_64_TEMP_LINEAR_PAGE_1 + (U64)0x00001000)
 #define X86_64_TEMP_LINEAR_PAGE_3 (X86_64_TEMP_LINEAR_PAGE_2 + (U64)0x00001000)
 
+#define ARCH_TEMP_LINEAR_PAGE_1 X86_64_TEMP_LINEAR_PAGE_1
+#define ARCH_TEMP_LINEAR_PAGE_2 X86_64_TEMP_LINEAR_PAGE_2
+#define ARCH_TEMP_LINEAR_PAGE_3 X86_64_TEMP_LINEAR_PAGE_3
+
 #define PAGE_PRIVILEGE(Address) \
     (((U64)(Address) >= VMA_USER && (U64)(Address) < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
 
@@ -303,6 +307,13 @@ static inline LPPAGE_TABLE GetPageTableVAFor(U64 Address) {
 static inline volatile U64* GetPageTableEntryRawPointer(U64 Address) {
     return &((volatile U64*)GetPageTableVAFor(Address))[GetTableEntry(Address)];
 }
+
+/************************************************************************/
+// Architecture-specific helpers implemented in x86-64-Memory.c
+
+BOOL ArchValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages);
+BOOL ArchTryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable, BOOL* OutLargePage);
+LINEAR AllocPageTable(LINEAR Base);
 
 static inline ARCH_PAGE_ITERATOR MemoryPageIteratorFromLinear(U64 Linear) {
     ARCH_PAGE_ITERATOR Iterator;
