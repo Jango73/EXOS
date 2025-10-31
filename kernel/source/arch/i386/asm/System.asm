@@ -99,7 +99,6 @@ BITS 32
     global SaveRegisters
     global DoSystemCall
     global IdleCPU
-    global DeadCPU
     global Reboot
     global TaskRunner
 
@@ -772,16 +771,6 @@ IdleCPU :
     sti
     hlt
     ret
-
-;--------------------------------------
-
-FUNC_HEADER
-DeadCPU :
-
-.loop:
-    sti
-    hlt
-    jmp     .loop
 
 ;--------------------------------------
 

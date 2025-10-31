@@ -492,34 +492,23 @@ SYS_FUNC_BEGIN SaveRegisters
     pop     rbp
 SYS_FUNC_END
 
-;----------------------------------------------------------------------------
+;-------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN DoSystemCall
-    push    rbx
-    mov     eax, edi                ; Ensure the syscall index is zero-extended
-    mov     rdi, rax                ; System V AMD64: first argument in RDI
-    ; The second argument (Parameter) is already provided in RSI by the caller
     call    SystemCallHandler
-    pop     rbx
 SYS_FUNC_END
 
-;----------------------------------------------------------------------------
+;-------------------------------------------------------------------------
+; DON'T call this one outside of :
+; Sleep, WaitForMessage and LockMutex
+; It will trigger random crashes
 
 SYS_FUNC_BEGIN IdleCPU
     sti
     hlt
 SYS_FUNC_END
 
-;----------------------------------------------------------------------------
-
-SYS_FUNC_BEGIN DeadCPU
-.loop:
-    sti
-    hlt
-    jmp     .loop
-SYS_FUNC_END
-
-;----------------------------------------------------------------------------
+;-------------------------------------------------------------------------
 
 SYS_FUNC_BEGIN Reboot
     cli
@@ -537,7 +526,7 @@ SYS_FUNC_BEGIN Reboot
     jmp     .hang
 SYS_FUNC_END
 
-;----------------------------------------------------------------------------
+;-------------------------------------------------------------------------
 
 section .shared_text
 BITS 64

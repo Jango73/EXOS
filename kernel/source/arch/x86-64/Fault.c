@@ -47,11 +47,12 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
     }
 
     LogFrame(Frame);
+
     if (Frame->Registers.RSP != (LINEAR)0) {
         LINEAR StackPtr = Frame->Registers.RSP;
         UINT Index;
 
-        for (Index = 0; Index < 4u; Index++) {
+        for (Index = 0; Index < 8; Index++) {
             LINEAR EntryAddress = StackPtr + (LINEAR)(Index * sizeof(LINEAR));
             LINEAR Value = 0;
 
@@ -64,7 +65,8 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
             DEBUG(TEXT("[LogCPUState] Stack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
         }
     }
-    BacktraceFrom(Frame->Registers.RBP, 10u);
+
+    BacktraceFrom(Frame->Registers.RBP, 10);
 }
 
 /************************************************************************/

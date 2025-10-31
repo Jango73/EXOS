@@ -46,17 +46,17 @@ extern U32 IRQMask_A1_RM;
 /***************************************************************************/
 // System call helpers
 
-#define SYSCALL_PARAM(Value) ((UINT)(LINEAR)(Value))
+#define SYSCALL_PARAM(Value) ((UINT)(Value))
+
+extern UINT DoSystemCall(UINT Number, UINT Parameter);
 
 #if defined(__EXOS_ARCH_I386__)
 
 extern U32 SaveRegisters(LPINTEL_32_REGISTERS Registers);
-extern U32 DoSystemCall(U32 Number, U32 Parameter);
 
 #elif defined(__EXOS_ARCH_X86_64__)
 
 extern U32 SaveRegisters(LPINTEL_64_REGISTERS Registers);
-extern UINT DoSystemCall(U32 Number, UINT Parameter);
 
 #endif
 
@@ -91,7 +91,6 @@ extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32 X, U32 Y);
 extern void IdleCPU(void);
-extern void DeadCPU(void);
 extern void Reboot(void);
 
 /***************************************************************************/

@@ -247,7 +247,8 @@ UINT SysCall_ResumeTask(UINT Parameter) {
 /***************************************************************************/
 
 UINT SysCall_Sleep(UINT Parameter) {
-    DEBUG(TEXT("[SysCall_Sleep] Enter, Parameter=%x"), Parameter);
+    // LPTASK Task = GetCurrentTask();
+    // DEBUG(TEXT("[SysCall_Sleep] Enter Parameter=%x Task=%p (%s)"), Parameter, Task, Task ? Task->Name : "?");
 
     Sleep(Parameter);
     return TRUE;
