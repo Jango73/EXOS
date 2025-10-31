@@ -29,7 +29,7 @@
 
 /************************************************************************/
 
-BOOL ArchValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
+BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
     if (Base == 0 || NumPages == 0) return TRUE;
 
     UINT RequestedLength = NumPages << PAGE_SIZE_MUL;
@@ -45,7 +45,7 @@ BOOL ArchValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
     PHYSICAL ClippedBase = 0;
     UINT ClippedLength = 0;
 
-    if (ArchClipPhysicalRange(RangeBase, RangeLength, &ClippedBase, &ClippedLength) == FALSE) return FALSE;
+    if (ClipPhysicalRange(RangeBase, RangeLength, &ClippedBase, &ClippedLength) == FALSE) return FALSE;
 
     return (ClippedBase == Base && ClippedLength == RequestedLength);
 }
@@ -87,7 +87,7 @@ LINEAR AllocPageTable(LINEAR Base) {
 
 /************************************************************************/
 
-BOOL ArchTryGetPageTableForIterator(
+BOOL TryGetPageTableForIterator(
     const ARCH_PAGE_ITERATOR* Iterator,
     LPPAGE_TABLE* OutTable,
     BOOL* OutLargePage) {

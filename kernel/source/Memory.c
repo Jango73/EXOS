@@ -33,24 +33,24 @@
 #include "process/Schedule.h"
 #include "System.h"
 
-#ifndef ARCH_TEMP_LINEAR_PAGE_1
-#define ARCH_TEMP_LINEAR_PAGE_1 0
+#ifndef TEMP_LINEAR_PAGE_1
+#define TEMP_LINEAR_PAGE_1 0
 #endif
 
-#ifndef ARCH_TEMP_LINEAR_PAGE_2
-#define ARCH_TEMP_LINEAR_PAGE_2 0
+#ifndef TEMP_LINEAR_PAGE_2
+#define TEMP_LINEAR_PAGE_2 0
 #endif
 
-#ifndef ARCH_TEMP_LINEAR_PAGE_3
-#define ARCH_TEMP_LINEAR_PAGE_3 0
+#ifndef TEMP_LINEAR_PAGE_3
+#define TEMP_LINEAR_PAGE_3 0
 #endif
 
 /************************************************************************/
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 
-static LINEAR G_TempLinear1 = ARCH_TEMP_LINEAR_PAGE_1;
-static LINEAR G_TempLinear2 = ARCH_TEMP_LINEAR_PAGE_2;
-static LINEAR G_TempLinear3 = ARCH_TEMP_LINEAR_PAGE_3;
+static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
+static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
+static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
 
 /************************************************************************/
 
@@ -189,7 +189,7 @@ void UpdateKernelMemoryMetricsFromMultibootMap(void) {
         PHYSICAL Base = 0;
         UINT Size = 0;
 
-        if (ArchClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
             continue;
         }
 
@@ -238,7 +238,7 @@ void MarkUsedPhysicalMemory(void) {
 
         DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Length, Entry->Type);
 
-        if (ArchClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
             continue;
         }
 
@@ -491,7 +491,7 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
 
         LPPAGE_TABLE Table = NULL;
         BOOL IsLargePage = FALSE;
-        BOOL TableAvailable = ArchTryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
+        BOOL TableAvailable = TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage);
 
         if (TableAvailable) {
             if (PageTableEntryIsPresent(Table, TabEntry)) {
@@ -561,7 +561,7 @@ static void FreeEmptyPageTables(void) {
             if (TablePhysical != 0) {
                 LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
 
-                if (ArchPageTableIsEmpty(Table)) {
+                if (PageTableIsEmpty(Table)) {
                     SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
                     ClearPageDirectoryEntry(Directory, DirEntry);
                 }
@@ -594,7 +594,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
         BOOL IsLargePage = FALSE;
 
-        if (!ArchTryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
+        if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
             if (IsLargePage) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 return FALSE;
@@ -605,7 +605,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                 return FALSE;
             }
 
-            if (!ArchTryGetPageTableForIterator(&Iterator, &Table, NULL)) {
+            if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 return FALSE;
             }
@@ -730,7 +730,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
             return NULL;
         }
 
-        if (ArchValidatePhysicalTargetRange(Target, NumPages) == FALSE) {
+        if (ValidatePhysicalTargetRange(Target, NumPages) == FALSE) {
             ERROR(TEXT("[AllocRegion] Target range cannot be addressed"));
             return NULL;
         }
@@ -897,7 +897,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 
         BOOL IsLargePage = FALSE;
 
-        if (ArchTryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) && PageTableEntryIsPresent(Table, TabEntry)) {
+        if (TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) && PageTableEntryIsPresent(Table, TabEntry)) {
             PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
 
             /* Skip bitmap mark if it was an IO mapping (BAR) */

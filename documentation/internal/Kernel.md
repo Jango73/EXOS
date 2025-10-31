@@ -29,8 +29,8 @@ helper that walks page mappings without assuming a fixed number of page
 table levels. Region management routines (`IsRegionFree`, `AllocRegion`,
 `FreeRegion`, and friends) advance the iterator rather than manually
 splitting linear addresses into directory/table indexes, and table
-reclamation relies on `ArchPageTableIsEmpty`. Physical range clipping is
-also delegated to the architecture via `ArchClipPhysicalRange`, keeping
+reclamation relies on `PageTableIsEmpty`. Physical range clipping is
+also delegated to the architecture via `ClipPhysicalRange`, keeping
 future 64-bit backends free to extend address limits without touching the
 common kernel code.
 

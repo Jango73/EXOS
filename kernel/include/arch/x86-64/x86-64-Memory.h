@@ -81,9 +81,9 @@
 #define X86_64_TEMP_LINEAR_PAGE_2 (X86_64_TEMP_LINEAR_PAGE_1 + (U64)0x00001000)
 #define X86_64_TEMP_LINEAR_PAGE_3 (X86_64_TEMP_LINEAR_PAGE_2 + (U64)0x00001000)
 
-#define ARCH_TEMP_LINEAR_PAGE_1 X86_64_TEMP_LINEAR_PAGE_1
-#define ARCH_TEMP_LINEAR_PAGE_2 X86_64_TEMP_LINEAR_PAGE_2
-#define ARCH_TEMP_LINEAR_PAGE_3 X86_64_TEMP_LINEAR_PAGE_3
+#define TEMP_LINEAR_PAGE_1 X86_64_TEMP_LINEAR_PAGE_1
+#define TEMP_LINEAR_PAGE_2 X86_64_TEMP_LINEAR_PAGE_2
+#define TEMP_LINEAR_PAGE_3 X86_64_TEMP_LINEAR_PAGE_3
 
 #define PAGE_PRIVILEGE(Address) \
     (((U64)(Address) >= VMA_USER && (U64)(Address) < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
@@ -257,16 +257,16 @@ static inline void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index) {
     WritePageTableEntryValue(Table, Index, (U64)0);
 }
 
-static inline U64 ArchGetMaxLinearAddressPlusOne(void) {
+static inline U64 GetMaxLinearAddressPlusOne(void) {
     return (U64)1 << 48;
 }
 
-static inline U64 ArchGetMaxPhysicalAddressPlusOne(void) {
+static inline U64 GetMaxPhysicalAddressPlusOne(void) {
     return (U64)1 << 52;
 }
 
-static inline BOOL ArchClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UINT* OutLength) {
-    U64 Limit = ArchGetMaxPhysicalAddressPlusOne();
+static inline BOOL ClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UINT* OutLength) {
+    U64 Limit = GetMaxPhysicalAddressPlusOne();
 
     if (Length == 0 || OutBase == NULL || OutLength == NULL) return FALSE;
     if (Base >= Limit) return FALSE;
@@ -311,8 +311,8 @@ static inline volatile U64* GetPageTableEntryRawPointer(U64 Address) {
 /************************************************************************/
 // Architecture-specific helpers implemented in x86-64-Memory.c
 
-BOOL ArchValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages);
-BOOL ArchTryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable, BOOL* OutLargePage);
+BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages);
+BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable, BOOL* OutLargePage);
 LINEAR AllocPageTable(LINEAR Base);
 
 static inline ARCH_PAGE_ITERATOR MemoryPageIteratorFromLinear(U64 Linear) {
@@ -353,12 +353,12 @@ static inline void MemoryPageIteratorStepPage(ARCH_PAGE_ITERATOR* Iterator) {
     Iterator->TableIndex = GetTableEntry(Iterator->Linear);
 }
 
-static inline U64 ArchAlignLinearToTableBoundary(U64 Linear) {
+static inline U64 AlignLinearToTableBoundary(U64 Linear) {
     return Linear & ~PAGE_TABLE_CAPACITY_MASK;
 }
 
 static inline void MemoryPageIteratorAlignToTableStart(ARCH_PAGE_ITERATOR* Iterator) {
-    Iterator->Linear = ArchAlignLinearToTableBoundary(Iterator->Linear);
+    Iterator->Linear = AlignLinearToTableBoundary(Iterator->Linear);
     Iterator->Pml4Index = GetPml4Entry(Iterator->Linear);
     Iterator->PdptIndex = GetPdptEntry(Iterator->Linear);
     Iterator->DirectoryIndex = GetDirectoryEntry(Iterator->Linear);
@@ -366,7 +366,7 @@ static inline void MemoryPageIteratorAlignToTableStart(ARCH_PAGE_ITERATOR* Itera
 }
 
 static inline void MemoryPageIteratorNextTable(ARCH_PAGE_ITERATOR* Iterator) {
-    Iterator->Linear = ArchAlignLinearToTableBoundary(Iterator->Linear) + PAGE_TABLE_CAPACITY;
+    Iterator->Linear = AlignLinearToTableBoundary(Iterator->Linear) + PAGE_TABLE_CAPACITY;
     Iterator->Pml4Index = GetPml4Entry(Iterator->Linear);
     Iterator->PdptIndex = GetPdptEntry(Iterator->Linear);
     Iterator->DirectoryIndex = GetDirectoryEntry(Iterator->Linear);
@@ -381,7 +381,7 @@ static inline LPPAGE_TABLE MemoryPageIteratorGetTable(const ARCH_PAGE_ITERATOR* 
     return GetPageTableVAFor(Iterator->Linear);
 }
 
-static inline BOOL ArchPageTableIsEmpty(const LPPAGE_TABLE Table) {
+static inline BOOL PageTableIsEmpty(const LPPAGE_TABLE Table) {
     for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
         if (PageTableEntryIsPresent(Table, Index)) return FALSE;
     }
