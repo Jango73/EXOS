@@ -380,12 +380,9 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define SwitchToNextTask_2(prev, next)                                  \
     do {                                                                \
         __asm__ __volatile__(                                           \
-            "push %%rax\n\t"                                            \
             "push %%rbx\n\t"                                            \
             "push %%rcx\n\t"                                            \
             "push %%rdx\n\t"                                            \
-            "push %%rsi\n\t"                                            \
-            "push %%rdi\n\t"                                            \
             "push %%rbp\n\t"                                            \
             "push %%r8\n\t"                                             \
             "push %%r9\n\t"                                             \
@@ -412,12 +409,9 @@ typedef struct tag_KERNELDATA_X86_64 {
             "pop %%r9\n\t"                                              \
             "pop %%r8\n\t"                                              \
             "pop %%rbp\n\t"                                             \
-            "pop %%rdi\n\t"                                             \
-            "pop %%rsi\n\t"                                             \
             "pop %%rdx\n\t"                                             \
             "pop %%rcx\n\t"                                             \
             "pop %%rbx\n\t"                                             \
-            "pop %%rax\n\t"                                             \
             : "=m"((prev)->Arch.Context.Registers.RSP),                 \
               "=m"((prev)->Arch.Context.Registers.RIP)                  \
             : "m"((next)->Arch.Context.Registers.RSP),                  \
@@ -430,15 +424,15 @@ typedef struct tag_KERNELDATA_X86_64 {
     do {                                                                \
         __asm__ __volatile__(                                           \
             "finit\n\t"                                                 \
-            "mov %0, %%rax\n\t"                                         \
-            "mov %1, %%rbx\n\t"                                         \
+            "mov %0, %%rsi\n\t"                                         \
+            "mov %1, %%rdi\n\t"                                         \
             "mov %2, %%rsp\n\t"                                         \
             "iretq"                                                     \
             :                                                           \
             : "m"((Task)->Arch.Context.Registers.RAX),                  \
               "m"((Task)->Arch.Context.Registers.RBX),                  \
               "m"(StackTop)                                             \
-            : "rax", "rbx", "memory");                                  \
+            : "rdi", "rsi", "memory");                                  \
     } while (0)
 
 /************************************************************************/

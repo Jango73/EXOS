@@ -547,18 +547,19 @@ SYS_FUNC_BEGIN TaskRunner
     STACK_ALIGN_16_ENTER
 
     ;--------------------------------------
-    ; RBX contains the function pointer passed by the kernel
-    ; RAX contains the task parameter
+    ; RDI contains the function pointer passed by the kernel
+    ; RSI contains the task parameter
 
-    ; Save rax and rbx
-    mov     r8, rax
-    mov     r9, rbx
+    test    rdi, rdi
+    je      .exit
 
     ; Clear registers
-    xor     ebp, ebp
-    xor     ecx, ecx
-    xor     edx, edx
-    xor     esi, esi
+    xor     rbp, rbp
+    xor     rax, rax
+    xor     rcx, rcx
+    xor     rdx, rdx
+    xor     r8, r8
+    xor     r9, r9
     xor     r10, r10
     xor     r11, r11
     xor     r12, r12
@@ -566,12 +567,9 @@ SYS_FUNC_BEGIN TaskRunner
     xor     r14, r14
     mov     r15, r15
 
-    mov     rbx, r9
-    test    rbx, rbx
-    je      .exit
-
-    mov     rdi, r8             ; Argument for task function
-    call    rbx                 ; Call task function (stack already aligned)
+    mov     rbx, rdi
+    mov     rdi, rsi
+    call    rbx                 ; Call task function
 
 .exit:
     mov     rbx, rax            ; Preserve task exit code in RBX
