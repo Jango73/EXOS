@@ -12,6 +12,15 @@
 BITS 64
 
 ;----------------------------------------------------------------------------
+; System call numbers used by the user-space runtime.
+;
+; These values match the kernel's SYSCALL_* definitions (see User.h) and are
+; kept local to the assembly to avoid pulling additional headers.
+
+%define SYSCALL_EXIT   0x33
+%define SYSCALL_SLEEP  0x0F
+
+;----------------------------------------------------------------------------
 ; Runtime symbols (only required outside of the kernel build)
 
 %ifndef __KERNEL__
@@ -75,22 +84,24 @@ __start__:
     mov     rsi, [_argv]
     call    exosmain
 
-    pop     rbp
-    ret
+    mov     edi, eax
+    call    __exit__
+
+    ud2
 
 ;-------------------------------------------------------------------------
-; __exit__ : restore initial stack frame and return to caller
+; __exit__ : request task termination and yield until scheduler cleans up
 
 __exit__:
-    push    rbp
-    mov     rbp, rsp
+    mov     esi, edi
+    mov     edi, SYSCALL_EXIT
+    syscall
 
-    mov     eax, edi
-
-    mov     rbp, [StartEBP]
-    mov     rsp, [StartESP]
-
-    ret
+.wait_for_scheduler:
+    mov     edi, SYSCALL_SLEEP
+    mov     esi, 0xFFFFFFFF
+    syscall
+    jmp     .wait_for_scheduler
 
 ;-------------------------------------------------------------------------
 ; exoscall : bridge to EXOS system services
