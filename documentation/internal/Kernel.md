@@ -614,6 +614,11 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - `TASK_STATUS_WAITMESSAGE` (0x05): Waiting for a message
 - `TASK_STATUS_DEAD` (0xFF): Marked for deletion
 
+- Sleep durations are specified in `UINT`. A value of `INFINITY` is treated as
+  a sentinel meaning "sleep indefinitely". `SetTaskWakeUpTime()` stores
+  `INFINITY` without adding the current time and the scheduler ignores such
+  tasks until another subsystem explicitly changes their status.
+
 **Process Status (Process.Status):**
 - `PROCESS_STATUS_ALIVE` (0x00): Normal operating state
 - `PROCESS_STATUS_DEAD` (0xFF): Marked for deletion

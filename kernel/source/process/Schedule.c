@@ -62,7 +62,8 @@ static void WakeUpExpiredTasks(void) {
     for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
 
-        if (GetTaskStatus(Task) == TASK_STATUS_SLEEPING && CurrentTime >= Task->WakeUpTime) {
+        if (GetTaskStatus(Task) == TASK_STATUS_SLEEPING && Task->WakeUpTime != INFINITY &&
+            CurrentTime >= Task->WakeUpTime) {
             SetTaskStatus(Task, TASK_STATUS_RUNNING);
         }
     }
@@ -496,7 +497,8 @@ void Scheduler(void) {
 
     // Check if current task quantum has expired
     LPTASK CurrentTask = (TaskList.CurrentIndex < TaskList.NumTasks) ? TaskList.Tasks[TaskList.CurrentIndex] : NULL;
-    BOOL QuantumExpired = CurrentTask && GetSystemTime() >= CurrentTask->WakeUpTime;
+    BOOL QuantumExpired =
+        CurrentTask && CurrentTask->WakeUpTime != INFINITY && GetSystemTime() >= CurrentTask->WakeUpTime;
 
     // Wake up expired sleeping tasks first
     WakeUpExpiredTasks();

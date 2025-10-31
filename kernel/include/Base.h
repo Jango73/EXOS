@@ -186,7 +186,7 @@ typedef struct PACKED tag_U128 {
 #ifdef __EXOS_32__
     #define MAX_UINT ((UINT)0xFFFFFFFF)
 #else
-    #define MAX_UINT ((UINT)0xFFFFFFFFFFFFFFFFULL)
+    #define MAX_UINT ((UINT)0xFFFFFFFFFFFFFFFF)
 #endif
 
 #ifdef __EXOS_64__
@@ -320,7 +320,7 @@ typedef UINT BOOL;
 /************************************************************************/
 // Time values
 
-#define INFINITY 0xFFFFFFFF
+#define INFINITY MAX_UINT
 
 /***************************************************************************/
 // Some machine constants

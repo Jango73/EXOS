@@ -750,7 +750,7 @@ void Sleep(U32 MilliSeconds) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         if (Task->Status == TASK_STATUS_DEAD) {
             UnlockMutex(MUTEX_TASK);
-            return;
+            DeadCPU();
         }
 
         SetTaskStatus(Task, TASK_STATUS_SLEEPING);
@@ -871,7 +871,24 @@ void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime) {
 
     LockMutex(&(Task->Mutex), INFINITY);
 
-    Task->WakeUpTime = GetSystemTime() + (UINT)Kernel.MinimumQuantum + WakeupTime;
+    if (WakeupTime == INFINITY) {
+        // INFINITY is treated as a sentinel meaning "sleep indefinitely"
+        Task->WakeUpTime = INFINITY;
+    } else {
+        UINT CurrentTime = GetSystemTime();
+        UINT Quantum = (UINT)Kernel.MinimumQuantum;
+        UINT BaseTime = CurrentTime + Quantum;
+
+        if (BaseTime < CurrentTime) {
+            // Overflow occurred while adding the quantum, saturate to sentinel
+            Task->WakeUpTime = INFINITY;
+        } else {
+            UINT TargetTime = BaseTime + WakeupTime;
+
+            // If addition overflows, keep the task asleep indefinitely
+            Task->WakeUpTime = (TargetTime < BaseTime) ? INFINITY : TargetTime;
+        }
+    }
 
     UnlockMutex(&(Task->Mutex));
 }
