@@ -591,6 +591,7 @@ struct tag_TASKINFO;
 BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
 void PreInitializeKernel(void);
 void InitializeSystemCall(void);
+void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);
 void InitializeTaskSegments(void);
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 

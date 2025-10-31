@@ -30,6 +30,7 @@
 #include "Stack.h"
 #include "System.h"
 #include "Text.h"
+#include "arch/x86-64/x86-64.h"
 #include "arch/x86-64/x86-64-Log.h"
 
 /************************************************************************/

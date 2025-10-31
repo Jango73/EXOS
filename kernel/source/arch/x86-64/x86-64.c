@@ -317,7 +317,7 @@ static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR This, BOOL Executab
  * @brief Populate the shared GDT with long mode and compatibility segments.
  * @param Table Pointer to the descriptor table buffer.
  */
-static void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
+void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
     DEBUG(TEXT("[InitializeGlobalDescriptorTable] Enter"));
 
     MemorySet(Table, 0, GDT_SIZE);
