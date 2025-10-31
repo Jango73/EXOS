@@ -631,7 +631,6 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     DEBUG(TEXT("[CreateProcess] Creating initial task"));
 
-    // TaskInfo.Func      = (TASKFUNC) VMA_USER;
     TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint - ExecutableInfo.CodeBase));
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = StackSize;

@@ -67,7 +67,7 @@ __start__:
     push    rbp
     mov     rbp, rsp
 
-    mov     [_TaskArgument], rdi
+    mov     [_TaskArgument], rsi
 
     call    _SetupArguments
 
