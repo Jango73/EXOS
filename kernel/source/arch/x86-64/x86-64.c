@@ -592,16 +592,18 @@ void PreInitializeKernel(void) {
     ReadGlobalDescriptorTable(&Gdtr);
     Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
 
+    DEBUG(TEXT("[PreInitializeKernel] CR0 : CR0_COPROCESSOR on and CR0_EMULATION off"));
+
     __asm__ volatile("mov %%cr0, %0" : "=r"(Cr0));
     Cr0 |= (U64)CR0_COPROCESSOR;
     Cr0 &= ~(U64)CR0_EMULATION;
     __asm__ volatile("mov %0, %%cr0" : : "r"(Cr0));
 
+    DEBUG(TEXT("[PreInitializeKernel] CR4 : CR4_OSFXSR and CR4_OSXMMEXCPT on"));
+
     __asm__ volatile("mov %%cr4, %0" : "=r"(Cr4));
     Cr4 |= (U64)(CR4_OSFXSR | CR4_OSXMMEXCPT);
     __asm__ volatile("mov %0, %%cr4" : : "r"(Cr4));
-
-    DEBUG(TEXT("[PreInitializeKernel] Enabled SSE support"));
 }
 
 /************************************************************************/
