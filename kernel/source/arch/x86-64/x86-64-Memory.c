@@ -35,6 +35,16 @@
 
 /************************************************************************/
 
+/**
+ * @brief Validate that a physical range remains intact after clipping.
+ *
+ * The routine checks whether the provided base and length in pages survive
+ * the ClipPhysicalRange() constraints without alteration.
+ *
+ * @param Base Physical base page frame to validate.
+ * @param NumPages Number of pages requested in the range.
+ * @return TRUE when the range is valid or degenerate, FALSE otherwise.
+ */
 BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
     if (Base == 0 || NumPages == 0) return TRUE;
 
@@ -50,6 +60,15 @@ BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
 
 /************************************************************************/
 
+/**
+ * @brief Allocate and link a page table for the provided linear address.
+ *
+ * The helper walks the paging hierarchy, checks that upper levels are present,
+ * allocates a new table and installs it in the page directory.
+ *
+ * @param Base Linear address whose table should be allocated.
+ * @return Canonical virtual address of the mapped table, or NULL on failure.
+ */
 LINEAR AllocPageTable(LINEAR Base) {
     PHYSICAL PMA_Table = AllocPhysicalPage();
 
@@ -109,6 +128,18 @@ LINEAR AllocPageTable(LINEAR Base) {
 
 /************************************************************************/
 
+/**
+ * @brief Retrieve the page table referenced by an iterator when present.
+ *
+ * The iterator supplies the paging indexes and the function verifies the
+ * presence of intermediate levels. Large pages are reported through
+ * @p OutLargePage when requested.
+ *
+ * @param Iterator Pointer describing the directory entry to inspect.
+ * @param OutTable Receives the resulting page table pointer when available.
+ * @param OutLargePage Optionally receives TRUE when the entry maps a large page.
+ * @return TRUE if a table is available, FALSE otherwise.
+ */
 BOOL TryGetPageTableForIterator(
     const ARCH_PAGE_ITERATOR* Iterator,
     LPPAGE_TABLE* OutTable,
@@ -222,6 +253,19 @@ static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
 
 /************************************************************************/
 
+/**
+ * @brief Obtain or create a shared identity table used by the low region.
+ *
+ * The function lazily allocates the table, initializes its entries according
+ * to the requested physical base and BIOS protection flag, and records the
+ * physical address for future reuse.
+ *
+ * @param TablePhysical Receives the physical address of the shared table.
+ * @param PhysicalBase Physical base used to populate identity mappings.
+ * @param ProtectBios TRUE when BIOS ranges must be cleared from the table.
+ * @param Label Debug label describing the shared table.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL EnsureSharedLowTable(
     PHYSICAL* TablePhysical,
     PHYSICAL PhysicalBase,
@@ -840,6 +884,15 @@ static U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
 }
 */
 
+/**
+ * @brief Build the kernel-mode long mode paging hierarchy.
+ *
+ * Low, kernel and task runner regions are prepared, connected to a newly
+ * allocated PML4 and the recursive slot is configured before returning the
+ * physical address.
+ *
+ * @return Physical address of the allocated PML4, or NULL on failure.
+ */
 PHYSICAL AllocPageDirectory(void) {
     REGION_SETUP LowRegion;
     REGION_SETUP KernelRegion;
@@ -984,8 +1037,13 @@ Out:
 /************************************************************************/
 
 /**
- * @brief Allocate a new page directory for userland processes.
- * @return Physical address of the page directory or NULL on failure.
+ * @brief Create a user-mode page directory derived from the current context.
+ *
+ * Kernel mappings are cloned from the active CR3 while the low region is
+ * seeded with identity tables and the task runner trampoline is prepared as
+ * needed.
+ *
+ * @return Physical address of the allocated PML4, or NULL on failure.
  */
 PHYSICAL AllocUserPageDirectory(void) {
     REGION_SETUP LowRegion;
@@ -1177,10 +1235,11 @@ Out:
 /************************************************************************/
 
 /**
- * @brief Initialize a long mode segment descriptor for code or data.
- * @param This Descriptor to configure.
- * @param Executable TRUE for a code segment, FALSE for data.
- * @param Privilege Descriptor privilege level.
+ * @brief Initialize the x86-64 memory manager and install the kernel mappings.
+ *
+ * The routine prepares the physical page bitmap, constructs a new kernel page
+ * directory, loads it and finalizes the descriptor tables required for long
+ * mode execution.
  */
 void InitializeMemoryManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
@@ -1260,6 +1319,15 @@ void InitializeMemoryManager(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Resolve a canonical linear address to its physical counterpart.
+ *
+ * The lookup walks the paging hierarchy, accounting for large pages, and
+ * returns the physical address when the mapping exists.
+ *
+ * @param Address Linear address to translate.
+ * @return Physical address of the resolved page, or 0 when unmapped.
+ */
 PHYSICAL MapLinearToPhysical(LINEAR Address) {
     Address = CanonicalizeLinearAddress(Address);
 
