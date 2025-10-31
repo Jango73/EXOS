@@ -555,10 +555,10 @@ SYS_FUNC_BEGIN TaskRunner
     mov     r9, rbx
 
     ; Clear registers
+    xor     ebp, ebp
     xor     ecx, ecx
     xor     edx, edx
     xor     esi, esi
-    xor     ebp, ebp
     xor     r10, r10
     xor     r11, r11
     xor     r12, r12
@@ -577,13 +577,11 @@ SYS_FUNC_BEGIN TaskRunner
     mov     rbx, rax            ; Preserve task exit code in RBX
     mov     rdi, 0x33           ; SYSCALL_Exit
     mov     rsi, rbx            ; Pass exit code as the syscall parameter
-    mov     eax, edi            ; Mirror syscall number in RAX for consistency
     syscall
 
 .sleep:
     mov     rdi, 0x0F           ; SYSCALL_Sleep
     mov     rsi, MAX_UINT       ; Sleep forever while we wait for the scheduler
-    mov     eax, edi
     syscall
     jmp     .sleep
 
