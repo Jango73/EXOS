@@ -380,10 +380,13 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define SwitchToNextTask_2(prev, next)                                  \
     do {                                                                \
         __asm__ __volatile__(                                           \
+            "push %%rbp\n\t"                                            \
+            "push %%rax\n\t"                                            \
             "push %%rbx\n\t"                                            \
             "push %%rcx\n\t"                                            \
             "push %%rdx\n\t"                                            \
-            "push %%rbp\n\t"                                            \
+            "push %%rsi\n\t"                                            \
+            "push %%rdi\n\t"                                            \
             "push %%r8\n\t"                                             \
             "push %%r9\n\t"                                             \
             "push %%r10\n\t"                                            \
@@ -408,16 +411,19 @@ typedef struct tag_KERNELDATA_X86_64 {
             "pop %%r10\n\t"                                             \
             "pop %%r9\n\t"                                              \
             "pop %%r8\n\t"                                              \
-            "pop %%rbp\n\t"                                             \
+            "pop %%rdi\n\t"                                             \
+            "pop %%rsi\n\t"                                             \
             "pop %%rdx\n\t"                                             \
             "pop %%rcx\n\t"                                             \
             "pop %%rbx\n\t"                                             \
+            "pop %%rax\n\t"                                             \
+            "pop %%rbp\n\t"                                             \
             : "=m"((prev)->Arch.Context.Registers.RSP),                 \
               "=m"((prev)->Arch.Context.Registers.RIP)                  \
             : "m"((next)->Arch.Context.Registers.RSP),                  \
               "m"((next)->Arch.Context.Registers.RIP),                  \
               "r"(prev), "r"(next)                                      \
-            : "rax", "rsi", "rdi", "memory");                           \
+            : "rax", "rbx", "rsi", "rdi", "memory");                    \
     } while (0)
 
 #define JumpToReadyTask(Task, StackTop)                                 \

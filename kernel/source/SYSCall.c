@@ -184,9 +184,9 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%p"), CurrentProcess);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
 
-            // Copy the command line
-            StringCopy(Info->CommandLine, CurrentProcess->CommandLine);
-            StringCopy(Info->WorkFolder, CurrentProcess->WorkFolder);
+            // Copy the command line and work folder within buffer limits
+            StringCopyLimit(Info->CommandLine, CurrentProcess->CommandLine, MAX_PATH_NAME);
+            StringCopyLimit(Info->WorkFolder, CurrentProcess->WorkFolder, MAX_PATH_NAME);
 
             return DF_ERROR_SUCCESS;
         }
