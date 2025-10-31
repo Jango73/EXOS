@@ -109,7 +109,8 @@ Doxygen documentation is in `documentation/internal/kernel/*`
 3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs**
 
 **Disassembly Analysis:**
-- `./scripts/utils/show.sh <address> [context_lines]` - Shows disassembly around any address in exos.elf
+- `./scripts/utils/show-i386.sh <address> [context_lines]` (i386 build)
+- `./scripts/utils/show-x86-64.sh <address> [context_lines]` (x86-64 build)
   - Default context: 20 lines before/after target address
   - Target line marked with `>>> ... <<<`
-  - Example: `./scripts/utils/show.sh 0xc0123456 5` (5 lines context)
+  - Example: `./scripts/utils/show-x86-64.sh 0xc0123456 5` (5 lines context)
