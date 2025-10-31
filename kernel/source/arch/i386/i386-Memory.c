@@ -35,6 +35,17 @@
 
 /************************************************************************/
 
+/**
+ * @brief Checks whether a physical range can be safely targeted without clipping.
+ *
+ * The caller provides the base page frame and the number of pages to validate.
+ * The function ensures that, after clipping against the allowed physical memory
+ * map, the resulting range matches the requested one.
+ *
+ * @param Base Physical base page frame to validate.
+ * @param NumPages Number of pages requested in the range.
+ * @return TRUE when the range is valid or degenerate, FALSE otherwise.
+ */
 BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
     if (Base == 0 || NumPages == 0) return TRUE;
 
@@ -58,6 +69,16 @@ BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
 
 /************************************************************************/
 
+/**
+ * @brief Allocates and installs a page table for the linear address provided.
+ *
+ * The function obtains a new physical page for the table, links it in the
+ * current page directory and returns the canonical virtual address of the
+ * allocated table.
+ *
+ * @param Base Linear address whose table should be allocated.
+ * @return The linear address of the mapped table, or NULL on failure.
+ */
 LINEAR AllocPageTable(LINEAR Base) {
     PHYSICAL PMA_Table = AllocPhysicalPage();
 
@@ -93,6 +114,18 @@ LINEAR AllocPageTable(LINEAR Base) {
 
 /************************************************************************/
 
+/**
+ * @brief Retrieves a page table from an iterator when the entry is present.
+ *
+ * This helper validates the directory entry referenced by the iterator and
+ * returns the table pointer through the provided output parameter. Large pages
+ * are detected and reported through @p OutLargePage when supplied.
+ *
+ * @param Iterator Pointer to the iterator describing the directory entry.
+ * @param OutTable Receives the page table pointer when available.
+ * @param OutLargePage Optionally receives TRUE when the entry is a large page.
+ * @return TRUE if a table is available, FALSE otherwise.
+ */
 BOOL TryGetPageTableForIterator(
     const ARCH_PAGE_ITERATOR* Iterator,
     LPPAGE_TABLE* OutTable,
@@ -124,6 +157,15 @@ BOOL TryGetPageTableForIterator(
 
 /************************************************************************/
 
+/**
+ * @brief Builds a kernel page directory with predefined mappings.
+ *
+ * The directory includes low memory, kernel, task runner and recursive entries
+ * and prepares associated page tables. On success, the physical address of the
+ * new directory is returned.
+ *
+ * @return Physical address of the allocated directory, or NULL on failure.
+ */
 PHYSICAL AllocPageDirectory(void) {
     PHYSICAL PMA_Directory = NULL;
     PHYSICAL PMA_LowTable = NULL;
@@ -336,6 +378,15 @@ Out_Error:
 
 /************************************************************************/
 
+/**
+ * @brief Creates a user-space page directory inheriting kernel mappings.
+ *
+ * The new directory mirrors kernel entries from the current directory while
+ * preparing its own low and kernel tables. Recursive mapping is configured
+ * before returning the directory physical address.
+ *
+ * @return Physical address of the allocated directory, or NULL on failure.
+ */
 PHYSICAL AllocUserPageDirectory(void) {
     PHYSICAL PMA_Directory = NULL;
     PHYSICAL PMA_LowTable = NULL;
@@ -506,6 +557,13 @@ Out_Error:
 
 /************************************************************************/
 
+/**
+ * @brief Initializes the i386 memory manager structures.
+ *
+ * This routine prepares the physical page bitmap, builds and loads the initial
+ * page directory, and initializes segmentation through the GDT. It must be
+ * called during early kernel initialization.
+ */
 void InitializeMemoryManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
@@ -585,6 +643,15 @@ void InitializeMemoryManager(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Resolves a linear address into a physical address when mapped.
+ *
+ * The current page directory and table are inspected to fetch the page frame
+ * and combine it with the page offset derived from the linear address.
+ *
+ * @param Address Linear address to resolve.
+ * @return Physical address matching the mapping, or 0 if not mapped.
+ */
 PHYSICAL MapLinearToPhysical(LINEAR Address) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Address);
@@ -604,6 +671,15 @@ PHYSICAL MapLinearToPhysical(LINEAR Address) {
 
 /************************************************************************/
 
+/**
+ * @brief Checks whether a linear address refers to a valid mapped page.
+ *
+ * This helper validates both directory and table entries for the supplied
+ * address and confirms their presence.
+ *
+ * @param Address Linear address to validate.
+ * @return TRUE when the address is mapped, FALSE otherwise.
+ */
 BOOL IsValidMemory(LINEAR Address) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     UINT DirectoryIndex = GetDirectoryEntry(Address);
