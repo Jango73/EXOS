@@ -629,6 +629,8 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - When a task terminates, `KillTask()` releases every mutex held by the task
   before marking it as `TASK_STATUS_DEAD`
 - The task remains in the scheduler queue until the next context switch
+- Voluntary exits (`SysCall_Exit`) immediately run the scheduler so the
+  terminating task never resumes execution in user mode
 - `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
 **2. Process Termination via Task Count:**

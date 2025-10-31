@@ -221,8 +221,23 @@ UINT SysCall_Exit(UINT Parameter) {
     DEBUG(TEXT("[SysCall_Exit] Enter, Parameter=%x"), Parameter);
 
     LPTASK Task = GetCurrentTask();
-    SetTaskExitCode(Task, Parameter);
-    return (UINT)KillTask(Task);
+    if (Task == NULL) {
+        return FALSE;
+    }
+
+    if (SetTaskExitCode(Task, Parameter) == FALSE) {
+        return FALSE;
+    }
+
+    if (KillTask(Task) == FALSE) {
+        return FALSE;
+    }
+
+    Scheduler();
+
+    DeadCPU();
+
+    return TRUE;
 }
 
 /***************************************************************************/
