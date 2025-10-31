@@ -222,7 +222,12 @@ UINT SysCall_Exit(UINT Parameter) {
 
     LPTASK Task = GetCurrentTask();
     SetTaskExitCode(Task, Parameter);
-    return (UINT)KillTask(Task);
+
+    UINT ReturnValue = KillTask(Task);
+
+    DEBUG(TEXT("[SysCall_Exit] Exit"));
+
+    return ReturnValue;
 }
 
 /***************************************************************************/
@@ -242,6 +247,8 @@ UINT SysCall_ResumeTask(UINT Parameter) {
 /***************************************************************************/
 
 UINT SysCall_Sleep(UINT Parameter) {
+    DEBUG(TEXT("[SysCall_Sleep] Enter, Parameter=%x"), Parameter);
+
     Sleep(Parameter);
     return TRUE;
 }

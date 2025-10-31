@@ -33,6 +33,7 @@ EXOS_USER_CALL equ 0x70
 
 MAX_UINT    equ KERNEL_ARCH_MAX_UINT
 U32_SIZE    equ 4
+U64_SIZE    equ 8
 
 N_1KB       equ 0x00000400
 N_2KB       equ 0x00000800
