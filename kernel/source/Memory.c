@@ -696,7 +696,7 @@ static void FreeEmptyPageTables(void) {
 
     while (MemoryPageIteratorGetLinear(&Iterator) < VMA_KERNEL) {
         UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
-        U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
+        UINT DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 
         if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) != 0 &&
             (DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) == 0) {
