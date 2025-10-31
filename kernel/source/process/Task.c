@@ -750,6 +750,10 @@ void Sleep(U32 MilliSeconds) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         if (Task->Status == TASK_STATUS_DEAD) {
             UnlockMutex(MUTEX_TASK);
+            RestoreFlags(&Flags);
+            // Parking the CPU prevents a terminated task from resuming in user mode
+            // while the scheduler waits for DeleteDeadTasksAndProcesses to clean it up.
+            DeadCPU();
             return;
         }
 
