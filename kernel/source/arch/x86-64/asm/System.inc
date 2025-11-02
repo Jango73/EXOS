@@ -35,9 +35,13 @@ LBF equ 0x08                           ; Local base far
 ;----------------------------------------------------------------------------
 
 PRIVILEGE_KERNEL        equ 0x00
+PRIVILEGE_USER          equ 0x03
+
 SELECTOR_GLOBAL         equ 0x00
 SELECTOR_KERNEL_CODE    equ (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
 SELECTOR_KERNEL_DATA    equ (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
+SELECTOR_USER_CODE      equ (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
+SELECTOR_USER_DATA      equ (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
 
 CR0_PROTECTED_MODE 	    equ 0x00000001  ; Protected mode on/off
 CR0_COPROCESSOR         equ 0x00000002  ; Math present
