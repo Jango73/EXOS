@@ -91,6 +91,7 @@ extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
 extern void SetConsoleCursorPosition(U32 X, U32 Y);
 extern void IdleCPU(void);
+extern void DeadCPU(void);
 extern void Reboot(void);
 
 /***************************************************************************/

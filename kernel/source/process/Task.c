@@ -750,7 +750,7 @@ void Sleep(U32 MilliSeconds) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         if (Task->Status == TASK_STATUS_DEAD) {
             UnlockMutex(MUTEX_TASK);
-            DO_THE_SLEEPING_BEAUTY;
+            DeadCPU();
         }
 
         SetTaskStatus(Task, TASK_STATUS_SLEEPING);
