@@ -585,6 +585,16 @@ exos-runtime-c.c : malloc() (or any other function)
 
 ### System call full path - x86-64
 
+When `USE_SYSCALL = 0` (default build setting)
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── calls int EXOS_USER_CALL
+        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
+
+When `USE_SYSCALL = 1`
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()
     └── syscall instruction
@@ -592,6 +602,8 @@ exos-runtime-c.c : malloc() (or any other function)
             └── calls SYSCall.c : SystemCallHandler()
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
+
+`USE_SYSCALL` is a project-level build flag (`make ARCH=x86-64 USE_SYSCALL=1`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on i386 builds.
 
 ## Process and Task Lifecycle Management
 

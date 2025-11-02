@@ -1,4 +1,5 @@
 ARCH ?= i386
+USE_SYSCALL ?= 0
 
 ifeq ($(ARCH),i386)
 VMA_KERNEL ?= 0xC0000000
@@ -6,7 +7,7 @@ else ifeq ($(ARCH),x86-64)
 VMA_KERNEL ?= 0xFFFFFFFFC0000000
 endif
 
-SUBMAKE = $(MAKE) ARCH=$(ARCH) VMA_KERNEL=$(VMA_KERNEL)
+SUBMAKE = $(MAKE) ARCH=$(ARCH) VMA_KERNEL=$(VMA_KERNEL) USE_SYSCALL=$(USE_SYSCALL)
 
 .PHONY: all kernel runtime system boot-qemu boot-hd tools clean
 

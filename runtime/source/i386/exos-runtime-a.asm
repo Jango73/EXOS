@@ -38,6 +38,7 @@ LBN equ 0x04                           ; Local base near
 LBF equ 0x04                           ; Local base far
 
 ;----------------------------------------------------------------------------
+; Runtime symbols (only required outside of the kernel build)
 
 %ifndef __KERNEL__
 extern exosmain
@@ -45,10 +46,6 @@ extern _argc
 extern _argv
 extern _SetupArguments
 %endif
-
-;----------------------------------------------------------------------------
-
-section .bss
 
 ;----------------------------------------------------------------------------
 

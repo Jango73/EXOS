@@ -162,6 +162,7 @@ section .text
 SYSCALL_SAVE_SIZE      equ (15 * 8)
 SYSCALL_SAVE_RAX       equ 0
 SYSCALL_SAVE_RBX       equ 8
+SYSCALL_INT_RAX_OFFSET equ ((4 + 15) * 8)
 
 ;-------------------------------------------------------------------------
 
@@ -447,6 +448,7 @@ Interrupt_HardDrive:
 
 FUNC_HEADER
 Interrupt_SystemCall:
+%if USE_SYSCALL
     ; SYSCALL entry point:
     ; RDI = Function (syscall number)
     ; RSI = Parameter (single argument)
@@ -485,6 +487,25 @@ Interrupt_SystemCall:
     mov     rsp, rdx                     ; Restore user stack for SYSRET
 
     sysretq
+%else
+    cli
+
+    ALIGN_STACK
+    PUSH_GPRS
+    PUSH_SEGMENTS
+
+    call    EnterKernel
+
+    call    SystemCallHandler
+
+    mov     [rsp + SYSCALL_INT_RAX_OFFSET], rax
+
+    POP_SEGMENTS
+    POP_GPRS
+    UNALIGN_STACK
+
+    iretq
+%endif
 
 ;-------------------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 
 ARCH ?= i386
+USE_SYSCALL ?= 0
 
 BUILD_DIR := ../build/$(ARCH)
 
@@ -30,6 +31,7 @@ CFLAGS  = -g -Wall -Wextra -O0 -nostdinc \
         -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
         -fvisibility=hidden -mno-red-zone \
         -Werror-implicit-function-declaration -Wstrict-prototypes \
+        -DUSE_SYSCALL=$(USE_SYSCALL) \
         -I../kernel/include \
         $(CFLAGS_ARCH)
 
@@ -39,9 +41,10 @@ CXXFLAGS = -g -Wall -Wextra -O0 -std=c++11 \
         -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
         -fvisibility=hidden -mno-red-zone \
         -fno-rtti -fno-threadsafe-statics \
+        -DUSE_SYSCALL=$(USE_SYSCALL) \
         $(CXXFLAGS_ARCH)
 
-AFLAGS  = -f $(NASM_FORMAT) -g -F dwarf -I source/
+AFLAGS  = -f $(NASM_FORMAT) -g -F dwarf -I source/ -DUSE_SYSCALL=$(USE_SYSCALL)
 
 LDFLAGS = -T linker.ld -nostdlib -Map=$(BUILD_DIR)/runtime/exos-runtime.map
 

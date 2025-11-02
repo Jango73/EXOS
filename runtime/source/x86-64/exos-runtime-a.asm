@@ -1,15 +1,33 @@
+
 ;-------------------------------------------------------------------------
 ;
-;   EXOS Runtime (x86-64)
+;   EXOS Kernel / Runtime
+;   Copyright (c) 1999-2025 Jango73
 ;
-;   64-bit entry points and basic memory/string routines used by the
-;   kernel and user-space runtime.  These routines follow the System V
-;   AMD64 calling convention to remain compatible with the rest of the
-;   kernel which is compiled with GCC in freestanding mode.
+;   This program is free software: you can redistribute it and/or modify
+;   it under the terms of the GNU General Public License as published by
+;   the Free Software Foundation, either version 3 of the License, or
+;   (at your option) any later version.
+;
+;   This program is distributed in the hope that it will be useful,
+;   but WITHOUT ANY WARRANTY; without even the implied warranty of
+;   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;   GNU General Public License for more details.
+;
+;   You should have received a copy of the GNU General Public License
+;   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;
+;
+;   EXOS Runtime
 ;
 ;-------------------------------------------------------------------------
 
 BITS 64
+
+;----------------------------------------------------------------------------
+; EXOS syscall
+
+EXOS_USER_CALL equ 0x70
 
 ;----------------------------------------------------------------------------
 ; Runtime symbols (only required outside of the kernel build)
@@ -96,7 +114,11 @@ __exit__:
 ; exoscall : bridge to EXOS system services
 
 exoscall:
+%if USE_SYSCALL
     syscall
+%else
+    int     EXOS_USER_CALL
+%endif
     ret
 %endif ; __KERNEL__
 

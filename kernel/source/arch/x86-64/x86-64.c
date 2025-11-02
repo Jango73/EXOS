@@ -612,6 +612,7 @@ void PreInitializeKernel(void) {
  * @brief Configure MSRs required for SYSCALL/SYSRET transitions.
  */
 void InitializeSystemCall(void) {
+#if USE_SYSCALL
     U64 StarValue;
     U64 EntryPoint;
     U64 MaskValue;
@@ -629,6 +630,14 @@ void InitializeSystemCall(void) {
     EferValue = ReadMSR64Local(IA32_EFER_MSR);
     EferValue |= IA32_EFER_SCE;
     WriteMSR64(IA32_EFER_MSR, (U32)(EferValue & 0xFFFFFFFF), (U32)(EferValue >> 32));
+#else
+    InitializeGateDescriptor(
+        IDT + EXOS_USER_CALL,
+        (LINEAR)Interrupt_SystemCall,
+        GATE_TYPE_386_TRAP,
+        PRIVILEGE_USER,
+        0u);
+#endif
 }
 
 /************************************************************************/
