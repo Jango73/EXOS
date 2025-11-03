@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -31,11 +32,11 @@
 
 /************************************************************************/
 
-#define DEFINE_FATAL_HANDLER(FunctionName, Description)                                       \
-    void FunctionName(LPINTERRUPT_FRAME Frame) {                                               \
-        ERROR(TEXT("[" #FunctionName "] %s"), TEXT(Description));                            \
-        LogCPUState(Frame);                                                                    \
-        Die();                                                                                 \
+#define DEFINE_FATAL_HANDLER(FunctionName, Description)             \
+    void FunctionName(LPINTERRUPT_FRAME Frame) {                    \
+        ERROR(TEXT("[" #FunctionName "] %s"), TEXT(Description));   \
+        LogCPUState(Frame);                                         \
+        Die();                                                      \
     }
 
 /************************************************************************/
