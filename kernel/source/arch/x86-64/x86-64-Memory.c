@@ -35,3 +35,37 @@
 #include "arch/x86-64/x86-64-Log.h"
 
 /************************************************************************/
+
+void ArchRemapTemporaryPage(LINEAR Linear, PHYSICAL Physical) {
+    UNUSED(Linear);
+    UNUSED(Physical);
+    ConsolePanic(TEXT("[ArchRemapTemporaryPage] Not implemented for x86-64"));
+}
+
+LINEAR ArchAllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
+    UNUSED(Base);
+    UNUSED(Target);
+    UNUSED(Size);
+    UNUSED(Flags);
+    ConsolePanic(TEXT("[ArchAllocRegion] Not implemented for x86-64"));
+    return NULL;
+}
+
+BOOL ArchResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags) {
+    UNUSED(Base);
+    UNUSED(Target);
+    UNUSED(Size);
+    UNUSED(NewSize);
+    UNUSED(Flags);
+    ConsolePanic(TEXT("[ArchResizeRegion] Not implemented for x86-64"));
+    return FALSE;
+}
+
+BOOL ArchFreeRegion(LINEAR Base, UINT Size) {
+    UNUSED(Base);
+    UNUSED(Size);
+    ConsolePanic(TEXT("[ArchFreeRegion] Not implemented for x86-64"));
+    return FALSE;
+}
+
+/************************************************************************/

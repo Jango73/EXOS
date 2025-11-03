@@ -37,6 +37,7 @@ void InitializeMemoryManager(void);
 // Architecture helpers
 void UpdateKernelMemoryMetricsFromMultibootMap(void);
 void MarkUsedPhysicalMemory(void);
+void SetPhysicalPageUsage(UINT PageIndex, BOOL Used);
 
 // Uses temp page tables to get access to random physical pages
 LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical);

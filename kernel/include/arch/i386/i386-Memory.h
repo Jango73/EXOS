@@ -197,6 +197,10 @@ static inline volatile U32* GetPageTableEntryRawPointer(LINEAR Address) {
 BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages);
 BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable, BOOL* OutLargePage);
 LINEAR AllocPageTable(LINEAR Base);
+void ArchRemapTemporaryPage(LINEAR Linear, PHYSICAL Physical);
+LINEAR ArchAllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags);
+BOOL ArchResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
+BOOL ArchFreeRegion(LINEAR Base, UINT Size);
 
 static inline U32 BuildPageFlags(
     U32 ReadWrite,

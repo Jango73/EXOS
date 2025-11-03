@@ -135,4 +135,9 @@ static inline U64 CanonicalizeLinearAddress(U64 Address) {
     return Address;
 }
 
+LINEAR ArchAllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags);
+BOOL ArchResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
+BOOL ArchFreeRegion(LINEAR Base, UINT Size);
+void ArchRemapTemporaryPage(LINEAR Linear, PHYSICAL Physical);
+
 #endif  // X86_64_MEMORY_H_INCLUDED
