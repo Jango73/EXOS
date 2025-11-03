@@ -254,6 +254,464 @@ static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
 
 /************************************************************************/
 
+typedef struct _PAGE_ALLOCATION_LIST {
+    PHYSICAL Pages[256];
+    UINT Count;
+} PAGE_ALLOCATION_LIST;
+
+/************************************************************************/
+
+static void ResetAllocationList(PAGE_ALLOCATION_LIST* List) {
+    if (List == NULL) return;
+    MemorySet(List, 0, sizeof(PAGE_ALLOCATION_LIST));
+}
+
+/************************************************************************/
+
+static BOOL TrackAllocation(PAGE_ALLOCATION_LIST* List, PHYSICAL Physical) {
+    if (List == NULL) return FALSE;
+    if (Physical == NULL) return FALSE;
+
+    if (List->Count >= ARRAY_COUNT(List->Pages)) {
+        ERROR(TEXT("[AllocPageDirectory] Allocation tracker overflow"));
+        return FALSE;
+    }
+
+    List->Pages[List->Count++] = Physical;
+    return TRUE;
+}
+
+/************************************************************************/
+
+static void ReleaseTrackedAllocations(PAGE_ALLOCATION_LIST* List) {
+    if (List == NULL) return;
+
+    for (UINT Index = 0; Index < List->Count; Index++) {
+        if (List->Pages[Index] != NULL) {
+            FreePhysicalPage(List->Pages[Index]);
+        }
+    }
+
+    MemorySet(List, 0, sizeof(PAGE_ALLOCATION_LIST));
+}
+
+/************************************************************************/
+
+static LINEAR MapTemporarySlot(PHYSICAL Physical, UINT Slot) {
+    switch (Slot) {
+    case 1:
+        return MapTemporaryPhysicalPage1(Physical);
+    case 2:
+        return MapTemporaryPhysicalPage2(Physical);
+    case 3:
+        return MapTemporaryPhysicalPage3(Physical);
+    default:
+        ERROR(TEXT("[AllocPageDirectory] Invalid temporary slot %u"), Slot);
+        return 0;
+    }
+}
+
+/************************************************************************/
+
+static BOOL AllocateZeroedPage(
+    PAGE_ALLOCATION_LIST* Allocations,
+    UINT Slot,
+    LPCSTR Label,
+    PHYSICAL* OutPhysical,
+    LINEAR* OutLinear) {
+    if (OutPhysical == NULL) return FALSE;
+
+    PHYSICAL Physical = AllocPhysicalPage();
+
+    if (Physical == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] %s out of physical pages"), Label);
+        return FALSE;
+    }
+
+    LINEAR Linear = MapTemporarySlot(Physical, Slot);
+
+    if (Linear == NULL) {
+        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage%u failed for %s"), Slot, Label);
+        FreePhysicalPage(Physical);
+        return FALSE;
+    }
+
+    MemorySet((LPVOID)Linear, 0, PAGE_SIZE);
+
+    if (Allocations != NULL) {
+        if (TrackAllocation(Allocations, Physical) == FALSE) {
+            FreePhysicalPage(Physical);
+            return FALSE;
+        }
+    }
+
+    *OutPhysical = Physical;
+
+    if (OutLinear != NULL) {
+        *OutLinear = Linear;
+    }
+
+    DEBUG(TEXT("[AllocPageDirectory] %s allocated at physical=%p linear=%p"), Label, Physical, (LPVOID)Linear);
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL EnsureLowRegionSharedTables(PHYSICAL* OutBiosTable, PHYSICAL* OutIdentityTable) {
+    if (OutBiosTable == NULL || OutIdentityTable == NULL) return FALSE;
+
+    if (EnsureSharedLowTable(&LowRegionSharedTables.BiosTablePhysical, 0, TRUE, TEXT("BIOS")) == FALSE) {
+        return FALSE;
+    }
+
+    if (EnsureSharedLowTable(
+            &LowRegionSharedTables.IdentityTablePhysical,
+            ((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_SIZE_MUL),
+            FALSE,
+            TEXT("low identity")) == FALSE) {
+        return FALSE;
+    }
+
+    *OutBiosTable = LowRegionSharedTables.BiosTablePhysical;
+    *OutIdentityTable = LowRegionSharedTables.IdentityTablePhysical;
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL BuildLowRegion(
+    PAGE_ALLOCATION_LIST* Allocations,
+    PHYSICAL Pml4Physical,
+    PHYSICAL BiosTable,
+    PHYSICAL IdentityTable,
+    PHYSICAL* OutPdptPhysical,
+    PHYSICAL* OutDirectoryPhysical) {
+    UINT Pml4Index = GetPml4Entry(0);
+    UINT PdptIndex = GetPdptEntry(0);
+    UINT DirectoryIndex = GetDirectoryEntry(0);
+
+    LINEAR PdptLinear = 0;
+    LINEAR DirectoryLinear = 0;
+    PHYSICAL PdptPhysical = NULL;
+    PHYSICAL DirectoryPhysical = NULL;
+
+    if (AllocateZeroedPage(Allocations, 2, TEXT("Low PDPT"), &PdptPhysical, &PdptLinear) == FALSE) {
+        return FALSE;
+    }
+
+    if (AllocateZeroedPage(Allocations, 3, TEXT("Low directory"), &DirectoryPhysical, &DirectoryLinear) == FALSE) {
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)PdptLinear;
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)DirectoryLinear;
+
+    WritePageDirectoryEntryValue(
+        Pdpt,
+        PdptIndex,
+        MakePageDirectoryEntryValue(
+            DirectoryPhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    if ((DirectoryIndex + 1u) >= PAGE_DIRECTORY_ENTRY_COUNT) {
+        ERROR(TEXT("[AllocPageDirectory] Low directory index overflow"));
+        return FALSE;
+    }
+
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirectoryIndex,
+        MakePageDirectoryEntryValue(
+            BiosTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirectoryIndex + 1u,
+        MakePageDirectoryEntryValue(
+            IdentityTable,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    LINEAR Pml4Linear = MapTemporarySlot(Pml4Physical, 1);
+
+    if (Pml4Linear == 0) {
+        ERROR(TEXT("[AllocPageDirectory] Failed to map PML4 for low region"));
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Linear;
+
+    WritePageDirectoryEntryValue(
+        Pml4,
+        Pml4Index,
+        MakePageDirectoryEntryValue(
+            PdptPhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    if (OutPdptPhysical != NULL) {
+        *OutPdptPhysical = PdptPhysical;
+    }
+
+    if (OutDirectoryPhysical != NULL) {
+        *OutDirectoryPhysical = DirectoryPhysical;
+    }
+
+    DEBUG(TEXT("[AllocPageDirectory] Low region ready (PML4=%u, PDPT=%u)"), Pml4Index, PdptIndex);
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL BuildKernelRegion(
+    PAGE_ALLOCATION_LIST* Allocations,
+    PHYSICAL Pml4Physical,
+    UINT TableCount,
+    PHYSICAL* OutPdptPhysical,
+    PHYSICAL* OutDirectoryPhysical) {
+    UINT Pml4Index = GetPml4Entry((U64)VMA_KERNEL);
+    UINT PdptIndex = GetPdptEntry((U64)VMA_KERNEL);
+    UINT DirectoryIndex = GetDirectoryEntry((U64)VMA_KERNEL);
+
+    if (DirectoryIndex + TableCount > PAGE_DIRECTORY_ENTRY_COUNT) {
+        ERROR(TEXT("[AllocPageDirectory] Kernel directory overflow (base=%u count=%u)"), DirectoryIndex, TableCount);
+        return FALSE;
+    }
+
+    LINEAR PdptLinear = 0;
+    LINEAR DirectoryLinear = 0;
+    PHYSICAL PdptPhysical = NULL;
+    PHYSICAL DirectoryPhysical = NULL;
+
+    if (AllocateZeroedPage(Allocations, 2, TEXT("Kernel PDPT"), &PdptPhysical, &PdptLinear) == FALSE) {
+        return FALSE;
+    }
+
+    if (AllocateZeroedPage(Allocations, 3, TEXT("Kernel directory"), &DirectoryPhysical, &DirectoryLinear) == FALSE) {
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)PdptLinear;
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)DirectoryLinear;
+
+    WritePageDirectoryEntryValue(
+        Pdpt,
+        PdptIndex,
+        MakePageDirectoryEntryValue(
+            DirectoryPhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
+
+    for (UINT TableIndex = 0; TableIndex < TableCount; TableIndex++) {
+        PHYSICAL TablePhysical = NULL;
+        LINEAR TableLinear = 0;
+
+        if (AllocateZeroedPage(Allocations, 1, TEXT("Kernel table"), &TablePhysical, &TableLinear) == FALSE) {
+            return FALSE;
+        }
+
+        LPPAGE_TABLE Table = (LPPAGE_TABLE)TableLinear;
+
+        PHYSICAL TablePhysicalBase = PhysBaseKernel + ((PHYSICAL)TableIndex << PAGE_TABLE_CAPACITY_MUL);
+
+        for (UINT Entry = 0; Entry < PAGE_TABLE_NUM_ENTRIES; Entry++) {
+            PHYSICAL Physical = TablePhysicalBase + ((PHYSICAL)Entry << PAGE_SIZE_MUL);
+            WritePageTableEntryValue(
+                Table,
+                Entry,
+                MakePageTableEntryValue(
+                    Physical,
+                    /*ReadWrite*/ 1,
+                    PAGE_PRIVILEGE_KERNEL,
+                    /*WriteThrough*/ 0,
+                    /*CacheDisabled*/ 0,
+                    /*Global*/ 0,
+                    /*Fixed*/ 1));
+        }
+
+        WritePageDirectoryEntryValue(
+            Directory,
+            DirectoryIndex + TableIndex,
+            MakePageDirectoryEntryValue(
+                TablePhysical,
+                /*ReadWrite*/ 1,
+                PAGE_PRIVILEGE_KERNEL,
+                /*WriteThrough*/ 0,
+                /*CacheDisabled*/ 0,
+                /*Global*/ 0,
+                /*Fixed*/ 1));
+    }
+
+    LINEAR Pml4Linear = MapTemporarySlot(Pml4Physical, 1);
+
+    if (Pml4Linear == 0) {
+        ERROR(TEXT("[AllocPageDirectory] Failed to map PML4 for kernel region"));
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Linear;
+
+    WritePageDirectoryEntryValue(
+        Pml4,
+        Pml4Index,
+        MakePageDirectoryEntryValue(
+            PdptPhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_KERNEL,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    if (OutPdptPhysical != NULL) {
+        *OutPdptPhysical = PdptPhysical;
+    }
+
+    if (OutDirectoryPhysical != NULL) {
+        *OutDirectoryPhysical = DirectoryPhysical;
+    }
+
+    DEBUG(TEXT("[AllocPageDirectory] Kernel region ready tables=%u"), TableCount);
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL BuildTaskRunnerRegion(
+    PAGE_ALLOCATION_LIST* Allocations,
+    PHYSICAL Pml4Physical,
+    PHYSICAL TaskRunnerPhysical,
+    UINT TaskRunnerTableIndex,
+    PHYSICAL* OutPdptPhysical,
+    PHYSICAL* OutDirectoryPhysical,
+    PHYSICAL* OutTablePhysical) {
+    UINT Pml4Index = GetPml4Entry((U64)VMA_TASK_RUNNER);
+    UINT PdptIndex = GetPdptEntry((U64)VMA_TASK_RUNNER);
+    UINT DirectoryIndex = GetDirectoryEntry((U64)VMA_TASK_RUNNER);
+
+    LINEAR PdptLinear = 0;
+    LINEAR DirectoryLinear = 0;
+    LINEAR TableLinear = 0;
+    PHYSICAL PdptPhysical = NULL;
+    PHYSICAL DirectoryPhysical = NULL;
+    PHYSICAL TablePhysical = NULL;
+
+    if (AllocateZeroedPage(Allocations, 2, TEXT("TaskRunner PDPT"), &PdptPhysical, &PdptLinear) == FALSE) {
+        return FALSE;
+    }
+
+    if (AllocateZeroedPage(Allocations, 3, TEXT("TaskRunner directory"), &DirectoryPhysical, &DirectoryLinear) == FALSE) {
+        return FALSE;
+    }
+
+    if (AllocateZeroedPage(Allocations, 1, TEXT("TaskRunner table"), &TablePhysical, &TableLinear) == FALSE) {
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)PdptLinear;
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)DirectoryLinear;
+    LPPAGE_TABLE Table = (LPPAGE_TABLE)TableLinear;
+
+    WritePageDirectoryEntryValue(
+        Pdpt,
+        PdptIndex,
+        MakePageDirectoryEntryValue(
+            DirectoryPhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    WritePageDirectoryEntryValue(
+        Directory,
+        DirectoryIndex,
+        MakePageDirectoryEntryValue(
+            TablePhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    WritePageTableEntryValue(
+        Table,
+        TaskRunnerTableIndex,
+        MakePageTableEntryValue(
+            TaskRunnerPhysical,
+            /*ReadWrite*/ 0,
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    LINEAR Pml4Linear = MapTemporarySlot(Pml4Physical, 1);
+
+    if (Pml4Linear == 0) {
+        ERROR(TEXT("[AllocPageDirectory] Failed to map PML4 for TaskRunner region"));
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Linear;
+
+    WritePageDirectoryEntryValue(
+        Pml4,
+        Pml4Index,
+        MakePageDirectoryEntryValue(
+            PdptPhysical,
+            /*ReadWrite*/ 1,
+            PAGE_PRIVILEGE_USER,
+            /*WriteThrough*/ 0,
+            /*CacheDisabled*/ 0,
+            /*Global*/ 0,
+            /*Fixed*/ 1));
+
+    if (OutPdptPhysical != NULL) {
+        *OutPdptPhysical = PdptPhysical;
+    }
+
+    if (OutDirectoryPhysical != NULL) {
+        *OutDirectoryPhysical = DirectoryPhysical;
+    }
+
+    if (OutTablePhysical != NULL) {
+        *OutTablePhysical = TablePhysical;
+    }
+
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunner region mapped index=%u"), TaskRunnerTableIndex);
+    return TRUE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Obtain or create a shared identity table used by the low region.
  *
@@ -895,11 +1353,8 @@ static U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
  * @return Physical address of the allocated PML4, or NULL on failure.
  */
 PHYSICAL AllocPageDirectory(void) {
-    REGION_SETUP LowRegion;
-    REGION_SETUP KernelRegion;
-    REGION_SETUP TaskRunnerRegion;
-    PHYSICAL Pml4Physical = NULL;
-    BOOL Success = FALSE;
+    PAGE_ALLOCATION_LIST Allocations;
+    ResetAllocationList(&Allocations);
 
     DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
@@ -908,90 +1363,83 @@ PHYSICAL AllocPageDirectory(void) {
         return NULL;
     }
 
-    ResetRegionSetup(&LowRegion);
-    ResetRegionSetup(&KernelRegion);
-    ResetRegionSetup(&TaskRunnerRegion);
+    PHYSICAL BiosTablePhysical = NULL;
+    PHYSICAL IdentityTablePhysical = NULL;
 
-    UINT LowPml4Index = GetPml4Entry(0);
-    UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
-    UINT TaskRunnerPml4Index = GetPml4Entry((U64)VMA_TASK_RUNNER);
-    UINT TaskRunnerTableIndex = GetTableEntry((U64)VMA_TASK_RUNNER);
+    if (EnsureLowRegionSharedTables(&BiosTablePhysical, &IdentityTablePhysical) == FALSE) {
+        ReleaseTrackedAllocations(&Allocations);
+        return NULL;
+    }
+
+    PHYSICAL Pml4Physical = NULL;
+
+    if (AllocateZeroedPage(&Allocations, 1, TEXT("PML4"), &Pml4Physical, NULL) == FALSE) {
+        ReleaseTrackedAllocations(&Allocations);
+        return NULL;
+    }
 
     UINT KernelCoverageBytes = ComputeKernelCoverageBytes();
     UINT KernelTableCount = KernelCoverageBytes >> PAGE_TABLE_CAPACITY_MUL;
     if (KernelTableCount == 0u) KernelTableCount = 1u;
 
-    if (SetupLowRegion(&LowRegion, 0u) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocPageDirectory] Low region tables=%u"), LowRegion.TableCount);
+    DEBUG(TEXT("[AllocPageDirectory] Kernel coverage=%u bytes tables=%u"), KernelCoverageBytes, KernelTableCount);
 
-    if (SetupKernelRegion(&KernelRegion, KernelTableCount) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocPageDirectory] Kernel region tables=%u"), KernelRegion.TableCount);
+    PHYSICAL LowPdptPhysical = NULL;
+    PHYSICAL LowDirectoryPhysical = NULL;
+
+    if (BuildLowRegion(&Allocations, Pml4Physical, BiosTablePhysical, IdentityTablePhysical, &LowPdptPhysical, &LowDirectoryPhysical) == FALSE) {
+        ReleaseTrackedAllocations(&Allocations);
+        return NULL;
+    }
+
+    PHYSICAL KernelPdptPhysical = NULL;
+    PHYSICAL KernelDirectoryPhysical = NULL;
+
+    if (BuildKernelRegion(&Allocations, Pml4Physical, KernelTableCount, &KernelPdptPhysical, &KernelDirectoryPhysical) == FALSE) {
+        ReleaseTrackedAllocations(&Allocations);
+        return NULL;
+    }
 
     LINEAR TaskRunnerLinear = (LINEAR)&__task_runner_start;
     PHYSICAL TaskRunnerPhysical = KernelToPhysical(TaskRunnerLinear);
+    UINT TaskRunnerTableIndex = GetTableEntry((U64)VMA_TASK_RUNNER);
 
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"),
-        KernelStartup.KernelPhysicalBase,
-        TaskRunnerLinear,
-        VMA_KERNEL,
-        TaskRunnerPhysical);
-
-    if (SetupTaskRunnerRegion(&TaskRunnerRegion, TaskRunnerPhysical, TaskRunnerTableIndex) == FALSE) goto Out;
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner tables=%u"), TaskRunnerRegion.TableCount);
-
-    Pml4Physical = AllocPhysicalPage();
-
-    if (Pml4Physical == NULL) {
-        ERROR(TEXT("[AllocPageDirectory] Out of physical pages"));
-        goto Out;
+    if (TaskRunnerTableIndex >= PAGE_TABLE_NUM_ENTRIES) {
+        ERROR(TEXT("[AllocPageDirectory] TaskRunner table index overflow"));
+        ReleaseTrackedAllocations(&Allocations);
+        return NULL;
     }
 
-    LINEAR Pml4Linear = MapTemporaryPhysicalPage1(Pml4Physical);
+    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical=%p VMA=%p tableIndex=%u"),
+        TaskRunnerPhysical,
+        (LPVOID)VMA_TASK_RUNNER,
+        TaskRunnerTableIndex);
 
-    if (Pml4Linear == NULL) {
-        ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed on PML4"));
-        goto Out;
+    PHYSICAL TaskRunnerPdptPhysical = NULL;
+    PHYSICAL TaskRunnerDirectoryPhysical = NULL;
+    PHYSICAL TaskRunnerTablePhysical = NULL;
+
+    if (BuildTaskRunnerRegion(
+            &Allocations,
+            Pml4Physical,
+            TaskRunnerPhysical,
+            TaskRunnerTableIndex,
+            &TaskRunnerPdptPhysical,
+            &TaskRunnerDirectoryPhysical,
+            &TaskRunnerTablePhysical) == FALSE) {
+        ReleaseTrackedAllocations(&Allocations);
+        return NULL;
     }
 
-    LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Linear;
-    MemorySet(Pml4, 0, PAGE_SIZE);
-    DEBUG(TEXT("[AllocPageDirectory] PML4 mapped at %p"), Pml4);
+    LINEAR Pml4Map = MapTemporarySlot(Pml4Physical, 1);
 
-    WritePageDirectoryEntryValue(
-        Pml4,
-        LowPml4Index,
-        MakePageDirectoryEntryValue(
-            LowRegion.PdptPhysical,
-            /*ReadWrite*/ 1,
-            LowRegion.Privilege,
-            /*WriteThrough*/ 0,
-            /*CacheDisabled*/ 0,
-            /*Global*/ 0,
-            /*Fixed*/ 1));
+    if (Pml4Map == 0) {
+        ERROR(TEXT("[AllocPageDirectory] Failed to remap PML4 for recursive slot"));
+        ReleaseTrackedAllocations(&Allocations);
+        return NULL;
+    }
 
-    WritePageDirectoryEntryValue(
-        Pml4,
-        KernelPml4Index,
-        MakePageDirectoryEntryValue(
-            KernelRegion.PdptPhysical,
-            /*ReadWrite*/ 1,
-            PAGE_PRIVILEGE_KERNEL,
-            /*WriteThrough*/ 0,
-            /*CacheDisabled*/ 0,
-            /*Global*/ 0,
-            /*Fixed*/ 1));
-
-    WritePageDirectoryEntryValue(
-        Pml4,
-        TaskRunnerPml4Index,
-        MakePageDirectoryEntryValue(
-            TaskRunnerRegion.PdptPhysical,
-            /*ReadWrite*/ 1,
-            PAGE_PRIVILEGE_USER,
-            /*WriteThrough*/ 0,
-            /*CacheDisabled*/ 0,
-            /*Global*/ 0,
-            /*Fixed*/ 1));
+    LPPAGE_DIRECTORY Pml4 = (LPPAGE_DIRECTORY)Pml4Map;
 
     WritePageDirectoryEntryValue(
         Pml4,
@@ -1005,31 +1453,32 @@ PHYSICAL AllocPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
+    UINT LowPml4Index = GetPml4Entry(0);
+    UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
+    UINT TaskRunnerPml4Index = GetPml4Entry((U64)VMA_TASK_RUNNER);
+
     U64 LowEntry = ReadPageDirectoryEntryValue(Pml4, LowPml4Index);
     U64 KernelEntry = ReadPageDirectoryEntryValue(Pml4, KernelPml4Index);
     U64 TaskEntry = ReadPageDirectoryEntryValue(Pml4, TaskRunnerPml4Index);
     U64 RecursiveEntry = ReadPageDirectoryEntryValue(Pml4, PML4_RECURSIVE_SLOT);
 
-    DEBUG(TEXT("[AllocPageDirectory] PML4 entries set (low=%p, kernel=%p, task=%p, recursive=%p)"),
-        (LINEAR)LowEntry,
-        (LINEAR)KernelEntry,
-        (LINEAR)TaskEntry,
-        (LINEAR)RecursiveEntry);
+    DEBUG(TEXT("[AllocPageDirectory] PML4 entries low=%p kernel=%p task=%p recursive=%p"),
+        (LPVOID)LowEntry,
+        (LPVOID)KernelEntry,
+        (LPVOID)TaskEntry,
+        (LPVOID)RecursiveEntry);
+
+    LINEAR TaskRunnerTableLinear = MapTemporarySlot(TaskRunnerTablePhysical, 1);
+
+    if (TaskRunnerTableLinear != 0) {
+        LPPAGE_TABLE TaskRunnerTable = (LPPAGE_TABLE)TaskRunnerTableLinear;
+        U64 TaskRunnerEntry = ReadPageTableEntryValue(TaskRunnerTable, TaskRunnerTableIndex);
+        DEBUG(TEXT("[AllocPageDirectory] TaskRunner entry=%p"), (LPVOID)TaskRunnerEntry);
+    } else {
+        ERROR(TEXT("[AllocPageDirectory] Failed to remap TaskRunner table for verification"));
+    }
 
     FlushTLB();
-
-    Success = TRUE;
-
-Out:
-    if (!Success) {
-        if (Pml4Physical != NULL) {
-            FreePhysicalPage(Pml4Physical);
-        }
-        ReleaseRegionSetup(&LowRegion);
-        ReleaseRegionSetup(&KernelRegion);
-        ReleaseRegionSetup(&TaskRunnerRegion);
-        return NULL;
-    }
 
     DEBUG(TEXT("[AllocPageDirectory] Exit"));
     return Pml4Physical;
