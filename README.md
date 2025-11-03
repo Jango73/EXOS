@@ -2,8 +2,8 @@
 
 ## TL;DR
 
-Multi-threaded operating system for i386 (soon x86_64).
-Currently booting in QEMU and Bochs.
+Multi-threaded operating system for i386 (x86_64 on the way on a dedicated branch).
+Boots in QEMU (possibly in Bochs).
 
 ## What it is
 
@@ -77,3 +77,8 @@ This was a year-long solo project, developed the hard way:
 - ARP/IPv4/DHCP/UDP/TCP network layers
 - Minimal HTTP client
 - A few test apps
+
+## End of the road
+AI once made it possible for a single person to develop an open-source project without astronomical costs.
+Now it has become impossible with the widespread adoption of “usage-based fees,” which makes building open-source projects too expensive—especially since they bring in no revenue at all.
+So this project ends here.
