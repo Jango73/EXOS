@@ -271,6 +271,15 @@ void DeleteTask(LPTASK This) {
 
     SAFE_USE_VALID_ID(This, KOID_TASK) {
         // Lock kernel mutex for the entire operation
+        DEBUG(TEXT("[DeleteTask] Task=%p Type=%x Status=%x Flags=%x"), This, This->Type, This->Status,
+            This->Flags);
+        DEBUG(TEXT("[DeleteTask] Stack base=%p size=%u SysStack base=%p size=%u"), This->Arch.Stack.Base,
+            This->Arch.Stack.Size, This->Arch.SysStack.Base, This->Arch.SysStack.Size);
+        SAFE_USE(This->Process) {
+            DEBUG(TEXT("[DeleteTask] Process=%p Name=%s TaskCount=%u"), This->Process, This->Process->FileName,
+                This->Process->TaskCount);
+        }
+
         LockMutex(MUTEX_KERNEL, INFINITY);
 
         //-------------------------------------

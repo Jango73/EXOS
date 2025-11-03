@@ -546,25 +546,45 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
  * @brief Release page tables that no longer contain mappings.
  */
 static void FreeEmptyPageTables(void) {
-    LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(N_4MB);
     MemoryPageIteratorAlignToTableStart(&Iterator);
 
     while (MemoryPageIteratorGetLinear(&Iterator) < VMA_KERNEL) {
+        LINEAR Linear = MemoryPageIteratorGetLinear(&Iterator);
+        BOOL IsLargePage = FALSE;
+        LPPAGE_TABLE Table = NULL;
+
+        if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
+            if (IsLargePage == TRUE) {
+                DEBUG(TEXT("[FreeEmptyPageTables] Skip large page at linear=%p (PML4=%u PDPT=%u Dir=%u)"),
+                    (LPVOID)Linear, MemoryPageIteratorGetPml4Index(&Iterator),
+                    MemoryPageIteratorGetPdptIndex(&Iterator), MemoryPageIteratorGetDirectoryIndex(&Iterator));
+            }
+
+            MemoryPageIteratorNextTable(&Iterator);
+            continue;
+        }
+
+        LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Linear);
         UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
         UINT DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 
         if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) != 0 &&
             (DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) == 0) {
             PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntryValue & PAGE_MASK);
+            LINEAR TableLinear = (LINEAR)Table;
+            UINT Pml4Index = MemoryPageIteratorGetPml4Index(&Iterator);
+            UINT PdptIndex = MemoryPageIteratorGetPdptIndex(&Iterator);
 
-            if (TablePhysical != 0) {
-                LPPAGE_TABLE Table = MemoryPageIteratorGetTable(&Iterator);
+            DEBUG(TEXT("[FreeEmptyPageTables] Inspect PML4=%u PDPT=%u Dir=%u linear=%p pde=%x tablePhys=%x tableLinear=%p"),
+                Pml4Index, PdptIndex, DirEntry, (LPVOID)Linear, DirectoryEntryValue, TablePhysical,
+                (LPVOID)TableLinear);
 
-                if (PageTableIsEmpty(Table)) {
-                    SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
-                    ClearPageDirectoryEntry(Directory, DirEntry);
-                }
+            if (TablePhysical != 0 && PageTableIsEmpty(Table)) {
+                DEBUG(TEXT("[FreeEmptyPageTables] Clearing PML4=%u PDPT=%u Dir=%u tablePhys=%x"),
+                    Pml4Index, PdptIndex, DirEntry, TablePhysical);
+                SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
+                ClearPageDirectoryEntry(Directory, DirEntry);
             }
         }
 
@@ -884,24 +904,33 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
 BOOL FreeRegion(LINEAR Base, UINT Size) {
     LPPAGE_TABLE Table = NULL;
     UINT NumPages = 0;
+    LINEAR OriginalBase = Base;
 
     NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL; /* ceil(Size / 4096) */
     if (NumPages == 0) NumPages = 1;
 
+    DEBUG(TEXT("[FreeRegion] Enter base=%p size=%u pages=%u"), (LPVOID)OriginalBase, Size, NumPages);
+
     // Free each page in turn.
     Base = CanonicalizeLinearAddress(Base);
+    DEBUG(TEXT("[FreeRegion] Canonical base=%p"), (LPVOID)Base);
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
     for (UINT Index = 0; Index < NumPages; Index++) {
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
+        UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
 
         BOOL IsLargePage = FALSE;
 
         if (TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) && PageTableEntryIsPresent(Table, TabEntry)) {
             PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
+            BOOL Fixed = PageTableEntryIsFixed(Table, TabEntry);
+
+            DEBUG(TEXT("[FreeRegion] Unmap Dir=%u Tab=%u Phys=%p Fixed=%u"), DirEntry, TabEntry,
+                (LPVOID)EntryPhysical, (UINT)(Fixed ? 1 : 0));
 
             /* Skip bitmap mark if it was an IO mapping (BAR) */
-            if (!PageTableEntryIsFixed(Table, TabEntry)) {
+            if (!Fixed) {
                 SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0);
             }
 
@@ -909,6 +938,9 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
         } else if (IsLargePage == TRUE) {
             DEBUG(TEXT("[FreeRegion] Large mapping covers Dir=%u"),
                 MemoryPageIteratorGetDirectoryIndex(&Iterator));
+        } else {
+            DEBUG(TEXT("[FreeRegion] Missing mapping Dir=%u Tab=%u IsLarge=%u"), DirEntry, TabEntry,
+                (UINT)(IsLargePage ? 1 : 0));
         }
 
         MemoryPageIteratorStepPage(&Iterator);
@@ -919,6 +951,8 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
+
+    DEBUG(TEXT("[FreeRegion] Exit base=%p size=%u"), (LPVOID)OriginalBase, Size);
 
     return TRUE;
 }
