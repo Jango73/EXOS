@@ -81,4 +81,4 @@ This was a year-long solo project, developed the hard way:
 ## End of the road
 AI once made it possible for a single person to develop an open-source project without astronomical costs.
 Now it has become impossible with the widespread adoption of “usage-based fees,” which makes building open-source projects too expensive—especially since they bring in no revenue at all.
-So this project ends here.
+So this project will now be coded very slowly if at all.
