@@ -37,6 +37,13 @@
 #include "arch/x86-64/x86-64-Log.h"
 
 /************************************************************************/
+// Feature toggles
+
+#ifndef EXOS_X86_64_FAST_VMM
+#define EXOS_X86_64_FAST_VMM 1
+#endif
+
+/************************************************************************/
 // Fast region walker constants
 
 #define FAST_REGION_PAGES_PER_PT 1u
@@ -124,6 +131,13 @@ static LPPROCESS ResolveCurrentAddressSpaceOwner(void);
 static void InitializeRegionDescriptorTracking(void);
 static MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount);
 static void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor);
+#if EXOS_X86_64_FAST_VMM
+static void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,
+                                          LINEAR Base,
+                                          UINT PageCount,
+                                          PHYSICAL PhysicalBase,
+                                          U32 Flags);
+#endif
 static UINT ComputePagesUntilAlignment(LINEAR Base, U64 SpanSize);
 static BOOL ResolveRegionFast(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
@@ -148,6 +162,10 @@ static BOOL FAST_WALKER_UNUSED FastPopulateRegionFromDescriptor(
 static BOOL FAST_WALKER_UNUSED FastReleaseRegionFromDescriptor(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     UINT* OutPagesProcessed);
+#if EXOS_X86_64_FAST_VMM
+static BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages);
+#endif
+static BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR OriginalBase, UINT Size);
 
 /************************************************************************/
 /**
@@ -672,6 +690,49 @@ static void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor) 
         Descriptor->CanonicalBase,
         Descriptor->PageCount);
 }
+
+/************************************************************************/
+#if EXOS_X86_64_FAST_VMM
+/**
+ * @brief Initialize a transient descriptor used for fast walker operations.
+ * @param Descriptor Descriptor to populate.
+ * @param Base Requested linear base (canonicalized inside).
+ * @param PageCount Number of pages covered by the span.
+ * @param PhysicalBase Physical base used for fixed mappings (0 for freshly allocated).
+ * @param Flags Allocation flags that describe the mapping.
+ */
+static void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,
+                                          LINEAR Base,
+                                          UINT PageCount,
+                                          PHYSICAL PhysicalBase,
+                                          U32 Flags) {
+    if (Descriptor == NULL) {
+        return;
+    }
+
+    MemorySet(Descriptor, 0, sizeof(MEMORY_REGION_DESCRIPTOR));
+
+    LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
+    Descriptor->Base = CanonicalBase;
+    Descriptor->CanonicalBase = CanonicalBase;
+    Descriptor->PhysicalBase = PhysicalBase;
+    Descriptor->PageCount = PageCount;
+    Descriptor->Size = PageCount << PAGE_SIZE_MUL;
+    Descriptor->Flags = Flags;
+
+    U32 Attributes = 0u;
+    if ((Flags & ALLOC_PAGES_COMMIT) != 0u) {
+        Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_COMMIT;
+    }
+    if ((Flags & ALLOC_PAGES_IO) != 0u) {
+        Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_IO;
+        Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_FIXED;
+    }
+    Descriptor->Attributes = Attributes;
+
+    Descriptor->Granularity = ComputeDescriptorGranularity(CanonicalBase, PageCount);
+}
+#endif
 
 /************************************************************************/
 /**
@@ -2723,12 +2784,12 @@ static void FreeEmptyPageTables(void) {
 
 /************************************************************************/
 
-static BOOL PopulateRegionPages(LINEAR Base,
-                                PHYSICAL Target,
-                                UINT NumPages,
-                                U32 Flags,
-                                LINEAR RollbackBase,
-                                LPCSTR FunctionName) {
+static BOOL PopulateRegionPagesLegacy(LINEAR Base,
+                                      PHYSICAL Target,
+                                      UINT NumPages,
+                                      U32 Flags,
+                                      LINEAR RollbackBase,
+                                      LPCSTR FunctionName) {
     LPPAGE_TABLE Table = NULL;
     PHYSICAL Physical = NULL;
     U32 ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
@@ -2747,17 +2808,26 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
         if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
             if (IsLargePage) {
+                BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
+                G_RegionDescriptorBootstrap = TRUE;
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
+                G_RegionDescriptorBootstrap = PreviousBootstrap;
                 return FALSE;
             }
 
             if (AllocPageTable(CurrentLinear) == NULL) {
+                BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
+                G_RegionDescriptorBootstrap = TRUE;
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
+                G_RegionDescriptorBootstrap = PreviousBootstrap;
                 return FALSE;
             }
 
             if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
+                BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
+                G_RegionDescriptorBootstrap = TRUE;
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
+                G_RegionDescriptorBootstrap = PreviousBootstrap;
                 return FALSE;
             }
         }
@@ -2805,7 +2875,10 @@ static BOOL PopulateRegionPages(LINEAR Base,
 
                 if (Physical == NULL) {
                     ERROR(TEXT("[%s] AllocPhysicalPage failed"), FunctionName);
+                    BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
+                    G_RegionDescriptorBootstrap = TRUE;
                     FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
+                    G_RegionDescriptorBootstrap = PreviousBootstrap;
                     return FALSE;
                 }
 
@@ -2922,8 +2995,44 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
 
     DEBUG(TEXT("[AllocRegion] Allocating pages"));
 
-    if (PopulateRegionPages(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
-        return NULL;
+#if EXOS_X86_64_FAST_VMM
+    BOOL FastPathUsed = FALSE;
+    if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
+        MEMORY_REGION_DESCRIPTOR TempDescriptor;
+        InitializeTransientDescriptor(&TempDescriptor, Pointer, NumPages, Target, Flags);
+
+        UINT PagesProcessed = 0u;
+        if (FastPopulateRegionFromDescriptor(&TempDescriptor,
+                                             Target,
+                                             Flags,
+                                             TEXT("AllocRegion"),
+                                             &PagesProcessed) == TRUE &&
+            PagesProcessed == NumPages) {
+            FastPathUsed = TRUE;
+        } else {
+            if (PagesProcessed != 0u) {
+                MEMORY_REGION_DESCRIPTOR RollbackDescriptor;
+                InitializeTransientDescriptor(&RollbackDescriptor, Pointer, PagesProcessed, Target, Flags);
+                if (FastReleaseRegionFromDescriptor(&RollbackDescriptor, NULL) == FALSE) {
+                    WARNING(TEXT("[AllocRegion] Fast rollback failed for base=%p pages=%u"),
+                        (LPVOID)Pointer,
+                        PagesProcessed);
+                }
+            }
+
+            DEBUG(TEXT("[AllocRegion] Falling back to legacy population (processed=%u targetPages=%u)"),
+                PagesProcessed,
+                NumPages);
+        }
+    }
+#else
+    BOOL FastPathUsed = FALSE;
+#endif
+
+    if (FastPathUsed == FALSE) {
+        if (PopulateRegionPagesLegacy(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
+            return NULL;
+        }
     }
 
     if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
@@ -3013,13 +3122,53 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
 
         DEBUG(TEXT("[ResizeRegion] Expanding region by %x bytes"), AdditionalSize);
 
-        if (PopulateRegionPages(NewBase,
-                                AdditionalTarget,
-                                AdditionalPages,
-                                Flags,
-                                NewBase,
-                                TEXT("ResizeRegion")) == FALSE) {
-            return FALSE;
+#if EXOS_X86_64_FAST_VMM
+        BOOL ExpansionFastPathUsed = FALSE;
+        if (Descriptor != NULL && G_RegionDescriptorBootstrap == FALSE) {
+            MEMORY_REGION_DESCRIPTOR TempDescriptor;
+            InitializeTransientDescriptor(&TempDescriptor, NewBase, AdditionalPages, AdditionalTarget, Flags);
+
+            UINT PagesProcessed = 0u;
+            if (FastPopulateRegionFromDescriptor(&TempDescriptor,
+                                                 AdditionalTarget,
+                                                 Flags,
+                                                 TEXT("ResizeRegion"),
+                                                 &PagesProcessed) == TRUE &&
+                PagesProcessed == AdditionalPages) {
+                ExpansionFastPathUsed = TRUE;
+            } else {
+                if (PagesProcessed != 0u) {
+                    MEMORY_REGION_DESCRIPTOR RollbackDescriptor;
+                    InitializeTransientDescriptor(&RollbackDescriptor,
+                                                  NewBase,
+                                                  PagesProcessed,
+                                                  AdditionalTarget,
+                                                  Flags);
+                    if (FastReleaseRegionFromDescriptor(&RollbackDescriptor, NULL) == FALSE) {
+                        WARNING(TEXT("[ResizeRegion] Fast rollback failed for base=%p pages=%u"),
+                            (LPVOID)NewBase,
+                            PagesProcessed);
+                    }
+                }
+
+                DEBUG(TEXT("[ResizeRegion] Falling back to legacy population (processed=%u targetPages=%u)"),
+                    PagesProcessed,
+                    AdditionalPages);
+            }
+        }
+#else
+        BOOL ExpansionFastPathUsed = FALSE;
+#endif
+
+        if (ExpansionFastPathUsed == FALSE) {
+            if (PopulateRegionPagesLegacy(NewBase,
+                                          AdditionalTarget,
+                                          AdditionalPages,
+                                          Flags,
+                                          NewBase,
+                                          TEXT("ResizeRegion")) == FALSE) {
+                return FALSE;
+            }
         }
 
         if (Descriptor != NULL) {
@@ -3050,27 +3199,87 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
  * @param OutTable Receives the page table pointer when available.
  * @return TRUE when the table exists and is returned.
  */
+#if EXOS_X86_64_FAST_VMM
 /**
- * @brief Unmap and free a linear region.
- * @param Base Base linear address.
- * @param Size Size of region.
- * @return TRUE on success.
+ * @brief Release a region span by walking descriptors in large aligned chunks.
+ * @param CanonicalBase Canonical base address of the span.
+ * @param NumPages Number of pages to release.
+ * @return TRUE on success, FALSE otherwise.
  */
-BOOL FreeRegion(LINEAR Base, UINT Size) {
+static BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages) {
+    if (NumPages == 0u) {
+        return TRUE;
+    }
+
+    LPPROCESS Process = ResolveCurrentAddressSpaceOwner();
+    LINEAR Cursor = CanonicalBase;
+    LINEAR End = CanonicalBase + ((LINEAR)NumPages << PAGE_SIZE_MUL);
+
+    while (Cursor < End) {
+        LPMEMORY_REGION_DESCRIPTOR Descriptor = FindDescriptorCoveringAddress(Process, Cursor);
+        if (Descriptor == NULL) {
+            DEBUG(TEXT("[ReleaseRegionWithFastWalker] Missing descriptor for base=%p"),
+                (LPVOID)Cursor);
+            return FALSE;
+        }
+
+        LINEAR RegionStart = Descriptor->CanonicalBase;
+        LINEAR RegionEnd = RegionStart + (LINEAR)Descriptor->Size;
+        LINEAR SegmentEnd = End;
+        if (SegmentEnd > RegionEnd) {
+            SegmentEnd = RegionEnd;
+        }
+
+        if (SegmentEnd <= Cursor) {
+            WARNING(TEXT("[ReleaseRegionWithFastWalker] Degenerate segment at base=%p"), (LPVOID)Cursor);
+            return FALSE;
+        }
+
+        UINT SegmentPages = (UINT)((SegmentEnd - Cursor) >> PAGE_SIZE_MUL);
+        if (SegmentPages == 0u) {
+            WARNING(TEXT("[ReleaseRegionWithFastWalker] Zero-length segment at base=%p"), (LPVOID)Cursor);
+            return FALSE;
+        }
+
+        PHYSICAL SegmentPhysical = Descriptor->PhysicalBase;
+        if (SegmentPhysical != 0u) {
+            SegmentPhysical += (PHYSICAL)(Cursor - RegionStart);
+        }
+
+        MEMORY_REGION_DESCRIPTOR SegmentDescriptor;
+        InitializeTransientDescriptor(&SegmentDescriptor, Cursor, SegmentPages, SegmentPhysical, Descriptor->Flags);
+        SegmentDescriptor.Attributes = Descriptor->Attributes;
+
+        UINT ReleasedPages = 0u;
+        if (FastReleaseRegionFromDescriptor(&SegmentDescriptor, &ReleasedPages) == FALSE ||
+            ReleasedPages != SegmentPages) {
+            WARNING(TEXT("[ReleaseRegionWithFastWalker] Fast walker released %u/%u pages at base=%p"),
+                ReleasedPages,
+                SegmentPages,
+                (LPVOID)Cursor);
+            return FALSE;
+        }
+
+        Cursor = SegmentEnd;
+    }
+
+    return TRUE;
+}
+#endif
+
+/************************************************************************/
+/**
+ * @brief Legacy per-page region release path retained for fallback.
+ * @param CanonicalBase Canonical base address.
+ * @param NumPages Number of pages to release.
+ * @param OriginalBase Original base requested by the caller.
+ * @param Size Size in bytes requested by the caller.
+ */
+static BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR OriginalBase, UINT Size) {
     LPPAGE_TABLE Table = NULL;
-    UINT NumPages = 0;
-    LINEAR OriginalBase = Base;
-
-    NumPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL; /* ceil(Size / 4096) */
-    if (NumPages == 0) NumPages = 1;
-
-    DEBUG(TEXT("[FreeRegion] Enter base=%p size=%u pages=%u"), (LPVOID)OriginalBase, Size, NumPages);
-
-    // Free each page in turn.
-    Base = CanonicalizeLinearAddress(Base);
-    DEBUG(TEXT("[FreeRegion] Canonical base=%p"), (LPVOID)Base);
-    LINEAR CanonicalStart = Base;
-    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
+    LINEAR Cursor = CanonicalBase;
+    LINEAR CanonicalStart = CanonicalBase;
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(CanonicalBase);
 
     for (UINT Index = 0; Index < NumPages; Index++) {
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
@@ -3083,11 +3292,10 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
             BOOL Fixed = PageTableEntryIsFixed(Table, TabEntry);
 
             DEBUG(TEXT("[FreeRegion] Unmap Dir=%u Tab=%u Phys=%p Fixed=%u"), DirEntry, TabEntry,
-                (LPVOID)EntryPhysical, (UINT)(Fixed ? 1 : 0));
+                (LPVOID)EntryPhysical, (UINT)(Fixed ? 1u : 0u));
 
-            /* Skip bitmap mark if it was an IO mapping (BAR) */
-            if (!Fixed) {
-                SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0);
+            if (Fixed == FALSE) {
+                SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0u);
             }
 
             ClearPageTableEntry(Table, TabEntry);
@@ -3095,12 +3303,14 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
             DEBUG(TEXT("[FreeRegion] Large mapping covers Dir=%u"),
                 MemoryPageIteratorGetDirectoryIndex(&Iterator));
         } else {
-            DEBUG(TEXT("[FreeRegion] Missing mapping Dir=%u Tab=%u IsLarge=%u"), DirEntry, TabEntry,
-                (UINT)(IsLargePage ? 1 : 0));
+            DEBUG(TEXT("[FreeRegion] Missing mapping Dir=%u Tab=%u IsLarge=%u"),
+                DirEntry,
+                TabEntry,
+                (UINT)(IsLargePage ? 1u : 0u));
         }
 
         MemoryPageIteratorStepPage(&Iterator);
-        Base += PAGE_SIZE;
+        Cursor += PAGE_SIZE;
     }
 
     if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
@@ -3108,13 +3318,52 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
     }
 
     FreeEmptyPageTables();
-
-    // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
     DEBUG(TEXT("[FreeRegion] Exit base=%p size=%u"), (LPVOID)OriginalBase, Size);
 
     return TRUE;
+}
+
+/************************************************************************/
+/**
+ * @brief Unmap and free a linear region.
+ * @param Base Base linear address.
+ * @param Size Size of region.
+ * @return TRUE on success.
+ */
+BOOL FreeRegion(LINEAR Base, UINT Size) {
+    LINEAR OriginalBase = Base;
+    UINT NumPages = (Size + (PAGE_SIZE - 1u)) >> PAGE_SIZE_MUL;
+    if (NumPages == 0u) {
+        NumPages = 1u;
+    }
+
+    DEBUG(TEXT("[FreeRegion] Enter base=%p size=%u pages=%u"),
+        (LPVOID)OriginalBase,
+        Size,
+        NumPages);
+
+    LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
+    DEBUG(TEXT("[FreeRegion] Canonical base=%p"), (LPVOID)CanonicalBase);
+
+#if EXOS_X86_64_FAST_VMM
+    if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
+        if (ReleaseRegionWithFastWalker(CanonicalBase, NumPages) == TRUE) {
+            UpdateDescriptorsForFree(CanonicalBase, NumPages << PAGE_SIZE_MUL);
+            FreeEmptyPageTables();
+            FlushTLB();
+            DEBUG(TEXT("[FreeRegion] Exit base=%p size=%u"), (LPVOID)OriginalBase, Size);
+            return TRUE;
+        }
+
+        DEBUG(TEXT("[FreeRegion] Fast walker fallback engaged for base=%p size=%u"),
+            (LPVOID)CanonicalBase,
+            Size);
+    }
+#endif
+
+    return FreeRegionLegacyInternal(CanonicalBase, NumPages, OriginalBase, Size);
 }
 
 /************************************************************************/
