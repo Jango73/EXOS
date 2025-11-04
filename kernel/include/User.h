@@ -322,7 +322,7 @@ typedef struct PACKED tag_MESSAGEINFO {
 typedef struct PACKED tag_MUTEXINFO {
     ABI_HEADER Header;
     HANDLE Mutex;
-    U32 MilliSeconds;
+    UINT MilliSeconds;
 } MUTEXINFO, *LPMUTEXINFO;
 
 typedef struct PACKED tag_WAITINFO {

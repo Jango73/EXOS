@@ -26,7 +26,38 @@
 #define MEMORY_H_INCLUDED
 
 #include "Base.h"
+#include "List.h"
 #include "arch/Memory.h"
+
+/************************************************************************/
+// #defines
+
+#define MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_COMMIT ((U32)0x00000001)
+#define MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_IO ((U32)0x00000002)
+#define MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_FIXED ((U32)0x00000004)
+
+/************************************************************************/
+// typedefs
+
+typedef enum tag_MEMORY_REGION_GRANULARITY {
+    MEMORY_REGION_GRANULARITY_4K = 0,
+    MEMORY_REGION_GRANULARITY_2M = 1,
+    MEMORY_REGION_GRANULARITY_1G = 2
+} MEMORY_REGION_GRANULARITY;
+
+typedef struct tag_MEMORY_REGION_DESCRIPTOR MEMORY_REGION_DESCRIPTOR, *LPMEMORY_REGION_DESCRIPTOR;
+
+struct tag_MEMORY_REGION_DESCRIPTOR {
+    LISTNODE_FIELDS
+    LINEAR Base;
+    LINEAR CanonicalBase;
+    PHYSICAL PhysicalBase;
+    UINT Size;
+    UINT PageCount;
+    U32 Flags;
+    U32 Attributes;
+    MEMORY_REGION_GRANULARITY Granularity;
+};
 
 /************************************************************************/
 

@@ -51,6 +51,7 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 typedef struct tag_MESSAGE MESSAGE, *LPMESSAGE;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
+struct tag_MEMORY_REGION_DESCRIPTOR;
 
 /************************************************************************\
 
@@ -71,6 +72,11 @@ struct tag_PROCESS {
     U32 Status;              // Process status (alive/dead)
     U32 Flags;               // Process creation flags
     PHYSICAL PageDirectory;  // This process' page directory
+#if defined(__EXOS_ARCH_X86_64__)
+    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
+    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
+    UINT RegionCount;
+#endif
     LINEAR HeapBase;
     UINT HeapSize;
     UINT MaximumAllocatedMemory;

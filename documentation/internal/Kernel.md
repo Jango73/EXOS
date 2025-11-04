@@ -53,6 +53,17 @@ the hierarchy first. The low-memory region builder keeps a cached pair of
 BIOS-protected and general identity tables so new page directories only
 consume fresh pages for their PDPT, directory, and any userland seed tables.
 
+On x86-64 every successful `AllocRegion` now emits a `MEMORY_REGION_DESCRIPTOR`
+record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored
+on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from
+dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel
+heap stays untouched while diagnostics can enumerate allocations. Each
+descriptor stores the canonical base, committed size, physical origin (when
+fixed), allocation flags, and paging granularity. `FreeRegion` and
+`ResizeRegion` update the list in place, logging registration and teardown so
+validation runs can confirm descriptor lifetimes line up with the virtual
+memory operations they front.
+
 ### Kernel object identifiers
 
 Kernel objects embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
