@@ -197,73 +197,42 @@ static inline U64 MakePageDirectoryEntryValue(
     return ((U64)Physical & PAGE_MASK) | Flags;
 }
 
-static inline U64 MakePageTableEntryValue(
+U64 MakePageTableEntryValue(
     PHYSICAL Physical,
     U32 ReadWrite,
     U32 Privilege,
     U32 WriteThrough,
     U32 CacheDisabled,
     U32 Global,
-    U32 Fixed) {
-    U64 Flags = BuildPageFlags(ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
-    return ((U64)Physical & PAGE_MASK) | Flags;
-}
+    U32 Fixed);
 
-static inline U64 MakePageEntryRaw(PHYSICAL Physical, U64 Flags) {
-    return ((U64)Physical & PAGE_MASK) | (Flags & 0xFFFu);
-}
+U64 MakePageEntryRaw(PHYSICAL Physical, U64 Flags);
 
-static inline void WritePageDirectoryEntryValue(LPPAGE_DIRECTORY Directory, UINT Index, U64 Value) {
-    ((volatile U64*)Directory)[Index] = Value;
-}
+void WritePageDirectoryEntryValue(LPPAGE_DIRECTORY Directory, UINT Index, U64 Value);
 
-static inline void WritePageTableEntryValue(LPPAGE_TABLE Table, UINT Index, U64 Value) {
-    ((volatile U64*)Table)[Index] = Value;
-}
+void WritePageTableEntryValue(LPPAGE_TABLE Table, UINT Index, U64 Value);
 
-static inline U64 ReadPageDirectoryEntryValue(const LPPAGE_DIRECTORY Directory, UINT Index) {
-    return ((volatile const U64*)Directory)[Index];
-}
+U64 ReadPageDirectoryEntryValue(const LPPAGE_DIRECTORY Directory, UINT Index);
 
-static inline U64 ReadPageTableEntryValue(const LPPAGE_TABLE Table, UINT Index) {
-    return ((volatile const U64*)Table)[Index];
-}
+U64 ReadPageTableEntryValue(const LPPAGE_TABLE Table, UINT Index);
 
-static inline BOOL PageDirectoryEntryIsPresent(const LPPAGE_DIRECTORY Directory, UINT Index) {
-    return (ReadPageDirectoryEntryValue(Directory, Index) & PAGE_FLAG_PRESENT) != 0;
-}
+BOOL PageDirectoryEntryIsPresent(const LPPAGE_DIRECTORY Directory, UINT Index);
 
-static inline BOOL PageTableEntryIsPresent(const LPPAGE_TABLE Table, UINT Index) {
-    return (ReadPageTableEntryValue(Table, Index) & PAGE_FLAG_PRESENT) != 0;
-}
+BOOL PageTableEntryIsPresent(const LPPAGE_TABLE Table, UINT Index);
 
-static inline PHYSICAL PageDirectoryEntryGetPhysical(const LPPAGE_DIRECTORY Directory, UINT Index) {
-    return (PHYSICAL)(ReadPageDirectoryEntryValue(Directory, Index) & PAGE_MASK);
-}
+PHYSICAL PageDirectoryEntryGetPhysical(const LPPAGE_DIRECTORY Directory, UINT Index);
 
-static inline PHYSICAL PageTableEntryGetPhysical(const LPPAGE_TABLE Table, UINT Index) {
-    return (PHYSICAL)(ReadPageTableEntryValue(Table, Index) & PAGE_MASK);
-}
+PHYSICAL PageTableEntryGetPhysical(const LPPAGE_TABLE Table, UINT Index);
 
-static inline BOOL PageTableEntryIsFixed(const LPPAGE_TABLE Table, UINT Index) {
-    return (ReadPageTableEntryValue(Table, Index) & PAGE_FLAG_FIXED) != 0;
-}
+BOOL PageTableEntryIsFixed(const LPPAGE_TABLE Table, UINT Index);
 
-static inline void ClearPageDirectoryEntry(LPPAGE_DIRECTORY Directory, UINT Index) {
-    WritePageDirectoryEntryValue(Directory, Index, (U64)0);
-}
+void ClearPageDirectoryEntry(LPPAGE_DIRECTORY Directory, UINT Index);
 
-static inline void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index) {
-    WritePageTableEntryValue(Table, Index, (U64)0);
-}
+void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index);
 
-static inline U64 GetMaxLinearAddressPlusOne(void) {
-    return (U64)1 << 48;
-}
+U64 GetMaxLinearAddressPlusOne(void);
 
-static inline U64 GetMaxPhysicalAddressPlusOne(void) {
-    return (U64)1 << 52;
-}
+U64 GetMaxPhysicalAddressPlusOne(void);
 
 static inline BOOL ClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UINT* OutLength) {
     U64 Limit = GetMaxPhysicalAddressPlusOne();

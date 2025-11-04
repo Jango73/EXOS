@@ -37,6 +37,220 @@
 #include "arch/x86-64/x86-64-Log.h"
 
 /************************************************************************/
+// Temporary mapping slots state
+
+static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
+static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
+static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
+static PHYSICAL G_TempPhysical1 = 0;
+static PHYSICAL G_TempPhysical2 = 0;
+static PHYSICAL G_TempPhysical3 = 0;
+
+/************************************************************************/
+/**
+ * @brief Build a page table entry with the supplied access flags.
+ * @param Physical Physical base of the page.
+ * @param ReadWrite 1 when the mapping permits writes.
+ * @param Privilege Privilege level (kernel/user).
+ * @param WriteThrough 1 to enable write-through caching.
+ * @param CacheDisabled 1 to disable CPU caches.
+ * @param Global 1 when the mapping is global.
+ * @param Fixed 1 when the entry must survive reclamation.
+ * @return Encoded 64-bit PTE value.
+ */
+U64 MakePageTableEntryValue(
+    PHYSICAL Physical,
+    U32 ReadWrite,
+    U32 Privilege,
+    U32 WriteThrough,
+    U32 CacheDisabled,
+    U32 Global,
+    U32 Fixed) {
+    U64 Flags = BuildPageFlags(ReadWrite, Privilege, WriteThrough, CacheDisabled, Global, Fixed);
+    return ((U64)Physical & PAGE_MASK) | Flags;
+}
+
+/************************************************************************/
+/**
+ * @brief Build a raw paging entry value without recomputing the flags.
+ * @param Physical Physical base of the page.
+ * @param Flags Pre-built flag mask.
+ * @return Encoded paging entry value.
+ */
+U64 MakePageEntryRaw(PHYSICAL Physical, U64 Flags) {
+    return ((U64)Physical & PAGE_MASK) | (Flags & 0xFFFu);
+}
+
+/************************************************************************/
+/**
+ * @brief Store a value inside a page-directory level entry.
+ * @param Directory Directory pointer.
+ * @param Index Entry index within the directory.
+ * @param Value Encoded PDE value.
+ */
+void WritePageDirectoryEntryValue(LPPAGE_DIRECTORY Directory, UINT Index, U64 Value) {
+    ((volatile U64*)Directory)[Index] = Value;
+}
+
+/************************************************************************/
+/**
+ * @brief Store a value inside a page-table entry.
+ * @param Table Page table pointer.
+ * @param Index Entry index within the table.
+ * @param Value Encoded PTE value.
+ */
+void WritePageTableEntryValue(LPPAGE_TABLE Table, UINT Index, U64 Value) {
+    ((volatile U64*)Table)[Index] = Value;
+}
+
+/************************************************************************/
+/**
+ * @brief Read a value from a page-directory level entry.
+ * @param Directory Directory pointer.
+ * @param Index Entry index.
+ * @return Encoded PDE value.
+ */
+U64 ReadPageDirectoryEntryValue(const LPPAGE_DIRECTORY Directory, UINT Index) {
+    if (Directory == NULL) {
+        ERROR(TEXT("[ReadPageDirectoryEntryValue] NULL directory pointer (Index=%u)"),
+            Index);
+        return 0;
+    }
+
+    BOOL LogTempSlot = FALSE;
+    UINT TempSlot = 0u;
+    PHYSICAL TempPhysical = 0;
+
+    if (Directory == (LPPAGE_DIRECTORY)(U64)G_TempLinear1) {
+        LogTempSlot = TRUE;
+        TempSlot = 1u;
+        TempPhysical = G_TempPhysical1;
+    } else if (Directory == (LPPAGE_DIRECTORY)(U64)G_TempLinear2) {
+        LogTempSlot = TRUE;
+        TempSlot = 2u;
+        TempPhysical = G_TempPhysical2;
+    } else if (Directory == (LPPAGE_DIRECTORY)(U64)G_TempLinear3) {
+        LogTempSlot = TRUE;
+        TempSlot = 3u;
+        TempPhysical = G_TempPhysical3;
+    }
+
+    if (LogTempSlot && Index >= 0x1F0u) {
+        DEBUG(TEXT("[ReadPageDirectoryEntryValue] TempSlot%u dir=%p index=%u phys=%p"),
+            TempSlot,
+            (LPVOID)Directory,
+            Index,
+            (LPVOID)TempPhysical);
+    }
+
+    return ((volatile const U64*)Directory)[Index];
+}
+
+/************************************************************************/
+/**
+ * @brief Read a value from a page-table entry.
+ * @param Table Page table pointer.
+ * @param Index Entry index.
+ * @return Encoded PTE value.
+ */
+U64 ReadPageTableEntryValue(const LPPAGE_TABLE Table, UINT Index) {
+    return ((volatile const U64*)Table)[Index];
+}
+
+/************************************************************************/
+/**
+ * @brief Test whether a page-directory entry is marked present.
+ * @param Directory Directory pointer.
+ * @param Index Entry index.
+ * @return TRUE when the entry is present.
+ */
+BOOL PageDirectoryEntryIsPresent(const LPPAGE_DIRECTORY Directory, UINT Index) {
+    return (ReadPageDirectoryEntryValue(Directory, Index) & PAGE_FLAG_PRESENT) != 0;
+}
+
+/************************************************************************/
+/**
+ * @brief Test whether a page-table entry is marked present.
+ * @param Table Page table pointer.
+ * @param Index Entry index.
+ * @return TRUE when the entry is present.
+ */
+BOOL PageTableEntryIsPresent(const LPPAGE_TABLE Table, UINT Index) {
+    return (ReadPageTableEntryValue(Table, Index) & PAGE_FLAG_PRESENT) != 0;
+}
+
+/************************************************************************/
+/**
+ * @brief Extract the physical address encoded in a PDE.
+ * @param Directory Directory pointer.
+ * @param Index Entry index.
+ * @return Physical base address.
+ */
+PHYSICAL PageDirectoryEntryGetPhysical(const LPPAGE_DIRECTORY Directory, UINT Index) {
+    return (PHYSICAL)(ReadPageDirectoryEntryValue(Directory, Index) & PAGE_MASK);
+}
+
+/************************************************************************/
+/**
+ * @brief Extract the physical address encoded in a PTE.
+ * @param Table Page table pointer.
+ * @param Index Entry index.
+ * @return Physical base address.
+ */
+PHYSICAL PageTableEntryGetPhysical(const LPPAGE_TABLE Table, UINT Index) {
+    return (PHYSICAL)(ReadPageTableEntryValue(Table, Index) & PAGE_MASK);
+}
+
+/************************************************************************/
+/**
+ * @brief Test whether a page-table entry is marked fixed.
+ * @param Table Page table pointer.
+ * @param Index Entry index.
+ * @return TRUE when the entry is fixed.
+ */
+BOOL PageTableEntryIsFixed(const LPPAGE_TABLE Table, UINT Index) {
+    return (ReadPageTableEntryValue(Table, Index) & PAGE_FLAG_FIXED) != 0;
+}
+
+/************************************************************************/
+/**
+ * @brief Clear a page-directory entry.
+ * @param Directory Directory pointer.
+ * @param Index Entry index.
+ */
+void ClearPageDirectoryEntry(LPPAGE_DIRECTORY Directory, UINT Index) {
+    WritePageDirectoryEntryValue(Directory, Index, (U64)0);
+}
+
+/************************************************************************/
+/**
+ * @brief Clear a page-table entry.
+ * @param Table Page table pointer.
+ * @param Index Entry index.
+ */
+void ClearPageTableEntry(LPPAGE_TABLE Table, UINT Index) {
+    WritePageTableEntryValue(Table, Index, (U64)0);
+}
+
+/************************************************************************/
+/**
+ * @brief Return the first non-canonical linear address.
+ * @return Maximum linear address plus one.
+ */
+U64 GetMaxLinearAddressPlusOne(void) {
+    return (U64)1 << 48;
+}
+
+/************************************************************************/
+/**
+ * @brief Return the first non-addressable physical address.
+ * @return Maximum physical address plus one.
+ */
+U64 GetMaxPhysicalAddressPlusOne(void) {
+    return (U64)1 << 52;
+}
+
+/************************************************************************/
 // Feature toggles
 
 #ifndef EXOS_X86_64_FAST_VMM
@@ -51,9 +265,9 @@
 #define FAST_REGION_PAGES_PER_PDPT (PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_NUM_ENTRIES)
 #define FAST_REGION_PAGES_PER_PML4 (PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_NUM_ENTRIES)
 
-static const U64 FAST_REGION_SPAN_BYTES_PD = (U64)PAGE_TABLE_CAPACITY;
-static const U64 FAST_REGION_SPAN_BYTES_PDPT = (U64)N_1GB;
-static const U64 FAST_REGION_SPAN_BYTES_PML4 = FAST_REGION_SPAN_BYTES_PDPT * (U64)PAGE_TABLE_NUM_ENTRIES;
+const U64 FAST_REGION_SPAN_BYTES_PD = (U64)PAGE_TABLE_CAPACITY;
+const U64 FAST_REGION_SPAN_BYTES_PDPT = (U64)N_1GB;
+const U64 FAST_REGION_SPAN_BYTES_PML4 = FAST_REGION_SPAN_BYTES_PDPT * (U64)PAGE_TABLE_NUM_ENTRIES;
 
 /************************************************************************/
 // Compiler hint for unused fast walker entry points
@@ -104,75 +318,85 @@ typedef struct tag_FAST_RELEASE_CONTEXT {
     BOOL Success;
 } FAST_RELEASE_CONTEXT, *LPFAST_RELEASE_CONTEXT;
 
+void MapOnePage(
+    LINEAR Linear,
+    PHYSICAL Physical,
+    U32 ReadWrite,
+    U32 Privilege,
+    U32 WriteThrough,
+    U32 CacheDisabled,
+    U32 Global,
+    U32 Fixed);
+
 /************************************************************************/
 // Region descriptor tracking state
 
-static BOOL G_RegionDescriptorsEnabled = FALSE;
-static BOOL G_RegionDescriptorBootstrap = FALSE;
-static LPMEMORY_REGION_DESCRIPTOR G_FreeRegionDescriptors = NULL;
-static UINT G_FreeRegionDescriptorCount = 0;
-static UINT G_TotalRegionDescriptorCount = 0;
-static UINT G_RegionDescriptorPages = 0;
+BOOL G_RegionDescriptorsEnabled = FALSE;
+BOOL G_RegionDescriptorBootstrap = FALSE;
+LPMEMORY_REGION_DESCRIPTOR G_FreeRegionDescriptors = NULL;
+UINT G_FreeRegionDescriptorCount = 0;
+UINT G_TotalRegionDescriptorCount = 0;
+UINT G_RegionDescriptorPages = 0;
 
 /************************************************************************/
 // Forward declarations for descriptor helpers
 
-static BOOL EnsureDescriptorSlab(void);
-static LPMEMORY_REGION_DESCRIPTOR AcquireRegionDescriptor(void);
-static void ReleaseRegionDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor);
-static void InsertDescriptorOrdered(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor);
-static void RemoveDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor);
-static LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR CanonicalBase);
-static LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(LPPROCESS Process, LINEAR CanonicalBase);
-static BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags);
-static void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes);
-static void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPages);
-static LPPROCESS ResolveCurrentAddressSpaceOwner(void);
-static void InitializeRegionDescriptorTracking(void);
-static MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount);
-static void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor);
+BOOL EnsureDescriptorSlab(void);
+LPMEMORY_REGION_DESCRIPTOR AcquireRegionDescriptor(void);
+void ReleaseRegionDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor);
+void InsertDescriptorOrdered(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor);
+void RemoveDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor);
+LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR CanonicalBase);
+LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(LPPROCESS Process, LINEAR CanonicalBase);
+BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags);
+void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes);
+void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPages);
+LPPROCESS ResolveCurrentAddressSpaceOwner(void);
+void InitializeRegionDescriptorTracking(void);
+MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount);
+void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor);
 #if EXOS_X86_64_FAST_VMM
-static void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,
+void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,
                                           LINEAR Base,
                                           UINT PageCount,
                                           PHYSICAL PhysicalBase,
                                           U32 Flags);
 #endif
-static UINT ComputePagesUntilAlignment(LINEAR Base, U64 SpanSize);
-static BOOL ResolveRegionFast(
+UINT ComputePagesUntilAlignment(LINEAR Base, U64 SpanSize);
+BOOL ResolveRegionFast(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     MEMORY_REGION_FAST_CALLBACK Callback,
     LPVOID Context);
-static BOOL FastPopulateChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_ALLOC_CONTEXT Context);
-static BOOL FastReleaseChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_RELEASE_CONTEXT Context);
-static BOOL FastPopulateRegionCallback(
+BOOL FastPopulateChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_ALLOC_CONTEXT Context);
+BOOL FastReleaseChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_RELEASE_CONTEXT Context);
+BOOL FastPopulateRegionCallback(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     const MEMORY_REGION_FAST_SEGMENT* Segment,
     LPVOID Context);
-static BOOL FastReleaseRegionCallback(
+BOOL FastReleaseRegionCallback(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     const MEMORY_REGION_FAST_SEGMENT* Segment,
     LPVOID Context);
-static BOOL FAST_WALKER_UNUSED FastPopulateRegionFromDescriptor(
+BOOL FAST_WALKER_UNUSED FastPopulateRegionFromDescriptor(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     PHYSICAL Target,
     U32 Flags,
     LPCSTR FunctionName,
     UINT* OutPagesProcessed);
-static BOOL FAST_WALKER_UNUSED FastReleaseRegionFromDescriptor(
+BOOL FAST_WALKER_UNUSED FastReleaseRegionFromDescriptor(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     UINT* OutPagesProcessed);
 #if EXOS_X86_64_FAST_VMM
-static BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages);
+BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages);
 #endif
-static BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR OriginalBase, UINT Size);
+BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR OriginalBase, UINT Size);
 
 /************************************************************************/
 /**
  * @brief Resolve the process associated with the active address space.
  * @return Current process or KernelProcess when unavailable.
  */
-static LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
+LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
     LPPROCESS Process = GetCurrentProcess();
     if (Process == NULL) {
         Process = &KernelProcess;
@@ -185,7 +409,7 @@ static LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
  * @brief Allocate a new descriptor slab when the free list runs empty.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL EnsureDescriptorSlab(void) {
+BOOL EnsureDescriptorSlab(void) {
     if (G_FreeRegionDescriptors != NULL) {
         return TRUE;
     }
@@ -239,7 +463,7 @@ static BOOL EnsureDescriptorSlab(void) {
  * @brief Obtain an initialized descriptor from the free list.
  * @return Descriptor pointer or NULL when exhausted.
  */
-static LPMEMORY_REGION_DESCRIPTOR AcquireRegionDescriptor(void) {
+LPMEMORY_REGION_DESCRIPTOR AcquireRegionDescriptor(void) {
     if (G_FreeRegionDescriptors == NULL) {
         if (EnsureDescriptorSlab() == FALSE) {
             return NULL;
@@ -267,7 +491,7 @@ static LPMEMORY_REGION_DESCRIPTOR AcquireRegionDescriptor(void) {
  * @brief Return a descriptor to the free list.
  * @param Descriptor Descriptor to recycle.
  */
-static void ReleaseRegionDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+void ReleaseRegionDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
     if (Descriptor == NULL) {
         return;
     }
@@ -297,7 +521,7 @@ static void ReleaseRegionDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
  * @param Process Target process.
  * @param Descriptor Descriptor to link.
  */
-static void InsertDescriptorOrdered(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+void InsertDescriptorOrdered(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
     LPMEMORY_REGION_DESCRIPTOR Current = Process->RegionListHead;
     LPMEMORY_REGION_DESCRIPTOR Previous = NULL;
 
@@ -330,7 +554,7 @@ static void InsertDescriptorOrdered(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTO
  * @param Process Target process.
  * @param Descriptor Descriptor to unlink.
  */
-static void RemoveDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+void RemoveDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
     LPMEMORY_REGION_DESCRIPTOR Prev = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Prev;
     LPMEMORY_REGION_DESCRIPTOR Next = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Next;
 
@@ -361,7 +585,7 @@ static void RemoveDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descr
  * @param CanonicalBase Canonical linear base.
  * @return Descriptor pointer or NULL when absent.
  */
-static LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR CanonicalBase) {
+LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR CanonicalBase) {
     LPMEMORY_REGION_DESCRIPTOR Current = Process->RegionListHead;
 
     while (Current != NULL) {
@@ -384,7 +608,7 @@ static LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEA
  * @param CanonicalBase Address to resolve.
  * @return Descriptor pointer or NULL when no descriptor covers the address.
  */
-static LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(
+LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(
     LPPROCESS Process,
     LINEAR CanonicalBase) {
     LPMEMORY_REGION_DESCRIPTOR Current = Process->RegionListHead;
@@ -413,7 +637,7 @@ static LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(
  * @param Descriptor Descriptor to update.
  * @param AdditionalPages Number of new pages.
  */
-static void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPages) {
+void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPages) {
     if (Descriptor == NULL || AdditionalPages == 0) {
         return;
     }
@@ -439,7 +663,7 @@ static void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT Additio
  * @param Flags Allocation flags.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags) {
+BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags) {
     LPPROCESS Process = ResolveCurrentAddressSpaceOwner();
     LPMEMORY_REGION_DESCRIPTOR Descriptor = AcquireRegionDescriptor();
 
@@ -491,7 +715,7 @@ static BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target
  * @param Base Canonical base of the range being freed.
  * @param SizeBytes Size of the freed range in bytes.
  */
-static void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
+void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
     if (SizeBytes == 0) {
         return;
     }
@@ -634,7 +858,7 @@ static void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
 /**
  * @brief Initialize the descriptor tracking subsystem.
  */
-static void InitializeRegionDescriptorTracking(void) {
+void InitializeRegionDescriptorTracking(void) {
     if (G_RegionDescriptorsEnabled == TRUE) {
         return;
     }
@@ -658,7 +882,7 @@ static void InitializeRegionDescriptorTracking(void) {
  * @param PageCount Number of pages described by the region.
  * @return Corresponding granularity.
  */
-static MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount) {
+MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount) {
     if (PageCount == 0u) {
         return MEMORY_REGION_GRANULARITY_4K;
     }
@@ -681,7 +905,7 @@ static MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT 
  * @brief Refresh the granularity metadata stored in a descriptor.
  * @param Descriptor Descriptor to update.
  */
-static void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
     if (Descriptor == NULL) {
         return;
     }
@@ -701,7 +925,7 @@ static void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor) 
  * @param PhysicalBase Physical base used for fixed mappings (0 for freshly allocated).
  * @param Flags Allocation flags that describe the mapping.
  */
-static void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,
+void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,
                                           LINEAR Base,
                                           UINT PageCount,
                                           PHYSICAL PhysicalBase,
@@ -741,7 +965,7 @@ static void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,
  * @param SpanSize Alignment span expressed in bytes.
  * @return Number of pages until alignment (0 when already aligned).
  */
-static UINT ComputePagesUntilAlignment(LINEAR Base, U64 SpanSize) {
+UINT ComputePagesUntilAlignment(LINEAR Base, U64 SpanSize) {
     if (SpanSize == 0u) {
         return 0u;
     }
@@ -765,7 +989,7 @@ static UINT ComputePagesUntilAlignment(LINEAR Base, U64 SpanSize) {
  * @param Context User-provided context pointer.
  * @return TRUE when the enumeration completes successfully.
  */
-static BOOL ResolveRegionFast(
+BOOL ResolveRegionFast(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     MEMORY_REGION_FAST_CALLBACK Callback,
     LPVOID Context) {
@@ -840,7 +1064,7 @@ static BOOL ResolveRegionFast(
  * @param Context Allocation context.
  * @return TRUE on success, FALSE on failure.
  */
-static BOOL FastPopulateChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_ALLOC_CONTEXT Context) {
+BOOL FastPopulateChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_ALLOC_CONTEXT Context) {
     if (ChunkPages == 0u || Context == NULL) {
         return FALSE;
     }
@@ -947,7 +1171,7 @@ static BOOL FastPopulateChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_ALLOC_CO
 /**
  * @brief Resolve segments during allocation and populate each chunk.
  */
-static BOOL FastPopulateRegionCallback(
+BOOL FastPopulateRegionCallback(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     const MEMORY_REGION_FAST_SEGMENT* Segment,
     LPVOID ContextPtr) {
@@ -992,7 +1216,7 @@ static BOOL FastPopulateRegionCallback(
  * @param OutPagesProcessed Receives the number of pages processed (optional).
  * @return TRUE on success, FALSE on failure.
  */
-static BOOL FAST_WALKER_UNUSED FastPopulateRegionFromDescriptor(
+BOOL FAST_WALKER_UNUSED FastPopulateRegionFromDescriptor(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     PHYSICAL Target,
     U32 Flags,
@@ -1037,7 +1261,7 @@ static BOOL FAST_WALKER_UNUSED FastPopulateRegionFromDescriptor(
  * @param Context Release context.
  * @return TRUE on success, FALSE on failure.
  */
-static BOOL FastReleaseChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_RELEASE_CONTEXT Context) {
+BOOL FastReleaseChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_RELEASE_CONTEXT Context) {
     if (ChunkPages == 0u || Context == NULL) {
         return FALSE;
     }
@@ -1119,7 +1343,7 @@ static BOOL FastReleaseChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_RELEASE_C
 /**
  * @brief Resolve segments during release and free each chunk.
  */
-static BOOL FastReleaseRegionCallback(
+BOOL FastReleaseRegionCallback(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     const MEMORY_REGION_FAST_SEGMENT* Segment,
     LPVOID ContextPtr) {
@@ -1161,7 +1385,7 @@ static BOOL FastReleaseRegionCallback(
  * @param OutPagesProcessed Receives the number of pages processed (optional).
  * @return TRUE on success, FALSE on failure.
  */
-static BOOL FAST_WALKER_UNUSED FastReleaseRegionFromDescriptor(
+BOOL FAST_WALKER_UNUSED FastReleaseRegionFromDescriptor(
     const MEMORY_REGION_DESCRIPTOR* Descriptor,
     UINT* OutPagesProcessed) {
     if (Descriptor == NULL) {
@@ -1185,15 +1409,6 @@ static BOOL FAST_WALKER_UNUSED FastReleaseRegionFromDescriptor(
 
     return Context.Success;
 }
-
-/************************************************************************/
-// INTERNAL SELF-MAP + TEMP MAPPING ]
-
-static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
-static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
-static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
-
-/************************************************************************/
 
 /**
  * @brief Validate that a physical range remains intact after clipping.
@@ -1221,7 +1436,7 @@ BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages) {
 /************************************************************************/
 // Map or remap a single virtual page by directly editing its PTE via the self-map.
 
-static inline void MapOnePage(
+void MapOnePage(
     LINEAR Linear, PHYSICAL Physical, U32 ReadWrite, U32 Privilege, U32 WriteThrough, U32 CacheDisabled, U32 Global,
     U32 Fixed) {
     LPPAGE_DIRECTORY Directory = GetCurrentPageDirectoryVA();
@@ -1246,7 +1461,7 @@ static inline void MapOnePage(
  * @brief Unmap a single page from the current address space.
  * @param Linear Linear address to unmap.
  */
-static inline void UnmapOnePage(LINEAR Linear) {
+inline void UnmapOnePage(LINEAR Linear) {
     LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
     UINT tab = GetTableEntry(Linear);
     ClearPageTableEntry(Table, tab);
@@ -1267,6 +1482,13 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
     }
+
+    if (G_TempPhysical1 != Physical) {
+        DEBUG(TEXT("[MapTemporaryPhysicalPage1] Mapping phys=%p -> lin=%p"),
+            (LPVOID)Physical,
+            (LPVOID)G_TempLinear1);
+    }
+    G_TempPhysical1 = Physical;
 
     MapOnePage(
         G_TempLinear1, Physical,
@@ -1293,6 +1515,13 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
         return NULL;
     }
 
+    if (G_TempPhysical2 != Physical) {
+        DEBUG(TEXT("[MapTemporaryPhysicalPage2] Mapping phys=%p -> lin=%p"),
+            (LPVOID)Physical,
+            (LPVOID)G_TempLinear2);
+    }
+    G_TempPhysical2 = Physical;
+
     MapOnePage(
         G_TempLinear2, Physical,
         /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
@@ -1317,6 +1546,13 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
     }
+
+    if (G_TempPhysical3 != Physical) {
+        DEBUG(TEXT("[MapTemporaryPhysicalPage3] Mapping phys=%p -> lin=%p"),
+            (LPVOID)Physical,
+            (LPVOID)G_TempLinear3);
+    }
+    G_TempPhysical3 = Physical;
 
     MapOnePage(
         G_TempLinear3, Physical,
@@ -1421,14 +1657,23 @@ BOOL TryGetPageTableForIterator(
         *OutLargePage = FALSE;
     }
 
+    LINEAR Linear = (LINEAR)MemoryPageIteratorGetLinear(Iterator);
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
     UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
     UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
+    const LINEAR LOG_LINEAR_BASE = (LINEAR)0xFFFFFF3F7FE00000ull;
+    BOOL ShouldLog = (Linear >= LOG_LINEAR_BASE) && (Linear < (LOG_LINEAR_BASE + PAGE_SIZE));
 
     LPPML4 Pml4 = GetCurrentPml4VA();
     U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
 
     if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
+        if (ShouldLog) {
+            DEBUG(TEXT("[TryGetPageTableForIterator] PML4[%u] not present (linear=%p) entry=%x"),
+                Pml4Index,
+                (LPVOID)Linear,
+                (U32)Pml4EntryValue);
+        }
         return FALSE;
     }
 
@@ -1437,12 +1682,24 @@ BOOL TryGetPageTableForIterator(
     U64 PdptEntryValue = ReadPageDirectoryEntryValue(PdptLinear, PdptIndex);
 
     if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        if (ShouldLog) {
+            DEBUG(TEXT("[TryGetPageTableForIterator] PDPT[%u] not present (linear=%p) entry=%x"),
+                PdptIndex,
+                (LPVOID)Linear,
+                (U32)PdptEntryValue);
+        }
         return FALSE;
     }
 
     if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
+        }
+        if (ShouldLog) {
+            DEBUG(TEXT("[TryGetPageTableForIterator] PDPT[%u] large page (linear=%p) entry=%x"),
+                PdptIndex,
+                (LPVOID)Linear,
+                (U32)PdptEntryValue);
         }
         return FALSE;
     }
@@ -1452,12 +1709,25 @@ BOOL TryGetPageTableForIterator(
     U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 
     if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
+        if (ShouldLog) {
+            DEBUG(TEXT("[TryGetPageTableForIterator] PDE[%u] not present (linear=%p) tablePhys=%p entry=%x"),
+                DirEntry,
+                (LPVOID)Linear,
+                (LPVOID)DirectoryPhysical,
+                (U32)DirectoryEntryValue);
+        }
         return FALSE;
     }
 
     if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
+        }
+        if (ShouldLog) {
+            DEBUG(TEXT("[TryGetPageTableForIterator] PDE[%u] large page (linear=%p) entry=%x"),
+                DirEntry,
+                (LPVOID)Linear,
+                (U32)DirectoryEntryValue);
         }
         return FALSE;
     }
@@ -1517,7 +1787,7 @@ typedef struct _LOW_REGION_SHARED_TABLES {
     PHYSICAL IdentityTablePhysical;
 } LOW_REGION_SHARED_TABLES;
 
-static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
+LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
     .BiosTablePhysical = NULL,
     .IdentityTablePhysical = NULL,
 };
@@ -1537,7 +1807,7 @@ static LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
  * @param Label Debug label describing the shared table.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL EnsureSharedLowTable(
+BOOL EnsureSharedLowTable(
     PHYSICAL* TablePhysical,
     PHYSICAL PhysicalBase,
     BOOL ProtectBios,
@@ -1615,7 +1885,7 @@ static BOOL EnsureSharedLowTable(
  * @brief Clear a REGION_SETUP structure to its default state.
  * @param Region Structure to reset.
  */
-static void ResetRegionSetup(REGION_SETUP* Region) {
+void ResetRegionSetup(REGION_SETUP* Region) {
     MemorySet(Region, 0, sizeof(REGION_SETUP));
 }
 
@@ -1625,7 +1895,7 @@ static void ResetRegionSetup(REGION_SETUP* Region) {
  * @brief Release the physical resources owned by a REGION_SETUP.
  * @param Region Structure that tracks the allocated tables.
  */
-static void ReleaseRegionSetup(REGION_SETUP* Region) {
+void ReleaseRegionSetup(REGION_SETUP* Region) {
     if (Region->PdptPhysical != NULL) {
         FreePhysicalPage(Region->PdptPhysical);
         Region->PdptPhysical = NULL;
@@ -1655,7 +1925,7 @@ static void ReleaseRegionSetup(REGION_SETUP* Region) {
  * @param Directory Page-directory view used to link the table.
  * @return TRUE on success, FALSE when allocation or mapping fails.
  */
-static BOOL AllocateTableAndPopulate(
+BOOL AllocateTableAndPopulate(
     REGION_SETUP* Region,
     PAGE_TABLE_SETUP* Table,
     LPPAGE_DIRECTORY Directory) {
@@ -1778,7 +2048,7 @@ static BOOL AllocateTableAndPopulate(
  * @param UserSeedTables Number of empty user tables to pre-allocate.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
+BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
     ResetRegionSetup(Region);
 
     Region->Label = TEXT("Low");
@@ -1945,7 +2215,7 @@ static BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
  * @brief Compute the number of bytes of kernel memory that must be mapped.
  * @return Size in bytes covered by kernel tables.
  */
-static UINT ComputeKernelCoverageBytes(void) {
+UINT ComputeKernelCoverageBytes(void) {
     PHYSICAL PhysBaseKernel = KernelStartup.KernelPhysicalBase;
     PHYSICAL CoverageEnd = PhysBaseKernel + (PHYSICAL)KernelStartup.KernelSize;
 
@@ -1975,7 +2245,7 @@ static UINT ComputeKernelCoverageBytes(void) {
  * @param TableCountRequired Number of tables that must be allocated.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
+BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
     ResetRegionSetup(Region);
 
     Region->Label = TEXT("Kernel");
@@ -2063,7 +2333,7 @@ static BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
  * @param TaskRunnerTableIndex Page table index that contains the trampoline.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL SetupTaskRunnerRegion(
+BOOL SetupTaskRunnerRegion(
     REGION_SETUP* Region,
     PHYSICAL TaskRunnerPhysical,
     UINT TaskRunnerTableIndex) {
@@ -2140,7 +2410,7 @@ static BOOL SetupTaskRunnerRegion(
 /************************************************************************/
 
 /*
-static U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
+U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
     if (TablePhysical == NULL) {
         return 0;
     }
@@ -2707,7 +2977,7 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
  * @param Size Desired region size.
  * @return Base of free region or 0.
  */
-static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
+LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
     LINEAR Base = N_4MB;
 
     if (StartBase != 0) {
@@ -2735,56 +3005,73 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
 /**
  * @brief Release page tables that no longer contain mappings.
  */
-static void FreeEmptyPageTables(void) {
-    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(N_4MB);
-    MemoryPageIteratorAlignToTableStart(&Iterator);
+void FreeEmptyPageTables(void) {
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
 
-    while (MemoryPageIteratorGetLinear(&Iterator) < VMA_KERNEL) {
-        LINEAR Linear = MemoryPageIteratorGetLinear(&Iterator);
-        BOOL IsLargePage = FALSE;
-        LPPAGE_TABLE Table = NULL;
-
-        if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
-            if (IsLargePage == TRUE) {
-                DEBUG(TEXT("[FreeEmptyPageTables] Skip large page at linear=%p (PML4=%u PDPT=%u Dir=%u)"),
-                    (LPVOID)Linear, MemoryPageIteratorGetPml4Index(&Iterator),
-                    MemoryPageIteratorGetPdptIndex(&Iterator), MemoryPageIteratorGetDirectoryIndex(&Iterator));
-            }
-
-            MemoryPageIteratorNextTable(&Iterator);
+    for (UINT Pml4Index = 0u; Pml4Index < KernelPml4Index; Pml4Index++) {
+        if (Pml4Index == PML4_RECURSIVE_SLOT) {
             continue;
         }
 
-        LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Linear);
-        UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
-        UINT DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
-
-        if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) != 0 &&
-            (DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) == 0) {
-            PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntryValue & PAGE_MASK);
-            LINEAR TableLinear = (LINEAR)Table;
-            UINT Pml4Index = MemoryPageIteratorGetPml4Index(&Iterator);
-            UINT PdptIndex = MemoryPageIteratorGetPdptIndex(&Iterator);
-
-            DEBUG(TEXT("[FreeEmptyPageTables] Inspect PML4=%u PDPT=%u Dir=%u linear=%p pde=%x tablePhys=%x tableLinear=%p"),
-                Pml4Index, PdptIndex, DirEntry, (LPVOID)Linear, DirectoryEntryValue, TablePhysical,
-                (LPVOID)TableLinear);
-
-            if (TablePhysical != 0 && PageTableIsEmpty(Table)) {
-                DEBUG(TEXT("[FreeEmptyPageTables] Clearing PML4=%u PDPT=%u Dir=%u tablePhys=%x"),
-                    Pml4Index, PdptIndex, DirEntry, TablePhysical);
-                SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0);
-                ClearPageDirectoryEntry(Directory, DirEntry);
-            }
+        U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
+        if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0u) {
+            continue;
+        }
+        if ((Pml4EntryValue & PAGE_FLAG_PAGE_SIZE) != 0u) {
+            continue;
         }
 
-        MemoryPageIteratorNextTable(&Iterator);
+        PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
+        LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(PdptPhysical);
+
+        for (UINT PdptIndex = 0u; PdptIndex < PAGE_TABLE_NUM_ENTRIES; PdptIndex++) {
+            U64 PdptEntryValue = ReadPageDirectoryEntryValue(Pdpt, PdptIndex);
+            if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0u) {
+                continue;
+            }
+            if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0u) {
+                continue;
+            }
+
+            PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
+            LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
+
+            for (UINT DirIndex = 0u; DirIndex < PAGE_TABLE_NUM_ENTRIES; DirIndex++) {
+                U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirIndex);
+                if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0u) {
+                    continue;
+                }
+                if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0u) {
+                    continue;
+                }
+
+                PHYSICAL TablePhysical = (PHYSICAL)(DirectoryEntryValue & PAGE_MASK);
+                if (TablePhysical == 0u) {
+                    continue;
+                }
+
+                LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTemporaryPhysicalPage3(TablePhysical);
+                if (Table == NULL) {
+                    ERROR(TEXT("[FreeEmptyPageTables] Failed to map table PML4=%u PDPT=%u Dir=%u phys=%p"),
+                        Pml4Index, PdptIndex, DirIndex, (LPVOID)TablePhysical);
+                    continue;
+                }
+
+                if (PageTableIsEmpty(Table)) {
+                    DEBUG(TEXT("[FreeEmptyPageTables] Clearing PML4=%u PDPT=%u Dir=%u tablePhys=%p"),
+                        Pml4Index, PdptIndex, DirIndex, (LPVOID)TablePhysical);
+                    SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0u);
+                    ClearPageDirectoryEntry(Directory, DirIndex);
+                }
+            }
+        }
     }
 }
 
 /************************************************************************/
 
-static BOOL PopulateRegionPagesLegacy(LINEAR Base,
+BOOL PopulateRegionPagesLegacy(LINEAR Base,
                                       PHYSICAL Target,
                                       UINT NumPages,
                                       U32 Flags,
@@ -3206,7 +3493,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
  * @param NumPages Number of pages to release.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages) {
+BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages) {
     if (NumPages == 0u) {
         return TRUE;
     }
@@ -3275,7 +3562,7 @@ static BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages) {
  * @param OriginalBase Original base requested by the caller.
  * @param Size Size in bytes requested by the caller.
  */
-static BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR OriginalBase, UINT Size) {
+BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR OriginalBase, UINT Size) {
     LPPAGE_TABLE Table = NULL;
     LINEAR Cursor = CanonicalBase;
     LINEAR CanonicalStart = CanonicalBase;

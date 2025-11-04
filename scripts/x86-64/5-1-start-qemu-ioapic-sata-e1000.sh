@@ -2,9 +2,15 @@
 set -e
 
 IMG_1_PATH="build/x86-64/boot-hd/exos.img"
+CYCLE_BIN="build/x86-64/tools/cycle"
 
 if [ ! -f "$IMG_1_PATH" ]; then
     echo "Image not found: $IMG_1_PATH"
+    exit 1
+fi
+
+if [ ! -x "$CYCLE_BIN" ]; then
+    echo "Cycle tool not found or not executable: $CYCLE_BIN"
     exit 1
 fi
 
@@ -25,7 +31,7 @@ qemu-system-x86_64 \
 -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
 -monitor telnet:127.0.0.1:4444,server,nowait \
 -serial file:"log/debug-com1.log" \
--serial file:"log/kernel.log" \
+-serial stdio \
 -vga std \
 -no-reboot \
--monitor stdio
+2>&1 | "$CYCLE_BIN" -o log/kernel.log -s 40000
