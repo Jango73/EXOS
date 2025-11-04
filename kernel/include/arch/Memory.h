@@ -25,6 +25,9 @@
 #ifndef ARCH_MEMORY_H_INCLUDED
 #define ARCH_MEMORY_H_INCLUDED
 
+void SetPhysicalPageMark(UINT Page, UINT Used);
+void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used);
+
 #if defined(__EXOS_ARCH_I386__)
     #include "arch/i386/i386-Memory.h"
 #elif defined(__EXOS_ARCH_X86_64__)

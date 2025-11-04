@@ -184,13 +184,12 @@ typedef struct PACKED tag_U128 {
 #define MAX_U32 ((U32)0xFFFFFFFF)
 
 #ifdef __EXOS_32__
-    #define MAX_UINT ((UINT)0xFFFFFFFF)
-#else
-    #define MAX_UINT ((UINT)0xFFFFFFFFFFFFFFFF)
+    #define MAX_UINT MAX_U32
 #endif
 
 #ifdef __EXOS_64__
     #define MAX_U64 0xFFFFFFFFFFFFFFFF
+    #define MAX_UINT MAX_U64
 #endif
 
 /***************************************************************************/
