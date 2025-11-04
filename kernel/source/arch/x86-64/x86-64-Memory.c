@@ -117,32 +117,6 @@ U64 ReadPageDirectoryEntryValue(const LPPAGE_DIRECTORY Directory, UINT Index) {
         return 0;
     }
 
-    BOOL LogTempSlot = FALSE;
-    UINT TempSlot = 0u;
-    PHYSICAL TempPhysical = 0;
-
-    if (Directory == (LPPAGE_DIRECTORY)(U64)G_TempLinear1) {
-        LogTempSlot = TRUE;
-        TempSlot = 1u;
-        TempPhysical = G_TempPhysical1;
-    } else if (Directory == (LPPAGE_DIRECTORY)(U64)G_TempLinear2) {
-        LogTempSlot = TRUE;
-        TempSlot = 2u;
-        TempPhysical = G_TempPhysical2;
-    } else if (Directory == (LPPAGE_DIRECTORY)(U64)G_TempLinear3) {
-        LogTempSlot = TRUE;
-        TempSlot = 3u;
-        TempPhysical = G_TempPhysical3;
-    }
-
-    if (LogTempSlot && Index >= 0x1F0u) {
-        DEBUG(TEXT("[ReadPageDirectoryEntryValue] TempSlot%u dir=%p index=%u phys=%p"),
-            TempSlot,
-            (LPVOID)Directory,
-            Index,
-            (LPVOID)TempPhysical);
-    }
-
     return ((volatile const U64*)Directory)[Index];
 }
 
@@ -1000,11 +974,6 @@ BOOL ResolveRegionFast(
     LINEAR Cursor = Descriptor->CanonicalBase;
     UINT RemainingPages = Descriptor->PageCount;
 
-    DEBUG(TEXT("[ResolveRegionFast] Base=%p pages=%u Granularity=%u"),
-        (LPVOID)Cursor,
-        RemainingPages,
-        (UINT)Descriptor->Granularity);
-
     while (RemainingPages != 0u) {
         MEMORY_REGION_FAST_SEGMENT Segment;
         Segment.CanonicalBase = Cursor;
@@ -1039,11 +1008,6 @@ BOOL ResolveRegionFast(
         if (Segment.PageCount == 0u) {
             Segment.PageCount = RemainingPages;
         }
-
-        DEBUG(TEXT("[ResolveRegionFast] Segment base=%p pages=%u level=%u"),
-            (LPVOID)Segment.CanonicalBase,
-            Segment.PageCount,
-            (UINT)Segment.Level);
 
         if (Callback(Descriptor, &Segment, Context) == FALSE) {
             return FALSE;
@@ -1271,11 +1235,6 @@ BOOL FastReleaseChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_RELEASE_CONTEXT 
     BOOL IsLargePage = FALSE;
 
     if (TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) == FALSE) {
-        if (IsLargePage) {
-            DEBUG(TEXT("[FastReleaseChunk] Large mapping covers base=%p"), (LPVOID)ChunkBase);
-        } else {
-            DEBUG(TEXT("[FastReleaseChunk] Missing page table at base=%p"), (LPVOID)ChunkBase);
-        }
         Context->PagesProcessed += ChunkPages;
         return TRUE;
     }
@@ -1329,9 +1288,6 @@ BOOL FastReleaseChunk(LINEAR ChunkBase, UINT ChunkPages, LPFAST_RELEASE_CONTEXT 
     }
 
     if (EntireTable && TablePhysical != 0u) {
-        DEBUG(TEXT("[FastReleaseChunk] Dropping empty table at base=%p dir=%u"),
-            (LPVOID)ChunkBase,
-            DirEntry);
         SetPhysicalPageMark((UINT)(TablePhysical >> PAGE_SIZE_MUL), 0u);
         ClearPageDirectoryEntry(Directory, DirEntry);
     }
@@ -1483,11 +1439,6 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
         return NULL;
     }
 
-    if (G_TempPhysical1 != Physical) {
-        DEBUG(TEXT("[MapTemporaryPhysicalPage1] Mapping phys=%p -> lin=%p"),
-            (LPVOID)Physical,
-            (LPVOID)G_TempLinear1);
-    }
     G_TempPhysical1 = Physical;
 
     MapOnePage(
@@ -1515,11 +1466,6 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
         return NULL;
     }
 
-    if (G_TempPhysical2 != Physical) {
-        DEBUG(TEXT("[MapTemporaryPhysicalPage2] Mapping phys=%p -> lin=%p"),
-            (LPVOID)Physical,
-            (LPVOID)G_TempLinear2);
-    }
     G_TempPhysical2 = Physical;
 
     MapOnePage(
@@ -1547,11 +1493,6 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
         return NULL;
     }
 
-    if (G_TempPhysical3 != Physical) {
-        DEBUG(TEXT("[MapTemporaryPhysicalPage3] Mapping phys=%p -> lin=%p"),
-            (LPVOID)Physical,
-            (LPVOID)G_TempLinear3);
-    }
     G_TempPhysical3 = Physical;
 
     MapOnePage(
@@ -1661,19 +1602,11 @@ BOOL TryGetPageTableForIterator(
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
     UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
     UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);
-    const LINEAR LOG_LINEAR_BASE = (LINEAR)0xFFFFFF3F7FE00000ull;
-    BOOL ShouldLog = (Linear >= LOG_LINEAR_BASE) && (Linear < (LOG_LINEAR_BASE + PAGE_SIZE));
 
     LPPML4 Pml4 = GetCurrentPml4VA();
     U64 Pml4EntryValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)Pml4, Pml4Index);
 
     if ((Pml4EntryValue & PAGE_FLAG_PRESENT) == 0) {
-        if (ShouldLog) {
-            DEBUG(TEXT("[TryGetPageTableForIterator] PML4[%u] not present (linear=%p) entry=%x"),
-                Pml4Index,
-                (LPVOID)Linear,
-                (U32)Pml4EntryValue);
-        }
         return FALSE;
     }
 
@@ -1682,24 +1615,12 @@ BOOL TryGetPageTableForIterator(
     U64 PdptEntryValue = ReadPageDirectoryEntryValue(PdptLinear, PdptIndex);
 
     if ((PdptEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        if (ShouldLog) {
-            DEBUG(TEXT("[TryGetPageTableForIterator] PDPT[%u] not present (linear=%p) entry=%x"),
-                PdptIndex,
-                (LPVOID)Linear,
-                (U32)PdptEntryValue);
-        }
         return FALSE;
     }
 
     if ((PdptEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
-        }
-        if (ShouldLog) {
-            DEBUG(TEXT("[TryGetPageTableForIterator] PDPT[%u] large page (linear=%p) entry=%x"),
-                PdptIndex,
-                (LPVOID)Linear,
-                (U32)PdptEntryValue);
         }
         return FALSE;
     }
@@ -1709,25 +1630,12 @@ BOOL TryGetPageTableForIterator(
     U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirEntry);
 
     if ((DirectoryEntryValue & PAGE_FLAG_PRESENT) == 0) {
-        if (ShouldLog) {
-            DEBUG(TEXT("[TryGetPageTableForIterator] PDE[%u] not present (linear=%p) tablePhys=%p entry=%x"),
-                DirEntry,
-                (LPVOID)Linear,
-                (LPVOID)DirectoryPhysical,
-                (U32)DirectoryEntryValue);
-        }
         return FALSE;
     }
 
     if ((DirectoryEntryValue & PAGE_FLAG_PAGE_SIZE) != 0) {
         if (OutLargePage != NULL) {
             *OutLargePage = TRUE;
-        }
-        if (ShouldLog) {
-            DEBUG(TEXT("[TryGetPageTableForIterator] PDE[%u] large page (linear=%p) entry=%x"),
-                DirEntry,
-                (LPVOID)Linear,
-                (U32)DirectoryEntryValue);
         }
         return FALSE;
     }
