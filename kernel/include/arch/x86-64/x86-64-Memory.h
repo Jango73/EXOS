@@ -278,7 +278,7 @@ static inline volatile U64* GetPageTableEntryRawPointer(U64 Address) {
 }
 
 /************************************************************************/
-// Architecture-specific helpers implemented in x86-64-Memory.c
+// Architecture-specific helpers implemented in x86-64-Memory-*.c
 
 BOOL ValidatePhysicalTargetRange(PHYSICAL Base, UINT NumPages);
 BOOL TryGetPageTableForIterator(const ARCH_PAGE_ITERATOR* Iterator, LPPAGE_TABLE* OutTable, BOOL* OutLargePage);
