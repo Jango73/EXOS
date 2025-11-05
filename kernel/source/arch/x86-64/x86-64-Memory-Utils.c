@@ -558,7 +558,7 @@ BOOL IsValidMemory(LINEAR Address) {
         return FALSE;
     }
 
-    return MapLinearToPhysical(Canonical) != 0;
+    return (BOOL)MapLinearToPhysical(Canonical) != 0;
 }
 
 /************************************************************************/

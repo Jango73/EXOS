@@ -551,7 +551,7 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
 static void ReadKernelConfiguration(void) {
     DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
 
-    U32 Size = 0;
+    UINT Size = 0;
     LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
 
     if (Buffer == NULL) {
