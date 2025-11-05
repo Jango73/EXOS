@@ -198,6 +198,7 @@ void ConsolePrintChar(STR Char) {
             ScrollConsole();
             Console.CursorY = Console.Height - 1;
         }
+    } else if (Char == STR_RETURN) {
     } else if (Char == STR_TAB) {
         Console.CursorX += 4;
         if (Console.CursorX >= Console.Width) {
