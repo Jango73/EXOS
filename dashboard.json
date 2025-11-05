@@ -41,7 +41,8 @@
         "persistLogs": true,
         "notifyOnExit": true,
         "renderThrottleMs": 50,
-        "maxLogLines": 1000
+        "maxLogLines": 1000,
+        "sidebarMinWidth" : 25
     },
     "events": {
         "onDashboardStart": [

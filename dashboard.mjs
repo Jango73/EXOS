@@ -62,7 +62,8 @@ const defaultSettings = {
     renderThrottleMs: 100,
     maxLogLines: 1000,
     logBatchSize: 50,
-    maxQueuedLogLines: 2000
+    maxQueuedLogLines: 2000,
+    sidebarMinWidth: 25
 };
 
 function parsePositiveInteger(value) {
@@ -88,7 +89,7 @@ function normalizeSettings(overrides) {
         }
     }
 
-    const positiveIntegerKeys = ['renderThrottleMs', 'maxLogLines', 'logBatchSize', 'maxQueuedLogLines'];
+    const positiveIntegerKeys = ['renderThrottleMs', 'maxLogLines', 'logBatchSize', 'maxQueuedLogLines', 'sidebarMinWidth'];
     for (const key of positiveIntegerKeys) {
         const parsed = parsePositiveInteger(overrides[key]);
         if (parsed !== undefined) {
@@ -319,18 +320,20 @@ screen = blessed.screen({
     title: 'Dashboard'
 });
 
+const SIDEBAR_WIDTH_RATIO = 0.2;
+
 const sidebar = blessed.box({
     top: 0,
     left: 0,
-    width: '20%',
+    width: currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth,
     height: '100%',
     label: 'Scripts',
     border: 'line'
 });
 const rightContainer = blessed.box({
     top: 0,
-    left: '20%',
-    width: '80%',
+    left: currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth,
+    width: '100%',
     height: '100%',
 });
 
@@ -439,6 +442,19 @@ const list = blessed.list({
 
 screen.append(sidebar);
 screen.append(rightContainer);
+
+function applySidebarLayout() {
+    const minWidth = currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth;
+    const ratioWidth = Math.floor(screen.width * SIDEBAR_WIDTH_RATIO);
+    const computedWidth = Math.min(screen.width, Math.max(minWidth, ratioWidth));
+    sidebar.width = computedWidth;
+    rightContainer.left = computedWidth;
+    rightContainer.width = Math.max(screen.width - computedWidth, 0);
+    scheduleRender();
+}
+
+applySidebarLayout();
+screen.on('resize', applySidebarLayout);
 
 const logBoxes = [];
 const logWatchers = [];
