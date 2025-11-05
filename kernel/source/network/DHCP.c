@@ -30,10 +30,10 @@
 #include "ID.h"
 #include "Log.h"
 #include "Memory.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 #include "Clock.h"
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
 #include "Kernel.h"
 
 /************************************************************************/
@@ -477,7 +477,7 @@ void DHCP_Initialize(LPDEVICE Device) {
 
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
                 MemoryCopy(Context->LocalMacAddress, Info.MAC, 6);
                 DEBUG(TEXT("[DHCP_Initialize] MAC: %x:%x:%x:%x:%x:%x"),
                       (U32)Info.MAC[0], (U32)Info.MAC[1], (U32)Info.MAC[2],
@@ -556,9 +556,9 @@ void DHCP_Start(LPDEVICE Device) {
 
 void DHCP_Tick(LPDEVICE Device) {
     LPDHCP_CONTEXT Context;
-    U32 CurrentMillis;
-    U32 ElapsedMillis;
-    U32 ElapsedSeconds;
+    UINT CurrentMillis;
+    UINT ElapsedMillis;
+    UINT ElapsedSeconds;
 
     if (Device == NULL) return;
 

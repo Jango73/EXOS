@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -21,10 +22,15 @@
 
 \************************************************************************/
 
-#pragma once
+#ifndef SCRIPT_H_INCLUDED
+#define SCRIPT_H_INCLUDED
 
 #include "Base.h"
 #include "List.h"
+
+/************************************************************************/
+
+#pragma pack (push, 1)
 
 /************************************************************************/
 
@@ -313,3 +319,7 @@ void ScriptDestroyAST(LPAST_NODE Node);
 SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 
 /************************************************************************/
+
+#pragma pack (pop)
+
+#endif  // SCRIPT_H_INCLUDED

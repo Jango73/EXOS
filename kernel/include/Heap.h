@@ -32,7 +32,7 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "Process.h"
+#include "process/Process.h"
 
 /***************************************************************************/
 
@@ -43,7 +43,7 @@
 /***************************************************************************/
 
 typedef struct tag_HEAPBLOCKHEADER {
-    U32 TypeID;
+    UINT TypeID;
     UINT Size;
     struct tag_HEAPBLOCKHEADER* Next;
     struct tag_HEAPBLOCKHEADER* Prev;
@@ -52,7 +52,7 @@ typedef struct tag_HEAPBLOCKHEADER {
 /***************************************************************************/
 
 typedef struct tag_HEAPCONTROLBLOCK {
-    U32 TypeID;
+    UINT TypeID;
     LINEAR HeapBase;
     UINT HeapSize;
     LPPROCESS Owner;
@@ -99,7 +99,7 @@ void KernelHeapFree(LPVOID Pointer);
 LPVOID HeapAlloc(UINT Size);
 
 // Reallocates memory space in the calling process' heap
-LPVOID HeapRealloc(LPVOID Pointer, U32 Size);
+LPVOID HeapRealloc(LPVOID Pointer, UINT Size);
 
 // Frees memory space in the calling process' heap
 void HeapFree(LPVOID Pointer);

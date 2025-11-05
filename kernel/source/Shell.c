@@ -39,13 +39,13 @@
 #include "drivers/Keyboard.h"
 #include "List.h"
 #include "Log.h"
-#include "Network.h"
-#include "NetworkManager.h"
+#include "arch/Disassemble.h"
+#include "network/Network.h"
+#include "network/NetworkManager.h"
 #include "utils/Path.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "Script.h"
-#include "StackTrace.h"
-#include "String.h"
+#include "CoreString.h"
 #include "utils/StringArray.h"
 #include "System.h"
 #include "User.h"
@@ -574,7 +574,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
     Control.CurrentFolder[0] = STR_NULL;
     StringCopy(Control.SubFolder, NewPath);
 
-    if (GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (U32)&Control)) {
+    if (GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (UINT)&Control)) {
         StringCopy(Context->CurrentFolder, NewPath);
     } else {
         ConsolePrint(TEXT("Unknown folder : %s\n"), NewPath);
@@ -603,7 +603,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
         FileInfo.FileSystem = FileSystem;
         FileInfo.Attributes = MAX_U32;
         StringCopy(FileInfo.Name, FileName);
-        FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (U32)&FileInfo);
+        FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&FileInfo);
     }
 }
 
@@ -698,16 +698,16 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     StringConcat(Pattern, TEXT("*"));
     StringCopy(Find.Name, Pattern);
 
-    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
     if (File == NULL) {
         StringCopy(Find.Name, Base);
-        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
         if (File == NULL) {
             ConsolePrint(TEXT("Unknown file : %s\n"), Base);
             return;
         }
         ListFile(File, Indent);
-        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
         return;
     }
 
@@ -730,9 +730,9 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
                 WaitKey();
             }
         }
-    } while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (U32)File) == DF_ERROR_SUCCESS);
+    } while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_ERROR_SUCCESS);
 
-    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
 }
 
 /***************************************************************************/
@@ -859,17 +859,17 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Header.Size = sizeof Info;
     Info.Header.Version = EXOS_ABI_VERSION;
     Info.Header.Flags = 0;
-    DoSystemCall(SYSCALL_GetSystemInfo, (U32)&Info);
+    DoSystemCall(SYSCALL_GetSystemInfo, SYSCALL_PARAM(&Info));
 
-    ConsolePrint(TEXT("Total physical memory     : %d KB\n"), Info.TotalPhysicalMemory / 1024);
-    ConsolePrint(TEXT("Physical memory used      : %d KB\n"), Info.PhysicalMemoryUsed / 1024);
-    ConsolePrint(TEXT("Physical memory available : %d KB\n"), Info.PhysicalMemoryAvail / 1024);
-    ConsolePrint(TEXT("Total swap memory         : %d KB\n"), Info.TotalSwapMemory / 1024);
-    ConsolePrint(TEXT("Swap memory used          : %d KB\n"), Info.SwapMemoryUsed / 1024);
-    ConsolePrint(TEXT("Swap memory available     : %d KB\n"), Info.SwapMemoryAvail / 1024);
-    ConsolePrint(TEXT("Total memory available    : %d KB\n"), Info.TotalMemoryAvail / 1024);
-    ConsolePrint(TEXT("Processor page size       : %d bytes\n"), Info.PageSize);
-    ConsolePrint(TEXT("Total physical pages      : %d pages\n"), Info.TotalPhysicalPages);
+    ConsolePrint(TEXT("Total physical memory     : %u KB\n"), Info.TotalPhysicalMemory / N_1KB);
+    ConsolePrint(TEXT("Physical memory used      : %u KB\n"), Info.PhysicalMemoryUsed / N_1KB);
+    ConsolePrint(TEXT("Physical memory available : %u KB\n"), Info.PhysicalMemoryAvail / N_1KB);
+    ConsolePrint(TEXT("Total swap memory         : %u KB\n"), Info.TotalSwapMemory / N_1KB);
+    ConsolePrint(TEXT("Swap memory used          : %u KB\n"), Info.SwapMemoryUsed / N_1KB);
+    ConsolePrint(TEXT("Swap memory available     : %u KB\n"), Info.SwapMemoryAvail / N_1KB);
+    ConsolePrint(TEXT("Total memory available    : %u KB\n"), Info.TotalMemoryAvail / N_1KB);
+    ConsolePrint(TEXT("Processor page size       : %u bytes\n"), Info.PageSize);
+    ConsolePrint(TEXT("Total physical pages      : %u pages\n"), Info.TotalPhysicalPages);
     ConsolePrint(TEXT("Minimum linear address    : %x\n"), Info.MinimumLinearAddress);
     ConsolePrint(TEXT("Maximum linear address    : %x\n"), Info.MaximumLinearAddress);
     ConsolePrint(TEXT("User name                 : %s\n"), Info.UserName);
@@ -952,7 +952,12 @@ static U32 CMD_disasm(LPSHELLCONTEXT Context) {
     if (Address != 0 && InstrCount > 0) {
         MemorySet(Buffer, 0, MAX_STRING_BUFFER);
 
-        Disassemble(Buffer, Address, InstrCount);
+        U32 NumBits = 32;
+#if defined(__EXOS_ARCH_X86_64__)
+        NumBits = 64;
+#endif
+
+        Disassemble(Buffer, Address, InstrCount, NumBits);
         ConsolePrint(Buffer);
     } else {
         ConsolePrint(TEXT("Missing parameter\n"));
@@ -983,10 +988,10 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
             FileOpenInfo.Name = FileName;
             FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
-            Handle = DoSystemCall(SYSCALL_OpenFile, (U32)&FileOpenInfo);
+            Handle = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
 
             if (Handle) {
-                FileSize = DoSystemCall(SYSCALL_GetFileSize, Handle);
+                FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(Handle));
 
                 if (FileSize) {
                     Buffer = (U8*)HeapAlloc(FileSize + 1);
@@ -999,7 +1004,7 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
                         FileOperation.NumBytes = FileSize;
                         FileOperation.Buffer = Buffer;
 
-                        if (DoSystemCall(SYSCALL_ReadFile, (U32)&FileOperation)) {
+                        if (DoSystemCall(SYSCALL_ReadFile, SYSCALL_PARAM(&FileOperation))) {
                             Buffer[FileSize] = STR_NULL;
                             ConsolePrint((LPSTR)Buffer);
                         }
@@ -1007,7 +1012,7 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
                         HeapFree(Buffer);
                     }
                 }
-                DoSystemCall(SYSCALL_DeleteObject, Handle);
+                DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
             }
         }
     }
@@ -1042,7 +1047,7 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = SrcName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
-    SrcFile = DoSystemCall(SYSCALL_OpenFile, (U32)&FileOpenInfo);
+    SrcFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
     if (SrcFile == NULL) return DF_ERROR_SUCCESS;
 
     FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
@@ -1050,13 +1055,13 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = DstName;
     FileOpenInfo.Flags = FILE_OPEN_WRITE;
-    DstFile = DoSystemCall(SYSCALL_OpenFile, (U32)&FileOpenInfo);
+    DstFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
     if (DstFile == NULL) {
-        DoSystemCall(SYSCALL_DeleteObject, SrcFile);
+        DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
         return DF_ERROR_SUCCESS;
     }
 
-    FileSize = DoSystemCall(SYSCALL_GetFileSize, SrcFile);
+    FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(SrcFile));
 
     if (FileSize != 0) {
         for (Index = 0; Index < FileSize; Index += 1024) {
@@ -1083,8 +1088,8 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
         }
     }
 
-    DoSystemCall(SYSCALL_DeleteObject, SrcFile);
-    DoSystemCall(SYSCALL_DeleteObject, DstFile);
+    DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
+    DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(DstFile));
 
     return DF_ERROR_SUCCESS;
 }
@@ -1138,7 +1143,7 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
         Disk = (LPPHYSICALDISK)Node;
 
         DiskInfo.Disk = Disk;
-        Disk->Driver->Command(DF_DISK_GETINFO, (U32)&DiskInfo);
+        Disk->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo);
 
         ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
@@ -1200,7 +1205,7 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
                         NETWORKINFO Info;
                         MemorySet(&Info, 0, sizeof(Info));
                         NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
-                        Device->Driver->Command(DF_NT_GETINFO, (U32)(LPVOID)&GetInfo);
+                        Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
                         // Convert IP from network to host byte order
                         U32 IpHost = Ntohl(NetContext->LocalIPv4_Be);
@@ -1600,8 +1605,8 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
                 DEBUG(TEXT("Process started in background"));
             }
         } else {
-            U32 ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
-            return (ExitCode != MAX_U32);
+            UINT ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
+            return (ExitCode != MAX_UINT);
         }
     }
 

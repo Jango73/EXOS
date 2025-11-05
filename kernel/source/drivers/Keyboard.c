@@ -26,11 +26,11 @@
 
 #include "Base.h"
 #include "Console.h"
-#include "arch/i386/I386.h"
+#include "Arch.h"
 #include "InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "VKey.h"
 
 /***************************************************************************/
@@ -38,7 +38,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 StdKeyboardCommands(U32, U32);
+UINT StdKeyboardCommands(UINT, UINT);
 
 DRIVER StdKeyboardDriver = {
     .TypeID = KOID_DRIVER,
@@ -378,7 +378,7 @@ static void ScanCodeToKeyCode_E0(U32 ScanCode, LPKEYCODE KeyCode) {
 
     if (KeyCode->VirtualKey == VK_DELETE) {
         if (Keyboard.Status[SCAN_CONTROL] && Keyboard.Status[SCAN_ALT]) {
-            X86REGS Regs;
+            INTEL_X86_REGISTERS Regs;
             // RealModeCall(0xF000FFF0, &Regs);
         }
     }
@@ -398,7 +398,7 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
               TASKINFO TaskInfo;
               TaskInfo.Func      = Shell;
               TaskInfo.Parameter = NULL;
-              TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+              TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
               TaskInfo.Priority  = TASK_PRIORITY_MEDIUM;
               TaskInfo.Flags     = 0;
               CreateTask(&KernelProcess, &TaskInfo);
@@ -412,9 +412,7 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
 static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
     U32 Index;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SendKeyCodeToBuffer] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[SendKeyCodeToBuffer] Enter"));
 
     if (KeyCode->VirtualKey != 0 || KeyCode->ASCIICode != 0) {
         //-------------------------------------
@@ -428,9 +426,7 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
         }
     }
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[SendKeyCodeToBuffer] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[SendKeyCodeToBuffer] Exit"));
 }
 
 /***************************************************************************/
@@ -479,9 +475,7 @@ static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
     static KEYCODE KeyCode;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[HandleScanCode] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[HandleScanCode] Enter"));
 
     if (ScanCode == 0) {
         PreviousCode = 0;
@@ -561,7 +555,7 @@ static void HandleScanCode(U32 ScanCode) {
                             TaskInfo.Header.Flags = 0;
                             TaskInfo.Func = Shell;
                             TaskInfo.Parameter = NULL;
-                            TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+                            TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
                             TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
                             TaskInfo.Flags = 0;
                             CreateTask(&KernelProcess, &TaskInfo);
@@ -572,9 +566,7 @@ static void HandleScanCode(U32 ScanCode) {
         }
     }
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[HandleScanCode] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[HandleScanCode] Exit"));
 }
 
 /***************************************************************************/
@@ -582,9 +574,7 @@ static void HandleScanCode(U32 ScanCode) {
 BOOL PeekChar(void) {
     U32 Result = FALSE;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[PeekChar] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[PeekChar] Enter"));
 
     LockMutex(&(Keyboard.Mutex), INFINITY);
 
@@ -593,9 +583,7 @@ BOOL PeekChar(void) {
 
     UnlockMutex(&(Keyboard.Mutex));
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[PeekChar] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[PeekChar] Exit"));
 
     return Result;
 }
@@ -705,14 +693,10 @@ void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[KeyboardHandler] Enter"));
-#endif
+    FINE_DEBUG(TEXT("[KeyboardHandler] Enter"));
 
     if (Busy) {
-#if SCHEDULING_DEBUG_OUTPUT == 1
-        DEBUG(TEXT("[KeyboardHandler] Busy, exiting"));
-#endif
+        FINE_DEBUG(TEXT("[KeyboardHandler] Busy, exiting"));
 
         return;
     }
@@ -738,9 +722,7 @@ void KeyboardHandler(void) {
 
     Busy = 0;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[KeyboardHandler] Exit"));
-#endif
+    FINE_DEBUG(TEXT("[KeyboardHandler] Exit"));
 }
 
 /***************************************************************************/
@@ -790,7 +772,7 @@ static U32 InitializeKeyboard(void) {
 
 /***************************************************************************/
 
-U32 StdKeyboardCommands(U32 Function, U32 Parameter) {
+UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return InitializeKeyboard();
@@ -801,13 +783,13 @@ U32 StdKeyboardCommands(U32 Function, U32 Parameter) {
         case DF_KEY_GETSTATE:
             return 0;
         case DF_KEY_ISKEY:
-            return (U32)PeekChar();
+            return (UINT)PeekChar();
         case DF_KEY_GETKEY:
-            return (U32)GetKeyCode((LPKEYCODE)Parameter);
+            return (UINT)GetKeyCode((LPKEYCODE)Parameter);
         case DF_KEY_GETLED:
-            return (U32)GetKeyboardLEDs();
+            return (UINT)GetKeyboardLEDs();
         case DF_KEY_SETLED:
-            return (U32)SetKeyboardLEDs(Parameter);
+            return (UINT)SetKeyboardLEDs(Parameter);
         case DF_KEY_GETDELAY:
             return 0;
         case DF_KEY_SETDELAY:

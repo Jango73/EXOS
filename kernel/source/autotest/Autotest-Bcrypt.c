@@ -26,7 +26,7 @@
 #include "Base.h"
 #include "Heap.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 #include "System.h"
 
 /************************************************************************/
@@ -36,15 +36,15 @@
 #define ENCRYPT 0
 #define DECRYPT 1
 
-typedef unsigned long uLong;
+typedef U32 uLong;
 
 typedef struct {
-    unsigned char remove;
-    unsigned char standardout;
-    unsigned char compression;
-    unsigned char type;
+    U8 remove;
+    U8 standardout;
+    U8 compression;
+    U8 type;
     uLong origsize;
-    unsigned char securedelete;
+    U8 securedelete;
 } BCoptions;
 
 /************************************************************************/

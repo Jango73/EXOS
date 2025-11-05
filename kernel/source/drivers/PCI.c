@@ -27,7 +27,7 @@
 #include "Base.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /***************************************************************************/
 // PCI config mechanism #1 (0xCF8/0xCFC)
@@ -440,8 +440,8 @@ void PCI_ScanBus(void) {
                 U32 DriverIndex;
 
                 PciFillFunctionInfo((U8)Bus, (U8)Device, (U8)Function, &PciInfo);
-                DEBUG(TEXT("[PCI] Found %X:%X.%u VID=%X DID=%X"), (U32)Bus, (U32)Device, (U32)Function,
-                    (U32)PciInfo.VendorID, (U32)PciInfo.DeviceID);
+                DEBUG(TEXT("[PCI] Found %x:%x.%u VID=%x DID=%x"), (INT)Bus, (INT)Device, (INT)Function,
+                    (INT)PciInfo.VendorID, (INT)PciInfo.DeviceID);
 
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
                 InitMutex(&(PciDevice.Mutex));
@@ -459,10 +459,10 @@ void PCI_ScanBus(void) {
 
                         if (PciInternalMatch(DriverMatch, &PciInfo)) {
                             if (PciDriver->Command) {
-                                DEBUG(TEXT("[PCI] %s matches %X:%X.%u"), PciDriver->Product, (U32)Bus,
-                                    (U32)Device, (U32)Function);
+                                DEBUG(TEXT("[PCI] %s matches %x:%x.%u"), PciDriver->Product, (INT)Bus,
+                                    (INT)Device, (INT)Function);
 
-                                U32 Result = PciDriver->Command(DF_PROBE, (U32)(LPVOID)&PciInfo);
+                                U32 Result = PciDriver->Command(DF_PROBE, (UINT)(LPVOID)&PciInfo);
                                 if (Result == DF_ERROR_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
@@ -471,10 +471,10 @@ void PCI_ScanBus(void) {
                                         LPPCI_DEVICE NewDev = PciDriver->Attach(&PciDevice);
 
                                         if (NewDev) {
-                                            DEBUG(TEXT("[PCI] Adding device %x (ID=%x) to list"), NewDev, NewDev->TypeID);
+                                            DEBUG(TEXT("[PCI] Adding device %p (ID=%x) to list"), (LINEAR)NewDev, (INT)(NewDev->TypeID));
                                             ListAddItem(Kernel.PCIDevice, NewDev);
-                                            DEBUG(TEXT("[PCI] Attached %s to %X:%X.%u"), PciDriver->Product,
-                                                (U32)Bus, (U32)Device, (U32)Function);
+                                            DEBUG(TEXT("[PCI] Attached %s to %x:%x.%u"), PciDriver->Product,
+                                                (INT)Bus, (INT)Device, (INT)Function);
 
                                             goto NextFunction;
                                         }

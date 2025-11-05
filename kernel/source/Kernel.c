@@ -23,6 +23,8 @@
 \************************************************************************/
 
 #include "Kernel.h"
+#include "Arch.h"
+#include "process/Process.h"
 
 #include "drivers/ACPI.h"
 #include "drivers/LocalAPIC.h"
@@ -44,13 +46,12 @@
 #include "Mouse.h"
 #include "drivers/PCI.h"
 #include "Stack.h"
-#include "StackTrace.h"
 #include "System.h"
 #include "SystemFS.h"
 #include "utils/TOML.h"
 #include "UserAccount.h"
 #include "UserSession.h"
-#include "NetworkManager.h"
+#include "network/NetworkManager.h"
 #include "utils/UUID.h"
 
 /************************************************************************/
@@ -73,6 +74,15 @@ U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
 
 /************************************************************************/
 
+void DoPageFault(void) {
+    UINT* Table = (UINT*)0;
+    for (UINT Index = 0; Index < KernelStartup.MemorySize / sizeof(UINT); Index++) {
+        Table[Index] = 0;
+    }
+}
+
+/************************************************************************/
+
 /**
  * @brief Checks that the DeadBeef sentinel retains its expected value.
  *
@@ -88,6 +98,20 @@ void CheckDataIntegrity(void) {
         // Wait forever
         DO_THE_SLEEPING_BEAUTY;
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Converts a kernel symbol address to its corresponding physical
+ *        address.
+ *
+ * @param Symbol Linear address of the kernel symbol to translate.
+ * @return Physical address associated with the provided symbol.
+ */
+
+PHYSICAL KernelToPhysical(LINEAR Symbol) {
+    return KernelStartup.KernelPhysicalBase + (PHYSICAL)(Symbol - (LINEAR)VMA_KERNEL);
 }
 
 /************************************************************************/
@@ -148,13 +172,12 @@ void InitializeQuantumTime(void) {
     DEBUG(TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), Kernel.MinimumQuantum);
 #endif
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    // Double quantum when scheduling debug is enabled (logs slow down execution)
-    Kernel.MinimumQuantum *= 2;
-    KernelLogText(
-        LOG_VERBOSE, TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
-        Kernel.MinimumQuantum);
-#endif
+    if (SCHEDULING_DEBUG_OUTPUT == 1) {
+        // Double quantum when scheduling debug is enabled (logs slow down execution)
+        Kernel.MinimumQuantum *= 2;
+        FINE_DEBUG(TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
+            Kernel.MinimumQuantum);
+    }
 
     Kernel.MaximumQuantum = Kernel.MinimumQuantum * 4;
 }
@@ -180,11 +203,11 @@ U32 ClockTestTask(LPVOID Param) {
     U32 OldX = 0;
     U32 OldY = 0;
 
-    U32 Time = 0;
-    U32 OldTime = 0;
+    UINT Time = 0;
+    UINT OldTime = 0;
 
     FOREVER {
-        Time = DoSystemCall(SYSCALL_GetSystemTime, 0);
+        Time = DoSystemCall(SYSCALL_GetSystemTime, SYSCALL_PARAM(0));
 
         if (Time - OldTime >= 1000) {
             OldTime = Time;
@@ -196,7 +219,7 @@ U32 ClockTestTask(LPVOID Param) {
             SetConsoleCursorPosition(OldX, OldY);
         }
 
-        DoSystemCall(SYSCALL_Sleep, 500);
+        DoSystemCall(SYSCALL_Sleep, SYSCALL_PARAM(500));
     }
 
     TRACED_EPILOGUE("ClockTestTask");
@@ -210,27 +233,31 @@ U32 ClockTestTask(LPVOID Param) {
  */
 
 void DumpCriticalInformation(void) {
-    for (U32 Index = 0; Index < KernelStartup.E820_Count; Index++) {
-        DEBUG(TEXT("E820 entry %X : %X, %X, %X"), Index, (U32)KernelStartup.E820[Index].Base.LO,
-            (U32)KernelStartup.E820[Index].Size.LO, (U32)KernelStartup.E820[Index].Type);
+    DEBUG(TEXT("  Multiboot entry count = %d"), KernelStartup.MultibootMemoryEntryCount);
+
+    for (U32 Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        DEBUG(TEXT("Multiboot entry %d : %p, %d, %d"), Index,
+            U64_Low32(KernelStartup.MultibootMemoryEntries[Index].Base),
+            U64_Low32(KernelStartup.MultibootMemoryEntries[Index].Length),
+            (U32)KernelStartup.MultibootMemoryEntries[Index].Type);
     }
 
     DEBUG(TEXT("Virtual addresses"));
-    DEBUG(TEXT("  VMA_RAM = %X"), VMA_RAM);
-    DEBUG(TEXT("  VMA_VIDEO = %X"), VMA_VIDEO);
-    DEBUG(TEXT("  VMA_CONSOLE = %X"), VMA_CONSOLE);
-    DEBUG(TEXT("  VMA_USER = %X"), VMA_USER);
-    DEBUG(TEXT("  VMA_LIBRARY = %X"), VMA_LIBRARY);
-    DEBUG(TEXT("  VMA_KERNEL = %X"), VMA_KERNEL);
+    DEBUG(TEXT("  VMA_RAM = %p"), VMA_RAM);
+    DEBUG(TEXT("  VMA_VIDEO = %p"), VMA_VIDEO);
+    DEBUG(TEXT("  VMA_CONSOLE = %p"), VMA_CONSOLE);
+    DEBUG(TEXT("  VMA_USER = %p"), VMA_USER);
+    DEBUG(TEXT("  VMA_LIBRARY = %p"), VMA_LIBRARY);
+    DEBUG(TEXT("  VMA_KERNEL = %p"), VMA_KERNEL);
 
     DEBUG(TEXT("Kernel startup info:"));
-    DEBUG(TEXT("  StubAddress = %X"), KernelStartup.StubAddress);
-    DEBUG(TEXT("  StackTop = %X"), KernelStartup.StackTop);
-    DEBUG(TEXT("  IRQMask_21_RM = %X"), KernelStartup.IRQMask_21_RM);
-    DEBUG(TEXT("  IRQMask_A1_RM = %X"), KernelStartup.IRQMask_A1_RM);
-    DEBUG(TEXT("  MemorySize = %X"), KernelStartup.MemorySize);
-    DEBUG(TEXT("  PageCount = %X"), KernelStartup.PageCount);
-    DEBUG(TEXT("  E820 entry count = %X"), KernelStartup.E820_Count);
+    DEBUG(TEXT("  KernelPhysicalBase = %p"), KernelStartup.KernelPhysicalBase);
+    DEBUG(TEXT("  KernelSize = %d"), KernelStartup.KernelSize);
+    DEBUG(TEXT("  StackTop = %p"), KernelStartup.StackTop);
+    DEBUG(TEXT("  IRQMask_21_RM = %x"), KernelStartup.IRQMask_21_RM);
+    DEBUG(TEXT("  IRQMask_A1_RM = %x"), KernelStartup.IRQMask_A1_RM);
+    DEBUG(TEXT("  MemorySize = %d"), KernelStartup.MemorySize);
+    DEBUG(TEXT("  PageCount = %d"), KernelStartup.PageCount);
 }
 
 /************************************************************************/
@@ -248,7 +275,7 @@ static void Welcome(void) {
     //-------------------------------------
     // Print information on memory
 
-    ConsolePrint(TEXT("Physical memory : %d"), KernelStartup.MemorySize / 1024);
+    ConsolePrint(TEXT("Physical memory : %lu"), KernelStartup.MemorySize / 1024);
     ConsolePrint(Text_Space);
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
@@ -307,7 +334,7 @@ void KernelObjectDestructor(LPVOID Object) {
  * @param ObjectTypeID ID from ID.h to identify the object type
  * @return Pointer to the allocated and initialized object, or NULL on failure
  */
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID) {
+LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     LPLISTNODE Object;
     U8 Identifier[UUID_BINARY_SIZE];
     U64 ObjectID = U64_0;
@@ -452,7 +479,7 @@ static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
  *
  * @param Process Process whose owned kernel objects must be released.
  */
-void ReleaseProcessKernelObjects(LPPROCESS Process) {
+void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         if (Process == &KernelProcess) {
             return;
@@ -480,7 +507,7 @@ void ReleaseProcessKernelObjects(LPPROCESS Process) {
  * @param Object Handle of the terminated object
  * @param ExitCode Exit code of the object
  */
-void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
+void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
     LPOBJECT KernelObject = (LPOBJECT)Object;
 
     SAFE_USE_VALID(KernelObject) {
@@ -488,8 +515,8 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
             KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
 
         SAFE_USE(TermState) {
-            U32 IdHigh = KernelObject->ID.HI;
-            U32 IdLow = KernelObject->ID.LO;
+            U32 IdHigh = U64_High32(KernelObject->ID);
+            U32 IdLow = U64_Low32(KernelObject->ID);
 
             TermState->Object = KernelObject;
             TermState->ExitCode = ExitCode;
@@ -501,6 +528,9 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
                   IdHigh,
                   IdLow,
                   ExitCode);
+
+            UNUSED(IdHigh);
+            UNUSED(IdLow);
         }
 
         return;
@@ -521,7 +551,7 @@ void StoreObjectTerminationState(LPVOID Object, U32 ExitCode) {
 static void ReadKernelConfiguration(void) {
     DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
 
-    U32 Size = 0;
+    UINT Size = 0;
     LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
 
     if (Buffer == NULL) {
@@ -632,7 +662,7 @@ U32 GetPhysicalMemoryUsed(void) {
     for (Index = 0; Index < KernelStartup.PageCount; Index++) {
         Byte = Index >> MUL_8;
         Mask = (U32)0x01 << (Index & 0x07);
-        if (Kernel_i386.PPB[Byte] & Mask) NumPages++;
+        if (Kernel.PPB[Byte] & Mask) NumPages++;
     }
 
     UnlockMutex(MUTEX_MEMORY);
@@ -669,9 +699,11 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
 /************************************************************************/
 
-static U32 MonitorKernel(LPVOID Parameter) {
+static U32 KernelMonitor(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
+
+    FINE_DEBUG("[KernelMonitor] Enter");
 
     FOREVER {
         DeleteDeadTasksAndProcesses();
@@ -679,8 +711,8 @@ static U32 MonitorKernel(LPVOID Parameter) {
         CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
 
         LogCounter++;
-        if (LogCounter >= 10) {  // 10 * 500ms = 5 seconds
-            DEBUG("[MonitorKernel] Monitor task running normally");
+        if (LogCounter >= 60) {  // 60 * 500ms = 30 seconds
+            DEBUG("[KernelMonitor] Monitor task running normally");
             LogCounter = 0;
         }
 
@@ -711,12 +743,19 @@ void KernelIdle(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
+    PreInitializeKernel();
+
     //-------------------------------------
     // Gather startup information
 
     KernelStartup.PageDirectory = GetPageDirectory();
     KernelStartup.IRQMask_21_RM = 0;
     KernelStartup.IRQMask_A1_RM = 0;
+
+    //-------------------------------------
+    // Initialize the console
+
+    InitializeConsole();
 
     //-------------------------------------
     // Init the kernel logger
@@ -728,10 +767,14 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Check RealModeCall memory pages validity
 
+    DEBUG(TEXT("[InitializeKernel] Register integer size : %d"), sizeof(UINT));
     DEBUG(TEXT("[InitializeKernel] Console cursor : %d, %d"), Console.CursorX, Console.CursorY);
-    DEBUG(TEXT("[InitializeKernel] GDT base address read: %X"), Kernel_i386.GDT);
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_5 (%x) valid: %d"), LOW_MEMORY_PAGE_5, IsValidMemory(LOW_MEMORY_PAGE_5));
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_6 (%x) valid: %d"), LOW_MEMORY_PAGE_6, IsValidMemory(LOW_MEMORY_PAGE_6));
+    DEBUG(TEXT("[InitializeKernel] GDT base address read: %p"), Kernel_i386.GDT);
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_1 (%p) valid: %d"), LOW_MEMORY_PAGE_1, IsValidMemory(LOW_MEMORY_PAGE_1));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_2 (%p) valid: %d"), LOW_MEMORY_PAGE_2, IsValidMemory(LOW_MEMORY_PAGE_2));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_3 (%p) valid: %d"), LOW_MEMORY_PAGE_3, IsValidMemory(LOW_MEMORY_PAGE_3));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_5 (%p) valid: %d"), LOW_MEMORY_PAGE_5, IsValidMemory(LOW_MEMORY_PAGE_5));
+    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_6 (%p) valid: %d"), LOW_MEMORY_PAGE_6, IsValidMemory(LOW_MEMORY_PAGE_6));
 
     //-------------------------------------
     // Initialize the memory manager
@@ -748,13 +791,6 @@ void InitializeKernel(void) {
     // Check data integrity
 
     CheckDataIntegrity();
-
-    //-------------------------------------
-    // Initialize the console
-
-    InitializeConsole();
-
-    DEBUG(TEXT("[InitializeKernel] Console initialized"));
 
     //-------------------------------------
     // Initialize interrupts
@@ -912,7 +948,9 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the graphics card
 
+#if defined(__EXOS_ARCH_I386__)
     LoadDriver(&VESADriver, TEXT("VESA"));
+#endif
 
     DEBUG(TEXT("[InitializeKernel] VESA driver initialized"));
 
@@ -951,12 +989,12 @@ void InitializeKernel(void) {
         TaskInfo.Header.Size = sizeof(TASKINFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
-        TaskInfo.Func = MonitorKernel;
+        TaskInfo.Func = KernelMonitor;
         TaskInfo.Parameter = NULL;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
         TaskInfo.Flags = 0;
-        StringCopy(TaskInfo.Name, TEXT("MonitorKernel"));
+        StringCopy(TaskInfo.Name, TEXT("KernelMonitor"));
 
         CreateTask(&KernelProcess, &TaskInfo);
 
@@ -971,7 +1009,7 @@ void InitializeKernel(void) {
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = ClockTestTask;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_LOWEST;
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("ClockTestTask"));
@@ -992,7 +1030,7 @@ void InitializeKernel(void) {
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = NetworkManagerTask;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_LOWER;
         TaskInfo.Flags = 0;
         TaskInfo.Parameter = NULL;
@@ -1011,7 +1049,7 @@ void InitializeKernel(void) {
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = Shell;
         TaskInfo.Parameter = NULL;
-        TaskInfo.StackSize = TASK_MINIMUM_STACK_SIZE;
+        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
         TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("Shell"));

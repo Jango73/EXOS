@@ -51,6 +51,7 @@
 
 /* EI_CLASS */
 #define ELFCLASS32 1
+#define ELFCLASS64 2
 /* EI_DATA */
 #define ELFDATA2LSB 1
 /* e_version */
@@ -64,6 +65,7 @@
 
 /* e_machine */
 #define EM_386 3
+#define EM_X86_64 62
 
 /* Program header types */
 #define PT_NULL 0

@@ -40,9 +40,9 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 struct tag_MUTEX {
     LISTNODE_FIELDS         // Standard EXOS object fields
     LPPROCESS Owner;        // Process that created this mutex
-        LPPROCESS Process;  // Process that has locked this mutex.
+    LPPROCESS Process;      // Process that has locked this mutex.
     LPTASK Task;            // Task that has locked this mutex.
-    U32 Lock;               // Lock count of this mutex.
+    UINT Lock;              // Lock count of this mutex.
 };
 
 typedef struct tag_MUTEX MUTEX, *LPMUTEX;
@@ -97,7 +97,7 @@ extern MUTEX SessionMutex;
 void InitMutex(LPMUTEX Mutex);
 LPMUTEX CreateMutex(void);
 BOOL DeleteMutex(LPMUTEX Mutex);
-U32 LockMutex(LPMUTEX Mutex, U32 Timeout);
+UINT LockMutex(LPMUTEX Mutex, UINT Timeout);
 BOOL UnlockMutex(LPMUTEX Mutex);
 
 #endif  // MUTEX_H_INCLUDED

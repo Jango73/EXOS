@@ -32,8 +32,8 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Mutex.h"
-#include "Schedule.h"
-#include "Task.h"
+#include "process/Schedule.h"
+#include "process/Task.h"
 #include "UserAccount.h"
 
 /************************************************************************/
@@ -68,9 +68,11 @@ void ShutdownSessionSystem(void) {
             LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(Kernel.UserSessions, i);
 
             SAFE_USE(Session) {
-                KernelLogText(
-                    LOG_VERBOSE, TEXT("Cleaning up session for user ID: %08X%08X"), Session->UserID.HI,
-                    Session->UserID.LO);
+                U32 UserIdHigh = U64_High32(Session->UserID);
+                U32 UserIdLow = U64_Low32(Session->UserID);
+                VERBOSE(TEXT("Cleaning up session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
+                UNUSED(UserIdHigh);
+                UNUSED(UserIdLow);
             }
         }
 
@@ -180,7 +182,11 @@ void DestroyUserSession(LPUSERSESSION Session) {
 
     UnlockMutex(MUTEX_SESSION);
 
-    DEBUG(TEXT("Destroyed session for user ID: %08X%08X"), Session->UserID.HI, Session->UserID.LO);
+        U32 UserIdHigh = U64_High32(Session->UserID);
+        U32 UserIdLow = U64_Low32(Session->UserID);
+        DEBUG(TEXT("Destroyed session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
+        UNUSED(UserIdHigh);
+        UNUSED(UserIdLow);
 }
 
 /************************************************************************/
@@ -199,7 +205,11 @@ void TimeoutInactiveSessions(void) {
     for (U32 i = 0; i < Count; i++) {
         LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(Kernel.UserSessions, i);
         if (Session != NULL && !ValidateUserSession(Session)) {
-            DEBUG(TEXT("Timing out session for user ID: %08X%08X"), Session->UserID.HI, Session->UserID.LO);
+            U32 UserIdHigh = U64_High32(Session->UserID);
+            U32 UserIdLow = U64_Low32(Session->UserID);
+            DEBUG(TEXT("Timing out session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
+            UNUSED(UserIdHigh);
+            UNUSED(UserIdLow);
 
             ListErase(Kernel.UserSessions, Session);
             i--;  // Adjust index since list size changed

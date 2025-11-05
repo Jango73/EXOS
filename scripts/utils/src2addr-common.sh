@@ -2,7 +2,7 @@
 
 # Common function for source to address conversion
 # Usage: src2addr_convert <ELF_FILE> <SOURCE_LINE> <OBJDUMP_ARCH_FLAGS>
-# Example: src2addr_convert "kernel/bin/exos.elf" "kernel/source/Schedule.c:123" ""
+# Example: src2addr_convert "kernel/bin/exos.elf" "kernel/source/process/Schedule.c:123" ""
 # Example: src2addr_convert "boot-hd/bin/payload.elf" "boot-hd/source/vbr-payload-c.c:407" "-M i8086"
 
 function src2addr_convert() {
@@ -88,10 +88,10 @@ function src2addr_convert() {
             print ""
             print "Total instructions for this source line: " count
             print "Range: 0x" first_addr " to 0x" addr
-            print "Use ./scripts/show.sh 0x" first_addr " to see disassembly context"
+            print "Use ./scripts/utils/show-i386.sh or ./scripts/utils/show-x86-64.sh 0x" first_addr " to see disassembly context"
         } else if (count == 1) {
             print ""
-            print "Use ./scripts/show.sh 0x" first_addr " to see disassembly context"
+            print "Use ./scripts/utils/show-i386.sh or ./scripts/utils/show-x86-64.sh 0x" first_addr " to see disassembly context"
         } else if (count == 0 && near_count > 0) {
             print ""
             print "EXACT line not found. Possible nearby lines due to compiler optimization:"

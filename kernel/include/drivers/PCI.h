@@ -68,39 +68,39 @@
 #define PCI_CFG_IRQ_LINE 0x3C    /* U8  */
 #define PCI_CFG_IRQ_PIN 0x3D     /* U8  */
 
-/* Command bits */
+// Command bits
 #define PCI_CMD_IO 0x0001
 #define PCI_CMD_MEM 0x0002
 #define PCI_CMD_BUSMASTER 0x0004
 #define PCI_CMD_INT_DISABLE 0x0400
 
-/* BAR (Base Address Register) decoding */
+// BAR (Base Address Register) decoding
 #define PCI_BAR_IO_MASK 0xFFFFFFFCU
 #define PCI_BAR_MEM_MASK 0xFFFFFFF0U
 #define PCI_BAR_IS_IO(bar) (((bar)&0x1U) != 0)
 #define PCI_BAR_IS_MEM(bar) (!PCI_BAR_IS_IO(bar))
 
-/* Header type */
+// Header type
 #define PCI_HEADER_TYPE_MASK 0x7F
 #define PCI_HEADER_MULTI_FN 0x80
 
-/* Capability list */
+// Capability list
 #define PCI_CAP_ID_MSI 0x05
 #define PCI_CAP_ID_MSIX 0x11
 #define PCI_CAP_ID_PCIe 0x10
 
-/* Base classes (subset) */
+// Base classes (subset)
 #define PCI_CLASS_NETWORK 0x02
 #define PCI_CLASS_STORAGE 0x01
 #define PCI_CLASS_DISPLAY 0x03
 
-/* Network subclasses */
+// Network subclasses
 #define PCI_SUBCLASS_ETHERNET 0x00
 
 /***************************************************************************/
-/* Matching and driver model (PCI layer)                                   */
+// Matching and driver model (PCI layer)
 
-/* Matching rule for a PCI driver. Any field set to PCI_ANY_* is a wildcard. */
+// Matching rule for a PCI driver. Any field set to PCI_ANY_* is a wildcard.
 typedef struct tag_DRIVER_MATCH {
     U16 VendorID; /* 0x8086, 0x10EC, ... or PCI_ANY_ID */
     U16 DeviceID; /* specific device id or PCI_ANY_ID   */
@@ -109,7 +109,7 @@ typedef struct tag_DRIVER_MATCH {
     U8 ProgIF;    /* usually PCI_ANY_CLASS unless needed */
 } DRIVER_MATCH, *LPDRIVER_MATCH;
 
-/* Minimal snapshot of a PCI function for binding and init. */
+// Minimal snapshot of a PCI function for binding and init.
 typedef struct tag_PCI_INFO {
     U8 Bus;
     U8 Dev;
@@ -123,10 +123,10 @@ typedef struct tag_PCI_INFO {
     U8 ProgIF;
     U8 Revision;
 
-    /* Raw BAR values as read from config space (unmasked). */
+    // Raw BAR values as read from config space (unmasked).
     U32 BAR[6];
 
-    /* Legacy INTx line (0xFF if none/unknown). MSI/MSI-X handled separately. */
+    // Legacy INTx line (0xFF if none/unknown). MSI/MSI-X handled separately.
     U8 IRQLine;
     U8 IRQLegacyPin; /* INTA=1..INTD=4 or 0 if none */
 } PCI_INFO, *LPPCI_INFO;
@@ -136,7 +136,7 @@ typedef struct tag_PCI_INFO {
     DEVICE_FIELDS         \
     PCI_INFO Info;        \
     U32 BARPhys[6];       \
-    volatile void* BARMapped[6];
+    volatile LPVOID BARMapped[6];
 
 typedef struct tag_PCI_DEVICE {
     PCI_DEVICE_FIELDS

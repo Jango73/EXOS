@@ -25,7 +25,7 @@
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Process.h"
+#include "process/Process.h"
 
 /***************************************************************************/
 
@@ -120,12 +120,12 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
  * @param TimeOut Timeout value (currently unused).
  * @return Lock count on success, 0 on failure.
  */
-U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
+UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
     UNUSED(TimeOut);
     LPPROCESS Process;
     LPTASK Task;
-    U32 Flags;
-    U32 Ret = 0;
+    UINT Flags;
+    UINT Ret = 0;
 
     SaveFlags(&Flags);
     DisableInterrupts();
@@ -133,7 +133,7 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
     //-------------------------------------
     // Check validity of parameters
 
-    SAFE_USE_VALID_ID(Mutex, KOID_MUTEX) {
+    SAFE_USE_ID(Mutex, KOID_MUTEX) {
         // Have at leat two tasks
         SAFE_USE_ID_2(Kernel.Task->First, Kernel.Task->First->Next, KOID_TASK) {
             Task = GetCurrentTask();
@@ -149,8 +149,8 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                         //-------------------------------------
                         // Wait for mutex to be unlocked by its owner task
 
-                        U32 StartWaitTime = GetSystemTime();
-                        U32 LastDebugTime = StartWaitTime;
+                        UINT StartWaitTime = GetSystemTime();
+                        UINT LastDebugTime = StartWaitTime;
 
                         FOREVER {
                             //-------------------------------------
@@ -171,17 +171,19 @@ U32 LockMutex(LPMUTEX Mutex, U32 TimeOut) {
                             //-------------------------------------
                             // Periodic debug output every 2 seconds
 
-                            U32 CurrentTime = GetSystemTime();
+                            UINT CurrentTime = GetSystemTime();
                             if (CurrentTime - LastDebugTime >= 2000) {
-                                DEBUG("[LockMutex] Task %p waiting for mutex %p (owned by task %p) for %u ms",
-                                      Task, Mutex, Mutex->Task, CurrentTime - StartWaitTime);
+                                DEBUG("[LockMutex] Task %p (%s) waiting for mutex %p owned by task %p (%s) for %u ms",
+                                      Task, Task->Name,
+                                      Mutex, Mutex->Task, Mutex->Task->Name,
+                                      (U32)(CurrentTime - StartWaitTime));
                                 LastDebugTime = CurrentTime;
                             }
 
                             //-------------------------------------
                             // Sleep with proper interrupt handling
 
-                            Task->Status = TASK_STATUS_SLEEPING;
+                            SetTaskStatusDirect(Task, TASK_STATUS_SLEEPING);
                             Task->WakeUpTime = GetSystemTime() + 20;
 
                             // Keep interrupts disabled during critical section

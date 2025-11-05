@@ -24,35 +24,34 @@
 
 #include "../include/exos.h"
 #include "../include/exos-runtime.h"
-#include "../../kernel/include/String.h"
+#include "../../kernel/include/CoreString.h"
 
 /***************************************************************************/
 
-extern unsigned exoscall(unsigned, unsigned);
-
-/***************************************************************************/
+// Helper macro to cast parameters to the architecture-sized integer type.
+#define EXOS_PARAM(Value) ((uint_t)(Value))
 
 // Every user structure passed to the kernel begins with an ABI_HDR. Populate
 // Header.Size with sizeof(struct), set Header.Version to EXOS_ABI_VERSION, and clear
 // Header.Flags before invoking system calls.
 
-HANDLE CreateTask(LPTASKINFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateTask, (U32)TaskInfo); }
+HANDLE CreateTask(LPTASKINFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateTask, EXOS_PARAM(TaskInfo)); }
 
 /***************************************************************************/
 
-BOOL KillTask(HANDLE Task) { return (BOOL)exoscall(SYSCALL_KillTask, (U32)Task); }
+BOOL KillTask(HANDLE Task) { return (BOOL)exoscall(SYSCALL_KillTask, EXOS_PARAM(Task)); }
 
 /***************************************************************************/
 
-void Exit(void) { exoscall(SYSCALL_Exit, 0); }
+void Exit(void) { exoscall(SYSCALL_Exit, EXOS_PARAM(0)); }
 
 /***************************************************************************/
 
-void Sleep(U32 MilliSeconds) { exoscall(SYSCALL_Sleep, MilliSeconds); }
+void Sleep(U32 MilliSeconds) { exoscall(SYSCALL_Sleep, EXOS_PARAM(MilliSeconds)); }
 
 /***************************************************************************/
 
-U32 Wait(LPWAITINFO WaitInfo) { return exoscall(SYSCALL_Wait, (U32)WaitInfo); }
+U32 Wait(LPWAITINFO WaitInfo) { return (U32)exoscall(SYSCALL_Wait, EXOS_PARAM(WaitInfo)); }
 
 /***************************************************************************/
 
@@ -69,7 +68,7 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
     MessageInfo.First = First;
     MessageInfo.Last = Last;
 
-    Result = (BOOL)exoscall(SYSCALL_GetMessage, (U32)&MessageInfo);
+    Result = (BOOL)exoscall(SYSCALL_GetMessage, EXOS_PARAM(&MessageInfo));
 
     Message->Time = MessageInfo.Time;
     Message->Target = MessageInfo.Target;
@@ -106,7 +105,7 @@ BOOL DispatchMessage(LPMESSAGE Message) {
     MessageInfo.Param1 = Message->Param1;
     MessageInfo.Param2 = Message->Param2;
 
-    return (BOOL)exoscall(SYSCALL_DispatchMessage, (U32)&MessageInfo);
+    return (BOOL)exoscall(SYSCALL_DispatchMessage, EXOS_PARAM(&MessageInfo));
 }
 
 /***************************************************************************/
@@ -123,7 +122,7 @@ BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
     MessageInfo.Param1 = Param1;
     MessageInfo.Param2 = Param2;
 
-    return (BOOL)exoscall(SYSCALL_PostMessage, (U32)&MessageInfo);
+    return (BOOL)exoscall(SYSCALL_PostMessage, EXOS_PARAM(&MessageInfo));
 }
 
 /***************************************************************************/
@@ -139,20 +138,20 @@ U32 SendMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
     MessageInfo.Param1 = Param1;
     MessageInfo.Param2 = Param2;
 
-    return (U32)exoscall(SYSCALL_SendMessage, (U32)&MessageInfo);
+    return (U32)exoscall(SYSCALL_SendMessage, EXOS_PARAM(&MessageInfo));
 }
 
 /***************************************************************************/
 
-HANDLE CreateDesktop(void) { return (HANDLE)exoscall(SYSCALL_CreateDesktop, 0); }
+HANDLE CreateDesktop(void) { return (HANDLE)exoscall(SYSCALL_CreateDesktop, EXOS_PARAM(0)); }
 
 /***************************************************************************/
 
-BOOL ShowDesktop(HANDLE Desktop) { return (BOOL)exoscall(SYSCALL_ShowDesktop, (U32)Desktop); }
+BOOL ShowDesktop(HANDLE Desktop) { return (BOOL)exoscall(SYSCALL_ShowDesktop, EXOS_PARAM(Desktop)); }
 
 /***************************************************************************/
 
-HANDLE GetDesktopWindow(HANDLE Desktop) { return (HANDLE)exoscall(SYSCALL_GetDesktopWindow, (U32)Desktop); }
+HANDLE GetDesktopWindow(HANDLE Desktop) { return (HANDLE)exoscall(SYSCALL_GetDesktopWindow, EXOS_PARAM(Desktop)); }
 
 /***************************************************************************/
 
@@ -171,12 +170,12 @@ HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX,
     WindowInfo.WindowSize.X = SizeX;
     WindowInfo.WindowSize.Y = SizeY;
 
-    return (HANDLE)exoscall(SYSCALL_CreateWindow, (U32)&WindowInfo);
+    return (HANDLE)exoscall(SYSCALL_CreateWindow, EXOS_PARAM(&WindowInfo));
 }
 
 /***************************************************************************/
 
-BOOL DestroyWindow(HANDLE Window) { return (BOOL)exoscall(SYSCALL_DeleteObject, (U32)Window); }
+BOOL DestroyWindow(HANDLE Window) { return (BOOL)exoscall(SYSCALL_DeleteObject, EXOS_PARAM(Window)); }
 
 /***************************************************************************/
 
@@ -188,7 +187,7 @@ BOOL ShowWindow(HANDLE Window) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = Window;
 
-    return (BOOL)exoscall(SYSCALL_ShowWindow, (U32)&WindowInfo);
+    return (BOOL)exoscall(SYSCALL_ShowWindow, EXOS_PARAM(&WindowInfo));
 }
 
 /***************************************************************************/
@@ -201,7 +200,7 @@ BOOL HideWindow(HANDLE Window) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = Window;
 
-    return (BOOL)exoscall(SYSCALL_HideWindow, (U32)&WindowInfo);
+    return (BOOL)exoscall(SYSCALL_HideWindow, EXOS_PARAM(&WindowInfo));
 }
 
 /***************************************************************************/
@@ -226,7 +225,7 @@ BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
         WindowRect.Rect.Y2 = 0;
     }
 
-    return (BOOL)exoscall(SYSCALL_InvalidateWindowRect, (U32)&WindowRect);
+    return (BOOL)exoscall(SYSCALL_InvalidateWindowRect, EXOS_PARAM(&WindowRect));
 }
 
 /***************************************************************************/
@@ -241,7 +240,7 @@ U32 SetWindowProp(HANDLE Window, LPCSTR Name, U32 Value) {
     PropInfo.Name = Name;
     PropInfo.Value = Value;
 
-    return exoscall(SYSCALL_SetWindowProp, (U32)&PropInfo);
+    return exoscall(SYSCALL_SetWindowProp, EXOS_PARAM(&PropInfo));
 }
 
 /***************************************************************************/
@@ -255,22 +254,22 @@ U32 GetWindowProp(HANDLE Window, LPCSTR Name) {
     PropInfo.Window = Window;
     PropInfo.Name = Name;
 
-    return exoscall(SYSCALL_GetWindowProp, (U32)&PropInfo);
+    return exoscall(SYSCALL_GetWindowProp, EXOS_PARAM(&PropInfo));
 }
 
 /***************************************************************************/
 
-HANDLE GetWindowGC(HANDLE Window) { return (HANDLE)exoscall(SYSCALL_GetWindowGC, (U32)Window); }
+HANDLE GetWindowGC(HANDLE Window) { return (HANDLE)exoscall(SYSCALL_GetWindowGC, EXOS_PARAM(Window)); }
 
 /***************************************************************************/
 
-BOOL ReleaseWindowGC(HANDLE GC) { return (BOOL)exoscall(SYSCALL_ReleaseWindowGC, (U32)GC); }
+BOOL ReleaseWindowGC(HANDLE GC) { return (BOOL)exoscall(SYSCALL_ReleaseWindowGC, EXOS_PARAM(GC)); }
 
 /***************************************************************************/
 
 HANDLE BeginWindowDraw(HANDLE Window) {
     UNUSED(Window);
-    // return (HANDLE) exoscall(SYSCALL_BeginWindowDraw, (U32) Window);
+    // return (HANDLE) exoscall(SYSCALL_BeginWindowDraw, EXOS_PARAM( Window));
     return NULL;
 }
 
@@ -278,7 +277,7 @@ HANDLE BeginWindowDraw(HANDLE Window) {
 
 BOOL EndWindowDraw(HANDLE Window) {
     UNUSED(Window);
-    // return (BOOL) exoscall(SYSCALL_EndWindowDraw, (U32) Window);
+    // return (BOOL) exoscall(SYSCALL_EndWindowDraw, EXOS_PARAM( Window));
     return NULL;
 }
 
@@ -299,7 +298,7 @@ BOOL GetWindowRect(HANDLE Window, LPRECT Rect) {
     WindowRect.Rect.X2 = 0;
     WindowRect.Rect.Y2 = 0;
 
-    exoscall(SYSCALL_GetWindowRect, (U32)&WindowRect);
+    exoscall(SYSCALL_GetWindowRect, EXOS_PARAM(&WindowRect));
 
     Rect->X1 = WindowRect.Rect.X1;
     Rect->Y1 = WindowRect.Rect.Y1;
@@ -311,11 +310,11 @@ BOOL GetWindowRect(HANDLE Window, LPRECT Rect) {
 
 /***************************************************************************/
 
-HANDLE GetSystemBrush(U32 Index) { return exoscall(SYSCALL_GetSystemBrush, Index); }
+HANDLE GetSystemBrush(U32 Index) { return exoscall(SYSCALL_GetSystemBrush, EXOS_PARAM(Index)); }
 
 /***************************************************************************/
 
-HANDLE GetSystemPen(U32 Index) { return exoscall(SYSCALL_GetSystemPen, Index); }
+HANDLE GetSystemPen(U32 Index) { return exoscall(SYSCALL_GetSystemPen, EXOS_PARAM(Index)); }
 
 /***************************************************************************/
 
@@ -328,7 +327,7 @@ HANDLE CreateBrush(COLOR Color, U32 Pattern) {
     BrushInfo.Color = Color;
     BrushInfo.Pattern = Pattern;
 
-    return exoscall(SYSCALL_CreateBrush, (U32)&BrushInfo);
+    return exoscall(SYSCALL_CreateBrush, EXOS_PARAM(&BrushInfo));
 }
 
 /***************************************************************************/
@@ -342,7 +341,7 @@ HANDLE CreatePen(COLOR Color, U32 Pattern) {
     PenInfo.Color = Color;
     PenInfo.Pattern = Pattern;
 
-    return exoscall(SYSCALL_CreatePen, (U32)&PenInfo);
+    return exoscall(SYSCALL_CreatePen, EXOS_PARAM(&PenInfo));
 }
 
 /***************************************************************************/
@@ -356,7 +355,7 @@ HANDLE SelectBrush(HANDLE GC, HANDLE Brush) {
     Select.GC = GC;
     Select.Object = Brush;
 
-    return (HANDLE)exoscall(SYSCALL_SelectBrush, (U32)&Select);
+    return (HANDLE)exoscall(SYSCALL_SelectBrush, EXOS_PARAM(&Select));
 }
 
 /***************************************************************************/
@@ -370,7 +369,7 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
     Select.GC = GC;
     Select.Object = Pen;
 
-    return (HANDLE)exoscall(SYSCALL_SelectPen, (U32)&Select);
+    return (HANDLE)exoscall(SYSCALL_SelectPen, EXOS_PARAM(&Select));
 }
 
 /***************************************************************************/
@@ -386,7 +385,7 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     MessageInfo.Param1 = Param1;
     MessageInfo.Param2 = Param2;
 
-    return (U32)exoscall(SYSCALL_DefWindowFunc, (U32)&MessageInfo);
+    return (U32)exoscall(SYSCALL_DefWindowFunc, EXOS_PARAM(&MessageInfo));
 }
 
 /***************************************************************************/
@@ -401,7 +400,7 @@ U32 SetPixel(HANDLE GC, U32 X, U32 Y) {
     PixelInfo.X = X;
     PixelInfo.Y = Y;
 
-    return (U32)exoscall(SYSCALL_SetPixel, (U32)&PixelInfo);
+    return (U32)exoscall(SYSCALL_SetPixel, EXOS_PARAM(&PixelInfo));
 }
 
 /***************************************************************************/
@@ -416,7 +415,7 @@ U32 GetPixel(HANDLE GC, U32 X, U32 Y) {
     PixelInfo.X = X;
     PixelInfo.Y = Y;
 
-    return (U32)exoscall(SYSCALL_GetPixel, (U32)&PixelInfo);
+    return (U32)exoscall(SYSCALL_GetPixel, EXOS_PARAM(&PixelInfo));
 }
 
 /***************************************************************************/
@@ -433,7 +432,7 @@ void Line(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
     LineInfo.X2 = X2;
     LineInfo.Y2 = Y2;
 
-    exoscall(SYSCALL_Line, (U32)&LineInfo);
+    exoscall(SYSCALL_Line, EXOS_PARAM(&LineInfo));
 }
 
 /***************************************************************************/
@@ -450,16 +449,16 @@ void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
     RectInfo.X2 = X2;
     RectInfo.Y2 = Y2;
 
-    exoscall(SYSCALL_Rectangle, (U32)&RectInfo);
+    exoscall(SYSCALL_Rectangle, EXOS_PARAM(&RectInfo));
 }
 
 /***************************************************************************/
 
-BOOL GetMousePos(LPPOINT Point) { return (BOOL)exoscall(SYSCALL_GetMousePos, (U32)Point); }
+BOOL GetMousePos(LPPOINT Point) { return (BOOL)exoscall(SYSCALL_GetMousePos, EXOS_PARAM(Point)); }
 
 /***************************************************************************/
 
-U32 GetMouseButtons(void) { return (U32)exoscall(SYSCALL_GetMouseButtons, 0); }
+U32 GetMouseButtons(void) { return (U32)exoscall(SYSCALL_GetMouseButtons, EXOS_PARAM(0)); }
 
 /***************************************************************************/
 
@@ -492,7 +491,7 @@ U32 rand(void) {
 /***************************************************************************/
 // Berkeley Socket API implementations
 
-U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
+SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     SOCKET_CREATE_INFO Info;
     Info.Header.Size = sizeof(SOCKET_CREATE_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -500,12 +499,12 @@ U32 SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     Info.AddressFamily = AddressFamily;
     Info.SocketType = SocketType;
     Info.Protocol = Protocol;
-    return exoscall(SYSCALL_SocketCreate, (U32)&Info);
+    return (SOCKET_HANDLE)exoscall(SYSCALL_SocketCreate, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
+U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
     SOCKET_BIND_INFO Info;
     Info.Header.Size = sizeof(SOCKET_BIND_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -518,24 +517,24 @@ U32 SocketBind(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
         }
     }
     Info.AddressLength = AddressLength;
-    return exoscall(SYSCALL_SocketBind, (U32)&Info);
+    return exoscall(SYSCALL_SocketBind, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketListen(U32 SocketHandle, U32 Backlog) {
+U32 SocketListen(SOCKET_HANDLE SocketHandle, U32 Backlog) {
     SOCKET_LISTEN_INFO Info;
     Info.Header.Size = sizeof(SOCKET_LISTEN_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
     Info.Header.Flags = 0;
     Info.SocketHandle = SocketHandle;
     Info.Backlog = Backlog;
-    return exoscall(SYSCALL_SocketListen, (U32)&Info);
+    return exoscall(SYSCALL_SocketListen, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     SOCKET_ACCEPT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_ACCEPT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -543,12 +542,12 @@ U32 SocketAccept(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength)
     Info.SocketHandle = SocketHandle;
     Info.AddressBuffer = (LPVOID)Address;
     Info.AddressLength = AddressLength;
-    return exoscall(SYSCALL_SocketAccept, (U32)&Info);
+    return (SOCKET_HANDLE)exoscall(SYSCALL_SocketAccept, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
+U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
     SOCKET_CONNECT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_CONNECT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -561,12 +560,12 @@ U32 SocketConnect(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength)
         }
     }
     Info.AddressLength = AddressLength;
-    return exoscall(SYSCALL_SocketConnect, (U32)&Info);
+    return exoscall(SYSCALL_SocketConnect, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-I32 SocketSend(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags) {
+I32 SocketSend(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -575,12 +574,12 @@ I32 SocketSend(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags) {
     Info.Buffer = (LPVOID)Buffer;
     Info.Length = Length;
     Info.Flags = Flags;
-    return (I32)exoscall(SYSCALL_SocketSend, (U32)&Info);
+    return (I32)exoscall(SYSCALL_SocketSend, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-I32 SocketReceive(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags) {
+I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -589,12 +588,12 @@ I32 SocketReceive(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags) {
     Info.Buffer = Buffer;
     Info.Length = Length;
     Info.Flags = Flags;
-    return (I32)exoscall(SYSCALL_SocketReceive, (U32)&Info);
+    return (I32)exoscall(SYSCALL_SocketReceive, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-I32 SocketSendTo(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS DestAddress, U32 AddressLength) {
+I32 SocketSendTo(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS DestAddress, U32 AddressLength) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -610,12 +609,12 @@ I32 SocketSendTo(U32 SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags, LPSOCK
         }
     }
     Info.AddressLength = AddressLength;
-    return (I32)exoscall(SYSCALL_SocketSendTo, (U32)&Info);
+    return (I32)exoscall(SYSCALL_SocketSendTo, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-I32 SocketReceiveFrom(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS SourceAddress, U32* AddressLength) {
+I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LPSOCKET_ADDRESS SourceAddress, U32* AddressLength) {
     SOCKET_DATA_INFO Info;
     Info.Header.Size = sizeof(SOCKET_DATA_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -625,7 +624,7 @@ I32 SocketReceiveFrom(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LP
     Info.Length = Length;
     Info.Flags = Flags;
     Info.AddressLength = *AddressLength;
-    I32 Result = (I32)exoscall(SYSCALL_SocketReceiveFrom, (U32)&Info);
+    I32 Result = (I32)exoscall(SYSCALL_SocketReceiveFrom, EXOS_PARAM(&Info));
     // Copy address data back from buffer
     if (Info.AddressLength <= 16 && Info.AddressLength <= *AddressLength) {
         for (U32 i = 0; i < Info.AddressLength; i++) {
@@ -638,25 +637,25 @@ I32 SocketReceiveFrom(U32 SocketHandle, LPVOID Buffer, U32 Length, U32 Flags, LP
 
 /***************************************************************************/
 
-U32 SocketClose(U32 SocketHandle) {
-    return exoscall(SYSCALL_SocketClose, SocketHandle);
+U32 SocketClose(SOCKET_HANDLE SocketHandle) {
+    return exoscall(SYSCALL_SocketClose, EXOS_PARAM(SocketHandle));
 }
 
 /***************************************************************************/
 
-U32 SocketShutdown(U32 SocketHandle, U32 How) {
+U32 SocketShutdown(SOCKET_HANDLE SocketHandle, U32 How) {
     SOCKET_SHUTDOWN_INFO Info;
     Info.Header.Size = sizeof(SOCKET_SHUTDOWN_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
     Info.Header.Flags = 0;
     Info.SocketHandle = SocketHandle;
     Info.How = How;
-    return exoscall(SYSCALL_SocketShutdown, (U32)&Info);
+    return exoscall(SYSCALL_SocketShutdown, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketGetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPVOID OptionValue, U32* OptionLength) {
+U32 SocketGetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPVOID OptionValue, U32* OptionLength) {
     SOCKET_OPTION_INFO Info;
     Info.Header.Size = sizeof(SOCKET_OPTION_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -666,14 +665,14 @@ U32 SocketGetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPVOID OptionVa
     Info.OptionName = OptionName;
     Info.OptionValue = OptionValue;
     Info.OptionLength = *OptionLength;
-    U32 Result = exoscall(SYSCALL_SocketGetOption, (U32)&Info);
+    U32 Result = exoscall(SYSCALL_SocketGetOption, EXOS_PARAM(&Info));
     *OptionLength = Info.OptionLength;
     return Result;
 }
 
 /***************************************************************************/
 
-U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionValue, U32 OptionLength) {
+U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionValue, U32 OptionLength) {
     SOCKET_OPTION_INFO Info;
     Info.Header.Size = sizeof(SOCKET_OPTION_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -683,12 +682,12 @@ U32 SocketSetOption(U32 SocketHandle, U32 Level, U32 OptionName, LPCVOID OptionV
     Info.OptionName = OptionName;
     Info.OptionValue = (LPVOID)OptionValue;
     Info.OptionLength = OptionLength;
-    return exoscall(SYSCALL_SocketSetOption, (U32)&Info);
+    return exoscall(SYSCALL_SocketSetOption, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+U32 SocketGetPeerName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     SOCKET_ACCEPT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_ACCEPT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -696,12 +695,12 @@ U32 SocketGetPeerName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLe
     Info.SocketHandle = SocketHandle;
     Info.AddressBuffer = (LPVOID)Address;
     Info.AddressLength = AddressLength;
-    return exoscall(SYSCALL_SocketGetPeerName, (U32)&Info);
+    return exoscall(SYSCALL_SocketGetPeerName, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/
 
-U32 SocketGetSocketName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
+U32 SocketGetSocketName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
     SOCKET_ACCEPT_INFO Info;
     Info.Header.Size = sizeof(SOCKET_ACCEPT_INFO);
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -709,7 +708,7 @@ U32 SocketGetSocketName(U32 SocketHandle, LPSOCKET_ADDRESS Address, U32* Address
     Info.SocketHandle = SocketHandle;
     Info.AddressBuffer = (LPVOID)Address;
     Info.AddressLength = AddressLength;
-    return exoscall(SYSCALL_SocketGetSocketName, (U32)&Info);
+    return exoscall(SYSCALL_SocketGetSocketName, EXOS_PARAM(&Info));
 }
 
 /***************************************************************************/

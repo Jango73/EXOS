@@ -30,7 +30,7 @@
 #include "Driver.h"
 #include "FSID.h"
 #include "Disk.h"
-#include "Process.h"
+#include "process/Process.h"
 
 /***************************************************************************/
 
@@ -138,7 +138,7 @@ typedef struct tag_FILESYSTEM_GLOBAL_INFO {
 // and the file open command
 
 typedef struct tag_FILEINFO {
-    U32 Size;
+    UINT Size;
     LPFILESYSTEM FileSystem;
     U32 Attributes;
     U32 Flags;
@@ -161,9 +161,9 @@ typedef struct tag_FILE {
     DATETIME Creation;
     DATETIME Accessed;
     DATETIME Modified;
-    U32 Position;
-    U32 ByteCount;
-    U32 BytesTransferred;
+    UINT Position;
+    UINT ByteCount;
+    UINT BytesTransferred;
     LPVOID Buffer;
     STR Name[MAX_FILE_NAME];
 } FILE, *LPFILE;
@@ -174,11 +174,11 @@ typedef struct tag_FILE {
 #define FLAG_PART_CREATE_QUICK_FORMAT 0x0001
 
 typedef struct tag_PARTITION_CREATION {
-    U32 Size;
+    UINT Size;
     LPPHYSICALDISK Disk;
-    U32 PartitionStartSector;
-    U32 PartitionNumSectors;
-    U32 SectorsPerCluster;
+    UINT PartitionStartSector;
+    UINT PartitionNumSectors;
+    UINT SectorsPerCluster;
     U32 Flags;
     STR VolumeName[MAX_PATH_NAME];
 } PARTITION_CREATION, *LPPARTITION_CREATION;

@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "GFX.h"
-#include "arch/i386/I386.h"
+#include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
 
@@ -44,7 +44,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 VESACommands(U32, U32);
+UINT VESACommands(UINT, UINT);
 
 DRIVER VESADriver = {
     .TypeID = KOID_DRIVER,
@@ -191,7 +191,7 @@ VESA_CONTEXT VESAContext = {
 /***************************************************************************/
 
 static U32 VESAInitialize(void) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
 
     DEBUG(TEXT("[VESAInitialize] Enter"));
 
@@ -256,7 +256,7 @@ static U32 VESAInitialize(void) {
 /***************************************************************************/
 
 static U32 VESAUninitialize(void) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
 
     //-------------------------------------
     // Set text mode
@@ -272,7 +272,7 @@ static U32 VESAUninitialize(void) {
 /***************************************************************************/
 
 static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
     U16* ModePtr = NULL;
     U32 Found = 0;
     U32 Index = 0;
@@ -417,7 +417,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 /***************************************************************************/
 
 static void SetVESABank(LPVESA_CONTEXT Context, U32 Bank) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
 
     if (Bank != Context->CurrentBank) {
         Regs.X.AX = 0x4F05;
@@ -1153,7 +1153,7 @@ static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 /***************************************************************************/
 
 static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    X86REGS Regs;
+    INTEL_X86_REGISTERS Regs;
     U8* Pln1;
     U8* Pln2;
     U8* Pln3;
@@ -1409,20 +1409,20 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 
 /***************************************************************************/
 
-U32 VESACommands(U32 Function, U32 Param) {
+UINT VESACommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
-            return (U32)VESAInitialize();
+            return (UINT)VESAInitialize();
         case DF_UNLOAD:
-            return (U32)VESAUninitialize();
+            return (UINT)VESAUninitialize();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GFX_SETMODE:
             return SetVideoMode((LPGRAPHICSMODEINFO)Param);
         case DF_GFX_CREATEBRUSH:
-            return (U32)VESA_CreateBrush((LPBRUSHINFO)Param);
+            return (UINT)VESA_CreateBrush((LPBRUSHINFO)Param);
         case DF_GFX_CREATEPEN:
-            return (U32)VESA_CreatePen((LPPENINFO)Param);
+            return (UINT)VESA_CreatePen((LPPENINFO)Param);
         case DF_GFX_SETPIXEL:
             return VESA_SetPixel((LPPIXELINFO)Param);
         case DF_GFX_GETPIXEL:

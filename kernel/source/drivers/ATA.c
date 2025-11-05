@@ -28,6 +28,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "InterruptController.h"
+#include "System.h"
 #include "utils/Cache.h"
 
 /***************************************************************************/
@@ -38,7 +39,7 @@
 
 /***************************************************************************/
 
-U32 ATADiskCommands(U32, U32);
+UINT ATADiskCommands(UINT, UINT);
 
 DRIVER ATADiskDriver = {
     .TypeID = KOID_DRIVER,
@@ -278,12 +279,12 @@ static void ResetController(U32 Port) {
     for (Index = 0; Index < 1000; Index++) barrier();
     if (IsDriveBusy())
     {
-      KernelLogText(LOG_VERBOSE, "HD : Controller still busy\n");
+        VERBOSE("HD : Controller still busy\n");
     }
     else
     if ((HD_Error = InPortByte(Port + HD_ERROR)) != 1)
     {
-      KernelLogText(LOG_VERBOSE, "HD : Controller reset failed\n");
+        VERBOSE("HD : Controller reset failed\n");
     }
 }
 */
@@ -551,7 +552,7 @@ void HardDriveHandler(void) {
 
 /***************************************************************************/
 
-U32 ATADiskCommands(U32 Function, U32 Parameter) {
+UINT ATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return InitializeATA();

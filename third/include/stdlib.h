@@ -1,14 +1,13 @@
-/* Kernel stub for stdlib.h */
-#ifndef STDLIB_H
-#define STDLIB_H
 
-typedef unsigned long size_t;
-#define NULL ((void*)0)
+#ifndef stdlib_h
+#define stdlib_h
 
-/* Memory allocation functions - these need kernel-specific implementations */
-/* For now, declare but don't implement - bcrypt will need adaptation */
+#include "sys/types.h"
+
+// Kernel stub for stdlib.h
+
 void* malloc(size_t size);
 void free(void* ptr);
 void* realloc(void* ptr, size_t size);
 
-#endif /* STDLIB_H */
+#endif	// stdlib_h

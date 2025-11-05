@@ -1,6 +1,8 @@
 # Makefile mtools - inject EXOS into a FreeDOS image with FAT32 partition
 
-BUILD_DIR = ../build
+ARCH ?= i386
+
+BUILD_DIR := ../build/$(ARCH)
 
 LOADER_SRC     = source/loader.asm
 LOADER_LST     = source/loader.lst

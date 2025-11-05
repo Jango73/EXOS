@@ -28,7 +28,7 @@
 #include "InterruptController.h"
 #include "Memory.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /***************************************************************************/
 
@@ -74,7 +74,7 @@ BOOL InitializeIOAPIC(void)
             continue;
         }
 
-        DEBUG(TEXT("[InitializeIOAPIC] Initializing controller %u: ID=%u, Address=%08X, GSI Base=%u"),
+        DEBUG(TEXT("[InitializeIOAPIC] Initializing controller %u: ID=%u, Address=%p, GSI Base=%u"),
                   ControllerIndex, pIOAPICInfo->IoApicId, pIOAPICInfo->IoApicAddress,
                   pIOAPICInfo->GlobalSystemInterruptBase);
 
@@ -95,7 +95,7 @@ BOOL InitializeIOAPIC(void)
             continue;
         }
 
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u mapped to virtual address %08X"),
+        DEBUG(TEXT("[InitializeIOAPIC] Controller %u mapped to virtual address %p"),
                   ControllerIndex, g_IOAPICConfig.Controllers[ControllerIndex].MappedAddress);
 
         // Set Present flag to TRUE so ReadIOAPICRegister works
@@ -112,26 +112,26 @@ BOOL InitializeIOAPIC(void)
         // Test direct MMIO access
         volatile U32* testPtr = (volatile U32*)g_IOAPICConfig.Controllers[ControllerIndex].MappedAddress;
         U32 directRead = *testPtr;
-        DEBUG(TEXT("[InitializeIOAPIC] Direct MMIO read at %08X = %08X"),
-              (U32)testPtr, directRead);
+        DEBUG(TEXT("[InitializeIOAPIC] Direct MMIO read at %p = %08X"),
+              (LINEAR)testPtr, directRead);
 
         // Try to read ID register first (register 0x00)
         DEBUG(TEXT("[InitializeIOAPIC] About to read ID register for controller %u"), ControllerIndex);
         U32 IDReg = ReadIOAPICRegister(ControllerIndex, IOAPIC_REG_ID);
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - ID register=%08X"), ControllerIndex, IDReg);
+        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - ID register=%x"), ControllerIndex, IDReg);
 
         // Read I/O APIC version and capabilities
         DEBUG(TEXT("[InitializeIOAPIC] About to read version register for controller %u"), ControllerIndex);
         U32 VersionReg = ReadIOAPICRegister(ControllerIndex, IOAPIC_REG_VER);
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Version register read returned %08X"), ControllerIndex, VersionReg);
+        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Version register read returned %x"), ControllerIndex, VersionReg);
 
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Raw version register=%08X"), ControllerIndex, VersionReg);
+        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Raw version register=%x"), ControllerIndex, VersionReg);
 
         g_IOAPICConfig.Controllers[ControllerIndex].Version = (U8)(VersionReg & IOAPIC_VER_VERSION_MASK);
         g_IOAPICConfig.Controllers[ControllerIndex].MaxRedirectionEntry =
             (U8)((VersionReg & IOAPIC_VER_MRE_MASK) >> IOAPIC_VER_MRE_SHIFT);
 
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Version=%02X, Max Redirection Entry=%u"),
+        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Version=%x, Max Redirection Entry=%u"),
                   ControllerIndex, g_IOAPICConfig.Controllers[ControllerIndex].Version,
                   g_IOAPICConfig.Controllers[ControllerIndex].MaxRedirectionEntry);
 
@@ -421,7 +421,7 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
     RedirEntry.Mask = 0;  // Enable interrupt
     RedirEntry.Destination = DestCPU;
 
-    DEBUG(TEXT("[ConfigureIOAPICInterrupt] Configuring IRQ %u -> Vector %02X (Controller %u, Entry %u)"),
+    DEBUG(TEXT("[ConfigureIOAPICInterrupt] Configuring IRQ %u -> Vector %x (Controller %u, Entry %u)"),
               IRQ, Vector, ControllerIndex, Entry);
 
     return WriteRedirectionEntry(ControllerIndex, Entry, &RedirEntry);

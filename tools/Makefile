@@ -1,4 +1,6 @@
-BUILD_DIR = ../build
+ARCH ?= i386
+
+BUILD_DIR := ../build/$(ARCH)
 
 CC = gcc
 CFLAGS = -Wall -Wextra -O2

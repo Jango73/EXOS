@@ -24,12 +24,12 @@
 
 #include "Clock.h"
 
-#include "arch/i386/I386.h"
+#include "Arch.h"
 #include "InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Schedule.h"
-#include "String.h"
+#include "process/Schedule.h"
+#include "CoreString.h"
 #include "System.h"
 #include "Text.h"
 
@@ -42,8 +42,8 @@
 
 /************************************************************************/
 
-static U32 SystemUpTime = 0;
-static U32 SchedulerTime = 0;
+static UINT SystemUpTime = 0;
+static UINT SchedulerTime = 0;
 static DATETIME CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
@@ -184,7 +184,7 @@ void ClockHandler(void) {
  * @brief Retrieve the current system time in milliseconds.
  * @return Number of milliseconds since startup.
  */
-U32 GetSystemTime(void) { return SystemUpTime; }
+UINT GetSystemTime(void) { return SystemUpTime; }
 
 /************************************************************************/
 
@@ -193,11 +193,11 @@ U32 GetSystemTime(void) { return SystemUpTime; }
  * @param MilliSeconds Time in milliseconds.
  * @param Text Destination buffer for formatted string.
  */
-void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
-    U32 Seconds = MilliSeconds / 1000;
-    U32 H = (Seconds / 3600);
-    U32 M = (Seconds / 60) % 60;
-    U32 S = (Seconds % 60);
+void MilliSecondsToHMS(UINT MilliSeconds, LPSTR Text) {
+    UINT Seconds = MilliSeconds / 1000;
+    UINT H = (Seconds / 3600);
+    UINT M = (Seconds / 60) % 60;
+    UINT S = (Seconds % 60);
     STR Temp[16];
 
     // sprintf(Text, "%02u:%02u:%02u", h, m, s);
@@ -205,15 +205,15 @@ void MilliSecondsToHMS(U32 MilliSeconds, LPSTR Text) {
     Text[0] = STR_NULL;
 
     if (H < 10) StringConcat(Text, Text_0);
-    U32ToString(H, Temp);
+    U32ToString((U32)H, Temp);
     StringConcat(Text, Temp);
     StringConcat(Text, Text_Colon);
     if (M < 10) StringConcat(Text, Text_0);
-    U32ToString(M, Temp);
+    U32ToString((U32)M, Temp);
     StringConcat(Text, Temp);
     StringConcat(Text, Text_Colon);
     if (S < 10) StringConcat(Text, Text_0);
-    U32ToString(S, Temp);
+    U32ToString((U32)S, Temp);
     StringConcat(Text, Temp);
 }
 

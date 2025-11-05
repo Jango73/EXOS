@@ -25,7 +25,7 @@
 #include "utils/Helpers.h"
 #include "Kernel.h"
 #include "SystemFS.h"
-#include "Schedule.h"
+#include "process/Schedule.h"
 #include "UserAccount.h"
 
 /***************************************************************************/

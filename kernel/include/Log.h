@@ -28,8 +28,6 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "arch/i386/I386.h"
-#include "Task.h"
 
 /***************************************************************************/
 
@@ -46,23 +44,7 @@
 void InitKernelLog(void);
 void KernelLogText(U32, LPCSTR, ...);
 void KernelLogMem(U32 Type, LINEAR Memory, U32 Size);
-
-void LogMemoryLine16B(U32 LogType, LPCSTR Prefix, const U8* Memory);
-void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length);
-void LogRegisters(LPINTEL386REGISTERS Regs);
-void LogFrame(LPTASK Task, LPINTERRUPTFRAME Frame);
-void LogGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table, U32 Size);
-void LogPageDirectoryEntry(U32 LogType, const PAGEDIRECTORY* PageDirectory);
-void LogPageTableEntry(U32 LogType, const PAGETABLE* PageTable);
-void LogSegmentDescriptor(U32 LogType, const SEGMENTDESCRIPTOR* SegmentDescriptor);
-void LogPageTableFromDirectory(U32 LogType, const PAGEDIRECTORY* PageDirectoryEntry);
-void LogAllPageTables(U32 LogType, const PAGEDIRECTORY* PageDirectory);
-void LogTSSDescriptor(U32 LogType, const TSSDESCRIPTOR* TssDescriptor);
-void LogTaskStateSegment(U32 LogType, const TASKSTATESEGMENT* Tss);
-void LogTask(U32 LogType, const LPTASK Task);
-void Disassemble(LPSTR Buffer, U32 EIP, U32 NumInstructions);
-void BacktraceFrom(U32 StartEbp, U32 MaxFrames);
-void BacktraceFromCurrent(U32 MaxFrames);
+void LogTaskSystemStructures(U32 Type);
 
 /***************************************************************************/
 

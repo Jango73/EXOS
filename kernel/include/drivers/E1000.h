@@ -30,7 +30,7 @@
 #include "Base.h"
 #include "Driver.h"
 #include "Mutex.h" /* Optional: if the driver uses MUTEX internally */
-#include "Network.h"
+#include "network/Network.h"
 #include "drivers/PCI.h"
 
 /***************************************************************************/

@@ -27,7 +27,7 @@
 #include "Heap.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /***************************************************************************/
 
@@ -92,9 +92,12 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 
     Buffer = (U8*)KernelHeapAlloc(ItemSize);
 
-    RecursiveSort((U8*)Base, 0, NumItems - 1, ItemSize, Func, Buffer);
-
-    KernelHeapFree(Buffer);
+    SAFE_USE(Buffer) {
+        RecursiveSort((U8*)Base, 0, NumItems - 1, ItemSize, Func, Buffer);
+        KernelHeapFree(Buffer);
+    } else {
+        ERROR(TEXT("[QuickSort] Failed to allocate temporary buffer"));
+    }
 }
 
 /***************************************************************************/
@@ -110,21 +113,17 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
 LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
     LPLIST This = NULL;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[NewList] Enter"));
-    DEBUG(TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
-    DEBUG(TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
-    DEBUG(TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
-#endif
+    // FINE_DEBUG(TEXT("[NewList] Enter"));
+    // FINE_DEBUG(TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
+    // FINE_DEBUG(TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
+    // FINE_DEBUG(TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
 
-    if (MemAlloc == NULL) MemAlloc = (MEMALLOCFUNC)KernelHeapAlloc;
-    if (MemFree == NULL) MemFree = (MEMFREEFUNC)KernelHeapFree;
+    if (MemAlloc == NULL) MemAlloc = KernelHeapAlloc;
+    if (MemFree == NULL) MemFree = KernelHeapFree;
 
     This = (LPLIST)MemAlloc(sizeof(LIST));
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[NewList] List pointer = %X"), (LINEAR)This);
-#endif
+    // FINE_DEBUG(TEXT("[NewList] List pointer = %X"), (LINEAR)This);
 
     if (This == NULL) return NULL;
 
@@ -136,9 +135,7 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
     This->MemFreeFunc = MemFree;
     This->Destructor = ItemDestructor;
 
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    DEBUG(TEXT("[NewList] Exit"));
-#endif
+    // FINE_DEBUG(TEXT("[NewList] Exit"));
 
     return This;
 }
@@ -154,7 +151,6 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
 U32 DeleteList(LPLIST This) {
     ListReset(This);
     This->MemFreeFunc(This);
-
     return TRUE;
 }
 
@@ -166,7 +162,9 @@ U32 DeleteList(LPLIST This) {
  * @param This Pointer to the list.
  * @return Number of items in the list.
  */
-U32 ListGetSize(LPLIST This) { return This->NumItems; }
+U32 ListGetSize(LPLIST This) {
+    return This->NumItems;
+}
 
 /*************************************************************************************************/
 
@@ -303,7 +301,9 @@ U32 ListAddAfter(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
  * @param Item Item to add at the head.
  * @return TRUE on success, FALSE on failure.
  */
-U32 ListAddHead(LPLIST This, LPVOID Item) { return ListAddBefore(This, This->First, Item); }
+U32 ListAddHead(LPLIST This, LPVOID Item) {
+    return ListAddBefore(This, This->First, Item);
+}
 
 /*************************************************************************************************/
 
@@ -314,7 +314,9 @@ U32 ListAddHead(LPLIST This, LPVOID Item) { return ListAddBefore(This, This->Fir
  * @param Item Item to add at the tail.
  * @return TRUE on success, FALSE on failure.
  */
-U32 ListAddTail(LPLIST This, LPVOID Item) { return ListAddAfter(This, This->Last, Item); }
+U32 ListAddTail(LPLIST This, LPVOID Item) {
+    return ListAddAfter(This, This->Last, Item);
+}
 
 /*************************************************************************************************/
 

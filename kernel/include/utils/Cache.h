@@ -39,26 +39,26 @@
 
 typedef struct {
     LPVOID Data;
-    U32 ExpirationTime;
-    U32 TTL;
-    U32 Score;
+    UINT ExpirationTime;
+    UINT TTL;
+    UINT Score;
     BOOL Valid;
 } CACHE_ENTRY, *LPCACHE_ENTRY;
 
 typedef struct {
     LPCACHE_ENTRY Entries;
-    U32 Capacity;
-    U32 Count;
+    UINT Capacity;
+    UINT Count;
     MUTEX Mutex;
 } CACHE, *LPCACHE;
 
 /************************************************************************/
 
-void CacheInit(LPCACHE Cache, U32 Capacity);
+void CacheInit(LPCACHE Cache, UINT Capacity);
 void CacheDeinit(LPCACHE Cache);
-BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS);
+BOOL CacheAdd(LPCACHE Cache, LPVOID Data, UINT TTL_MS);
 LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context);
-void CacheCleanup(LPCACHE Cache, U32 CurrentTime);
+void CacheCleanup(LPCACHE Cache, UINT CurrentTime);
 LPCACHE_ENTRY CacheFindLowestScoreEntry(LPCACHE Cache);
 
 /************************************************************************/

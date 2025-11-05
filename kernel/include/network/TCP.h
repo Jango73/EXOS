@@ -127,11 +127,11 @@ typedef struct tag_TCP_CONNECTION {
 
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
-    U32 SendBufferUsed;
-    U32 SendBufferCapacity;
+    UINT SendBufferUsed;
+    UINT SendBufferCapacity;
     U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
-    U32 RecvBufferUsed;
-    U32 RecvBufferCapacity;
+    UINT RecvBufferUsed;
+    UINT RecvBufferCapacity;
 
     // State machine
     STATE_MACHINE StateMachine;

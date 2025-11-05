@@ -72,13 +72,12 @@ EXFS filesystem manager with C++ and assembly code.
 
 ## Root Files
 
-- `CLAUDE.md`: Instructions for AI agents
 - `Makefile`: Main project build
 - `README.md`: Main documentation
 - `LICENSE`: GPL v3 license
 - `.clang-format`: Code formatting configuration
 - `Doxyfile`: Doxygen configuration for documentation
-- `dashboard.*`: System monitoring interface
+- `dashboard.*`: TUI for system building/running/monitoring
 
 ## Conventions
 

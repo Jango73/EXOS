@@ -28,8 +28,8 @@
 #include "Heap.h"
 #include "drivers/Keyboard.h"
 #include "Log.h"
-#include "String.h"
-#include "Task.h"
+#include "CoreString.h"
+#include "process/Task.h"
 #include "VKey.h"
 
 /***************************************************************************/

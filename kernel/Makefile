@@ -1,37 +1,76 @@
-SHELL   = /bin/bash
 
-BUILD_DIR = ../build
+SHELL = /bin/bash
 
-BARE_METAL					?= 0
-DEBUG_OUTPUT    			?= 0
-SCHEDULING_DEBUG_OUTPUT    	?= 0
-TRACE_STACK_USAGE			?= 0
+ARCH 					?= i386
+BARE_METAL              ?= 0
+DEBUG_OUTPUT            ?= 0
+SCHEDULING_DEBUG_OUTPUT ?= 0
+TRACE_STACK_USAGE       ?= 0
+USE_SYSCALL             ?= 0
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT)
+ifeq ($(ARCH),i386)
+VMA_KERNEL ?= 0xC0000000
+else ifeq ($(ARCH),x86-64)
+VMA_KERNEL ?= 0xFFFFFFFFC0000000
+endif
 
-CC      = i686-elf-gcc
-LD      = i686-elf-ld
-NASM    = nasm
-OBJCOPY = i686-elf-objcopy
-READELF = i686-elf-readelf
+BUILD_DIR := ../build/$(ARCH)
 
-CFLAGS  = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
-	-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
-	-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
-	-fvisibility=hidden -mno-red-zone \
-	-Werror-implicit-function-declaration -Wstrict-prototypes \
-	-DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) \
-	-Iinclude -I../third/include -I../runtime/include
+ARCH_CFLAGS =
 
-AFLAGS  = -f elf -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -I source/asm/
+ifeq ($(ARCH),i386)
+TOOLCHAIN_PREFIX = i686-elf
+NASM_FORMAT      = elf
+CC               = $(TOOLCHAIN_PREFIX)-gcc
+LD               = $(TOOLCHAIN_PREFIX)-ld
+NM               = $(TOOLCHAIN_PREFIX)-nm
+OBJCOPY          = $(TOOLCHAIN_PREFIX)-objcopy
+READELF          = $(TOOLCHAIN_PREFIX)-readelf
+else ifeq ($(ARCH),x86-64)
+NASM_FORMAT      = elf64
+CC               = gcc
+LD               = ld
+NM               = nm
+OBJCOPY          = objcopy
+READELF          = readelf
+ARCH_CFLAGS      = -m64 -mcmodel=large
+else
+$(error Unsupported architecture $(ARCH))
+endif
 
-LDFLAGS_ELF = -T exos.ld -static -nostdlib -no-pie --no-dynamic-linker -Map=$(BUILD_DIR)/kernel/exos.map
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DUSE_SYSCALL=$(USE_SYSCALL)
+CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
+                  -ffreestanding -fno-builtin -nostdinc \
+                  -fno-pic -fno-pie -fno-stack-protector \
+                  -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
+                  -fvisibility=hidden -mno-red-zone \
+                  -Werror-implicit-function-declaration -Wstrict-prototypes \
+                  -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DUSE_SYSCALL=$(USE_SYSCALL) \
+                  -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
+                  -Iinclude -I../third/include -I../runtime/include
+CFLAGS         += $(ARCH_CFLAGS)
 
-KERNEL_ELF = $(BUILD_DIR)/kernel/exos.elf
+NASM            = nasm
+
+AFLAGS_INCLUDES = -I source/asm/ -I source/arch/$(ARCH)/asm/
+
+ifeq ($(ARCH),x86-64)
+AFLAGS_INCLUDES += -I source/arch/i386/asm/
+endif
+
+AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
+
+LINKER_SCRIPT   = exos-$(ARCH).ld
+
+LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-linker --defsym=__VMA_KERNEL=$(VMA_KERNEL) -Map=$(BUILD_DIR)/kernel/exos.map
+
+KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
-         $(wildcard source/arch/i386/*.c) \
+         $(wildcard source/arch/intel/*.c) \
+         $(wildcard source/arch/$(ARCH)/*.c) \
          $(wildcard source/network/*.c) \
+         $(wildcard source/process/*.c) \
          $(wildcard source/drivers/*.c) \
          $(wildcard source/utils/*.c) \
          $(wildcard source/test/*.c) \
@@ -41,12 +80,18 @@ SRC_C  = $(wildcard source/*.c) \
          ../third/bcrypt/endian.c \
          ../runtime/source/exos-runtime-c.c
 SRC_S  = $(wildcard source/asm/*.asm) \
-         ../runtime/source/exos-runtime-a.asm
+         $(wildcard source/arch/$(ARCH)/asm/*.asm)
+
+ifeq ($(ARCH),x86-64)
+SRC_S += ../runtime/source/x86-64/exos-runtime-a.asm
+else
+SRC_S += ../runtime/source/i386/exos-runtime-a.asm
+endif
 
 OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \
          $(patsubst ../third/bcrypt/%.c, $(BUILD_DIR)/kernel/bcrypt_%.o, $(filter ../third/bcrypt/%.c, $(SRC_C))) \
          $(patsubst ../runtime/source/%.c, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.c, $(SRC_C)))
-OBJ_S  = $(patsubst source/asm/%.asm, $(BUILD_DIR)/kernel/%.o, $(filter source/asm/%.asm, $(SRC_S))) \
+OBJ_S  = $(patsubst source/%.asm, $(BUILD_DIR)/kernel/%.o, $(filter source/%.asm, $(SRC_S))) \
          $(patsubst ../runtime/source/%.asm, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.asm, $(SRC_S)))
 
 OBJS   = $(OBJ_S) $(OBJ_C)
@@ -64,7 +109,7 @@ ALIGN      		= 4096
 
 all: check_magic $(BUILD_DIR)/kernel/exos.sym
 
-$(KERNEL_ELF): $(OBJS) exos.ld
+$(KERNEL_ELF): $(OBJS) $(LINKER_SCRIPT)
 	$(LD) $(LDFLAGS_ELF) -o $@ $(OBJS)
 
 $(TEXT_BIN): $(KERNEL_ELF)
@@ -135,7 +180,7 @@ $(BUILD_DIR)/kernel/%.o: source/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(BUILD_DIR)/kernel/%.o: source/asm/%.asm
+$(BUILD_DIR)/kernel/%.o: source/%.asm
 	@mkdir -p $(dir $@)
 	$(NASM) $(AFLAGS) -o $@ $<
 
@@ -156,7 +201,7 @@ check_magic: $(FINAL_IMG)
 
 # Extract debug symbols for Bochs
 $(BUILD_DIR)/kernel/exos.sym: $(KERNEL_ELF)
-	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Optional sanity check to ensure the ELF has no GOT/PLT/DYNAMIC/INTERP sections
 check-nogot: $(KERNEL_ELF)

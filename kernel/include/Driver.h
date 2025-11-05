@@ -33,6 +33,10 @@
 
 /***************************************************************************/
 
+#pragma pack(push, 1)
+
+/***************************************************************************/
+
 #define DRIVER_TYPE_NONE 0x00000000
 #define DRIVER_TYPE_FLOPPYDISK 0x00000001
 #define DRIVER_TYPE_HARDDISK 0x00000002
@@ -56,7 +60,7 @@
 
 /***************************************************************************/
 
-typedef U32 (*DRVFUNC)(U32 Function, U32 Parameter);
+typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
 
 /***************************************************************************/
 
@@ -108,6 +112,10 @@ extern DRIVER StdHardDiskDriver;
 extern DRIVER RAMDiskDriver;
 extern DRIVER VESADriver;
 extern DRIVER EXFSDriver;
+
+/***************************************************************************/
+
+#pragma pack(pop)
 
 /***************************************************************************/
 

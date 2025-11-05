@@ -27,7 +27,7 @@
 #include "File.h"
 #include "Heap.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 
@@ -239,9 +239,9 @@ I32 DatabaseDelete(DATABASE *Database, I32 Id) {
  * @return 0 on success, -1 on failure (memory allocation or file write error)
  */
 I32 DatabaseSave(DATABASE *Database, LPCSTR Filename) {
-    U32 HeaderSize = sizeof(DATABASE_FILE_HEADER);
-    U32 DataSize = Database->RecordSize * Database->Count;
-    U32 TotalSize = HeaderSize + DataSize;
+    UINT HeaderSize = sizeof(DATABASE_FILE_HEADER);
+    UINT DataSize = Database->RecordSize * Database->Count;
+    UINT TotalSize = HeaderSize + DataSize;
 
     LPVOID Buffer = KernelHeapAlloc(TotalSize);
     if (!Buffer) return -1;
@@ -255,7 +255,7 @@ I32 DatabaseSave(DATABASE *Database, LPCSTR Filename) {
 
     MemoryCopy((U8 *)Buffer + HeaderSize, Database->Records, DataSize);
 
-    U32 BytesWritten = FileWriteAll(Filename, Buffer, TotalSize);
+    UINT BytesWritten = FileWriteAll(Filename, Buffer, TotalSize);
 
     if (BytesWritten == 0) {
         DEBUG(TEXT("[DatabaseSave] Failed to save database to %s"), Filename);
@@ -279,7 +279,7 @@ I32 DatabaseSave(DATABASE *Database, LPCSTR Filename) {
  * @return 0 on success, -1 on failure (file not found, invalid format, or incompatible parameters)
  */
 I32 DatabaseLoad(DATABASE *Database, LPCSTR Filename) {
-    U32 FileSize;
+    UINT FileSize;
     LPVOID Buffer = FileReadAll(Filename, &FileSize);
     if (!Buffer) {
         DEBUG(TEXT("[DatabaseLoad] Failed to read %s"), Filename);
@@ -309,7 +309,7 @@ I32 DatabaseLoad(DATABASE *Database, LPCSTR Filename) {
         return -1;
     }
 
-    U32 ExpectedSize = sizeof(DATABASE_FILE_HEADER) + (Hdr->RecordSize * Hdr->Count);
+    UINT ExpectedSize = sizeof(DATABASE_FILE_HEADER) + (Hdr->RecordSize * Hdr->Count);
     if (FileSize != ExpectedSize) {
         KernelHeapFree(Buffer);
         return -1;

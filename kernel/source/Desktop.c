@@ -26,7 +26,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Mouse.h"
-#include "Process.h"
+#include "process/Process.h"
 
 /***************************************************************************/
 
@@ -85,33 +85,33 @@ DESKTOP MainDesktop = {
 
 /***************************************************************************/
 
-BRUSH Brush_Desktop = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
-BRUSH Brush_High = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
-BRUSH Brush_Normal = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
-BRUSH Brush_HiShadow = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
-BRUSH Brush_LoShadow = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
-BRUSH Brush_Client = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-BRUSH Brush_Text_Normal = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
-BRUSH Brush_Text_Select = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-BRUSH Brush_Selection = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-BRUSH Brush_Title_Bar = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-BRUSH Brush_Title_Bar_2 = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
-BRUSH Brush_Title_Text = {KOID_BRUSH, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+BRUSH Brush_Desktop = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_DARK_CYAN, .Pattern = MAX_U32 };
+BRUSH Brush_High = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00FFFFFF, .Pattern = MAX_U32 };
+BRUSH Brush_Normal = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00A0A0A0, .Pattern = MAX_U32 };
+BRUSH Brush_HiShadow = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00404040, .Pattern = MAX_U32 };
+BRUSH Brush_LoShadow = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00000000, .Pattern = MAX_U32 };
+BRUSH Brush_Client = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_WHITE, .Pattern = MAX_U32 };
+BRUSH Brush_Text_Normal = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_BLACK, .Pattern = MAX_U32 };
+BRUSH Brush_Text_Select = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_WHITE, .Pattern = MAX_U32 };
+BRUSH Brush_Selection = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_DARK_BLUE, .Pattern = MAX_U32 };
+BRUSH Brush_Title_Bar = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_DARK_BLUE, .Pattern = MAX_U32 };
+BRUSH Brush_Title_Bar_2 = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_CYAN, .Pattern = MAX_U32 };
+BRUSH Brush_Title_Text = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_WHITE, .Pattern = MAX_U32 };
 
 /***************************************************************************/
 
-PEN Pen_Desktop = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_CYAN, MAX_U32};
-PEN Pen_High = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00FFFFFF, MAX_U32};
-PEN Pen_Normal = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00A0A0A0, MAX_U32};
-PEN Pen_HiShadow = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00404040, MAX_U32};
-PEN Pen_LoShadow = {KOID_PEN, 1, &KernelProcess, NULL, NULL, 0x00000000, MAX_U32};
-PEN Pen_Client = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-PEN Pen_Text_Normal = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_BLACK, MAX_U32};
-PEN Pen_Text_Select = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
-PEN Pen_Selection = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-PEN Pen_Title_Bar = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_DARK_BLUE, MAX_U32};
-PEN Pen_Title_Bar_2 = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_CYAN, MAX_U32};
-PEN Pen_Title_Text = {KOID_PEN, 1, &KernelProcess, NULL, NULL, COLOR_WHITE, MAX_U32};
+PEN Pen_Desktop = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_DARK_CYAN, .Pattern = MAX_U32 };
+PEN Pen_High = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00FFFFFF, .Pattern = MAX_U32 };
+PEN Pen_Normal = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00A0A0A0, .Pattern = MAX_U32 };
+PEN Pen_HiShadow = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00404040, .Pattern = MAX_U32 };
+PEN Pen_LoShadow = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0x00000000, .Pattern = MAX_U32 };
+PEN Pen_Client = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_WHITE, .Pattern = MAX_U32 };
+PEN Pen_Text_Normal = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_BLACK, .Pattern = MAX_U32 };
+PEN Pen_Text_Select = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_WHITE, .Pattern = MAX_U32 };
+PEN Pen_Selection = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_DARK_BLUE, .Pattern = MAX_U32 };
+PEN Pen_Title_Bar = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_DARK_BLUE, .Pattern = MAX_U32 };
+PEN Pen_Title_Bar_2 = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_CYAN, .Pattern = MAX_U32 };
+PEN Pen_Title_Text = { .TypeID = KOID_PEN, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = COLOR_WHITE, .Pattern = MAX_U32 };
 
 /***************************************************************************/
 
@@ -306,7 +306,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     DEBUG(TEXT("[ShowDesktop] Setting gfx mode %ux%u"), ModeInfo.Width, ModeInfo.Height);
 
-    This->Graphics->Command(DF_GFX_SETMODE, (U32)&ModeInfo);
+    This->Graphics->Command(DF_GFX_SETMODE, (UINT)&ModeInfo);
 
     // PostMessage((HANDLE) This->Window, EWM_DRAW, 0, 0);
 
@@ -1371,7 +1371,7 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
     PixelInfo->X = Context->Origin.X + PixelInfo->X;
     PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
 
-    Context->Driver->Command(DF_GFX_SETPIXEL, (U32)PixelInfo);
+    Context->Driver->Command(DF_GFX_SETPIXEL, (UINT)PixelInfo);
 
     return TRUE;
 }
@@ -1399,7 +1399,7 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
     PixelInfo->X = Context->Origin.X + PixelInfo->X;
     PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
 
-    Context->Driver->Command(DF_GFX_GETPIXEL, (U32)PixelInfo);
+    Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)PixelInfo);
 
     return TRUE;
 }
@@ -1430,7 +1430,7 @@ BOOL Line(LPLINEINFO LineInfo) {
     LineInfo->X2 = Context->Origin.X + LineInfo->X2;
     LineInfo->Y2 = Context->Origin.Y + LineInfo->Y2;
 
-    Context->Driver->Command(DF_GFX_LINE, (U32)LineInfo);
+    Context->Driver->Command(DF_GFX_LINE, (UINT)LineInfo);
 
     return TRUE;
 }
@@ -1461,7 +1461,7 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
     RectInfo->X2 = Context->Origin.X + RectInfo->X2;
     RectInfo->Y2 = Context->Origin.Y + RectInfo->Y2;
 
-    Context->Driver->Command(DF_GFX_RECTANGLE, (U32)RectInfo);
+    Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)RectInfo);
 
     return TRUE;
 }

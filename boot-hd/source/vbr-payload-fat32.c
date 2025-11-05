@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
-#include "arch/i386/I386.h"
-#include "String.h"
-#include "../include/SegOfs.h"
+#include "../include/vbr-realmode-utils.h"
+#include "arch/i386/i386.h"
+#include "CoreString.h"
 
 /************************************************************************/
 
@@ -36,7 +36,7 @@
 
 /************************************************************************/
 
-typedef struct __attribute__((packed)) tag_FAT32_BOOT_SECTOR {
+typedef struct PACKED tag_FAT32_BOOT_SECTOR {
     U8 Jump[3];
     U8 Oem[8];
     U16 BytesPerSector;
@@ -68,7 +68,7 @@ typedef struct __attribute__((packed)) tag_FAT32_BOOT_SECTOR {
     U16 BiosMark;
 } FAT32_BOOT_SECTOR;
 
-typedef struct __attribute__((packed)) tag_FAT_DIR_ENTRY {
+typedef struct PACKED tag_FAT_DIR_ENTRY {
     U8 Name[11];
     U8 Attributes;
     U8 NtReserved;
@@ -233,18 +233,14 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
     }
 
     if (!Found) {
-        STR Message[128];
-        StringPrintFormat(Message, TEXT("[VBR] Kernel %s not found on FAT32 volume.\r\n"), KernelFile);
-        BootErrorPrint(Message);
+        BootErrorPrint(TEXT("[VBR] Kernel %s not found on FAT32 volume.\r\n"), KernelFile);
         Hang();
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] FAT32 kernel size %08X bytes\r\n"), FileSize);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] FAT32 kernel size %08X bytes\r\n"), FileSize);
 
     U32 Remaining = FileSize;
-    U16 DestSeg = LOADADDRESS_SEG;
-    U16 DestOfs = LOADADDRESS_OFS;
+    U32 DestLinear = KERNEL_LINEAR_LOAD_ADDRESS;
     U32 Cluster = FileCluster;
     CurrentFatSector = 0xFFFFFFFFU;
     U32 ClusterBytes = (U32)SectorsPerCluster * (U32)SECTORSIZE;
@@ -253,23 +249,25 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
 
     while (Remaining > 0U && Cluster >= 2U && Cluster < FAT32_EOC_MIN) {
         U32 Lba = FirstDataSector + (Cluster - 2U) * SectorsPerCluster;
-        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, PackSegOfs(DestSeg, DestOfs))) {
-            StringPrintFormat(TempString, TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
-            BootErrorPrint(TempString);
+        if (BiosReadSectors(BootDrive, Lba, SectorsPerCluster, MakeSegOfs(ClusterBuffer))) {
+            BootErrorPrint(TEXT("[VBR] Cluster read failed %08X. Halting.\r\n"), Cluster);
             Hang();
         }
 
-        U32 AdvanceBytes = ClusterBytes;
-        DestSeg += (AdvanceBytes >> 4);
-        DestOfs += (U16)(AdvanceBytes & 0xF);
-        if (DestOfs < (U16)(AdvanceBytes & 0xF)) {
-            DestSeg += 1U;
+        U32 BytesToCopy = (Remaining < ClusterBytes) ? Remaining : ClusterBytes;
+        UnrealMemoryCopy(DestLinear, (U32)(UINT)ClusterBuffer, BytesToCopy);
+
+        DestLinear += BytesToCopy;
+        Remaining -= BytesToCopy;
+
+        ++ClusterCount;
+        if (ClusterCount > (MaxClusters + 8U)) {
+            BootErrorPrint(TEXT("[VBR] FAT32 cluster chain too long. Halting.\r\n"));
+            Hang();
         }
 
-        if (Remaining <= AdvanceBytes) {
-            Remaining = 0U;
-        } else {
-            Remaining -= AdvanceBytes;
+        if (Remaining == 0U) {
+            break;
         }
 
         U32 Next = ReadFatEntry(BootDrive, FatStartSector, Cluster, &CurrentFatSector);
@@ -279,10 +277,6 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
         }
 
         Cluster = Next;
-        if (++ClusterCount > (MaxClusters + 8U)) {
-            BootErrorPrint(TEXT("[VBR] FAT32 cluster chain too long. Halting.\r\n"));
-            Hang();
-        }
     }
 
     if (FileSizeOut != NULL) {

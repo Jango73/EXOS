@@ -22,7 +22,7 @@
 ;
 ;-------------------------------------------------------------------------
 
-%include "./Kernel.inc"
+%include "i386.inc"
 
 COMPort_Debug equ 0x2F8
 
@@ -172,4 +172,6 @@ PrintHexNibble:
     call    SerialWriteChar
     ret
 
-;--------------------------------------
+;----------------------------------------------------------------------------
+
+section .note.GNU-stack noalloc noexec nowrite align=1

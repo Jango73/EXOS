@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Script to convert kernel source line to address (32-bit code)
-# Usage: ./src2addr-kernel.sh kernel/source/Schedule.c:123
+# Usage: ./src2addr-kernel.sh kernel/source/process/Schedule.c:123
 
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <file:line>"
-    echo "Example: $0 kernel/source/Schedule.c:123"
+    echo "Example: $0 kernel/source/process/Schedule.c:123"
     exit 1
 fi
 

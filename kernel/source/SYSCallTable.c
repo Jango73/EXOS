@@ -30,7 +30,7 @@ SYSCALLENTRY SysCallTable[SYSCALL_Last];
 
 /************************************************************************/
 
-void InitializeSystemCalls(void) {
+void InitializeSystemCallTable(void) {
     U32 Index;
 
     for (Index = 0; Index < SYSCALL_Last; Index++) {

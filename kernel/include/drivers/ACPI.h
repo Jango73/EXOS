@@ -102,7 +102,7 @@ typedef struct tag_ACPI_XSDT {
 
 typedef struct tag_ACPI_MADT {
     ACPI_TABLE_HEADER Header;  // Standard ACPI table header
-    U32 LocalApicAddress;      // 32-bit physical address of Local APIC
+    U32 LocalApicAddress;      // Physical address of Local APIC (32-bit per spec)
     U32 Flags;                 // Multiple APIC flags
     U8  InterruptController[]; // Array of interrupt controller entries
 } ACPI_MADT, *LPACPI_MADT;
@@ -150,7 +150,7 @@ typedef struct tag_ACPI_MADT_IO_APIC {
     ACPI_MADT_ENTRY_HEADER Header;
     U8  IoApicId;              // I/O APIC ID
     U8  Reserved;              // Reserved (must be zero)
-    U32 IoApicAddress;         // 32-bit physical address of I/O APIC
+    U32 IoApicAddress;         // Physical address of I/O APIC (32-bit per spec)
     U32 GlobalSystemInterruptBase; // Global system interrupt where this I/O APIC's interrupts start
 } ACPI_MADT_IO_APIC, *LPACPI_MADT_IO_APIC;
 
@@ -182,7 +182,7 @@ typedef struct tag_ACPI_CONFIG {
     BOOL Valid;                // TRUE if ACPI is available and parsed
     BOOL UseLocalApic;         // TRUE if Local APIC should be used
     BOOL UseIoApic;            // TRUE if I/O APIC should be used
-    U32  LocalApicAddress;     // Physical address of Local APIC
+    PHYSICAL LocalApicAddress; // Physical address of Local APIC
     U32  IoApicCount;          // Number of I/O APICs found
     U32  LocalApicCount;       // Number of Local APICs found
     U32  InterruptOverrideCount; // Number of interrupt source overrides
@@ -193,7 +193,7 @@ typedef struct tag_ACPI_CONFIG {
 
 typedef struct tag_IO_APIC_INFO {
     U8  IoApicId;              // I/O APIC ID
-    U32 IoApicAddress;         // Physical address of I/O APIC
+    PHYSICAL IoApicAddress;    // Physical address of I/O APIC
     U32 GlobalSystemInterruptBase; // Global system interrupt base
     U32 MaxRedirectionEntry;   // Maximum redirection entry (read from I/O APIC)
 } IO_APIC_INFO, *LPIO_APIC_INFO;

@@ -27,9 +27,9 @@
 #include "Clock.h"
 #include "Console.h"
 #include "Memory.h"
-#include "Process.h"
+#include "process/Process.h"
 #include "SerialPort.h"
-#include "String.h"
+#include "CoreString.h"
 #include "Text.h"
 #include "VarArg.h"
 
@@ -84,8 +84,8 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
     STR TextBuffer[MAX_STRING_BUFFER];
     VarArgList Args;
 
-    U32 Time = GetSystemTime();
-    StringPrintFormat(TimeBuffer, TEXT("T%u> "), Time);
+    UINT Time = GetSystemTime();
+    StringPrintFormat(TimeBuffer, TEXT("T%u> "), (U32)Time);
 
     VarArgStart(Args, Format);
     StringPrintFormatArgs(TextBuffer, Format, Args);

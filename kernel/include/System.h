@@ -28,7 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "arch/i386/I386.h"
+#include "Arch.h"
 
 /***************************************************************************/
 
@@ -43,54 +43,53 @@ extern U32 IRQMask_A1_RM;
 
 // Functions in System.asm
 
-extern U32 GetCR4(void);
-extern U32 GetESP(void);
-extern U32 GetEBP(void);
-extern U32 GetDR6(void);
-extern U32 GetDR7(void);
-extern void SetDR6(U32);
-extern void SetDR7(U32);
+/***************************************************************************/
+// System call helpers
+
+#define SYSCALL_PARAM(Value) ((UINT)(Value))
+
+extern UINT DoSystemCall(UINT Number, UINT Parameter);
+
+#if defined(__EXOS_ARCH_I386__)
+
+extern U32 SaveRegisters(LPINTEL_32_REGISTERS Registers);
+
+#elif defined(__EXOS_ARCH_X86_64__)
+
+extern U32 SaveRegisters(LPINTEL_64_REGISTERS Registers);
+
+#endif
+
 extern void GetCPUID(LPVOID);
 extern U32 DisablePaging(void);
 extern U32 EnablePaging(void);
-extern void DisableInterrupts(void);
-extern void EnableInterrupts(void);
-extern void SaveFlags(U32 *);
-extern void RestoreFlags(U32 *);
-extern void SaveFPU(LPVOID);
-extern void RestoreFPU(LPVOID);
-extern U32 InPortByte(U32);
-extern U32 OutPortByte(U32, U32);
-extern U32 InPortWord(U32);
-extern U32 OutPortWord(U32, U32);
-extern U32 InPortLong(U32);
-extern U32 OutPortLong(U32, U32);
-extern U32 InPortStringWord(U32, LPVOID, U32);
-extern U32 OutPortStringWord(U32, LPVOID, U32);
-extern U32 MaskIRQ(U32);
-extern U32 UnmaskIRQ(U32);
-extern U32 DisableIRQ(U32);
-extern U32 EnableIRQ(U32);
+extern void SaveFPU(LPVOID StateBuffer);
+extern void RestoreFPU(LPVOID StateBuffer);
+extern U32 InPortByte(U32 Port);
+extern U32 OutPortByte(U32 Port, U32 Value);
+extern U32 InPortWord(U32 Port);
+extern U32 OutPortWord(U32 Port, U32 Value);
+extern U32 InPortLong(U32 Port);
+extern U32 OutPortLong(U32 Port, U32 Value);
+extern U32 InPortStringWord(U32 Port, LPVOID Buffer, U32 Count);
+extern U32 OutPortStringWord(U32 Port, LPVOID Buffer, U32 Count);
+extern U32 MaskIRQ(U32 IRQ);
+extern U32 UnmaskIRQ(U32 IRQ);
+extern U32 DisableIRQ(U32 IRQ);
+extern U32 EnableIRQ(U32 IRQ);
 extern U32 LoadGlobalDescriptorTable(PHYSICAL Base, U32 Limit);
-extern void ReadGlobalDescriptorTable(LPVOID gdtr_ptr);
-extern U32 LoadLocalDescriptorTable(PHYSICAL Base, U32 Limit);
-extern U32 LoadInterruptDescriptorTable(PHYSICAL Base, U32 Limit);
-extern U32 LoadPageDirectory(PHYSICAL Base);
-extern U32 LoadInitialTaskRegister(U32 TaskRegister);
+extern void ReadGlobalDescriptorTable(LPVOID GdtrPointer);
 extern U32 GetTaskRegister(void);
 extern U32 GetPageDirectory(void);
 extern void InvalidatePage(U32 Address);
 extern void FlushTLB(void);
-extern U32 SwitchToTask(U32);
 extern U32 TaskRunner(void);
 extern void *__task_runner_start;
 extern void *__task_runner_end;
 extern U32 ClearTaskState(void);
 extern U32 PeekConsoleWord(U32);
 extern U32 PokeConsoleWord(U32, U32);
-extern void SetConsoleCursorPosition(U32, U32);
-extern U32 SaveRegisters(LPINTEL386REGISTERS);
-extern U32 DoSystemCall(U32, U32);
+extern void SetConsoleCursorPosition(U32 X, U32 Y);
 extern void IdleCPU(void);
 extern void DeadCPU(void);
 extern void Reboot(void);
@@ -99,7 +98,7 @@ extern void Reboot(void);
 
 // Functions in RMC.asm
 
-extern void RealModeCall(U32, LPX86REGS);
+extern void RealModeCall(U32, LPINTEL_X86_REGISTERS);
 extern void RealModeCallTest(void);
 
 /***************************************************************************/

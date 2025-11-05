@@ -24,7 +24,7 @@
 
 #include "utils/Hysteresis.h"
 #include "Log.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 

@@ -31,7 +31,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 FAT16Commands(U32, U32);
+UINT FAT16Commands(UINT, UINT);
 
 DRIVER FAT16Driver = {
     .TypeID = KOID_DRIVER,
@@ -142,7 +142,7 @@ BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     Control.Buffer = (LPVOID)Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    Result = Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -244,7 +244,7 @@ static BOOL ReadCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
     Control.Buffer = Buffer;
     Control.BufferSize = NumSectors * SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -288,7 +288,7 @@ static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
     Control.Buffer = Buffer;
     Control.BufferSize = NumSectors * SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
     if (Result != DF_ERROR_SUCCESS) return FALSE;
 
@@ -320,7 +320,7 @@ static CLUSTER GetNextClusterInChain(LPFAT16FILESYSTEM FileSystem, CLUSTER Clust
     Control.Buffer = Buffer;
     Control.BufferSize = SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
     if (Result == DF_ERROR_SUCCESS) {
         NextCluster = Buffer[Offset];
@@ -731,7 +731,7 @@ static CLUSTER ChainNewCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster) {
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
         if (Result != DF_ERROR_SUCCESS) {
             return NewCluster;
@@ -761,7 +761,7 @@ Next:
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
         if (Result != DF_ERROR_SUCCESS) {
             return NewCluster;
@@ -769,7 +769,7 @@ Next:
 
         Buffer[CurrentOffset] = NewCluster;
 
-        Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (U32)&Control);
+        Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
         if (Result != DF_ERROR_SUCCESS) {
             return NewCluster;
@@ -912,7 +912,7 @@ static U32 WriteFile(LPFATFILE File) {
 
 /***************************************************************************/
 
-U32 FAT16Commands(U32 Function, U32 Parameter) {
+UINT FAT16Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
@@ -929,19 +929,19 @@ U32 FAT16Commands(U32 Function, U32 Parameter) {
         case DF_FS_RENAMEFOLDER:
             return DF_ERROR_NOTIMPL;
         case DF_FS_OPENFILE:
-            return (U32)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
-            return (U32)OpenNext((LPFATFILE)Parameter);
+            return (UINT)OpenNext((LPFATFILE)Parameter);
         case DF_FS_CLOSEFILE:
-            return (U32)CloseFile((LPFATFILE)Parameter);
+            return (UINT)CloseFile((LPFATFILE)Parameter);
         case DF_FS_DELETEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_RENAMEFILE:
             return DF_ERROR_NOTIMPL;
         case DF_FS_READ:
-            return (U32)ReadFile((LPFATFILE)Parameter);
+            return (UINT)ReadFile((LPFATFILE)Parameter);
         case DF_FS_WRITE:
-            return (U32)WriteFile((LPFATFILE)Parameter);
+            return (UINT)WriteFile((LPFATFILE)Parameter);
     }
 
     return DF_ERROR_NOTIMPL;

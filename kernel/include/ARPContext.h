@@ -27,7 +27,7 @@
 
 #include "Base.h"
 #include "Device.h"
-#include "Network.h"
+#include "network/Network.h"
 #include "Endianness.h"
 #include "utils/Notification.h"
 #include "utils/AdaptiveDelay.h"
@@ -67,7 +67,7 @@ typedef struct tag_ARP_CONTEXT {
 /************************************************************************/
 
 LPARP_CONTEXT ARP_GetContext(LPDEVICE Device);
-void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be);
+void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* DeviceInfo);
 void ARP_Destroy(LPDEVICE Device);
 void ARP_Tick(LPDEVICE Device);
 int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]);

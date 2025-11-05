@@ -1,4 +1,27 @@
-# Makefile for EXOS BIOS image (partitioned MBR + FAT32 + custom MBR/VBR/Payload)
+
+SHELL = /bin/bash
+
+ARCH ?= i386
+
+ifeq ($(ARCH),i386)
+VMA_KERNEL ?= 0xC0000000
+else ifeq ($(ARCH),x86-64)
+VMA_KERNEL ?= 0xFFFFFFFFC0000000
+endif
+
+BUILD_DIR := ../build/$(ARCH)
+
+ifeq ($(ARCH),i386)
+TOOLCHAIN_PREFIX = i686-elf
+NASM_FORMAT = elf32
+NASM_ARCH_FLAGS = -DARCH_I386
+else ifeq ($(ARCH),x86-64)
+TOOLCHAIN_PREFIX = i686-elf
+NASM_FORMAT = elf32
+NASM_ARCH_FLAGS = -DARCH_X86_64
+else
+$(error Unsupported architecture $(ARCH))
+endif
 
 DEBUG_OUTPUT    ?= 0
 
@@ -6,11 +29,11 @@ IMG_SIZE_MB     ?= 64
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
-PAYLOAD_OFFSET  ?= 0x8000
-RESERVED_SECTORS= 64		# Reserved sectors for VBR payload
-VBR_CODE_OFFSET = 0x5A		# Offset of code in VBR sector
-
-BUILD_DIR       = ../build
+PAYLOAD_ADDRESS ?= 0x8000
+MEMORY_BASE     ?= 0x10000
+MEMORY_SIZE     ?= 0x80000
+RESERVED_SECTORS= 64            # Reserved sectors for VBR payload
+VBR_CODE_OFFSET = 0x5A          # Offset of code in VBR sector
 
 KERNEL_CFG_FAT32= ../kernel/configuration/exos.fat32.toml
 KERNEL_CFG_EXT2 = ../kernel/configuration/exos.ext2.toml
@@ -21,32 +44,41 @@ MBR_SOURCE      = source/mbr.asm
 VBR_SRC         = source/vbr.asm
 PAYLOAD_STUB    = source/vbr-payload-a.asm
 PAYLOAD_C       = source/vbr-payload-c.c
-PAYLOAD_STR_C   = ../kernel/source/String.c
+PAYLOAD_STR_C   = ../kernel/source/CoreString.c
 
 # Configurable payload source (can be overridden with make PAYLOAD_SOURCE=...)
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
+PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(NASM_ARCH_FLAGS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
                   -fvisibility=hidden -mno-red-zone -fno-stack-protector \
                   -mpreferred-stack-boundary=2 -mincoming-stack-boundary=2 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
-                  -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DPAYLOAD_OFFSET=$(PAYLOAD_OFFSET) \
+                  -DARCH=$(ARCH) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
+                  -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
+                  -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) \
+                  -DMEMORY_BASE=$(MEMORY_BASE) \
+                  -DMEMORY_SIZE=$(MEMORY_SIZE) \
+                  -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -Iinclude -I../kernel/include
-LD              = i686-elf-ld
-LDFLAGS         = -nostdlib -no-pie
-LDDEFS          = --defsym=PAYLOAD_OFFSET=$(PAYLOAD_OFFSET)
 
+NASM            = nasm
+CC              = $(TOOLCHAIN_PREFIX)-gcc
+LD              = $(TOOLCHAIN_PREFIX)-ld
+NM              = $(TOOLCHAIN_PREFIX)-nm
+LDFLAGS         = -nostdlib -no-pie
+LDDEFS          = --defsym=PAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS)
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
-PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
 PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(sort $(PAYLOAD_C_SOURCES)))
 PAYLOAD_STR_O   = $(BUILD_DIR)/boot-hd/String.o
 PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
@@ -164,36 +196,36 @@ endef
 all: check_tools $(FINAL_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 check_tools:
-	@command -v nasm >/dev/null 2>&1 || { echo "nasm is not installed. Please run: sudo apt install nasm"; exit 1; }
+	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
 	@command -v parted >/dev/null 2>&1 || { echo "parted is not installed. Please run: sudo apt install parted"; exit 1; }
-	@command -v i686-elf-gcc >/dev/null 2>&1 || { echo "i686-elf-gcc is not installed. Please install your cross toolchain."; exit 1; }
-	@command -v i686-elf-ld >/dev/null 2>&1 || { echo "i686-elf-ld is not installed. Please install your cross toolchain."; exit 1; }
+	@command -v $(CC) >/dev/null 2>&1 || { echo "$(CC) is not installed. Please install your cross toolchain."; exit 1; }
+	@command -v $(LD) >/dev/null 2>&1 || { echo "$(LD) is not installed. Please install your cross toolchain."; exit 1; }
 	$(FS_SPECIFIC_CHECK)
 
 $(MBR_BIN): $(MBR_SOURCE)
 	@echo "Assembling custom MBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	nasm $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
+	$(NASM) $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
 
 $(VBR_BIN): $(VBR_SRC)
 	@echo "Assembling VBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	nasm $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
+	$(NASM) $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
 
 $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@echo "Assembling payload stub (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	nasm $(NASMFLAGS) -f elf32 $< -o $@
+	$(NASM) $(NASMFLAGS) -f $(NASM_FORMAT) $< -o $@
 
 $(BUILD_DIR)/boot-hd/%.o: source/%.c
 	@echo "Compiling payload C from $<..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	i686-elf-gcc $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 	@echo "Compiling String from $(PAYLOAD_STR_C)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
-	i686-elf-gcc $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_BIN): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_BIN_LD)
 	@echo "Linking payload stub + C into flat binary..."
@@ -205,7 +237,7 @@ $(PAYLOAD_ELF): $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(PAYLOAD_E
 
 $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	# @echo "Extracting payload symbols for Bochs debugging"
-	i686-elf-nm $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
+	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Create image only if it does not exist
 $(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(MASTER_ELF) $(SLAVE_ELF)
@@ -220,7 +252,7 @@ $(KERNEL_CFG_EXT2): $(FINAL_IMG)
 
 update: $(UPDATE_TARGET)
 
-update-fat32: $(FINAL_IMG) $(KERNEL_CFG_FAT32)
+update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/exos.toml) \
@@ -237,7 +269,7 @@ update-fat32: $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
 		All files injected into image.)
 
-update-ext2: $(FINAL_IMG) $(KERNEL_CFG_EXT2)
+update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@echo "Preparing EXT2 staging directory at $(EXT2_STAGING_DIR)"
 	@rm -rf $(EXT2_STAGING_DIR)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
@@ -260,7 +292,7 @@ install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
-install-vbr-payload: install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
+install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
 	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload into the pre-partition gap..."
 	@{ \
 		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
@@ -316,7 +348,23 @@ hexdump-check: install-vbr-payload
 	@PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 	PAYLOAD_SECTOR_START=$$((PART_OFFSET / 512 - $(RESERVED_SECTORS))); \
 	PAYLOAD_OFF=$$((PAYLOAD_SECTOR_START * 512)); \
-	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o $(PAYLOAD_OFFSET) -
+	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o $(PAYLOAD_ADDRESS) -
 
 clean:
 	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym
+
+.PHONY: check_payload_size
+check_payload_size: $(PAYLOAD_BIN)
+	@{ \
+		PAYLOAD_SIZE=$$(stat -c %s $(PAYLOAD_BIN)); \
+		MAX_SIZE=$$(( $(RESERVED_SECTORS) * 512 )); \
+		if [ $$PAYLOAD_SIZE -gt $$MAX_SIZE ]; then \
+			echo "ERROR: VBR payload size ($$PAYLOAD_SIZE bytes) exceeds reserved space ($$MAX_SIZE bytes)."; \
+			exit 1; \
+		fi; \
+		PAYLOAD_END=$$(( $(PAYLOAD_ADDRESS) + PAYLOAD_SIZE )); \
+                if (( PAYLOAD_END >= $(MEMORY_BASE) )); then \
+			echo "ERROR: Payload end address (0x$$(printf '%X' $$PAYLOAD_END)) overlaps memory base ($(MEMORY_BASE))."; \
+			exit 1; \
+		fi; \
+	}

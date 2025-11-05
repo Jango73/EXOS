@@ -28,7 +28,7 @@
 #include "utils/Helpers.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Process.h"
+#include "process/Process.h"
 
 /***************************************************************************/
 
@@ -92,7 +92,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.Flags = Info->Flags;
         StringCopy(Find.Name, Info->Name);
 
-        File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
             LockMutex(MUTEX_FILE, INFINITY);
@@ -123,7 +123,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.Flags = Info->Flags;
         StringCopy(Find.Name, Info->Name);
 
-        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (U32)&Find);
+        File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
             DEBUG(TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
@@ -154,22 +154,24 @@ Out:
  * @param File Pointer to file structure to close
  * @return 1 on success, 0 on failure
  */
-U32 CloseFile(LPFILE File) {
+UINT CloseFile(LPFILE File) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (File->TypeID != KOID_FILE) return 0;
+    SAFE_USE_VALID_ID(File, KOID_FILE) {
+        if (File->TypeID != KOID_FILE) return 0;
 
-    LockMutex(&(File->Mutex), INFINITY);
+        LockMutex(&(File->Mutex), INFINITY);
 
-    // Call filesystem-specific close function
-    File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (U32)File);
+        // Call filesystem-specific close function
+        File->FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
 
-    ReleaseKernelObject(File);
+        UnlockMutex(&(File->Mutex));
 
-    UnlockMutex(&(File->Mutex));
+        return 1;
+    }
 
-    return 1;
+    return 0;
 }
 
 /***************************************************************************/
@@ -179,8 +181,8 @@ U32 CloseFile(LPFILE File) {
  * @param File Pointer to file structure
  * @return Current file position
  */
-U32 GetFilePosition(LPFILE File) {
-    U32 Position = 0;
+UINT GetFilePosition(LPFILE File) {
+    UINT Position = 0;
 
     SAFE_USE_VALID_ID(File, KOID_FILE) {
         //-------------------------------------
@@ -206,7 +208,7 @@ U32 GetFilePosition(LPFILE File) {
  * @param Operation Pointer to file operation structure containing new position
  * @return DF_ERROR_SUCCESS on success, DF_ERROR_BADPARAM on failure
  */
-U32 SetFilePosition(LPFILEOPERATION Operation) {
+UINT SetFilePosition(LPFILEOPERATION Operation) {
     SAFE_USE_VALID(Operation) {
         LPFILE File = (LPFILE)Operation->File;
 
@@ -234,84 +236,82 @@ U32 SetFilePosition(LPFILEOPERATION Operation) {
 
 /**
  * @brief Reads data from a file
- * @param FileOp Pointer to file operation structure
+ * @param Operation Pointer to file operation structure
  * @return Number of bytes read, 0 on failure
  */
-U32 ReadFile(LPFILEOPERATION FileOp) {
+UINT ReadFile(LPFILEOPERATION Operation) {
     LPFILE File = NULL;
-    U32 Result = 0;
-    U32 BytesTransferred = 0;
+    UINT Result = 0;
+    UINT BytesTransferred = 0;
 
-    //-------------------------------------
-    // Check validity of parameters
+    SAFE_USE_VALID(Operation) {
+        File = (LPFILE)Operation->File;
 
-    if (FileOp == NULL) return 0;
-    if (FileOp->File == NULL) return 0;
+        SAFE_USE_VALID_ID(File, KOID_FILE) {
+            if ((File->OpenFlags & FILE_OPEN_READ) == 0) return 0;
 
-    File = (LPFILE)FileOp->File;
-    if (File->TypeID != KOID_FILE) return 0;
+            //-------------------------------------
+            // Lock access to the file
 
-    if ((File->OpenFlags & FILE_OPEN_READ) == 0) return 0;
+            LockMutex(&(File->Mutex), INFINITY);
 
-    //-------------------------------------
-    // Lock access to the file
+            File->ByteCount = Operation->NumBytes;
+            File->Buffer = Operation->Buffer;
 
-    LockMutex(&(File->Mutex), INFINITY);
+            Result = File->FileSystem->Driver->Command(DF_FS_READ, (UINT)File);
 
-    File->ByteCount = FileOp->NumBytes;
-    File->Buffer = FileOp->Buffer;
+            if (Result == DF_ERROR_SUCCESS) {
+                BytesTransferred = File->BytesTransferred;
+            }
 
-    Result = File->FileSystem->Driver->Command(DF_FS_READ, (U32)File);
+            UnlockMutex(&(File->Mutex));
 
-    if (Result == DF_ERROR_SUCCESS) {
-        BytesTransferred = File->BytesTransferred;
+            return BytesTransferred;
+        }
     }
 
-    UnlockMutex(&(File->Mutex));
-
-    return BytesTransferred;
+    return 0;
 }
 
 /***************************************************************************/
 
 /**
  * @brief Writes data to a file
- * @param FileOp Pointer to file operation structure
+ * @param Operation Pointer to file operation structure
  * @return Number of bytes written, 0 on failure
  */
-U32 WriteFile(LPFILEOPERATION FileOp) {
+UINT WriteFile(LPFILEOPERATION Operation) {
     LPFILE File = NULL;
-    U32 Result = 0;
-    U32 BytesWritten = 0;
+    UINT Result = 0;
+    UINT BytesWritten = 0;
 
-    //-------------------------------------
-    // Check validity of parameters
+    SAFE_USE_VALID(Operation) {
+        File = (LPFILE)Operation->File;
 
-    if (FileOp == NULL) return 0;
-    if (FileOp->File == NULL) return 0;
+        SAFE_USE_VALID_ID(File, KOID_FILE) {
+            if ((File->OpenFlags & FILE_OPEN_WRITE) == 0) return 0;
 
-    File = (LPFILE)FileOp->File;
-    if (File->TypeID != KOID_FILE) return 0;
+            //-------------------------------------
+            // Lock access to the file
 
-    if ((File->OpenFlags & FILE_OPEN_WRITE) == 0) return 0;
+            LockMutex(&(File->Mutex), INFINITY);
 
-    //-------------------------------------
-    // Lock access to the file
+            File->ByteCount = Operation->NumBytes;
+            File->Buffer = Operation->Buffer;
 
-    LockMutex(&(File->Mutex), INFINITY);
+            Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (UINT)File);
 
-    File->ByteCount = FileOp->NumBytes;
-    File->Buffer = FileOp->Buffer;
+            if (Result == DF_ERROR_SUCCESS) {
+                BytesWritten = File->BytesTransferred;
+            }
 
-    Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (U32)File);
+            UnlockMutex(&(File->Mutex));
 
-    if (Result == DF_ERROR_SUCCESS) {
-        BytesWritten = File->BytesTransferred;
+            return BytesWritten;
+        }
     }
 
-    UnlockMutex(&(File->Mutex));
-
-    return BytesWritten;
+    return 0;
 }
 
 /***************************************************************************/
@@ -321,22 +321,24 @@ U32 WriteFile(LPFILEOPERATION FileOp) {
  * @param File Pointer to file structure
  * @return File size in bytes
  */
-U32 GetFileSize(LPFILE File) {
-    U32 Size = 0;
+UINT GetFileSize(LPFILE File) {
+    UINT Size = 0;
 
-    //-------------------------------------
-    // Check validity of parameters
+    SAFE_USE_VALID_ID(File, KOID_FILE) {
+        LockMutex(&(File->Mutex), INFINITY);
 
-    if (File == NULL) return 0;
-    if (File->TypeID != KOID_FILE) return 0;
+#ifdef __EXOS_64__
+        Size = U64_Make(File->SizeHigh, File->SizeLow);
+#else
+        Size = File->SizeLow;
+#endif
 
-    LockMutex(&(File->Mutex), INFINITY);
+        UnlockMutex(&(File->Mutex));
 
-    Size = File->SizeLow;
+        return Size;
+    }
 
-    UnlockMutex(&(File->Mutex));
-
-    return Size;
+    return 0;
 }
 
 /***************************************************************************/
@@ -347,7 +349,7 @@ U32 GetFileSize(LPFILE File) {
  * @param Size Pointer to variable to receive file size
  * @return Pointer to allocated buffer containing file content, NULL on failure
  */
-LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
+LPVOID FileReadAll(LPCSTR Name, UINT *Size) {
     FILEOPENINFO OpenInfo;
     FILEOPERATION FileOp;
     LPFILE File = NULL;
@@ -400,13 +402,13 @@ LPVOID FileReadAll(LPCSTR Name, U32 *Size) {
  * @param Size Size of data to write
  * @return Number of bytes written
  */
-U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
+UINT FileWriteAll(LPCSTR Name, LPCVOID Buffer, UINT Size) {
     FILEOPENINFO OpenInfo;
     FILEOPERATION FileOp;
     LPFILE File = NULL;
-    U32 BytesWritten = 0;
+    UINT BytesWritten = 0;
 
-    DEBUG(TEXT("[FileWriteAll] name %s, size %d"), Name, Size);
+    DEBUG(TEXT("[FileWriteAll] name %s, size %u"), Name, Size);
 
     SAFE_USE_2(Name, Buffer) {
         //-------------------------------------
@@ -440,4 +442,3 @@ U32 FileWriteAll(LPCSTR Name, LPCVOID Buffer, U32 Size) {
 }
 
 /***************************************************************************/
-

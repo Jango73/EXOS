@@ -56,7 +56,64 @@ extern "C" {
 
 #define TZNAME_MAX 30
 
+#ifndef NULL
+#define NULL 0L
+#endif
+
 /************************************************************************/
+// Types
+
+#if defined(_MSC_VER)
+    typedef unsigned __int8 uint8_t;
+    typedef signed __int8 int8_t;
+    typedef unsigned __int16 uint16_t;
+    typedef signed __int16 int16_t;
+    typedef unsigned __int32 uint32_t;
+    typedef signed __int32 int32_t;
+    typedef unsigned int uint_t;
+    typedef signed int int_t;
+    typedef unsigned int size_t;
+    typedef unsigned int fpos_t;
+#elif defined(__GNUC__) || defined(__clang__)
+    typedef unsigned char uint8_t;
+    typedef signed char int8_t;
+    typedef unsigned short uint16_t;
+    typedef signed short int16_t;
+    typedef unsigned int uint32_t;
+    typedef signed int int32_t;
+    typedef unsigned long uint_t;
+    typedef signed long int_t;
+    typedef unsigned long size_t;
+    typedef unsigned long fpos_t;
+#else
+    #error "Unsupported compiler for Base.h"
+#endif
+
+/************************************************************************/
+// POSIX Socket types
+
+typedef uint32_t socklen_t;
+
+#pragma pack(push, 1)
+struct sockaddr {
+    unsigned short sa_family;
+    char sa_data[14];
+};
+
+struct sockaddr_in {
+    unsigned short sin_family;
+    unsigned short sin_port;
+    unsigned int sin_addr;
+    unsigned char sin_zero[8];
+};
+#pragma pack(pop)
+
+// Socket option constants
+#define SOL_SOCKET                1
+#define SO_RCVTIMEO               20
+
+/************************************************************************/
+// Byte order inline functions
 
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 
@@ -85,40 +142,32 @@ static inline unsigned long ntohl(unsigned long Value) { return htonl(Value); }
     #error "Endianness not defined"
 #endif
 
-#ifndef NULL
-#define NULL 0L
-#endif
-
-/************************************************************************/
-// Types
-
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned long uint32_t;
-typedef unsigned long size_t;
-
 /************************************************************************/
 
 extern void debug(char* format, ...);
 
 /************************************************************************/
 
-extern unsigned exoscall(unsigned function, unsigned paramter);
-extern void __exit__(int code);
-extern unsigned strcmp(const char*, const char*);
-extern int strncmp(const char*, const char*, unsigned);
-extern char* strstr(const char* haystack, const char* needle);
-extern char* strchr(const char* string, int character);
-extern void memset(void*, int, int);
-extern void memcpy(void*, const void*, int);
-extern void* memmove(void*, const void*, int);
-extern unsigned strlen(const char*);
-extern char* strcpy(char*, const char*);
-
 // Command line arguments
 extern int _argc;
 extern char** _argv;
 extern void _SetupArguments(void);
+
+extern uint_t exoscall(uint_t function, uint_t parameter);
+extern void __exit__(int_t code);
+
+/************************************************************************/
+
+extern unsigned strcmp(const char*, const char*);
+extern int strncmp(const char*, const char*, unsigned);
+extern char* strstr(const char* haystack, const char* needle);
+extern char* strchr(const char* string, int character);
+extern void memset(void*, int, size_t);
+extern void memcpy(void*, const void*, size_t);
+extern void* memmove(void*, const void*, size_t);
+extern int memcmp(const void* s1, const void* s2, size_t n);
+extern unsigned strlen(const char*);
+extern char* strcpy(char*, const char*);
 
 /************************************************************************/
 
@@ -150,8 +199,6 @@ typedef struct __iobuf {
 
 /************************************************************************/
 
-typedef long fpos_t;
-
 extern FILE* fopen(const char*, const char*);
 extern size_t fread(void*, size_t, size_t, FILE*);
 extern size_t fwrite(const void*, size_t, size_t, FILE*);
@@ -165,26 +212,6 @@ extern int fgetc(FILE*);
 
 /************************************************************************/
 // POSIX Socket interface
-
-typedef unsigned int socklen_t;
-
-#pragma pack(push, 1)
-struct sockaddr {
-    unsigned short sa_family;
-    char sa_data[14];
-};
-
-struct sockaddr_in {
-    unsigned short sin_family;
-    unsigned short sin_port;
-    unsigned int sin_addr;
-    unsigned char sin_zero[8];
-};
-#pragma pack(pop)
-
-// Socket option constants
-#define SOL_SOCKET                1
-#define SO_RCVTIMEO               20
 
 int     socket(int domain, int type, int protocol);
 int     bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);

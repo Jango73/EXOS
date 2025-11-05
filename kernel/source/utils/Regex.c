@@ -25,12 +25,12 @@
 #include "utils/Regex.h"
 
 #include "Base.h"
-#include "String.h"
+#include "CoreString.h"
 
 /************************************************************************/
 // Internal helpers
 
-static void MemZero(void* Ptr, U32 Size) {
+static void MemZero(LPVOID Ptr, U32 Size) {
     U8* P = (U8*)Ptr;
     while (Size--) *P++ = 0;
 }

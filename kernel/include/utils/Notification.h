@@ -45,7 +45,7 @@
 
 typedef struct tag_NOTIFICATION_DATA {
     U32 EventID;
-    U32 DataSize;
+    UINT DataSize;
     LPVOID Data;
 } NOTIFICATION_DATA, *LPNOTIFICATION_DATA;
 
@@ -87,6 +87,6 @@ LPNOTIFICATION_CONTEXT Notification_CreateContext(void);
 void Notification_DestroyContext(LPNOTIFICATION_CONTEXT Context);
 U32 Notification_Register(LPNOTIFICATION_CONTEXT Context, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData);
 U32 Notification_Unregister(LPNOTIFICATION_CONTEXT Context, U32 EventID, NOTIFICATION_CALLBACK Callback, LPVOID UserData);
-void Notification_Send(LPNOTIFICATION_CONTEXT Context, U32 EventID, LPVOID Data, U32 DataSize);
+void Notification_Send(LPNOTIFICATION_CONTEXT Context, U32 EventID, LPVOID Data, UINT DataSize);
 
 #endif  // NOTIFICATION_H_INCLUDED

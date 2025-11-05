@@ -4,30 +4,32 @@
     ],
     "scriptsDir": "./scripts",
     "keyBindings": {
-        "f1": { "label": "Setup Dependencies", "script": "1-setup-deps.sh" },
+        "C-e": { "label": "Setup Dependencies", "script": "1-setup-deps.sh" },
+        "C-f": { "label": "Format Code", "script": "3-format-all-code.sh" },
 
-        "f2": { "label": "Clean Build", "script": "4-1-clean-build.sh" },
-        "f3": { "label": "Build", "script": "4-4-build.sh" },
-        "f4": { "label": "Start QEMU", "script": "5-1-start-qemu-hd.sh" },
+        "i386-----------------": "",
 
-        "1--------------------": "",
+        "f1": { "label": "Clean Build", "script": "i386/4-1-clean-build-release-ext2.sh" },
+        "f2": { "label": "Build", "script": "i386/4-4-build-release-ext2.sh" },
 
-        "f5": { "label": "Clean Build Debug", "script": "4-2-clean-build-debug.sh" },
-        "f6": { "label": "Build Debug", "script": "4-5-build-debug.sh" },
+        "f3": { "label": "Clean Build Debug", "script": "i386/4-2-clean-build-debug-ext2.sh" },
+        "f4": { "label": "Build Debug", "script": "i386/4-5-build-debug-ext2.sh" },
 
-        "2--------------------": "",
+        "f5": { "label": "Start QEMU", "script": "i386/5-1-start-qemu-ioapic-sata-e1000.sh" },
+        "f6": { "label": "Start QEMU + GDB", "script": "i386/5-2-debug-qemu-ioapic-sata-e1000.sh" },
 
-        "f7": { "label": "Clean Build Scheduling Debug", "script": "4-3-clean-build-scheduling-debug.sh" },
-        "f8": { "label": "Build Scheduling Debug", "script": "4-6-build-scheduling-debug.sh" },
+        "x86-64---------------": "",
+
+        "f7": { "label": "Clean Build", "script": "x86-64/4-1-clean-build-release-ext2.sh" },
+        "f8": { "label": "Build", "script": "x86-64/4-4-build-release-ext2.sh" },
+
+        "f9": { "label": "Clean Build Debug", "script": "x86-64/4-2-clean-build-debug-ext2.sh" },
+        "f10": { "label": "Build Debug", "script": "x86-64/4-5-build-debug-ext2.sh" },
+
+        "f11": { "label": "Start QEMU", "script": "x86-64/5-1-start-qemu-ioapic-sata-e1000.sh" },
+        "f12": { "label": "Start QEMU + GDB", "script": "x86-64/5-2-debug-qemu-ioapic-sata-e1000.sh" },
 
         "3--------------------": "",
-
-        "f9": { "label": "Start QEMU debug", "script": "5-2-debug-qemu-hd.sh" },
-        "f10": { "label": "Start QEMU No GFX", "script": "6-1-start-qemu-hd-nogfx.sh" },
-
-        "f11": { "label": "Format Code", "script": "3-format-all-code.sh" },
-
-        "4--------------------": "",
 
         "p": { "label": "Git Pull", "script": "git pull" },
         "C-p": { "label": "Git Push", "script": "git push" },
@@ -38,8 +40,9 @@
         "enableCommandHistory": true,
         "persistLogs": true,
         "notifyOnExit": true,
-        "renderThrottleMs": 100,
-        "maxLogLines": 1000
+        "renderThrottleMs": 50,
+        "maxLogLines": 1000,
+        "sidebarMinWidth" : 25
     },
     "events": {
         "onDashboardStart": [
@@ -47,6 +50,12 @@
                 "action": "killProcess",
                 "parameters": [
                     "qemu-system-i386"
+                ]
+            },
+            {
+                "action": "killProcess",
+                "parameters": [
+                    "qemu-system-x86_64"
                 ]
             }
         ],

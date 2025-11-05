@@ -33,7 +33,7 @@
 #include "Heap.h"
 #include "utils/Notification.h"
 #include "utils/Helpers.h"
-#include "String.h"
+#include "CoreString.h"
 #include "utils/NetworkChecksum.h"
 #include "utils/Hysteresis.h"
 #include "Device.h"
@@ -57,7 +57,7 @@ static U16 TCP_GetEphemeralPortStart(void) {
 
 /************************************************************************/
 // Helper to read buffer sizes from configuration with fallback
-static U32 TCP_GetConfiguredBufferSize(LPCSTR configKey, U32 fallback, U32 maxLimit) {
+static UINT TCP_GetConfiguredBufferSize(LPCSTR configKey, U32 fallback, U32 maxLimit) {
     LPCSTR configValue = GetConfigurationValue(configKey);
 
     SAFE_USE(configValue) {
@@ -66,16 +66,16 @@ static U32 TCP_GetConfiguredBufferSize(LPCSTR configKey, U32 fallback, U32 maxLi
             if (parsedValue > maxLimit) {
                 WARNING(TEXT("[TCP_GetConfiguredBufferSize] %s=%u exceeds maximum %u, clamping"),
                         configKey, parsedValue, maxLimit);
-                return maxLimit;
+                return (UINT)maxLimit;
             }
-            return parsedValue;
+            return (UINT)parsedValue;
         }
 
         WARNING(TEXT("[TCP_GetConfiguredBufferSize] %s has invalid value '%s', using fallback"),
                 configKey, configValue);
     }
 
-    return fallback;
+    return (UINT)fallback;
 }
 
 /************************************************************************/
@@ -83,8 +83,8 @@ static U32 TCP_GetConfiguredBufferSize(LPCSTR configKey, U32 fallback, U32 maxLi
 
 typedef struct tag_TCP_GLOBAL_STATE {
     U16 NextEphemeralPort;
-    U32 SendBufferSize;
-    U32 ReceiveBufferSize;
+    UINT SendBufferSize;
+    UINT ReceiveBufferSize;
 } TCP_GLOBAL_STATE, *LPTCP_GLOBAL_STATE;
 
 TCP_GLOBAL_STATE GlobalTCP;
@@ -210,7 +210,7 @@ static U16 TCP_GetNextEphemeralPort(U32 localIP) {
     // Initialize with a pseudo-random port if not set
     if (GlobalTCP.NextEphemeralPort == 0) {
         // Simple pseudo-random based on system time and IP
-        U32 seed = GetSystemTime() ^ (localIP & 0xFFFF);
+        UINT seed = GetSystemTime() ^ (localIP & 0xFFFF);
         GlobalTCP.NextEphemeralPort = startPort + (seed % (maxPort - startPort + 1));
     }
 
@@ -267,10 +267,10 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
     Header.DataOffset = ((HeaderLength / 4) << 4); // Data offset in 4-byte words, shifted to upper nibble
     Header.Flags = Flags;
     // Always calculate window based on actual TCP buffer space, not cached value
-    U32 AvailableSpace = (Conn->RecvBufferCapacity > Conn->RecvBufferUsed)
-                         ? (Conn->RecvBufferCapacity - Conn->RecvBufferUsed)
-                         : 0;
-    U16 ActualWindow = (AvailableSpace > 0xFFFF) ? 0xFFFF : (U16)AvailableSpace;
+    UINT AvailableSpace = (Conn->RecvBufferCapacity > Conn->RecvBufferUsed)
+                          ? (Conn->RecvBufferCapacity - Conn->RecvBufferUsed)
+                          : 0;
+    U16 ActualWindow = (AvailableSpace > 0xFFFFU) ? 0xFFFFU : (U16)AvailableSpace;
     Header.WindowSize = Htons(ActualWindow);
     Header.UrgentPointer = 0;
     Header.Checksum = 0;
@@ -547,10 +547,10 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
             return;
         }
 
-        U32 SpaceAvailable = (Conn->RecvBufferCapacity > Conn->RecvBufferUsed)
-                             ? (Conn->RecvBufferCapacity - Conn->RecvBufferUsed)
-                             : 0;
-        U32 CopyLength = (PayloadLength > SpaceAvailable) ? SpaceAvailable : PayloadLength;
+        UINT SpaceAvailable = (Conn->RecvBufferCapacity > Conn->RecvBufferUsed)
+                              ? (Conn->RecvBufferCapacity - Conn->RecvBufferUsed)
+                              : 0;
+        U32 CopyLength = (PayloadLength > (U32)SpaceAvailable) ? (U32)SpaceAvailable : PayloadLength;
 
         if (CopyLength > 0) {
             BytesAccepted = SocketTCPReceiveCallback(Conn, PayloadPtr, CopyLength);
@@ -929,7 +929,7 @@ void TCP_Initialize(void) {
 
     // TCP protocol handler will be registered later when devices are initialized
 
-    DEBUG(TEXT("[TCP_Initialize] Done (send buffer=%u bytes, receive buffer=%u bytes, next ephemeral port=%u)"),
+    DEBUG(TEXT("[TCP_Initialize] Done (send buffer=%lu bytes, receive buffer=%lu bytes, next ephemeral port=%u)"),
           GlobalTCP.SendBufferSize, GlobalTCP.ReceiveBufferSize, GlobalTCP.NextEphemeralPort);
 }
 
@@ -1072,7 +1072,8 @@ int TCP_Send(LPTCP_CONNECTION Connection, const U8* Data, U32 Length) {
             return -1;
         }
 
-        U32 MaxChunk = Connection->SendBufferCapacity;
+        UINT Capacity = Connection->SendBufferCapacity;
+        U32 MaxChunk = (Capacity > (UINT)MAX_U32) ? MAX_U32 : (U32)Capacity;
         if (MaxChunk == 0) {
             MaxChunk = TCP_SEND_BUFFER_SIZE;
         }
@@ -1105,12 +1106,13 @@ int TCP_Receive(LPTCP_CONNECTION Connection, U8* Buffer, U32 BufferSize) {
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         if (Connection->RecvBufferUsed == 0) return 0;
 
-        U32 CopyLength = (Connection->RecvBufferUsed > BufferSize) ? BufferSize : Connection->RecvBufferUsed;
+        UINT Used = Connection->RecvBufferUsed;
+        U32 CopyLength = (Used > BufferSize) ? BufferSize : (U32)Used;
         MemoryCopy(Buffer, Connection->RecvBuffer, CopyLength);
 
         // Move remaining data to beginning of buffer
-        if (CopyLength < Connection->RecvBufferUsed) {
-            MemoryMove(Connection->RecvBuffer, Connection->RecvBuffer + CopyLength, Connection->RecvBufferUsed - CopyLength);
+        if (CopyLength < Used) {
+            MemoryMove(Connection->RecvBuffer, Connection->RecvBuffer + CopyLength, (U32)(Used - CopyLength));
         }
 
         TCP_HandleApplicationRead(Connection, CopyLength);
@@ -1263,7 +1265,7 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 /************************************************************************/
 
 void TCP_Update(void) {
-    U32 CurrentTime = GetSystemTime();
+    UINT CurrentTime = GetSystemTime();
 
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)Kernel.TCPConnection->First;
     while (Conn != NULL) {
@@ -1366,7 +1368,8 @@ U32 TCP_RegisterCallback(LPTCP_CONNECTION Connection, U32 Event, NOTIFICATION_CA
  */
 void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
-        U32 MaxWindow = Connection->RecvBufferCapacity;
+        UINT Capacity = Connection->RecvBufferCapacity;
+        U32 MaxWindow = (Capacity > (UINT)MAX_U32) ? MAX_U32 : (U32)Capacity;
         if (MaxWindow == 0) {
             MaxWindow = TCP_RECV_BUFFER_SIZE;
         }
@@ -1390,17 +1393,17 @@ void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
 void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed) {
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         // NOTE: RecvBufferUsed is already updated by caller, just calculate window
-        U32 AvailableSpace = (Connection->RecvBufferCapacity > Connection->RecvBufferUsed)
-                             ? (Connection->RecvBufferCapacity - Connection->RecvBufferUsed)
-                             : 0;
-        U16 NewWindow = (AvailableSpace > 0xFFFF) ? 0xFFFF : (U16)AvailableSpace;
+        UINT AvailableSpace = (Connection->RecvBufferCapacity > Connection->RecvBufferUsed)
+                              ? (Connection->RecvBufferCapacity - Connection->RecvBufferUsed)
+                              : 0;
+        U16 NewWindow = (AvailableSpace > 0xFFFFU) ? 0xFFFFU : (U16)AvailableSpace;
 
         // Update hysteresis with new window size
         BOOL StateChanged = Hysteresis_Update(&Connection->WindowHysteresis, NewWindow);
 
         // Note: RecvWindow is no longer used - window is calculated dynamically in TCP_SendPacket
 
-        DEBUG(TEXT("[TCP_ProcessDataConsumption] DataConsumed=%u, BufferUsed=%u, Window=%u, StateChanged=%d"),
+        DEBUG(TEXT("[TCP_ProcessDataConsumption] DataConsumed=%u, BufferUsed=%lu, Window=%u, StateChanged=%d"),
               DataConsumed, Connection->RecvBufferUsed, NewWindow, StateChanged);
 
         if (StateChanged) {
@@ -1446,10 +1449,10 @@ void TCP_HandleApplicationRead(LPTCP_CONNECTION Connection, U32 BytesConsumed) {
     }
 
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
-        U32 PreviousUsed = Connection->RecvBufferUsed;
+        UINT PreviousUsed = Connection->RecvBufferUsed;
 
-        if (BytesConsumed > PreviousUsed) {
-            BytesConsumed = PreviousUsed;
+        if (BytesConsumed > (U32)PreviousUsed) {
+            BytesConsumed = (U32)PreviousUsed;
         }
 
         if (BytesConsumed == 0) {

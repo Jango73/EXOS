@@ -22,13 +22,14 @@
 
 \************************************************************************/
 
-// I386 32 bits real mode payload entry point
+// i386 32 bits real mode payload entry point
 
-#include "../../kernel/include/arch/i386/I386.h"
-#include "../../kernel/include/SerialPort.h"
-#include "../../kernel/include/String.h"
-#include "../include/Multiboot.h"
-#include "../include/SegOfs.h"
+#include "../include/vbr-multiboot.h"
+#include "../include/vbr-realmode-utils.h"
+#include "../include/vbr-payload-shared.h"
+#include "arch/i386/i386.h"
+#include "SerialPort.h"
+#include "CoreString.h"
 
 /************************************************************************/
 
@@ -39,20 +40,8 @@ __asm__(".code16gcc");
 #endif
 
 /************************************************************************/
-// I386 values
 
-#define PAGE_DIRECTORY_ADDRESS LOW_MEMORY_PAGE_1
-#define PAGE_TABLE_LOW_ADDRESS LOW_MEMORY_PAGE_2
-#define PAGE_TABLE_KERNEL_ADDRESS LOW_MEMORY_PAGE_3
-#define GDT_ADDRESS LOW_MEMORY_PAGE_4
-
-#define PROTECTED_ZONE_START 0xC0000
-#define PROTECTED_ZONE_END 0xFFFFF
-
-/************************************************************************/
-
-static void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize);
-
+void NORETURN EnterProtectedPagingAndJump(U32 FileSize);
 BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut);
 BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut);
 
@@ -61,7 +50,6 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
 static void InitDebug(void);
 static void OutputChar(U8 Char);
 static void WriteString(LPCSTR Str);
-static U8 ReadFarByte(U16 Seg, U16 Ofs);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
@@ -100,21 +88,37 @@ static void WriteString(LPCSTR Str) {
 
 /************************************************************************/
 
-void BootDebugPrint(LPCSTR Str) {
+void BootDebugPrint(LPCSTR Format, ...) {
 #if DEBUG_OUTPUT == 0
-    UNUSED(Str);
+    UNUSED(Format);
 #else
-    WriteString(Str);
+    VarArgList Args;
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(TempString, Format, Args);
+    VarArgEnd(Args);
+    WriteString(TempString);
 #endif
 }
 
 /************************************************************************/
 
-void BootVerbosePrint(LPCSTR Str) { WriteString(Str); }
+void BootVerbosePrint(LPCSTR Format, ...) {
+    VarArgList Args;
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(TempString, Format, Args);
+    VarArgEnd(Args);
+    WriteString(TempString);
+}
 
 /************************************************************************/
 
-void BootErrorPrint(LPCSTR Str) { WriteString(Str); }
+void BootErrorPrint(LPCSTR Format, ...) {
+    VarArgList Args;
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(TempString, Format, Args);
+    VarArgEnd(Args);
+    WriteString(TempString);
+}
 
 /************************************************************************/
 
@@ -167,14 +171,12 @@ static void VerifyKernelImage(U32 FileSize) {
         Hang();
     }
 
-    const U8* const FileStart = (const U8*)SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
+    const U8* const FileStart = (const U8*)KERNEL_LINEAR_LOAD_ADDRESS;
     const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
 
-    StringPrintFormat(
-        TempString,
+    BootVerbosePrint(
         TEXT("[VBR] VerifyKernelImage scanning %u data bytes\r\n"),
         FileSize - (U32)sizeof(U32));
-    BootVerbosePrint(TempString);
 
     U32 LastBytes1 = 0;
     U32 LastBytes2 = 0;
@@ -184,8 +186,7 @@ static void VerifyKernelImage(U32 FileSize) {
         LastBytes2 |= ((U32)FileStart[FileSize - 4U + (U32)Index]) << (Index * 8);
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Last 8 bytes of file: %x %x\r\n"), LastBytes1, LastBytes2);
 
     U32 Computed = 0;
     for (U32 Index = 0; Index < FileSize - sizeof(U32); ++Index) {
@@ -197,43 +198,35 @@ static void VerifyKernelImage(U32 FileSize) {
         Stored |= ((U32)ChecksumPtr[Index]) << (Index * 8);
     }
 
-    StringPrintFormat(TempString, TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
 
-    if (Computed != Stored) {
-        StringPrintFormat(TempString, TEXT("[VBR] Checksum mismatch. Halting. Computed : %x\r\n"), Computed);
-        BootErrorPrint(TempString);
+    if (Computed == Stored) {
+        BootVerbosePrint(
+            TEXT("[VBR] Image checksum OK. Stored : %x vs computed : %x\r\n"),
+            Stored,
+            Computed);
+    } else {
+        BootErrorPrint(
+            TEXT("[VBR] Checksum mismatch. Halting. Stored : %x vs computed : %x\r\n"),
+            Stored,
+            Computed);
         Hang();
     }
 }
 
 /************************************************************************/
-
-// E820 memory map
-typedef struct __attribute__((packed)) tag_E820ENTRY {
-    U64 Base;
-    U64 Size;
-    U32 Type;
-    U32 Attributes;
-} E820ENTRY;
-
-/************************************************************************/
-// Use total available memory for E80 entries and cluster
-
-#define E820_MAX_ENTRIES 32
-#define E820_SIZE (E820_MAX_ENTRIES * sizeof(E820ENTRY))
-
+// E820 memory map buffers shared with architecture specific code
 /************************************************************************/
 
-static U32 E820_EntryCount = 0;
-static E820ENTRY E820_Map[E820_MAX_ENTRIES];
+U32 E820_EntryCount = 0;
+E820ENTRY E820_Map[E820_MAX_ENTRIES];
 
 // Multiboot structures - placed at a safe memory location
-static multiboot_info_t MultibootInfo;
-static multiboot_memory_map_t MultibootMemMap[E820_MAX_ENTRIES];
-static multiboot_module_t KernelModule;
-static const char BootloaderName[] = "EXOS VBR";
-static const char KernelCmdLine[] = KERNEL_FILE;
+multiboot_info_t MultibootInfo;
+multiboot_memory_map_t MultibootMemMap[E820_MAX_ENTRIES];
+multiboot_module_t KernelModule;
+const char BootloaderName[] = "EXOS VBR";
+const char KernelCmdLine[] = KERNEL_FILE;
 
 /************************************************************************/
 // Low-level I/O + A20
@@ -291,195 +284,17 @@ void SerialOut(U8 Which, U8 Char) {
 
 /************************************************************************/
 
-// Helper function to read byte via far pointer to avoid segment limit issues
-
-static U8 ReadFarByte(U16 Seg, U16 Ofs) {
-    U32 Linear = SegOfsToLinear(Seg, Ofs);
-    return *((U8*)Linear);
-}
-
-/************************************************************************/
-
 static void RetrieveMemoryMap(void) {
     MemorySet((void*)E820_Map, 0, E820_SIZE);
     E820_EntryCount = BiosGetMemoryMap(MakeSegOfs(E820_Map), E820_MAX_ENTRIES);
+
+    BootDebugPrint(TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
+    BootDebugPrint(TEXT("[VBR] E820 entry count : %d\r\n"), E820_EntryCount);
 }
 
 /************************************************************************/
 
-void BootMain(U32 BootDrive, U32 PartitionLba) {
-    InitDebug();
-
-    RetrieveMemoryMap();
-
-    StringPrintFormat(
-        TempString,
-        TEXT("[VBR] Loading and running binary OS at %08X:%08X\r\n"),
-        LOADADDRESS_SEG,
-        LOADADDRESS_OFS);
-    BootDebugPrint(TempString);
-
-    char Ext2KernelName[32];
-    BuildKernelExt2Name(Ext2KernelName, sizeof(Ext2KernelName));
-
-    U32 FileSize = 0;
-    const char* LoadedFs = NULL;
-
-    if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
-        LoadedFs = "FAT32";
-    } else if (LoadKernelExt2(BootDrive, PartitionLba, Ext2KernelName, &FileSize)) {
-        LoadedFs = "EXT2";
-    } else {
-        BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.\r\n"));
-        Hang();
-    }
-
-    StringPrintFormat(TempString, TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
-    BootDebugPrint(TempString);
-
-    VerifyKernelImage(FileSize);
-
-    StringPrintFormat(TempString, TEXT("[VBR] E820 map at %x\r\n"), (U32)E820_Map);
-    BootDebugPrint(TempString);
-
-    StringPrintFormat(TempString, TEXT("[VBR] E820 entries : %08X\r\n"), E820_EntryCount);
-    BootDebugPrint(TempString);
-
-    EnterProtectedPagingAndJump(FileSize);
-
-    Hang();
-}
-
-/************************************************************************/
-
-static LPPAGEDIRECTORY PageDirectory = (LPPAGEDIRECTORY)PAGE_DIRECTORY_ADDRESS;
-static LPPAGETABLE PageTableLow = (LPPAGETABLE)PAGE_TABLE_LOW_ADDRESS;
-static LPPAGETABLE PageTableKrn = (LPPAGETABLE)PAGE_TABLE_KERNEL_ADDRESS;
-static GDTREGISTER Gdtr;
-
-/************************************************************************/
-
-static void SetSegmentDescriptor(
-    LPSEGMENTDESCRIPTOR D, U32 Base, U32 Limit, U32 Type /*0=data,1=code*/, U32 CanWrite, U32 Priv /*0*/,
-    U32 Operand32 /*1*/, U32 Gran4K /*1*/) {
-    // Fill SEGMENTDESCRIPTOR bitfields (per your I386.h)
-    D->Limit_00_15 = (U16)(Limit & 0xFFFF);
-    D->Base_00_15 = (U16)(Base & 0xFFFF);
-    D->Base_16_23 = (U8)((Base >> 16) & 0xFF);
-    D->Accessed = 0;
-    D->CanWrite = (CanWrite ? 1U : 0U);
-    D->ConformExpand = 0;        // non-conforming code / non expand-down data
-    D->Type = (Type ? 1U : 0U);  // 1=code, 0=data
-    D->Segment = 1;              // code/data segment
-    D->Privilege = (Priv & 3U);
-    D->Present = 1;
-    D->Limit_16_19 = (Limit >> 16) & 0xF;
-    D->Available = 0;
-    D->Unused = 0;
-    D->OperandSize = (Operand32 ? 1U : 0U);
-    D->Granularity = (Gran4K ? 1U : 0U);
-    D->Base_24_31 = (U8)((Base >> 24) & 0xFF);
-}
-
-/************************************************************************/
-
-static void BuildGdtFlat(void) {
-    // Build in a real local array so the compiler knows the bounds.
-    SEGMENTDESCRIPTOR GdtBuffer[3];
-
-    BootDebugPrint(TEXT("[VBR] BuildGdtFlat\r\n"));
-
-    // Safe: compiler knows GdtBuf has exactly 3 entries
-    MemorySet(GdtBuffer, 0, sizeof(GdtBuffer));
-
-    // Code segment: base=0, limit=0xFFFFF, type=code, RW=1, gran=4K, 32-bit
-    SetSegmentDescriptor(
-        &GdtBuffer[1], 0x00000000, 0x000FFFFF, /*Type=*/1, /*RW=*/1,
-        /*Conforming=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
-
-    // Data segment: base=0, limit=0xFFFFF, type=data, RW=1, gran=4K, 32-bit
-    SetSegmentDescriptor(
-        &GdtBuffer[2], 0x00000000, 0x000FFFFF, /*Type=*/0, /*RW=*/1,
-        /*ExpandDown=*/0, /*Granularity4K=*/1, /*Operand32=*/1);
-
-    // Now copy to the physical location expected by your early boot
-    MemoryCopy((void*)GDT_ADDRESS, GdtBuffer, sizeof(GdtBuffer));
-
-    Gdtr.Limit = (U16)(sizeof(GdtBuffer) - 1);
-    Gdtr.Base = (U32)GDT_ADDRESS;
-}
-
-/************************************************************************/
-
-static void ClearPdPt(void) {
-    MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
-    MemorySet(PageTableLow, 0, PAGE_TABLE_SIZE);
-    MemorySet(PageTableKrn, 0, PAGE_TABLE_SIZE);
-}
-
-/************************************************************************/
-
-static void SetPageDirectoryEntry(LPPAGEDIRECTORY E, U32 PtPhys) {
-    E->Present = 1;
-    E->ReadWrite = 1;
-    E->Privilege = 0;
-    E->WriteThrough = 0;
-    E->CacheDisabled = 0;
-    E->Accessed = 0;
-    E->Reserved = 0;
-    E->PageSize = 0;  // 0 = 4KB pages
-    E->Global = 0;
-    E->User = 0;
-    E->Fixed = 1;
-    E->Address = (PtPhys >> 12);  // top 20 bits
-}
-
-/************************************************************************/
-
-static void SetPageTableEntry(LPPAGETABLE E, U32 Physical) {
-    BOOL Protected = Physical == 0 || (Physical > PROTECTED_ZONE_START && Physical <= PROTECTED_ZONE_END);
-
-    E->Present = !Protected;
-    E->ReadWrite = 1;
-    E->Privilege = 0;
-    E->WriteThrough = 0;
-    E->CacheDisabled = 0;
-    E->Accessed = 0;
-    E->Dirty = 0;
-    E->Reserved = 0;
-    E->Global = 0;
-    E->User = 0;
-    E->Fixed = 1;
-    E->Address = (Physical >> 12);  // top 20 bits
-}
-
-/************************************************************************/
-
-static void BuildPaging(U32 KernelPhysBase, U32 KernelVirtBase, U32 MapSize) {
-    ClearPdPt();
-
-    // Identity 0..4 MB
-    for (U32 i = 0; i < 1024; ++i) {
-        SetPageTableEntry(PageTableLow + i, i * 4096U);
-    }
-
-    SetPageDirectoryEntry(PageDirectory + 0, (U32)PageTableLow);
-
-    // High mapping: 0xC0000000 -> KernelPhysBase .. +MapSize
-    const U32 PdiK = (KernelVirtBase >> 22) & 0x3FFU;  // 768 for 0xC0000000
-    SetPageDirectoryEntry(PageDirectory + PdiK, (U32)PageTableKrn);
-
-    const U32 NumPages = (MapSize + 4095U) >> 12;
-    for (U32 i = 0; i < NumPages && i < 1024U; ++i) {
-        SetPageTableEntry(PageTableKrn + i, KernelPhysBase + (i << 12));
-    }
-
-    SetPageDirectoryEntry(PageDirectory + 1023, (U32)PageDirectory);
-}
-
-/************************************************************************/
-
-static U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
+U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
     // Clear the multiboot info structure
     MemorySet(&MultibootInfo, 0, sizeof(multiboot_info_t));
     MemorySet(MultibootMemMap, 0, sizeof(MultibootMemMap));
@@ -580,36 +395,45 @@ static U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
 
     // EXOS-specific extensions removed (cursor position now handled in Console module)
 
-    StringPrintFormat(TempString, TEXT("[VBR] Multiboot info at %x\r\n"), (U32)&MultibootInfo);
-    BootDebugPrint(TempString);
-    StringPrintFormat(TempString, TEXT("[VBR] mem_lower=%u KB, mem_upper=%u KB\r\n"), LowerMem, UpperMem);
-    BootDebugPrint(TempString);
+    BootDebugPrint(TEXT("[VBR] Multiboot info at %x\r\n"), (U32)&MultibootInfo);
+    BootDebugPrint(TEXT("[VBR] mem_lower=%u KB, mem_upper=%u KB\r\n"), LowerMem, UpperMem);
 
     return (U32)&MultibootInfo;
 }
 
 /************************************************************************/
 
-void __attribute__((noreturn)) EnterProtectedPagingAndJump(U32 FileSize) {
-    const U32 KernelPhysBase = SegOfsToLinear(LOADADDRESS_SEG, LOADADDRESS_OFS);
-    const U32 KernelVirtBase = 0xC0000000U;
-    const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
+void BootMain(U32 BootDrive, U32 PartitionLba) {
+    InitDebug();
 
-    EnableA20();
-    BuildGdtFlat();
-    BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);
+    RetrieveMemoryMap();
 
-    // Build the multiboot information structure
-    U32 MultibootInfoPtr = BuildMultibootInfo(KernelPhysBase, FileSize);
+    BootDebugPrint(
+        TEXT("[VBR] Loading and running binary OS at %08X\r\n"),
+        KERNEL_LINEAR_LOAD_ADDRESS);
 
-    // Pass kernel entry VA as a normal C value
-    const U32 KernelEntryVA = 0xC0000000;
+    char Ext2KernelName[32];
+    BuildKernelExt2Name(Ext2KernelName, sizeof(Ext2KernelName));
 
-    for (volatile int i = 0; i < 100000; ++i) {
-        __asm__ __volatile__("nop");
+    U32 FileSize = 0;
+    const char* LoadedFs = NULL;
+
+    if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
+        LoadedFs = "FAT32";
+    } else if (LoadKernelExt2(BootDrive, PartitionLba, Ext2KernelName, &FileSize)) {
+        LoadedFs = "EXT2";
+    } else {
+        BootErrorPrint(TEXT("[VBR] Unsupported filesystem detected. Halting.\r\n"));
+        Hang();
     }
 
-    StubJumpToImage((U32)(&Gdtr), (U32)PageDirectory, (U32)KernelEntryVA, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
+    BootDebugPrint(TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
 
-    __builtin_unreachable();
+    VerifyKernelImage(FileSize);
+
+    BootDebugPrint(TEXT("[VBR] Calling architecture specific boot code\r\n"));
+
+    EnterProtectedPagingAndJump(FileSize);
+
+    Hang();
 }

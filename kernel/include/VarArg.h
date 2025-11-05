@@ -25,10 +25,23 @@
 #ifndef VARARGS_H_INCLUDED
 #define VARARGS_H_INCLUDED
 
+#include "Base.h"
+
+#ifdef __EXOS_32__
+
 typedef LPSTR VarArgList[1];
-#define VA_ALIGN(sz) (((sz) + sizeof(int) - 1) & ~(sizeof(int) - 1))
+#define VA_ALIGN(sz) (((sz) + sizeof(INT) - 1) & ~(sizeof(INT) - 1))
 #define VarArgStart(ap, pn) ((ap)[0] = (LPSTR) & (pn) + VA_ALIGN(sizeof(pn)), (void)0)
 #define VarArg(ap, type) ((ap)[0] += VA_ALIGN(sizeof(type)), (*(type*)((ap)[0] - VA_ALIGN(sizeof(type)))))
 #define VarArgEnd(ap) ((ap)[0] = 0, (void)0)
 
-#endif
+#else
+
+typedef __builtin_va_list VarArgList;
+#define VarArgStart(AP, LAST) __builtin_va_start((AP), (LAST))
+#define VarArgEnd(AP) __builtin_va_end((AP))
+#define VarArg(AP, TYPE) __builtin_va_arg((AP), TYPE)
+
+#endif  // __EXOS_32__
+
+#endif  // VARARGS_H_INCLUDED

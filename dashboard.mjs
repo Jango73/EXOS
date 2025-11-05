@@ -60,8 +60,49 @@ const defaultSettings = {
     persistLogs: true,
     notifyOnExit: true,
     renderThrottleMs: 100,
-    maxLogLines: 1000
+    maxLogLines: 1000,
+    logBatchSize: 50,
+    maxQueuedLogLines: 2000,
+    sidebarMinWidth: 25
 };
+
+function parsePositiveInteger(value) {
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value) || value <= 0) return undefined;
+        return Math.floor(value);
+    }
+    if (typeof value !== 'string' || value.trim() === '') return undefined;
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function normalizeSettings(overrides) {
+    const normalized = { ...defaultSettings };
+    if (!overrides || typeof overrides !== 'object') {
+        return normalized;
+    }
+
+    const booleanKeys = ['enableCommandHistory', 'persistLogs', 'notifyOnExit'];
+    for (const key of booleanKeys) {
+        if (typeof overrides[key] === 'boolean') {
+            normalized[key] = overrides[key];
+        }
+    }
+
+    const positiveIntegerKeys = ['renderThrottleMs', 'maxLogLines', 'logBatchSize', 'maxQueuedLogLines', 'sidebarMinWidth'];
+    for (const key of positiveIntegerKeys) {
+        const parsed = parsePositiveInteger(overrides[key]);
+        if (parsed !== undefined) {
+            normalized[key] = parsed;
+        }
+    }
+
+    return normalized;
+}
+
+let currentSettings = { ...defaultSettings };
+const logQueues = new Map();
+let screen = null;
 
 let logStream = null;
 
@@ -73,10 +114,60 @@ let renderScheduled = false;
 function scheduleRender() {
     if (renderScheduled) return;
     renderScheduled = true;
+    const delay = currentSettings.renderThrottleMs ?? defaultSettings.renderThrottleMs;
     setTimeout(() => {
-        scheduleRender();
         renderScheduled = false;
-    }, config.settings?.renderThrottleMs || 100);
+        if (screen && typeof screen.render === 'function') {
+            screen.render();
+        }
+    }, delay);
+}
+
+function ensureLogQueue(box) {
+    let entry = logQueues.get(box);
+    if (!entry) {
+        entry = { pending: [], processing: false, backlogDropped: false };
+        logQueues.set(box, entry);
+    }
+    return entry;
+}
+
+function flushLogQueue(box) {
+    const entry = logQueues.get(box);
+    if (!entry) return;
+    const batchSize = currentSettings.logBatchSize ?? defaultSettings.logBatchSize;
+    const batch = entry.pending.splice(0, batchSize);
+    if (entry.backlogDropped) {
+        box.log('... [log backlog trimmed to keep dashboard responsive] ...');
+        entry.backlogDropped = false;
+    }
+    for (const line of batch) {
+        box.log(line);
+    }
+    const maxLines = currentSettings.maxLogLines ?? defaultSettings.maxLogLines;
+    if (box.getLines().length > maxLines) {
+        box.setContent('... [log cleared to prevent memory overflow] ...\n');
+    }
+    scheduleRender();
+    if (entry.pending.length > 0) {
+        setImmediate(() => flushLogQueue(box));
+    } else {
+        entry.processing = false;
+    }
+}
+
+function enqueueLogLine(box, line) {
+    const entry = ensureLogQueue(box);
+    entry.pending.push(line);
+    const maxQueued = currentSettings.maxQueuedLogLines ?? defaultSettings.maxQueuedLogLines;
+    if (entry.pending.length > maxQueued) {
+        entry.pending = entry.pending.slice(entry.pending.length - maxQueued);
+        entry.backlogDropped = true;
+    }
+    if (!entry.processing) {
+        entry.processing = true;
+        setImmediate(() => flushLogQueue(box));
+    }
 }
 
 function initLogFile() {
@@ -120,16 +211,17 @@ function loadConfig() {
                                 ? inEvents.beforeStartProcess
                                 : normalizeMapToArray(legacyBSP)
         };
+        const computedSettings = normalizeSettings(cfg.settings);
+        currentSettings = computedSettings;
         return {
             ...cfg,
             events,
-            settings: {
-                ...defaultSettings,
-                ...cfg.settings
-            }
+            settings: computedSettings
         };
     } catch {
-        return { settings: { ...defaultSettings }, events: { onDashboardStart: [], beforeStartProcess: [] } };
+        const fallbackSettings = normalizeSettings();
+        currentSettings = fallbackSettings;
+        return { settings: fallbackSettings, events: { onDashboardStart: [], beforeStartProcess: [] } };
     }
 }
 
@@ -201,23 +293,20 @@ function setOutputLabel(label) {
 // interface LogWatcher { configPath: string; currentPath: string; box: blessed.Widgets.Log; tail: Tail; }
 function startTail(file, box) {
     if (!fs.existsSync(file)) fs.writeFileSync(file, '');
+    const entry = ensureLogQueue(box);
+    entry.pending = [];
+    entry.processing = false;
+    entry.backlogDropped = false;
     const tail = new Tail(file, {
         follow: true,
         useWatchFile: true,
         fsWatchOptions: { interval: 500 }
     });
     tail.on('line', (line) => {
-        box.log(line);
-        // Limit memory usage by clearing old lines
-        const maxLines = config.settings?.maxLogLines || 1000;
-        if (box.getLines().length > maxLines) {
-            box.setContent('... [log cleared to prevent memory overflow] ...\n');
-        }
-        scheduleRender();
+        enqueueLogLine(box, line);
     });
     tail.on('error', (err) => {
-        box.log(`Tail error: ${err.message}`);
-        scheduleRender();
+        enqueueLogLine(box, `Tail error: ${err.message}`);
     });
     return tail;
 }
@@ -226,23 +315,25 @@ const config = loadConfig();
 const scripts = loadScripts();
 
 // Initialize blessed screen
-const screen = blessed.screen({
+screen = blessed.screen({
     smartCSR: true,
-    title: 'Script Runner'
+    title: 'Dashboard'
 });
+
+const SIDEBAR_WIDTH_RATIO = 0.2;
 
 const sidebar = blessed.box({
     top: 0,
     left: 0,
-    width: '20%',
+    width: currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth,
     height: '100%',
     label: 'Scripts',
     border: 'line'
 });
 const rightContainer = blessed.box({
     top: 0,
-    left: '20%',
-    width: '80%',
+    left: currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth,
+    width: '100%',
     height: '100%',
 });
 
@@ -269,12 +360,22 @@ const buttonBar = blessed.box({
     width: '100%'
 });
 
+const STOP_BUTTON_WIDTH = 12;
+const controlsContainer = blessed.box({
+    parent: buttonBar,
+    top: 0,
+    left: STOP_BUTTON_WIDTH + 3,
+    right: 1,
+    height: 3
+});
+
 const stopButton = blessed.button({
     parent: buttonBar,
     left: 1,
     mouse: true,
     keys: true,
-    shrink: true,
+    shrink: false,
+    width: STOP_BUTTON_WIDTH,
     padding: { left: 1, right: 1 },
     content: 'Stop',
     border: 'line',
@@ -288,13 +389,28 @@ const stopButton = blessed.button({
 });
 
 const inputBox = blessed.textbox({
-    parent: buttonBar,
-    left: 15,
-    width: '70%',
+    parent: controlsContainer,
+    left: 0,
+    width: '50%-1',
     height: 3,
     inputOnFocus: true,
     border: 'line',
     label: ' Custom Command ',
+    style: {
+        focus: {
+            border: { fg: 'cyan' }
+        }
+    }
+});
+
+const filterBox = blessed.textbox({
+    parent: controlsContainer,
+    left: '50%+1',
+    right: 0,
+    height: 3,
+    inputOnFocus: true,
+    border: 'line',
+    label: ' Output Filter ',
     style: {
         focus: {
             border: { fg: 'cyan' }
@@ -324,13 +440,77 @@ const output = blessed.log({
     }
 });
 
-const originalOutputLog = output.log.bind(output);
-output.log = ((msg) => {
-    originalOutputLog(msg);
-    if (logStream) {
-        logStream.write(`[${new Date().toISOString()}] ${msg}\n`);
+const outputHistory = [];
+const outputHistoryLimit = currentSettings.maxQueuedLogLines ?? defaultSettings.maxQueuedLogLines;
+let outputFilterValue = '';
+const OUTPUT_TRIM_MESSAGE = '... [log cleared to prevent memory overflow] ...';
+
+function storeOutputLine(line, writeToFile = true) {
+    outputHistory.push(line);
+    while (outputHistory.length > outputHistoryLimit) {
+        outputHistory.shift();
     }
-});
+    if (writeToFile && logStream) {
+        logStream.write(`[${new Date().toISOString()}] ${line}\n`);
+    }
+}
+
+function refreshOutputDisplay() {
+    const filter = outputFilterValue;
+    const filtered = filter
+        ? outputHistory.filter(line => line.includes(filter))
+        : outputHistory.slice();
+
+    const maxLines = currentSettings.maxLogLines ?? defaultSettings.maxLogLines;
+    let linesToShow;
+    if (!filter && filtered.length > maxLines) {
+        linesToShow = filtered.slice(filtered.length - maxLines);
+        if (linesToShow.length > 0) {
+            linesToShow[0] = OUTPUT_TRIM_MESSAGE;
+        }
+    } else if (filtered.length > maxLines) {
+        linesToShow = filtered.slice(filtered.length - maxLines);
+    } else {
+        linesToShow = filtered;
+    }
+
+    output.setContent(linesToShow.join('\n'));
+    if (typeof output.scrollTo === 'function') {
+        output.scrollTo(linesToShow.length);
+    }
+    scheduleRender();
+}
+
+function appendOutputLines(message) {
+    const normalized = String(message ?? '').replace(/\r/g, '');
+    if (normalized === '') {
+        storeOutputLine('');
+    } else {
+        const parts = normalized.split('\n');
+        const hasTrailingNewline = normalized.endsWith('\n');
+        for (let i = 0; i < parts.length; i++) {
+            if (i === parts.length - 1 && parts[i] === '' && !hasTrailingNewline) {
+                continue;
+            }
+            storeOutputLine(parts[i]);
+        }
+    }
+    refreshOutputDisplay();
+}
+
+function setOutputFilter(value) {
+    const next = value ?? '';
+    if (next === outputFilterValue) {
+        refreshOutputDisplay();
+        return;
+    }
+    outputFilterValue = next;
+    refreshOutputDisplay();
+}
+
+output.log = (msg) => {
+    appendOutputLines(msg);
+};
 
 initLogFile();
 
@@ -351,6 +531,19 @@ const list = blessed.list({
 
 screen.append(sidebar);
 screen.append(rightContainer);
+
+function applySidebarLayout() {
+    const minWidth = currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth;
+    const ratioWidth = Math.floor(screen.width * SIDEBAR_WIDTH_RATIO);
+    const computedWidth = Math.min(screen.width, Math.max(minWidth, ratioWidth));
+    sidebar.width = computedWidth;
+    rightContainer.left = computedWidth;
+    rightContainer.width = Math.max(screen.width - computedWidth, 0);
+    scheduleRender();
+}
+
+applySidebarLayout();
+screen.on('resize', applySidebarLayout);
 
 const logBoxes = [];
 const logWatchers = [];
@@ -405,7 +598,7 @@ setInterval(() => {
 
 list.focus();
 
-const focusables = [list, ...logBoxes, stopButton, inputBox, output];
+const focusables = [list, ...logBoxes, stopButton, inputBox, filterBox, output];
 let focusIndex = 0;
 
 screen.key('tab', () => {
@@ -518,6 +711,24 @@ inputBox.on('cancel', () => {
 
 inputBox.key(['escape'], () => {
     inputBox.cancel();
+});
+
+filterBox.on('submit', (value) => {
+    setOutputFilter(value ?? '');
+    screen.render(); // Keep immediate render for UI interactions
+});
+
+filterBox.on('keypress', (_, key) => {
+    if (key.name === 'escape') {
+        filterBox.cancel();
+    }
+});
+
+filterBox.on('cancel', () => {
+    filterBox.setValue(outputFilterValue);
+    focusIndex = (focusIndex + 1) % focusables.length;
+    focusables[focusIndex].focus();
+    screen.render(); // Keep immediate render for UI interactions
 });
 
 // NOTE: moved here exactly like your original file layout

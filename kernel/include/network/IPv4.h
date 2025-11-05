@@ -28,7 +28,7 @@
 #include "Base.h"
 #include "Driver.h"
 #include "Endianness.h"
-#include "Network.h"
+#include "network/Network.h"
 #include "utils/Notification.h"
 #include "drivers/PCI.h"
 

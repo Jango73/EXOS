@@ -35,6 +35,17 @@ extern "C" {
 #define __EXOS__
 
 /***************************************************************************/
+// Target architecture detection
+
+#if defined(__i386__) || defined(_M_IX86)
+    #define __EXOS_ARCH_I386__
+#elif defined(__x86_64__) || defined(_M_X64)
+    #define __EXOS_ARCH_X86_64__
+#else
+    #error "Unsupported target architecture for EXOS"
+#endif
+
+/***************************************************************************/
 // Check __SIZEOF_POINTER__ definition
 
 #ifndef __SIZEOF_POINTER__
@@ -66,6 +77,19 @@ extern "C" {
 #endif
 
 /***************************************************************************/
+// Validate architecture and ABI combination
+
+#if defined(__EXOS_ARCH_I386__)
+    #if __SIZEOF_POINTER__ != 4
+        #error "i386 build requires 32-bit pointer size"
+    #endif
+#elif defined(__EXOS_ARCH_X86_64__)
+    #if __SIZEOF_POINTER__ != 8
+        #error "x86-64 build requires 64-bit pointer size"
+    #endif
+#endif
+
+/***************************************************************************/
 
 #pragma pack(push, 1)
 
@@ -74,7 +98,9 @@ extern "C" {
 
 #define CONST const
 #define FAR far
+#define PACKED __attribute__((packed))
 #define NAKEDCALL __declspec(naked)
+#define NORETURN __attribute__((noreturn))
 #define EXOSAPI
 #define APIENTRY
 #define REGISTER register
@@ -109,7 +135,7 @@ extern "C" {
 
 /***************************************************************************/
 
-typedef struct tag_U48 {
+typedef struct PACKED tag_U48 {
     U16 LO;
     U32 HI;
 } U48;
@@ -117,12 +143,12 @@ typedef struct tag_U48 {
 /***************************************************************************/
 
 #ifdef __EXOS_32__
-    typedef struct tag_U64 {
+    typedef struct PACKED tag_U64 {
         U32 LO;
         U32 HI;
     } U64;
 
-    typedef struct tag_I64 {
+    typedef struct PACKED tag_I64 {
         U32 LO;
         I32 HI;
     } I64;
@@ -139,14 +165,14 @@ typedef struct tag_U48 {
 
 /***************************************************************************/
 
-typedef struct tag_U80 {
+typedef struct PACKED tag_U80 {
     U16 LO;
     U64 HI;
 } U80;
 
 /***************************************************************************/
 
-typedef struct tag_U128 {
+typedef struct PACKED tag_U128 {
     U64 LO;
     U64 HI;
 } U128;
@@ -157,8 +183,13 @@ typedef struct tag_U128 {
 #define MAX_U16 ((U16)0xFFFF)
 #define MAX_U32 ((U32)0xFFFFFFFF)
 
+#ifdef __EXOS_32__
+    #define MAX_UINT MAX_U32
+#endif
+
 #ifdef __EXOS_64__
     #define MAX_U64 0xFFFFFFFFFFFFFFFF
+    #define MAX_UINT MAX_U64
 #endif
 
 /***************************************************************************/
@@ -168,8 +199,8 @@ typedef double F64;             // 64 bit float
 
 typedef U32 SIZE;
 
-typedef UINT LINEAR;             // Linear virtual address, paged or not
-typedef UINT PHYSICAL;           // Physical address
+typedef UINT LINEAR;            // Linear virtual address, paged or not
+typedef UINT PHYSICAL;          // Physical address
 typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/
@@ -182,11 +213,17 @@ typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
     #define DEBUG(a, ...)
 #endif
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
+#else
+    #define FINE_DEBUG(a, ...)
+#endif
+
 #define VERBOSE(a, ...) KernelLogText(LOG_VERBOSE, (a), ##__VA_ARGS__)
 #define WARNING(a, ...) KernelLogText(LOG_WARNING, (a), ##__VA_ARGS__)
 #define ERROR(a, ...) KernelLogText(LOG_ERROR, (a), ##__VA_ARGS__)
 
-#else
+#else   // __KERNEL__
 
 #if DEBUG_OUTPUT == 1
     #define DEBUG(a, ...) debug((a), ##__VA_ARGS__)
@@ -194,11 +231,17 @@ typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
     #define DEBUG(a, ...)
 #endif
 
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
+#else
+    #define FINE_DEBUG(a, ...)
+#endif
+
 #define VERBOSE(a, ...)
 #define WARNING(a, ...)
 #define ERROR(a, ...)
 
-#endif
+#endif  // __KERNEL__
 
 /************************************************************************/
 
@@ -213,7 +256,7 @@ typedef U32 (*TASKFUNC)(LPVOID Param);
 /************************************************************************/
 // Boolean type
 
-typedef U32 BOOL;
+typedef UINT BOOL;
 
 #ifndef FALSE
 #define FALSE ((BOOL)0)
@@ -276,7 +319,7 @@ typedef U32 BOOL;
 /************************************************************************/
 // Time values
 
-#define INFINITY 0xFFFFFFFF
+#define INFINITY MAX_UINT
 
 /***************************************************************************/
 // Some machine constants
@@ -404,8 +447,9 @@ typedef U32 BOOL;
 // These macros give the offset of a structure member and true if a structure
 // of a specified size contains the specified member
 
-#define MEMBER_OFFSET(struc, member) ((U32)(&(((struc*)NULL)->member)))
+#define MEMBER_OFFSET(struc, member) ((UINT)(&(((struc*)NULL)->member)))
 #define HAS_MEMBER(struc, member, struc_size) (MEMBER_OFFSET(struc, member) < struc_size)
+#define ARRAY_COUNT(array) ((UINT)(sizeof(array) / sizeof((array)[0])))
 
 /***************************************************************************/
 // ASCII string types
@@ -478,8 +522,8 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 // A kernel object header
 
 #define OBJECT_FIELDS       \
-    U32 TypeID;             \
-    U32 References;         \
+    UINT TypeID;            \
+    UINT References;        \
     U64 ID;                 \
     LPPROCESS OwnerProcess; \
 
@@ -503,10 +547,11 @@ typedef struct tag_DATETIME {
 
 /************************************************************************/
 // Handles - They are a pointer in reality, but called handles so that they
-// are not used in userland, otherwise you get a nice page fault, at best.
-// Will implement pointer masking soon.
+// are not used in userland, otherwise you get a nice privilege violation,
+// at best. Will implement pointer masking soon.
 
-typedef U32 HANDLE;
+typedef UINT HANDLE;
+typedef UINT SOCKET_HANDLE;
 
 /************************************************************************/
 // Maximum string lengths
@@ -570,6 +615,8 @@ typedef U32 COLOR;
 /************************************************************************/
 // 64 bits math
 
+#ifdef __EXOS_32__
+
 // Make U64 from hi/lo
 static inline U64 U64_Make(U32 hi, U32 lo) {
     U64 v;
@@ -582,7 +629,7 @@ static inline U64 U64_Make(U32 hi, U32 lo) {
 static inline U64 U64_Add(U64 a, U64 b) {
     U64 r;
     U32 lo = a.LO + b.LO;
-    U32 carry = (lo < a.LO) ? 1u : 0u;
+    U32 carry = (lo < a.LO) ? 1 : 0;
     r.LO = lo;
     r.HI = a.HI + b.HI + carry;
     return r;
@@ -591,7 +638,7 @@ static inline U64 U64_Add(U64 a, U64 b) {
 // Subtract b from a
 static inline U64 U64_Sub(U64 a, U64 b) {
     U64 r;
-    U32 borrow = (a.LO < b.LO) ? 1u : 0u;
+    U32 borrow = (a.LO < b.LO) ? 1 : 0;
     r.LO = a.LO - b.LO;
     r.HI = a.HI - b.HI - borrow;
     return r;
@@ -608,7 +655,7 @@ static inline int U64_Cmp(U64 a, U64 b) {
 
 // Convert U64 to 32-bit if <= 0xFFFFFFFF, else clip
 static inline U32 U64_ToU32_Clip(U64 v) {
-    if (v.HI != 0) return 0xFFFFFFFFu;
+    if (v.HI != 0) return 0xFFFFFFFF;
     return v.LO;
 }
 
@@ -636,12 +683,89 @@ static inline U64 U64_FromU32(U32 Value) {
     return Result;
 }
 
+static inline U64 U64_FromUINT(UINT Value) {
+    U64 Result;
+    Result.LO = Value;
+    Result.HI = 0;
+    return Result;
+}
+
 static inline U64 U64_ShiftRight8(U64 Value) {
     U64 Result;
     Result.LO = (Value.LO >> 8) | ((Value.HI & 0xFF) << 24);
     Result.HI = Value.HI >> 8;
     return Result;
 }
+
+static inline U32 U64_High32(U64 Value) {
+    return Value.HI;
+}
+
+static inline U32 U64_Low32(U64 Value) {
+    return Value.LO;
+}
+
+#else
+
+// Make U64 from hi/lo
+static inline U64 U64_Make(U32 hi, U32 lo) {
+    return ((U64)hi << 32) | (U64)lo;
+}
+
+// Add two U64
+static inline U64 U64_Add(U64 a, U64 b) {
+    return a + b;
+}
+
+// Subtract b from a
+static inline U64 U64_Sub(U64 a, U64 b) {
+    return a - b;
+}
+
+// Compare: return -1 if a<b, 0 if a==b, 1 if a>b
+static inline int U64_Cmp(U64 a, U64 b) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+}
+
+// Convert U64 to 32-bit if <= 0xFFFFFFFF, else clip
+static inline U32 U64_ToU32_Clip(U64 v) {
+    return (v > 0xFFFFFFFF) ? 0xFFFFFFFF : (U32)v;
+}
+
+// Helper functions for U64 operations in CRC64
+static inline U64 U64_ShiftRight1(U64 Value) {
+    return Value >> 1;
+}
+
+static inline U64 U64_Xor(U64 A, U64 B) {
+    return A ^ B;
+}
+
+static inline BOOL U64_IsOdd(U64 Value) { return (Value & 1) != 0; }
+
+static inline U64 U64_FromU32(U32 Value) {
+    return (U64)Value;
+}
+
+static inline U64 U64_FromUINT(UINT Value) {
+    return (U64)Value;
+}
+
+static inline U64 U64_ShiftRight8(U64 Value) {
+    return Value >> 8;
+}
+
+static inline U32 U64_High32(U64 Value) {
+    return (U32)(Value >> 32);
+}
+
+static inline U32 U64_Low32(U64 Value) {
+    return (U32)(Value & 0xFFFFFFFF);
+}
+
+#endif
 
 /************************************************************************/
 

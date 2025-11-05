@@ -92,7 +92,7 @@ typedef struct tag_EXOSHEADER {
 
 typedef struct tag_EXOSCHUNK {
     U32 ID;
-    U32 Size;
+    UINT Size;
 } EXOSCHUNK, *LPEXOSCHUNK;
 
 /***************************************************************************/
@@ -100,13 +100,13 @@ typedef struct tag_EXOSCHUNK {
 typedef struct tag_EXOSCHUNK_INIT {
     U32 EntryPoint;
     U32 CodeBase;
-    U32 CodeSize;
+    UINT CodeSize;
     U32 DataBase;
-    U32 DataSize;
-    U32 StackMinimum;
-    U32 StackRequested;
-    U32 HeapMinimum;
-    U32 HeapRequested;
+    UINT DataSize;
+    UINT StackMinimum;
+    UINT StackRequested;
+    UINT HeapMinimum;
+    UINT HeapRequested;
     U32 Reserved1;
     U32 Reserved2;
     U32 Reserved3;

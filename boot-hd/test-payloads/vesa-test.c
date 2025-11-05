@@ -25,10 +25,10 @@
 // I386 16-bit real mode VESA test payload
 // Sets 640x480x24 mode and draws random rectangles
 
-#include "../../kernel/include/I386.h"
+#include "../../kernel/include/arch/i386/i386.h"
 #include "../../kernel/include/SerialPort.h"
-#include "../../kernel/include/String.h"
-#include "../include/SegOfs.h"
+#include "../../kernel/include/CoreString.h"
+#include "../include/vbr-realmode-utils.h"
 
 /************************************************************************/
 
@@ -37,7 +37,7 @@ __asm__(".code16gcc");
 /************************************************************************/
 // VESA structures and constants
 
-typedef struct __attribute__((packed)) {
+typedef struct PACKED {
     U8 VESASignature[4];
     U16 VESAVersion;
     U32 OEMStringPtr;
@@ -52,7 +52,7 @@ typedef struct __attribute__((packed)) {
     U8 OEMData[256];
 } VESA_INFO;
 
-typedef struct __attribute__((packed)) {
+typedef struct PACKED {
     U16 ModeAttributes;
     U8 WinAAttributes;
     U8 WinBAttributes;

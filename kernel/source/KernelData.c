@@ -134,10 +134,6 @@ static LIST UserAccountList = {
     .MemFreeFunc = KernelHeapFree,
     .Destructor = NULL};
 
-/************************************************************************/
-
-KERNELDATA_I386 SECTION(".data") Kernel_i386 = {.GDT = 0, .TSS = 0, .PPB = (U8*)0};
-
 KERNELDATA SECTION(".data") Kernel = {
     .Desktop = &DesktopList,
     .Process = &ProcessList,
@@ -169,4 +165,6 @@ KERNELDATA SECTION(".data") Kernel = {
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR",
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
-    .MinimumQuantum = 10};
+    .MinimumQuantum = 10,
+    .PPB = NULL,
+    .PPBSize = 0};

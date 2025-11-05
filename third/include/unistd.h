@@ -1,7 +1,7 @@
-/* Kernel stub for unistd.h */
-#ifndef UNISTD_H
-#define UNISTD_H
 
-/* Empty stub - no unistd functions needed in kernel for bcrypt */
+#ifndef unistd_h
+#define unistd_h
 
-#endif /* UNISTD_H */
+#include "sys/types.h"
+
+#endif	// unistd_h

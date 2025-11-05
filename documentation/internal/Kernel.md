@@ -1,18 +1,72 @@
 # Kernel documentation
 
-## Debugging
-
-To have standard debug info, use scripts/4-2-clean-build-debug.sh or scripts/4-5-build-debug.sh.
-To have critical debug info like scheduling, use 4-3-clean-build-critical-debug.sh or scripts/4-6-build-critical-debug.sh.
-Be aware that it generates A LOT of COM2 output, the scheduler is called every 10ms...
-
 ## Architecture
 
-To be completed.
+Work to bring the long-mode kernel build closer to parity with the i386
+port continues. The x86-64 backend exposes placeholder scheduler and
+context-switch helpers so common code can compile while the full task
+switching path is implemented. The interrupt bootstrap has also been
+rebuilt around the 16-byte IDT format, providing stubs for each vector so
+the C runtime reaches the scheduler before the final entry/exit sequences
+are written.
+
+### Paging abstractions
+
+The memory manager relies on `arch/Memory.h` to describe page hierarchy
+helpers exposed by the active architecture backend. The i386
+implementation (`arch/i386/i386-Memory.h`) centralizes directory and
+table index calculations, exposes accessors for the self-mapped page
+directory, and provides helper routines to build raw page directory and
+page table entries. Kernel code constructs mappings through
+`MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and
+`WritePage*EntryValue` instead of touching the i386 bitfields directly.
+This abstraction keeps `Memory.c` agnostic of the paging depth so that a
+future x86-64 backend can extend the hierarchy without refactoring the
+core allocator.
+
+`arch/i386/i386-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR`
+helper that walks page mappings without assuming a fixed number of page
+table levels. Region management routines (`IsRegionFree`, `AllocRegion`,
+`FreeRegion`, and friends) advance the iterator rather than manually
+splitting linear addresses into directory/table indexes, and table
+reclamation relies on `PageTableIsEmpty`. Physical range clipping is
+also delegated to the architecture via `ClipPhysicalRange`, keeping
+future 64-bit backends free to extend address limits without touching the
+common kernel code.
+
+`InitializeMemoryManager` defers to `InitializeMemoryManager` so
+the architecture backend owns the low-level bootstrap steps. The i386
+implementation continues to reserve the bitmap in low memory, seed the
+temporary mapping slots, install the recursive page directory, and load
+the GDT. The x86-64 path mirrors these steps, wiring the temporary
+linear aliases, building the initial PML4, and installing a long-mode
+GDT so higher-half execution can begin without architecture-specific
+hooks inside the generic memory manager.
+
+On long mode builds the kernel now allocates paging structures explicitly
+instead of cloning the loader tables. `AllocPageDirectory` creates fresh
+low-memory and kernel PDPTs, wires the task-runner window, and programs
+the recursive slot before returning the new PML4. `AllocUserPageDirectory`
+reuses those helpers but also reserves an empty userland page table so
+`AllocRegion` can immediately populate process space without reconstructing
+the hierarchy first. The low-memory region builder keeps a cached pair of
+BIOS-protected and general identity tables so new page directories only
+consume fresh pages for their PDPT, directory, and any userland seed tables.
+
+On x86-64 every successful `AllocRegion` now emits a `MEMORY_REGION_DESCRIPTOR`
+record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored
+on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from
+dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel
+heap stays untouched while diagnostics can enumerate allocations. Each
+descriptor stores the canonical base, committed size, physical origin (when
+fixed), allocation flags, and paging granularity. `FreeRegion` and
+`ResizeRegion` update the list in place, logging registration and teardown so
+validation runs can confirm descriptor lifetimes line up with the virtual
+memory operations they front.
 
 ### Kernel object identifiers
 
-Kernel objects now embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
+Kernel objects embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
 is assigned when `CreateKernelObject` allocates the structure and is derived
 from a randomly generated UUID. This value travels with the object for its
 entire lifetime and is persisted in the termination cache through
@@ -30,9 +84,9 @@ structure that embeds the editor instance and provides the shell-specific
 completion callback so the component remains agnostic of higher level shell
 logic.
 
-All reusable helpers—such as the command line editor, adaptive delay, string
+All reusable helpers —such as the command line editor, adaptive delay, string
 containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
-support, regex, hysteresis control, and network checksum helpers—now live under
+support, regex, hysteresis control, and network checksum helpers— live under
 `kernel/source/utils` with their public headers in `kernel/include/utils`. This
 keeps generic infrastructure separated from core subsystems and makes it easier
 to share common code across the kernel.
@@ -50,7 +104,7 @@ and hardware support code.
 The interactive shell keeps a persistent script interpreter context to run
 automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol`
 so scripts can inspect kernel state without bypassing the interpreter API. The
-shell now publishes the kernel process list under the global identifier
+shell publishes the kernel process list under the global identifier
 `process`. Scripts can iterate over the list (`process[0]`, `process[1]`, ...)
 and query per-process properties such as `Status`, `Flags`, `ExitCode`,
 `FileName`, `CommandLine`, and `WorkFolder`, enabling diagnostics like
@@ -342,7 +396,106 @@ Fractional part = unusable space.
 | 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
 | 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
 
+## EXT2 strcture
+
+                ┌──────────────────────────────────────┐
+                │               INODE                  │
+                ├──────────────────────────────────────┤
+                │ Block[0] → [DATA BLOCK 0]            │
+                │ Block[1] → [DATA BLOCK 1]            │
+                │   ...                                │
+                │ Block[11] → [DATA BLOCK 11]          │
+                │ Block[12] → [SINGLE INDIRECT]        │
+                │ Block[13] → [DOUBLE INDIRECT]        │
+                │ Block[14] → [TRIPLE INDIRECT]        │
+                └──────────────────────────────────────┘
+                               │
+                               │
+                               ▼
+─────────────────────────────────────────────────────────────────────
+(1) SINGLE INDIRECT (Block[12])
+─────────────────────────────────────────────────────────────────────
+[SINGLE INDIRECT BLOCK]
+ ├── ptr[0] → [DATA BLOCK 12]
+ ├── ptr[1] → [DATA BLOCK 13]
+ ├── ptr[2] → [DATA BLOCK 14]
+ ...
+ └── ptr[1023] → [DATA BLOCK N]
+
+─────────────────────────────────────────────────────────────────────
+(2) DOUBLE INDIRECT (Block[13])
+─────────────────────────────────────────────────────────────────────
+[DOUBLE INDIRECT BLOCK]
+ ├── ptr[0] → [SINGLE INDIRECT BLOCK A]
+ │              ├── ptr[0] → [DATA BLOCK A0]
+ │              ├── ptr[1] → [DATA BLOCK A1]
+ │              └── ...
+ ├── ptr[1] → [SINGLE INDIRECT BLOCK B]
+ │              ├── ptr[0] → [DATA BLOCK B0]
+ │              ├── ptr[1] → [DATA BLOCK B1]
+ │              └── ...
+ └── ptr[1023] → [SINGLE INDIRECT BLOCK Z]
+                 ├── ...
+                 └── [DATA BLOCK Zx]
+
+─────────────────────────────────────────────────────────────────────
+(3) TRIPLE INDIRECT (Block[14])
+─────────────────────────────────────────────────────────────────────
+[TRIPLE INDIRECT BLOCK]
+ ├── ptr[0] → [DOUBLE INDIRECT BLOCK A]
+ │              ├── ptr[0] → [SINGLE INDIRECT BLOCK A1]
+ │              │              ├── ptr[0] → [DATA BLOCK A1-0]
+ │              │              └── ...
+ │              ├── ptr[1] → [SINGLE INDIRECT BLOCK A2]
+ │              │              ├── ptr[0] → [DATA BLOCK A2-0]
+ │              │              └── ...
+ │              └── ...
+ ├── ptr[1] → [DOUBLE INDIRECT BLOCK B]
+ │              └── ...
+ └── ...
+─────────────────────────────────────────────────────────────────────
+
+
 ## Tasks
+
+### Architecture-specific task data
+
+Each task embeds an `ARCH_TASK_DATA` structure (declared in the architecture-specific header under
+`kernel/include/arch/`) that contains the saved interrupt frame along with the user, system, and
+any auxiliary stack descriptors that the target CPU requires. The generic `tag_TASK` definition in
+`kernel/include/process/Task.h` exposes this structure as the `Arch` member so that all stack and
+context manipulations remain scoped to the active architecture.
+
+The i386 implementation of `SetupTask` (`kernel/source/arch/i386/i386.c`) is responsible for
+allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and
+performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the
+same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults
+that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT
+initialisation the kernel now assigns IST1 to the fault vectors that are most likely to execute with
+a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection
+and page faults). This ensures the handlers always run on the emergency per-task stack, preventing
+the double-fault escalation that previously produced a triple fault when the active stack pointer
+was already invalid.
+`CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the
+scheduler and task manager architecture-agnostic while allowing future architectures to provide
+their own `SetupTask` specialisation.
+
+Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
+`SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in
+bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids
+writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On
+ x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte
+ aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution
+ resumes in the scheduled task.
+
+### Stack sizing
+
+The minimum sizes for task and system stacks are driven by the configuration keys
+`Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`.
+At boot the task manager reads those values, but it clamps them to the architecture defaults
+(`64 KiB`/`16 KiB` on i386 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks.
+Increasing the values in the configuration grows every newly created task and keeps the auto stack
+growing logic operating on the larger baseline.
 
 ### IRQ scheduling
 
@@ -428,13 +581,10 @@ Interrupt_Clock
                                 └── ...
             └── UnlockMutex
                 └── ...
-└── RestoreFromInterruptFrame
-    └── KernelLogText
-        └── ...
 
 ## System calls
 
-### System call full path
+### System call full path - i386
 
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()
@@ -443,6 +593,28 @@ exos-runtime-c.c : malloc() (or any other function)
             └── calls SYSCall.c : SystemCallHandler()
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
+
+### System call full path - x86-64
+
+When `USE_SYSCALL = 0` (default build setting)
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── calls int EXOS_USER_CALL
+        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
+
+When `USE_SYSCALL = 1`
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── syscall instruction
+        └── syscall lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
+
+`USE_SYSCALL` is a project-level build flag (`make ARCH=x86-64 USE_SYSCALL=1`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on i386 builds.
 
 ## Process and Task Lifecycle Management
 
@@ -465,6 +637,11 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - `TASK_STATUS_WAITMESSAGE` (0x05): Waiting for a message
 - `TASK_STATUS_DEAD` (0xFF): Marked for deletion
 
+- Sleep durations are specified in `UINT`. A value of `INFINITY` is treated as
+  a sentinel meaning "sleep indefinitely". `SetTaskWakeUpTime()` stores
+  `INFINITY` without adding the current time and the scheduler ignores such
+  tasks until another subsystem explicitly changes their status.
+
 **Process Status (Process.Status):**
 - `PROCESS_STATUS_ALIVE` (0x00): Normal operating state
 - `PROCESS_STATUS_DEAD` (0xFF): Marked for deletion
@@ -477,7 +654,8 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 ### Lifecycle Flow
 
 **1. Task Termination:**
-- When a task terminates, `KillTask()` marks it as `TASK_STATUS_DEAD`
+- When a task terminates, `KillTask()` releases every mutex held by the task
+  before marking it as `TASK_STATUS_DEAD`
 - The task remains in the scheduler queue until the next context switch
 - `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
@@ -600,7 +778,7 @@ typedef struct DeviceTag {
 
 ### Network Manager
 
-**Location:** `kernel/source/NetworkManager.c`, `kernel/include/NetworkManager.h`
+**Location:** `kernel/source/network/NetworkManager.c`, `kernel/include/network/NetworkManager.h`
 
 The Network Manager provides centralized network device discovery, initialization, and maintenance.
 
@@ -686,7 +864,7 @@ typedef struct ArpCacheEntryTag {
 ```
 
 **API Functions:**
-- `ARP_Initialize(Device, LocalIPv4_Be)`: Initialize ARP context for device
+- `ARP_Initialize(Device, LocalIPv4_Be, DeviceInfo)`: Initialize ARP context for device, optionally using cached link information
 - `ARP_Destroy(Device)`: Cleanup ARP context
 - `ARP_Resolve(Device, TargetIPv4_Be, OutMacAddress[])`: Resolve IPv4 to MAC
 - `ARP_Tick(Device)`: Age cache entries (call every 1 second)
@@ -781,11 +959,11 @@ typedef struct TCPConnectionTag {
 
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
-    U32 SendBufferUsed;
-    U32 SendBufferCapacity;
+    UINT SendBufferUsed;
+    UINT SendBufferCapacity;
     U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
-    U32 RecvBufferUsed;
-    U32 RecvBufferCapacity;
+    UINT RecvBufferUsed;
+    UINT RecvBufferCapacity;
 
     // State machine
     STATE_MACHINE StateMachine;
@@ -843,7 +1021,7 @@ The buffer capacities default to 32768 bytes each when the configuration entries
 InitializeNetworkManager();
 
 // 2. For each device, Network Manager automatically:
-//    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE)
+//    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE, CachedInfo)
 //    b. Calls IPv4_Initialize(Device, DEFAULT_LOCAL_IP_BE)
 //    c. Calls TCP_Initialize() (once globally)
 
@@ -886,6 +1064,7 @@ The network stack successfully handles real network traffic across multiple devi
 
 ## Links
 
-RFCs        https://datatracker.ietf.org/
-RFC 791     Internet protocol               https://datatracker.ietf.org/doc/html/rfc791/
-RFC 793     Transmission Control Protocol   https://datatracker.ietf.org/doc/html/rfc793/
+RFCs        	https://datatracker.ietf.org/
+RFC 791     	Internet protocol               https://datatracker.ietf.org/doc/html/rfc791/
+RFC 793     	Transmission Control Protocol   https://datatracker.ietf.org/doc/html/rfc793/
+Intel x86-64	https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html

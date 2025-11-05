@@ -22,11 +22,15 @@
 
 \************************************************************************/
 
-#include "../../kernel/include/String.h"
+#include "../../kernel/include/CoreString.h"
 #include "../../kernel/include/User.h"
 #include "../../kernel/include/VarArg.h"
 #include "../include/exos-runtime.h"
 #include "../include/exos.h"
+
+/************************************************************************/
+
+#define EXOS_PARAM(Value) ((uint_t)(Value))
 
 /************************************************************************/
 
@@ -66,7 +70,7 @@ void debug(char* format, ...) {
     StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)format, Args);
     VarArgEnd(Args);
 
-    exoscall(SYSCALL_Debug, (unsigned)Buffer);
+    exoscall(SYSCALL_Debug, EXOS_PARAM(Buffer));
 }
 #endif
 
@@ -86,7 +90,7 @@ extern void* KernelHeapRealloc(void* ptr, unsigned long size);
 
 void* malloc(size_t s) { return KernelHeapAlloc(s); }
 #else
-void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, s); }
+void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, EXOS_PARAM(s)); }
 #endif
 
 /************************************************************************/
@@ -94,7 +98,7 @@ void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, s); }
 #ifdef __KERNEL__
 void free(void* p) { KernelHeapFree(p); }
 #else
-void free(void* p) { exoscall(SYSCALL_HeapFree, (unsigned)p); }
+void free(void* p) { exoscall(SYSCALL_HeapFree, EXOS_PARAM(p)); }
 #endif
 
 /************************************************************************/
@@ -109,7 +113,7 @@ void* realloc(void* ptr, size_t size) {
     info.Header.Flags = 0;
     info.Pointer = ptr;
     info.Size = (U32)size;
-    return (void*)exoscall(SYSCALL_HeapRealloc, (U32)&info);
+    return (void*)exoscall(SYSCALL_HeapRealloc, EXOS_PARAM(&info));
 }
 #endif
 
@@ -142,7 +146,7 @@ int printf(const char* fmt, ...) {
     StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)fmt, Args);
     VarArgEnd(Args);
 
-    exoscall(SYSCALL_ConsolePrint, (unsigned)Buffer);
+    exoscall(SYSCALL_ConsolePrint, EXOS_PARAM(Buffer));
     return strlen(Buffer);
 }
 #endif
@@ -170,11 +174,11 @@ int fprintf(FILE* fp, const char* fmt, ...) {
 int getch(void) {
     KEYCODE KeyCode;
 
-    while (exoscall(SYSCALL_ConsolePeekKey, 0) == 0) {
+    while (exoscall(SYSCALL_ConsolePeekKey, EXOS_PARAM(0)) == 0) {
         sleep(10);
     }
 
-    exoscall(SYSCALL_ConsoleGetKey, (U32)&KeyCode);
+    exoscall(SYSCALL_ConsoleGetKey, EXOS_PARAM(&KeyCode));
 
     return (int)KeyCode.ASCIICode;
 }
@@ -186,11 +190,11 @@ int getch(void) {
 int getkey(void) {
     KEYCODE KeyCode;
 
-    while (exoscall(SYSCALL_ConsolePeekKey, 0) == 0) {
+    while (exoscall(SYSCALL_ConsolePeekKey, EXOS_PARAM(0)) == 0) {
         sleep(10);
     }
 
-    exoscall(SYSCALL_ConsoleGetKey, (U32)&KeyCode);
+    exoscall(SYSCALL_ConsoleGetKey, EXOS_PARAM(&KeyCode));
 
     return (int)KeyCode.VirtualKey;
 }
@@ -216,7 +220,7 @@ int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_li
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = 0;
 
-    return (int)exoscall(SYSCALL_CreateTask, (unsigned)&TaskInfo);
+    return (int)exoscall(SYSCALL_CreateTask, EXOS_PARAM(&TaskInfo));
 }
 #endif
 
@@ -227,7 +231,7 @@ void _endthread(void) {}
 /************************************************************************/
 
 #ifndef __KERNEL__
-void sleep(unsigned ms) { exoscall(SYSCALL_Sleep, (U32)ms); }
+void sleep(unsigned ms) { exoscall(SYSCALL_Sleep, EXOS_PARAM(ms)); }
 #endif
 
 /************************************************************************/
@@ -247,7 +251,7 @@ int system(const char* __cmd) {
     ProcessInfo.StdIn = NULL;
     ProcessInfo.StdErr = NULL;
 
-    return (int)exoscall(SYSCALL_CreateProcess, (U32)&ProcessInfo);
+    return (int)exoscall(SYSCALL_CreateProcess, EXOS_PARAM(&ProcessInfo));
 }
 #endif
 
@@ -311,13 +315,13 @@ FILE* fopen(const char* __name, const char* __mode) {
         info.Flags |= FILE_OPEN_READ | FILE_OPEN_WRITE;
     }
 
-    handle = exoscall(SYSCALL_OpenFile, (unsigned)&info);
+    handle = exoscall(SYSCALL_OpenFile, EXOS_PARAM(&info));
 
     if (handle) {
         __fp = (FILE*)malloc(sizeof(FILE));
 
         if (__fp == NULL) {
-            exoscall(SYSCALL_DeleteObject, handle);
+            exoscall(SYSCALL_DeleteObject, EXOS_PARAM(handle));
             return NULL;
         }
 
@@ -342,7 +346,7 @@ FILE* fopen(const char* __name, const char* __mode) {
 #ifndef __KERNEL__
 int fclose(FILE* __fp) {
     if (__fp) {
-        exoscall(SYSCALL_DeleteObject, __fp->_handle);
+        exoscall(SYSCALL_DeleteObject, EXOS_PARAM(__fp->_handle));
         if (__fp->_base) free(__fp->_base);
         free(__fp);
         return 1;
@@ -366,7 +370,7 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
     fileop.NumBytes = elsize * num;
     fileop.Buffer = buf;
 
-    return (size_t)exoscall(SYSCALL_ReadFile, (unsigned)&fileop);
+    return (size_t)exoscall(SYSCALL_ReadFile, EXOS_PARAM(&fileop));
 }
 
 /************************************************************************/
@@ -389,7 +393,7 @@ size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
     fileop.Buffer = (void*)buf;
 
     debug("[fwrite] Calling SYSCALL_WriteFile with %u bytes", fileop.NumBytes);
-    size_t result = (size_t)exoscall(SYSCALL_WriteFile, (unsigned)&fileop);
+    size_t result = (size_t)exoscall(SYSCALL_WriteFile, EXOS_PARAM(&fileop));
     debug("[fwrite] SYSCALL_WriteFile returned: %u", result);
 
     return result;
@@ -435,6 +439,11 @@ int fgetc(FILE* fp) {
 /************************************************************************/
 // Socket API implementations
 
+// TODO : when pointer masking done, remove SocketDescriptorToHandle
+static inline SOCKET_HANDLE SocketDescriptorToHandle(int SocketDescriptor) {
+    return (SOCKET_HANDLE)(INT)SocketDescriptor;
+}
+
 int socket(int domain, int type, int protocol) {
     return (int)SocketCreate((U16)domain, (U16)type, (U16)protocol);
 }
@@ -451,13 +460,13 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     kernelAddr.AddressFamily = addr->sa_family;
     memcpy(kernelAddr.Data, addr->sa_data, sizeof(kernelAddr.Data));
 
-    return (int)SocketBind((U32)sockfd, &kernelAddr, (U32)addrlen);
+    return (int)SocketBind(SocketDescriptorToHandle(sockfd), &kernelAddr, (U32)addrlen);
 }
 
 /************************************************************************/
 
 int listen(int sockfd, int backlog) {
-    return (int)SocketListen((U32)sockfd, (U32)backlog);
+    return (int)SocketListen(SocketDescriptorToHandle(sockfd), (U32)backlog);
 }
 
 /************************************************************************/
@@ -465,7 +474,7 @@ int listen(int sockfd, int backlog) {
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 len = sizeof(kernelAddr);
-    int result = (int)SocketAccept((U32)sockfd, &kernelAddr, &len);
+    int result = (int)SocketAccept(SocketDescriptorToHandle(sockfd), &kernelAddr, &len);
 
     if (result >= 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         addr->sa_family = kernelAddr.AddressFamily;
@@ -488,20 +497,20 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     kernelAddr.AddressFamily = addr->sa_family;
     memcpy(kernelAddr.Data, addr->sa_data, sizeof(kernelAddr.Data));
 
-    return (int)SocketConnect((U32)sockfd, &kernelAddr, (U32)addrlen);
+    return (int)SocketConnect(SocketDescriptorToHandle(sockfd), &kernelAddr, (U32)addrlen);
 }
 
 /************************************************************************/
 
 size_t send(int sockfd, const void *buf, size_t len, int flags) {
-    I32 result = SocketSend((U32)sockfd, (LPCVOID)buf, (U32)len, (U32)flags);
+    I32 result = SocketSend(SocketDescriptorToHandle(sockfd), (LPCVOID)buf, (U32)len, (U32)flags);
     return (result >= 0) ? (size_t)result : 0;
 }
 
 /************************************************************************/
 
 size_t recv(int sockfd, void *buf, size_t len, int flags) {
-    return (size_t)SocketReceive((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags);
+    return (size_t)SocketReceive(SocketDescriptorToHandle(sockfd), (LPVOID)buf, (U32)len, (U32)flags);
 }
 
 /************************************************************************/
@@ -516,7 +525,7 @@ size_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct s
     kernelAddr.AddressFamily = dest_addr->sa_family;
     memcpy(kernelAddr.Data, dest_addr->sa_data, sizeof(kernelAddr.Data));
 
-    I32 result = SocketSendTo((U32)sockfd, (LPCVOID)buf, (U32)len, (U32)flags, &kernelAddr, (U32)addrlen);
+    I32 result = SocketSendTo(SocketDescriptorToHandle(sockfd), (LPCVOID)buf, (U32)len, (U32)flags, &kernelAddr, (U32)addrlen);
     return (result >= 0) ? (size_t)result : 0;
 }
 
@@ -525,7 +534,7 @@ size_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct s
 size_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 addr_len = sizeof(kernelAddr);
-    I32 result = SocketReceiveFrom((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags, &kernelAddr, &addr_len);
+    I32 result = SocketReceiveFrom(SocketDescriptorToHandle(sockfd), (LPVOID)buf, (U32)len, (U32)flags, &kernelAddr, &addr_len);
 
     if (result >= 0 && src_addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         src_addr->sa_family = kernelAddr.AddressFamily;
@@ -539,14 +548,14 @@ size_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *s
 /************************************************************************/
 
 int shutdown(int sockfd, int how) {
-    return (int)SocketShutdown((U32)sockfd, (U32)how);
+    return (int)SocketShutdown(SocketDescriptorToHandle(sockfd), (U32)how);
 }
 
 /************************************************************************/
 
 int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen) {
     U32 opt_len = (optlen != NULL) ? *optlen : 0;
-    int result = (int)SocketGetOption((U32)sockfd, (U32)level, (U32)optname, (LPVOID)optval, &opt_len);
+    int result = (int)SocketGetOption(SocketDescriptorToHandle(sockfd), (U32)level, (U32)optname, (LPVOID)optval, &opt_len);
     if (optlen != NULL) {
         *optlen = opt_len;
     }
@@ -556,7 +565,7 @@ int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optl
 /************************************************************************/
 
 int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen) {
-    return (int)SocketSetOption((U32)sockfd, (U32)level, (U32)optname, (LPCVOID)optval, (U32)optlen);
+    return (int)SocketSetOption(SocketDescriptorToHandle(sockfd), (U32)level, (U32)optname, (LPCVOID)optval, (U32)optlen);
 }
 
 /************************************************************************/
@@ -564,7 +573,7 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
 int getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 len = sizeof(kernelAddr);
-    int result = (int)SocketGetPeerName((U32)sockfd, &kernelAddr, &len);
+    int result = (int)SocketGetPeerName(SocketDescriptorToHandle(sockfd), &kernelAddr, &len);
 
     if (result == 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         addr->sa_family = kernelAddr.AddressFamily;
@@ -580,7 +589,7 @@ int getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
 int getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 len = sizeof(kernelAddr);
-    int result = (int)SocketGetSocketName((U32)sockfd, &kernelAddr, &len);
+    int result = (int)SocketGetSocketName(SocketDescriptorToHandle(sockfd), &kernelAddr, &len);
 
     if (result == 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         addr->sa_family = kernelAddr.AddressFamily;
@@ -620,7 +629,7 @@ void _SetupArguments(void) {
     _ProcessInfo.Header.Flags = 0;
     _ProcessInfo.Process = 0;
 
-    if (exoscall(SYSCALL_GetProcessInfo, (unsigned)&_ProcessInfo) != DF_ERROR_SUCCESS) {
+    if (exoscall(SYSCALL_GetProcessInfo, EXOS_PARAM(&_ProcessInfo)) != DF_ERROR_SUCCESS) {
         return;
     }
 

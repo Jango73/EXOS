@@ -24,8 +24,8 @@
 
 #include "Base.h"
 #include "Kernel.h"
+#include "Arch.h"
 #include "SYSCall.h"
-#include "drivers/LocalAPIC.h"
 #include "InterruptController.h"
 #include "System.h"
 
@@ -61,8 +61,6 @@ extern void Interrupt_PCI(void);
 extern void Interrupt_Mouse(void);
 extern void Interrupt_FPU(void);
 extern void Interrupt_HardDrive(void);
-extern void Interrupt_SystemCall(void);
-extern void Interrupt_DriverCall(void);
 
 /***************************************************************************/
 
@@ -117,77 +115,7 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_HardDrive,          // 47  0x0F
 };
 
-GATEDESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATEDESCRIPTOR)];
-
-/***************************************************************************/
-
-static void SetGateDescriptorOffset(LPGATEDESCRIPTOR This, U32 Offset) {
-    This->Offset_00_15 = (Offset & (U32)0x0000FFFF) >> 0x00;
-    This->Offset_16_31 = (Offset & (U32)0xFFFF0000) >> 0x10;
-}
-
-/***************************************************************************/
-
-void InitializeInterrupts(void) {
-    U32 Index = 0;
-
-    Kernel_i386.IDT = IDT;
-
-    //-------------------------------------
-    // Set all used interrupts
-
-    for (Index = 0; Index < NUM_INTERRUPTS; Index++) {
-        IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-        IDT[Index].Reserved = 0;
-        IDT[Index].Type = GATE_TYPE_386_INT;
-        IDT[Index].Privilege = PRIVILEGE_KERNEL;
-        IDT[Index].Present = 1;
-
-        SetGateDescriptorOffset(IDT + Index, (U32)InterruptTable[Index]);
-    }
-
-    //-------------------------------------
-    // Set system call interrupt
-
-    Index = EXOS_USER_CALL;
-
-    IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-    IDT[Index].Reserved = 0;
-    IDT[Index].Type = GATE_TYPE_386_TRAP;
-    IDT[Index].Privilege = PRIVILEGE_USER;
-    IDT[Index].Present = 1;
-
-    SetGateDescriptorOffset(IDT + Index, (U32)Interrupt_SystemCall);
-
-    //-------------------------------------
-    // Set driver call interrupt
-
-    Index = EXOS_DRIVER_CALL;
-
-    IDT[Index].Selector = SELECTOR_KERNEL_CODE;
-    IDT[Index].Reserved = 0;
-    IDT[Index].Type = GATE_TYPE_386_TRAP;
-    IDT[Index].Privilege = PRIVILEGE_USER;
-    IDT[Index].Present = 1;
-
-    SetGateDescriptorOffset(IDT + Index, (U32)Interrupt_DriverCall);
-
-    //-------------------------------------
-
-    LoadInterruptDescriptorTable((PHYSICAL)IDT, sizeof(IDT) - 1);
-
-    // Reset debug registers
-
-    SetDR7(0);
-
-    //-------------------------------------
-    // Note: Interrupt controller initialization moved to Kernel.c after IOAPIC init
-
-    //-------------------------------------
-    // Initialize system calls
-
-    InitializeSystemCalls();
-}
+GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 
 /***************************************************************************/
 

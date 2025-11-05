@@ -27,12 +27,12 @@
 #include "Clock.h"
 #include "Heap.h"
 #include "Log.h"
-#include "Mutex.h"
+#include "Memory.h"
 
 /************************************************************************/
 
 static void CacheDecayScoresLocked(LPCACHE Cache) {
-    for (U32 Index = 0; Index < Cache->Capacity; Index++) {
+    for (UINT Index = 0; Index < Cache->Capacity; Index++) {
         if (Cache->Entries[Index].Valid && Cache->Entries[Index].Score > 0) {
             Cache->Entries[Index].Score--;
         }
@@ -44,7 +44,7 @@ static void CacheDecayScoresLocked(LPCACHE Cache) {
 static LPCACHE_ENTRY CacheFindLowestScoreEntryInternal(LPCACHE Cache) {
     LPCACHE_ENTRY LowestEntry = NULL;
 
-    for (U32 Index = 0; Index < Cache->Capacity; Index++) {
+    for (UINT Index = 0; Index < Cache->Capacity; Index++) {
         if (!Cache->Entries[Index].Valid) {
             continue;
         }
@@ -64,15 +64,19 @@ static LPCACHE_ENTRY CacheFindLowestScoreEntryInternal(LPCACHE Cache) {
  * @param Cache Cache structure to initialize
  * @param Capacity Maximum number of entries
  */
-void CacheInit(LPCACHE Cache, U32 Capacity) {
-    DEBUG(TEXT("[CacheInit] Capacity: %u"), Capacity);
+void CacheInit(LPCACHE Cache, UINT Capacity) {
+    UINT AllocationSize = (UINT)(Capacity * sizeof(CACHE_ENTRY));
 
+    InitMutex(&Cache->Mutex);
     Cache->Capacity = Capacity;
     Cache->Count = 0;
-    Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(Capacity * sizeof(CACHE_ENTRY));
-    Cache->Mutex = (MUTEX)EMPTY_MUTEX;
+    Cache->Entries = (LPCACHE_ENTRY)KernelHeapAlloc(AllocationSize);
 
-    for (U32 Index = 0; Index < Capacity; Index++) {
+    if (Cache->Entries == NULL) {
+        ERROR(TEXT("[CacheInit] KernelHeapAlloc failed"));
+    }
+
+    for (UINT Index = 0; Index < Capacity; Index++) {
         Cache->Entries[Index].Data = NULL;
         Cache->Entries[Index].ExpirationTime = 0;
         Cache->Entries[Index].TTL = 0;
@@ -93,7 +97,7 @@ void CacheDeinit(LPCACHE Cache) {
     LockMutex(&Cache->Mutex, INFINITY);
 
     if (Cache->Entries) {
-        for (U32 Index = 0; Index < Cache->Capacity; Index++) {
+        for (UINT Index = 0; Index < Cache->Capacity; Index++) {
             if (Cache->Entries[Index].Valid && Cache->Entries[Index].Data) {
                 KernelHeapFree(Cache->Entries[Index].Data);
             }
@@ -119,16 +123,16 @@ void CacheDeinit(LPCACHE Cache) {
  * @param TTL_MS Time to live in milliseconds
  * @return TRUE if added successfully, FALSE otherwise
  */
-BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
+BOOL CacheAdd(LPCACHE Cache, LPVOID Data, UINT TTL_MS) {
     LockMutex(&Cache->Mutex, INFINITY);
 
-    U32 CurrentTime = GetSystemTime();
-    U32 FreeIndex = MAX_U32;
+    UINT CurrentTime = GetSystemTime();
+    UINT FreeIndex = MAX_UINT;
 
     CacheDecayScoresLocked(Cache);
 
     // Find first free slot
-    for (U32 Index = 0; Index < Cache->Capacity; Index++) {
+    for (UINT Index = 0; Index < Cache->Capacity; Index++) {
         if (!Cache->Entries[Index].Valid) {
             FreeIndex = Index;
             break;
@@ -146,13 +150,13 @@ BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
             if (Cache->Count > 0) {
                 Cache->Count--;
             }
-            if (FreeIndex == MAX_U32) {
+            if (FreeIndex == MAX_UINT) {
                 FreeIndex = Index;
             }
         }
     }
 
-    if (FreeIndex == MAX_U32) {
+    if (FreeIndex == MAX_UINT) {
         LPCACHE_ENTRY LowestEntry = CacheFindLowestScoreEntryInternal(Cache);
 
         if (LowestEntry == NULL) {
@@ -166,7 +170,7 @@ BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
         }
 
         LowestEntry->Data = Data;
-        LowestEntry->ExpirationTime = CurrentTime + TTL_MS;
+        LowestEntry->ExpirationTime = (UINT)(CurrentTime + TTL_MS);
         LowestEntry->TTL = TTL_MS;
         LowestEntry->Score = 1;
 
@@ -175,7 +179,7 @@ BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
     }
 
     Cache->Entries[FreeIndex].Data = Data;
-    Cache->Entries[FreeIndex].ExpirationTime = CurrentTime + TTL_MS;
+    Cache->Entries[FreeIndex].ExpirationTime = (UINT)(CurrentTime + TTL_MS);
     Cache->Entries[FreeIndex].TTL = TTL_MS;
     Cache->Entries[FreeIndex].Score = 1;
     Cache->Entries[FreeIndex].Valid = TRUE;
@@ -197,20 +201,22 @@ BOOL CacheAdd(LPCACHE Cache, LPVOID Data, U32 TTL_MS) {
 LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context) {
     LockMutex(&Cache->Mutex, INFINITY);
 
-    U32 CurrentTime = GetSystemTime();
+    UINT CurrentTime = GetSystemTime();
 
-    for (U32 Index = 0; Index < Cache->Capacity; Index++) {
+    for (UINT Index = 0; Index < Cache->Capacity; Index++) {
         if (Cache->Entries[Index].Valid) {
             // Check if expired
             if (CurrentTime >= Cache->Entries[Index].ExpirationTime) {
                 if (Cache->Entries[Index].Data) {
                     KernelHeapFree(Cache->Entries[Index].Data);
                 }
+
                 Cache->Entries[Index].Data = NULL;
                 Cache->Entries[Index].ExpirationTime = 0;
                 Cache->Entries[Index].TTL = 0;
                 Cache->Entries[Index].Score = 0;
                 Cache->Entries[Index].Valid = FALSE;
+
                 if (Cache->Count > 0) {
                     Cache->Count--;
                 }
@@ -220,8 +226,8 @@ LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LP
             if (Matcher(Cache->Entries[Index].Data, Context)) {
                 LPVOID Result = Cache->Entries[Index].Data;
                 Cache->Entries[Index].Score++;
-                Cache->Entries[Index].ExpirationTime = CurrentTime + Cache->Entries[Index].TTL;
-                DEBUG(TEXT("[CacheFind] Found at index %u"), Index);
+                Cache->Entries[Index].ExpirationTime =
+                    (UINT)(CurrentTime + Cache->Entries[Index].TTL);
                 UnlockMutex(&Cache->Mutex);
                 return Result;
             }
@@ -243,14 +249,14 @@ LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LP
  * @param Cache Cache structure
  * @param CurrentTime Current system time
  */
-void CacheCleanup(LPCACHE Cache, U32 CurrentTime) {
+void CacheCleanup(LPCACHE Cache, UINT CurrentTime) {
     LockMutex(&Cache->Mutex, INFINITY);
 
-    U32 RemovedCount = 0;
+    UINT RemovedCount = 0;
 
     CacheDecayScoresLocked(Cache);
 
-    for (U32 Index = 0; Index < Cache->Capacity; Index++) {
+    for (UINT Index = 0; Index < Cache->Capacity; Index++) {
         if (Cache->Entries[Index].Valid) {
             if (CurrentTime >= Cache->Entries[Index].ExpirationTime) {
                 if (Cache->Entries[Index].Data) {
@@ -265,10 +271,6 @@ void CacheCleanup(LPCACHE Cache, U32 CurrentTime) {
                 RemovedCount++;
             }
         }
-    }
-
-    if (RemovedCount > 0) {
-        DEBUG(TEXT("[CacheCleanup] Removed %u expired entries"), RemovedCount);
     }
 
     UnlockMutex(&Cache->Mutex);

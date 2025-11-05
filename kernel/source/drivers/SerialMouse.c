@@ -27,8 +27,8 @@
 #include "InterruptController.h"
 #include "Log.h"
 #include "Mouse.h"
-#include "Process.h"
-#include "String.h"
+#include "process/Process.h"
+#include "CoreString.h"
 #include "User.h"
 
 /***************************************************************************/
@@ -36,7 +36,7 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-U32 SerialMouseCommands(U32, U32);
+UINT SerialMouseCommands(UINT, UINT);
 
 DRIVER SerialMouseDriver = {
     .TypeID = KOID_DRIVER,
@@ -361,13 +361,13 @@ static void DrawMouseCursor(I32 X, I32 Y) {
     LineInfo.Y1 = Y;
     LineInfo.X2 = X + 4;
     LineInfo.Y2 = Y;
-    VESADriver.Command(DF_GFX_LINE, (U32)&LineInfo);
+    VESADriver.Command(DF_GFX_LINE, (UINT)&LineInfo);
 
     LineInfo.X1 = X;
     LineInfo.Y1 = Y - 4;
     LineInfo.X2 = X;
     LineInfo.Y2 = Y + 4;
-    VESADriver.Command(DF_GFX_LINE, (U32)&LineInfo);
+    VESADriver.Command(DF_GFX_LINE, (UINT)&LineInfo);
 }
 */
 
@@ -471,23 +471,23 @@ void MouseHandler(void) {
 
 /***************************************************************************/
 
-U32 SerialMouseCommands(U32 Function, U32 Parameter) {
+UINT SerialMouseCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
 
     switch (Function) {
         case DF_LOAD:
-            return (U32)MouseInitialize();
+            return (UINT)MouseInitialize();
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:
             return 0;
         case DF_MOUSE_GETDELTAX:
-            return (U32)GetDeltaX();
+            return (UINT)GetDeltaX();
         case DF_MOUSE_GETDELTAY:
-            return (U32)GetDeltaY();
+            return (UINT)GetDeltaY();
         case DF_MOUSE_GETBUTTONS:
-            return (U32)GetButtons();
+            return (UINT)GetButtons();
     }
 
-    return MAX_U32;
+    return (UINT)MAX_U32;
 }

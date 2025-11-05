@@ -27,19 +27,25 @@
 
 /***************************************************************************/
 
+// Privilege levels (rings)
+#define PRIVILEGE_KERNEL 0x00
+#define PRIVILEGE_DRIVERS 0x01
+#define PRIVILEGE_ROUTINES 0x02
+#define PRIVILEGE_USER 0x03
+
+/***************************************************************************/
+
 #include "Base.h"
 #include "utils/Cache.h"
 #include "utils/Database.h"
 #include "utils/TOML.h"
 #include "FileSystem.h"
 #include "Heap.h"
-#include "arch/i386/I386.h"
 #include "ID.h"
 #include "List.h"
 #include "Memory.h"
-#include "Multiboot.h"
-#include "Process.h"
-#include "String.h"
+#include "vbr-multiboot.h"
+#include "CoreString.h"
 #include "Text.h"
 #include "User.h"
 #include "UserAccount.h"
@@ -48,6 +54,10 @@
 /***************************************************************************/
 
 #pragma pack(push, 1)
+
+struct tag_PROCESS;
+struct tag_SEGMENT_DESCRIPTOR;
+struct tag_TSS_DESCRIPTOR;
 
 /***************************************************************************/
 // Structure to receive CPU information
@@ -62,46 +72,11 @@ typedef struct tag_CPUINFORMATION {
 } CPUINFORMATION, *LPCPUINFORMATION;
 
 /***************************************************************************/
-// Selectors
-
-#define SELECTOR_GLOBAL 0x00
-#define SELECTOR_LOCAL 0x04
-
-#define SELECTOR_NULL 0x00
-#define SELECTOR_KERNEL_CODE (0x08 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_KERNEL_DATA (0x10 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_USER_CODE (0x18 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_USER_DATA (0x20 | SELECTOR_GLOBAL | PRIVILEGE_USER)
-#define SELECTOR_REAL_CODE (0x28 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-#define SELECTOR_REAL_DATA (0x30 | SELECTOR_GLOBAL | PRIVILEGE_KERNEL)
-
-#define PAGE_PRIVILEGE(adr) ((adr >= VMA_USER && adr < VMA_KERNEL) ? PAGE_PRIVILEGE_USER : PAGE_PRIVILEGE_KERNEL)
-
-/***************************************************************************/
-
-#define DESCRIPTOR_SIZE 10
-#define GDT_NUM_DESCRIPTORS (GDT_SIZE / DESCRIPTOR_SIZE)
-#define GDT_NUM_BASE_DESCRIPTORS 8
-#define GDT_TSS_INDEX GDT_NUM_BASE_DESCRIPTORS
-#define SELECTOR_TSS MAKE_GDT_SELECTOR(GDT_TSS_INDEX, 0)
-
-#define GDT_NUM_TASKS (GDT_NUM_DESCRIPTORS - GDT_NUM_BASE_DESCRIPTORS)
-#define NUM_TASKS GDT_NUM_TASKS
-
-#define IDT_SIZE N_4KB
-#define GDT_SIZE N_8KB
-
-/***************************************************************************/
-
-#define NUM_INTERRUPTS 48
-
-/***************************************************************************/
 // EXOS system calls
 
 #define EXOS_USER_CALL 0x70
-#define EXOS_DRIVER_CALL 0x71
 
-typedef U32 (*SYSCALLFUNC)(U32);
+typedef UINT (*SYSCALLFUNC)(UINT);
 
 typedef struct tag_SYSCALLENTRY {
     SYSCALLFUNC Function;
@@ -115,46 +90,38 @@ typedef struct tag_SYSCALLENTRY {
 
 #define RESERVED_LOW_MEMORY N_4MB
 #define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
+#define LOW_MEMORY_THREE_QUARTER ((RESERVED_LOW_MEMORY * 3) / 4)
 
-typedef struct tag_E820ENTRY {
+typedef struct tag_MULTIBOOTMEMORYENTRY {
     U64 Base;
-    U64 Size;
+    U64 Length;
     U32 Type;
-    U32 Attributes;
-} E820ENTRY, *LPE820ENTRY;
+} MULTIBOOTMEMORYENTRY, *LPMULTIBOOTMEMORYENTRY;
 
 typedef struct tag_KERNELSTARTUPINFO {
-    PHYSICAL StubAddress;
+    PHYSICAL KernelPhysicalBase;
+    UINT KernelSize;
     PHYSICAL StackTop;
     PHYSICAL PageDirectory;
     U32 IRQMask_21_PM;
     U32 IRQMask_A1_PM;
     U32 IRQMask_21_RM;
     U32 IRQMask_A1_RM;
-    U32 MemorySize;  // Total memory size in bytes
-    U32 PageCount;   // Total memory size in pages (4K)
-    U32 E820_Count;  // BIOS E820 function entries
-    E820ENTRY E820[N_4KB / sizeof(E820ENTRY)];
+    UINT MemorySize;  // Total memory size in bytes
+    UINT PageCount;   // Total memory size in pages (4K)
+    U32 MultibootMemoryEntryCount;
+    MULTIBOOTMEMORYENTRY MultibootMemoryEntries[N_4KB / sizeof(MULTIBOOTMEMORYENTRY)];
     STR CommandLine[MAX_COMMAND_LINE];
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
 
 extern KERNELSTARTUPINFO KernelStartup;
-
-typedef struct tag_KERNELDATA_I386 {
-    LPGATEDESCRIPTOR IDT;
-    LPSEGMENTDESCRIPTOR GDT;
-    LPTASKSTATESEGMENT TSS;
-    LPPAGEBITMAP PPB;
-} KERNELDATA_I386, *LPKERNELDATA_I386;
-
-extern KERNELDATA_I386 Kernel_i386;
 
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 
 typedef struct {
     LPVOID Object;
     U64 ID;
-    U32 ExitCode;
+    UINT ExitCode;
 } OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
 
 typedef struct tag_KERNELDATA {
@@ -175,12 +142,14 @@ typedef struct tag_KERNELDATA {
     STR LanguageCode[8];
     STR KeyboardCode[8];
     CPUINFORMATION CPU;
-    U32 MinimumQuantum;          // Minimum quantum time in milliseconds (adjusted for emulation)
-    U32 MaximumQuantum;          // Maximum quantum time in milliseconds (adjusted for emulation)
-    BOOL DoLogin;                // Enable/disable login sequence (TRUE=enable, FALSE=disable)
-    LPLIST UserSessions;         // List of active user sessions
-    LPLIST UserAccount;          // List of user accounts
-    CACHE ObjectTerminationCache;  // Cache for terminated object states with TTL
+    UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
+    UINT MaximumQuantum;            // Maximum quantum time in milliseconds (adjusted for emulation)
+    BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
+    LPLIST UserSessions;            // List of active user sessions
+    LPLIST UserAccount;             // List of user accounts
+    CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
+    LPPAGEBITMAP PPB;               // Physical page bitmap
+    UINT PPBSize;                   // Size in bytes of the physical page bitmap
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
@@ -195,25 +164,16 @@ U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
-void StoreObjectTerminationState(LPVOID Object, U32 ExitCode);
+void StoreObjectTerminationState(LPVOID Object, UINT ExitCode);
+PHYSICAL KernelToPhysical(LINEAR Symbol);
 
 void KernelObjectDestructor(LPVOID);
-LPVOID CreateKernelObject(U32 Size, U32 ObjectTypeID);
+LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
-void ReleaseProcessKernelObjects(LPPROCESS Process);
+void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
 
-/***************************************************************************/
-// Functions in Segment.c
+void DoPageFault(void);
 
-void InitSegmentDescriptor(LPSEGMENTDESCRIPTOR, U32);
-void InitGlobalDescriptorTable(LPSEGMENTDESCRIPTOR Table);
-void InitializeTaskSegments(void);
-void SetSegmentDescriptorBase(LPSEGMENTDESCRIPTOR Desc, U32 Base);
-void SetSegmentDescriptorLimit(LPSEGMENTDESCRIPTOR Desc, U32 Limit);
-void SetTSSDescriptorBase(LPTSSDESCRIPTOR Desc, U32 Base);
-void SetTSSDescriptorLimit(LPTSSDESCRIPTOR Desc, U32 Limit);
-
-/***************************************************************************/
 // Functions in MemoryEditor.c
 
 void PrintMemory(U32, U32);

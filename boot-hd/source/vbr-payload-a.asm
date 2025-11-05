@@ -27,12 +27,12 @@
 ; EAX : Partition Start LBA
 
 BITS 16
-%ifndef PAYLOAD_OFFSET
-%error "PAYLOAD_OFFSET is not defined"
+%ifndef PAYLOAD_ADDRESS
+%error "PAYLOAD_ADDRESS is not defined"
 %endif
 
-ORIGIN equ PAYLOAD_OFFSET
-KERNEL_LOAD_ADDRESS      equ 0x00020000
+ORIGIN equ PAYLOAD_ADDRESS
+KERNEL_LOAD_ADDRESS      equ 0x200000
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -57,16 +57,23 @@ KERNEL_LOAD_ADDRESS      equ 0x00020000
 section .start
 global _start
 global BiosReadSectors
-global MemorySet
-global MemoryCopy
+global UnrealMemoryCopy
 global StubJumpToImage
 global BiosGetMemoryMap
 global VESAGetModeInfo
 global VESASetMode
 global SetPixel24
+global EnterUnrealMode
+global LeaveUnrealMode
 global EnableA20
 
 extern BootMain
+%ifdef ARCH_X86_64
+extern VbrProtectedModeCodeSelector
+extern VbrProtectedModeDataSelector
+extern VbrLongModeCodeSelector
+extern VbrLongModeDataSelector
+%endif
 
 PBN                         equ 0x08        ; Param base near
 PBF                         equ 0x0A        ; Param base far
@@ -76,6 +83,12 @@ CR0_MONITOR_COPROCESSOR     equ 0x00000004  ; Emulate co-processor
 CR0_TASKSWITCH              equ 0x00000008  ; Set on task switch
 CR0_80387                   equ 0x00000010  ; Type of co-processor
 CR0_PAGING                  equ 0x80000000  ; Paging on/off
+
+%ifdef ARCH_X86_64
+CR4_PAE                     equ 0x00000020
+IA32_EFER                   equ 0xC0000080
+EFER_LME                    equ 0x00000100
+%endif
 
 _start:
     jmp         Start
@@ -91,7 +104,7 @@ Start:
     mov         ss, ax
 
     ; Setup a 32-bit stack
-    ; Just below PAYLOAD_OFFSET, do not care about this data
+    ; Just below PAYLOAD_ADDRESS, do not care about this data
     ; We won't be returning to MBR and VBR
     mov         sp, ORIGIN
     xor         eax, eax
@@ -222,58 +235,37 @@ BiosReadSectors_16:
 
 ;-------------------------------------------------------------------------
 
-MemorySet :
+;-------------------------------------------------------------------------
+; UnrealMemoryCopy
+; In : EBP+8  = destination linear address
+;      EBP+12 = source linear address
+;      EBP+16 = size in bytes
+;-------------------------------------------------------------------------
+
+UnrealMemoryCopy:
 
     push        ebp
     mov         ebp, esp
 
     push        ecx
+    push        esi
     push        edi
-    push        es
 
-    push        ds
-    pop         es
+    call        EnterUnrealMode
 
     mov         edi, [ebp+(PBN+0)]
-    mov         eax, [ebp+(PBN+4)]
+    mov         esi, [ebp+(PBN+4)]
     mov         ecx, [ebp+(PBN+8)]
     cld
-    rep         stosb
+    a32 rep     movsb
 
-    pop         es
+    call        LeaveUnrealMode
+
     pop         edi
+    pop         esi
     pop         ecx
 
     pop         ebp
-    ret
-
-;--------------------------------------
-
-MemoryCopy :
-
-    push    ebp
-    mov     ebp, esp
-
-    push    ecx
-    push    esi
-    push    edi
-    push    es
-
-    push    ds
-    pop     es
-
-    mov     edi, [ebp+(PBN+0)]
-    mov     esi, [ebp+(PBN+4)]
-    mov     ecx, [ebp+(PBN+8)]
-    cld
-    rep     movsb
-
-    pop     es
-    pop     edi
-    pop     esi
-    pop     ecx
-
-    pop     ebp
     ret
 
 ;-------------------------------------------------------------------------
@@ -442,37 +434,8 @@ SetPixel24:
     mov     esi, [ebp+20]           ; framebuffer base
     add     esi, ecx                ; add offset
 
-    ; Switch to unreal mode temporarily to access >1MB
-    push    eax
-    push    ebx
+    call    EnterUnrealMode
 
-    ; Save current DS
-    mov     ax, ds
-    push    ax
-
-    ; Enter protected mode briefly
-    cli
-    lgdt    [TempGDT]
-    mov     eax, cr0
-    or      al, 1
-    mov     cr0, eax
-
-    ; Load data segment with 4GB limit
-    mov     ax, 0x10
-    mov     ds, ax
-
-    ; Return to real mode but keep DS with 4GB limit
-    and     al, 0xFE
-    mov     cr0, eax
-
-    ; Restore segment registers except DS (keeps unreal mode)
-    pop     ax
-    ; Don't restore DS - it now has 4GB limit
-
-    pop     ebx
-    pop     eax
-
-    ; Get color
     mov     eax, [ebp+16]           ; color
 
     ; Write BGR (24-bit) using 32-bit addressing
@@ -484,7 +447,7 @@ SetPixel24:
     shr     eax, 8
     mov     byte [esi], al          ; Red
 
-    sti
+    call    LeaveUnrealMode
 
 .done:
     pop     ds
@@ -495,6 +458,62 @@ SetPixel24:
     pop     ebx
     pop     eax
     pop     ebp
+    ret
+
+;-------------------------------------------------------------------------
+; Unreal mode helpers
+;-------------------------------------------------------------------------
+
+EnterUnrealMode:
+    push    eax
+    pushf
+    cli
+
+    mov     ax, ds
+    mov     [SavedDS], ax
+    mov     ax, es
+    mov     [SavedES], ax
+    mov     ax, fs
+    mov     [SavedFS], ax
+    mov     ax, gs
+    mov     [SavedGS], ax
+
+    lgdt    [TempGDT]
+
+    mov     eax, cr0
+    or      eax, 1
+    mov     cr0, eax
+
+    mov     ax, 0x10
+    mov     ds, ax
+    mov     es, ax
+    mov     fs, ax
+    mov     gs, ax
+
+    mov     eax, cr0
+    and     eax, 0xFFFFFFFE
+    mov     cr0, eax
+
+    popf
+    pop     eax
+    ret
+
+LeaveUnrealMode:
+    push    eax
+    pushf
+    cli
+
+    mov     ax, [SavedDS]
+    mov     ds, ax
+    mov     ax, [SavedES]
+    mov     es, ax
+    mov     ax, [SavedFS]
+    mov     fs, ax
+    mov     ax, [SavedGS]
+    mov     gs, ax
+
+    popf
+    pop     eax
     ret
 
 ;-------------------------------------------------------------------------
@@ -684,14 +703,107 @@ PrintHex32Nibble:
 
 ;-------------------------------------------------------------------------
 ; StubJumpToImage : switches to protected mode, enables paging
-; and jumps into the kernel at 0xC0000000
+; and jumps into the kernel entry point
 ; Param 1 : GDTR
 ; Param 2 : PageDirectory (physical)
-; Param 3 : KernelEntryVA (virtual)
-; Param 4 : MultibootInfoPtr (physical address of multiboot_info_t)
-; Param 5 : MultibootMagic (0x2BADB002)
+; Param 3 : KernelEntryLo (low 32 bits of virtual entry point)
+; Param 4 : KernelEntryHi (high 32 bits of virtual entry point)
+; Param 5 : MultibootInfoPtr (physical address of multiboot_info_t)
+; Param 6 : MultibootMagic (0x2BADB002)
 ;-------------------------------------------------------------------------
 
+%ifdef ARCH_X86_64
+StubJumpToImage:
+    push        ebp
+    mov         ebp, esp
+
+    cli
+
+    DebugPrint  Text_JumpingToLM
+
+    mov         eax, [ebp + 8]              ; GDTR
+    lgdt        [eax]
+
+    mov         eax, [ebp + 12]             ; Paging structure (cr3)
+    mov         cr3, eax
+
+    ; Activate protected mode
+    mov         eax, cr0
+    or          eax, CR0_PROTECTED_MODE
+    mov         cr0, eax
+
+    ; Jump far to 32 bits
+    mov         eax, VbrProtectedModeCodeSelector
+    mov         ax, [eax]
+    mov         [ProtectedModeJumpTarget + 4], ax
+    jmp         dword far [ProtectedModeJumpTarget]
+
+[BITS 32]
+ProtectedEntryPoint:
+    mov         ax, [VbrProtectedModeDataSelector]
+    mov         ds, ax
+    mov         es, ax
+    mov         ss, ax
+    mov         esp, 0x200000               ; Set stack halfway through low 4mb
+
+    ; Preserve parameters for long mode entry
+    mov         eax, [ebp + 24]             ; Multiboot info pointer
+    mov         [LongModeMultibootInfo], eax
+    xor         edx, edx
+    mov         [LongModeMultibootInfo + 4], edx
+
+    mov         eax, [ebp + 28]             ; Multiboot magic
+    mov         [LongModeMultibootMagic], eax
+
+    mov         eax, [ebp + 16]             ; Kernel entry low
+    mov         [LongModeKernelEntry], eax
+    mov         eax, [ebp + 20]             ; Kernel entry high
+    mov         [LongModeKernelEntry + 4], eax
+
+    ; Enable PAE
+    mov         eax, cr4
+    or          eax, CR4_PAE
+    mov         cr4, eax
+
+    ; Reload CR3 with PML4 base (ensures alignment after CR4 update)
+    mov         eax, [ebp + 12]
+    mov         cr3, eax
+
+    ; Enable long mode
+    mov         ecx, IA32_EFER
+    rdmsr
+    or          eax, EFER_LME
+    wrmsr
+
+    ; Activate paging
+    mov         eax, cr0
+    or          eax, CR0_PAGING
+    mov         cr0, eax
+
+    ; Jump to 64-bit mode
+    mov         ax, [VbrLongModeCodeSelector]
+    mov         [LongModeJumpTarget + 4], ax
+    jmp         dword far [LongModeJumpTarget]
+
+[BITS 64]
+LongModeEntry:
+    mov         ax, [rel VbrLongModeDataSelector]
+    mov         ds, ax
+    mov         es, ax
+    mov         ss, ax
+    mov         fs, ax
+    mov         gs, ax
+
+    mov         rsp, KERNEL_LOAD_ADDRESS
+    mov         rbp, rsp
+
+    mov         eax, [LongModeMultibootMagic]
+    mov         rbx, qword [LongModeMultibootInfo]
+    mov         rdx, qword [LongModeKernelEntry]
+    jmp         rdx
+
+[BITS 32]
+%else
 StubJumpToImage:
     push        ebp
     mov         ebp, esp
@@ -703,7 +815,7 @@ StubJumpToImage:
     mov         eax, [ebp + 8]              ; GDTR
     lgdt        [eax]
 
-    mov         eax, [ebp + 12]             ; PageDirectory (cr3)
+    mov         eax, [ebp + 12]             ; Paging structure (cr3)
     mov         cr3, eax
 
     ; Activate protected mode
@@ -728,10 +840,13 @@ ProtectedEntryPoint:
     mov         cr0, eax
     jmp         $+2                         ; Pipeline flush
 
-    mov         eax, [ebp + 24]             ; Multiboot magic (0x2BADB002)
-    mov         ebx, [ebp + 20]             ; Physical address of multiboot_info_t
-    mov         edx, [ebp + 16]             ; KernelEntryVA
+    mov         eax, [ebp + 28]             ; Multiboot magic (0x2BADB002)
+    mov         ebx, [ebp + 24]             ; Physical address of multiboot_info_t
+    mov         edx, [ebp + 16]             ; Kernel entry virtual address
     jmp         edx
+
+[BITS 32]
+%endif
 
 .hang:
     cli
@@ -750,6 +865,7 @@ Text_ReadBiosSectors: db "[VBR C Stub] Reading BIOS sectors",10,13,0
 Text_BiosReadSectorsDone: db "[VBR C Stub] BIOS sectors read",10,13,0
 Text_Params: db "[VBR C Stub] Params : ",0
 Text_JumpingToPM: db "[VBR C Stub] Jumping to protected mode",10,13,10,13,0
+Text_JumpingToLM: db "[VBR C Stub] Jumping to long mode",10,13,10,13,0
 Text_JumpingToImage: db "[VBR C Stub] Jumping to imaage",0
 Text_E820Error: db "[VBR C Stub] E820 call failed",0
 Text_NewLine: db 10,13,0
@@ -769,6 +885,25 @@ DAP_Buffer_Offset : dw 0
 DAP_Buffer_Segment : dw 0
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
+
+%ifdef ARCH_X86_64
+align 16
+LongModeKernelEntry:      dq 0
+LongModeMultibootInfo:    dq 0
+LongModeMultibootMagic:   dd 0
+LongModePadding:          dd 0
+align 4
+ProtectedModeJumpTarget:  dd ProtectedEntryPoint
+                           dw 0
+align 4
+LongModeJumpTarget:        dd LongModeEntry
+                           dw 0
+%endif
+
+SavedDS:    dw 0
+SavedES:    dw 0
+SavedFS:    dw 0
+SavedGS:    dw 0
 
 ; Temporary GDT for unreal mode
 align 16

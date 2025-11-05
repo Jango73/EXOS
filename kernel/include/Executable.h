@@ -38,17 +38,17 @@
 /***************************************************************************/
 
 typedef struct tag_EXECUTABLEINFO {
-    U32 EntryPoint;
-    U32 CodeBase;
-    U32 CodeSize;
-    U32 DataBase;
-    U32 DataSize;
-    U32 BssBase;
-    U32 BssSize;
-    U32 StackMinimum;
-    U32 StackRequested;
-    U32 HeapMinimum;
-    U32 HeapRequested;
+    UINT EntryPoint;
+    UINT CodeBase;
+    UINT CodeSize;
+    UINT DataBase;
+    UINT DataSize;
+    UINT BssBase;
+    UINT BssSize;
+    UINT StackMinimum;
+    UINT StackRequested;
+    UINT HeapMinimum;
+    UINT HeapRequested;
 } EXECUTABLEINFO, *LPEXECUTABLEINFO;
 
 /***************************************************************************/
