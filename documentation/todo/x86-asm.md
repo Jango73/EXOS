@@ -59,4 +59,4 @@
 - [ ] Define build targets to compile the new source file if `x86-64-Asm.c` is introduced.
 - [ ] Update any assembler/disassembler front-ends or CLI tools to select the correct backend based on architecture.
 - [ ] Create regression tests comparing encoded bytes vs. disassembly round-trips for mixed 32/64-bit cases.
-- [ ] Document the final architecture decisions in `documentation/internal/Kernel.md` once implementation lands.
+- [ ] Document the final architecture decisions in `documentation/Kernel.md` once implementation lands.

@@ -24,7 +24,7 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors and time.
-- **Documentation**: Update `documentation/internal/Kernel.md` when adding/modifying kernel components.
+- **Documentation**: Update `documentation/Kernel.md` when adding/modifying kernel components.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
 - **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
@@ -74,8 +74,8 @@ Bochs output goes to `bochs.log`.
 
 ## Documentation
 
-Kernel design : `documentation/internal/Kernel.md`
-Doxygen documentation is in `documentation/internal/kernel/*`
+Kernel design : `documentation/Kernel.md`
+Doxygen documentation is in `documentation/kernel/*`
 
 **Core Components:**
 - **Kernel** (`kernel/source/`): Main OS kernel with multitasking, memory management, drivers
