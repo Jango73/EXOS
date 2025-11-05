@@ -36,6 +36,10 @@
 - KASLR
 - Audit/fuzz pipeline + ASAN/UBSAN
 
+## Multicore
+
+- Handle n CPUs
+
 ## Multitasking
 
 - Improve the scheduler (task priorities)
