@@ -179,6 +179,37 @@ However, the code uses 32 bit registers when appropriate.
 ├──────────────────────────────────────────────────────────────────────────┤
 ```
 
+## Disk interfaces
+
+```
++------------------------------------+
+|          Operating System          |
++------------------------------------+
+                |
+                | (Software Drivers)
+                v
++------------------------------------+
+| Controllers/Protocols              |
+| +--------+  +--------+  +--------+ |
+| |  AHCI  |  |  NVMe  |  |  SCSI  | |
+| +--------+  +--------+  +--------+ |
+|      |           |           |     |
+|      v           v           v     |
+| +--------+  +--------+  +--------+ |
+| |  SATA  |  |  PCIe  |  |  SAS/  | |
+| |Interface| |Interface| |SATA Int| |
+| +--------+  +--------+  +--------+ |
+|      |           |           |     |
+|      v           v           v     |
+| +--------+  +--------+  +--------+ |
+| | HDD,   |  | SSD    |  | HDD,   | |
+| | SSD    |  | NVMe   |  | SSD    | |
+| | (SATA) |  |        |  | (SAS/  | |
+| |        |  |        |  | SATA)  | |
+| +--------+  +--------+  +--------+ |
++------------------------------------+
+```
+
 ## Foreign File systems
 
 | FS | Key Concepts | RO Difficulty | Full RW Difficulty | Notes |
