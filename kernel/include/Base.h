@@ -197,8 +197,7 @@ typedef struct PACKED tag_U128 {
 typedef float F32;              // 32 bit float
 typedef double F64;             // 64 bit float
 
-typedef U32 SIZE;
-
+typedef UINT SIZE;              // Size type
 typedef UINT LINEAR;            // Linear virtual address, paged or not
 typedef UINT PHYSICAL;          // Physical address
 typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
