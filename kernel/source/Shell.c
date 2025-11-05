@@ -1354,7 +1354,6 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
 
     SAFE_USE(Account) {
-        ConsolePrint(TEXT("User created\n"));
     } else {
         ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
         DEBUG(TEXT("[CMD_adduser] CreateUserAccount returned NULL"));
