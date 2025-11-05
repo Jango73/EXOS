@@ -360,12 +360,22 @@ const buttonBar = blessed.box({
     width: '100%'
 });
 
+const STOP_BUTTON_WIDTH = 12;
+const controlsContainer = blessed.box({
+    parent: buttonBar,
+    top: 0,
+    left: STOP_BUTTON_WIDTH + 3,
+    right: 1,
+    height: 3
+});
+
 const stopButton = blessed.button({
     parent: buttonBar,
     left: 1,
     mouse: true,
     keys: true,
-    shrink: true,
+    shrink: false,
+    width: STOP_BUTTON_WIDTH,
     padding: { left: 1, right: 1 },
     content: 'Stop',
     border: 'line',
@@ -379,13 +389,28 @@ const stopButton = blessed.button({
 });
 
 const inputBox = blessed.textbox({
-    parent: buttonBar,
-    left: 15,
-    width: '70%',
+    parent: controlsContainer,
+    left: 0,
+    width: '50%-1',
     height: 3,
     inputOnFocus: true,
     border: 'line',
     label: ' Custom Command ',
+    style: {
+        focus: {
+            border: { fg: 'cyan' }
+        }
+    }
+});
+
+const filterBox = blessed.textbox({
+    parent: controlsContainer,
+    left: '50%+1',
+    right: 0,
+    height: 3,
+    inputOnFocus: true,
+    border: 'line',
+    label: ' Output Filter ',
     style: {
         focus: {
             border: { fg: 'cyan' }
@@ -415,13 +440,77 @@ const output = blessed.log({
     }
 });
 
-const originalOutputLog = output.log.bind(output);
-output.log = ((msg) => {
-    originalOutputLog(msg);
-    if (logStream) {
-        logStream.write(`[${new Date().toISOString()}] ${msg}\n`);
+const outputHistory = [];
+const outputHistoryLimit = currentSettings.maxQueuedLogLines ?? defaultSettings.maxQueuedLogLines;
+let outputFilterValue = '';
+const OUTPUT_TRIM_MESSAGE = '... [log cleared to prevent memory overflow] ...';
+
+function storeOutputLine(line, writeToFile = true) {
+    outputHistory.push(line);
+    while (outputHistory.length > outputHistoryLimit) {
+        outputHistory.shift();
     }
-});
+    if (writeToFile && logStream) {
+        logStream.write(`[${new Date().toISOString()}] ${line}\n`);
+    }
+}
+
+function refreshOutputDisplay() {
+    const filter = outputFilterValue;
+    const filtered = filter
+        ? outputHistory.filter(line => line.includes(filter))
+        : outputHistory.slice();
+
+    const maxLines = currentSettings.maxLogLines ?? defaultSettings.maxLogLines;
+    let linesToShow;
+    if (!filter && filtered.length > maxLines) {
+        linesToShow = filtered.slice(filtered.length - maxLines);
+        if (linesToShow.length > 0) {
+            linesToShow[0] = OUTPUT_TRIM_MESSAGE;
+        }
+    } else if (filtered.length > maxLines) {
+        linesToShow = filtered.slice(filtered.length - maxLines);
+    } else {
+        linesToShow = filtered;
+    }
+
+    output.setContent(linesToShow.join('\n'));
+    if (typeof output.scrollTo === 'function') {
+        output.scrollTo(linesToShow.length);
+    }
+    scheduleRender();
+}
+
+function appendOutputLines(message) {
+    const normalized = String(message ?? '').replace(/\r/g, '');
+    if (normalized === '') {
+        storeOutputLine('');
+    } else {
+        const parts = normalized.split('\n');
+        const hasTrailingNewline = normalized.endsWith('\n');
+        for (let i = 0; i < parts.length; i++) {
+            if (i === parts.length - 1 && parts[i] === '' && !hasTrailingNewline) {
+                continue;
+            }
+            storeOutputLine(parts[i]);
+        }
+    }
+    refreshOutputDisplay();
+}
+
+function setOutputFilter(value) {
+    const next = value ?? '';
+    if (next === outputFilterValue) {
+        refreshOutputDisplay();
+        return;
+    }
+    outputFilterValue = next;
+    refreshOutputDisplay();
+}
+
+output.log = (msg) => {
+    appendOutputLines(msg);
+};
 
 initLogFile();
 
@@ -509,7 +598,7 @@ setInterval(() => {
 
 list.focus();
 
-const focusables = [list, ...logBoxes, stopButton, inputBox, output];
+const focusables = [list, ...logBoxes, stopButton, inputBox, filterBox, output];
 let focusIndex = 0;
 
 screen.key('tab', () => {
@@ -622,6 +711,24 @@ inputBox.on('cancel', () => {
 
 inputBox.key(['escape'], () => {
     inputBox.cancel();
+});
+
+filterBox.on('submit', (value) => {
+    setOutputFilter(value ?? '');
+    screen.render(); // Keep immediate render for UI interactions
+});
+
+filterBox.on('keypress', (_, key) => {
+    if (key.name === 'escape') {
+        filterBox.cancel();
+    }
+});
+
+filterBox.on('cancel', () => {
+    filterBox.setValue(outputFilterValue);
+    focusIndex = (focusIndex + 1) % focusables.length;
+    focusables[focusIndex].focus();
+    screen.render(); // Keep immediate render for UI interactions
 });
 
 // NOTE: moved here exactly like your original file layout
