@@ -29,7 +29,21 @@
 BITS 16
 ORG 0x7C00
 
+CODE_LENGTH equ 440
 VBR_OFFSET equ 0x7E00
+
+struc PARTITION
+    .Status:                resb 1
+    .StartCHSHead:          resb 1
+    .StartCHSSector:        resb 1
+    .StartCHSCylinder:      resb 1
+    .Type:                  resb 1
+    .EndCHSHead:            resb 1
+    .EndCHSSector:          resb 1
+    .EndCHSCylinder:        resb 1
+    .StartLBA:              resd 1
+    .TotalSectors:          resd 1
+endstruc
 
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
@@ -90,7 +104,7 @@ ActivePartitionFound:
     sub         si, 1
     mov         [ActivePartition], si
 
-    mov         eax, [si + (Partition_Start_LBA - Partition)]
+    mov         eax, [si + PARTITION.StartLBA]
     mov         [DAP_Start_LBA_Low], eax
 
     ; DL already has the drive
@@ -105,7 +119,7 @@ ActivePartitionFound:
 
     ; Transfer Partition Start LBA to VBR
     mov         si, [ActivePartition]
-    mov         eax, [si + (Partition_Start_LBA - Partition)]
+    mov         eax, [si + PARTITION.StartLBA]
 
     ; Jump to loaded sector at VBR_OFFSET
     jmp         VBR_OFFSET
@@ -189,17 +203,62 @@ Text_Loading: db "Loading VBR",13,10,0
 Text_Jumping: db "Jumping to VBR",13,10,0
 %endif
 
-times 446-($-$$) db 0
+times CODE_LENGTH-($-$$) db 0
+
+Signature: dd 0
+Padding: dw 0
 
 ; The following are placeholders, real data is already present in the image
 Partition:
-Partition_Status: db 0
-Partition_Start_CHS_Head: db 0
-Partition_Start_CHS_Sector: db 0
-Partition_Start_CHS_Cylinder: db 0
-Partition_Type: db 0
-Partition_End_CHS_Head: db 0
-Partition_End_CHS_Sector: db 0
-Partition_End_CHS_Cylinder: db 0
-Partition_Start_LBA: dd 0
-Partition_Total_Sectors: dd 0
+Partition0:
+    istruc PARTITION
+        at PARTITION.Status,               db 0
+        at PARTITION.StartCHSHead,         db 0
+        at PARTITION.StartCHSSector,       db 0
+        at PARTITION.StartCHSCylinder,     db 0
+        at PARTITION.Type,                 db 0
+        at PARTITION.EndCHSHead,           db 0
+        at PARTITION.EndCHSSector,         db 0
+        at PARTITION.EndCHSCylinder,       db 0
+        at PARTITION.StartLBA,             dd 0
+        at PARTITION.TotalSectors,         dd 0
+    iend
+Partition1:
+    istruc PARTITION
+        at PARTITION.Status,               db 0
+        at PARTITION.StartCHSHead,         db 0
+        at PARTITION.StartCHSSector,       db 0
+        at PARTITION.StartCHSCylinder,     db 0
+        at PARTITION.Type,                 db 0
+        at PARTITION.EndCHSHead,           db 0
+        at PARTITION.EndCHSSector,         db 0
+        at PARTITION.EndCHSCylinder,       db 0
+        at PARTITION.StartLBA,             dd 0
+        at PARTITION.TotalSectors,         dd 0
+    iend
+Partition2:
+    istruc PARTITION
+        at PARTITION.Status,               db 0
+        at PARTITION.StartCHSHead,         db 0
+        at PARTITION.StartCHSSector,       db 0
+        at PARTITION.StartCHSCylinder,     db 0
+        at PARTITION.Type,                 db 0
+        at PARTITION.EndCHSHead,           db 0
+        at PARTITION.EndCHSSector,         db 0
+        at PARTITION.EndCHSCylinder,       db 0
+        at PARTITION.StartLBA,             dd 0
+        at PARTITION.TotalSectors,         dd 0
+    iend
+Partition3:
+    istruc PARTITION
+        at PARTITION.Status,               db 0
+        at PARTITION.StartCHSHead,         db 0
+        at PARTITION.StartCHSSector,       db 0
+        at PARTITION.StartCHSCylinder,     db 0
+        at PARTITION.Type,                 db 0
+        at PARTITION.EndCHSHead,           db 0
+        at PARTITION.EndCHSSector,         db 0
+        at PARTITION.EndCHSCylinder,       db 0
+        at PARTITION.StartLBA,             dd 0
+        at PARTITION.TotalSectors,         dd 0
+    iend
