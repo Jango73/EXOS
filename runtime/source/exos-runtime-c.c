@@ -439,6 +439,11 @@ int fgetc(FILE* fp) {
 /************************************************************************/
 // Socket API implementations
 
+// TODO : when pointer masking done, remove SocketDescriptorToHandle
+static inline SOCKET_HANDLE SocketDescriptorToHandle(int SocketDescriptor) {
+    return (SOCKET_HANDLE)(INT)SocketDescriptor;
+}
+
 int socket(int domain, int type, int protocol) {
     return (int)SocketCreate((U16)domain, (U16)type, (U16)protocol);
 }
@@ -455,13 +460,13 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     kernelAddr.AddressFamily = addr->sa_family;
     memcpy(kernelAddr.Data, addr->sa_data, sizeof(kernelAddr.Data));
 
-    return (int)SocketBind((U32)sockfd, &kernelAddr, (U32)addrlen);
+    return (int)SocketBind(SocketDescriptorToHandle(sockfd), &kernelAddr, (U32)addrlen);
 }
 
 /************************************************************************/
 
 int listen(int sockfd, int backlog) {
-    return (int)SocketListen((U32)sockfd, (U32)backlog);
+    return (int)SocketListen(SocketDescriptorToHandle(sockfd), (U32)backlog);
 }
 
 /************************************************************************/
@@ -469,7 +474,7 @@ int listen(int sockfd, int backlog) {
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 len = sizeof(kernelAddr);
-    int result = (int)SocketAccept((U32)sockfd, &kernelAddr, &len);
+    int result = (int)SocketAccept(SocketDescriptorToHandle(sockfd), &kernelAddr, &len);
 
     if (result >= 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         addr->sa_family = kernelAddr.AddressFamily;
@@ -492,20 +497,20 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     kernelAddr.AddressFamily = addr->sa_family;
     memcpy(kernelAddr.Data, addr->sa_data, sizeof(kernelAddr.Data));
 
-    return (int)SocketConnect((U32)sockfd, &kernelAddr, (U32)addrlen);
+    return (int)SocketConnect(SocketDescriptorToHandle(sockfd), &kernelAddr, (U32)addrlen);
 }
 
 /************************************************************************/
 
 size_t send(int sockfd, const void *buf, size_t len, int flags) {
-    I32 result = SocketSend((U32)sockfd, (LPCVOID)buf, (U32)len, (U32)flags);
+    I32 result = SocketSend(SocketDescriptorToHandle(sockfd), (LPCVOID)buf, (U32)len, (U32)flags);
     return (result >= 0) ? (size_t)result : 0;
 }
 
 /************************************************************************/
 
 size_t recv(int sockfd, void *buf, size_t len, int flags) {
-    return (size_t)SocketReceive((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags);
+    return (size_t)SocketReceive(SocketDescriptorToHandle(sockfd), (LPVOID)buf, (U32)len, (U32)flags);
 }
 
 /************************************************************************/
@@ -520,7 +525,7 @@ size_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct s
     kernelAddr.AddressFamily = dest_addr->sa_family;
     memcpy(kernelAddr.Data, dest_addr->sa_data, sizeof(kernelAddr.Data));
 
-    I32 result = SocketSendTo((U32)sockfd, (LPCVOID)buf, (U32)len, (U32)flags, &kernelAddr, (U32)addrlen);
+    I32 result = SocketSendTo(SocketDescriptorToHandle(sockfd), (LPCVOID)buf, (U32)len, (U32)flags, &kernelAddr, (U32)addrlen);
     return (result >= 0) ? (size_t)result : 0;
 }
 
@@ -529,7 +534,7 @@ size_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct s
 size_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 addr_len = sizeof(kernelAddr);
-    I32 result = SocketReceiveFrom((U32)sockfd, (LPVOID)buf, (U32)len, (U32)flags, &kernelAddr, &addr_len);
+    I32 result = SocketReceiveFrom(SocketDescriptorToHandle(sockfd), (LPVOID)buf, (U32)len, (U32)flags, &kernelAddr, &addr_len);
 
     if (result >= 0 && src_addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         src_addr->sa_family = kernelAddr.AddressFamily;
@@ -543,14 +548,14 @@ size_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *s
 /************************************************************************/
 
 int shutdown(int sockfd, int how) {
-    return (int)SocketShutdown((U32)sockfd, (U32)how);
+    return (int)SocketShutdown(SocketDescriptorToHandle(sockfd), (U32)how);
 }
 
 /************************************************************************/
 
 int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen) {
     U32 opt_len = (optlen != NULL) ? *optlen : 0;
-    int result = (int)SocketGetOption((U32)sockfd, (U32)level, (U32)optname, (LPVOID)optval, &opt_len);
+    int result = (int)SocketGetOption(SocketDescriptorToHandle(sockfd), (U32)level, (U32)optname, (LPVOID)optval, &opt_len);
     if (optlen != NULL) {
         *optlen = opt_len;
     }
@@ -560,7 +565,7 @@ int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optl
 /************************************************************************/
 
 int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen) {
-    return (int)SocketSetOption((U32)sockfd, (U32)level, (U32)optname, (LPCVOID)optval, (U32)optlen);
+    return (int)SocketSetOption(SocketDescriptorToHandle(sockfd), (U32)level, (U32)optname, (LPCVOID)optval, (U32)optlen);
 }
 
 /************************************************************************/
@@ -568,7 +573,7 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
 int getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 len = sizeof(kernelAddr);
-    int result = (int)SocketGetPeerName((U32)sockfd, &kernelAddr, &len);
+    int result = (int)SocketGetPeerName(SocketDescriptorToHandle(sockfd), &kernelAddr, &len);
 
     if (result == 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         addr->sa_family = kernelAddr.AddressFamily;
@@ -584,7 +589,7 @@ int getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
 int getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     SOCKET_ADDRESS kernelAddr;
     U32 len = sizeof(kernelAddr);
-    int result = (int)SocketGetSocketName((U32)sockfd, &kernelAddr, &len);
+    int result = (int)SocketGetSocketName(SocketDescriptorToHandle(sockfd), &kernelAddr, &len);
 
     if (result == 0 && addr && addrlen && *addrlen >= sizeof(struct sockaddr)) {
         addr->sa_family = kernelAddr.AddressFamily;
