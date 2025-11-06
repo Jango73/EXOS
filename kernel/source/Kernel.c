@@ -357,10 +357,17 @@ static void Welcome(void) {
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
 
+#ifdef __EXOS_ARCH_I386__
+    const ArchitectureText = "i386";
+#else
+    const ArchitectureText = "x86-64";
+#endif
+
     ConsolePrint(
         TEXT("\n"
-        "EXOS - Extensible Operating System - Version %u.%u.%u\n"
-        "Copyright (c) 1999-2025 Jango73\n"),
+        "EXOS - Extensible Operating System for %s computers\n"
+        "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"),
+        ArchitectureText,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
 

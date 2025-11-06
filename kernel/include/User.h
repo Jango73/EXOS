@@ -51,8 +51,8 @@ extern "C" {
 \************************************************************************/
 
 #define EXOS_VERSION_MAJOR 0
-#define EXOS_VERSION_MINOR 0
-#define EXOS_VERSION_PATCH 100
+#define EXOS_VERSION_MINOR 5
+#define EXOS_VERSION_PATCH 0
 
 #define EXOS_VERSION MAKE_VERSION(EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR)
 
