@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,12 +17,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Autotest Manager - Unit Testing Framework Header
+    Radix Tree
 
 \************************************************************************/
 
-#ifndef AUTOTEST_H
-#define AUTOTEST_H
+#ifndef RADIX_TREE_H_INCLUDED
+#define RADIX_TREE_H_INCLUDED
 
 /************************************************************************/
 
@@ -31,33 +30,21 @@
 
 /************************************************************************/
 
-// Test results structure
-typedef struct tag_TEST_RESULTS {
-    U32 TestsRun;         // Number of tests/assertions executed
-    U32 TestsPassed;      // Number of successful tests/assertions
-} TEST_RESULTS, *LPTEST_RESULTS;
+typedef struct tag_RADIX_TREE RADIX_TREE, *LPRADIX_TREE;
 
-// Main testing functions
-BOOL RunAllTests(void);
-BOOL RunSingleTestByName(LPCSTR TestName);
-void ListAllTests(void);
-
-// Individual test function declarations - new signature
-typedef void (*TestFunction)(TEST_RESULTS*);
-
-void TestCopyStack(TEST_RESULTS* Results);
-void TestCircularBuffer(TEST_RESULTS* Results);
-void TestBlockList(TEST_RESULTS* Results);
-void TestRadixTree(TEST_RESULTS* Results);
-void TestRegex(TEST_RESULTS* Results);
-void TestI386Disassembler(TEST_RESULTS* Results);
-void TestBcrypt(TEST_RESULTS* Results);
-void TestE1000(TEST_RESULTS* Results);
-void TestIPv4(TEST_RESULTS* Results);
-void TestMacros(TEST_RESULTS* Results);
-void TestTCP(TEST_RESULTS* Results);
-void TestScript(TEST_RESULTS* Results);
+typedef BOOL (*RADIX_TREE_VISITOR)(UINT Handle, LINEAR Value, LPVOID Context);
 
 /************************************************************************/
 
-#endif
+LPRADIX_TREE RadixTreeCreate(void);
+void RadixTreeDestroy(LPRADIX_TREE Tree);
+BOOL RadixTreeInsert(LPRADIX_TREE Tree, UINT Handle, LINEAR Value);
+BOOL RadixTreeRemove(LPRADIX_TREE Tree, UINT Handle);
+LINEAR RadixTreeFind(LPRADIX_TREE Tree, UINT Handle);
+BOOL RadixTreeIterate(LPRADIX_TREE Tree, RADIX_TREE_VISITOR Visitor, LPVOID Context);
+UINT RadixTreeGetCount(const RADIX_TREE* Tree);
+
+/************************************************************************/
+
+#endif  // RADIX_TREE_H_INCLUDED
+

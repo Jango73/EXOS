@@ -90,6 +90,9 @@ void FreePhysicalPage(PHYSICAL Page);
 // Returns TRUE if a pointer is an valid address (mapped in the calling process space)
 BOOL IsValidMemory(LINEAR Pointer);
 
+// Attempts to mirror kernel mappings into the current address space for a faulting kernel address
+BOOL ResolveKernelPageFault(LINEAR FaultAddress);
+
 // Returns the physical address for a given virtual address
 PHYSICAL MapLinearToPhysical(LINEAR Address);
 
@@ -108,6 +111,9 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 
 // Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags);
+
+// Kernel region resize wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
+LINEAR ResizeKernelRegion(PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
 
 /************************************************************************/
 

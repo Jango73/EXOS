@@ -38,6 +38,7 @@
 #include "Base.h"
 #include "utils/Cache.h"
 #include "utils/Database.h"
+#include "utils/HandleMap.h"
 #include "utils/TOML.h"
 #include "FileSystem.h"
 #include "Heap.h"
@@ -136,24 +137,24 @@ typedef struct tag_KERNELDATA {
     LPLIST File;
     LPLIST TCPConnection;
     LPLIST Socket;
-    SYSTEMFSFILESYSTEM SystemFS;
-    FILESYSTEM_GLOBAL_INFO FileSystemInfo;
-    LPTOML Configuration;
-    STR LanguageCode[8];
-    STR KeyboardCode[8];
-    CPUINFORMATION CPU;
-    UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
-    UINT MaximumQuantum;            // Maximum quantum time in milliseconds (adjusted for emulation)
-    BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
     CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
-    LPPAGEBITMAP PPB;               // Physical page bitmap
+    FILESYSTEM_GLOBAL_INFO FileSystemInfo;
+    SYSTEMFSFILESYSTEM SystemFS;
+    HANDLE_MAP HandleMap;           // Global handle to pointer mapping
     UINT PPBSize;                   // Size in bytes of the physical page bitmap
+    LPPAGEBITMAP PPB;               // Physical page bitmap
+    CPUINFORMATION CPU;
+    LPTOML Configuration;
+    UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
+    UINT MaximumQuantum;            // Maximum quantum time in milliseconds (adjusted for emulation)
+    BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
+    STR LanguageCode[8];
+    STR KeyboardCode[8];
 } KERNELDATA, *LPKERNELDATA;
 
 extern KERNELDATA Kernel;
-
 
 /***************************************************************************/
 // Functions in Kernel.c
@@ -173,6 +174,10 @@ void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
 
 void DoPageFault(void);
+
+HANDLE PointerToHandle(LINEAR Pointer);
+LINEAR HandleToPointer(HANDLE Handle);
+void ReleaseHandle(HANDLE Handle);
 
 // Functions in MemoryEditor.c
 

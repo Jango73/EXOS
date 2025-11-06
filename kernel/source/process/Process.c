@@ -31,6 +31,9 @@
 #include "List.h"
 #include "Log.h"
 #include "CoreString.h"
+#if defined(__EXOS_ARCH_I386__)
+    #include "arch/i386/i386-Log.h"
+#endif
 
 /***************************************************************************/
 
@@ -571,6 +574,9 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     LoadPageDirectory(Process->PageDirectory);
 
     DEBUG(TEXT("[CreateProcess] Page directory switch successful"));
+#if defined(__EXOS_ARCH_I386__)
+    LogPageDirectory(Process->PageDirectory);
+#endif
 
     //-------------------------------------
     // Allocate enough memory for the code, data and heap

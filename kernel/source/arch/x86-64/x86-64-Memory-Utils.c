@@ -24,6 +24,7 @@
 
 
 #include "arch/x86-64/x86-64-Memory-Internal.h"
+#include "process/Process.h"
 
 /************************************************************************/
 // Temporary mapping slots state
@@ -559,6 +560,209 @@ BOOL IsValidMemory(LINEAR Address) {
     }
 
     return (BOOL)MapLinearToPhysical(Canonical) != 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Attempt to mirror kernel mappings into the current address space for a fault.
+ * @param FaultAddress Linear address that triggered the fault.
+ * @return TRUE when the mapping was recreated and the fault can be retried.
+ */
+BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
+    U64 Address = (U64)FaultAddress;
+    U64 Canonical = CanonicalizeLinearAddress(Address);
+
+    if (Canonical != Address) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Non-canonical address %p"), (LPVOID)Address);
+        return FALSE;
+    }
+
+    if (Address < (U64)VMA_KERNEL) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Address %p below kernel VMA"), (LPVOID)Address);
+        return FALSE;
+    }
+
+    PHYSICAL KernelDirectoryPhysical = KernelProcess.PageDirectory;
+    if (KernelDirectoryPhysical == 0) {
+        KernelDirectoryPhysical = KernelStartup.PageDirectory;
+    }
+
+    if (KernelDirectoryPhysical == 0) {
+        DEBUG(TEXT("[ResolveKernelPageFault] No kernel directory available (Address=%p)"), (LPVOID)Address);
+        return FALSE;
+    }
+
+    PHYSICAL CurrentDirectoryPhysical = GetPageDirectory();
+    if (CurrentDirectoryPhysical == 0 || CurrentDirectoryPhysical == KernelDirectoryPhysical) {
+        DEBUG(TEXT("[ResolveKernelPageFault] CR3=%p matches kernel directory %p (Address=%p)"),
+              (LPVOID)CurrentDirectoryPhysical,
+              (LPVOID)KernelDirectoryPhysical,
+              (LPVOID)Address);
+        return FALSE;
+    }
+
+    UINT Pml4Index = GetPml4Entry(Address);
+    UINT PdptIndex = GetPdptEntry(Address);
+    UINT DirectoryIndex = GetDirectoryEntry(Address);
+    UINT TableIndex = GetTableEntry(Address);
+
+    LINEAR KernelPml4Linear = MapTemporaryPhysicalPage1(KernelDirectoryPhysical);
+    if (KernelPml4Linear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel PML4"));
+        return FALSE;
+    }
+
+    LPPML4 KernelPml4 = (LPPML4)KernelPml4Linear;
+    U64 KernelPml4Value = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)KernelPml4, Pml4Index);
+    if ((KernelPml4Value & PAGE_FLAG_PRESENT) == 0u) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Kernel PML4[%u] not present (Address=%p)"),
+              Pml4Index,
+              (LPVOID)Address);
+        return FALSE;
+    }
+
+    BOOL Updated = FALSE;
+    BOOL NeedsFullFlush = FALSE;
+
+    LPPML4 CurrentPml4 = GetCurrentPml4VA();
+    U64 CurrentPml4Value = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPml4, Pml4Index);
+    if ((CurrentPml4Value & PAGE_FLAG_PRESENT) == 0u || CurrentPml4Value != KernelPml4Value) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Updating PML4[%u]: old=%p new=%p"),
+              Pml4Index,
+              (LPVOID)CurrentPml4Value,
+              (LPVOID)KernelPml4Value);
+        WritePageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPml4, Pml4Index, KernelPml4Value);
+        Updated = TRUE;
+        NeedsFullFlush = TRUE;
+    }
+
+    PHYSICAL KernelPdptPhysical = (PHYSICAL)(KernelPml4Value & PAGE_MASK);
+    LINEAR KernelPdptLinear = MapTemporaryPhysicalPage2(KernelPdptPhysical);
+    if (KernelPdptLinear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel PDPT"));
+        return FALSE;
+    }
+
+    LPPDPT KernelPdpt = (LPPDPT)KernelPdptLinear;
+    U64 KernelPdptValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)KernelPdpt, PdptIndex);
+    if ((KernelPdptValue & PAGE_FLAG_PRESENT) == 0u) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Kernel PDPT[%u] not present (Address=%p)"),
+              PdptIndex,
+              (LPVOID)Address);
+        return FALSE;
+    }
+
+    LPPDPT CurrentPdpt = GetPageDirectoryPointerTableVAFor(Address);
+    U64 CurrentPdptValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPdpt, PdptIndex);
+    if ((CurrentPdptValue & PAGE_FLAG_PRESENT) == 0u || CurrentPdptValue != KernelPdptValue) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Updating PDPT[%u]: old=%p new=%p"),
+              PdptIndex,
+              (LPVOID)CurrentPdptValue,
+              (LPVOID)KernelPdptValue);
+        WritePageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPdpt, PdptIndex, KernelPdptValue);
+        Updated = TRUE;
+        NeedsFullFlush = TRUE;
+    }
+
+    if ((KernelPdptValue & PAGE_FLAG_PAGE_SIZE) != 0u) {
+        if (Updated == FALSE) {
+            return FALSE;
+        }
+
+        if (NeedsFullFlush) {
+            FlushTLB();
+        } else {
+            InvalidatePage((LINEAR)Address);
+        }
+
+        DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel 1GB mapping for %p"), (LPVOID)Address);
+        return TRUE;
+    }
+
+    KernelDirectoryPhysical = (PHYSICAL)(KernelPdptValue & PAGE_MASK);
+    LINEAR KernelDirectoryLinear = MapTemporaryPhysicalPage3(KernelDirectoryPhysical);
+    if (KernelDirectoryLinear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel page directory"));
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY KernelDirectory = (LPPAGE_DIRECTORY)KernelDirectoryLinear;
+    U64 KernelDirectoryValue = ReadPageDirectoryEntryValue(KernelDirectory, DirectoryIndex);
+    if ((KernelDirectoryValue & PAGE_FLAG_PRESENT) == 0u) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Kernel directory[%u] not present (Address=%p)"),
+              DirectoryIndex,
+              (LPVOID)Address);
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(Address);
+    U64 CurrentDirectoryValue = ReadPageDirectoryEntryValue(CurrentDirectory, DirectoryIndex);
+    if ((CurrentDirectoryValue & PAGE_FLAG_PRESENT) == 0u || CurrentDirectoryValue != KernelDirectoryValue) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Updating directory[%u]: old=%p new=%p"),
+              DirectoryIndex,
+              (LPVOID)CurrentDirectoryValue,
+              (LPVOID)KernelDirectoryValue);
+        WritePageDirectoryEntryValue(CurrentDirectory, DirectoryIndex, KernelDirectoryValue);
+        Updated = TRUE;
+        NeedsFullFlush = TRUE;
+    }
+
+    if ((KernelDirectoryValue & PAGE_FLAG_PAGE_SIZE) != 0u) {
+        if (Updated == FALSE) {
+            return FALSE;
+        }
+
+        if (NeedsFullFlush) {
+            FlushTLB();
+        } else {
+            InvalidatePage((LINEAR)Address);
+        }
+
+        DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel 2MB mapping for %p"), (LPVOID)Address);
+        return TRUE;
+    }
+
+    PHYSICAL KernelTablePhysical = (PHYSICAL)(KernelDirectoryValue & PAGE_MASK);
+    LINEAR KernelTableLinear = MapTemporaryPhysicalPage2(KernelTablePhysical);
+    if (KernelTableLinear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel page table"));
+        return FALSE;
+    }
+
+    LPPAGE_TABLE KernelTable = (LPPAGE_TABLE)KernelTableLinear;
+    U64 KernelTableValue = ReadPageTableEntryValue(KernelTable, TableIndex);
+    if ((KernelTableValue & PAGE_FLAG_PRESENT) == 0u) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Kernel PTE[%u] not present (Address=%p)"),
+              TableIndex,
+              (LPVOID)Address);
+        return FALSE;
+    }
+
+    LPPAGE_TABLE CurrentTable = GetPageTableVAFor(Address);
+    U64 CurrentTableValue = ReadPageTableEntryValue(CurrentTable, TableIndex);
+    if (CurrentTableValue != KernelTableValue) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Updating PTE[%u]: old=%p new=%p"),
+              TableIndex,
+              (LPVOID)CurrentTableValue,
+              (LPVOID)KernelTableValue);
+        WritePageTableEntryValue(CurrentTable, TableIndex, KernelTableValue);
+        Updated = TRUE;
+    }
+
+    if (Updated == FALSE) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Entries already matched for %p"), (LPVOID)Address);
+        return FALSE;
+    }
+
+    if (NeedsFullFlush) {
+        FlushTLB();
+    } else {
+        InvalidatePage((LINEAR)Address);
+    }
+
+    DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel 4KB mapping for %p"), (LPVOID)Address);
+    return TRUE;
 }
 
 /************************************************************************/

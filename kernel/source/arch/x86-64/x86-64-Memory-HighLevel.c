@@ -1549,7 +1549,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
     Base = CanonicalizeLinearAddress(Base);
 
     if (NewSize > KernelStartup.MemorySize / 4) {
-        ERROR(TEXT("[ResizeRegion] New size %x exceeds 25%% of memory (%lX)"),
+        ERROR(TEXT("[ResizeRegion] New size %x exceeds 25%% of memory (%u)"),
               NewSize,
               KernelStartup.MemorySize / 4);
         return FALSE;
@@ -1777,4 +1777,10 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
     return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
+}
+
+/************************************************************************/
+
+LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags) {
+    return ResizeRegion(Base, 0, Size, NewSize, Flags | ALLOC_PAGES_AT_OR_OVER);
 }

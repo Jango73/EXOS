@@ -377,8 +377,9 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define SetupStackForUserMode(Task, StackTop, UserESP) \
         SetupStackForKernelMode(Task, StackTop, UserESP)
 
-#define SwitchToNextTask_2(prev, next)                                  \
+#define SwitchToNextTask_2(prev, next, next_cr3)                        \
     do {                                                                \
+        U64 __target_cr3 = (next_cr3);                                  \
         __asm__ __volatile__(                                           \
             "push %%rbp\n\t"                                            \
             "push %%rax\n\t"                                            \
@@ -396,11 +397,12 @@ typedef struct tag_KERNELDATA_X86_64 {
             "push %%r14\n\t"                                            \
             "push %%r15\n\t"                                            \
             "movq %%rsp, %0\n\t"                                        \
-            "movq %2, %%rsp\n\t"                                        \
+            "mov %2, %%cr3\n\t"                                         \
+            "movq %3, %%rsp\n\t"                                        \
             "leaq 1f(%%rip), %%rax\n\t"                                 \
             "movq %%rax, %1\n\t"                                        \
-            "movq %4, %%rdi\n\t"                                        \
-            "movq %5, %%rsi\n\t"                                        \
+            "movq %5, %%rdi\n\t"                                        \
+            "movq %6, %%rsi\n\t"                                        \
             "call SwitchToNextTask_3\n\t"                               \
             "1:\n\t"                                                    \
             "pop %%r15\n\t"                                             \
@@ -420,9 +422,11 @@ typedef struct tag_KERNELDATA_X86_64 {
             "pop %%rbp\n\t"                                             \
             : "=m"((prev)->Arch.Context.Registers.RSP),                 \
               "=m"((prev)->Arch.Context.Registers.RIP)                  \
-            : "m"((next)->Arch.Context.Registers.RSP),                  \
+            : "r"(__target_cr3),                                        \
+              "m"((next)->Arch.Context.Registers.RSP),                  \
               "m"((next)->Arch.Context.Registers.RIP),                  \
-              "r"(prev), "r"(next)                                      \
+              "r"(prev),                                                \
+              "r"(next)                                                 \
             : "rax", "rbx", "rsi", "rdi", "memory");                    \
     } while (0)
 

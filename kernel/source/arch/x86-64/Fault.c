@@ -25,6 +25,7 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
 #include "process/Schedule.h"
 #include "System.h"
 #include "Text.h"
@@ -177,6 +178,18 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
     U64 FaultAddress = 0;
 
     __asm__ __volatile__("mov %%cr2, %0" : "=r"(FaultAddress));
+
+    DEBUG(TEXT("[PageFaultHandler] CR2=%p Err=%p RIP=%p RSP=%p"),
+          (LPVOID)FaultAddress,
+          (LPVOID)Frame->ErrCode,
+          (LPVOID)Frame->Registers.RIP,
+          (LPVOID)Frame->Registers.RSP);
+
+    if (ResolveKernelPageFault((LINEAR)FaultAddress)) {
+        DEBUG(TEXT("[PageFaultHandler] Resolved kernel page fault %p"), (LPVOID)FaultAddress);
+        return;
+    }
+
     ERROR(TEXT("[PageFaultHandler] Page fault at %p"), (LINEAR)FaultAddress);
     ERROR(TEXT("[PageFaultHandler] Error code = %p"), (LINEAR)Frame->ErrCode);
     LogCPUState(Frame);

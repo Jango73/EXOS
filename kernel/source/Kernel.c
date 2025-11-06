@@ -117,6 +117,83 @@ PHYSICAL KernelToPhysical(LINEAR Symbol) {
 /************************************************************************/
 
 /**
+ * @brief Convert a kernel pointer into a user-visible handle.
+ *
+ * Allocates a new entry in the handle map and attaches the provided pointer
+ * to it. Returns 0 when allocation or attachment fails.
+ *
+ * @param Pointer Kernel pointer that must be exposed to userland.
+ * @return HANDLE Newly created handle or 0 on failure.
+ */
+HANDLE PointerToHandle(LINEAR Pointer) {
+    if (Pointer == 0) {
+        return 0;
+    }
+
+    UINT Handle = 0;
+    UINT Status = HandleMapAllocateHandle(&Kernel.HandleMap, &Handle);
+    if (Status != HANDLE_MAP_OK) {
+        return 0;
+    }
+
+    Status = HandleMapAttachPointer(&Kernel.HandleMap, Handle, Pointer);
+    if (Status != HANDLE_MAP_OK) {
+        HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+        return 0;
+    }
+
+    return Handle;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve a user-visible handle back to its kernel pointer.
+ *
+ * @param Handle Handle supplied by userland.
+ * @return LINEAR Kernel pointer or 0 when the handle is invalid.
+ */
+LINEAR HandleToPointer(HANDLE Handle) {
+    if (Handle == 0) {
+        return 0;
+    }
+
+    LINEAR Pointer = 0;
+    UINT Status = HandleMapResolveHandle(&Kernel.HandleMap, Handle, &Pointer);
+    if (Status != HANDLE_MAP_OK) {
+        return 0;
+    }
+
+    return Pointer;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Detach and release a handle from the global handle map.
+ *
+ * @param Handle Handle to release; ignored when 0.
+ */
+void ReleaseHandle(HANDLE Handle) {
+    if (Handle == 0) {
+        return;
+    }
+
+    LINEAR Pointer = 0;
+    UINT Status = HandleMapDetachPointer(&Kernel.HandleMap, Handle, &Pointer);
+    if (Status != HANDLE_MAP_OK && Status != HANDLE_MAP_ERROR_NOT_ATTACHED) {
+        WARNING(TEXT("[ReleaseHandle] Detach failed handle=%u status=%u"), Handle, Status);
+    }
+
+    Status = HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+    if (Status != HANDLE_MAP_OK) {
+        WARNING(TEXT("[ReleaseHandle] Release failed handle=%u status=%u"), Handle, Status);
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieves basic CPU identification data.
  *
  * Populates the provided structure using CPUID information, including
@@ -800,6 +877,18 @@ void InitializeKernel(void) {
     DEBUG(TEXT("[InitializeKernel] Interrupts initialized"));
 
     //-------------------------------------
+    // Dump critical information
+
+    DumpCriticalInformation();
+
+    //-------------------------------------
+    // Initialize kernel process
+
+    InitializeKernelProcess();
+
+    DEBUG(TEXT("[InitializeKernel] Kernel process and task initialized"));
+
+    //-------------------------------------
     // Initialize ACPI
 
     if (InitializeACPI()) {
@@ -836,23 +925,14 @@ void InitializeKernel(void) {
     }
 
     //-------------------------------------
-    // Dump critical information
-
-    DumpCriticalInformation();
-
-    //-------------------------------------
-    // Initialize kernel process
-
-    InitializeKernelProcess();
-
-    DEBUG(TEXT("[InitializeKernel] Kernel process and task initialized"));
-
-    //-------------------------------------
     // Initialize object termination cache
 
     CacheInit(&Kernel.ObjectTerminationCache, CACHE_DEFAULT_CAPACITY);
 
     DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
+
+    HandleMapInit(&Kernel.HandleMap);
+    DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     //-------------------------------------
     // Run auto tests

@@ -146,6 +146,9 @@ KERNELDATA SECTION(".data") Kernel = {
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,
     .Socket = &SocketList,
+    .UserSessions = NULL,
+    .UserAccount = &UserAccountList,
+    .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {
         .Header = {
             .TypeID = KOID_FILESYSTEM,
@@ -158,13 +161,14 @@ KERNELDATA SECTION(".data") Kernel = {
         },
         .Root = NULL
     },
-    .FileSystemInfo = {.ActivePartitionName = ""},
-    .UserAccount = &UserAccountList,
-    .UserSessions = NULL,
-    .Configuration = NULL,
-    .LanguageCode = "en-US",
-    .KeyboardCode = "fr-FR",
-    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
-    .MinimumQuantum = 10,
+    .HandleMap = {0},
+    .PPBSize = 0,
     .PPB = NULL,
-    .PPBSize = 0};
+    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
+    .Configuration = NULL,
+    .MinimumQuantum = 10,
+    .MaximumQuantum = 50,
+    .DoLogin = 0,
+    .LanguageCode = "en-US",
+    .KeyboardCode = "fr-FR"
+    };

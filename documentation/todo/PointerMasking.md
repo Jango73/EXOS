@@ -34,16 +34,13 @@
   - Functions: `HandleMapInit`, `HandleMapAllocateHandle`, `HandleMapReleaseHandle`, `HandleMapResolveHandle`, `HandleMapAttachPointer`, `HandleMapDetachPointer`.
   - Store pointers as `LINEAR` but convert back to the appropriate typed pointer with helper functions that leverage SAFE_USE/SAFE_USE_VALID_ID macros. Only maintain handle-to-pointer mappings here; reverse mapping is handled elsewhere when required.
   - Add sanity logging with `[HandleMap]` prefixed messages and `%u`/`%p` formatting per logging rules.
+  - Ensure thread safe access using a MUTEX.
   - Ensure error paths return defined `UINT` error codes (no negative numbers).
 
 ## Stage 4 - Kernel Integration
-- Extend `KERNELDATA` (`kernel/include/Kernel.h`) with a `HANDLE_MAP` descriptor holding:
-  - The handle table instance.
-  - a MUTEX.
-  - The next-handle counter.
+- Extend `KERNELDATA` (`kernel/include/Kernel.h`) with a `HANDLE_MAP` descriptor holding the handle table instance.
 - Mirror the structure in architecture-specific `KERNELDATA_I386` and `KERNELDATA_X86_64` if those structs need awareness of global kernel data, otherwise ensure they can reach `Kernel.HandleMap`.
-- Initialise the mapping within `kernel/source/KernelData.c` during global data setup, and invoke the init routine during early kernel boot (e.g., `KernelInit` path). Include teardown during shutdown paths if they exist.
-- Confirm linkage/section attributes (`SECTION(".data")`) remain intact after adding new members.
+- Initialise the mapping within `kernel/source/KernelData.c` during global data setup, in InitializeKernel.
 
 ## Stage 5 - Syscall Adaptation (`kernel/source/SYSCall.c`)
 - Catalogue every syscall entry point and classify parameters/return types that carry kernel pointers today.

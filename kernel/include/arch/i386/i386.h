@@ -519,25 +519,28 @@ typedef struct tag_SEGMENT_INFO {
     ((U32*)(StackTop))[1] = (Task)->Arch.Context.Registers.CS;      \
     ((U32*)(StackTop))[0] = (Task)->Arch.Context.Registers.EIP;
 
-#define SwitchToNextTask_2(prev, next)                              \
-    do {                                                            \
-        __asm__ __volatile__(                                       \
-            "pusha\n\t"                                             \
-            "movl %%esp, %0\n\t"                                    \
-            "movl %2, %%esp\n\t"                                    \
-            "movl $1f, %1\n\t"                                      \
-            "pushl %5\n\t"                                          \
-            "pushl %4\n\t"                                          \
-            "call SwitchToNextTask_3\n\t"                           \
-            "1:\n\t"                                                \
-            "add $8, %%esp\n\t"                                     \
-            "popa\n\t"                                              \
-            : "=m"((prev)->Arch.Context.Registers.ESP),             \
-              "=m"((prev)->Arch.Context.Registers.EIP)              \
-            : "m"((next)->Arch.Context.Registers.ESP),              \
-              "m"((next)->Arch.Context.Registers.EIP),              \
-              "r"(prev), "r"(next)                                  \
-            : "memory");                                            \
+#define SwitchToNextTask_2(prev, next, next_cr3)                                      \
+    do {                                                                              \
+        PHYSICAL __target_cr3 = (next_cr3);                                           \
+        __asm__ __volatile__(                                                         \
+            "pusha\n\t"                                                               \
+            "movl %%esp, %0\n\t"                                                      \
+            "movl $1f, %1\n\t"                                                        \
+            "movl %4, %%cr3\n\t"                                                      \
+            "movl %2, %%esp\n\t"                                                      \
+            "pushl %5\n\t"                                                            \
+            "pushl %3\n\t"                                                            \
+            "call SwitchToNextTask_3\n\t"                                             \
+            "1:\n\t"                                                                  \
+            "add $8, %%esp\n\t"                                                       \
+            "popa\n\t"                                                                \
+            : "=m"((prev)->Arch.Context.Registers.ESP),                               \
+              "=m"((prev)->Arch.Context.Registers.EIP)                                \
+            : "m"((next)->Arch.Context.Registers.ESP),                                \
+              "r"(prev),                                                              \
+              "r"(__target_cr3),                                                      \
+              "r"(next)                                                               \
+            : "memory", "cc");                                                        \
     } while (0)
 
 #define JumpToReadyTask(Task, StackPointer)                         \

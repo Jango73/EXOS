@@ -373,9 +373,17 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
         return;
     }
 
+    PHYSICAL NextCr3 = 0;
+    if (NextTask != NULL && NextTask->Process != NULL) {
+        NextCr3 = NextTask->Process->PageDirectory;
+    }
+    if (NextCr3 == 0) {
+        NextCr3 = GetPageDirectory();
+    }
+
     // SAFE_USE_VALID_ID_2(CurrentTask, NextTask, KOID_TASK) {
         // __asm__ __volatile__("xchg %%bx,%%bx" : : );     // A breakpoint
-        SwitchToNextTask_2(CurrentTask, NextTask);
+        SwitchToNextTask_2(CurrentTask, NextTask, NextCr3);
     // }
 
     FINE_DEBUG(TEXT("[SwitchToNextTask] Exit for task %p (%s)"), CurrentTask, CurrentTask->Name);

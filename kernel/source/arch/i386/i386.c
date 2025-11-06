@@ -590,8 +590,6 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
             SaveFPU((LPVOID)&(CurrentTask->Arch.Context.FPURegisters));
         }
 
-        LoadPageDirectory(NextTask->Process->PageDirectory);
-
         SetDS(NextTask->Arch.Context.Registers.DS);
         SetES(NextTask->Arch.Context.Registers.ES);
         SetFS(NextTask->Arch.Context.Registers.FS);

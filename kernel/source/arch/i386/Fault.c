@@ -363,6 +363,17 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
     LINEAR FaultAddress;
     __asm__ volatile("mov %%cr2, %0" : "=r"(FaultAddress));
 
+    DEBUG(TEXT("[PageFaultHandler] CR2=%X Err=%X EIP=%X ESP=%X"),
+          FaultAddress,
+          Frame->ErrCode,
+          Frame->Registers.EIP,
+          Frame->Registers.ESP);
+
+    if (ResolveKernelPageFault(FaultAddress)) {
+        DEBUG(TEXT("[PageFaultHandler] Resolved kernel page fault %X"), FaultAddress);
+        return;
+    }
+
     ERROR(TEXT("FAULT: Page fault %X (EIP %X)"), FaultAddress, Frame->Registers.EIP);
 
     LPTASK Task = GetCurrentTask();
