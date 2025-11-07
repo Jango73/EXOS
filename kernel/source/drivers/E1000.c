@@ -125,6 +125,7 @@ static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
 static BOOL E1000_InterruptTopHalf(LPDEVICE Device, LPVOID Context);
 static void E1000_DeferredRoutine(LPDEVICE Device, LPVOID Context);
 static void E1000_PollRoutine(LPDEVICE Device, LPVOID Context);
+static U32 E1000_ReceivePoll(LPE1000DEVICE Device);
 
 /************************************************************************/
 
