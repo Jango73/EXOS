@@ -69,7 +69,6 @@ typedef struct tag_CPUIDREGISTERS {
 /***************************************************************************/
 
 extern U32 DeadBeef;
-extern void StartTestNetworkTask(void);
 
 /************************************************************************/
 
@@ -1118,8 +1117,6 @@ void InitializeKernel(void) {
         TaskInfo.Parameter = (LPVOID)(((Console.Width - 8) << 16) | 0);
         CreateTask(&KernelProcess, &TaskInfo);
         */
-
-        // StartTestNetworkTask();
 
         //-------------------------------------
         // Shell task
