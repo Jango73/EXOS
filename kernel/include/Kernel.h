@@ -150,6 +150,8 @@ typedef struct tag_KERNELDATA {
     LPTOML Configuration;
     UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
     UINT MaximumQuantum;            // Maximum quantum time in milliseconds (adjusted for emulation)
+    UINT DeferredWorkWaitTimeoutMS; // Wait timeout for deferred work dispatcher in milliseconds
+    UINT DeferredWorkPollDelayMS;   // Polling delay for deferred work dispatcher in milliseconds
     BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
     STR LanguageCode[8];
     STR KeyboardCode[8];

@@ -6,8 +6,8 @@
 
 \************************************************************************/
 
-#ifndef SYSTEM_DEFERREDWORK_H_INCLUDED
-#define SYSTEM_DEFERREDWORK_H_INCLUDED
+#ifndef DEFERREDWORK_H_INCLUDED
+#define DEFERREDWORK_H_INCLUDED
 
 /***************************************************************************/
 
@@ -39,4 +39,4 @@ void DeferredWorkUpdateMode(void);
 
 /***************************************************************************/
 
-#endif // SYSTEM_DEFERREDWORK_H_INCLUDED
+#endif // DEFERREDWORK_H_INCLUDED

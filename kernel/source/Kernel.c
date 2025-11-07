@@ -48,13 +48,14 @@
 #include "Stack.h"
 #include "System.h"
 #include "SystemFS.h"
+#include "utils/Helpers.h"
 #include "utils/TOML.h"
 #include "UserAccount.h"
 #include "UserSession.h"
 #include "network/NetworkManager.h"
 #include "utils/UUID.h"
 #include "DeviceInterrupt.h"
-#include "system/DeferredWork.h"
+#include "DeferredWork.h"
 
 /************************************************************************/
 
@@ -670,7 +671,7 @@ static void UseConfiguration(void) {
 
     SAFE_USE(Kernel.Configuration) {
         LPCSTR Layout;
-        LPCSTR Quantum;
+        LPCSTR QuantumMS;
         LPCSTR DoLogin;
 
         DEBUG(TEXT("[UseConfiguration] Handling keyboard layout"));
@@ -685,11 +686,11 @@ static void UseConfiguration(void) {
             SelectKeyboard(TEXT("en-US"));
         }
 
-        Quantum = TomlGet(Kernel.Configuration, TEXT("General.Quantum"));
+        QuantumMS = TomlGet(Kernel.Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
-        if (STRING_EMPTY(Quantum) == FALSE) {
-            ConsolePrint(TEXT("Task quantum set to %s\n"), Quantum);
-            Kernel.MinimumQuantum = StringToU32(Quantum);
+        if (STRING_EMPTY(QuantumMS) == FALSE) {
+            ConsolePrint(TEXT("Task quantum set to %s\n"), QuantumMS);
+            Kernel.MinimumQuantum = StringToU32(QuantumMS);
         }
 
         DoLogin = TomlGet(Kernel.Configuration, TEXT("General.DoLogin"));
