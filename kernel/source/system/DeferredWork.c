@@ -118,7 +118,7 @@ U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
             g_WorkItems[Index].PendingCount = 0;
             MemorySet(g_WorkItems[Index].Name, 0, sizeof(g_WorkItems[Index].Name));
             if (Registration->Name) {
-                StringNCopy(g_WorkItems[Index].Name, Registration->Name, sizeof(g_WorkItems[Index].Name) - 1U);
+                StringCopyLimit(g_WorkItems[Index].Name, Registration->Name, sizeof(g_WorkItems[Index].Name));
             }
 
             DEBUG(TEXT("[DeferredWorkRegister] Registered work item %u (%s)"),
