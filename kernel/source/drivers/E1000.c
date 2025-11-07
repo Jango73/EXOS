@@ -114,6 +114,8 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
+typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
+
 static UINT E1000Commands(UINT Function, UINT Param);
 static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU, U8 VectorSlot);
 static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ);
@@ -143,7 +145,7 @@ static void E1000_Delay(UINT Iterations) {
 /************************************************************************/
 // Device structure
 
-typedef struct PACKED tag_E1000DEVICE {
+struct PACKED tag_E1000DEVICE {
     PCI_DEVICE_FIELDS
 
     // MMIO mapping
@@ -182,7 +184,7 @@ typedef struct PACKED tag_E1000DEVICE {
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
     LPVOID RxUserData;
-} E1000DEVICE, *LPE1000DEVICE;
+};
 
 /************************************************************************/
 // Globals and PCI match table
