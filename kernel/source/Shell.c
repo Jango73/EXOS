@@ -712,7 +712,6 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     }
 
     do {
-        DEBUG(TEXT("[ListDirectory] Found file: %s"), File->Name);
         ListFile(File, Indent);
         if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
             if (StringCompare(File->Name, TEXT(".")) != 0 && StringCompare(File->Name, TEXT("..")) != 0) {
