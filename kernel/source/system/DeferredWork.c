@@ -1,6 +1,22 @@
+
 /************************************************************************\
 
     EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 
     Deferred work dispatcher infrastructure
 
@@ -20,13 +36,13 @@
 #include "CoreString.h"
 #include "utils/Helpers.h"
 
-/***************************************************************************/
+/************************************************************************/
 
-#define DEFERRED_WORK_MAX_ITEMS 16U
-#define DEFERRED_WORK_WAIT_TIMEOUT_MS 50U
-#define DEFERRED_WORK_POLL_DELAY_MS 5U
+#define DEFERRED_WORK_MAX_ITEMS 16
+#define DEFERRED_WORK_WAIT_TIMEOUT_MS 50
+#define DEFERRED_WORK_POLL_DELAY_MS 5
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef struct tag_DEFERRED_WORK_ITEM {
     BOOL InUse;
@@ -37,20 +53,20 @@ typedef struct tag_DEFERRED_WORK_ITEM {
     STR Name[32];
 } DEFERRED_WORK_ITEM, *LPDEFERRED_WORK_ITEM;
 
-/***************************************************************************/
+/************************************************************************/
 
 static DEFERRED_WORK_ITEM g_WorkItems[DEFERRED_WORK_MAX_ITEMS];
 static LPKERNEL_EVENT g_DeferredEvent = NULL;
 static BOOL g_PollingMode = FALSE;
 static BOOL g_DispatcherStarted = FALSE;
 
-/***************************************************************************/
+/************************************************************************/
 
 static void ProcessPendingWork(void);
 static void ProcessPollCallbacks(void);
 static U32 DeferredWorkDispatcherTask(LPVOID Param);
 
-/***************************************************************************/
+/************************************************************************/
 
 BOOL InitializeDeferredWork(void) {
     if (g_DispatcherStarted) {
@@ -92,7 +108,7 @@ BOOL InitializeDeferredWork(void) {
     return TRUE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void ShutdownDeferredWork(void) {
     g_DispatcherStarted = FALSE;
@@ -102,7 +118,7 @@ void ShutdownDeferredWork(void) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
     if (Registration == NULL || Registration->WorkCallback == NULL) {
@@ -132,7 +148,7 @@ U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
     return DEFERRED_WORK_INVALID_HANDLE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DeferredWorkUnregister(U32 Handle) {
     if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
@@ -149,7 +165,7 @@ void DeferredWorkUnregister(U32 Handle) {
     DEBUG(TEXT("[DeferredWorkUnregister] Unregistered work item %u"), Handle);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DeferredWorkSignal(U32 Handle) {
     if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
@@ -172,20 +188,20 @@ void DeferredWorkSignal(U32 Handle) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 BOOL DeferredWorkIsPollingMode(void) {
     return g_PollingMode;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 void DeferredWorkUpdateMode(void) {
     LPCSTR ModeValue = GetConfigurationValue(TEXT("General.Polling"));
     g_PollingMode = (ModeValue != NULL && STRINGS_EQUAL(ModeValue, TEXT("1"))) ? TRUE : FALSE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void ProcessPendingWork(void) {
     BOOL WorkFound;
@@ -238,7 +254,7 @@ static void ProcessPendingWork(void) {
     RestoreFlags(&Flags);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void ProcessPollCallbacks(void) {
     for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
@@ -251,7 +267,7 @@ static void ProcessPollCallbacks(void) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     UNUSED(Param);
@@ -290,5 +306,3 @@ static U32 DeferredWorkDispatcherTask(LPVOID Param) {
 
     return 0;
 }
-
-/***************************************************************************/
