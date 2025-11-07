@@ -133,6 +133,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Disk;
     LPLIST PCIDevice;
     LPLIST NetworkDevice;
+    LPLIST Event;
     LPLIST FileSystem;
     LPLIST File;
     LPLIST TCPConnection;

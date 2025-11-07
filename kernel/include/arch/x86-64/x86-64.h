@@ -41,7 +41,7 @@
 
 #define IDT_SIZE N_4KB
 #define GDT_SIZE N_8KB
-#define NUM_INTERRUPTS 48
+#define NUM_INTERRUPTS 49
 #define NUM_TASKS 128
 
 #define GATE_TYPE_386_INT 0x0E

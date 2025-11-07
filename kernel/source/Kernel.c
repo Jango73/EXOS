@@ -518,6 +518,7 @@ void DeleteUnreferencedObjects(void) {
     ProcessList(Kernel.Disk, TEXT("Disk"));
     ProcessList(Kernel.PCIDevice, TEXT("PCIDevice"));
     ProcessList(Kernel.NetworkDevice, TEXT("NetworkDevice"));
+    ProcessList(Kernel.Event, TEXT("KernelEvent"));
     ProcessList(Kernel.FileSystem, TEXT("FileSystem"));
     ProcessList(Kernel.File, TEXT("File"));
     ProcessList(Kernel.TCPConnection, TEXT("TCPConnection"));
@@ -577,6 +578,7 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
         ReleaseProcessObjectsFromList(Process, Kernel.Disk);
         ReleaseProcessObjectsFromList(Process, Kernel.PCIDevice);
         ReleaseProcessObjectsFromList(Process, Kernel.NetworkDevice);
+        ReleaseProcessObjectsFromList(Process, Kernel.Event);
         ReleaseProcessObjectsFromList(Process, Kernel.FileSystem);
         ReleaseProcessObjectsFromList(Process, Kernel.File);
         ReleaseProcessObjectsFromList(Process, Kernel.TCPConnection);

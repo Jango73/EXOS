@@ -74,6 +74,31 @@ entire lifetime and is persisted in the termination cache through
 instead of raw pointers, eliminating accidental matches when memory is reused
 for new objects.
 
+### Kernel event object
+
+`kernel/source/KernelEvent.c` introduces `CreateKernelEvent`, a lightweight
+kernel object (`KOID_KERNELEVENT`) designed for ISR-to-task signaling. Events
+embed the standard `LISTNODE_FIELDS` header plus a `Signaled` flag and
+`SignalCount` counter. They live in `Kernel.Event` alongside other
+kernel-maintained lists so reference tracking and garbage collection treat
+them like existing objects (processes, sockets, etc.).
+
+Key helpers:
+
+- `CreateKernelEvent()` / `DeleteKernelEvent()` allocate and reference-count
+  the object.
+- `SignalKernelEvent()` and `ResetKernelEvent()` flip the `Signaled` flag while
+  interrupts are masked locally (`SaveFlags`/`DisableInterrupts`). The helpers
+  are safe to call from interrupt context.
+- `KernelEventIsSignaled()` and `KernelEventGetSignalCount()` surface state for
+  consumer code.
+
+`Wait()` now recognises the new type: when an event handle is present in
+`WAITINFO.Objects`, the scheduler returns as soon as `SignalKernelEvent`
+marks it signaled and propagates `SignalCount` through the wait exit codes.
+Legacy behaviour for process/task termination remains unchanged because the
+termination cache is still consulted first.
+
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in
@@ -859,6 +884,8 @@ The E1000 driver provides the hardware abstraction layer for Intel 82540EM netwo
 - `DF_NT_SEND`: Send Ethernet frame
 - `DF_NT_POLL`: Poll receive ring for new frames
 - `DF_NT_SETRXCB`: Register frame receive callback
+- `DF_NT_ENABLEINT`: Configure interrupt routing and unmask NIC interrupts
+- `DF_NT_DISABLEINT`: Mask NIC interrupts and release routing
 
 ### ARP (Address Resolution Protocol)
 

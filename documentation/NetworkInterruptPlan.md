@@ -57,5 +57,10 @@
    - Confirm no faults in `log/kernel.log` and that interrupts fire (verify via DEBUG traces with bounded verbosity).
    - Repeat on x86-64 build; compare throughput and CPU usage against baseline polling.
 11. **Documentation**
-   - Update `documentation/Kernel.md` to describe the interrupt-driven network pipeline.
-   - Add driver-specific notes under `documentation/kernel/` detailing ISR flow and configuration knobs.
+    - Update `documentation/Kernel.md` to describe the interrupt-driven network pipeline.
+    - Add driver-specific notes under `documentation/kernel/` detailing ISR flow and configuration knobs.
+
+## Progress Log
+- **Step 1 complete**: see `documentation/NetworkInterruptAudit.md` for the polling audit, expected interrupt sources, and locking notes.
+- **Step 2 in progress**: network interrupts now use a dedicated vector, IOAPIC/PIC routing helpers, and driver-level enable/disable commands.
+- **Step 3 in progress**: a new kernel event object provides ISR-safe signaling with `SignalKernelEvent`/`ResetKernelEvent`, and `Wait()` observes the new object type.
