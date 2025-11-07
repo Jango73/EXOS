@@ -74,7 +74,7 @@ BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, 
         Slot->Context = Registration->Context;
         MemorySet(Slot->Name, 0, sizeof(Slot->Name));
         if (Registration->Name != NULL) {
-            StringNCopy(Slot->Name, Registration->Name, sizeof(Slot->Name) - 1U);
+            StringCopyLimit(Slot->Name, Registration->Name, sizeof(Slot->Name));
         }
         Slot->InterruptEnabled = FALSE;
 
