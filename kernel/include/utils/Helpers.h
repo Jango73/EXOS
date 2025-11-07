@@ -27,6 +27,7 @@
 
 /***************************************************************************/
 
+#include "Base.h"
 #include "UserAccount.h"
 #include "TOML.h"
 #include "FileSystem.h"
@@ -59,22 +60,22 @@
 /***************************************************************************/
 // Configuration fallbacks
 
-#define DEFERRED_WORK_MAX_ITEMS           16
-#define DEFERRED_WORK_WAIT_TIMEOUT_MS     50
-#define DEFERRED_WORK_POLL_DELAY_MS       5
+#define DEFERRED_WORK_MAX_ITEMS           16      // Maximum number of deferred work items fallback
+#define DEFERRED_WORK_WAIT_TIMEOUT_MS     50      // Deferred work wait timeout fallback (ms)
+#define DEFERRED_WORK_POLL_DELAY_MS       5       // Deferred work poll delay fallback (ms)
 
 // Network
-#define NETWORK_FALLBACK_IPV4_BASE        0xC0A8380A
-#define NETWORK_FALLBACK_IPV4_NETMASK     0xFFFFFF00
-#define NETWORK_FALLBACK_IPV4_GATEWAY     0xC0A83801
+#define NETWORK_FALLBACK_IPV4_BASE        0xC0A8380A // Default IPv4 base address fallback
+#define NETWORK_FALLBACK_IPV4_NETMASK     0xFFFFFF00 // Default IPv4 netmask fallback
+#define NETWORK_FALLBACK_IPV4_GATEWAY     0xC0A83801 // Default IPv4 gateway fallback
 
 // TCP
-#define TCP_EPHEMERAL_PORT_START_FALLBACK 32768
-#define TCP_RETRANSMIT_TIMEOUT            3000
-#define TCP_TIME_WAIT_TIMEOUT             30000
-#define TCP_MAX_RETRANSMITS               5
-#define TCP_SEND_BUFFER_SIZE              32768
-#define TCP_RECV_BUFFER_SIZE              32768
+#define TCP_EPHEMERAL_PORT_START_FALLBACK N_32KB  // Default TCP ephemeral port start fallback
+#define TCP_RETRANSMIT_TIMEOUT            3000    // TCP retransmit timeout fallback (ms)
+#define TCP_TIME_WAIT_TIMEOUT             30000   // TCP TIME-WAIT timeout fallback (ms)
+#define TCP_MAX_RETRANSMITS               5       // TCP maximum retransmits fallback
+#define TCP_SEND_BUFFER_SIZE              N_32KB  // TCP send buffer size fallback
+#define TCP_RECV_BUFFER_SIZE              N_32KB  // TCP receive buffer size fallback
 
 /***************************************************************************/
 
