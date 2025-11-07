@@ -81,6 +81,17 @@ static LIST NetworkDeviceList = {
 
 /************************************************************************/
 
+static LIST EventList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST FileSystemList = {
     .First = NULL,
     .Last = NULL,
@@ -142,6 +153,7 @@ KERNELDATA SECTION(".data") Kernel = {
     .Disk = &DiskList,
     .PCIDevice = &PciDeviceList,
     .NetworkDevice = &NetworkDeviceList,
+    .Event = &EventList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,

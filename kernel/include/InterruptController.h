@@ -30,6 +30,7 @@
 
 /***************************************************************************/
 
+
 #pragma pack(push, 1)
 
 /***************************************************************************/
@@ -178,6 +179,10 @@ BOOL MapLegacyIRQ(U8 LegacyIRQ, U8* ActualPin, U8* TriggerMode, U8* Polarity);
  * @return TRUE if configuration successful, FALSE otherwise
  */
 BOOL ConfigureInterrupt(U8 IRQ, U8 Vector, U8 DestCPU);
+
+BOOL ConfigureDeviceInterrupt(U8 IRQ, U8 Vector, U8 DestCPU);
+BOOL EnableDeviceInterrupt(U8 IRQ);
+BOOL DisableDeviceInterrupt(U8 IRQ);
 
 /**
  * Handle interrupt source override from ACPI
