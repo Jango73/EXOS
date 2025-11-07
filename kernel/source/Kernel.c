@@ -696,10 +696,12 @@ static void UseConfiguration(void) {
 
         if (STRING_EMPTY(DoLogin) == FALSE) {
             Kernel.DoLogin = (StringToU32(DoLogin) != 0);
-            ConsolePrint(TEXT("Login sequence %s\n"), Kernel.DoLogin ? TEXT("enabled") : TEXT("disabled"));
         } else {
             Kernel.DoLogin = TRUE;
-            ConsolePrint(TEXT("DoLogin not found in config, login sequence enabled by default\n"));
+        }
+
+        if (Kernel.DoLogin == FALSE) {
+            ConsolePrint(TEXT("WARNING : Login sequence disabled\n"));
         }
     }
 
