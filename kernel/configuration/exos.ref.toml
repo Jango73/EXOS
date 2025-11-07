@@ -21,6 +21,8 @@
 # Configure deferred work timings
 DeferredWorkWaitTimeoutMS=50
 DeferredWorkPollDelayMS=5
+# 0 = interrupt driven (default), 1 = polling driven
+Polling=0
 # Enable or disable login sequence (1=enable, 0=disable)
 DoLogin=1
 

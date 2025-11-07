@@ -128,7 +128,11 @@ void ShutdownDeferredWork(void) {
 /************************************************************************/
 
 U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
-    if (Registration == NULL || Registration->WorkCallback == NULL) {
+    if (Registration == NULL) {
+        return DEFERRED_WORK_INVALID_HANDLE;
+    }
+
+    if (Registration->WorkCallback == NULL && Registration->PollCallback == NULL) {
         return DEFERRED_WORK_INVALID_HANDLE;
     }
 
@@ -157,6 +161,18 @@ U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
 
 /************************************************************************/
 
+U32 DeferredWorkRegisterPollOnly(DEFERRED_WORK_POLL_CALLBACK PollCallback, LPVOID Context, LPCSTR Name) {
+    DEFERRED_WORK_REGISTRATION Registration;
+    MemorySet(&Registration, 0, sizeof(Registration));
+    Registration.WorkCallback = NULL;
+    Registration.PollCallback = PollCallback;
+    Registration.Context = Context;
+    Registration.Name = Name;
+    return DeferredWorkRegister(&Registration);
+}
+
+/************************************************************************/
+
 void DeferredWorkUnregister(U32 Handle) {
     if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
         return;
@@ -180,7 +196,7 @@ void DeferredWorkSignal(U32 Handle) {
     }
 
     LPDEFERRED_WORK_ITEM Item = &g_WorkItems[Handle];
-    if (!Item->InUse) {
+    if (!Item->InUse || Item->WorkCallback == NULL) {
         return;
     }
 
@@ -204,8 +220,27 @@ BOOL DeferredWorkIsPollingMode(void) {
 /************************************************************************/
 
 void DeferredWorkUpdateMode(void) {
-    LPCSTR ModeValue = GetConfigurationValue(TEXT("General.Polling"));
-    g_PollingMode = (ModeValue != NULL && STRINGS_EQUAL(ModeValue, TEXT("1"))) ? TRUE : FALSE;
+    BOOL PreviousMode = g_PollingMode;
+    g_PollingMode = FALSE;
+
+    LPCSTR ModeValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_POLLING));
+    if (STRING_EMPTY(ModeValue) == FALSE) {
+        U32 Numeric = StringToU32(ModeValue);
+        if (Numeric != 0U) {
+            g_PollingMode = TRUE;
+        } else if (StringCompareNC(ModeValue, TEXT("true")) == 0) {
+            g_PollingMode = TRUE;
+        }
+    }
+
+    if (PreviousMode != g_PollingMode) {
+        DEBUG(TEXT("[DeferredWorkUpdateMode] Dispatcher switched to %s mode"),
+              g_PollingMode ? TEXT("POLLING") : TEXT("INTERRUPT"));
+
+        if (!g_PollingMode) {
+            SAFE_USE(g_DeferredEvent) { SignalKernelEvent(g_DeferredEvent); }
+        }
+    }
 }
 
 /************************************************************************/

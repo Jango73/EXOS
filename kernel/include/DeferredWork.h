@@ -32,6 +32,7 @@ typedef struct tag_DEFERRED_WORK_REGISTRATION {
 BOOL InitializeDeferredWork(void);
 void ShutdownDeferredWork(void);
 U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration);
+U32 DeferredWorkRegisterPollOnly(DEFERRED_WORK_POLL_CALLBACK PollCallback, LPVOID Context, LPCSTR Name);
 void DeferredWorkUnregister(U32 Handle);
 void DeferredWorkSignal(U32 Handle);
 BOOL DeferredWorkIsPollingMode(void);

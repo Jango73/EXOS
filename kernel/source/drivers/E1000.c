@@ -28,6 +28,7 @@
 #include "Driver.h"
 #include "Kernel.h"
 #include "DeviceInterrupt.h"
+#include "DeferredWork.h"
 #include "InterruptController.h"
 #include "Log.h"
 #include "Memory.h"
@@ -122,6 +123,7 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
 static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ);
 static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
 static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause);
 static BOOL E1000_InterruptTopHalf(LPDEVICE Device, LPVOID Context);
 static void E1000_DeferredRoutine(LPDEVICE Device, LPVOID Context);
 static void E1000_PollRoutine(LPDEVICE Device, LPVOID Context);
@@ -808,12 +810,16 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
             // Clear any pending causes and apply the default mask
             E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
             E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
-            E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
 
-            DEBUG(TEXT("[E1000_EnableInterrupts] IRQ %u armed with vector %u mask %x"),
+            if (!DeferredWorkIsPollingMode()) {
+                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
+            }
+
+            DEBUG(TEXT("[E1000_EnableInterrupts] IRQ %u armed with vector %u mask %x (mode=%s)"),
                   LegacyIRQ,
                   GetDeviceInterruptVector(Device->InterruptSlot),
-                  E1000_DEFAULT_INTERRUPT_MASK);
+                  E1000_DEFAULT_INTERRUPT_MASK,
+                  DeferredWorkIsPollingMode() ? TEXT("POLLING") : TEXT("INTERRUPT"));
         } else {
             DEBUG(TEXT("[E1000_EnableInterrupts] Operating in polling mode (IRQ=%u)"), LegacyIRQ);
         }
@@ -857,34 +863,60 @@ static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
 
 /************************************************************************/
 
-static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
-    UNUSED(DevicePointer);
-
-    LPE1000DEVICE Device = (LPE1000DEVICE)Context;
-
+static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         if (Device->MmioBase == NULL) {
             return FALSE;
         }
 
-        U32 Cause = E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
+        U32 InterruptCause = E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
+        if (Cause != NULL) {
+            *Cause = InterruptCause;
+        }
 
-        if (Cause == 0U) {
+        if (InterruptCause == 0U) {
             return FALSE;
         }
 
-        if ((Cause & E1000_INT_LSC) != 0U) {
-            DEBUG(TEXT("[E1000_InterruptTopHalf] Link status change cause=%x"), Cause);
-        }
-
-        if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0U) {
-            return FALSE;
+        if (Device->InterruptArmed) {
+            if (DeferredWorkIsPollingMode()) {
+                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+            } else {
+                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
+            }
         }
 
         return TRUE;
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
+    UNUSED(DevicePointer);
+
+    LPE1000DEVICE Device = (LPE1000DEVICE)Context;
+
+    U32 Cause = 0U;
+    if (!E1000_AcknowledgeInterrupt(Device, &Cause)) {
+        return FALSE;
+    }
+
+    if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0U) {
+        return FALSE;
+    }
+
+    if ((Cause & E1000_INT_LSC) != 0U) {
+        DEBUG(TEXT("[E1000_InterruptTopHalf] Link status change cause=%x"), Cause);
+    }
+
+    if ((Cause & E1000_INT_RXO) != 0U) {
+        WARNING(TEXT("[E1000_InterruptTopHalf] RX overrun detected (cause=%x)"), Cause);
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/

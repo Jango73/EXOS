@@ -37,6 +37,7 @@
 // Configuration paths
 
 #define CONFIG_GENERAL_QUANTUM_MS                       "General.QuantumMS"
+#define CONFIG_GENERAL_POLLING                          "General.Polling"
 #define CONFIG_GENERAL_DEFERRED_WORK_WAIT_TIMEOUT_MS    "General.DeferredWorkWaitTimeoutMS"
 #define CONFIG_GENERAL_DEFERRED_WORK_POLL_DELAY_MS      "General.DeferredWorkPollDelayMS"
 #define CONFIG_NETWORK_LOCAL_IP                         "Network.LocalIP"
