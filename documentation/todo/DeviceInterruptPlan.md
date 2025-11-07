@@ -69,3 +69,5 @@
 - **Step 4 complete**: the E1000 driver installs a top-half that acknowledges causes, relies on `SAFE_USE_VALID_ID`, and signals deferred work.
 - **Step 5 complete**: `DeferredWorkDispatcher` replaces the busy polling loop, driving bottom halves from interrupts or the polling fallback, and keeps network maintenance shared.
 - **Step 6 complete**: the dispatcher lives in `kernel/source/DeferredWork.c`, headers expose the API, and the legacy `NetworkManagerTask` has been removed.
+- **Step 7 complete**: drivers such as `E1000` program interrupt masks, acknowledge causes inside the ISR, and rely on deferred work plus watchdog polling instead of bespoke loops.
+- **Step 8 complete**: runtime configuration `General.Polling` toggles between interrupt and polling modes, and the dispatcher exposes a poll registration API for devices.
