@@ -1,11 +1,10 @@
 # Network Interrupt Audit
 
-## Polling Call Graph
-- `Kernel.c` schedules `NetworkManagerTask` during boot (task creation near line 1119).
-- `NetworkManagerTask` ( `kernel/source/network/NetworkManager.c` ) loops forever:
-  - Iterates `Kernel.NetworkDevice` and calls `Driver->Command(DF_NT_POLL)` on each attached NIC.
-  - Every 100 iterations, calls `ARP_Tick`, `DHCP_Tick`, `TCP_Update`, and `SocketUpdate` for maintenance.
-- Driver `DF_NT_POLL` handlers dispatch to hardware-specific receive logic (e1000 uses `E1000_OnPoll`).
+## Deferred Work Flow
+- `Kernel.c` initializes `DeviceInterrupts` and starts `DeferredWorkDispatcher` (`kernel/source/system/DeferredWork.c`) instead of the legacy `NetworkManagerTask` loop.
+- The dispatcher waits on the shared kernel event, invoking registered device slots when interrupts fire and running poll callbacks on timeout.
+- NIC drivers (e.g., `E1000`) register with `DeviceInterruptRegister`, supplying ISR top halves plus deferred and poll routines.
+- When hardware interrupts are unavailable or configuration forces polling, the dispatcher keeps executing the poll routines so receive paths and maintenance still advance.
 
 ## Expected Interrupt Sources
 - Intel E1000 hardware raises:
@@ -17,10 +16,10 @@
 - All map to the legacy INTx line reported in `PCI_INFO.IRQLine` (usually IRQ 11 in QEMU) and should be routed to the new network interrupt vector.
 
 ## Locking and Buffer Assumptions
-- `NetworkManagerTask` performs no explicit locking while iterating devices; it relies on `SAFE_USE`/`SAFE_USE_VALID_ID` to validate list membership without holding `MUTEX_KERNEL`.
+- ISR top halves rely on `SAFE_USE_VALID_ID` to guard shared objects before signalling deferred work.
 - RX/TX rings in `E1000.c` are backed by statically allocated pools (128 descriptors each) sized to one page per ring.
 - `E1000_SetupReceive` primes every descriptor and advances `RDT` after returning the buffer to hardware; transmit path blocks when `(TDT + 1) % TX_DESC_COUNT == TDH`.
-- No shared state is touched inside ISRs yet; polling code assumes single-threaded access from the manager task.
+- Deferred work executes on the dispatcher task context, so shared state still observes task-level serialization without explicit `MUTEX_KERNEL` usage inside driver callbacks.
 
 ## Identified Follow-Up Requirements
 - Any ISR must acknowledge `ICR`, refill RX descriptors, and signal deferred work without grabbing heavy locks.

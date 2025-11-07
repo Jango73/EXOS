@@ -76,6 +76,13 @@ section .text
     global Interrupt_FPU
     global Interrupt_HardDrive
     global Interrupt_Device0
+    global Interrupt_Device1
+    global Interrupt_Device2
+    global Interrupt_Device3
+    global Interrupt_Device4
+    global Interrupt_Device5
+    global Interrupt_Device6
+    global Interrupt_Device7
     global Interrupt_SystemCall
     global EnterKernel
 
@@ -448,19 +455,33 @@ Interrupt_HardDrive:
     UNALIGN_STACK
     iretq
 
+%macro DEVICE_INTERRUPT_STUB 1
+
 FUNC_HEADER
-Interrupt_Device0:
+Interrupt_Device%1:
     cli
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
     call EnterKernel
-    call DeviceInterruptHandler
-    call SendEOI
+    mov     ecx, %1
+    call    DeviceInterruptHandler
+    call    SendEOI
     POP_SEGMENTS
     POP_GPRS
     UNALIGN_STACK
     iretq
+
+%endmacro
+
+DEVICE_INTERRUPT_STUB 0
+DEVICE_INTERRUPT_STUB 1
+DEVICE_INTERRUPT_STUB 2
+DEVICE_INTERRUPT_STUB 3
+DEVICE_INTERRUPT_STUB 4
+DEVICE_INTERRUPT_STUB 5
+DEVICE_INTERRUPT_STUB 6
+DEVICE_INTERRUPT_STUB 7
 
 FUNC_HEADER
 Interrupt_SystemCall:

@@ -832,6 +832,24 @@ typedef struct DeviceTag {
 - `SetDeviceContext(Device, ID, Context)`: Store context for device
 - `RemoveDeviceContext(Device, ID)`: Remove and free context
 
+### Device Interrupt Infrastructure
+
+**Location:** `kernel/source/DeviceInterrupt.c`, `kernel/include/DeviceInterrupt.h`, `kernel/source/system/DeferredWork.c`
+
+The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
+
+**Key Features:**
+- Static interrupt vector slots shared across PCI/PIC paths.
+- `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
+- `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
+- Graceful fallback to polling when hardware interrupts are unavailable.
+
+**API Functions:**
+- `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
+- `DeviceInterruptRegister()/DeviceInterruptUnregister()`: Manage slot lifetime.
+- `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
+- `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
+
 ### Network Manager
 
 **Location:** `kernel/source/network/NetworkManager.c`, `kernel/include/network/NetworkManager.h`
@@ -842,7 +860,7 @@ The Network Manager provides centralized network device discovery, initializatio
 - Automatic PCI network device discovery (up to 8 devices)
 - Per-device network stack initialization (ARP, IPv4, TCP)
 - Unified frame reception callback routing
-- Periodic maintenance (RX polling, ARP aging, TCP timers)
+- Integration with the deferred work dispatcher for interrupt-driven receive paths with polling fallback
 - Primary device selection for global protocols
 
 **Initialization Flow:**
@@ -861,7 +879,7 @@ void InitializeNetworkManager(void) {
 **API Functions:**
 - `InitializeNetworkManager()`: Discover and initialize all network devices
 - `NetworkManager_InitializeDevice()`: Initialize specific network device
-- `NetworkManagerTask()`: Periodic maintenance task (polling, timers)
+- `NetworkManager_MaintenanceTick()`: Deferred maintenance routine invoked by `DeferredWorkDispatcher`
 - `NetworkManager_GetPrimaryDevice()`: Get primary device for TCP
 
 ### E1000 Ethernet Driver
@@ -1088,8 +1106,7 @@ IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_ICMP, ICMPHandler);
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_UDP, UDPHandler);
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
 
-// 4. Start Network Manager maintenance task:
-CreateTask(&KernelProcess, NetworkManagerTask);
+// 4. Deferred work dispatcher drives maintenance once initialized during boot
 ```
 
 ### Key Benefits of Per-Device Architecture

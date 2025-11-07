@@ -1,7 +1,7 @@
 # Device Interrupt Transition Plan
 
 ## Context
-- `NetworkManagerTask` in `kernel/source/network/NetworkManager.c` currently polls PCI network devices from a kernel task.
+- The legacy `NetworkManagerTask` polling loop has been replaced by a shared `DeferredWorkDispatcher` that services device interrupts while retaining a polling fallback.
 - Polling burns CPU time, delays event handling, and hides interrupt routing issues on both architectures.
 - The objective is to establish an interrupt-driven framework for device completions while preserving the ability to fall back to polling during bring-up.
 - The same primitives must serve every hardware family (PCI, ISA, on-board controllers, etc.) so future drivers plug into the same infrastructure instead of cloning network-specific plumbing.
@@ -64,5 +64,8 @@
 
 ## Progress Log
 - **Step 1 complete**: see `documentation/NetworkInterruptAudit.md` for the initial polling audit, expected interrupt sources, and locking notes.
-- **Step 2 in progress**: device interrupts now use dedicated vector slots, IOAPIC/PIC routing helpers, and driver-level enable/disable commands.
-- **Step 3 in progress**: a new kernel event object provides ISR-safe signaling with `SignalKernelEvent`/`ResetKernelEvent`, and `Wait()` observes the new object type.
+- **Step 2 complete**: device interrupts use dedicated vectors, IOAPIC/PIC routing helpers, and driver-level enable/disable commands through `DeviceInterruptRegister`.
+- **Step 3 complete**: `KernelEvent` now bridges ISRs and tasks and integrates with the scheduler `Wait()` path.
+- **Step 4 complete**: the E1000 driver installs a top-half that acknowledges causes, relies on `SAFE_USE_VALID_ID`, and signals deferred work.
+- **Step 5 complete**: `DeferredWorkDispatcher` replaces the busy polling loop, driving bottom halves from interrupts or the polling fallback, and keeps network maintenance shared.
+- **Step 6 complete**: the dispatcher lives in `kernel/source/system/DeferredWork.c`, headers expose the API, and the legacy `NetworkManagerTask` has been removed.

@@ -32,6 +32,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "network/Network.h"
+#include "network/NetworkManager.h"
 #include "drivers/PCI.h"
 #include "CoreString.h"
 #include "User.h"
@@ -117,10 +118,13 @@
 typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
 
 static UINT E1000Commands(UINT Function, UINT Param);
-static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU, U8 VectorSlot);
+static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU);
 static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ);
-static U32 E1000_OnEnableInterrupts(const DEVICE_INTERRUPT_CONFIG* Config);
-static U32 E1000_OnDisableInterrupts(const DEVICE_INTERRUPT_CONFIG* Config);
+static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static BOOL E1000_InterruptTopHalf(LPDEVICE Device, LPVOID Context);
+static void E1000_DeferredRoutine(LPDEVICE Device, LPVOID Context);
+static void E1000_PollRoutine(LPDEVICE Device, LPVOID Context);
 
 /************************************************************************/
 
@@ -184,6 +188,11 @@ struct PACKED tag_E1000DEVICE {
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
     LPVOID RxUserData;
+
+    // Interrupt bookkeeping
+    U8 InterruptSlot;
+    BOOL InterruptRegistered;
+    BOOL InterruptArmed;
 };
 
 /************************************************************************/
@@ -669,6 +678,9 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
     MemorySet(Device, 0, sizeof(E1000DEVICE));
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
     InitMutex(&(Device->Mutex));
+    Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Device->InterruptRegistered = FALSE;
+    Device->InterruptArmed = FALSE;
 
     DEBUG(TEXT("[E1000_Attach] Device=%x, ID=%x, PciDevice->TypeID=%x"), Device, Device->TypeID, PciDevice->TypeID);
 
@@ -753,7 +765,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
 /************************************************************************/
 // Interrupt control
 
-static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU, U8 VectorSlot) {
+static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU) {
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         if (Device->MmioBase == NULL) {
             WARNING(TEXT("[E1000_EnableInterrupts] MMIO base is NULL"));
@@ -769,29 +781,41 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
             return FALSE;
         }
 
-        const U8 Vector = GetDeviceInterruptVector(VectorSlot);
+        DEVICE_INTERRUPT_REGISTRATION Registration = {
+            .Device = (LPDEVICE)Device,
+            .LegacyIRQ = LegacyIRQ,
+            .TargetCPU = TargetCPU,
+            .InterruptHandler = E1000_InterruptTopHalf,
+            .DeferredCallback = E1000_DeferredRoutine,
+            .PollCallback = E1000_PollRoutine,
+            .Context = Device,
+            .Name = Device->Driver ? Device->Driver->Product : TEXT("E1000"),
+        };
 
-        if (!ConfigureDeviceInterrupt(LegacyIRQ, Vector, TargetCPU)) {
-            WARNING(TEXT("[E1000_EnableInterrupts] Failed to configure interrupt routing (IRQ=%u, Vector=%u)"),
-                    LegacyIRQ,
-                    Vector);
+        if (!DeviceInterruptRegister(&Registration, &Device->InterruptSlot)) {
+            WARNING(TEXT("[E1000_EnableInterrupts] Failed to register device interrupt"));
+            Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+            Device->InterruptRegistered = FALSE;
+            Device->InterruptArmed = FALSE;
             return FALSE;
         }
 
-        if (!EnableDeviceInterrupt(LegacyIRQ)) {
-            WARNING(TEXT("[E1000_EnableInterrupts] Failed to enable IRQ %u"), LegacyIRQ);
-            return FALSE;
+        Device->InterruptRegistered = TRUE;
+        Device->InterruptArmed = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
+
+        if (Device->InterruptArmed) {
+            // Clear any pending causes and apply the default mask
+            E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+            E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
+            E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
+
+            DEBUG(TEXT("[E1000_EnableInterrupts] IRQ %u armed with vector %u mask %x"),
+                  LegacyIRQ,
+                  GetDeviceInterruptVector(Device->InterruptSlot),
+                  E1000_DEFAULT_INTERRUPT_MASK);
+        } else {
+            DEBUG(TEXT("[E1000_EnableInterrupts] Operating in polling mode (IRQ=%u)"), LegacyIRQ);
         }
-
-        // Clear any pending causes and apply the default mask
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
-        E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
-
-        DEBUG(TEXT("[E1000_EnableInterrupts] IRQ %u armed with vector %u mask %x"),
-              LegacyIRQ,
-              Vector,
-              E1000_DEFAULT_INTERRUPT_MASK);
         return TRUE;
     }
 
@@ -814,7 +838,12 @@ static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
             LegacyIRQ = Device->Info.IRQLine;
         }
 
-        if (LegacyIRQ != 0xFFU) {
+        if (Device->InterruptRegistered) {
+            DeviceInterruptUnregister(Device->InterruptSlot);
+            Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+            Device->InterruptRegistered = FALSE;
+            Device->InterruptArmed = FALSE;
+        } else if (LegacyIRQ != 0xFFU) {
             DisableDeviceInterrupt(LegacyIRQ);
         }
 
@@ -823,6 +852,61 @@ static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
+    UNUSED(DevicePointer);
+
+    LPE1000DEVICE Device = (LPE1000DEVICE)Context;
+
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        if (Device->MmioBase == NULL) {
+            return FALSE;
+        }
+
+        U32 Cause = E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
+
+        if (Cause == 0U) {
+            return FALSE;
+        }
+
+        if ((Cause & E1000_INT_LSC) != 0U) {
+            DEBUG(TEXT("[E1000_InterruptTopHalf] Link status change cause=%x"), Cause);
+        }
+
+        if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0U) {
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static void E1000_DeferredRoutine(LPDEVICE DevicePointer, LPVOID Context) {
+    UNUSED(DevicePointer);
+
+    LPE1000DEVICE Device = (LPE1000DEVICE)Context;
+
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        E1000_ReceivePoll(Device);
+
+        LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Device->RxUserData;
+        SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
+            NetworkManager_MaintenanceTick(NetContext);
+        }
+    }
+}
+
+/************************************************************************/
+
+static void E1000_PollRoutine(LPDEVICE DevicePointer, LPVOID Context) {
+    E1000_DeferredRoutine(DevicePointer, Context);
 }
 
 /************************************************************************/
@@ -1005,23 +1089,26 @@ static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
  * @param Reset Reset parameters.
  * @return DF_ERROR_SUCCESS on success or error code.
  */
-static U32 E1000_OnEnableInterrupts(const DEVICE_INTERRUPT_CONFIG *Config) {
+static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
     if (Config == NULL || Config->Device == NULL) {
         return DF_ERROR_BADPARAM;
     }
 
     LPE1000DEVICE Device = (LPE1000DEVICE)Config->Device;
 
-    if (!E1000_EnableInterrupts(Device, Config->LegacyIRQ, Config->TargetCPU, Config->VectorSlot)) {
+    if (!E1000_EnableInterrupts(Device, Config->LegacyIRQ, Config->TargetCPU)) {
         return DF_ERROR_IO;
     }
+
+    Config->VectorSlot = Device->InterruptSlot;
+    Config->InterruptEnabled = Device->InterruptArmed;
 
     return DF_ERROR_SUCCESS;
 }
 
 /************************************************************************/
 
-static U32 E1000_OnDisableInterrupts(const DEVICE_INTERRUPT_CONFIG *Config) {
+static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
     if (Config == NULL || Config->Device == NULL) {
         return DF_ERROR_BADPARAM;
     }
@@ -1031,6 +1118,9 @@ static U32 E1000_OnDisableInterrupts(const DEVICE_INTERRUPT_CONFIG *Config) {
     if (!E1000_DisableInterrupts(Device, Config->LegacyIRQ)) {
         return DF_ERROR_IO;
     }
+
+    Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Config->InterruptEnabled = FALSE;
 
     return DF_ERROR_SUCCESS;
 }
@@ -1203,9 +1293,9 @@ static UINT E1000Commands(UINT Function, UINT Param) {
         case DF_NT_SETRXCB:
             return E1000_OnSetReceiveCallback((const NETWORKSETRXCB *)(LPVOID)Param);
         case DF_DEV_ENABLE_INTERRUPT:
-            return E1000_OnEnableInterrupts((const DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
+            return E1000_OnEnableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
         case DF_DEV_DISABLE_INTERRUPT:
-            return E1000_OnDisableInterrupts((const DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
+            return E1000_OnDisableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
         case DF_NT_SEND:
             return E1000_OnSend((const NETWORKSEND *)(LPVOID)Param);
         case DF_NT_POLL:

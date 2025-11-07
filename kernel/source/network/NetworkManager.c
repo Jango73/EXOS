@@ -30,6 +30,7 @@
 #include "network/DHCP.h"
 #include "network/TCP.h"
 #include "Kernel.h"
+#include "DeviceInterrupt.h"
 #include "Log.h"
 #include "Memory.h"
 #include "network/Network.h"
@@ -183,7 +184,7 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
                             SAFE_USE(Context) {
                                 Context->Device = Device;
-
+                                
                                 // Generate device name
                                 GetDefaultDeviceName(Device->Name, (LPDEVICE)Device, DRIVER_TYPE_NETWORK);
 
@@ -192,6 +193,9 @@ static U32 NetworkManager_FindNetworkDevices(void) {
                                 Context->IsInitialized = FALSE;
                                 Context->IsReady = FALSE;
                                 Context->OriginalCallback = NULL;
+                                Context->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+                                Context->InterruptsEnabled = FALSE;
+                                Context->MaintenanceCounter = 0;
 
                                 // Add to kernel network device list (thread-safe with MUTEX_KERNEL)
                                 LockMutex(MUTEX_KERNEL, INFINITY);
@@ -339,6 +343,34 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             // Mark device as initialized
             DeviceContext->IsInitialized = TRUE;
 
+            DEVICE_INTERRUPT_CONFIG InterruptConfig;
+            MemorySet(&InterruptConfig, 0, sizeof(InterruptConfig));
+            InterruptConfig.Device = (LPDEVICE)Device;
+            InterruptConfig.LegacyIRQ = Device->Info.IRQLine;
+            InterruptConfig.TargetCPU = 0;
+            InterruptConfig.VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+            InterruptConfig.InterruptEnabled = FALSE;
+
+            U32 InterruptResult = Device->Driver->Command(DF_DEV_ENABLE_INTERRUPT, (UINT)(LPVOID)&InterruptConfig);
+            if (InterruptResult == DF_ERROR_SUCCESS && InterruptConfig.VectorSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
+                DeviceContext->InterruptSlot = InterruptConfig.VectorSlot;
+                DeviceContext->InterruptsEnabled = InterruptConfig.InterruptEnabled;
+                if (DeviceContext->InterruptsEnabled) {
+                    DEBUG(TEXT("[NetworkManager_InitializeDevice] Interrupts enabled: IRQ=%u Slot=%u"),
+                          InterruptConfig.LegacyIRQ,
+                          DeviceContext->InterruptSlot);
+                } else {
+                    WARNING(TEXT("[NetworkManager_InitializeDevice] Hardware interrupts unavailable, using polling on slot %u"),
+                            DeviceContext->InterruptSlot);
+                }
+            } else {
+                DeviceContext->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+                DeviceContext->InterruptsEnabled = FALSE;
+                WARNING(TEXT("[NetworkManager_InitializeDevice] Falling back to polling mode (Result=%u, Slot=%u)"),
+                        InterruptResult,
+                        InterruptConfig.VectorSlot);
+            }
+
             // Register TCP protocol handler now that device is initialized
             IPv4_RegisterProtocolHandler((LPDEVICE)Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
             DEBUG(TEXT("[NetworkManager_InitializeDevice] TCP handler registered for protocol %d on device %x"), IPV4_PROTOCOL_TCP, (U32)Device);
@@ -347,66 +379,6 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
                   Device->Driver->Product);
         }
     }
-}
-
-/************************************************************************/
-
-/**
- * @brief Network manager task function.
- *
- * This task runs periodically to maintain the network stack
- * (RX polling, ARP cache aging, TCP timer updates).
- *
- * @param param Unused parameter
- * @return Always returns 0
- */
-U32 NetworkManagerTask(LPVOID param) {
-    UNUSED(param);
-
-    U32 tickCount = 0;
-
-    FOREVER {
-        // Poll all network devices for received packets
-        SAFE_USE(Kernel.NetworkDevice) {
-            for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-                LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
-                    if (Ctx->IsInitialized) {
-                        SAFE_USE_VALID_ID(Ctx->Device, KOID_PCIDEVICE) {
-                            SAFE_USE_VALID_ID(Ctx->Device->Driver, KOID_DRIVER) {
-                                NETWORKPOLL poll = {.Device = Ctx->Device};
-                                Ctx->Device->Driver->Command(DF_NT_POLL, (UINT)(LPVOID)&poll);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Update ARP cache and TCP timers every 100 polls (approximately 1 second)
-        if ((tickCount % 100) == 0) {
-            // Update ARP cache for each device
-            SAFE_USE(Kernel.NetworkDevice) {
-                for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-                    LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                    SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
-                        if (Ctx->IsInitialized) {
-                            ARP_Tick((LPDEVICE)Ctx->Device);
-                            DHCP_Tick((LPDEVICE)Ctx->Device);
-                        }
-                    }
-                }
-            }
-            TCP_Update();
-            SocketUpdate();
-        }
-
-        tickCount++;
-
-        DoSystemCall(SYSCALL_Sleep, SYSCALL_PARAM(5));
-    }
-
-    return 0;
 }
 
 /************************************************************************/
@@ -440,4 +412,30 @@ BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
         }
     }
     return FALSE;
+}
+
+/************************************************************************/
+
+void NetworkManager_MaintenanceTick(LPNETWORK_DEVICE_CONTEXT Context) {
+    SAFE_USE_VALID_ID(Context, KOID_NETWORKDEVICE) {
+        if (!Context->IsInitialized) {
+            return;
+        }
+
+        Context->MaintenanceCounter++;
+
+        if (Context->MaintenanceCounter >= 100U) {
+            Context->MaintenanceCounter = 0;
+
+            SAFE_USE_VALID_ID(Context->Device, KOID_PCIDEVICE) {
+                ARP_Tick((LPDEVICE)Context->Device);
+                DHCP_Tick((LPDEVICE)Context->Device);
+            }
+
+            if (NetworkManager_GetPrimaryDevice() == Context->Device) {
+                TCP_Update();
+                SocketUpdate();
+            }
+        }
+    }
 }
