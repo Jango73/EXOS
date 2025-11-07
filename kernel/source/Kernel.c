@@ -357,17 +357,11 @@ static void Welcome(void) {
     ConsolePrint(Text_KB);
     ConsolePrint(Text_NewLine);
 
-#ifdef __EXOS_ARCH_I386__
-    const ArchitectureText = "i386";
-#else
-    const ArchitectureText = "x86-64";
-#endif
-
     ConsolePrint(
         TEXT("\n"
         "EXOS - Extensible Operating System for %s computers\n"
         "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"),
-        ArchitectureText,
+        Text_Architecture,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
 
@@ -385,8 +379,10 @@ static void Welcome(void) {
     SetConsoleBackColor(0);
     SetConsoleForeColor(CONSOLE_GRAY);
     ConsolePrint(
-        TEXT(" - Version %u.%u.%u\n"
-        "Copyright (c) 1999-2025 Jango73\n"),
+        TEXT("\n"
+        "EXOS - Extensible Operating System for %s computers\n"
+        "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"),
+        Text_Architecture,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
 */
