@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "system/DeferredWork.h"
+#include "DeferredWork.h"
 
 #include "KernelEvent.h"
 #include "Kernel.h"
@@ -35,12 +35,6 @@
 #include "User.h"
 #include "CoreString.h"
 #include "utils/Helpers.h"
-
-/************************************************************************/
-
-#define DEFERRED_WORK_MAX_ITEMS 16
-#define DEFERRED_WORK_WAIT_TIMEOUT_MS 50
-#define DEFERRED_WORK_POLL_DELAY_MS 5
 
 /************************************************************************/
 
@@ -71,6 +65,19 @@ static U32 DeferredWorkDispatcherTask(LPVOID Param);
 BOOL InitializeDeferredWork(void) {
     if (g_DispatcherStarted) {
         return TRUE;
+    }
+
+    Kernel.DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS;
+    Kernel.DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS;
+
+    LPCSTR WaitTimeoutValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_DEFERRED_WORK_WAIT_TIMEOUT_MS));
+    if (STRING_EMPTY(WaitTimeoutValue) == FALSE) {
+        Kernel.DeferredWorkWaitTimeoutMS = StringToU32(WaitTimeoutValue);
+    }
+
+    LPCSTR PollDelayValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_DEFERRED_WORK_POLL_DELAY_MS));
+    if (STRING_EMPTY(PollDelayValue) == FALSE) {
+        Kernel.DeferredWorkPollDelayMS = StringToU32(PollDelayValue);
     }
 
     MemorySet(g_WorkItems, 0, sizeof(g_WorkItems));
@@ -279,17 +286,18 @@ static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     WaitInfo.Header.Flags = 0;
     WaitInfo.Count = 1;
     WaitInfo.Objects[0] = (HANDLE)g_DeferredEvent;
-    WaitInfo.MilliSeconds = DEFERRED_WORK_WAIT_TIMEOUT_MS;
+    WaitInfo.MilliSeconds = Kernel.DeferredWorkWaitTimeoutMS;
 
     FOREVER {
         DeferredWorkUpdateMode();
 
         if (DeferredWorkIsPollingMode()) {
             ProcessPollCallbacks();
-            Sleep(DEFERRED_WORK_POLL_DELAY_MS);
+            Sleep(Kernel.DeferredWorkPollDelayMS);
             continue;
         }
 
+        WaitInfo.MilliSeconds = Kernel.DeferredWorkWaitTimeoutMS;
         U32 WaitResult = Wait(&WaitInfo);
         if (WaitResult == WAIT_TIMEOUT) {
             ProcessPollCallbacks();

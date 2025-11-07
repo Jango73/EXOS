@@ -12,7 +12,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "CoreString.h"
-#include "system/DeferredWork.h"
+#include "DeferredWork.h"
 
 /***************************************************************************/
 

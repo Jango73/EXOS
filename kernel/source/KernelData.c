@@ -1,6 +1,7 @@
 
 #include "Kernel.h"
 #include "Socket.h"
+#include "utils/Helpers.h"
 
 /************************************************************************/
 
@@ -180,6 +181,8 @@ KERNELDATA SECTION(".data") Kernel = {
     .Configuration = NULL,
     .MinimumQuantum = 10,
     .MaximumQuantum = 50,
+    .DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS,
+    .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"

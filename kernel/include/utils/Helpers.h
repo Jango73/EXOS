@@ -35,16 +35,23 @@
 /***************************************************************************/
 // Configuration paths
 
-#define CONFIG_NETWORK_LOCAL_IP     "Network.LocalIP"
-#define CONFIG_NETWORK_NETMASK      "Network.Netmask"
-#define CONFIG_NETWORK_GATEWAY      "Network.Gateway"
-#define CONFIG_NETWORK_DEFAULT_PORT "Network.DefaultPort"
-#define CONFIG_NETWORK_USE_DHCP     "Network.UseDHCP"
-#define CONFIG_TCP_EPHEMERAL_START      "TCP.EphemeralPortStart"
-#define CONFIG_TCP_SEND_BUFFER_SIZE     "TCP.SendBufferSize"
-#define CONFIG_TCP_RECEIVE_BUFFER_SIZE  "TCP.ReceiveBufferSize"
-#define CONFIG_TASK_MINIMUM_TASK_STACK_SIZE   "Task.MinimumTaskStackSize"
-#define CONFIG_TASK_MINIMUM_SYSTEM_STACK_SIZE "Task.MinimumSystemStackSize"
+#define CONFIG_GENERAL_QUANTUM_MS                     "General.QuantumMS"
+#define CONFIG_GENERAL_DEFERRED_WORK_WAIT_TIMEOUT_MS  "General.DeferredWorkWaitTimeoutMS"
+#define CONFIG_GENERAL_DEFERRED_WORK_POLL_DELAY_MS    "General.DeferredWorkPollDelayMS"
+#define CONFIG_NETWORK_LOCAL_IP                   "Network.LocalIP"
+#define CONFIG_NETWORK_NETMASK                    "Network.Netmask"
+#define CONFIG_NETWORK_GATEWAY                    "Network.Gateway"
+#define CONFIG_NETWORK_DEFAULT_PORT               "Network.DefaultPort"
+#define CONFIG_NETWORK_USE_DHCP                   "Network.UseDHCP"
+#define CONFIG_TCP_EPHEMERAL_START                "TCP.EphemeralPortStart"
+#define CONFIG_TCP_SEND_BUFFER_SIZE               "TCP.SendBufferSize"
+#define CONFIG_TCP_RECEIVE_BUFFER_SIZE            "TCP.ReceiveBufferSize"
+#define CONFIG_TASK_MINIMUM_TASK_STACK_SIZE       "Task.MinimumTaskStackSize"
+#define CONFIG_TASK_MINIMUM_SYSTEM_STACK_SIZE     "Task.MinimumSystemStackSize"
+
+#define DEFERRED_WORK_MAX_ITEMS           16
+#define DEFERRED_WORK_WAIT_TIMEOUT_MS     50
+#define DEFERRED_WORK_POLL_DELAY_MS       5
 
 // Per-device network interface configuration (format strings for dynamic paths)
 #define CONFIG_NETWORK_INTERFACE_DEVICE_NAME_FMT  "NetworkInterface.%u.DeviceName"

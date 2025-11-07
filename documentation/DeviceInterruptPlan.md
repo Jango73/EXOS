@@ -35,7 +35,7 @@
    - When global configuration forces polling mode, iterate registered poll callbacks instead of sleeping.
    - Ensure device-specific housekeeping reuses existing helper functions instead of duplicating logic.
 6. **Generic Deferred Work Module**
-   - Move the dispatcher and shared plumbing into a dedicated module (e.g., `kernel/source/system/DeferredWork.c`).
+   - Move the dispatcher and shared plumbing into a dedicated module (e.g., `kernel/source/DeferredWork.c`).
    - Provide headers so subsystems replace `NetworkManagerTask` references with the new generic API.
    - Delete legacy `NetworkManagerTask` once all call sites migrate.
 7. **Driver Updates**
@@ -68,4 +68,4 @@
 - **Step 3 complete**: `KernelEvent` now bridges ISRs and tasks and integrates with the scheduler `Wait()` path.
 - **Step 4 complete**: the E1000 driver installs a top-half that acknowledges causes, relies on `SAFE_USE_VALID_ID`, and signals deferred work.
 - **Step 5 complete**: `DeferredWorkDispatcher` replaces the busy polling loop, driving bottom halves from interrupts or the polling fallback, and keeps network maintenance shared.
-- **Step 6 complete**: the dispatcher lives in `kernel/source/system/DeferredWork.c`, headers expose the API, and the legacy `NetworkManagerTask` has been removed.
+- **Step 6 complete**: the dispatcher lives in `kernel/source/DeferredWork.c`, headers expose the API, and the legacy `NetworkManagerTask` has been removed.

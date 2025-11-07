@@ -1,7 +1,7 @@
 # Network Interrupt Audit
 
 ## Deferred Work Flow
-- `Kernel.c` initializes `DeviceInterrupts` and starts `DeferredWorkDispatcher` (`kernel/source/system/DeferredWork.c`) instead of the legacy `NetworkManagerTask` loop.
+- `Kernel.c` initializes `DeviceInterrupts` and starts `DeferredWorkDispatcher` (`kernel/source/DeferredWork.c`) instead of the legacy `NetworkManagerTask` loop.
 - The dispatcher waits on the shared kernel event, invoking registered device slots when interrupts fire and running poll callbacks on timeout.
 - NIC drivers (e.g., `E1000`) register with `DeviceInterruptRegister`, supplying ISR top halves plus deferred and poll routines.
 - When hardware interrupts are unavailable or configuration forces polling, the dispatcher keeps executing the poll routines so receive paths and maintenance still advance.
