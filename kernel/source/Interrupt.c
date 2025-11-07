@@ -62,6 +62,13 @@ extern void Interrupt_Mouse(void);
 extern void Interrupt_FPU(void);
 extern void Interrupt_HardDrive(void);
 extern void Interrupt_Device0(void);
+extern void Interrupt_Device1(void);
+extern void Interrupt_Device2(void);
+extern void Interrupt_Device3(void);
+extern void Interrupt_Device4(void);
+extern void Interrupt_Device5(void);
+extern void Interrupt_Device6(void);
+extern void Interrupt_Device7(void);
 
 /***************************************************************************/
 
@@ -115,6 +122,13 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_HardDrive,          // 46  0x0E
     Interrupt_HardDrive,          // 47  0x0F
     Interrupt_Device0,            // 48  0x10
+    Interrupt_Device1,            // 49  0x11
+    Interrupt_Device2,            // 50  0x12
+    Interrupt_Device3,            // 51  0x13
+    Interrupt_Device4,            // 52  0x14
+    Interrupt_Device5,            // 53  0x15
+    Interrupt_Device6,            // 54  0x16
+    Interrupt_Device7,            // 55  0x17
 };
 
 GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];

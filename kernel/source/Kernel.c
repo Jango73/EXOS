@@ -53,6 +53,8 @@
 #include "UserSession.h"
 #include "network/NetworkManager.h"
 #include "utils/UUID.h"
+#include "DeviceInterrupt.h"
+#include "system/DeferredWork.h"
 
 /************************************************************************/
 
@@ -1012,6 +1014,14 @@ void InitializeKernel(void) {
     ReadKernelConfiguration();
 
     //-------------------------------------
+    // Initialize deferred work infrastructure
+
+    InitializeDeviceInterrupts();
+    if (!InitializeDeferredWork()) {
+        ERROR(TEXT("[InitializeKernel] Failed to initialize deferred work dispatcher"));
+    }
+
+    //-------------------------------------
     // Initialize network stack
 
     InitializeNetwork();
@@ -1104,24 +1114,6 @@ void InitializeKernel(void) {
         */
 
         // StartTestNetworkTask();
-
-        //-------------------------------------
-        // Network manager task
-
-        DEBUG(TEXT("[InitializeKernel] ========================================"));
-        DEBUG(TEXT("[InitializeKernel] Starting network manager task"));
-
-        TaskInfo.Header.Size = sizeof(TASKINFO);
-        TaskInfo.Header.Version = EXOS_ABI_VERSION;
-        TaskInfo.Header.Flags = 0;
-        TaskInfo.Func = NetworkManagerTask;
-        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
-        TaskInfo.Priority = TASK_PRIORITY_LOWER;
-        TaskInfo.Flags = 0;
-        TaskInfo.Parameter = NULL;
-        StringCopy(TaskInfo.Name, TEXT("NetworkManager"));
-
-        CreateTask(&KernelProcess, &TaskInfo);
 
         //-------------------------------------
         // Shell task
