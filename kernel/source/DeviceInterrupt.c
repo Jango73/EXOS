@@ -2,21 +2,21 @@
 
     EXOS Kernel
 
-    Network interrupt top-half placeholder
+    Generic device interrupt top-half placeholder
 
 \************************************************************************/
 
-#include "network/NetworkInterrupt.h"
+#include "DeviceInterrupt.h"
 
 #include "Log.h"
 
 /************************************************************************/
 
-void NetworkInterruptHandler(void) {
+void DeviceInterruptHandler(void) {
     static U32 SpuriousCount = 0;
 
     if (SpuriousCount < 4U) {
-        DEBUG(TEXT("[NetworkInterruptHandler] Interrupt received without ISR plumbing (count=%u)"), SpuriousCount);
+        DEBUG(TEXT("[DeviceInterruptHandler] Interrupt received without ISR plumbing (count=%u)"), SpuriousCount);
     }
 
     SpuriousCount++;

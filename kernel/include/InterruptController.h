@@ -30,9 +30,6 @@
 
 /***************************************************************************/
 
-#define INTERRUPT_VECTOR_NETWORK 48
-
-/***************************************************************************/
 
 #pragma pack(push, 1)
 
@@ -183,9 +180,9 @@ BOOL MapLegacyIRQ(U8 LegacyIRQ, U8* ActualPin, U8* TriggerMode, U8* Polarity);
  */
 BOOL ConfigureInterrupt(U8 IRQ, U8 Vector, U8 DestCPU);
 
-BOOL ConfigureNetworkInterrupt(U8 IRQ, U8 DestCPU);
-BOOL EnableNetworkInterrupt(U8 IRQ);
-BOOL DisableNetworkInterrupt(U8 IRQ);
+BOOL ConfigureDeviceInterrupt(U8 IRQ, U8 Vector, U8 DestCPU);
+BOOL EnableDeviceInterrupt(U8 IRQ);
+BOOL DisableDeviceInterrupt(U8 IRQ);
 
 /**
  * Handle interrupt source override from ACPI

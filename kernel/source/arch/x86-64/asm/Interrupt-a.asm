@@ -37,7 +37,7 @@ extern PCIHandler
 extern MouseHandler
 extern FPUHandler
 extern HardDriveHandler
-extern NetworkInterruptHandler
+extern DeviceInterruptHandler
 extern Kernel_i386
 extern DebugLogSyscallFrame
 extern SystemCallHandler
@@ -75,7 +75,7 @@ section .text
     global Interrupt_Mouse
     global Interrupt_FPU
     global Interrupt_HardDrive
-    global Interrupt_Network
+    global Interrupt_Device0
     global Interrupt_SystemCall
     global EnterKernel
 
@@ -449,13 +449,13 @@ Interrupt_HardDrive:
     iretq
 
 FUNC_HEADER
-Interrupt_Network:
+Interrupt_Device0:
     cli
     ALIGN_STACK
     PUSH_GPRS
     PUSH_SEGMENTS
     call EnterKernel
-    call NetworkInterruptHandler
+    call DeviceInterruptHandler
     call SendEOI
     POP_SEGMENTS
     POP_GPRS

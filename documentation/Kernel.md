@@ -884,8 +884,8 @@ The E1000 driver provides the hardware abstraction layer for Intel 82540EM netwo
 - `DF_NT_SEND`: Send Ethernet frame
 - `DF_NT_POLL`: Poll receive ring for new frames
 - `DF_NT_SETRXCB`: Register frame receive callback
-- `DF_NT_ENABLEINT`: Configure interrupt routing and unmask NIC interrupts
-- `DF_NT_DISABLEINT`: Mask NIC interrupts and release routing
+- `DF_DEV_ENABLE_INTERRUPT`: Configure interrupt routing and unmask device interrupts
+- `DF_DEV_DISABLE_INTERRUPT`: Mask device interrupts and release routing
 
 ### ARP (Address Resolution Protocol)
 

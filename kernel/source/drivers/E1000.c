@@ -27,6 +27,7 @@
 #include "Base.h"
 #include "Driver.h"
 #include "Kernel.h"
+#include "DeviceInterrupt.h"
 #include "InterruptController.h"
 #include "Log.h"
 #include "Memory.h"
@@ -114,10 +115,10 @@
 #define VER_MINOR 0
 
 static UINT E1000Commands(UINT Function, UINT Param);
-static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU);
+static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU, U8 VectorSlot);
 static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ);
-static U32 E1000_OnEnableInterrupts(const NETWORKINTERRUPTCONFIG* Config);
-static U32 E1000_OnDisableInterrupts(const NETWORKINTERRUPTCONFIG* Config);
+static U32 E1000_OnEnableInterrupts(const DEVICE_INTERRUPT_CONFIG* Config);
+static U32 E1000_OnDisableInterrupts(const DEVICE_INTERRUPT_CONFIG* Config);
 
 /************************************************************************/
 
@@ -750,7 +751,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
 /************************************************************************/
 // Interrupt control
 
-static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU) {
+static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU, U8 VectorSlot) {
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         if (Device->MmioBase == NULL) {
             WARNING(TEXT("[E1000_EnableInterrupts] MMIO base is NULL"));
@@ -766,12 +767,16 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
             return FALSE;
         }
 
-        if (!ConfigureNetworkInterrupt(LegacyIRQ, TargetCPU)) {
-            WARNING(TEXT("[E1000_EnableInterrupts] Failed to configure interrupt routing (IRQ=%u)"), LegacyIRQ);
+        const U8 Vector = GetDeviceInterruptVector(VectorSlot);
+
+        if (!ConfigureDeviceInterrupt(LegacyIRQ, Vector, TargetCPU)) {
+            WARNING(TEXT("[E1000_EnableInterrupts] Failed to configure interrupt routing (IRQ=%u, Vector=%u)"),
+                    LegacyIRQ,
+                    Vector);
             return FALSE;
         }
 
-        if (!EnableNetworkInterrupt(LegacyIRQ)) {
+        if (!EnableDeviceInterrupt(LegacyIRQ)) {
             WARNING(TEXT("[E1000_EnableInterrupts] Failed to enable IRQ %u"), LegacyIRQ);
             return FALSE;
         }
@@ -781,7 +786,10 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
         E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
         E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
 
-        DEBUG(TEXT("[E1000_EnableInterrupts] IRQ %u armed with mask %x"), LegacyIRQ, E1000_DEFAULT_INTERRUPT_MASK);
+        DEBUG(TEXT("[E1000_EnableInterrupts] IRQ %u armed with vector %u mask %x"),
+              LegacyIRQ,
+              Vector,
+              E1000_DEFAULT_INTERRUPT_MASK);
         return TRUE;
     }
 
@@ -805,7 +813,7 @@ static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
         }
 
         if (LegacyIRQ != 0xFFU) {
-            DisableNetworkInterrupt(LegacyIRQ);
+            DisableDeviceInterrupt(LegacyIRQ);
         }
 
         DEBUG(TEXT("[E1000_DisableInterrupts] IRQ %u masked"), LegacyIRQ);
@@ -995,14 +1003,14 @@ static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
  * @param Reset Reset parameters.
  * @return DF_ERROR_SUCCESS on success or error code.
  */
-static U32 E1000_OnEnableInterrupts(const NETWORKINTERRUPTCONFIG *Config) {
+static U32 E1000_OnEnableInterrupts(const DEVICE_INTERRUPT_CONFIG *Config) {
     if (Config == NULL || Config->Device == NULL) {
         return DF_ERROR_BADPARAM;
     }
 
     LPE1000DEVICE Device = (LPE1000DEVICE)Config->Device;
 
-    if (!E1000_EnableInterrupts(Device, Config->LegacyIRQ, Config->TargetCPU)) {
+    if (!E1000_EnableInterrupts(Device, Config->LegacyIRQ, Config->TargetCPU, Config->VectorSlot)) {
         return DF_ERROR_IO;
     }
 
@@ -1011,7 +1019,7 @@ static U32 E1000_OnEnableInterrupts(const NETWORKINTERRUPTCONFIG *Config) {
 
 /************************************************************************/
 
-static U32 E1000_OnDisableInterrupts(const NETWORKINTERRUPTCONFIG *Config) {
+static U32 E1000_OnDisableInterrupts(const DEVICE_INTERRUPT_CONFIG *Config) {
     if (Config == NULL || Config->Device == NULL) {
         return DF_ERROR_BADPARAM;
     }
@@ -1157,7 +1165,7 @@ static U32 E1000_OnGetCaps(void) { return 0; }
  * @brief Return last implemented DF_* function.
  * @return Function identifier used for iteration.
  */
-static U32 E1000_OnGetLastFunc(void) { return DF_NT_DISABLEINT; }
+static U32 E1000_OnGetLastFunc(void) { return DF_DEV_DISABLE_INTERRUPT; }
 
 /************************************************************************/
 // Driver entry
@@ -1192,10 +1200,10 @@ static UINT E1000Commands(UINT Function, UINT Param) {
             return E1000_OnGetInfo((const NETWORKGETINFO *)(LPVOID)Param);
         case DF_NT_SETRXCB:
             return E1000_OnSetReceiveCallback((const NETWORKSETRXCB *)(LPVOID)Param);
-        case DF_NT_ENABLEINT:
-            return E1000_OnEnableInterrupts((const NETWORKINTERRUPTCONFIG *)(LPVOID)Param);
-        case DF_NT_DISABLEINT:
-            return E1000_OnDisableInterrupts((const NETWORKINTERRUPTCONFIG *)(LPVOID)Param);
+        case DF_DEV_ENABLE_INTERRUPT:
+            return E1000_OnEnableInterrupts((const DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
+        case DF_DEV_DISABLE_INTERRUPT:
+            return E1000_OnDisableInterrupts((const DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
         case DF_NT_SEND:
             return E1000_OnSend((const NETWORKSEND *)(LPVOID)Param);
         case DF_NT_POLL:

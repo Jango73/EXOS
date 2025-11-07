@@ -34,7 +34,7 @@ extern DisableIRQ
 extern EnableIRQ
 extern BuildInterruptFrame
 extern KernelLogText
-extern NetworkInterruptHandler
+extern DeviceInterruptHandler
 
 ;----------------------------------------------------------------------------
 ; Helper values to access function parameters
@@ -167,7 +167,7 @@ section .text
     global Interrupt_Mouse
     global Interrupt_FPU
     global Interrupt_HardDrive
-    global Interrupt_Network
+    global Interrupt_Device0
     global Interrupt_SystemCall
     global EnterKernel
 
@@ -621,7 +621,7 @@ Interrupt_HardDrive :
 ;-------------------------------------------------------------------------
 
 FUNC_HEADER
-Interrupt_Network :
+Interrupt_Device0 :
 
     cli
     pushad
@@ -632,7 +632,7 @@ Interrupt_Network :
 
     call        EnterKernel
 
-    call        NetworkInterruptHandler
+    call        DeviceInterruptHandler
 
     call        SendEOI
 

@@ -590,26 +590,26 @@ BOOL ConfigureInterrupt(U8 IRQ, U8 Vector, U8 DestCPU) {
 
 /************************************************************************/
 
-BOOL ConfigureNetworkInterrupt(U8 IRQ, U8 DestCPU) {
-    DEBUG(TEXT("[ConfigureNetworkInterrupt] Legacy IRQ %u -> vector %u on CPU %u"),
+BOOL ConfigureDeviceInterrupt(U8 IRQ, U8 Vector, U8 DestCPU) {
+    DEBUG(TEXT("[ConfigureDeviceInterrupt] Legacy IRQ %u -> vector %u on CPU %u"),
           IRQ,
-          INTERRUPT_VECTOR_NETWORK,
+          Vector,
           DestCPU);
 
-    return ConfigureInterrupt(IRQ, INTERRUPT_VECTOR_NETWORK, DestCPU);
+    return ConfigureInterrupt(IRQ, Vector, DestCPU);
 }
 
 /************************************************************************/
 
-BOOL EnableNetworkInterrupt(U8 IRQ) {
-    DEBUG(TEXT("[EnableNetworkInterrupt] Enabling IRQ %u"), IRQ);
+BOOL EnableDeviceInterrupt(U8 IRQ) {
+    DEBUG(TEXT("[EnableDeviceInterrupt] Enabling IRQ %u"), IRQ);
     return EnableInterrupt(IRQ);
 }
 
 /************************************************************************/
 
-BOOL DisableNetworkInterrupt(U8 IRQ) {
-    DEBUG(TEXT("[DisableNetworkInterrupt] Disabling IRQ %u"), IRQ);
+BOOL DisableDeviceInterrupt(U8 IRQ) {
+    DEBUG(TEXT("[DisableDeviceInterrupt] Disabling IRQ %u"), IRQ);
     return DisableInterrupt(IRQ);
 }
 
