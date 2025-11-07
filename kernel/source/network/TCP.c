@@ -52,7 +52,7 @@ static U16 TCP_GetEphemeralPortStart(void) {
         }
     }
 
-    return 32768; // fallback
+    return TCP_EPHEMERAL_PORT_START_FALLBACK;
 }
 
 /************************************************************************/

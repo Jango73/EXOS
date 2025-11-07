@@ -63,6 +63,19 @@
 #define DEFERRED_WORK_WAIT_TIMEOUT_MS     50
 #define DEFERRED_WORK_POLL_DELAY_MS       5
 
+// Network
+#define NETWORK_FALLBACK_IPV4_BASE        0xC0A8380A
+#define NETWORK_FALLBACK_IPV4_NETMASK     0xFFFFFF00
+#define NETWORK_FALLBACK_IPV4_GATEWAY     0xC0A83801
+
+// TCP
+#define TCP_EPHEMERAL_PORT_START_FALLBACK 32768
+#define TCP_RETRANSMIT_TIMEOUT            3000
+#define TCP_TIME_WAIT_TIMEOUT             30000
+#define TCP_MAX_RETRANSMITS               5
+#define TCP_SEND_BUFFER_SIZE              32768
+#define TCP_RECV_BUFFER_SIZE              32768
+
 /***************************************************************************/
 
 LPUSERACCOUNT GetCurrentUser(void);
