@@ -46,7 +46,7 @@
 // Helper function to get network configuration from TOML with fallback
 static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
     LPCSTR configValue = GetConfigurationValue(configPath);
-    SAFE_USE(configValue) {
+    if (STRING_EMPTY(configValue) == FALSE) {
         U32 parsedIP = ParseIPAddress(configValue);
         if (parsedIP != 0) {
             return parsedIP;
@@ -76,13 +76,14 @@ static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey,
             StringPrintFormat(path, TEXT(CONFIG_NETWORK_INTERFACE_CONFIG_FMT), index, configKey);
 
             LPCSTR configValue = GetConfigurationValue(path);
-            SAFE_USE(configValue) {
+            if (STRING_EMPTY(configValue) == FALSE) {
                 U32 parsedIP = ParseIPAddress(configValue);
                 if (parsedIP != 0) {
                     DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: %s = %s"), deviceName, configKey, configValue);
                     return parsedIP;
                 }
             }
+
             break;
         }
         index++;
