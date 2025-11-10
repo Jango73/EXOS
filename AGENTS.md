@@ -43,13 +43,7 @@ All helper scripts are organized per architecture:
 
 **Use `./scripts/i386/4-2-clean-build-debug.sh` for a complete debug build and `./scripts/i386/4-5-build-debug.sh` for an incremental debug build when unsure which build script to use.**
 
-**Incremental debug build (i386):**
-```bash
-./scripts/i386/4-5-build-debug.sh             # Debug build
-./scripts/i386/4-6-build-scheduling-debug.sh  # Scheduling debug logs : DON'T USE
-```
-
-**Build from scratch (i386):**
+**Build (i386):**
 ```bash
 ./scripts/i386/4-2-clean-build-debug.sh    # Clean then build debug
 ./scripts/i386/4-3-clean-build-scheduling-debug.sh # Clean then build with debug and scheduling debug logs : DON'T USE
