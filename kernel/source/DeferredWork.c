@@ -90,7 +90,19 @@ BOOL InitializeDeferredWork(void) {
 
     DEBUG(TEXT("[InitializeDeferredWork] Deferred event created at %p"), g_DeferredEvent);
 
-    DeferredWorkUpdateMode();
+    LPCSTR ModeValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_POLLING));
+    if (STRING_EMPTY(ModeValue) == FALSE) {
+        U32 Numeric = StringToU32(ModeValue);
+        if (Numeric != 0) {
+            g_PollingMode = TRUE;
+        } else if (StringCompareNC(ModeValue, TEXT("true")) == 0) {
+            g_PollingMode = TRUE;
+        }
+    }
+
+    if (g_PollingMode == TRUE) {
+        ConsolePrint(TEXT("WARNING : Devices in polling mode.\n"));
+    }
 
     TASKINFO TaskInfo;
     MemorySet(&TaskInfo, 0, sizeof(TaskInfo));
@@ -219,32 +231,6 @@ BOOL DeferredWorkIsPollingMode(void) {
 
 /************************************************************************/
 
-void DeferredWorkUpdateMode(void) {
-    BOOL PreviousMode = g_PollingMode;
-    g_PollingMode = FALSE;
-
-    LPCSTR ModeValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_POLLING));
-    if (STRING_EMPTY(ModeValue) == FALSE) {
-        U32 Numeric = StringToU32(ModeValue);
-        if (Numeric != 0U) {
-            g_PollingMode = TRUE;
-        } else if (StringCompareNC(ModeValue, TEXT("true")) == 0) {
-            g_PollingMode = TRUE;
-        }
-    }
-
-    if (PreviousMode != g_PollingMode) {
-        DEBUG(TEXT("[DeferredWorkUpdateMode] Dispatcher switched to %s mode"),
-              g_PollingMode ? TEXT("POLLING") : TEXT("INTERRUPT"));
-
-        if (!g_PollingMode) {
-            SAFE_USE(g_DeferredEvent) { SignalKernelEvent(g_DeferredEvent); }
-        }
-    }
-}
-
-/************************************************************************/
-
 static void ProcessPendingWork(void) {
     BOOL WorkFound;
 
@@ -324,8 +310,6 @@ static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     WaitInfo.MilliSeconds = Kernel.DeferredWorkWaitTimeoutMS;
 
     FOREVER {
-        DeferredWorkUpdateMode();
-
         if (DeferredWorkIsPollingMode()) {
             ProcessPollCallbacks();
             Sleep(Kernel.DeferredWorkPollDelayMS);
