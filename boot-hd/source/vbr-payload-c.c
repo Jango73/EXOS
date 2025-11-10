@@ -174,7 +174,7 @@ static void VerifyKernelImage(U32 FileSize) {
     const U8* const FileStart = (const U8*)KERNEL_LINEAR_LOAD_ADDRESS;
     const U8* const ChecksumPtr = FileStart + FileSize - sizeof(U32);
 
-    BootVerbosePrint(
+    BootDebugPrint(
         TEXT("[VBR] VerifyKernelImage scanning %u data bytes\r\n"),
         FileSize - (U32)sizeof(U32));
 
@@ -201,7 +201,7 @@ static void VerifyKernelImage(U32 FileSize) {
     BootDebugPrint(TEXT("[VBR] Stored checksum in image : %x\r\n"), Stored);
 
     if (Computed == Stored) {
-        BootVerbosePrint(
+        BootDebugPrint(
             TEXT("[VBR] Image checksum OK. Stored : %x vs computed : %x\r\n"),
             Stored,
             Computed);
