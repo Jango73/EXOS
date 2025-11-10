@@ -53,4 +53,4 @@ $(SLAVE_SYMBOLS): $(SLAVE)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 clean:
-	rm -rf $(BUILD_DIR)/system/test/slave/*.o $(BUILD_DIR)/system/test/slave/*.elf $(BUILD_DIR)/system/test/slave/*.map $(SLAVE_SYMBOLS)
+	rm -rf $(BUILD_DIR)/system/test/slave/*.o $(BUILD_DIR)/system/test/slave/slave $(BUILD_DIR)/system/test/slave/*.elf $(BUILD_DIR)/system/test/slave/*.map $(SLAVE_SYMBOLS)

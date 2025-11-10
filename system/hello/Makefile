@@ -53,4 +53,4 @@ $(HELLO_SYMBOLS): $(HELLO)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 clean:
-	rm -rf $(BUILD_DIR)/system/hello/*.o $(BUILD_DIR)/system/hello/*.elf $(BUILD_DIR)/system/hello/*.map $(HELLO_SYMBOLS)
+	rm -rf $(BUILD_DIR)/system/hello/*.o $(BUILD_DIR)/system/hello/hello $(BUILD_DIR)/system/hello/*.elf $(BUILD_DIR)/system/hello/*.map $(HELLO_SYMBOLS)

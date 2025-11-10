@@ -46,4 +46,4 @@ $(TICTACTOE_SYMBOLS): $(TICTACTOE)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 clean:
-	rm -rf $(BUILD_DIR)/system/tictactoe/*.o $(BUILD_DIR)/system/tictactoe/*.elf $(BUILD_DIR)/system/tictactoe/*.map $(TICTACTOE_SYMBOLS)
+	rm -rf $(BUILD_DIR)/system/tictactoe/*.o $(BUILD_DIR)/system/tictactoe/tictactoe $(BUILD_DIR)/system/tictactoe/*.elf $(BUILD_DIR)/system/tictactoe/*.map $(TICTACTOE_SYMBOLS)

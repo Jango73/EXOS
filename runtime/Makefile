@@ -85,4 +85,4 @@ $(BUILD_DIR)/runtime/%.o: source/%.asm
 	$(NASM) $(AFLAGS) -o $@ $<
 
 clean:
-	rm -rf $(BUILD_DIR)/runtime/*.o $(BUILD_DIR)/runtime/*.elf $(BUILD_DIR)/runtime/*.bin $(BUILD_DIR)/runtime/*.a $(BUILD_DIR)/runtime/*.map
+	rm -rf $(BUILD_DIR)/runtime/*.o $(BUILD_DIR)/runtime/*/*.o $(BUILD_DIR)/runtime/*.elf $(BUILD_DIR)/runtime/*.bin $(BUILD_DIR)/runtime/*.a $(BUILD_DIR)/runtime/*.map

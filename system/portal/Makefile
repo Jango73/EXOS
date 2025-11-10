@@ -46,4 +46,4 @@ $(BUILD_DIR)/system/portal/%.o: source/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(BUILD_DIR)/system/portal/*.o $(BUILD_DIR)/system/portal/*.elf $(BUILD_DIR)/system/portal/*.bin $(BUILD_DIR)/system/portal/*.map
+	rm -rf $(BUILD_DIR)/system/portal/*.o $(BUILD_DIR)/system/portal/portal $(BUILD_DIR)/system/portal/*.elf $(BUILD_DIR)/system/portal/*.bin $(BUILD_DIR)/system/portal/*.map
