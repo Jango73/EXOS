@@ -25,6 +25,7 @@
 #include "drivers/SATA.h"
 
 #include "Clock.h"
+#include "DeviceInterrupt.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
@@ -89,6 +90,8 @@ typedef struct tag_AHCI_PORT {
 
     // Buffer management
     CACHE SectorCache;
+
+    volatile U32 PendingInterrupts;
 } AHCI_PORT, *LPAHCI_PORT;
 
 /***************************************************************************/
@@ -98,9 +101,22 @@ typedef struct tag_AHCI_STATE {
     LPAHCI_HBA_MEM Base;
     U32 PortsImplemented;
     LPPCI_DEVICE Device;
+    LPAHCI_PORT Ports[AHCI_MAX_PORTS];
+    volatile U32 PendingPortsMask;
+    U8 InterruptSlot;
+    BOOL InterruptRegistered;
+    BOOL InterruptEnabled;
 } AHCI_STATE, *LPAHCI_STATE;
 
-static AHCI_STATE AHCIState = {NULL, 0, NULL};
+static AHCI_STATE AHCIState = {
+    .Base = NULL,
+    .PortsImplemented = 0,
+    .Device = NULL,
+    .Ports = {0},
+    .PendingPortsMask = 0,
+    .InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT,
+    .InterruptRegistered = FALSE,
+    .InterruptEnabled = FALSE};
 
 /***************************************************************************/
 // AHCI PCI Driver
@@ -108,6 +124,10 @@ static AHCI_STATE AHCIState = {NULL, 0, NULL};
 static U32 AHCIProbe(UINT Function, UINT Parameter);
 static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice);
 static U32 InitializeAHCIController(void);
+static BOOL AHCIRegisterInterrupts(void);
+static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context);
+static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context);
+static void AHCIInterruptPoll(LPDEVICE Device, LPVOID Context);
 
 static const DRIVER_MATCH AHCIMatches[] = {
     // Match any AHCI controller (Class 01h, Subclass 06h, Programming Interface 01h)
@@ -168,6 +188,7 @@ static LPAHCI_PORT NewAHCIPort(void) {
     This->Header.Prev = NULL;
     This->Header.Driver = &SATADiskDriver;
     This->Access = 0;
+    This->PendingInterrupts = 0;
 
     return This;
 }
@@ -269,6 +290,7 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     LPAHCI_HBA_PORT Port = &AHCIState.Base->ports[PortNum];
 
     DEBUG(TEXT("[InitializeAHCIPort] Initializing port %u"), PortNum);
+    AHCIState.Ports[PortNum] = NULL;
 
     // Check if port is implemented
     if ((AHCIState.PortsImplemented & (1 << PortNum)) == 0) {
@@ -352,6 +374,8 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     AHCIPort->PortNumber = PortNum;
     AHCIPort->HBAPort = Port;
     AHCIPort->HBAMem = AHCIState.Base;
+    AHCIPort->PendingInterrupts = 0;
+    AHCIState.Ports[PortNum] = AHCIPort;
 
     // Clear any pending interrupt sources and keep the port masked. AHCI
     // commands are handled synchronously so INTx lines must stay quiet when
@@ -484,6 +508,13 @@ static U32 InitializeAHCIController(void) {
     DEBUG(TEXT("[InitializeAHCIController] Initializing AHCI HBA"));
     DEBUG(TEXT("[InitializeAHCIController] Base address: %p"), (LINEAR)AHCIState.Base);
 
+    if (!AHCIState.InterruptRegistered) {
+        AHCIRegisterInterrupts();
+    }
+
+    MemorySet(AHCIState.Ports, 0, sizeof(AHCIState.Ports));
+    AHCIState.PendingPortsMask = 0;
+
     // Test read access to AHCI registers before proceeding
     volatile U32* testPtr = (volatile U32*)AHCIState.Base;
     DEBUG(TEXT("[InitializeAHCIController] Testing memory access..."));
@@ -528,6 +559,7 @@ static U32 InitializeAHCIController(void) {
     // command completion, so unmasking the HBA would generate useless INTx
     // storms on shared IRQ lines.
     AHCIState.Base->ghc &= ~AHCI_GHC_IE;
+    AHCIState.InterruptEnabled = FALSE;
 
     DEBUG(TEXT("[InitializeAHCIController] AHCI initialization complete"));
 
@@ -789,6 +821,183 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 /***************************************************************************/
 
+static BOOL AHCIRegisterInterrupts(void) {
+    LPPCI_DEVICE Device = AHCIState.Device;
+
+    if (Device == NULL) {
+        DEBUG(TEXT("[AHCIRegisterInterrupts] No PCI device context available"));
+        return FALSE;
+    }
+
+    if (AHCIState.InterruptRegistered) {
+        return TRUE;
+    }
+
+    U8 LegacyIRQ = Device->Info.IRQLine;
+    if (LegacyIRQ == 0xFFU) {
+        WARNING(TEXT("[AHCIRegisterInterrupts] Controller reports no legacy IRQ line"));
+        return FALSE;
+    }
+
+    BOOL Registered = FALSE;
+
+    SAFE_USE_VALID_ID((LPLISTNODE)Device, KOID_PCIDEVICE) {
+        DEVICE_INTERRUPT_REGISTRATION Registration = {
+            .Device = (LPDEVICE)Device,
+            .LegacyIRQ = LegacyIRQ,
+            .TargetCPU = 0,
+            .InterruptHandler = AHCIInterruptTopHalf,
+            .DeferredCallback = AHCIInterruptBottomHalf,
+            .PollCallback = AHCIInterruptPoll,
+            .Context = (LPVOID)&AHCIState,
+            .Name = Device->Driver ? Device->Driver->Product : TEXT("AHCI"),
+        };
+
+        if (DeviceInterruptRegister(&Registration, &AHCIState.InterruptSlot)) {
+            AHCIState.InterruptRegistered = TRUE;
+            AHCIState.InterruptEnabled = DeviceInterruptSlotIsEnabled(AHCIState.InterruptSlot);
+            AHCIState.PendingPortsMask = 0;
+            DEBUG(TEXT("[AHCIRegisterInterrupts] Slot %u registered for IRQ %u (mode=%s)"),
+                  AHCIState.InterruptSlot,
+                  LegacyIRQ,
+                  AHCIState.InterruptEnabled ? TEXT("INTERRUPT") : TEXT("POLLING"));
+            Registered = TRUE;
+        } else {
+            WARNING(TEXT("[AHCIRegisterInterrupts] Failed to register interrupt slot for IRQ %u"), LegacyIRQ);
+            AHCIState.InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+        }
+    }
+
+    return Registered;
+}
+
+/***************************************************************************/
+
+static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
+    UNUSED(Device);
+
+    LPAHCI_STATE State = (LPAHCI_STATE)Context;
+    if (State == NULL || State->Base == NULL) {
+        return FALSE;
+    }
+
+    U32 GlobalStatus = State->Base->is;
+    if (GlobalStatus == 0U) {
+        return FALSE;
+    }
+
+    State->Base->is = GlobalStatus;
+
+    BOOL ShouldSignal = FALSE;
+    for (U32 PortIndex = 0; PortIndex < AHCI_MAX_PORTS; PortIndex++) {
+        if ((GlobalStatus & (1U << PortIndex)) == 0U) {
+            continue;
+        }
+
+        LPAHCI_HBA_PORT HwPort = &State->Base->ports[PortIndex];
+        U32 PortStatus = HwPort->is;
+        HwPort->is = PortStatus;
+
+        if (PortStatus == 0U) {
+            continue;
+        }
+
+        LPAHCI_PORT Port = State->Ports[PortIndex];
+        if (Port == NULL) {
+            continue;
+        }
+
+        Port->PendingInterrupts |= PortStatus;
+        State->PendingPortsMask |= (1U << PortIndex);
+        ShouldSignal = TRUE;
+    }
+
+    if (!ShouldSignal) {
+        static U32 SpuriousCount = 0;
+        if (SpuriousCount < 4U) {
+            DEBUG(TEXT("[AHCIInterruptTopHalf] Spurious global status %x"), GlobalStatus);
+        }
+        SpuriousCount++;
+    }
+
+    return ShouldSignal;
+}
+
+/***************************************************************************/
+
+static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context) {
+    UNUSED(Device);
+
+    LPAHCI_STATE State = (LPAHCI_STATE)Context;
+    if (State == NULL) {
+        return;
+    }
+
+    U32 LocalMask;
+    U32 LocalStatus[AHCI_MAX_PORTS];
+    MemorySet(LocalStatus, 0, sizeof(LocalStatus));
+
+    {
+        U32 Flags;
+        SaveFlags(&Flags);
+        DisableInterrupts();
+        LocalMask = State->PendingPortsMask;
+        if (LocalMask != 0U) {
+            for (U32 PortIndex = 0; PortIndex < AHCI_MAX_PORTS; PortIndex++) {
+                LPAHCI_PORT Port = State->Ports[PortIndex];
+                if (Port != NULL) {
+                    LocalStatus[PortIndex] = (U32)Port->PendingInterrupts;
+                    Port->PendingInterrupts = 0;
+                }
+            }
+            State->PendingPortsMask = 0;
+        }
+        RestoreFlags(&Flags);
+    }
+
+    if (LocalMask == 0U) {
+        return;
+    }
+
+    static U32 BottomHalfLogCount = 0;
+
+    for (U32 PortIndex = 0; PortIndex < AHCI_MAX_PORTS; PortIndex++) {
+        if ((LocalMask & (1U << PortIndex)) == 0U) {
+            continue;
+        }
+
+        U32 PortStatus = LocalStatus[PortIndex];
+        LPAHCI_PORT Port = State->Ports[PortIndex];
+        if (Port == NULL || PortStatus == 0U) {
+            continue;
+        }
+
+        SAFE_USE_VALID_ID((LPLISTNODE)Port, KOID_DISK) {
+            if ((PortStatus & (1U << 30)) != 0U) {
+                WARNING(TEXT("[AHCIInterruptBottomHalf] Port %u reported task file error (status=%x)"),
+                        PortIndex,
+                        PortStatus);
+            } else if (BottomHalfLogCount < 4U) {
+                DEBUG(TEXT("[AHCIInterruptBottomHalf] Port %u interrupt status %x"), PortIndex, PortStatus);
+            }
+        }
+
+        BottomHalfLogCount++;
+    }
+}
+
+/***************************************************************************/
+
+static void AHCIInterruptPoll(LPDEVICE Device, LPVOID Context) {
+    UNUSED(Device);
+
+    if (AHCIInterruptTopHalf(Device, Context)) {
+        AHCIInterruptBottomHalf(Device, Context);
+    }
+}
+
+/***************************************************************************/
+
 BOOL AHCIIsInitialized(void) {
     return (AHCIState.Base != NULL);
 }
@@ -796,32 +1005,13 @@ BOOL AHCIIsInitialized(void) {
 /***************************************************************************/
 
 void AHCIInterruptHandler(void) {
-    if (AHCIState.Base == NULL) return;
-
-    U32 is = AHCIState.Base->is;
-
-    // Handle per-port interrupts
-    for (U32 i = 0; i < AHCI_MAX_PORTS; i++) {
-        if (is & (1 << i)) {
-            LPAHCI_HBA_PORT Port = &AHCIState.Base->ports[i];
-            U32 port_is = Port->is;
-
-            // Clear port interrupt
-            Port->is = port_is;
-
-            // Handle specific interrupt types
-            if (port_is & (1 << 30)) { // Task file error
-                DEBUG(TEXT("[AHCIInterruptHandler] Task file error on port %u"), i);
-            }
-
-            if (port_is & (1 << 0)) { // Device to Host Register FIS Interrupt
-                // Command completed
-            }
-        }
+    if (AHCIState.Device == NULL || AHCIState.Base == NULL) {
+        return;
     }
 
-    // Clear global interrupt
-    AHCIState.Base->is = is;
+    if (AHCIInterruptTopHalf((LPDEVICE)AHCIState.Device, (LPVOID)&AHCIState)) {
+        AHCIInterruptBottomHalf((LPDEVICE)AHCIState.Device, (LPVOID)&AHCIState);
+    }
 }
 
 /***************************************************************************/

@@ -235,10 +235,13 @@ However, the code uses 32 bit registers when appropriate.
 +------------------------------------+
 ```
 
-**AHCI interrupt policy**: the current SATA driver completes commands
-synchronously, so all AHCI per-port interrupt masks (`PORT.ie`) and the global
-`GHC.IE` bit stay cleared. Keeping IRQ 11 silent prevents spurious storms on the
-shared line used by the `E1000` device interrupt slot.
+**AHCI interrupt policy**: the SATA driver now registers the controller with the
+shared `DeviceInterruptRegister` infrastructure and installs dedicated top and
+bottom halves so IRQ 11 traffic can be routed through a private slot when the
+hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands
+still complete synchronously, therefore all AHCI per-port interrupt masks
+(`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep
+the shared IRQ 11 line quiet for the `E1000` NIC.
 
 ## Foreign File systems
 
