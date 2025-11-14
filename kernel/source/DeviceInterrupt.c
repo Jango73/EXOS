@@ -16,6 +16,10 @@
 
 /***************************************************************************/
 
+#define DEVICE_INTERRUPT_SPURIOUS_THRESHOLD 64U
+
+/***************************************************************************/
+
 typedef struct tag_DEVICE_INTERRUPT_SLOT {
     BOOL InUse;
     LPDEVICE Device;
@@ -34,6 +38,10 @@ typedef struct tag_DEVICE_INTERRUPT_SLOT {
 /***************************************************************************/
 
 static DEVICE_INTERRUPT_SLOT g_DeviceSlots[DEVICE_INTERRUPT_VECTOR_COUNT];
+static U32 g_SlotInterruptCount[DEVICE_INTERRUPT_VECTOR_COUNT];
+static U32 g_SlotDeferredCount[DEVICE_INTERRUPT_VECTOR_COUNT];
+static U32 g_SlotPollCount[DEVICE_INTERRUPT_VECTOR_COUNT];
+static U32 g_SlotSuppressedCount[DEVICE_INTERRUPT_VECTOR_COUNT];
 
 /***************************************************************************/
 
@@ -44,6 +52,10 @@ static void DeviceInterruptPollThunk(LPVOID Context);
 
 void InitializeDeviceInterrupts(void) {
     MemorySet(g_DeviceSlots, 0, sizeof(g_DeviceSlots));
+    MemorySet(g_SlotInterruptCount, 0, sizeof(g_SlotInterruptCount));
+    MemorySet(g_SlotDeferredCount, 0, sizeof(g_SlotDeferredCount));
+    MemorySet(g_SlotPollCount, 0, sizeof(g_SlotPollCount));
+    MemorySet(g_SlotSuppressedCount, 0, sizeof(g_SlotSuppressedCount));
     DEBUG(TEXT("[InitializeDeviceInterrupts] Device interrupt slots cleared"));
 }
 
@@ -63,6 +75,7 @@ BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, 
         }
 
         MemorySet(Slot, 0, sizeof(DEVICE_INTERRUPT_SLOT));
+        g_SlotSuppressedCount[Index] = 0;
         Slot->InUse = TRUE;
         Slot->Device = Registration->Device;
         Slot->DeviceTypeID = ((LPLISTNODE)Registration->Device)->TypeID;
@@ -94,8 +107,10 @@ BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, 
 
         BOOL HasLegacyIRQ = (Registration->LegacyIRQ != 0xFFU);
         BOOL InterruptConfigured = FALSE;
+        BOOL PollingMode = DeferredWorkIsPollingMode();
+        BOOL ShouldConfigureInterrupt = (HasLegacyIRQ && !PollingMode);
 
-        if (HasLegacyIRQ) {
+        if (ShouldConfigureInterrupt) {
             const U8 Vector = GetDeviceInterruptVector((U8)Index);
 
             if (ConfigureDeviceInterrupt(Registration->LegacyIRQ, Vector, Registration->TargetCPU)) {
@@ -119,7 +134,9 @@ BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, 
               Registration->LegacyIRQ,
               GetDeviceInterruptVector((U8)Index));
 
-        if (!InterruptConfigured) {
+        if (!ShouldConfigureInterrupt) {
+            DEBUG(TEXT("[DeviceInterruptRegister] Slot %u operating in polling mode (IRQ setup skipped)"), Index);
+        } else if (!InterruptConfigured) {
             DEBUG(TEXT("[DeviceInterruptRegister] Slot %u operating in polling mode"), Index);
         }
 
@@ -154,6 +171,7 @@ BOOL DeviceInterruptUnregister(U8 SlotIndex) {
     DEBUG(TEXT("[DeviceInterruptUnregister] Slot %u released (IRQ %u)"), SlotIndex, Slot->LegacyIRQ);
 
     MemorySet(Slot, 0, sizeof(DEVICE_INTERRUPT_SLOT));
+    g_SlotSuppressedCount[SlotIndex] = 0;
     return TRUE;
 }
 
@@ -174,6 +192,16 @@ void DeviceInterruptHandler(U8 SlotIndex) {
         return;
     }
 
+    g_SlotInterruptCount[SlotIndex]++;
+    if (g_SlotInterruptCount[SlotIndex] <= 4U) {
+        DEBUG(TEXT("[DeviceInterruptHandler] Slot=%u IRQ=%u Device=%p Count=%u Enabled=%s"),
+              SlotIndex,
+              Slot->LegacyIRQ,
+              Slot->Device,
+              g_SlotInterruptCount[SlotIndex],
+              Slot->InterruptEnabled ? TEXT("YES") : TEXT("NO"));
+    }
+
     SAFE_USE_VALID_ID((LPLISTNODE)Slot->Device, Slot->DeviceTypeID) {
         BOOL ShouldSignal = TRUE;
 
@@ -181,7 +209,46 @@ void DeviceInterruptHandler(U8 SlotIndex) {
             ShouldSignal = Slot->InterruptHandler(Slot->Device, Slot->Context);
         }
 
-        if (ShouldSignal) {
+        if (!ShouldSignal) {
+            if (g_SlotInterruptCount[SlotIndex] <= 4U) {
+                DEBUG(TEXT("[DeviceInterruptHandler] Slot=%u top-half suppressed deferred execution"), SlotIndex);
+            }
+
+            if (Slot->InterruptEnabled && Slot->InterruptHandler != NULL) {
+                g_SlotSuppressedCount[SlotIndex]++;
+                BOOL ShouldWarn = (g_SlotInterruptCount[SlotIndex] <= 8U);
+                if (!ShouldWarn && (g_SlotInterruptCount[SlotIndex] & 0xFFU) == 0U) {
+                    ShouldWarn = TRUE;
+                }
+
+                if (ShouldWarn) {
+                    WARNING(TEXT("[DeviceInterruptHandler] Slot=%u IRQ=%u handler suppressed signal while IRQ still armed (count=%u)"),
+                            SlotIndex,
+                            Slot->LegacyIRQ,
+                            g_SlotInterruptCount[SlotIndex]);
+                }
+
+                if (g_SlotSuppressedCount[SlotIndex] >= DEVICE_INTERRUPT_SPURIOUS_THRESHOLD &&
+                    Slot->LegacyIRQ != 0xFFU) {
+                    WARNING(TEXT("[DeviceInterruptHandler] Slot=%u IRQ=%u disabled after %u suppressed signals"),
+                            SlotIndex,
+                            Slot->LegacyIRQ,
+                            g_SlotSuppressedCount[SlotIndex]);
+                    DisableDeviceInterrupt(Slot->LegacyIRQ);
+                    Slot->InterruptEnabled = FALSE;
+                    g_SlotSuppressedCount[SlotIndex] = 0;
+                    if (Slot->PollCallback != NULL) {
+                        WARNING(TEXT("[DeviceInterruptHandler] Slot=%u falling back to polling"), SlotIndex);
+                    }
+                }
+            }
+        } else {
+            g_SlotSuppressedCount[SlotIndex] = 0;
+            if (g_SlotInterruptCount[SlotIndex] <= 4U) {
+                DEBUG(TEXT("[DeviceInterruptHandler] Slot=%u signaling deferred handle %u"),
+                      SlotIndex,
+                      Slot->DeferredHandle);
+            }
             DeferredWorkSignal(Slot->DeferredHandle);
         }
     }
@@ -210,6 +277,17 @@ static void DeviceInterruptDeferredThunk(LPVOID Context) {
         return;
     }
 
+    const U32 SlotIndex = (U32)(Slot - g_DeviceSlots);
+    if (SlotIndex < DEVICE_INTERRUPT_VECTOR_COUNT) {
+        g_SlotDeferredCount[SlotIndex]++;
+        if (g_SlotDeferredCount[SlotIndex] <= 4U) {
+            DEBUG(TEXT("[DeviceInterruptDeferredThunk] Slot=%u Name=%s Count=%u"),
+                  SlotIndex,
+                  Slot->Name,
+                  g_SlotDeferredCount[SlotIndex]);
+        }
+    }
+
     SAFE_USE_VALID_ID((LPLISTNODE)Slot->Device, Slot->DeviceTypeID) {
         Slot->DeferredCallback(Slot->Device, Slot->Context);
     }
@@ -221,6 +299,17 @@ static void DeviceInterruptPollThunk(LPVOID Context) {
     LPDEVICE_INTERRUPT_SLOT Slot = (LPDEVICE_INTERRUPT_SLOT)Context;
     if (Slot == NULL || !Slot->InUse || Slot->PollCallback == NULL) {
         return;
+    }
+
+    const U32 SlotIndex = (U32)(Slot - g_DeviceSlots);
+    if (SlotIndex < DEVICE_INTERRUPT_VECTOR_COUNT) {
+        g_SlotPollCount[SlotIndex]++;
+        if (g_SlotPollCount[SlotIndex] <= 4U) {
+            DEBUG(TEXT("[DeviceInterruptPollThunk] Slot=%u Name=%s Count=%u"),
+                  SlotIndex,
+                  Slot->Name,
+                  g_SlotPollCount[SlotIndex]);
+        }
     }
 
     SAFE_USE_VALID_ID((LPLISTNODE)Slot->Device, Slot->DeviceTypeID) {

@@ -235,6 +235,11 @@ However, the code uses 32 bit registers when appropriate.
 +------------------------------------+
 ```
 
+**AHCI interrupt policy**: the current SATA driver completes commands
+synchronously, so all AHCI per-port interrupt masks (`PORT.ie`) and the global
+`GHC.IE` bit stay cleared. Keeping IRQ 11 silent prevents spurious storms on the
+shared line used by the `E1000` device interrupt slot.
+
 ## Foreign File systems
 
 | FS | Key Concepts | RO Difficulty | Full RW Difficulty | Notes |
@@ -842,6 +847,7 @@ The device interrupt layer centralizes vector assignment, interrupt routing, and
 - Static interrupt vector slots shared across PCI/PIC paths.
 - `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
 - `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
+- Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
 - Graceful fallback to polling when hardware interrupts are unavailable.
 
 **API Functions:**

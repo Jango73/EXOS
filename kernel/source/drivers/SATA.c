@@ -353,11 +353,11 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     AHCIPort->HBAPort = Port;
     AHCIPort->HBAMem = AHCIState.Base;
 
-    // Clear interrupt status
+    // Clear any pending interrupt sources and keep the port masked. AHCI
+    // commands are handled synchronously so INTx lines must stay quiet when
+    // other devices (E1000) reuse the same legacy IRQ.
     Port->is = 0xFFFFFFFF;
-
-    // Enable interrupts
-    Port->ie = 0xFFFFFFFF;
+    Port->ie = 0x0;
 
     // Reset port
     if (!AHCIPortReset(Port)) {
@@ -524,8 +524,10 @@ static U32 InitializeAHCIController(void) {
         }
     }
 
-    // Enable global interrupts
-    AHCIState.Base->ghc |= AHCI_GHC_IE;
+    // Leave global interrupts masked. The disk driver uses polling for
+    // command completion, so unmasking the HBA would generate useless INTx
+    // storms on shared IRQ lines.
+    AHCIState.Base->ghc &= ~AHCI_GHC_IE;
 
     DEBUG(TEXT("[InitializeAHCIController] AHCI initialization complete"));
 

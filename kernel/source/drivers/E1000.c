@@ -196,6 +196,8 @@ struct PACKED tag_E1000DEVICE {
     U8 InterruptSlot;
     BOOL InterruptRegistered;
     BOOL InterruptArmed;
+    U32 InterruptTraceCount;
+    U32 AckTraceCount;
 };
 
 /************************************************************************/
@@ -805,6 +807,8 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
 
         Device->InterruptRegistered = TRUE;
         Device->InterruptArmed = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
+        Device->InterruptTraceCount = 0;
+        Device->AckTraceCount = 0;
 
         if (Device->InterruptArmed) {
             // Clear any pending causes and apply the default mask
@@ -874,14 +878,32 @@ static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
             *Cause = InterruptCause;
         }
 
+        Device->AckTraceCount++;
+        if (Device->AckTraceCount <= 16U) {
+            WARNING(TEXT("[E1000_AcknowledgeInterrupt] Cause=%x Armed=%s Polling=%s"),
+                    InterruptCause,
+                    Device->InterruptArmed ? TEXT("YES") : TEXT("NO"),
+                    DeferredWorkIsPollingMode() ? TEXT("YES") : TEXT("NO"));
+        }
+
         if (InterruptCause == 0U) {
+            if (Device->AckTraceCount <= 16U) {
+                WARNING(TEXT("[E1000_AcknowledgeInterrupt] No pending interrupt cause"));
+            }
             return FALSE;
         }
 
         if (Device->InterruptArmed) {
             if (DeferredWorkIsPollingMode()) {
+                if (Device->AckTraceCount <= 16U) {
+                    WARNING(TEXT("[E1000_AcknowledgeInterrupt] Polling mode - masking interrupts (IMC=FFFFFFFF)"));
+                }
                 E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
             } else {
+                if (Device->AckTraceCount <= 16U) {
+                    WARNING(TEXT("[E1000_AcknowledgeInterrupt] Re-arming interrupts with mask=%x"),
+                            E1000_DEFAULT_INTERRUPT_MASK);
+                }
                 E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
             }
         }
@@ -898,13 +920,26 @@ static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
     UNUSED(DevicePointer);
 
     LPE1000DEVICE Device = (LPE1000DEVICE)Context;
-
+    Device->InterruptTraceCount++;
     U32 Cause = 0U;
     if (!E1000_AcknowledgeInterrupt(Device, &Cause)) {
+        if (Device->InterruptTraceCount <= 32U) {
+            WARNING(TEXT("[E1000_InterruptTopHalf] No cause reported (trace=%u)"),
+                    Device->InterruptTraceCount);
+        }
         return FALSE;
     }
 
+    if (Device->InterruptTraceCount <= 32U) {
+        WARNING(TEXT("[E1000_InterruptTopHalf] Cause=%x RelevantMask=%x"),
+                Cause,
+                (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC));
+    }
+
     if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0U) {
+        if (Device->InterruptTraceCount <= 32U) {
+            WARNING(TEXT("[E1000_InterruptTopHalf] Ignored cause=%x (no relevant bits)"), Cause);
+        }
         return FALSE;
     }
 
@@ -914,6 +949,10 @@ static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
 
     if ((Cause & E1000_INT_RXO) != 0U) {
         WARNING(TEXT("[E1000_InterruptTopHalf] RX overrun detected (cause=%x)"), Cause);
+    }
+
+    if (Device->InterruptTraceCount <= 32U) {
+        WARNING(TEXT("[E1000_InterruptTopHalf] Scheduling deferred work for cause=%x"), Cause);
     }
 
     return TRUE;

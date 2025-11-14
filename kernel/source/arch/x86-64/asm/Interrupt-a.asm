@@ -464,7 +464,7 @@ Interrupt_Device%1:
     PUSH_GPRS
     PUSH_SEGMENTS
     call EnterKernel
-    mov     ecx, %1
+    mov     edi, %1
     call    DeviceInterruptHandler
     call    SendEOI
     POP_SEGMENTS
