@@ -23,8 +23,8 @@
 # DeferredWorkPollDelayMS=5
 # Force polling (default is 0 for interrupts)
 # Polling=1
-# Configure the number of device interrupt slots (1-8)
-# DeviceInterruptSlots=8
+# Configure the number of device interrupt slots (1-32)
+# DeviceInterruptSlots=32
 # Enable or disable login sequence (1=enable, 0=disable)
 # DoLogin=1
 

@@ -847,7 +847,7 @@ typedef struct DeviceTag {
 The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
 
 **Key Features:**
-- Configurable interrupt vector slots shared across PCI/PIC paths (`General.DeviceInterruptSlots`, 1–8, default 8).
+- Configurable interrupt vector slots shared across PCI/PIC paths (`General.DeviceInterruptSlots`, 1–32, default 32).
 - Slot bookkeeping is allocated dynamically from kernel memory so the table matches the configured slot count.
 - `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
 - `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.

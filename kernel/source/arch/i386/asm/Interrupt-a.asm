@@ -30,6 +30,11 @@ BITS 32
 
 ;----------------------------------------------------------------------------
 
+; DEVICE_INTERRUPT_VECTOR_MAX must stay in sync with kernel/include/DeviceInterrupt.h
+%define DEVICE_INTERRUPT_VECTOR_MAX 32
+
+;----------------------------------------------------------------------------
+
 extern DisableIRQ
 extern EnableIRQ
 extern BuildInterruptFrame
@@ -167,14 +172,13 @@ section .text
     global Interrupt_Mouse
     global Interrupt_FPU
     global Interrupt_HardDrive
-    global Interrupt_Device0
-    global Interrupt_Device1
-    global Interrupt_Device2
-    global Interrupt_Device3
-    global Interrupt_Device4
-    global Interrupt_Device5
-    global Interrupt_Device6
-    global Interrupt_Device7
+
+%assign __device_slot 0
+%rep DEVICE_INTERRUPT_VECTOR_MAX
+    global Interrupt_Device%+__device_slot
+%assign __device_slot __device_slot + 1
+%endrep
+
     global Interrupt_SystemCall
     global EnterKernel
 
@@ -657,14 +661,11 @@ Interrupt_Device%1 :
 
 %endmacro
 
-DEVICE_INTERRUPT_STUB 0
-DEVICE_INTERRUPT_STUB 1
-DEVICE_INTERRUPT_STUB 2
-DEVICE_INTERRUPT_STUB 3
-DEVICE_INTERRUPT_STUB 4
-DEVICE_INTERRUPT_STUB 5
-DEVICE_INTERRUPT_STUB 6
-DEVICE_INTERRUPT_STUB 7
+%assign __device_slot 0
+%rep DEVICE_INTERRUPT_VECTOR_MAX
+DEVICE_INTERRUPT_STUB __device_slot
+%assign __device_slot __device_slot + 1
+%endrep
 
 ;-------------------------------------------------------------------------
 
@@ -717,4 +718,3 @@ Delay :
     dw      0x00EB                     ; jmp $+2
     dw      0x00EB                     ; jmp $+2
     ret
-

@@ -29,6 +29,7 @@
 #include "InterruptController.h"
 #include "System.h"
 
+/************************************************************************/
 // Functions in Int.asm
 
 extern void Interrupt_Default(void);
@@ -61,16 +62,20 @@ extern void Interrupt_PCI(void);
 extern void Interrupt_Mouse(void);
 extern void Interrupt_FPU(void);
 extern void Interrupt_HardDrive(void);
-extern void Interrupt_Device0(void);
-extern void Interrupt_Device1(void);
-extern void Interrupt_Device2(void);
-extern void Interrupt_Device3(void);
-extern void Interrupt_Device4(void);
-extern void Interrupt_Device5(void);
-extern void Interrupt_Device6(void);
-extern void Interrupt_Device7(void);
 
-/***************************************************************************/
+/************************************************************************/
+
+#define DEVICE_INTERRUPT_SLOT_LIST(_)                                                     \
+    _(0)  _(1)  _(2)  _(3)  _(4)  _(5)  _(6)  _(7)                                        \
+    _(8)  _(9)  _(10) _(11) _(12) _(13) _(14) _(15)                                       \
+    _(16) _(17) _(18) _(19) _(20) _(21) _(22) _(23)                                       \
+    _(24) _(25) _(26) _(27) _(28) _(29) _(30) _(31)
+
+#define DECLARE_DEVICE_INTERRUPT(n) extern void Interrupt_Device##n(void);
+DEVICE_INTERRUPT_SLOT_LIST(DECLARE_DEVICE_INTERRUPT)
+#undef DECLARE_DEVICE_INTERRUPT
+
+/************************************************************************/
 
 VOIDFUNC InterruptTable[] = {
     Interrupt_DivideError,        // 0
@@ -121,15 +126,11 @@ VOIDFUNC InterruptTable[] = {
     Interrupt_FPU,                // 45  0x0D
     Interrupt_HardDrive,          // 46  0x0E
     Interrupt_HardDrive,          // 47  0x0F
-    Interrupt_Device0,            // 48  0x10
-    Interrupt_Device1,            // 49  0x11
-    Interrupt_Device2,            // 50  0x12
-    Interrupt_Device3,            // 51  0x13
-    Interrupt_Device4,            // 52  0x14
-    Interrupt_Device5,            // 53  0x15
-    Interrupt_Device6,            // 54  0x16
-    Interrupt_Device7,            // 55  0x17
+#define IDT_DEVICE_ENTRY(n) Interrupt_Device##n,
+    DEVICE_INTERRUPT_SLOT_LIST(IDT_DEVICE_ENTRY)
+#undef IDT_DEVICE_ENTRY
 };
+#undef DEVICE_INTERRUPT_SLOT_LIST
 
 GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 
@@ -143,3 +144,9 @@ GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 void SendEOI(void) {
     SendInterruptEOI();
 }
+#define DEVICE_INTERRUPT_SLOT_LIST(_)                                                     \
+    _(0)  _(1)  _(2)  _(3)  _(4)  _(5)  _(6)  _(7)                                        \
+    _(8)  _(9)  _(10) _(11) _(12) _(13) _(14) _(15)                                       \
+    _(16) _(17) _(18) _(19) _(20) _(21) _(22) _(23)                                       \
+    _(24) _(25) _(26) _(27) _(28) _(29) _(30) _(31)
+// Keep DEVICE_INTERRUPT_SLOT_LIST in sync with DEVICE_INTERRUPT_VECTOR_MAX.
