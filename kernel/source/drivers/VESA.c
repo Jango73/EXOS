@@ -26,6 +26,7 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
 
 /************************************************************************/
 
@@ -287,27 +288,50 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
         if (VESAModeSpecs[Index].Width == Info->Width && VESAModeSpecs[Index].Height == Info->Height &&
             VESAModeSpecs[Index].BitsPerPixel == Info->BitsPerPixel) {
+            BOOL ModeListed = FALSE;
+            BOOL ModeListValid = TRUE;
+
             ModePtr = (U16*)MKLINPTR(VESAContext.VESAInfo.ModePointer);
 
             DEBUG(TEXT("[SetVideoMode] Mode res = %ux%ux%u"), VESAModeSpecs[Index].Width,
                 VESAModeSpecs[Index].Height, VESAModeSpecs[Index].BitsPerPixel);
             DEBUG(TEXT("[SetVideoMode] ModePtr = %x"), ModePtr);
 
-            if (ModePtr == NULL) return DF_ERROR_GENERIC;
+            if (ModePtr == NULL || IsValidMemory((LINEAR)ModePtr) == FALSE) {
+                ModeListValid = FALSE;
+            } else {
+                for (Mode = 0;; Mode++) {
+                    LINEAR EntryAddress = (LINEAR)(ModePtr + Mode);
 
-            for (Mode = 0;; Mode++) {
-                if (ModePtr[Mode] == 0xFFFF) break;
+                    if (IsValidMemory(EntryAddress) == FALSE ||
+                        IsValidMemory(EntryAddress + sizeof(U16) - 1) == FALSE) {
+                        ModeListValid = FALSE;
+                        break;
+                    }
 
-                if (ModePtr[Mode] == VESAModeSpecs[Index].Mode) {
-                    MemoryCopy(&(VESAContext.ModeSpecs), VESAModeSpecs + Index, sizeof(VIDEOMODESPECS));
-                    Found = 1;
-                    DEBUG(TEXT("[SetVideoMode] Mode found"));
-                    break;
+                    if (ModePtr[Mode] == 0xFFFF) break;
+
+                    if (ModePtr[Mode] == VESAModeSpecs[Index].Mode) {
+                        ModeListed = TRUE;
+                        DEBUG(TEXT("[SetVideoMode] Mode found"));
+                        break;
+                    }
                 }
             }
-        }
 
-        if (Found == 1) break;
+            MemoryCopy(&(VESAContext.ModeSpecs), VESAModeSpecs + Index, sizeof(VIDEOMODESPECS));
+            Found = 1;
+
+            if (ModeListed == FALSE) {
+                if (ModeListValid == FALSE) {
+                    WARNING(TEXT("[SetVideoMode] Mode list pointer invalid, forcing mode %x"), VESAModeSpecs[Index].Mode);
+                } else {
+                    WARNING(TEXT("[SetVideoMode] Mode %x not advertised, forcing selection"), VESAModeSpecs[Index].Mode);
+                }
+            }
+
+            break;
+        }
     }
 
     if (Found == 0) return DF_ERROR_GENERIC;
