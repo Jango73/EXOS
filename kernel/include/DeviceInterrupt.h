@@ -18,7 +18,8 @@
 /***************************************************************************/
 
 #define DEVICE_INTERRUPT_VECTOR_BASE 48
-#define DEVICE_INTERRUPT_VECTOR_COUNT 8
+#define DEVICE_INTERRUPT_VECTOR_MAX 8
+#define DEVICE_INTERRUPT_VECTOR_DEFAULT DEVICE_INTERRUPT_VECTOR_MAX
 #define DEVICE_INTERRUPT_INVALID_SLOT 0xFFU
 #define DF_DEV_ENABLE_INTERRUPT (DF_FIRSTFUNC + 0xF0)
 #define DF_DEV_DISABLE_INTERRUPT (DF_FIRSTFUNC + 0xF1)
@@ -50,9 +51,17 @@ typedef struct tag_DEVICE_INTERRUPT_REGISTRATION {
 
 /***************************************************************************/
 
+U8 DeviceInterruptGetSlotCount(void);
+
+/***************************************************************************/
+
 static inline U8 GetDeviceInterruptVector(U8 Slot) {
-    if (Slot >= DEVICE_INTERRUPT_VECTOR_COUNT) {
-        Slot = DEVICE_INTERRUPT_VECTOR_COUNT - 1U;
+    U8 SlotCount = DeviceInterruptGetSlotCount();
+    if (SlotCount == 0U) {
+        SlotCount = 1U;
+    }
+    if (Slot >= SlotCount) {
+        Slot = (U8)(SlotCount - 1U);
     }
 
     return (U8)(DEVICE_INTERRUPT_VECTOR_BASE + Slot);
