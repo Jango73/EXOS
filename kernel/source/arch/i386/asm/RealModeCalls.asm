@@ -443,20 +443,20 @@ DoFarCall :
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     ax, [ebp+0]
+    mov     ax, cs:[ebp+0]
     mov     ds, ax
-    mov     ax, [ebp+2]
+    mov     ax, cs:[ebp+2]
     mov     es, ax
-    mov     ax, [ebp+4]
+    mov     ax, cs:[ebp+4]
     mov     fs, ax
-    mov     ax, [ebp+6]
+    mov     ax, cs:[ebp+6]
     mov     gs, ax
-    mov     eax, [ebp+8]
-    mov     ebx, [ebp+12]
-    mov     ecx, [ebp+16]
-    mov     edx, [ebp+20]
-    mov     esi, [ebp+24]
-    mov     edi, [ebp+28]
+    mov     eax, cs:[ebp+8]
+    mov     ebx, cs:[ebp+12]
+    mov     ecx, cs:[ebp+16]
+    mov     edx, cs:[ebp+20]
+    mov     esi, cs:[ebp+24]
+    mov     edi, cs:[ebp+28]
     mov     ebp, esp
 
     db      0x9A                       ; call far
@@ -470,20 +470,20 @@ FarAddress :
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     [ebp+8], eax
+    mov     cs:[ebp+8], eax
     mov     ax, ds
-    mov     [ebp+0], ax
+    mov     cs:[ebp+0], ax
     mov     ax, es
-    mov     [ebp+2], ax
+    mov     cs:[ebp+2], ax
     mov     ax, fs
-    mov     [ebp+4], ax
+    mov     cs:[ebp+4], ax
     mov     ax, gs
-    mov     [ebp+6], ax
-    mov     [ebp+12], ebx
-    mov     [ebp+16], ecx
-    mov     [ebp+20], edx
-    mov     [ebp+24], esi
-    mov     [ebp+28], edi
+    mov     cs:[ebp+6], ax
+    mov     cs:[ebp+12], ebx
+    mov     cs:[ebp+16], ecx
+    mov     cs:[ebp+20], edx
+    mov     cs:[ebp+24], esi
+    mov     cs:[ebp+28], edi
 
     jmp     ReturnFromCall
 
@@ -502,20 +502,20 @@ DoInterrupt :
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     ax, [ebp+0]
+    mov     ax, cs:[ebp+0]
     mov     ds, ax
-    mov     ax, [ebp+2]
+    mov     ax, cs:[ebp+2]
     mov     es, ax
-    mov     ax, [ebp+4]
+    mov     ax, cs:[ebp+4]
     mov     fs, ax
-    mov     ax, [ebp+6]
+    mov     ax, cs:[ebp+6]
     mov     gs, ax
-    mov     eax, [ebp+8]
-    mov     ebx, [ebp+12]
-    mov     ecx, [ebp+16]
-    mov     edx, [ebp+20]
-    mov     esi, [ebp+24]
-    mov     edi, [ebp+28]
+    mov     eax, cs:[ebp+8]
+    mov     ebx, cs:[ebp+12]
+    mov     ecx, cs:[ebp+16]
+    mov     edx, cs:[ebp+20]
+    mov     esi, cs:[ebp+24]
+    mov     edi, cs:[ebp+28]
 
     mov     ebp, esp
 
@@ -527,20 +527,20 @@ RMCIntCall :
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     [ebp+8], eax
+    mov     cs:[ebp+8], eax
     mov     ax, ds
-    mov     [ebp+0], ax
+    mov     cs:[ebp+0], ax
     mov     ax, es
-    mov     [ebp+2], ax
+    mov     cs:[ebp+2], ax
     mov     ax, fs
-    mov     [ebp+4], ax
+    mov     cs:[ebp+4], ax
     mov     ax, gs
-    mov     [ebp+6], ax
-    mov     [ebp+12], ebx
-    mov     [ebp+16], ecx
-    mov     [ebp+20], edx
-    mov     [ebp+24], esi
-    mov     [ebp+28], edi
+    mov     cs:[ebp+6], ax
+    mov     cs:[ebp+12], ebx
+    mov     cs:[ebp+16], ecx
+    mov     cs:[ebp+20], edx
+    mov     cs:[ebp+24], esi
+    mov     cs:[ebp+28], edi
 
     ;--------------------------------------
     ; Interrupt or far call returns here
