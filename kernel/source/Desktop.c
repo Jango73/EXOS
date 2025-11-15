@@ -193,6 +193,7 @@ I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
 LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
     WINDOWINFO WindowInfo;
+    LPDESKTOP PreviousDesktop;
 
     This = (LPDESKTOP)KernelHeapAlloc(sizeof(DESKTOP));
     if (This == NULL) return NULL;
@@ -218,9 +219,13 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.WindowSize.X = 800;
     WindowInfo.WindowSize.Y = 600;
 
+    PreviousDesktop = GetCurrentProcess()->Desktop;
+    GetCurrentProcess()->Desktop = This;
+
     This->Window = CreateWindow(&WindowInfo);
 
     if (This->Window == NULL) {
+        GetCurrentProcess()->Desktop = PreviousDesktop;
         KernelHeapFree(This);
         return NULL;
     }
@@ -232,7 +237,7 @@ LPDESKTOP CreateDesktop(void) {
 
     ListAddHead(Kernel.Desktop, This);
 
-    GetCurrentProcess()->Desktop = This;
+    // Process already points to this desktop
 
     UnlockMutex(MUTEX_KERNEL);
 
@@ -315,6 +320,11 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     UnlockMutex(&(This->Mutex));
     UnlockMutex(MUTEX_KERNEL);
+
+    //-------------------------------------
+    // Force the desktop root window to repaint
+
+    SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) { InvalidateWindowRect((HANDLE)This->Window, NULL); }
 
     return TRUE;
 }
@@ -490,7 +500,18 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->InvalidRect = This->Rect;
 
     if (This->Parent == NULL) {
-        SAFE_USE(Desktop) This->Parent = Desktop->Window;
+        SAFE_USE(Desktop) {
+            if (Desktop->Window == NULL) {
+                Desktop->Window = This;
+            } else {
+                This->Parent = Desktop->Window;
+            }
+        }
+    }
+
+    LPCSTR ProcessName = TEXT("?");
+    SAFE_USE_VALID_ID(This->Task, KOID_TASK) {
+        SAFE_USE_VALID_ID(This->Task->Process, KOID_PROCESS) { ProcessName = This->Task->Process->FileName; }
     }
 
     SAFE_USE(This->Parent) {
@@ -520,6 +541,13 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     // Tell the window it is being created
 
     SendMessage((HANDLE)This, EWM_CREATE, 0, 0);
+
+    //-------------------------------------
+    // Ensure the freshly created window gets a draw request
+
+    DEBUG(TEXT("[CreateWindow] invalidating window %p"), This);
+    InvalidateWindowRect((HANDLE)This, NULL);
+    SendMessage((HANDLE)This, EWM_DRAW, 0, 0);
 
     return This;
 }
@@ -721,7 +749,6 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     UnlockMutex(&(This->Mutex));
 
     PostMessage(Handle, EWM_DRAW, 0, 0);
-
     return TRUE;
 }
 
@@ -809,6 +836,13 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
+
+    LPCSTR ProcessName = TEXT("?");
+    SAFE_USE_VALID_ID(This->Task, KOID_TASK) {
+        SAFE_USE_VALID_ID(This->Task->Process, KOID_PROCESS) { ProcessName = This->Task->Process->FileName; }
+    }
+
+    DEBUG(TEXT("[ShowWindow] Window=%p Process=%s ShowHide=%u"), This, ProcessName, ShowHide);
 
     //-------------------------------------
     // Send appropriate messages to the window
@@ -1444,6 +1478,7 @@ BOOL Line(LPLINEINFO LineInfo) {
  */
 BOOL Rectangle(LPRECTINFO RectInfo) {
     LPGRAPHICSCONTEXT Context;
+    static U32 RectangleDebugCount = 0;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1460,6 +1495,13 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
     RectInfo->Y1 = Context->Origin.Y + RectInfo->Y1;
     RectInfo->X2 = Context->Origin.X + RectInfo->X2;
     RectInfo->Y2 = Context->Origin.Y + RectInfo->Y2;
+
+    if (RectangleDebugCount < 32) {
+        DEBUG(TEXT("[Rectangle] #%u ctx=%p brush=%p pen=%p rect=(%d,%d)-(%d,%d)"),
+            RectangleDebugCount, Context, Context->Brush, Context->Pen,
+            RectInfo->X1, RectInfo->Y1, RectInfo->X2, RectInfo->Y2);
+        RectangleDebugCount++;
+    }
 
     Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)RectInfo);
 

@@ -187,6 +187,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_CreateDesktop 0x00000044
 #define SYSCALL_ShowDesktop 0x00000045
 #define SYSCALL_GetDesktopWindow 0x00000046
+#define SYSCALL_GetCurrentDesktop 0x00000067
 #define SYSCALL_CreateWindow 0x00000047
 #define SYSCALL_ShowWindow 0x00000048
 #define SYSCALL_HideWindow 0x00000049

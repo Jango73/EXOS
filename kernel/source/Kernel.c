@@ -132,6 +132,12 @@ HANDLE PointerToHandle(LINEAR Pointer) {
         return 0;
     }
 
+    UINT ExistingHandle = 0;
+    if (HandleMapFindHandleByPointer(&Kernel.HandleMap, Pointer, &ExistingHandle) == HANDLE_MAP_OK) {
+        DEBUG(TEXT("[PointerToHandle] Reusing handle=%u for pointer=%p"), ExistingHandle, (LPVOID)Pointer);
+        return ExistingHandle;
+    }
+
     UINT Handle = 0;
     UINT Status = HandleMapAllocateHandle(&Kernel.HandleMap, &Handle);
     if (Status != HANDLE_MAP_OK) {
@@ -144,6 +150,7 @@ HANDLE PointerToHandle(LINEAR Pointer) {
         return 0;
     }
 
+    DEBUG(TEXT("[PointerToHandle] New handle=%u for pointer=%p"), Handle, (LPVOID)Pointer);
     return Handle;
 }
 
@@ -163,10 +170,53 @@ LINEAR HandleToPointer(HANDLE Handle) {
     LINEAR Pointer = 0;
     UINT Status = HandleMapResolveHandle(&Kernel.HandleMap, Handle, &Pointer);
     if (Status != HANDLE_MAP_OK) {
+        DEBUG(TEXT("[HandleToPointer] Resolve failed handle=%u status=%u"), Handle, Status);
         return 0;
     }
 
+    DEBUG(TEXT("[HandleToPointer] handle=%u -> pointer=%p"), Handle, (LPVOID)Pointer);
     return Pointer;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure that a value representing a kernel object is a pointer.
+ *
+ * If the value already lies within kernel space (>= VMA_KERNEL), it is
+ * returned as-is. Otherwise it is treated as a handle and resolved to
+ * its kernel pointer.
+ *
+ * @param Value Either a kernel pointer or a user-visible handle.
+ * @return LINEAR Kernel pointer or 0 on failure.
+ */
+LINEAR EnsureKernelPointer(LINEAR Value) {
+    if (Value == 0) return 0;
+    if (Value >= VMA_KERNEL) return Value;
+
+    LINEAR Pointer = HandleToPointer((HANDLE)Value);
+    return Pointer;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure that a value representing a kernel object is a handle.
+ *
+ * If the value already lies in user handle space (< VMA_KERNEL), it is
+ * returned unchanged. Otherwise the kernel pointer is converted into a
+ * handle via PointerToHandle().
+ *
+ * @param Value Either a kernel pointer or a user-visible handle.
+ * @return HANDLE Handle value or 0 on failure.
+ */
+HANDLE EnsureHandle(LINEAR Value) {
+    if (Value == 0) return 0;
+    if (Value < VMA_KERNEL) {
+        return (HANDLE)Value;
+    }
+
+    return PointerToHandle(Value);
 }
 
 /************************************************************************/

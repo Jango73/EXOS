@@ -58,6 +58,7 @@ U32 SendMessage(HANDLE, U32, U32, U32);
 HANDLE CreateDesktop(void);
 BOOL ShowDesktop(HANDLE);
 HANDLE GetDesktopWindow(HANDLE);
+HANDLE GetCurrentDesktop(void);
 HANDLE CreateWindow(HANDLE, WINDOWFUNC, U32, U32, I32, I32, I32, I32);
 BOOL DestroyWindow(HANDLE);
 BOOL ShowWindow(HANDLE);

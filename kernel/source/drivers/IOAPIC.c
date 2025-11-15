@@ -398,7 +398,7 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
             pOverride = GetInterruptOverrideInfo(i);
             if (pOverride != NULL && pOverride->Source == IRQ) {
                 MappedIRQ = pOverride->GlobalSystemInterrupt;
-                DEBUG(TEXT("[ConfigureIOAPICInterrupt] IRQ %u overridden to GSI %u"), IRQ, MappedIRQ);
+                // DEBUG(TEXT("[ConfigureIOAPICInterrupt] IRQ %u overridden to GSI %u"), IRQ, MappedIRQ);
                 break;
             }
         }
@@ -406,7 +406,7 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
 
     // Find the I/O APIC controller and entry for this IRQ
     if (!MapIRQToIOAPIC(MappedIRQ, &ControllerIndex, &Entry)) {
-        DEBUG(TEXT("[ConfigureIOAPICInterrupt] Cannot map IRQ %u (GSI %u) to I/O APIC"), IRQ, MappedIRQ);
+        // DEBUG(TEXT("[ConfigureIOAPICInterrupt] Cannot map IRQ %u (GSI %u) to I/O APIC"), IRQ, MappedIRQ);
         return FALSE;
     }
 
@@ -421,8 +421,7 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
     RedirEntry.Mask = 0;  // Enable interrupt
     RedirEntry.Destination = DestCPU;
 
-    DEBUG(TEXT("[ConfigureIOAPICInterrupt] Configuring IRQ %u -> Vector %x (Controller %u, Entry %u)"),
-              IRQ, Vector, ControllerIndex, Entry);
+    // DEBUG(TEXT("[ConfigureIOAPICInterrupt] Configuring IRQ %u -> Vector %x (Controller %u, Entry %u)"), IRQ, Vector, ControllerIndex, Entry);
 
     return WriteRedirectionEntry(ControllerIndex, Entry, &RedirEntry);
 }

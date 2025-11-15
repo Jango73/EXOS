@@ -1032,28 +1032,24 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Check if the target is a window
 
-    Desktop = GetCurrentProcess()->Desktop;
+    Desktop = NULL;
+    Win = (LPWINDOW)Target;
 
-    if (Desktop == NULL) goto Out_Error;
-    if (Desktop->TypeID != KOID_DESKTOP) goto Out_Error;
+    SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
+        SAFE_USE_VALID_ID(Win->Task, KOID_TASK) {
+            SAFE_USE_VALID_ID(Win->Task->Process, KOID_PROCESS) {
+                Desktop = Win->Task->Process->Desktop;
+            }
+        }
+    }
 
-    //-------------------------------------
-    // Lock access to the desktop
-
-    LockMutex(&(Desktop->Mutex), INFINITY);
-
-    //-------------------------------------
-    // Find the window in the desktop
-
-    Win = FindWindow(Desktop->Window, (LPWINDOW)Target);
-
-    //-------------------------------------
-    // Unlock access to the desktop
-
-    UnlockMutex(&(Desktop->Mutex));
-
-    //-------------------------------------
-    // Post message to window if found
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        LockMutex(&(Desktop->Mutex), INFINITY);
+        Win = FindWindow(Desktop->Window, (LPWINDOW)Target);
+        UnlockMutex(&(Desktop->Mutex));
+    } else {
+        Win = NULL;
+    }
 
     SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
         //-------------------------------------
@@ -1102,6 +1098,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
         Message->Param2 = Param2;
 
         AddTaskMessage(Win->Task, Message);
+
 
         //-------------------------------------
         // Notify the task if it is waiting for messages
@@ -1176,11 +1173,21 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     // Send message to window if found
 
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
+        LPCSTR ProcessName = TEXT("?");
+        SAFE_USE(Window->Task) {
+            SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) { ProcessName = Window->Task->Process->FileName; }
+        }
+
+        DEBUG(TEXT("[SendMessage] Window=%p Process=%s Msg=%x Param1=%x Param2=%x"), Window, ProcessName, Msg, Param1, Param2);
+
         SAFE_USE(Window->Function) {
             LockMutex(&(Window->Mutex), INFINITY);
             Result = Window->Function(Target, Msg, Param1, Param2);
+            DEBUG(TEXT("[SendMessage] Window=%p Process=%s Msg=%x returned=%x"), Window, ProcessName, Msg, Result);
             UnlockMutex(&(Window->Mutex));
         }
+    } else {
+        DEBUG(TEXT("[SendMessage] Target=%p msg=%x not delivered (window not found)"), Target, Msg);
     }
 
     return Result;
@@ -1267,6 +1274,8 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
         Message->Param1 = CurrentMessage->Param1;
         Message->Param2 = CurrentMessage->Param2;
 
+        DEBUG(TEXT("[GetMessage] Task=%p dequeued Msg=%x Target=%p"), Task, Message->Message, Message->Target);
+
         //-------------------------------------
         // Remove the message from the task's message queue
 
@@ -1288,6 +1297,8 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
                 Message->Message = CurrentMessage->Message;
                 Message->Param1 = CurrentMessage->Param1;
                 Message->Param2 = CurrentMessage->Param2;
+
+                DEBUG(TEXT("[GetMessage] Task=%p dequeued Msg=%x Target=%p"), Task, Message->Message, Message->Target);
 
                 //-------------------------------------
                 // Remove the message from the task's message queue
@@ -1339,7 +1350,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     // Check validity of parameters
 
     if (Message == NULL) return FALSE;
-    if (Message->Target == NULL) return FALSE;
+    if (Message->Target == 0) return FALSE;
 
     if (Window == NULL) return FALSE;
     if (Window->TypeID != KOID_WINDOW) return FALSE;
@@ -1349,11 +1360,15 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
 
     LockMutex(&(Window->Mutex), INFINITY);
 
-    if (Message->Target == (HANDLE)Window) {
+    if (EnsureKernelPointer((LINEAR)Message->Target) == (LINEAR)Window) {
         SAFE_USE(Window->Function) {
             // Call the window function with the parameters
 
-            Window->Function(Message->Target, Message->Message, Message->Param1, Message->Param2);
+            HANDLE WindowParam = EnsureHandle((LINEAR)Window);
+
+            DEBUG(TEXT("[DispatchMessage] Delivering Msg=%x to Window=%p Param=%p"),
+                Message->Message, Window, WindowParam);
+            Window->Function(WindowParam, Message->Message, Message->Param1, Message->Param2);
 
             Result = TRUE;
         }
@@ -1430,6 +1445,11 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     LockMutex(&(Desktop->Mutex), INFINITY);
 
     Result = DispatchMessageToWindow(Message, Desktop->Window);
+    if (Result) {
+        DEBUG(TEXT("[DispatchMessage] Delivered Msg=%x Target=%p"), Message->Message, Message->Target);
+    } else {
+        DEBUG(TEXT("[DispatchMessage] Failed to deliver Msg=%x Target=%p"), Message->Message, Message->Target);
+    }
 
     UnlockMutex(&(Desktop->Mutex));
 

@@ -84,6 +84,7 @@ static U32 Rect16(LPVESA_CONTEXT, I32, I32, I32, I32);
 static U32 Rect24(LPVESA_CONTEXT, I32, I32, I32, I32);
 #if VESA_ENABLE_SELFTEST
 static void VESADrawSelfTest(LPVESA_CONTEXT);
+static U32 VESARectangleLogCount = 0;
 #endif
 
 /************************************************************************/
@@ -1475,6 +1476,7 @@ static U32 VESA_Line(LPLINEINFO Info) {
 
 static U32 VESA_Rectangle(LPRECTINFO Info) {
     LPVESA_CONTEXT Context;
+    static U32 VESARectangleDebugCount = 0;
 
     if (Info == NULL) return 0;
 
@@ -1482,6 +1484,24 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 
     if (Context == NULL) return 0;
     if (Context->Header.TypeID != KOID_GRAPHICSCONTEXT) return 0;
+
+#if VESA_ENABLE_SELFTEST
+    if (VESARectangleLogCount < 16) {
+        LPBRUSH Brush = Context->Header.Brush;
+        LPPEN Pen = Context->Header.Pen;
+        DEBUG(TEXT("[VESA_Rectangle] #%u (%u,%u -> %u,%u) Brush=%p color=%x Pen=%p"),
+            VESARectangleLogCount, (U32)Info->X1, (U32)Info->Y1, (U32)Info->X2, (U32)Info->Y2, Brush,
+            Brush ? Brush->Color : 0, Pen);
+        VESARectangleLogCount++;
+    }
+#endif
+
+    if (VESARectangleDebugCount < 32) {
+        DEBUG(TEXT("[VESA_Rectangle] #%u ctx=%p rect=(%d,%d)-(%d,%d) brush=%p pen=%p"),
+            VESARectangleDebugCount, Context, Info->X1, Info->Y1, Info->X2, Info->Y2,
+            Context->Header.Brush, Context->Header.Pen);
+        VESARectangleDebugCount++;
+    }
 
     LockMutex(&(Context->Header.Mutex), INFINITY);
 

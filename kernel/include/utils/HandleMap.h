@@ -59,6 +59,7 @@ UINT HandleMapReleaseHandle(LPHANDLE_MAP Map, UINT Handle);
 UINT HandleMapResolveHandle(LPHANDLE_MAP Map, UINT Handle, LINEAR* PointerOut);
 UINT HandleMapAttachPointer(LPHANDLE_MAP Map, UINT Handle, LINEAR Pointer);
 UINT HandleMapDetachPointer(LPHANDLE_MAP Map, UINT Handle, LINEAR* PointerOut);
+UINT HandleMapFindHandleByPointer(LPHANDLE_MAP Map, LINEAR Pointer, UINT* HandleOut);
 
 /************************************************************************/
 

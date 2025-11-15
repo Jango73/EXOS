@@ -44,6 +44,35 @@ typedef struct tag_HANDLE_MAP_ENTRY {
 
 /************************************************************************/
 
+typedef struct tag_HANDLE_MAP_POINTER_SEARCH {
+    LINEAR Pointer;
+    UINT Handle;
+    BOOL Found;
+} HANDLE_MAP_POINTER_SEARCH, *LPHANDLE_MAP_POINTER_SEARCH;
+
+/************************************************************************/
+
+static BOOL HandleMapPointerSearchVisitor(UINT Handle, LINEAR Value, LPVOID Context) {
+    LPHANDLE_MAP_POINTER_SEARCH Search = (LPHANDLE_MAP_POINTER_SEARCH)Context;
+    LPHANDLE_MAP_ENTRY Entry = (LPHANDLE_MAP_ENTRY)Value;
+
+    if (Search == NULL) {
+        return FALSE;
+    }
+
+    SAFE_USE(Entry) {
+        if (Entry->Attached && Entry->Pointer == Search->Pointer) {
+            Search->Handle = Handle;
+            Search->Found = TRUE;
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
 static LPHANDLE_MAP_ENTRY HandleMapAllocateEntry(LPHANDLE_MAP Map, UINT Handle) {
     if (Map == NULL) {
         return NULL;
@@ -322,6 +351,36 @@ UINT HandleMapReleaseHandle(LPHANDLE_MAP Map, UINT Handle) {
     } else {
         DEBUG(TEXT("[HandleMapReleaseHandle] handle=%u released"), Handle);
     }
+
+    UnlockMutex(&Map->Mutex);
+    return HANDLE_MAP_OK;
+}
+
+/************************************************************************/
+
+UINT HandleMapFindHandleByPointer(LPHANDLE_MAP Map, LINEAR Pointer, UINT* HandleOut) {
+    if (Map == NULL || HandleOut == NULL || Pointer == 0) {
+        return HANDLE_MAP_ERROR_INVALID_PARAMETER;
+    }
+
+    LockMutex(&Map->Mutex, INFINITY);
+
+    HANDLE_MAP_POINTER_SEARCH Search = {.Pointer = Pointer, .Handle = 0, .Found = FALSE};
+    BOOL IterateOk = RadixTreeIterate(Map->Tree, HandleMapPointerSearchVisitor, &Search);
+
+    if (!IterateOk && Search.Found == FALSE) {
+        UnlockMutex(&Map->Mutex);
+        return HANDLE_MAP_ERROR_INTERNAL;
+    }
+
+    if (Search.Found == FALSE) {
+        DEBUG(TEXT("[HandleMapFindHandleByPointer] Pointer=%p not found"), (LPVOID)Pointer);
+        UnlockMutex(&Map->Mutex);
+        return HANDLE_MAP_ERROR_NOT_FOUND;
+    }
+
+    *HandleOut = Search.Handle;
+    DEBUG(TEXT("[HandleMapFindHandleByPointer] Pointer=%p Handle=%u"), (LPVOID)Pointer, Search.Handle);
 
     UnlockMutex(&Map->Mutex);
     return HANDLE_MAP_OK;

@@ -99,6 +99,33 @@ marks it signaled and propagates `SignalCount` through the wait exit codes.
 Legacy behaviour for process/task termination remains unchanged because the
 termination cache is still consulted first.
 
+### Desktop ownership helpers
+
+Window managers can now reuse the desktop that was assigned to their process
+instead of blindly creating a new one. The kernel exports
+`SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently
+associated with the caller. The runtime exposes this through
+`GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the
+desktop window, and issue `ShowDesktop()` without forking a duplicate desktop.
+Callers still retain the option to create a dedicated desktop when
+`GetCurrentDesktop()` returns `NULL`, but typical applications now leverage the
+existing object so their top-level windows appear on the main desktop instead
+of being hidden behind a detached surface.
+
+### Handle reuse guarantees
+
+The global handle map now enforces a strict 1:1 relationship between kernel
+objects and user-visible handles. `PointerToHandle()` first queries the handle
+map to see if the pointer is already exported and reuses the existing handle
+instead of allocating a duplicate. A new reverse lookup helper walks the handle
+map so conversions remain O(n) only in debugging scenarios while the common
+case reuses cached handles. This change eliminates transient handles created
+every time `SysCall_GetMessage()` returned a pointer to userland, which in turn
+kept GUI messages from round-tripping correctly through `DispatchMessage()`.
+User applications now receive stable handles for their windows, and the runtime
+can translate those handles back to the original kernel pointers without any
+fallback logic.
+
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in

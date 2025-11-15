@@ -180,6 +180,8 @@ void DoPageFault(void);
 
 HANDLE PointerToHandle(LINEAR Pointer);
 LINEAR HandleToPointer(HANDLE Handle);
+LINEAR EnsureKernelPointer(LINEAR Value);
+HANDLE EnsureHandle(LINEAR Value);
 void ReleaseHandle(HANDLE Handle);
 
 // Functions in MemoryEditor.c
