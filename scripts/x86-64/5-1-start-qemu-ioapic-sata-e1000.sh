@@ -34,4 +34,4 @@ qemu-system-x86_64 \
 -serial stdio \
 -vga std \
 -no-reboot \
-2>&1 | "$CYCLE_BIN" -o log/kernel.log -s 40000
+2>&1 | "$CYCLE_BIN" -o log/kernel.log -s 200000

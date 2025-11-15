@@ -74,6 +74,31 @@ entire lifetime and is persisted in the termination cache through
 instead of raw pointers, eliminating accidental matches when memory is reused
 for new objects.
 
+### Kernel event object
+
+`kernel/source/KernelEvent.c` introduces `CreateKernelEvent`, a lightweight
+kernel object (`KOID_KERNELEVENT`) designed for ISR-to-task signaling. Events
+embed the standard `LISTNODE_FIELDS` header plus a `Signaled` flag and
+`SignalCount` counter. They live in `Kernel.Event` alongside other
+kernel-maintained lists so reference tracking and garbage collection treat
+them like existing objects (processes, sockets, etc.).
+
+Key helpers:
+
+- `CreateKernelEvent()` / `DeleteKernelEvent()` allocate and reference-count
+  the object.
+- `SignalKernelEvent()` and `ResetKernelEvent()` flip the `Signaled` flag while
+  interrupts are masked locally (`SaveFlags`/`DisableInterrupts`). The helpers
+  are safe to call from interrupt context.
+- `KernelEventIsSignaled()` and `KernelEventGetSignalCount()` surface state for
+  consumer code.
+
+`Wait()` now recognises the new type: when an event handle is present in
+`WAITINFO.Objects`, the scheduler returns as soon as `SignalKernelEvent`
+marks it signaled and propagates `SignalCount` through the wait exit codes.
+Legacy behaviour for process/task termination remains unchanged because the
+termination cache is still consulted first.
+
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in
@@ -209,6 +234,14 @@ However, the code uses 32 bit registers when appropriate.
 | +--------+  +--------+  +--------+ |
 +------------------------------------+
 ```
+
+**AHCI interrupt policy**: the SATA driver now registers the controller with the
+shared `DeviceInterruptRegister` infrastructure and installs dedicated top and
+bottom halves so IRQ 11 traffic can be routed through a private slot when the
+hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands
+still complete synchronously, therefore all AHCI per-port interrupt masks
+(`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep
+the shared IRQ 11 line quiet for the `E1000` NIC.
 
 ## Foreign File systems
 
@@ -807,6 +840,26 @@ typedef struct DeviceTag {
 - `SetDeviceContext(Device, ID, Context)`: Store context for device
 - `RemoveDeviceContext(Device, ID)`: Remove and free context
 
+### Device Interrupt Infrastructure
+
+**Location:** `kernel/source/DeviceInterrupt.c`, `kernel/include/DeviceInterrupt.h`, `kernel/source/DeferredWork.c`
+
+The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
+
+**Key Features:**
+- Configurable interrupt vector slots shared across PCI/PIC paths (`General.DeviceInterruptSlots`, 1–32, default 32).
+- Slot bookkeeping is allocated dynamically from kernel memory so the table matches the configured slot count.
+- `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
+- `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
+- Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
+- Graceful fallback to polling when hardware interrupts are unavailable.
+
+**API Functions:**
+- `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
+- `DeviceInterruptRegister()/DeviceInterruptUnregister()`: Manage slot lifetime.
+- `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
+- `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
+
 ### Network Manager
 
 **Location:** `kernel/source/network/NetworkManager.c`, `kernel/include/network/NetworkManager.h`
@@ -817,7 +870,7 @@ The Network Manager provides centralized network device discovery, initializatio
 - Automatic PCI network device discovery (up to 8 devices)
 - Per-device network stack initialization (ARP, IPv4, TCP)
 - Unified frame reception callback routing
-- Periodic maintenance (RX polling, ARP aging, TCP timers)
+- Integration with the deferred work dispatcher for interrupt-driven receive paths with polling fallback
 - Primary device selection for global protocols
 
 **Initialization Flow:**
@@ -836,7 +889,7 @@ void InitializeNetworkManager(void) {
 **API Functions:**
 - `InitializeNetworkManager()`: Discover and initialize all network devices
 - `NetworkManager_InitializeDevice()`: Initialize specific network device
-- `NetworkManagerTask()`: Periodic maintenance task (polling, timers)
+- `NetworkManager_MaintenanceTick()`: Deferred maintenance routine invoked by `DeferredWorkDispatcher`
 - `NetworkManager_GetPrimaryDevice()`: Get primary device for TCP
 
 ### E1000 Ethernet Driver
@@ -859,6 +912,8 @@ The E1000 driver provides the hardware abstraction layer for Intel 82540EM netwo
 - `DF_NT_SEND`: Send Ethernet frame
 - `DF_NT_POLL`: Poll receive ring for new frames
 - `DF_NT_SETRXCB`: Register frame receive callback
+- `DF_DEV_ENABLE_INTERRUPT`: Configure interrupt routing and unmask device interrupts
+- `DF_DEV_DISABLE_INTERRUPT`: Mask device interrupts and release routing
 
 ### ARP (Address Resolution Protocol)
 
@@ -1061,8 +1116,7 @@ IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_ICMP, ICMPHandler);
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_UDP, UDPHandler);
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
 
-// 4. Start Network Manager maintenance task:
-CreateTask(&KernelProcess, NetworkManagerTask);
+// 4. Deferred work dispatcher drives maintenance once initialized during boot
 ```
 
 ### Key Benefits of Per-Device Architecture

@@ -45,11 +45,11 @@ typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 // Generic Network Driver Function IDs
 // All network drivers must implement these IDs
 
-#define DF_NT_RESET (DF_FIRSTFUNC + 0x00)   /* Reset the adapter */
-#define DF_NT_GETINFO (DF_FIRSTFUNC + 0x01) /* Get device information */
-#define DF_NT_SEND (DF_FIRSTFUNC + 0x02)    /* Send frame (param=ptr, param2=len) */
-#define DF_NT_POLL (DF_FIRSTFUNC + 0x03)    /* Poll RX ring */
-#define DF_NT_SETRXCB (DF_FIRSTFUNC + 0x04) /* Set RX callback */
+#define DF_NT_RESET (DF_FIRSTFUNC + 0x00)      /* Reset the adapter */
+#define DF_NT_GETINFO (DF_FIRSTFUNC + 0x01)    /* Get device information */
+#define DF_NT_SEND (DF_FIRSTFUNC + 0x02)       /* Send frame (param=ptr, param2=len) */
+#define DF_NT_POLL (DF_FIRSTFUNC + 0x03)       /* Poll RX ring */
+#define DF_NT_SETRXCB (DF_FIRSTFUNC + 0x04)    /* Set RX callback */
 
 /************************************************************************/
 // Generic Network Driver Error Codes
@@ -90,7 +90,5 @@ typedef struct tag_NETWORKSEND {
 typedef struct tag_NETWORKPOLL {
     LPPCI_DEVICE Device;
 } NETWORKPOLL, *LPNETWORKPOLL;
-
-/************************************************************************/
 
 #endif  // NETWORK_H_INCLUDED

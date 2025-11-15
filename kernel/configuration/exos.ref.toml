@@ -14,12 +14,19 @@
 # Path="<path to an executable>"
 
 [General]
-# Force a monotask system below, but a lot of things won't work (network, task & process termination, ...)
+# Force a monotask system, but a lot of things won't work (network, task & process termination, ...)
 # Mono=1
 # Force a quantum time using the entry below
-# Quantum=10
+# QuantumMS=10
+# Override deferred work timings
+# DeferredWorkWaitTimeoutMS=50
+# DeferredWorkPollDelayMS=5
+# Force polling (default is 0 for interrupts)
+# Polling=1
+# Configure the number of device interrupt slots (1-32)
+# DeviceInterruptSlots=32
 # Enable or disable login sequence (1=enable, 0=disable)
-DoLogin=1
+# DoLogin=1
 
 [Task]
 # Specify minimum size for a task's stack

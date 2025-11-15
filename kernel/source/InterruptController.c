@@ -590,6 +590,31 @@ BOOL ConfigureInterrupt(U8 IRQ, U8 Vector, U8 DestCPU) {
 
 /************************************************************************/
 
+BOOL ConfigureDeviceInterrupt(U8 IRQ, U8 Vector, U8 DestCPU) {
+    DEBUG(TEXT("[ConfigureDeviceInterrupt] Legacy IRQ %u -> vector %u on CPU %u"),
+          IRQ,
+          Vector,
+          DestCPU);
+
+    return ConfigureInterrupt(IRQ, Vector, DestCPU);
+}
+
+/************************************************************************/
+
+BOOL EnableDeviceInterrupt(U8 IRQ) {
+    DEBUG(TEXT("[EnableDeviceInterrupt] Enabling IRQ %u"), IRQ);
+    return EnableInterrupt(IRQ);
+}
+
+/************************************************************************/
+
+BOOL DisableDeviceInterrupt(U8 IRQ) {
+    DEBUG(TEXT("[DisableDeviceInterrupt] Disabling IRQ %u"), IRQ);
+    return DisableInterrupt(IRQ);
+}
+
+/************************************************************************/
+
 void HandleInterruptSourceOverride(U8 LegacyIRQ, U32 GlobalIRQ, U8 TriggerMode, U8 Polarity) {
     if (LegacyIRQ >= 16) {
         return;

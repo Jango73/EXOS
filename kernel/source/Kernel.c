@@ -48,11 +48,14 @@
 #include "Stack.h"
 #include "System.h"
 #include "SystemFS.h"
+#include "utils/Helpers.h"
 #include "utils/TOML.h"
 #include "UserAccount.h"
 #include "UserSession.h"
 #include "network/NetworkManager.h"
 #include "utils/UUID.h"
+#include "DeviceInterrupt.h"
+#include "DeferredWork.h"
 
 /************************************************************************/
 
@@ -66,7 +69,6 @@ typedef struct tag_CPUIDREGISTERS {
 /***************************************************************************/
 
 extern U32 DeadBeef;
-extern void StartTestNetworkTask(void);
 
 /************************************************************************/
 
@@ -514,6 +516,7 @@ void DeleteUnreferencedObjects(void) {
     ProcessList(Kernel.Disk, TEXT("Disk"));
     ProcessList(Kernel.PCIDevice, TEXT("PCIDevice"));
     ProcessList(Kernel.NetworkDevice, TEXT("NetworkDevice"));
+    ProcessList(Kernel.Event, TEXT("KernelEvent"));
     ProcessList(Kernel.FileSystem, TEXT("FileSystem"));
     ProcessList(Kernel.File, TEXT("File"));
     ProcessList(Kernel.TCPConnection, TEXT("TCPConnection"));
@@ -573,6 +576,7 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
         ReleaseProcessObjectsFromList(Process, Kernel.Disk);
         ReleaseProcessObjectsFromList(Process, Kernel.PCIDevice);
         ReleaseProcessObjectsFromList(Process, Kernel.NetworkDevice);
+        ReleaseProcessObjectsFromList(Process, Kernel.Event);
         ReleaseProcessObjectsFromList(Process, Kernel.FileSystem);
         ReleaseProcessObjectsFromList(Process, Kernel.File);
         ReleaseProcessObjectsFromList(Process, Kernel.TCPConnection);
@@ -666,7 +670,7 @@ static void UseConfiguration(void) {
 
     SAFE_USE(Kernel.Configuration) {
         LPCSTR Layout;
-        LPCSTR Quantum;
+        LPCSTR QuantumMS;
         LPCSTR DoLogin;
 
         DEBUG(TEXT("[UseConfiguration] Handling keyboard layout"));
@@ -681,21 +685,23 @@ static void UseConfiguration(void) {
             SelectKeyboard(TEXT("en-US"));
         }
 
-        Quantum = TomlGet(Kernel.Configuration, TEXT("General.Quantum"));
+        QuantumMS = TomlGet(Kernel.Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
-        if (STRING_EMPTY(Quantum) == FALSE) {
-            ConsolePrint(TEXT("Task quantum set to %s\n"), Quantum);
-            Kernel.MinimumQuantum = StringToU32(Quantum);
+        if (STRING_EMPTY(QuantumMS) == FALSE) {
+            ConsolePrint(TEXT("Task quantum set to %s\n"), QuantumMS);
+            Kernel.MinimumQuantum = StringToU32(QuantumMS);
         }
 
         DoLogin = TomlGet(Kernel.Configuration, TEXT("General.DoLogin"));
 
         if (STRING_EMPTY(DoLogin) == FALSE) {
             Kernel.DoLogin = (StringToU32(DoLogin) != 0);
-            ConsolePrint(TEXT("Login sequence %s\n"), Kernel.DoLogin ? TEXT("enabled") : TEXT("disabled"));
         } else {
             Kernel.DoLogin = TRUE;
-            ConsolePrint(TEXT("DoLogin not found in config, login sequence enabled by default\n"));
+        }
+
+        if (Kernel.DoLogin == FALSE) {
+            ConsolePrint(TEXT("WARNING : Login sequence disabled\n"));
         }
     }
 
@@ -1010,6 +1016,17 @@ void InitializeKernel(void) {
     ReadKernelConfiguration();
 
     //-------------------------------------
+    // Initialize deferred work infrastructure
+
+    InitializeDeviceInterrupts();
+
+    DEBUG(TEXT("[InitializeKernel] Device interrupts initialized"));
+
+    if (!InitializeDeferredWork()) {
+        ERROR(TEXT("[InitializeKernel] Failed to initialize deferred work dispatcher"));
+    }
+
+    //-------------------------------------
     // Initialize network stack
 
     InitializeNetwork();
@@ -1100,26 +1117,6 @@ void InitializeKernel(void) {
         TaskInfo.Parameter = (LPVOID)(((Console.Width - 8) << 16) | 0);
         CreateTask(&KernelProcess, &TaskInfo);
         */
-
-        // StartTestNetworkTask();
-
-        //-------------------------------------
-        // Network manager task
-
-        DEBUG(TEXT("[InitializeKernel] ========================================"));
-        DEBUG(TEXT("[InitializeKernel] Starting network manager task"));
-
-        TaskInfo.Header.Size = sizeof(TASKINFO);
-        TaskInfo.Header.Version = EXOS_ABI_VERSION;
-        TaskInfo.Header.Flags = 0;
-        TaskInfo.Func = NetworkManagerTask;
-        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
-        TaskInfo.Priority = TASK_PRIORITY_LOWER;
-        TaskInfo.Flags = 0;
-        TaskInfo.Parameter = NULL;
-        StringCopy(TaskInfo.Name, TEXT("NetworkManager"));
-
-        CreateTask(&KernelProcess, &TaskInfo);
 
         //-------------------------------------
         // Shell task

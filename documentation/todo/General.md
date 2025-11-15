@@ -15,7 +15,6 @@
 - Add a cluster cache to FAT16 and FAT32
 
 ## Network
-- Interrupt driven instead of polling
 - Optimize/evolve the network stack
 
 ## Keyboard

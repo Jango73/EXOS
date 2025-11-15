@@ -158,6 +158,16 @@
 
 #define E1000_RX_DESC_COUNT 128U /* power of two preferred */
 #define E1000_TX_DESC_COUNT 128U
+
+/***************************************************************************/
+/* Interrupt cause bits                                                    */
+
+#define E1000_INT_TXDW 0x00000001
+#define E1000_INT_TXQE 0x00000002
+#define E1000_INT_LSC  0x00000004
+#define E1000_INT_RXDMT0 0x00000010
+#define E1000_INT_RXO  0x00000040
+#define E1000_INT_RXT0 0x00000080
 #define E1000_RX_BUF_SIZE 2048U
 #define E1000_TX_BUF_SIZE 2048U /* same as RX for consistency */
 #define E1000_RING_ALIGN 16U /* descriptor alignment */

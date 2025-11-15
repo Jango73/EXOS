@@ -70,6 +70,7 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/arch/intel/*.c) \
          $(wildcard source/arch/$(ARCH)/*.c) \
          $(wildcard source/network/*.c) \
+         $(wildcard source/system/*.c) \
          $(wildcard source/process/*.c) \
          $(wildcard source/drivers/*.c) \
          $(wildcard source/utils/*.c) \
@@ -211,4 +212,4 @@ check-nogot: $(KERNEL_ELF)
 	  $(READELF) -S $(KERNEL_ELF) | egrep -i "(\\.(got(\\.|$$)|plt(\\.|$$)|dynamic|rela?)|interp)"; exit 1 )
 
 clean:
-	rm -rf $(BUILD_DIR)/kernel/*.o $(BUILD_DIR)/kernel/*/*.o $(BUILD_DIR)/kernel/*.elf $(BUILD_DIR)/kernel/*.bin $(BUILD_DIR)/kernel/*.map $(BUILD_DIR)/kernel/*.img $(BUILD_DIR)/kernel/*.sym
+	rm -rf $(BUILD_DIR)/kernel

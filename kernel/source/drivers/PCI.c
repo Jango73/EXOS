@@ -440,8 +440,13 @@ void PCI_ScanBus(void) {
                 U32 DriverIndex;
 
                 PciFillFunctionInfo((U8)Bus, (U8)Device, (U8)Function, &PciInfo);
-                DEBUG(TEXT("[PCI] Found %x:%x.%u VID=%x DID=%x"), (INT)Bus, (INT)Device, (INT)Function,
-                    (INT)PciInfo.VendorID, (INT)PciInfo.DeviceID);
+                DEBUG(TEXT("[PCI] Found %x:%x.%u VID=%x DID=%x IRQ=%u"),
+                    (INT)Bus,
+                    (INT)Device,
+                    (INT)Function,
+                    (INT)PciInfo.VendorID,
+                    (INT)PciInfo.DeviceID,
+                    (UINT)PciInfo.IRQLine);
 
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
                 InitMutex(&(PciDevice.Mutex));

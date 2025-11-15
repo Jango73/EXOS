@@ -1,6 +1,7 @@
 
 #include "Kernel.h"
 #include "Socket.h"
+#include "utils/Helpers.h"
 
 /************************************************************************/
 
@@ -81,6 +82,17 @@ static LIST NetworkDeviceList = {
 
 /************************************************************************/
 
+static LIST EventList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST FileSystemList = {
     .First = NULL,
     .Last = NULL,
@@ -142,6 +154,7 @@ KERNELDATA SECTION(".data") Kernel = {
     .Disk = &DiskList,
     .PCIDevice = &PciDeviceList,
     .NetworkDevice = &NetworkDeviceList,
+    .Event = &EventList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,
@@ -168,6 +181,8 @@ KERNELDATA SECTION(".data") Kernel = {
     .Configuration = NULL,
     .MinimumQuantum = 10,
     .MaximumQuantum = 50,
+    .DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS,
+    .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
