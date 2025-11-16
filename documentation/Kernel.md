@@ -151,6 +151,13 @@ and SATA), graphics (VGA, VESA, and mode tables), and file system backends
 from the build system and clarifies the separation between reusable utilities
 and hardware support code.
 
+The VESA graphics driver now always requests VBE modes in linear frame buffer
+mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises
+the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing
+code writes directly to the mapped VRAM region without issuing BIOS bank
+switching calls, which removes the heavy INT 10h overhead from every pixel
+write.
+
 ### Shell scripting integration
 
 The interactive shell keeps a persistent script interpreter context to run
