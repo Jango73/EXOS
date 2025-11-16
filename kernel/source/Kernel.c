@@ -134,7 +134,6 @@ HANDLE PointerToHandle(LINEAR Pointer) {
 
     UINT ExistingHandle = 0;
     if (HandleMapFindHandleByPointer(&Kernel.HandleMap, Pointer, &ExistingHandle) == HANDLE_MAP_OK) {
-        DEBUG(TEXT("[PointerToHandle] Reusing handle=%u for pointer=%p"), ExistingHandle, (LPVOID)Pointer);
         return ExistingHandle;
     }
 
@@ -150,7 +149,6 @@ HANDLE PointerToHandle(LINEAR Pointer) {
         return 0;
     }
 
-    DEBUG(TEXT("[PointerToHandle] New handle=%u for pointer=%p"), Handle, (LPVOID)Pointer);
     return Handle;
 }
 
@@ -170,11 +168,9 @@ LINEAR HandleToPointer(HANDLE Handle) {
     LINEAR Pointer = 0;
     UINT Status = HandleMapResolveHandle(&Kernel.HandleMap, Handle, &Pointer);
     if (Status != HANDLE_MAP_OK) {
-        DEBUG(TEXT("[HandleToPointer] Resolve failed handle=%u status=%u"), Handle, Status);
         return 0;
     }
 
-    DEBUG(TEXT("[HandleToPointer] handle=%u -> pointer=%p"), Handle, (LPVOID)Pointer);
     return Pointer;
 }
 

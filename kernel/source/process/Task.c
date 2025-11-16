@@ -1173,21 +1173,11 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     // Send message to window if found
 
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
-        LPCSTR ProcessName = TEXT("?");
-        SAFE_USE(Window->Task) {
-            SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) { ProcessName = Window->Task->Process->FileName; }
-        }
-
-        DEBUG(TEXT("[SendMessage] Window=%p Process=%s Msg=%x Param1=%x Param2=%x"), Window, ProcessName, Msg, Param1, Param2);
-
         SAFE_USE(Window->Function) {
             LockMutex(&(Window->Mutex), INFINITY);
             Result = Window->Function(Target, Msg, Param1, Param2);
-            DEBUG(TEXT("[SendMessage] Window=%p Process=%s Msg=%x returned=%x"), Window, ProcessName, Msg, Result);
             UnlockMutex(&(Window->Mutex));
         }
-    } else {
-        DEBUG(TEXT("[SendMessage] Target=%p msg=%x not delivered (window not found)"), Target, Msg);
     }
 
     return Result;
@@ -1274,8 +1264,6 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
         Message->Param1 = CurrentMessage->Param1;
         Message->Param2 = CurrentMessage->Param2;
 
-        DEBUG(TEXT("[GetMessage] Task=%p dequeued Msg=%x Target=%p"), Task, Message->Message, Message->Target);
-
         //-------------------------------------
         // Remove the message from the task's message queue
 
@@ -1297,8 +1285,6 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
                 Message->Message = CurrentMessage->Message;
                 Message->Param1 = CurrentMessage->Param1;
                 Message->Param2 = CurrentMessage->Param2;
-
-                DEBUG(TEXT("[GetMessage] Task=%p dequeued Msg=%x Target=%p"), Task, Message->Message, Message->Target);
 
                 //-------------------------------------
                 // Remove the message from the task's message queue
@@ -1366,8 +1352,6 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
 
             HANDLE WindowParam = EnsureHandle((LINEAR)Window);
 
-            DEBUG(TEXT("[DispatchMessage] Delivering Msg=%x to Window=%p Param=%p"),
-                Message->Message, Window, WindowParam);
             Window->Function(WindowParam, Message->Message, Message->Param1, Message->Param2);
 
             Result = TRUE;
@@ -1445,11 +1429,6 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     LockMutex(&(Desktop->Mutex), INFINITY);
 
     Result = DispatchMessageToWindow(Message, Desktop->Window);
-    if (Result) {
-        DEBUG(TEXT("[DispatchMessage] Delivered Msg=%x Target=%p"), Message->Message, Message->Target);
-    } else {
-        DEBUG(TEXT("[DispatchMessage] Failed to deliver Msg=%x Target=%p"), Message->Message, Message->Target);
-    }
 
     UnlockMutex(&(Desktop->Mutex));
 

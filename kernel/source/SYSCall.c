@@ -571,11 +571,7 @@ UINT SysCall_GetMessage(UINT Parameter) {
         }
 
         UINT Result = (UINT)GetMessage(Message);
-
-        DEBUG(TEXT("[SysCall_GetMessage] Result=%u Msg=%x TargetPtr=%p"), Result, Message->Message, Message->Target);
-
         Message->Target = PointerToHandle((LINEAR)Message->Target);
-        DEBUG(TEXT("[SysCall_GetMessage] Converted TargetPtr to Handle=%x"), Message->Target);
         if (Message->Target == 0) {
             Message->Target = Filter;
         }
@@ -602,19 +598,14 @@ UINT SysCall_DispatchMessage(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
         HANDLE Original = Message->Target;
-        DEBUG(TEXT("[SysCall_DispatchMessage] Incoming Msg=%x Handle=%x TargetPtr(use prev)=%p"),
-            Message->Message, Original, Message->Target);
         Message->Target = (HANDLE)HandleToPointer(Original);
 
         if (Message->Target == NULL && Original != 0) {
-            DEBUG(TEXT("[SysCall_DispatchMessage] Invalid target handle=%x"), Original);
             Message->Target = Original;
             return 0;
         }
 
         UINT Result = (UINT)DispatchMessage(Message);
-        DEBUG(TEXT("[SysCall_DispatchMessage] Msg=%x TargetHandle=%x TargetPtr=%p Result=%u"),
-            Message->Message, Original, Message->Target, Result);
 
         Message->Target = Original;
         return Result;
@@ -1139,7 +1130,6 @@ UINT SysCall_CreateDesktop(UINT Parameter) {
         HANDLE Handle = PointerToHandle((LINEAR)Desktop);
 
         if (Handle != 0) {
-            DEBUG(TEXT("[SysCall_CreateDesktop] Desktop=%p handle=%x"), Desktop, Handle);
             return Handle;
         }
 
@@ -1160,12 +1150,7 @@ UINT SysCall_CreateDesktop(UINT Parameter) {
 UINT SysCall_ShowDesktop(UINT Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        DEBUG(TEXT("[SysCall_ShowDesktop] handle=%x Desktop=%p"), Parameter, Desktop);
-        return (UINT)ShowDesktop(Desktop);
-    }
-
-    ERROR(TEXT("[SysCall_ShowDesktop] invalid handle=%x"), Parameter);
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { return (UINT)ShowDesktop(Desktop); }
     return 0;
 }
 
@@ -1186,8 +1171,6 @@ UINT SysCall_GetDesktopWindow(UINT Parameter) {
         Window = Desktop->Window;
         UnlockMutex(&(Desktop->Mutex));
         HANDLE Handle = PointerToHandle((LINEAR)Window);
-        DEBUG(TEXT("[SysCall_GetDesktopWindow] DesktopHandle=%x Desktop=%p Window=%p Handle=%x"),
-            Parameter, Desktop, Window, Handle);
         return Handle;
     }
 
@@ -1212,7 +1195,6 @@ UINT SysCall_GetCurrentDesktop(UINT Parameter) {
 
         SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
             HANDLE Handle = PointerToHandle((LINEAR)Desktop);
-            DEBUG(TEXT("[SysCall_GetCurrentDesktop] Desktop=%p Handle=%x"), Desktop, Handle);
             return Handle;
         }
     }
@@ -1819,19 +1801,12 @@ UINT SysCall_Line(UINT Parameter) {
  */
 UINT SysCall_Rectangle(UINT Parameter) {
     LPRECTINFO RectInfo = (LPRECTINFO)Parameter;
-    static U32 RectSyscallDebugCount = 0;
 
     SAFE_USE_INPUT_POINTER(RectInfo, RECTINFO) {
         HANDLE OriginalGC = RectInfo->GC;
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
         SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
-            if (RectSyscallDebugCount < 32) {
-                DEBUG(TEXT("[SysCall_Rectangle] #%u GC handle=%x ctx=%p coords=(%d,%d)-(%d,%d)"),
-                    RectSyscallDebugCount, OriginalGC, Context,
-                    RectInfo->X1, RectInfo->Y1, RectInfo->X2, RectInfo->Y2);
-                RectSyscallDebugCount++;
-            }
             RectInfo->GC = (HANDLE)Context;
             UINT Result = (UINT)Rectangle(RectInfo);
             RectInfo->GC = OriginalGC;

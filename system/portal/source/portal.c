@@ -159,8 +159,8 @@ U32 OnButtonDraw(HANDLE Window, U32 Param1, U32 Param2) {
     HANDLE GC = GetWindowGC(Window);
 
     // if (GC = BeginWindowDraw(Window))
-        if (GC != NULL) {
-            GetWindowRect(Window, &Rect);
+    if (GC != NULL) {
+        GetWindowRect(Window, &Rect);
 
         if (GetWindowProp(Window, Prop_Down)) {
             DrawFrame3D(GC, &Rect, 1, TRUE);
@@ -169,9 +169,6 @@ U32 OnButtonDraw(HANDLE Window, U32 Param1, U32 Param2) {
         }
 
         ReleaseWindowGC(Window);
-    } else {
-        debug("Portal: Button draw failed for window=%p", Window);
-        // EndWindowDraw(Window);
     }
 
     return 0;
@@ -262,42 +259,30 @@ U32 DesktopTask(LPVOID Param) {
     U32 MouseButtons;
     U32 NewMouseButtons;
 
-    debug("Portal: requesting current desktop handle");
     PortalDesktopHandle = GetCurrentDesktop();
 
-    if (PortalDesktopHandle != NULL) {
-        debug("Portal: GetCurrentDesktop returned handle=%08X", (U32)PortalDesktopHandle);
-    } else {
-        debug("Portal: no current desktop, creating one");
+    if (PortalDesktopHandle == NULL) {
         PortalDesktopHandle = CreateDesktop();
-        debug("Portal: CreateDesktop returned handle=%08X", (U32)PortalDesktopHandle);
     }
 
     if (PortalDesktopHandle == NULL) {
         return MAX_U32;
     }
 
-    debug("Portal: requesting desktop window handle");
     PortalDesktopWindow = GetDesktopWindow(PortalDesktopHandle);
-    debug("Portal: GetDesktopWindow returned %08X", (U32)PortalDesktopWindow);
     if (PortalDesktopWindow == NULL) {
         return MAX_U32;
     }
 
-    debug("Portal: invoking ShowDesktop");
     if (ShowDesktop(PortalDesktopHandle) == FALSE) {
-        debug("Portal: ShowDesktop failed for handle=%08X", (U32)PortalDesktopHandle);
         return MAX_U32;
     }
-    debug("Portal: ShowDesktop succeeded");
 
     Window = PortalDesktopWindow;
 
     MousePos.X = 0;
     MousePos.Y = 0;
     MouseButtons = 0;
-
-    debug("Portal: entering desktop task event loop (window=%p)", Window);
 
     FOREVER {
         GetMousePos(&NewMousePos);
@@ -384,21 +369,14 @@ BOOL InitApplication(void) {
     GreenPen = CreatePen(MAKERGB(0, 255, 0), 0xFFFFFFFF);
     GreenBrush = CreateBrush(MAKERGB(0, 255, 0), 0xFFFFFFFF);
 
-    debug("Portal: creating main window");
     MainWindow = CreateWindow(NULL, MainWindowFunc, 0, 0, 100, 100, 400, 300);
 
     if (MainWindow == NULL) return FALSE;
-    debug("Portal: main window handle=%08X", (U32)MainWindow);
 
-    HANDLE Button1 = CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 60, 80, 20);
-    HANDLE Button2 = CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 30, 80, 20);
-    debug("Portal: button handles=%08X %08X", (U32)Button1, (U32)Button2);
+    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 60, 80, 20);
+    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 30, 80, 20);
 
-    if (ShowWindow(MainWindow) == FALSE) {
-        debug("Portal: ShowWindow(MainWindow) failed");
-    } else {
-        debug("Portal: ShowWindow(MainWindow) succeeded");
-    }
+    ShowWindow(MainWindow);
 
     return TRUE;
 }

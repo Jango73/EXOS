@@ -670,10 +670,8 @@ BOOL GetInterruptStatistics(U8 IRQ, U32* Count, U32* LastTimestamp) {
  * @return TRUE if switch successful, FALSE otherwise
  */
 BOOL SwitchToPICForRealMode(void) {
-    DEBUG(TEXT("[SwitchToPICForRealMode] Enter"));
 
     if (g_InterruptControllerConfig.ActiveType != INTCTRL_TYPE_IOAPIC) {
-        DEBUG(TEXT("[SwitchToPICForRealMode] Already in PIC mode, nothing to do"));
         return TRUE;
     }
 
@@ -703,7 +701,6 @@ BOOL SwitchToPICForRealMode(void) {
     OutPortByte(PIC1_DATA, 0xFE); // Enable IRQ0 (timer) only
     OutPortByte(PIC2_DATA, 0xFF); // Disable all slave interrupts
 
-    DEBUG(TEXT("[SwitchToPICForRealMode] PIC 8259 configured for real mode"));
     return TRUE;
 }
 
@@ -715,10 +712,7 @@ BOOL SwitchToPICForRealMode(void) {
  * @return TRUE if restore successful, FALSE otherwise
  */
 BOOL RestoreIOAPICAfterRealMode(void) {
-    DEBUG(TEXT("[RestoreIOAPICAfterRealMode] Enter"));
-
     if (g_InterruptControllerConfig.ActiveType != INTCTRL_TYPE_IOAPIC) {
-        DEBUG(TEXT("[RestoreIOAPICAfterRealMode] Not in IOAPIC mode, nothing to restore"));
         return TRUE;
     }
 
@@ -733,6 +727,5 @@ BOOL RestoreIOAPICAfterRealMode(void) {
     // Restore default IOAPIC configuration
     SetDefaultIOAPICConfiguration();
 
-    DEBUG(TEXT("[RestoreIOAPICAfterRealMode] IOAPIC mode restored"));
     return TRUE;
 }

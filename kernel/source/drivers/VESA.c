@@ -1489,17 +1489,11 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
     if (VESARectangleLogCount < 16) {
         LPBRUSH Brush = Context->Header.Brush;
         LPPEN Pen = Context->Header.Pen;
-        DEBUG(TEXT("[VESA_Rectangle] #%u (%u,%u -> %u,%u) Brush=%p color=%x Pen=%p"),
-            VESARectangleLogCount, (U32)Info->X1, (U32)Info->Y1, (U32)Info->X2, (U32)Info->Y2, Brush,
-            Brush ? Brush->Color : 0, Pen);
         VESARectangleLogCount++;
     }
 #endif
 
     if (VESARectangleDebugCount < 32) {
-        DEBUG(TEXT("[VESA_Rectangle] #%u ctx=%p rect=(%d,%d)-(%d,%d) brush=%p pen=%p"),
-            VESARectangleDebugCount, Context, Info->X1, Info->Y1, Info->X2, Info->Y2,
-            Context->Header.Brush, Context->Header.Pen);
         VESARectangleDebugCount++;
     }
 

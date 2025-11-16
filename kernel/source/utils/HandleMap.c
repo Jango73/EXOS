@@ -211,8 +211,6 @@ UINT HandleMapAllocateHandle(LPHANDLE_MAP Map, UINT* HandleOut) {
 
     *HandleOut = Candidate;
 
-    DEBUG(TEXT("[HandleMapAllocateHandle] handle=%u allocated"), Candidate);
-
     UnlockMutex(&Map->Mutex);
     return HANDLE_MAP_OK;
 }
@@ -242,7 +240,6 @@ UINT HandleMapAttachPointer(LPHANDLE_MAP Map, UINT Handle, LINEAR Pointer) {
         } else {
             Entry->Pointer = Pointer;
             Entry->Attached = TRUE;
-            DEBUG(TEXT("[HandleMapAttachPointer] handle=%u pointer=%p"), Handle, (LPVOID)Pointer);
         }
     }
 
@@ -275,7 +272,6 @@ UINT HandleMapDetachPointer(LPHANDLE_MAP Map, UINT Handle, LINEAR* PointerOut) {
             if (PointerOut != NULL) {
                 *PointerOut = Entry->Pointer;
             }
-            DEBUG(TEXT("[HandleMapDetachPointer] handle=%u pointer=%p detached"), Handle, (LPVOID)Entry->Pointer);
             Entry->Pointer = 0;
             Entry->Attached = FALSE;
         }
@@ -348,8 +344,6 @@ UINT HandleMapReleaseHandle(LPHANDLE_MAP Map, UINT Handle) {
 
     if (WasAttached && Pointer != 0) {
         WARNING(TEXT("[HandleMapReleaseHandle] Handle=%u released while still attached to %p"), Handle, (LPVOID)Pointer);
-    } else {
-        DEBUG(TEXT("[HandleMapReleaseHandle] handle=%u released"), Handle);
     }
 
     UnlockMutex(&Map->Mutex);
@@ -374,13 +368,11 @@ UINT HandleMapFindHandleByPointer(LPHANDLE_MAP Map, LINEAR Pointer, UINT* Handle
     }
 
     if (Search.Found == FALSE) {
-        DEBUG(TEXT("[HandleMapFindHandleByPointer] Pointer=%p not found"), (LPVOID)Pointer);
         UnlockMutex(&Map->Mutex);
         return HANDLE_MAP_ERROR_NOT_FOUND;
     }
 
     *HandleOut = Search.Handle;
-    DEBUG(TEXT("[HandleMapFindHandleByPointer] Pointer=%p Handle=%u"), (LPVOID)Pointer, Search.Handle);
 
     UnlockMutex(&Map->Mutex);
     return HANDLE_MAP_OK;
