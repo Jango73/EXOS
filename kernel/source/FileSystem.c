@@ -25,11 +25,13 @@
 #include "FileSystem.h"
 
 #include "Console.h"
+#include "File.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "CoreString.h"
 #include "User.h"
 #include "Text.h"
+#include "utils/TOML.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
@@ -57,6 +59,38 @@ DRIVER FileSystemDriver = {
     .Product = "FileSystems",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = FileSystemDriverCommands};
+
+/***************************************************************************/
+
+/**
+ * @brief Loads and parses the kernel configuration file.
+ *
+ * Attempts to read "exos.toml" (case insensitive) and stores the resulting
+ * TOML data in Kernel.Configuration.
+ */
+static void ReadKernelConfiguration(void) {
+    DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
+
+    UINT Size = 0;
+    LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
+
+    if (Buffer == NULL) {
+        Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
+
+        SAFE_USE(Buffer) {
+            DEBUG(TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
+        }
+    } else {
+        DEBUG(TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
+    }
+
+    SAFE_USE(Buffer) {
+        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
+        KernelHeapFree(Buffer);
+    }
+
+    DEBUG(TEXT("[ReadKernelConfiguration] Exit"));
+}
 
 /***************************************************************************/
 
@@ -296,6 +330,8 @@ void InitializeFileSystems(void) {
     }
 
     MountSystemFS();
+    ReadKernelConfiguration();
+    MountUserNodes();
 }
 
 /***************************************************************************/

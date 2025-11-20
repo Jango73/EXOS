@@ -36,7 +36,6 @@
 #include "Driver.h"
 #include "drivers/E1000.h"
 #include "File.h"
-#include "FileSystem.h"
 #include "drivers/ATA.h"
 #include "drivers/SATA.h"
 #include "Memory.h"
@@ -660,32 +659,6 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
  * TOML data in Kernel.Configuration.
  */
 
-static void ReadKernelConfiguration(void) {
-    DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
-
-    UINT Size = 0;
-    LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
-
-    if (Buffer == NULL) {
-        Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
-
-        SAFE_USE(Buffer) {
-            DEBUG(TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
-        }
-    } else {
-        DEBUG(TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
-    }
-
-    SAFE_USE(Buffer) {
-        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
-        KernelHeapFree(Buffer);
-    }
-
-    DEBUG(TEXT("[ReadKernelConfiguration] Exit"));
-}
-
-/************************************************************************/
-
 /**
  * @brief Selects keyboard layout based on configuration.
  *
@@ -874,11 +847,9 @@ void InitializeKernel(void) {
     LoadDriver(&SATADiskDriver);
     LoadDriver(&RAMDiskDriver);
     LoadDriver(&FileSystemDriver);
-    ReadKernelConfiguration();
     LoadDriver(&DeviceInterruptDriver);
     LoadDriver(&DeferredWorkDriver);
     LoadDriver(&NetworkManagerDriver);
-    MountUserNodes();
     LoadDriver(&UserAccountDriver);
     LoadDriver(&VESADriver);
 
