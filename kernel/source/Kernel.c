@@ -815,7 +815,9 @@ U32 GetPhysicalMemoryUsed(void) {
  * @param Name   Driver name for logging.
  */
 
-void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
+BOOL LoadDriver(LPDRIVER Driver, LPCSTR Name) {
+    BOOL Success = FALSE;
+
     SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), Name, Driver);
 
@@ -826,8 +828,17 @@ void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
             // Wait forever
             DO_THE_SLEEPING_BEAUTY;
         }
-        Driver->Command(DF_LOAD, 0);
+
+        UINT Result = Driver->Command(DF_LOAD, 0);
+        if (Result == DF_ERROR_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
+            DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), Name);
+            Success = TRUE;
+        } else {
+            ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), Name, Result);
+        }
     }
+
+    return Success;
 }
 
 /************************************************************************/
@@ -941,12 +952,6 @@ void InitializeKernel(void) {
     // Initialize ACPI
 
     LoadDriver(&ACPIDriver, ACPIDriver.Product);
-
-    if ((ACPIDriver.Flags & DRIVER_FLAG_READY) != 0) {
-        DEBUG(TEXT("[InitializeKernel] ACPI initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] ACPI not available or failed to initialize"));
-    }
 
     //-------------------------------------
     // Initialize Local APIC
