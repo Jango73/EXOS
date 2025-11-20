@@ -986,7 +986,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the clock
 
-    InitializeClock();
+    LoadDriver(&ClockDriver, ClockDriver.Product);
 
     //-------------------------------------
     // Get information on CPU
