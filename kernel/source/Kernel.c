@@ -1020,10 +1020,7 @@ void InitializeKernel(void) {
     // Initialize deferred work infrastructure
 
     LoadDriver(&DeviceInterruptDriver, DeviceInterruptDriver.Product);
-
-    if (!InitializeDeferredWork()) {
-        ERROR(TEXT("[InitializeKernel] Failed to initialize deferred work dispatcher"));
-    }
+    LoadDriver(&DeferredWorkDriver, DeferredWorkDriver.Product);
 
     //-------------------------------------
     // Initialize network stack
