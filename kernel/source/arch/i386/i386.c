@@ -331,38 +331,6 @@ void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
 
 /***************************************************************************/
 
-void InitializeTaskSegments(void) {
-    DEBUG(TEXT("[InitializeTaskSegments] Enter"));
-
-    U32 TssSize = sizeof(TASK_STATE_SEGMENT);
-
-    Kernel_i386.TSS = (LPTASK_STATE_SEGMENT)AllocKernelRegion(0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-
-    if (Kernel_i386.TSS == NULL) {
-        ERROR(TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    MemorySet(Kernel_i386.TSS, 0, TssSize);
-
-    LPTSS_DESCRIPTOR Desc = (LPTSS_DESCRIPTOR)(Kernel_i386.GDT + GDT_TSS_INDEX);
-    Desc->Type = GATE_TYPE_386_TSS_AVAIL;
-    Desc->Privilege = GDT_PRIVILEGE_USER;
-    Desc->Present = 1;
-    Desc->Granularity = GDT_GRANULAR_1B;
-    SetTSSDescriptorBase(Desc, (U32)Kernel_i386.TSS);
-    SetTSSDescriptorLimit(Desc, sizeof(TASK_STATE_SEGMENT) - 1);
-
-    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
-    DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
-
-    LoadInitialTaskRegister(SELECTOR_TSS);
-
-    DEBUG(TEXT("[InitializeTaskSegments] Exit"));
-}
-
-/***************************************************************************/
-
 void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR This, U32 Base) {
     This->Base_00_15 = (Base & (U32)0x0000FFFF) >> 0x00;
     This->Base_16_23 = (Base & (U32)0x00FF0000) >> 0x10;
@@ -374,18 +342,6 @@ void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR This, U32 Base) {
 void SetSegmentDescriptorLimit(LPSEGMENT_DESCRIPTOR This, U32 Limit) {
     This->Limit_00_15 = (Limit >> 0x00) & 0x0000FFFF;
     This->Limit_16_19 = (Limit >> 0x10) & 0x0000000F;
-}
-
-/***************************************************************************/
-
-void SetTSSDescriptorBase(LPTSS_DESCRIPTOR This, U32 Base) {
-    SetSegmentDescriptorBase((LPSEGMENT_DESCRIPTOR)This, Base);
-}
-
-/***************************************************************************/
-
-void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR This, U32 Limit) {
-    SetSegmentDescriptorLimit((LPSEGMENT_DESCRIPTOR)This, Limit);
 }
 
 /************************************************************************/

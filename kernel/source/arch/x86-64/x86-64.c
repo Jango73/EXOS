@@ -257,32 +257,6 @@ void InitializeInterrupts(void) {
 
 /************************************************************************/
 
-/**
- * @brief Populate the limit fields of a system segment descriptor.
- * @param Descriptor Descriptor to update.
- * @param Limit Segment limit value encoded on 20 bits.
- */
-static void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U32 Limit) {
-    Descriptor->Limit_00_15 = (U16)(Limit & 0xFFFF);
-    Descriptor->Limit_16_19 = (U8)((Limit >> 16) & 0x0F);
-}
-
-/************************************************************************/
-
-/**
- * @brief Populate the base fields of a system segment descriptor.
- * @param Descriptor Descriptor to update.
- * @param Base 64-bit base address of the segment.
- */
-static void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U64 Base) {
-    Descriptor->Base_00_15 = (U16)(Base & 0xFFFF);
-    Descriptor->Base_16_23 = (U8)((Base >> 16) & 0xFF);
-    Descriptor->Base_24_31 = (U8)((Base >> 24) & 0xFF);
-    Descriptor->Base_32_63 = (U32)((Base >> 32) & 0xFFFFFFFF);
-}
-
-/************************************************************************/
-
 static void InitLongModeSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, BOOL Executable, U32 Privilege) {
     MemorySet(This, 0, sizeof(SEGMENT_DESCRIPTOR));
 
@@ -351,60 +325,6 @@ void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
     InitLegacySegmentDescriptor(&Table[6], FALSE);
 
     DEBUG(TEXT("[InitializeGlobalDescriptorTable] Exit"));
-}
-
-/***************************************************************************/
-
-/**
- * @brief Allocate and initialize the architecture task-state segment.
- */
-void InitializeTaskSegments(void) {
-    DEBUG(TEXT("[InitializeTaskSegments] Enter"));
-
-    UINT TssSize = sizeof(X86_64_TASK_STATE_SEGMENT);
-
-    Kernel_i386.TSS = (LPX86_64_TASK_STATE_SEGMENT)AllocKernelRegion(
-        0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-
-    if (Kernel_i386.TSS == NULL) {
-        ERROR(TEXT("[InitializeTaskSegments] AllocKernelRegion for TSS failed"));
-        ConsolePanic(TEXT("AllocKernelRegion for TSS failed"));
-    }
-
-    MemorySet(Kernel_i386.TSS, 0, TssSize);
-    Kernel_i386.TSS->IOMapBase = (U16)TssSize;
-
-    LINEAR CurrentRsp;
-    GetESP(CurrentRsp);
-    Kernel_i386.TSS->RSP0 = (U64)CurrentRsp;
-    Kernel_i386.TSS->IST1 = (U64)CurrentRsp;
-
-    LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor =
-        (LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR)((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT + GDT_TSS_INDEX);
-
-    MemorySet(Descriptor, 0, sizeof(X86_64_SYSTEM_SEGMENT_DESCRIPTOR));
-
-    SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1);
-    SetSystemSegmentDescriptorBase(Descriptor, (UINT)Kernel_i386.TSS);
-
-    Descriptor->Accessed = 1;
-    Descriptor->Code = 1;
-    Descriptor->S = 0;
-    Descriptor->Privilege = PRIVILEGE_KERNEL;
-    Descriptor->Present = 1;
-    Descriptor->Limit_16_19 = (U8)(Descriptor->Limit_16_19 & 0x0F);
-    Descriptor->Available = 0;
-    Descriptor->LongMode = 0;
-    Descriptor->DefaultSize = 0;
-    Descriptor->Granularity = 0;
-    Descriptor->Reserved = 0;
-
-    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
-    DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
-
-    LoadInitialTaskRegister(SELECTOR_TSS);
-
-    DEBUG(TEXT("[InitializeTaskSegments] Exit"));
 }
 
 /***************************************************************************/

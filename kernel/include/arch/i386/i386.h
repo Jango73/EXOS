@@ -28,6 +28,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/i386/i386-Memory.h"
 #include "process/TaskStack.h"
@@ -713,6 +714,7 @@ void SetTSSDescriptorBase(LPTSS_DESCRIPTOR Desc, U32 Base);
 void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR Desc, U32 Limit);
 void PreInitializeKernel(void);
 void InitializeSystemCall(void);
+extern DRIVER TaskSegmentsDriver;
 
 struct tag_TASK;
 struct tag_PROCESS;

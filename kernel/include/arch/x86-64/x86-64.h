@@ -28,6 +28,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/x86-64/x86-64-Memory.h"
 #include "process/TaskStack.h"
@@ -597,7 +598,10 @@ void PreInitializeKernel(void);
 void InitializeSystemCall(void);
 void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);
 void InitializeTaskSegments(void);
+void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U32 Limit);
+void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U64 Base);
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
+extern DRIVER TaskSegmentsDriver;
 
 /************************************************************************/
 

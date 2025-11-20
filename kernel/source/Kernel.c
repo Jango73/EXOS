@@ -894,7 +894,7 @@ void InitializeKernel(void) {
 
     DEBUG(TEXT("[KernelMain] Memory manager initialized"));
 
-    InitializeTaskSegments();
+    LoadDriver(&TaskSegmentsDriver, TaskSegmentsDriver.Product);
 
     DEBUG(TEXT("[KernelMain] Task segments initialized"));
 
