@@ -779,18 +779,17 @@ U32 GetPhysicalMemoryUsed(void) {
  * command.
  *
  * @param Driver Pointer to driver structure.
- * @param Name   Driver name for logging.
  */
 
-BOOL LoadDriver(LPDRIVER Driver, LPCSTR Name) {
+BOOL LoadDriver(LPDRIVER Driver) {
     BOOL Success = FALSE;
 
     SAFE_USE(Driver) {
-        DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), Name, Driver);
+        DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), TEXT(Driver->Product), Driver);
 
         if (Driver->TypeID != KOID_DRIVER) {
             KernelLogText(
-                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->TypeID);
+                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), TEXT(Driver->Product), Driver, Driver->TypeID);
 
             // Wait forever
             DO_THE_SLEEPING_BEAUTY;
@@ -798,10 +797,10 @@ BOOL LoadDriver(LPDRIVER Driver, LPCSTR Name) {
 
         UINT Result = Driver->Command(DF_LOAD, 0);
         if (Result == DF_ERROR_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
-            DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), Name);
+            DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
             Success = TRUE;
         } else {
-            ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), Name, Result);
+            ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), TEXT(Driver->Product), Result);
         }
     }
 
@@ -854,33 +853,34 @@ void KernelIdle(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
-    PreInitializeKernel();
     GetCPUInformation(&(Kernel.CPU));
-    LoadDriver(&ConsoleDriver, TEXT(ConsoleDriver.Product));
-    LoadDriver(&KernelLogDriver, TEXT(KernelLogDriver.Product));
-    LoadDriver(&MemoryManagerDriver, TEXT(MemoryManagerDriver.Product));
-    LoadDriver(&TaskSegmentsDriver, TEXT(TaskSegmentsDriver.Product));
-    LoadDriver(&InterruptsDriver, TEXT(InterruptsDriver.Product));
+
+    PreInitializeKernel();
+    LoadDriver(&ConsoleDriver);
+    LoadDriver(&KernelLogDriver);
+    LoadDriver(&MemoryManagerDriver);
+    LoadDriver(&TaskSegmentsDriver);
+    LoadDriver(&InterruptsDriver);
     InitializeKernelProcess();
-    LoadDriver(&ACPIDriver, TEXT(ACPIDriver.Product));
-    LoadDriver(&LocalAPICDriver, TEXT(LocalAPICDriver.Product));
-    LoadDriver(&IOAPICDriver, TEXT(IOAPICDriver.Product));
-    LoadDriver(&InterruptControllerDriver, TEXT(InterruptControllerDriver.Product));
-    LoadDriver(&StdKeyboardDriver, TEXT(StdKeyboardDriver.Product));
-    LoadDriver(&SerialMouseDriver, TEXT(SerialMouseDriver.Product));
-    LoadDriver(&ClockDriver, TEXT(ClockDriver.Product));
-    LoadDriver(&PCIDriver, TEXT(PCIDriver.Product));
-    LoadDriver(&ATADiskDriver, TEXT(ATADiskDriver.Product));
-    LoadDriver(&SATADiskDriver, TEXT(SATADiskDriver.Product));
-    LoadDriver(&RAMDiskDriver, TEXT(RAMDiskDriver.Product));
-    LoadDriver(&FileSystemDriver, TEXT(FileSystemDriver.Product));
+    LoadDriver(&ACPIDriver);
+    LoadDriver(&LocalAPICDriver);
+    LoadDriver(&IOAPICDriver);
+    LoadDriver(&InterruptControllerDriver);
+    LoadDriver(&StdKeyboardDriver);
+    LoadDriver(&SerialMouseDriver);
+    LoadDriver(&ClockDriver);
+    LoadDriver(&PCIDriver);
+    LoadDriver(&ATADiskDriver);
+    LoadDriver(&SATADiskDriver);
+    LoadDriver(&RAMDiskDriver);
+    LoadDriver(&FileSystemDriver);
     ReadKernelConfiguration();
-    LoadDriver(&DeviceInterruptDriver, TEXT(DeviceInterruptDriver.Product));
-    LoadDriver(&DeferredWorkDriver, TEXT(DeferredWorkDriver.Product));
-    LoadDriver(&NetworkManagerDriver, TEXT(NetworkManagerDriver.Product));
+    LoadDriver(&DeviceInterruptDriver);
+    LoadDriver(&DeferredWorkDriver);
+    LoadDriver(&NetworkManagerDriver);
     MountUserNodes();
-    LoadDriver(&UserAccountDriver, TEXT(UserAccountDriver.Product));
-    LoadDriver(&VESADriver, TEXT(VESADriver.Product));
+    LoadDriver(&UserAccountDriver);
+    LoadDriver(&VESADriver);
 
     //-------------------------------------
     // Initialize object termination cache
