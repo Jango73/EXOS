@@ -1019,9 +1019,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize deferred work infrastructure
 
-    InitializeDeviceInterrupts();
-
-    DEBUG(TEXT("[InitializeKernel] Device interrupts initialized"));
+    LoadDriver(&DeviceInterruptDriver, DeviceInterruptDriver.Product);
 
     if (!InitializeDeferredWork()) {
         ERROR(TEXT("[InitializeKernel] Failed to initialize deferred work dispatcher"));

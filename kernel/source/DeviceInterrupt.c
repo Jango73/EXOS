@@ -14,6 +14,7 @@
 #include "CoreString.h"
 #include "DeferredWork.h"
 #include "utils/Helpers.h"
+#include "User.h"
 
 /***************************************************************************/
 
@@ -57,6 +58,27 @@ static void DeviceInterruptPollThunk(LPVOID Context);
 static void DeviceInterruptApplyConfiguration(void);
 static BOOL DeviceInterruptAllocateEntries(void);
 static LPDEVICE_INTERRUPT_ENTRY DeviceInterruptGetEntry(U32 SlotIndex);
+
+/***************************************************************************/
+
+#define DEVICE_INTERRUPT_VER_MAJOR 1
+#define DEVICE_INTERRUPT_VER_MINOR 0
+
+static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DeviceInterruptDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = DEVICE_INTERRUPT_VER_MAJOR,
+    .VersionMinor = DEVICE_INTERRUPT_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "DeviceInterrupts",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = DeviceInterruptDriverCommands};
 
 /***************************************************************************/
 
@@ -168,6 +190,44 @@ void InitializeDeviceInterrupts(void) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Driver command handler for device interrupt management.
+ *
+ * DF_LOAD initializes slot storage and configuration once; DF_UNLOAD only
+ * clears readiness.
+ */
+static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeDeviceInterrupts();
+            if (g_DeviceInterruptEntries != NULL) {
+                DeviceInterruptDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            DeviceInterruptDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(DEVICE_INTERRUPT_VER_MAJOR, DEVICE_INTERRUPT_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
+}
 
 BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, U8 *AssignedSlot) {
     if (Registration == NULL || Registration->Device == NULL || Registration->InterruptHandler == NULL) {
