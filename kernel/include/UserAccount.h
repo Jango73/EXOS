@@ -27,6 +27,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 #include "ID.h"
 #include "List.h"
 #include "Security.h"
@@ -93,6 +94,12 @@ void DestroyUserSession(LPUSERSESSION Session);
 void TimeoutInactiveSessions(void);
 LPUSERSESSION GetCurrentSession(void);
 BOOL SetCurrentSession(LPUSERSESSION Session);
+
+/************************************************************************/
+
+#define USER_SYSTEM_VER_MAJOR 1
+#define USER_SYSTEM_VER_MINOR 0
+extern DRIVER UserAccountDriver;
 
 /************************************************************************/
 

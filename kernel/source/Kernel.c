@@ -879,7 +879,7 @@ void InitializeKernel(void) {
     LoadDriver(&DeferredWorkDriver, TEXT(DeferredWorkDriver.Product));
     LoadDriver(&NetworkManagerDriver, TEXT(NetworkManagerDriver.Product));
     MountUserNodes();
-    InitializeUserSystem();
+    LoadDriver(&UserAccountDriver, TEXT(UserAccountDriver.Product));
     LoadDriver(&VESADriver, TEXT(VESADriver.Product));
 
     //-------------------------------------
