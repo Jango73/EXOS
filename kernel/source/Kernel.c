@@ -881,7 +881,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the console
 
-    InitializeConsole();
+    LoadDriver(&ConsoleDriver, ConsoleDriver.Product);
 
     //-------------------------------------
     // Init the kernel logger
