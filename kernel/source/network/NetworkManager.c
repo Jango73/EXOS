@@ -25,6 +25,7 @@
 #include "network/NetworkManager.h"
 
 #include "network/ARP.h"
+#include "User.h"
 #include "network/IPv4.h"
 #include "network/UDP.h"
 #include "network/DHCP.h"
@@ -40,6 +41,27 @@
 #include "utils/Helpers.h"
 #include "CoreString.h"
 #include "utils/TOML.h"
+
+/************************************************************************/
+
+#define NETWORK_MANAGER_VER_MAJOR 1
+#define NETWORK_MANAGER_VER_MINOR 0
+
+static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER NetworkManagerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = NETWORK_MANAGER_VER_MAJOR,
+    .VersionMinor = NETWORK_MANAGER_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "NetworkManager",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = NetworkManagerDriverCommands};
 
 /************************************************************************/
 
@@ -250,6 +272,40 @@ void InitializeNetwork(void) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Driver command handler for the network manager.
+ *
+ * DF_LOAD discovers and initializes network devices once; DF_UNLOAD clears
+ * readiness only.
+ */
+static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeNetwork();
+            NetworkManagerDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            NetworkManagerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(NETWORK_MANAGER_VER_MAJOR, NETWORK_MANAGER_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
+}
 
 void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
     DEBUG(TEXT("[NetworkManager_InitializeDevice] Enter for device %s"), Device->Driver->Product);

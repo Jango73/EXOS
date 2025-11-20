@@ -32,6 +32,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 #include "drivers/PCI.h"
 #include "network/Network.h"
 
@@ -93,6 +94,8 @@ BOOL NetworkManager_IsDeviceReady(LPDEVICE Device);
 void NetworkManager_MaintenanceTick(LPNETWORK_DEVICE_CONTEXT Context);
 
 /************************************************************************/
+
+extern DRIVER NetworkManagerDriver;
 
 #pragma pack(pop)
 

@@ -1028,7 +1028,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize network stack
 
-    InitializeNetwork();
+    LoadDriver(&NetworkManagerDriver, NetworkManagerDriver.Product);
 
     DEBUG(TEXT("[InitializeKernel] Network manager initialized"));
 
