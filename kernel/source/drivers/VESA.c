@@ -200,6 +200,11 @@ VESA_CONTEXT VESAContext = {
 static BOOL InitializeVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
+    // Have to fix real mode call in x86-64
+#if defined(__EXOS_ARCH_X86_64__)
+    return TRUE;
+#endif
+
     DEBUG(TEXT("[InitializeVESA] Enter"));
 
     //-------------------------------------

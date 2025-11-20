@@ -914,11 +914,6 @@ void InitializeKernel(void) {
     LoadDriver(&InterruptControllerDriver, InterruptControllerDriver.Product);
 
     //-------------------------------------
-    // Run auto tests
-
-    RunAllTests();
-
-    //-------------------------------------
     // Initialize the keyboard
 
     LoadDriver(&StdKeyboardDriver, TEXT(StdKeyboardDriver.Product));
@@ -939,11 +934,6 @@ void InitializeKernel(void) {
     GetCPUInformation(&(Kernel.CPU));
 
     DEBUG(TEXT("[InitializeKernel] Got CPU information"));
-
-    //-------------------------------------
-    // Initialize quantum time based on environment and debug settings
-
-    InitializeQuantumTime();
 
     //-------------------------------------
     // Initialize the PCI drivers
@@ -1003,9 +993,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the graphics card
 
-#if defined(__EXOS_ARCH_I386__)
     LoadDriver(&VESADriver, TEXT(VESADriver.Product));
-#endif
 
     DEBUG(TEXT("[InitializeKernel] VESA driver initialized"));
 
@@ -1020,9 +1008,22 @@ void InitializeKernel(void) {
     DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     //-------------------------------------
+    // Initialize quantum time based on environment and debug settings
+
+    InitializeQuantumTime();
+
+    //-------------------------------------
     // Set keyboard mapping
 
     UseConfiguration();
+
+    //-------------------------------------
+    // Run auto tests
+
+    // Have to understand why it crashes in x86-64
+#if defined(__EXOS_ARCH_I386__)
+    RunAllTests();
+#endif
 
     //-------------------------------------
     // Print the EXOS banner
