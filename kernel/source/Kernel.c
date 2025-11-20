@@ -887,11 +887,6 @@ void InitializeKernel(void) {
     DEBUG(TEXT("[InitializeKernel] Interrupts initialized"));
 
     //-------------------------------------
-    // Dump critical information
-
-    DumpCriticalInformation();
-
-    //-------------------------------------
     // Initialize kernel process
 
     InitializeKernelProcess();
