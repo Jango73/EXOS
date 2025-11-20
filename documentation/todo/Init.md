@@ -62,4 +62,23 @@ Tâche à accomplir :
   - si la fonction DF_UNLOAD est appelée alors que Driver.Ready est faux: ne rien faire
   - si le module contient déjà une fonction de shutdown, alors DF_UNLOAD doit l'appeler. sinon, DF_UNLOAD ne fait rien (à part mettre Ready à faux).
 
-Avant de coder, tu vas créer un plan pour conduire cette tâche, dans un nouveau .md, et tu attends que je valide.
+# Work Log
+
+- Implemented driver-based initialization across several subsystems per task list, converting direct init calls into `LoadDriver` flows with READY flag management and DF_LOAD/DF_UNLOAD/DF_GETVERSION handlers.
+- Completed driverization for:
+  - Memory manager
+  - Interrupts (IDT), Local APIC, IOAPIC
+  - Console
+  - ACPI
+  - PCI bus init (register/address scan)
+  - File systems initialization
+  - Device interrupts
+  - Network manager
+  - Clock
+  - Deferred work dispatcher
+- Updated `Kernel.c` to use driver loads instead of direct init calls for the above modules.
+- Added necessary driver exports in corresponding headers and included `Driver.h`/`User.h` where DF_* codes are used.
+
+Remaining context: Continue module-by-module driverization per InitializeKernel sequence (e.g., remaining items like MountUserNodes, InitializeUserSystem, etc.) if required by task.
+
+Next module to process : InitKernelLog()
