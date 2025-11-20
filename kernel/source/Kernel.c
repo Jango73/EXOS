@@ -961,11 +961,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize I/O APIC
 
-    if (InitializeIOAPIC()) {
-        DEBUG(TEXT("[InitializeKernel] I/O APIC initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] I/O APIC not available or failed to initialize"));
-    }
+    LoadDriver(&IOAPICDriver, IOAPICDriver.Product);
 
     //-------------------------------------
     // Initialize Interrupt Controller abstraction layer (after IOAPIC)
