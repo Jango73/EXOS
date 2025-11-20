@@ -905,7 +905,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the memory manager
 
-    LoadDriver(&MemoryManagerDriver, MemoryManagerDriver.Product);
+    LoadDriver(&MemoryManagerDriver, TEXT(MemoryManagerDriver.Product));
 
     DEBUG(TEXT("[KernelMain] Memory manager initialized"));
 
@@ -921,7 +921,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize interrupts
 
-    LoadDriver(&InterruptsDriver, InterruptsDriver.Product);
+    LoadDriver(&InterruptsDriver, TEXT(InterruptsDriver.Product));
 
     DEBUG(TEXT("[InitializeKernel] Interrupts initialized"));
 
@@ -991,14 +991,14 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the keyboard
 
-    LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
+    LoadDriver(&StdKeyboardDriver, TEXT(StdKeyboardDriver.Product));
 
     DEBUG(TEXT("[InitializeKernel] Keyboard initialized"));
 
     //-------------------------------------
     // Initialize the mouse
 
-    LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
+    LoadDriver(&SerialMouseDriver, TEXT(SerialMouseDriver.Product));
 
     DEBUG(TEXT("[InitializeKernel] Mouse initialized"));
 
@@ -1031,8 +1031,8 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize physical drives
 
-    LoadDriver(&ATADiskDriver, TEXT("ATADisk"));
-    LoadDriver(&SATADiskDriver, TEXT("SATADisk"));
+    LoadDriver(&ATADiskDriver, TEXT(ATADiskDriver.Product));
+    LoadDriver(&SATADiskDriver, TEXT(SATADiskDriver.Product));
 
     DEBUG(TEXT("[InitializeKernel] Physical drives initialized"));
 
@@ -1089,7 +1089,7 @@ void InitializeKernel(void) {
     // Initialize the graphics card
 
 #if defined(__EXOS_ARCH_I386__)
-    LoadDriver(&VESADriver, TEXT("VESA"));
+    LoadDriver(&VESADriver, TEXT(VESADriver.Product));
 #endif
 
     DEBUG(TEXT("[InitializeKernel] VESA driver initialized"));
