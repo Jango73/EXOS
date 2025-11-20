@@ -855,147 +855,32 @@ void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
     PreInitializeKernel();
-
-    //-------------------------------------
-    // Initialize the console
-
-    LoadDriver(&ConsoleDriver, ConsoleDriver.Product);
-
-    //-------------------------------------
-    // Init the kernel logger
-
-    LoadDriver(&KernelLogDriver, KernelLogDriver.Product);
-
-    DEBUG(TEXT("[InitializeKernel] Kernel logger initialized"));
-
-    //-------------------------------------
-    // Initialize the memory manager
-
-    LoadDriver(&MemoryManagerDriver, TEXT(MemoryManagerDriver.Product));
-
-    DEBUG(TEXT("[KernelMain] Memory manager initialized"));
-
-    LoadDriver(&TaskSegmentsDriver, TaskSegmentsDriver.Product);
-
-    DEBUG(TEXT("[KernelMain] Task segments initialized"));
-
-    //-------------------------------------
-    // Initialize interrupts
-
-    LoadDriver(&InterruptsDriver, TEXT(InterruptsDriver.Product));
-
-    DEBUG(TEXT("[InitializeKernel] Interrupts initialized"));
-
-    //-------------------------------------
-    // Initialize kernel process
-
-    InitializeKernelProcess();
-
-    DEBUG(TEXT("[InitializeKernel] Kernel process and task initialized"));
-
-    //-------------------------------------
-    // Initialize ACPI
-
-    LoadDriver(&ACPIDriver, ACPIDriver.Product);
-
-    //-------------------------------------
-    // Initialize Local APIC
-
-    LoadDriver(&LocalAPICDriver, LocalAPICDriver.Product);
-
-    //-------------------------------------
-    // Initialize I/O APIC
-
-    LoadDriver(&IOAPICDriver, IOAPICDriver.Product);
-
-    //-------------------------------------
-    // Initialize Interrupt Controller abstraction layer (after IOAPIC)
-
-    LoadDriver(&InterruptControllerDriver, InterruptControllerDriver.Product);
-
-    //-------------------------------------
-    // Initialize the keyboard
-
-    LoadDriver(&StdKeyboardDriver, TEXT(StdKeyboardDriver.Product));
-
-    //-------------------------------------
-    // Initialize the mouse
-
-    LoadDriver(&SerialMouseDriver, TEXT(SerialMouseDriver.Product));
-
-    //-------------------------------------
-    // Initialize the clock
-
-    LoadDriver(&ClockDriver, ClockDriver.Product);
-
-    //-------------------------------------
-    // Get information on CPU
-
     GetCPUInformation(&(Kernel.CPU));
-
-    DEBUG(TEXT("[InitializeKernel] Got CPU information"));
-
-    //-------------------------------------
-    // Initialize the PCI drivers
-
+    LoadDriver(&ConsoleDriver, ConsoleDriver.Product);
+    LoadDriver(&KernelLogDriver, KernelLogDriver.Product);
+    LoadDriver(&MemoryManagerDriver, TEXT(MemoryManagerDriver.Product));
+    LoadDriver(&TaskSegmentsDriver, TaskSegmentsDriver.Product);
+    LoadDriver(&InterruptsDriver, TEXT(InterruptsDriver.Product));
+    InitializeKernelProcess();
+    LoadDriver(&ACPIDriver, ACPIDriver.Product);
+    LoadDriver(&LocalAPICDriver, LocalAPICDriver.Product);
+    LoadDriver(&IOAPICDriver, IOAPICDriver.Product);
+    LoadDriver(&InterruptControllerDriver, InterruptControllerDriver.Product);
+    LoadDriver(&StdKeyboardDriver, TEXT(StdKeyboardDriver.Product));
+    LoadDriver(&SerialMouseDriver, TEXT(SerialMouseDriver.Product));
+    LoadDriver(&ClockDriver, ClockDriver.Product);
     LoadDriver(&PCIDriver, PCIDriver.Product);
-
-    //-------------------------------------
-    // Initialize physical drives
-
     LoadDriver(&ATADiskDriver, TEXT(ATADiskDriver.Product));
     LoadDriver(&SATADiskDriver, TEXT(SATADiskDriver.Product));
-
-    DEBUG(TEXT("[InitializeKernel] Physical drives initialized"));
-
-    //-------------------------------------
-    // Initialize RAM drives
-
-    LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
-
-    DEBUG(TEXT("[InitializeKernel] RAM drive initialized"));
-
-    //-------------------------------------
-    // Initialize the file systems
-
+    LoadDriver(&RAMDiskDriver, TEXT(RAMDiskDriver.Product));
     LoadDriver(&FileSystemDriver, FileSystemDriver.Product);
-
-    //-------------------------------------
-    // Read kernel configuration
-
     ReadKernelConfiguration();
-
-    //-------------------------------------
-    // Initialize deferred work infrastructure
-
     LoadDriver(&DeviceInterruptDriver, DeviceInterruptDriver.Product);
     LoadDriver(&DeferredWorkDriver, DeferredWorkDriver.Product);
-
-    //-------------------------------------
-    // Initialize network stack
-
     LoadDriver(&NetworkManagerDriver, NetworkManagerDriver.Product);
-
-    DEBUG(TEXT("[InitializeKernel] Network manager initialized"));
-
-    //-------------------------------------
-    // Mount system folders
-
     MountUserNodes();
-
-    //-------------------------------------
-    // Initialize user account system
-
     InitializeUserSystem();
-
-    DEBUG(TEXT("[InitializeKernel] User account & session systems initialized"));
-
-    //-------------------------------------
-    // Initialize the graphics card
-
     LoadDriver(&VESADriver, TEXT(VESADriver.Product));
-
-    DEBUG(TEXT("[InitializeKernel] VESA driver initialized"));
 
     //-------------------------------------
     // Initialize object termination cache
@@ -1020,7 +905,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Run auto tests
 
-    // Have to understand why it crashes in x86-64
+    // TODO : Fix RunAllTests in x86-64
 #if defined(__EXOS_ARCH_I386__)
     RunAllTests();
 #endif
