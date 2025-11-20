@@ -861,7 +861,7 @@ void InitializeKernel(void) {
     LoadDriver(&MemoryManagerDriver);
     LoadDriver(&TaskSegmentsDriver);
     LoadDriver(&InterruptsDriver);
-    InitializeKernelProcess();
+    LoadDriver(&KernelProcessDriver);
     LoadDriver(&ACPIDriver);
     LoadDriver(&LocalAPICDriver);
     LoadDriver(&IOAPICDriver);

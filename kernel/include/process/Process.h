@@ -197,6 +197,7 @@ struct tag_DESKTOP {
 // Global objects
 
 extern PROCESS KernelProcess;
+extern DRIVER KernelProcessDriver;
 extern WINDOW MainDesktopWindow;
 extern DESKTOP MainDesktop;
 

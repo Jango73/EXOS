@@ -25,6 +25,7 @@
 #include "process/Process.h"
 
 #include "Console.h"
+#include "Driver.h"
 #include "Executable.h"
 #include "File.h"
 #include "Kernel.h"
@@ -64,6 +65,27 @@ PROCESS SECTION(".data") KernelProcess = {
     .WorkFolder = ROOT,             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
+
+/***************************************************************************/
+
+#define KERNEL_PROCESS_VER_MAJOR 1
+#define KERNEL_PROCESS_VER_MINOR 0
+
+static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER SECTION(".data") KernelProcessDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = KERNEL_PROCESS_VER_MAJOR,
+    .VersionMinor = KERNEL_PROCESS_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "KernelProcess",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = KernelProcessDriverCommands};
 
 /***************************************************************************/
 
@@ -132,6 +154,39 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("[InitializeKernelProcess] Exit"));
 
     TRACED_EPILOGUE("InitializeKernelProcess");
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the kernel process initialization.
+ */
+static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeKernelProcess();
+            KernelProcessDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            KernelProcessDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(KERNEL_PROCESS_VER_MAJOR, KERNEL_PROCESS_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /***************************************************************************/
