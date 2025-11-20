@@ -969,16 +969,6 @@ void InitializeKernel(void) {
     LoadDriver(&InterruptControllerDriver, InterruptControllerDriver.Product);
 
     //-------------------------------------
-    // Initialize object termination cache
-
-    CacheInit(&Kernel.ObjectTerminationCache, CACHE_DEFAULT_CAPACITY);
-
-    DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
-
-    HandleMapInit(&Kernel.HandleMap);
-    DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
-
-    //-------------------------------------
     // Run auto tests
 
     RunAllTests();
@@ -1088,6 +1078,16 @@ void InitializeKernel(void) {
 #endif
 
     DEBUG(TEXT("[InitializeKernel] VESA driver initialized"));
+
+    //-------------------------------------
+    // Initialize object termination cache
+
+    CacheInit(&Kernel.ObjectTerminationCache, CACHE_DEFAULT_CAPACITY);
+
+    DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
+
+    HandleMapInit(&Kernel.HandleMap);
+    DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     //-------------------------------------
     // Set keyboard mapping
