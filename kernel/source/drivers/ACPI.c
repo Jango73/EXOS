@@ -33,6 +33,27 @@
 #include "System.h"
 
 /************************************************************************/
+
+#define ACPI_VER_MAJOR 1
+#define ACPI_VER_MINOR 0
+
+static UINT ACPIDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER ACPIDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = ACPI_VER_MAJOR,
+    .VersionMinor = ACPI_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "ACPI",
+    .Flags = 0,
+    .Command = ACPIDriverCommands};
+
+/************************************************************************/
 // Global ACPI configuration
 
 static ACPI_CONFIG G_AcpiConfig = {0};
@@ -763,4 +784,44 @@ void ACPIReboot(void) {
     DEBUG(TEXT("[ACPIReboot] Triggering keyboard controller reset"));
     Reboot();
     return;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for ACPI initialization.
+ *
+ * DF_LOAD initializes ACPI (idempotent). DF_UNLOAD triggers ACPIShutdown if
+ * the driver was ready.
+ */
+static UINT ACPIDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((ACPIDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeACPI()) {
+                ACPIDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((ACPIDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ACPIShutdown();
+            ACPIDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(ACPI_VER_MAJOR, ACPI_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }

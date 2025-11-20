@@ -940,7 +940,9 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize ACPI
 
-    if (InitializeACPI()) {
+    LoadDriver(&ACPIDriver, ACPIDriver.Product);
+
+    if ((ACPIDriver.Flags & DRIVER_FLAG_READY) != 0) {
         DEBUG(TEXT("[InitializeKernel] ACPI initialized successfully"));
     } else {
         DEBUG(TEXT("[InitializeKernel] ACPI not available or failed to initialize"));
