@@ -28,8 +28,30 @@
 #include "InterruptController.h"
 #include "drivers/IOAPIC.h"
 #include "drivers/LocalAPIC.h"
+#include "User.h"
 #include "Log.h"
 #include "System.h"
+
+/************************************************************************/
+
+#define INTCTRL_VER_MAJOR 1
+#define INTCTRL_VER_MINOR 0
+
+static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER InterruptControllerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = INTCTRL_VER_MAJOR,
+    .VersionMinor = INTCTRL_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "InterruptController",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = InterruptControllerDriverCommands};
 
 /************************************************************************/
 // Global interrupt controller configuration
@@ -728,4 +750,44 @@ BOOL RestoreIOAPICAfterRealMode(void) {
     SetDefaultIOAPICConfiguration();
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the interrupt controller abstraction layer.
+ *
+ * DF_LOAD initializes the controller stack once; DF_UNLOAD shuts it down and
+ * clears readiness.
+ */
+static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeInterruptController(INTCTRL_MODE_AUTO)) {
+                InterruptControllerDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ShutdownInterruptController();
+            InterruptControllerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(INTCTRL_VER_MAJOR, INTCTRL_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }

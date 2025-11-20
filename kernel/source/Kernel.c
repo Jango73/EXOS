@@ -966,11 +966,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize Interrupt Controller abstraction layer (after IOAPIC)
 
-    if (InitializeInterruptController(INTCTRL_MODE_AUTO)) {
-        DEBUG(TEXT("[InitializeKernel] Interrupt Controller initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] Interrupt Controller initialization failed"));
-    }
+    LoadDriver(&InterruptControllerDriver, InterruptControllerDriver.Product);
 
     //-------------------------------------
     // Initialize object termination cache
