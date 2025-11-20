@@ -87,25 +87,6 @@ void DoPageFault(void) {
 /************************************************************************/
 
 /**
- * @brief Checks that the DeadBeef sentinel retains its expected value.
- *
- * This routine verifies the global DeadBeef variable and halts if it has
- * been altered, indicating memory corruption.
- */
-
-void CheckDataIntegrity(void) {
-    if (DeadBeef != 0xDEADBEEF) {
-        DEBUG(TEXT("Expected a dead beef at %X"), (&DeadBeef));
-        DEBUG(TEXT("Data corrupt, halting"));
-
-        // Wait forever
-        DO_THE_SLEEPING_BEAUTY;
-    }
-}
-
-/************************************************************************/
-
-/**
  * @brief Converts a kernel symbol address to its corresponding physical
  *        address.
  *
@@ -897,11 +878,6 @@ void InitializeKernel(void) {
     LoadDriver(&TaskSegmentsDriver, TaskSegmentsDriver.Product);
 
     DEBUG(TEXT("[KernelMain] Task segments initialized"));
-
-    //-------------------------------------
-    // Check data integrity
-
-    CheckDataIntegrity();
 
     //-------------------------------------
     // Initialize interrupts
