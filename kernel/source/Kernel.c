@@ -883,7 +883,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Init the kernel logger
 
-    InitKernelLog();
+    LoadDriver(&KernelLogDriver, KernelLogDriver.Product);
 
     DEBUG(TEXT("[InitializeKernel] Kernel logger initialized"));
 
