@@ -763,20 +763,6 @@ static void UseConfiguration(void) {
 /************************************************************************/
 
 /**
- * @brief Initializes PCI subsystem by registering drivers and scanning the bus.
- */
-
-static void InitializePCI(void) {
-    extern PCI_DRIVER AHCIPCIDriver;
-
-    PCI_RegisterDriver(&E1000Driver);
-    PCI_RegisterDriver(&AHCIPCIDriver);
-    PCI_ScanBus();
-}
-
-/************************************************************************/
-
-/**
  * @brief Calculates the amount of physical memory currently in use.
  *
  * Traverses the page bitmap and counts allocated pages.
@@ -1003,9 +989,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the PCI drivers
 
-    InitializePCI();
-
-    DEBUG(TEXT("[InitializeKernel] PCI manager initialized"));
+    LoadDriver(&PCIDriver, PCIDriver.Product);
 
     //-------------------------------------
     // Initialize physical drives
