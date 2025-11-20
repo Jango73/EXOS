@@ -956,11 +956,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize Local APIC
 
-    if (InitializeLocalAPIC()) {
-        DEBUG(TEXT("[InitializeKernel] Local APIC initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] Local APIC not available or failed to initialize"));
-    }
+    LoadDriver(&LocalAPICDriver, LocalAPICDriver.Product);
 
     //-------------------------------------
     // Initialize I/O APIC
