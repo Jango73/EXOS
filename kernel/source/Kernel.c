@@ -39,6 +39,7 @@
 #include "FileSystem.h"
 #include "drivers/ATA.h"
 #include "drivers/SATA.h"
+#include "Memory.h"
 #include "Interrupt.h"
 #include "drivers/Keyboard.h"
 #include "Lang.h"
@@ -904,7 +905,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the memory manager
 
-    InitializeMemoryManager();
+    LoadDriver(&MemoryManagerDriver, MemoryManagerDriver.Product);
 
     DEBUG(TEXT("[KernelMain] Memory manager initialized"));
 

@@ -27,6 +27,27 @@
 
 /************************************************************************/
 
+#define MEMORY_MANAGER_VER_MAJOR 1
+#define MEMORY_MANAGER_VER_MINOR 0
+
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
+
+DRIVER MemoryManagerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = MEMORY_MANAGER_VER_MAJOR,
+    .VersionMinor = MEMORY_MANAGER_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "MemoryManager",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = MemoryManagerCommands};
+
+/************************************************************************/
+
 typedef enum _PAGE_TABLE_POPULATE_MODE {
     PAGE_TABLE_POPULATE_IDENTITY,
     PAGE_TABLE_POPULATE_SINGLE_ENTRY,
@@ -1062,6 +1083,46 @@ Out:
 
     DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
     return Pml4Physical;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Handles driver commands for the memory manager.
+ *
+ * DF_LOAD initializes the memory manager and marks the driver as ready.
+ * DF_UNLOAD clears the ready flag; no shutdown routine is available.
+ *
+ * @param Function Driver command selector.
+ * @param Parameter Unused.
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_NOTIMPL otherwise.
+ */
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeMemoryManager();
+            MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /************************************************************************/

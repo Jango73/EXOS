@@ -60,6 +60,11 @@
 
 /***************************************************************************/
 
+#define DRIVER_FLAG_READY 0x00000001
+#define DRIVER_FLAG_CRITICAL 0x00000002
+
+/***************************************************************************/
+
 typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
 
 /***************************************************************************/
@@ -71,6 +76,7 @@ typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
     STR Designer[MAX_NAME];     \
     STR Manufacturer[MAX_NAME]; \
     STR Product[MAX_NAME];      \
+    U32 Flags;                  \
     DRVFUNC Command;
 
 typedef struct tag_DRIVER {

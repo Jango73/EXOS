@@ -26,6 +26,7 @@
 #define MEMORY_H_INCLUDED
 
 #include "Base.h"
+#include "Driver.h"
 #include "List.h"
 #include "arch/Memory.h"
 
@@ -113,7 +114,11 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags);
 
 // Kernel region resize wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
-LINEAR ResizeKernelRegion(PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
+LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags);
+
+/************************************************************************/
+
+extern DRIVER MemoryManagerDriver;
 
 /************************************************************************/
 
