@@ -221,4 +221,8 @@ void FileSystemSetActivePartition(LPFILESYSTEM FileSystem);
 
 #pragma pack(pop)
 
+extern DRIVER FileSystemDriver;
+
+/***************************************************************************/
+
 #endif

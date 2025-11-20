@@ -1009,9 +1009,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize the file systems
 
-    InitializeFileSystems();
-
-    DEBUG(TEXT("[InitializeKernel] File systems initialized"));
+    LoadDriver(&FileSystemDriver, FileSystemDriver.Product);
 
     //-------------------------------------
     // Read kernel configuration
