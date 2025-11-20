@@ -38,7 +38,7 @@
 
 UINT SerialMouseCommands(UINT, UINT);
 
-DRIVER SerialMouseDriver = {
+DRIVER SECTION(".data") SerialMouseDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

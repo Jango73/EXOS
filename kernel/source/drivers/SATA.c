@@ -51,7 +51,7 @@
 
 UINT SATADiskCommands(UINT, UINT);
 
-DRIVER SATADiskDriver = {
+DRIVER SECTION(".data") SATADiskDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

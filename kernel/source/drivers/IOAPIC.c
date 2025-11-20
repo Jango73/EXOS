@@ -42,7 +42,7 @@ static IOAPIC_CONFIG g_IOAPICConfig = {0};
 
 static UINT IOAPICDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER IOAPICDriver = {
+DRIVER SECTION(".data") IOAPICDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
