@@ -609,6 +609,10 @@ void PreInitializeKernel(void) {
 
     ReadGlobalDescriptorTable(&Gdtr);
     Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)(LINEAR)Gdtr.Base;
+
+    KernelStartup.PageDirectory = GetPageDirectory();
+    KernelStartup.IRQMask_21_RM = 0;
+    KernelStartup.IRQMask_A1_RM = 0;
 }
 
 /***************************************************************************/

@@ -590,6 +590,10 @@ void PreInitializeKernel(void) {
     ReadGlobalDescriptorTable(&Gdtr);
     Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
 
+    KernelStartup.PageDirectory = GetPageDirectory();
+    KernelStartup.IRQMask_21_RM = 0;
+    KernelStartup.IRQMask_A1_RM = 0;
+
     DEBUG(TEXT("[PreInitializeKernel] CR0 : CR0_COPROCESSOR on and CR0_EMULATION off"));
 
     __asm__ volatile("mov %%cr0, %0" : "=r"(Cr0));

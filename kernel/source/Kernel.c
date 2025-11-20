@@ -878,13 +878,6 @@ void InitializeKernel(void) {
     PreInitializeKernel();
 
     //-------------------------------------
-    // Gather startup information
-
-    KernelStartup.PageDirectory = GetPageDirectory();
-    KernelStartup.IRQMask_21_RM = 0;
-    KernelStartup.IRQMask_A1_RM = 0;
-
-    //-------------------------------------
     // Initialize the console
 
     InitializeConsole();
