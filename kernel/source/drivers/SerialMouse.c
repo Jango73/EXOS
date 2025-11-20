@@ -49,6 +49,7 @@ DRIVER SerialMouseDriver = {
     .Designer = "Jango73",
     .Manufacturer = "Not applicable",
     .Product = "Standard Serial Mouse",
+    .Flags = 0,
     .Command = SerialMouseCommands};
 
 /***************************************************************************/
@@ -206,7 +207,7 @@ static BOOL WaitMouseData(U32 TimeOut) {
 
 /***************************************************************************/
 
-static U32 MouseInitialize(void) {
+static BOOL InitializeMouse(void) {
     U32 Sig1, Sig2;
     U32 Byte, Index;
     
@@ -316,7 +317,7 @@ static U32 MouseInitialize(void) {
 
     EnableInterrupt(IRQ_MOUSE);
 
-    return DF_ERROR_SUCCESS;
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -476,7 +477,23 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
 
     switch (Function) {
         case DF_LOAD:
-            return (UINT)MouseInitialize();
+            if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeMouse()) {
+                SerialMouseDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+        case DF_UNLOAD:
+            if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            SerialMouseDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:

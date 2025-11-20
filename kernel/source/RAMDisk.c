@@ -45,6 +45,7 @@ DRIVER RAMDiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "RAM Disk Controller",
+    .Flags = 0,
     .Command = RAMDiskCommands};
 
 /***************************************************************************/
@@ -625,8 +626,22 @@ static U32 SetAccess(LPDISKACCESS Access) {
 UINT RAMDiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
-            return RAMDiskInitialize();
+            if ((RAMDiskDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (RAMDiskInitialize() == DF_ERROR_SUCCESS) {
+                RAMDiskDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
         case DF_UNLOAD:
+            if ((RAMDiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            RAMDiskDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);

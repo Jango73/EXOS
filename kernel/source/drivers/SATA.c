@@ -62,6 +62,7 @@ DRIVER SATADiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "AHCI Controllers",
     .Product = "AHCI SATA Controller",
+    .Flags = 0,
     .Command = SATADiskCommands};
 
 /***************************************************************************/
@@ -1019,8 +1020,18 @@ void AHCIInterruptHandler(void) {
 UINT SATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
+            if ((SATADiskDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            SATADiskDriver.Flags |= DRIVER_FLAG_READY;
             return DF_ERROR_SUCCESS;
         case DF_UNLOAD:
+            if ((SATADiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            SATADiskDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);

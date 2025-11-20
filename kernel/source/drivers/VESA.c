@@ -62,6 +62,7 @@ DRIVER VESADriver = {
     .Designer = "Jango73",
     .Manufacturer = "Video Electronics Standard Association",
     .Product = "VESA Compatible Graphics Card",
+    .Flags = 0,
     .Command = VESACommands};
 
 /************************************************************************/
@@ -196,10 +197,10 @@ VESA_CONTEXT VESAContext = {
 
 /***************************************************************************/
 
-static U32 VESAInitialize(void) {
+static BOOL InitializeVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
-    DEBUG(TEXT("[VESAInitialize] Enter"));
+    DEBUG(TEXT("[InitializeVESA] Enter"));
 
     //-------------------------------------
     // Initialize the context
@@ -225,23 +226,23 @@ static U32 VESAInitialize(void) {
 
     RealModeCall(VIDEO_CALL, &Regs);
 
-    DEBUG(TEXT("[VESAInitialize] Real mode call done"));
+    DEBUG(TEXT("[InitializeVESA] Real mode call done"));
 
     if (Regs.X.AX == 0x004F) {
         MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(VESAINFOBLOCK));
 
-        DEBUG(TEXT("[VESAInitialize] VESAInfo.Signature: %x %x %x %x"),
+        DEBUG(TEXT("[InitializeVESA] VESAInfo.Signature: %x %x %x %x"),
             VESAContext.VESAInfo.Signature[0], VESAContext.VESAInfo.Signature[1],
             VESAContext.VESAInfo.Signature[2], VESAContext.VESAInfo.Signature[3]);
-        DEBUG(TEXT("[VESAInitialize] VESAInfo.Version: %u"), VESAContext.VESAInfo.Version);
-        DEBUG(TEXT("[VESAInitialize] VESAInfo.Memory: %u KB"), VESAContext.VESAInfo.Memory * 64);
+        DEBUG(TEXT("[InitializeVESA] VESAInfo.Version: %u"), VESAContext.VESAInfo.Version);
+        DEBUG(TEXT("[InitializeVESA] VESAInfo.Memory: %u KB"), VESAContext.VESAInfo.Memory * 64);
 
         if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_ERROR_GENERIC;
         if (VESAContext.VESAInfo.Signature[1] != 'E') return DF_ERROR_GENERIC;
         if (VESAContext.VESAInfo.Signature[2] != 'S') return DF_ERROR_GENERIC;
         if (VESAContext.VESAInfo.Signature[3] != 'A') return DF_ERROR_GENERIC;
     } else {
-        ERROR(TEXT("[VESAInitialize] Call to VESA information failed"));
+        ERROR(TEXT("[InitializeVESA] Call to VESA information failed"));
     }
 
     /*
@@ -254,14 +255,14 @@ static U32 VESAInitialize(void) {
                 (VESAContext.VESAInfo.Memory << MUL_64KB) >> MUL_1KB);
                 */
 
-    DEBUG(TEXT("[VESAInitialize] Exit"));
+    DEBUG(TEXT("[InitializeVESA] Exit"));
 
-    return DF_ERROR_SUCCESS;
+    return TRUE;
 }
 
 /***************************************************************************/
 
-static U32 VESAUninitialize(void) {
+static U32 ShutdownVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
     if (VESAContext.LinearFrameBufferEnabled != FALSE && VESAContext.FrameBufferLinear != 0 &&
@@ -1350,9 +1351,24 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 UINT VESACommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
-            return (UINT)VESAInitialize();
+            if ((VESADriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeVESA()) {
+                VESADriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
         case DF_UNLOAD:
-            return (UINT)VESAUninitialize();
+            if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ShutdownVESA();
+            VESADriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GFX_SETMODE:

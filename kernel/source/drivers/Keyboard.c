@@ -51,6 +51,7 @@ DRIVER StdKeyboardDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "Standard IBM PC Keyboard - 102 keys",
+    .Flags = 0,
     .Command = StdKeyboardCommands};
 
 /***************************************************************************/
@@ -775,7 +776,23 @@ static U32 InitializeKeyboard(void) {
 UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
-            return InitializeKeyboard();
+            if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeKeyboard() == DF_ERROR_SUCCESS) {
+                StdKeyboardDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+        case DF_UNLOAD:
+            if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            StdKeyboardDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GETLASTFUNC:
