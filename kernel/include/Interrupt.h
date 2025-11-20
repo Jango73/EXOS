@@ -25,8 +25,14 @@
 #ifndef INTERRUPT_H_INCLUDED
 #define INTERRUPT_H_INCLUDED
 
+#include "Driver.h"
+
 void InitializeInterrupts(void);
 void SendEOI(void);
+
+/***************************************************************************/
+
+extern DRIVER InterruptsDriver;
 
 /***************************************************************************/
 

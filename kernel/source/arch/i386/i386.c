@@ -38,6 +38,27 @@
 #include "Interrupt.h"
 #include "SYSCall.h"
 
+/************************************************************************/
+
+#define INTERRUPTS_VER_MAJOR 1
+#define INTERRUPTS_VER_MINOR 0
+
+static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER InterruptsDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = INTERRUPTS_VER_MAJOR,
+    .VersionMinor = INTERRUPTS_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Interrupts",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = InterruptsDriverCommands};
+
 /************************************************************************\
 
     Virtual Address Space (32-bit)
@@ -227,6 +248,8 @@ void InitializeGateDescriptor(
     SetGateDescriptorOffset(Descriptor, Handler);
 }
 
+/***************************************************************************/
+
 void InitializeInterrupts(void) {
     Kernel_i386.IDT = IDT;
 
@@ -247,6 +270,8 @@ void InitializeInterrupts(void) {
 
     InitializeSystemCallTable();
 }
+
+/***************************************************************************/
 
 void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type) {
     MemorySet(This, 0, sizeof(SEGMENT_DESCRIPTOR));
@@ -624,6 +649,42 @@ void InitializeSystemCall(void) {
         GATE_TYPE_386_TRAP,
         PRIVILEGE_USER,
         0u);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for the interrupt subsystem.
+ *
+ * DF_LOAD initializes the IDT while DF_UNLOAD only clears the ready flag
+ * as no shutdown routine is available.
+ */
+static UINT InterruptsDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((InterruptsDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeInterrupts();
+            InterruptsDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((InterruptsDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InterruptsDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(INTERRUPTS_VER_MAJOR, INTERRUPTS_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /************************************************************************/

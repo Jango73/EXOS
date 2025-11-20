@@ -921,7 +921,7 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize interrupts
 
-    InitializeInterrupts();
+    LoadDriver(&InterruptsDriver, InterruptsDriver.Product);
 
     DEBUG(TEXT("[InitializeKernel] Interrupts initialized"));
 
