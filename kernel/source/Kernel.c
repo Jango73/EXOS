@@ -978,21 +978,15 @@ void InitializeKernel(void) {
 
     LoadDriver(&StdKeyboardDriver, TEXT(StdKeyboardDriver.Product));
 
-    DEBUG(TEXT("[InitializeKernel] Keyboard initialized"));
-
     //-------------------------------------
     // Initialize the mouse
 
     LoadDriver(&SerialMouseDriver, TEXT(SerialMouseDriver.Product));
 
-    DEBUG(TEXT("[InitializeKernel] Mouse initialized"));
-
     //-------------------------------------
     // Initialize the clock
 
     InitializeClock();
-
-    DEBUG(TEXT("[InitializeKernel] Clock initialized"));
 
     //-------------------------------------
     // Get information on CPU
