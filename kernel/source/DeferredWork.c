@@ -83,6 +83,14 @@ DRIVER DeferredWorkDriver = {
 
 /************************************************************************/
 
+/**
+ * @brief Initializes deferred work dispatcher task and event.
+ *
+ * Reads configuration for timeouts/polling, creates dispatcher task, and
+ * prepares internal slots for deferred work items.
+ *
+ * @return TRUE on success, FALSE on allocation or task creation failure.
+ */
 BOOL InitializeDeferredWork(void) {
     if (g_DispatcherStarted) {
         return TRUE;
@@ -150,6 +158,11 @@ BOOL InitializeDeferredWork(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Shuts down deferred work dispatcher state.
+ *
+ * Clears dispatcher flags and resets the deferred event when available.
+ */
 void ShutdownDeferredWork(void) {
     g_DispatcherStarted = FALSE;
     g_PollingMode = FALSE;
@@ -160,6 +173,13 @@ void ShutdownDeferredWork(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Registers a deferred work item with callbacks and context.
+ *
+ * @param Registration Registration information defining callbacks and context.
+ *
+ * @return Handle to the registered work item or DEFERRED_WORK_INVALID_HANDLE.
+ */
 U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
     if (Registration == NULL) {
         return DEFERRED_WORK_INVALID_HANDLE;
@@ -194,6 +214,15 @@ U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
 
 /************************************************************************/
 
+/**
+ * @brief Registers a polling-only deferred work item.
+ *
+ * @param PollCallback Callback invoked during polling.
+ * @param Context User-provided context passed to callback.
+ * @param Name Debug name for the registration.
+ *
+ * @return Handle to the registered work item or DEFERRED_WORK_INVALID_HANDLE.
+ */
 U32 DeferredWorkRegisterPollOnly(DEFERRED_WORK_POLL_CALLBACK PollCallback, LPVOID Context, LPCSTR Name) {
     DEFERRED_WORK_REGISTRATION Registration;
     MemorySet(&Registration, 0, sizeof(Registration));
@@ -206,6 +235,11 @@ U32 DeferredWorkRegisterPollOnly(DEFERRED_WORK_POLL_CALLBACK PollCallback, LPVOI
 
 /************************************************************************/
 
+/**
+ * @brief Unregisters a deferred work item and clears its slot.
+ *
+ * @param Handle Deferred work handle to remove.
+ */
 void DeferredWorkUnregister(U32 Handle) {
     if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
         return;
@@ -223,6 +257,11 @@ void DeferredWorkUnregister(U32 Handle) {
 
 /************************************************************************/
 
+/**
+ * @brief Signals a deferred work item to run its work callback.
+ *
+ * @param Handle Deferred work handle to signal.
+ */
 void DeferredWorkSignal(U32 Handle) {
     if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
         return;
@@ -246,12 +285,22 @@ void DeferredWorkSignal(U32 Handle) {
 
 /************************************************************************/
 
+/**
+ * @brief Indicates if deferred work dispatching uses polling mode.
+ *
+ * @return TRUE when polling mode is enabled, FALSE otherwise.
+ */
 BOOL DeferredWorkIsPollingMode(void) {
     return g_PollingMode;
 }
 
 /************************************************************************/
 
+/**
+ * @brief Processes pending deferred work callbacks until the queue drains.
+ *
+ * Resets the deferred event when no pending items remain.
+ */
 static void ProcessPendingWork(void) {
     BOOL WorkFound;
 
@@ -305,6 +354,9 @@ static void ProcessPendingWork(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Runs all registered polling callbacks.
+ */
 static void ProcessPollCallbacks(void) {
     for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
         LPDEFERRED_WORK_ITEM Item = &g_WorkItems[Index];
@@ -318,6 +370,13 @@ static void ProcessPollCallbacks(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Task entry point that dispatches deferred work based on mode.
+ *
+ * @param Param Unused task parameter.
+ *
+ * @return Always 0 when the task exits.
+ */
 static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     UNUSED(Param);
 
