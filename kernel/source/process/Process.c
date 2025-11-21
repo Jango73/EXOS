@@ -105,11 +105,7 @@ void InitializeKernelProcess(void) {
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
 
-#if defined(__EXOS_ARCH_I386__)
-    KernelProcess.HeapSize = N_2MB;
-#else
-    KernelProcess.HeapSize = N_4MB;
-#endif
+    KernelProcess.HeapSize = KERNEL_PROCESS_HEAP_SIZE;
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);

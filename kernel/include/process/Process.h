@@ -117,6 +117,13 @@ struct tag_MESSAGE {
 #define PROCESS_STATUS_ALIVE 0x00
 #define PROCESS_STATUS_DEAD 0xFF
 
+// Kernel process heap size
+#ifdef __EXOS_32__
+#define KERNEL_PROCESS_HEAP_SIZE N_2MB
+#else
+#define KERNEL_PROCESS_HEAP_SIZE N_4MB
+#endif
+
 // Task stack values
 
 #ifdef __EXOS_32__

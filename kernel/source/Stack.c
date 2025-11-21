@@ -32,11 +32,6 @@
 
 /************************************************************************/
 
-#define STACK_GROW_MIN_INCREMENT N_16KB
-#define STACK_GROW_EXTRA_HEADROOM N_16KB
-
-/************************************************************************/
-
 /**
  * @brief Locate the active stack descriptor that contains the provided SP.
  * @param Task Task owning the potential stacks.
