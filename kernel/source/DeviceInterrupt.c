@@ -85,8 +85,8 @@ DRIVER DeviceInterruptDriver = {
 U8 DeviceInterruptGetSlotCount(void) {
     U8 SlotCount = g_DeviceInterruptSlotCount;
 
-    if (SlotCount == 0U) {
-        SlotCount = 1U;
+    if (SlotCount == 0) {
+        SlotCount = 1;
     }
 
     if (SlotCount > DEVICE_INTERRUPT_VECTOR_MAX) {
@@ -105,9 +105,9 @@ static void DeviceInterruptApplyConfiguration(void) {
     if (STRING_EMPTY(SlotCountValue) == FALSE) {
         U32 Requested = StringToU32(SlotCountValue);
 
-        if (Requested == 0U) {
+        if (Requested == 0) {
             WARNING(TEXT("[DeviceInterruptApplyConfiguration] Requested slot count is zero, forcing minimum of 1"));
-            Requested = 1U;
+            Requested = 1;
         }
 
         if (Requested > DEVICE_INTERRUPT_VECTOR_MAX) {
@@ -120,8 +120,8 @@ static void DeviceInterruptApplyConfiguration(void) {
         g_DeviceInterruptSlotCount = (U8)Requested;
     }
 
-    if (g_DeviceInterruptSlotCount == 0U) {
-        g_DeviceInterruptSlotCount = 1U;
+    if (g_DeviceInterruptSlotCount == 0) {
+        g_DeviceInterruptSlotCount = 1;
     }
 
     DEBUG(TEXT("[DeviceInterruptApplyConfiguration] Active slots=%u (capacity=%u)"),
@@ -133,7 +133,7 @@ static void DeviceInterruptApplyConfiguration(void) {
 
 static BOOL DeviceInterruptAllocateEntries(void) {
     const U8 SlotCount = g_DeviceInterruptSlotCount;
-    if (SlotCount == 0U) {
+    if (SlotCount == 0) {
         ERROR(TEXT("[DeviceInterruptAllocateEntries] Slot count is zero"));
         return FALSE;
     }
@@ -144,7 +144,7 @@ static BOOL DeviceInterruptAllocateEntries(void) {
     }
 
     U32 AllocationSize = (U32)SlotCount * (U32)sizeof(DEVICE_INTERRUPT_ENTRY);
-    U32 PageMask = PAGE_SIZE - 1U;
+    U32 PageMask = PAGE_SIZE - 1;
     AllocationSize = (AllocationSize + PageMask) & ~PageMask;
 
     LINEAR Buffer = AllocKernelRegion(0, AllocationSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
@@ -412,8 +412,8 @@ void DeviceInterruptHandler(U8 SlotIndex) {
 
             if (Slot->InterruptEnabled && Slot->InterruptHandler != NULL) {
                 Entry->SuppressedCount++;
-                BOOL ShouldWarn = (Entry->InterruptCount <= 8U);
-                if (!ShouldWarn && (Entry->InterruptCount & 0xFFU) == 0U) {
+                BOOL ShouldWarn = (Entry->InterruptCount <= 8);
+                if (!ShouldWarn && (Entry->InterruptCount & 0xFF) == 0) {
                     ShouldWarn = TRUE;
                 }
 
@@ -425,7 +425,7 @@ void DeviceInterruptHandler(U8 SlotIndex) {
                 }
 
                 if (Entry->SuppressedCount >= DEVICE_INTERRUPT_SPURIOUS_THRESHOLD &&
-                    Slot->LegacyIRQ != 0xFFU) {
+                    Slot->LegacyIRQ != 0xFF) {
                     WARNING(TEXT("[DeviceInterruptHandler] Slot=%u IRQ=%u disabled after %u suppressed signals"),
                             SlotIndex,
                             Slot->LegacyIRQ,
@@ -440,7 +440,7 @@ void DeviceInterruptHandler(U8 SlotIndex) {
             }
         } else {
             Entry->SuppressedCount = 0;
-            if (Entry->InterruptCount <= 4U) {
+            if (Entry->InterruptCount <= 4) {
                 DEBUG(TEXT("[DeviceInterruptHandler] Slot=%u signaling deferred handle %u"),
                       SlotIndex,
                       Slot->DeferredHandle);
@@ -486,7 +486,7 @@ static void DeviceInterruptDeferredThunk(LPVOID Context) {
     const U32 SlotIndex = (U32)(Entry - g_DeviceInterruptEntries);
     if (SlotIndex < (U32)DeviceInterruptGetSlotCount()) {
         Entry->DeferredCount++;
-        if (Entry->DeferredCount <= 4U) {
+        if (Entry->DeferredCount <= 4) {
             DEBUG(TEXT("[DeviceInterruptDeferredThunk] Slot=%u Name=%s Count=%u"),
                   SlotIndex,
                   Slot->Name,
@@ -515,7 +515,7 @@ static void DeviceInterruptPollThunk(LPVOID Context) {
     const U32 SlotIndex = (U32)(Entry - g_DeviceInterruptEntries);
     if (SlotIndex < (U32)DeviceInterruptGetSlotCount()) {
         Entry->PollCount++;
-        if (Entry->PollCount <= 4U) {
+        if (Entry->PollCount <= 4) {
             DEBUG(TEXT("[DeviceInterruptPollThunk] Slot=%u Name=%s Count=%u"),
                   SlotIndex,
                   Slot->Name,
