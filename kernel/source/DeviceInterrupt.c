@@ -381,7 +381,7 @@ void DeviceInterruptHandler(U8 SlotIndex) {
     LPDEVICE_INTERRUPT_SLOT Slot = &Entry->Slot;
     if (!Slot->InUse) {
         static U32 SpuriousCount = 0;
-        if (SpuriousCount < 4U) {
+        if (SpuriousCount < INTERRUPT_LOG_SAMPLE_LIMIT) {
             DEBUG(TEXT("[DeviceInterruptHandler] Spurious device interrupt on slot %u"), SlotIndex);
         }
         SpuriousCount++;
@@ -389,7 +389,7 @@ void DeviceInterruptHandler(U8 SlotIndex) {
     }
 
     Entry->InterruptCount++;
-    if (Entry->InterruptCount <= 4U) {
+    if (Entry->InterruptCount <= INTERRUPT_LOG_SAMPLE_LIMIT) {
         DEBUG(TEXT("[DeviceInterruptHandler] Slot=%u IRQ=%u Device=%p Count=%u Enabled=%s"),
               SlotIndex,
               Slot->LegacyIRQ,
@@ -406,7 +406,7 @@ void DeviceInterruptHandler(U8 SlotIndex) {
         }
 
         if (!ShouldSignal) {
-            if (Entry->InterruptCount <= 4U) {
+            if (Entry->InterruptCount <= INTERRUPT_LOG_SAMPLE_LIMIT) {
                 DEBUG(TEXT("[DeviceInterruptHandler] Slot=%u top-half suppressed deferred execution"), SlotIndex);
             }
 
@@ -440,7 +440,7 @@ void DeviceInterruptHandler(U8 SlotIndex) {
             }
         } else {
             Entry->SuppressedCount = 0;
-            if (Entry->InterruptCount <= 4) {
+            if (Entry->InterruptCount <= INTERRUPT_LOG_SAMPLE_LIMIT) {
                 DEBUG(TEXT("[DeviceInterruptHandler] Slot=%u signaling deferred handle %u"),
                       SlotIndex,
                       Slot->DeferredHandle);
@@ -486,7 +486,7 @@ static void DeviceInterruptDeferredThunk(LPVOID Context) {
     const U32 SlotIndex = (U32)(Entry - g_DeviceInterruptEntries);
     if (SlotIndex < (U32)DeviceInterruptGetSlotCount()) {
         Entry->DeferredCount++;
-        if (Entry->DeferredCount <= 4) {
+        if (Entry->DeferredCount <= INTERRUPT_LOG_SAMPLE_LIMIT) {
             DEBUG(TEXT("[DeviceInterruptDeferredThunk] Slot=%u Name=%s Count=%u"),
                   SlotIndex,
                   Slot->Name,
@@ -515,7 +515,7 @@ static void DeviceInterruptPollThunk(LPVOID Context) {
     const U32 SlotIndex = (U32)(Entry - g_DeviceInterruptEntries);
     if (SlotIndex < (U32)DeviceInterruptGetSlotCount()) {
         Entry->PollCount++;
-        if (Entry->PollCount <= 4) {
+        if (Entry->PollCount <= INTERRUPT_LOG_SAMPLE_LIMIT) {
             DEBUG(TEXT("[DeviceInterruptPollThunk] Slot=%u Name=%s Count=%u"),
                   SlotIndex,
                   Slot->Name,

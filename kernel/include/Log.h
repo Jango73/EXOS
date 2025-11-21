@@ -40,6 +40,8 @@
 #define LOG_WARNING 0x0004
 #define LOG_ERROR 0x0008
 
+#define INTERRUPT_LOG_SAMPLE_LIMIT 4
+
 /***************************************************************************/
 
 void InitKernelLog(void);
