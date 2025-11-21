@@ -748,13 +748,13 @@ void ACPIReboot(void) {
                         && G_FADT->ResetReg.RegisterBitOffset == 0) {
                         if (G_FADT->ResetReg.AddressHigh == 0) {
                             U16 ResetPort = (U16)G_FADT->ResetReg.AddressLow;
-                            DEBUG(TEXT("[ACPIReboot] Writing 0x%02X to ACPI reset register at port 0x%04X"),
+                            DEBUG(TEXT("[ACPIReboot] Writing %x to ACPI reset register at port %x"),
                                   G_FADT->ResetValue, ResetPort);
                             OutPortByte(ResetPort, G_FADT->ResetValue);
                             (void)InPortByte(0x80);
                             (void)InPortByte(0x80);
                         } else {
-                            DEBUG(TEXT("[ACPIReboot] 64-bit reset port unsupported (high 0x%08X)"),
+                            DEBUG(TEXT("[ACPIReboot] 64-bit reset port unsupported (high %x)"),
                                   G_FADT->ResetReg.AddressHigh);
                         }
                     } else {
@@ -776,12 +776,14 @@ void ACPIReboot(void) {
     DEBUG(TEXT("[ACPIReboot] Using legacy warm reboot sequence"));
 
     DEBUG(TEXT("[ACPIReboot] Writing warm reset sequence to port 0xCF9"));
+
     OutPortByte(0xCF9, 0x02);
     (void)InPortByte(0x80);
     OutPortByte(0xCF9, 0x06);
     (void)InPortByte(0x80);
 
     DEBUG(TEXT("[ACPIReboot] Triggering keyboard controller reset"));
+
     Reboot();
     return;
 }
