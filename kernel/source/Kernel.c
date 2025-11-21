@@ -806,13 +806,14 @@ void LoadDriver(LPDRIVER Driver) {
 /************************************************************************/
 
 void LoadAllDrivers(void) {
-    if (Kernel.Drivers == NULL || Kernel.DriverCount == 0) {
+    InitializeDriverList();
+
+    if (Kernel.Drivers == NULL || Kernel.Drivers->First == NULL) {
         return;
     }
 
-    for (UINT Index = 0; Index < Kernel.DriverCount; Index++) {
-        LPDRIVER Driver = Kernel.Drivers[Index];
-        LoadDriver(Driver);
+    for (LPLISTNODE Node = Kernel.Drivers->First; Node; Node = Node->Next) {
+        LoadDriver((LPDRIVER)Node);
     }
 }
 

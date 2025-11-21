@@ -149,7 +149,10 @@ mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
 and SATA), graphics (VGA, VESA, and mode tables), and file system backends
 (FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery
 from the build system and clarifies the separation between reusable utilities
-and hardware support code.
+and hardware support code. Kernel-side driver registration now mirrors the rest
+of the codebase by storing the initialization order in a `LIST` declared in
+`KernelData.c`; `InitializeDriverList()` appends each static driver descriptor
+before `LoadAllDrivers()` walks the list.
 
 The VESA graphics driver now always requests VBE modes in linear frame buffer
 mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises

@@ -138,8 +138,7 @@ typedef struct tag_KERNELDATA {
     LPLIST File;
     LPLIST TCPConnection;
     LPLIST Socket;
-    LPDRIVER* Drivers;              // Driver list in initialization order
-    UINT DriverCount;               // Number of drivers in the list
+    LPLIST Drivers;                 // Driver list in initialization order
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
     CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
@@ -166,6 +165,7 @@ extern KERNELDATA Kernel;
 
 BOOL GetCPUInformation(LPCPUINFORMATION);
 void InitializeQuantumTime(void);
+void InitializeDriverList(void);
 U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);

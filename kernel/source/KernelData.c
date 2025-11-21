@@ -31,31 +31,14 @@ extern DRIVER EXFSDriver;
 
 /************************************************************************/
 
-static LPDRIVER KernelDrivers[] = {
-    &ConsoleDriver,
-    &KernelLogDriver,
-    &MemoryManagerDriver,
-    &TaskSegmentsDriver,
-    &InterruptsDriver,
-    &KernelProcessDriver,
-    &ACPIDriver,
-    &LocalAPICDriver,
-    &IOAPICDriver,
-    &InterruptControllerDriver,
-    &StdKeyboardDriver,
-    &SerialMouseDriver,
-    &ClockDriver,
-    &PCIDriver,
-    &ATADiskDriver,
-    &SATADiskDriver,
-    &RAMDiskDriver,
-    &FileSystemDriver,
-    &DeviceInterruptDriver,
-    &DeferredWorkDriver,
-    &NetworkManagerDriver,
-    &UserAccountDriver,
-    &VESADriver,
-};
+static LIST DriverList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
 
 /************************************************************************/
 
@@ -203,8 +186,7 @@ static LIST UserAccountList = {
 /************************************************************************/
 
 KERNELDATA SECTION(".data") Kernel = {
-    .Drivers = KernelDrivers,
-    .DriverCount = sizeof(KernelDrivers) / sizeof(KernelDrivers[0]),
+    .Drivers = &DriverList,
     .Desktop = &DesktopList,
     .Process = &ProcessList,
     .Task = &TaskList,
@@ -245,3 +227,38 @@ KERNELDATA SECTION(".data") Kernel = {
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
     };
+
+/************************************************************************/
+
+/**
+ * @brief Populates the kernel driver list in initialization order.
+ */
+void InitializeDriverList(void) {
+    if (Kernel.Drivers == NULL || Kernel.Drivers->NumItems != 0) {
+        return;
+    }
+
+    ListAddTail(Kernel.Drivers, &ConsoleDriver);
+    ListAddTail(Kernel.Drivers, &KernelLogDriver);
+    ListAddTail(Kernel.Drivers, &MemoryManagerDriver);
+    ListAddTail(Kernel.Drivers, &TaskSegmentsDriver);
+    ListAddTail(Kernel.Drivers, &InterruptsDriver);
+    ListAddTail(Kernel.Drivers, &KernelProcessDriver);
+    ListAddTail(Kernel.Drivers, &ACPIDriver);
+    ListAddTail(Kernel.Drivers, &LocalAPICDriver);
+    ListAddTail(Kernel.Drivers, &IOAPICDriver);
+    ListAddTail(Kernel.Drivers, &InterruptControllerDriver);
+    ListAddTail(Kernel.Drivers, &StdKeyboardDriver);
+    ListAddTail(Kernel.Drivers, &SerialMouseDriver);
+    ListAddTail(Kernel.Drivers, &ClockDriver);
+    ListAddTail(Kernel.Drivers, &PCIDriver);
+    ListAddTail(Kernel.Drivers, &ATADiskDriver);
+    ListAddTail(Kernel.Drivers, &SATADiskDriver);
+    ListAddTail(Kernel.Drivers, &RAMDiskDriver);
+    ListAddTail(Kernel.Drivers, &FileSystemDriver);
+    ListAddTail(Kernel.Drivers, &DeviceInterruptDriver);
+    ListAddTail(Kernel.Drivers, &DeferredWorkDriver);
+    ListAddTail(Kernel.Drivers, &NetworkManagerDriver);
+    ListAddTail(Kernel.Drivers, &UserAccountDriver);
+    ListAddTail(Kernel.Drivers, &VESADriver);
+}
