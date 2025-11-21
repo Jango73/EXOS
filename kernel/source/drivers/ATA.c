@@ -41,7 +41,7 @@
 
 UINT ATADiskCommands(UINT, UINT);
 
-DRIVER ATADiskDriver = {
+DRIVER DATA_SECTION ATADiskDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,
@@ -53,6 +53,7 @@ DRIVER ATADiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "ATA Disk Controller",
+    .Flags = 0,
     .Command = ATADiskCommands};
 
 /***************************************************************************/
@@ -129,7 +130,7 @@ static BOOL ATAWaitNotBusy(U32 Port, U32 TimeOut) {
 
 /***************************************************************************/
 
-static U32 InitializeATA(void) {
+static BOOL InitializeATA(void) {
     LPATADISK Disk;
     LPATADRIVEID ATAID;
     U8 Buffer[SECTOR_SIZE];
@@ -216,7 +217,7 @@ static U32 InitializeATA(void) {
 
     DEBUG(TEXT("[InitializeATA] Exit"));
 
-    return DF_ERROR_SUCCESS;
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -555,8 +556,22 @@ void HardDriveHandler(void) {
 UINT ATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
-            return InitializeATA();
+            if ((ATADiskDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeATA()) {
+                ATADiskDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
         case DF_UNLOAD:
+            if ((ATADiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ATADiskDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);

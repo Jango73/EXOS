@@ -29,12 +29,14 @@
 extern "C" {
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 // Define __EXOS__
 
 #define __EXOS__
 
-/***************************************************************************/
+/************************************************************************/
+
 // Target architecture detection
 
 #if defined(__i386__) || defined(_M_IX86)
@@ -45,7 +47,8 @@ extern "C" {
     #error "Unsupported target architecture for EXOS"
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 // Check __SIZEOF_POINTER__ definition
 
 #ifndef __SIZEOF_POINTER__
@@ -67,7 +70,8 @@ extern "C" {
     #endif
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 // Define __EXOS__ bit size
 
 #if __SIZEOF_POINTER__ == 8
@@ -76,7 +80,8 @@ extern "C" {
     #define __EXOS_32__
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 // Validate architecture and ABI combination
 
 #if defined(__EXOS_ARCH_I386__)
@@ -89,11 +94,13 @@ extern "C" {
     #endif
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 
 #pragma pack(push, 1)
 
-/***************************************************************************/
+/************************************************************************/
+
 // Storage classes
 
 #define CONST const
@@ -106,8 +113,10 @@ extern "C" {
 #define REGISTER register
 
 #define SECTION(a) __attribute__((section(a)))
+#define DATA_SECTION SECTION(".data")
 
-/***************************************************************************/
+/************************************************************************/
+
 // Basic types
 
 #if defined(_MSC_VER)
@@ -133,14 +142,16 @@ extern "C" {
     #error "Unsupported compiler for Base.h"
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 
 typedef struct PACKED tag_U48 {
     U16 LO;
     U32 HI;
 } U48;
 
-/***************************************************************************/
+/************************************************************************/
+
 
 #ifdef __EXOS_32__
     typedef struct PACKED tag_U64 {
@@ -163,21 +174,23 @@ typedef struct PACKED tag_U48 {
     #define U64_EQUAL(a, b) (a == b)
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 
 typedef struct PACKED tag_U80 {
     U16 LO;
     U64 HI;
 } U80;
 
-/***************************************************************************/
+/************************************************************************/
+
 
 typedef struct PACKED tag_U128 {
     U64 LO;
     U64 HI;
 } U128;
 
-/***************************************************************************/
+/************************************************************************/
 
 #define MAX_U8 ((U8)0xFF)
 #define MAX_U16 ((U16)0xFFFF)
@@ -192,13 +205,12 @@ typedef struct PACKED tag_U128 {
     #define MAX_UINT MAX_U64
 #endif
 
-/***************************************************************************/
+/************************************************************************/
 
 typedef float F32;              // 32 bit float
 typedef double F64;             // 64 bit float
 
-typedef U32 SIZE;
-
+typedef UINT SIZE;              // Size type
 typedef UINT LINEAR;            // Linear virtual address, paged or not
 typedef UINT PHYSICAL;          // Physical address
 typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
@@ -321,7 +333,8 @@ typedef UINT BOOL;
 
 #define INFINITY MAX_UINT
 
-/***************************************************************************/
+/************************************************************************/
+
 // Some machine constants
 
 #define N_1B ((UINT)0x00000001)
@@ -368,7 +381,8 @@ typedef UINT BOOL;
     #define N_FullMemory (MAX_U64)
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 
 #define MUL_2 1
 #define MUL_4 2
@@ -403,7 +417,8 @@ typedef UINT BOOL;
 #define MUL_2GB 31
 #define MUL_4GB 32
 
-/***************************************************************************/
+/************************************************************************/
+
 // Bit values
 
 #define BIT_0 0x0001
@@ -423,7 +438,8 @@ typedef UINT BOOL;
 #define BIT_14 0x4000
 #define BIT_15 0x8000
 
-/***************************************************************************/
+/************************************************************************/
+
 
 #define BIT_0_VALUE(a) (((a) >> 0) & 1)
 #define BIT_1_VALUE(a) (((a) >> 1) & 1)
@@ -443,7 +459,8 @@ typedef UINT BOOL;
 #define BIT_14_VALUE(a) (((a) >> 14) & 1)
 #define BIT_15_VALUE(a) (((a) >> 15) & 1)
 
-/***************************************************************************/
+/************************************************************************/
+
 // These macros give the offset of a structure member and true if a structure
 // of a specified size contains the specified member
 
@@ -451,7 +468,8 @@ typedef UINT BOOL;
 #define HAS_MEMBER(struc, member, struc_size) (MEMBER_OFFSET(struc, member) < struc_size)
 #define ARRAY_COUNT(array) ((UINT)(sizeof(array) / sizeof((array)[0])))
 
-/***************************************************************************/
+/************************************************************************/
+
 // ASCII string types
 
 typedef U8 STR;
@@ -461,7 +479,8 @@ typedef CONST STR* LPCSTR;
 
 #define TEXT(a) ((LPCSTR)a)
 
-/***************************************************************************/
+/************************************************************************/
+
 // Unicode string types
 
 typedef U16 USTR;
@@ -476,7 +495,8 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define CONSOLE_DEBUG(a, ...) { STR __Buf[128]; StringPrintFormat(__Buf, a, ##__VA_ARGS__); ConsolePrint(__Buf); }
 #endif
 
-/***************************************************************************/
+/************************************************************************/
+
 // Common ASCII character values
 
 #define STR_NULL ((STR)'\0')
@@ -496,7 +516,8 @@ extern void ConsolePrint(LPCSTR Format, ...);
 
 #define ROOT "/"
 
-/***************************************************************************/
+/************************************************************************/
+
 // Common Unicode character values
 
 #define USTR_NULL ((USTR)'\0')
@@ -513,12 +534,14 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define USTR_PLUS ((USTR)'+')
 #define USTR_MINUS ((USTR)'-')
 
-/***************************************************************************/
+/************************************************************************/
+
 // Forward declaration to avoid circular dependencies
 
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
-/***************************************************************************/
+/************************************************************************/
+
 // A kernel object header
 
 #define OBJECT_FIELDS       \
@@ -552,6 +575,8 @@ typedef struct tag_DATETIME {
 
 typedef UINT HANDLE;
 typedef UINT SOCKET_HANDLE;
+
+#define HANDLE_MINIMUM 0x10
 
 /************************************************************************/
 // Maximum string lengths
@@ -589,7 +614,8 @@ typedef U32 COLOR;
 #define SETBLUE(c, b) (((COLOR)c & 0xFF00FFFF) | ((COLOR)b << 0x10))
 #define SETALPHA(c, a) (((COLOR)c & 0x00FFFFFF) | ((COLOR)a << 0x18))
 
-/***************************************************************************/
+/************************************************************************/
+
 // Common color values
 
 #define COLOR_BLACK ((COLOR)0x00000000)

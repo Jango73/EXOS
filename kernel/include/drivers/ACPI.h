@@ -28,6 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 
 /***************************************************************************/
 
@@ -182,10 +183,13 @@ typedef struct tag_ACPI_CONFIG {
     BOOL Valid;                // TRUE if ACPI is available and parsed
     BOOL UseLocalApic;         // TRUE if Local APIC should be used
     BOOL UseIoApic;            // TRUE if I/O APIC should be used
+    BOOL S5Available;          // TRUE if S5 sleep type values were parsed
     PHYSICAL LocalApicAddress; // Physical address of Local APIC
     U32  IoApicCount;          // Number of I/O APICs found
     U32  LocalApicCount;       // Number of Local APICs found
     U32  InterruptOverrideCount; // Number of interrupt source overrides
+    U8   SlpTypS5A;            // Sleep type for S5 (PM1a)
+    U8   SlpTypS5B;            // Sleep type for S5 (PM1b)
 } ACPI_CONFIG, *LPACPI_CONFIG;
 
 /***************************************************************************/
@@ -298,8 +302,11 @@ LPINTERRUPT_OVERRIDE_INFO GetInterruptOverrideInfo(U32 Index);
 // Map an interrupt using override table
 U32 MapInterrupt(U8 IRQ);
 
-// Shutdown the system using ACPI
+// Release ACPI resources
 void ACPIShutdown(void);
+
+// Power off the system using ACPI
+void ACPIPowerOff(void);
 
 // Reboot the system using ACPI
 void ACPIReboot(void);

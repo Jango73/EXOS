@@ -28,6 +28,8 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "CoreString.h"
+#include "drivers/E1000.h"
+#include "User.h"
 
 /***************************************************************************/
 // PCI config mechanism #1 (0xCF8/0xCFC)
@@ -54,6 +56,27 @@ static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice);
 
 static LPPCI_DRIVER PciDriverTable[PCI_MAX_REGISTERED_DRIVERS];
 static U32 PciDriverCount = 0;
+
+/***************************************************************************/
+
+#define PCI_VER_MAJOR 1
+#define PCI_VER_MINOR 0
+
+static UINT PCIDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION PCIDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = PCI_VER_MAJOR,
+    .VersionMinor = PCI_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "PCI",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = PCIDriverCommands};
 
 /***************************************************************************/
 // Low-level config space access (assumes port I/O helpers exist)
@@ -440,8 +463,13 @@ void PCI_ScanBus(void) {
                 U32 DriverIndex;
 
                 PciFillFunctionInfo((U8)Bus, (U8)Device, (U8)Function, &PciInfo);
-                DEBUG(TEXT("[PCI] Found %x:%x.%u VID=%x DID=%x"), (INT)Bus, (INT)Device, (INT)Function,
-                    (INT)PciInfo.VendorID, (INT)PciInfo.DeviceID);
+                DEBUG(TEXT("[PCI] Found %x:%x.%u VID=%x DID=%x IRQ=%u"),
+                    (INT)Bus,
+                    (INT)Device,
+                    (INT)Function,
+                    (INT)PciInfo.VendorID,
+                    (INT)PciInfo.DeviceID,
+                    (UINT)PciInfo.IRQLine);
 
                 MemorySet(&PciDevice, 0, sizeof(PCI_DEVICE));
                 InitMutex(&(PciDevice.Mutex));
@@ -579,6 +607,48 @@ static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice) {
         }
         PciDevice->BARMapped[Index] = NULL;
     }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the PCI subsystem.
+ *
+ * DF_LOAD registers built-in drivers and scans the bus; DF_UNLOAD clears
+ * readiness only.
+ */
+static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD: {
+            if ((PCIDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            extern PCI_DRIVER AHCIPCIDriver;
+
+            PCI_RegisterDriver(&E1000Driver);
+            PCI_RegisterDriver(&AHCIPCIDriver);
+            PCI_ScanBus();
+
+            PCIDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+        }
+
+        case DF_UNLOAD:
+            if ((PCIDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            PCIDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(PCI_VER_MAJOR, PCI_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /************************************************************************/

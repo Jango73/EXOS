@@ -47,6 +47,8 @@ typedef void (*TestFunction)(TEST_RESULTS*);
 
 void TestCopyStack(TEST_RESULTS* Results);
 void TestCircularBuffer(TEST_RESULTS* Results);
+void TestBlockList(TEST_RESULTS* Results);
+void TestRadixTree(TEST_RESULTS* Results);
 void TestRegex(TEST_RESULTS* Results);
 void TestI386Disassembler(TEST_RESULTS* Results);
 void TestBcrypt(TEST_RESULTS* Results);

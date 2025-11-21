@@ -33,7 +33,7 @@
 
 UINT FAT16Commands(UINT, UINT);
 
-DRIVER FAT16Driver = {
+DRIVER DATA_SECTION FAT16Driver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,
@@ -73,6 +73,12 @@ typedef struct tag_FATFILE {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a FAT16 filesystem object.
+ *
+ * @param Disk Physical disk to bind.
+ * @return Allocated filesystem or NULL on failure.
+ */
 static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
     LPFAT16FILESYSTEM This;
 
@@ -100,6 +106,13 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize a FAT file object.
+ *
+ * @param FileSystem Owning FAT16 filesystem.
+ * @param FileLoc Location metadata of the file.
+ * @return Allocated file object or NULL on failure.
+ */
 static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
     LPFATFILE This;
 
@@ -211,6 +224,14 @@ BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
 
 /***************************************************************************/
 
+/**
+ * @brief Read a cluster from disk into buffer.
+ *
+ * @param FileSystem FAT16 filesystem context.
+ * @param Cluster Cluster number to read.
+ * @param Buffer Destination buffer (BytesPerCluster bytes).
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL ReadCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     IOCONTROL Control;
     SECTOR Sector;
@@ -253,6 +274,14 @@ static BOOL ReadCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
 
 /***************************************************************************/
 
+/**
+ * @brief Write a cluster to disk from buffer.
+ *
+ * @param FileSystem FAT16 filesystem context.
+ * @param Cluster Cluster number to write.
+ * @param Buffer Source buffer (BytesPerCluster bytes).
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
                          LPVOID Buffer) {
     IOCONTROL Control;
@@ -297,6 +326,13 @@ static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve next cluster in a FAT chain.
+ *
+ * @param FileSystem FAT16 filesystem context.
+ * @param Cluster Current cluster.
+ * @return Next cluster value or FAT16_CLUSTER_LAST.
+ */
 static CLUSTER GetNextClusterInChain(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster) {
     U16 Buffer[SECTOR_SIZE / sizeof(U16)];
     IOCONTROL Control;
@@ -331,6 +367,12 @@ static CLUSTER GetNextClusterInChain(LPFAT16FILESYSTEM FileSystem, CLUSTER Clust
 
 /***************************************************************************/
 
+/**
+ * @brief Decode a FAT directory entry into a null-terminated name.
+ *
+ * @param DirEntry FAT directory entry.
+ * @param Name Output buffer for file name.
+ */
 static void DecodeFileName(LPFATDIRENTRY DirEntry, LPSTR Name) {
     U32 Index = 0;
 
@@ -355,6 +397,12 @@ static void DecodeFileName(LPFATDIRENTRY DirEntry, LPSTR Name) {
 
 /***************************************************************************/
 
+/**
+ * @brief Translate a FAT directory entry into FILE fields.
+ *
+ * @param DirEntry FAT directory entry.
+ * @param File Target file object to populate.
+ */
 static void TranslateFileInfo(LPFATDIRENTRY DirEntry, LPFATFILE File) {
     //-------------------------------------
     // Translate the attributes
@@ -399,6 +447,14 @@ static void TranslateFileInfo(LPFATDIRENTRY DirEntry, LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Locate a file/directory by path within a FAT16 filesystem.
+ *
+ * @param FileSystem FAT16 filesystem context.
+ * @param Path Absolute path to search.
+ * @param FileLoc Output location metadata when found.
+ * @return TRUE if found, FALSE otherwise.
+ */
 static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC FileLoc) {
     STR Component[MAX_FILE_NAME];
     STR Name[MAX_FILE_NAME];
@@ -490,10 +546,21 @@ static BOOL LocateFile(LPFAT16FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize FAT16 driver (stub).
+ *
+ * @return DF_ERROR_SUCCESS
+ */
 static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /***************************************************************************/
 
+/**
+ * @brief Open a file given file info from VFS.
+ *
+ * @param Find File info containing path.
+ * @return Allocated FAT file or NULL on failure.
+ */
 static LPFATFILE OpenFile(LPFILEINFO Find) {
     LPFAT16FILESYSTEM FileSystem = NULL;
     LPFATFILE File = NULL;
@@ -527,6 +594,12 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
 
 /***************************************************************************/
 
+/**
+ * @brief Open the next file in a directory using stored location.
+ *
+ * @param File FAT file whose Location indicates folder and offset.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 OpenNext(LPFATFILE File) {
     LPFAT16FILESYSTEM FileSystem = NULL;
     LPFATDIRENTRY DirEntry = NULL;
@@ -576,6 +649,12 @@ static U32 OpenNext(LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Close a FAT16 file handle.
+ *
+ * @param File Target file.
+ * @return DF_ERROR_SUCCESS.
+ */
 static U32 CloseFile(LPFATFILE File) {
     // LPFAT16FILESYSTEM FileSystem;
     // LPFATDIRENTRY DirEntry;
@@ -618,6 +697,12 @@ static U32 CloseFile(LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief Read bytes from a FAT16 file.
+ *
+ * @param File Target file with buffer/positions populated.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 ReadFile(LPFATFILE File) {
     LPFAT16FILESYSTEM FileSystem;
     CLUSTER RelativeCluster;
@@ -912,6 +997,15 @@ static U32 WriteFile(LPFATFILE File) {
 
 /***************************************************************************/
 
+/**
+ * @brief FAT16 driver command dispatcher.
+ *
+ * Routes filesystem operations to FAT16 handlers.
+ *
+ * @param Function Driver function code.
+ * @param Parameter Function-specific parameter.
+ * @return Driver-specific status/value.
+ */
 UINT FAT16Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
@@ -946,4 +1040,3 @@ UINT FAT16Commands(UINT Function, UINT Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-

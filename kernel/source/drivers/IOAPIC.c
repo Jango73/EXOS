@@ -25,6 +25,7 @@
 #include "Base.h"
 #include "drivers/IOAPIC.h"
 #include "drivers/ACPI.h"
+#include "User.h"
 #include "InterruptController.h"
 #include "Memory.h"
 #include "Log.h"
@@ -33,6 +34,27 @@
 /***************************************************************************/
 
 static IOAPIC_CONFIG g_IOAPICConfig = {0};
+
+/***************************************************************************/
+
+#define IOAPIC_VER_MAJOR 1
+#define IOAPIC_VER_MINOR 0
+
+static UINT IOAPICDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION IOAPICDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = IOAPIC_VER_MAJOR,
+    .VersionMinor = IOAPIC_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "IOAPIC",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = IOAPICDriverCommands};
 
 /***************************************************************************/
 
@@ -160,6 +182,44 @@ BOOL InitializeIOAPIC(void)
 
     g_IOAPICConfig.Initialized = TRUE;
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the I/O APIC subsystem.
+ *
+ * DF_LOAD initializes the I/O APIC once; DF_UNLOAD only clears readiness.
+ */
+static UINT IOAPICDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((IOAPICDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeIOAPIC()) {
+                IOAPICDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((IOAPICDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            IOAPICDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(IOAPIC_VER_MAJOR, IOAPIC_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /***************************************************************************/
@@ -398,7 +458,7 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
             pOverride = GetInterruptOverrideInfo(i);
             if (pOverride != NULL && pOverride->Source == IRQ) {
                 MappedIRQ = pOverride->GlobalSystemInterrupt;
-                DEBUG(TEXT("[ConfigureIOAPICInterrupt] IRQ %u overridden to GSI %u"), IRQ, MappedIRQ);
+                // DEBUG(TEXT("[ConfigureIOAPICInterrupt] IRQ %u overridden to GSI %u"), IRQ, MappedIRQ);
                 break;
             }
         }
@@ -406,7 +466,7 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
 
     // Find the I/O APIC controller and entry for this IRQ
     if (!MapIRQToIOAPIC(MappedIRQ, &ControllerIndex, &Entry)) {
-        DEBUG(TEXT("[ConfigureIOAPICInterrupt] Cannot map IRQ %u (GSI %u) to I/O APIC"), IRQ, MappedIRQ);
+        // DEBUG(TEXT("[ConfigureIOAPICInterrupt] Cannot map IRQ %u (GSI %u) to I/O APIC"), IRQ, MappedIRQ);
         return FALSE;
     }
 
@@ -421,8 +481,7 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
     RedirEntry.Mask = 0;  // Enable interrupt
     RedirEntry.Destination = DestCPU;
 
-    DEBUG(TEXT("[ConfigureIOAPICInterrupt] Configuring IRQ %u -> Vector %x (Controller %u, Entry %u)"),
-              IRQ, Vector, ControllerIndex, Entry);
+    // DEBUG(TEXT("[ConfigureIOAPICInterrupt] Configuring IRQ %u -> Vector %x (Controller %u, Entry %u)"), IRQ, Vector, ControllerIndex, Entry);
 
     return WriteRedirectionEntry(ControllerIndex, Entry, &RedirEntry);
 }

@@ -170,23 +170,45 @@
 
 \************************************************************************/
 
-// Uncomment below to mark BIOS memory pages "not present" in the page tables
+extern GATE_DESCRIPTOR IDT[];
+extern void Interrupt_SystemCall(void);
+extern VOIDFUNC InterruptTable[];
 
+/************************************************************************/
+
+static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
+
+/************************************************************************/
+
+// Uncomment below to mark BIOS memory pages "not present" in the page tables
 // #define PROTECT_BIOS
 #define PROTECTED_ZONE_START 0xC0000
 #define PROTECTED_ZONE_END 0xFFFFF
 
+#define INTERRUPTS_VER_MAJOR 1
+#define INTERRUPTS_VER_MINOR 0
+
 /************************************************************************/
 
-KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
+KERNELDATA_I386 DATA_SECTION Kernel_i386 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL
 };
 
-extern GATE_DESCRIPTOR IDT[];
-extern void Interrupt_SystemCall(void);
-extern VOIDFUNC InterruptTable[];
+DRIVER DATA_SECTION InterruptsDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = INTERRUPTS_VER_MAJOR,
+    .VersionMinor = INTERRUPTS_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Interrupts",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = InterruptsDriverCommands};
 
 /************************************************************************/
 
@@ -227,6 +249,8 @@ void InitializeGateDescriptor(
     SetGateDescriptorOffset(Descriptor, Handler);
 }
 
+/***************************************************************************/
+
 void InitializeInterrupts(void) {
     Kernel_i386.IDT = IDT;
 
@@ -247,6 +271,8 @@ void InitializeInterrupts(void) {
 
     InitializeSystemCallTable();
 }
+
+/***************************************************************************/
 
 void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type) {
     MemorySet(This, 0, sizeof(SEGMENT_DESCRIPTOR));
@@ -306,38 +332,6 @@ void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
 
 /***************************************************************************/
 
-void InitializeTaskSegments(void) {
-    DEBUG(TEXT("[InitializeTaskSegments] Enter"));
-
-    U32 TssSize = sizeof(TASK_STATE_SEGMENT);
-
-    Kernel_i386.TSS = (LPTASK_STATE_SEGMENT)AllocKernelRegion(0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
-
-    if (Kernel_i386.TSS == NULL) {
-        ERROR(TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));
-        DO_THE_SLEEPING_BEAUTY;
-    }
-
-    MemorySet(Kernel_i386.TSS, 0, TssSize);
-
-    LPTSS_DESCRIPTOR Desc = (LPTSS_DESCRIPTOR)(Kernel_i386.GDT + GDT_TSS_INDEX);
-    Desc->Type = GATE_TYPE_386_TSS_AVAIL;
-    Desc->Privilege = GDT_PRIVILEGE_USER;
-    Desc->Present = 1;
-    Desc->Granularity = GDT_GRANULAR_1B;
-    SetTSSDescriptorBase(Desc, (U32)Kernel_i386.TSS);
-    SetTSSDescriptorLimit(Desc, sizeof(TASK_STATE_SEGMENT) - 1);
-
-    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
-    DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
-
-    LoadInitialTaskRegister(SELECTOR_TSS);
-
-    DEBUG(TEXT("[InitializeTaskSegments] Exit"));
-}
-
-/***************************************************************************/
-
 void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR This, U32 Base) {
     This->Base_00_15 = (Base & (U32)0x0000FFFF) >> 0x00;
     This->Base_16_23 = (Base & (U32)0x00FF0000) >> 0x10;
@@ -349,18 +343,6 @@ void SetSegmentDescriptorBase(LPSEGMENT_DESCRIPTOR This, U32 Base) {
 void SetSegmentDescriptorLimit(LPSEGMENT_DESCRIPTOR This, U32 Limit) {
     This->Limit_00_15 = (Limit >> 0x00) & 0x0000FFFF;
     This->Limit_16_19 = (Limit >> 0x10) & 0x0000000F;
-}
-
-/***************************************************************************/
-
-void SetTSSDescriptorBase(LPTSS_DESCRIPTOR This, U32 Base) {
-    SetSegmentDescriptorBase((LPSEGMENT_DESCRIPTOR)This, Base);
-}
-
-/***************************************************************************/
-
-void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR This, U32 Limit) {
-    SetSegmentDescriptorLimit((LPSEGMENT_DESCRIPTOR)This, Limit);
 }
 
 /************************************************************************/
@@ -590,8 +572,6 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
             SaveFPU((LPVOID)&(CurrentTask->Arch.Context.FPURegisters));
         }
 
-        LoadPageDirectory(NextTask->Process->PageDirectory);
-
         SetDS(NextTask->Arch.Context.Registers.DS);
         SetES(NextTask->Arch.Context.Registers.ES);
         SetFS(NextTask->Arch.Context.Registers.FS);
@@ -611,6 +591,10 @@ void PreInitializeKernel(void) {
 
     ReadGlobalDescriptorTable(&Gdtr);
     Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)(LINEAR)Gdtr.Base;
+
+    KernelStartup.PageDirectory = GetPageDirectory();
+    KernelStartup.IRQMask_21_RM = 0;
+    KernelStartup.IRQMask_A1_RM = 0;
 }
 
 /***************************************************************************/
@@ -622,6 +606,42 @@ void InitializeSystemCall(void) {
         GATE_TYPE_386_TRAP,
         PRIVILEGE_USER,
         0u);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for the interrupt subsystem.
+ *
+ * DF_LOAD initializes the IDT while DF_UNLOAD only clears the ready flag
+ * as no shutdown routine is available.
+ */
+static UINT InterruptsDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((InterruptsDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeInterrupts();
+            InterruptsDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((InterruptsDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InterruptsDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(INTERRUPTS_VER_MAJOR, INTERRUPTS_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /************************************************************************/

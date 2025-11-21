@@ -28,8 +28,30 @@
 #include "InterruptController.h"
 #include "drivers/IOAPIC.h"
 #include "drivers/LocalAPIC.h"
+#include "User.h"
 #include "Log.h"
 #include "System.h"
+
+/************************************************************************/
+
+#define INTCTRL_VER_MAJOR 1
+#define INTCTRL_VER_MINOR 0
+
+static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION InterruptControllerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = INTCTRL_VER_MAJOR,
+    .VersionMinor = INTCTRL_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "InterruptController",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = InterruptControllerDriverCommands};
 
 /************************************************************************/
 // Global interrupt controller configuration
@@ -590,6 +612,31 @@ BOOL ConfigureInterrupt(U8 IRQ, U8 Vector, U8 DestCPU) {
 
 /************************************************************************/
 
+BOOL ConfigureDeviceInterrupt(U8 IRQ, U8 Vector, U8 DestCPU) {
+    DEBUG(TEXT("[ConfigureDeviceInterrupt] Legacy IRQ %u -> vector %u on CPU %u"),
+          IRQ,
+          Vector,
+          DestCPU);
+
+    return ConfigureInterrupt(IRQ, Vector, DestCPU);
+}
+
+/************************************************************************/
+
+BOOL EnableDeviceInterrupt(U8 IRQ) {
+    DEBUG(TEXT("[EnableDeviceInterrupt] Enabling IRQ %u"), IRQ);
+    return EnableInterrupt(IRQ);
+}
+
+/************************************************************************/
+
+BOOL DisableDeviceInterrupt(U8 IRQ) {
+    DEBUG(TEXT("[DisableDeviceInterrupt] Disabling IRQ %u"), IRQ);
+    return DisableInterrupt(IRQ);
+}
+
+/************************************************************************/
+
 void HandleInterruptSourceOverride(U8 LegacyIRQ, U32 GlobalIRQ, U8 TriggerMode, U8 Polarity) {
     if (LegacyIRQ >= 16) {
         return;
@@ -645,10 +692,8 @@ BOOL GetInterruptStatistics(U8 IRQ, U32* Count, U32* LastTimestamp) {
  * @return TRUE if switch successful, FALSE otherwise
  */
 BOOL SwitchToPICForRealMode(void) {
-    DEBUG(TEXT("[SwitchToPICForRealMode] Enter"));
 
     if (g_InterruptControllerConfig.ActiveType != INTCTRL_TYPE_IOAPIC) {
-        DEBUG(TEXT("[SwitchToPICForRealMode] Already in PIC mode, nothing to do"));
         return TRUE;
     }
 
@@ -678,7 +723,6 @@ BOOL SwitchToPICForRealMode(void) {
     OutPortByte(PIC1_DATA, 0xFE); // Enable IRQ0 (timer) only
     OutPortByte(PIC2_DATA, 0xFF); // Disable all slave interrupts
 
-    DEBUG(TEXT("[SwitchToPICForRealMode] PIC 8259 configured for real mode"));
     return TRUE;
 }
 
@@ -690,10 +734,7 @@ BOOL SwitchToPICForRealMode(void) {
  * @return TRUE if restore successful, FALSE otherwise
  */
 BOOL RestoreIOAPICAfterRealMode(void) {
-    DEBUG(TEXT("[RestoreIOAPICAfterRealMode] Enter"));
-
     if (g_InterruptControllerConfig.ActiveType != INTCTRL_TYPE_IOAPIC) {
-        DEBUG(TEXT("[RestoreIOAPICAfterRealMode] Not in IOAPIC mode, nothing to restore"));
         return TRUE;
     }
 
@@ -708,6 +749,45 @@ BOOL RestoreIOAPICAfterRealMode(void) {
     // Restore default IOAPIC configuration
     SetDefaultIOAPICConfiguration();
 
-    DEBUG(TEXT("[RestoreIOAPICAfterRealMode] IOAPIC mode restored"));
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the interrupt controller abstraction layer.
+ *
+ * DF_LOAD initializes the controller stack once; DF_UNLOAD shuts it down and
+ * clears readiness.
+ */
+static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeInterruptController(INTCTRL_MODE_AUTO)) {
+                InterruptControllerDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ShutdownInterruptController();
+            InterruptControllerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(INTCTRL_VER_MAJOR, INTCTRL_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }

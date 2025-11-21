@@ -33,6 +33,27 @@
 #include "System.h"
 
 /************************************************************************/
+
+#define ACPI_VER_MAJOR 1
+#define ACPI_VER_MINOR 0
+
+static UINT ACPIDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION ACPIDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = ACPI_VER_MAJOR,
+    .VersionMinor = ACPI_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "ACPI",
+    .Flags = 0,
+    .Command = ACPIDriverCommands};
+
+/************************************************************************/
 // Global ACPI configuration
 
 static ACPI_CONFIG G_AcpiConfig = {0};
@@ -41,6 +62,16 @@ static LPACPI_RSDT G_RSDT = NULL;
 static LPACPI_XSDT G_XSDT = NULL;
 static LPACPI_MADT G_MADT = NULL;
 static LPACPI_FADT G_FADT = NULL;
+static LPACPI_TABLE_HEADER G_DSDT = NULL;
+static UINT G_RsdpLength = 0;
+static UINT G_RsdtLength = 0;
+static UINT G_XsdtLength = 0;
+static UINT G_MadtLength = 0;
+static UINT G_FadtLength = 0;
+static UINT G_DsdtLength = 0;
+
+static BOOL ParseS5SleepType(LPACPI_TABLE_HEADER Dsdt, UINT Length);
+static BOOL EnsureFadtLoaded(void);
 
 // Arrays to store discovered hardware
 static IO_APIC_INFO G_IoApicInfo[8];                    // Support up to 8 I/O APICs
@@ -64,6 +95,41 @@ static U8 CalculateChecksum(LPCVOID Data, U32 Length) {
     }
 
     return Sum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Decode AML package length.
+ * @param Bytes Pointer to AML buffer positioned at package length byte.
+ * @param Remaining Remaining bytes in buffer starting at Bytes.
+ * @param LengthOut Decoded length.
+ * @return TRUE if decoding succeeded.
+ */
+static BOOL DecodeAmlPackageLength(const U8* Bytes, UINT Remaining, U32* LengthOut) {
+    if (Remaining == 0) {
+        return FALSE;
+    }
+
+    U8 First = Bytes[0];
+    U8 ByteCount = (U8)((First >> 6) & 0x03);
+    U32 Length = First & 0x3F;
+
+    if (ByteCount == 0) {
+        *LengthOut = Length;
+        return TRUE;
+    }
+
+    if (ByteCount >= 4 || Remaining <= ByteCount) {
+        return FALSE;
+    }
+
+    for (U8 i = 0; i < ByteCount; i++) {
+        Length |= ((U32)Bytes[1 + i]) << (8 * i + 4);
+    }
+
+    *LengthOut = Length;
+    return TRUE;
 }
 
 /**
@@ -170,6 +236,7 @@ LPACPI_RSDP FindRSDP(void) {
     LPACPI_RSDP Rsdp = (LPACPI_RSDP)PermanentAddress;
     DEBUG(TEXT("[FindRSDP] RSDP mapped at %p, revision %d"), (LPVOID)Rsdp, Rsdp->Revision);
 
+    G_RsdpLength = RsdpLength;
     return Rsdp;
 }
 
@@ -347,6 +414,7 @@ BOOL ParseMADT(void) {
         return FALSE;
     }
 
+    G_MadtLength = G_MADT->Header.Length;
     DEBUG(TEXT("[ParseMADT] MADT found, Local APIC address: 0x%08X, Flags: 0x%08X"),
           G_MADT->LocalApicAddress, G_MADT->Flags);
 
@@ -443,6 +511,11 @@ BOOL InitializeACPI(void) {
 
     // Clear configuration
     MemorySet(&G_AcpiConfig, 0, sizeof(ACPI_CONFIG));
+    G_RsdpLength = 0;
+    G_RsdtLength = 0;
+    G_XsdtLength = 0;
+    G_MadtLength = 0;
+    G_FadtLength = 0;
 
     // Find RSDP
     G_RSDP = FindRSDP();
@@ -467,6 +540,7 @@ BOOL InitializeACPI(void) {
             LINEAR PermanentAddress = MapIOMemory(RsdtPhysical, RsdtHeader.Length);
             if (PermanentAddress != 0) {
                 G_RSDT = (LPACPI_RSDT)PermanentAddress;
+                G_RsdtLength = RsdtHeader.Length;
                 DEBUG(TEXT("[InitializeACPI] RSDT mapped to virtual address: %p"), (LPVOID)G_RSDT);
             } else {
                 DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for RSDT"));
@@ -478,10 +552,12 @@ BOOL InitializeACPI(void) {
             if (G_RSDT->Header.Length < sizeof(ACPI_TABLE_HEADER)) {
                 DEBUG(TEXT("[InitializeACPI] RSDT length %u smaller than header"), G_RSDT->Header.Length);
                 UnMapIOMemory((LINEAR)G_RSDT, RsdtHeader.Length);
+                G_RsdtLength = 0;
                 G_RSDT = NULL;
             } else if (!ValidateACPITableChecksum(&G_RSDT->Header)) {
                 DEBUG(TEXT("[InitializeACPI] RSDT checksum validation failed"));
                 UnMapIOMemory((LINEAR)G_RSDT, RsdtHeader.Length);
+                G_RsdtLength = 0;
                 G_RSDT = NULL;
             } else {
                 DEBUG(TEXT("[InitializeACPI] RSDT found and validated at %p"), (LPVOID)G_RSDT);
@@ -525,6 +601,7 @@ BOOL InitializeACPI(void) {
                 LINEAR PermanentAddress = MapIOMemory(XsdtPhysical, XsdtHeader.Length);
                 if (PermanentAddress != 0) {
                     G_XSDT = (LPACPI_XSDT)PermanentAddress;
+                    G_XsdtLength = XsdtHeader.Length;
                     DEBUG(TEXT("[InitializeACPI] XSDT mapped to virtual address: %p"), (LPVOID)G_XSDT);
                 } else {
                     DEBUG(TEXT("[InitializeACPI] MapIOMemory failed for XSDT"));
@@ -536,10 +613,12 @@ BOOL InitializeACPI(void) {
                 if (G_XSDT->Header.Length < sizeof(ACPI_TABLE_HEADER)) {
                     DEBUG(TEXT("[InitializeACPI] XSDT length %u smaller than header"), G_XSDT->Header.Length);
                     UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
+                    G_XsdtLength = 0;
                     G_XSDT = NULL;
                 } else if (!ValidateACPITableChecksum(&G_XSDT->Header)) {
                     DEBUG(TEXT("[InitializeACPI] XSDT checksum validation failed"));
                     UnMapIOMemory((LINEAR)G_XSDT, XsdtHeader.Length);
+                    G_XsdtLength = 0;
                     G_XSDT = NULL;
                 } else {
                     DEBUG(TEXT("[InitializeACPI] XSDT found and validated at %p"), (LPVOID)G_XSDT);
@@ -558,6 +637,26 @@ BOOL InitializeACPI(void) {
     if (!ParseMADT()) {
         DEBUG(TEXT("[InitializeACPI] Failed to parse MADT"));
         return FALSE;
+    }
+
+    // Map FADT and parse _S5 sleep type if available
+    if (EnsureFadtLoaded()) {
+        if (G_FADT->Dsdt != 0) {
+            UINT DsdtMappedLength = 0;
+            BOOL PermanentMapping = FALSE;
+            LPACPI_TABLE_HEADER Dsdt =
+                AcquireACPITable((PHYSICAL)G_FADT->Dsdt, TEXT("DSDT"), &PermanentMapping, &DsdtMappedLength);
+            if (Dsdt != NULL) {
+                G_DSDT = Dsdt;
+                G_DsdtLength = DsdtMappedLength;
+                DEBUG(TEXT("[InitializeACPI] DSDT mapped at %p, length %u"), Dsdt, DsdtMappedLength);
+                ParseS5SleepType(Dsdt, DsdtMappedLength);
+            } else {
+                DEBUG(TEXT("[InitializeACPI] Failed to map DSDT at %p"), (LPVOID)(LINEAR)G_FADT->Dsdt);
+            }
+        } else {
+            DEBUG(TEXT("[InitializeACPI] FADT has no DSDT pointer"));
+        }
     }
 
     G_AcpiConfig.Valid = TRUE;
@@ -615,6 +714,124 @@ LPINTERRUPT_OVERRIDE_INFO GetInterruptOverrideInfo(U32 Index) {
 /************************************************************************/
 
 /**
+ * @brief Parse the _S5 object in the DSDT to discover S5 sleep types.
+ * @param Dsdt Pointer to mapped DSDT.
+ * @param Length Length of mapped DSDT.
+ * @return TRUE if valid S5 values were found.
+ */
+static BOOL ParseS5SleepType(LPACPI_TABLE_HEADER Dsdt, UINT Length) {
+    const U8* Bytes = (const U8*)Dsdt;
+    const U8* End = Bytes + Length;
+
+    if (Length < 4) {
+        return FALSE;
+    }
+
+    for (UINT i = 0; i + 4 < Length; i++) {
+        // Look for NameOp ('_S5_') pattern: 0x08 '_' 'S' '5' '_'
+        if (Bytes[i] != 0x08) {
+            continue;
+        }
+
+        if (!(Bytes[i + 1] == '_' && Bytes[i + 2] == 'S' && Bytes[i + 3] == '5' && Bytes[i + 4] == '_')) {
+            continue;
+        }
+
+        const U8* Cursor = Bytes + i + 5;
+        if (Cursor >= End) {
+            break;
+        }
+
+        // Expect PackageOp (0x12)
+        if (*Cursor != 0x12) {
+            continue;
+        }
+        Cursor++;
+
+        U32 PackageLength = 0;
+        if (!DecodeAmlPackageLength(Cursor, (UINT)(End - Cursor), &PackageLength)) {
+            continue;
+        }
+
+        U8 PackagePrefixBytes = 1 + (U8)((Cursor[0] >> 6) & 0x03);
+        Cursor += PackagePrefixBytes;
+        if (Cursor >= End) {
+            break;
+        }
+
+        // Next byte is element count, should be at least 2
+        U8 ElementCount = *Cursor++;
+        if (ElementCount < 2) {
+            continue;
+        }
+
+        // Decode first two package elements: each can be BytePrefix (0x0A) or WordPrefix (0x0B/0x0C)
+        for (UINT element = 0; element < 2; element++) {
+            if (Cursor >= End) {
+                return FALSE;
+            }
+
+            U8 Value = 0;
+            if (*Cursor == 0x0A) { // ByteConst
+                if (Cursor + 1 >= End) {
+                    return FALSE;
+                }
+                Value = Cursor[1];
+                Cursor += 2;
+            } else if (*Cursor == 0x0B) { // WordConst
+                if (Cursor + 2 >= End) {
+                    return FALSE;
+                }
+                Value = Cursor[1];
+                Cursor += 3;
+            } else {
+                // Unexpected AML encoding
+                Value = *Cursor;
+                Cursor++;
+            }
+
+            if (element == 0) {
+                G_AcpiConfig.SlpTypS5A = Value;
+            } else {
+                G_AcpiConfig.SlpTypS5B = Value;
+            }
+        }
+
+        G_AcpiConfig.S5Available = TRUE;
+        DEBUG(TEXT("[ParseS5SleepType] _S5 found: SLP_TYPa=%u, SLP_TYPb=%u"),
+              G_AcpiConfig.SlpTypS5A, G_AcpiConfig.SlpTypS5B);
+        return TRUE;
+    }
+
+    DEBUG(TEXT("[ParseS5SleepType] _S5 not found in DSDT"));
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure the FADT table is mapped.
+ * @return TRUE if the FADT is available and mapped.
+ */
+static BOOL EnsureFadtLoaded(void) {
+    if (G_FADT != NULL) {
+        return TRUE;
+    }
+
+    G_FADT = (LPACPI_FADT)FindACPITable(TEXT("FACP"));
+    if (G_FADT != NULL) {
+        G_FadtLength = G_FADT->Header.Length;
+        DEBUG(TEXT("[EnsureFadtLoaded] FADT mapped at %p, length %u"), G_FADT, G_FadtLength);
+        return TRUE;
+    }
+
+    DEBUG(TEXT("[EnsureFadtLoaded] FADT not found"));
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Map an interrupt using override table.
  * @param IRQ Original IRQ number.
  * @return Global System Interrupt number, or IRQ if no override exists.
@@ -635,66 +852,119 @@ U32 MapInterrupt(U8 IRQ) {
 /************************************************************************/
 
 /**
+ * @brief Release ACPI resources without powering off.
+ */
+void ACPIShutdown(void) {
+    DEBUG(TEXT("[ACPIShutdown] Releasing ACPI resources"));
+
+    if (G_FADT != NULL && G_FadtLength != 0) {
+        UnMapIOMemory((LINEAR)G_FADT, G_FadtLength);
+    }
+    G_FADT = NULL;
+    G_FadtLength = 0;
+
+    if (G_MADT != NULL && G_MadtLength != 0) {
+        UnMapIOMemory((LINEAR)G_MADT, G_MadtLength);
+    }
+    G_MADT = NULL;
+    G_MadtLength = 0;
+
+    if (G_DSDT != NULL && G_DsdtLength != 0) {
+        UnMapIOMemory((LINEAR)G_DSDT, G_DsdtLength);
+    }
+    G_DSDT = NULL;
+    G_DsdtLength = 0;
+
+    if (G_XSDT != NULL && G_XsdtLength != 0) {
+        UnMapIOMemory((LINEAR)G_XSDT, G_XsdtLength);
+    }
+    G_XSDT = NULL;
+    G_XsdtLength = 0;
+
+    if (G_RSDT != NULL && G_RsdtLength != 0) {
+        UnMapIOMemory((LINEAR)G_RSDT, G_RsdtLength);
+    }
+    G_RSDT = NULL;
+    G_RsdtLength = 0;
+
+    if (G_RSDP != NULL && G_RsdpLength != 0) {
+        UnMapIOMemory((LINEAR)G_RSDP, G_RsdpLength);
+    }
+    G_RSDP = NULL;
+    G_RsdpLength = 0;
+
+    MemorySet(&G_AcpiConfig, 0, sizeof(ACPI_CONFIG));
+}
+
+/************************************************************************/
+
+/**
  * @brief Shutdown the system using ACPI.
  * This function attempts to put the system into ACPI sleep state S5 (power off).
  */
-void ACPIShutdown(void) {
-    DEBUG(TEXT("[ACPIShutdown] Enter"));
+void ACPIPowerOff(void) {
+    DEBUG(TEXT("[ACPIPowerOff] Enter"));
 
     // Check if ACPI is available
     if (!G_AcpiConfig.Valid) {
-        DEBUG(TEXT("[ACPIShutdown] ACPI not available"));
-        return;
-    }
-
-    // Find FADT table if not already found
-    if (G_FADT == NULL) {
-        G_FADT = (LPACPI_FADT)FindACPITable(TEXT("FACP"));
-        if (G_FADT == NULL) {
-            DEBUG(TEXT("[ACPIShutdown] FADT table not found"));
+        DEBUG(TEXT("[ACPIPowerOff] ACPI not available, reinitializing"));
+        if (!InitializeACPI()) {
+            DEBUG(TEXT("[ACPIPowerOff] ACPI reinitialization failed"));
             return;
         }
-        DEBUG(TEXT("[ACPIShutdown] FADT found at 0x%08X"), (U32)G_FADT);
+        DEBUG(TEXT("[ACPIPowerOff] ACPI reinitialization succeeded"));
+    }
+
+    // Ensure FADT table is available
+    if (!EnsureFadtLoaded()) {
+        DEBUG(TEXT("[ACPIPowerOff] FADT table not found"));
+        return;
     }
 
     // Check if PM1 control block is available
     if (G_FADT->Pm1aControlBlock == 0) {
-        DEBUG(TEXT("[ACPIShutdown] PM1a control block not available"));
+        DEBUG(TEXT("[ACPIPowerOff] PM1a control block not available"));
         return;
     }
 
-    DEBUG(TEXT("[ACPIShutdown] PM1a control block at port 0x%04X"), G_FADT->Pm1aControlBlock);
+    DEBUG(TEXT("[ACPIPowerOff] PM1a control block at port %x"), G_FADT->Pm1aControlBlock);
 
-    // For S5 sleep state, we need to set SLP_TYP to 111b (7) and SLP_EN to 1
-    // The PM1 control register format:
-    // Bit 13: SLP_EN (Sleep Enable)
-    // Bits 10-12: SLP_TYP (Sleep Type)
-    // For S5 (soft off), SLP_TYP should be 111b (7)
-    U16 Pm1ControlValue = (7 << 10) | (1 << 13);  // SLP_TYP=7, SLP_EN=1
+    U8 SlpTypA = 7;
+    U8 SlpTypB = 7;
+    if (G_AcpiConfig.S5Available) {
+        SlpTypA = G_AcpiConfig.SlpTypS5A;
+        SlpTypB = G_AcpiConfig.SlpTypS5B;
+        DEBUG(TEXT("[ACPIPowerOff] Using parsed SLP_TYPa=%u, SLP_TYPb=%u"), SlpTypA, SlpTypB);
+    } else {
+        DEBUG(TEXT("[ACPIPowerOff] _S5 not parsed, using default SLP_TYP=7"));
+    }
 
-    DEBUG(TEXT("[ACPIShutdown] Writing 0x%04X to PM1a control register"), Pm1ControlValue);
+    // For S5 sleep state, we set SLP_TYP to the parsed value and SLP_EN to 1
+    U16 Pm1ControlValue = ((U16)SlpTypA << 10) | (1 << 13);
+
+    DEBUG(TEXT("[ACPIPowerOff] Writing %x to PM1a control register"), Pm1ControlValue);
 
     // Write to PM1a control register
     OutPortWord(G_FADT->Pm1aControlBlock, Pm1ControlValue);
 
     // If PM1b control block is also available, write to it as well
     if (G_FADT->Pm1bControlBlock != 0) {
-        DEBUG(TEXT("[ACPIShutdown] Writing 0x%04X to PM1b control register at port 0x%04X"),
-              Pm1ControlValue, G_FADT->Pm1bControlBlock);
-        OutPortWord(G_FADT->Pm1bControlBlock, Pm1ControlValue);
+        DEBUG(TEXT("[ACPIPowerOff] Writing %x to PM1b control register at port %x"),
+              ((U16)SlpTypB << 10) | (1 << 13), G_FADT->Pm1bControlBlock);
+        OutPortWord(G_FADT->Pm1bControlBlock, ((U16)SlpTypB << 10) | (1 << 13));
     }
 
     // If we reach here, ACPI shutdown failed
-    DEBUG(TEXT("[ACPIShutdown] ACPI shutdown failed, system still running"));
+    DEBUG(TEXT("[ACPIPowerOff] ACPI shutdown failed, system still running"));
 
     // Try alternative shutdown methods as fallback
-    DEBUG(TEXT("[ACPIShutdown] Attempting fallback shutdown methods"));
+    DEBUG(TEXT("[ACPIPowerOff] Attempting fallback shutdown methods"));
 
     // Try QEMU/Bochs specific shutdown
     OutPortWord(0x604, 0x2000);  // QEMU shutdown
     OutPortWord(0xB004, 0x2000); // Bochs shutdown
 
-    DEBUG(TEXT("[ACPIShutdown] All shutdown methods failed"));
+    DEBUG(TEXT("[ACPIPowerOff] All shutdown methods failed"));
 }
 
 /************************************************************************/
@@ -714,6 +984,7 @@ void ACPIReboot(void) {
             if (G_FADT == NULL) {
                 DEBUG(TEXT("[ACPIReboot] FADT table not found"));
             } else {
+                G_FadtLength = G_FADT->Header.Length;
                 DEBUG(TEXT("[ACPIReboot] FADT found at 0x%08X"), (U32)G_FADT);
             }
         }
@@ -727,13 +998,13 @@ void ACPIReboot(void) {
                         && G_FADT->ResetReg.RegisterBitOffset == 0) {
                         if (G_FADT->ResetReg.AddressHigh == 0) {
                             U16 ResetPort = (U16)G_FADT->ResetReg.AddressLow;
-                            DEBUG(TEXT("[ACPIReboot] Writing 0x%02X to ACPI reset register at port 0x%04X"),
+                            DEBUG(TEXT("[ACPIReboot] Writing %x to ACPI reset register at port %x"),
                                   G_FADT->ResetValue, ResetPort);
                             OutPortByte(ResetPort, G_FADT->ResetValue);
                             (void)InPortByte(0x80);
                             (void)InPortByte(0x80);
                         } else {
-                            DEBUG(TEXT("[ACPIReboot] 64-bit reset port unsupported (high 0x%08X)"),
+                            DEBUG(TEXT("[ACPIReboot] 64-bit reset port unsupported (high %x)"),
                                   G_FADT->ResetReg.AddressHigh);
                         }
                     } else {
@@ -755,12 +1026,53 @@ void ACPIReboot(void) {
     DEBUG(TEXT("[ACPIReboot] Using legacy warm reboot sequence"));
 
     DEBUG(TEXT("[ACPIReboot] Writing warm reset sequence to port 0xCF9"));
+
     OutPortByte(0xCF9, 0x02);
     (void)InPortByte(0x80);
     OutPortByte(0xCF9, 0x06);
     (void)InPortByte(0x80);
 
     DEBUG(TEXT("[ACPIReboot] Triggering keyboard controller reset"));
+
     Reboot();
     return;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for ACPI initialization.
+ *
+ * DF_LOAD initializes ACPI (idempotent). DF_UNLOAD releases ACPI resources if
+ * the driver was ready.
+ */
+static UINT ACPIDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((ACPIDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeACPI()) {
+                ACPIDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((ACPIDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ACPIDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(ACPI_VER_MAJOR, ACPI_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }

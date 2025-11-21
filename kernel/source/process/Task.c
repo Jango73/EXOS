@@ -33,16 +33,6 @@
 
 /************************************************************************/
 
-#if defined(__EXOS_32__)
-#define TASK_MINIMUM_TASK_STACK_SIZE_OTHER_DEFAULT N_128KB
-#define TASK_MINIMUM_SYSTEM_STACK_SIZE_OTHER_DEFAULT N_32KB
-#else
-#define TASK_MINIMUM_TASK_STACK_SIZE_OTHER_DEFAULT N_64KB
-#define TASK_MINIMUM_SYSTEM_STACK_SIZE_OTHER_DEFAULT N_16KB
-#endif
-
-/************************************************************************/
-
 static UINT TaskMinimumTaskStackSize = TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT;
 static UINT TaskMinimumSystemStackSize = TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT;
 static BOOL TaskStackConfigInitialized = FALSE;
@@ -58,14 +48,11 @@ static void TaskInitializeStackConfig(void) {
 
     LPCSTR configValue = GetConfigurationValue(TEXT(CONFIG_TASK_MINIMUM_TASK_STACK_SIZE));
 
-    SAFE_USE(configValue) {
+    if (STRING_EMPTY(configValue) == FALSE) {
         UINT parsedValue = StringToU32(configValue);
 
         if (parsedValue >= TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT) {
             TaskMinimumTaskStackSize = parsedValue;
-        } else if (parsedValue == TASK_MINIMUM_TASK_STACK_SIZE_OTHER_DEFAULT) {
-            VERBOSE(TEXT("[TaskInitializeStackConfig] MinimumTaskStackSize='%s' matches other architecture default, keeping %u"),
-                    configValue, TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT);
         } else {
             WARNING(TEXT("[TaskInitializeStackConfig] MinimumTaskStackSize='%s' resolves to %u which is below minimum %u, using default"),
                     configValue, parsedValue, TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT);
@@ -74,14 +61,11 @@ static void TaskInitializeStackConfig(void) {
 
     configValue = GetConfigurationValue(TEXT(CONFIG_TASK_MINIMUM_SYSTEM_STACK_SIZE));
 
-    SAFE_USE(configValue) {
+    if (STRING_EMPTY(configValue) == FALSE) {
         UINT parsedValue = StringToU32(configValue);
 
         if (parsedValue >= TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT) {
             TaskMinimumSystemStackSize = parsedValue;
-        } else if (parsedValue == TASK_MINIMUM_SYSTEM_STACK_SIZE_OTHER_DEFAULT) {
-            VERBOSE(TEXT("[TaskInitializeStackConfig] MinimumSystemStackSize='%s' matches other architecture default, keeping %u"),
-                    configValue, TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT);
         } else {
             WARNING(TEXT("[TaskInitializeStackConfig] MinimumSystemStackSize='%s' resolves to %u which is below minimum %u, using default"),
                     configValue, parsedValue, TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT);
@@ -1048,28 +1032,24 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Check if the target is a window
 
-    Desktop = GetCurrentProcess()->Desktop;
+    Desktop = NULL;
+    Win = (LPWINDOW)Target;
 
-    if (Desktop == NULL) goto Out_Error;
-    if (Desktop->TypeID != KOID_DESKTOP) goto Out_Error;
+    SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
+        SAFE_USE_VALID_ID(Win->Task, KOID_TASK) {
+            SAFE_USE_VALID_ID(Win->Task->Process, KOID_PROCESS) {
+                Desktop = Win->Task->Process->Desktop;
+            }
+        }
+    }
 
-    //-------------------------------------
-    // Lock access to the desktop
-
-    LockMutex(&(Desktop->Mutex), INFINITY);
-
-    //-------------------------------------
-    // Find the window in the desktop
-
-    Win = FindWindow(Desktop->Window, (LPWINDOW)Target);
-
-    //-------------------------------------
-    // Unlock access to the desktop
-
-    UnlockMutex(&(Desktop->Mutex));
-
-    //-------------------------------------
-    // Post message to window if found
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        LockMutex(&(Desktop->Mutex), INFINITY);
+        Win = FindWindow(Desktop->Window, (LPWINDOW)Target);
+        UnlockMutex(&(Desktop->Mutex));
+    } else {
+        Win = NULL;
+    }
 
     SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
         //-------------------------------------
@@ -1118,6 +1098,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
         Message->Param2 = Param2;
 
         AddTaskMessage(Win->Task, Message);
+
 
         //-------------------------------------
         // Notify the task if it is waiting for messages
@@ -1355,7 +1336,7 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
     // Check validity of parameters
 
     if (Message == NULL) return FALSE;
-    if (Message->Target == NULL) return FALSE;
+    if (Message->Target == 0) return FALSE;
 
     if (Window == NULL) return FALSE;
     if (Window->TypeID != KOID_WINDOW) return FALSE;
@@ -1365,11 +1346,13 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
 
     LockMutex(&(Window->Mutex), INFINITY);
 
-    if (Message->Target == (HANDLE)Window) {
+    if (EnsureKernelPointer((LINEAR)Message->Target) == (LINEAR)Window) {
         SAFE_USE(Window->Function) {
             // Call the window function with the parameters
 
-            Window->Function(Message->Target, Message->Message, Message->Param1, Message->Param2);
+            HANDLE WindowParam = EnsureHandle((LINEAR)Window);
+
+            Window->Function(WindowParam, Message->Message, Message->Param1, Message->Param2);
 
             Result = TRUE;
         }

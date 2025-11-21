@@ -1,0 +1,120 @@
+/* ===== GLOBAL ===== */
+body {
+    font-family: "Verdana";
+    background: #1b1d1e;
+    color: #cccccc;
+    font-weight: 300;
+}
+
+/* Remove old gradients */
+div.header, div.navpath, #top, #side-nav, #navrow1, #navrow2 {
+    background: #1a1c1d !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* ===== HEADINGS ===== */
+h1, h2, h3, h4, h5 {
+    color: #f8f8f2;
+    font-weight: 300;
+}
+
+/* ===== LINKS ===== */
+a {
+    color: #aae;
+}
+a:hover {
+    color: #ccf;
+}
+
+/* ===== NAVIGATION ===== */
+.tablist li {
+    background: #202223 !important;
+    border: none !important;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.tablist li.current {
+    background: #2d2f30 !important;
+    border-bottom: 2px solid #5ccfe6 !important;
+}
+
+#nav-path li a {
+    color: #bbbbbb;
+}
+
+/* ===== CONTENT AREA ===== */
+div.contents {
+    background: #1b1d1e;
+}
+
+/* block text */
+div.textblock {
+    line-height: 1.6;
+}
+
+/* hr */
+hr {
+    border: none;
+    border-bottom: 1px solid #333;
+}
+
+/* ===== CODE BLOCKS ===== */
+div.fragment, pre.fragment {
+    background: #232526 !important;
+    border: 1px solid #2f3030 !important;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+/* Monokai/Mariana-like syntax colors */
+span.kw  { color:#c792ea; }   /* keywords: violet */
+span.st  { color:#ecc48d; }   /* strings: warm yellow/orange */
+span.co  { color:#5c6370; }   /* comments: desaturated gray */
+span.va  { color:#82aaff; }   /* variables: soft blue */
+span.op  { color:#89ddff; }   /* operators: bright cyan */
+span.num { color:#f78c6c; }   /* numbers: orange */
+span.dt  { color:#ffcb6b; }   /* data types: golden */
+
+/* ===== TABLES ===== */
+table.memberdecls,
+table.fieldtable {
+    background: #202223 !important;
+    border-collapse: collapse;
+}
+
+table.memberdecls th,
+table.fieldtable th {
+    background: #2c2e2f !important;
+    color: #e0e0e0;
+    padding: 6px;
+    border-bottom: 1px solid #333;
+}
+
+table.memberdecls td,
+table.fieldtable td {
+    border-bottom: 1px solid #2a2a2a;
+    padding: 6px;
+}
+
+/* ===== SEARCH BOX ===== */
+#MSearchBox, #searchBox {
+    background: #232526 !important;
+    border: 1px solid #333 !important;
+    color: #eee !important;
+}
+#MSearchField {
+    background: transparent !important;
+    color: #eee !important;
+}
+
+/* Search results */
+#SRIndex {
+    background: #1b1d1e !important;
+}
+
+/* ===== MISC ===== */
+.directory, .directory tr, table.directory {
+    background: #1b1d1e !important;
+}

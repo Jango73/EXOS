@@ -25,16 +25,20 @@
 #include "process/Process.h"
 
 #include "Console.h"
+#include "Driver.h"
 #include "Executable.h"
 #include "File.h"
 #include "Kernel.h"
 #include "List.h"
 #include "Log.h"
 #include "CoreString.h"
+#if defined(__EXOS_ARCH_I386__)
+    #include "arch/i386/i386-Log.h"
+#endif
 
 /***************************************************************************/
 
-PROCESS SECTION(".data") KernelProcess = {
+PROCESS DATA_SECTION KernelProcess = {
     .TypeID = KOID_PROCESS,  // ID
     .References = 1,   // References
     .OwnerProcess = NULL, // OwnerProcess (from LISTNODE_FIELDS)
@@ -64,6 +68,27 @@ PROCESS SECTION(".data") KernelProcess = {
 
 /***************************************************************************/
 
+#define KERNEL_PROCESS_VER_MAJOR 1
+#define KERNEL_PROCESS_VER_MINOR 0
+
+static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION KernelProcessDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = KERNEL_PROCESS_VER_MAJOR,
+    .VersionMinor = KERNEL_PROCESS_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "KernelProcess",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = KernelProcessDriverCommands};
+
+/***************************************************************************/
+
 /**
  * @brief Initialize the kernel process and main task.
  *
@@ -80,11 +105,7 @@ void InitializeKernelProcess(void) {
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
 
-#if defined(__EXOS_ARCH_I386__)
-    KernelProcess.HeapSize = N_2MB;
-#else
-    KernelProcess.HeapSize = N_4MB;
-#endif
+    KernelProcess.HeapSize = KERNEL_PROCESS_HEAP_SIZE;
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
@@ -129,6 +150,39 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("[InitializeKernelProcess] Exit"));
 
     TRACED_EPILOGUE("InitializeKernelProcess");
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the kernel process initialization.
+ */
+static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeKernelProcess();
+            KernelProcessDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            KernelProcessDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(KERNEL_PROCESS_VER_MAJOR, KERNEL_PROCESS_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /***************************************************************************/
@@ -571,6 +625,9 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     LoadPageDirectory(Process->PageDirectory);
 
     DEBUG(TEXT("[CreateProcess] Page directory switch successful"));
+#if defined(__EXOS_ARCH_I386__)
+    LogPageDirectory(Process->PageDirectory);
+#endif
 
     //-------------------------------------
     // Allocate enough memory for the code, data and heap

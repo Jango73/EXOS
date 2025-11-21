@@ -2,6 +2,7 @@
 set -e
 
 IMG_1_PATH="build/i386/boot-hd/exos.img"
+CYCLE_PATH="build/i386/tools/cycle"
 
 if [ ! -f "$IMG_1_PATH" ]; then
     echo "Image not found: $IMG_1_PATH"
@@ -28,4 +29,5 @@ qemu-system-i386 \
 -serial file:"log/kernel.log" \
 -vga std \
 -no-reboot \
--monitor stdio
+-d int \
+2>&1 | $CYCLE_PATH -o log/qemu.log -s 40000

@@ -37,7 +37,7 @@
 
 /************************************************************************/
 
-typedef struct {
+typedef struct tag_CACHE_ENTRY {
     LPVOID Data;
     UINT ExpirationTime;
     UINT TTL;
@@ -45,7 +45,7 @@ typedef struct {
     BOOL Valid;
 } CACHE_ENTRY, *LPCACHE_ENTRY;
 
-typedef struct {
+typedef struct tag_CACHE {
     LPCACHE_ENTRY Entries;
     UINT Capacity;
     UINT Count;

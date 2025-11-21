@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -22,15 +23,11 @@
 \************************************************************************/
 
 #include "network/UDP.h"
-#include "UDPContext.h"
 #include "network/IPv4.h"
 #include "Device.h"
 #include "Heap.h"
-#include "ID.h"
 #include "Log.h"
-#include "Memory.h"
 #include "CoreString.h"
-#include "System.h"
 #include "utils/NetworkChecksum.h"
 
 /************************************************************************/

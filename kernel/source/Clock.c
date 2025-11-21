@@ -34,6 +34,27 @@
 #include "Text.h"
 
 /************************************************************************/
+
+#define CLOCK_VER_MAJOR 1
+#define CLOCK_VER_MINOR 0
+
+static UINT ClockDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION ClockDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = CLOCK_VER_MAJOR,
+    .VersionMinor = CLOCK_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Clock",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = ClockDriverCommands};
+
+/************************************************************************/
 // Timer resolution
 
 #define DIVISOR 11932
@@ -261,3 +282,38 @@ void PIC2Handler(void) { DEBUG(TEXT("[PIC2Handler]")); }
 /************************************************************************/
 
 void FPUHandler(void) { DEBUG(TEXT("[FPUHandler]")); }
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for the clock subsystem.
+ *
+ * DF_LOAD initializes the clock once; DF_UNLOAD only clears readiness.
+ */
+static UINT ClockDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((ClockDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeClock();
+            ClockDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((ClockDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ClockDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(CLOCK_VER_MAJOR, CLOCK_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
+}

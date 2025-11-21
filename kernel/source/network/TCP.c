@@ -45,14 +45,14 @@
 static U16 TCP_GetEphemeralPortStart(void) {
     LPCSTR configValue = GetConfigurationValue(TEXT(CONFIG_TCP_EPHEMERAL_START));
 
-    SAFE_USE(configValue) {
+    if (STRING_EMPTY(configValue) == FALSE) {
         U32 port = StringToU32(configValue);
         if (port > 0 && port <= 65535) {
             return (U16)port;
         }
     }
 
-    return 32768; // fallback
+    return TCP_EPHEMERAL_PORT_START_FALLBACK;
 }
 
 /************************************************************************/
@@ -60,7 +60,7 @@ static U16 TCP_GetEphemeralPortStart(void) {
 static UINT TCP_GetConfiguredBufferSize(LPCSTR configKey, U32 fallback, U32 maxLimit) {
     LPCSTR configValue = GetConfigurationValue(configKey);
 
-    SAFE_USE(configValue) {
+    if (STRING_EMPTY(configValue) == FALSE) {
         U32 parsedValue = StringToU32(configValue);
         if (parsedValue > 0) {
             if (parsedValue > maxLimit) {

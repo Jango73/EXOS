@@ -28,8 +28,30 @@
 #include "drivers/LocalAPIC.h"
 #include "Log.h"
 #include "Memory.h"
+#include "User.h"
 #include "CoreString.h"
 #include "System.h"
+
+/***************************************************************************/
+
+#define LOCAL_APIC_VER_MAJOR 1
+#define LOCAL_APIC_VER_MINOR 0
+
+static UINT LocalAPICDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION LocalAPICDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = LOCAL_APIC_VER_MAJOR,
+    .VersionMinor = LOCAL_APIC_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "LocalAPIC",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = LocalAPICDriverCommands};
 
 /***************************************************************************/
 
@@ -393,3 +415,40 @@ LPLOCAL_APIC_CONFIG GetLocalAPICConfig(void) {
     return &g_LocalApicConfig;
 }
 
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the Local APIC subsystem.
+ *
+ * DF_LOAD initializes the APIC once; DF_UNLOAD only clears readiness.
+ */
+static UINT LocalAPICDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((LocalAPICDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeLocalAPIC()) {
+                LocalAPICDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((LocalAPICDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            LocalAPICDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(LOCAL_APIC_VER_MAJOR, LOCAL_APIC_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
+}

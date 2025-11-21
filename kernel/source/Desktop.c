@@ -30,6 +30,7 @@
 
 /***************************************************************************/
 
+extern DRIVER VESADriver;
 extern GRAPHICSCONTEXT VESAContext;
 
 /***************************************************************************/
@@ -193,6 +194,7 @@ I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
 LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
     WINDOWINFO WindowInfo;
+    LPDESKTOP PreviousDesktop;
 
     This = (LPDESKTOP)KernelHeapAlloc(sizeof(DESKTOP));
     if (This == NULL) return NULL;
@@ -204,7 +206,7 @@ LPDESKTOP CreateDesktop(void) {
     This->TypeID = KOID_DESKTOP;
     This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
-    This->Graphics = &VESADriver;
+    This->Graphics = GetGraphicsDriver();
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -218,9 +220,13 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.WindowSize.X = 800;
     WindowInfo.WindowSize.Y = 600;
 
+    PreviousDesktop = GetCurrentProcess()->Desktop;
+    GetCurrentProcess()->Desktop = This;
+
     This->Window = CreateWindow(&WindowInfo);
 
     if (This->Window == NULL) {
+        GetCurrentProcess()->Desktop = PreviousDesktop;
         KernelHeapFree(This);
         return NULL;
     }
@@ -232,7 +238,7 @@ LPDESKTOP CreateDesktop(void) {
 
     ListAddHead(Kernel.Desktop, This);
 
-    GetCurrentProcess()->Desktop = This;
+    // Process already points to this desktop
 
     UnlockMutex(MUTEX_KERNEL);
 
@@ -315,6 +321,11 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     UnlockMutex(&(This->Mutex));
     UnlockMutex(MUTEX_KERNEL);
+
+    //-------------------------------------
+    // Force the desktop root window to repaint
+
+    SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) { InvalidateWindowRect((HANDLE)This->Window, NULL); }
 
     return TRUE;
 }
@@ -490,7 +501,13 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->InvalidRect = This->Rect;
 
     if (This->Parent == NULL) {
-        SAFE_USE(Desktop) This->Parent = Desktop->Window;
+        SAFE_USE(Desktop) {
+            if (Desktop->Window == NULL) {
+                Desktop->Window = This;
+            } else {
+                This->Parent = Desktop->Window;
+            }
+        }
     }
 
     SAFE_USE(This->Parent) {
@@ -520,6 +537,12 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     // Tell the window it is being created
 
     SendMessage((HANDLE)This, EWM_CREATE, 0, 0);
+
+    //-------------------------------------
+    // Ensure the freshly created window gets a draw request
+
+    InvalidateWindowRect((HANDLE)This, NULL);
+    SendMessage((HANDLE)This, EWM_DRAW, 0, 0);
 
     return This;
 }
@@ -721,7 +744,6 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     UnlockMutex(&(This->Mutex));
 
     PostMessage(Handle, EWM_DRAW, 0, 0);
-
     return TRUE;
 }
 
@@ -1611,7 +1633,7 @@ static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
 /*
 static U32 DrawButtons(HANDLE GC) {
     LINEINFO LineInfo;
-    U32 Buttons = SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
+    U32 Buttons = GetMouseDriver().Command(DF_MOUSE_GETBUTTONS, 0);
 
     if (Buttons & MB_LEFT) {
         SelectPen(GC, GetSystemPen(SM_COLOR_TITLE_BAR_2));
@@ -1734,8 +1756,8 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             LPWINDOW Target;
             I32 X, Y;
 
-            X = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
-            Y = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
+            X = GetMouseDriver()->Command(DF_MOUSE_GETDELTAX, 0);
+            Y = GetMouseDriver()->Command(DF_MOUSE_GETDELTAY, 0);
 
             Position.X = SIGNED(X);
             Position.Y = SIGNED(Y);

@@ -1,6 +1,46 @@
 
 #include "Kernel.h"
 #include "Socket.h"
+#include "utils/Helpers.h"
+
+/************************************************************************/
+
+extern DRIVER ConsoleDriver;
+extern DRIVER KernelLogDriver;
+extern DRIVER MemoryManagerDriver;
+extern DRIVER TaskSegmentsDriver;
+extern DRIVER InterruptsDriver;
+extern DRIVER KernelProcessDriver;
+extern DRIVER ACPIDriver;
+extern DRIVER LocalAPICDriver;
+extern DRIVER IOAPICDriver;
+extern DRIVER InterruptControllerDriver;
+extern DRIVER StdKeyboardDriver;
+extern DRIVER SerialMouseDriver;
+extern DRIVER ClockDriver;
+extern DRIVER PCIDriver;
+extern DRIVER ATADiskDriver;
+extern DRIVER SATADiskDriver;
+extern DRIVER RAMDiskDriver;
+extern DRIVER FileSystemDriver;
+extern DRIVER DeviceInterruptDriver;
+extern DRIVER DeferredWorkDriver;
+extern DRIVER NetworkManagerDriver;
+extern DRIVER UserAccountDriver;
+extern DRIVER VESADriver;
+
+extern DRIVER EXFSDriver;
+
+/************************************************************************/
+
+static LIST DriverList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
 
 /************************************************************************/
 
@@ -81,6 +121,17 @@ static LIST NetworkDeviceList = {
 
 /************************************************************************/
 
+static LIST EventList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST FileSystemList = {
     .First = NULL,
     .Last = NULL,
@@ -134,7 +185,10 @@ static LIST UserAccountList = {
     .MemFreeFunc = KernelHeapFree,
     .Destructor = NULL};
 
-KERNELDATA SECTION(".data") Kernel = {
+/************************************************************************/
+
+KERNELDATA DATA_SECTION Kernel = {
+    .Drivers = &DriverList,
     .Desktop = &DesktopList,
     .Process = &ProcessList,
     .Task = &TaskList,
@@ -142,10 +196,14 @@ KERNELDATA SECTION(".data") Kernel = {
     .Disk = &DiskList,
     .PCIDevice = &PciDeviceList,
     .NetworkDevice = &NetworkDeviceList,
+    .Event = &EventList,
     .FileSystem = &FileSystemList,
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,
     .Socket = &SocketList,
+    .UserSessions = NULL,
+    .UserAccount = &UserAccountList,
+    .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {
         .Header = {
             .TypeID = KOID_FILESYSTEM,
@@ -158,13 +216,51 @@ KERNELDATA SECTION(".data") Kernel = {
         },
         .Root = NULL
     },
-    .FileSystemInfo = {.ActivePartitionName = ""},
-    .UserAccount = &UserAccountList,
-    .UserSessions = NULL,
-    .Configuration = NULL,
-    .LanguageCode = "en-US",
-    .KeyboardCode = "fr-FR",
-    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
-    .MinimumQuantum = 10,
+    .HandleMap = {0},
+    .PPBSize = 0,
     .PPB = NULL,
-    .PPBSize = 0};
+    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
+    .Configuration = NULL,
+    .MinimumQuantum = 10,
+    .MaximumQuantum = 50,
+    .DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS,
+    .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
+    .DoLogin = 0,
+    .LanguageCode = "en-US",
+    .KeyboardCode = "fr-FR"
+    };
+
+/************************************************************************/
+
+/**
+ * @brief Populates the kernel driver list in initialization order.
+ */
+void InitializeDriverList(void) {
+    if (Kernel.Drivers == NULL || Kernel.Drivers->NumItems != 0) {
+        return;
+    }
+
+    ListAddTail(Kernel.Drivers, &ConsoleDriver);
+    ListAddTail(Kernel.Drivers, &KernelLogDriver);
+    ListAddTail(Kernel.Drivers, &MemoryManagerDriver);
+    ListAddTail(Kernel.Drivers, &TaskSegmentsDriver);
+    ListAddTail(Kernel.Drivers, &InterruptsDriver);
+    ListAddTail(Kernel.Drivers, &KernelProcessDriver);
+    ListAddTail(Kernel.Drivers, &ACPIDriver);
+    ListAddTail(Kernel.Drivers, &LocalAPICDriver);
+    ListAddTail(Kernel.Drivers, &IOAPICDriver);
+    ListAddTail(Kernel.Drivers, &InterruptControllerDriver);
+    ListAddTail(Kernel.Drivers, &DeviceInterruptDriver);
+    ListAddTail(Kernel.Drivers, &DeferredWorkDriver);
+    ListAddTail(Kernel.Drivers, &StdKeyboardDriver);
+    ListAddTail(Kernel.Drivers, &SerialMouseDriver);
+    ListAddTail(Kernel.Drivers, &ClockDriver);
+    ListAddTail(Kernel.Drivers, &PCIDriver);
+    ListAddTail(Kernel.Drivers, &ATADiskDriver);
+    ListAddTail(Kernel.Drivers, &SATADiskDriver);
+    ListAddTail(Kernel.Drivers, &RAMDiskDriver);
+    ListAddTail(Kernel.Drivers, &FileSystemDriver);
+    ListAddTail(Kernel.Drivers, &NetworkManagerDriver);
+    ListAddTail(Kernel.Drivers, &UserAccountDriver);
+    ListAddTail(Kernel.Drivers, &VESADriver);
+}

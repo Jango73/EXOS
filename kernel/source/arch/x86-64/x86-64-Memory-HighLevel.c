@@ -27,15 +27,36 @@
 
 /************************************************************************/
 
-typedef enum _PAGE_TABLE_POPULATE_MODE {
+#define MEMORY_MANAGER_VER_MAJOR 1
+#define MEMORY_MANAGER_VER_MINOR 0
+
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION MemoryManagerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = MEMORY_MANAGER_VER_MAJOR,
+    .VersionMinor = MEMORY_MANAGER_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "MemoryManager",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = MemoryManagerCommands};
+
+/************************************************************************/
+
+typedef enum {
     PAGE_TABLE_POPULATE_IDENTITY,
     PAGE_TABLE_POPULATE_SINGLE_ENTRY,
     PAGE_TABLE_POPULATE_EMPTY
 } PAGE_TABLE_POPULATE_MODE;
 
-#define USERLAND_SEEDED_TABLES 1u
+#define USERLAND_SEEDED_TABLES 1
 
-typedef struct _PAGE_TABLE_SETUP {
+typedef struct tag_PAGE_TABLE_SETUP {
     UINT DirectoryIndex;
     U32 ReadWrite;
     U32 Privilege;
@@ -55,9 +76,9 @@ typedef struct _PAGE_TABLE_SETUP {
             U32 Global;
         } Single;
     } Data;
-} PAGE_TABLE_SETUP;
+} PAGE_TABLE_SETUP, *LPPAGE_TABLE_SETUP;
 
-typedef struct _REGION_SETUP {
+typedef struct tag_REGION_SETUP {
     LPCSTR Label;
     UINT PdptIndex;
     U32 ReadWrite;
@@ -67,11 +88,11 @@ typedef struct _REGION_SETUP {
     PHYSICAL DirectoryPhysical;
     PAGE_TABLE_SETUP Tables[64];
     UINT TableCount;
-} REGION_SETUP;
+} REGION_SETUP, *LPREGION_SETUP;
 
 /************************************************************************/
 
-typedef struct _LOW_REGION_SHARED_TABLES {
+typedef struct tag_LOW_REGION_SHARED_TABLES {
     PHYSICAL BiosTablePhysical;
     PHYSICAL IdentityTablePhysical;
 } LOW_REGION_SHARED_TABLES;
@@ -1067,6 +1088,46 @@ Out:
 /************************************************************************/
 
 /**
+ * @brief Handles driver commands for the memory manager.
+ *
+ * DF_LOAD initializes the memory manager and marks the driver as ready.
+ * DF_UNLOAD clears the ready flag; no shutdown routine is available.
+ *
+ * @param Function Driver command selector.
+ * @param Parameter Unused.
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_NOTIMPL otherwise.
+ */
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeMemoryManager();
+            MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Initialize the x86-64 memory manager and install the kernel mappings.
  *
  * The routine prepares the physical page bitmap, constructs a new kernel page
@@ -1549,7 +1610,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
     Base = CanonicalizeLinearAddress(Base);
 
     if (NewSize > KernelStartup.MemorySize / 4) {
-        ERROR(TEXT("[ResizeRegion] New size %x exceeds 25%% of memory (%lX)"),
+        ERROR(TEXT("[ResizeRegion] New size %x exceeds 25%% of memory (%u)"),
               NewSize,
               KernelStartup.MemorySize / 4);
         return FALSE;
@@ -1777,4 +1838,10 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
     return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
+}
+
+/************************************************************************/
+
+LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags) {
+    return ResizeRegion(Base, 0, Size, NewSize, Flags | ALLOC_PAGES_AT_OR_OVER);
 }

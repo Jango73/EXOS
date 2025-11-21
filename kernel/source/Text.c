@@ -30,12 +30,20 @@ const STR Text_NewLine[] = "\n";
 const STR Text_Space[] = " ";
 const STR Text_Colon[] = ":";
 const STR Text_0[] = "0";
-const STR Text_KB[] = "KB";
-const STR Text_Exit[] = "Exit";
-const STR Text_Image[] = "Image :";
 const STR Text_Clk[] = "Clk";
 const STR Text_Rd[] = "rd";
 const STR Text_Fd[] = "fd";
 const STR Text_Hd[] = "hd";
 const STR Text_Eth[] = "eth";
+const STR Text_KB[] = "KB";
+const STR Text_Exit[] = "Exit";
+const STR Text_Image[] = "Image :";
 const STR Text_Separator[] = "================\n";
+
+#ifdef __EXOS_ARCH_I386__
+    const STR Text_Architecture[] = "i386";
+#endif
+
+#ifdef __EXOS_ARCH_X86_64__
+    const STR Text_Architecture[] = "x86-64";
+#endif

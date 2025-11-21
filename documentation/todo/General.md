@@ -15,7 +15,6 @@
 - Add a cluster cache to FAT16 and FAT32
 
 ## Network
-- Interrupt driven instead of polling
 - Optimize/evolve the network stack
 
 ## Keyboard
@@ -24,7 +23,6 @@
 
 ## Security 
 
-- Kernel pointer masking : Obscures kernel pointer values to prevent attackers from directly reading or reusing memory addresses.
 - NX/DEP : Prevents execution in non-executable memory regions (stack/heap), blocking classic injected shellcode attacks.
 - PIE/ASLR userland : Makes userland binaries position-independent and randomizes memory layout to hinder return-oriented and memory-guessing attacks.
 - Stack canaries : Places sentinel values before return addresses to detect and stop stack buffer overflows before control hijack.
@@ -43,7 +41,7 @@
 
 ## File systems
 
-- Implement ext2, ext3, ext4
+- Implement ext3 and ext4
 
 ## Drivers
 
@@ -59,3 +57,7 @@
 ## Desktop
 
 - Continue graphics UI
+
+## Other
+
+- Add quotes at startup

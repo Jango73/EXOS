@@ -46,4 +46,4 @@ $(NETGET_SYMBOLS): $(NETGET)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 clean:
-	rm -rf $(BUILD_DIR)/system/netget/*.o $(BUILD_DIR)/system/netget/*.elf $(BUILD_DIR)/system/netget/*.map $(NETGET_SYMBOLS)
+	rm -rf $(BUILD_DIR)/system/netget/*.o $(BUILD_DIR)/system/netget/netget $(BUILD_DIR)/system/netget/*.elf $(BUILD_DIR)/system/netget/*.map $(NETGET_SYMBOLS)

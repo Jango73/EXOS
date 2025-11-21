@@ -25,11 +25,13 @@
 #include "network/NetworkManager.h"
 
 #include "network/ARP.h"
+#include "User.h"
 #include "network/IPv4.h"
 #include "network/UDP.h"
 #include "network/DHCP.h"
 #include "network/TCP.h"
 #include "Kernel.h"
+#include "DeviceInterrupt.h"
 #include "Log.h"
 #include "Memory.h"
 #include "network/Network.h"
@@ -42,10 +44,38 @@
 
 /************************************************************************/
 
+#define NETWORK_MANAGER_VER_MAJOR 1
+#define NETWORK_MANAGER_VER_MINOR 0
+
+static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION NetworkManagerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = NETWORK_MANAGER_VER_MAJOR,
+    .VersionMinor = NETWORK_MANAGER_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "NetworkManager",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = NetworkManagerDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Get IP value from configuration with fallback.
+ *
+ * @param configPath Configuration key path
+ * @param fallbackValue IP value to use if parsing fails
+ * @return Parsed IP in host order or fallback
+ */
 // Helper function to get network configuration from TOML with fallback
 static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
     LPCSTR configValue = GetConfigurationValue(configPath);
-    SAFE_USE(configValue) {
+    if (STRING_EMPTY(configValue) == FALSE) {
         U32 parsedIP = ParseIPAddress(configValue);
         if (parsedIP != 0) {
             return parsedIP;
@@ -56,6 +86,15 @@ static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
 
 /************************************************************************/
 
+/**
+ * @brief Get per-device network configuration with global fallback.
+ *
+ * @param deviceName Device identifier to match
+ * @param configKey Key name inside the matching interface section
+ * @param fallbackGlobalKey Global configuration key to use if missing
+ * @param fallbackValue Value to use if no configuration found
+ * @return Parsed IP in host order or fallback
+ */
 // Helper function to get per-device network configuration
 static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey, LPCSTR fallbackGlobalKey, U32 fallbackValue) {
     STR path[128];
@@ -75,13 +114,14 @@ static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey,
             StringPrintFormat(path, TEXT(CONFIG_NETWORK_INTERFACE_CONFIG_FMT), index, configKey);
 
             LPCSTR configValue = GetConfigurationValue(path);
-            SAFE_USE(configValue) {
+            if (STRING_EMPTY(configValue) == FALSE) {
                 U32 parsedIP = ParseIPAddress(configValue);
                 if (parsedIP != 0) {
                     DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: %s = %s"), deviceName, configKey, configValue);
                     return parsedIP;
                 }
             }
+
             break;
         }
         index++;
@@ -183,15 +223,18 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
                             SAFE_USE(Context) {
                                 Context->Device = Device;
-
+                                
                                 // Generate device name
                                 GetDefaultDeviceName(Device->Name, (LPDEVICE)Device, DRIVER_TYPE_NETWORK);
 
                                 // Use per-device configuration with fallback to global config
-                                Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(0xC0A8380AU + Count));
+                                Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(NETWORK_FALLBACK_IPV4_BASE + Count));
                                 Context->IsInitialized = FALSE;
                                 Context->IsReady = FALSE;
                                 Context->OriginalCallback = NULL;
+                                Context->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+                                Context->InterruptsEnabled = FALSE;
+                                Context->MaintenanceCounter = 0;
 
                                 // Add to kernel network device list (thread-safe with MUTEX_KERNEL)
                                 LockMutex(MUTEX_KERNEL, INFINITY);
@@ -220,6 +263,12 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Discover and initialize all network devices.
+ *
+ * Finds NICs, initializes each device, and leaves network ready when at least
+ * one device exists.
+ */
 void InitializeNetwork(void) {
     DEBUG(TEXT("[InitializeNetwork] Enter"));
 
@@ -246,6 +295,52 @@ void InitializeNetwork(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Driver command handler for the network manager.
+ *
+ * DF_LOAD discovers and initializes network devices once; DF_UNLOAD clears
+ * readiness only.
+ */
+static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeNetwork();
+            NetworkManagerDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            NetworkManagerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(NETWORK_MANAGER_VER_MAJOR, NETWORK_MANAGER_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize a network device and attach protocol layers.
+ *
+ * Resets the device, gathers information, sets up ARP/IPv4/UDP/TCP,
+ * configures static or DHCP addressing, installs RX callbacks, and enables
+ * interrupts or polling as available.
+ *
+ * @param Device PCI network device to initialize
+ * @param LocalIPv4_Be Local IPv4 address in big-endian order
+ */
 void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
     DEBUG(TEXT("[NetworkManager_InitializeDevice] Enter for device %s"), Device->Driver->Product);
 
@@ -318,8 +413,8 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             }
 
             // Configure network settings from TOML configuration (per-device with global fallback)
-            U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(0xFFFFFF00));
-            U32 GatewayBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(0xC0A83801));
+            U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(NETWORK_FALLBACK_IPV4_NETMASK));
+            U32 GatewayBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(NETWORK_FALLBACK_IPV4_GATEWAY));
             IPv4_SetNetworkConfig((LPDEVICE)Device, LocalIPv4_Be, NetmaskBe, GatewayBe);
 
             // Initialize TCP subsystem (global for all devices)
@@ -339,6 +434,34 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             // Mark device as initialized
             DeviceContext->IsInitialized = TRUE;
 
+            DEVICE_INTERRUPT_CONFIG InterruptConfig;
+            MemorySet(&InterruptConfig, 0, sizeof(InterruptConfig));
+            InterruptConfig.Device = (LPDEVICE)Device;
+            InterruptConfig.LegacyIRQ = Device->Info.IRQLine;
+            InterruptConfig.TargetCPU = 0;
+            InterruptConfig.VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+            InterruptConfig.InterruptEnabled = FALSE;
+
+            U32 InterruptResult = Device->Driver->Command(DF_DEV_ENABLE_INTERRUPT, (UINT)(LPVOID)&InterruptConfig);
+            if (InterruptResult == DF_ERROR_SUCCESS && InterruptConfig.VectorSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
+                DeviceContext->InterruptSlot = InterruptConfig.VectorSlot;
+                DeviceContext->InterruptsEnabled = InterruptConfig.InterruptEnabled;
+                if (DeviceContext->InterruptsEnabled) {
+                    DEBUG(TEXT("[NetworkManager_InitializeDevice] Interrupts enabled: IRQ=%u Slot=%u"),
+                          InterruptConfig.LegacyIRQ,
+                          DeviceContext->InterruptSlot);
+                } else {
+                    WARNING(TEXT("[NetworkManager_InitializeDevice] Hardware interrupts unavailable, using polling on slot %u"),
+                            DeviceContext->InterruptSlot);
+                }
+            } else {
+                DeviceContext->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+                DeviceContext->InterruptsEnabled = FALSE;
+                WARNING(TEXT("[NetworkManager_InitializeDevice] Falling back to polling mode (Result=%u, Slot=%u)"),
+                        InterruptResult,
+                        InterruptConfig.VectorSlot);
+            }
+
             // Register TCP protocol handler now that device is initialized
             IPv4_RegisterProtocolHandler((LPDEVICE)Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
             DEBUG(TEXT("[NetworkManager_InitializeDevice] TCP handler registered for protocol %d on device %x"), IPV4_PROTOCOL_TCP, (U32)Device);
@@ -352,65 +475,10 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 /************************************************************************/
 
 /**
- * @brief Network manager task function.
+ * @brief Get the first initialized network device.
  *
- * This task runs periodically to maintain the network stack
- * (RX polling, ARP cache aging, TCP timer updates).
- *
- * @param param Unused parameter
- * @return Always returns 0
+ * @return Pointer to primary initialized PCI network device or NULL
  */
-U32 NetworkManagerTask(LPVOID param) {
-    UNUSED(param);
-
-    U32 tickCount = 0;
-
-    FOREVER {
-        // Poll all network devices for received packets
-        SAFE_USE(Kernel.NetworkDevice) {
-            for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-                LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
-                    if (Ctx->IsInitialized) {
-                        SAFE_USE_VALID_ID(Ctx->Device, KOID_PCIDEVICE) {
-                            SAFE_USE_VALID_ID(Ctx->Device->Driver, KOID_DRIVER) {
-                                NETWORKPOLL poll = {.Device = Ctx->Device};
-                                Ctx->Device->Driver->Command(DF_NT_POLL, (UINT)(LPVOID)&poll);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Update ARP cache and TCP timers every 100 polls (approximately 1 second)
-        if ((tickCount % 100) == 0) {
-            // Update ARP cache for each device
-            SAFE_USE(Kernel.NetworkDevice) {
-                for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
-                    LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                    SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
-                        if (Ctx->IsInitialized) {
-                            ARP_Tick((LPDEVICE)Ctx->Device);
-                            DHCP_Tick((LPDEVICE)Ctx->Device);
-                        }
-                    }
-                }
-            }
-            TCP_Update();
-            SocketUpdate();
-        }
-
-        tickCount++;
-
-        DoSystemCall(SYSCALL_Sleep, SYSCALL_PARAM(5));
-    }
-
-    return 0;
-}
-
-/************************************************************************/
-
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
     // Return the first initialized network device
     SAFE_USE(Kernel.NetworkDevice) {
@@ -428,6 +496,12 @@ LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Determine if a given device is ready for network operations.
+ *
+ * @param Device Device to query
+ * @return TRUE if ready, FALSE otherwise
+ */
 BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
@@ -440,4 +514,38 @@ BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
         }
     }
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Periodic maintenance routine for a network device context.
+ *
+ * Runs ARP/DHCP ticks, TCP update, and socket maintenance every 100 cycles
+ * for initialized contexts.
+ *
+ * @param Context Network device context to service
+ */
+void NetworkManager_MaintenanceTick(LPNETWORK_DEVICE_CONTEXT Context) {
+    SAFE_USE_VALID_ID(Context, KOID_NETWORKDEVICE) {
+        if (!Context->IsInitialized) {
+            return;
+        }
+
+        Context->MaintenanceCounter++;
+
+        if (Context->MaintenanceCounter >= 100U) {
+            Context->MaintenanceCounter = 0;
+
+            SAFE_USE_VALID_ID(Context->Device, KOID_PCIDEVICE) {
+                ARP_Tick((LPDEVICE)Context->Device);
+                DHCP_Tick((LPDEVICE)Context->Device);
+            }
+
+            if (NetworkManager_GetPrimaryDevice() == Context->Device) {
+                TCP_Update();
+                SocketUpdate();
+            }
+        }
+    }
 }

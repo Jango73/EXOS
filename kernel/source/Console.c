@@ -35,6 +35,27 @@
 
 /***************************************************************************/
 
+#define CONSOLE_VER_MAJOR 1
+#define CONSOLE_VER_MINOR 0
+
+static UINT ConsoleDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION ConsoleDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = CONSOLE_VER_MAJOR,
+    .VersionMinor = CONSOLE_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Console",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = ConsoleDriverCommands};
+
+/***************************************************************************/
+
 #define CHARATTR (Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07))
 
 #define CGA_REGISTER 0x00
@@ -198,6 +219,7 @@ void ConsolePrintChar(STR Char) {
             ScrollConsole();
             Console.CursorY = Console.Height - 1;
         }
+    } else if (Char == STR_RETURN) {
     } else if (Char == STR_TAB) {
         Console.CursorX += 4;
         if (Console.CursorX >= Console.Width) {
@@ -416,4 +438,40 @@ void InitializeConsole(void) {
 
     GetConsoleCursorPosition(&Console.CursorX, &Console.CursorY);
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for the console subsystem.
+ *
+ * DF_LOAD initializes the console once; DF_UNLOAD clears the ready flag
+ * as there is no shutdown routine.
+ */
+static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeConsole();
+            ConsoleDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ConsoleDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }

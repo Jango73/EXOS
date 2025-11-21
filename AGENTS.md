@@ -24,10 +24,11 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors and time.
-- **Documentation**: Update `documentation/internal/Kernel.md` when adding/modifying kernel components.
+- **Documentation**: Update `documentation/Kernel.md` when adding/modifying kernel components.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
 - **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
+- **SAFE_USE macros**: These macros validate pointers against kernel space. In userland code (runtime/system apps), NEVER use SAFE_USE_VALID/SAFE_USE_VALID_ID variants, as they will reject userland addresses.
 - **Pointers**: In the kernel, before using a kernel object pointer, use the appropriate macro for this : SAFE_USE if you got a pointer to any kind of object, SAFE_USE_VALID_ID if you got a pointer to a kernel object **which inherits LISTNODE_FIELDS**. SAFE_USE_2 does the same as SAFE_USE but for two pointers, SAFE_USE_VALID_ID_2 does the same as SAFE_USE_VALID_ID but for two pointers (SAFE_USE_VALID_ID_3 for 3 pointers, etc...).
 - **No direct access to physical memory**: Use the MapTemporaryPhysicalPage1 (MapTemporaryPhysicalPage2, etc...) and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it.
@@ -43,13 +44,7 @@ All helper scripts are organized per architecture:
 
 **Use `./scripts/i386/4-2-clean-build-debug.sh` for a complete debug build and `./scripts/i386/4-5-build-debug.sh` for an incremental debug build when unsure which build script to use.**
 
-**Incremental debug build (i386):**
-```bash
-./scripts/i386/4-5-build-debug.sh             # Debug build
-./scripts/i386/4-6-build-scheduling-debug.sh  # Scheduling debug logs : DON'T USE
-```
-
-**Build from scratch (i386):**
+**Build (i386):**
 ```bash
 ./scripts/i386/4-2-clean-build-debug.sh    # Clean then build debug
 ./scripts/i386/4-3-clean-build-scheduling-debug.sh # Clean then build with debug and scheduling debug logs : DON'T USE
@@ -74,8 +69,8 @@ Bochs output goes to `bochs.log`.
 
 ## Documentation
 
-Kernel design : `documentation/internal/Kernel.md`
-Doxygen documentation is in `documentation/internal/kernel/*`
+Kernel design : `documentation/Kernel.md`
+Doxygen documentation is in `documentation/kernel/*`
 
 **Core Components:**
 - **Kernel** (`kernel/source/`): Main OS kernel with multitasking, memory management, drivers

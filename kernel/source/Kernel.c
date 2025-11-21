@@ -23,35 +23,18 @@
 \************************************************************************/
 
 #include "Kernel.h"
-#include "Arch.h"
-#include "process/Process.h"
 
-#include "drivers/ACPI.h"
-#include "drivers/LocalAPIC.h"
-#include "drivers/IOAPIC.h"
-#include "InterruptController.h"
 #include "Autotest.h"
 #include "Clock.h"
 #include "Console.h"
-#include "Driver.h"
-#include "drivers/E1000.h"
+#include "drivers/ACPI.h"
 #include "File.h"
-#include "FileSystem.h"
-#include "drivers/ATA.h"
-#include "drivers/SATA.h"
-#include "Interrupt.h"
-#include "drivers/Keyboard.h"
 #include "Lang.h"
 #include "Log.h"
-#include "Mouse.h"
-#include "drivers/PCI.h"
-#include "Stack.h"
-#include "System.h"
-#include "SystemFS.h"
+#include "process/Process.h"
+#include "process/Task.h"
+#include "utils/Helpers.h"
 #include "utils/TOML.h"
-#include "UserAccount.h"
-#include "UserSession.h"
-#include "network/NetworkManager.h"
 #include "utils/UUID.h"
 
 /************************************************************************/
@@ -66,7 +49,9 @@ typedef struct tag_CPUIDREGISTERS {
 /***************************************************************************/
 
 extern U32 DeadBeef;
-extern void StartTestNetworkTask(void);
+extern DRIVER SerialMouseDriver;
+extern DRIVER VESADriver;
+extern DRIVER EXFSDriver;
 
 /************************************************************************/
 
@@ -84,25 +69,6 @@ void DoPageFault(void) {
 /************************************************************************/
 
 /**
- * @brief Checks that the DeadBeef sentinel retains its expected value.
- *
- * This routine verifies the global DeadBeef variable and halts if it has
- * been altered, indicating memory corruption.
- */
-
-void CheckDataIntegrity(void) {
-    if (DeadBeef != 0xDEADBEEF) {
-        DEBUG(TEXT("Expected a dead beef at %X"), (&DeadBeef));
-        DEBUG(TEXT("Data corrupt, halting"));
-
-        // Wait forever
-        DO_THE_SLEEPING_BEAUTY;
-    }
-}
-
-/************************************************************************/
-
-/**
  * @brief Converts a kernel symbol address to its corresponding physical
  *        address.
  *
@@ -112,6 +78,129 @@ void CheckDataIntegrity(void) {
 
 PHYSICAL KernelToPhysical(LINEAR Symbol) {
     return KernelStartup.KernelPhysicalBase + (PHYSICAL)(Symbol - (LINEAR)VMA_KERNEL);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert a kernel pointer into a user-visible handle.
+ *
+ * Allocates a new entry in the handle map and attaches the provided pointer
+ * to it. Returns 0 when allocation or attachment fails.
+ *
+ * @param Pointer Kernel pointer that must be exposed to userland.
+ * @return HANDLE Newly created handle or 0 on failure.
+ */
+HANDLE PointerToHandle(LINEAR Pointer) {
+    if (Pointer == 0) {
+        return 0;
+    }
+
+    UINT ExistingHandle = 0;
+    if (HandleMapFindHandleByPointer(&Kernel.HandleMap, Pointer, &ExistingHandle) == HANDLE_MAP_OK) {
+        return ExistingHandle;
+    }
+
+    UINT Handle = 0;
+    UINT Status = HandleMapAllocateHandle(&Kernel.HandleMap, &Handle);
+    if (Status != HANDLE_MAP_OK) {
+        return 0;
+    }
+
+    Status = HandleMapAttachPointer(&Kernel.HandleMap, Handle, Pointer);
+    if (Status != HANDLE_MAP_OK) {
+        HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+        return 0;
+    }
+
+    return Handle;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve a user-visible handle back to its kernel pointer.
+ *
+ * @param Handle Handle supplied by userland.
+ * @return LINEAR Kernel pointer or 0 when the handle is invalid.
+ */
+LINEAR HandleToPointer(HANDLE Handle) {
+    if (Handle == 0) {
+        return 0;
+    }
+
+    LINEAR Pointer = 0;
+    UINT Status = HandleMapResolveHandle(&Kernel.HandleMap, Handle, &Pointer);
+    if (Status != HANDLE_MAP_OK) {
+        return 0;
+    }
+
+    return Pointer;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure that a value representing a kernel object is a pointer.
+ *
+ * If the value already lies within kernel space (>= VMA_KERNEL), it is
+ * returned as-is. Otherwise it is treated as a handle and resolved to
+ * its kernel pointer.
+ *
+ * @param Value Either a kernel pointer or a user-visible handle.
+ * @return LINEAR Kernel pointer or 0 on failure.
+ */
+LINEAR EnsureKernelPointer(LINEAR Value) {
+    if (Value == 0) return 0;
+    if (Value >= VMA_KERNEL) return Value;
+
+    LINEAR Pointer = HandleToPointer((HANDLE)Value);
+    return Pointer;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure that a value representing a kernel object is a handle.
+ *
+ * If the value already lies in user handle space (< VMA_KERNEL), it is
+ * returned unchanged. Otherwise the kernel pointer is converted into a
+ * handle via PointerToHandle().
+ *
+ * @param Value Either a kernel pointer or a user-visible handle.
+ * @return HANDLE Handle value or 0 on failure.
+ */
+HANDLE EnsureHandle(LINEAR Value) {
+    if (Value == 0) return 0;
+    if (Value < VMA_KERNEL) {
+        return (HANDLE)Value;
+    }
+
+    return PointerToHandle(Value);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Detach and release a handle from the global handle map.
+ *
+ * @param Handle Handle to release; ignored when 0.
+ */
+void ReleaseHandle(HANDLE Handle) {
+    if (Handle == 0) {
+        return;
+    }
+
+    LINEAR Pointer = 0;
+    UINT Status = HandleMapDetachPointer(&Kernel.HandleMap, Handle, &Pointer);
+    if (Status != HANDLE_MAP_OK && Status != HANDLE_MAP_ERROR_NOT_ATTACHED) {
+        WARNING(TEXT("[ReleaseHandle] Detach failed handle=%u status=%u"), Handle, Status);
+    }
+
+    Status = HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+    if (Status != HANDLE_MAP_OK) {
+        WARNING(TEXT("[ReleaseHandle] Release failed handle=%u status=%u"), Handle, Status);
+    }
 }
 
 /************************************************************************/
@@ -282,8 +371,9 @@ static void Welcome(void) {
 
     ConsolePrint(
         TEXT("\n"
-        "EXOS - Extensible Operating System - Version %u.%u.%u\n"
-        "Copyright (c) 1999-2025 Jango73\n"),
+        "EXOS - Extensible Operating System for %s computers\n"
+        "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"),
+        Text_Architecture,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
 
@@ -301,8 +391,10 @@ static void Welcome(void) {
     SetConsoleBackColor(0);
     SetConsoleForeColor(CONSOLE_GRAY);
     ConsolePrint(
-        TEXT(" - Version %u.%u.%u\n"
-        "Copyright (c) 1999-2025 Jango73\n"),
+        TEXT("\n"
+        "EXOS - Extensible Operating System for %s computers\n"
+        "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"),
+        Text_Architecture,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
 */
@@ -434,6 +526,7 @@ void DeleteUnreferencedObjects(void) {
     ProcessList(Kernel.Disk, TEXT("Disk"));
     ProcessList(Kernel.PCIDevice, TEXT("PCIDevice"));
     ProcessList(Kernel.NetworkDevice, TEXT("NetworkDevice"));
+    ProcessList(Kernel.Event, TEXT("KernelEvent"));
     ProcessList(Kernel.FileSystem, TEXT("FileSystem"));
     ProcessList(Kernel.File, TEXT("File"));
     ProcessList(Kernel.TCPConnection, TEXT("TCPConnection"));
@@ -493,6 +586,7 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
         ReleaseProcessObjectsFromList(Process, Kernel.Disk);
         ReleaseProcessObjectsFromList(Process, Kernel.PCIDevice);
         ReleaseProcessObjectsFromList(Process, Kernel.NetworkDevice);
+        ReleaseProcessObjectsFromList(Process, Kernel.Event);
         ReleaseProcessObjectsFromList(Process, Kernel.FileSystem);
         ReleaseProcessObjectsFromList(Process, Kernel.File);
         ReleaseProcessObjectsFromList(Process, Kernel.TCPConnection);
@@ -548,32 +642,6 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
  * TOML data in Kernel.Configuration.
  */
 
-static void ReadKernelConfiguration(void) {
-    DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
-
-    UINT Size = 0;
-    LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
-
-    if (Buffer == NULL) {
-        Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
-
-        SAFE_USE(Buffer) {
-            DEBUG(TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
-        }
-    } else {
-        DEBUG(TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
-    }
-
-    SAFE_USE(Buffer) {
-        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
-        KernelHeapFree(Buffer);
-    }
-
-    DEBUG(TEXT("[ReadKernelConfiguration] Exit"));
-}
-
-/************************************************************************/
-
 /**
  * @brief Selects keyboard layout based on configuration.
  *
@@ -586,7 +654,7 @@ static void UseConfiguration(void) {
 
     SAFE_USE(Kernel.Configuration) {
         LPCSTR Layout;
-        LPCSTR Quantum;
+        LPCSTR QuantumMS;
         LPCSTR DoLogin;
 
         DEBUG(TEXT("[UseConfiguration] Handling keyboard layout"));
@@ -601,21 +669,23 @@ static void UseConfiguration(void) {
             SelectKeyboard(TEXT("en-US"));
         }
 
-        Quantum = TomlGet(Kernel.Configuration, TEXT("General.Quantum"));
+        QuantumMS = TomlGet(Kernel.Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
-        if (STRING_EMPTY(Quantum) == FALSE) {
-            ConsolePrint(TEXT("Task quantum set to %s\n"), Quantum);
-            Kernel.MinimumQuantum = StringToU32(Quantum);
+        if (STRING_EMPTY(QuantumMS) == FALSE) {
+            ConsolePrint(TEXT("Task quantum set to %s\n"), QuantumMS);
+            Kernel.MinimumQuantum = StringToU32(QuantumMS);
         }
 
         DoLogin = TomlGet(Kernel.Configuration, TEXT("General.DoLogin"));
 
         if (STRING_EMPTY(DoLogin) == FALSE) {
             Kernel.DoLogin = (StringToU32(DoLogin) != 0);
-            ConsolePrint(TEXT("Login sequence %s\n"), Kernel.DoLogin ? TEXT("enabled") : TEXT("disabled"));
         } else {
             Kernel.DoLogin = TRUE;
-            ConsolePrint(TEXT("DoLogin not found in config, login sequence enabled by default\n"));
+        }
+
+        if (Kernel.DoLogin == FALSE) {
+            ConsolePrint(TEXT("WARNING : Login sequence disabled\n"));
         }
     }
 
@@ -625,20 +695,6 @@ static void UseConfiguration(void) {
     }
 
     DEBUG(TEXT("[UseConfiguration] Exit"));
-}
-
-/************************************************************************/
-
-/**
- * @brief Initializes PCI subsystem by registering drivers and scanning the bus.
- */
-
-static void InitializePCI(void) {
-    extern PCI_DRIVER AHCIPCIDriver;
-
-    PCI_RegisterDriver(&E1000Driver);
-    PCI_RegisterDriver(&AHCIPCIDriver);
-    PCI_ScanBus();
 }
 
 /************************************************************************/
@@ -672,6 +728,24 @@ U32 GetPhysicalMemoryUsed(void) {
 
 /************************************************************************/
 
+LPDRIVER GetMouseDriver() {
+    return &SerialMouseDriver;
+}
+
+/************************************************************************/
+
+LPDRIVER GetGraphicsDriver() {
+    return &VESADriver;
+}
+
+/************************************************************************/
+
+LPDRIVER GetDefaultFileSystemDriver() {
+    return &EXFSDriver;
+}
+
+/************************************************************************/
+
 /**
  * @brief Loads a driver and performs basic validation.
  *
@@ -679,22 +753,116 @@ U32 GetPhysicalMemoryUsed(void) {
  * command.
  *
  * @param Driver Pointer to driver structure.
- * @param Name   Driver name for logging.
  */
 
-void LoadDriver(LPDRIVER Driver, LPCSTR Name) {
+void LoadDriver(LPDRIVER Driver) {
+    BOOL Success = FALSE;
+
     SAFE_USE(Driver) {
-        DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), Name, Driver);
+        DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), TEXT(Driver->Product), Driver);
 
         if (Driver->TypeID != KOID_DRIVER) {
             KernelLogText(
-                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), Name, Driver, Driver->TypeID);
+                LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), TEXT(Driver->Product), Driver, Driver->TypeID);
 
             // Wait forever
             DO_THE_SLEEPING_BEAUTY;
         }
-        Driver->Command(DF_LOAD, 0);
+
+        UINT Result = Driver->Command(DF_LOAD, 0);
+        if (Result == DF_ERROR_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
+            DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
+            Success = TRUE;
+        } else {
+            if ((Driver->Flags & DRIVER_FLAG_CRITICAL)) {
+                ConsolePanic(TEXT("Critical driver %s failed to load"), TEXT(Driver->Product));
+            } else {
+                ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), TEXT(Driver->Product), Result);
+            }
+        }
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unload a driver by invoking its DF_UNLOAD command.
+ *
+ * Logs the unload attempt, validates the driver descriptor and reports
+ * failures while allowing shutdown to continue.
+ *
+ * @param Driver Pointer to driver structure.
+ */
+void UnloadDriver(LPDRIVER Driver) {
+    SAFE_USE(Driver) {
+        DEBUG(TEXT("[UnloadDriver] : Unloading %s driver at %X"), TEXT(Driver->Product), Driver);
+
+        if (Driver->TypeID != KOID_DRIVER) {
+            WARNING(TEXT("[UnloadDriver] : %s driver not valid (at address %X). ID = %X."), TEXT(Driver->Product), Driver, Driver->TypeID);
+            return;
+        }
+
+        UINT Result = Driver->Command(DF_UNLOAD, 0);
+        if (Result == DF_ERROR_SUCCESS) {
+            DEBUG(TEXT("[UnloadDriver] : %s driver unloaded successfully"), TEXT(Driver->Product));
+        } else {
+            WARNING(TEXT("[UnloadDriver] : Failed to unload %s driver (code = %x)"), TEXT(Driver->Product), Result);
+        }
+    }
+}
+
+/************************************************************************/
+
+void LoadAllDrivers(void) {
+    InitializeDriverList();
+
+    if (Kernel.Drivers == NULL || Kernel.Drivers->First == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = Kernel.Drivers->First; Node; Node = Node->Next) {
+        LoadDriver((LPDRIVER)Node);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unloads all drivers in reverse initialization order.
+ *
+ * Walks the driver list from tail to head and dispatches DF_UNLOAD to
+ * each registered driver.
+ */
+void UnloadAllDrivers(void) {
+    if (Kernel.Drivers == NULL || Kernel.Drivers->Last == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = Kernel.Drivers->Last; Node; Node = Node->Prev) {
+        UnloadDriver((LPDRIVER)Node);
+    }
+}
+
+/************************************************************************/
+
+static void KillActiveUserlandProcesses(void);
+static void KillActiveKernelTasks(void);
+
+/**
+ * @brief Common pre-shutdown sequence used by power actions.
+ *
+ * Kills active userland processes, then kernel tasks, then unloads all
+ * drivers in reverse initialization order.
+ */
+static void PrepareForPowerTransition(void) {
+    DEBUG(TEXT("[PrepareForPowerTransition] Killing userland processes"));
+    KillActiveUserlandProcesses();
+
+    DEBUG(TEXT("[PrepareForPowerTransition] Killing kernel tasks"));
+    KillActiveKernelTasks();
+
+    DEBUG(TEXT("[PrepareForPowerTransition] Unloading drivers"));
+    UnloadAllDrivers();
 }
 
 /************************************************************************/
@@ -733,6 +901,89 @@ void KernelIdle(void) {
 /************************************************************************/
 
 /**
+ * @brief Terminates all userland processes without signaling.
+ *
+ * Collects active ring-3 processes and immediately kills them. This
+ * routine builds a temporary list under MUTEX_PROCESS to avoid holding
+ * the lock while issuing KillProcess().
+ */
+static void KillActiveUserlandProcesses(void) {
+    LPLIST ProcessesToKill = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    if (ProcessesToKill == NULL) {
+        WARNING(TEXT("[KillActiveUserlandProcesses] Unable to allocate kill list"));
+        return;
+    }
+
+    LockMutex(MUTEX_PROCESS, INFINITY);
+
+    SAFE_USE(Kernel.Process) {
+        for (LPPROCESS Process = (LPPROCESS)Kernel.Process->First; Process; Process = (LPPROCESS)Process->Next) {
+            SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+                if (Process != &KernelProcess && Process->Privilege == PRIVILEGE_USER &&
+                    Process->Status != PROCESS_STATUS_DEAD) {
+                    ListAddTail(ProcessesToKill, Process);
+                }
+            }
+        }
+    }
+
+    UnlockMutex(MUTEX_PROCESS);
+
+    for (LPLISTNODE Node = ProcessesToKill->First; Node; Node = Node->Next) {
+        LPPROCESS Process = (LPPROCESS)Node;
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+            DEBUG(TEXT("[KillActiveUserlandProcesses] Killing process %s"), Process->FileName);
+            KillProcess(Process);
+        }
+    }
+
+    DeleteList(ProcessesToKill);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Terminates all kernel tasks except the main kernel task.
+ *
+ * Collects tasks attached to the kernel process and flags them dead
+ * through KillTask(). The main kernel task is left running.
+ */
+static void KillActiveKernelTasks(void) {
+    LPLIST TasksToKill = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    if (TasksToKill == NULL) {
+        WARNING(TEXT("[KillActiveKernelTasks] Unable to allocate kill list"));
+        return;
+    }
+
+    LockMutex(MUTEX_TASK, INFINITY);
+
+    SAFE_USE(Kernel.Task) {
+        for (LPTASK Task = (LPTASK)Kernel.Task->First; Task; Task = (LPTASK)Task->Next) {
+            SAFE_USE_VALID_ID(Task, KOID_TASK) {
+                if (Task->Process == &KernelProcess && Task->Type != TASK_TYPE_KERNEL_MAIN &&
+                    Task->Status != TASK_STATUS_DEAD) {
+                    ListAddTail(TasksToKill, Task);
+                }
+            }
+        }
+    }
+
+    UnlockMutex(MUTEX_TASK);
+
+    for (LPLISTNODE Node = TasksToKill->First; Node; Node = Node->Next) {
+        LPTASK Task = (LPTASK)Node;
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            DEBUG(TEXT("[KillActiveKernelTasks] Killing task %s"), Task->Name);
+            KillTask(Task);
+        }
+    }
+
+    DeleteList(TasksToKill);
+}
+
+/************************************************************************/
+
+/**
  * @brief Entry point for kernel initialization.
  *
  * Sets up core services, loads drivers, mounts file systems and starts
@@ -743,109 +994,13 @@ void KernelIdle(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
+    GetCPUInformation(&(Kernel.CPU));
     PreInitializeKernel();
 
     //-------------------------------------
-    // Gather startup information
+    // Load all drivers
 
-    KernelStartup.PageDirectory = GetPageDirectory();
-    KernelStartup.IRQMask_21_RM = 0;
-    KernelStartup.IRQMask_A1_RM = 0;
-
-    //-------------------------------------
-    // Initialize the console
-
-    InitializeConsole();
-
-    //-------------------------------------
-    // Init the kernel logger
-
-    InitKernelLog();
-
-    DEBUG(TEXT("[InitializeKernel] Kernel logger initialized"));
-
-    //-------------------------------------
-    // Check RealModeCall memory pages validity
-
-    DEBUG(TEXT("[InitializeKernel] Register integer size : %d"), sizeof(UINT));
-    DEBUG(TEXT("[InitializeKernel] Console cursor : %d, %d"), Console.CursorX, Console.CursorY);
-    DEBUG(TEXT("[InitializeKernel] GDT base address read: %p"), Kernel_i386.GDT);
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_1 (%p) valid: %d"), LOW_MEMORY_PAGE_1, IsValidMemory(LOW_MEMORY_PAGE_1));
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_2 (%p) valid: %d"), LOW_MEMORY_PAGE_2, IsValidMemory(LOW_MEMORY_PAGE_2));
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_3 (%p) valid: %d"), LOW_MEMORY_PAGE_3, IsValidMemory(LOW_MEMORY_PAGE_3));
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_5 (%p) valid: %d"), LOW_MEMORY_PAGE_5, IsValidMemory(LOW_MEMORY_PAGE_5));
-    DEBUG(TEXT("[InitializeKernel] LOW_MEMORY_PAGE_6 (%p) valid: %d"), LOW_MEMORY_PAGE_6, IsValidMemory(LOW_MEMORY_PAGE_6));
-
-    //-------------------------------------
-    // Initialize the memory manager
-
-    InitializeMemoryManager();
-
-    DEBUG(TEXT("[KernelMain] Memory manager initialized"));
-
-    InitializeTaskSegments();
-
-    DEBUG(TEXT("[KernelMain] Task segments initialized"));
-
-    //-------------------------------------
-    // Check data integrity
-
-    CheckDataIntegrity();
-
-    //-------------------------------------
-    // Initialize interrupts
-
-    InitializeInterrupts();
-
-    DEBUG(TEXT("[InitializeKernel] Interrupts initialized"));
-
-    //-------------------------------------
-    // Initialize ACPI
-
-    if (InitializeACPI()) {
-        DEBUG(TEXT("[InitializeKernel] ACPI initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] ACPI not available or failed to initialize"));
-    }
-
-    //-------------------------------------
-    // Initialize Local APIC
-
-    if (InitializeLocalAPIC()) {
-        DEBUG(TEXT("[InitializeKernel] Local APIC initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] Local APIC not available or failed to initialize"));
-    }
-
-    //-------------------------------------
-    // Initialize I/O APIC
-
-    if (InitializeIOAPIC()) {
-        DEBUG(TEXT("[InitializeKernel] I/O APIC initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] I/O APIC not available or failed to initialize"));
-    }
-
-    //-------------------------------------
-    // Initialize Interrupt Controller abstraction layer (after IOAPIC)
-
-    if (InitializeInterruptController(INTCTRL_MODE_AUTO)) {
-        DEBUG(TEXT("[InitializeKernel] Interrupt Controller initialized successfully"));
-    } else {
-        DEBUG(TEXT("[InitializeKernel] Interrupt Controller initialization failed"));
-    }
-
-    //-------------------------------------
-    // Dump critical information
-
-    DumpCriticalInformation();
-
-    //-------------------------------------
-    // Initialize kernel process
-
-    InitializeKernelProcess();
-
-    DEBUG(TEXT("[InitializeKernel] Kernel process and task initialized"));
+    LoadAllDrivers();
 
     //-------------------------------------
     // Initialize object termination cache
@@ -854,38 +1009,8 @@ void InitializeKernel(void) {
 
     DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
 
-    //-------------------------------------
-    // Run auto tests
-
-    RunAllTests();
-
-    //-------------------------------------
-    // Initialize the keyboard
-
-    LoadDriver(&StdKeyboardDriver, TEXT("Keyboard"));
-
-    DEBUG(TEXT("[InitializeKernel] Keyboard initialized"));
-
-    //-------------------------------------
-    // Initialize the mouse
-
-    LoadDriver(&SerialMouseDriver, TEXT("SerialMouse"));
-
-    DEBUG(TEXT("[InitializeKernel] Mouse initialized"));
-
-    //-------------------------------------
-    // Initialize the clock
-
-    InitializeClock();
-
-    DEBUG(TEXT("[InitializeKernel] Clock initialized"));
-
-    //-------------------------------------
-    // Get information on CPU
-
-    GetCPUInformation(&(Kernel.CPU));
-
-    DEBUG(TEXT("[InitializeKernel] Got CPU information"));
+    HandleMapInit(&Kernel.HandleMap);
+    DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     //-------------------------------------
     // Initialize quantum time based on environment and debug settings
@@ -893,71 +1018,17 @@ void InitializeKernel(void) {
     InitializeQuantumTime();
 
     //-------------------------------------
-    // Initialize the PCI drivers
-
-    InitializePCI();
-
-    DEBUG(TEXT("[InitializeKernel] PCI manager initialized"));
-
-    //-------------------------------------
-    // Initialize physical drives
-
-    LoadDriver(&ATADiskDriver, TEXT("ATADisk"));
-    LoadDriver(&SATADiskDriver, TEXT("SATADisk"));
-
-    DEBUG(TEXT("[InitializeKernel] Physical drives initialized"));
-
-    //-------------------------------------
-    // Initialize RAM drives
-
-    LoadDriver(&RAMDiskDriver, TEXT("RAMDisk"));
-
-    DEBUG(TEXT("[InitializeKernel] RAM drive initialized"));
-
-    //-------------------------------------
-    // Initialize the file systems
-
-    InitializeFileSystems();
-
-    DEBUG(TEXT("[InitializeKernel] File systems initialized"));
-
-    //-------------------------------------
-    // Read kernel configuration
-
-    ReadKernelConfiguration();
-
-    //-------------------------------------
-    // Initialize network stack
-
-    InitializeNetwork();
-
-    DEBUG(TEXT("[InitializeKernel] Network manager initialized"));
-
-    //-------------------------------------
-    // Mount system folders
-
-    MountUserNodes();
-
-    //-------------------------------------
-    // Initialize user account system
-
-    InitializeUserSystem();
-
-    DEBUG(TEXT("[InitializeKernel] User account & session systems initialized"));
-
-    //-------------------------------------
-    // Initialize the graphics card
-
-#if defined(__EXOS_ARCH_I386__)
-    LoadDriver(&VESADriver, TEXT("VESA"));
-#endif
-
-    DEBUG(TEXT("[InitializeKernel] VESA driver initialized"));
-
-    //-------------------------------------
     // Set keyboard mapping
 
     UseConfiguration();
+
+    //-------------------------------------
+    // Run auto tests
+
+    // TODO : Fix RunAllTests in x86-64
+#if defined(__EXOS_ARCH_I386__)
+    RunAllTests();
+#endif
 
     //-------------------------------------
     // Print the EXOS banner
@@ -1018,26 +1089,6 @@ void InitializeKernel(void) {
         CreateTask(&KernelProcess, &TaskInfo);
         */
 
-        // StartTestNetworkTask();
-
-        //-------------------------------------
-        // Network manager task
-
-        DEBUG(TEXT("[InitializeKernel] ========================================"));
-        DEBUG(TEXT("[InitializeKernel] Starting network manager task"));
-
-        TaskInfo.Header.Size = sizeof(TASKINFO);
-        TaskInfo.Header.Version = EXOS_ABI_VERSION;
-        TaskInfo.Header.Flags = 0;
-        TaskInfo.Func = NetworkManagerTask;
-        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
-        TaskInfo.Priority = TASK_PRIORITY_LOWER;
-        TaskInfo.Flags = 0;
-        TaskInfo.Parameter = NULL;
-        StringCopy(TaskInfo.Name, TEXT("NetworkManager"));
-
-        CreateTask(&KernelProcess, &TaskInfo);
-
         //-------------------------------------
         // Shell task
 
@@ -1061,4 +1112,32 @@ void InitializeKernel(void) {
     // Enter idle
 
     KernelIdle();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Performs a clean shutdown then powers off through ACPI.
+ *
+ * Drivers are unloaded in reverse initialization order before invoking
+ * ACPIPowerOff().
+ */
+void ShutdownKernel(void) {
+    DEBUG(TEXT("[ShutdownKernel] Preparing for shutdown"));
+    PrepareForPowerTransition();
+    ACPIPowerOff();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Performs a clean shutdown then reboots through ACPI.
+ *
+ * Drivers are unloaded in reverse initialization order before invoking
+ * ACPIReboot().
+ */
+void RebootKernel(void) {
+    DEBUG(TEXT("[RebootKernel] Preparing for reboot"));
+    PrepareForPowerTransition();
+    ACPIReboot();
 }

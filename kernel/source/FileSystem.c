@@ -25,16 +25,72 @@
 #include "FileSystem.h"
 
 #include "Console.h"
+#include "File.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "CoreString.h"
+#include "User.h"
 #include "Text.h"
+#include "utils/TOML.h"
 
 extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_NTFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_EXFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_EXT2(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
+
+/***************************************************************************/
+
+#define FILESYSTEM_VER_MAJOR 1
+#define FILESYSTEM_VER_MINOR 0
+
+static UINT FileSystemDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION FileSystemDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = FILESYSTEM_VER_MAJOR,
+    .VersionMinor = FILESYSTEM_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "FileSystems",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = FileSystemDriverCommands};
+
+/***************************************************************************/
+
+/**
+ * @brief Loads and parses the kernel configuration file.
+ *
+ * Attempts to read "exos.toml" (case insensitive) and stores the resulting
+ * TOML data in Kernel.Configuration.
+ */
+static void ReadKernelConfiguration(void) {
+    DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
+
+    UINT Size = 0;
+    LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
+
+    if (Buffer == NULL) {
+        Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
+
+        SAFE_USE(Buffer) {
+            DEBUG(TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
+        }
+    } else {
+        DEBUG(TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
+    }
+
+    SAFE_USE(Buffer) {
+        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
+        KernelHeapFree(Buffer);
+    }
+
+    DEBUG(TEXT("[ReadKernelConfiguration] Exit"));
+}
 
 /***************************************************************************/
 
@@ -274,4 +330,42 @@ void InitializeFileSystems(void) {
     }
 
     MountSystemFS();
+    ReadKernelConfiguration();
+    MountUserNodes();
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Driver command handler for filesystem initialization.
+ *
+ * DF_LOAD mounts disk partitions and system FS once; DF_UNLOAD only clears
+ * readiness.
+ */
+static UINT FileSystemDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((FileSystemDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeFileSystems();
+            FileSystemDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((FileSystemDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            FileSystemDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(FILESYSTEM_VER_MAJOR, FILESYSTEM_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }

@@ -57,6 +57,7 @@
 #define KOID_UDP 0x5F504455               // "UDP_"
 #define KOID_DHCP 0x50434844              // "DHCP"
 #define KOID_TCP 0x5F504354               // "TCP_"
+#define KOID_KERNELEVENT 0x544E5645       // "EVNT"
 #define KOID_MEMORY_REGION_DESCRIPTOR 0x44524D56 // "VMRD"
 
 /************************************************************************/

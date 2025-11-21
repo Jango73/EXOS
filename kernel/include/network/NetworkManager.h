@@ -32,6 +32,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 #include "drivers/PCI.h"
 #include "network/Network.h"
 
@@ -44,6 +45,9 @@ typedef struct tag_NETWORK_DEVICE_CONTEXT {
     BOOL IsInitialized;
     BOOL IsReady;
     NT_RXCB OriginalCallback;
+    U8 InterruptSlot;
+    BOOL InterruptsEnabled;
+    U32 MaintenanceCounter;
 } NETWORK_DEVICE_CONTEXT, *LPNETWORK_DEVICE_CONTEXT;
 
 /************************************************************************/
@@ -65,16 +69,6 @@ void InitializeNetwork(void);
 void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be);
 
 /**
- * @brief Network manager task function.
- *
- * This task runs periodically to maintain the network stack.
- *
- * @param param Unused parameter
- * @return Always returns 0
- */
-U32 NetworkManagerTask(LPVOID param);
-
-/**
  * @brief Get the primary network device for global protocols like TCP.
  *
  * @return Pointer to the primary network device or NULL if none available
@@ -90,6 +84,14 @@ LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void);
  * @return TRUE if network device is ready, FALSE otherwise
  */
 BOOL NetworkManager_IsDeviceReady(LPDEVICE Device);
+
+/**
+ * @brief Perform periodic maintenance for a network device.
+ *
+ * This updates ARP, DHCP, TCP and socket state at a low frequency
+ * regardless of interrupt delivery mode.
+ */
+void NetworkManager_MaintenanceTick(LPNETWORK_DEVICE_CONTEXT Context);
 
 /************************************************************************/
 

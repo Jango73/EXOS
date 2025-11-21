@@ -82,6 +82,7 @@ It was a year-long solo project, developed the hard way:
 - E1000 network driver
 - ARP/IPv4/DHCP/UDP/TCP network layers
 - Minimal HTTP client
+- Kernel pointer masking
 - A few test apps
 
 ## Metrics

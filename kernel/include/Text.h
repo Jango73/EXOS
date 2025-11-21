@@ -30,15 +30,16 @@ extern STR Text_NewLine[];
 extern STR Text_Space[];
 extern STR Text_Colon[];
 extern STR Text_0[];
-extern STR Text_KB[];
-extern STR Text_Exit[];
-extern STR Text_Image[];
 extern STR Text_Clk[];
 extern STR Text_Rd[];
 extern STR Text_Fd[];
 extern STR Text_Hd[];
 extern STR Text_Eth[];
 extern STR Text_Separator[];
+extern STR Text_KB[];
+extern STR Text_Exit[];
+extern STR Text_Image[];
+extern STR Text_Architecture[];
 
 /***************************************************************************/
 

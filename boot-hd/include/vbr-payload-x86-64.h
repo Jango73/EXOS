@@ -69,7 +69,7 @@ typedef struct PACKED tag_SEGMENT_DESCRIPTOR {
 typedef struct PACKED tag_GDT_REGISTER {
     U16 Limit;
     U32 Base;
-} GDT_REGISTER;
+} GDT_REGISTER, *LPGDT_REGISTER;
 
 /************************************************************************/
 // Raw paging entries usable from 32-bit code

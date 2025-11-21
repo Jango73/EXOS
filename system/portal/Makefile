@@ -24,7 +24,7 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-CFLAGS  = -ffreestanding -Wall -Wextra -O1 -fno-pic -fno-stack-protector -fno-builtin -fcf-protection=none \
+CFLAGS  = -ffreestanding -Wall -Wextra -O0 -g -fno-pic -fno-stack-protector -fno-builtin -fcf-protection=none \
           $(ARCH_CFLAGS)
 
 LDFLAGS = -T portal.ld -nostdlib -Map=$(BUILD_DIR)/system/portal/portal.map $(ARCH_LDFLAGS)
@@ -46,4 +46,4 @@ $(BUILD_DIR)/system/portal/%.o: source/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(BUILD_DIR)/system/portal/*.o $(BUILD_DIR)/system/portal/*.elf $(BUILD_DIR)/system/portal/*.bin $(BUILD_DIR)/system/portal/*.map
+	rm -rf $(BUILD_DIR)/system/portal/*.o $(BUILD_DIR)/system/portal/portal $(BUILD_DIR)/system/portal/*.elf $(BUILD_DIR)/system/portal/*.bin $(BUILD_DIR)/system/portal/*.map

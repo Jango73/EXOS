@@ -33,6 +33,10 @@ const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
 
 /************************************************************************/
 
+/**
+ * @brief Resets and configures the requested serial port.
+ * @param Which Index of the COM port (0-3).
+ */
 void SerialReset(U8 Which) {
     if (Which > 3) return;
     U16 base = COMPorts[Which];
@@ -60,6 +64,11 @@ void SerialReset(U8 Which) {
 /************************************************************************/
 
 /* Bounded busy-wait TX: safe in critical handlers (no locks/allocations). */
+/**
+ * @brief Sends a character on the specified serial port.
+ * @param Which Index of the COM port (0-3).
+ * @param Char Character to send.
+ */
 void SerialOut(U8 Which, U8 Char) {
     if (Which > 3) return;
     U16 base = COMPorts[Which];
@@ -77,8 +86,14 @@ void SerialOut(U8 Which, U8 Char) {
 
 /************************************************************************/
 
+/**
+ * @brief Interrupt handler for COM2.
+ */
 void COM2Handler(void) { DEBUG(TEXT("[COM2Handler]")); }
 
 /************************************************************************/
 
+/**
+ * @brief Interrupt handler for COM1.
+ */
 void COM1Handler(void) { DEBUG(TEXT("[COM1Handler]")); }

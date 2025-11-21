@@ -28,6 +28,8 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "DeviceInterrupt.h"
+#include "Driver.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/x86-64/x86-64-Memory.h"
 #include "process/TaskStack.h"
@@ -41,7 +43,7 @@
 
 #define IDT_SIZE N_4KB
 #define GDT_SIZE N_8KB
-#define NUM_INTERRUPTS 48
+#define NUM_INTERRUPTS (DEVICE_INTERRUPT_VECTOR_BASE + DEVICE_INTERRUPT_VECTOR_MAX)
 #define NUM_TASKS 128
 
 #define GATE_TYPE_386_INT 0x0E
@@ -377,8 +379,9 @@ typedef struct tag_KERNELDATA_X86_64 {
 #define SetupStackForUserMode(Task, StackTop, UserESP) \
         SetupStackForKernelMode(Task, StackTop, UserESP)
 
-#define SwitchToNextTask_2(prev, next)                                  \
+#define SwitchToNextTask_2(prev, next, next_cr3)                        \
     do {                                                                \
+        U64 __target_cr3 = (next_cr3);                                  \
         __asm__ __volatile__(                                           \
             "push %%rbp\n\t"                                            \
             "push %%rax\n\t"                                            \
@@ -396,11 +399,12 @@ typedef struct tag_KERNELDATA_X86_64 {
             "push %%r14\n\t"                                            \
             "push %%r15\n\t"                                            \
             "movq %%rsp, %0\n\t"                                        \
-            "movq %2, %%rsp\n\t"                                        \
+            "mov %2, %%cr3\n\t"                                         \
+            "movq %3, %%rsp\n\t"                                        \
             "leaq 1f(%%rip), %%rax\n\t"                                 \
             "movq %%rax, %1\n\t"                                        \
-            "movq %4, %%rdi\n\t"                                        \
-            "movq %5, %%rsi\n\t"                                        \
+            "movq %5, %%rdi\n\t"                                        \
+            "movq %6, %%rsi\n\t"                                        \
             "call SwitchToNextTask_3\n\t"                               \
             "1:\n\t"                                                    \
             "pop %%r15\n\t"                                             \
@@ -420,9 +424,11 @@ typedef struct tag_KERNELDATA_X86_64 {
             "pop %%rbp\n\t"                                             \
             : "=m"((prev)->Arch.Context.Registers.RSP),                 \
               "=m"((prev)->Arch.Context.Registers.RIP)                  \
-            : "m"((next)->Arch.Context.Registers.RSP),                  \
+            : "r"(__target_cr3),                                        \
+              "m"((next)->Arch.Context.Registers.RSP),                  \
               "m"((next)->Arch.Context.Registers.RIP),                  \
-              "r"(prev), "r"(next)                                      \
+              "r"(prev),                                                \
+              "r"(next)                                                 \
             : "rax", "rbx", "rsi", "rdi", "memory");                    \
     } while (0)
 
@@ -593,6 +599,8 @@ void PreInitializeKernel(void);
 void InitializeSystemCall(void);
 void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);
 void InitializeTaskSegments(void);
+void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U32 Limit);
+void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U64 Base);
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 
 /************************************************************************/

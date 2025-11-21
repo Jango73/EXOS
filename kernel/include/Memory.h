@@ -26,6 +26,7 @@
 #define MEMORY_H_INCLUDED
 
 #include "Base.h"
+#include "Driver.h"
 #include "List.h"
 #include "arch/Memory.h"
 
@@ -39,7 +40,7 @@
 /************************************************************************/
 // typedefs
 
-typedef enum tag_MEMORY_REGION_GRANULARITY {
+typedef enum {
     MEMORY_REGION_GRANULARITY_4K = 0,
     MEMORY_REGION_GRANULARITY_2M = 1,
     MEMORY_REGION_GRANULARITY_1G = 2
@@ -90,6 +91,9 @@ void FreePhysicalPage(PHYSICAL Page);
 // Returns TRUE if a pointer is an valid address (mapped in the calling process space)
 BOOL IsValidMemory(LINEAR Pointer);
 
+// Attempts to mirror kernel mappings into the current address space for a faulting kernel address
+BOOL ResolveKernelPageFault(LINEAR FaultAddress);
+
 // Returns the physical address for a given virtual address
 PHYSICAL MapLinearToPhysical(LINEAR Address);
 
@@ -108,6 +112,9 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 
 // Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags);
+
+// Kernel region resize wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
+LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags);
 
 /************************************************************************/
 

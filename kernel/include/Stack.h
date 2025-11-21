@@ -30,6 +30,11 @@
 
 /************************************************************************/
 
+#define STACK_GROW_MIN_INCREMENT N_16KB
+#define STACK_GROW_EXTRA_HEADROOM N_16KB
+
+/************************************************************************/
+
 // Copy stack content from source to destination and adjust frame pointers
 BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size);
 

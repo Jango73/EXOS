@@ -34,7 +34,7 @@
 
 UINT RAMDiskCommands(UINT, UINT);
 
-DRIVER RAMDiskDriver = {
+DRIVER DATA_SECTION RAMDiskDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -45,6 +45,7 @@ DRIVER RAMDiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "RAM Disk Controller",
+    .Flags = 0,
     .Command = RAMDiskCommands};
 
 /***************************************************************************/
@@ -59,6 +60,10 @@ typedef struct tag_RAMDISK {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocates and initializes a new RAM disk structure.
+ * @return Pointer to the initialized RAM disk or NULL on allocation failure.
+ */
 static LPRAMDISK NewRAMDisk(void) {
     LPRAMDISK This;
 
@@ -393,6 +398,10 @@ ClusterEntry6);
 
 /***************************************************************************/
 
+/**
+ * @brief Initializes and registers the RAM disk device.
+ * @return DF_ERROR_SUCCESS on success, error code otherwise.
+ */
 static U32 RAMDiskInitialize(void) {
     PARTITION_CREATION Create;
     LPBOOTPARTITION Partition;
@@ -477,7 +486,7 @@ static U32 RAMDiskInitialize(void) {
 
     StringCopy(Create.VolumeName, TEXT("RamDisk"));
 
-    EXFSDriver.Command(DF_FS_CREATEPARTITION, (UINT)&Create);
+    GetDefaultFileSystemDriver()->Command(DF_FS_CREATEPARTITION, (UINT)&Create);
 
     DEBUG(TEXT("[RAMDiskInitialize] Partition formated in EXFS"));
 
@@ -490,6 +499,11 @@ static U32 RAMDiskInitialize(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Reads sectors from the RAM disk into a buffer.
+ * @param Control IO control structure describing the read operation.
+ * @return DF_ERROR_SUCCESS on success, error code otherwise.
+ */
 static U32 Read(LPIOCONTROL Control) {
     LPRAMDISK Disk;
 
@@ -524,6 +538,11 @@ static U32 Read(LPIOCONTROL Control) {
 
 /***************************************************************************/
 
+/**
+ * @brief Writes sectors from a buffer to the RAM disk.
+ * @param Control IO control structure describing the write operation.
+ * @return DF_ERROR_SUCCESS on success, error code otherwise.
+ */
 static U32 Write(LPIOCONTROL Control) {
     LPRAMDISK Disk;
 
@@ -565,6 +584,11 @@ static U32 Write(LPIOCONTROL Control) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieves information about the RAM disk device.
+ * @param Info Disk info structure to populate.
+ * @return DF_ERROR_SUCCESS on success, error code otherwise.
+ */
 static U32 GetInfo(LPDISKINFO Info) {
     LPRAMDISK Disk;
 
@@ -595,6 +619,11 @@ static U32 GetInfo(LPDISKINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Sets access permissions on the RAM disk.
+ * @param Access Access descriptor containing the target disk and flags.
+ * @return DF_ERROR_SUCCESS on success, error code otherwise.
+ */
 static U32 SetAccess(LPDISKACCESS Access) {
     LPRAMDISK Disk;
 
@@ -622,11 +651,31 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 /***************************************************************************/
 
+/**
+ * @brief RAM disk driver command dispatcher.
+ * @param Function Driver function code.
+ * @param Parameter Optional pointer parameter for the command.
+ * @return Command-specific status code.
+ */
 UINT RAMDiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
-            return RAMDiskInitialize();
+            if ((RAMDiskDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (RAMDiskInitialize() == DF_ERROR_SUCCESS) {
+                RAMDiskDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
         case DF_UNLOAD:
+            if ((RAMDiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            RAMDiskDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);

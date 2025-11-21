@@ -31,6 +31,8 @@ HANDLE RedPen = NULL;
 HANDLE RedBrush = NULL;
 HANDLE GreenPen = NULL;
 HANDLE GreenBrush = NULL;
+HANDLE PortalDesktopHandle = NULL;
+HANDLE PortalDesktopWindow = NULL;
 
 int exosmain(int argc, char** argv);
 
@@ -167,7 +169,6 @@ U32 OnButtonDraw(HANDLE Window, U32 Param1, U32 Param2) {
         }
 
         ReleaseWindowGC(Window);
-        // EndWindowDraw(Window);
     }
 
     return 0;
@@ -235,7 +236,8 @@ U32 MainWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
                 Rectangle(GC, Rect.X1, Rect.Y1 + 20, Rect.X2, Rect.Y2);
 
-                ReleaseWindowGC(GC);
+        ReleaseWindowGC(GC);
+    } else {
             }
         } break;
 
@@ -251,19 +253,32 @@ U32 MainWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 U32 DesktopTask(LPVOID Param) {
     UNUSED(Param);
 
-    HANDLE Desktop;
     HANDLE Window;
     POINT MousePos;
     POINT NewMousePos;
     U32 MouseButtons;
     U32 NewMouseButtons;
 
-    Desktop = CreateDesktop();
-    if (Desktop == NULL) return MAX_U32;
+    PortalDesktopHandle = GetCurrentDesktop();
 
-    Window = GetDesktopWindow(Desktop);
+    if (PortalDesktopHandle == NULL) {
+        PortalDesktopHandle = CreateDesktop();
+    }
 
-    ShowDesktop(Desktop);
+    if (PortalDesktopHandle == NULL) {
+        return MAX_U32;
+    }
+
+    PortalDesktopWindow = GetDesktopWindow(PortalDesktopHandle);
+    if (PortalDesktopWindow == NULL) {
+        return MAX_U32;
+    }
+
+    if (ShowDesktop(PortalDesktopHandle) == FALSE) {
+        return MAX_U32;
+    }
+
+    Window = PortalDesktopWindow;
 
     MousePos.X = 0;
     MousePos.Y = 0;

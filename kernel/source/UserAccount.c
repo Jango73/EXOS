@@ -25,6 +25,7 @@
 #include "UserAccount.h"
 
 #include "Clock.h"
+#include "Driver.h"
 #include "utils/Crypt.h"
 #include "utils/Database.h"
 #include "Heap.h"
@@ -36,11 +37,30 @@
 #include "Mutex.h"
 #include "CoreString.h"
 #include "System.h"
+#include "User.h"
 
 /************************************************************************/
 
 static U32 NextSessionID = 1;
 static const U32 USER_DATABASE_CAPACITY = 1000;
+
+static UINT UserAccountDriverCommands(UINT Function, UINT Parameter);
+
+/************************************************************************/
+
+DRIVER DATA_SECTION UserAccountDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = USER_SYSTEM_VER_MAJOR,
+    .VersionMinor = USER_SYSTEM_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "UserSystem",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = UserAccountDriverCommands};
 
 /************************************************************************/
 
@@ -75,6 +95,43 @@ void ShutdownUserSystem(void) {
         SaveUserDatabase();
         ListReset(Kernel.UserAccount);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for the user system.
+ */
+static UINT UserAccountDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeUserSystem()) {
+                UserAccountDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ShutdownUserSystem();
+            UserAccountDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(USER_SYSTEM_VER_MAJOR, USER_SYSTEM_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /************************************************************************/
@@ -416,4 +473,3 @@ U64 GenerateSessionID(void) {
 
     return U64_Add(SessionID, TimeHash);
 }
-

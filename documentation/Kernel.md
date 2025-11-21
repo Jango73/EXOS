@@ -2,14 +2,6 @@
 
 ## Architecture
 
-Work to bring the long-mode kernel build closer to parity with the i386
-port continues. The x86-64 backend exposes placeholder scheduler and
-context-switch helpers so common code can compile while the full task
-switching path is implemented. The interrupt bootstrap has also been
-rebuilt around the 16-byte IDT format, providing stubs for each vector so
-the C runtime reaches the scheduler before the final entry/exit sequences
-are written.
-
 ### Paging abstractions
 
 The memory manager relies on `arch/Memory.h` to describe page hierarchy
@@ -43,7 +35,7 @@ linear aliases, building the initial PML4, and installing a long-mode
 GDT so higher-half execution can begin without architecture-specific
 hooks inside the generic memory manager.
 
-On long mode builds the kernel now allocates paging structures explicitly
+On long mode builds the kernel allocates paging structures explicitly
 instead of cloning the loader tables. `AllocPageDirectory` creates fresh
 low-memory and kernel PDPTs, wires the task-runner window, and programs
 the recursive slot before returning the new PML4. `AllocUserPageDirectory`
@@ -53,7 +45,7 @@ the hierarchy first. The low-memory region builder keeps a cached pair of
 BIOS-protected and general identity tables so new page directories only
 consume fresh pages for their PDPT, directory, and any userland seed tables.
 
-On x86-64 every successful `AllocRegion` now emits a `MEMORY_REGION_DESCRIPTOR`
+On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR`
 record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored
 on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from
 dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel
@@ -73,6 +65,45 @@ entire lifetime and is persisted in the termination cache through
 `OBJECT_TERMINATION_STATE.ID`. Scheduler lookups rely on the shared identifier
 instead of raw pointers, eliminating accidental matches when memory is reused
 for new objects.
+
+### Kernel event object
+
+`kernel/source/KernelEvent.c` introduces `CreateKernelEvent`, a lightweight
+kernel object (`KOID_KERNELEVENT`) designed for ISR-to-task signaling. Events
+embed the standard `LISTNODE_FIELDS` header plus a `Signaled` flag and
+`SignalCount` counter. They live in `Kernel.Event` alongside other
+kernel-maintained lists so reference tracking and garbage collection treat
+them like existing objects (processes, sockets, etc.).
+
+Key helpers:
+
+- `CreateKernelEvent()` / `DeleteKernelEvent()` allocate and reference-count
+  the object.
+- `SignalKernelEvent()` and `ResetKernelEvent()` flip the `Signaled` flag while
+  interrupts are masked locally (`SaveFlags`/`DisableInterrupts`). The helpers
+  are safe to call from interrupt context.
+- `KernelEventIsSignaled()` and `KernelEventGetSignalCount()` surface state for
+  consumer code.
+
+`Wait()` recognises the new type: when an event handle is present in
+`WAITINFO.Objects`, the scheduler returns as soon as `SignalKernelEvent`
+marks it signaled and propagates `SignalCount` through the wait exit codes.
+Legacy behaviour for process/task termination remains unchanged because the
+termination cache is still consulted first.
+
+### Handle reuse guarantees
+
+The global handle map enforces a strict 1:1 relationship between kernel
+objects and user-visible handles. `PointerToHandle()` first queries the handle
+map to see if the pointer is already exported and reuses the existing handle
+instead of allocating a duplicate. A new reverse lookup helper walks the handle
+map so conversions remain O(n) only in debugging scenarios while the common
+case reuses cached handles. This change eliminates transient handles created
+every time `SysCall_GetMessage()` returned a pointer to userland, which in turn
+kept GUI messages from round-tripping correctly through `DispatchMessage()`.
+User applications receive stable handles for their windows, and the runtime
+can translate those handles back to the original kernel pointers without any
+fallback logic.
 
 ### Command line editing
 
@@ -97,7 +128,17 @@ mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
 and SATA), graphics (VGA, VESA, and mode tables), and file system backends
 (FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery
 from the build system and clarifies the separation between reusable utilities
-and hardware support code.
+and hardware support code. Kernel-side driver registration mirrors the rest
+of the codebase by storing the initialization order in a `LIST` declared in
+`KernelData.c`; `InitializeDriverList()` appends each static driver descriptor
+before `LoadAllDrivers()` walks the list.
+
+The VESA graphics driver always requests VBE modes in linear frame buffer
+mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises
+the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing
+code writes directly to the mapped VRAM region without issuing BIOS bank
+switching calls, which removes the heavy INT 10h overhead from every pixel
+write.
 
 ### Shell scripting integration
 
@@ -114,11 +155,17 @@ and query per-process properties such as `Status`, `Flags`, `ExitCode`,
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
 module discovers ACPI tables, exposes the parsed configuration, and offers
-helpers for platform control. `ACPIShutdown()` enters the S5 soft-off state and
+helpers for platform control. `ACPIShutdown()` releases ACPI mappings and
+state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using
+the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and
 falls back to legacy power-off sequences when the ACPI path fails. The new
 `ACPIReboot()` companion performs a warm reboot by first using the ACPI reset
 register (when present) and then chaining to legacy reset controllers to ensure
-the machine restarts even on older chipsets.
+the machine restarts even on older chipsets. Kernel-level wrappers
+`ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland
+processes, then kernel tasks, and perform a reverse-order driver unload before
+handing control to the ACPI routines so subsystems leave as few pending
+resources as possible when the machine powers off or reboots.
 
 ### File system globals
 
@@ -128,6 +175,19 @@ MBR partitions are mounted. `MountDiskPartitions` identifies the active entry
 directly from the MBR, then calls `FileSystemSetActivePartition` to copy the
 mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName` for
 later use (for example, in the shell).
+
+### Desktop ownership helpers
+
+Window managers can reuse the desktop that was assigned to their process
+instead of blindly creating a new one. The kernel exports
+`SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently
+associated with the caller. The runtime exposes this through
+`GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the
+desktop window, and issue `ShowDesktop()` without forking a duplicate desktop.
+Callers still retain the option to create a dedicated desktop when
+`GetCurrentDesktop()` returns `NULL`, but typical applications leverage the
+existing object so their top-level windows appear on the main desktop instead
+of being hidden behind a detached surface.
 
 ## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
@@ -178,6 +238,45 @@ However, the code uses 32 bit registers when appropriate.
 │ 00400000 -> EFFFFFFF  Flat free RAM                                      │
 ├──────────────────────────────────────────────────────────────────────────┤
 ```
+
+## Disk interfaces
+
+```
++------------------------------------+
+|          Operating System          |
++------------------------------------+
+                |
+                | (Software Drivers)
+                v
++------------------------------------+
+| Controllers/Protocols              |
+| +--------+  +--------+  +--------+ |
+| |  AHCI  |  |  NVMe  |  |  SCSI  | |
+| +--------+  +--------+  +--------+ |
+|      |           |           |     |
+|      v           v           v     |
+| +--------+  +--------+  +--------+ |
+| |  SATA  |  |  PCIe  |  |  SAS/  | |
+| |Interface| |Interface| |SATA Int| |
+| +--------+  +--------+  +--------+ |
+|      |           |           |     |
+|      v           v           v     |
+| +--------+  +--------+  +--------+ |
+| | HDD,   |  | SSD    |  | HDD,   | |
+| | SSD    |  | NVMe   |  | SSD    | |
+| | (SATA) |  |        |  | (SAS/  | |
+| |        |  |        |  | SATA)  | |
+| +--------+  +--------+  +--------+ |
++------------------------------------+
+```
+
+**AHCI interrupt policy**: the SATA driver registers the controller with the
+shared `DeviceInterruptRegister` infrastructure and installs dedicated top and
+bottom halves so IRQ 11 traffic can be routed through a private slot when the
+hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands
+still complete synchronously, therefore all AHCI per-port interrupt masks
+(`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep
+the shared IRQ 11 line quiet for the `E1000` NIC.
 
 ## Foreign File systems
 
@@ -455,7 +554,6 @@ Fractional part = unusable space.
  └── ...
 ─────────────────────────────────────────────────────────────────────
 
-
 ## Tasks
 
 ### Architecture-specific task data
@@ -471,7 +569,7 @@ allocating and clearing the per-task stacks, initialising the selectors in the i
 performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the
 same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults
 that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT
-initialisation the kernel now assigns IST1 to the fault vectors that are most likely to execute with
+initialisation the kernel assigns IST1 to the fault vectors that are most likely to execute with
 a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection
 and page faults). This ensures the handlers always run on the emergency per-task stack, preventing
 the double-fault escalation that previously produced a triple fault when the active stack pointer
@@ -776,6 +874,26 @@ typedef struct DeviceTag {
 - `SetDeviceContext(Device, ID, Context)`: Store context for device
 - `RemoveDeviceContext(Device, ID)`: Remove and free context
 
+### Device Interrupt Infrastructure
+
+**Location:** `kernel/source/DeviceInterrupt.c`, `kernel/include/DeviceInterrupt.h`, `kernel/source/DeferredWork.c`
+
+The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
+
+**Key Features:**
+- Configurable interrupt vector slots shared across PCI/PIC paths (`General.DeviceInterruptSlots`, 1–32, default 32).
+- Slot bookkeeping is allocated dynamically from kernel memory so the table matches the configured slot count.
+- `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
+- `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
+- Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
+- Graceful fallback to polling when hardware interrupts are unavailable.
+
+**API Functions:**
+- `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
+- `DeviceInterruptRegister()/DeviceInterruptUnregister()`: Manage slot lifetime.
+- `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
+- `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
+
 ### Network Manager
 
 **Location:** `kernel/source/network/NetworkManager.c`, `kernel/include/network/NetworkManager.h`
@@ -786,7 +904,7 @@ The Network Manager provides centralized network device discovery, initializatio
 - Automatic PCI network device discovery (up to 8 devices)
 - Per-device network stack initialization (ARP, IPv4, TCP)
 - Unified frame reception callback routing
-- Periodic maintenance (RX polling, ARP aging, TCP timers)
+- Integration with the deferred work dispatcher for interrupt-driven receive paths with polling fallback
 - Primary device selection for global protocols
 
 **Initialization Flow:**
@@ -805,7 +923,7 @@ void InitializeNetworkManager(void) {
 **API Functions:**
 - `InitializeNetworkManager()`: Discover and initialize all network devices
 - `NetworkManager_InitializeDevice()`: Initialize specific network device
-- `NetworkManagerTask()`: Periodic maintenance task (polling, timers)
+- `NetworkManager_MaintenanceTick()`: Deferred maintenance routine invoked by `DeferredWorkDispatcher`
 - `NetworkManager_GetPrimaryDevice()`: Get primary device for TCP
 
 ### E1000 Ethernet Driver
@@ -828,6 +946,8 @@ The E1000 driver provides the hardware abstraction layer for Intel 82540EM netwo
 - `DF_NT_SEND`: Send Ethernet frame
 - `DF_NT_POLL`: Poll receive ring for new frames
 - `DF_NT_SETRXCB`: Register frame receive callback
+- `DF_DEV_ENABLE_INTERRUPT`: Configure interrupt routing and unmask device interrupts
+- `DF_DEV_DISABLE_INTERRUPT`: Mask device interrupts and release routing
 
 ### ARP (Address Resolution Protocol)
 
@@ -1030,8 +1150,7 @@ IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_ICMP, ICMPHandler);
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_UDP, UDPHandler);
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
 
-// 4. Start Network Manager maintenance task:
-CreateTask(&KernelProcess, NetworkManagerTask);
+// 4. Deferred work dispatcher drives maintenance once initialized during boot
 ```
 
 ### Key Benefits of Per-Device Architecture

@@ -30,7 +30,7 @@
 #define DB_FILE_MAGIC 0x44424731u /* "DBG1" */
 #define DB_FILE_VERSION 1u
 
-typedef struct {
+typedef struct tag_DATABASE_FILE_HEADER {
     U32 Magic;
     U32 Version;
     U32 RecordSize;
@@ -38,12 +38,12 @@ typedef struct {
     U32 Capacity;
 } DATABASE_FILE_HEADER;
 
-typedef struct {
+typedef struct tag_DATABASE_INDEX_ENTRY {
     I32 Key;   /* id, -1 if empty */
     U32 Index; /* position in records array */
 } DATABASE_INDEX_ENTRY;
 
-typedef struct {
+typedef struct tag_DATABASE {
     LPVOID Records; /* array of records */
     U32 RecordSize;
     U32 IdOffset; /* offset of I32 id field */

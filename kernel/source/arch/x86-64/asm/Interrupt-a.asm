@@ -23,6 +23,9 @@
 
 %include "x86-64.inc"
 
+; DEVICE_INTERRUPT_VECTOR_MAX must match kernel/include/DeviceInterrupt.h
+%define DEVICE_INTERRUPT_VECTOR_MAX 32
+
 BITS 64
 
 extern BuildInterruptFrame
@@ -37,6 +40,7 @@ extern PCIHandler
 extern MouseHandler
 extern FPUHandler
 extern HardDriveHandler
+extern DeviceInterruptHandler
 extern Kernel_i386
 extern DebugLogSyscallFrame
 extern SystemCallHandler
@@ -74,6 +78,13 @@ section .text
     global Interrupt_Mouse
     global Interrupt_FPU
     global Interrupt_HardDrive
+
+%assign __device_slot 0
+%rep DEVICE_INTERRUPT_VECTOR_MAX
+    global Interrupt_Device%+__device_slot
+%assign __device_slot __device_slot + 1
+%endrep
+
     global Interrupt_SystemCall
     global EnterKernel
 
@@ -445,6 +456,31 @@ Interrupt_HardDrive:
     POP_GPRS
     UNALIGN_STACK
     iretq
+
+%macro DEVICE_INTERRUPT_STUB 1
+
+FUNC_HEADER
+Interrupt_Device%1:
+    cli
+    ALIGN_STACK
+    PUSH_GPRS
+    PUSH_SEGMENTS
+    call EnterKernel
+    mov     edi, %1
+    call    DeviceInterruptHandler
+    call    SendEOI
+    POP_SEGMENTS
+    POP_GPRS
+    UNALIGN_STACK
+    iretq
+
+%endmacro
+
+%assign __device_slot 0
+%rep DEVICE_INTERRUPT_VECTOR_MAX
+DEVICE_INTERRUPT_STUB __device_slot
+%assign __device_slot __device_slot + 1
+%endrep
 
 FUNC_HEADER
 Interrupt_SystemCall:

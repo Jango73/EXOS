@@ -35,7 +35,7 @@
 
 UINT EXFSCommands(UINT, UINT);
 
-DRIVER EXFSDriver = {
+DRIVER DATA_SECTION EXFSDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

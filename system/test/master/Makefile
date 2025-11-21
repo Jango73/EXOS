@@ -53,4 +53,4 @@ $(MASTER_SYMBOLS): $(MASTER)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 clean:
-	rm -rf $(BUILD_DIR)/system/test/master/*.o $(BUILD_DIR)/system/test/master/*.elf $(BUILD_DIR)/system/test/master/*.map $(MASTER_SYMBOLS)
+	rm -rf $(BUILD_DIR)/system/test/master/*.o $(BUILD_DIR)/system/test/master/master $(BUILD_DIR)/system/test/master/*.elf $(BUILD_DIR)/system/test/master/*.map $(MASTER_SYMBOLS)

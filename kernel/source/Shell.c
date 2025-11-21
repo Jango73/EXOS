@@ -22,35 +22,25 @@
 
 \************************************************************************/
 
-#include "drivers/ACPI.h"
-#include "Base.h"
+#include "arch/Disassemble.h"
 #include "Clock.h"
-#include "utils/CommandLineEditor.h"
 #include "Console.h"
-#include "Disk.h"
+#include "drivers/Keyboard.h"
 #include "Endianness.h"
 #include "Exposed.h"
 #include "File.h"
-#include "FileSystem.h"
-#include "GFX.h"
-#include "Heap.h"
-#include "utils/Helpers.h"
 #include "Kernel.h"
-#include "drivers/Keyboard.h"
-#include "List.h"
 #include "Log.h"
-#include "arch/Disassemble.h"
 #include "network/Network.h"
 #include "network/NetworkManager.h"
-#include "utils/Path.h"
 #include "process/Process.h"
 #include "Script.h"
-#include "CoreString.h"
-#include "utils/StringArray.h"
-#include "System.h"
-#include "User.h"
 #include "UserAccount.h"
 #include "UserSession.h"
+#include "utils/CommandLineEditor.h"
+#include "utils/Helpers.h"
+#include "utils/Path.h"
+#include "utils/StringArray.h"
 #include "VKey.h"
 
 /************************************************************************/
@@ -712,7 +702,6 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     }
 
     do {
-        DEBUG(TEXT("[ListDirectory] Found file: %s"), File->Name);
         ListFile(File, Indent);
         if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
             if (StringCompare(File->Name, TEXT(".")) != 0 && StringCompare(File->Name, TEXT("..")) != 0) {
@@ -1279,10 +1268,10 @@ static U32 CMD_inp(LPSHELLCONTEXT Context) {
 static U32 CMD_reboot(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    DEBUG(TEXT("[CMD_shutdown] Rebooting system"));
+    DEBUG(TEXT("[CMD_reboot] Rebooting system"));
     ConsolePrint(TEXT("Rebooting system...\n"));
 
-    ACPIReboot();
+    RebootKernel();
 
     return DF_ERROR_SUCCESS;
 }
@@ -1299,7 +1288,7 @@ static U32 CMD_shutdown(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[CMD_shutdown] Shutting down system"));
     ConsolePrint(TEXT("Shutting down system...\n"));
 
-    ACPIShutdown();
+    ShutdownKernel();
 
     return DF_ERROR_SUCCESS;
 }
@@ -1354,7 +1343,6 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
 
     SAFE_USE(Account) {
-        ConsolePrint(TEXT("User created\n"));
     } else {
         ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
         DEBUG(TEXT("[CMD_adduser] CreateUserAccount returned NULL"));

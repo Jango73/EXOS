@@ -26,12 +26,34 @@
 
 #include "Clock.h"
 #include "Console.h"
+#include "Driver.h"
 #include "Memory.h"
 #include "process/Process.h"
 #include "SerialPort.h"
 #include "CoreString.h"
 #include "Text.h"
 #include "VarArg.h"
+
+/************************************************************************/
+
+#define KERNEL_LOG_VER_MAJOR 1
+#define KERNEL_LOG_VER_MINOR 0
+
+static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION KernelLogDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = KERNEL_LOG_VER_MAJOR,
+    .VersionMinor = KERNEL_LOG_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "KernelLog",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = KernelLogDriverCommands};
 
 /************************************************************************/
 
@@ -56,6 +78,41 @@ static void KernelPrintString(LPCSTR Text) {
             KernelPrintChar(Text[Index]);
         }
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for the kernel log subsystem.
+ *
+ * DF_LOAD initializes the kernel logger once; DF_UNLOAD only clears readiness.
+ */
+static UINT KernelLogDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((KernelLogDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitKernelLog();
+            KernelLogDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((KernelLogDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            KernelLogDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(KERNEL_LOG_VER_MAJOR, KERNEL_LOG_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /************************************************************************/

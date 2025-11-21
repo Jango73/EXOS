@@ -26,6 +26,7 @@
 #include "Clock.h"
 #include "ID.h"
 #include "Kernel.h"
+#include "KernelEvent.h"
 #include "List.h"
 #include "Log.h"
 #include "Memory.h"
@@ -373,9 +374,17 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
         return;
     }
 
+    PHYSICAL NextCr3 = 0;
+    if (NextTask != NULL && NextTask->Process != NULL) {
+        NextCr3 = NextTask->Process->PageDirectory;
+    }
+    if (NextCr3 == 0) {
+        NextCr3 = GetPageDirectory();
+    }
+
     // SAFE_USE_VALID_ID_2(CurrentTask, NextTask, KOID_TASK) {
         // __asm__ __volatile__("xchg %%bx,%%bx" : : );     // A breakpoint
-        SwitchToNextTask_2(CurrentTask, NextTask);
+        SwitchToNextTask_2(CurrentTask, NextTask, NextCr3);
     // }
 
     FINE_DEBUG(TEXT("[SwitchToNextTask] Exit for task %p (%s)"), CurrentTask, CurrentTask->Name);
@@ -584,8 +593,6 @@ static BOOL MatchObject(LPVOID Data, LPVOID Context) {
 /************************************************************************/
 
 static BOOL IsObjectSignaled(LPVOID Object) {
-    BOOL IsSignaled = FALSE;
-
     LockMutex(MUTEX_KERNEL, INFINITY);
 
     // First check termination cache
@@ -603,7 +610,15 @@ static BOOL IsObjectSignaled(LPVOID Object) {
 
     UnlockMutex(MUTEX_KERNEL);
 
-    return IsSignaled;
+    SAFE_USE_VALID((LPOBJECT)Object) {
+        LPOBJECT KernelObject = (LPOBJECT)Object;
+
+        if (KernelObject->TypeID == KOID_KERNELEVENT) {
+            return KernelEventIsSignaled((LPKERNEL_EVENT)Object);
+        }
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
@@ -626,6 +641,14 @@ static UINT GetObjectExitCode(LPVOID Object) {
     }
 
     UnlockMutex(MUTEX_KERNEL);
+
+    SAFE_USE_VALID((LPOBJECT)Object) {
+        LPOBJECT KernelObject = (LPOBJECT)Object;
+
+        if (KernelObject->TypeID == KOID_KERNELEVENT) {
+            return KernelEventGetSignalCount((LPKERNEL_EVENT)Object);
+        }
+    }
 
     return MAX_UINT;
 }

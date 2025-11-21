@@ -59,8 +59,6 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
     MESSAGEINFO MessageInfo;
     BOOL Result;
 
-    Result = FALSE;
-
     MessageInfo.Header.Size = sizeof MessageInfo;
     MessageInfo.Header.Version = EXOS_ABI_VERSION;
     MessageInfo.Header.Flags = 0;
@@ -95,15 +93,20 @@ BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last, U32 Flag
 
 BOOL DispatchMessage(LPMESSAGE Message) {
     MESSAGEINFO MessageInfo;
+    MESSAGE LocalMessage;
+
+    if (Message == NULL) return FALSE;
+
+    LocalMessage = *Message;
 
     MessageInfo.Header.Size = sizeof MessageInfo;
     MessageInfo.Header.Version = EXOS_ABI_VERSION;
     MessageInfo.Header.Flags = 0;
-    MessageInfo.Time = Message->Time;
-    MessageInfo.Target = Message->Target;
-    MessageInfo.Message = Message->Message;
-    MessageInfo.Param1 = Message->Param1;
-    MessageInfo.Param2 = Message->Param2;
+    MessageInfo.Time = LocalMessage.Time;
+    MessageInfo.Target = LocalMessage.Target;
+    MessageInfo.Message = LocalMessage.Message;
+    MessageInfo.Param1 = LocalMessage.Param1;
+    MessageInfo.Param2 = LocalMessage.Param2;
 
     return (BOOL)exoscall(SYSCALL_DispatchMessage, EXOS_PARAM(&MessageInfo));
 }
@@ -152,6 +155,10 @@ BOOL ShowDesktop(HANDLE Desktop) { return (BOOL)exoscall(SYSCALL_ShowDesktop, EX
 /***************************************************************************/
 
 HANDLE GetDesktopWindow(HANDLE Desktop) { return (HANDLE)exoscall(SYSCALL_GetDesktopWindow, EXOS_PARAM(Desktop)); }
+
+/***************************************************************************/
+
+HANDLE GetCurrentDesktop(void) { return (HANDLE)exoscall(SYSCALL_GetCurrentDesktop, EXOS_PARAM(0)); }
 
 /***************************************************************************/
 

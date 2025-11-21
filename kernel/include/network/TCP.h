@@ -32,6 +32,7 @@
 #include "List.h"
 #include "utils/Hysteresis.h"
 #include "Endianness.h"
+#include "utils/Helpers.h"
 
 /************************************************************************/
 
@@ -80,10 +81,6 @@
 
 /************************************************************************/
 
-#define TCP_RETRANSMIT_TIMEOUT 3000  // 3 seconds in milliseconds
-#define TCP_TIME_WAIT_TIMEOUT 30000  // 30 seconds in milliseconds
-#define TCP_MAX_RETRANSMITS 5       // Maximum retransmission attempts
-
 /************************************************************************/
 // TCP Header Structure
 
@@ -101,9 +98,6 @@ typedef struct tag_TCP_HEADER {
 
 /************************************************************************/
 // TCP Connection Block
-
-#define TCP_SEND_BUFFER_SIZE 32768
-#define TCP_RECV_BUFFER_SIZE 32768
 
 typedef struct tag_TCP_CONNECTION {
     LISTNODE_FIELDS

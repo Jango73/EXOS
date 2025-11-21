@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "arch/i386/i386-Log.h"
+#include "process/Process.h"
 #include "process/Schedule.h"
 #include "System.h"
 
@@ -164,6 +165,9 @@
 
 \************************************************************************/
 
+#define MEMORY_MANAGER_VER_MAJOR 1
+#define MEMORY_MANAGER_VER_MINOR 0
+
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 /// These are internal-only constants; do not export in public headers.
 
@@ -182,6 +186,24 @@
 static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
 static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
 static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
+
+/************************************************************************/
+
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION MemoryManagerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = MEMORY_MANAGER_VER_MAJOR,
+    .VersionMinor = MEMORY_MANAGER_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "MemoryManager",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = MemoryManagerCommands};
 
 /************************************************************************/
 
@@ -427,6 +449,127 @@ BOOL IsValidMemory(LINEAR Pointer) {
 /************************************************************************/
 
 /**
+ * @brief Attempt to resolve a kernel-space page fault by cloning the kernel mapping.
+ * @param FaultAddress Linear address that triggered the fault.
+ * @return TRUE when the fault was resolved, FALSE otherwise.
+ */
+BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
+    if (FaultAddress < VMA_KERNEL) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Address %X below kernel VMA"), FaultAddress);
+        return FALSE;
+    }
+
+    PHYSICAL KernelDirectoryPhysical = KernelProcess.PageDirectory;
+    if (KernelDirectoryPhysical == 0) {
+        KernelDirectoryPhysical = KernelStartup.PageDirectory;
+    }
+
+    if (KernelDirectoryPhysical == 0) {
+        DEBUG(TEXT("[ResolveKernelPageFault] No kernel directory available (Fault=%X)"), FaultAddress);
+        return FALSE;
+    }
+
+    PHYSICAL CurrentDirectoryPhysical = GetPageDirectory();
+    if (CurrentDirectoryPhysical == 0 || CurrentDirectoryPhysical == KernelDirectoryPhysical) {
+        DEBUG(TEXT("[ResolveKernelPageFault] CR3=%X matches kernel directory %X (Fault=%X)"),
+              CurrentDirectoryPhysical,
+              KernelDirectoryPhysical,
+              FaultAddress);
+        return FALSE;
+    }
+
+    UINT DirectoryIndex = GetDirectoryEntry(FaultAddress);
+    UINT TableIndex = GetTableEntry(FaultAddress);
+
+    if (DirectoryIndex >= PAGE_TABLE_NUM_ENTRIES) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Directory index %u out of range (Fault=%X)"),
+              DirectoryIndex,
+              FaultAddress);
+        return FALSE;
+    }
+
+    if (TableIndex >= PAGE_TABLE_NUM_ENTRIES) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Table index %u out of range (Fault=%X)"),
+              TableIndex,
+              FaultAddress);
+        return FALSE;
+    }
+
+    LINEAR KernelDirectoryLinear = MapTemporaryPhysicalPage1(KernelDirectoryPhysical);
+    if (KernelDirectoryLinear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel page directory"));
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY KernelDirectory = (LPPAGE_DIRECTORY)KernelDirectoryLinear;
+    volatile const U32 KernelPdeValue = ((volatile const U32*)KernelDirectory)[DirectoryIndex];
+    if ((KernelPdeValue & PAGE_FLAG_PRESENT) == 0u) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Kernel PDE[%u] not present (Fault=%X)"),
+              DirectoryIndex,
+              FaultAddress);
+        return FALSE;
+    }
+
+    PHYSICAL KernelTablePhysical = (PHYSICAL)(KernelPdeValue & PAGE_MASK);
+    LINEAR KernelTableLinear = MapTemporaryPhysicalPage2(KernelTablePhysical);
+    if (KernelTableLinear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel page table"));
+        return FALSE;
+    }
+
+    LPPAGE_TABLE KernelTable = (LPPAGE_TABLE)KernelTableLinear;
+    volatile const U32 KernelPteValue = ((volatile const U32*)KernelTable)[TableIndex];
+    if ((KernelPteValue & PAGE_FLAG_PRESENT) == 0u) {
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY CurrentDirectory = GetCurrentPageDirectoryVA();
+    volatile U32* CurrentPdePtr = (volatile U32*)&CurrentDirectory[DirectoryIndex];
+    BOOL NeedsFullFlush = FALSE;
+    BOOL Updated = FALSE;
+
+    if ((*CurrentPdePtr & PAGE_FLAG_PRESENT) == 0u || *CurrentPdePtr != KernelPdeValue) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Updating PDE[%u]: old=%X new=%X"),
+              DirectoryIndex,
+              *CurrentPdePtr,
+              KernelPdeValue);
+        *CurrentPdePtr = KernelPdeValue;
+        NeedsFullFlush = TRUE;
+        Updated = TRUE;
+    }
+
+    LPPAGE_TABLE CurrentTable = GetPageTableVAFor(FaultAddress);
+    volatile U32* CurrentPtePtr = (volatile U32*)&CurrentTable[TableIndex];
+
+    if (*CurrentPtePtr != KernelPteValue) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Updating PTE[%u]: old=%X new=%X"),
+              TableIndex,
+              *CurrentPtePtr,
+              KernelPteValue);
+        *CurrentPtePtr = KernelPteValue;
+        Updated = TRUE;
+    }
+
+    if (Updated == FALSE) {
+        DEBUG(TEXT("[ResolveKernelPageFault] PDE/PTE already matched for %X"), FaultAddress);
+        return FALSE;
+    }
+
+    if (NeedsFullFlush) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Flushing entire TLB"));
+        FlushTLB();
+    } else {
+        DEBUG(TEXT("[ResolveKernelPageFault] Invalidating page %X"), FaultAddress);
+        InvalidatePage(FaultAddress);
+    }
+
+    DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel mapping for %X"), FaultAddress);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Allocate a new page directory.
  * @return Physical address of the page directory or 0 on failure.
  */
@@ -650,25 +793,21 @@ Out_Error:
 PHYSICAL AllocUserPageDirectory(void) {
     PHYSICAL PMA_Directory = NULL;
     PHYSICAL PMA_LowTable = NULL;
-    PHYSICAL PMA_KernelTable = NULL;
 
     LPPAGE_DIRECTORY Directory = NULL;
     LPPAGE_TABLE LowTable = NULL;
-    LPPAGE_TABLE KernelTable = NULL;
     LPPAGE_DIRECTORY CurrentPD = (LPPAGE_DIRECTORY)PD_VA;
 
     DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
     UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
-    UINT PhysBaseKernel = KernelStartup.KernelPhysicalBase;
     UINT Index;
 
-    // Allocate required physical pages (PD + 4 PTs)
+    // Allocate required physical pages (PD + low identity PT)
     PMA_Directory = AllocPhysicalPage();
     PMA_LowTable = AllocPhysicalPage();
-    PMA_KernelTable = AllocPhysicalPage();
 
-    if (PMA_Directory == NULL || PMA_LowTable == NULL || PMA_KernelTable == NULL) {
+    if (PMA_Directory == NULL || PMA_LowTable == NULL) {
         ERROR(TEXT("[AllocUserPageDirectory] Out of physical pages"));
         goto Out_Error;
     }
@@ -698,27 +837,13 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[0].Fixed = 1;
     Directory[0].Address = (PMA_LowTable >> PAGE_SIZE_MUL);
 
-    // Directory[DirKernel] -> map VMA_KERNEL..VMA_KERNEL+4MB-1 to current kernel state
-    Directory[DirKernel].Present = 1;
-    Directory[DirKernel].ReadWrite = 1;
-    Directory[DirKernel].Privilege = PAGE_PRIVILEGE_KERNEL;
-    Directory[DirKernel].WriteThrough = 0;
-    Directory[DirKernel].CacheDisabled = 0;
-    Directory[DirKernel].Accessed = 0;
-    Directory[DirKernel].Reserved = 0;
-    Directory[DirKernel].PageSize = 0;  // 4KB pages
-    Directory[DirKernel].Global = 0;
-    Directory[DirKernel].User = 0;
-    Directory[DirKernel].Fixed = 1;
-    Directory[DirKernel].Address = (PMA_KernelTable >> PAGE_SIZE_MUL);
-
     // Copy present PDEs from current directory, but skip user space (VMA_USER to VMA_LIBRARY-1)
     // to allow new process to allocate its own region at VMA_USER
     UNUSED(VMA_TASK_RUNNER);
     UINT UserStartPDE = GetDirectoryEntry(VMA_USER);             // PDE index for VMA_USER
     UINT UserEndPDE = GetDirectoryEntry(VMA_LIBRARY - 1) - 1;    // PDE index for VMA_LIBRARY-1, excluding TaskRunner space
-    for (Index = 1; Index < 1023; Index++) {                           // Skip 0 (already done) and 1023 (self-map)
-        if (CurrentPD[Index].Present && Index != DirKernel) {
+    for (Index = 1; Index < 1023; Index++) {                     // Skip 0 (already done) and 1023 (self-map)
+        if (CurrentPD[Index].Present) {
             // Skip user space PDEs to avoid copying current process's user space
             if (Index >= UserStartPDE && Index <= UserEndPDE) {
                 DEBUG(TEXT("[AllocUserPageDirectory] Skipped user space PDE[%d]"), Index);
@@ -727,6 +852,16 @@ PHYSICAL AllocUserPageDirectory(void) {
             Directory[Index] = CurrentPD[Index];
             DEBUG(TEXT("[AllocUserPageDirectory] Copied PDE[%d]"), Index);
         }
+    }
+
+    if (Directory[DirKernel].Present == 0 && CurrentPD[DirKernel].Present != 0) {
+        Directory[DirKernel] = CurrentPD[DirKernel];
+        DEBUG(TEXT("[AllocUserPageDirectory] Copied kernel PDE[%u] from current directory"), DirKernel);
+    }
+
+    if (Directory[DirKernel].Present == 0) {
+        ERROR(TEXT("[AllocUserPageDirectory] Kernel PDE[%u] missing after copy"), DirKernel);
+        goto Out_Error;
     }
 
     // Install recursive mapping: PDE[1023] = PD
@@ -777,44 +912,17 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     DEBUG(TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
 
-    // Fill kernel mapping table by copying the current kernel PT
-    VMA_PT = MapTemporaryPhysicalPage2(PMA_KernelTable);
-    if (VMA_PT == NULL) {
-        ERROR(TEXT("[AllocUserPageDirectory] MapTemporaryPhysicalPage2 failed on KernelTable"));
-        goto Out_Error;
-    }
-    KernelTable = (LPPAGE_TABLE)VMA_PT;
-
-    // Create basic static kernel mapping instead of copying (for testing)
-    MemorySet(KernelTable, 0, PAGE_SIZE);
-
-    UINT KernelFirstFrame = (PhysBaseKernel >> PAGE_SIZE_MUL);
-
-    // Map full 4MB kernel space (1024 pages)
-    for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
-        KernelTable[Index].Present = 1;
-        KernelTable[Index].ReadWrite = 1;
-        KernelTable[Index].Privilege = PAGE_PRIVILEGE_KERNEL;
-        KernelTable[Index].WriteThrough = 0;
-        KernelTable[Index].CacheDisabled = 0;
-        KernelTable[Index].Accessed = 0;
-        KernelTable[Index].Dirty = 0;
-        KernelTable[Index].Reserved = 0;
-        KernelTable[Index].Global = 0;
-        KernelTable[Index].User = 0;
-        KernelTable[Index].Fixed = 1;
-        KernelTable[Index].Address = KernelFirstFrame + Index;
-    }
-
-    DEBUG(TEXT("[AllocUserPageDirectory] Basic kernel mapping created"));
-
     // TLB sync before returning
     FlushTLB();
 
-    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[1023]=%x"), *(U32*)&Directory[0],
-        *(U32*)&Directory[768], *(U32*)&Directory[1023]);
-    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%x, KernelTable[0]=%x"), *(U32*)&LowTable[0],
-        *(U32*)&KernelTable[0]);
+    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%x, PDE[%u]=%x, PDE[%u]=%x, PDE[1023]=%x"),
+        *(U32*)&Directory[0],
+        DirKernel,
+        *(U32*)&Directory[DirKernel],
+        DirKernel + 1,
+        *(U32*)&Directory[DirKernel + 1],
+        *(U32*)&Directory[1023]);
+    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%x"), *(U32*)&LowTable[0]);
 
     DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
     return PMA_Directory;
@@ -823,7 +931,6 @@ Out_Error:
 
     if (PMA_Directory) FreePhysicalPage(PMA_Directory);
     if (PMA_LowTable) FreePhysicalPage(PMA_LowTable);
-    if (PMA_KernelTable) FreePhysicalPage(PMA_KernelTable);
 
     return NULL;
 }
@@ -1378,6 +1485,52 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
     return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
+}
+
+/************************************************************************/
+
+LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags) {
+    return ResizeRegion(Base, 0, Size, NewSize, Flags | ALLOC_PAGES_AT_OR_OVER);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Handles driver commands for the memory manager.
+ *
+ * DF_LOAD initializes the memory manager and marks the driver as ready.
+ * DF_UNLOAD clears the ready flag; no shutdown routine is available.
+ *
+ * @param Function Driver command selector.
+ * @param Parameter Unused.
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_NOTIMPL otherwise.
+ */
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeMemoryManager();
+            MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }
 
 /************************************************************************/

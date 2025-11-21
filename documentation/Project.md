@@ -23,9 +23,7 @@ Build directory containing generated binaries and temporary build files.
 System deployment scripts and tools. Not used yet.
 
 ### `/documentation/`
-Project documentation organized into two subdirectories:
-- `external/`: User documentation
-- `internal/`: Internal technical documentation, specifications, and plans
+- Technical documentation, specifications, and plans
 
 ### `/kernel/`
 Operating system kernel:
@@ -83,7 +81,7 @@ EXFS filesystem manager with C++ and assembly code.
 
 - C/assembly code for the kernel in `/kernel/`
 - User-space applications in `/system/`
-- Technical documentation in `/documentation/internal/`
+- Technical documentation in `/documentation/`
 - Automation scripts in `/scripts/`
 - Isolated third-party libraries in `/third/`
 - Build artifacts in `/build/` (not versioned)

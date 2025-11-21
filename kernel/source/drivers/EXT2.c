@@ -1410,7 +1410,7 @@ static U32 CreateNode(LPFILEINFO Info, BOOL Directory) {
 
 /************************************************************************/
 
-DRIVER EXT2Driver = {
+DRIVER DATA_SECTION EXT2Driver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,

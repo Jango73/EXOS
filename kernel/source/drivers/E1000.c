@@ -27,9 +27,13 @@
 #include "Base.h"
 #include "Driver.h"
 #include "Kernel.h"
+#include "DeviceInterrupt.h"
+#include "DeferredWork.h"
+#include "InterruptController.h"
 #include "Log.h"
 #include "Memory.h"
 #include "network/Network.h"
+#include "network/NetworkManager.h"
 #include "drivers/PCI.h"
 #include "CoreString.h"
 #include "User.h"
@@ -112,7 +116,22 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
+typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
+
 static UINT E1000Commands(UINT Function, UINT Param);
+static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU);
+static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ);
+static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause);
+static BOOL E1000_InterruptTopHalf(LPDEVICE Device, LPVOID Context);
+static void E1000_DeferredRoutine(LPDEVICE Device, LPVOID Context);
+static void E1000_PollRoutine(LPDEVICE Device, LPVOID Context);
+static U32 E1000_ReceivePoll(LPE1000DEVICE Device);
+
+/************************************************************************/
+
+#define E1000_DEFAULT_INTERRUPT_MASK (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)
 
 /************************************************************************/
 // MMIO helpers
@@ -123,6 +142,11 @@ static UINT E1000Commands(UINT Function, UINT Param);
 /************************************************************************/
 // Small busy wait
 
+/**
+ * @brief Busy-wait loop used for short hardware delays.
+ *
+ * @param Iterations Number of iterations to spin.
+ */
 static void E1000_Delay(UINT Iterations) {
     volatile UINT Index;
     for (Index = 0; Index < Iterations; Index++) {
@@ -133,7 +157,7 @@ static void E1000_Delay(UINT Iterations) {
 /************************************************************************/
 // Device structure
 
-typedef struct PACKED tag_E1000DEVICE {
+struct PACKED tag_E1000DEVICE {
     PCI_DEVICE_FIELDS
 
     // MMIO mapping
@@ -172,7 +196,14 @@ typedef struct PACKED tag_E1000DEVICE {
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
     LPVOID RxUserData;
-} E1000DEVICE, *LPE1000DEVICE;
+
+    // Interrupt bookkeeping
+    U8 InterruptSlot;
+    BOOL InterruptRegistered;
+    BOOL InterruptArmed;
+    U32 InterruptTraceCount;
+    U32 AckTraceCount;
+};
 
 /************************************************************************/
 // Globals and PCI match table
@@ -181,7 +212,7 @@ static DRIVER_MATCH E1000_MatchTable[] = {E1000_MATCH_DEFAULT};
 
 static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev);
 
-PCI_DRIVER E1000Driver = {
+PCI_DRIVER DATA_SECTION E1000Driver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -530,15 +561,6 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAH0, RahValue);
     DEBUG(TEXT("[E1000_SetupReceive] Set MAC address: RAL0=%x RAH0=%x"), RalValue, RahValue);
 
-    // Enable RX interrupts to ensure proper packet reception
-    // Clear any pending interrupts first
-    E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
-
-    // Enable key interrupts: RXT (receive timeout), RXO (receive overrun), RXDMT (receive descriptor minimum threshold)
-    U32 ImsValue = 0x80 | 0x40 | 0x10; // RXT0 | RXO | RXDMT0
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, ImsValue);
-    DEBUG(TEXT("[E1000_SetupReceive] Enabled RX interrupts: IMS=%x"), ImsValue);
-
     DEBUG(TEXT("[E1000_SetupReceive] Done"));
     return TRUE;
 }
@@ -666,6 +688,9 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
     MemorySet(Device, 0, sizeof(E1000DEVICE));
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
     InitMutex(&(Device->Mutex));
+    Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Device->InterruptRegistered = FALSE;
+    Device->InterruptArmed = FALSE;
 
     DEBUG(TEXT("[E1000_Attach] Device=%x, ID=%x, PciDevice->TypeID=%x"), Device, Device->TypeID, PciDevice->TypeID);
 
@@ -745,6 +770,263 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
         (U32)Device->Mac[5]);
 
     return (LPPCI_DEVICE)Device;
+}
+
+/************************************************************************/
+// Interrupt control
+
+/**
+ * @brief Register and arm device interrupts (or configure polling).
+ *
+ * @param Device Target E1000 device.
+ * @param LegacyIRQ Optional legacy IRQ line (0xFF to auto-select).
+ * @param TargetCPU CPU index for interrupt routing.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        if (Device->MmioBase == NULL) {
+            WARNING(TEXT("[E1000_EnableInterrupts] MMIO base is NULL"));
+            return FALSE;
+        }
+
+        if (LegacyIRQ == 0xFFU) {
+            LegacyIRQ = Device->Info.IRQLine;
+        }
+
+        if (LegacyIRQ == 0xFFU) {
+            WARNING(TEXT("[E1000_EnableInterrupts] No valid IRQ line available"));
+            return FALSE;
+        }
+
+        DEVICE_INTERRUPT_REGISTRATION Registration = {
+            .Device = (LPDEVICE)Device,
+            .LegacyIRQ = LegacyIRQ,
+            .TargetCPU = TargetCPU,
+            .InterruptHandler = E1000_InterruptTopHalf,
+            .DeferredCallback = E1000_DeferredRoutine,
+            .PollCallback = E1000_PollRoutine,
+            .Context = Device,
+            .Name = Device->Driver ? Device->Driver->Product : TEXT("E1000"),
+        };
+
+        if (!DeviceInterruptRegister(&Registration, &Device->InterruptSlot)) {
+            WARNING(TEXT("[E1000_EnableInterrupts] Failed to register device interrupt"));
+            Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+            Device->InterruptRegistered = FALSE;
+            Device->InterruptArmed = FALSE;
+            return FALSE;
+        }
+
+        Device->InterruptRegistered = TRUE;
+        Device->InterruptArmed = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
+        Device->InterruptTraceCount = 0;
+        Device->AckTraceCount = 0;
+
+        if (Device->InterruptArmed) {
+            // Clear any pending causes and apply the default mask
+            E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+            E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
+
+            if (!DeferredWorkIsPollingMode()) {
+                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
+            }
+
+            DEBUG(TEXT("[E1000_EnableInterrupts] IRQ %u armed with vector %u mask %x (mode=%s)"),
+                  LegacyIRQ,
+                  GetDeviceInterruptVector(Device->InterruptSlot),
+                  E1000_DEFAULT_INTERRUPT_MASK,
+                  DeferredWorkIsPollingMode() ? TEXT("POLLING") : TEXT("INTERRUPT"));
+        } else {
+            DEBUG(TEXT("[E1000_EnableInterrupts] Operating in polling mode (IRQ=%u)"), LegacyIRQ);
+        }
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Mask and unregister device interrupts.
+ *
+ * @param Device Target E1000 device.
+ * @param LegacyIRQ Optional legacy IRQ line (0xFF to auto-select).
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        if (Device->MmioBase == NULL) {
+            WARNING(TEXT("[E1000_DisableInterrupts] MMIO base is NULL"));
+            return FALSE;
+        }
+
+        E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+        E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
+
+        if (LegacyIRQ == 0xFFU) {
+            LegacyIRQ = Device->Info.IRQLine;
+        }
+
+        if (Device->InterruptRegistered) {
+            DeviceInterruptUnregister(Device->InterruptSlot);
+            Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+            Device->InterruptRegistered = FALSE;
+            Device->InterruptArmed = FALSE;
+        } else if (LegacyIRQ != 0xFFU) {
+            DisableDeviceInterrupt(LegacyIRQ);
+        }
+
+        DEBUG(TEXT("[E1000_DisableInterrupts] IRQ %u masked"), LegacyIRQ);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read and acknowledge the interrupt cause.
+ *
+ * @param Device Target E1000 device.
+ * @param Cause Optional output for the cause register value.
+ * @return TRUE if a cause was present, FALSE otherwise.
+ */
+static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        if (Device->MmioBase == NULL) {
+            return FALSE;
+        }
+
+        U32 InterruptCause = E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
+        if (Cause != NULL) {
+            *Cause = InterruptCause;
+        }
+
+        Device->AckTraceCount++;
+        if (Device->AckTraceCount <= 16U) {
+            WARNING(TEXT("[E1000_AcknowledgeInterrupt] Cause=%x Armed=%s Polling=%s"),
+                    InterruptCause,
+                    Device->InterruptArmed ? TEXT("YES") : TEXT("NO"),
+                    DeferredWorkIsPollingMode() ? TEXT("YES") : TEXT("NO"));
+        }
+
+        if (InterruptCause == 0U) {
+            if (Device->AckTraceCount <= 16U) {
+                WARNING(TEXT("[E1000_AcknowledgeInterrupt] No pending interrupt cause"));
+            }
+            return FALSE;
+        }
+
+        if (Device->InterruptArmed) {
+            if (DeferredWorkIsPollingMode()) {
+                if (Device->AckTraceCount <= 16U) {
+                    WARNING(TEXT("[E1000_AcknowledgeInterrupt] Polling mode - masking interrupts (IMC=FFFFFFFF)"));
+                }
+                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+            } else {
+                if (Device->AckTraceCount <= 16U) {
+                    WARNING(TEXT("[E1000_AcknowledgeInterrupt] Re-arming interrupts with mask=%x"),
+                            E1000_DEFAULT_INTERRUPT_MASK);
+                }
+                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMS, E1000_DEFAULT_INTERRUPT_MASK);
+            }
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Interrupt top-half handler.
+ *
+ * Acknowledges interrupts and determines if deferred work is needed.
+ *
+ * @param DevicePointer Device pointer from interrupt context.
+ * @param Context Driver context (E1000DEVICE).
+ * @return TRUE if interrupt was relevant and should schedule bottom half.
+ */
+static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
+    UNUSED(DevicePointer);
+
+    LPE1000DEVICE Device = (LPE1000DEVICE)Context;
+    Device->InterruptTraceCount++;
+    U32 Cause = 0U;
+    if (!E1000_AcknowledgeInterrupt(Device, &Cause)) {
+        if (Device->InterruptTraceCount <= 32U) {
+            WARNING(TEXT("[E1000_InterruptTopHalf] No cause reported (trace=%u)"),
+                    Device->InterruptTraceCount);
+        }
+        return FALSE;
+    }
+
+    if (Device->InterruptTraceCount <= 32U) {
+        WARNING(TEXT("[E1000_InterruptTopHalf] Cause=%x RelevantMask=%x"),
+                Cause,
+                (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC));
+    }
+
+    if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0U) {
+        if (Device->InterruptTraceCount <= 32U) {
+            WARNING(TEXT("[E1000_InterruptTopHalf] Ignored cause=%x (no relevant bits)"), Cause);
+        }
+        return FALSE;
+    }
+
+    if ((Cause & E1000_INT_LSC) != 0U) {
+        DEBUG(TEXT("[E1000_InterruptTopHalf] Link status change cause=%x"), Cause);
+    }
+
+    if ((Cause & E1000_INT_RXO) != 0U) {
+        WARNING(TEXT("[E1000_InterruptTopHalf] RX overrun detected (cause=%x)"), Cause);
+    }
+
+    if (Device->InterruptTraceCount <= 32U) {
+        WARNING(TEXT("[E1000_InterruptTopHalf] Scheduling deferred work for cause=%x"), Cause);
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Deferred (bottom-half) routine for processing RX and maintenance.
+ *
+ * @param DevicePointer Device pointer from interrupt context.
+ * @param Context Driver context (E1000DEVICE).
+ */
+static void E1000_DeferredRoutine(LPDEVICE DevicePointer, LPVOID Context) {
+    UNUSED(DevicePointer);
+
+    LPE1000DEVICE Device = (LPE1000DEVICE)Context;
+
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        E1000_ReceivePoll(Device);
+
+        LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Device->RxUserData;
+        SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
+            NetworkManager_MaintenanceTick(NetContext);
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Polling routine when running without interrupts.
+ *
+ * @param DevicePointer Device pointer from polling context.
+ * @param Context Driver context (E1000DEVICE).
+ */
+static void E1000_PollRoutine(LPDEVICE DevicePointer, LPVOID Context) {
+    E1000_DeferredRoutine(DevicePointer, Context);
 }
 
 /************************************************************************/
@@ -923,9 +1205,60 @@ static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
 // Network DF_* helpers (per-function)
 
 /**
- * @brief Reset callback for network stack.
- * @param Reset Reset parameters.
+ * @brief Enable device interrupts via network stack hook.
+ *
+ * @param Config Interrupt configuration parameters.
  * @return DF_ERROR_SUCCESS on success or error code.
+ */
+static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
+    if (Config == NULL || Config->Device == NULL) {
+        return DF_ERROR_BADPARAM;
+    }
+
+    LPE1000DEVICE Device = (LPE1000DEVICE)Config->Device;
+
+    if (!E1000_EnableInterrupts(Device, Config->LegacyIRQ, Config->TargetCPU)) {
+        return DF_ERROR_IO;
+    }
+
+    Config->VectorSlot = Device->InterruptSlot;
+    Config->InterruptEnabled = Device->InterruptArmed;
+
+    return DF_ERROR_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Disable device interrupts via network stack hook.
+ *
+ * @param Config Interrupt configuration parameters.
+ * @return DF_ERROR_SUCCESS on success or error code.
+ */
+static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
+    if (Config == NULL || Config->Device == NULL) {
+        return DF_ERROR_BADPARAM;
+    }
+
+    LPE1000DEVICE Device = (LPE1000DEVICE)Config->Device;
+
+    if (!E1000_DisableInterrupts(Device, Config->LegacyIRQ)) {
+        return DF_ERROR_IO;
+    }
+
+    Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Config->InterruptEnabled = FALSE;
+
+    return DF_ERROR_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reset callback invoked by network stack.
+ *
+ * @param Reset Reset parameters.
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_UNEXPECT on failure.
  */
 static U32 E1000_OnReset(const NETWORKRESET *Reset) {
     if (Reset == NULL || Reset->Device == NULL) return DF_ERROR_BADPARAM;
@@ -1057,7 +1390,7 @@ static U32 E1000_OnGetCaps(void) { return 0; }
  * @brief Return last implemented DF_* function.
  * @return Function identifier used for iteration.
  */
-static U32 E1000_OnGetLastFunc(void) { return DF_NT_POLL; }
+static U32 E1000_OnGetLastFunc(void) { return DF_DEV_DISABLE_INTERRUPT; }
 
 /************************************************************************/
 // Driver entry
@@ -1092,6 +1425,10 @@ static UINT E1000Commands(UINT Function, UINT Param) {
             return E1000_OnGetInfo((const NETWORKGETINFO *)(LPVOID)Param);
         case DF_NT_SETRXCB:
             return E1000_OnSetReceiveCallback((const NETWORKSETRXCB *)(LPVOID)Param);
+        case DF_DEV_ENABLE_INTERRUPT:
+            return E1000_OnEnableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
+        case DF_DEV_DISABLE_INTERRUPT:
+            return E1000_OnDisableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
         case DF_NT_SEND:
             return E1000_OnSend((const NETWORKSEND *)(LPVOID)Param);
         case DF_NT_POLL:

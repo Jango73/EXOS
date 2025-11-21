@@ -44,6 +44,8 @@ typedef struct {
 static TESTENTRY TestRegistry[] = {
     {TEXT("TestCopyStack"), TestCopyStack},
     {TEXT("TestCircularBuffer"), TestCircularBuffer},
+    {TEXT("TestBlockList"), TestBlockList},
+    {TEXT("TestRadixTree"), TestRadixTree},
     {TEXT("TestRegex"), TestRegex},
     {TEXT("TestI386Disassembler"), TestI386Disassembler},
     {TEXT("TestBcrypt"), TestBcrypt},
@@ -113,6 +115,8 @@ BOOL RunAllTests(void) {
     U32 Index = 0;
     TEST_RESULTS OverallResults = {0, 0};
     BOOL AllPassed = TRUE;
+
+    UNUSED(TotalTestModules);
 
     DEBUG(TEXT("==========================================================================="));
     DEBUG(TEXT("[Autotest] Starting Test Suite"));
@@ -195,4 +199,3 @@ void ListAllTests(void) {
         DEBUG(TEXT("[Autotest]   %u. %s"), Index + 1, TestRegistry[Index].Name);
     }
 }
-

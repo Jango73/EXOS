@@ -69,6 +69,12 @@ DRIVER SystemFSDriver = {
 
 /************************************************************************/
 
+/**
+ * @brief Allocates and initializes a SystemFS node.
+ * @param Name Name to assign to the node, can be NULL for the root.
+ * @param Parent Parent directory node, or NULL for the root.
+ * @return Pointer to the initialized node, or NULL on allocation failure.
+ */
 static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
     LPSYSTEMFSFILE Node = (LPSYSTEMFSFILE)KernelHeapAlloc(sizeof(SYSTEMFSFILE));
     if (Node == NULL) return NULL;
@@ -98,10 +104,20 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
 
 /************************************************************************/
 
+/**
+ * @brief Creates the root SystemFS node.
+ * @return Pointer to the root node, or NULL on failure.
+ */
 static LPSYSTEMFSFILE NewSystemFileRoot(void) { return NewSystemFile(TEXT(""), NULL); }
 
 /************************************************************************/
 
+/**
+ * @brief Searches for a child with a given name under a parent node.
+ * @param Parent Parent directory to search within.
+ * @param Name Child name to look for.
+ * @return Matching child node or NULL if not found.
+ */
 static LPSYSTEMFSFILE FindChild(LPSYSTEMFSFILE Parent, LPCSTR Name) {
     LPLISTNODE Node;
     LPSYSTEMFSFILE Child;
@@ -118,6 +134,11 @@ static LPSYSTEMFSFILE FindChild(LPSYSTEMFSFILE Parent, LPCSTR Name) {
 
 /************************************************************************/
 
+/**
+ * @brief Resolves a full SystemFS path to its node.
+ * @param Path Path to search.
+ * @return Located node, or NULL if the path is invalid.
+ */
 static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
     LPLIST Parts;
     LPLISTNODE Node;
@@ -143,6 +164,12 @@ static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
 
 /************************************************************************/
 
+/**
+ * @brief Detects whether mounting a filesystem would create a circular mount.
+ * @param Node Node where the mount is being attached.
+ * @param FilesystemToMount Filesystem being mounted.
+ * @return TRUE if a circular mount is detected, FALSE otherwise.
+ */
 static BOOL IsCircularMount(LPSYSTEMFSFILE Node, LPFILESYSTEM FilesystemToMount) {
     LPSYSTEMFSFILE Current = Node;
 
@@ -162,6 +189,11 @@ static BOOL IsCircularMount(LPSYSTEMFSFILE Node, LPFILESYSTEM FilesystemToMount)
 
 /************************************************************************/
 
+/**
+ * @brief Mounts a filesystem object into SystemFS.
+ * @param Control Mount parameters including target path and filesystem node.
+ * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ */
 static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     LPLIST Parts;
     LPLISTNODE Node;
@@ -228,6 +260,11 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 
 /************************************************************************/
 
+/**
+ * @brief Unmounts a filesystem object from SystemFS.
+ * @param Control Unmount parameters containing the target path.
+ * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ */
 static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
     LPSYSTEMFSFILE Node;
 
@@ -243,12 +280,13 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
 
 /************************************************************************/
 
-/*
-    ResolvePath breaks a path into its SystemFS node and the remaining
-    subpath that must be delegated to a mounted filesystem. The resolved
-    node is returned in Node and the remaining path is stored in Remaining
-    (or an empty string if fully resolved inside SystemFS).
-*/
+/**
+ * @brief Resolves a path to a SystemFS node and extracts the remaining subpath.
+ * @param Path Input path to resolve.
+ * @param Node Output pointer receiving the resolved SystemFS node.
+ * @param Remaining Output buffer receiving the unresolved tail for mounted filesystems.
+ * @return TRUE on success, FALSE if the path cannot be resolved.
+ */
 static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PATH_NAME]) {
     LPLIST Parts;
     LPLISTNODE It;
@@ -315,11 +353,12 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
 
 /************************************************************************/
 
-/*
-    WrapMountedFile allocates a SYSFSFILE object from a file returned by a
-    mounted filesystem and copies the common attributes so the caller can
-    interact with it as a regular SystemFS file.
-*/
+/**
+ * @brief Wraps a file from a mounted filesystem into a SYSFSFILE object.
+ * @param Parent SystemFS parent node that holds the mounted filesystem.
+ * @param Mounted File object returned by the mounted filesystem.
+ * @return Wrapped SYSFSFILE, or NULL on failure.
+ */
 static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
     LPSYSFSFILE File;
 
@@ -346,6 +385,11 @@ static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
 
 /************************************************************************/
 
+/**
+ * @brief Checks if a SystemFS path exists, following into mounted filesystems.
+ * @param Control Path check parameters including current and target folders.
+ * @return TRUE if the path exists, FALSE otherwise.
+ */
 static BOOL PathExists(LPFS_PATHCHECK Control) {
     STR Temp[MAX_PATH_NAME];
     STR Remaining[MAX_PATH_NAME];
@@ -387,6 +431,11 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
 
 /***************************************************************************/
 
+/**
+ * @brief Creates a SystemFS folder structure for the provided path.
+ * @param Info File information containing the folder path.
+ * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ */
 static U32 CreateFolder(LPFILEINFO Info) {
     LPLIST Parts;
     LPLISTNODE Node;
@@ -439,6 +488,11 @@ static U32 CreateFolder(LPFILEINFO Info) {
 
 /************************************************************************/
 
+/**
+ * @brief Deletes an empty SystemFS folder.
+ * @param Info File information specifying the folder path.
+ * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ */
 static U32 DeleteFolder(LPFILEINFO Info) {
     LPSYSTEMFSFILE Node;
 
@@ -455,6 +509,12 @@ static U32 DeleteFolder(LPFILEINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Mounts a filesystem specified in configuration into SystemFS.
+ * @param FileSystem Name of the filesystem to mount.
+ * @param Path Target path inside SystemFS.
+ * @param SourcePath Optional source path within the filesystem.
+ */
 static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR SourcePath) {
     LPLISTNODE Node;
     LPFILESYSTEM FS;
@@ -506,6 +566,10 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
 
 /************************************************************************/
 
+/**
+ * @brief Initializes and mounts the SystemFS root and known filesystems.
+ * @return TRUE on successful mount, FALSE otherwise.
+ */
 BOOL MountSystemFS(void) {
     LPLISTNODE Node;
     LPFILESYSTEM FS;
@@ -563,10 +627,19 @@ BOOL MountSystemFS(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Performs SystemFS driver initialization.
+ * @return DF_ERROR_SUCCESS always.
+ */
 static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
 
 /************************************************************************/
 
+/**
+ * @brief Opens a file or directory within SystemFS, delegating to mounts when needed.
+ * @param Find File information describing the target path and flags.
+ * @return Wrapped SYSFSFILE handle, or NULL on failure.
+ */
 static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
     STR Path[MAX_PATH_NAME];
     STR Remaining[MAX_PATH_NAME];
@@ -672,6 +745,11 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
 /************************************************************************/
 
+/**
+ * @brief Retrieves the next directory entry for an open SystemFS enumeration.
+ * @param File SYSFSFILE used for iteration.
+ * @return DF_ERROR_SUCCESS on success or an error code.
+ */
 static U32 OpenNext(LPSYSFSFILE File) {
     LPFILESYSTEM FS;
     U32 Result;
@@ -706,6 +784,11 @@ static U32 OpenNext(LPSYSFSFILE File) {
 
 /************************************************************************/
 
+/**
+ * @brief Closes a SystemFS file or directory handle.
+ * @param File File handle to close.
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_BADPARAM otherwise.
+ */
 static U32 CloseFile(LPSYSFSFILE File) {
     if (File == NULL) return DF_ERROR_BADPARAM;
 
@@ -720,6 +803,11 @@ static U32 CloseFile(LPSYSFSFILE File) {
 
 /************************************************************************/
 
+/**
+ * @brief Reads from a mounted file through SystemFS.
+ * @param File File handle containing buffer and position information.
+ * @return DF_ERROR_SUCCESS on success or an error code.
+ */
 static U32 ReadFile(LPSYSFSFILE File) {
     SAFE_USE(File) {
         LPFILESYSTEM FS;
@@ -748,6 +836,11 @@ static U32 ReadFile(LPSYSFSFILE File) {
 
 /************************************************************************/
 
+/**
+ * @brief Writes to a mounted file through SystemFS.
+ * @param File File handle containing buffer and position information.
+ * @return DF_ERROR_SUCCESS on success or an error code.
+ */
 static U32 WriteFile(LPSYSFSFILE File) {
     SAFE_USE(File) {
         LPFILESYSTEM FS;
@@ -776,6 +869,10 @@ static U32 WriteFile(LPSYSFSFILE File) {
 
 /************************************************************************/
 
+/**
+ * @brief Mounts user-specified filesystems from configuration into SystemFS.
+ * @return TRUE if configuration is present and processed, FALSE otherwise.
+ */
 BOOL MountUserNodes(void) {
     LPTOML Configuration = GetConfiguration();
 
@@ -822,6 +919,11 @@ BOOL MountUserNodes(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Checks if a file exists within SystemFS or mounted filesystems.
+ * @param Info File information containing the path to test.
+ * @return TRUE if the file exists, FALSE otherwise.
+ */
 static BOOL FileExists(LPFILEINFO Info) {
     LPSYSFSFILE File;
 
@@ -839,6 +941,12 @@ static BOOL FileExists(LPFILEINFO Info) {
 
 /************************************************************************/
 
+/**
+ * @brief SystemFS driver command dispatcher.
+ * @param Function Driver function code.
+ * @param Parameter Optional parameter for the function.
+ * @return Command-specific error code or pointer cast to UINT.
+ */
 UINT SystemFSCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
@@ -891,4 +999,3 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-

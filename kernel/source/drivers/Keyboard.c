@@ -40,7 +40,7 @@
 
 UINT StdKeyboardCommands(UINT, UINT);
 
-DRIVER StdKeyboardDriver = {
+DRIVER DATA_SECTION StdKeyboardDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -51,6 +51,7 @@ DRIVER StdKeyboardDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "Standard IBM PC Keyboard - 102 keys",
+    .Flags = 0,
     .Command = StdKeyboardCommands};
 
 /***************************************************************************/
@@ -547,7 +548,7 @@ static void HandleScanCode(U32 ScanCode) {
 
                     if (KeyCode.VirtualKey == VK_F9) {
                         if (Keyboard.Status[SCAN_CONTROL]) {
-                            VESADriver.Command(DF_UNLOAD, 0);
+                            GetGraphicsDriver()->Command(DF_UNLOAD, 0);
                         } else {
                             TASKINFO TaskInfo;
                             TaskInfo.Header.Size = sizeof(TASKINFO);
@@ -775,7 +776,23 @@ static U32 InitializeKeyboard(void) {
 UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
-            return InitializeKeyboard();
+            if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeKeyboard() == DF_ERROR_SUCCESS) {
+                StdKeyboardDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+        case DF_UNLOAD:
+            if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            StdKeyboardDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GETLASTFUNC:

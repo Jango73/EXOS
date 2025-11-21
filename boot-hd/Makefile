@@ -351,7 +351,7 @@ hexdump-check: install-vbr-payload
 	dd if=$(FINAL_IMG) bs=1 skip=$$PAYLOAD_OFF count=16 2>/dev/null | ndisasm -b 16 -o $(PAYLOAD_ADDRESS) -
 
 clean:
-	rm -f $(MTOOLS_CONF) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PAYLOAD_ELF) $(PAYLOAD_STUB_O) $(PAYLOAD_C_OBJS) $(PAYLOAD_STR_O) $(BUILD_DIR)/boot-hd/payload.sym
+	rm -rf $(MTOOLS_CONF) $(BUILD_DIR)/boot-hd
 
 .PHONY: check_payload_size
 check_payload_size: $(PAYLOAD_BIN)

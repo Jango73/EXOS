@@ -26,6 +26,11 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
+
+/************************************************************************/
+
+#define VESA_ENABLE_SELFTEST 1
 
 /************************************************************************/
 
@@ -46,7 +51,7 @@
 
 UINT VESACommands(UINT, UINT);
 
-DRIVER VESADriver = {
+DRIVER DATA_SECTION VESADriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -57,6 +62,7 @@ DRIVER VESADriver = {
     .Designer = "Jango73",
     .Manufacturer = "Video Electronics Standard Association",
     .Product = "VESA Compatible Graphics Card",
+    .Flags = 0,
     .Command = VESACommands};
 
 /************************************************************************/
@@ -77,6 +83,11 @@ static U32 Line24(LPVESA_CONTEXT, I32, I32, I32, I32);
 static U32 Rect8(LPVESA_CONTEXT, I32, I32, I32, I32);
 static U32 Rect16(LPVESA_CONTEXT, I32, I32, I32, I32);
 static U32 Rect24(LPVESA_CONTEXT, I32, I32, I32, I32);
+
+#if VESA_ENABLE_SELFTEST
+static void VESADrawSelfTest(LPVESA_CONTEXT);
+static U32 VESARectangleLogCount = 0;
+#endif
 
 /************************************************************************/
 
@@ -121,7 +132,12 @@ typedef struct tag_MODEINFOBLOCK {
     U8 BlueMaskSize;
     U8 BlueFieldPosition;
     U8 RsvdMaskSize;
+    U8 RsvdFieldPosition;
     U8 DirectColorModeInfo;
+    U32 PhysBasePtr;
+    U32 OffScreenMemOffset;
+    U16 OffScreenMemSize;
+    U8 Reserved2[206];
 } MODEINFOBLOCK, *LPMODEINFOBLOCK;
 
 /************************************************************************/
@@ -144,12 +160,11 @@ struct tag_VESA_CONTEXT {
     VESAINFOBLOCK VESAInfo;
     MODEINFOBLOCK ModeInfo;
     VIDEOMODESPECS ModeSpecs;
-    U32 Granularity;
-    U32 GranularShift;
-    U32 GranularModulo;
-    U32 NumBanks;
-    U32 CurrentBank;
     U32 PixelSize;
+    PHYSICAL FrameBufferPhysical;
+    LINEAR FrameBufferLinear;
+    U32 FrameBufferSize;
+    BOOL LinearFrameBufferEnabled;
 };
 
 /***************************************************************************/
@@ -175,25 +190,30 @@ VIDEOMODESPECS VESAModeSpecs[] = {
 /***************************************************************************/
 
 #define VIDEO_CALL 0x10
-
-#define SWITCHBANK(c, b)                 \
-    if (b != c->CurrentBank) {           \
-        Regs.X.AX = 0x4F05;              \
-        Regs.X.DX = b;                   \
-        Regs.X.BX = 0;                   \
-        RealModeCall(VIDEO_CALL, &Regs); \
-        c->CurrentBank = b;              \
-    }
+#define VESA_LINEAR_FRAMEBUFFER_FLAG 0x4000
 
 VESA_CONTEXT VESAContext = {
     .Header = {.TypeID = KOID_GRAPHICSCONTEXT, .References = 1, .Mutex = EMPTY_MUTEX, .Driver = &VESADriver}};
 
 /***************************************************************************/
 
-static U32 VESAInitialize(void) {
+/**
+ * @brief Initialize VESA context and retrieve controller info.
+ *
+ * Performs real-mode calls to fetch VESA data, seeds graphics context defaults,
+ * and validates signature.
+ *
+ * @return TRUE on success, FALSE otherwise
+ */
+static BOOL InitializeVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
-    DEBUG(TEXT("[VESAInitialize] Enter"));
+    // TODO : Fix real mode call in x86-64
+#if defined(__EXOS_ARCH_X86_64__)
+    return TRUE;
+#endif
+
+    DEBUG(TEXT("[InitializeVESA] Enter"));
 
     //-------------------------------------
     // Initialize the context
@@ -219,23 +239,23 @@ static U32 VESAInitialize(void) {
 
     RealModeCall(VIDEO_CALL, &Regs);
 
-    DEBUG(TEXT("[VESAInitialize] Real mode call done"));
+    DEBUG(TEXT("[InitializeVESA] Real mode call done"));
 
     if (Regs.X.AX == 0x004F) {
         MemoryCopy(&(VESAContext.VESAInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(VESAINFOBLOCK));
 
-        DEBUG(TEXT("[VESAInitialize] VESAInfo.Signature: %x %x %x %x"),
+        DEBUG(TEXT("[InitializeVESA] VESAInfo.Signature: %x %x %x %x"),
             VESAContext.VESAInfo.Signature[0], VESAContext.VESAInfo.Signature[1],
             VESAContext.VESAInfo.Signature[2], VESAContext.VESAInfo.Signature[3]);
-        DEBUG(TEXT("[VESAInitialize] VESAInfo.Version: %u"), VESAContext.VESAInfo.Version);
-        DEBUG(TEXT("[VESAInitialize] VESAInfo.Memory: %u KB"), VESAContext.VESAInfo.Memory * 64);
+        DEBUG(TEXT("[InitializeVESA] VESAInfo.Version: %u"), VESAContext.VESAInfo.Version);
+        DEBUG(TEXT("[InitializeVESA] VESAInfo.Memory: %u KB"), VESAContext.VESAInfo.Memory * 64);
 
         if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_ERROR_GENERIC;
         if (VESAContext.VESAInfo.Signature[1] != 'E') return DF_ERROR_GENERIC;
         if (VESAContext.VESAInfo.Signature[2] != 'S') return DF_ERROR_GENERIC;
         if (VESAContext.VESAInfo.Signature[3] != 'A') return DF_ERROR_GENERIC;
     } else {
-        ERROR(TEXT("[VESAInitialize] Call to VESA information failed"));
+        ERROR(TEXT("[InitializeVESA] Call to VESA information failed"));
     }
 
     /*
@@ -248,15 +268,37 @@ static U32 VESAInitialize(void) {
                 (VESAContext.VESAInfo.Memory << MUL_64KB) >> MUL_1KB);
                 */
 
-    DEBUG(TEXT("[VESAInitialize] Exit"));
+    DEBUG(TEXT("[InitializeVESA] Exit"));
 
-    return DF_ERROR_SUCCESS;
+    return TRUE;
 }
 
 /***************************************************************************/
 
-static U32 VESAUninitialize(void) {
+/**
+ * @brief Tear down VESA resources and restore text mode.
+ *
+ * Unmaps LFB when mapped and switches back to BIOS text mode.
+ *
+ * @return DF_ERROR_SUCCESS always
+ */
+static U32 ShutdownVESA(void) {
     INTEL_X86_REGISTERS Regs;
+
+    // TODO : Fix real mode call in x86-64
+#if defined(__EXOS_ARCH_X86_64__)
+    return TRUE;
+#endif
+
+    if (VESAContext.LinearFrameBufferEnabled != FALSE && VESAContext.FrameBufferLinear != 0 &&
+        VESAContext.FrameBufferSize != 0) {
+        UnMapIOMemory(VESAContext.FrameBufferLinear, VESAContext.FrameBufferSize);
+    }
+    VESAContext.LinearFrameBufferEnabled = FALSE;
+    VESAContext.FrameBufferLinear = 0;
+    VESAContext.FrameBufferSize = 0;
+    VESAContext.FrameBufferPhysical = 0;
+    VESAContext.Header.MemoryBase = NULL;
 
     //-------------------------------------
     // Set text mode
@@ -271,14 +313,35 @@ static U32 VESAUninitialize(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Set a VESA video mode and map the linear frame buffer if available.
+ *
+ * Selects the requested resolution/depth, queries mode info, maps the LFB,
+ * and updates graphics context capabilities.
+ *
+ * @param Info Requested mode description
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_GENERIC otherwise
+ */
 static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     INTEL_X86_REGISTERS Regs;
     U16* ModePtr = NULL;
     U32 Found = 0;
     U32 Index = 0;
     U32 Mode = 0;
+    UINT FrameBufferSize = 0;
+    LINEAR LinearBase = 0;
 
     DEBUG(TEXT("[SetVideoMode] GFX mode request : %ux%u"), Info->Width, Info->Height);
+
+    if (VESAContext.LinearFrameBufferEnabled != FALSE && VESAContext.FrameBufferLinear != 0 &&
+        VESAContext.FrameBufferSize != 0) {
+        UnMapIOMemory(VESAContext.FrameBufferLinear, VESAContext.FrameBufferSize);
+    }
+    VESAContext.LinearFrameBufferEnabled = FALSE;
+    VESAContext.FrameBufferLinear = 0;
+    VESAContext.FrameBufferSize = 0;
+    VESAContext.FrameBufferPhysical = 0;
+    VESAContext.Header.MemoryBase = NULL;
 
     for (Index = 0;; Index++) {
         if (VESAModeSpecs[Index].Mode == 0) return DF_ERROR_GENERIC;
@@ -287,27 +350,50 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
         if (VESAModeSpecs[Index].Width == Info->Width && VESAModeSpecs[Index].Height == Info->Height &&
             VESAModeSpecs[Index].BitsPerPixel == Info->BitsPerPixel) {
+            BOOL ModeListed = FALSE;
+            BOOL ModeListValid = TRUE;
+
             ModePtr = (U16*)MKLINPTR(VESAContext.VESAInfo.ModePointer);
 
             DEBUG(TEXT("[SetVideoMode] Mode res = %ux%ux%u"), VESAModeSpecs[Index].Width,
                 VESAModeSpecs[Index].Height, VESAModeSpecs[Index].BitsPerPixel);
-            DEBUG(TEXT("[SetVideoMode] ModePtr = %x"), ModePtr);
+            DEBUG(TEXT("[SetVideoMode] ModePtr = %p"), ModePtr);
 
-            if (ModePtr == NULL) return DF_ERROR_GENERIC;
+            if (ModePtr == NULL || IsValidMemory((LINEAR)ModePtr) == FALSE) {
+                ModeListValid = FALSE;
+            } else {
+                for (Mode = 0;; Mode++) {
+                    LINEAR EntryAddress = (LINEAR)(ModePtr + Mode);
 
-            for (Mode = 0;; Mode++) {
-                if (ModePtr[Mode] == 0xFFFF) break;
+                    if (IsValidMemory(EntryAddress) == FALSE ||
+                        IsValidMemory(EntryAddress + sizeof(U16) - 1) == FALSE) {
+                        ModeListValid = FALSE;
+                        break;
+                    }
 
-                if (ModePtr[Mode] == VESAModeSpecs[Index].Mode) {
-                    MemoryCopy(&(VESAContext.ModeSpecs), VESAModeSpecs + Index, sizeof(VIDEOMODESPECS));
-                    Found = 1;
-                    DEBUG(TEXT("[SetVideoMode] Mode found"));
-                    break;
+                    if (ModePtr[Mode] == 0xFFFF) break;
+
+                    if (ModePtr[Mode] == VESAModeSpecs[Index].Mode) {
+                        ModeListed = TRUE;
+                        DEBUG(TEXT("[SetVideoMode] Mode found"));
+                        break;
+                    }
                 }
             }
-        }
 
-        if (Found == 1) break;
+            MemoryCopy(&(VESAContext.ModeSpecs), VESAModeSpecs + Index, sizeof(VIDEOMODESPECS));
+            Found = 1;
+
+            if (ModeListed == FALSE) {
+                if (ModeListValid == FALSE) {
+                    WARNING(TEXT("[SetVideoMode] Mode list pointer invalid, forcing mode %x"), VESAModeSpecs[Index].Mode);
+                } else {
+                    WARNING(TEXT("[SetVideoMode] Mode %x not advertised, forcing selection"), VESAModeSpecs[Index].Mode);
+                }
+            }
+
+            break;
+        }
     }
 
     if (Found == 0) return DF_ERROR_GENERIC;
@@ -317,34 +403,42 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
     DEBUG(TEXT("[SetVideoMode] Getting mode info..."));
 
+    MemorySet(&Regs, 0, sizeof(Regs));
     Regs.X.AX = 0x4F01;
     Regs.X.CX = VESAContext.ModeSpecs.Mode;
     Regs.X.ES = (LOW_MEMORY_PAGE_6) >> MUL_16;
     Regs.X.DI = 0;
     RealModeCall(VIDEO_CALL, &Regs);
 
-    if (Regs.H.AL != 0x4F) return DF_ERROR_GENERIC;
+    if (Regs.X.AX != 0x004F) {
+        ERROR(TEXT("[SetVideoMode] VESA GetModeInfo failed (AX=%x)"), Regs.X.AX);
+        return DF_ERROR_GENERIC;
+    }
 
     MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(MODEINFOBLOCK));
 
-    VESAContext.Header.MemoryBase = (U8*)(VESAContext.ModeInfo.WindowAStartSegment << MUL_16);
-    VESAContext.Header.BytesPerScanLine = VESAContext.ModeInfo.BytesPerScanLine;
-    VESAContext.Granularity = VESAContext.ModeInfo.WindowGranularity;
+    if ((VESAContext.ModeInfo.Attributes & 0x80) == 0) {
+        ERROR(TEXT("[SetVideoMode] Mode %x does not support linear frame buffers"), VESAContext.ModeSpecs.Mode);
+        return DF_ERROR_GENERIC;
+    }
 
-    if (VESAContext.Granularity < 1) VESAContext.Granularity = 1;
-    if (VESAContext.Granularity > 64) VESAContext.Granularity = 64;
-    VESAContext.Granularity *= 1024;
-
-    DEBUG(TEXT("[SetVideoMode] VESAContext.Header.MemoryBase : %x"), VESAContext.Header.MemoryBase);
-    DEBUG(TEXT("[SetVideoMode] VESAContext.Header.BytesPerScanLine : %x"), VESAContext.Header.BytesPerScanLine);
-    DEBUG(TEXT("[SetVideoMode] VESAContext.Granularity : %x"), VESAContext.Granularity);
+    if (VESAContext.ModeInfo.PhysBasePtr == 0) {
+        ERROR(TEXT("[SetVideoMode] Mode %x returned null PhysBasePtr"), VESAContext.ModeSpecs.Mode);
+        return DF_ERROR_GENERIC;
+    }
 
     //-------------------------------------
     // Set the mode
 
+    MemorySet(&Regs, 0, sizeof(Regs));
     Regs.X.AX = 0x4F02;
-    Regs.X.BX = VESAContext.ModeSpecs.Mode;
+    Regs.X.BX = VESAContext.ModeSpecs.Mode | VESA_LINEAR_FRAMEBUFFER_FLAG;
     RealModeCall(VIDEO_CALL, &Regs);
+
+    if (Regs.X.AX != 0x004F) {
+        ERROR(TEXT("[SetVideoMode] Failed to set mode %x (AX=%x)"), VESAContext.ModeSpecs.Mode, Regs.X.AX);
+        return DF_ERROR_GENERIC;
+    }
 
     //-------------------------------------
     // Set some attributes
@@ -357,75 +451,40 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     VESAContext.Header.LoClip.Y = 0;
     VESAContext.Header.HiClip.X = VESAContext.Header.Width - 1;
     VESAContext.Header.HiClip.Y = VESAContext.Header.Height - 1;
-
-    switch (VESAContext.Granularity) {
-        case 256:
-            VESAContext.GranularShift = 8;
-            break;
-        case 512:
-            VESAContext.GranularShift = 9;
-            break;
-        case 1024:
-            VESAContext.GranularShift = 10;
-            break;
-        case 2048:
-            VESAContext.GranularShift = 11;
-            break;
-        case 4096:
-            VESAContext.GranularShift = 12;
-            break;
-        case 8192:
-            VESAContext.GranularShift = 13;
-            break;
-        case 16384:
-            VESAContext.GranularShift = 14;
-            break;
-        case 32768:
-            VESAContext.GranularShift = 15;
-            break;
-        case 65536:
-            VESAContext.GranularShift = 16;
-            break;
-        case 131072:
-            VESAContext.GranularShift = 17;
-            break;
-        case 262144:
-            VESAContext.GranularShift = 18;
-            break;
-        case 524288:
-            VESAContext.GranularShift = 19;
-            break;
-        case 1048576:
-            VESAContext.GranularShift = 20;
-            break;
-        case 2097152:
-            VESAContext.GranularShift = 21;
-            break;
-        case 4194304:
-            VESAContext.GranularShift = 22;
-            break;
-        default:
-            VESAContext.GranularShift = 16;
-            break;
+    VESAContext.Header.BytesPerScanLine = VESAContext.ModeInfo.BytesPerScanLine;
+    if (VESAContext.Header.BytesPerScanLine == 0) {
+        VESAContext.Header.BytesPerScanLine = VESAContext.Header.Width * VESAContext.PixelSize;
     }
 
-    VESAContext.GranularModulo = VESAContext.Granularity - 1;
+    FrameBufferSize = VESAContext.Header.BytesPerScanLine * VESAContext.Header.Height;
+    if (FrameBufferSize == 0) {
+        ERROR(TEXT("[SetVideoMode] Frame buffer size is zero (pitch=%u height=%u)"), VESAContext.Header.BytesPerScanLine,
+            VESAContext.Header.Height);
+        return DF_ERROR_GENERIC;
+    }
+
+    VESAContext.FrameBufferPhysical = (PHYSICAL)VESAContext.ModeInfo.PhysBasePtr;
+    LinearBase = MapIOMemory(VESAContext.FrameBufferPhysical, FrameBufferSize);
+    if (LinearBase == 0) {
+        ERROR(TEXT("[SetVideoMode] MapIOMemory failed for LFB base %p size %u"),
+            (LPVOID)(LINEAR)VESAContext.FrameBufferPhysical, FrameBufferSize);
+        VESAContext.FrameBufferPhysical = 0;
+        return DF_ERROR_GENERIC;
+    }
+
+    VESAContext.FrameBufferLinear = LinearBase;
+    VESAContext.FrameBufferSize = FrameBufferSize;
+    VESAContext.LinearFrameBufferEnabled = TRUE;
+    VESAContext.Header.MemoryBase = (U8*)(LINEAR)LinearBase;
+
+    DEBUG(TEXT("[SetVideoMode] LFB mapped at %p (phys=%p pitch=%u size=%u)"), VESAContext.Header.MemoryBase,
+        (LPVOID)(LINEAR)VESAContext.FrameBufferPhysical, VESAContext.Header.BytesPerScanLine, FrameBufferSize);
+
+#if VESA_ENABLE_SELFTEST
+    VESADrawSelfTest(&VESAContext);
+#endif
 
     return DF_ERROR_SUCCESS;
-}
-
-/***************************************************************************/
-
-static void SetVESABank(LPVESA_CONTEXT Context, U32 Bank) {
-    INTEL_X86_REGISTERS Regs;
-
-    if (Bank != Context->CurrentBank) {
-        Regs.X.AX = 0x4F05;
-        Regs.X.DX = Bank;
-        Regs.X.BX = 0;
-        RealModeCall(VIDEO_CALL, &Regs);
-        Context->CurrentBank = Bank;
-    }
 }
 
 /***************************************************************************/
@@ -462,8 +521,16 @@ static U32 SetClip(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write an 8bpp pixel using current raster operation.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @param Color 8-bit color value
+ * @return Previous pixel value
+ */
 static COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
-    U32 Bank;
     U32 Offset;
     U8* Plane;
     U32 OldColor;
@@ -473,29 +540,24 @@ static COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
         return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + X;
-    Bank = Offset >> Context->GranularShift;
-    OldColor = GetPixel8(Context, X, Y);
-
-    SetVESABank(Context, Bank);
+    Plane = Context->Header.MemoryBase + Offset;
+    OldColor = *Plane;
 
     switch (Context->Header.RasterOperation) {
         case ROP_SET: {
-            *(U8*)(Context->Header.MemoryBase + (Offset & Context->GranularModulo)) = Color;
+            *Plane = (U8)Color;
         } break;
 
         case ROP_XOR: {
-            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
-            *Plane ^= Color;
+            *Plane ^= (U8)Color;
         } break;
 
         case ROP_OR: {
-            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
-            *Plane |= Color;
+            *Plane |= (U8)Color;
         } break;
 
         case ROP_AND: {
-            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
-            *Plane &= Color;
+            *Plane &= (U8)Color;
         } break;
     }
 
@@ -504,8 +566,16 @@ static COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write a 16bpp pixel using current raster operation.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @param Color 16-bit color value
+ * @return Previous pixel value
+ */
 static COLOR SetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
-    U32 Bank;
     U32 Offset;
     U8* Plane;
     U32 OldColor;
@@ -515,30 +585,24 @@ static COLOR SetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
         return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + (X << MUL_2);
-    Bank = Offset >> Context->GranularShift;
-    OldColor = GetPixel16(Context, X, Y);
-
-    SetVESABank(Context, Bank);
+    Plane = Context->Header.MemoryBase + Offset;
+    OldColor = *((U16*)Plane);
 
     switch (Context->Header.RasterOperation) {
         case ROP_SET: {
-            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
-            *((U16*)Plane) = Color;
+            *((U16*)Plane) = (U16)Color;
         } break;
 
         case ROP_XOR: {
-            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
-            *((U16*)Plane) ^= Color;
+            *((U16*)Plane) ^= (U16)Color;
         } break;
 
         case ROP_OR: {
-            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
-            *((U16*)Plane) |= Color;
+            *((U16*)Plane) |= (U16)Color;
         } break;
 
         case ROP_AND: {
-            Plane = Context->Header.MemoryBase + (Offset & Context->GranularModulo);
-            *((U16*)Plane) &= Color;
+            *((U16*)Plane) &= (U16)Color;
         } break;
     }
 
@@ -547,12 +611,22 @@ static COLOR SetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write a 24bpp pixel using current raster operation.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @param Color 24-bit packed RGB color
+ * @return Previous pixel value
+ */
 static COLOR SetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 Offset;
-    U8* Plane;
-    U32 TOfs1, TOfs2, TOfs3;
-    U32 Bank1, Bank2, Bank3;
-    U32 R, G, B;
+    U8* Pixel;
+    U8 R;
+    U8 G;
+    U8 B;
+    U32 Converted;
     U32 OldColor;
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
@@ -560,107 +634,42 @@ static COLOR SetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
         return 0;
 
     Offset = (Y * Context->Header.BytesPerScanLine) + (X * 3);
+    Pixel = Context->Header.MemoryBase + Offset;
 
-    TOfs1 = Offset + 0;
-    Bank1 = TOfs1 >> Context->GranularShift;
-    TOfs2 = Offset + 1;
-    Bank2 = TOfs2 >> Context->GranularShift;
-    TOfs3 = Offset + 2;
-    Bank3 = TOfs3 >> Context->GranularShift;
+    Converted = 0;
+    Converted |= (((Color >> 0) & 0xFF) << 16);
+    Converted |= (((Color >> 8) & 0xFF) << 8);
+    Converted |= (((Color >> 16) & 0xFF) << 0);
 
-    OldColor = 0;
-    OldColor |= (((Color >> 0) & 0xFF) << 16);
-    OldColor |= (((Color >> 8) & 0xFF) << 8);
-    OldColor |= (((Color >> 16) & 0xFF) << 0);
+    R = (U8)((Converted >> 0) & 0xFF);
+    G = (U8)((Converted >> 8) & 0xFF);
+    B = (U8)((Converted >> 16) & 0xFF);
 
-    R = ((OldColor >> 0) & 0xFF);
-    G = ((OldColor >> 8) & 0xFF);
-    B = ((OldColor >> 16) & 0xFF);
-
-    OldColor = 0;
+    OldColor = (U32)Pixel[0] | ((U32)Pixel[1] << 8) | ((U32)Pixel[2] << 16);
 
     switch (Context->Header.RasterOperation) {
         case ROP_SET: {
-            // Red component
-            SetVESABank(Context, Bank1);
-            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 0;
-            *Plane = R;
-
-            // Green component
-            SetVESABank(Context, Bank2);
-            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 8;
-            *Plane = G;
-
-            // Blue component
-            SetVESABank(Context, Bank3);
-            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 16;
-            *Plane = B;
+            Pixel[0] = R;
+            Pixel[1] = G;
+            Pixel[2] = B;
         } break;
 
         case ROP_XOR: {
-            // Red component
-
-            SetVESABank(Context, Bank1);
-            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 0;
-            *Plane ^= R;
-
-            // Green component
-
-            SetVESABank(Context, Bank2);
-            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 8;
-            *Plane ^= G;
-
-            // Blue component
-
-            SetVESABank(Context, Bank3);
-            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 16;
-            *Plane ^= B;
+            Pixel[0] ^= R;
+            Pixel[1] ^= G;
+            Pixel[2] ^= B;
         } break;
 
         case ROP_OR: {
-            // Red component
-            SetVESABank(Context, Bank1);
-            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 0;
-            *Plane |= R;
-
-            // Green component
-            SetVESABank(Context, Bank2);
-            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 8;
-            *Plane |= G;
-
-            // Blue component
-            SetVESABank(Context, Bank3);
-            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 16;
-            *Plane |= B;
+            Pixel[0] |= R;
+            Pixel[1] |= G;
+            Pixel[2] |= B;
         } break;
 
         case ROP_AND: {
-            // Red component
-            SetVESABank(Context, Bank1);
-            Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 0;
-            *Plane &= R;
-
-            // Green component
-            SetVESABank(Context, Bank2);
-            Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 8;
-            *Plane &= G;
-
-            // Blue component
-            SetVESABank(Context, Bank3);
-            Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
-            OldColor |= (U32)(*Plane) << 16;
-            *Plane &= B;
+            Pixel[0] &= R;
+            Pixel[1] &= G;
+            Pixel[2] &= B;
         } break;
     }
 
@@ -669,10 +678,17 @@ static COLOR SetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
 /***************************************************************************/
 
+/**
+ * @brief Read an 8bpp pixel.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @return 8-bit color value or 0 if out of clip
+ */
 static COLOR GetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     U32 Color;
     U32 Offset;
-    U32 Bank;
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
         Y > Context->Header.HiClip.Y)
@@ -684,21 +700,24 @@ static COLOR GetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     */
 
     Offset = (Y * Context->Header.BytesPerScanLine) + X;
-    Bank = Offset >> Context->GranularShift;
-
-    SetVESABank(Context, Bank);
-
-    Color = *((U8*)(Context->Header.MemoryBase + (Offset & Context->GranularModulo)));
+    Color = *((U8*)(Context->Header.MemoryBase + Offset));
 
     return Color;
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Read a 16bpp pixel.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @return 16-bit color value or 0 if out of clip
+ */
 static COLOR GetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     U32 Color;
     U32 Offset;
-    U32 Bank;
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
         Y > Context->Header.HiClip.Y)
@@ -710,22 +729,25 @@ static COLOR GetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     */
 
     Offset = (Y * Context->Header.BytesPerScanLine) + (X << MUL_2);
-    Bank = Offset >> Context->GranularShift;
-
-    SetVESABank(Context, Bank);
-
-    Color = *((U16*)(Context->Header.MemoryBase + (Offset & Context->GranularModulo)));
+    Color = *((U16*)(Context->Header.MemoryBase + Offset));
 
     return Color;
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Read a 24bpp pixel.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @return 24-bit packed RGB color or 0 if out of clip
+ */
 static COLOR GetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     U32 Color;
-    U8* Plane;
-    U32 TOfs1, TOfs2, TOfs3;
-    U32 Bank1, Bank2, Bank3;
+    U8* Pixel;
+    U32 Offset;
 
     if (X < Context->Header.LoClip.X || X > Context->Header.HiClip.X || Y < Context->Header.LoClip.Y ||
         Y > Context->Header.HiClip.Y)
@@ -736,36 +758,25 @@ static COLOR GetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y) {
        (y < 0) || (y > Context.ScreenHeight - 1) ) return 0;
     */
 
-    TOfs1 = (Y * Context->Header.BytesPerScanLine) + ((X * 3) + 0);
-    TOfs2 = (Y * Context->Header.BytesPerScanLine) + ((X * 3) + 1);
-    TOfs3 = (Y * Context->Header.BytesPerScanLine) + ((X * 3) + 2);
+    Offset = (Y * Context->Header.BytesPerScanLine) + (X * 3);
+    Pixel = Context->Header.MemoryBase + Offset;
 
-    Bank1 = TOfs1 >> Context->GranularShift;
-    Bank2 = TOfs2 >> Context->GranularShift;
-    Bank3 = TOfs3 >> Context->GranularShift;
-
-    Color = 0;
-
-    // Red component
-    SetVESABank(Context, Bank1);
-    Plane = Context->Header.MemoryBase + (TOfs1 & Context->GranularModulo);
-    Color |= (U32)(*Plane);
-
-    // Green component
-    SetVESABank(Context, Bank2);
-    Plane = Context->Header.MemoryBase + (TOfs2 & Context->GranularModulo);
-    Color |= (U32)(*Plane) << 8;
-
-    // Blue component
-    SetVESABank(Context, Bank3);
-    Plane = Context->Header.MemoryBase + (TOfs3 & Context->GranularModulo);
-    Color |= (U32)(*Plane) << 16;
+    Color = (U32)Pixel[0];
+    Color |= (U32)Pixel[1] << 8;
+    Color |= (U32)Pixel[2] << 16;
 
     return Color;
 }
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a patterned line in 8bpp mode (stub).
+ *
+ * Parameters are unused; kept for interface parity.
+ *
+ * @return Always 0
+ */
 static U32 Line8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     UNUSED(Context);
     UNUSED(X1);
@@ -862,6 +873,16 @@ static U32 Line8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a patterned line in 16bpp mode.
+ *
+ * @param Context VESA context with pen state
+ * @param X1 Start X
+ * @param Y1 Start Y
+ * @param X2 End X
+ * @param Y2 End Y
+ * @return 0 on success, MAX_U32 on invalid pen
+ */
 static U32 Line16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 d, dx, dy, ai, bi, xi, yi;
     U32 LineBit = 0;
@@ -937,6 +958,16 @@ static U32 Line16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a patterned line in 24bpp mode.
+ *
+ * @param Context VESA context with pen state
+ * @param X1 Start X
+ * @param Y1 Start Y
+ * @param X2 End X
+ * @param Y2 End Y
+ * @return 0 on success, MAX_U32 on invalid pen
+ */
 static U32 Line24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 d, dx, dy, ai, bi, xi, yi;
     U32 LineBit = 0;
@@ -1017,6 +1048,13 @@ static U32 Line24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Fill rectangle in 8bpp mode (stub).
+ *
+ * Parameters are unused; kept for interface parity.
+ *
+ * @return Always 0
+ */
 static U32 Rect8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     UNUSED(Context);
     UNUSED(X1);
@@ -1114,6 +1152,18 @@ static U32 Rect8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw filled and/or outlined rectangle in 16bpp mode.
+ *
+ * Uses brush for fill and pen for border when provided.
+ *
+ * @param Context VESA context
+ * @param X1 Left coordinate
+ * @param Y1 Top coordinate
+ * @param X2 Right coordinate
+ * @param Y2 Bottom coordinate
+ * @return 0 on completion
+ */
 static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 X, Y;
     U32 Temp;
@@ -1152,18 +1202,27 @@ static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw filled and/or outlined rectangle in 24bpp mode.
+ *
+ * Uses brush for fill and pen for border when provided.
+ *
+ * @param Context VESA context
+ * @param X1 Left coordinate
+ * @param Y1 Top coordinate
+ * @param X2 Right coordinate
+ * @param Y2 Bottom coordinate
+ * @return 0 on completion
+ */
 static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    INTEL_X86_REGISTERS Regs;
-    U8* Pln1;
-    U8* Pln2;
-    U8* Pln3;
-    U32 Offset;
-    U32 Ofs1, Ofs2, Ofs3;
-    U32 Bank1, Bank2, Bank3;
-    U32 R, G, B;
-    I32 X, Y;
+    I32 X;
+    I32 Y;
     U32 Temp;
-    U32 Color;
+    U32 ConvertedColor;
+    U8 R = 0;
+    U8 G = 0;
+    U8 B = 0;
+    UINT Pitch;
 
     if (X1 > X2) {
         Temp = X1;
@@ -1176,13 +1235,17 @@ static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         Y2 = Temp;
     }
 
-    if (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH) {
-        Color = Context->Header.Brush->Color;
+    Pitch = Context->Header.BytesPerScanLine;
 
-        Color = 0;
-        Color |= (((Context->Header.Brush->Color >> 0) & 0xFF) << 16);
-        Color |= (((Context->Header.Brush->Color >> 8) & 0xFF) << 8);
-        Color |= (((Context->Header.Brush->Color >> 16) & 0xFF) << 0);
+    if (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH) {
+        ConvertedColor = 0;
+        ConvertedColor |= (((Context->Header.Brush->Color >> 0) & 0xFF) << 16);
+        ConvertedColor |= (((Context->Header.Brush->Color >> 8) & 0xFF) << 8);
+        ConvertedColor |= (((Context->Header.Brush->Color >> 16) & 0xFF) << 0);
+
+        R = (U8)((ConvertedColor >> 0) & 0xFF);
+        G = (U8)((ConvertedColor >> 8) & 0xFF);
+        B = (U8)((ConvertedColor >> 16) & 0xFF);
 
         if (X1 < Context->Header.LoClip.X) X1 = Context->Header.LoClip.X;
         if (X1 > Context->Header.HiClip.X) X1 = Context->Header.HiClip.X;
@@ -1193,80 +1256,38 @@ static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         if (Y2 < Context->Header.LoClip.Y) Y2 = Context->Header.LoClip.Y;
         if (Y2 > Context->Header.HiClip.Y) Y2 = Context->Header.HiClip.Y;
 
-        Offset = (Y1 * Context->Header.BytesPerScanLine) + (X1 * 3);
-
-        Ofs1 = Offset + 0;
-        Bank1 = Ofs1 >> Context->GranularShift;
-        Ofs2 = Offset + 1;
-        Bank2 = Ofs2 >> Context->GranularShift;
-        Ofs3 = Offset + 2;
-        Bank3 = Ofs3 >> Context->GranularShift;
-
-        Pln1 = Context->Header.MemoryBase + (Ofs1 & Context->GranularModulo);
-        Pln2 = Context->Header.MemoryBase + (Ofs2 & Context->GranularModulo);
-        Pln3 = Context->Header.MemoryBase + (Ofs3 & Context->GranularModulo);
-
-        R = (Color >> 0) & 0xFF;
-        G = (Color >> 8) & 0xFF;
-        B = (Color >> 16) & 0xFF;
-
         for (Y = Y1; Y <= Y2; Y++) {
+            U8* Pixel = Context->Header.MemoryBase + (Y * Pitch) + (X1 * 3);
+
             for (X = X1; X <= X2; X++) {
                 switch (Context->Header.RasterOperation) {
                     case ROP_SET: {
-                        SWITCHBANK(Context, Bank1);
-                        *(Pln1) = R;
-                        SWITCHBANK(Context, Bank2);
-                        *(Pln2) = G;
-                        SWITCHBANK(Context, Bank3);
-                        *(Pln3) = B;
+                        Pixel[0] = R;
+                        Pixel[1] = G;
+                        Pixel[2] = B;
                     } break;
 
                     case ROP_XOR: {
-                        SWITCHBANK(Context, Bank1);
-                        (*Pln1) ^= R;
-                        SWITCHBANK(Context, Bank2);
-                        (*Pln2) ^= G;
-                        SWITCHBANK(Context, Bank3);
-                        (*Pln3) ^= B;
+                        Pixel[0] ^= R;
+                        Pixel[1] ^= G;
+                        Pixel[2] ^= B;
                     } break;
 
                     case ROP_OR: {
-                        SWITCHBANK(Context, Bank1);
-                        (*Pln1) |= R;
-                        SWITCHBANK(Context, Bank2);
-                        (*Pln2) |= G;
-                        SWITCHBANK(Context, Bank3);
-                        (*Pln3) |= B;
+                        Pixel[0] |= R;
+                        Pixel[1] |= G;
+                        Pixel[2] |= B;
                     } break;
 
                     case ROP_AND: {
-                        SWITCHBANK(Context, Bank1);
-                        (*Pln1) &= R;
-                        SWITCHBANK(Context, Bank2);
-                        (*Pln2) &= G;
-                        SWITCHBANK(Context, Bank3);
-                        (*Pln3) &= B;
+                        Pixel[0] &= R;
+                        Pixel[1] &= G;
+                        Pixel[2] &= B;
                     } break;
                 }
 
-                Pln1 += 3;
-                Pln2 += 3;
-                Pln3 += 3;
+                Pixel += 3;
             }
-
-            Offset += Context->Header.BytesPerScanLine;
-
-            Ofs1 = Offset + 0;
-            Bank1 = Ofs1 >> Context->GranularShift;
-            Ofs2 = Offset + 1;
-            Bank2 = Ofs2 >> Context->GranularShift;
-            Ofs3 = Offset + 2;
-            Bank3 = Ofs3 >> Context->GranularShift;
-
-            Pln1 = Context->Header.MemoryBase + (Ofs1 & Context->GranularModulo);
-            Pln2 = Context->Header.MemoryBase + (Ofs2 & Context->GranularModulo);
-            Pln3 = Context->Header.MemoryBase + (Ofs3 & Context->GranularModulo);
         }
     }
 
@@ -1284,6 +1305,67 @@ static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a simple self-test pattern for sanity checks.
+ *
+ * Renders colored horizontal bands in the top portion of the frame buffer.
+ *
+ * @param Context VESA context
+ */
+static void VESADrawSelfTest(LPVESA_CONTEXT Context) {
+    static const COLOR Colors[] = {0x00FF0000, 0x0000FF00, 0x000000FF, 0x00FFFF00};
+    const I32 NumBands = (I32)(sizeof(Colors) / sizeof(Colors[0]));
+    COLOR (*SetPixel)(LPVESA_CONTEXT, I32, I32, COLOR);
+    I32 Width;
+    I32 Height;
+    I32 StripeWidth;
+    I32 TestHeight;
+    I32 Index;
+    I32 X;
+    I32 Y;
+    I32 X1;
+    I32 X2;
+
+    SetPixel = Context->ModeSpecs.SetPixel;
+    if (SetPixel == NULL) return;
+
+    Width = (I32)Context->Header.Width;
+    Height = (I32)Context->Header.Height;
+    if (Width <= 0 || Height <= 0) return;
+
+    StripeWidth = Width / NumBands;
+    if (StripeWidth <= 0) StripeWidth = Width;
+
+    TestHeight = Height / 16;
+    if (TestHeight < 16) TestHeight = Height;
+    if (TestHeight > Height) TestHeight = Height;
+
+    DEBUG(TEXT("[VESADrawSelfTest] Drawing %u color bands (%ux%u test area)"), (U32)NumBands, (U32)Width, (U32)TestHeight);
+
+    for (Index = 0; Index < NumBands; Index++) {
+        X1 = Index * StripeWidth;
+        X2 = X1 + StripeWidth - 1;
+
+        if (Index == NumBands - 1) X2 = Width - 1;
+        if (X2 >= Width) X2 = Width - 1;
+        if (X1 < 0) X1 = 0;
+
+        for (Y = 0; Y < TestHeight; Y++) {
+            for (X = X1; X <= X2; X++) {
+                SetPixel(Context, X, Y, Colors[Index]);
+            }
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Create a brush object from descriptor.
+ *
+ * @param Info Brush creation parameters
+ * @return Allocated brush or NULL on failure
+ */
 static LPBRUSH VESA_CreateBrush(LPBRUSHINFO Info) {
     LPBRUSH Brush;
 
@@ -1304,6 +1386,12 @@ static LPBRUSH VESA_CreateBrush(LPBRUSHINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a pen object from descriptor.
+ *
+ * @param Info Pen creation parameters
+ * @return Allocated pen or NULL on failure
+ */
 static LPPEN VESA_CreatePen(LPPENINFO Info) {
     LPPEN Pen;
 
@@ -1324,6 +1412,12 @@ static LPPEN VESA_CreatePen(LPPENINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Set a pixel via driver interface with mutex protection.
+ *
+ * @param Info Pixel operation descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_SetPixel(LPPIXELINFO Info) {
     LPVESA_CONTEXT Context;
 
@@ -1345,6 +1439,12 @@ static U32 VESA_SetPixel(LPPIXELINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Get a pixel via driver interface with mutex protection.
+ *
+ * @param Info Pixel operation descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_GetPixel(LPPIXELINFO Info) {
     LPVESA_CONTEXT Context;
 
@@ -1366,6 +1466,12 @@ static U32 VESA_GetPixel(LPPIXELINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a line via driver interface.
+ *
+ * @param Info Line descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_Line(LPLINEINFO Info) {
     LPVESA_CONTEXT Context;
 
@@ -1388,8 +1494,17 @@ static U32 VESA_Line(LPLINEINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a rectangle via driver interface.
+ *
+ * Applies fill and border according to current brush/pen.
+ *
+ * @param Info Rectangle descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_Rectangle(LPRECTINFO Info) {
     LPVESA_CONTEXT Context;
+    static U32 VESARectangleDebugCount = 0;
 
     if (Info == NULL) return 0;
 
@@ -1397,6 +1512,18 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 
     if (Context == NULL) return 0;
     if (Context->Header.TypeID != KOID_GRAPHICSCONTEXT) return 0;
+
+#if VESA_ENABLE_SELFTEST
+    if (VESARectangleLogCount < 16) {
+        LPBRUSH Brush = Context->Header.Brush;
+        LPPEN Pen = Context->Header.Pen;
+        VESARectangleLogCount++;
+    }
+#endif
+
+    if (VESARectangleDebugCount < 32) {
+        VESARectangleDebugCount++;
+    }
 
     LockMutex(&(Context->Header.Mutex), INFINITY);
 
@@ -1409,12 +1536,36 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Driver command dispatcher for VESA graphics.
+ *
+ * Handles load/unload, mode setting, drawing primitives, and resource creation.
+ *
+ * @param Function Driver function code
+ * @param Param Function-specific parameter
+ * @return Function-specific status code
+ */
 UINT VESACommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
-            return (UINT)VESAInitialize();
+            if ((VESADriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeVESA()) {
+                VESADriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
         case DF_UNLOAD:
-            return (UINT)VESAUninitialize();
+            if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            ShutdownVESA();
+            VESADriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GFX_SETMODE:

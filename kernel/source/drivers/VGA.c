@@ -46,6 +46,9 @@
 
 /***************************************************************************/
 
+/**
+ * @brief Busy-wait IO delay used between VGA port writes.
+ */
 void VGAIODelay(void) {
     U32 Index, Data;
     for (Index = 0; Index < 10; Index++) Data = Index;
@@ -54,6 +57,12 @@ void VGAIODelay(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Program VGA registers for a display mode.
+ *
+ * @param Regs Pointer to register array describing the mode.
+ * @return 0 on completion.
+ */
 static U32 SendModeRegs(U8* Regs) {
     U32 Index;
 
@@ -114,4 +123,7 @@ static U32 SendModeRegs(U8* Regs) {
 
 /***************************************************************************/
 
+/**
+ * @brief Test routine that loads the first VGA mode entry.
+ */
 void TestVGA(void) { SendModeRegs(VGAModeRegs[0].Regs); }

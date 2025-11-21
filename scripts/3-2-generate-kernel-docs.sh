@@ -14,12 +14,12 @@ fi
 echo "Generating kernel documentation with doxygen..."
 cd "$(dirname "$0")/.."
 
-rm -rf documentation/internal/kernel
+rm -rf documentation/kernel
 
-mkdir documentation/internal/kernel
+mkdir documentation/kernel
 
 # Run doxygen with project Doxyfile
 doxygen Doxyfile
 
 echo ""
-echo "Documentation is now in documentation/internal/kernel/html/index.html"
+echo "Documentation is now in documentation/kernel/html/index.html"

@@ -20,16 +20,19 @@
 
 # AI agents
 .claude/*
+.deepseek*
+.aider*
 
 # Project
 temp
 build
 kernel/configuration/exos.ext2.toml
 kernel/configuration/exos.fat32.toml
-documentation/internal/kernel
+documentation/kernel
 log/*
 
 # Node
 node_modules
 package.json
 package-lock.json
+.env

@@ -39,20 +39,20 @@ typedef U32 SM_EVENT;
 
 typedef struct tag_STATE_MACHINE STATE_MACHINE;
 
-typedef struct {
+typedef struct tag_SM_TRANSITION {
     SM_STATE FromState;
     SM_EVENT Event;
     SM_STATE ToState;
     BOOL (*Condition)(STATE_MACHINE* SM, LPVOID EventData);
     void (*Action)(STATE_MACHINE* SM, LPVOID EventData);
-} SM_TRANSITION;
+} SM_TRANSITION, *LPSM_TRANSITION;
 
 typedef struct tag_SM_STATE_DEFINITION {
     SM_STATE State;
     void (*OnEnter)(STATE_MACHINE* SM);
     void (*OnExit)(STATE_MACHINE* SM);
     void (*OnUpdate)(STATE_MACHINE* SM);
-} SM_STATE_DEFINITION;
+} SM_STATE_DEFINITION, *LPSM_STATE_DEFINITION;
 
 typedef struct tag_STATE_MACHINE {
     SM_STATE CurrentState;
@@ -68,7 +68,7 @@ typedef struct tag_STATE_MACHINE {
 
     BOOL Enabled;
     BOOL InTransition;
-} STATE_MACHINE;
+} STATE_MACHINE, *LPSTATE_MACHINE;
 
 /************************************************************************/
 

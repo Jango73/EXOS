@@ -36,6 +36,7 @@ static U32 ScriptHashVariable(LPCSTR Name);
 static void ScriptFreeVariable(LPSCRIPT_VARIABLE Variable);
 static void ScriptInitParser(LPSCRIPT_PARSER Parser, LPCSTR Input, LPSCRIPT_CONTEXT Context);
 static void ScriptNextToken(LPSCRIPT_PARSER Parser);
+static void ScriptParseStringToken(LPSCRIPT_PARSER Parser, LPCSTR Input, U32* Pos, STR QuoteChar);
 static LPAST_NODE ScriptParseExpressionAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseComparisonAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
@@ -719,38 +720,10 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         }
 
     } else if (Ch == '"') {
-        // String
-        Parser->CurrentToken.Type = TOKEN_STRING;
-        (*Pos)++; // Skip opening quote
-        U32 Start = *Pos;
-        while (Input[*Pos] != STR_NULL && Input[*Pos] != '"') {
-            (*Pos)++;
-        }
-
-        U32 Len = *Pos - Start;
-        if (Len >= MAX_TOKEN_LENGTH) Len = MAX_TOKEN_LENGTH - 1;
-
-        MemoryCopy(Parser->CurrentToken.Value, &Input[Start], Len);
-        Parser->CurrentToken.Value[Len] = STR_NULL;
-
-        if (Input[*Pos] == '"') (*Pos)++; // Skip closing quote
+        ScriptParseStringToken(Parser, Input, Pos, '"');
 
     } else if (Ch == '\'') {
-        // String
-        Parser->CurrentToken.Type = TOKEN_STRING;
-        (*Pos)++; // Skip opening quote
-        U32 Start = *Pos;
-        while (Input[*Pos] != STR_NULL && Input[*Pos] != '\'') {
-            (*Pos)++;
-        }
-
-        U32 Len = *Pos - Start;
-        if (Len >= MAX_TOKEN_LENGTH) Len = MAX_TOKEN_LENGTH - 1;
-
-        MemoryCopy(Parser->CurrentToken.Value, &Input[Start], Len);
-        Parser->CurrentToken.Value[Len] = STR_NULL;
-
-        if (Input[*Pos] == '\'') (*Pos)++; // Skip closing quote
+        ScriptParseStringToken(Parser, Input, Pos, '\'');
 
     } else if (Ch == '/') {
         BOOL TreatAsPath = TRUE;
@@ -886,6 +859,93 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         Parser->CurrentToken.Value[1] = STR_NULL;
         (*Pos)++;
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Parse a string literal token and handle escape sequences.
+ * @param Parser Parser state
+ * @param Input Original script input
+ * @param Pos Current position pointer in the input
+ * @param QuoteChar Quote character that delimits the string
+ */
+static void ScriptParseStringToken(LPSCRIPT_PARSER Parser, LPCSTR Input, U32* Pos, STR QuoteChar) {
+    Parser->CurrentToken.Type = TOKEN_STRING;
+    (*Pos)++;
+
+    U32 OutputIndex = 0;
+
+    while (Input[*Pos] != STR_NULL) {
+        STR Current = Input[*Pos];
+
+        if (Current == QuoteChar) {
+            (*Pos)++;
+            break;
+        }
+
+        if (Current == '\\') {
+            (*Pos)++;
+
+            if (Input[*Pos] == STR_NULL) {
+                if (OutputIndex < MAX_TOKEN_LENGTH - 1) {
+                    Parser->CurrentToken.Value[OutputIndex++] = '\\';
+                }
+                break;
+            }
+
+            STR Escaped = Input[*Pos];
+            STR Resolved = STR_NULL;
+            BOOL Recognized = TRUE;
+
+            switch (Escaped) {
+                case 'n':
+                    Resolved = '\n';
+                    break;
+                case 'r':
+                    Resolved = '\r';
+                    break;
+                case 't':
+                    Resolved = '\t';
+                    break;
+                case '\\':
+                    Resolved = '\\';
+                    break;
+                case '\'':
+                    Resolved = '\'';
+                    break;
+                case '"':
+                    Resolved = '"';
+                    break;
+                default:
+                    Recognized = FALSE;
+                    break;
+            }
+
+            if (Recognized) {
+                if (OutputIndex < MAX_TOKEN_LENGTH - 1) {
+                    Parser->CurrentToken.Value[OutputIndex++] = Resolved;
+                }
+            } else {
+                if (OutputIndex < MAX_TOKEN_LENGTH - 1) {
+                    Parser->CurrentToken.Value[OutputIndex++] = '\\';
+                }
+                if (OutputIndex < MAX_TOKEN_LENGTH - 1) {
+                    Parser->CurrentToken.Value[OutputIndex++] = Escaped;
+                }
+            }
+
+            (*Pos)++;
+            continue;
+        }
+
+        if (OutputIndex < MAX_TOKEN_LENGTH - 1) {
+            Parser->CurrentToken.Value[OutputIndex++] = Current;
+        }
+        (*Pos)++;
+    }
+
+    Parser->CurrentToken.Value[OutputIndex] = STR_NULL;
 }
 
 /************************************************************************/
@@ -3050,4 +3110,3 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
 
     return Variable;
 }
-
