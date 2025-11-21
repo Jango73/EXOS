@@ -41,7 +41,7 @@
 
 UINT ATADiskCommands(UINT, UINT);
 
-DRIVER SECTION(".data") ATADiskDriver = {
+DRIVER DATA_SECTION ATADiskDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,

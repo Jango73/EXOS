@@ -40,7 +40,7 @@
 
 UINT StdKeyboardCommands(UINT, UINT);
 
-DRIVER SECTION(".data") StdKeyboardDriver = {
+DRIVER DATA_SECTION StdKeyboardDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

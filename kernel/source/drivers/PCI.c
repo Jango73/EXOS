@@ -64,7 +64,7 @@ static U32 PciDriverCount = 0;
 
 static UINT PCIDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER PCIDriver = {
+DRIVER DATA_SECTION PCIDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

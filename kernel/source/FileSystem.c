@@ -46,7 +46,7 @@ extern BOOL MountPartition_EXT2(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 
 static UINT FileSystemDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER FileSystemDriver = {
+DRIVER DATA_SECTION FileSystemDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

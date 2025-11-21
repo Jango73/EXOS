@@ -41,7 +41,7 @@
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER SECTION(".data") KernelLogDriver = {
+DRIVER DATA_SECTION KernelLogDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

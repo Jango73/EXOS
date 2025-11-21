@@ -34,7 +34,7 @@
 
 UINT RAMDiskCommands(UINT, UINT);
 
-DRIVER RAMDiskDriver = {
+DRIVER DATA_SECTION RAMDiskDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

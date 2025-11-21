@@ -33,7 +33,7 @@
 
 UINT FAT16Commands(UINT, UINT);
 
-DRIVER FAT16Driver = {
+DRIVER DATA_SECTION FAT16Driver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,

@@ -38,7 +38,7 @@
 
 /***************************************************************************/
 
-PROCESS SECTION(".data") KernelProcess = {
+PROCESS DATA_SECTION KernelProcess = {
     .TypeID = KOID_PROCESS,  // ID
     .References = 1,   // References
     .OwnerProcess = NULL, // OwnerProcess (from LISTNODE_FIELDS)
@@ -73,7 +73,7 @@ PROCESS SECTION(".data") KernelProcess = {
 
 static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER SECTION(".data") KernelProcessDriver = {
+DRIVER DATA_SECTION KernelProcessDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

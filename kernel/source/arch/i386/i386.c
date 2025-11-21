@@ -38,27 +38,6 @@
 #include "Interrupt.h"
 #include "SYSCall.h"
 
-/************************************************************************/
-
-#define INTERRUPTS_VER_MAJOR 1
-#define INTERRUPTS_VER_MINOR 0
-
-static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
-
-DRIVER InterruptsDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
-    .VersionMajor = INTERRUPTS_VER_MAJOR,
-    .VersionMinor = INTERRUPTS_VER_MINOR,
-    .Designer = "Jango73",
-    .Manufacturer = "EXOS",
-    .Product = "Interrupts",
-    .Flags = DRIVER_FLAG_CRITICAL,
-    .Command = InterruptsDriverCommands};
-
 /************************************************************************\
 
     Virtual Address Space (32-bit)
@@ -191,23 +170,45 @@ DRIVER InterruptsDriver = {
 
 \************************************************************************/
 
-// Uncomment below to mark BIOS memory pages "not present" in the page tables
+extern GATE_DESCRIPTOR IDT[];
+extern void Interrupt_SystemCall(void);
+extern VOIDFUNC InterruptTable[];
 
+/************************************************************************/
+
+static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
+
+/************************************************************************/
+
+// Uncomment below to mark BIOS memory pages "not present" in the page tables
 // #define PROTECT_BIOS
 #define PROTECTED_ZONE_START 0xC0000
 #define PROTECTED_ZONE_END 0xFFFFF
 
+#define INTERRUPTS_VER_MAJOR 1
+#define INTERRUPTS_VER_MINOR 0
+
 /************************************************************************/
 
-KERNELDATA_I386 SECTION(".data") Kernel_i386 = {
+KERNELDATA_I386 DATA_SECTION Kernel_i386 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL
 };
 
-extern GATE_DESCRIPTOR IDT[];
-extern void Interrupt_SystemCall(void);
-extern VOIDFUNC InterruptTable[];
+DRIVER DATA_SECTION InterruptsDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = INTERRUPTS_VER_MAJOR,
+    .VersionMinor = INTERRUPTS_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Interrupts",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = InterruptsDriverCommands};
 
 /************************************************************************/
 

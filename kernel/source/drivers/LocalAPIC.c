@@ -39,7 +39,7 @@
 
 static UINT LocalAPICDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER SECTION(".data") LocalAPICDriver = {
+DRIVER DATA_SECTION LocalAPICDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

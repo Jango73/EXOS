@@ -185,7 +185,7 @@ static LIST UserAccountList = {
 
 /************************************************************************/
 
-KERNELDATA SECTION(".data") Kernel = {
+KERNELDATA DATA_SECTION Kernel = {
     .Drivers = &DriverList,
     .Desktop = &DesktopList,
     .Process = &ProcessList,

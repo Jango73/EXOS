@@ -43,7 +43,7 @@
 
 static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER InterruptsDriver = {
+DRIVER DATA_SECTION InterruptsDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -145,7 +145,7 @@ DRIVER InterruptsDriver = {
 
 \************************************************************************/
 
-KERNELDATA_X86_64 SECTION(".data") Kernel_i386 = {
+KERNELDATA_X86_64 DATA_SECTION Kernel_i386 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL,

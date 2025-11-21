@@ -113,6 +113,7 @@ extern "C" {
 #define REGISTER register
 
 #define SECTION(a) __attribute__((section(a)))
+#define DATA_SECTION SECTION(".data")
 
 /************************************************************************/
 

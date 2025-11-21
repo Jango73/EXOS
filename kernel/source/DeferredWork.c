@@ -74,7 +74,7 @@ static BOOL DeferredWorkDispatch(LPVOID Param);
 #define DEFERRED_WORK_VER_MAJOR 1
 #define DEFERRED_WORK_VER_MINOR 0
 
-DRIVER DeferredWorkDriver = {
+DRIVER DATA_SECTION DeferredWorkDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

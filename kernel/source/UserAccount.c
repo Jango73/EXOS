@@ -48,7 +48,7 @@ static UINT UserAccountDriverCommands(UINT Function, UINT Parameter);
 
 /************************************************************************/
 
-DRIVER SECTION(".data") UserAccountDriver = {
+DRIVER DATA_SECTION UserAccountDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

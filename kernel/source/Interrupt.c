@@ -132,7 +132,7 @@ VOIDFUNC InterruptTable[] = {
 };
 #undef DEVICE_INTERRUPT_SLOT_LIST
 
-GATE_DESCRIPTOR SECTION(".data") IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
+GATE_DESCRIPTOR DATA_SECTION IDT[IDT_SIZE / sizeof(GATE_DESCRIPTOR)];
 
 /***************************************************************************/
 

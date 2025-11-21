@@ -51,7 +51,7 @@
 
 UINT VESACommands(UINT, UINT);
 
-DRIVER SECTION(".data") VESADriver = {
+DRIVER DATA_SECTION VESADriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

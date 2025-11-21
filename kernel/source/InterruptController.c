@@ -39,7 +39,7 @@
 
 static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER SECTION(".data") InterruptControllerDriver = {
+DRIVER DATA_SECTION InterruptControllerDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

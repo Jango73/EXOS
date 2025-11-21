@@ -40,7 +40,7 @@
 
 static UINT ClockDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER SECTION(".data") ClockDriver = {
+DRIVER DATA_SECTION ClockDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

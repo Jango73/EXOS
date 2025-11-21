@@ -49,7 +49,7 @@
 
 static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER NetworkManagerDriver = {
+DRIVER DATA_SECTION NetworkManagerDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

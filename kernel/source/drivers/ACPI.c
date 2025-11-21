@@ -39,7 +39,7 @@
 
 static UINT ACPIDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER SECTION(".data") ACPIDriver = {
+DRIVER DATA_SECTION ACPIDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

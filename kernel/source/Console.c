@@ -40,7 +40,7 @@
 
 static UINT ConsoleDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER ConsoleDriver = {
+DRIVER DATA_SECTION ConsoleDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

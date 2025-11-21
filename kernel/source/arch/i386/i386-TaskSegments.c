@@ -37,7 +37,7 @@
 
 static UINT TaskSegmentsDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER SECTION(".data") TaskSegmentsDriver = {
+DRIVER DATA_SECTION TaskSegmentsDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,

@@ -35,7 +35,7 @@
 
 UINT FAT32Commands(UINT, UINT);
 
-DRIVER FAT32Driver = {
+DRIVER DATA_SECTION FAT32Driver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .OwnerProcess = &KernelProcess,

@@ -33,27 +33,6 @@
 #include "process/Schedule.h"
 #include "System.h"
 
-/************************************************************************/
-
-#define MEMORY_MANAGER_VER_MAJOR 1
-#define MEMORY_MANAGER_VER_MINOR 0
-
-static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
-
-DRIVER MemoryManagerDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
-    .VersionMajor = MEMORY_MANAGER_VER_MAJOR,
-    .VersionMinor = MEMORY_MANAGER_VER_MINOR,
-    .Designer = "Jango73",
-    .Manufacturer = "EXOS",
-    .Product = "MemoryManager",
-    .Flags = DRIVER_FLAG_CRITICAL,
-    .Command = MemoryManagerCommands};
-
 /************************************************************************\
 
     Virtual Address Space (32-bit)
@@ -186,6 +165,9 @@ DRIVER MemoryManagerDriver = {
 
 \************************************************************************/
 
+#define MEMORY_MANAGER_VER_MAJOR 1
+#define MEMORY_MANAGER_VER_MINOR 0
+
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 /// These are internal-only constants; do not export in public headers.
 
@@ -204,6 +186,24 @@ DRIVER MemoryManagerDriver = {
 static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
 static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
 static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
+
+/************************************************************************/
+
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION MemoryManagerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = MEMORY_MANAGER_VER_MAJOR,
+    .VersionMinor = MEMORY_MANAGER_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "MemoryManager",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = MemoryManagerCommands};
 
 /************************************************************************/
 

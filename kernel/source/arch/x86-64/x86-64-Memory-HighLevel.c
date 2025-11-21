@@ -32,7 +32,7 @@
 
 static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
 
-DRIVER MemoryManagerDriver = {
+DRIVER DATA_SECTION MemoryManagerDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
