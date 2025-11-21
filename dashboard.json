@@ -4,8 +4,9 @@
     ],
     "scriptsDir": "./scripts",
     "keyBindings": {
-        "C-e": { "label": "Setup Dependencies", "script": "1-setup-deps.sh" },
-        "C-f": { "label": "Format Code", "script": "3-format-all-code.sh" },
+        "C-e": { "label": "Setup Dependencies", "script": "1-1-setup-deps.sh" },
+        "C-f": { "label": "Format Code", "script": "3-1-format-all-code.sh" },
+        "C-h": { "label": "Build help", "script": "3-2-generate-kernel-docs.sh" },
 
         "i386-----------------": "",
 
