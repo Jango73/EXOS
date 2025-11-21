@@ -4,13 +4,6 @@
 
 - Use __func__ to automatically include function name
 
-## Init and shutdown
-
-- All modules called by InitializeKernel expose an interface similar to drivers.
-- This interface implements Initialize() and Shutdown() : Initialize() must be idempotent.
-- The exposed interfaces are listed in a kernel object.
-- There is a inter-module dependency mecanism : what modules does a module depend on regarding initialization. Therefore, initialization order can be automatically determined by the kernel.
-
 ## Errors
 
 - Functions returning U32 MUST return DF_ERROR_XXXX codes : meaning 0 on success, an error otherwise.
@@ -48,7 +41,7 @@
 
 ## File systems
 
-- Implement ext2, ext3, ext4
+- Implement ext3 and ext4
 
 ## Drivers
 
