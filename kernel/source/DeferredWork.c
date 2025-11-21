@@ -47,12 +47,19 @@ typedef struct tag_DEFERRED_WORK_ITEM {
     STR Name[32];
 } DEFERRED_WORK_ITEM, *LPDEFERRED_WORK_ITEM;
 
+typedef struct tag_DEFERRED_WORK_CONTEXT {
+    DEFERRED_WORK_ITEM WorkItems[DEFERRED_WORK_MAX_ITEMS];
+    LPKERNEL_EVENT DeferredEvent;
+    BOOL PollingMode;
+    BOOL DispatcherStarted;
+} DEFERRED_WORK_CONTEXT;
+
 /************************************************************************/
 
-static DEFERRED_WORK_ITEM g_WorkItems[DEFERRED_WORK_MAX_ITEMS];
-static LPKERNEL_EVENT g_DeferredEvent = NULL;
-static BOOL g_PollingMode = FALSE;
-static BOOL g_DispatcherStarted = FALSE;
+static DEFERRED_WORK_CONTEXT g_DeferredWork = {
+    .DeferredEvent = NULL,
+    .PollingMode = FALSE,
+    .DispatcherStarted = FALSE};
 
 /************************************************************************/
 
@@ -92,7 +99,7 @@ DRIVER DeferredWorkDriver = {
  * @return TRUE on success, FALSE on allocation or task creation failure.
  */
 BOOL InitializeDeferredWork(void) {
-    if (g_DispatcherStarted) {
+    if (g_DeferredWork.DispatcherStarted) {
         return TRUE;
     }
 
@@ -109,27 +116,27 @@ BOOL InitializeDeferredWork(void) {
         Kernel.DeferredWorkPollDelayMS = StringToU32(PollDelayValue);
     }
 
-    MemorySet(g_WorkItems, 0, sizeof(g_WorkItems));
+    MemorySet(g_DeferredWork.WorkItems, 0, sizeof(g_DeferredWork.WorkItems));
 
-    g_DeferredEvent = CreateKernelEvent();
-    if (g_DeferredEvent == NULL) {
+    g_DeferredWork.DeferredEvent = CreateKernelEvent();
+    if (g_DeferredWork.DeferredEvent == NULL) {
         ERROR(TEXT("[InitializeDeferredWork] Failed to create deferred event"));
         return FALSE;
     }
 
-    DEBUG(TEXT("[InitializeDeferredWork] Deferred event created at %p"), g_DeferredEvent);
+    DEBUG(TEXT("[InitializeDeferredWork] Deferred event created at %p"), g_DeferredWork.DeferredEvent);
 
     LPCSTR ModeValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_POLLING));
     if (STRING_EMPTY(ModeValue) == FALSE) {
         U32 Numeric = StringToU32(ModeValue);
         if (Numeric != 0) {
-            g_PollingMode = TRUE;
+            g_DeferredWork.PollingMode = TRUE;
         } else if (StringCompareNC(ModeValue, TEXT("true")) == 0) {
-            g_PollingMode = TRUE;
+            g_DeferredWork.PollingMode = TRUE;
         }
     }
 
-    if (g_PollingMode == TRUE) {
+    if (g_DeferredWork.PollingMode == TRUE) {
         ConsolePrint(TEXT("WARNING : Devices in polling mode.\n"));
     }
 
@@ -146,12 +153,12 @@ BOOL InitializeDeferredWork(void) {
 
     if (CreateTask(&KernelProcess, &TaskInfo) == NULL) {
         ERROR(TEXT("[InitializeDeferredWork] Failed to create dispatcher task"));
-        DeleteKernelEvent(g_DeferredEvent);
-        g_DeferredEvent = NULL;
+        DeleteKernelEvent(g_DeferredWork.DeferredEvent);
+        g_DeferredWork.DeferredEvent = NULL;
         return FALSE;
     }
 
-    g_DispatcherStarted = TRUE;
+    g_DeferredWork.DispatcherStarted = TRUE;
     DEBUG(TEXT("[InitializeDeferredWork] Dispatcher task started"));
     return TRUE;
 }
@@ -164,10 +171,10 @@ BOOL InitializeDeferredWork(void) {
  * Clears dispatcher flags and resets the deferred event when available.
  */
 void ShutdownDeferredWork(void) {
-    g_DispatcherStarted = FALSE;
-    g_PollingMode = FALSE;
-    SAFE_USE(g_DeferredEvent) {
-        ResetKernelEvent(g_DeferredEvent);
+    g_DeferredWork.DispatcherStarted = FALSE;
+    g_DeferredWork.PollingMode = FALSE;
+    SAFE_USE(g_DeferredWork.DeferredEvent) {
+        ResetKernelEvent(g_DeferredWork.DeferredEvent);
     }
 }
 
@@ -190,20 +197,22 @@ U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
     }
 
     for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
-        if (!g_WorkItems[Index].InUse) {
-            g_WorkItems[Index].InUse = TRUE;
-            g_WorkItems[Index].WorkCallback = Registration->WorkCallback;
-            g_WorkItems[Index].PollCallback = Registration->PollCallback;
-            g_WorkItems[Index].Context = Registration->Context;
-            g_WorkItems[Index].PendingCount = 0;
-            MemorySet(g_WorkItems[Index].Name, 0, sizeof(g_WorkItems[Index].Name));
+        if (!g_DeferredWork.WorkItems[Index].InUse) {
+            g_DeferredWork.WorkItems[Index].InUse = TRUE;
+            g_DeferredWork.WorkItems[Index].WorkCallback = Registration->WorkCallback;
+            g_DeferredWork.WorkItems[Index].PollCallback = Registration->PollCallback;
+            g_DeferredWork.WorkItems[Index].Context = Registration->Context;
+            g_DeferredWork.WorkItems[Index].PendingCount = 0;
+            MemorySet(g_DeferredWork.WorkItems[Index].Name, 0, sizeof(g_DeferredWork.WorkItems[Index].Name));
             if (Registration->Name) {
-                StringCopyLimit(g_WorkItems[Index].Name, Registration->Name, sizeof(g_WorkItems[Index].Name));
+                StringCopyLimit(g_DeferredWork.WorkItems[Index].Name,
+                                Registration->Name,
+                                sizeof(g_DeferredWork.WorkItems[Index].Name));
             }
 
             DEBUG(TEXT("[DeferredWorkRegister] Registered work item %u (%s)"),
                   Index,
-                  g_WorkItems[Index].Name);
+                  g_DeferredWork.WorkItems[Index].Name);
             return Index;
         }
     }
@@ -245,12 +254,12 @@ void DeferredWorkUnregister(U32 Handle) {
         return;
     }
 
-    g_WorkItems[Handle].InUse = FALSE;
-    g_WorkItems[Handle].WorkCallback = NULL;
-    g_WorkItems[Handle].PollCallback = NULL;
-    g_WorkItems[Handle].Context = NULL;
-    g_WorkItems[Handle].PendingCount = 0;
-    MemorySet(g_WorkItems[Handle].Name, 0, sizeof(g_WorkItems[Handle].Name));
+    g_DeferredWork.WorkItems[Handle].InUse = FALSE;
+    g_DeferredWork.WorkItems[Handle].WorkCallback = NULL;
+    g_DeferredWork.WorkItems[Handle].PollCallback = NULL;
+    g_DeferredWork.WorkItems[Handle].Context = NULL;
+    g_DeferredWork.WorkItems[Handle].PendingCount = 0;
+    MemorySet(g_DeferredWork.WorkItems[Handle].Name, 0, sizeof(g_DeferredWork.WorkItems[Handle].Name));
 
     DEBUG(TEXT("[DeferredWorkUnregister] Unregistered work item %u"), Handle);
 }
@@ -267,7 +276,7 @@ void DeferredWorkSignal(U32 Handle) {
         return;
     }
 
-    LPDEFERRED_WORK_ITEM Item = &g_WorkItems[Handle];
+    LPDEFERRED_WORK_ITEM Item = &g_DeferredWork.WorkItems[Handle];
     if (!Item->InUse || Item->WorkCallback == NULL) {
         return;
     }
@@ -278,8 +287,8 @@ void DeferredWorkSignal(U32 Handle) {
     Item->PendingCount++;
     RestoreFlags(&Flags);
 
-    SAFE_USE(g_DeferredEvent) {
-        SignalKernelEvent(g_DeferredEvent);
+    SAFE_USE(g_DeferredWork.DeferredEvent) {
+        SignalKernelEvent(g_DeferredWork.DeferredEvent);
     }
 }
 
@@ -291,7 +300,7 @@ void DeferredWorkSignal(U32 Handle) {
  * @return TRUE when polling mode is enabled, FALSE otherwise.
  */
 BOOL DeferredWorkIsPollingMode(void) {
-    return g_PollingMode;
+    return g_DeferredWork.PollingMode;
 }
 
 /************************************************************************/
@@ -308,7 +317,7 @@ static void ProcessPendingWork(void) {
         WorkFound = FALSE;
 
         for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
-            LPDEFERRED_WORK_ITEM Item = &g_WorkItems[Index];
+            LPDEFERRED_WORK_ITEM Item = &g_DeferredWork.WorkItems[Index];
             if (!Item->InUse || Item->WorkCallback == NULL) {
                 continue;
             }
@@ -337,15 +346,15 @@ static void ProcessPendingWork(void) {
 
     BOOL PendingLeft = FALSE;
     for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
-        if (g_WorkItems[Index].InUse && g_WorkItems[Index].PendingCount > 0U) {
+        if (g_DeferredWork.WorkItems[Index].InUse && g_DeferredWork.WorkItems[Index].PendingCount > 0U) {
             PendingLeft = TRUE;
             break;
         }
     }
 
     if (!PendingLeft) {
-        SAFE_USE(g_DeferredEvent) {
-            ResetKernelEvent(g_DeferredEvent);
+        SAFE_USE(g_DeferredWork.DeferredEvent) {
+            ResetKernelEvent(g_DeferredWork.DeferredEvent);
         }
     }
 
@@ -359,7 +368,7 @@ static void ProcessPendingWork(void) {
  */
 static void ProcessPollCallbacks(void) {
     for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
-        LPDEFERRED_WORK_ITEM Item = &g_WorkItems[Index];
+        LPDEFERRED_WORK_ITEM Item = &g_DeferredWork.WorkItems[Index];
         if (!Item->InUse || Item->PollCallback == NULL) {
             continue;
         }
@@ -386,7 +395,7 @@ static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     WaitInfo.Header.Version = EXOS_ABI_VERSION;
     WaitInfo.Header.Flags = 0;
     WaitInfo.Count = 1;
-    WaitInfo.Objects[0] = (HANDLE)g_DeferredEvent;
+    WaitInfo.Objects[0] = (HANDLE)g_DeferredWork.DeferredEvent;
     WaitInfo.MilliSeconds = Kernel.DeferredWorkWaitTimeoutMS;
 
     FOREVER {
