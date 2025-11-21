@@ -95,8 +95,6 @@ void NetworkManager_MaintenanceTick(LPNETWORK_DEVICE_CONTEXT Context);
 
 /************************************************************************/
 
-extern DRIVER NetworkManagerDriver;
-
 #pragma pack(pop)
 
 #endif  // NETWORKMANAGER_H_INCLUDED

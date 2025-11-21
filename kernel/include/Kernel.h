@@ -25,7 +25,7 @@
 #ifndef KERNEL_H_INCLUDED
 #define KERNEL_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
 // Privilege levels (rings)
 #define PRIVILEGE_KERNEL 0x00
@@ -33,7 +33,7 @@
 #define PRIVILEGE_ROUTINES 0x02
 #define PRIVILEGE_USER 0x03
 
-/***************************************************************************/
+/************************************************************************/
 
 #include "Base.h"
 #include "utils/Cache.h"
@@ -52,7 +52,7 @@
 #include "UserAccount.h"
 #include "SystemFS.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 #pragma pack(push, 1)
 
@@ -60,7 +60,7 @@ struct tag_PROCESS;
 struct tag_SEGMENT_DESCRIPTOR;
 struct tag_TSS_DESCRIPTOR;
 
-/***************************************************************************/
+/************************************************************************/
 // Structure to receive CPU information
 
 typedef struct tag_CPUINFORMATION {
@@ -72,7 +72,7 @@ typedef struct tag_CPUINFORMATION {
     U32 Features;
 } CPUINFORMATION, *LPCPUINFORMATION;
 
-/***************************************************************************/
+/************************************************************************/
 // EXOS system calls
 
 #define EXOS_USER_CALL 0x70
@@ -84,7 +84,7 @@ typedef struct tag_SYSCALLENTRY {
     U32 Privilege;
 } SYSCALLENTRY, *LPSYSCALLENTRY;
 
-/***************************************************************************/
+/************************************************************************/
 // Global Kernel Data
 
 #define OBJECT_TERMINATION_TTL_MS 60000  // 1 minute
@@ -138,6 +138,8 @@ typedef struct tag_KERNELDATA {
     LPLIST File;
     LPLIST TCPConnection;
     LPLIST Socket;
+    LPDRIVER* Drivers;              // Driver list in initialization order
+    UINT DriverCount;               // Number of drivers in the list
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
     CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
@@ -159,7 +161,7 @@ typedef struct tag_KERNELDATA {
 
 extern KERNELDATA Kernel;
 
-/***************************************************************************/
+/************************************************************************/
 // Functions in Kernel.c
 
 BOOL GetCPUInformation(LPCPUINFORMATION);
@@ -170,31 +172,32 @@ void TestProcess(void);
 void InitializeKernel(void);
 void StoreObjectTerminationState(LPVOID Object, UINT ExitCode);
 PHYSICAL KernelToPhysical(LINEAR Symbol);
-
 void KernelObjectDestructor(LPVOID);
 LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
-
 void DoPageFault(void);
-
 HANDLE PointerToHandle(LINEAR Pointer);
 LINEAR HandleToPointer(HANDLE Handle);
 LINEAR EnsureKernelPointer(LINEAR Value);
 HANDLE EnsureHandle(LINEAR Value);
 void ReleaseHandle(HANDLE Handle);
+LPDRIVER GetMouseDriver();
+LPDRIVER GetGraphicsDriver();
+LPDRIVER GetDefaultFileSystemDriver();
 
+/************************************************************************/
 // Functions in MemoryEditor.c
 
 void PrintMemory(U32, U32);
 void MemoryEditor(U32);
 
-/***************************************************************************/
+/************************************************************************/
 // Functions in Edit.c
 
 U32 Edit(U32, LPCSTR*, BOOL);
 
-/***************************************************************************/
+/************************************************************************/
 
 #pragma pack(pop)
 

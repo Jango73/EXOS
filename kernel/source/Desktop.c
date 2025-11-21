@@ -30,6 +30,7 @@
 
 /***************************************************************************/
 
+extern DRIVER VESADriver;
 extern GRAPHICSCONTEXT VESAContext;
 
 /***************************************************************************/
@@ -205,7 +206,7 @@ LPDESKTOP CreateDesktop(void) {
     This->TypeID = KOID_DESKTOP;
     This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
-    This->Graphics = &VESADriver;
+    This->Graphics = GetGraphicsDriver();
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -1632,7 +1633,7 @@ static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
 /*
 static U32 DrawButtons(HANDLE GC) {
     LINEINFO LineInfo;
-    U32 Buttons = SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
+    U32 Buttons = GetMouseDriver().Command(DF_MOUSE_GETBUTTONS, 0);
 
     if (Buttons & MB_LEFT) {
         SelectPen(GC, GetSystemPen(SM_COLOR_TITLE_BAR_2));
@@ -1755,8 +1756,8 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             LPWINDOW Target;
             I32 X, Y;
 
-            X = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
-            Y = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
+            X = GetMouseDriver()->Command(DF_MOUSE_GETDELTAX, 0);
+            Y = GetMouseDriver()->Command(DF_MOUSE_GETDELTAY, 0);
 
             Position.X = SIGNED(X);
             Position.Y = SIGNED(Y);

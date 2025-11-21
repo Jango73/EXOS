@@ -478,7 +478,7 @@ static U32 RAMDiskInitialize(void) {
 
     StringCopy(Create.VolumeName, TEXT("RamDisk"));
 
-    EXFSDriver.Command(DF_FS_CREATEPARTITION, (UINT)&Create);
+    GetDefaultFileSystemDriver()->Command(DF_FS_CREATEPARTITION, (UINT)&Create);
 
     DEBUG(TEXT("[RAMDiskInitialize] Partition formated in EXFS"));
 

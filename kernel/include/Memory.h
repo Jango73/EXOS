@@ -118,8 +118,4 @@ LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags);
 
 /************************************************************************/
 
-extern DRIVER MemoryManagerDriver;
-
-/************************************************************************/
-
 #endif  // MEMORY_H_INCLUDED

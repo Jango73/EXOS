@@ -1832,8 +1832,8 @@ UINT SysCall_GetMousePos(UINT Parameter) {
     U32 UX, UY;
 
     SAFE_USE_VALID(Point) {
-        UX = SerialMouseDriver.Command(DF_MOUSE_GETDELTAX, 0);
-        UY = SerialMouseDriver.Command(DF_MOUSE_GETDELTAY, 0);
+        UX = GetMouseDriver()->Command(DF_MOUSE_GETDELTAX, 0);
+        UY = GetMouseDriver()->Command(DF_MOUSE_GETDELTAY, 0);
 
         Point->X = *((I32*)&UX);
         Point->Y = *((I32*)&UY);
@@ -1869,7 +1869,7 @@ UINT SysCall_SetMousePos(UINT Parameter) {
  */
 UINT SysCall_GetMouseButtons(UINT Parameter) {
     UNUSED(Parameter);
-    return SerialMouseDriver.Command(DF_MOUSE_GETBUTTONS, 0);
+    return GetMouseDriver()->Command(DF_MOUSE_GETBUTTONS, 0);
 }
 
 /************************************************************************/

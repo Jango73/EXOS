@@ -714,7 +714,6 @@ void SetTSSDescriptorBase(LPTSS_DESCRIPTOR Desc, U32 Base);
 void SetTSSDescriptorLimit(LPTSS_DESCRIPTOR Desc, U32 Limit);
 void PreInitializeKernel(void);
 void InitializeSystemCall(void);
-extern DRIVER TaskSegmentsDriver;
 
 struct tag_TASK;
 struct tag_PROCESS;

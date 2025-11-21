@@ -259,8 +259,4 @@ void SetDefaultIOAPICConfiguration(void);
 
 #pragma pack(pop)
 
-extern DRIVER IOAPICDriver;
-
-/***************************************************************************/
-
 #endif // IOAPIC_H_INCLUDED

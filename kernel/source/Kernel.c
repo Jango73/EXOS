@@ -69,6 +69,9 @@ typedef struct tag_CPUIDREGISTERS {
 /***************************************************************************/
 
 extern U32 DeadBeef;
+extern DRIVER SerialMouseDriver;
+extern DRIVER VESADriver;
+extern DRIVER EXFSDriver;
 
 /************************************************************************/
 
@@ -745,6 +748,24 @@ U32 GetPhysicalMemoryUsed(void) {
 
 /************************************************************************/
 
+LPDRIVER GetMouseDriver() {
+    return &SerialMouseDriver;
+}
+
+/************************************************************************/
+
+LPDRIVER GetGraphicsDriver() {
+    return &VESADriver;
+}
+
+/************************************************************************/
+
+LPDRIVER GetDefaultFileSystemDriver() {
+    return &EXFSDriver;
+}
+
+/************************************************************************/
+
 /**
  * @brief Loads a driver and performs basic validation.
  *
@@ -754,7 +775,7 @@ U32 GetPhysicalMemoryUsed(void) {
  * @param Driver Pointer to driver structure.
  */
 
-BOOL LoadDriver(LPDRIVER Driver) {
+void LoadDriver(LPDRIVER Driver) {
     BOOL Success = FALSE;
 
     SAFE_USE(Driver) {
@@ -773,11 +794,26 @@ BOOL LoadDriver(LPDRIVER Driver) {
             DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
             Success = TRUE;
         } else {
-            ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), TEXT(Driver->Product), Result);
+            if ((Driver->Flags & DRIVER_FLAG_CRITICAL)) {
+                ConsolePanic(TEXT("Critical driver %s failed to load"), TEXT(Driver->Product));
+            } else {
+                ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), TEXT(Driver->Product), Result);
+            }
         }
     }
+}
 
-    return Success;
+/************************************************************************/
+
+void LoadAllDrivers(void) {
+    if (Kernel.Drivers == NULL || Kernel.DriverCount == 0) {
+        return;
+    }
+
+    for (UINT Index = 0; Index < Kernel.DriverCount; Index++) {
+        LPDRIVER Driver = Kernel.Drivers[Index];
+        LoadDriver(Driver);
+    }
 }
 
 /************************************************************************/
@@ -827,31 +863,12 @@ void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
     GetCPUInformation(&(Kernel.CPU));
-
     PreInitializeKernel();
-    LoadDriver(&ConsoleDriver);
-    LoadDriver(&KernelLogDriver);
-    LoadDriver(&MemoryManagerDriver);
-    LoadDriver(&TaskSegmentsDriver);
-    LoadDriver(&InterruptsDriver);
-    LoadDriver(&KernelProcessDriver);
-    LoadDriver(&ACPIDriver);
-    LoadDriver(&LocalAPICDriver);
-    LoadDriver(&IOAPICDriver);
-    LoadDriver(&InterruptControllerDriver);
-    LoadDriver(&StdKeyboardDriver);
-    LoadDriver(&SerialMouseDriver);
-    LoadDriver(&ClockDriver);
-    LoadDriver(&PCIDriver);
-    LoadDriver(&ATADiskDriver);
-    LoadDriver(&SATADiskDriver);
-    LoadDriver(&RAMDiskDriver);
-    LoadDriver(&FileSystemDriver);
-    LoadDriver(&DeviceInterruptDriver);
-    LoadDriver(&DeferredWorkDriver);
-    LoadDriver(&NetworkManagerDriver);
-    LoadDriver(&UserAccountDriver);
-    LoadDriver(&VESADriver);
+
+    //-------------------------------------
+    // Load all drivers
+
+    LoadAllDrivers();
 
     //-------------------------------------
     // Initialize object termination cache

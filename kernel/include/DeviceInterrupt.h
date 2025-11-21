@@ -77,8 +77,4 @@ BOOL DeviceInterruptSlotIsEnabled(U8 Slot);
 
 /***************************************************************************/
 
-extern DRIVER DeviceInterruptDriver;
-
-/***************************************************************************/
-
 #endif // DEVICE_INTERRUPT_H_INCLUDED

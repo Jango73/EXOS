@@ -231,8 +231,4 @@ BOOL RestoreIOAPICAfterRealMode(void);
 
 #pragma pack(pop)
 
-extern DRIVER InterruptControllerDriver;
-
-/***************************************************************************/
-
 #endif // INTERRUPT_CONTROLLER_H_INCLUDED

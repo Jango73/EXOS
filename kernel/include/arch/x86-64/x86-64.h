@@ -601,7 +601,6 @@ void InitializeTaskSegments(void);
 void SetSystemSegmentDescriptorLimit(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U32 Limit);
 void SetSystemSegmentDescriptorBase(LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor, U64 Base);
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
-extern DRIVER TaskSegmentsDriver;
 
 /************************************************************************/
 

@@ -191,8 +191,4 @@ U8 PCI_FindCapability(U8 bus, U8 dev, U8 func, U8 capId);
 
 #pragma pack(pop)
 
-extern DRIVER PCIDriver;
-
-/***************************************************************************/
-
 #endif  // PCI_H_INCLUDED

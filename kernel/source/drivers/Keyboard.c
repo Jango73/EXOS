@@ -548,7 +548,7 @@ static void HandleScanCode(U32 ScanCode) {
 
                     if (KeyCode.VirtualKey == VK_F9) {
                         if (Keyboard.Status[SCAN_CONTROL]) {
-                            VESADriver.Command(DF_UNLOAD, 0);
+                            GetGraphicsDriver()->Command(DF_UNLOAD, 0);
                         } else {
                             TASKINFO TaskInfo;
                             TaskInfo.Header.Size = sizeof(TASKINFO);

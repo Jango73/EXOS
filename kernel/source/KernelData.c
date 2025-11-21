@@ -3,6 +3,60 @@
 #include "Socket.h"
 #include "utils/Helpers.h"
 
+extern DRIVER ConsoleDriver;
+extern DRIVER KernelLogDriver;
+extern DRIVER MemoryManagerDriver;
+extern DRIVER TaskSegmentsDriver;
+extern DRIVER InterruptsDriver;
+extern DRIVER KernelProcessDriver;
+extern DRIVER ACPIDriver;
+extern DRIVER LocalAPICDriver;
+extern DRIVER IOAPICDriver;
+extern DRIVER InterruptControllerDriver;
+extern DRIVER StdKeyboardDriver;
+extern DRIVER SerialMouseDriver;
+extern DRIVER ClockDriver;
+extern DRIVER PCIDriver;
+extern DRIVER ATADiskDriver;
+extern DRIVER SATADiskDriver;
+extern DRIVER RAMDiskDriver;
+extern DRIVER FileSystemDriver;
+extern DRIVER DeviceInterruptDriver;
+extern DRIVER DeferredWorkDriver;
+extern DRIVER NetworkManagerDriver;
+extern DRIVER UserAccountDriver;
+extern DRIVER VESADriver;
+
+extern DRIVER EXFSDriver;
+
+/************************************************************************/
+
+static LPDRIVER KernelDrivers[] = {
+    &ConsoleDriver,
+    &KernelLogDriver,
+    &MemoryManagerDriver,
+    &TaskSegmentsDriver,
+    &InterruptsDriver,
+    &KernelProcessDriver,
+    &ACPIDriver,
+    &LocalAPICDriver,
+    &IOAPICDriver,
+    &InterruptControllerDriver,
+    &StdKeyboardDriver,
+    &SerialMouseDriver,
+    &ClockDriver,
+    &PCIDriver,
+    &ATADiskDriver,
+    &SATADiskDriver,
+    &RAMDiskDriver,
+    &FileSystemDriver,
+    &DeviceInterruptDriver,
+    &DeferredWorkDriver,
+    &NetworkManagerDriver,
+    &UserAccountDriver,
+    &VESADriver,
+};
+
 /************************************************************************/
 
 static LIST DesktopList = {
@@ -146,7 +200,11 @@ static LIST UserAccountList = {
     .MemFreeFunc = KernelHeapFree,
     .Destructor = NULL};
 
+/************************************************************************/
+
 KERNELDATA SECTION(".data") Kernel = {
+    .Drivers = KernelDrivers,
+    .DriverCount = sizeof(KernelDrivers) / sizeof(KernelDrivers[0]),
     .Desktop = &DesktopList,
     .Process = &ProcessList,
     .Task = &TaskList,

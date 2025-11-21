@@ -309,8 +309,4 @@ void ACPIReboot(void);
 
 #pragma pack(pop)
 
-extern DRIVER ACPIDriver;
-
-/***************************************************************************/
-
 #endif // ACPI_H_INCLUDED

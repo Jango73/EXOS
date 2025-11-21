@@ -56,10 +56,16 @@ static BOOL g_DispatcherStarted = FALSE;
 
 /************************************************************************/
 
+static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter);
+static void ProcessPendingWork(void);
+static void ProcessPollCallbacks(void);
+static U32 DeferredWorkDispatcherTask(LPVOID Param);
+static BOOL DeferredWorkDispatch(LPVOID Param);
+
+/************************************************************************/
+
 #define DEFERRED_WORK_VER_MAJOR 1
 #define DEFERRED_WORK_VER_MINOR 0
-
-static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter);
 
 DRIVER DeferredWorkDriver = {
     .TypeID = KOID_DRIVER,
@@ -74,50 +80,6 @@ DRIVER DeferredWorkDriver = {
     .Product = "DeferredWork",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = DeferredWorkDriverCommands};
-
-/************************************************************************/
-
-/**
- * @brief Driver command handler for deferred work initialization.
- *
- * DF_LOAD starts deferred work components once; DF_UNLOAD only clears readiness.
- */
-static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter) {
-    UNUSED(Parameter);
-
-    switch (Function) {
-        case DF_LOAD:
-            if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
-            }
-
-            if (InitializeDeferredWork()) {
-                return DF_ERROR_SUCCESS;
-            }
-
-            return DF_ERROR_UNEXPECT;
-
-        case DF_UNLOAD:
-            if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
-            }
-
-            DeferredWorkDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
-
-        case DF_GETVERSION:
-            return MAKE_VERSION(DEFERRED_WORK_VER_MAJOR, DEFERRED_WORK_VER_MINOR);
-    }
-
-    return DF_ERROR_NOTIMPL;
-}
-
-/************************************************************************/
-
-static void ProcessPendingWork(void);
-static void ProcessPollCallbacks(void);
-static U32 DeferredWorkDispatcherTask(LPVOID Param);
-static BOOL DeferredWorkDispatch(LPVOID Param);
 
 /************************************************************************/
 
@@ -391,4 +353,42 @@ static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     }
 
     return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for deferred work initialization.
+ *
+ * DF_LOAD starts deferred work components once; DF_UNLOAD only clears readiness.
+ */
+static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            if (InitializeDeferredWork()) {
+                DeferredWorkDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            DeferredWorkDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(DEFERRED_WORK_VER_MAJOR, DEFERRED_WORK_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
 }

@@ -110,19 +110,7 @@ typedef struct tag_DRIVERCAPS {
 #define DRVCALL_ReleaseDMA 0x00000005
 
 /***************************************************************************/
-// Fixed standard drivers
-
-extern DRIVER StdKeyboardDriver;
-extern DRIVER SerialMouseDriver;
-extern DRIVER StdHardDiskDriver;
-extern DRIVER RAMDiskDriver;
-extern DRIVER VESADriver;
-extern DRIVER EXFSDriver;
-
-/***************************************************************************/
 
 #pragma pack(pop)
-
-/***************************************************************************/
 
 #endif

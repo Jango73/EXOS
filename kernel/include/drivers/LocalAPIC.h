@@ -222,8 +222,4 @@ LPLOCAL_APIC_CONFIG GetLocalAPICConfig(void);
 
 #pragma pack(pop)
 
-extern DRIVER LocalAPICDriver;
-
-/***************************************************************************/
-
 #endif // LOCAL_APIC_H_INCLUDED

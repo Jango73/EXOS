@@ -16,6 +16,10 @@
 
 /***************************************************************************/
 
+#pragma pack(push, 1)
+
+/***************************************************************************/
+
 typedef void (*DEFERRED_WORK_CALLBACK)(LPVOID Context);
 typedef void (*DEFERRED_WORK_POLL_CALLBACK)(LPVOID Context);
 
@@ -41,8 +45,6 @@ void DeferredWorkUpdateMode(void);
 
 /***************************************************************************/
 
-/***************************************************************************/
-
-extern DRIVER DeferredWorkDriver;
+#pragma pack(pop)
 
 #endif // DEFERREDWORK_H_INCLUDED

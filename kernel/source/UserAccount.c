@@ -44,11 +44,11 @@
 static U32 NextSessionID = 1;
 static const U32 USER_DATABASE_CAPACITY = 1000;
 
-/************************************************************************/
-
 static UINT UserAccountDriverCommands(UINT Function, UINT Parameter);
 
-DRIVER UserAccountDriver = {
+/************************************************************************/
+
+DRIVER SECTION(".data") UserAccountDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
