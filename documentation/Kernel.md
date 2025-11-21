@@ -2,14 +2,6 @@
 
 ## Architecture
 
-Work to bring the long-mode kernel build closer to parity with the i386
-port continues. The x86-64 backend exposes placeholder scheduler and
-context-switch helpers so common code can compile while the full task
-switching path is implemented. The interrupt bootstrap has also been
-rebuilt around the 16-byte IDT format, providing stubs for each vector so
-the C runtime reaches the scheduler before the final entry/exit sequences
-are written.
-
 ### Paging abstractions
 
 The memory manager relies on `arch/Memory.h` to describe page hierarchy
@@ -99,19 +91,6 @@ marks it signaled and propagates `SignalCount` through the wait exit codes.
 Legacy behaviour for process/task termination remains unchanged because the
 termination cache is still consulted first.
 
-### Desktop ownership helpers
-
-Window managers can reuse the desktop that was assigned to their process
-instead of blindly creating a new one. The kernel exports
-`SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently
-associated with the caller. The runtime exposes this through
-`GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the
-desktop window, and issue `ShowDesktop()` without forking a duplicate desktop.
-Callers still retain the option to create a dedicated desktop when
-`GetCurrentDesktop()` returns `NULL`, but typical applications leverage the
-existing object so their top-level windows appear on the main desktop instead
-of being hidden behind a detached surface.
-
 ### Handle reuse guarantees
 
 The global handle map enforces a strict 1:1 relationship between kernel
@@ -196,6 +175,19 @@ MBR partitions are mounted. `MountDiskPartitions` identifies the active entry
 directly from the MBR, then calls `FileSystemSetActivePartition` to copy the
 mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName` for
 later use (for example, in the shell).
+
+### Desktop ownership helpers
+
+Window managers can reuse the desktop that was assigned to their process
+instead of blindly creating a new one. The kernel exports
+`SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently
+associated with the caller. The runtime exposes this through
+`GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the
+desktop window, and issue `ShowDesktop()` without forking a duplicate desktop.
+Callers still retain the option to create a dedicated desktop when
+`GetCurrentDesktop()` returns `NULL`, but typical applications leverage the
+existing object so their top-level windows appear on the main desktop instead
+of being hidden behind a detached surface.
 
 ## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
@@ -561,7 +553,6 @@ Fractional part = unusable space.
  │              └── ...
  └── ...
 ─────────────────────────────────────────────────────────────────────
-
 
 ## Tasks
 
