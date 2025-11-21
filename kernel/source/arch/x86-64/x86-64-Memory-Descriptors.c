@@ -49,7 +49,7 @@ const U64 FAST_REGION_SPAN_BYTES_PML4 = FAST_REGION_SPAN_BYTES_PDPT * (U64)PAGE_
 /************************************************************************/
 // Fast region walker types
 
-typedef enum tag_MEMORY_REGION_FAST_LEVEL {
+typedef enum {
     MEMORY_REGION_FAST_LEVEL_PT = 0,
     MEMORY_REGION_FAST_LEVEL_PD = 1,
     MEMORY_REGION_FAST_LEVEL_PDPT = 2,

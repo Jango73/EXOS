@@ -48,15 +48,15 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
 
 /************************************************************************/
 
-typedef enum _PAGE_TABLE_POPULATE_MODE {
+typedef enum {
     PAGE_TABLE_POPULATE_IDENTITY,
     PAGE_TABLE_POPULATE_SINGLE_ENTRY,
     PAGE_TABLE_POPULATE_EMPTY
 } PAGE_TABLE_POPULATE_MODE;
 
-#define USERLAND_SEEDED_TABLES 1u
+#define USERLAND_SEEDED_TABLES 1
 
-typedef struct _PAGE_TABLE_SETUP {
+typedef struct tag_PAGE_TABLE_SETUP {
     UINT DirectoryIndex;
     U32 ReadWrite;
     U32 Privilege;
@@ -76,9 +76,9 @@ typedef struct _PAGE_TABLE_SETUP {
             U32 Global;
         } Single;
     } Data;
-} PAGE_TABLE_SETUP;
+} PAGE_TABLE_SETUP, *LPPAGE_TABLE_SETUP;
 
-typedef struct _REGION_SETUP {
+typedef struct tag_REGION_SETUP {
     LPCSTR Label;
     UINT PdptIndex;
     U32 ReadWrite;
@@ -88,11 +88,11 @@ typedef struct _REGION_SETUP {
     PHYSICAL DirectoryPhysical;
     PAGE_TABLE_SETUP Tables[64];
     UINT TableCount;
-} REGION_SETUP;
+} REGION_SETUP, *LPREGION_SETUP;
 
 /************************************************************************/
 
-typedef struct _LOW_REGION_SHARED_TABLES {
+typedef struct tag_LOW_REGION_SHARED_TABLES {
     PHYSICAL BiosTablePhysical;
     PHYSICAL IdentityTablePhysical;
 } LOW_REGION_SHARED_TABLES;

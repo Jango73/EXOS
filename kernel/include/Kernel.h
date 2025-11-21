@@ -119,7 +119,7 @@ extern KERNELSTARTUPINFO KernelStartup;
 
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 
-typedef struct {
+typedef struct tag_OBJECT_TERMINATION_STATE {
     LPVOID Object;
     U64 ID;
     UINT ExitCode;

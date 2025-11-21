@@ -40,7 +40,7 @@
 /************************************************************************/
 // typedefs
 
-typedef enum tag_MEMORY_REGION_GRANULARITY {
+typedef enum {
     MEMORY_REGION_GRANULARITY_4K = 0,
     MEMORY_REGION_GRANULARITY_2M = 1,
     MEMORY_REGION_GRANULARITY_1G = 2

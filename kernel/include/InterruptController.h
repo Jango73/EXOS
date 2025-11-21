@@ -37,7 +37,7 @@
 /***************************************************************************/
 // Interrupt controller types
 
-typedef enum tag_INTERRUPT_CONTROLLER_TYPE {
+typedef enum {
     INTCTRL_TYPE_NONE = 0,      // No interrupt controller detected
     INTCTRL_TYPE_PIC,           // Legacy PIC 8259
     INTCTRL_TYPE_IOAPIC         // I/O APIC with Local APIC
@@ -46,7 +46,7 @@ typedef enum tag_INTERRUPT_CONTROLLER_TYPE {
 /***************************************************************************/
 // Interrupt controller mode selection
 
-typedef enum tag_INTERRUPT_CONTROLLER_MODE {
+typedef enum {
     INTCTRL_MODE_AUTO = 0,      // Automatic detection (prefer IOAPIC if available)
     INTCTRL_MODE_FORCE_PIC,     // Force PIC 8259 mode
     INTCTRL_MODE_FORCE_IOAPIC   // Force I/O APIC mode

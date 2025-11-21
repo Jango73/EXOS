@@ -49,14 +49,72 @@ typedef enum {
     SCRIPT_VAR_HOST_HANDLE
 } SCRIPT_VAR_TYPE;
 
-typedef struct {
+typedef enum {
+    SCRIPT_OK = 0,
+    SCRIPT_ERROR_SYNTAX,
+    SCRIPT_ERROR_UNDEFINED_VAR,
+    SCRIPT_ERROR_TYPE_MISMATCH,
+    SCRIPT_ERROR_DIVISION_BY_ZERO,
+    SCRIPT_ERROR_OUT_OF_MEMORY,
+    SCRIPT_ERROR_UNMATCHED_BRACE
+} SCRIPT_ERROR;
+
+typedef enum {
+    SCRIPT_HOST_SYMBOL_PROPERTY,
+    SCRIPT_HOST_SYMBOL_ARRAY,
+    SCRIPT_HOST_SYMBOL_OBJECT
+} SCRIPT_HOST_SYMBOL_KIND;
+
+typedef enum {
+    TOKEN_EOF,
+    TOKEN_IDENTIFIER,
+    TOKEN_PATH,
+    TOKEN_NUMBER,
+    TOKEN_STRING,
+    TOKEN_OPERATOR,
+    TOKEN_LPAREN,
+    TOKEN_RPAREN,
+    TOKEN_LBRACKET,
+    TOKEN_RBRACKET,
+    TOKEN_SEMICOLON,
+    TOKEN_COMPARISON,
+    TOKEN_LBRACE,
+    TOKEN_RBRACE,
+    TOKEN_IF,
+    TOKEN_ELSE,
+    TOKEN_FOR
+} TOKEN_TYPE;
+
+// AST Node Types
+typedef enum {
+    AST_ASSIGNMENT,     // var = expr
+    AST_IF,             // if (cond) then [else]
+    AST_FOR,            // for (init; cond; inc) body
+    AST_BLOCK,          // { statements }
+    AST_EXPRESSION      // standalone expr
+} AST_NODE_TYPE;
+
+/************************************************************************/
+
+typedef LPVOID SCRIPT_HOST_HANDLE;
+
+struct tag_SCRIPT_VALUE;
+struct tag_SCRIPT_HOST_DESCRIPTOR;
+struct tag_SCRIPT_CONTEXT;
+
+typedef struct tag_SCRIPT_CONTEXT SCRIPT_CONTEXT;
+typedef struct tag_SCRIPT_CONTEXT* LPSCRIPT_CONTEXT;
+
+/************************************************************************/
+
+typedef struct tag_SCRIPT_ARRAY {
     LPVOID* Elements;
     SCRIPT_VAR_TYPE* ElementTypes;
     U32 Size;
     U32 Capacity;
 } SCRIPT_ARRAY, *LPSCRIPT_ARRAY;
 
-typedef union {
+typedef union tag_SCRIPT_VAR_VALUE {
     LPSTR String;
     I32 Integer;
     F32 Float;
@@ -79,35 +137,10 @@ typedef struct tag_SCRIPT_SCOPE {
     U32 ScopeLevel;
 } SCRIPT_SCOPE, *LPSCRIPT_SCOPE;
 
-typedef struct {
+typedef struct tag_SCRIPT_VAR_TABLE {
     LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
     U32 Count;
 } SCRIPT_VAR_TABLE, *LPSCRIPT_VAR_TABLE;
-
-/************************************************************************/
-
-typedef enum {
-    SCRIPT_OK = 0,
-    SCRIPT_ERROR_SYNTAX,
-    SCRIPT_ERROR_UNDEFINED_VAR,
-    SCRIPT_ERROR_TYPE_MISMATCH,
-    SCRIPT_ERROR_DIVISION_BY_ZERO,
-    SCRIPT_ERROR_OUT_OF_MEMORY,
-    SCRIPT_ERROR_UNMATCHED_BRACE
-} SCRIPT_ERROR;
-
-/************************************************************************/
-
-typedef LPVOID SCRIPT_HOST_HANDLE;
-
-struct tag_SCRIPT_VALUE;
-struct tag_SCRIPT_HOST_DESCRIPTOR;
-
-typedef enum {
-    SCRIPT_HOST_SYMBOL_PROPERTY,
-    SCRIPT_HOST_SYMBOL_ARRAY,
-    SCRIPT_HOST_SYMBOL_OBJECT
-} SCRIPT_HOST_SYMBOL_KIND;
 
 typedef SCRIPT_ERROR (*SCRIPT_HOST_GET_PROPERTY)(LPVOID Context, SCRIPT_HOST_HANDLE Parent, LPCSTR Property, struct tag_SCRIPT_VALUE* OutValue);
 typedef SCRIPT_ERROR (*SCRIPT_HOST_GET_ELEMENT)(LPVOID Context, SCRIPT_HOST_HANDLE Parent, U32 Index, struct tag_SCRIPT_VALUE* OutValue);
@@ -137,34 +170,14 @@ typedef struct tag_SCRIPT_HOST_SYMBOL {
     LPVOID Context;
 } SCRIPT_HOST_SYMBOL, *LPSCRIPT_HOST_SYMBOL;
 
-typedef struct {
+typedef struct tag_SCRIPT_HOST_REGISTRY {
     LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
     U32 Count;
 } SCRIPT_HOST_REGISTRY, *LPSCRIPT_HOST_REGISTRY;
 
 /************************************************************************/
 
-typedef enum {
-    TOKEN_EOF,
-    TOKEN_IDENTIFIER,
-    TOKEN_PATH,
-    TOKEN_NUMBER,
-    TOKEN_STRING,
-    TOKEN_OPERATOR,
-    TOKEN_LPAREN,
-    TOKEN_RPAREN,
-    TOKEN_LBRACKET,
-    TOKEN_RBRACKET,
-    TOKEN_SEMICOLON,
-    TOKEN_COMPARISON,
-    TOKEN_LBRACE,
-    TOKEN_RBRACE,
-    TOKEN_IF,
-    TOKEN_ELSE,
-    TOKEN_FOR
-} TOKEN_TYPE;
-
-typedef struct {
+typedef struct tag_SCRIPT_TOKEN {
     TOKEN_TYPE Type;
     STR Value[MAX_TOKEN_LENGTH];
     F32 NumValue;
@@ -180,7 +193,7 @@ typedef U32 (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
 typedef LPCSTR (*SCRIPT_VARIABLE_RESOLVER)(LPCSTR VarName, LPVOID UserData);
 typedef U32 (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 
-typedef struct {
+typedef struct tag_SCRIPT_CALLBACKS {
     SCRIPT_OUTPUT_CALLBACK Output;
     SCRIPT_COMMAND_CALLBACK ExecuteCommand;
     SCRIPT_VARIABLE_RESOLVER ResolveVariable;
@@ -189,15 +202,6 @@ typedef struct {
 } SCRIPT_CALLBACKS, *LPSCRIPT_CALLBACKS;
 
 /************************************************************************/
-
-// AST Node Types
-typedef enum {
-    AST_ASSIGNMENT,     // var = expr
-    AST_IF,             // if (cond) then [else]
-    AST_FOR,            // for (init; cond; inc) body
-    AST_BLOCK,          // { statements }
-    AST_EXPRESSION      // standalone expr
-} AST_NODE_TYPE;
 
 // Forward declaration
 struct tag_AST_NODE;
@@ -253,11 +257,7 @@ typedef struct tag_AST_NODE {
 
 /************************************************************************/
 
-struct tag_SCRIPT_CONTEXT;
-typedef struct tag_SCRIPT_CONTEXT SCRIPT_CONTEXT;
-typedef struct tag_SCRIPT_CONTEXT* LPSCRIPT_CONTEXT;
-
-typedef struct {
+typedef struct tag_SCRIPT_PARSER {
     LPCSTR Input;
     U32 Position;
     SCRIPT_TOKEN CurrentToken;
