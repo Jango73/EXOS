@@ -65,6 +65,13 @@ DRIVER DATA_SECTION NetworkManagerDriver = {
 
 /************************************************************************/
 
+/**
+ * @brief Get IP value from configuration with fallback.
+ *
+ * @param configPath Configuration key path
+ * @param fallbackValue IP value to use if parsing fails
+ * @return Parsed IP in host order or fallback
+ */
 // Helper function to get network configuration from TOML with fallback
 static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
     LPCSTR configValue = GetConfigurationValue(configPath);
@@ -79,6 +86,15 @@ static U32 NetworkManager_GetConfigIP(LPCSTR configPath, U32 fallbackValue) {
 
 /************************************************************************/
 
+/**
+ * @brief Get per-device network configuration with global fallback.
+ *
+ * @param deviceName Device identifier to match
+ * @param configKey Key name inside the matching interface section
+ * @param fallbackGlobalKey Global configuration key to use if missing
+ * @param fallbackValue Value to use if no configuration found
+ * @return Parsed IP in host order or fallback
+ */
 // Helper function to get per-device network configuration
 static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey, LPCSTR fallbackGlobalKey, U32 fallbackValue) {
     STR path[128];
@@ -247,6 +263,12 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Discover and initialize all network devices.
+ *
+ * Finds NICs, initializes each device, and leaves network ready when at least
+ * one device exists.
+ */
 void InitializeNetwork(void) {
     DEBUG(TEXT("[InitializeNetwork] Enter"));
 
@@ -307,6 +329,18 @@ static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter) {
     return DF_ERROR_NOTIMPL;
 }
 
+/************************************************************************/
+
+/**
+ * @brief Initialize a network device and attach protocol layers.
+ *
+ * Resets the device, gathers information, sets up ARP/IPv4/UDP/TCP,
+ * configures static or DHCP addressing, installs RX callbacks, and enables
+ * interrupts or polling as available.
+ *
+ * @param Device PCI network device to initialize
+ * @param LocalIPv4_Be Local IPv4 address in big-endian order
+ */
 void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
     DEBUG(TEXT("[NetworkManager_InitializeDevice] Enter for device %s"), Device->Driver->Product);
 
@@ -440,6 +474,11 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
 /************************************************************************/
 
+/**
+ * @brief Get the first initialized network device.
+ *
+ * @return Pointer to primary initialized PCI network device or NULL
+ */
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
     // Return the first initialized network device
     SAFE_USE(Kernel.NetworkDevice) {
@@ -457,6 +496,12 @@ LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Determine if a given device is ready for network operations.
+ *
+ * @param Device Device to query
+ * @return TRUE if ready, FALSE otherwise
+ */
 BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
     SAFE_USE(Kernel.NetworkDevice) {
         for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
@@ -473,6 +518,14 @@ BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
 
 /************************************************************************/
 
+/**
+ * @brief Periodic maintenance routine for a network device context.
+ *
+ * Runs ARP/DHCP ticks, TCP update, and socket maintenance every 100 cycles
+ * for initialized contexts.
+ *
+ * @param Context Network device context to service
+ */
 void NetworkManager_MaintenanceTick(LPNETWORK_DEVICE_CONTEXT Context) {
     SAFE_USE_VALID_ID(Context, KOID_NETWORKDEVICE) {
         if (!Context->IsInitialized) {

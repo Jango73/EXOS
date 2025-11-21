@@ -161,6 +161,9 @@ static MOUSEDATA Mouse = {
 
 /***************************************************************************/
 
+/**
+ * @brief Send a serial break on the mouse port.
+ */
 static void SendBreak(void) {
     U32 Byte;
 
@@ -175,6 +178,9 @@ static void SendBreak(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Busy-wait delay used between serial operations.
+ */
 static void Delay(void) {
     U32 Index, Data;
     for (Index = 0; Index < 100000; Index++) {
@@ -185,6 +191,12 @@ static void Delay(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Wait for mouse data to be available, handling errors.
+ *
+ * @param TimeOut Iteration budget before giving up.
+ * @return TRUE if data ready, FALSE on timeout or serial error.
+ */
 static BOOL WaitMouseData(U32 TimeOut) {
     U32 Status;
 
@@ -207,6 +219,13 @@ static BOOL WaitMouseData(U32 TimeOut) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize the serial mouse hardware and enable IRQ.
+ *
+ * Resets UART, clears buffers, reads signature bytes, and prepares interrupts.
+ *
+ * @return TRUE on success, FALSE on failure.
+ */
 static BOOL InitializeMouse(void) {
     U32 Sig1, Sig2;
     U32 Byte, Index;
@@ -322,6 +341,11 @@ static BOOL InitializeMouse(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Get and clear accumulated X displacement.
+ *
+ * @return Delta X (unsigned representation).
+ */
 static U32 GetDeltaX(void) {
     U32 Result = 0;
     LockMutex(&(Mouse.Mutex), INFINITY);
@@ -332,6 +356,11 @@ static U32 GetDeltaX(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Get and clear accumulated Y displacement.
+ *
+ * @return Delta Y (unsigned representation).
+ */
 static U32 GetDeltaY(void) {
     U32 Result = 0;
     LockMutex(&(Mouse.Mutex), INFINITY);
@@ -342,6 +371,11 @@ static U32 GetDeltaY(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Get current mouse button state.
+ *
+ * @return Bitmask of pressed buttons.
+ */
 static U32 GetButtons(void) {
     U32 Result;
     LockMutex(&(Mouse.Mutex), INFINITY);
@@ -463,6 +497,9 @@ Out:
 
 /***************************************************************************/
 
+/**
+ * @brief Mouse interrupt handler entry point (placeholder).
+ */
 void MouseHandler(void) {
     DEBUG(TEXT("[MouseHandler]"));
 
@@ -472,6 +509,15 @@ void MouseHandler(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Driver command dispatcher for the serial mouse.
+ *
+ * Handles load/unload, version query, reset, and state queries.
+ *
+ * @param Function Driver function code.
+ * @param Parameter Function-specific parameter (unused).
+ * @return Driver-specific status or data.
+ */
 UINT SerialMouseCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
 

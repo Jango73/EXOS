@@ -161,6 +161,13 @@ typedef struct tag_SATA_CACHE_CONTEXT {
 
 /***************************************************************************/
 
+/**
+ * @brief Matcher callback for SATA sector cache entries.
+ *
+ * @param Data Cache entry (LPSECTORBUFFER).
+ * @param Context Matching context with sector range.
+ * @return TRUE if entry matches requested sector range.
+ */
 static BOOL SATACacheMatcher(LPVOID Data, LPVOID Context) {
     LPSECTORBUFFER Buffer = (LPSECTORBUFFER)Data;
     LPSATA_CACHE_CONTEXT Match = (LPSATA_CACHE_CONTEXT)Context;
@@ -174,6 +181,11 @@ static BOOL SATACacheMatcher(LPVOID Data, LPVOID Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Allocate and initialize an AHCI port structure.
+ *
+ * @return Pointer to new port or NULL on failure.
+ */
 static LPAHCI_PORT NewAHCIPort(void) {
     LPAHCI_PORT This;
 
@@ -196,6 +208,13 @@ static LPAHCI_PORT NewAHCIPort(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Stop an AHCI port (disable command/FIS engines).
+ *
+ * Clears ST and FRE then waits for hardware to acknowledge.
+ *
+ * @param Port Target HBA port.
+ */
 static void StopPort(LPAHCI_HBA_PORT Port) {
     // Clear ST (Start) bit
     Port->cmd &= ~AHCI_PORT_CMD_ST;
@@ -216,6 +235,11 @@ static void StopPort(LPAHCI_HBA_PORT Port) {
 
 /***************************************************************************/
 
+/**
+ * @brief Start an AHCI port (enable command/FIS engines).
+ *
+ * @param Port Target HBA port.
+ */
 static void StartPort(LPAHCI_HBA_PORT Port) {
     // Wait until CR (Command List Running) is cleared
     while (Port->cmd & AHCI_PORT_CMD_CR) {
@@ -250,6 +274,12 @@ static U32 FindFreeCommandSlot(LPAHCI_HBA_PORT Port) {
 
 /***************************************************************************/
 
+/**
+ * @brief Reset an AHCI port and ensure device presence.
+ *
+ * @param Port Target HBA port.
+ * @return TRUE if reset sequence succeeds and device present.
+ */
 static BOOL AHCIPortReset(LPAHCI_HBA_PORT Port) {
     U32 timeout = 1000000; // 1 second timeout
 
@@ -287,6 +317,16 @@ static BOOL AHCIPortReset(LPAHCI_HBA_PORT Port) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize an AHCI port and allocate per-port structures.
+ *
+ * Verifies presence, stops the port, allocates command list/FIS/command table,
+ * and performs device identification when possible.
+ *
+ * @param AHCIPort Port wrapper structure.
+ * @param PortNum Port index.
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     LPAHCI_HBA_PORT Port = &AHCIState.Base->ports[PortNum];
 
@@ -407,6 +447,13 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
 
 /***************************************************************************/
 
+/**
+ * @brief PCI probe entry for the AHCI driver.
+ *
+ * @param Function Driver function code.
+ * @param Parameter Function-specific parameter.
+ * @return DF_ERROR_SUCCESS on handled, DF_ERROR_NOTIMPL otherwise.
+ */
 static U32 AHCIProbe(UINT Function, UINT Parameter) {
     LPPCI_INFO PciInfo = (LPPCI_INFO)Parameter;
 
@@ -426,6 +473,14 @@ static U32 AHCIProbe(UINT Function, UINT Parameter) {
 
 /***************************************************************************/
 
+/**
+ * @brief Attach detected AHCI controller and initialize state.
+ *
+ * Allocates PCI device copy, maps ABAR, enumerates ports, and registers interrupts.
+ *
+ * @param PciDevice Detected PCI device descriptor.
+ * @return Heap-allocated PCI device pointer or NULL on failure.
+ */
 static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
     if (PciDevice == NULL) {
         return NULL;
@@ -501,6 +556,14 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize AHCI controller, ports, and interrupt handling.
+ *
+ * Maps HBA registers, enumerates implemented ports, and leaves interrupts
+ * masked for polling mode.
+ *
+ * @return DF_ERROR_SUCCESS on success or an error code.
+ */
 static U32 InitializeAHCIController(void) {
     if (AHCIState.Base == NULL) {
         return DF_ERROR_BADPARAM;
@@ -569,6 +632,17 @@ static U32 InitializeAHCIController(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Issue an AHCI command (read/write) on a port.
+ *
+ * @param AHCIPort Target port.
+ * @param Command ATA command byte.
+ * @param LBA Logical block address.
+ * @param SectorCount Number of sectors to transfer.
+ * @param Buffer Data buffer.
+ * @param IsWrite TRUE for write, FALSE for read.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCount, LPVOID Buffer, BOOL IsWrite) {
     if (AHCIPort == NULL || Buffer == NULL) {
         DEBUG(TEXT("[AHCICommand] Invalid parameters"));
@@ -665,6 +739,12 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
 
 /***************************************************************************/
 
+/**
+ * @brief Read sectors from a SATA disk using AHCI.
+ *
+ * @param Control IO control structure describing request.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 Read(LPIOCONTROL Control) {
     LPAHCI_PORT AHCIPort;
     U32 Current;
@@ -717,6 +797,12 @@ static U32 Read(LPIOCONTROL Control) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write sectors to a SATA disk using AHCI.
+ *
+ * @param Control IO control structure describing request.
+ * @return DF_ERROR_SUCCESS or error code.
+ */
 static U32 Write(LPIOCONTROL Control) {
     LPAHCI_PORT AHCIPort;
     U32 Current;
@@ -781,6 +867,12 @@ static U32 Write(LPIOCONTROL Control) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieve disk information for a SATA device.
+ *
+ * @param Info Output structure to populate.
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_BADPARAM otherwise.
+ */
 static U32 GetInfo(LPDISKINFO Info) {
     LPAHCI_PORT AHCIPort;
 
@@ -803,6 +895,12 @@ static U32 GetInfo(LPDISKINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Set access parameters for a SATA disk.
+ *
+ * @param Access Access parameters to store.
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_BADPARAM otherwise.
+ */
 static U32 SetAccess(LPDISKACCESS Access) {
     LPAHCI_PORT AHCIPort;
 
@@ -822,6 +920,11 @@ static U32 SetAccess(LPDISKACCESS Access) {
 
 /***************************************************************************/
 
+/**
+ * @brief Register AHCI interrupt handlers and enable HBA IRQs if possible.
+ *
+ * @return TRUE on success, FALSE otherwise.
+ */
 static BOOL AHCIRegisterInterrupts(void) {
     LPPCI_DEVICE Device = AHCIState.Device;
 
@@ -874,6 +977,15 @@ static BOOL AHCIRegisterInterrupts(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Top-half interrupt handler for AHCI.
+ *
+ * Acknowledges interrupts, records pending ports, and defers work.
+ *
+ * @param Device Interrupt source device.
+ * @param Context AHCI_STATE pointer.
+ * @return TRUE if handled.
+ */
 static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
     UNUSED(Device);
 
@@ -926,6 +1038,14 @@ static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Bottom-half handler for AHCI interrupts.
+ *
+ * Clears per-port interrupts that were latched in the top half.
+ *
+ * @param Device Interrupt source device.
+ * @param Context AHCI_STATE pointer.
+ */
 static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context) {
     UNUSED(Device);
 
@@ -989,6 +1109,12 @@ static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Poll-mode handler to process pending AHCI interrupts.
+ *
+ * @param Device Interrupt source device.
+ * @param Context AHCI_STATE pointer.
+ */
 static void AHCIInterruptPoll(LPDEVICE Device, LPVOID Context) {
     UNUSED(Device);
 
@@ -1017,6 +1143,15 @@ void AHCIInterruptHandler(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief SATA driver command dispatcher.
+ *
+ * Handles load/unload, version, disk I/O, and access configuration requests.
+ *
+ * @param Function Driver function code.
+ * @param Parameter Function-specific parameter.
+ * @return Driver-specific status/value.
+ */
 UINT SATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:

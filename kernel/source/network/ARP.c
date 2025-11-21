@@ -37,6 +37,12 @@
 /************************************************************************/
 // Helper functions
 
+/**
+ * @brief Retrieve the ARP context associated with a device.
+ *
+ * @param Device Target device.
+ * @return Pointer to ARP context or NULL if not present.
+ */
 LPARP_CONTEXT ARP_GetContext(LPDEVICE Device) {
     LPARP_CONTEXT Context = NULL;
 
@@ -53,32 +59,33 @@ LPARP_CONTEXT ARP_GetContext(LPDEVICE Device) {
 // Utilities
 
 /**
- * @brief Vérifie si une adresse MAC est valide (unicast, non nulle, non broadcast).
+ * @brief Validate a MAC address (unicast, non-zero, non-broadcast).
  *
- * @param MacAddress Adresse MAC à valider (tableau de 6 octets).
- * @return 1 si valide, 0 sinon.
+ * @param MacAddress MAC address to validate (6-byte array).
+ * @return 1 if valid, 0 otherwise.
  */
+
 static int IsValidMacAddress(const U8 MacAddress[6]) {
     if (MacAddress == NULL) {
         DEBUG(TEXT("[IsValidMacAddress] NULL address"));
         return 0;
     }
 
-    // Vérifier si l'adresse est nulle (00:00:00:00:00:00)
+    // Check if address is zero (00:00:00:00:00:00)
     if (MacAddress[0] == 0 && MacAddress[1] == 0 && MacAddress[2] == 0 &&
         MacAddress[3] == 0 && MacAddress[4] == 0 && MacAddress[5] == 0) {
         DEBUG(TEXT("[IsValidMacAddress] Zero address"));
         return 0;
     }
 
-    // Vérifier si l'adresse est broadcast (FF:FF:FF:FF:FF:FF)
+    // Check if address is broadcast (FF:FF:FF:FF:FF:FF)
     if (MacAddress[0] == 0xFF && MacAddress[1] == 0xFF && MacAddress[2] == 0xFF &&
         MacAddress[3] == 0xFF && MacAddress[4] == 0xFF && MacAddress[5] == 0xFF) {
         DEBUG(TEXT("[IsValidMacAddress] Broadcast address"));
         return 0;
     }
 
-    // Vérifier si l'adresse est multidiffusion (bit I/G à 1 dans le premier octet)
+    // Check if address is multicast (I/G bit set in the first octet)
     if (MacAddress[0] & 0x01) {
         DEBUG(TEXT("[IsValidMacAddress] Multicast address"));
         return 0;
@@ -506,6 +513,13 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
 /************************************************************************/
 // Public API
 
+/**
+ * @brief Initialize ARP for a device and prime cache structures.
+ *
+ * @param Device Target device.
+ * @param LocalIPv4_Be Local IPv4 address in big-endian format.
+ * @param DeviceInfo Optional device info containing MAC address (may be NULL).
+ */
 void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* DeviceInfo) {
     LPARP_CONTEXT Context;
     U32 Index;
@@ -604,6 +618,12 @@ Out:
 
 /************************************************************************/
 
+/**
+ * @brief Update the ARP local IPv4 address.
+ *
+ * @param Device Target device.
+ * @param LocalIPv4_Be New local IPv4 address in big-endian format.
+ */
 void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
     LPARP_CONTEXT Context;
 
@@ -624,6 +644,11 @@ void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
 
 /************************************************************************/
 
+/**
+ * @brief Destroy the ARP context associated with a device.
+ *
+ * @param Device Target device.
+ */
 void ARP_Destroy(LPDEVICE Device) {
     LPARP_CONTEXT Context;
 
@@ -647,6 +672,11 @@ void ARP_Destroy(LPDEVICE Device) {
 
 /************************************************************************/
 
+/**
+ * @brief Periodic ARP maintenance: aging, retries, and cleanup.
+ *
+ * @param Device Target device.
+ */
 void ARP_Tick(LPDEVICE Device) {
     LPARP_CONTEXT Context;
     U32 Index;
@@ -692,6 +722,17 @@ void ARP_Tick(LPDEVICE Device) {
 
 /************************************************************************/
 
+/**
+ * @brief Resolve an IPv4 address to a MAC address.
+ *
+ * Performs cache lookup, may trigger ARP probe, and can return immediately
+ * when broadcast is requested.
+ *
+ * @param Device Target device.
+ * @param TargetIPv4_Be IPv4 address to resolve in big-endian format.
+ * @param OutMacAddress Output buffer for resolved MAC (6 bytes).
+ * @return 1 if resolved synchronously, 0 otherwise.
+ */
 int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
     LPARP_CONTEXT Context;
     LPARP_CACHE_ENTRY Entry;
@@ -770,6 +811,11 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
 
 /************************************************************************/
 
+/**
+ * @brief Dump valid ARP cache entries to the debug log.
+ *
+ * @param Device Target device.
+ */
 void ARP_DumpCache(LPDEVICE Device) {
     LPARP_CONTEXT Context;
     U32 Index;

@@ -197,6 +197,14 @@ VESA_CONTEXT VESAContext = {
 
 /***************************************************************************/
 
+/**
+ * @brief Initialize VESA context and retrieve controller info.
+ *
+ * Performs real-mode calls to fetch VESA data, seeds graphics context defaults,
+ * and validates signature.
+ *
+ * @return TRUE on success, FALSE otherwise
+ */
 static BOOL InitializeVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
@@ -267,6 +275,13 @@ static BOOL InitializeVESA(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Tear down VESA resources and restore text mode.
+ *
+ * Unmaps LFB when mapped and switches back to BIOS text mode.
+ *
+ * @return DF_ERROR_SUCCESS always
+ */
 static U32 ShutdownVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
@@ -293,6 +308,15 @@ static U32 ShutdownVESA(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Set a VESA video mode and map the linear frame buffer if available.
+ *
+ * Selects the requested resolution/depth, queries mode info, maps the LFB,
+ * and updates graphics context capabilities.
+ *
+ * @param Info Requested mode description
+ * @return DF_ERROR_SUCCESS on success, DF_ERROR_GENERIC otherwise
+ */
 static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     INTEL_X86_REGISTERS Regs;
     U16* ModePtr = NULL;
@@ -492,6 +516,15 @@ static U32 SetClip(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write an 8bpp pixel using current raster operation.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @param Color 8-bit color value
+ * @return Previous pixel value
+ */
 static COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 Offset;
     U8* Plane;
@@ -528,6 +561,15 @@ static COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write a 16bpp pixel using current raster operation.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @param Color 16-bit color value
+ * @return Previous pixel value
+ */
 static COLOR SetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 Offset;
     U8* Plane;
@@ -564,6 +606,15 @@ static COLOR SetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
 /***************************************************************************/
 
+/**
+ * @brief Write a 24bpp pixel using current raster operation.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @param Color 24-bit packed RGB color
+ * @return Previous pixel value
+ */
 static COLOR SetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 Offset;
     U8* Pixel;
@@ -622,6 +673,14 @@ static COLOR SetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
 
 /***************************************************************************/
 
+/**
+ * @brief Read an 8bpp pixel.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @return 8-bit color value or 0 if out of clip
+ */
 static COLOR GetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     U32 Color;
     U32 Offset;
@@ -643,6 +702,14 @@ static COLOR GetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y) {
 
 /***************************************************************************/
 
+/**
+ * @brief Read a 16bpp pixel.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @return 16-bit color value or 0 if out of clip
+ */
 static COLOR GetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     U32 Color;
     U32 Offset;
@@ -664,6 +731,14 @@ static COLOR GetPixel16(LPVESA_CONTEXT Context, I32 X, I32 Y) {
 
 /***************************************************************************/
 
+/**
+ * @brief Read a 24bpp pixel.
+ *
+ * @param Context VESA context holding frame buffer info
+ * @param X Horizontal coordinate
+ * @param Y Vertical coordinate
+ * @return 24-bit packed RGB color or 0 if out of clip
+ */
 static COLOR GetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y) {
     U32 Color;
     U8* Pixel;
@@ -690,6 +765,13 @@ static COLOR GetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a patterned line in 8bpp mode (stub).
+ *
+ * Parameters are unused; kept for interface parity.
+ *
+ * @return Always 0
+ */
 static U32 Line8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     UNUSED(Context);
     UNUSED(X1);
@@ -786,6 +868,16 @@ static U32 Line8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a patterned line in 16bpp mode.
+ *
+ * @param Context VESA context with pen state
+ * @param X1 Start X
+ * @param Y1 Start Y
+ * @param X2 End X
+ * @param Y2 End Y
+ * @return 0 on success, MAX_U32 on invalid pen
+ */
 static U32 Line16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 d, dx, dy, ai, bi, xi, yi;
     U32 LineBit = 0;
@@ -861,6 +953,16 @@ static U32 Line16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a patterned line in 24bpp mode.
+ *
+ * @param Context VESA context with pen state
+ * @param X1 Start X
+ * @param Y1 Start Y
+ * @param X2 End X
+ * @param Y2 End Y
+ * @return 0 on success, MAX_U32 on invalid pen
+ */
 static U32 Line24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 d, dx, dy, ai, bi, xi, yi;
     U32 LineBit = 0;
@@ -941,6 +1043,13 @@ static U32 Line24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Fill rectangle in 8bpp mode (stub).
+ *
+ * Parameters are unused; kept for interface parity.
+ *
+ * @return Always 0
+ */
 static U32 Rect8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     UNUSED(Context);
     UNUSED(X1);
@@ -1038,6 +1147,18 @@ static U32 Rect8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw filled and/or outlined rectangle in 16bpp mode.
+ *
+ * Uses brush for fill and pen for border when provided.
+ *
+ * @param Context VESA context
+ * @param X1 Left coordinate
+ * @param Y1 Top coordinate
+ * @param X2 Right coordinate
+ * @param Y2 Bottom coordinate
+ * @return 0 on completion
+ */
 static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 X, Y;
     U32 Temp;
@@ -1076,6 +1197,18 @@ static U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw filled and/or outlined rectangle in 24bpp mode.
+ *
+ * Uses brush for fill and pen for border when provided.
+ *
+ * @param Context VESA context
+ * @param X1 Left coordinate
+ * @param Y1 Top coordinate
+ * @param X2 Right coordinate
+ * @param Y2 Bottom coordinate
+ * @return 0 on completion
+ */
 static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 X;
     I32 Y;
@@ -1167,6 +1300,13 @@ static U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a simple self-test pattern for sanity checks.
+ *
+ * Renders colored horizontal bands in the top portion of the frame buffer.
+ *
+ * @param Context VESA context
+ */
 static void VESADrawSelfTest(LPVESA_CONTEXT Context) {
     static const COLOR Colors[] = {0x00FF0000, 0x0000FF00, 0x000000FF, 0x00FFFF00};
     const I32 NumBands = (I32)(sizeof(Colors) / sizeof(Colors[0]));
@@ -1215,6 +1355,12 @@ static void VESADrawSelfTest(LPVESA_CONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a brush object from descriptor.
+ *
+ * @param Info Brush creation parameters
+ * @return Allocated brush or NULL on failure
+ */
 static LPBRUSH VESA_CreateBrush(LPBRUSHINFO Info) {
     LPBRUSH Brush;
 
@@ -1235,6 +1381,12 @@ static LPBRUSH VESA_CreateBrush(LPBRUSHINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Create a pen object from descriptor.
+ *
+ * @param Info Pen creation parameters
+ * @return Allocated pen or NULL on failure
+ */
 static LPPEN VESA_CreatePen(LPPENINFO Info) {
     LPPEN Pen;
 
@@ -1255,6 +1407,12 @@ static LPPEN VESA_CreatePen(LPPENINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Set a pixel via driver interface with mutex protection.
+ *
+ * @param Info Pixel operation descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_SetPixel(LPPIXELINFO Info) {
     LPVESA_CONTEXT Context;
 
@@ -1276,6 +1434,12 @@ static U32 VESA_SetPixel(LPPIXELINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Get a pixel via driver interface with mutex protection.
+ *
+ * @param Info Pixel operation descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_GetPixel(LPPIXELINFO Info) {
     LPVESA_CONTEXT Context;
 
@@ -1297,6 +1461,12 @@ static U32 VESA_GetPixel(LPPIXELINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a line via driver interface.
+ *
+ * @param Info Line descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_Line(LPLINEINFO Info) {
     LPVESA_CONTEXT Context;
 
@@ -1319,6 +1489,14 @@ static U32 VESA_Line(LPLINEINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Draw a rectangle via driver interface.
+ *
+ * Applies fill and border according to current brush/pen.
+ *
+ * @param Info Rectangle descriptor
+ * @return 1 on success, 0 on failure
+ */
 static U32 VESA_Rectangle(LPRECTINFO Info) {
     LPVESA_CONTEXT Context;
     static U32 VESARectangleDebugCount = 0;
@@ -1353,6 +1531,15 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 
 /***************************************************************************/
 
+/**
+ * @brief Driver command dispatcher for VESA graphics.
+ *
+ * Handles load/unload, mode setting, drawing primitives, and resource creation.
+ *
+ * @param Function Driver function code
+ * @param Param Function-specific parameter
+ * @return Function-specific status code
+ */
 UINT VESACommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
