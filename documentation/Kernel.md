@@ -43,7 +43,7 @@ linear aliases, building the initial PML4, and installing a long-mode
 GDT so higher-half execution can begin without architecture-specific
 hooks inside the generic memory manager.
 
-On long mode builds the kernel now allocates paging structures explicitly
+On long mode builds the kernel allocates paging structures explicitly
 instead of cloning the loader tables. `AllocPageDirectory` creates fresh
 low-memory and kernel PDPTs, wires the task-runner window, and programs
 the recursive slot before returning the new PML4. `AllocUserPageDirectory`
@@ -53,7 +53,7 @@ the hierarchy first. The low-memory region builder keeps a cached pair of
 BIOS-protected and general identity tables so new page directories only
 consume fresh pages for their PDPT, directory, and any userland seed tables.
 
-On x86-64 every successful `AllocRegion` now emits a `MEMORY_REGION_DESCRIPTOR`
+On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR`
 record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored
 on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from
 dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel
@@ -93,7 +93,7 @@ Key helpers:
 - `KernelEventIsSignaled()` and `KernelEventGetSignalCount()` surface state for
   consumer code.
 
-`Wait()` now recognises the new type: when an event handle is present in
+`Wait()` recognises the new type: when an event handle is present in
 `WAITINFO.Objects`, the scheduler returns as soon as `SignalKernelEvent`
 marks it signaled and propagates `SignalCount` through the wait exit codes.
 Legacy behaviour for process/task termination remains unchanged because the
@@ -101,20 +101,20 @@ termination cache is still consulted first.
 
 ### Desktop ownership helpers
 
-Window managers can now reuse the desktop that was assigned to their process
+Window managers can reuse the desktop that was assigned to their process
 instead of blindly creating a new one. The kernel exports
 `SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently
 associated with the caller. The runtime exposes this through
 `GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the
 desktop window, and issue `ShowDesktop()` without forking a duplicate desktop.
 Callers still retain the option to create a dedicated desktop when
-`GetCurrentDesktop()` returns `NULL`, but typical applications now leverage the
+`GetCurrentDesktop()` returns `NULL`, but typical applications leverage the
 existing object so their top-level windows appear on the main desktop instead
 of being hidden behind a detached surface.
 
 ### Handle reuse guarantees
 
-The global handle map now enforces a strict 1:1 relationship between kernel
+The global handle map enforces a strict 1:1 relationship between kernel
 objects and user-visible handles. `PointerToHandle()` first queries the handle
 map to see if the pointer is already exported and reuses the existing handle
 instead of allocating a duplicate. A new reverse lookup helper walks the handle
@@ -122,7 +122,7 @@ map so conversions remain O(n) only in debugging scenarios while the common
 case reuses cached handles. This change eliminates transient handles created
 every time `SysCall_GetMessage()` returned a pointer to userland, which in turn
 kept GUI messages from round-tripping correctly through `DispatchMessage()`.
-User applications now receive stable handles for their windows, and the runtime
+User applications receive stable handles for their windows, and the runtime
 can translate those handles back to the original kernel pointers without any
 fallback logic.
 
@@ -149,12 +149,12 @@ mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
 and SATA), graphics (VGA, VESA, and mode tables), and file system backends
 (FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery
 from the build system and clarifies the separation between reusable utilities
-and hardware support code. Kernel-side driver registration now mirrors the rest
+and hardware support code. Kernel-side driver registration mirrors the rest
 of the codebase by storing the initialization order in a `LIST` declared in
 `KernelData.c`; `InitializeDriverList()` appends each static driver descriptor
 before `LoadAllDrivers()` walks the list.
 
-The VESA graphics driver now always requests VBE modes in linear frame buffer
+The VESA graphics driver always requests VBE modes in linear frame buffer
 mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises
 the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing
 code writes directly to the mapped VRAM region without issuing BIOS bank
@@ -176,11 +176,17 @@ and query per-process properties such as `Status`, `Flags`, `ExitCode`,
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
 module discovers ACPI tables, exposes the parsed configuration, and offers
-helpers for platform control. `ACPIShutdown()` enters the S5 soft-off state and
+helpers for platform control. `ACPIShutdown()` releases ACPI mappings and
+state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using
+the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and
 falls back to legacy power-off sequences when the ACPI path fails. The new
 `ACPIReboot()` companion performs a warm reboot by first using the ACPI reset
 register (when present) and then chaining to legacy reset controllers to ensure
-the machine restarts even on older chipsets.
+the machine restarts even on older chipsets. Kernel-level wrappers
+`ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland
+processes, then kernel tasks, and perform a reverse-order driver unload before
+handing control to the ACPI routines so subsystems leave as few pending
+resources as possible when the machine powers off or reboots.
 
 ### File system globals
 
@@ -272,7 +278,7 @@ However, the code uses 32 bit registers when appropriate.
 +------------------------------------+
 ```
 
-**AHCI interrupt policy**: the SATA driver now registers the controller with the
+**AHCI interrupt policy**: the SATA driver registers the controller with the
 shared `DeviceInterruptRegister` infrastructure and installs dedicated top and
 bottom halves so IRQ 11 traffic can be routed through a private slot when the
 hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands
@@ -572,7 +578,7 @@ allocating and clearing the per-task stacks, initialising the selectors in the i
 performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the
 same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults
 that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT
-initialisation the kernel now assigns IST1 to the fault vectors that are most likely to execute with
+initialisation the kernel assigns IST1 to the fault vectors that are most likely to execute with
 a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection
 and page faults). This ensures the handlers always run on the emergency per-task stack, preventing
 the double-fault escalation that previously produced a triple fault when the active stack pointer

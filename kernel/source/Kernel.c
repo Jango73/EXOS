@@ -27,9 +27,12 @@
 #include "Autotest.h"
 #include "Clock.h"
 #include "Console.h"
+#include "drivers/ACPI.h"
 #include "File.h"
 #include "Lang.h"
 #include "Log.h"
+#include "process/Process.h"
+#include "process/Task.h"
 #include "utils/Helpers.h"
 #include "utils/TOML.h"
 #include "utils/UUID.h"
@@ -782,6 +785,34 @@ void LoadDriver(LPDRIVER Driver) {
 
 /************************************************************************/
 
+/**
+ * @brief Unload a driver by invoking its DF_UNLOAD command.
+ *
+ * Logs the unload attempt, validates the driver descriptor and reports
+ * failures while allowing shutdown to continue.
+ *
+ * @param Driver Pointer to driver structure.
+ */
+void UnloadDriver(LPDRIVER Driver) {
+    SAFE_USE(Driver) {
+        DEBUG(TEXT("[UnloadDriver] : Unloading %s driver at %X"), TEXT(Driver->Product), Driver);
+
+        if (Driver->TypeID != KOID_DRIVER) {
+            WARNING(TEXT("[UnloadDriver] : %s driver not valid (at address %X). ID = %X."), TEXT(Driver->Product), Driver, Driver->TypeID);
+            return;
+        }
+
+        UINT Result = Driver->Command(DF_UNLOAD, 0);
+        if (Result == DF_ERROR_SUCCESS) {
+            DEBUG(TEXT("[UnloadDriver] : %s driver unloaded successfully"), TEXT(Driver->Product));
+        } else {
+            WARNING(TEXT("[UnloadDriver] : Failed to unload %s driver (code = %x)"), TEXT(Driver->Product), Result);
+        }
+    }
+}
+
+/************************************************************************/
+
 void LoadAllDrivers(void) {
     InitializeDriverList();
 
@@ -792,6 +823,46 @@ void LoadAllDrivers(void) {
     for (LPLISTNODE Node = Kernel.Drivers->First; Node; Node = Node->Next) {
         LoadDriver((LPDRIVER)Node);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unloads all drivers in reverse initialization order.
+ *
+ * Walks the driver list from tail to head and dispatches DF_UNLOAD to
+ * each registered driver.
+ */
+void UnloadAllDrivers(void) {
+    if (Kernel.Drivers == NULL || Kernel.Drivers->Last == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = Kernel.Drivers->Last; Node; Node = Node->Prev) {
+        UnloadDriver((LPDRIVER)Node);
+    }
+}
+
+/************************************************************************/
+
+static void KillActiveUserlandProcesses(void);
+static void KillActiveKernelTasks(void);
+
+/**
+ * @brief Common pre-shutdown sequence used by power actions.
+ *
+ * Kills active userland processes, then kernel tasks, then unloads all
+ * drivers in reverse initialization order.
+ */
+static void PrepareForPowerTransition(void) {
+    DEBUG(TEXT("[PrepareForPowerTransition] Killing userland processes"));
+    KillActiveUserlandProcesses();
+
+    DEBUG(TEXT("[PrepareForPowerTransition] Killing kernel tasks"));
+    KillActiveKernelTasks();
+
+    DEBUG(TEXT("[PrepareForPowerTransition] Unloading drivers"));
+    UnloadAllDrivers();
 }
 
 /************************************************************************/
@@ -825,6 +896,89 @@ void KernelIdle(void) {
     FOREVER {
         Sleep(4000);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Terminates all userland processes without signaling.
+ *
+ * Collects active ring-3 processes and immediately kills them. This
+ * routine builds a temporary list under MUTEX_PROCESS to avoid holding
+ * the lock while issuing KillProcess().
+ */
+static void KillActiveUserlandProcesses(void) {
+    LPLIST ProcessesToKill = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    if (ProcessesToKill == NULL) {
+        WARNING(TEXT("[KillActiveUserlandProcesses] Unable to allocate kill list"));
+        return;
+    }
+
+    LockMutex(MUTEX_PROCESS, INFINITY);
+
+    SAFE_USE(Kernel.Process) {
+        for (LPPROCESS Process = (LPPROCESS)Kernel.Process->First; Process; Process = (LPPROCESS)Process->Next) {
+            SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+                if (Process != &KernelProcess && Process->Privilege == PRIVILEGE_USER &&
+                    Process->Status != PROCESS_STATUS_DEAD) {
+                    ListAddTail(ProcessesToKill, Process);
+                }
+            }
+        }
+    }
+
+    UnlockMutex(MUTEX_PROCESS);
+
+    for (LPLISTNODE Node = ProcessesToKill->First; Node; Node = Node->Next) {
+        LPPROCESS Process = (LPPROCESS)Node;
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+            DEBUG(TEXT("[KillActiveUserlandProcesses] Killing process %s"), Process->FileName);
+            KillProcess(Process);
+        }
+    }
+
+    DeleteList(ProcessesToKill);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Terminates all kernel tasks except the main kernel task.
+ *
+ * Collects tasks attached to the kernel process and flags them dead
+ * through KillTask(). The main kernel task is left running.
+ */
+static void KillActiveKernelTasks(void) {
+    LPLIST TasksToKill = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    if (TasksToKill == NULL) {
+        WARNING(TEXT("[KillActiveKernelTasks] Unable to allocate kill list"));
+        return;
+    }
+
+    LockMutex(MUTEX_TASK, INFINITY);
+
+    SAFE_USE(Kernel.Task) {
+        for (LPTASK Task = (LPTASK)Kernel.Task->First; Task; Task = (LPTASK)Task->Next) {
+            SAFE_USE_VALID_ID(Task, KOID_TASK) {
+                if (Task->Process == &KernelProcess && Task->Type != TASK_TYPE_KERNEL_MAIN &&
+                    Task->Status != TASK_STATUS_DEAD) {
+                    ListAddTail(TasksToKill, Task);
+                }
+            }
+        }
+    }
+
+    UnlockMutex(MUTEX_TASK);
+
+    for (LPLISTNODE Node = TasksToKill->First; Node; Node = Node->Next) {
+        LPTASK Task = (LPTASK)Node;
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            DEBUG(TEXT("[KillActiveKernelTasks] Killing task %s"), Task->Name);
+            KillTask(Task);
+        }
+    }
+
+    DeleteList(TasksToKill);
 }
 
 /************************************************************************/
@@ -958,4 +1112,32 @@ void InitializeKernel(void) {
     // Enter idle
 
     KernelIdle();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Performs a clean shutdown then powers off through ACPI.
+ *
+ * Drivers are unloaded in reverse initialization order before invoking
+ * ACPIPowerOff().
+ */
+void ShutdownKernel(void) {
+    DEBUG(TEXT("[ShutdownKernel] Preparing for shutdown"));
+    PrepareForPowerTransition();
+    ACPIPowerOff();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Performs a clean shutdown then reboots through ACPI.
+ *
+ * Drivers are unloaded in reverse initialization order before invoking
+ * ACPIReboot().
+ */
+void RebootKernel(void) {
+    DEBUG(TEXT("[RebootKernel] Preparing for reboot"));
+    PrepareForPowerTransition();
+    ACPIReboot();
 }

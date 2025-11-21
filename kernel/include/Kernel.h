@@ -170,6 +170,8 @@ U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
+void ShutdownKernel(void);
+void RebootKernel(void);
 void StoreObjectTerminationState(LPVOID Object, UINT ExitCode);
 PHYSICAL KernelToPhysical(LINEAR Symbol);
 void KernelObjectDestructor(LPVOID);

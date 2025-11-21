@@ -25,7 +25,6 @@
 #include "arch/Disassemble.h"
 #include "Clock.h"
 #include "Console.h"
-#include "drivers/ACPI.h"
 #include "drivers/Keyboard.h"
 #include "Endianness.h"
 #include "Exposed.h"
@@ -1269,10 +1268,10 @@ static U32 CMD_inp(LPSHELLCONTEXT Context) {
 static U32 CMD_reboot(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    DEBUG(TEXT("[CMD_shutdown] Rebooting system"));
+    DEBUG(TEXT("[CMD_reboot] Rebooting system"));
     ConsolePrint(TEXT("Rebooting system...\n"));
 
-    ACPIReboot();
+    RebootKernel();
 
     return DF_ERROR_SUCCESS;
 }
@@ -1289,7 +1288,7 @@ static U32 CMD_shutdown(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[CMD_shutdown] Shutting down system"));
     ConsolePrint(TEXT("Shutting down system...\n"));
 
-    ACPIShutdown();
+    ShutdownKernel();
 
     return DF_ERROR_SUCCESS;
 }

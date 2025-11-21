@@ -285,6 +285,11 @@ static BOOL InitializeVESA(void) {
 static U32 ShutdownVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
+    // TODO : Fix real mode call in x86-64
+#if defined(__EXOS_ARCH_X86_64__)
+    return TRUE;
+#endif
+
     if (VESAContext.LinearFrameBufferEnabled != FALSE && VESAContext.FrameBufferLinear != 0 &&
         VESAContext.FrameBufferSize != 0) {
         UnMapIOMemory(VESAContext.FrameBufferLinear, VESAContext.FrameBufferSize);
