@@ -6,7 +6,7 @@
 2. [X] Define unified MessageQueue abstraction
    - Specify common queue struct and ops (init/destroy, push/pop/peek, wait/wakeup, capacity/limits) usable by both windows and tasks.
    - Align message format for task delivery (key codes, flags, optional sender).
-3. [ ] Extend API contract to handle NULL handles for tasks
+3. [X] Extend API contract to handle NULL handles for tasks
    - Allow SendMessage/PostMessage/PeekMessage/GetMessage to accept NULL as “target task” (no window).
    - Adjust validation to accept NULL handles and route accordingly.
 4. [ ] Attach MessageQueue to Task lifecycle
@@ -43,3 +43,15 @@
 - Wait/wakeup: `MessageQueueWait(queue, Task)` sets task to `TASK_STATUS_WAITMESSAGE` and blocks (current `WaitForMessage` semantics). `MessageQueueSignal(queue)` wakes a waiting task (sets status RUNNING) when enqueue succeeds. Keeps scheduler interaction centralized.
 - Message format alignment: retain `MESSAGE` layout (Target, Time, Message, Param1, Param2). Standardize keyboard-to-task payload: `Param1` virtual key or ASCII code, `Param2` modifier/flags, so dispatchers can share mapping.
 - Integration intent: TASK embeds `MESSAGEQUEUE`; window message queues become the same queue filtered by handle. `PostMessage`/`GetMessage`/`PeekMessage` wrappers call these helpers, eliminating duplicate mutex logic and allowing NULL-handle task messages without special-case code.
+
+# Step 3 API contract (NULL handle support)
+
+- Semantic: `Target == NULL` means “message directed to the calling task (no window)” for `PostMessage`, `SendMessage`, `PeekMessage`, `GetMessage`. No window lookup is performed; the task’s own queue is used.
+- Validation: kernel/userland entry points must accept `Target == NULL` as valid; only reject when other invariants fail (bad pointers, etc.). `SysCall_*` wrappers keep handles as-is when NULL.
+- Dispatch rules:
+  - `PostMessage(NULL, Msg, p1, p2)`: enqueue into current task’s queue; wake if waiting.
+  - `SendMessage(NULL, ...)`: synchronous call is a no-op (or returns 0) because there is no window handler; keep behavior documented.
+  - `PeekMessage(NULL, ...)`/`GetMessage(NULL, ...)`: operate on current task queue with no window filter.
+  - Non-NULL handles keep current behavior (window/task routing as today).
+- Message filtering: `MESSAGE.Target` stays meaningful—when enqueued with NULL, stored Target can remain NULL or be set to `EnsureHandle(CurrentTask)` if we need identity; document choice when implemented (default: keep NULL to indicate task-scope).
+- Error codes: maintain existing return types (BOOL/U32). On invalid non-NULL handle, return FALSE/0; on NULL, treat as valid and proceed.
