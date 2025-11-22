@@ -9,9 +9,9 @@
 - Keep profiling behind a build-time flag (e.g., CONFIG_PROFILE) so non-profile builds pay zero cost.
 
 ## Step-by-step plan
-1. [ ] **Define config switch**
+1. [x] **Define config switch**
    - Add a global config toggle (CONFIG_PROFILE) in an existing config header used by both arches.
-   - Default OFF; when ON, profiling code compiles and shell command is registered.
+   - Default OFF; enable with `make PROFILE=1` so profiling code (and shell command) compiles in.
 
 2. [ ] **Add profiling API (shared)**
    - Create `kernel/source/Profile.h`/`Profile.c`.

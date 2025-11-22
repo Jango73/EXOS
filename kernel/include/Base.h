@@ -37,6 +37,12 @@ extern "C" {
 
 /************************************************************************/
 
+#ifndef CONFIG_PROFILE
+    #define CONFIG_PROFILE 0
+#endif
+
+/************************************************************************/
+
 // Target architecture detection
 
 #if defined(__i386__) || defined(_M_IX86)
