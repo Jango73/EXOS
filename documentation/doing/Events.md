@@ -25,7 +25,7 @@
 8. [X] Synchronization and wakeup
    - Ensure queue ops are thread-safe (locks/irq masking) and that GetMessage can block; wake the task when a message is enqueued.
    - Keep PeekMessage non-blocking; confirm scheduler interaction for wakeups is correct.
-9. [ ] Compatibility, tracing, and docs
+9. [X] Compatibility, tracing, and docs
    - Verify window message delivery remains unchanged; add DEBUG logs on new task message paths for diagnostics.
    - Add/update documentation in documentation/Kernel.md describing shared message queues, NULL-handle semantics, and task lifecycle notes.
 
@@ -87,3 +87,7 @@
 
 - Added queue-level waiting flag: `WaitForMessage` marks the queue as waiting and clears it after wake; `AddTaskMessage` checks the flag to wake tasks and reset it.
 - Preserved lock ordering (task mutex then queue mutex) and kept `PeekMessage` non-blocking; `GetMessage` still blocks via `WaitForMessage` but now cooperates with the queue flag to avoid missed wakeups.
+
+# Step 9 implementation (compatibility/tracing/docs)
+
+- Documented the task/window message flow in `documentation/Kernel.md`, covering queue lifecycle, limits, posting rules (NULL/task/window), broadcast key events, and Peek/Get behavior.

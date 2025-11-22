@@ -122,6 +122,27 @@ support, regex, hysteresis control, and network checksum helpers— live under
 keeps generic infrastructure separated from core subsystems and makes it easier
 to share common code across the kernel.
 
+### Task and window message delivery
+
+Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in
+`kernel/source/process/Task.c`) built on the generic list container. The queue
+is allocated on first use, capped to 100 pending messages, and guarded by a
+per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as
+waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message
+arrives and clears the waiting flag.
+
+Message posting:
+- `PostMessage` accepts NULL targets (current task), task handles, and window
+  handles; window targets enqueue into the owning task queue. Keyboard drivers
+  broadcast `EWM_KEYDOWN` events to all tasks via `BroadcastMessage`.
+- `SendMessage` remains synchronous and window-only.
+
+Message retrieval:
+- `GetMessage` blocks on the caller’s task queue, optionally filtering by
+  target. `PeekMessage` is non-blocking and reads without removal. Userland
+  syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel
+  implementations.
+
 Hardware-facing components are grouped under `kernel/source/drivers` with their
 headers in `kernel/include/drivers`. The directory hosts the keyboard, serial
 mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
