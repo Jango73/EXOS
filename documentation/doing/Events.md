@@ -16,7 +16,7 @@
    - Update dispatch so NULL handle posts into the target task’s queue (current task or explicit task when provided).
    - Adapt keyboard ISR/driver path to post key events to tasks without windows (e.g., shell) using PostMessage with NULL handle.
    - Ensure SAFE_USE/SAFE_USE_VALID_ID use on kernel object pointers where required.
-6. [ ] Consume messages in tasks
+6. [X] Consume messages in tasks
    - Extend PeekMessage/GetMessage to read from the calling task’s queue when handle is NULL.
    - Update shell and other windowless apps to replace keyboard polling loops with PeekMessage/GetMessage handling key messages.
 7. [ ] Synchronization and wakeup
@@ -69,3 +69,8 @@
 - Keyboard dispatch: keyboard driver now broadcasts `EWM_KEYDOWN` to all tasks via `BroadcastMessage` (virtual key in `Param1`, ASCII in `Param2`); legacy buffer remains for polling clients.
 - Broadcast helper: added `BroadcastMessage` in `Task.c`, sending messages to every task and waking waiters.
 - Queue constraints: message queue now lazily initializes on first use; queues are capped at 100 pending messages (drop with warning on overflow). `NewTask` no longer pre-allocates the queue.
+
+# Step 6 implementation (task-side consumption)
+
+- Implemented `PeekMessage` in kernel and syscall/runtime layers; it reads from the caller’s task queue (non-blocking) with optional target filter.
+- Shell input now consumes `EWM_KEYDOWN` via `GetMessage` in `CommandLineEditorReadLine`, replacing keyboard polling.

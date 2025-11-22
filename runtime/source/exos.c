@@ -80,13 +80,29 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
 /***************************************************************************/
 
 BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last, U32 Flags) {
-    UNUSED(Target);
-    UNUSED(Message);
-    UNUSED(First);
-    UNUSED(Last);
+    MESSAGEINFO MessageInfo;
+    BOOL Result;
+
     UNUSED(Flags);
 
-    return FALSE;
+    MessageInfo.Header.Size = sizeof MessageInfo;
+    MessageInfo.Header.Version = EXOS_ABI_VERSION;
+    MessageInfo.Header.Flags = 0;
+    MessageInfo.Target = Target;
+    MessageInfo.First = First;
+    MessageInfo.Last = Last;
+
+    Result = (BOOL)exoscall(SYSCALL_PeekMessage, EXOS_PARAM(&MessageInfo));
+
+    if (Result && Message != NULL) {
+        Message->Time = MessageInfo.Time;
+        Message->Target = MessageInfo.Target;
+        Message->Message = MessageInfo.Message;
+        Message->Param1 = MessageInfo.Param1;
+        Message->Param2 = MessageInfo.Param2;
+    }
+
+    return Result;
 }
 
 /***************************************************************************/

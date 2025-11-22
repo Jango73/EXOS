@@ -39,7 +39,7 @@ static BOOL TaskStackConfigInitialized = FALSE;
 
 /************************************************************************/
 
-void AddTaskMessage(LPTASK Task, LPMESSAGE Message);
+static void AddTaskMessage(LPTASK Task, LPMESSAGE Message);
 
 /************************************************************************/
 
@@ -263,6 +263,65 @@ BOOL BroadcastMessage(U32 Msg, U32 Param1, U32 Param2) {
     UnlockMutex(MUTEX_TASK);
 
     return Queued;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Peek the next message from the current task's queue without removing it.
+ *
+ * Non-blocking; returns FALSE if no message is available or parameters are invalid.
+ *
+ * @param Message Pointer to message info structure to fill
+ * @return TRUE if a message was found, FALSE otherwise
+ */
+BOOL PeekMessage(LPMESSAGEINFO Message) {
+    LPTASK Task;
+    LPMESSAGE CurrentMessage = NULL;
+    LPLISTNODE Node = NULL;
+
+    if (Message == NULL) return FALSE;
+
+    Task = GetCurrentTask();
+
+    if (EnsureTaskMessageQueue(Task) == FALSE) return FALSE;
+
+    LockMutex(&(Task->Mutex), INFINITY);
+    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
+
+    if (Task->MessageQueue.Messages->NumItems == 0) {
+        UnlockMutex(&(Task->Mutex));
+        UnlockMutex(&(Task->MessageQueue.Mutex));
+        return FALSE;
+    }
+
+    if (Message->Target == NULL) {
+        CurrentMessage = (LPMESSAGE)Task->MessageQueue.Messages->First;
+    } else {
+        for (Node = Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
+            LPMESSAGE Candidate = (LPMESSAGE)Node;
+            if (Candidate->Target == Message->Target) {
+                CurrentMessage = Candidate;
+                break;
+            }
+        }
+    }
+
+    if (CurrentMessage != NULL) {
+        Message->Target = CurrentMessage->Target;
+        Message->Time = CurrentMessage->Time;
+        Message->Message = CurrentMessage->Message;
+        Message->Param1 = CurrentMessage->Param1;
+        Message->Param2 = CurrentMessage->Param2;
+
+        UnlockMutex(&(Task->Mutex));
+        UnlockMutex(&(Task->MessageQueue.Mutex));
+        return TRUE;
+    }
+
+    UnlockMutex(&(Task->Mutex));
+    UnlockMutex(&(Task->MessageQueue.Mutex));
+    return FALSE;
 }
 
 /************************************************************************/
@@ -1029,7 +1088,7 @@ U32 ComputeTaskQuantumTime(U32 Priority) {
  *
  * @note This function acquires task and message mutexes
  */
-void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
+static void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
     if (EnsureTaskMessageQueue(Task) == FALSE) {
         DeleteMessage(Message);
         return;

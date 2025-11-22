@@ -100,6 +100,7 @@ BOOL BroadcastMessage(U32, U32, U32);
 U32 ComputeTaskQuantumTime(U32 Priority);
 BOOL PostMessage(HANDLE, U32, U32, U32);
 U32 SendMessage(HANDLE, U32, U32, U32);
+BOOL PeekMessage(LPMESSAGEINFO);
 BOOL GetMessage(LPMESSAGEINFO);
 BOOL DispatchMessage(LPMESSAGEINFO);
 void DumpTask(LPTASK);

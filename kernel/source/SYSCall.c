@@ -550,7 +550,26 @@ UINT SysCall_SendMessage(UINT Parameter) {
  * @return UINT Always returns 0.
  */
 UINT SysCall_PeekMessage(UINT Parameter) {
-    UNUSED(Parameter);
+    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+        HANDLE Filter = Message->Target;
+        Message->Target = (HANDLE)HandleToPointer(Filter);
+
+        if (Message->Target == NULL && Filter != 0) {
+            Message->Target = Filter;
+            return 0;
+        }
+
+        UINT Result = (UINT)PeekMessage(Message);
+        Message->Target = PointerToHandle((LINEAR)Message->Target);
+        if (Message->Target == 0) {
+            Message->Target = Filter;
+        }
+
+        return Result;
+    }
+
     return 0;
 }
 

@@ -121,6 +121,7 @@ BOOL CommandLineEditorReadLine(
     U32 BufferSize,
     BOOL MaskCharacters) {
     KEYCODE KeyCode;
+    MESSAGEINFO Message;
     U32 CursorPos = 0;
     U32 Length = 0;
     U32 DisplayedLength = 0;
@@ -136,146 +137,155 @@ BOOL CommandLineEditorReadLine(
     GetConsoleCursorPosition(&StartX, &StartY);
 
     FOREVER {
-        if (PeekChar()) {
-            GetKeyCode(&KeyCode);
+        MemorySet(&Message, 0, sizeof(Message));
+        Message.Header.Size = sizeof(Message);
+        Message.Header.Version = EXOS_ABI_VERSION;
+        Message.Header.Flags = 0;
+        Message.Target = NULL;
 
-            if (KeyCode.VirtualKey == VK_ESCAPE) {
-                Length = 0;
-                CursorPos = 0;
-                Buffer[0] = STR_NULL;
-                RefreshInputDisplay(
-                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                DisplayedLength = Length;
-            } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
-                if (CursorPos > 0) {
-                    MemoryMove(Buffer + CursorPos - 1, Buffer + CursorPos, (Length - CursorPos) + 1);
-                    CursorPos--;
-                    Length--;
-                    RefreshInputDisplay(
-                        Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            } else if (KeyCode.VirtualKey == VK_DELETE) {
-                if (CursorPos < Length) {
-                    MemoryMove(Buffer + CursorPos, Buffer + CursorPos + 1, (Length - CursorPos));
-                    Length--;
-                    Buffer[Length] = STR_NULL;
-                    RefreshInputDisplay(
-                        Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            } else if (KeyCode.VirtualKey == VK_LEFT) {
-                if (CursorPos > 0) {
-                    CursorPos--;
-                    UpdateInputCursor(StartX, StartY, CursorPos);
-                }
-            } else if (KeyCode.VirtualKey == VK_RIGHT) {
-                if (CursorPos < Length) {
-                    CursorPos++;
-                    UpdateInputCursor(StartX, StartY, CursorPos);
-                }
-            } else if (KeyCode.VirtualKey == VK_HOME) {
-                CursorPos = 0;
-                UpdateInputCursor(StartX, StartY, CursorPos);
-            } else if (KeyCode.VirtualKey == VK_END) {
-                CursorPos = Length;
-                UpdateInputCursor(StartX, StartY, CursorPos);
-            } else if (KeyCode.VirtualKey == VK_ENTER) {
-                ConsolePrintChar(STR_NEWLINE);
-                Buffer[Length] = STR_NULL;
-                DEBUG(
-                    TEXT("[CommandLineEditorReadLine] ENTER pressed, final buffer: '%s', length=%d"),
-                    Buffer,
-                    Length);
-                break;
-            } else if (KeyCode.VirtualKey == VK_UP) {
-                if (HistoryPos > 0) {
-                    HistoryPos--;
-                    StringCopy(Buffer, StringArrayGet(&Editor->History, HistoryPos));
-                    Length = StringLength(Buffer);
-                    CursorPos = Length;
-                    RefreshInputDisplay(
-                        Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            } else if (KeyCode.VirtualKey == VK_DOWN) {
-                if (HistoryPos < Editor->History.Count) HistoryPos++;
-                if (HistoryPos == Editor->History.Count) {
-                    Buffer[0] = STR_NULL;
-                    Length = 0;
-                    CursorPos = 0;
-                } else {
-                    StringCopy(Buffer, StringArrayGet(&Editor->History, HistoryPos));
-                    Length = StringLength(Buffer);
-                    CursorPos = Length;
-                }
-                RefreshInputDisplay(
-                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                DisplayedLength = Length;
-            } else if (KeyCode.VirtualKey == VK_TAB) {
-                if (Editor->CompletionCallback) {
-                    STR Replacement[MAX_PATH_NAME];
-                    U32 Start = CursorPos;
-
-                    while (Start && Buffer[Start - 1] != STR_SPACE) {
-                        Start--;
-                    }
-
-                    {
-                        COMMANDLINE_COMPLETION_CONTEXT CompletionContext;
-                        CompletionContext.Buffer = Buffer;
-                        CompletionContext.BufferLength = Length;
-                        CompletionContext.CursorPosition = CursorPos;
-                        CompletionContext.TokenStart = Start;
-                        CompletionContext.Token = Buffer + Start;
-                        CompletionContext.TokenLength = CursorPos - Start;
-                        CompletionContext.UserData = Editor->CompletionUserData;
-
-                        if (Editor->CompletionCallback(
-                                &CompletionContext,
-                                Replacement,
-                                MAX_PATH_NAME)) {
-                            U32 TokenLength = CursorPos - Start;
-                            U32 ReplacementLength = StringLength(Replacement);
-                            U32 TailLength = Length - CursorPos;
-                            U32 NewLength = Length - TokenLength + ReplacementLength;
-
-                            if (NewLength < BufferSize) {
-                                MemoryMove(
-                                    Buffer + Start + ReplacementLength,
-                                    Buffer + CursorPos,
-                                    TailLength + 1);
-                                MemoryCopy(Buffer + Start, Replacement, ReplacementLength);
-                                Length = NewLength;
-                                CursorPos = Start + ReplacementLength;
-                                RefreshInputDisplay(
-                                    Buffer,
-                                    StartX,
-                                    StartY,
-                                    Length,
-                                    DisplayedLength,
-                                    CursorPos,
-                                    MaskCharacters);
-                                DisplayedLength = Length;
-                            }
-                        }
-                    }
-                }
-            } else if (KeyCode.ASCIICode >= STR_SPACE) {
-                if (Length < BufferSize - 1) {
-                    MemoryMove(Buffer + CursorPos + 1, Buffer + CursorPos, (Length - CursorPos) + 1);
-                    Buffer[CursorPos] = KeyCode.ASCIICode;
-                    CursorPos++;
-                    Length++;
-                    Buffer[Length] = STR_NULL;
-                    RefreshInputDisplay(
-                        Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
-                    DisplayedLength = Length;
-                }
-            }
+        if (GetMessage(&Message) == FALSE) {
+            continue;
         }
 
-        Sleep(10);
+        if (Message.Message != EWM_KEYDOWN) {
+            continue;
+        }
+
+        KeyCode.VirtualKey = Message.Param1;
+        KeyCode.ASCIICode = (STR)Message.Param2;
+
+        if (KeyCode.VirtualKey == VK_ESCAPE) {
+            Length = 0;
+            CursorPos = 0;
+            Buffer[0] = STR_NULL;
+            RefreshInputDisplay(
+                Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+            DisplayedLength = Length;
+        } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
+            if (CursorPos > 0) {
+                MemoryMove(Buffer + CursorPos - 1, Buffer + CursorPos, (Length - CursorPos) + 1);
+                CursorPos--;
+                Length--;
+                RefreshInputDisplay(
+                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                DisplayedLength = Length;
+            }
+        } else if (KeyCode.VirtualKey == VK_DELETE) {
+            if (CursorPos < Length) {
+                MemoryMove(Buffer + CursorPos, Buffer + CursorPos + 1, (Length - CursorPos));
+                Length--;
+                Buffer[Length] = STR_NULL;
+                RefreshInputDisplay(
+                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                DisplayedLength = Length;
+            }
+        } else if (KeyCode.VirtualKey == VK_LEFT) {
+            if (CursorPos > 0) {
+                CursorPos--;
+                UpdateInputCursor(StartX, StartY, CursorPos);
+            }
+        } else if (KeyCode.VirtualKey == VK_RIGHT) {
+            if (CursorPos < Length) {
+                CursorPos++;
+                UpdateInputCursor(StartX, StartY, CursorPos);
+            }
+        } else if (KeyCode.VirtualKey == VK_HOME) {
+            CursorPos = 0;
+            UpdateInputCursor(StartX, StartY, CursorPos);
+        } else if (KeyCode.VirtualKey == VK_END) {
+            CursorPos = Length;
+            UpdateInputCursor(StartX, StartY, CursorPos);
+        } else if (KeyCode.VirtualKey == VK_ENTER) {
+            ConsolePrintChar(STR_NEWLINE);
+            Buffer[Length] = STR_NULL;
+            DEBUG(
+                TEXT("[CommandLineEditorReadLine] ENTER pressed, final buffer: '%s', length=%d"),
+                Buffer,
+                Length);
+            break;
+        } else if (KeyCode.VirtualKey == VK_UP) {
+            if (HistoryPos > 0) {
+                HistoryPos--;
+                StringCopy(Buffer, StringArrayGet(&Editor->History, HistoryPos));
+                Length = StringLength(Buffer);
+                CursorPos = Length;
+                RefreshInputDisplay(
+                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                DisplayedLength = Length;
+            }
+        } else if (KeyCode.VirtualKey == VK_DOWN) {
+            if (HistoryPos < Editor->History.Count) HistoryPos++;
+            if (HistoryPos == Editor->History.Count) {
+                Buffer[0] = STR_NULL;
+                Length = 0;
+                CursorPos = 0;
+            } else {
+                StringCopy(Buffer, StringArrayGet(&Editor->History, HistoryPos));
+                Length = StringLength(Buffer);
+                CursorPos = Length;
+            }
+            RefreshInputDisplay(
+                Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+            DisplayedLength = Length;
+        } else if (KeyCode.VirtualKey == VK_TAB) {
+            if (Editor->CompletionCallback) {
+                STR Replacement[MAX_PATH_NAME];
+                U32 Start = CursorPos;
+
+                while (Start && Buffer[Start - 1] != STR_SPACE) {
+                    Start--;
+                }
+
+                COMMANDLINE_COMPLETION_CONTEXT CompletionContext;
+                CompletionContext.Buffer = Buffer;
+                CompletionContext.BufferLength = Length;
+                CompletionContext.CursorPosition = CursorPos;
+                CompletionContext.TokenStart = Start;
+                CompletionContext.Token = Buffer + Start;
+                CompletionContext.TokenLength = CursorPos - Start;
+                CompletionContext.UserData = Editor->CompletionUserData;
+
+                if (Editor->CompletionCallback(
+                        &CompletionContext,
+                        Replacement,
+                        MAX_PATH_NAME)) {
+                    U32 TokenLength = CursorPos - Start;
+                    U32 ReplacementLength = StringLength(Replacement);
+                    U32 TailLength = Length - CursorPos;
+                    U32 NewLength = Length - TokenLength + ReplacementLength;
+
+                    if (NewLength < BufferSize) {
+                        MemoryMove(
+                            Buffer + Start + ReplacementLength,
+                            Buffer + CursorPos,
+                            TailLength + 1);
+                        MemoryCopy(Buffer + Start, Replacement, ReplacementLength);
+                        Length = NewLength;
+                        CursorPos = Start + ReplacementLength;
+                        RefreshInputDisplay(
+                            Buffer,
+                            StartX,
+                            StartY,
+                            Length,
+                            DisplayedLength,
+                            CursorPos,
+                            MaskCharacters);
+                        DisplayedLength = Length;
+                    }
+                }
+            }
+        } else if (KeyCode.ASCIICode >= STR_SPACE) {
+            if (Length < BufferSize - 1) {
+                MemoryMove(Buffer + CursorPos + 1, Buffer + CursorPos, (Length - CursorPos) + 1);
+                Buffer[CursorPos] = KeyCode.ASCIICode;
+                CursorPos++;
+                Length++;
+                Buffer[Length] = STR_NULL;
+                RefreshInputDisplay(
+                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                DisplayedLength = Length;
+            }
+        }
     }
 
     DEBUG(TEXT("[CommandLineEditorReadLine] Exit"));
