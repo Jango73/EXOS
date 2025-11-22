@@ -19,10 +19,13 @@
 6. [X] Consume messages in tasks
    - Extend PeekMessage/GetMessage to read from the calling task’s queue when handle is NULL.
    - Update shell and other windowless apps to replace keyboard polling loops with PeekMessage/GetMessage handling key messages.
-7. [ ] Synchronization and wakeup
+7. [ ] Adapt Edit.c to the event system
+   - Replace keyboard polling with PeekMessage/GetMessage handling EWM_KEYDOWN.
+   - Preserve existing navigation/editing behavior.
+8. [ ] Synchronization and wakeup
    - Ensure queue ops are thread-safe (locks/irq masking) and that GetMessage can block; wake the task when a message is enqueued.
    - Keep PeekMessage non-blocking; confirm scheduler interaction for wakeups is correct.
-8. [ ] Compatibility, tracing, and docs
+9. [ ] Compatibility, tracing, and docs
    - Verify window message delivery remains unchanged; add DEBUG logs on new task message paths for diagnostics.
    - Add/update documentation in documentation/Kernel.md describing shared message queues, NULL-handle semantics, and task lifecycle notes.
 
