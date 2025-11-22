@@ -28,12 +28,9 @@
    - Aggregate on dump into a small stats array (count/last/total/max); static, no dynamic allocation.
    - Buffer is initialized on first use; warning on overflow.
 
-5. [ ] **Integration points**
-   - Wrap suspected slow paths with `ProfileScoped(...)`:
-     - Console path: putc/scroll, buffer flush, full string write.
-     - Scheduler tick handler (to measure per-tick overhead).
-     - Disk/network drivers on hot paths only if overhead acceptable.
-   - Ensure SAFE_USE* macros stay respected when touching kernel pointers.
+5. [x] **Integration points**
+   - Wrapped console paths with `PROFILE_SCOPED(...)` (`ConsolePrintChar`, `ScrollConsole`, `ConsolePrintString`, `SetConsoleCharacter`, `SetConsoleCursorPosition`) to sample display latency.
+   - Scheduler/drivers can be added later if needed; SAFE_USE* usage unchanged.
 
 6. [ ] **Shell command for dump**
    - In `kernel/source/Shell.c`, add a `prof` command compiled only when CONFIG_PROFILE is ON.

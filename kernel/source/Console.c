@@ -32,6 +32,7 @@
 #include "System.h"
 #include "VKey.h"
 #include "VarArg.h"
+#include "Profile.h"
 
 /***************************************************************************/
 
@@ -82,6 +83,8 @@ CONSOLE_STRUCT Console = {
  * @param CursorY Y coordinate of the cursor.
  */
 void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
+    PROFILE_SCOPED("SetConsoleCursorPosition");
+
     U32 Position = (CursorY * Console.Width) + CursorX;
 
     Console.CursorX = CursorX;
@@ -132,6 +135,8 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
  * @param Char Character to display.
  */
 void SetConsoleCharacter(STR Char) {
+    PROFILE_SCOPED("SetConsoleCharacter");
+
     U32 Offset = 0;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
@@ -148,6 +153,8 @@ void SetConsoleCharacter(STR Char) {
  * @brief Scroll the console up by one line.
  */
 void ScrollConsole(void) {
+    PROFILE_SCOPED("ScrollConsole");
+
     U32 CurX, CurY, Src, Dst;
     U32 Width, Height;
 
@@ -210,6 +217,8 @@ void ClearConsole(void) {
  * @param Char Character to print.
  */
 void ConsolePrintChar(STR Char) {
+    PROFILE_SCOPED("ConsolePrintChar");
+
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Char == STR_NEWLINE) {
@@ -281,6 +290,8 @@ Out:
  * @param Text String to print.
  */
 static void ConsolePrintString(LPCSTR Text) {
+    PROFILE_SCOPED("ConsolePrintString");
+
     U32 Index = 0;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
