@@ -32,11 +32,9 @@
    - Wrapped console paths with `PROFILE_SCOPED(...)` (`ConsolePrintChar`, `ScrollConsole`, `ConsolePrintString`, `SetConsoleCharacter`, `SetConsoleCursorPosition`) to sample display latency.
    - Scheduler/drivers can be added later if needed; SAFE_USE* usage unchanged.
 
-6. [ ] **Shell command for dump**
-   - In `kernel/source/Shell.c`, add a `prof` command compiled only when CONFIG_PROFILE is ON.
-   - Command calls `ProfileDump()`, printing per-entry stats: Name, Count, Avg (ns), Max (ns), Total (ms).
-   - Sorting: either insertion order or simple selection sort in a static scratch buffer (no heap).
-   - Use DEBUG()/VERBOSE() as appropriate; keep output compact.
+6. [x] **Shell command for dump**
+   - Added `prof` command in `kernel/source/Shell.c` (always available); invokes `ProfileDump()` and logs stats.
+   - If profiling is disabled or there are no samples, `ProfileDump()` emits nothing; no dynamic allocation or sorting beyond current aggregation order.
 
 7. [ ] **Architecture build wiring**
    - Update both script sets to expose a profiling build target:

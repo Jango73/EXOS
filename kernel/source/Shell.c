@@ -38,6 +38,7 @@
 #include "UserAccount.h"
 #include "UserSession.h"
 #include "utils/CommandLineEditor.h"
+#include "Profile.h"
 #include "utils/Helpers.h"
 #include "utils/Path.h"
 #include "utils/StringArray.h"
@@ -109,6 +110,7 @@ static U32 CMD_login(LPSHELLCONTEXT);
 static U32 CMD_logout(LPSHELLCONTEXT);
 static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
+static U32 CMD_prof(LPSHELLCONTEXT);
 
 static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
@@ -167,6 +169,7 @@ static struct {
     {"logout", "logout", "", CMD_logout},
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
+    {"prof", "prof", "", CMD_prof},
     {"", "", "", NULL},
 };
 
@@ -1557,6 +1560,15 @@ static U32 CMD_passwd(LPSHELLCONTEXT Context) {
     }
 
     return DF_ERROR_SUCCESS;
+}
+
+/***************************************************************************/
+
+static U32 CMD_prof(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+    DEBUG(TEXT("[CMD_prof] dumping profiling data"));
+    ProfileDump();
+    return 0;
 }
 
 /***************************************************************************/
