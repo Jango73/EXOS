@@ -595,7 +595,7 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
  * @param Param2 Second parameter.
  * @return TRUE on success.
  */
-BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
+BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     LPLISTNODE Node;
 
     if (This == NULL) return NULL;
@@ -606,7 +606,7 @@ BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     PostMessage((HANDLE)This, Msg, Param1, Param2);
 
     for (Node = This->Children->First; Node; Node = Node->Next) {
-        BroadCastMessage((LPWINDOW)Node, Msg, Param1, Param2);
+        BroadcastMessageToWindow((LPWINDOW)Node, Msg, Param1, Param2);
     }
 
     UnlockMutex(&(This->Mutex));
@@ -801,7 +801,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     //-------------------------------------
     // Tell the window it needs redraw
 
-    BroadCastMessage(This, EWM_DRAW, 0, 0);
+    BroadcastMessageToWindow(This, EWM_DRAW, 0, 0);
 
 Out:
 
