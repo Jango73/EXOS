@@ -117,10 +117,10 @@ logic.
 
 All reusable helpers —such as the command line editor, adaptive delay, string
 containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
-support, regex, hysteresis control, and network checksum helpers— live under
-`kernel/source/utils` with their public headers in `kernel/include/utils`. This
-keeps generic infrastructure separated from core subsystems and makes it easier
-to share common code across the kernel.
+support, regex, hysteresis control, cooldown timing, and network checksum
+helpers— live under `kernel/source/utils` with their public headers in
+`kernel/include/utils`. This keeps generic infrastructure separated from core
+subsystems and makes it easier to share common code across the kernel.
 
 ### Task and window message delivery
 
@@ -135,6 +135,9 @@ Message posting:
 - `PostMessage` accepts NULL targets (current task), task handles, and window
   handles; window targets enqueue into the owning task queue. Keyboard drivers
   broadcast `EWM_KEYDOWN` events to all tasks via `BroadcastMessage`.
+- Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE`
+  with a 10ms cooldown between broadcasts, while button changes still dispatch
+  immediately through `BroadcastMessage`.
 - `SendMessage` remains synchronous and window-only.
 
 Message retrieval:
