@@ -147,6 +147,51 @@ void MessageDestructor(LPVOID This) { DeleteMessage((LPMESSAGE)This); }
 /************************************************************************/
 
 /**
+ * @brief Initializes a message queue structure.
+ *
+ * Sets default flags, initializes the mutex, and allocates the underlying
+ * message list using the message destructor. The queue is ready for use
+ * after successful initialization.
+ *
+ * @param Queue Pointer to the queue to initialize
+ * @return TRUE on success, FALSE on invalid pointer or allocation failure
+ */
+BOOL InitMessageQueue(LPMESSAGEQUEUE Queue) {
+    if (Queue == NULL) return FALSE;
+
+    InitMutex(&(Queue->Mutex));
+    Queue->Capacity = 0;
+    Queue->Flags = 0;
+    Queue->Waiting = FALSE;
+
+    Queue->Messages = NewList(MessageDestructor, KernelHeapAlloc, KernelHeapFree);
+
+    return Queue->Messages != NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Destroys a message queue and resets its fields.
+ *
+ * Frees the underlying message list and clears bookkeeping fields. The
+ * function ignores NULL queues and NULL internal lists.
+ *
+ * @param Queue Pointer to the queue to destroy
+ */
+void DeleteMessageQueue(LPMESSAGEQUEUE Queue) {
+    SAFE_USE(Queue) {
+        SAFE_USE(Queue->Messages) DeleteList(Queue->Messages);
+        Queue->Messages = NULL;
+        Queue->Capacity = 0;
+        Queue->Flags = 0;
+        Queue->Waiting = FALSE;
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Allocates and initializes a new task structure.
  *
  * Creates a new task object with default values, initializes mutexes,
@@ -181,26 +226,23 @@ LPTASK NewTask(void) {
     DEBUG(TEXT("[NewTask] Task pointer = %p"), This);
 
     // Initialize task-specific fields (LISTNODE_FIELDS already initialized by CreateKernelObject)
-    InitMutex(&This->Mutex);
-    InitMutex(&This->MessageMutex);
+    InitMutex(&(This->Mutex));
     This->Type = TASK_TYPE_NONE;
     This->Status = TASK_STATUS_READY;
 
     DEBUG(TEXT("[NewTask] Task initialized: Address=%p, Status=%x, TASK_STATUS_READY=%x"), This,
         This->Status, TASK_STATUS_READY);
 
-    InitMutex(&(This->Mutex));
-    InitMutex(&(This->MessageMutex));
-
     //-------------------------------------
     // Initialize the message queue
 
-    DEBUG(TEXT("[NewTask] Initialize task message queue"));
-    DEBUG(TEXT("[NewTask] MessageDestructor = %p"), MessageDestructor);
-    DEBUG(TEXT("[NewTask] KernelHeapAlloc = %p"), KernelHeapAlloc);
-    DEBUG(TEXT("[NewTask] KernelHeapFree = %p"), KernelHeapFree);
+    if (InitMessageQueue(&(This->MessageQueue)) == FALSE) {
+        ERROR(TEXT("[NewTask] Failed to initialize message queue"));
+        ReleaseKernelObject(This);
 
-    This->Message = NewList(MessageDestructor, KernelHeapAlloc, KernelHeapFree);
+        TRACED_EPILOGUE("NewTask");
+        return NULL;
+    }
 
     DEBUG(TEXT("[NewTask] Exit"));
 
@@ -276,7 +318,7 @@ void DeleteTask(LPTASK This) {
 
         DEBUG(TEXT("[DeleteTask] Deleting message queue"));
 
-        SAFE_USE(This->Message) DeleteList(This->Message);
+        DeleteMessageQueue(&(This->MessageQueue));
 
         //-------------------------------------
         // Delete the task's stacks
@@ -569,7 +611,8 @@ BOOL KillTask(LPTASK Task) {
         DEBUG(TEXT("[KillTask] Process : %x"), Task->Process);
         DEBUG(TEXT("[KillTask] Task : %x"), Task);
         DEBUG(TEXT("[KillTask] Func = %x"), Task->Function);
-        DEBUG(TEXT("[KillTask] Message : %x"), Task->Message->First ? ((LPMESSAGE)Task->Message->First)->Message : 0);
+        DEBUG(TEXT("[KillTask] Message : %x"),
+            Task->MessageQueue.Messages->First ? ((LPMESSAGE)Task->MessageQueue.Messages->First)->Message : 0);
 
         // Lock access to kernel data
         LockMutex(MUTEX_KERNEL, INFINITY);
@@ -919,11 +962,11 @@ U32 ComputeTaskQuantumTime(U32 Priority) {
  */
 void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
     LockMutex(&(Task->Mutex), INFINITY);
-    LockMutex(&(Task->MessageMutex), INFINITY);
+    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
 
-    ListAddItem(Task->Message, Message);
+    ListAddItem(Task->MessageQueue.Messages, Message);
 
-    UnlockMutex(&(Task->MessageMutex));
+    UnlockMutex(&(Task->MessageQueue.Mutex));
     UnlockMutex(&(Task->Mutex));
 }
 
@@ -1059,21 +1102,21 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
         if (Msg == EWM_DRAW) {
             LockMutex(&(Win->Task->Mutex), INFINITY);
-            LockMutex(&(Win->Task->MessageMutex), INFINITY);
+            LockMutex(&(Win->Task->MessageQueue.Mutex), INFINITY);
 
-            for (Node = Win->Task->Message->First; Node; Node = Node->Next) {
+            for (Node = Win->Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
                 Message = (LPMESSAGE)Node;
                 if (Message->Target == (HANDLE)Win && Message->Message == Msg) {
-                    ListRemove(Win->Task->Message, Message);
+                    ListRemove(Win->Task->MessageQueue.Messages, Message);
 
                     GetLocalTime(&(Message->Time));
 
                     Message->Param1 = Param1;
                     Message->Param2 = Param2;
 
-                    ListAddItem(Win->Task->Message, Message);
+                    ListAddItem(Win->Task->MessageQueue.Messages, Message);
 
-                    UnlockMutex(&(Win->Task->MessageMutex));
+                    UnlockMutex(&(Win->Task->MessageQueue.Mutex));
                     UnlockMutex(&(Win->Task->Mutex));
 
                     goto Out_Success;
@@ -1081,7 +1124,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
             }
         }
 
-        UnlockMutex(&(Win->Task->MessageMutex));
+        UnlockMutex(&(Win->Task->MessageQueue.Mutex));
         UnlockMutex(&(Win->Task->Mutex));
 
         //-------------------------------------
@@ -1240,20 +1283,20 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
     Task = GetCurrentTask();
 
     LockMutex(&(Task->Mutex), INFINITY);
-    LockMutex(&(Task->MessageMutex), INFINITY);
+    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
 
-    if (Task->Message->NumItems == 0) {
+    if (Task->MessageQueue.Messages->NumItems == 0) {
         UnlockMutex(&(Task->Mutex));
-        UnlockMutex(&(Task->MessageMutex));
+        UnlockMutex(&(Task->MessageQueue.Mutex));
 
         WaitForMessage(Task);
 
         LockMutex(&(Task->Mutex), INFINITY);
-        LockMutex(&(Task->MessageMutex), INFINITY);
+        LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
     }
 
     if (Message->Target == NULL) {
-        CurrentMessage = (LPMESSAGE)Task->Message->First;
+        CurrentMessage = (LPMESSAGE)Task->MessageQueue.Messages->First;
 
         //-------------------------------------
         // Copy the message to the user structure
@@ -1267,13 +1310,13 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
         //-------------------------------------
         // Remove the message from the task's message queue
 
-        ListEraseItem(Task->Message, CurrentMessage);
+        ListEraseItem(Task->MessageQueue.Messages, CurrentMessage);
 
         if (Message->Message == ETM_QUIT) goto Out_Error;
 
         goto Out_Success;
     } else {
-        for (Node = Task->Message->First; Node; Node = Node->Next) {
+        for (Node = Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
             CurrentMessage = (LPMESSAGE)Node;
 
             if (CurrentMessage->Target == Message->Target) {
@@ -1289,7 +1332,7 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
                 //-------------------------------------
                 // Remove the message from the task's message queue
 
-                ListEraseItem(Task->Message, CurrentMessage);
+                ListEraseItem(Task->MessageQueue.Messages, CurrentMessage);
 
                 if (Message->Message == ETM_QUIT) goto Out_Error;
 
@@ -1301,13 +1344,13 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
 Out_Success:
 
     UnlockMutex(&(Task->Mutex));
-    UnlockMutex(&(Task->MessageMutex));
+    UnlockMutex(&(Task->MessageQueue.Mutex));
     return TRUE;
 
 Out_Error:
 
     UnlockMutex(&(Task->Mutex));
-    UnlockMutex(&(Task->MessageMutex));
+    UnlockMutex(&(Task->MessageQueue.Mutex));
     return FALSE;
 }
 
@@ -1473,7 +1516,7 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);
 #endif
     VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
-    VERBOSE(TEXT("Queued messages : %u"), Task->Message->NumItems);
+    VERBOSE(TEXT("Queued messages : %u"), Task->MessageQueue.Messages->NumItems);
 
     UnlockMutex(&(Task->Mutex));
 }

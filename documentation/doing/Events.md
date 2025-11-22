@@ -9,7 +9,7 @@
 3. [X] Extend API contract to handle NULL handles for tasks
    - Allow SendMessage/PostMessage/PeekMessage/GetMessage to accept NULL as “target task” (no window).
    - Adjust validation to accept NULL handles and route accordingly.
-4. [ ] Attach MessageQueue to Task lifecycle
+4. [X] Attach MessageQueue to Task lifecycle
    - Add MessageQueue field to Task; create during task creation and destroy at teardown.
    - Reuse the same queue implementation for windows (via composition/wrappers) to maximize shared code.
 5. [ ] Implement message injection to tasks
@@ -55,3 +55,9 @@
   - Non-NULL handles keep current behavior (window/task routing as today).
 - Message filtering: `MESSAGE.Target` stays meaningful—when enqueued with NULL, stored Target can remain NULL or be set to `EnsureHandle(CurrentTask)` if we need identity; document choice when implemented (default: keep NULL to indicate task-scope).
 - Error codes: maintain existing return types (BOOL/U32). On invalid non-NULL handle, return FALSE/0; on NULL, treat as valid and proceed.
+
+# Step 4 implementation (Task lifecycle wiring)
+
+- Added shared `MESSAGEQUEUE` struct (mutex, list, flags/capacity, waiter marker) in `kernel/include/process/Task.h`.
+- Introduced `InitMessageQueue`/`DeleteMessageQueue` helpers and wired `NewTask`/`DeleteTask` to initialize/tear down the queue; `NewTask` now fails cleanly if queue allocation fails.
+- Task message operations now use the embedded queue (`MessageQueue.Mutex` + `MessageQueue.Messages`) instead of ad-hoc `MessageMutex`/`Message` fields; window message posting still reuses the owning task queue via the same helpers.
