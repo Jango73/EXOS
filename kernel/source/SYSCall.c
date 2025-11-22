@@ -498,6 +498,10 @@ UINT SysCall_PostMessage(UINT Parameter) {
     SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
         LINEAR TargetPointer = HandleToPointer(Message->Target);
 
+        if (Message->Target == 0) {
+            return (UINT)PostMessage(NULL, Message->Message, Message->Param1, Message->Param2);
+        }
+
         SAFE_USE_VALID((LPVOID)TargetPointer) {
             return (UINT)PostMessage((HANDLE)TargetPointer, Message->Message, Message->Param1, Message->Param2);
         }
@@ -522,6 +526,10 @@ UINT SysCall_SendMessage(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
         LINEAR TargetPointer = HandleToPointer(Message->Target);
+
+        if (Message->Target == 0) {
+            return (UINT)SendMessage(NULL, Message->Message, Message->Param1, Message->Param2);
+        }
 
         SAFE_USE_VALID((LPVOID)TargetPointer) {
             return (UINT)SendMessage((HANDLE)TargetPointer, Message->Message, Message->Param1, Message->Param2);

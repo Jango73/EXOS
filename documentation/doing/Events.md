@@ -12,7 +12,7 @@
 4. [X] Attach MessageQueue to Task lifecycle
    - Add MessageQueue field to Task; create during task creation and destroy at teardown.
    - Reuse the same queue implementation for windows (via composition/wrappers) to maximize shared code.
-5. [ ] Implement message injection to tasks
+5. [X] Implement message injection to tasks
    - Update dispatch so NULL handle posts into the target task’s queue (current task or explicit task when provided).
    - Adapt keyboard ISR/driver path to post key events to tasks without windows (e.g., shell) using PostMessage with NULL handle.
    - Ensure SAFE_USE/SAFE_USE_VALID_ID use on kernel object pointers where required.
@@ -61,3 +61,11 @@
 - Added shared `MESSAGEQUEUE` struct (mutex, list, flags/capacity, waiter marker) in `kernel/include/process/Task.h`.
 - Introduced `InitMessageQueue`/`DeleteMessageQueue` helpers and wired `NewTask`/`DeleteTask` to initialize/tear down the queue; `NewTask` now fails cleanly if queue allocation fails.
 - Task message operations now use the embedded queue (`MessageQueue.Mutex` + `MessageQueue.Messages`) instead of ad-hoc `MessageMutex`/`Message` fields; window message posting still reuses the owning task queue via the same helpers.
+
+# Step 5 implementation (message injection to tasks)
+
+- NULL-target posting: `PostMessage` now accepts `Target == NULL`, enqueues into the current task’s message queue, and wakes it if waiting; syscall wrappers (`SysCall_PostMessage`/`SendMessage`) pass NULL through instead of rejecting.
+- Task handle support: `PostMessage` resolves task targets (handle → pointer in syscall) and queues to the matching task.
+- Keyboard dispatch: keyboard driver now broadcasts `EWM_KEYDOWN` to all tasks via `BroadcastMessage` (virtual key in `Param1`, ASCII in `Param2`); legacy buffer remains for polling clients.
+- Broadcast helper: added `BroadcastMessage` in `Task.c`, sending messages to every task and waking waiters.
+- Queue constraints: message queue now lazily initializes on first use; queues are capped at 100 pending messages (drop with warning on overflow). `NewTask` no longer pre-allocates the queue.

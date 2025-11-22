@@ -46,6 +46,8 @@
 #define TASK_TYPE_USER_MAIN 3
 #define TASK_TYPE_USER_OTHER 4
 
+#define TASK_MESSAGE_QUEUE_MAX_MESSAGES 100
+
 /************************************************************************/
 // Message queue
 
@@ -94,6 +96,7 @@ void SetTaskStatusDirect(LPTASK Task, U32 Status);
 void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
 BOOL InitMessageQueue(LPMESSAGEQUEUE Queue);
 void DeleteMessageQueue(LPMESSAGEQUEUE Queue);
+BOOL BroadcastMessage(U32, U32, U32);
 U32 ComputeTaskQuantumTime(U32 Priority);
 BOOL PostMessage(HANDLE, U32, U32, U32);
 U32 SendMessage(HANDLE, U32, U32, U32);

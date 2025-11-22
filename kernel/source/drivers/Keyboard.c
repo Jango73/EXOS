@@ -31,6 +31,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "process/Task.h"
 #include "VKey.h"
 
 /***************************************************************************/
@@ -432,6 +433,15 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
+static void DispatchKeyMessage(LPKEYCODE KeyCode) {
+    if (KeyCode == NULL) return;
+    if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return;
+
+    BroadcastMessage(EWM_KEYDOWN, KeyCode->VirtualKey, KeyCode->ASCIICode);
+}
+
+/***************************************************************************/
+
 static void UpdateKeyboardLEDs(void) {
     U32 LED = 0;
 
@@ -499,6 +509,7 @@ static void HandleScanCode(U32 ScanCode) {
         } else {
             ScanCodeToKeyCode_E0(ScanCode, &KeyCode);
             SendKeyCodeToBuffer(&KeyCode);
+            DispatchKeyMessage(&KeyCode);
         }
     } else if (PreviousCode == 0xE1) {
         PreviousCode = 0;
@@ -511,6 +522,7 @@ static void HandleScanCode(U32 ScanCode) {
         } else {
             ScanCodeToKeyCode_E1(ScanCode, &KeyCode);
             SendKeyCodeToBuffer(&KeyCode);
+            DispatchKeyMessage(&KeyCode);
         }
     } else {
         PreviousCode = 0;
@@ -545,6 +557,7 @@ static void HandleScanCode(U32 ScanCode) {
                 default: {
                     ScanCodeToKeyCode(ScanCode, &KeyCode);
                     SendKeyCodeToBuffer(&KeyCode);
+                    DispatchKeyMessage(&KeyCode);
 
                     if (KeyCode.VirtualKey == VK_F9) {
                         if (Keyboard.Status[SCAN_CONTROL]) {

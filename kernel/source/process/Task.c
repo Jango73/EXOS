@@ -39,6 +39,10 @@ static BOOL TaskStackConfigInitialized = FALSE;
 
 /************************************************************************/
 
+void AddTaskMessage(LPTASK Task, LPMESSAGE Message);
+
+/************************************************************************/
+
 static void TaskInitializeStackConfig(void) {
     if (TaskStackConfigInitialized) {
         return;
@@ -191,6 +195,78 @@ void DeleteMessageQueue(LPMESSAGEQUEUE Queue) {
 
 /************************************************************************/
 
+static BOOL EnsureTaskMessageQueue(LPTASK Task) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        if (Task->MessageQueue.Messages == NULL) {
+            if (InitMessageQueue(&(Task->MessageQueue)) == FALSE) {
+                ERROR(TEXT("[EnsureTaskMessageQueue] Failed to initialize queue for task %p"), Task);
+                return FALSE;
+            }
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Broadcast a message to all tasks.
+ *
+ * Creates a distinct MESSAGE for each task and enqueues it. Tasks that
+ * do not yet have a message queue will lazily initialize one. Tasks
+ * waiting for messages are awakened.
+ *
+ * @param Msg Message identifier
+ * @param Param1 First message parameter
+ * @param Param2 Second message parameter
+ * @return TRUE if at least one message was queued, FALSE otherwise
+ */
+BOOL BroadcastMessage(U32 Msg, U32 Param1, U32 Param2) {
+    LPLISTNODE Node = NULL;
+    LPTASK Task = NULL;
+    BOOL Queued = FALSE;
+
+    LockMutex(MUTEX_TASK, INFINITY);
+
+    for (Node = Kernel.Task->First; Node; Node = Node->Next) {
+        Task = (LPTASK)Node;
+
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            if (EnsureTaskMessageQueue(Task) == FALSE) {
+                continue;
+            }
+
+            LPMESSAGE Message = NewMessage();
+            if (Message == NULL) {
+                continue;
+            }
+
+            GetLocalTime(&(Message->Time));
+            Message->Target = NULL;
+            Message->Message = Msg;
+            Message->Param1 = Param1;
+            Message->Param2 = Param2;
+
+            AddTaskMessage(Task, Message);
+
+            if (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
+                SetTaskStatus(Task, TASK_STATUS_RUNNING);
+            }
+
+            Queued = TRUE;
+        }
+    }
+
+    UnlockMutex(MUTEX_TASK);
+
+    return Queued;
+}
+
+/************************************************************************/
+
 /**
  * @brief Allocates and initializes a new task structure.
  *
@@ -229,20 +305,13 @@ LPTASK NewTask(void) {
     InitMutex(&(This->Mutex));
     This->Type = TASK_TYPE_NONE;
     This->Status = TASK_STATUS_READY;
+    MemorySet(&(This->MessageQueue), 0, sizeof(MESSAGEQUEUE));
 
     DEBUG(TEXT("[NewTask] Task initialized: Address=%p, Status=%x, TASK_STATUS_READY=%x"), This,
         This->Status, TASK_STATUS_READY);
 
     //-------------------------------------
     // Initialize the message queue
-
-    if (InitMessageQueue(&(This->MessageQueue)) == FALSE) {
-        ERROR(TEXT("[NewTask] Failed to initialize message queue"));
-        ReleaseKernelObject(This);
-
-        TRACED_EPILOGUE("NewTask");
-        return NULL;
-    }
 
     DEBUG(TEXT("[NewTask] Exit"));
 
@@ -961,8 +1030,21 @@ U32 ComputeTaskQuantumTime(U32 Priority) {
  * @note This function acquires task and message mutexes
  */
 void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
+    if (EnsureTaskMessageQueue(Task) == FALSE) {
+        DeleteMessage(Message);
+        return;
+    }
+
     LockMutex(&(Task->Mutex), INFINITY);
     LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
+
+    if (Task->MessageQueue.Messages->NumItems >= TASK_MESSAGE_QUEUE_MAX_MESSAGES) {
+        WARNING(TEXT("[AddTaskMessage] Queue full for task %p, dropping message %u"), Task, Message->Message);
+        UnlockMutex(&(Task->MessageQueue.Mutex));
+        UnlockMutex(&(Task->Mutex));
+        DeleteMessage(Message);
+        return;
+    }
 
     ListAddItem(Task->MessageQueue.Messages, Message);
 
@@ -999,13 +1081,42 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Target == NULL) return FALSE;
-
     //-------------------------------------
     // Lock access to resources
 
     LockMutex(MUTEX_TASK, INFINITY);
     LockMutex(MUTEX_DESKTOP, INFINITY);
+
+    //-------------------------------------
+    // Null target means current task
+
+    if (Target == NULL) {
+        Task = GetCurrentTask();
+
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            if (EnsureTaskMessageQueue(Task) == FALSE) goto Out_Error;
+
+            Message = NewMessage();
+            if (Message == NULL) goto Out_Error;
+
+            GetLocalTime(&(Message->Time));
+
+            Message->Target = Target;
+            Message->Message = Msg;
+            Message->Param1 = Param1;
+            Message->Param2 = Param2;
+
+            AddTaskMessage(Task, Message);
+
+            if (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
+                SetTaskStatus(Task, TASK_STATUS_RUNNING);
+            }
+
+            goto Out_Success;
+        }
+
+        goto Out_Error;
+    }
 
     //-------------------------------------
     // Check if the target is a task
@@ -1014,6 +1125,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
         Task = (LPTASK)Node;
 
         if (Task == (LPTASK)Target) {
+            if (EnsureTaskMessageQueue(Task) == FALSE) goto Out_Error;
+
             Message = NewMessage();
             if (Message == NULL) goto Out_Error;
 
@@ -1095,6 +1208,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     }
 
     SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
+        if (EnsureTaskMessageQueue(Win->Task) == FALSE) goto Out_Error;
+
         //-------------------------------------
         // If the message is EWM_DRAW, do not post it if
         // window already has one. Instead, put the existing
@@ -1281,6 +1396,8 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
     if (Message == NULL) return FALSE;
 
     Task = GetCurrentTask();
+
+    if (EnsureTaskMessageQueue(Task) == FALSE) return FALSE;
 
     LockMutex(&(Task->Mutex), INFINITY);
     LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
@@ -1516,7 +1633,13 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);
 #endif
     VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
-    VERBOSE(TEXT("Queued messages : %u"), Task->MessageQueue.Messages->NumItems);
+    UINT PendingMessages = 0;
+
+    if (Task->MessageQueue.Messages != NULL) {
+        PendingMessages = Task->MessageQueue.Messages->NumItems;
+    }
+
+    VERBOSE(TEXT("Queued messages : %u"), PendingMessages);
 
     UnlockMutex(&(Task->Mutex));
 }
