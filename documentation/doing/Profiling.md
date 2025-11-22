@@ -23,10 +23,10 @@
 3. [x] **Time source**
    - Use current system clock ticks (10 ms resolution via `GetSystemTime()`); keep raw tick values and convert on dump.
 
-4. [ ] **Data storage**
-   - Implement a fixed-size circular table (e.g., 4096 entries) of structs containing: Name, Count, LastTicks, TotalTicks, MaxTicks.
-   - No dynamic allocation; static storage in Profile.c.
-   - Use simple locking strategy that is valid in interrupt and task contexts (e.g., Disable/EnableInterrupts around updates or a lightweight spinlock already present).
+4. [x] **Data storage**
+   - Use existing `utils/CircularBuffer` with static storage for samples; fixed-size buffer holds `{Name, DurationTicks}` events.
+   - Aggregate on dump into a small stats array (count/last/total/max); static, no dynamic allocation.
+   - Buffer is initialized on first use; warning on overflow.
 
 5. [ ] **Integration points**
    - Wrap suspected slow paths with `ProfileScoped(...)`:

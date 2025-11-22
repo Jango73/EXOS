@@ -35,11 +35,24 @@
 
 /************************************************************************/
 
-typedef struct tagPROFILE_SCOPE {
+typedef struct tag_PROFILE_SCOPE {
     LPCSTR Name;
     UINT StartTicks;
     UINT State;
 } PROFILE_SCOPE, *LPPROFILE_SCOPE;
+
+typedef struct tag_PROFILE_SAMPLE {
+    LPCSTR Name;
+    UINT DurationTicks;
+} PROFILE_SAMPLE, *LPPROFILE_SAMPLE;
+
+typedef struct tag_PROFILE_STATS {
+    LPCSTR Name;
+    UINT Count;
+    UINT LastTicks;
+    UINT TotalTicks;
+    UINT MaxTicks;
+} PROFILE_STATS, *LPPROFILE_STATS;
 
 /************************************************************************/
 
