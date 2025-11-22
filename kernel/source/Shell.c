@@ -169,7 +169,7 @@ static struct {
     {"logout", "logout", "", CMD_logout},
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
-    {"prof", "prof", "", CMD_prof},
+    {"prof", "profiling", "", CMD_prof},
     {"", "", "", NULL},
 };
 
