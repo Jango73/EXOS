@@ -19,7 +19,7 @@
 6. [X] Consume messages in tasks
    - Extend PeekMessage/GetMessage to read from the calling task’s queue when handle is NULL.
    - Update shell and other windowless apps to replace keyboard polling loops with PeekMessage/GetMessage handling key messages.
-7. [ ] Adapt Edit.c to the event system
+7. [X] Adapt Edit.c to the event system
    - Replace keyboard polling with PeekMessage/GetMessage handling EWM_KEYDOWN.
    - Preserve existing navigation/editing behavior.
 8. [ ] Synchronization and wakeup
@@ -77,3 +77,8 @@
 
 - Implemented `PeekMessage` in kernel and syscall/runtime layers; it reads from the caller’s task queue (non-blocking) with optional target filter.
 - Shell input now consumes `EWM_KEYDOWN` via `GetMessage` in `CommandLineEditorReadLine`, replacing keyboard polling.
+
+# Step 7 implementation (Edit.c event handling)
+
+- Editor main loop now blocks on `GetMessage` and processes `EWM_KEYDOWN` events (VirtualKey in Param1, ASCII in Param2), removing keyboard polling.
+- Menu shortcuts and editing/navigation logic preserved; modifier checks still use existing helper functions.
