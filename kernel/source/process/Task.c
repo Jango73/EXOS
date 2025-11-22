@@ -1107,6 +1107,11 @@ static void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
 
     ListAddItem(Task->MessageQueue.Messages, Message);
 
+    if (Task->MessageQueue.Waiting && GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
+        Task->MessageQueue.Waiting = FALSE;
+        SetTaskStatus(Task, TASK_STATUS_RUNNING);
+    }
+
     UnlockMutex(&(Task->MessageQueue.Mutex));
     UnlockMutex(&(Task->Mutex));
 }
@@ -1419,6 +1424,10 @@ void WaitForMessage(LPTASK Task) {
     //-------------------------------------
     // Change the task's status
 
+    if (EnsureTaskMessageQueue(Task) == TRUE) {
+        Task->MessageQueue.Waiting = TRUE;
+    }
+
     SetTaskStatus(Task, TASK_STATUS_WAITMESSAGE);
     SetTaskWakeUpTime(Task, MAX_U16);
 
@@ -1430,6 +1439,10 @@ void WaitForMessage(LPTASK Task) {
 
     while (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
         IdleCPU();
+    }
+
+    if (EnsureTaskMessageQueue(Task) == TRUE) {
+        Task->MessageQueue.Waiting = FALSE;
     }
 }
 

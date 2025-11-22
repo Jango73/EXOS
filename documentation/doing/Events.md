@@ -22,7 +22,7 @@
 7. [X] Adapt Edit.c to the event system
    - Replace keyboard polling with PeekMessage/GetMessage handling EWM_KEYDOWN.
    - Preserve existing navigation/editing behavior.
-8. [ ] Synchronization and wakeup
+8. [X] Synchronization and wakeup
    - Ensure queue ops are thread-safe (locks/irq masking) and that GetMessage can block; wake the task when a message is enqueued.
    - Keep PeekMessage non-blocking; confirm scheduler interaction for wakeups is correct.
 9. [ ] Compatibility, tracing, and docs
@@ -82,3 +82,8 @@
 
 - Editor main loop now blocks on `GetMessage` and processes `EWM_KEYDOWN` events (VirtualKey in Param1, ASCII in Param2), removing keyboard polling.
 - Menu shortcuts and editing/navigation logic preserved; modifier checks still use existing helper functions.
+
+# Step 8 implementation (synchronization/wakeup)
+
+- Added queue-level waiting flag: `WaitForMessage` marks the queue as waiting and clears it after wake; `AddTaskMessage` checks the flag to wake tasks and reset it.
+- Preserved lock ordering (task mutex then queue mutex) and kept `PeekMessage` non-blocking; `GetMessage` still blocks via `WaitForMessage` but now cooperates with the queue flag to avoid missed wakeups.
