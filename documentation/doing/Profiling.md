@@ -20,9 +20,8 @@
    - Use Base.h types: ticks as UINT or PHYSICAL where appropriate; names stored as const char* literals.
    - Doxygen headers + 75-char separators between functions.
 
-3. [ ] **Time source**
-   - Use existing cycle counter accessor (e.g., ReadTSC or equivalent) shared across i386/x86-64.
-   - Keep raw tick values; convert to ns/ms only in dump to reduce overhead.
+3. [x] **Time source**
+   - Use current system clock ticks (10 ms resolution via `GetSystemTime()`); keep raw tick values and convert on dump.
 
 4. [ ] **Data storage**
    - Implement a fixed-size circular table (e.g., 4096 entries) of structs containing: Name, Count, LastTicks, TotalTicks, MaxTicks.

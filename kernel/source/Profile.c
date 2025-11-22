@@ -22,8 +22,16 @@
 \************************************************************************/
 
 #include "Profile.h"
+#include "Clock.h"
 
 #if CONFIG_PROFILE
+
+/************************************************************************/
+// Temporary time source: system clock updated at 10 ms resolution.
+static inline UINT ProfileGetTicks(void)
+{
+    return GetSystemTime();
+}
 
 /************************************************************************/
 
@@ -44,7 +52,7 @@ void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name)
     }
 
     Scope->Name = Name;
-    Scope->StartTicks = 0;
+    Scope->StartTicks = ProfileGetTicks();
     Scope->State = PROFILE_SCOPE_STATE_ACTIVE;
 }
 
