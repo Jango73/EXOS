@@ -83,7 +83,8 @@ CONSOLE_STRUCT Console = {
  * @param CursorY Y coordinate of the cursor.
  */
 void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
-    PROFILE_SCOPED("SetConsoleCursorPosition");
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("SetConsoleCursorPosition"));
 
     U32 Position = (CursorY * Console.Width) + CursorX;
 
@@ -98,6 +99,8 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     OutPortByte(Console.Port + CGA_DATA, (Position >> 0) & 0xFF);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -135,7 +138,8 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
  * @param Char Character to display.
  */
 void SetConsoleCharacter(STR Char) {
-    PROFILE_SCOPED("SetConsoleCharacter");
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("SetConsoleCharacter"));
 
     U32 Offset = 0;
 
@@ -145,6 +149,8 @@ void SetConsoleCharacter(STR Char) {
     Console.Memory[Offset] = Char | (CHARATTR << 0x08);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -153,7 +159,8 @@ void SetConsoleCharacter(STR Char) {
  * @brief Scroll the console up by one line.
  */
 void ScrollConsole(void) {
-    PROFILE_SCOPED("ScrollConsole");
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("ScrollConsole"));
 
     U32 CurX, CurY, Src, Dst;
     U32 Width, Height;
@@ -166,6 +173,9 @@ void ScrollConsole(void) {
     Width = Console.Width;
     Height = Console.Height;
 
+    PROFILE_SCOPE ScopeCopy;
+    ProfileStart(&ScopeCopy, TEXT("ScrollConsole.Copy"));
+
     for (CurY = 1; CurY < Height; CurY++) {
         Src = CurY * Width;
         Dst = Src - Width;
@@ -176,6 +186,8 @@ void ScrollConsole(void) {
         }
     }
 
+    ProfileStop(&ScopeCopy);
+
     CurY = Height - 1;
 
     for (CurX = 0; CurX < Width; CurX++) {
@@ -183,6 +195,8 @@ void ScrollConsole(void) {
     }
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -217,7 +231,8 @@ void ClearConsole(void) {
  * @param Char Character to print.
  */
 void ConsolePrintChar(STR Char) {
-    PROFILE_SCOPED("ConsolePrintChar");
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("ConsolePrintChar"));
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
@@ -255,6 +270,8 @@ void ConsolePrintChar(STR Char) {
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -290,7 +307,8 @@ Out:
  * @param Text String to print.
  */
 static void ConsolePrintString(LPCSTR Text) {
-    PROFILE_SCOPED("ConsolePrintString");
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("ConsolePrintString"));
 
     U32 Index = 0;
 
@@ -304,6 +322,8 @@ static void ConsolePrintString(LPCSTR Text) {
     }
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/

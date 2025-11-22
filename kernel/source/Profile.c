@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -26,36 +27,95 @@
 #include "utils/CircularBuffer.h"
 #include "CoreString.h"
 #include "Log.h"
+#include "Console.h"
+#include "System.h"
 
-#if CONFIG_PROFILE
+#if PROFILING
 
 /************************************************************************/
-// Temporary time source: system clock updated at 10 ms resolution.
+// Time source: PIT counter read (channel 0, latched), for sub-ms deltas.
+// We combine PIT ticks with coarse GetSystemTime() to handle wrap.
 static inline UINT ProfileGetTicks(void)
 {
-    return GetSystemTime();
+    U32 Flags;
+    U8 Low;
+    U8 High;
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    OutPortByte(0x43, 0x00);           // Latch channel 0 count
+    Low = InPortByte(0x40);            // Read low byte
+    High = InPortByte(0x40);           // Read high byte
+
+    RestoreFlags(&Flags);
+
+    UINT Latched = ((UINT)High << 8) | (UINT)Low;
+
+    // Combine with coarse system time to avoid wrap confusion
+    // (PIT counts down from DIVISOR to 0).
+    UINT CoarseMs = GetSystemTime();
+    return (CoarseMs << 16) | Latched;
 }
 
 /************************************************************************/
 
-#define PROFILE_BUFFER_ENTRIES 512
+#define PROFILE_MAX_STATS 64
+#define PIT_FREQUENCY 1193180u
+#define PIT_DIVISOR 11932u
 
-static CIRCULAR_BUFFER ProfileBuffer;
-static PROFILE_SAMPLE ProfileStorage[PROFILE_BUFFER_ENTRIES];
-static BOOL ProfileBufferInitialized = FALSE;
+static PROFILE_STATS ProfileStats[PROFILE_MAX_STATS];
+static UINT ProfileStatsCount = 0;
+static UINT ProfileSamplesWritten = 0;
+static UINT ProfileSamplesDropped = 0;
+static UINT ProfileSamplesLogged = 0;
 
 /************************************************************************/
 
-static void ProfileEnsureBuffer(void)
+static UINT ProfileReadPITCount(void)
 {
-    if (ProfileBufferInitialized == FALSE)
+    U32 Flags;
+    U8 Low;
+    U8 High;
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    OutPortByte(0x43, 0x00);           // Latch channel 0 count
+    Low = InPortByte(0x40);            // Read low byte
+    High = InPortByte(0x40);           // Read high byte
+
+    RestoreFlags(&Flags);
+
+    return ((UINT)High << 8) | (UINT)Low;
+}
+
+/************************************************************************/
+
+static LPPROFILE_STATS ProfileFindOrCreate(LPCSTR Name)
+{
+    for (UINT Index = 0; Index < ProfileStatsCount; ++Index)
     {
-        CircularBuffer_Initialize(&ProfileBuffer,
-                                  (U8*)ProfileStorage,
-                                  sizeof(ProfileStorage),
-                                  sizeof(ProfileStorage));
-        ProfileBufferInitialized = TRUE;
+        if (ProfileStats[Index].Name == Name)
+        {
+            return &ProfileStats[Index];
+        }
     }
+
+    if (ProfileStatsCount >= PROFILE_MAX_STATS)
+    {
+        ProfileSamplesDropped++;
+        return NULL;
+    }
+
+    ProfileStats[ProfileStatsCount].Name = Name;
+    ProfileStats[ProfileStatsCount].Count = 0;
+    ProfileStats[ProfileStatsCount].LastTicks = 0;
+    ProfileStats[ProfileStatsCount].TotalTicks = 0;
+    ProfileStats[ProfileStatsCount].MaxTicks = 0;
+
+    ProfileStatsCount++;
+    return &ProfileStats[ProfileStatsCount - 1];
 }
 
 /************************************************************************/
@@ -67,18 +127,32 @@ static void ProfileRecordSample(LPCSTR Name, UINT DurationTicks)
         return;
     }
 
-    ProfileEnsureBuffer();
-
-    PROFILE_SAMPLE Sample;
-    Sample.Name = Name;
-    Sample.DurationTicks = DurationTicks;
-
-    U32 Written = CircularBuffer_Write(&ProfileBuffer, (U8*)&Sample, sizeof(Sample));
-    if (Written != sizeof(Sample))
+    LPPROFILE_STATS Entry = ProfileFindOrCreate(Name);
+    if (Entry == NULL)
     {
-        WARNING(TEXT("[ProfileRecordSample] Buffer overflow (written=%u size=%u)"),
-                Written,
-                (UINT)sizeof(Sample));
+        ProfileSamplesDropped++;
+        return;
+    }
+
+    Entry->Count++;
+    Entry->LastTicks = DurationTicks;
+    Entry->TotalTicks += DurationTicks;
+    if (DurationTicks > Entry->MaxTicks)
+    {
+        Entry->MaxTicks = DurationTicks;
+    }
+
+    ProfileSamplesWritten++;
+
+    if (ProfileSamplesLogged < 8)
+    {
+        DEBUG(TEXT("[ProfileRecordSample] name=%s duration=%u ticks=%u written=%u dropped=%u"),
+              Entry->Name,
+              DurationTicks,
+              DurationTicks,
+              ProfileSamplesWritten,
+              ProfileSamplesDropped);
+        ProfileSamplesLogged++;
     }
 }
 
@@ -101,7 +175,8 @@ void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name)
     }
 
     Scope->Name = Name;
-    Scope->StartTicks = ProfileGetTicks();
+    Scope->StartMillis = GetSystemTime();
+    Scope->StartCount = ProfileReadPITCount();
     Scope->State = PROFILE_SCOPE_STATE_ACTIVE;
 }
 
@@ -124,9 +199,21 @@ void ProfileStop(LPPROFILE_SCOPE Scope)
 
     Scope->State = PROFILE_SCOPE_STATE_INACTIVE;
 
-    UINT EndTicks = ProfileGetTicks();
-    UINT DurationTicks = (EndTicks >= Scope->StartTicks) ? (EndTicks - Scope->StartTicks) : 0;
-    ProfileRecordSample(Scope->Name, DurationTicks);
+    UINT EndMillis = GetSystemTime();
+    UINT EndCount = ProfileReadPITCount();
+
+    UINT BaseMillis = (EndMillis >= Scope->StartMillis) ? (EndMillis - Scope->StartMillis) : 0;
+    UINT BaseMicros = BaseMillis * 1000;
+
+    UINT StartOffsetMicros = ((PIT_DIVISOR - Scope->StartCount) * 1000000u) / PIT_FREQUENCY;
+    UINT EndOffsetMicros = ((PIT_DIVISOR - EndCount) * 1000000u) / PIT_FREQUENCY;
+
+    INT OffsetDelta = (INT)EndOffsetMicros - (INT)StartOffsetMicros;
+    INT DurationMicrosSigned = (INT)BaseMicros + OffsetDelta;
+
+    UINT DurationMicros = (DurationMicrosSigned >= 0) ? (UINT)DurationMicrosSigned : 0;
+
+    ProfileRecordSample(Scope->Name, DurationMicros);
 }
 
 /************************************************************************/
@@ -138,81 +225,55 @@ void ProfileStop(LPPROFILE_SCOPE Scope)
  */
 void ProfileDump(void)
 {
-    ProfileEnsureBuffer();
-
-    U32 AvailableBytes = CircularBuffer_GetAvailableData(&ProfileBuffer);
-    UINT SampleCount = (UINT)(AvailableBytes / sizeof(PROFILE_SAMPLE));
-
-    if (SampleCount == 0)
+    if (ProfileStatsCount == 0)
     {
-        VERBOSE(TEXT("[ProfileDump] No samples available"));
+        DEBUG(TEXT("[ProfileDump] No samples available (written=%u dropped=%u)"),
+              ProfileSamplesWritten,
+              ProfileSamplesDropped);
         return;
     }
 
-    PROFILE_STATS Stats[64];
-    UINT StatsCount = 0;
-
-    for (UINT Index = 0; Index < SampleCount; ++Index)
+    for (UINT StatIndex = 0; StatIndex < ProfileStatsCount; ++StatIndex)
     {
-        PROFILE_SAMPLE Sample;
-        U32 Read = CircularBuffer_Read(&ProfileBuffer, (U8*)&Sample, sizeof(Sample));
-        if (Read != sizeof(Sample))
-        {
-            WARNING(TEXT("[ProfileDump] Partial read (read=%u expected=%u)"),
-                    Read,
-                    (UINT)sizeof(Sample));
-            break;
-        }
-
-        UINT StatIndex = MAX_U32;
-        for (UINT StatScan = 0; StatScan < StatsCount; ++StatScan)
-        {
-            if (Stats[StatScan].Name == Sample.Name)
-            {
-                StatIndex = StatScan;
-                break;
-            }
-        }
-
-        if (StatIndex == MAX_U32)
-        {
-            if (StatsCount >= (UINT)(sizeof(Stats) / sizeof(Stats[0])))
-            {
-                WARNING(TEXT("[ProfileDump] Stats table full (limit=%u)"), StatsCount);
-                continue;
-            }
-
-            StatIndex = StatsCount++;
-            Stats[StatIndex].Name = Sample.Name;
-            Stats[StatIndex].Count = 0;
-            Stats[StatIndex].LastTicks = 0;
-            Stats[StatIndex].TotalTicks = 0;
-            Stats[StatIndex].MaxTicks = 0;
-        }
-
-        Stats[StatIndex].Count++;
-        Stats[StatIndex].LastTicks = Sample.DurationTicks;
-        Stats[StatIndex].TotalTicks += Sample.DurationTicks;
-        if (Sample.DurationTicks > Stats[StatIndex].MaxTicks)
-        {
-            Stats[StatIndex].MaxTicks = Sample.DurationTicks;
-        }
-    }
-
-    for (UINT StatIndex = 0; StatIndex < StatsCount; ++StatIndex)
-    {
-        UINT Average = (Stats[StatIndex].Count > 0)
-                           ? (Stats[StatIndex].TotalTicks / Stats[StatIndex].Count)
+        UINT Average = (ProfileStats[StatIndex].Count > 0)
+                           ? (ProfileStats[StatIndex].TotalTicks / ProfileStats[StatIndex].Count)
                            : 0;
 
-        DEBUG(TEXT("[ProfileDump] name=%s count=%u last=%u ms avg=%u ms max=%u ms total=%u ms"),
-              Stats[StatIndex].Name,
-              Stats[StatIndex].Count,
-              Stats[StatIndex].LastTicks,
+        DEBUG(TEXT("[ProfileDump] name=%s count=%u last=%u us avg=%u us max=%u us total=%u us"),
+              ProfileStats[StatIndex].Name,
+              ProfileStats[StatIndex].Count,
+              ProfileStats[StatIndex].LastTicks,
               Average,
-              Stats[StatIndex].MaxTicks,
-              Stats[StatIndex].TotalTicks);
+              ProfileStats[StatIndex].MaxTicks,
+              ProfileStats[StatIndex].TotalTicks);
     }
+
+    DEBUG(TEXT("[ProfileDump] samples=%u dropped=%u"),
+          ProfileSamplesWritten,
+          ProfileSamplesDropped);
+}
+
+/************************************************************************/
+#else
+
+void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name)
+{
+    UNUSED(Scope);
+    UNUSED(Name);
+}
+
+/************************************************************************/
+
+void ProfileStop(LPPROFILE_SCOPE Scope)
+{
+    UNUSED(Scope);
+}
+
+/************************************************************************/
+
+void ProfileDump(void)
+{
+    DEBUG(TEXT("[ProfileDump] Profiling disabled"));
 }
 
 /************************************************************************/

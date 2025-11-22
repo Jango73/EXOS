@@ -37,8 +37,8 @@ extern "C" {
 
 /************************************************************************/
 
-#ifndef CONFIG_PROFILE
-    #define CONFIG_PROFILE 0
+#ifndef PROFILING
+    #define PROFILING 0
 #endif
 
 /************************************************************************/

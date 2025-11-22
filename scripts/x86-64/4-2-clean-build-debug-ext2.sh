@@ -4,5 +4,6 @@ export SCHEDULING_DEBUG_OUTPUT=0
 export TRACE_STACK_USAGE=0
 export KERNEL_FILE="exos.bin"
 export FILE_SYSTEM=ext2
+export PROFILING=1
 make ARCH=x86-64 clean
 make ARCH=x86-64 -j$(nproc)

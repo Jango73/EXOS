@@ -37,7 +37,8 @@
 
 typedef struct tag_PROFILE_SCOPE {
     LPCSTR Name;
-    UINT StartTicks;
+    UINT StartMillis;
+    UINT StartCount;
     UINT State;
 } PROFILE_SCOPE, *LPPROFILE_SCOPE;
 
@@ -56,31 +57,9 @@ typedef struct tag_PROFILE_STATS {
 
 /************************************************************************/
 
-#if CONFIG_PROFILE
-
 void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name);
 void ProfileStop(LPPROFILE_SCOPE Scope);
 void ProfileDump(void);
-
-#else
-
-static inline void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name)
-{
-    UNUSED(Scope);
-    UNUSED(Name);
-}
-
-static inline void ProfileStop(LPPROFILE_SCOPE Scope)
-{
-    UNUSED(Scope);
-}
-
-static inline void ProfileDump(void)
-{
-}
-
-#endif
-
 /************************************************************************/
 
 static inline void ProfileScopeBegin(LPPROFILE_SCOPE Scope, LPCSTR Name)
