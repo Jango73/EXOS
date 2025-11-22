@@ -3,7 +3,7 @@
 1. [X] Inventory current message system and keyboard path
    - Map existing window message structures/functions (SendMessage, PostMessage, PeekMessage, GetMessage, queues, init/destroy, synchronization).
    - Trace keyboard flow (ISR/driver → dispatch → window) to locate injection points and polling loops (e.g., shell).
-2. [ ] Define unified MessageQueue abstraction
+2. [X] Define unified MessageQueue abstraction
    - Specify common queue struct and ops (init/destroy, push/pop/peek, wait/wakeup, capacity/limits) usable by both windows and tasks.
    - Align message format for task delivery (key codes, flags, optional sender).
 3. [ ] Extend API contract to handle NULL handles for tasks
@@ -33,3 +33,13 @@
 - Retrieval/waiting: `GetMessage` (Task.c) works on current task queue, blocking via `WaitForMessage` (sets status to `TASK_STATUS_WAITMESSAGE` and spins with `IdleCPU`). Optional filter by `Message->Target`; `Message->Target==NULL` pops FIFO. `PeekMessage` not implemented in kernel/syscall.
 - Keyboard path (polling): `drivers/Keyboard.c` ISR (`KeyboardHandler` → `HandleScanCode`) fills `Keyboard.Buffer` with `SendKeyCodeToBuffer`; state exposed via `PeekChar`, `GetKeyCode`, `GetChar`, and syscalls `SysCall_ConsolePeekKey`/`SysCall_ConsoleGetKey`. No posting into message queues.
 - Polling consumers: Shell input uses `CommandLineEditorReadLine` (`kernel/source/utils/CommandLineEditor.c`) with `FOREVER` loop polling `PeekChar`/`GetKeyCode`; similar polling appears in other utilities (`MemoryEditor.c`, `Console.c`, `Edit.c`, etc.). Currently no event-driven consumption for tasks without windows.
+
+# Step 2 design (unified MessageQueue abstraction)
+
+- Queue struct: introduce shared `MESSAGEQUEUE` holding `LPLIST Messages`, `MUTEX Mutex`, optional `UINT Flags`/`Capacity`, and a waiter indicator (e.g., `BOOL Waiting` or count) to wake tasks. Owned by TASK and by window/desktop wrappers.
+- Initialization/lifecycle: `MessageQueueInit(MessageQueue*, AllocFn)` to set mutex + list (using existing `NewList`/`MessageDestructor`); `MessageQueueDestroy` to delete list. Task creation/teardown calls these; window contexts reuse the same helper instead of custom setup in `NewTask`.
+- Enqueue path: `MessageQueueEnqueue(queue, targetHandle, msgId, p1, p2, dedupeFlags)` creates `MESSAGE`, sets fields/time, and pushes to tail. Allow dedupe hook for `EWM_DRAW`-style messages to reuse existing entry. Returns BOOL for success/failure.
+- Dequeue/peek: `MessageQueuePeek(queue, filterHandle, out Message)` is non-blocking; leaves entry in place. `MessageQueueDequeue(queue, filterHandle, out Message)` pops FIFO or first matching target (mirrors current `GetMessage` behavior). Both operate under the queue mutex only.
+- Wait/wakeup: `MessageQueueWait(queue, Task)` sets task to `TASK_STATUS_WAITMESSAGE` and blocks (current `WaitForMessage` semantics). `MessageQueueSignal(queue)` wakes a waiting task (sets status RUNNING) when enqueue succeeds. Keeps scheduler interaction centralized.
+- Message format alignment: retain `MESSAGE` layout (Target, Time, Message, Param1, Param2). Standardize keyboard-to-task payload: `Param1` virtual key or ASCII code, `Param2` modifier/flags, so dispatchers can share mapping.
+- Integration intent: TASK embeds `MESSAGEQUEUE`; window message queues become the same queue filtered by handle. `PostMessage`/`GetMessage`/`PeekMessage` wrappers call these helpers, eliminating duplicate mutex logic and allowing NULL-handle task messages without special-case code.
