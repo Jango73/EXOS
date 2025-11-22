@@ -13,9 +13,9 @@
    - Add a global config toggle (CONFIG_PROFILE) in an existing config header used by both arches.
    - Default OFF; enable with `make PROFILE=1` so profiling code (and shell command) compiles in.
 
-2. [ ] **Add profiling API (shared)**
+2. [x] **Add profiling API (shared)**
    - Create `kernel/source/Profile.h`/`Profile.c`.
-   - API: `ProfileStart(const char* Name)`, `ProfileStop(const char* Name)`, `ProfileScoped(name_literal)` macro, `ProfileDump(void)` for reporting.
+   - API: `ProfileStart(LPPROFILE_SCOPE Scope, const char* Name)`, `ProfileStop(LPPROFILE_SCOPE Scope)`, `PROFILE_SCOPED(name_literal)` macro, `ProfileDump(void)` for reporting.
    - Provide no-op inline stubs when CONFIG_PROFILE is not defined.
    - Use Base.h types: ticks as UINT or PHYSICAL where appropriate; names stored as const char* literals.
    - Doxygen headers + 75-char separators between functions.
