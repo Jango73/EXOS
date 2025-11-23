@@ -149,23 +149,13 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
  */
 BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
-    IOCONTROL Control;
     LPFAT32MBR Master;
     LPFAT32FILESYSTEM FileSystem;
-    U32 Result;
+    BOOL Success;
 
 
-    Control.TypeID = KOID_IOCONTROL;
-    Control.Disk = Disk;
-    Control.SectorLow = Base + Partition->LBA;
-    Control.SectorHigh = 0;
-    Control.NumSectors = 1;
-    Control.Buffer = (LPVOID)Buffer;
-    Control.BufferSize = SECTOR_SIZE;
-
-    Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
-
-    if (Result != DF_ERROR_SUCCESS) return FALSE;
+    Success = FATReadBootSector(Disk, Partition, Base, (LPVOID)Buffer);
+    if (Success == FALSE) return FALSE;
 
     //-------------------------------------
     // Assign a pointer to the sector
@@ -180,11 +170,6 @@ BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     if (Master->FATName[2] != 'T') return FALSE;
     if (Master->FATName[3] != '3') return FALSE;
     if (Master->FATName[4] != '2') return FALSE;
-
-    //-------------------------------------
-    // Check for presence of BIOS mark
-
-    if (Master->BIOSMark != 0xAA55) return FALSE;
 
     //-------------------------------------
     // Create the file system object
@@ -1842,4 +1827,3 @@ UINT FAT32Commands(UINT Function, UINT Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-
