@@ -262,34 +262,9 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
  * @return 1 on success, otherwise 0.
  */
 
-static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
-    NETWORKSEND Send;
-    LPDEVICE Device;
-    int Result = 0;
-
-    if (Context == NULL || Context->Device == NULL) return 0;
-
-    // Validate Data pointer and Length to prevent memory corruption
-    if (Data == NULL || Length == 0) {
-        DEBUG(TEXT("[ArpSendFrame] Invalid Data pointer or Length: Data=%x Length=%u"), (U32)Data, Length);
-        return 0;
-    }
-
-    Device = Context->Device;
-
-    LockMutex(&(Device->Mutex), INFINITY);
-
-    Send.Device = (LPPCI_DEVICE)Device;
-    Send.Data = Data;
-    Send.Length = Length;
-    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (UINT)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
-        }
-    }
-
-    UnlockMutex(&(Device->Mutex));
-    return Result;
+static INT ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
+    if (Context == NULL) return 0;
+    return Network_SendRawFrame(Context->Device, Data, Length);
 }
 
 /************************************************************************/

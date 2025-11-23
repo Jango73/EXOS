@@ -28,6 +28,7 @@
 /************************************************************************/
 
 #include "drivers/PCI.h"
+#include "Device.h"
 #include "User.h"
 
 /************************************************************************/
@@ -90,5 +91,17 @@ typedef struct tag_NETWORKSEND {
 typedef struct tag_NETWORKPOLL {
     LPPCI_DEVICE Device;
 } NETWORKPOLL, *LPNETWORKPOLL;
+
+/************************************************************************/
+
+/**
+ * @brief Send a raw Ethernet frame through a network device.
+ *
+ * @param Device Target network device.
+ * @param Data Pointer to frame buffer.
+ * @param Length Frame length in bytes.
+ * @return 1 on success, 0 otherwise.
+ */
+INT Network_SendRawFrame(LPDEVICE Device, const U8 *Data, U32 Length);
 
 #endif  // NETWORK_H_INCLUDED
