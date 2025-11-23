@@ -206,6 +206,56 @@ void ReleaseHandle(HANDLE Handle) {
 /************************************************************************/
 
 /**
+ * @brief Retrieve the desktop currently holding input focus.
+ * @return Focused desktop pointer or NULL if none is set.
+ */
+LPDESKTOP GetFocusedDesktop(void) {
+    return Kernel.FocusedDesktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set the desktop that holds input focus.
+ * @param Desktop Desktop to focus, may be NULL to clear focus.
+ */
+void SetFocusedDesktop(LPDESKTOP Desktop) {
+    Kernel.FocusedDesktop = Desktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the process currently holding input focus.
+ * @return Focused process pointer or NULL if none is set.
+ */
+LPPROCESS GetFocusedProcess(void) {
+    return Kernel.FocusedProcess;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set the process that holds input focus.
+ * @param Process Process to focus, may be NULL to clear focus.
+ */
+void SetFocusedProcess(LPPROCESS Process) {
+    Kernel.FocusedProcess = Process;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Get the global input message queue used by focused tasks.
+ * @return Pointer to the shared input queue.
+ */
+LPMESSAGEQUEUE GetInputMessageQueue(void) {
+    return &(Kernel.InputMessageQueue);
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieves basic CPU identification data.
  *
  * Populates the provided structure using CPUID information, including
@@ -240,6 +290,37 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
     Info->Features = Regs[1].reg_EDX;
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize focus defaults and the global input queue.
+ */
+static void InitializeFocusState(void) {
+    MemorySet(&(Kernel.InputMessageQueue), 0, sizeof(MESSAGEQUEUE));
+
+    if (InitMessageQueue(&(Kernel.InputMessageQueue)) == FALSE) {
+        ERROR(TEXT("[InitializeFocusState] Failed to initialize global input queue"));
+    }
+
+    if (Kernel.FocusedDesktop == NULL) {
+        if (Kernel.Desktop != NULL) {
+            Kernel.FocusedDesktop = (LPDESKTOP)Kernel.Desktop->First;
+        }
+
+        if (Kernel.FocusedDesktop == NULL) {
+            Kernel.FocusedDesktop = &MainDesktop;
+        }
+    }
+
+    if (KernelProcess.Desktop == NULL) {
+        KernelProcess.Desktop = Kernel.FocusedDesktop;
+    }
+
+    if (Kernel.FocusedProcess == NULL) {
+        Kernel.FocusedProcess = &KernelProcess;
+    }
 }
 
 /************************************************************************/
@@ -1011,6 +1092,9 @@ void InitializeKernel(void) {
 
     HandleMapInit(&Kernel.HandleMap);
     DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
+
+    InitializeFocusState();
+    DEBUG(TEXT("[InitializeKernel] Focus state initialized"));
 
     //-------------------------------------
     // Initialize quantum time based on environment and debug settings

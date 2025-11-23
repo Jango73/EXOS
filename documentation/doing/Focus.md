@@ -4,10 +4,10 @@
 - Introduce explicit focus (desktop + process) and a global input message queue so only the foreground process receives keyboard events; eliminate broadcast side effects.
 
 ## Plan
-1. [ ] **Kernel focus state (KernelData.c:Kernel)**
+1. [x] **Kernel focus state (KernelData.c:Kernel)**
    - Add focused desktop pointer and focused process pointer with getters/setters (header export as needed). Keep names consistent with existing Kernel fields and follow ordering (#defines, typedefs, inlines, externs).
    - Add a global input message queue instance in Kernel for device input ingress (keyboard first). Document ownership and init path.
-2. [ ] **Initialization wiring**
+2. [x] **Initialization wiring**
    - Initialize focus pointers during Kernel init to the default desktop/process; ensure the global queue is constructed/reset there.
    - Provide safe defaults if no desktop/process is focused yet.
 3. [ ] **Input enqueue path**

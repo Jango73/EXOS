@@ -51,6 +51,7 @@
 #include "User.h"
 #include "UserAccount.h"
 #include "SystemFS.h"
+#include "process/Task.h"
 
 /************************************************************************/
 
@@ -141,6 +142,9 @@ typedef struct tag_KERNELDATA {
     LPLIST Drivers;                 // Driver list in initialization order
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
+    LPDESKTOP FocusedDesktop;       // Desktop with input focus
+    LPPROCESS FocusedProcess;       // Process with input focus
+    MESSAGEQUEUE InputMessageQueue; // Global input message queue
     CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
     FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     SYSTEMFSFILESYSTEM SystemFS;
@@ -178,6 +182,11 @@ void KernelObjectDestructor(LPVOID);
 LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID);
 void ReleaseKernelObject(LPVOID Object);
 void ReleaseProcessKernelObjects(struct tag_PROCESS* Process);
+LPDESKTOP GetFocusedDesktop(void);
+void SetFocusedDesktop(LPDESKTOP Desktop);
+LPPROCESS GetFocusedProcess(void);
+void SetFocusedProcess(LPPROCESS Process);
+LPMESSAGEQUEUE GetInputMessageQueue(void);
 void DoPageFault(void);
 HANDLE PointerToHandle(LINEAR Pointer);
 LINEAR HandleToPointer(HANDLE Handle);

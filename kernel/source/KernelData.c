@@ -203,6 +203,9 @@ KERNELDATA DATA_SECTION Kernel = {
     .Socket = &SocketList,
     .UserSessions = NULL,
     .UserAccount = &UserAccountList,
+    .FocusedDesktop = NULL,
+    .FocusedProcess = NULL,
+    .InputMessageQueue = {0},
     .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {
         .Header = {
