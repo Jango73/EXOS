@@ -258,6 +258,12 @@ void DeleteProcessCommit(LPPROCESS This) {
 
         DEBUG(TEXT("[DeleteProcessCommit] Deleting process %s (TaskCount=%u)"), This->FileName, This->TaskCount);
 
+        SAFE_USE_VALID_ID(This->Desktop, KOID_DESKTOP) {
+            if (This->Desktop->FocusedProcess == This) {
+                This->Desktop->FocusedProcess = &KernelProcess;
+            }
+        }
+
         // Free page directory if allocated
         // TODO : FREE ALL PD PAGES
         if (This->PageDirectory != 0) {
@@ -716,6 +722,10 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     // Add the new process to the kernel's process list
 
     ListAddItem(Kernel.Process, Process);
+
+    if (GetFocusedDesktop() == Process->Desktop) {
+        SetFocusedProcess(Process);
+    }
 
     //-------------------------------------
     // Add initial task to the scheduler's queue

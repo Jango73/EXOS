@@ -134,17 +134,24 @@ arrives and clears the waiting flag.
 Message posting:
 - `PostMessage` accepts NULL targets (current task), task handles, and window
   handles; window targets enqueue into the owning task queue. Keyboard drivers
-  broadcast `EWM_KEYDOWN` events to all tasks via `BroadcastMessage`.
+  and the mouse dispatcher push input events into the global input queue using
+  `EnqueueInputMessage` so only the focused process sees them.
 - Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE`
-  with a 10ms cooldown between broadcasts, while button changes still dispatch
-  immediately through `BroadcastMessage`.
+  with a 10ms cooldown between enqueues, while button changes still dispatch
+  immediately through the shared input queue.
 - `SendMessage` remains synchronous and window-only.
 
 Message retrieval:
-- `GetMessage` blocks on the caller’s task queue, optionally filtering by
-  target. `PeekMessage` is non-blocking and reads without removal. Userland
-  syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel
-  implementations.
+- `GetMessage`/`PeekMessage` first check the global input queue when the
+  caller’s process has focus (desktop focus + per-desktop `FocusedProcess`),
+  then fall back to the task’s own queue. `GetMessage` blocks if neither queue
+  holds messages; `PeekMessage` is non-blocking. Userland syscalls translate
+  handles in `MESSAGEINFO` before dispatching to the kernel implementations.
+- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`.
+  When a process is created on the focused desktop it becomes the focused
+  process; when a focused process dies its desktop falls back to the kernel
+  process. The focus setters ensure a focused process always exists for the
+  active desktop.
 
 Hardware-facing components are grouped under `kernel/source/drivers` with their
 headers in `kernel/include/drivers`. The directory hosts the keyboard, serial

@@ -15,11 +15,11 @@
 4. [x] **Message retrieval**
    - Update PeekMessage/GetMessage so that a task checks the global queue only when its process currently has focus; otherwise, fall back to its own queue. Ensure synchronization/locking around the shared queue.
    - Avoid duplicate delivery between global and per-task queues; clarify precedence.
-5. [ ] **Focus on process creation**
+5. [x] **Focus on process creation**
    - When a process is created, if its desktop already has focus, automatically give that process focus. Handle handoff when the process exits to restore prior focus (likely shell).
-6. [ ] **Focus change API**
+6. [x] **Focus change API**
    - Provide functions to change focused desktop/process explicitly (console switches, future GUI focus). Consider whether changing the focused desktop should also adjust the focused process or clear it.
-7. [ ] **Documentation**
+7. [x] **Documentation**
    - Update documentation/Kernel.md to describe focus tracking, the global input queue, and the message dispatch rules.
 8. [ ] **Validation**
    - Build/run: start shell, launch userland app, type input, exit app; verify shell does not receive buffered keystrokes. Keep test under 15s per guidelines.

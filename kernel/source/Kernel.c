@@ -221,6 +221,12 @@ LPDESKTOP GetFocusedDesktop(void) {
  */
 void SetFocusedDesktop(LPDESKTOP Desktop) {
     Kernel.FocusedDesktop = Desktop;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        if (Desktop->FocusedProcess == NULL) {
+            Desktop->FocusedProcess = &KernelProcess;
+        }
+    }
 }
 
 /************************************************************************/
@@ -248,18 +254,19 @@ LPPROCESS GetFocusedProcess(void) {
  * @param Process Process to focus, may be NULL to clear focus.
  */
 void SetFocusedProcess(LPPROCESS Process) {
-    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+    LPDESKTOP Desktop = NULL;
 
-    if (Desktop == NULL) {
-        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-            Desktop = Process->Desktop;
-            Kernel.FocusedDesktop = Desktop;
-        }
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        Desktop = Process->Desktop;
     }
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        Desktop->FocusedProcess = Process;
+    if (Desktop != NULL) {
+        Kernel.FocusedDesktop = Desktop;
+    } else {
+        Desktop = Kernel.FocusedDesktop;
     }
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { Desktop->FocusedProcess = Process; }
 }
 
 /************************************************************************/
