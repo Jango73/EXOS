@@ -34,8 +34,6 @@
 
 static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message);
 static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGEINFO Message, BOOL Remove);
-static BOOL EnsureTaskMessageQueue(LPTASK Task, BOOL CreateIfMissing);
-static BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing);
 static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message);
 static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL Remove);
 static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove);
@@ -142,7 +140,7 @@ void DeleteMessageQueue(LPMESSAGEQUEUE Queue) {
 
 /************************************************************************/
 
-static BOOL EnsureTaskMessageQueue(LPTASK Task, BOOL CreateIfMissing) {
+BOOL EnsureTaskMessageQueue(LPTASK Task, BOOL CreateIfMissing) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         if (Task->MessageQueue.Messages == NULL) {
             if (CreateIfMissing == FALSE) return FALSE;
@@ -161,7 +159,7 @@ static BOOL EnsureTaskMessageQueue(LPTASK Task, BOOL CreateIfMissing) {
 
 /************************************************************************/
 
-static BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing) {
+BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing) {
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         if (Process->MessageQueue.Messages == NULL) {
             if (CreateIfMissing == FALSE) {
@@ -981,3 +979,22 @@ Out:
 
     return Result;
 }
+/**
+ * @brief Ensure both task and process message queues exist.
+ * @param Task Task whose queues must be initialized.
+ * @param CreateIfMissing TRUE to create queues when absent.
+ * @return TRUE if both queues are ready or created, FALSE otherwise.
+ */
+BOOL EnsureAllMessageQueues(LPTASK Task, BOOL CreateIfMissing) {
+    if (EnsureTaskMessageQueue(Task, CreateIfMissing) == FALSE) {
+        return FALSE;
+    }
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        return EnsureProcessMessageQueue(Task->Process, CreateIfMissing);
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/

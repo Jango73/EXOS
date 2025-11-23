@@ -27,6 +27,7 @@
 #include "Log.h"
 #include "Mouse.h"
 #include "process/Process.h"
+#include "process/TaskMessaging.h"
 
 /***************************************************************************/
 
@@ -207,6 +208,10 @@ LPDESKTOP CreateDesktop(void) {
     This->TypeID = KOID_DESKTOP;
     This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
+    if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
+        KernelHeapFree(This);
+        return NULL;
+    }
     This->Graphics = GetGraphicsDriver();
     This->FocusedProcess = GetCurrentProcess();
 
@@ -495,6 +500,10 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->Function = Info->Function;
     This->WindowID = Info->ID;
     This->Style = Info->Style;
+    if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
+        KernelHeapFree(This);
+        return NULL;
+    }
     This->Rect.X1 = Info->WindowPosition.X;
     This->Rect.Y1 = Info->WindowPosition.Y;
     This->Rect.X2 = Info->WindowPosition.X + (Info->WindowSize.X - 1);
