@@ -90,23 +90,17 @@ BOOL SetTaskExitCode(LPTASK Task, UINT Code);
 void DeleteDeadTasksAndProcesses(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
-BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2);
 U32 GetTaskStatus(LPTASK Task);
 void SetTaskStatus(LPTASK Task, U32 Status);
 void SetTaskStatusDirect(LPTASK Task, U32 Status);
 void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
-BOOL InitMessageQueue(LPMESSAGEQUEUE Queue);
-void DeleteMessageQueue(LPMESSAGEQUEUE Queue);
 U32 ComputeTaskQuantumTime(U32 Priority);
-BOOL PostMessage(HANDLE, U32, U32, U32);
-U32 SendMessage(HANDLE, U32, U32, U32);
-BOOL PeekMessage(LPMESSAGEINFO);
-BOOL GetMessage(LPMESSAGEINFO);
-BOOL DispatchMessage(LPMESSAGEINFO);
 void DumpTask(LPTASK);
 
 /************************************************************************/
 
 #pragma pack(pop)
+
+#include "process/TaskMessaging.h"
 
 #endif  // TASK_H_INCLUDED

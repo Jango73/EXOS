@@ -125,7 +125,8 @@ subsystems and makes it easier to share common code across the kernel.
 ### Task and window message delivery
 
 Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in
-`kernel/source/process/Task.c`) built on the generic list container. Only the
+`kernel/source/process/TaskMessaging.c`) built on the generic list container.
+Only the
 kernel process starts with a queue; user processes and their tasks get a queue
 *only when they explicitly call* `GetMessage()`, `PeekMessage()`, or
 `WaitForMessage()` (which marks the task queue as initialized). No queue is
