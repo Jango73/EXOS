@@ -538,13 +538,13 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     //-------------------------------------
     // Tell the window it is being created
 
-    SendMessage((HANDLE)This, EWM_CREATE, 0, 0);
+    PostMessage((HANDLE)This, EWM_CREATE, 0, 0);
 
     //-------------------------------------
     // Ensure the freshly created window gets a draw request
 
     InvalidateWindowRect((HANDLE)This, NULL);
-    SendMessage((HANDLE)This, EWM_DRAW, 0, 0);
+    PostMessage((HANDLE)This, EWM_DRAW, 0, 0);
 
     return This;
 }
@@ -1742,7 +1742,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 Position.X = SIGNED(Param1) - Target->ScreenRect.X1;
                 Position.Y = SIGNED(Param2) - Target->ScreenRect.Y1;
 
-                SendMessage
+                PostMessage
                 (
                   (HANDLE) Target,
                   EWM_MOUSEMOVE,
@@ -1767,7 +1767,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
 
             if (Target) {
-                SendMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
+                PostMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
             }
         } break;
 
