@@ -2,6 +2,7 @@
 #include "Kernel.h"
 #include "Socket.h"
 #include "utils/Helpers.h"
+#include "process/Process.h"
 
 /************************************************************************/
 
@@ -203,8 +204,7 @@ KERNELDATA DATA_SECTION Kernel = {
     .Socket = &SocketList,
     .UserSessions = NULL,
     .UserAccount = &UserAccountList,
-    .FocusedDesktop = NULL,
-    .InputMessageQueue = {0},
+    .FocusedDesktop = &MainDesktop,
     .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {
         .Header = {

@@ -45,6 +45,7 @@ void LogInterruptDescriptorTable(U32 LogType, const LPGATE_DESCRIPTOR Table, UIN
 void LogRegisters64(const LPINTEL_64_REGISTERS Regs);
 void LogTaskStateSegment(U32 LogType, const X86_64_TASK_STATE_SEGMENT* Tss);
 void LogFrame(LPINTERRUPT_FRAME Frame);
+void LogCPUState(LPINTERRUPT_FRAME Frame);
 void BacktraceFrom(U64 StartRbp, U32 MaxFrames);
 
 /***************************************************************************/

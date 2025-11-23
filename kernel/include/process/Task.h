@@ -97,7 +97,6 @@ void SetTaskStatusDirect(LPTASK Task, U32 Status);
 void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
 BOOL InitMessageQueue(LPMESSAGEQUEUE Queue);
 void DeleteMessageQueue(LPMESSAGEQUEUE Queue);
-BOOL BroadcastMessage(U32, U32, U32);
 U32 ComputeTaskQuantumTime(U32 Priority);
 BOOL PostMessage(HANDLE, U32, U32, U32);
 U32 SendMessage(HANDLE, U32, U32, U32);

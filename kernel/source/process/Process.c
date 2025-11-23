@@ -47,7 +47,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Mutex = EMPTY_MUTEX,           // Mutex
     .HeapMutex = EMPTY_MUTEX,       // Heap mutex
     .Security = EMPTY_SECURITY,     // Security
-    .Desktop = NULL,                // Desktop
+    .Desktop = &MainDesktop,                // Desktop
     .Privilege = PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
@@ -104,7 +104,6 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
-
     KernelProcess.HeapSize = KERNEL_PROCESS_HEAP_SIZE;
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
@@ -121,6 +120,10 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
     HeapInit(&KernelProcess, KernelProcess.HeapBase, KernelProcess.HeapSize);
+
+    MemorySet(&(KernelProcess.MessageQueue), 0, sizeof(MESSAGEQUEUE));
+    InitMessageQueue(&(KernelProcess.MessageQueue));
+    KernelProcess.MessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
 
     StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
     StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
@@ -209,7 +212,11 @@ LPPROCESS NewProcess(void) {
     // Zero out non-LISTNODE_FIELDS (LISTNODE_FIELDS already initialized by CreateKernelObject)
     MemorySet(&This->Mutex, 0, sizeof(PROCESS) - sizeof(LISTNODE));
 
-    This->Desktop = (LPDESKTOP)Kernel.Desktop->First;
+    if (Kernel.Desktop != NULL && Kernel.Desktop->First != NULL) {
+        This->Desktop = (LPDESKTOP)Kernel.Desktop->First;
+    } else {
+        This->Desktop = &MainDesktop;
+    }
     This->Privilege = PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
@@ -276,6 +283,10 @@ void DeleteProcessCommit(LPPROCESS This) {
             DEBUG(TEXT("[DeleteProcessCommit] Freeing process heap base=%p size=%x"), (LINEAR)This->HeapBase,
                 (UINT)This->HeapSize);
             FreeRegion(This->HeapBase, This->HeapSize);
+        }
+
+        if (This->MessageQueue.Messages != NULL) {
+            DeleteMessageQueue(&(This->MessageQueue));
         }
 
         ReleaseKernelObject(This);

@@ -125,8 +125,13 @@ subsystems and makes it easier to share common code across the kernel.
 ### Task and window message delivery
 
 Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in
-`kernel/source/process/Task.c`) built on the generic list container. The queue
-is allocated on first use, capped to 100 pending messages, and guarded by a
+`kernel/source/process/Task.c`) built on the generic list container. Only the
+kernel process starts with a queue; user processes and their tasks get a queue
+*only when they explicitly call* `GetMessage()`, `PeekMessage()`, or
+`WaitForMessage()` (which marks the task queue as initialized). No queue is
+created when posting; if a task/process never asked for one, posted messages
+are dropped and keyboard input continues down the classic buffered path for
+`getkey()`. Each queue is capped to 100 pending messages and guarded by a
 per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as
 waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message
 arrives and clears the waiting flag.
@@ -754,6 +759,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - Every `PROCESS` keeps track of its `MaximumAllocatedMemory`, which is initialized to `N_HalfMemory` for both the kernel and user processes.
 - When a heap allocation exhausts the committed region, the kernel automatically attempts to double the heap size without exceeding the process limit by calling `ResizeRegion`.
 - If the resize operation cannot be completed, the allocator logs an error and the allocation fails gracefully.
+- Kernel heap allocations that still fail now dump the current task interrupt frame through the same logging path used by the #GP/#PF handlers, giving register and backtrace context when diagnosing out-of-heap issues.
 
 ### Status States
 

@@ -433,11 +433,19 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
-static void DispatchKeyMessage(LPKEYCODE KeyCode) {
-    if (KeyCode == NULL) return;
-    if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return;
+static BOOL DispatchKeyMessage(LPKEYCODE KeyCode) {
+    if (KeyCode == NULL) return FALSE;
+    if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return FALSE;
 
-    EnqueueInputMessage(EWM_KEYDOWN, KeyCode->VirtualKey, KeyCode->ASCIICode);
+    return EnqueueInputMessage(EWM_KEYDOWN, KeyCode->VirtualKey, KeyCode->ASCIICode);
+}
+
+/***************************************************************************/
+
+static void RouteKeyCode(LPKEYCODE KeyCode) {
+    if (DispatchKeyMessage(KeyCode) == FALSE) {
+        SendKeyCodeToBuffer(KeyCode);
+    }
 }
 
 /***************************************************************************/
@@ -508,8 +516,7 @@ static void HandleScanCode(U32 ScanCode) {
         if (ScanCode & 0x80) {
         } else {
             ScanCodeToKeyCode_E0(ScanCode, &KeyCode);
-            SendKeyCodeToBuffer(&KeyCode);
-            DispatchKeyMessage(&KeyCode);
+            RouteKeyCode(&KeyCode);
         }
     } else if (PreviousCode == 0xE1) {
         PreviousCode = 0;
@@ -521,8 +528,7 @@ static void HandleScanCode(U32 ScanCode) {
         if (ScanCode & 0x80) {
         } else {
             ScanCodeToKeyCode_E1(ScanCode, &KeyCode);
-            SendKeyCodeToBuffer(&KeyCode);
-            DispatchKeyMessage(&KeyCode);
+            RouteKeyCode(&KeyCode);
         }
     } else {
         PreviousCode = 0;
@@ -556,8 +562,7 @@ static void HandleScanCode(U32 ScanCode) {
 
                 default: {
                     ScanCodeToKeyCode(ScanCode, &KeyCode);
-                    SendKeyCodeToBuffer(&KeyCode);
-                    DispatchKeyMessage(&KeyCode);
+                    RouteKeyCode(&KeyCode);
 
                     if (KeyCode.VirtualKey == VK_F9) {
                         if (Keyboard.Status[SCAN_CONTROL]) {
@@ -699,6 +704,24 @@ void WaitKey(void) {
     while (!PeekChar()) {
     }
     GetChar();
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Clear buffered keyboard characters.
+ */
+void ClearKeyboardBuffer(void) {
+    U32 Index;
+
+    LockMutex(&(Keyboard.Mutex), INFINITY);
+
+    for (Index = 0; Index < MAXKEYBUFFER; Index++) {
+        Keyboard.Buffer[Index].VirtualKey = 0;
+        Keyboard.Buffer[Index].ASCIICode = 0;
+    }
+
+    UnlockMutex(&(Keyboard.Mutex));
 }
 
 /***************************************************************************/

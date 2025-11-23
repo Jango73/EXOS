@@ -143,7 +143,6 @@ typedef struct tag_KERNELDATA {
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
     LPDESKTOP FocusedDesktop;       // Desktop with input focus
-    MESSAGEQUEUE InputMessageQueue; // Global input message queue
     CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
     FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     SYSTEMFSFILESYSTEM SystemFS;
@@ -185,7 +184,6 @@ LPDESKTOP GetFocusedDesktop(void);
 void SetFocusedDesktop(LPDESKTOP Desktop);
 LPPROCESS GetFocusedProcess(void);
 void SetFocusedProcess(LPPROCESS Process);
-LPMESSAGEQUEUE GetInputMessageQueue(void);
 void DoPageFault(void);
 HANDLE PointerToHandle(LINEAR Pointer);
 LINEAR HandleToPointer(HANDLE Handle);

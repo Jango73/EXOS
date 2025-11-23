@@ -28,6 +28,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/ACPI.h"
+#include "drivers/Keyboard.h"
 #include "File.h"
 #include "Lang.h"
 #include "Log.h"
@@ -38,6 +39,7 @@
 #include "utils/UUID.h"
 
 /************************************************************************/
+
 
 typedef struct tag_CPUIDREGISTERS {
     U32 reg_EAX;
@@ -220,12 +222,21 @@ LPDESKTOP GetFocusedDesktop(void) {
  * @param Desktop Desktop to focus, may be NULL to clear focus.
  */
 void SetFocusedDesktop(LPDESKTOP Desktop) {
-    Kernel.FocusedDesktop = Desktop;
+    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        Kernel.FocusedDesktop = Desktop;
+
         if (Desktop->FocusedProcess == NULL) {
             Desktop->FocusedProcess = &KernelProcess;
         }
+    } else {
+        Kernel.FocusedDesktop = &MainDesktop;
+        MainDesktop.FocusedProcess = &KernelProcess;
+    }
+
+    if (Kernel.FocusedDesktop != PreviousDesktop) {
+        ClearKeyboardBuffer();
     }
 }
 
@@ -240,6 +251,10 @@ LPPROCESS GetFocusedProcess(void) {
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
         SAFE_USE_VALID_ID(Desktop->FocusedProcess, KOID_PROCESS) {
+            if (Desktop->FocusedProcess->Status == PROCESS_STATUS_DEAD) {
+                Desktop->FocusedProcess = &KernelProcess;
+                return &KernelProcess;
+            }
             return Desktop->FocusedProcess;
         }
     }
@@ -254,29 +269,28 @@ LPPROCESS GetFocusedProcess(void) {
  * @param Process Process to focus, may be NULL to clear focus.
  */
 void SetFocusedProcess(LPPROCESS Process) {
-    LPDESKTOP Desktop = NULL;
+    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
+    LPPROCESS PreviousProcess = NULL;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { PreviousProcess = Desktop->FocusedProcess; }
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        Desktop = Process->Desktop;
+        if (Process->Desktop != NULL) {
+            Desktop = Process->Desktop;
+            Kernel.FocusedDesktop = Desktop;
+        }
     }
 
-    if (Desktop != NULL) {
-        Kernel.FocusedDesktop = Desktop;
-    } else {
-        Desktop = Kernel.FocusedDesktop;
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        if (Desktop->FocusedProcess != Process) {
+            Desktop->FocusedProcess = Process;
+        }
     }
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { Desktop->FocusedProcess = Process; }
-}
-
-/************************************************************************/
-
-/**
- * @brief Get the global input message queue used by focused tasks.
- * @return Pointer to the shared input queue.
- */
-LPMESSAGEQUEUE GetInputMessageQueue(void) {
-    return &(Kernel.InputMessageQueue);
+    if (Kernel.FocusedDesktop != PreviousDesktop || PreviousProcess != Process) {
+        ClearKeyboardBuffer();
+    }
 }
 
 /************************************************************************/
@@ -324,22 +338,18 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  * @brief Initialize focus defaults and the global input queue.
  */
 static void InitializeFocusState(void) {
-    MemorySet(&(Kernel.InputMessageQueue), 0, sizeof(MESSAGEQUEUE));
-
-    if (InitMessageQueue(&(Kernel.InputMessageQueue)) == FALSE) {
-        ERROR(TEXT("[InitializeFocusState] Failed to initialize global input queue"));
+    // Ensure the main desktop is registered in the kernel's desktop list
+    if (Kernel.Desktop != NULL && Kernel.Desktop->First == NULL) {
+        DEBUG(TEXT("[InitializeFocusState] Registering MainDesktop in desktop list"));
+        ListAddHead(Kernel.Desktop, &MainDesktop);
     }
-    Kernel.InputMessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
 
     if (Kernel.FocusedDesktop == NULL) {
-        if (Kernel.Desktop != NULL) {
-            Kernel.FocusedDesktop = (LPDESKTOP)Kernel.Desktop->First;
-        }
-
-        if (Kernel.FocusedDesktop == NULL) {
-            Kernel.FocusedDesktop = &MainDesktop;
-        }
+        Kernel.FocusedDesktop = &MainDesktop;
     }
+
+    SetFocusedDesktop(Kernel.FocusedDesktop);
+    SetFocusedProcess(&KernelProcess);
 
     if (KernelProcess.Desktop == NULL) {
         KernelProcess.Desktop = Kernel.FocusedDesktop;
@@ -854,7 +864,6 @@ LPDRIVER GetDefaultFileSystemDriver() {
     return &EXFSDriver;
 }
 
-/************************************************************************/
 
 /**
  * @brief Loads a driver and performs basic validation.
