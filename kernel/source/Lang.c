@@ -33,7 +33,7 @@
 
 void SelectLanguage(LPCSTR Code) {
     if (Code) {
-        StringCopy(Kernel.LanguageCode, Code);
+        SetLanguageCode(Code);
     }
 }
 
@@ -41,7 +41,7 @@ void SelectLanguage(LPCSTR Code) {
 
 void SelectKeyboard(LPCSTR Code) {
     if (Code) {
-        StringCopy(Kernel.KeyboardCode, Code);
+        SetKeyboardCode(Code);
         UseKeyboardLayout(Code);
     }
 }

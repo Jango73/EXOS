@@ -187,7 +187,9 @@ void ClockHandler(void) {
         ManageLocalTime();
     }
 
-    if (SchedulerTime >= (Kernel.MinimumQuantum + SCHEDULING_PERIOD_MILLIS)) {
+    UINT MinimumQuantum = GetMinimumQuantum();
+
+    if (SchedulerTime >= (MinimumQuantum + SCHEDULING_PERIOD_MILLIS)) {
         SchedulerTime = 0;
         Scheduler();
     }

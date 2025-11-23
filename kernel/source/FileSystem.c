@@ -66,7 +66,7 @@ DRIVER DATA_SECTION FileSystemDriver = {
  * @brief Loads and parses the kernel configuration file.
  *
  * Attempts to read "exos.toml" (case insensitive) and stores the resulting
- * TOML data in Kernel.Configuration.
+ * TOML data in the kernel configuration state.
  */
 static void ReadKernelConfiguration(void) {
     DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
@@ -85,7 +85,7 @@ static void ReadKernelConfiguration(void) {
     }
 
     SAFE_USE(Buffer) {
-        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
+        SetConfiguration(TomlParse((LPCSTR)Buffer));
         KernelHeapFree(Buffer);
     }
 

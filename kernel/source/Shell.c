@@ -1910,7 +1910,7 @@ U32 Shell(LPVOID Param) {
 
     InitShellContext(&Context);
 
-    if (Kernel.DoLogin && !HandleUserLoginProcess()) { return 0; }
+    if (GetDoLogin() && !HandleUserLoginProcess()) { return 0; }
 
     ExecuteStartupCommands();
 

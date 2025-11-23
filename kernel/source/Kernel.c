@@ -41,19 +41,7 @@
 /************************************************************************/
 
 
-typedef struct tag_CPUIDREGISTERS {
-    U32 reg_EAX;
-    U32 reg_EBX;
-    U32 reg_ECX;
-    U32 reg_EDX;
-} CPUIDREGISTERS, *LPCPUIDREGISTERS;
-
-/***************************************************************************/
-
 extern U32 DeadBeef;
-extern DRIVER SerialMouseDriver;
-extern DRIVER VESADriver;
-extern DRIVER EXFSDriver;
 
 /************************************************************************/
 
@@ -208,133 +196,6 @@ void ReleaseHandle(HANDLE Handle) {
 /************************************************************************/
 
 /**
- * @brief Retrieve the desktop currently holding input focus.
- * @return Focused desktop pointer or NULL if none is set.
- */
-LPDESKTOP GetFocusedDesktop(void) {
-    return Kernel.FocusedDesktop;
-}
-
-/************************************************************************/
-
-/**
- * @brief Set the desktop that holds input focus.
- * @param Desktop Desktop to focus, may be NULL to clear focus.
- */
-void SetFocusedDesktop(LPDESKTOP Desktop) {
-    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        Kernel.FocusedDesktop = Desktop;
-
-        if (Desktop->FocusedProcess == NULL) {
-            Desktop->FocusedProcess = &KernelProcess;
-        }
-    } else {
-        Kernel.FocusedDesktop = &MainDesktop;
-        MainDesktop.FocusedProcess = &KernelProcess;
-    }
-
-    if (Kernel.FocusedDesktop != PreviousDesktop) {
-        ClearKeyboardBuffer();
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Retrieve the process currently holding input focus.
- * @return Focused process pointer or NULL if none is set.
- */
-LPPROCESS GetFocusedProcess(void) {
-    LPDESKTOP Desktop = Kernel.FocusedDesktop;
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        SAFE_USE_VALID_ID(Desktop->FocusedProcess, KOID_PROCESS) {
-            if (Desktop->FocusedProcess->Status == PROCESS_STATUS_DEAD) {
-                Desktop->FocusedProcess = &KernelProcess;
-                return &KernelProcess;
-            }
-            return Desktop->FocusedProcess;
-        }
-    }
-
-    return &KernelProcess;
-}
-
-/************************************************************************/
-
-/**
- * @brief Set the process that holds input focus.
- * @param Process Process to focus, may be NULL to clear focus.
- */
-void SetFocusedProcess(LPPROCESS Process) {
-    LPDESKTOP Desktop = Kernel.FocusedDesktop;
-    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
-    LPPROCESS PreviousProcess = NULL;
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { PreviousProcess = Desktop->FocusedProcess; }
-
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        if (Process->Desktop != NULL) {
-            Desktop = Process->Desktop;
-            Kernel.FocusedDesktop = Desktop;
-        }
-    }
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        if (Desktop->FocusedProcess != Process) {
-            Desktop->FocusedProcess = Process;
-        }
-    }
-
-    if (Kernel.FocusedDesktop != PreviousDesktop || PreviousProcess != Process) {
-        ClearKeyboardBuffer();
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Retrieves basic CPU identification data.
- *
- * Populates the provided structure using CPUID information, including
- * vendor string, model and feature flags.
- *
- * @param Info Pointer to structure that receives CPU information.
- * @return TRUE on success.
- */
-
-BOOL GetCPUInformation(LPCPUINFORMATION Info) {
-    CPUIDREGISTERS Regs[8];
-
-    MemorySet(Info, 0, sizeof(CPUINFORMATION));
-
-    GetCPUID(Regs);
-
-    //-------------------------------------
-    // Fill name with register contents
-
-    *((U32*)(Info->Name + 0)) = Regs[0].reg_EBX;
-    *((U32*)(Info->Name + 4)) = Regs[0].reg_EDX;
-    *((U32*)(Info->Name + 8)) = Regs[0].reg_ECX;
-    Info->Name[12] = '\0';
-
-    //-------------------------------------
-    // Get model information if available
-
-    Info->Type = (Regs[1].reg_EAX & INTEL_CPU_MASK_TYPE) >> INTEL_CPU_SHFT_TYPE;
-    Info->Family = (Regs[1].reg_EAX & INTEL_CPU_MASK_FAMILY) >> INTEL_CPU_SHFT_FAMILY;
-    Info->Model = (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
-    Info->Stepping = (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
-    Info->Features = Regs[1].reg_EDX;
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
  * @brief Initialize focus defaults and the global input queue.
  */
 static void InitializeFocusState(void) {
@@ -374,21 +235,21 @@ static void InitializeFocusState(void) {
 void InitializeQuantumTime(void) {
     // Set base quantum time based on environment
 #if BARE_METAL == 1
-    Kernel.MinimumQuantum = 10;  // Shorter quantum for bare-metal
-    DEBUG(TEXT("[InitializeQuantumTime] Bare-metal mode, base quantum = %d ms"), Kernel.MinimumQuantum);
+    SetMinimumQuantum(10);  // Shorter quantum for bare-metal
+    DEBUG(TEXT("[InitializeQuantumTime] Bare-metal mode, base quantum = %d ms"), GetMinimumQuantum());
 #else
-    Kernel.MinimumQuantum = 50;  // Longer quantum for emulation/virtualization
-    DEBUG(TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), Kernel.MinimumQuantum);
+    SetMinimumQuantum(50);  // Longer quantum for emulation/virtualization
+    DEBUG(TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), GetMinimumQuantum());
 #endif
 
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
         // Double quantum when scheduling debug is enabled (logs slow down execution)
-        Kernel.MinimumQuantum *= 2;
+        SetMinimumQuantum(GetMinimumQuantum() * 2);
         FINE_DEBUG(TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
-            Kernel.MinimumQuantum);
+            GetMinimumQuantum());
     }
 
-    Kernel.MaximumQuantum = Kernel.MinimumQuantum * 4;
+    SetMaximumQuantum(GetMinimumQuantum() * 4);
 }
 
 /************************************************************************/
@@ -756,30 +617,25 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
 /************************************************************************/
 
 /**
- * @brief Loads and parses the kernel configuration file.
- *
- * Attempts to read "exos.toml" (case insensitive) and stores the resulting
- * TOML data in Kernel.Configuration.
- */
-
-/**
  * @brief Selects keyboard layout based on configuration.
  *
- * Reads the layout from Kernel.Configuration and applies it with
+ * Reads the layout from the parsed configuration and applies it with
  * SelectKeyboard.
  */
 
 static void UseConfiguration(void) {
     DEBUG(TEXT("[UseConfiguration] Enter"));
 
-    SAFE_USE(Kernel.Configuration) {
+    LPTOML Configuration = GetConfiguration();
+
+    SAFE_USE(Configuration) {
         LPCSTR Layout;
         LPCSTR QuantumMS;
         LPCSTR DoLogin;
 
         DEBUG(TEXT("[UseConfiguration] Handling keyboard layout"));
 
-        Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
+        Layout = TomlGet(Configuration, TEXT("Keyboard.Layout"));
 
         if (Layout) {
             ConsolePrint(TEXT("Keyboard = %s\n"), Layout);
@@ -789,28 +645,28 @@ static void UseConfiguration(void) {
             SelectKeyboard(TEXT("en-US"));
         }
 
-        QuantumMS = TomlGet(Kernel.Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
+        QuantumMS = TomlGet(Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
         if (STRING_EMPTY(QuantumMS) == FALSE) {
             ConsolePrint(TEXT("Task quantum set to %s\n"), QuantumMS);
-            Kernel.MinimumQuantum = StringToU32(QuantumMS);
+            SetMinimumQuantum(StringToU32(QuantumMS));
         }
 
-        DoLogin = TomlGet(Kernel.Configuration, TEXT("General.DoLogin"));
+        DoLogin = TomlGet(Configuration, TEXT("General.DoLogin"));
 
         if (STRING_EMPTY(DoLogin) == FALSE) {
-            Kernel.DoLogin = (StringToU32(DoLogin) != 0);
+            SetDoLogin((StringToU32(DoLogin) != 0));
         } else {
-            Kernel.DoLogin = TRUE;
+            SetDoLogin(TRUE);
         }
 
-        if (Kernel.DoLogin == FALSE) {
+        if (GetDoLogin() == FALSE) {
             ConsolePrint(TEXT("WARNING : Login sequence disabled\n"));
         }
     }
 
     // Ensure a keyboard layout is always set, even if configuration failed
-    if (StringEmpty(Kernel.KeyboardCode)) {
+    if (StringEmpty(GetKeyboardCode())) {
         SelectKeyboard(TEXT("en-US"));
     }
 
@@ -847,23 +703,6 @@ U32 GetPhysicalMemoryUsed(void) {
 }
 
 /************************************************************************/
-
-LPDRIVER GetMouseDriver() {
-    return &SerialMouseDriver;
-}
-
-/************************************************************************/
-
-LPDRIVER GetGraphicsDriver() {
-    return &VESADriver;
-}
-
-/************************************************************************/
-
-LPDRIVER GetDefaultFileSystemDriver() {
-    return &EXFSDriver;
-}
-
 
 /**
  * @brief Loads a driver and performs basic validation.
@@ -1168,9 +1007,12 @@ void InitializeKernel(void) {
 
     //-------------------------------------
 
-    LPCSTR Mono = TomlGet(Kernel.Configuration, TEXT("General.Mono"));
+    LPTOML Configuration = GetConfiguration();
+    LPCSTR Mono = NULL;
 
-    if (StringCompare(Mono, TEXT("1")) == 0) {
+    SAFE_USE(Configuration) { Mono = TomlGet(Configuration, TEXT("General.Mono")); }
+
+    if (STRING_EMPTY(Mono) == FALSE && StringCompare(Mono, TEXT("1")) == 0) {
         Shell(NULL);
     } else {
         //-------------------------------------

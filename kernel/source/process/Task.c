@@ -806,7 +806,7 @@ void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime) {
         Task->WakeUpTime = INFINITY;
     } else {
         UINT CurrentTime = GetSystemTime();
-        UINT Quantum = (UINT)Kernel.MinimumQuantum;
+        UINT Quantum = GetMinimumQuantum();
         UINT BaseTime = CurrentTime + Quantum;
 
         if (BaseTime < CurrentTime) {
@@ -835,8 +835,10 @@ void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime) {
  */
 U32 ComputeTaskQuantumTime(U32 Priority) {
     U32 Time = (Priority & 0xFF) * 2;
-    if (Time < Kernel.MinimumQuantum) Time = Kernel.MinimumQuantum;
-    if (Time > Kernel.MaximumQuantum) Time = Kernel.MaximumQuantum;
+    UINT MinimumQuantum = GetMinimumQuantum();
+    UINT MaximumQuantum = GetMaximumQuantum();
+    if (Time < MinimumQuantum) Time = MinimumQuantum;
+    if (Time > MaximumQuantum) Time = MaximumQuantum;
     return Time;
 }
 

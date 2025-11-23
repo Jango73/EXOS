@@ -105,7 +105,7 @@ UINT SysCall_GetSystemInfo(UINT Parameter) {
         LPUSERACCOUNT User = GetCurrentUser();
 
         StringCopy(Info->UserName, User != NULL ? User->UserName : TEXT(""));
-        StringCopy(Info->KeyboardLayout, Kernel.KeyboardCode);
+        StringCopy(Info->KeyboardLayout, GetKeyboardCode());
 
         return TRUE;
     }

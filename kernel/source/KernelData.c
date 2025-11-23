@@ -3,6 +3,16 @@
 #include "Socket.h"
 #include "utils/Helpers.h"
 #include "process/Process.h"
+#include "drivers/Keyboard.h"
+
+/************************************************************************/
+
+typedef struct tag_CPUIDREGISTERS {
+    U32 reg_EAX;
+    U32 reg_EBX;
+    U32 reg_ECX;
+    U32 reg_EDX;
+} CPUIDREGISTERS, *LPCPUIDREGISTERS;
 
 /************************************************************************/
 
@@ -265,4 +275,280 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, &NetworkManagerDriver);
     ListAddTail(Kernel.Drivers, &UserAccountDriver);
     ListAddTail(Kernel.Drivers, &VESADriver);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the kernel configuration.
+ * @return Pointer to the parsed configuration or NULL if not set.
+ */
+LPTOML GetConfiguration(void) {
+    return Kernel.Configuration;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the kernel configuration pointer.
+ * @param Configuration Parsed configuration to store.
+ */
+void SetConfiguration(LPTOML Configuration) {
+    Kernel.Configuration = Configuration;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Gets the login sequence flag.
+ * @return TRUE when login is enabled.
+ */
+BOOL GetDoLogin(void) {
+    return Kernel.DoLogin;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the login sequence flag.
+ * @param DoLogin TRUE to enable login, FALSE to disable.
+ */
+void SetDoLogin(BOOL DoLogin) {
+    Kernel.DoLogin = DoLogin;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the active language code.
+ * @return Pointer to language code string.
+ */
+LPCSTR GetLanguageCode(void) {
+    return Kernel.LanguageCode;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the active language code.
+ * @param LanguageCode Null-terminated language code.
+ */
+void SetLanguageCode(LPCSTR LanguageCode) {
+    SAFE_USE(LanguageCode) { StringCopy(Kernel.LanguageCode, LanguageCode); }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the active keyboard code.
+ * @return Pointer to keyboard code string.
+ */
+LPCSTR GetKeyboardCode(void) {
+    return Kernel.KeyboardCode;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the active keyboard code.
+ * @param KeyboardCode Null-terminated keyboard code.
+ */
+void SetKeyboardCode(LPCSTR KeyboardCode) {
+    SAFE_USE(KeyboardCode) { StringCopy(Kernel.KeyboardCode, KeyboardCode); }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the configured minimum scheduler quantum.
+ * @return Minimum quantum in milliseconds.
+ */
+UINT GetMinimumQuantum(void) {
+    return Kernel.MinimumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the configured minimum scheduler quantum.
+ * @param MinimumQuantum Quantum in milliseconds.
+ */
+void SetMinimumQuantum(UINT MinimumQuantum) {
+    Kernel.MinimumQuantum = MinimumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the configured maximum scheduler quantum.
+ * @return Maximum quantum in milliseconds.
+ */
+UINT GetMaximumQuantum(void) {
+    return Kernel.MaximumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the configured maximum scheduler quantum.
+ * @param MaximumQuantum Quantum in milliseconds.
+ */
+void SetMaximumQuantum(UINT MaximumQuantum) {
+    Kernel.MaximumQuantum = MaximumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the desktop currently holding input focus.
+ * @return Focused desktop pointer or NULL if none is set.
+ */
+LPDESKTOP GetFocusedDesktop(void) {
+    return Kernel.FocusedDesktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set the desktop that holds input focus.
+ * @param Desktop Desktop to focus, may be NULL to clear focus.
+ */
+void SetFocusedDesktop(LPDESKTOP Desktop) {
+    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        Kernel.FocusedDesktop = Desktop;
+
+        if (Desktop->FocusedProcess == NULL) {
+            Desktop->FocusedProcess = &KernelProcess;
+        }
+    } else {
+        Kernel.FocusedDesktop = &MainDesktop;
+        MainDesktop.FocusedProcess = &KernelProcess;
+    }
+
+    if (Kernel.FocusedDesktop != PreviousDesktop) {
+        ClearKeyboardBuffer();
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the process currently holding input focus.
+ * @return Focused process pointer or NULL if none is set.
+ */
+LPPROCESS GetFocusedProcess(void) {
+    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        SAFE_USE_VALID_ID(Desktop->FocusedProcess, KOID_PROCESS) {
+            if (Desktop->FocusedProcess->Status == PROCESS_STATUS_DEAD) {
+                Desktop->FocusedProcess = &KernelProcess;
+                return &KernelProcess;
+            }
+            return Desktop->FocusedProcess;
+        }
+    }
+
+    return &KernelProcess;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set the process that holds input focus.
+ * @param Process Process to focus, may be NULL to clear focus.
+ */
+void SetFocusedProcess(LPPROCESS Process) {
+    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
+    LPPROCESS PreviousProcess = NULL;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { PreviousProcess = Desktop->FocusedProcess; }
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (Process->Desktop != NULL) {
+            Desktop = Process->Desktop;
+            Kernel.FocusedDesktop = Desktop;
+        }
+    }
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        if (Desktop->FocusedProcess != Process) {
+            Desktop->FocusedProcess = Process;
+        }
+    }
+
+    if (Kernel.FocusedDesktop != PreviousDesktop || PreviousProcess != Process) {
+        ClearKeyboardBuffer();
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves basic CPU identification data.
+ *
+ * Populates the provided structure using CPUID information, including
+ * vendor string, model and feature flags.
+ *
+ * @param Info Pointer to structure that receives CPU information.
+ * @return TRUE on success.
+ */
+BOOL GetCPUInformation(LPCPUINFORMATION Info) {
+    CPUIDREGISTERS Regs[8];
+
+    MemorySet(Info, 0, sizeof(CPUINFORMATION));
+
+    GetCPUID(Regs);
+
+    //-------------------------------------
+    // Fill name with register contents
+
+    *((U32*)(Info->Name + 0)) = Regs[0].reg_EBX;
+    *((U32*)(Info->Name + 4)) = Regs[0].reg_EDX;
+    *((U32*)(Info->Name + 8)) = Regs[0].reg_ECX;
+    Info->Name[12] = '\0';
+
+    //-------------------------------------
+    // Get model information if available
+
+    Info->Type = (Regs[1].reg_EAX & INTEL_CPU_MASK_TYPE) >> INTEL_CPU_SHFT_TYPE;
+    Info->Family = (Regs[1].reg_EAX & INTEL_CPU_MASK_FAMILY) >> INTEL_CPU_SHFT_FAMILY;
+    Info->Model = (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
+    Info->Stepping = (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
+    Info->Features = Regs[1].reg_EDX;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the mouse driver descriptor.
+ * @return Pointer to the mouse driver.
+ */
+LPDRIVER GetMouseDriver(void) {
+    return &SerialMouseDriver;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the graphics driver descriptor.
+ * @return Pointer to the graphics driver.
+ */
+LPDRIVER GetGraphicsDriver(void) {
+    return &VESADriver;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the default file system driver descriptor.
+ * @return Pointer to the default file system driver.
+ */
+LPDRIVER GetDefaultFileSystemDriver(void) {
+    return &EXFSDriver;
 }
