@@ -303,6 +303,7 @@ static void InitializeFocusState(void) {
     if (InitMessageQueue(&(Kernel.InputMessageQueue)) == FALSE) {
         ERROR(TEXT("[InitializeFocusState] Failed to initialize global input queue"));
     }
+    Kernel.InputMessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
 
     if (Kernel.FocusedDesktop == NULL) {
         if (Kernel.Desktop != NULL) {

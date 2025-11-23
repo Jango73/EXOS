@@ -437,7 +437,7 @@ static void DispatchKeyMessage(LPKEYCODE KeyCode) {
     if (KeyCode == NULL) return;
     if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return;
 
-    BroadcastMessage(EWM_KEYDOWN, KeyCode->VirtualKey, KeyCode->ASCIICode);
+    EnqueueInputMessage(EWM_KEYDOWN, KeyCode->VirtualKey, KeyCode->ASCIICode);
 }
 
 /***************************************************************************/

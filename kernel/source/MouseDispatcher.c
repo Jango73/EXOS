@@ -128,15 +128,15 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
     RestoreFlags(&Flags);
 
     if (DownButtons) {
-        BroadcastMessage(EWM_MOUSEDOWN, DownButtons, 0);
+        EnqueueInputMessage(EWM_MOUSEDOWN, DownButtons, 0);
     }
 
     if (UpButtons) {
-        BroadcastMessage(EWM_MOUSEUP, UpButtons, 0);
+        EnqueueInputMessage(EWM_MOUSEUP, UpButtons, 0);
     }
 
     if (SendMove) {
-        BroadcastMessage(EWM_MOUSEMOVE, UNSIGNED(PosX), UNSIGNED(PosY));
+        EnqueueInputMessage(EWM_MOUSEMOVE, UNSIGNED(PosX), UNSIGNED(PosY));
     }
 }
 

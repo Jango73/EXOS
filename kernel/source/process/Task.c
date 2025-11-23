@@ -40,6 +40,8 @@ static BOOL TaskStackConfigInitialized = FALSE;
 /************************************************************************/
 
 static void AddTaskMessage(LPTASK Task, LPMESSAGE Message);
+static BOOL TaskProcessHasFocus(LPTASK Task);
+static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGEINFO Message, BOOL Remove);
 
 /************************************************************************/
 
@@ -277,8 +279,7 @@ BOOL BroadcastMessage(U32 Msg, U32 Param1, U32 Param2) {
  */
 BOOL PeekMessage(LPMESSAGEINFO Message) {
     LPTASK Task;
-    LPMESSAGE CurrentMessage = NULL;
-    LPLISTNODE Node = NULL;
+    LPMESSAGEQUEUE InputQueue;
 
     if (Message == NULL) return FALSE;
 
@@ -286,41 +287,32 @@ BOOL PeekMessage(LPMESSAGEINFO Message) {
 
     if (EnsureTaskMessageQueue(Task) == FALSE) return FALSE;
 
-    LockMutex(&(Task->Mutex), INFINITY);
-    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
+    if (TaskProcessHasFocus(Task)) {
+        InputQueue = GetInputMessageQueue();
 
-    if (Task->MessageQueue.Messages->NumItems == 0) {
-        UnlockMutex(&(Task->Mutex));
-        UnlockMutex(&(Task->MessageQueue.Mutex));
-        return FALSE;
-    }
+        SAFE_USE(InputQueue) {
+            LockMutex(&(InputQueue->Mutex), INFINITY);
 
-    if (Message->Target == NULL) {
-        CurrentMessage = (LPMESSAGE)Task->MessageQueue.Messages->First;
-    } else {
-        for (Node = Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
-            LPMESSAGE Candidate = (LPMESSAGE)Node;
-            if (Candidate->Target == Message->Target) {
-                CurrentMessage = Candidate;
-                break;
+            if (CopyMessageFromQueueLocked(InputQueue, Message, FALSE) == TRUE) {
+                UnlockMutex(&(InputQueue->Mutex));
+                return TRUE;
             }
+
+            UnlockMutex(&(InputQueue->Mutex));
         }
     }
 
-    if (CurrentMessage != NULL) {
-        Message->Target = CurrentMessage->Target;
-        Message->Time = CurrentMessage->Time;
-        Message->Message = CurrentMessage->Message;
-        Message->Param1 = CurrentMessage->Param1;
-        Message->Param2 = CurrentMessage->Param2;
+    LockMutex(&(Task->Mutex), INFINITY);
+    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
 
-        UnlockMutex(&(Task->Mutex));
+    if (CopyMessageFromQueueLocked(&(Task->MessageQueue), Message, FALSE) == TRUE) {
         UnlockMutex(&(Task->MessageQueue.Mutex));
+        UnlockMutex(&(Task->Mutex));
         return TRUE;
     }
 
-    UnlockMutex(&(Task->Mutex));
     UnlockMutex(&(Task->MessageQueue.Mutex));
+    UnlockMutex(&(Task->Mutex));
     return FALSE;
 }
 
@@ -1077,6 +1069,75 @@ U32 ComputeTaskQuantumTime(U32 Priority) {
 /************************************************************************/
 
 /**
+ * @brief Determine if the task's process currently has input focus.
+ * @param Task Task to check.
+ * @return TRUE when the task belongs to the focused process.
+ */
+static BOOL TaskProcessHasFocus(LPTASK Task) {
+    LPPROCESS FocusedProcess = GetFocusedProcess();
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        SAFE_USE_VALID_ID(Task->Process, KOID_PROCESS) {
+            return Task->Process == FocusedProcess;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy a message from a locked queue, optionally removing it.
+ * @param Queue Message queue (caller must lock Queue->Mutex).
+ * @param Message Target structure to fill.
+ * @param Remove TRUE to erase the message from the queue.
+ * @return TRUE if a message was found.
+ */
+static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGEINFO Message, BOOL Remove) {
+    LPLISTNODE Node = NULL;
+    LPMESSAGE CurrentMessage = NULL;
+
+    if (Queue == NULL || Queue->Messages == NULL || Message == NULL) {
+        return FALSE;
+    }
+
+    if (Queue->Messages->NumItems == 0) {
+        return FALSE;
+    }
+
+    if (Message->Target == NULL) {
+        CurrentMessage = (LPMESSAGE)Queue->Messages->First;
+    } else {
+        for (Node = Queue->Messages->First; Node; Node = Node->Next) {
+            LPMESSAGE Candidate = (LPMESSAGE)Node;
+            if (Candidate->Target == Message->Target) {
+                CurrentMessage = Candidate;
+                break;
+            }
+        }
+    }
+
+    if (CurrentMessage == NULL) {
+        return FALSE;
+    }
+
+    Message->Target = CurrentMessage->Target;
+    Message->Time = CurrentMessage->Time;
+    Message->Message = CurrentMessage->Message;
+    Message->Param1 = CurrentMessage->Param1;
+    Message->Param2 = CurrentMessage->Param2;
+
+    if (Remove) {
+        ListEraseItem(Queue->Messages, CurrentMessage);
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Adds a message to a task's message queue in a thread-safe manner.
  *
  * Adds the specified message to the task's message queue. This function
@@ -1114,6 +1175,56 @@ static void AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
 
     UnlockMutex(&(Task->MessageQueue.Mutex));
     UnlockMutex(&(Task->Mutex));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enqueue an input message into the global input queue.
+ * @param Msg Message identifier.
+ * @param Param1 First message parameter.
+ * @param Param2 Second message parameter.
+ * @return TRUE on success.
+ */
+BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
+    LPMESSAGEQUEUE InputQueue = GetInputMessageQueue();
+    LPMESSAGE Message = NULL;
+
+    SAFE_USE(InputQueue) {
+        LockMutex(&(InputQueue->Mutex), INFINITY);
+
+        if (InputQueue->Messages == NULL) {
+            UnlockMutex(&(InputQueue->Mutex));
+            WARNING(TEXT("[EnqueueInputMessage] Input queue not initialized"));
+            return FALSE;
+        }
+
+        if (InputQueue->Capacity != 0 && InputQueue->Messages->NumItems >= InputQueue->Capacity) {
+            WARNING(TEXT("[EnqueueInputMessage] Input queue full, dropping message %u"), Msg);
+            UnlockMutex(&(InputQueue->Mutex));
+            return FALSE;
+        }
+
+        Message = NewMessage();
+        if (Message == NULL) {
+            UnlockMutex(&(InputQueue->Mutex));
+            return FALSE;
+        }
+
+        GetLocalTime(&(Message->Time));
+        Message->Target = NULL;
+        Message->Message = Msg;
+        Message->Param1 = Param1;
+        Message->Param2 = Param2;
+
+        ListAddItem(InputQueue->Messages, Message);
+
+        UnlockMutex(&(InputQueue->Mutex));
+        return TRUE;
+    }
+
+    WARNING(TEXT("[EnqueueInputMessage] Input queue unavailable"));
+    return FALSE;
 }
 
 /************************************************************************/
@@ -1438,6 +1549,22 @@ void WaitForMessage(LPTASK Task) {
     // CPU cycles.
 
     while (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
+        if (TaskProcessHasFocus(Task)) {
+            LPMESSAGEQUEUE InputQueue = GetInputMessageQueue();
+
+            SAFE_USE(InputQueue) {
+                LockMutex(&(InputQueue->Mutex), INFINITY);
+
+                if (InputQueue->Messages != NULL && InputQueue->Messages->NumItems > 0) {
+                    UnlockMutex(&(InputQueue->Mutex));
+                    SetTaskStatus(Task, TASK_STATUS_RUNNING);
+                    break;
+                }
+
+                UnlockMutex(&(InputQueue->Mutex));
+            }
+        }
+
         IdleCPU();
     }
 
@@ -1459,8 +1586,8 @@ void WaitForMessage(LPTASK Task) {
  */
 BOOL GetMessage(LPMESSAGEINFO Message) {
     LPTASK Task;
-    LPMESSAGE CurrentMessage;
-    LPLISTNODE Node;
+    LPMESSAGEQUEUE InputQueue;
+    BOOL Found = FALSE;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1471,76 +1598,37 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
 
     if (EnsureTaskMessageQueue(Task) == FALSE) return FALSE;
 
-    LockMutex(&(Task->Mutex), INFINITY);
-    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
+    FOREVER {
+        if (TaskProcessHasFocus(Task)) {
+            InputQueue = GetInputMessageQueue();
 
-    if (Task->MessageQueue.Messages->NumItems == 0) {
-        UnlockMutex(&(Task->Mutex));
-        UnlockMutex(&(Task->MessageQueue.Mutex));
+            SAFE_USE(InputQueue) {
+                LockMutex(&(InputQueue->Mutex), INFINITY);
 
-        WaitForMessage(Task);
+                Found = CopyMessageFromQueueLocked(InputQueue, Message, TRUE);
+
+                UnlockMutex(&(InputQueue->Mutex));
+
+                if (Found == TRUE) {
+                    return Message->Message != ETM_QUIT;
+                }
+            }
+        }
 
         LockMutex(&(Task->Mutex), INFINITY);
         LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
-    }
 
-    if (Message->Target == NULL) {
-        CurrentMessage = (LPMESSAGE)Task->MessageQueue.Messages->First;
+        Found = CopyMessageFromQueueLocked(&(Task->MessageQueue), Message, TRUE);
 
-        //-------------------------------------
-        // Copy the message to the user structure
+        UnlockMutex(&(Task->MessageQueue.Mutex));
+        UnlockMutex(&(Task->Mutex));
 
-        Message->Target = CurrentMessage->Target;
-        Message->Time = CurrentMessage->Time;
-        Message->Message = CurrentMessage->Message;
-        Message->Param1 = CurrentMessage->Param1;
-        Message->Param2 = CurrentMessage->Param2;
-
-        //-------------------------------------
-        // Remove the message from the task's message queue
-
-        ListEraseItem(Task->MessageQueue.Messages, CurrentMessage);
-
-        if (Message->Message == ETM_QUIT) goto Out_Error;
-
-        goto Out_Success;
-    } else {
-        for (Node = Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
-            CurrentMessage = (LPMESSAGE)Node;
-
-            if (CurrentMessage->Target == Message->Target) {
-                //-------------------------------------
-                // Copy the message to the user structure
-
-                Message->Target = CurrentMessage->Target;
-                Message->Time = CurrentMessage->Time;
-                Message->Message = CurrentMessage->Message;
-                Message->Param1 = CurrentMessage->Param1;
-                Message->Param2 = CurrentMessage->Param2;
-
-                //-------------------------------------
-                // Remove the message from the task's message queue
-
-                ListEraseItem(Task->MessageQueue.Messages, CurrentMessage);
-
-                if (Message->Message == ETM_QUIT) goto Out_Error;
-
-                goto Out_Success;
-            }
+        if (Found == TRUE) {
+            return Message->Message != ETM_QUIT;
         }
+
+        WaitForMessage(Task);
     }
-
-Out_Success:
-
-    UnlockMutex(&(Task->Mutex));
-    UnlockMutex(&(Task->MessageQueue.Mutex));
-    return TRUE;
-
-Out_Error:
-
-    UnlockMutex(&(Task->Mutex));
-    UnlockMutex(&(Task->MessageQueue.Mutex));
-    return FALSE;
 }
 
 /************************************************************************/

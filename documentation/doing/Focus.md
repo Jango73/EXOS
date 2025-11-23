@@ -10,9 +10,9 @@
 2. [x] **Initialization wiring**
    - Initialize focus pointers during Kernel init to the default desktop/process; ensure the global queue is constructed/reset there.
    - Provide safe defaults if no desktop/process is focused yet.
-3. [ ] **Input enqueue path**
+3. [x] **Input enqueue path**
    - Route keyboard (and other input) events into the global queue instead of broadcasting to all tasks. Preserve existing message format; ensure logging and SAFE_USE usage stay correct.
-4. [ ] **Message retrieval**
+4. [x] **Message retrieval**
    - Update PeekMessage/GetMessage so that a task checks the global queue only when its process currently has focus; otherwise, fall back to its own queue. Ensure synchronization/locking around the shared queue.
    - Avoid duplicate delivery between global and per-task queues; clarify precedence.
 5. [ ] **Focus on process creation**
