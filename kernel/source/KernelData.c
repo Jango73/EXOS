@@ -204,7 +204,6 @@ KERNELDATA DATA_SECTION Kernel = {
     .UserSessions = NULL,
     .UserAccount = &UserAccountList,
     .FocusedDesktop = NULL,
-    .FocusedProcess = NULL,
     .InputMessageQueue = {0},
     .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {

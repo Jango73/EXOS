@@ -230,7 +230,15 @@ void SetFocusedDesktop(LPDESKTOP Desktop) {
  * @return Focused process pointer or NULL if none is set.
  */
 LPPROCESS GetFocusedProcess(void) {
-    return Kernel.FocusedProcess;
+    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        SAFE_USE_VALID_ID(Desktop->FocusedProcess, KOID_PROCESS) {
+            return Desktop->FocusedProcess;
+        }
+    }
+
+    return &KernelProcess;
 }
 
 /************************************************************************/
@@ -240,7 +248,18 @@ LPPROCESS GetFocusedProcess(void) {
  * @param Process Process to focus, may be NULL to clear focus.
  */
 void SetFocusedProcess(LPPROCESS Process) {
-    Kernel.FocusedProcess = Process;
+    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+
+    if (Desktop == NULL) {
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+            Desktop = Process->Desktop;
+            Kernel.FocusedDesktop = Desktop;
+        }
+    }
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        Desktop->FocusedProcess = Process;
+    }
 }
 
 /************************************************************************/
@@ -319,8 +338,10 @@ static void InitializeFocusState(void) {
         KernelProcess.Desktop = Kernel.FocusedDesktop;
     }
 
-    if (Kernel.FocusedProcess == NULL) {
-        Kernel.FocusedProcess = &KernelProcess;
+    SAFE_USE_VALID_ID(Kernel.FocusedDesktop, KOID_DESKTOP) {
+        if (Kernel.FocusedDesktop->FocusedProcess == NULL) {
+            Kernel.FocusedDesktop->FocusedProcess = &KernelProcess;
+        }
     }
 }
 

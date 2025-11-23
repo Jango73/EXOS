@@ -191,12 +191,13 @@ typedef struct tag_PROPERTY {
 
 struct tag_DESKTOP {
     LISTNODE_FIELDS     // Standard EXOS object fields
-        MUTEX Mutex;    // This structure's mutex
+    MUTEX Mutex;    // This structure's mutex
     LPTASK Task;        // The task that created this desktop
     LPDRIVER Graphics;  // This desktop's graphics driver
     LPWINDOW Window;    // Window of the desktop
     LPWINDOW Capture;   // Window that captured mouse
     LPWINDOW Focus;     // Window that has focus
+    LPPROCESS FocusedProcess; // Process with input focus on this desktop
     I32 Order;
 };
 

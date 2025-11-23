@@ -81,6 +81,7 @@ DESKTOP MainDesktop = {
     .Window = &MainDesktopWindow,
     .Capture = NULL,
     .Focus = NULL,
+    .FocusedProcess = &KernelProcess,
     .Order = 0
 };
 
@@ -207,6 +208,7 @@ LPDESKTOP CreateDesktop(void) {
     This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
     This->Graphics = GetGraphicsDriver();
+    This->FocusedProcess = GetCurrentProcess();
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;

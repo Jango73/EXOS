@@ -5,7 +5,7 @@
 
 ## Plan
 1. [x] **Kernel focus state (KernelData.c:Kernel)**
-   - Add focused desktop pointer and focused process pointer with getters/setters (header export as needed). Keep names consistent with existing Kernel fields and follow ordering (#defines, typedefs, inlines, externs).
+   - Add focused desktop pointer with getters/setters (header export as needed), and store the focused process on the focused desktop. Keep names consistent with existing Kernel fields and follow ordering (#defines, typedefs, inlines, externs).
    - Add a global input message queue instance in Kernel for device input ingress (keyboard first). Document ownership and init path.
 2. [x] **Initialization wiring**
    - Initialize focus pointers during Kernel init to the default desktop/process; ensure the global queue is constructed/reset there.
