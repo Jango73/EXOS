@@ -16,11 +16,14 @@
 #include "utils/Helpers.h"
 #include "User.h"
 
-/***************************************************************************/
+/************************************************************************/
 
-#define DEVICE_INTERRUPT_SPURIOUS_THRESHOLD 64U
+#define DEVICE_INTERRUPT_VER_MAJOR 1
+#define DEVICE_INTERRUPT_VER_MINOR 0
 
-/***************************************************************************/
+#define DEVICE_INTERRUPT_SPURIOUS_THRESHOLD 64
+
+/************************************************************************/
 
 typedef struct tag_DEVICE_INTERRUPT_SLOT {
     BOOL InUse;
@@ -45,26 +48,22 @@ typedef struct tag_DEVICE_INTERRUPT_ENTRY {
     U32 SuppressedCount;
 } DEVICE_INTERRUPT_ENTRY, *LPDEVICE_INTERRUPT_ENTRY;
 
-/***************************************************************************/
+/************************************************************************/
 
 static LPDEVICE_INTERRUPT_ENTRY g_DeviceInterruptEntries = NULL;
 static U32 g_DeviceInterruptEntriesSize = 0;
 static U8 g_DeviceInterruptSlotCount = DEVICE_INTERRUPT_VECTOR_DEFAULT;
 
-/***************************************************************************/
+/************************************************************************/
 
 static void DeviceInterruptDeferredThunk(LPVOID Context);
 static void DeviceInterruptPollThunk(LPVOID Context);
 static void DeviceInterruptApplyConfiguration(void);
 static BOOL DeviceInterruptAllocateEntries(void);
 static LPDEVICE_INTERRUPT_ENTRY DeviceInterruptGetEntry(U32 SlotIndex);
-
-/***************************************************************************/
-
-#define DEVICE_INTERRUPT_VER_MAJOR 1
-#define DEVICE_INTERRUPT_VER_MINOR 0
-
 static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter);
+
+/************************************************************************/
 
 DRIVER DeviceInterruptDriver = {
     .TypeID = KOID_DRIVER,
@@ -80,7 +79,7 @@ DRIVER DeviceInterruptDriver = {
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = DeviceInterruptDriverCommands};
 
-/***************************************************************************/
+/************************************************************************/
 
 U8 DeviceInterruptGetSlotCount(void) {
     U8 SlotCount = g_DeviceInterruptSlotCount;
@@ -96,7 +95,7 @@ U8 DeviceInterruptGetSlotCount(void) {
     return SlotCount;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static void DeviceInterruptApplyConfiguration(void) {
     g_DeviceInterruptSlotCount = DEVICE_INTERRUPT_VECTOR_DEFAULT;
@@ -129,7 +128,7 @@ static void DeviceInterruptApplyConfiguration(void) {
           DEVICE_INTERRUPT_VECTOR_MAX);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 static BOOL DeviceInterruptAllocateEntries(void) {
     const U8 SlotCount = g_DeviceInterruptSlotCount;
@@ -189,45 +188,7 @@ void InitializeDeviceInterrupts(void) {
     DEBUG(TEXT("[InitializeDeviceInterrupts] Device interrupt slots cleared"));
 }
 
-/***************************************************************************/
-
-/**
- * @brief Driver command handler for device interrupt management.
- *
- * DF_LOAD initializes slot storage and configuration once; DF_UNLOAD only
- * clears readiness.
- */
-static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter) {
-    UNUSED(Parameter);
-
-    switch (Function) {
-        case DF_LOAD:
-            if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
-            }
-
-            InitializeDeviceInterrupts();
-            if (g_DeviceInterruptEntries != NULL) {
-                DeviceInterruptDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
-            }
-
-            return DF_ERROR_UNEXPECT;
-
-        case DF_UNLOAD:
-            if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
-            }
-
-            DeviceInterruptDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
-
-        case DF_GETVERSION:
-            return MAKE_VERSION(DEVICE_INTERRUPT_VER_MAJOR, DEVICE_INTERRUPT_VER_MINOR);
-    }
-
-    return DF_ERROR_NOTIMPL;
-}
+/************************************************************************/
 
 BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, U8 *AssignedSlot) {
     if (Registration == NULL || Registration->Device == NULL || Registration->InterruptHandler == NULL) {
@@ -528,4 +489,42 @@ static void DeviceInterruptPollThunk(LPVOID Context) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
+
+/**
+ * @brief Driver command handler for device interrupt management.
+ *
+ * DF_LOAD initializes slot storage and configuration once; DF_UNLOAD only
+ * clears readiness.
+ */
+static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            InitializeDeviceInterrupts();
+            if (g_DeviceInterruptEntries != NULL) {
+                DeviceInterruptDriver.Flags |= DRIVER_FLAG_READY;
+                return DF_ERROR_SUCCESS;
+            }
+
+            return DF_ERROR_UNEXPECT;
+
+        case DF_UNLOAD:
+            if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_ERROR_SUCCESS;
+            }
+
+            DeviceInterruptDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_ERROR_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(DEVICE_INTERRUPT_VER_MAJOR, DEVICE_INTERRUPT_VER_MINOR);
+    }
+
+    return DF_ERROR_NOTIMPL;
+}
