@@ -1,5 +1,5 @@
 #!/bin/bash
-export ARCH=x86-64
+export PROFILING=0
 export DEBUG_OUTPUT=0
 export SCHEDULING_DEBUG_OUTPUT=0
 export TRACE_STACK_USAGE=0
