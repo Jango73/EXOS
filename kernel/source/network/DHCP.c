@@ -208,6 +208,24 @@ static int DHCP_ParseOptions(LPDHCP_CONTEXT Context, const U8* Options, U32 Opti
                     }
                     break;
 
+                case DHCP_OPTION_RENEWAL_TIME:
+                    if (Length == 4) {
+                        U32 RenewalBe;
+                        MemoryCopy(&RenewalBe, Options + Index, 4);
+                        Context->RenewalTime = Ntohl(RenewalBe);
+                        DEBUG(TEXT("[DHCP_ParseOptions] Renewal Time (T1): %u seconds"), Context->RenewalTime);
+                    }
+                    break;
+
+                case DHCP_OPTION_REBIND_TIME:
+                    if (Length == 4) {
+                        U32 RebindBe;
+                        MemoryCopy(&RebindBe, Options + Index, 4);
+                        Context->RebindTime = Ntohl(RebindBe);
+                        DEBUG(TEXT("[DHCP_ParseOptions] Rebind Time (T2): %u seconds"), Context->RebindTime);
+                    }
+                    break;
+
                 case DHCP_OPTION_SERVER_ID:
                     if (Length == 4) {
                         MemoryCopy(&Context->ServerID_Be, Options + Index, 4);
@@ -273,7 +291,7 @@ static void DHCP_SendDiscover(LPDEVICE Device) {
     DHCP_MESSAGE Message;
     U32 OptionsOffset;
     U8 MessageType;
-    U8 ParameterList[4];
+    U8 ParameterList[6];
 
     if (Device == NULL) return;
 
@@ -297,7 +315,9 @@ static void DHCP_SendDiscover(LPDEVICE Device) {
         ParameterList[1] = DHCP_OPTION_ROUTER;
         ParameterList[2] = DHCP_OPTION_DNS_SERVER;
         ParameterList[3] = DHCP_OPTION_LEASE_TIME;
-        OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_PARAMETER_LIST, 4, ParameterList);
+        ParameterList[4] = DHCP_OPTION_RENEWAL_TIME;
+        ParameterList[5] = DHCP_OPTION_REBIND_TIME;
+        OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_PARAMETER_LIST, 6, ParameterList);
 
         // Option 255: End
         Message.Options[OptionsOffset++] = DHCP_OPTION_END;
@@ -329,6 +349,7 @@ static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
     U32 DestinationIP_Be;
     U32 ClientIP_Be;
     U32 DestinationHostOrder;
+    BOOL HasClientIP;
 
     if (Device == NULL) return FALSE;
 
@@ -339,6 +360,7 @@ static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
         ClientIP_Be = 0;
         RequestedIP_Be = Context->OfferedIP_Be;
         ServerID_Be = Context->ServerID_Be;
+        HasClientIP = (Context->OfferedIP_Be != 0);
 
         if (TargetState == DHCP_STATE_RENEWING) {
             Flags = 0;
@@ -351,7 +373,7 @@ static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
             ServerID_Be = 0;
         }
 
-        if (ClientIP_Be == 0 && RequestedIP_Be == 0) {
+        if (HasClientIP == FALSE && RequestedIP_Be == 0) {
             ERROR(TEXT("[DHCP_SendRequest] No IP available for REQUEST (state %u)"), TargetState);
             return FALSE;
         }
@@ -414,6 +436,88 @@ static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
 /************************************************************************/
 
 /**
+ * @brief Marks the network device as not ready and clears cached IP.
+ *
+ * @param Context DHCP context.
+ */
+
+static void DHCP_ClearNetworkReady(LPDHCP_CONTEXT Context) {
+    if (Context == NULL) return;
+
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
+            SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
+                if ((LPDEVICE)NetCtx->Device == Context->Device) {
+                    NetCtx->LocalIPv4_Be = 0;
+                    NetCtx->IsReady = FALSE;
+                    DEBUG(TEXT("[DHCP_ClearNetworkReady] Network device marked not ready"));
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sends a DHCP RELEASE message if lease is active.
+ *
+ * @param Device Network device.
+ */
+
+static void DHCP_SendRelease(LPDEVICE Device) {
+    LPDHCP_CONTEXT Context;
+    DHCP_MESSAGE Message;
+    U32 OptionsOffset;
+    U8 MessageType;
+    U32 DestinationIP_Be;
+    U32 DestinationHostOrder;
+
+    if (Device == NULL) return;
+
+    Context = DHCP_GetContext(Device);
+    SAFE_USE(Context) {
+        if (Context->OfferedIP_Be == 0) {
+            DEBUG(TEXT("[DHCP_SendRelease] No assigned IP, skipping RELEASE"));
+            return;
+        }
+
+        DestinationIP_Be = (Context->ServerID_Be != 0) ? Context->ServerID_Be : DHCP_BROADCAST_IP;
+
+        DHCP_InitMessage(&Message, Context, 0, Context->OfferedIP_Be);
+
+        OptionsOffset = 0;
+
+        MessageType = DHCP_RELEASE;
+        OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_MESSAGE_TYPE, 1, &MessageType);
+
+        OptionsOffset = DHCP_WriteClientIdentifier(Message.Options, OptionsOffset, Context->LocalMacAddress);
+
+        if (Context->ServerID_Be != 0) {
+            OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_SERVER_ID, 4, (const U8*)&Context->ServerID_Be);
+        }
+
+        Message.Options[OptionsOffset++] = DHCP_OPTION_END;
+
+        DestinationHostOrder = Ntohl(DestinationIP_Be);
+        DEBUG(TEXT("[DHCP_SendRelease] Sending DHCP RELEASE to %u.%u.%u.%u"),
+              (DestinationHostOrder >> 24) & 0xFF,
+              (DestinationHostOrder >> 16) & 0xFF,
+              (DestinationHostOrder >> 8) & 0xFF,
+              DestinationHostOrder & 0xFF);
+
+        UDP_Send(Device, DestinationIP_Be, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (const U8*)&Message, sizeof(DHCP_MESSAGE));
+        Context->State = DHCP_STATE_INIT;
+        Context->RetryCount = 0;
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Applies ACK contents to the network configuration.
  *
  * @param Context DHCP context.
@@ -423,6 +527,8 @@ static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
 static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
     U32 AssignedIP_Be;
     U32 AssignedIP;
+    U32 RenewalSeconds;
+    U32 RebindSeconds;
 
     if (Context == NULL || Message == NULL) return;
 
@@ -451,9 +557,17 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
     Context->LeaseStartMillis = GetSystemTime();
     Context->RetryCount = 0;
 
-    // Calculate renewal times (T1 = 50% of lease, T2 = 87.5% of lease)
-    Context->RenewalTime = Context->LeaseTime / 2;
-    Context->RebindTime = (Context->LeaseTime * 7) / 8;
+    // Calculate renewal times (T1 = 50% of lease, T2 = 87.5% of lease) with option overrides
+    RenewalSeconds = Context->RenewalTime != 0 ? Context->RenewalTime : (Context->LeaseTime / 2);
+    RebindSeconds = Context->RebindTime != 0 ? Context->RebindTime : ((Context->LeaseTime * 7) / 8);
+
+    Context->RenewalTime = RenewalSeconds;
+    Context->RebindTime = RebindSeconds;
+
+    DEBUG(TEXT("[DHCP_ApplyAck] RenewalTime=%u RebindTime=%u LeaseTime=%u"),
+          Context->RenewalTime,
+          Context->RebindTime,
+          Context->LeaseTime);
 
     // Mark network device as ready
     LPLIST NetworkDeviceList = GetNetworkDeviceList();
@@ -540,6 +654,7 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
             if (MessageType == DHCP_DECLINE) {
                 WARNING(TEXT("[DHCP_OnUDPPacket] Received DECLINE, restarting DHCP"));
                 Context->State = DHCP_STATE_INIT;
+                DHCP_ClearNetworkReady(Context);
                 DHCP_Start(g_DHCPDevice);
                 return;
             } else if (MessageType == DHCP_INFORM) {
@@ -594,6 +709,7 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                     } else if (MessageType == DHCP_NAK) {
                         ERROR(TEXT("[DHCP_OnUDPPacket] Received NAK, restarting DHCP"));
                         Context->State = DHCP_STATE_INIT;
+                        DHCP_ClearNetworkReady(Context);
                         DHCP_Start(g_DHCPDevice);
                     }
                     break;
@@ -632,7 +748,13 @@ static void DHCP_HandleRequestTimeout(LPDEVICE Device, LPDHCP_CONTEXT Context) {
 
     if (Context->RetryCount >= DHCP_MAX_RETRIES) {
         DEBUG(TEXT("[DHCP_HandleRequestTimeout] DHCP failed after %u retries"), Context->RetryCount);
-        Context->State = DHCP_STATE_FAILED;
+        if (Context->State == DHCP_STATE_RENEWING || Context->State == DHCP_STATE_REBINDING) {
+            WARNING(TEXT("[DHCP_HandleRequestTimeout] Lease retry limit reached, restarting DHCP"));
+            DHCP_ClearNetworkReady(Context);
+            DHCP_Start(Device);
+        } else {
+            Context->State = DHCP_STATE_FAILED;
+        }
         return;
     }
 
@@ -720,6 +842,8 @@ void DHCP_Destroy(LPDEVICE Device) {
 
     Context = DHCP_GetContext(Device);
     SAFE_USE(Context) {
+        DHCP_SendRelease(Device);
+        DHCP_ClearNetworkReady(Context);
         UDP_UnregisterPortHandler(Device, DHCP_CLIENT_PORT);
         KernelHeapFree(Context);
         SetDeviceContext(Device, KOID_DHCP, NULL);
@@ -755,6 +879,7 @@ void DHCP_Start(LPDEVICE Device) {
         Context->RenewalTime = 0;
         Context->RebindTime = 0;
         Context->LeaseStartMillis = 0;
+        DHCP_ClearNetworkReady(Context);
         DHCP_SendDiscover(Device);
     }
 }
@@ -782,8 +907,6 @@ void DHCP_Tick(LPDEVICE Device) {
         switch (Context->State) {
             case DHCP_STATE_SELECTING:
             case DHCP_STATE_REQUESTING:
-            case DHCP_STATE_RENEWING:
-            case DHCP_STATE_REBINDING:
                 DHCP_HandleRequestTimeout(Device, Context);
                 break;
 
@@ -791,17 +914,43 @@ void DHCP_Tick(LPDEVICE Device) {
                 ElapsedMillis = CurrentMillis - Context->LeaseStartMillis;
                 ElapsedSeconds = ElapsedMillis / 1000;
 
-                if (ElapsedSeconds >= Context->LeaseTime) {
+                if (Context->LeaseTime != 0 && ElapsedSeconds >= Context->LeaseTime) {
                     WARNING(TEXT("[DHCP_Tick] Lease expired, restarting DHCP"));
+                    DHCP_ClearNetworkReady(Context);
                     DHCP_Start(Device);
-                } else if (ElapsedSeconds >= Context->RebindTime) {
+                } else if (Context->RebindTime != 0 && ElapsedSeconds >= Context->RebindTime) {
                     DEBUG(TEXT("[DHCP_Tick] Entering REBINDING state"));
-                    Context->State = DHCP_STATE_REBINDING;
-                    // TODO: Implement rebinding (broadcast REQUEST)
-                } else if (ElapsedSeconds >= Context->RenewalTime) {
+                    DHCP_SendRequest(Device, DHCP_STATE_REBINDING);
+                } else if (Context->RenewalTime != 0 && ElapsedSeconds >= Context->RenewalTime) {
                     DEBUG(TEXT("[DHCP_Tick] Entering RENEWING state"));
-                    Context->State = DHCP_STATE_RENEWING;
-                    // TODO: Implement renewal (unicast REQUEST to server)
+                    DHCP_SendRequest(Device, DHCP_STATE_RENEWING);
+                }
+                break;
+
+            case DHCP_STATE_RENEWING:
+                DHCP_HandleRequestTimeout(Device, Context);
+                ElapsedMillis = CurrentMillis - Context->LeaseStartMillis;
+                ElapsedSeconds = ElapsedMillis / 1000;
+
+                if (Context->LeaseTime != 0 && ElapsedSeconds >= Context->LeaseTime) {
+                    WARNING(TEXT("[DHCP_Tick] Lease expired during renewal, restarting DHCP"));
+                    DHCP_ClearNetworkReady(Context);
+                    DHCP_Start(Device);
+                } else if (Context->RebindTime != 0 && ElapsedSeconds >= Context->RebindTime) {
+                    DEBUG(TEXT("[DHCP_Tick] Renewal timed out, entering REBINDING state"));
+                    DHCP_SendRequest(Device, DHCP_STATE_REBINDING);
+                }
+                break;
+
+            case DHCP_STATE_REBINDING:
+                DHCP_HandleRequestTimeout(Device, Context);
+                ElapsedMillis = CurrentMillis - Context->LeaseStartMillis;
+                ElapsedSeconds = ElapsedMillis / 1000;
+
+                if (Context->LeaseTime != 0 && ElapsedSeconds >= Context->LeaseTime) {
+                    WARNING(TEXT("[DHCP_Tick] Lease expired during rebinding, restarting DHCP"));
+                    DHCP_ClearNetworkReady(Context);
+                    DHCP_Start(Device);
                 }
                 break;
 
