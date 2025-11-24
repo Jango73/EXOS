@@ -6,7 +6,7 @@
 
 \************************************************************************/
 
-#include "DeviceInterrupt.h"
+#include "drivers/DeviceInterrupt.h"
 
 #include "InterruptController.h"
 #include "Log.h"
@@ -81,6 +81,14 @@ DRIVER DeviceInterruptDriver = {
 
 /************************************************************************/
 
+/**
+ * @brief Returns the number of device interrupt slots available.
+ *
+ * Clamps the configured slot count to the supported range to avoid invalid
+ * vector indices.
+ *
+ * @return Active slot count.
+ */
 U8 DeviceInterruptGetSlotCount(void) {
     U8 SlotCount = g_DeviceInterruptSlotCount;
 
@@ -97,6 +105,12 @@ U8 DeviceInterruptGetSlotCount(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Applies configuration to determine the active slot count.
+ *
+ * Reads the configured slot count, clamps it to the supported range, and
+ * initializes the global slot count used by the interrupt dispatcher.
+ */
 static void DeviceInterruptApplyConfiguration(void) {
     g_DeviceInterruptSlotCount = DEVICE_INTERRUPT_VECTOR_DEFAULT;
 
@@ -130,6 +144,12 @@ static void DeviceInterruptApplyConfiguration(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Allocates or clears device interrupt slot storage.
+ *
+ * @return TRUE when storage is ready for use, FALSE on allocation failure or
+ * invalid configuration.
+ */
 static BOOL DeviceInterruptAllocateEntries(void) {
     const U8 SlotCount = g_DeviceInterruptSlotCount;
     if (SlotCount == 0) {
@@ -165,6 +185,12 @@ static BOOL DeviceInterruptAllocateEntries(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieves a slot entry by index.
+ *
+ * @param SlotIndex Slot index to fetch.
+ * @return Pointer to slot entry or NULL if out of range/uninitialized.
+ */
 static LPDEVICE_INTERRUPT_ENTRY DeviceInterruptGetEntry(U32 SlotIndex) {
     if (g_DeviceInterruptEntries == NULL) {
         return NULL;
@@ -179,6 +205,11 @@ static LPDEVICE_INTERRUPT_ENTRY DeviceInterruptGetEntry(U32 SlotIndex) {
 
 /***************************************************************************/
 
+/**
+ * @brief Initializes device interrupt subsystem.
+ *
+ * Applies configuration and ensures slot storage is ready for registrations.
+ */
 void InitializeDeviceInterrupts(void) {
     DeviceInterruptApplyConfiguration();
     if (!DeviceInterruptAllocateEntries()) {
@@ -190,6 +221,13 @@ void InitializeDeviceInterrupts(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Registers a device interrupt slot.
+ *
+ * @param Registration Registration parameters for the device.
+ * @param AssignedSlot Optional output for the allocated slot index.
+ * @return TRUE on success, FALSE when no slot is available or setup fails.
+ */
 BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, U8 *AssignedSlot) {
     if (Registration == NULL || Registration->Device == NULL || Registration->InterruptHandler == NULL) {
         ERROR(TEXT("[DeviceInterruptRegister] Invalid registration parameters"));
@@ -297,6 +335,12 @@ BOOL DeviceInterruptRegister(const DEVICE_INTERRUPT_REGISTRATION *Registration, 
 
 /***************************************************************************/
 
+/**
+ * @brief Releases a previously registered device interrupt slot.
+ *
+ * @param SlotIndex Slot index to release.
+ * @return TRUE on success, FALSE for invalid slot index or unused slot.
+ */
 BOOL DeviceInterruptUnregister(U8 SlotIndex) {
     if (SlotIndex >= DeviceInterruptGetSlotCount()) {
         return FALSE;
@@ -329,6 +373,13 @@ BOOL DeviceInterruptUnregister(U8 SlotIndex) {
 
 /***************************************************************************/
 
+/**
+ * @brief Top-half handler for device interrupt vectors.
+ *
+ * Dispatches to the registered handler and signals deferred work when needed.
+ *
+ * @param SlotIndex Slot index associated with the interrupt vector.
+ */
 void DeviceInterruptHandler(U8 SlotIndex) {
     if (SlotIndex >= DeviceInterruptGetSlotCount()) {
         return;
@@ -413,6 +464,12 @@ void DeviceInterruptHandler(U8 SlotIndex) {
 
 /***************************************************************************/
 
+/**
+ * @brief Checks whether a slot has interrupts enabled.
+ *
+ * @param SlotIndex Slot index to query.
+ * @return TRUE if the slot is active and interrupt delivery is enabled.
+ */
 BOOL DeviceInterruptSlotIsEnabled(U8 SlotIndex) {
     if (SlotIndex >= DeviceInterruptGetSlotCount()) {
         return FALSE;
@@ -433,6 +490,11 @@ BOOL DeviceInterruptSlotIsEnabled(U8 SlotIndex) {
 
 /***************************************************************************/
 
+/**
+ * @brief Deferred work wrapper for device interrupt bottom halves.
+ *
+ * @param Context Entry pointer supplied by deferred work dispatcher.
+ */
 static void DeviceInterruptDeferredThunk(LPVOID Context) {
     LPDEVICE_INTERRUPT_ENTRY Entry = (LPDEVICE_INTERRUPT_ENTRY)Context;
     if (Entry == NULL) {
@@ -462,6 +524,11 @@ static void DeviceInterruptDeferredThunk(LPVOID Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Polling wrapper executed when interrupts are disabled or unavailable.
+ *
+ * @param Context Entry pointer supplied by the polling dispatcher.
+ */
 static void DeviceInterruptPollThunk(LPVOID Context) {
     LPDEVICE_INTERRUPT_ENTRY Entry = (LPDEVICE_INTERRUPT_ENTRY)Context;
     if (Entry == NULL) {

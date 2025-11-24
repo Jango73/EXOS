@@ -30,7 +30,7 @@ BITS 32
 
 ;----------------------------------------------------------------------------
 
-; DEVICE_INTERRUPT_VECTOR_MAX must stay in sync with kernel/include/DeviceInterrupt.h
+; DEVICE_INTERRUPT_VECTOR_MAX must stay in sync with kernel/include/drivers/DeviceInterrupt.h
 %define DEVICE_INTERRUPT_VECTOR_MAX 32
 
 ;----------------------------------------------------------------------------

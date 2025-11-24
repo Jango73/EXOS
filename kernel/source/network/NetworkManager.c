@@ -31,7 +31,7 @@
 #include "network/DHCP.h"
 #include "network/TCP.h"
 #include "Kernel.h"
-#include "DeviceInterrupt.h"
+#include "drivers/DeviceInterrupt.h"
 #include "Log.h"
 #include "Memory.h"
 #include "network/Network.h"

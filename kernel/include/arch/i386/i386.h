@@ -28,7 +28,7 @@
 /************************************************************************/
 
 #include "Base.h"
-#include "DeviceInterrupt.h"
+#include "drivers/DeviceInterrupt.h"
 #include "Driver.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/i386/i386-Memory.h"

@@ -27,7 +27,7 @@
 #include "Base.h"
 #include "Driver.h"
 #include "Kernel.h"
-#include "DeviceInterrupt.h"
+#include "drivers/DeviceInterrupt.h"
 #include "DeferredWork.h"
 #include "InterruptController.h"
 #include "Log.h"

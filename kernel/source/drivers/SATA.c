@@ -25,7 +25,7 @@
 #include "drivers/SATA.h"
 
 #include "Clock.h"
-#include "DeviceInterrupt.h"
+#include "drivers/DeviceInterrupt.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
