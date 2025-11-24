@@ -238,7 +238,7 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
     //-------------------------------------
     // Update global information and register the file system
 
-    ListAddItem(Kernel.FileSystem, FileSystem);
+    ListAddItem(GetFileSystemList(), FileSystem);
 
     return TRUE;
 }
@@ -903,4 +903,3 @@ UINT EXFSCommands(UINT Function, UINT Parameter) {
 
     return DF_ERROR_NOTIMPL;
 }
-

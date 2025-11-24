@@ -99,8 +99,10 @@ UINT SysCall_GetSystemInfo(UINT Parameter) {
         Info->TotalPhysicalPages = KernelStartup.PageCount;
         Info->MinimumLinearAddress = VMA_USER;
         Info->MaximumLinearAddress = VMA_KERNEL - 1;
-        Info->NumProcesses = Kernel.Process->NumItems;
-        Info->NumTasks = Kernel.Task->NumItems;
+        LPLIST ProcessList = GetProcessList();
+        LPLIST TaskList = GetTaskList();
+        Info->NumProcesses = ProcessList != NULL ? ProcessList->NumItems : 0;
+        Info->NumTasks = TaskList != NULL ? TaskList->NumItems : 0;
 
         LPUSERACCOUNT User = GetCurrentUser();
 
@@ -851,7 +853,9 @@ UINT SysCall_EnumVolumes(UINT Parameter) {
 
         LockMutex(MUTEX_FILESYSTEM, INFINITY);
 
-        for (LPLISTNODE Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+        LPLIST FileSystemList = GetFileSystemList();
+        for (LPLISTNODE Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node;
+             Node = Node->Next) {
             LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
             HANDLE VolumeHandle = PointerToHandle((LINEAR)FileSystem);
 
@@ -2144,7 +2148,9 @@ UINT SysCall_ListUsers(UINT Parameter) {
         }
 
         ListInfo->UserCount = 0;
-        LPUSERACCOUNT Account = (LPUSERACCOUNT)Kernel.UserAccount->First;
+        LPLIST UserAccountList = GetUserAccountList();
+        LPUSERACCOUNT Account =
+            (LPUSERACCOUNT)(UserAccountList != NULL ? UserAccountList->First : NULL);
 
         while (Account != NULL && ListInfo->UserCount < ListInfo->MaxUsers) {
             StringCopy(ListInfo->UserNames[ListInfo->UserCount], Account->UserName);

@@ -1159,13 +1159,14 @@ void InitializeMemoryManager(void) {
     PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize + TablesSize;
     PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
 
-    Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
-    Kernel.PPBSize = BitmapBytesAligned;
+    SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
+    SetPhysicalPageBitmapSize(BitmapBytesAligned);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB physical base: %p"), (LINEAR)Kernel.PPB);
-    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB size: %x"), Kernel.PPBSize);
+    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB physical base: %p"),
+          (LINEAR)GetPhysicalPageBitmap());
+    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB size: %x"), GetPhysicalPageBitmapSize());
 
-    MemorySet(Kernel.PPB, 0, Kernel.PPBSize);
+    MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
 
     MarkUsedPhysicalMemory();
 

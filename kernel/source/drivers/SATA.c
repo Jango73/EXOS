@@ -612,7 +612,7 @@ static U32 InitializeAHCIController(void) {
 
             SAFE_USE(AHCIPort) {
                 if (InitializeAHCIPort(AHCIPort, i)) {
-                    ListAddItem(Kernel.Disk, AHCIPort);
+                    ListAddItem(GetDiskList(), AHCIPort);
                     DEBUG(TEXT("[InitializeAHCIController] Port %u added to disk list"), i);
                 }
             }

@@ -202,7 +202,7 @@ BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Ba
     //-------------------------------------
     // Update global information and register the file system
 
-    ListAddItem(Kernel.FileSystem, FileSystem);
+    ListAddItem(GetFileSystemList(), FileSystem);
 
     return TRUE;
 }

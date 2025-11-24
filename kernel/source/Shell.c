@@ -181,12 +181,13 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
         return;
     }
 
-    SAFE_USE(Kernel.Process) {
+    LPLIST ProcessList = GetProcessList();
+    SAFE_USE(ProcessList) {
         if (!ScriptRegisterHostSymbol(
                 Context->ScriptContext,
                 TEXT("process"),
                 SCRIPT_HOST_SYMBOL_ARRAY,
-                Kernel.Process,
+                ProcessList,
                 &ProcessArrayDescriptor,
                 NULL)) {
             DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register process host symbol"));
@@ -879,7 +880,8 @@ static U32 CMD_killtask(LPSHELLCONTEXT Context) {
     LPTASK Task = NULL;
     ParseNextCommandLineComponent(Context);
     TaskNum = StringToU32(Context->Command);
-    Task = (LPTASK)ListGetItem(Kernel.Task, TaskNum);
+    LPLIST TaskList = GetTaskList();
+    Task = (LPTASK)ListGetItem(TaskList, TaskNum);
     if (Task) KillTask(Task);
 
     return DF_ERROR_SUCCESS;
@@ -890,7 +892,8 @@ static U32 CMD_killtask(LPSHELLCONTEXT Context) {
 static U32 CMD_showprocess(LPSHELLCONTEXT Context) {
     LPPROCESS Process;
     ParseNextCommandLineComponent(Context);
-    Process = ListGetItem(Kernel.Process, StringToU32(Context->Command));
+    LPLIST ProcessList = GetProcessList();
+    Process = ListGetItem(ProcessList, StringToU32(Context->Command));
     if (Process) DumpProcess(Process);
 
     return DF_ERROR_SUCCESS;
@@ -901,14 +904,15 @@ static U32 CMD_showprocess(LPSHELLCONTEXT Context) {
 static U32 CMD_showtask(LPSHELLCONTEXT Context) {
     LPTASK Task;
     ParseNextCommandLineComponent(Context);
-    Task = ListGetItem(Kernel.Task, StringToU32(Context->Command));
+    LPLIST TaskList = GetTaskList();
+    Task = ListGetItem(TaskList, StringToU32(Context->Command));
 
     if (Task) {
         DumpTask(Task);
     } else {
         STR Text[MAX_FILE_NAME];
 
-        for (LPTASK Task = (LPTASK)Kernel.Task->First; Task != NULL; Task = (LPTASK)Task->Next) {
+        for (LPTASK Task = (LPTASK)TaskList->First; Task != NULL; Task = (LPTASK)Task->Next) {
             StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, Task->Status);
             ConsolePrint(Text);
         }
@@ -1131,7 +1135,8 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
     LPPHYSICALDISK Disk;
     DISKINFO DiskInfo;
 
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+    LPLIST DiskList = GetDiskList();
+    for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
         Disk = (LPPHYSICALDISK)Node;
 
         DiskInfo.Disk = Disk;
@@ -1155,9 +1160,10 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
     LPFILESYSTEM FileSystem;
 
     ConsolePrint(TEXT("General information\n"));
+    FILESYSTEM_GLOBAL_INFO* FileSystemInfo = GetFileSystemGlobalInfo();
 
-    if (StringEmpty(Kernel.FileSystemInfo.ActivePartitionName) == FALSE) {
-        ConsolePrint(TEXT("Active partition : %s\n"), Kernel.FileSystemInfo.ActivePartitionName);
+    if (StringEmpty(FileSystemInfo->ActivePartitionName) == FALSE) {
+        ConsolePrint(TEXT("Active partition : %s\n"), FileSystemInfo->ActivePartitionName);
     } else {
         ConsolePrint(TEXT("Active partition : <none>\n"));
     }
@@ -1165,7 +1171,8 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("\n"));
     ConsolePrint(TEXT("Mounted file systems\n"));
 
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+    LPLIST FileSystemList = GetFileSystemList();
+    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
 
         ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
@@ -1184,8 +1191,9 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
 
     LPLISTNODE Node;
 
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (Node = Kernel.NetworkDevice->First; Node; Node = Node->Next) {
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (Node = NetworkDeviceList->First; Node; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
 
             SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
@@ -1327,7 +1335,8 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[CMD_adduser] Password entered (length: %d)"), StringLength(Password));
 
     // Check if this is the first user (no users exist yet)
-    BOOL IsFirstUser = (Kernel.UserAccount == NULL || Kernel.UserAccount->First == NULL);
+    LPLIST UserAccountList = GetUserAccountList();
+    BOOL IsFirstUser = (UserAccountList == NULL || UserAccountList->First == NULL);
     if (IsFirstUser) {
         Privilege = EXOS_PRIVILEGE_ADMIN;
     } else {
@@ -1833,7 +1842,8 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
 
 static BOOL HandleUserLoginProcess(void) {
     // Check if any users exist
-    BOOL HasUsers = (Kernel.UserAccount != NULL && Kernel.UserAccount->First != NULL);
+    LPLIST UserAccountList = GetUserAccountList();
+    BOOL HasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
 
     if (!HasUsers) {
         // No users exist, prompt to create the first admin user
@@ -1844,7 +1854,8 @@ static BOOL HandleUserLoginProcess(void) {
         CMD_adduser(&TempContext);
 
         // Check if user was created successfully
-        BOOL NewHasUsers = (Kernel.UserAccount != NULL && Kernel.UserAccount->First != NULL);
+        UserAccountList = GetUserAccountList();
+        BOOL NewHasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
 
         if (NewHasUsers == FALSE) {
             ConsolePrint(TEXT("ERROR: Failed to create user account. System will exit.\n"));

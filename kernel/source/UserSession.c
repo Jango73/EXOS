@@ -43,11 +43,13 @@
  * @return TRUE on success, FALSE on failure.
  */
 BOOL InitializeSessionSystem(void) {
-    Kernel.UserSessions = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
-    if (Kernel.UserSessions == NULL) {
+    LPLIST SessionList = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    if (SessionList == NULL) {
         ERROR(TEXT("Failed to create session list"));
         return FALSE;
     }
+
+    SetUserSessionList(SessionList);
 
     DEBUG(TEXT("Session management system initialized"));
     return TRUE;
@@ -59,13 +61,14 @@ BOOL InitializeSessionSystem(void) {
  * @brief Shutdown the session management system.
  */
 void ShutdownSessionSystem(void) {
-    SAFE_USE(Kernel.UserSessions) {
+    LPLIST SessionList = GetUserSessionList();
+    SAFE_USE(SessionList) {
         // Clean up all active sessions
         LockMutex(MUTEX_SESSION, INFINITY);
 
-        U32 Count = ListGetSize(Kernel.UserSessions);
+        U32 Count = ListGetSize(SessionList);
         for (U32 i = 0; i < Count; i++) {
-            LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(Kernel.UserSessions, i);
+            LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(SessionList, i);
 
             SAFE_USE(Session) {
                 U32 UserIdHigh = U64_High32(Session->UserID);
@@ -76,8 +79,8 @@ void ShutdownSessionSystem(void) {
             }
         }
 
-        DeleteList(Kernel.UserSessions);
-        Kernel.UserSessions = NULL;
+        DeleteList(SessionList);
+        SetUserSessionList(NULL);
 
         UnlockMutex(MUTEX_SESSION);
     }
@@ -93,6 +96,11 @@ void ShutdownSessionSystem(void) {
  */
 LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     LockMutex(MUTEX_SESSION, INFINITY);
+    LPLIST SessionList = GetUserSessionList();
+    if (SessionList == NULL) {
+        UnlockMutex(MUTEX_SESSION);
+        return NULL;
+    }
 
     // Allocate new session
     LPUSERSESSION NewSession = (LPUSERSESSION)KernelHeapAlloc(sizeof(USERSESSION));
@@ -115,7 +123,7 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     NewSession->LastActivity = NewSession->LoginTime;
 
     // Add to list
-    if (ListAddTail(Kernel.UserSessions, NewSession) == 0) {
+    if (ListAddTail(SessionList, NewSession) == 0) {
         KernelHeapFree(NewSession);
         UnlockMutex(MUTEX_SESSION);
         return NULL;
@@ -178,7 +186,8 @@ void DestroyUserSession(LPUSERSESSION Session) {
     LockMutex(MUTEX_SESSION, INFINITY);
 
     // Remove from list
-    ListErase(Kernel.UserSessions, Session);
+    LPLIST SessionList = GetUserSessionList();
+    ListErase(SessionList, Session);
 
     UnlockMutex(MUTEX_SESSION);
 
@@ -195,15 +204,16 @@ void DestroyUserSession(LPUSERSESSION Session) {
  * @brief Clean up inactive sessions.
  */
 void TimeoutInactiveSessions(void) {
-    if (Kernel.UserSessions == NULL) {
+    LPLIST SessionList = GetUserSessionList();
+    if (SessionList == NULL) {
         return;
     }
 
     LockMutex(MUTEX_SESSION, INFINITY);
 
-    U32 Count = ListGetSize(Kernel.UserSessions);
+    U32 Count = ListGetSize(SessionList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(Kernel.UserSessions, i);
+        LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(SessionList, i);
         if (Session != NULL && !ValidateUserSession(Session)) {
             U32 UserIdHigh = U64_High32(Session->UserID);
             U32 UserIdLow = U64_Low32(Session->UserID);
@@ -211,7 +221,7 @@ void TimeoutInactiveSessions(void) {
             UNUSED(UserIdHigh);
             UNUSED(UserIdLow);
 
-            ListErase(Kernel.UserSessions, Session);
+            ListErase(SessionList, Session);
             i--;  // Adjust index since list size changed
             Count--;
         }
@@ -228,15 +238,16 @@ void TimeoutInactiveSessions(void) {
  * @return Pointer to session or NULL if not found.
  */
 LPUSERSESSION FindSessionByTask(HANDLE Task) {
-    if (Task == NULL || Kernel.UserSessions == NULL) {
+    LPLIST SessionList = GetUserSessionList();
+    if (Task == NULL || SessionList == NULL) {
         return NULL;
     }
 
     LockMutex(MUTEX_SESSION, INFINITY);
 
-    U32 Count = ListGetSize(Kernel.UserSessions);
+    U32 Count = ListGetSize(SessionList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(Kernel.UserSessions, i);
+        LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(SessionList, i);
         if (Session != NULL && Session->ShellTask == Task) {
             UnlockMutex(MUTEX_SESSION);
             return Session;
@@ -255,15 +266,16 @@ LPUSERSESSION FindSessionByTask(HANDLE Task) {
  */
 LPUSERSESSION GetCurrentSession(void) {
     LPUSERACCOUNT CurrentUser = GetCurrentUser();
-    if (CurrentUser == NULL || Kernel.UserSessions == NULL) {
+    LPLIST SessionList = GetUserSessionList();
+    if (CurrentUser == NULL || SessionList == NULL) {
         return NULL;
     }
 
     // Find the session for the current user
     LockMutex(MUTEX_SESSION, INFINITY);
-    U32 Count = ListGetSize(Kernel.UserSessions);
+    U32 Count = ListGetSize(SessionList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(Kernel.UserSessions, i);
+        LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(SessionList, i);
         if (Session != NULL && U64_Cmp(Session->UserID, CurrentUser->UserID) == 0) {
             UnlockMutex(MUTEX_SESSION);
             return Session;
@@ -304,7 +316,8 @@ BOOL SetCurrentSession(LPUSERSESSION Session) {
 
     // Find the session in the session list first
     SAFE_USE(Session) {
-        LPUSERSESSION Found = (LPUSERSESSION)Kernel.UserSessions->First;
+        LPLIST SessionList = GetUserSessionList();
+        LPUSERSESSION Found = (LPUSERSESSION)(SessionList != NULL ? SessionList->First : NULL);
         BOOL SessionExists = FALSE;
 
         while (Found != NULL) {

@@ -57,8 +57,9 @@ BOOL GetDefaultDeviceName(LPSTR Name, LPDEVICE Device, U32 DeviceType) {
     if (Name == NULL || Device == NULL) return FALSE;
 
     // Count devices of the same type to find this device's index
-    SAFE_USE(Kernel.PCIDevice) {
-        for (Node = Kernel.PCIDevice->First; Node; Node = Node->Next) {
+    LPLIST PciDeviceList = GetPCIDeviceList();
+    SAFE_USE(PciDeviceList) {
+        for (Node = PciDeviceList->First; Node; Node = Node->Next) {
             CurrentDevice = (LPDEVICE)Node;
             SAFE_USE_VALID_ID(CurrentDevice, KOID_PCIDEVICE) {
                 SAFE_USE_VALID_ID(CurrentDevice->Driver, KOID_DRIVER) {

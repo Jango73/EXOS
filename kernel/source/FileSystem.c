@@ -99,7 +99,10 @@ static void ReadKernelConfiguration(void) {
  *
  * @return Number of file systems currently mounted in the system
  */
-U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
+U32 GetNumFileSystems(void) {
+    LPLIST FileSystemList = GetFileSystemList();
+    return FileSystemList != NULL ? FileSystemList->NumItems : 0;
+}
 
 /***************************************************************************/
 
@@ -121,7 +124,8 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
     U32 DiskIndex = 0;
 
     // Find the index of this disk among disks of the same type
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+    LPLIST DiskList = GetDiskList();
+    for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
         CurrentDisk = (LPPHYSICALDISK)Node;
         if (CurrentDisk == Disk) break;
         if (CurrentDisk->Driver->Type == Disk->Driver->Type) DiskIndex++;
@@ -163,7 +167,8 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
  */
 void FileSystemSetActivePartition(LPFILESYSTEM FileSystem) {
     SAFE_USE(FileSystem) {
-        StringCopy(Kernel.FileSystemInfo.ActivePartitionName, FileSystem->Name);
+        FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+        StringCopy(GlobalInfo->ActivePartitionName, FileSystem->Name);
         DEBUG(TEXT("[FileSystemSetActivePartition] Active partition name set to %s"), FileSystem->Name);
     }
 }
@@ -249,7 +254,9 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
         if (Partition[Index].LBA != 0) {
             BOOL PartitionMounted = FALSE;
             BOOL PartitionIsActive = ((Partition[Index].Disk & 0x80) != 0);
-            LPFILESYSTEM PreviousLast = (LPFILESYSTEM)Kernel.FileSystem->Last;
+            LPLIST FileSystemList = GetFileSystemList();
+            LPFILESYSTEM PreviousLast =
+                (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
 
             switch (Partition[Index].Type) {
                 case FSID_NONE:
@@ -303,7 +310,9 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
             }
 
             if (PartitionMounted && PartitionIsActive) {
-                LPFILESYSTEM MountedFileSystem = (LPFILESYSTEM)Kernel.FileSystem->Last;
+                LPLIST FileSystemList = GetFileSystemList();
+                LPFILESYSTEM MountedFileSystem =
+                    (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
 
                 if (MountedFileSystem != NULL && MountedFileSystem != PreviousLast) {
                     FileSystemSetActivePartition(MountedFileSystem);
@@ -323,9 +332,11 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
-    StringClear(Kernel.FileSystemInfo.ActivePartitionName);
+    FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+    StringClear(GlobalInfo->ActivePartitionName);
 
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+    LPLIST DiskList = GetDiskList();
+    for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
 

@@ -158,7 +158,8 @@ static void ReleaseTaskMutexes(LPTASK Task) {
     LPMUTEX Mutex = NULL;
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        for (Node = Kernel.Mutex->First; Node; Node = Node->Next) {
+        LPLIST MutexList = GetMutexList();
+        for (Node = MutexList->First; Node; Node = Node->Next) {
             Mutex = (LPMUTEX)Node;
 
             if (Mutex->TypeID == KOID_MUTEX && Mutex->Task == Task) {
@@ -244,6 +245,9 @@ void DeleteTask(LPTASK This) {
         //-------------------------------------
         // Decrement process task count and check if process should be deleted
 
+        LPLIST ProcessList = GetProcessList();
+        LPLIST TaskList = GetTaskList();
+
         if (This->Process != NULL && This->Process != &KernelProcess) {
             LockMutex(MUTEX_PROCESS, INFINITY);
             This->Process->TaskCount--;
@@ -265,7 +269,7 @@ void DeleteTask(LPTASK This) {
                     DEBUG(TEXT("[DeleteTask] Process %s policy: killing all children"), This->Process->FileName);
 
                     // Find and kill all child processes
-                    LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
+                    LPPROCESS Current = (LPPROCESS)ProcessList->First;
 
                     while (Current != NULL) {
                         LPPROCESS Next = (LPPROCESS)Current->Next;
@@ -275,7 +279,7 @@ void DeleteTask(LPTASK This) {
                                 DEBUG(TEXT("[DeleteTask] Killing child process %s"), Current->FileName);
 
                                 // Kill all tasks of the child process
-                                LPTASK ChildTask = (LPTASK)Kernel.Task->First;
+                                LPTASK ChildTask = (LPTASK)TaskList->First;
 
                                 while (ChildTask != NULL) {
                                     LPTASK NextChildTask = (LPTASK)ChildTask->Next;
@@ -298,7 +302,7 @@ void DeleteTask(LPTASK This) {
                     DEBUG(TEXT("[DeleteTask] Process %s policy: orphaning children"), This->Process->FileName);
 
                     // Detach all child processes from parent
-                    LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
+                    LPPROCESS Current = (LPPROCESS)ProcessList->First;
 
                     while (Current != NULL) {
                         LPPROCESS Next = (LPPROCESS)Current->Next;
@@ -456,7 +460,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     // Save flags for scheduler
     Task->Flags = Info->Flags;
 
-    ListAddItem(Kernel.Task, Task);
+    LPLIST TaskList = GetTaskList();
+    ListAddItem(TaskList, Task);
 
     //-------------------------------------
     // Add task to the scheduler's queue
@@ -579,7 +584,8 @@ void DeleteDeadTasksAndProcesses(void) {
     // Lock access to kernel data
     LockMutex(MUTEX_KERNEL, INFINITY);
 
-    Task = (LPTASK)Kernel.Task->First;
+    LPLIST TaskList = GetTaskList();
+    Task = (LPTASK)TaskList->First;
 
     while (Task != NULL) {
         SAFE_USE_VALID_ID(Task, KOID_TASK) {
@@ -604,7 +610,8 @@ void DeleteDeadTasksAndProcesses(void) {
     // Now handle DEAD processes - keep MUTEX_KERNEL locked to preserve lock order
     LockMutex(MUTEX_PROCESS, INFINITY);
 
-    Process = (LPPROCESS)Kernel.Process->First;
+    LPLIST ProcessList = GetProcessList();
+    Process = (LPPROCESS)ProcessList->First;
 
     while (Process != NULL) {
         SAFE_USE_VALID_ID(Process, KOID_PROCESS) {

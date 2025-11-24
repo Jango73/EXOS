@@ -243,7 +243,8 @@ LPDESKTOP CreateDesktop(void) {
 
     LockMutex(MUTEX_KERNEL, INFINITY);
 
-    ListAddHead(Kernel.Desktop, This);
+    LPLIST DesktopList = GetDesktopList();
+    ListAddHead(DesktopList, This);
 
     // Process already points to this desktop
 
@@ -300,7 +301,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     //-------------------------------------
     // Sort the kernel's desktop list
 
-    for (Node = Kernel.Desktop->First, Order = 1; Node; Node = Node->Next) {
+    LPLIST DesktopList = GetDesktopList();
+    for (Node = DesktopList->First, Order = 1; Node; Node = Node->Next) {
         Desktop = (LPDESKTOP)Node;
         if (Desktop == This)
             Desktop->Order = 0;
@@ -308,7 +310,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
             Desktop->Order = Order++;
     }
 
-    ListSort(Kernel.Desktop, SortDesktops_Order);
+    ListSort(DesktopList, SortDesktops_Order);
 
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;

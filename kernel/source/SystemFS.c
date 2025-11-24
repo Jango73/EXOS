@@ -522,12 +522,14 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
     FILEINFO Info;
     LPFILE TestFile;
     BOOL FileSystemFound = FALSE;
+    LPLIST FileSystemList = GetFileSystemList();
+    LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
 
     if (FileSystem == NULL || Path == NULL) return;
 
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
-        if (FS == &Kernel.SystemFS.Header) continue;
+        if (FS == &SystemFS->Header) continue;
         if (STRINGS_EQUAL(FS->Name, FileSystem)) {
             FileSystemFound = TRUE;
 
@@ -580,25 +582,27 @@ BOOL MountSystemFS(void) {
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
     U32 Result;
     U32 Length;
+    LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
+    LPLIST FileSystemList = GetFileSystemList();
 
     DEBUG(TEXT("[MountSystemFS] Mounting system FileSystem"));
 
-    Kernel.SystemFS.Root = NewSystemFileRoot();
-    if (Kernel.SystemFS.Root == NULL) return FALSE;
+    SystemFS->Root = NewSystemFileRoot();
+    if (SystemFS->Root == NULL) return FALSE;
 
-    InitMutex(&(Kernel.SystemFS.Header.Mutex));
-    Kernel.SystemFS.Header.Driver = &SystemFSDriver;
+    InitMutex(&(SystemFS->Header.Mutex));
+    SystemFS->Header.Driver = &SystemFSDriver;
 
     Info.Size = sizeof(FILEINFO);
-    Info.FileSystem = &Kernel.SystemFS.Header;
+    Info.FileSystem = &SystemFS->Header;
     Info.Attributes = 0;
     Info.Flags = 0;
     StringCopy(Info.Name, FsRoot);
     CreateFolder(&Info);
 
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
-        if (FS == &Kernel.SystemFS.Header) continue;
+        if (FS == &SystemFS->Header) continue;
 
         Volume.Size = sizeof(VOLUMEINFO);
         Volume.Volume = (HANDLE)FS;
@@ -620,7 +624,7 @@ BOOL MountSystemFS(void) {
         MountObject(&Control);
     }
 
-    ListAddItem(Kernel.FileSystem, GetSystemFS());
+    ListAddItem(FileSystemList, GetSystemFS());
 
     return TRUE;
 }

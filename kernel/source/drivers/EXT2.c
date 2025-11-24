@@ -2439,7 +2439,7 @@ BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
     GetDefaultFileSystemName(FileSystem->Header.Name, Disk, PartIndex);
 
-    ListAddItem(Kernel.FileSystem, FileSystem);
+    ListAddItem(GetFileSystemList(), FileSystem);
 
     DEBUG(TEXT("[MountPartition_EXT2] Mounted EXT2 volume %s (block size %u)"),
         FileSystem->Header.Name, FileSystem->BlockSize);

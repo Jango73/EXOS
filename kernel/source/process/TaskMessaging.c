@@ -374,7 +374,8 @@ static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message) {
     UnlockMutex(&(Process->Mutex));
 
     LockMutex(MUTEX_TASK, INFINITY);
-    for (LPLISTNODE Node = Kernel.Task->First; Node; Node = Node->Next) {
+    LPLIST TaskList = GetTaskList();
+    for (LPLISTNODE Node = TaskList != NULL ? TaskList->First : NULL; Node; Node = Node->Next) {
         LPTASK Task = (LPTASK)Node;
 
         SAFE_USE_VALID_ID(Task, KOID_TASK) {
@@ -530,7 +531,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Check if the target is a task
 
-    for (Node = Kernel.Task->First; Node; Node = Node->Next) {
+    LPLIST TaskList = GetTaskList();
+    for (Node = TaskList != NULL ? TaskList->First : NULL; Node; Node = Node->Next) {
         Task = (LPTASK)Node;
 
         if (Task == (LPTASK)Target) {
@@ -565,7 +567,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     // Check if the target is a desktop
 
     /*
-      for (Node = Kernel.Desktop->First; Node; Node = Node->Next)
+      LPLIST DesktopList = GetDesktopList();
+      for (Node = DesktopList != NULL ? DesktopList->First : NULL; Node; Node = Node->Next)
       {
     Desktop = (LPDESKTOP) Node;
 
@@ -948,7 +951,8 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     // Check if the target is a task
 
     /*
-      for (Node = Kernel.Task->First; Node; Node = Node->Next)
+      LPLIST TaskList = GetTaskList();
+      for (Node = TaskList != NULL ? TaskList->First : NULL; Node; Node = Node->Next)
       {
       }
     */

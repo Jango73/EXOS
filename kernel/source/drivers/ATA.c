@@ -201,7 +201,7 @@ static BOOL InitializeATA(void) {
                     continue;
                 }
 
-                ListAddItem(Kernel.Disk, Disk);
+                ListAddItem(GetDiskList(), Disk);
                 DisksFound++;
             }
         }

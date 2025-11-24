@@ -86,20 +86,22 @@ HANDLE PointerToHandle(LINEAR Pointer) {
         return 0;
     }
 
+    LPHANDLE_MAP HandleMap = GetHandleMap();
+
     UINT ExistingHandle = 0;
-    if (HandleMapFindHandleByPointer(&Kernel.HandleMap, Pointer, &ExistingHandle) == HANDLE_MAP_OK) {
+    if (HandleMapFindHandleByPointer(HandleMap, Pointer, &ExistingHandle) == HANDLE_MAP_OK) {
         return ExistingHandle;
     }
 
     UINT Handle = 0;
-    UINT Status = HandleMapAllocateHandle(&Kernel.HandleMap, &Handle);
+    UINT Status = HandleMapAllocateHandle(HandleMap, &Handle);
     if (Status != HANDLE_MAP_OK) {
         return 0;
     }
 
-    Status = HandleMapAttachPointer(&Kernel.HandleMap, Handle, Pointer);
+    Status = HandleMapAttachPointer(HandleMap, Handle, Pointer);
     if (Status != HANDLE_MAP_OK) {
-        HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+        HandleMapReleaseHandle(HandleMap, Handle);
         return 0;
     }
 
@@ -120,7 +122,7 @@ LINEAR HandleToPointer(HANDLE Handle) {
     }
 
     LINEAR Pointer = 0;
-    UINT Status = HandleMapResolveHandle(&Kernel.HandleMap, Handle, &Pointer);
+    UINT Status = HandleMapResolveHandle(GetHandleMap(), Handle, &Pointer);
     if (Status != HANDLE_MAP_OK) {
         return 0;
     }
@@ -182,12 +184,12 @@ void ReleaseHandle(HANDLE Handle) {
     }
 
     LINEAR Pointer = 0;
-    UINT Status = HandleMapDetachPointer(&Kernel.HandleMap, Handle, &Pointer);
+    UINT Status = HandleMapDetachPointer(GetHandleMap(), Handle, &Pointer);
     if (Status != HANDLE_MAP_OK && Status != HANDLE_MAP_ERROR_NOT_ATTACHED) {
         WARNING(TEXT("[ReleaseHandle] Detach failed handle=%u status=%u"), Handle, Status);
     }
 
-    Status = HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+    Status = HandleMapReleaseHandle(GetHandleMap(), Handle);
     if (Status != HANDLE_MAP_OK) {
         WARNING(TEXT("[ReleaseHandle] Release failed handle=%u status=%u"), Handle, Status);
     }
@@ -199,26 +201,28 @@ void ReleaseHandle(HANDLE Handle) {
  * @brief Initialize focus defaults and the global input queue.
  */
 static void InitializeFocusState(void) {
+    LPLIST DesktopList = GetDesktopList();
+
     // Ensure the main desktop is registered in the kernel's desktop list
-    if (Kernel.Desktop != NULL && Kernel.Desktop->First == NULL) {
+    if (DesktopList != NULL && DesktopList->First == NULL) {
         DEBUG(TEXT("[InitializeFocusState] Registering MainDesktop in desktop list"));
-        ListAddHead(Kernel.Desktop, &MainDesktop);
+        ListAddHead(DesktopList, &MainDesktop);
     }
 
-    if (Kernel.FocusedDesktop == NULL) {
-        Kernel.FocusedDesktop = &MainDesktop;
+    if (GetFocusedDesktop() == NULL) {
+        SetFocusedDesktop(&MainDesktop);
     }
 
-    SetFocusedDesktop(Kernel.FocusedDesktop);
+    SetFocusedDesktop(GetFocusedDesktop());
     SetFocusedProcess(&KernelProcess);
 
     if (KernelProcess.Desktop == NULL) {
-        KernelProcess.Desktop = Kernel.FocusedDesktop;
+        KernelProcess.Desktop = GetFocusedDesktop();
     }
 
-    SAFE_USE_VALID_ID(Kernel.FocusedDesktop, KOID_DESKTOP) {
-        if (Kernel.FocusedDesktop->FocusedProcess == NULL) {
-            Kernel.FocusedDesktop->FocusedProcess = &KernelProcess;
+    SAFE_USE_VALID_ID(GetFocusedDesktop(), KOID_DESKTOP) {
+        if (GetFocusedDesktop()->FocusedProcess == NULL) {
+            GetFocusedDesktop()->FocusedProcess = &KernelProcess;
         }
     }
 }
@@ -500,18 +504,18 @@ void DeleteUnreferencedObjects(void) {
     LockMutex(MUTEX_KERNEL, INFINITY);
 
     // Process all kernel object lists
-    ProcessList(Kernel.Desktop, TEXT("Desktop"));
-    ProcessList(Kernel.Process, TEXT("Process"));
-    ProcessList(Kernel.Task, TEXT("Task"));
-    ProcessList(Kernel.Mutex, TEXT("Mutex"));
-    ProcessList(Kernel.Disk, TEXT("Disk"));
-    ProcessList(Kernel.PCIDevice, TEXT("PCIDevice"));
-    ProcessList(Kernel.NetworkDevice, TEXT("NetworkDevice"));
-    ProcessList(Kernel.Event, TEXT("KernelEvent"));
-    ProcessList(Kernel.FileSystem, TEXT("FileSystem"));
-    ProcessList(Kernel.File, TEXT("File"));
-    ProcessList(Kernel.TCPConnection, TEXT("TCPConnection"));
-    ProcessList(Kernel.Socket, TEXT("Socket"));
+    ProcessList(GetDesktopList(), TEXT("Desktop"));
+    ProcessList(GetProcessList(), TEXT("Process"));
+    ProcessList(GetTaskList(), TEXT("Task"));
+    ProcessList(GetMutexList(), TEXT("Mutex"));
+    ProcessList(GetDiskList(), TEXT("Disk"));
+    ProcessList(GetPCIDeviceList(), TEXT("PCIDevice"));
+    ProcessList(GetNetworkDeviceList(), TEXT("NetworkDevice"));
+    ProcessList(GetEventList(), TEXT("KernelEvent"));
+    ProcessList(GetFileSystemList(), TEXT("FileSystem"));
+    ProcessList(GetFileList(), TEXT("File"));
+    ProcessList(GetTCPConnectionList(), TEXT("TCPConnection"));
+    ProcessList(GetSocketList(), TEXT("Socket"));
 
     UnlockMutex(MUTEX_KERNEL);
 }
@@ -560,18 +564,18 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
         }
 
         // Process all kernel object lists
-        ReleaseProcessObjectsFromList(Process, Kernel.Desktop);
-        ReleaseProcessObjectsFromList(Process, Kernel.Process);
-        ReleaseProcessObjectsFromList(Process, Kernel.Task);
-        ReleaseProcessObjectsFromList(Process, Kernel.Mutex);
-        ReleaseProcessObjectsFromList(Process, Kernel.Disk);
-        ReleaseProcessObjectsFromList(Process, Kernel.PCIDevice);
-        ReleaseProcessObjectsFromList(Process, Kernel.NetworkDevice);
-        ReleaseProcessObjectsFromList(Process, Kernel.Event);
-        ReleaseProcessObjectsFromList(Process, Kernel.FileSystem);
-        ReleaseProcessObjectsFromList(Process, Kernel.File);
-        ReleaseProcessObjectsFromList(Process, Kernel.TCPConnection);
-        ReleaseProcessObjectsFromList(Process, Kernel.Socket);
+        ReleaseProcessObjectsFromList(Process, GetDesktopList());
+        ReleaseProcessObjectsFromList(Process, GetProcessList());
+        ReleaseProcessObjectsFromList(Process, GetTaskList());
+        ReleaseProcessObjectsFromList(Process, GetMutexList());
+        ReleaseProcessObjectsFromList(Process, GetDiskList());
+        ReleaseProcessObjectsFromList(Process, GetPCIDeviceList());
+        ReleaseProcessObjectsFromList(Process, GetNetworkDeviceList());
+        ReleaseProcessObjectsFromList(Process, GetEventList());
+        ReleaseProcessObjectsFromList(Process, GetFileSystemList());
+        ReleaseProcessObjectsFromList(Process, GetFileList());
+        ReleaseProcessObjectsFromList(Process, GetTCPConnectionList());
+        ReleaseProcessObjectsFromList(Process, GetSocketList());
     }
 }
 
@@ -596,7 +600,7 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
             TermState->Object = KernelObject;
             TermState->ExitCode = ExitCode;
             TermState->ID = KernelObject->ID;
-            CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
+            CacheAdd(GetObjectTerminationCache(), TermState, OBJECT_TERMINATION_TTL_MS);
 
             DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%u"),
                   KernelObject,
@@ -688,13 +692,14 @@ U32 GetPhysicalMemoryUsed(void) {
     U32 Index = 0;
     U32 Byte = 0;
     U32 Mask = 0;
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
-    for (Index = 0; Index < KernelStartup.PageCount; Index++) {
+    for (Index = 0; Bitmap != NULL && Index < KernelStartup.PageCount; Index++) {
         Byte = Index >> MUL_8;
         Mask = (U32)0x01 << (Index & 0x07);
-        if (Kernel.PPB[Byte] & Mask) NumPages++;
+        if (Bitmap[Byte] & Mask) NumPages++;
     }
 
     UnlockMutex(MUTEX_MEMORY);
@@ -774,11 +779,12 @@ void UnloadDriver(LPDRIVER Driver) {
 void LoadAllDrivers(void) {
     InitializeDriverList();
 
-    if (Kernel.Drivers == NULL || Kernel.Drivers->First == NULL) {
+    LPLIST DriverList = GetDriverList();
+    if (DriverList == NULL || DriverList->First == NULL) {
         return;
     }
 
-    for (LPLISTNODE Node = Kernel.Drivers->First; Node; Node = Node->Next) {
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
         LoadDriver((LPDRIVER)Node);
     }
 }
@@ -792,11 +798,12 @@ void LoadAllDrivers(void) {
  * each registered driver.
  */
 void UnloadAllDrivers(void) {
-    if (Kernel.Drivers == NULL || Kernel.Drivers->Last == NULL) {
+    LPLIST DriverList = GetDriverList();
+    if (DriverList == NULL || DriverList->Last == NULL) {
         return;
     }
 
-    for (LPLISTNODE Node = Kernel.Drivers->Last; Node; Node = Node->Prev) {
+    for (LPLISTNODE Node = DriverList->Last; Node; Node = Node->Prev) {
         UnloadDriver((LPDRIVER)Node);
     }
 }
@@ -834,7 +841,7 @@ static U32 KernelMonitor(LPVOID Parameter) {
     FOREVER {
         DeleteDeadTasksAndProcesses();
         DeleteUnreferencedObjects();
-        CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
+        CacheCleanup(GetObjectTerminationCache(), GetSystemTime());
 
         LogCounter++;
         if (LogCounter >= 60) {  // 60 * 500ms = 30 seconds
@@ -874,8 +881,9 @@ static void KillActiveUserlandProcesses(void) {
 
     LockMutex(MUTEX_PROCESS, INFINITY);
 
-    SAFE_USE(Kernel.Process) {
-        for (LPPROCESS Process = (LPPROCESS)Kernel.Process->First; Process; Process = (LPPROCESS)Process->Next) {
+    LPLIST ProcessList = GetProcessList();
+    SAFE_USE(ProcessList) {
+        for (LPPROCESS Process = (LPPROCESS)ProcessList->First; Process; Process = (LPPROCESS)Process->Next) {
             SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
                 if (Process != &KernelProcess && Process->Privilege == PRIVILEGE_USER &&
                     Process->Status != PROCESS_STATUS_DEAD) {
@@ -915,8 +923,9 @@ static void KillActiveKernelTasks(void) {
 
     LockMutex(MUTEX_TASK, INFINITY);
 
-    SAFE_USE(Kernel.Task) {
-        for (LPTASK Task = (LPTASK)Kernel.Task->First; Task; Task = (LPTASK)Task->Next) {
+    LPLIST TaskList = GetTaskList();
+    SAFE_USE(TaskList) {
+        for (LPTASK Task = (LPTASK)TaskList->First; Task; Task = (LPTASK)Task->Next) {
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
                 if (Task->Process == &KernelProcess && Task->Type != TASK_TYPE_KERNEL_MAIN &&
                     Task->Status != TASK_STATUS_DEAD) {
@@ -952,7 +961,7 @@ static void KillActiveKernelTasks(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
-    GetCPUInformation(&(Kernel.CPU));
+    GetCPUInformation(GetKernelCPUInfo());
     PreInitializeKernel();
 
     //-------------------------------------
@@ -963,11 +972,11 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize object termination cache
 
-    CacheInit(&Kernel.ObjectTerminationCache, CACHE_DEFAULT_CAPACITY);
+    CacheInit(GetObjectTerminationCache(), CACHE_DEFAULT_CAPACITY);
 
     DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
 
-    HandleMapInit(&Kernel.HandleMap);
+    HandleMapInit(GetHandleMap());
     DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     InitializeFocusState();

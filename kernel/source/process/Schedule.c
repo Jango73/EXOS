@@ -597,7 +597,7 @@ static BOOL IsObjectSignaled(LPVOID Object) {
 
     // First check termination cache
     LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)CacheFind(
-        &Kernel.ObjectTerminationCache,
+        GetObjectTerminationCache(),
         MatchObject,
         Object
     );
@@ -629,7 +629,7 @@ static UINT GetObjectExitCode(LPVOID Object) {
 
     // First check termination cache
     LPOBJECT_TERMINATION_STATE TermState = (LPOBJECT_TERMINATION_STATE)CacheFind(
-        &Kernel.ObjectTerminationCache,
+        GetObjectTerminationCache(),
         MatchObject,
         Object
     );

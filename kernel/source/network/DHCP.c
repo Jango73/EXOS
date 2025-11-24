@@ -408,8 +408,9 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                         Context->RebindTime = (Context->LeaseTime * 7) / 8;
 
                         // Mark network device as ready
-                        SAFE_USE(Kernel.NetworkDevice) {
-                            for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+                        LPLIST NetworkDeviceList = GetNetworkDeviceList();
+                        SAFE_USE(NetworkDeviceList) {
+                            for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
                                 LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
                                 SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
                                     if ((LPDEVICE)NetCtx->Device == g_DHCPDevice) {

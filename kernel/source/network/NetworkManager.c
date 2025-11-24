@@ -204,13 +204,15 @@ static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserDa
 static U32 NetworkManager_FindNetworkDevices(void) {
     LPLISTNODE Node;
     U32 Count = 0;
+    LPLIST PciDeviceList = GetPCIDeviceList();
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
 
     DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Enter"));
 
-    SAFE_USE(Kernel.PCIDevice) {
-        SAFE_USE_VALID_ID(Kernel.PCIDevice->First, KOID_PCIDEVICE) {
+    SAFE_USE(PciDeviceList) {
+        SAFE_USE_VALID_ID(PciDeviceList->First, KOID_PCIDEVICE) {
 
-            for (Node = Kernel.PCIDevice->First; Node != NULL; Node = Node->Next) {
+            for (Node = PciDeviceList->First; Node != NULL; Node = Node->Next) {
                 LPPCI_DEVICE Device = (LPPCI_DEVICE)Node;
 
                 SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
@@ -238,7 +240,7 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
                                 // Add to kernel network device list (thread-safe with MUTEX_KERNEL)
                                 LockMutex(MUTEX_KERNEL, INFINITY);
-                                ListAddTail(Kernel.NetworkDevice, (LPVOID)Context);
+                                ListAddTail(NetworkDeviceList, (LPVOID)Context);
                                 UnlockMutex(MUTEX_KERNEL);
 
                                 Count++;
@@ -257,8 +259,9 @@ static U32 NetworkManager_FindNetworkDevices(void) {
         ERROR(TEXT("[NetworkManager_FindNetworkDevices] Kernel.PCIDevice is NULL"));
     }
 
-    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found %u network devices"), Kernel.NetworkDevice->NumItems);
-    return Kernel.NetworkDevice->NumItems;
+    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found %u network devices"),
+          NetworkDeviceList != NULL ? NetworkDeviceList->NumItems : 0);
+    return NetworkDeviceList != NULL ? NetworkDeviceList->NumItems : 0;
 }
 
 /************************************************************************/
@@ -273,16 +276,18 @@ void InitializeNetwork(void) {
     DEBUG(TEXT("[InitializeNetwork] Enter"));
 
     // Find all network devices
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+
     NetworkManager_FindNetworkDevices();
 
-    if (Kernel.NetworkDevice->NumItems == 0) {
+    if (NetworkDeviceList == NULL || NetworkDeviceList->NumItems == 0) {
         WARNING(TEXT("[InitializeNetwork] No network devices found"));
         return;
     }
 
     // Initialize each network device
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
             SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 NetworkManager_InitializeDevice(Ctx->Device, Ctx->LocalIPv4_Be);
@@ -290,7 +295,8 @@ void InitializeNetwork(void) {
         }
     }
 
-    DEBUG(TEXT("[InitializeNetwork] Initialized %u network devices"), Kernel.NetworkDevice->NumItems);
+    DEBUG(TEXT("[InitializeNetwork] Initialized %u network devices"),
+          NetworkDeviceList->NumItems);
 }
 
 /************************************************************************/
@@ -353,8 +359,9 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Find device context in the network device list
             LPNETWORK_DEVICE_CONTEXT DeviceContext = NULL;
-            SAFE_USE(Kernel.NetworkDevice) {
-                for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+            LPLIST NetworkDeviceList = GetNetworkDeviceList();
+            SAFE_USE(NetworkDeviceList) {
+                for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
                     LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
                     SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                         if (Ctx->Device == Device) {
@@ -481,8 +488,9 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
  */
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
     // Return the first initialized network device
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
             SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 if (Ctx->IsInitialized) {
@@ -503,8 +511,9 @@ LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
  * @return TRUE if ready, FALSE otherwise
  */
 BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
             SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 if ((LPDEVICE)Ctx->Device == Device) {

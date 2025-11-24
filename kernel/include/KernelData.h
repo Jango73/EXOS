@@ -139,11 +139,39 @@ typedef struct tag_KERNELDATA {
     STR KeyboardCode[8];
 } KERNELDATA, *LPKERNELDATA;
 
-extern KERNELDATA Kernel;
-
 /************************************************************************/
 // Functions in KernelData.c
 
+LPLIST GetDriverList(void);
+LPLIST GetDesktopList(void);
+LPLIST GetProcessList(void);
+LPLIST GetTaskList(void);
+LPLIST GetMutexList(void);
+LPLIST GetDiskList(void);
+LPLIST GetPCIDeviceList(void);
+LPLIST GetNetworkDeviceList(void);
+LPLIST GetEventList(void);
+LPLIST GetFileSystemList(void);
+LPLIST GetFileList(void);
+LPLIST GetTCPConnectionList(void);
+LPLIST GetSocketList(void);
+LPLIST GetUserSessionList(void);
+void SetUserSessionList(LPLIST List);
+LPLIST GetUserAccountList(void);
+void SetUserAccountList(LPLIST List);
+FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);
+LPSYSTEMFSFILESYSTEM GetSystemFSData(void);
+LPCACHE GetObjectTerminationCache(void);
+LPHANDLE_MAP GetHandleMap(void);
+UINT GetPhysicalPageBitmapSize(void);
+void SetPhysicalPageBitmapSize(UINT Size);
+LPPAGEBITMAP GetPhysicalPageBitmap(void);
+void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap);
+LPCPUINFORMATION GetKernelCPUInfo(void);
+UINT GetDeferredWorkWaitTimeout(void);
+void SetDeferredWorkWaitTimeout(UINT Timeout);
+UINT GetDeferredWorkPollDelay(void);
+void SetDeferredWorkPollDelay(UINT Delay);
 void InitializeDriverList(void);
 LPTOML GetConfiguration(void);
 void SetConfiguration(LPTOML Configuration);

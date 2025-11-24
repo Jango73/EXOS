@@ -59,7 +59,8 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
     LockMutex(MUTEX_FILE, INFINITY);
 
-    for (Node = Kernel.File->First; Node; Node = Node->Next) {
+    LPLIST FileList = GetFileList();
+    for (Node = FileList != NULL ? FileList->First : NULL; Node; Node = Node->Next) {
         AlreadyOpen = (LPFILE)Node;
 
         LockMutex(&(AlreadyOpen->Mutex), INFINITY);
@@ -100,7 +101,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             File->OwnerTask = GetCurrentTask();
             File->OpenFlags = Info->Flags;
 
-            ListAddItem(Kernel.File, File);
+            ListAddItem(FileList, File);
 
             UnlockMutex(MUTEX_FILE);
         }
@@ -114,7 +115,8 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
     DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), Info->Name);
 
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+    LPLIST FileSystemList = GetFileSystemList();
+    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
 
         Find.Size = sizeof Find;
@@ -133,7 +135,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             File->OwnerTask = GetCurrentTask();
             File->OpenFlags = Info->Flags;
 
-            ListAddItem(Kernel.File, File);
+            ListAddItem(FileList, File);
 
             UnlockMutex(MUTEX_FILE);
             break;

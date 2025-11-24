@@ -500,7 +500,7 @@ void PCI_ScanBus(void) {
 
                                         if (NewDev) {
                                             DEBUG(TEXT("[PCI] Adding device %p (ID=%x) to list"), (LINEAR)NewDev, (INT)(NewDev->TypeID));
-                                            ListAddItem(Kernel.PCIDevice, NewDev);
+                                            ListAddItem(GetPCIDeviceList(), NewDev);
                                             DEBUG(TEXT("[PCI] Attached %s to %x:%x.%u"), PciDriver->Product,
                                                 (INT)Bus, (INT)Device, (INT)Function);
 

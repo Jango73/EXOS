@@ -84,7 +84,8 @@ LPMUTEX CreateMutex(void) {
         Mutex->Task = NULL;
         Mutex->Lock = 0;
 
-        ListAddItem(Kernel.Mutex, Mutex);
+        LPLIST MutexList = GetMutexList();
+        ListAddItem(MutexList, Mutex);
 
         return Mutex;
     }
@@ -135,7 +136,8 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
 
     SAFE_USE_ID(Mutex, KOID_MUTEX) {
         // Have at leat two tasks
-        SAFE_USE_ID_2(Kernel.Task->First, Kernel.Task->First->Next, KOID_TASK) {
+        LPLIST TaskList = GetTaskList();
+        SAFE_USE_ID_2(TaskList->First, TaskList->First->Next, KOID_TASK) {
             Task = GetCurrentTask();
 
             SAFE_USE_VALID_ID(Task, KOID_TASK) {

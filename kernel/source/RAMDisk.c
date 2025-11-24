@@ -492,7 +492,8 @@ static U32 RAMDiskInitialize(void) {
 
     //-------------------------------------
 
-    ListAddItem(Kernel.Disk, Disk);
+    LPLIST DiskList = GetDiskList();
+    ListAddItem(DiskList, Disk);
 
     return DF_ERROR_SUCCESS;
 }

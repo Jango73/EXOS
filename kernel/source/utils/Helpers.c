@@ -42,13 +42,13 @@ LPUSERACCOUNT GetCurrentUser(void) {
 /***************************************************************************/
 
 LPFILESYSTEM GetSystemFS(void) {
-    return &Kernel.SystemFS.Header;
+    return &(GetSystemFSData()->Header);
 }
 
 /***************************************************************************/
 
 LPSYSTEMFSFILESYSTEM GetSystemFSFilesystem(void) {
-    return &Kernel.SystemFS;
+    return GetSystemFSData();
 }
 
 /***************************************************************************/

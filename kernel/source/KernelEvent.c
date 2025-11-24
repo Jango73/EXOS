@@ -20,8 +20,9 @@ LPKERNEL_EVENT CreateKernelEvent(void) {
         Event->Signaled = FALSE;
         Event->SignalCount = 0;
 
-        SAFE_USE(Kernel.Event) {
-            ListAddItem(Kernel.Event, Event);
+        LPLIST EventList = GetEventList();
+        SAFE_USE(EventList) {
+            ListAddItem(EventList, Event);
         }
 
         return Event;

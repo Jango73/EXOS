@@ -189,7 +189,8 @@ static SM_TRANSITION TCP_Transitions[] = {
 /************************************************************************/
 
 static BOOL TCP_IsPortInUse(U16 port, U32 localIP) {
-    LPTCP_CONNECTION conn = (LPTCP_CONNECTION)Kernel.TCPConnection->First;
+    LPLIST ConnectionList = GetTCPConnectionList();
+    LPTCP_CONNECTION conn = (LPTCP_CONNECTION)(ConnectionList != NULL ? ConnectionList->First : NULL);
     while (conn != NULL) {
         if (conn->LocalPort == Htons(port) && conn->LocalIP == localIP) {
             return TRUE;
@@ -1004,7 +1005,10 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
                   TCP_STATE_CLOSED, Conn);
 
     // Add to connections list
-    ListAddTail(Kernel.TCPConnection, Conn);
+    LPLIST ConnectionList = GetTCPConnectionList();
+    if (ConnectionList != NULL) {
+        ListAddTail(ConnectionList, Conn);
+    }
 
     // Convert to host byte order for debug display
     U32 LocalIPHost = Ntohl(LocalIP);
@@ -1031,7 +1035,8 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         }
 
         // Remove from connections list
-        ListRemove(Kernel.TCPConnection, Connection);
+        LPLIST ConnectionList = GetTCPConnectionList();
+        ListRemove(ConnectionList, Connection);
 
         // Mark ID
         Connection->TypeID = KOID_NONE;
@@ -1189,7 +1194,9 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 
     // Find matching connection
     LPTCP_CONNECTION Conn = NULL;
-    LPTCP_CONNECTION Current = (LPTCP_CONNECTION)Kernel.TCPConnection->First;
+    LPLIST ConnectionList = GetTCPConnectionList();
+    LPTCP_CONNECTION Current =
+        (LPTCP_CONNECTION)(ConnectionList != NULL ? ConnectionList->First : NULL);
     while (Current != NULL) {
         if (Current->LocalPort == Header->DestinationPort &&
             Current->RemotePort == Header->SourcePort &&
@@ -1267,7 +1274,8 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 void TCP_Update(void) {
     UINT CurrentTime = GetSystemTime();
 
-    LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)Kernel.TCPConnection->First;
+    LPLIST ConnectionList = GetTCPConnectionList();
+    LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)(ConnectionList != NULL ? ConnectionList->First : NULL);
     while (Conn != NULL) {
         LPTCP_CONNECTION Next = (LPTCP_CONNECTION)Conn->Next;
         SM_STATE CurrentState = SM_GetCurrentState(&Conn->StateMachine);

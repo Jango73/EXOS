@@ -212,8 +212,9 @@ LPPROCESS NewProcess(void) {
     // Zero out non-LISTNODE_FIELDS (LISTNODE_FIELDS already initialized by CreateKernelObject)
     MemorySet(&This->Mutex, 0, sizeof(PROCESS) - sizeof(LISTNODE));
 
-    if (Kernel.Desktop != NULL && Kernel.Desktop->First != NULL) {
-        This->Desktop = (LPDESKTOP)Kernel.Desktop->First;
+    LPLIST DesktopList = GetDesktopList();
+    if (DesktopList != NULL && DesktopList->First != NULL) {
+        This->Desktop = (LPDESKTOP)DesktopList->First;
     } else {
         This->Desktop = &MainDesktop;
     }
@@ -327,10 +328,12 @@ void KillProcess(LPPROCESS This) {
         BOOL FoundChildren = TRUE;
         LPLIST ProcessesToCheck = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
         ListAddItem(ProcessesToCheck, This);
+        LPLIST ProcessList = GetProcessList();
+        LPLIST TaskList = GetTaskList();
 
         while (FoundChildren) {
             FoundChildren = FALSE;
-            LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
+            LPPROCESS Current = (LPPROCESS)ProcessList->First;
 
             while (Current != NULL) {
                 SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
@@ -378,7 +381,7 @@ void KillProcess(LPPROCESS This) {
                     DEBUG(TEXT("[KillProcess] Killing tasks of child process %s"), ChildProcess->FileName);
 
                     // Kill all tasks of this child process
-                    LPTASK Task = (LPTASK)Kernel.Task->First;
+                    LPTASK Task = (LPTASK)TaskList->First;
                     while (Task != NULL) {
                         LPTASK NextTask = (LPTASK)Task->Next;
                         SAFE_USE_VALID_ID(Task, KOID_TASK) {
@@ -413,7 +416,7 @@ void KillProcess(LPPROCESS This) {
         // Kill all tasks of the target process itself
         DEBUG(TEXT("[KillProcess] Killing tasks of target process %s"), This->FileName);
 
-        LPTASK Task = (LPTASK)Kernel.Task->First;
+        LPTASK Task = (LPTASK)TaskList->First;
         while (Task != NULL) {
             LPTASK NextTask = (LPTASK)Task->Next;
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
@@ -732,7 +735,8 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Add the new process to the kernel's process list
 
-    ListAddItem(Kernel.Process, Process);
+    LPLIST ProcessList = GetProcessList();
+    ListAddItem(ProcessList, Process);
 
     if (GetFocusedDesktop() == Process->Desktop) {
         SetFocusedProcess(Process);
