@@ -136,6 +136,7 @@
 
 #define E1000_TCTL_CT_DEFAULT 0x10
 #define E1000_TCTL_COLD_DEFAULT 0x40
+#define E1000_TIPG_QEMU_COMPAT 0x00602008
 
 /***************************************************************************/
 /* TX descriptor command/status bits                                       */
@@ -168,10 +169,17 @@
 #define E1000_INT_RXDMT0 0x00000010
 #define E1000_INT_RXO  0x00000040
 #define E1000_INT_RXT0 0x00000080
+#define E1000_DEFAULT_INTERRUPT_MASK (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)
 #define E1000_RX_BUF_SIZE 2048U
 #define E1000_TX_BUF_SIZE 2048U /* same as RX for consistency */
 #define E1000_RING_ALIGN 16U /* descriptor alignment */
 #define E1000_PAGE_ALIGN 4096U
+#define E1000_ACK_TRACE_LIMIT 16
+#define E1000_INTERRUPT_TRACE_LIMIT 32
+#define E1000_LINK_SPEED_MBPS 1000
+#define E1000_DEFAULT_MTU 1500
+#define E1000_TX_TIMEOUT_ITER 100000
+#define E1000_RESET_TIMEOUT_ITER 100000
 
 /***************************************************************************/
 /* Descriptors                                                             */

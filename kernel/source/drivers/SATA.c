@@ -542,7 +542,7 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
     AHCIState.Base = (LPAHCI_HBA_MEM)MappedABAR;
 
     // Enable bus mastering
-    PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 1);
+    PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, TRUE);
 
     // Initialize AHCI
     if (InitializeAHCIController() != DF_ERROR_SUCCESS) {

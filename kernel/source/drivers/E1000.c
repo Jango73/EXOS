@@ -111,51 +111,14 @@
 */
 
 /************************************************************************/
-// Version
 
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
-
-static UINT E1000Commands(UINT Function, UINT Param);
-static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU);
-static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ);
-static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
-static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
-static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause);
-static BOOL E1000_InterruptTopHalf(LPDEVICE Device, LPVOID Context);
-static void E1000_DeferredRoutine(LPDEVICE Device, LPVOID Context);
-static void E1000_PollRoutine(LPDEVICE Device, LPVOID Context);
-static U32 E1000_ReceivePoll(LPE1000DEVICE Device);
-
-/************************************************************************/
-
-#define E1000_DEFAULT_INTERRUPT_MASK (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)
-
-/************************************************************************/
-// MMIO helpers
-
 #define E1000_ReadReg32(Base, Off) (*(volatile U32 *)((U8 *)(Base) + (Off)))
 #define E1000_WriteReg32(Base, Off, Val) (*(volatile U32 *)((U8 *)(Base) + (Off)) = (U32)(Val))
 
-/************************************************************************/
-// Small busy wait
-
-/**
- * @brief Busy-wait loop used for short hardware delays.
- *
- * @param Iterations Number of iterations to spin.
- */
-static void E1000_Delay(UINT Iterations) {
-    volatile UINT Index;
-    for (Index = 0; Index < Iterations; Index++) {
-        asm volatile("nop");
-    }
-}
-
-/************************************************************************/
-// Device structure
+typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
 
 struct PACKED tag_E1000DEVICE {
     PCI_DEVICE_FIELDS
@@ -205,11 +168,21 @@ struct PACKED tag_E1000DEVICE {
     U32 AckTraceCount;
 };
 
+static UINT E1000Commands(UINT Function, UINT Param);
+static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU);
+static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ);
+static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause);
+static BOOL E1000_InterruptTopHalf(LPDEVICE Device, LPVOID Context);
+static void E1000_DeferredRoutine(LPDEVICE Device, LPVOID Context);
+static void E1000_PollRoutine(LPDEVICE Device, LPVOID Context);
+static U32 E1000_ReceivePoll(LPE1000DEVICE Device);
+
 /************************************************************************/
 // Globals and PCI match table
 
 static DRIVER_MATCH E1000_MatchTable[] = {E1000_MATCH_DEFAULT};
-
 static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDev);
 
 PCI_DRIVER DATA_SECTION E1000Driver = {
@@ -229,6 +202,21 @@ PCI_DRIVER DATA_SECTION E1000Driver = {
     .Attach = E1000_Attach};
 
 /************************************************************************/
+// Small busy wait
+
+/**
+ * @brief Busy-wait loop used for short hardware delays.
+ *
+ * @param Iterations Number of iterations to spin.
+ */
+static void E1000_Delay(UINT Iterations) {
+    volatile UINT Index;
+    for (Index = 0; Index < Iterations; Index++) {
+        asm volatile("nop");
+    }
+}
+
+/************************************************************************/
 // EEPROM read and MAC
 
 /**
@@ -241,9 +229,9 @@ static U16 E1000_EepromReadWord(LPE1000DEVICE Device, U32 Address) {
     U32 Value = 0;
     U32 Count = 0;
 
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_EERD, ((Address & 0xFF) << E1000_EERD_ADDR_SHIFT) | E1000_EERD_START);
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_EERD, ((Address & MAX_U8) << E1000_EERD_ADDR_SHIFT) | E1000_EERD_START);
 
-    while (Count < 100000) {
+    while (Count < E1000_RESET_TIMEOUT_ITER) {
         Value = E1000_ReadReg32(Device->MmioBase, E1000_REG_EERD);
         if (Value & E1000_EERD_DONE) {
             // Successfully read, return the data
@@ -270,18 +258,17 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
     DEBUG(TEXT("[E1000_ReadMac] Initial RAL0=%x RAH0=%x"), low, high);
 
     // Check if RAL/RAH contain a valid, non-zero MAC (AV bit set, not all zeros, not broadcast)
-    if ((high & (1u << 31)) && (low != 0) &&
-        !((low == 0xFFFFFFFF) && ((high & 0xFFFF) == 0xFFFF))) {
+    if ((high & (1u << 31)) && (low != 0) && !((low == MAX_U32) && ((high & 0xFFFF) == 0xFFFF))) {
         // Additional check: ensure it's not a multicast address (first bit of first byte)
-        U8 first_byte = (low >> 0) & 0xFF;
+        U8 first_byte = (low >> 0) & MAX_U8;
         if ((first_byte & 0x01) == 0) {
             // Valid unicast MAC address found in hardware registers
-            Device->Mac[0] = (low >> 0) & 0xFF;
-            Device->Mac[1] = (low >> 8) & 0xFF;
-            Device->Mac[2] = (low >> 16) & 0xFF;
-            Device->Mac[3] = (low >> 24) & 0xFF;
-            Device->Mac[4] = (high >> 0) & 0xFF;
-            Device->Mac[5] = (high >> 8) & 0xFF;
+            Device->Mac[0] = (low >> 0) & MAX_U8;
+            Device->Mac[1] = (low >> 8) & MAX_U8;
+            Device->Mac[2] = (low >> 16) & MAX_U8;
+            Device->Mac[3] = (low >> 24) & MAX_U8;
+            Device->Mac[4] = (high >> 0) & MAX_U8;
+            Device->Mac[5] = (high >> 8) & MAX_U8;
             DEBUG(TEXT("[E1000_ReadMac] Using valid RAL/RAH MAC: %x:%x:%x:%x:%x:%x"),
                   Device->Mac[0], Device->Mac[1], Device->Mac[2], Device->Mac[3], Device->Mac[4], Device->Mac[5]);
             return;
@@ -306,11 +293,11 @@ static void E1000_ReadMac(LPE1000DEVICE Device) {
         Device->Mac[4] = 0x34;
         Device->Mac[5] = 0x56;
     } else {
-        Device->Mac[0] = (U8)(w0 & 0xFF);
+        Device->Mac[0] = (U8)(w0 & MAX_U8);
         Device->Mac[1] = (U8)(w0 >> 8);
-        Device->Mac[2] = (U8)(w1 & 0xFF);
+        Device->Mac[2] = (U8)(w1 & MAX_U8);
         Device->Mac[3] = (U8)(w1 >> 8);
-        Device->Mac[4] = (U8)(w2 & 0xFF);
+        Device->Mac[4] = (U8)(w2 & MAX_U8);
         Device->Mac[5] = (U8)(w2 >> 8);
     }
 
@@ -337,7 +324,7 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
     E1000_WriteReg32(Device->MmioBase, E1000_REG_CTRL, Ctrl | E1000_CTRL_RST);
 
     U32 Count = 0;
-    while (Count < 100000) {
+    while (Count < E1000_RESET_TIMEOUT_ITER) {
         Ctrl = E1000_ReadReg32(Device->MmioBase, E1000_REG_CTRL);
         if ((Ctrl & E1000_CTRL_RST) == 0) break;
         Count++;
@@ -347,7 +334,7 @@ static BOOL E1000_Reset(LPE1000DEVICE Device) {
     Ctrl |= (E1000_CTRL_SLU | E1000_CTRL_FD);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_CTRL, Ctrl);
     // Disable interrupts for polling path
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, MAX_U32);
 
     DEBUG(TEXT("[E1000_Reset] Done"));
     return TRUE;
@@ -445,7 +432,7 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
                 return FALSE;
             }
 
-            Ring[Index].BufferAddrLow = (U32)(BufferPhys & 0xFFFFFFFF);
+            Ring[Index].BufferAddrLow = (U32)(BufferPhys & MAX_U32);
             Ring[Index].BufferAddrHigh = 0;
             Ring[Index].Length = 0;
             Ring[Index].Checksum = 0;
@@ -471,7 +458,7 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
     }
 
     // Then program NIC registers
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAL, (U32)(Device->RxRingPhysical & 0xFFFFFFFF));
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAL, (U32)(Device->RxRingPhysical & MAX_U32));
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAH, 0);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RDLEN, Device->RxRingCount * sizeof(E1000_RXDESC));
 
@@ -544,7 +531,7 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
               StatusReg, (StatusReg & E1000_STATUS_LU) ? "YES" : "NO");
 
         // QEMU-specific TIPG configuration for proper packet timing
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_TIPG, 0x00602008);
+        E1000_WriteReg32(Device->MmioBase, E1000_REG_TIPG, E1000_TIPG_QEMU_COMPAT);
         DEBUG(TEXT("[E1000_SetupReceive] QEMU E1000 compatibility mode - ignoring link status"));
     }
 
@@ -556,7 +543,7 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
 
     // Set MAC address in Receive Address Register (RAL0/RAH0)
     U32 RalValue = (U32)Device->Mac[0] | ((U32)Device->Mac[1] << 8) | ((U32)Device->Mac[2] << 16) | ((U32)Device->Mac[3] << 24);
-    U32 RahValue = (U32)Device->Mac[4] | ((U32)Device->Mac[5] << 8) | (1U << 31); // AV=1 (Address Valid)
+    U32 RahValue = (U32)Device->Mac[4] | ((U32)Device->Mac[5] << 8) | (1 << 31); // AV=1 (Address Valid)
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAL0, RalValue);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RAH0, RahValue);
     DEBUG(TEXT("[E1000_SetupReceive] Set MAC address: RAL0=%x RAH0=%x"), RalValue, RahValue);
@@ -623,7 +610,7 @@ static BOOL E1000_SetupTransmit(LPE1000DEVICE Device) {
                 return FALSE;
             }
 
-            Ring[Index].BufferAddrLow = (U32)(BufferPhys & 0xFFFFFFFF);
+            Ring[Index].BufferAddrLow = (U32)(BufferPhys & MAX_U32);
             Ring[Index].BufferAddrHigh = 0;
             Ring[Index].Length = 0;
             Ring[Index].CSO = 0;
@@ -650,7 +637,7 @@ static BOOL E1000_SetupTransmit(LPE1000DEVICE Device) {
     }
 
     // Program NIC registers
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAL, (U32)(Device->TxRingPhysical & 0xFFFFFFFF));
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAL, (U32)(Device->TxRingPhysical & MAX_U32));
     E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAH, 0);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_TDLEN, Device->TxRingCount * sizeof(E1000_TXDESC));
 
@@ -718,7 +705,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
 
     DEBUG(TEXT("[E1000_Attach] MMIO mapped at %X size %X"), Device->MmioBase, Device->MmioSize);
 
-    PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 1);
+    PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, TRUE);
 
     if (!E1000_Reset(Device)) {
         ERROR(TEXT("[E1000_Attach] Reset failed"));
@@ -779,7 +766,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
  * @brief Register and arm device interrupts (or configure polling).
  *
  * @param Device Target E1000 device.
- * @param LegacyIRQ Optional legacy IRQ line (0xFF to auto-select).
+ * @param LegacyIRQ Optional legacy IRQ line (MAX_U8 to auto-select).
  * @param TargetCPU CPU index for interrupt routing.
  * @return TRUE on success, FALSE otherwise.
  */
@@ -790,11 +777,11 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
             return FALSE;
         }
 
-        if (LegacyIRQ == 0xFFU) {
+        if (LegacyIRQ == MAX_U8) {
             LegacyIRQ = Device->Info.IRQLine;
         }
 
-        if (LegacyIRQ == 0xFFU) {
+        if (LegacyIRQ == MAX_U8) {
             WARNING(TEXT("[E1000_EnableInterrupts] No valid IRQ line available"));
             return FALSE;
         }
@@ -825,7 +812,7 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
 
         if (Device->InterruptArmed) {
             // Clear any pending causes and apply the default mask
-            E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+            E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, MAX_U32);
             E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
 
             if (!DeferredWorkIsPollingMode()) {
@@ -852,7 +839,7 @@ static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 Target
  * @brief Mask and unregister device interrupts.
  *
  * @param Device Target E1000 device.
- * @param LegacyIRQ Optional legacy IRQ line (0xFF to auto-select).
+ * @param LegacyIRQ Optional legacy IRQ line (MAX_U8 to auto-select).
  * @return TRUE on success, FALSE otherwise.
  */
 static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
@@ -862,10 +849,10 @@ static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
             return FALSE;
         }
 
-        E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+        E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, MAX_U32);
         E1000_ReadReg32(Device->MmioBase, E1000_REG_ICR);
 
-        if (LegacyIRQ == 0xFFU) {
+        if (LegacyIRQ == MAX_U8) {
             LegacyIRQ = Device->Info.IRQLine;
         }
 
@@ -874,7 +861,7 @@ static BOOL E1000_DisableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ) {
             Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
             Device->InterruptRegistered = FALSE;
             Device->InterruptArmed = FALSE;
-        } else if (LegacyIRQ != 0xFFU) {
+        } else if (LegacyIRQ != MAX_U8) {
             DisableDeviceInterrupt(LegacyIRQ);
         }
 
@@ -906,7 +893,7 @@ static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
         }
 
         Device->AckTraceCount++;
-        if (Device->AckTraceCount <= 16) {
+        if (Device->AckTraceCount <= E1000_ACK_TRACE_LIMIT) {
             WARNING(TEXT("[E1000_AcknowledgeInterrupt] Cause=%x Armed=%s Polling=%s"),
                     InterruptCause,
                     Device->InterruptArmed ? TEXT("YES") : TEXT("NO"),
@@ -914,7 +901,7 @@ static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
         }
 
         if (InterruptCause == 0U) {
-            if (Device->AckTraceCount <= 16) {
+            if (Device->AckTraceCount <= E1000_ACK_TRACE_LIMIT) {
                 WARNING(TEXT("[E1000_AcknowledgeInterrupt] No pending interrupt cause"));
             }
             return FALSE;
@@ -922,12 +909,13 @@ static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
 
         if (Device->InterruptArmed) {
             if (DeferredWorkIsPollingMode()) {
-                if (Device->AckTraceCount <= 16) {
-                    WARNING(TEXT("[E1000_AcknowledgeInterrupt] Polling mode - masking interrupts (IMC=FFFFFFFF)"));
+                if (Device->AckTraceCount <= E1000_ACK_TRACE_LIMIT) {
+                    WARNING(TEXT("[E1000_AcknowledgeInterrupt] Polling mode - masking interrupts (IMC=%x)"),
+                            MAX_U32);
                 }
-                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
+                E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, MAX_U32);
             } else {
-                if (Device->AckTraceCount <= 16) {
+                if (Device->AckTraceCount <= E1000_ACK_TRACE_LIMIT) {
                     WARNING(TEXT("[E1000_AcknowledgeInterrupt] Re-arming interrupts with mask=%x"),
                             E1000_DEFAULT_INTERRUPT_MASK);
                 }
@@ -960,21 +948,21 @@ static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
     U32 Cause = 0;
 
     if (!E1000_AcknowledgeInterrupt(Device, &Cause)) {
-        if (Device->InterruptTraceCount <= 32) {
+        if (Device->InterruptTraceCount <= E1000_INTERRUPT_TRACE_LIMIT) {
             WARNING(TEXT("[E1000_InterruptTopHalf] No cause reported (trace=%u)"),
                     Device->InterruptTraceCount);
         }
         return FALSE;
     }
 
-    if (Device->InterruptTraceCount <= 32) {
+    if (Device->InterruptTraceCount <= E1000_INTERRUPT_TRACE_LIMIT) {
         WARNING(TEXT("[E1000_InterruptTopHalf] Cause=%x RelevantMask=%x"),
                 Cause,
                 (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC));
     }
 
     if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0) {
-        if (Device->InterruptTraceCount <= 32) {
+        if (Device->InterruptTraceCount <= E1000_INTERRUPT_TRACE_LIMIT) {
             WARNING(TEXT("[E1000_InterruptTopHalf] Ignored cause=%x (no relevant bits)"), Cause);
         }
         return FALSE;
@@ -988,7 +976,7 @@ static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
         WARNING(TEXT("[E1000_InterruptTopHalf] RX overrun detected (cause=%x)"), Cause);
     }
 
-    if (Device->InterruptTraceCount <= 32) {
+    if (Device->InterruptTraceCount <= E1000_INTERRUPT_TRACE_LIMIT) {
         WARNING(TEXT("[E1000_InterruptTopHalf] Scheduling deferred work for cause=%x"), Cause);
     }
 
@@ -1085,13 +1073,13 @@ static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) 
 
     // Simple spin for DD
     U32 Wait = 0;
-    while (((Ring[Index].STA & E1000_TX_STA_DD) == 0) && (Wait++ < 100000)) {
+    while (((Ring[Index].STA & E1000_TX_STA_DD) == 0) && (Wait++ < E1000_TX_TIMEOUT_ITER)) {
     }
 
     DEBUG(TEXT("[E1000_TransmitSend] FINAL: Wait=%u Ring[%u].STA=%x DD=%s"),
           Wait, Index, Ring[Index].STA, (Ring[Index].STA & E1000_TX_STA_DD) ? "YES" : "NO");
 
-    if (Wait >= 100000) {
+    if (Wait >= E1000_TX_TIMEOUT_ITER) {
         ERROR(TEXT("[E1000_TransmitSend] TX timeout - packet transmission failed"));
         return DF_ERROR_NT_TX_FAIL;
     }
@@ -1275,9 +1263,9 @@ static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
     Get->Info->MAC[5] = Device->Mac[5];
 
     Get->Info->LinkUp = (Status & E1000_STATUS_LU) ? 1 : 0;
-    Get->Info->SpeedMbps = 1000;
+    Get->Info->SpeedMbps = E1000_LINK_SPEED_MBPS;
     Get->Info->DuplexFull = (Status & E1000_STATUS_FD) ? 1 : 0;
-    Get->Info->MTU = 1500;
+    Get->Info->MTU = E1000_DEFAULT_MTU;
 
     DEBUG(TEXT("[E1000_OnGetInfo] MAC copied: %x:%x:%x:%x:%x:%x"),
           Get->Info->MAC[0], Get->Info->MAC[1], Get->Info->MAC[2],
