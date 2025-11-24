@@ -906,7 +906,7 @@ static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
         }
 
         Device->AckTraceCount++;
-        if (Device->AckTraceCount <= 16U) {
+        if (Device->AckTraceCount <= 16) {
             WARNING(TEXT("[E1000_AcknowledgeInterrupt] Cause=%x Armed=%s Polling=%s"),
                     InterruptCause,
                     Device->InterruptArmed ? TEXT("YES") : TEXT("NO"),
@@ -914,7 +914,7 @@ static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
         }
 
         if (InterruptCause == 0U) {
-            if (Device->AckTraceCount <= 16U) {
+            if (Device->AckTraceCount <= 16) {
                 WARNING(TEXT("[E1000_AcknowledgeInterrupt] No pending interrupt cause"));
             }
             return FALSE;
@@ -922,12 +922,12 @@ static BOOL E1000_AcknowledgeInterrupt(LPE1000DEVICE Device, U32 *Cause) {
 
         if (Device->InterruptArmed) {
             if (DeferredWorkIsPollingMode()) {
-                if (Device->AckTraceCount <= 16U) {
+                if (Device->AckTraceCount <= 16) {
                     WARNING(TEXT("[E1000_AcknowledgeInterrupt] Polling mode - masking interrupts (IMC=FFFFFFFF)"));
                 }
                 E1000_WriteReg32(Device->MmioBase, E1000_REG_IMC, 0xFFFFFFFF);
             } else {
-                if (Device->AckTraceCount <= 16U) {
+                if (Device->AckTraceCount <= 16) {
                     WARNING(TEXT("[E1000_AcknowledgeInterrupt] Re-arming interrupts with mask=%x"),
                             E1000_DEFAULT_INTERRUPT_MASK);
                 }
@@ -957,37 +957,38 @@ static BOOL E1000_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
 
     LPE1000DEVICE Device = (LPE1000DEVICE)Context;
     Device->InterruptTraceCount++;
-    U32 Cause = 0U;
+    U32 Cause = 0;
+
     if (!E1000_AcknowledgeInterrupt(Device, &Cause)) {
-        if (Device->InterruptTraceCount <= 32U) {
+        if (Device->InterruptTraceCount <= 32) {
             WARNING(TEXT("[E1000_InterruptTopHalf] No cause reported (trace=%u)"),
                     Device->InterruptTraceCount);
         }
         return FALSE;
     }
 
-    if (Device->InterruptTraceCount <= 32U) {
+    if (Device->InterruptTraceCount <= 32) {
         WARNING(TEXT("[E1000_InterruptTopHalf] Cause=%x RelevantMask=%x"),
                 Cause,
                 (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC));
     }
 
-    if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0U) {
-        if (Device->InterruptTraceCount <= 32U) {
+    if ((Cause & (E1000_INT_RXT0 | E1000_INT_RXO | E1000_INT_RXDMT0 | E1000_INT_LSC)) == 0) {
+        if (Device->InterruptTraceCount <= 32) {
             WARNING(TEXT("[E1000_InterruptTopHalf] Ignored cause=%x (no relevant bits)"), Cause);
         }
         return FALSE;
     }
 
-    if ((Cause & E1000_INT_LSC) != 0U) {
+    if ((Cause & E1000_INT_LSC) != 0) {
         DEBUG(TEXT("[E1000_InterruptTopHalf] Link status change cause=%x"), Cause);
     }
 
-    if ((Cause & E1000_INT_RXO) != 0U) {
+    if ((Cause & E1000_INT_RXO) != 0) {
         WARNING(TEXT("[E1000_InterruptTopHalf] RX overrun detected (cause=%x)"), Cause);
     }
 
-    if (Device->InterruptTraceCount <= 32U) {
+    if (Device->InterruptTraceCount <= 32) {
         WARNING(TEXT("[E1000_InterruptTopHalf] Scheduling deferred work for cause=%x"), Cause);
     }
 
@@ -1054,7 +1055,7 @@ static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) 
 
     // Copy into pre-allocated TX buffer
     MemoryCopy((LPVOID)Device->TxBufLinear[Index], (LPVOID)Data, Length);
-    DEBUG(TEXT("[E1000_TransmitSend] Data copied to buffer, first 4 bytes: %02x %02x %02x %02x"),
+    DEBUG(TEXT("[E1000_TransmitSend] Data copied to buffer, first 4 bytes: %x %x %x %x"),
           Data[0], Data[1], Data[2], Data[3]);
 
     Ring[Index].Length = (U16)Length;
@@ -1111,29 +1112,26 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
     U32 MaxIterations = Device->RxRingCount * 2; // Safety limit: twice the ring size
     U32 ConsecutiveEmptyChecks = 0;
 
-    // DEBUG(TEXT("[E1000_ReceivePoll] Enter - Device=%p RxCallback=%p RxHead=%u"), Device, Device->RxCallback, Device->RxHead);
-
     while (Count < MaxIterations) {
         U32 NextIndex = (Device->RxHead) % Device->RxRingCount;
         U8 Status = Ring[NextIndex].Status;
 
-        // DEBUG(TEXT("[E1000_ReceivePoll] Index=%u, Status=%x, DD=%u, EOP=%u"), NextIndex, Status, (Status & E1000_RX_STA_DD) ? 1 : 0, (Status & E1000_RX_STA_EOP) ? 1 : 0);
-
         if ((Status & E1000_RX_STA_DD) == 0) {
             ConsecutiveEmptyChecks++;
+
             // If we've checked multiple times with no new packets, break to prevent spinning
             if (ConsecutiveEmptyChecks >= 3) {
+
                 // No data available - show RX register state every 100 polls
                 static U32 PollCount = 0;
                 if ((PollCount++ % 100) == 0) {
                     U32 RDH = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDH);
                     U32 RDT = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDT);
                     U32 RCTL = E1000_ReadReg32(Device->MmioBase, E1000_REG_RCTL);
-                    //DEBUG(TEXT("[E1000_ReceivePoll] No packets: RxHead=%u NextIndex=%u Status=%x RDH=%u RDT=%u RCTL=%x"),
-                    //      Device->RxHead, NextIndex, Status, RDH, RDT, RCTL);
                 }
                 break;
             }
+
             // Small delay to let hardware potentially update descriptor
             volatile U32 delay;
             for (delay = 0; delay < 10; delay++) {
@@ -1145,19 +1143,13 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         // Reset consecutive empty checks since we found a packet
         ConsecutiveEmptyChecks = 0;
 
-        DEBUG(TEXT("[E1000_ReceivePoll] Packet received at index %u, status=%X"), NextIndex, Status);
-
         if ((Status & E1000_RX_STA_EOP) != 0) {
             U16 Length = Ring[NextIndex].Length;
             const U8 *Frame = (const U8 *)Device->RxBufLinear[NextIndex];
-            // DEBUG(TEXT("[E1000_ReceivePoll] Frame length=%u, EthType=%x%x, RxCallback=%p"),
-            //       Length, Frame[12], Frame[13], Device->RxCallback);
+
             if (Device->RxCallback) {
-                // DEBUG(TEXT("[E1000_ReceivePoll] Calling RxCallback at %p"), Device->RxCallback);
                 Device->RxCallback(Frame, (U32)Length, Device->RxUserData);
-                // DEBUG(TEXT("[E1000_ReceivePoll] RxCallback returned"));
             } else {
-                // DEBUG(TEXT("[E1000_ReceivePoll] No RX callback registered!"));
             }
         }
 
@@ -1169,8 +1161,6 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         Device->RxTail = NextIndex;
         E1000_WriteReg32(Device->MmioBase, E1000_REG_RDT, NextIndex);
 
-        // DEBUG(TEXT("[E1000_ReceivePoll] Updated RDT to %u (processed descriptor available for reuse)"), NextIndex);
-
         // Clear descriptor status AFTER updating RDT to avoid race condition
         Ring[NextIndex].Status = 0;
 
@@ -1181,7 +1171,6 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         WARNING(TEXT("[E1000_ReceivePoll] Hit maximum iteration limit (%u), potential infinite loop prevented"), MaxIterations);
     }
 
-    // DEBUG(TEXT("[E1000_ReceivePoll] Exit - processed %u packets"), Count);
     return DF_ERROR_SUCCESS;
 }
 
