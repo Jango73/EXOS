@@ -505,8 +505,11 @@ BOOL KillTask(LPTASK Task) {
         DEBUG(TEXT("[KillTask] Process : %x"), Task->Process);
         DEBUG(TEXT("[KillTask] Task : %x"), Task);
         DEBUG(TEXT("[KillTask] Func = %x"), Task->Function);
-        DEBUG(TEXT("[KillTask] Message : %x"),
-            Task->MessageQueue.Messages->First ? ((LPMESSAGE)Task->MessageQueue.Messages->First)->Message : 0);
+        UINT FirstMessage = 0;
+        SAFE_USE_2(Task->MessageQueue.Messages, Task->MessageQueue.Messages->First) {
+            FirstMessage = ((LPMESSAGE)Task->MessageQueue.Messages->First)->Message;
+        }
+        DEBUG(TEXT("[KillTask] Message : %x"), FirstMessage);
 
         // Lock access to kernel data
         LockMutex(MUTEX_KERNEL, INFINITY);
