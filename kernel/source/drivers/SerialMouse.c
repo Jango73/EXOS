@@ -666,18 +666,18 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (InitializeMouse()) {
                 SerialMouseDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
         case DF_UNLOAD:
             if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (MouseDeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
@@ -686,7 +686,7 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
             }
 
             SerialMouseDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:

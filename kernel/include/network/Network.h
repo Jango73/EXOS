@@ -55,9 +55,9 @@ typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 /************************************************************************/
 // Generic Network Driver Error Codes
 
-#define DF_ERROR_NT_TX_FAIL (DF_ERROR_FIRST + 0x00) /* Transmission failed */
-#define DF_ERROR_NT_RX_FAIL (DF_ERROR_FIRST + 0x01) /* Reception failed */
-#define DF_ERROR_NT_NO_LINK (DF_ERROR_FIRST + 0x02) /* Link down */
+#define DF_RET_NT_TX_FAIL (DF_RET_FIRST + 0x00) /* Transmission failed */
+#define DF_RET_NT_RX_FAIL (DF_RET_FIRST + 0x01) /* Reception failed */
+#define DF_RET_NT_NO_LINK (DF_RET_FIRST + 0x02) /* Link down */
 
 /************************************************************************/
 

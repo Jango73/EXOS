@@ -93,26 +93,26 @@ static UINT KernelLogDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((KernelLogDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitKernelLog();
             KernelLogDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((KernelLogDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             KernelLogDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(KERNEL_LOG_VER_MAJOR, KERNEL_LOG_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /************************************************************************/

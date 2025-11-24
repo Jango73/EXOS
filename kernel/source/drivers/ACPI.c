@@ -1052,27 +1052,27 @@ static UINT ACPIDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ACPIDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (InitializeACPI()) {
                 ACPIDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
 
         case DF_UNLOAD:
             if ((ACPIDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             ACPIDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(ACPI_VER_MAJOR, ACPI_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }

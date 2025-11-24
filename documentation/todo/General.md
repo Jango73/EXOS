@@ -6,7 +6,7 @@
 
 ## Errors
 
-- Functions returning U32 MUST return DF_ERROR_XXXX codes : meaning 0 on success, an error otherwise.
+- Functions returning U32 MUST return DF_RET_XXXX codes : meaning 0 on success, an error otherwise.
 - If they are meant to return 0 or 1, they must use BOOL.
 
 ## Filesystem cache

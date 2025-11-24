@@ -629,7 +629,7 @@ void _SetupArguments(void) {
     _ProcessInfo.Header.Flags = 0;
     _ProcessInfo.Process = 0;
 
-    if (exoscall(SYSCALL_GetProcessInfo, EXOS_PARAM(&_ProcessInfo)) != DF_ERROR_SUCCESS) {
+    if (exoscall(SYSCALL_GetProcessInfo, EXOS_PARAM(&_ProcessInfo)) != DF_RET_SUCCESS) {
         return;
     }
 

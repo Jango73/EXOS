@@ -804,7 +804,7 @@ static U32 InitializeKeyboard(void) {
         DEBUG(TEXT("Keyboard: Failed to enable IRQ_KEYBOARD"));
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -813,22 +813,22 @@ UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            if (InitializeKeyboard() == DF_ERROR_SUCCESS) {
+            if (InitializeKeyboard() == DF_RET_SUCCESS) {
                 StdKeyboardDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
         case DF_UNLOAD:
             if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             StdKeyboardDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GETLASTFUNC:

@@ -139,7 +139,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
 
     /* Read ELF identification */
     FileOperation.NumBytes = 0;
-    if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+    if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
     FileOperation.Buffer = (LPVOID)Ident;
     FileOperation.NumBytes = EI_NIDENT;
@@ -191,7 +191,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
             if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
 
             FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+            if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
             FileOperation.Buffer = (LPVOID)&Phdr32;
             FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
@@ -316,7 +316,7 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
             if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
 
             FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+            if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
             FileOperation.Buffer = (LPVOID)&Phdr64;
             FileOperation.NumBytes = sizeof(EXOS_ELF64_PHDR);
@@ -451,7 +451,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
 
     /* Read ELF identification */
     FileOperation.NumBytes = 0;
-    if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+    if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
     FileOperation.Buffer = (LPVOID)Ident;
     FileOperation.NumBytes = EI_NIDENT;
@@ -496,7 +496,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
             if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
 
             FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+            if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
             FileOperation.Buffer = (LPVOID)&Phdr32;
             FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
@@ -529,7 +529,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
             if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
 
             FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+            if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
             FileOperation.Buffer = (LPVOID)&Phdr32;
             FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
@@ -557,7 +557,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
                 if (fend > FileSize) goto Out_Error;
 
                 FileOperation.NumBytes = Phdr32.p_offset;
-                if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+                if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
                 FileOperation.Buffer = (LPVOID)Dest;
                 FileOperation.NumBytes = CopySize;
@@ -615,7 +615,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
             if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
 
             FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+            if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
             FileOperation.Buffer = (LPVOID)&Phdr64;
             FileOperation.NumBytes = sizeof(EXOS_ELF64_PHDR);
@@ -648,7 +648,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
             if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
 
             FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+            if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
             FileOperation.Buffer = (LPVOID)&Phdr64;
             FileOperation.NumBytes = sizeof(EXOS_ELF64_PHDR);
@@ -679,7 +679,7 @@ BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LIN
                 if (fend > FileSize) goto Out_Error;
 
                 FileOperation.NumBytes = (U32)Phdr64.p_offset;
-                if (SetFilePosition(&FileOperation) != DF_ERROR_SUCCESS) goto Out_Error;
+                if (SetFilePosition(&FileOperation) != DF_RET_SUCCESS) goto Out_Error;
 
                 FileOperation.Buffer = (LPVOID)Dest;
                 FileOperation.NumBytes = CopySize;

@@ -485,24 +485,24 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitializeConsole();
             ConsoleDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             ConsoleDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }

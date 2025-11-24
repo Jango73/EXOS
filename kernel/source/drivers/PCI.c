@@ -486,7 +486,7 @@ void PCI_ScanBus(void) {
                                     (INT)Device, (INT)Function);
 
                                 U32 Result = PciDriver->Command(DF_PROBE, (UINT)(LPVOID)&PciInfo);
-                                if (Result == DF_ERROR_SUCCESS) {
+                                if (Result == DF_RET_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
 
@@ -617,7 +617,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD: {
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             extern PCI_DRIVER AHCIPCIDriver;
@@ -627,22 +627,22 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             PCI_ScanBus();
 
             PCIDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
 
         case DF_UNLOAD:
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             PCIDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(PCI_VER_MAJOR, PCI_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /************************************************************************/

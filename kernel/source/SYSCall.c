@@ -294,7 +294,7 @@ UINT SysCall_KillProcess(UINT Parameter) {
  * filling the structure.
  *
  * @param Parameter Pointer to PROCESSINFO provided by userland.
- * @return UINT DF_ERROR_SUCCESS on success, DF_ERROR_GENERIC on error.
+ * @return UINT DF_RET_SUCCESS on success, DF_RET_GENERIC on error.
  */
 UINT SysCall_GetProcessInfo(UINT Parameter) {
     LPPROCESSINFO Info = (LPPROCESSINFO)Parameter;
@@ -314,11 +314,11 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
             StringCopyLimit(Info->CommandLine, CurrentProcess->CommandLine, MAX_PATH_NAME);
             StringCopyLimit(Info->WorkFolder, CurrentProcess->WorkFolder, MAX_PATH_NAME);
 
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
     }
 
-    return DF_ERROR_GENERIC;
+    return DF_RET_GENERIC;
 }
 
 /************************************************************************/
@@ -2180,7 +2180,7 @@ UINT SysCall_SocketCreate(UINT Parameter) {
         return SocketCreate(Info->AddressFamily, Info->SocketType, Info->Protocol);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2198,7 +2198,7 @@ UINT SysCall_SocketBind(UINT Parameter) {
         return SocketBind(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2216,7 +2216,7 @@ UINT SysCall_SocketListen(UINT Parameter) {
         return SocketListen(Info->SocketHandle, Info->Backlog);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2234,7 +2234,7 @@ UINT SysCall_SocketAccept(UINT Parameter) {
         return SocketAccept(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2252,7 +2252,7 @@ UINT SysCall_SocketConnect(UINT Parameter) {
         return SocketConnect(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2270,7 +2270,7 @@ UINT SysCall_SocketSend(UINT Parameter) {
         return SocketSend(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2288,7 +2288,7 @@ UINT SysCall_SocketReceive(UINT Parameter) {
         return SocketReceive(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2306,7 +2306,7 @@ UINT SysCall_SocketSendTo(UINT Parameter) {
         return SocketSendTo(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2327,7 +2327,7 @@ UINT SysCall_SocketReceiveFrom(UINT Parameter) {
         return Result;
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2358,7 +2358,7 @@ UINT SysCall_SocketShutdown(UINT Parameter) {
         return SocketShutdown(Info->SocketHandle, Info->How);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2379,7 +2379,7 @@ UINT SysCall_SocketGetOption(UINT Parameter) {
         return Result;
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2397,7 +2397,7 @@ UINT SysCall_SocketSetOption(UINT Parameter) {
         return SocketSetOption(Info->SocketHandle, Info->Level, Info->OptionName, Info->OptionValue, Info->OptionLength);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2415,7 +2415,7 @@ UINT SysCall_SocketGetPeerName(UINT Parameter) {
         return SocketGetPeerName(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -2433,7 +2433,7 @@ UINT SysCall_SocketGetSocketName(UINT Parameter) {
         return SocketGetSocketName(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/

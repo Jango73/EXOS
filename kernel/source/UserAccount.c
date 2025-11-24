@@ -110,30 +110,30 @@ static UINT UserAccountDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (InitializeUserSystem()) {
                 UserAccountDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
 
         case DF_UNLOAD:
             if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             ShutdownUserSystem();
             UserAccountDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(USER_SYSTEM_VER_MAJOR, USER_SYSTEM_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /************************************************************************/

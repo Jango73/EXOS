@@ -1751,7 +1751,7 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                             Expr->Data.Expression.CommandLine : Expr->Data.Expression.Value;
                         U32 Status = Parser->Callbacks->ExecuteCommand(CommandLine, Parser->Callbacks->UserData);
 
-                        if (Status == DF_ERROR_SUCCESS) {
+                        if (Status == DF_RET_SUCCESS) {
                             Result.Type = SCRIPT_VAR_FLOAT;
                             Result.Value.Float = (F32)Status;
                             return Result;

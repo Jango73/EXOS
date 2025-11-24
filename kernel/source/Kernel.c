@@ -733,7 +733,7 @@ void LoadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_LOAD, 0);
-        if (Result == DF_ERROR_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
+        if (Result == DF_RET_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
             DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
             Success = TRUE;
         } else {
@@ -766,7 +766,7 @@ void UnloadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_UNLOAD, 0);
-        if (Result == DF_ERROR_SUCCESS) {
+        if (Result == DF_RET_SUCCESS) {
             DEBUG(TEXT("[UnloadDriver] : %s driver unloaded successfully"), TEXT(Driver->Product));
         } else {
             WARNING(TEXT("[UnloadDriver] : Failed to unload %s driver (code = %x)"), TEXT(Driver->Product), Result);
