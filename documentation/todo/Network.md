@@ -20,7 +20,7 @@
   - Lease expiration tracking
   - Automatic renewal (T1/T2 timers)
   - DHCP RELEASE on shutdown
-- [ ] DHCP options parsing
+- [X] DHCP options parsing
   - Option 1: Subnet mask
   - Option 3: Router (default gateway)
   - Option 6: DNS servers
