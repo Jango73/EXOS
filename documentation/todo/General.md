@@ -1,9 +1,5 @@
 # General TODO list
 
-## Kernel data
-
-- Add getters/setters for all kernel data.
-
 ## Logs
 
 - Use __func__ to automatically include function name
