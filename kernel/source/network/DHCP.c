@@ -85,6 +85,46 @@ static U32 DHCP_WriteOption(U8* Options, U32 Offset, U8 Code, U8 Length, const U
 /************************************************************************/
 
 /**
+ * @brief Calculates the timeout before retrying with capped backoff.
+ *
+ * @param RetryCount Number of retries already attempted.
+ * @return Timeout in milliseconds.
+ */
+
+static U32 DHCP_GetRetryTimeout(U32 RetryCount) {
+    U32 Shift = RetryCount;
+
+    if (Shift > DHCP_RETRY_BACKOFF_MAX_SHIFT) {
+        Shift = DHCP_RETRY_BACKOFF_MAX_SHIFT;
+    }
+
+    return DHCP_RETRY_TIMEOUT_MILLIS << Shift;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Writes the client identifier option (type + MAC address).
+ *
+ * @param Options    Pointer to options buffer.
+ * @param Offset     Current offset in buffer.
+ * @param MacAddress MAC address (6 bytes).
+ * @return New offset after writing option.
+ */
+
+static U32 DHCP_WriteClientIdentifier(U8* Options, U32 Offset, const U8* MacAddress) {
+    U8 ClientID[DHCP_CLIENT_IDENTIFIER_LENGTH];
+
+    MemorySet(ClientID, 0, DHCP_CLIENT_IDENTIFIER_LENGTH);
+    ClientID[0] = DHCP_HTYPE_ETHERNET;
+    MemoryCopy(ClientID + 1, MacAddress, DHCP_HLEN_ETHERNET);
+
+    return DHCP_WriteOption(Options, Offset, DHCP_OPTION_CLIENT_ID, DHCP_CLIENT_IDENTIFIER_LENGTH, ClientID);
+}
+
+/************************************************************************/
+
+/**
  * @brief Parses DHCP options from a message.
  *
  * @param Context       DHCP context.
@@ -194,6 +234,35 @@ static int DHCP_ParseOptions(LPDHCP_CONTEXT Context, const U8* Options, U32 Opti
 /************************************************************************/
 
 /**
+ * @brief Initializes common DHCP message fields.
+ *
+ * @param Message    DHCP message to initialize.
+ * @param Context    DHCP context.
+ * @param Flags      Flags field (host byte order).
+ * @param ClientIPBe Client IP address (big-endian).
+ */
+
+static void DHCP_InitMessage(LPDHCP_MESSAGE Message, LPDHCP_CONTEXT Context, U16 Flags, U32 ClientIPBe) {
+    MemorySet(Message, 0, sizeof(DHCP_MESSAGE));
+
+    Message->Op = DHCP_OP_REQUEST;
+    Message->HType = DHCP_HTYPE_ETHERNET;
+    Message->HLen = DHCP_HLEN_ETHERNET;
+    Message->Hops = 0;
+    Message->XID = Htonl(Context->TransactionID);
+    Message->Secs = 0;
+    Message->Flags = Htons(Flags);
+    Message->CIAddr = ClientIPBe;
+    Message->YIAddr = 0;
+    Message->SIAddr = 0;
+    Message->GIAddr = 0;
+    MemoryCopy(Message->CHAddr, Context->LocalMacAddress, DHCP_HLEN_ETHERNET);
+    Message->MagicCookie = Htonl(DHCP_MAGIC_COOKIE);
+}
+
+/************************************************************************/
+
+/**
  * @brief Sends a DHCP DISCOVER message.
  *
  * @param Device Network device.
@@ -212,28 +281,16 @@ static void DHCP_SendDiscover(LPDEVICE Device) {
     SAFE_USE(Context) {
         DEBUG(TEXT("[DHCP_SendDiscover] Sending DHCP DISCOVER"));
 
-        MemorySet(&Message, 0, sizeof(DHCP_MESSAGE));
+        DHCP_InitMessage(&Message, Context, DHCP_BROADCAST_FLAG, 0);
 
-        Message.Op = DHCP_OP_REQUEST;
-        Message.HType = DHCP_HTYPE_ETHERNET;
-        Message.HLen = DHCP_HLEN_ETHERNET;
-        Message.Hops = 0;
-        Message.XID = Htonl(Context->TransactionID);
-        Message.Secs = 0;
-        Message.Flags = Htons(0x8000);  // Broadcast flag
-        Message.CIAddr = 0;
-        Message.YIAddr = 0;
-        Message.SIAddr = 0;
-        Message.GIAddr = 0;
-        MemoryCopy(Message.CHAddr, Context->LocalMacAddress, 6);
-        Message.MagicCookie = Htonl(DHCP_MAGIC_COOKIE);
-
-        // Build options
         OptionsOffset = 0;
 
         // Option 53: DHCP Message Type = DISCOVER
         MessageType = DHCP_DISCOVER;
         OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_MESSAGE_TYPE, 1, &MessageType);
+
+        // Option 61: Client Identifier
+        OptionsOffset = DHCP_WriteClientIdentifier(Message.Options, OptionsOffset, Context->LocalMacAddress);
 
         // Option 55: Parameter Request List
         ParameterList[0] = DHCP_OPTION_SUBNET_MASK;
@@ -246,7 +303,7 @@ static void DHCP_SendDiscover(LPDEVICE Device) {
         Message.Options[OptionsOffset++] = DHCP_OPTION_END;
 
         // Send via UDP (broadcast to 255.255.255.255:67)
-        UDP_Send(Device, 0xFFFFFFFF, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (const U8*)&Message, sizeof(DHCP_MESSAGE));
+        UDP_Send(Device, DHCP_BROADCAST_IP, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (const U8*)&Message, sizeof(DHCP_MESSAGE));
 
         Context->State = DHCP_STATE_SELECTING;
         Context->StartMillis = GetSystemTime();
@@ -261,35 +318,50 @@ static void DHCP_SendDiscover(LPDEVICE Device) {
  * @param Device Network device.
  */
 
-static void DHCP_SendRequest(LPDEVICE Device) {
+static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
     LPDHCP_CONTEXT Context;
     DHCP_MESSAGE Message;
     U32 OptionsOffset;
     U8 MessageType;
     U32 RequestedIP_Be;
     U32 ServerID_Be;
+    U16 Flags;
+    U32 DestinationIP_Be;
+    U32 ClientIP_Be;
+    U32 DestinationHostOrder;
 
-    if (Device == NULL) return;
+    if (Device == NULL) return FALSE;
 
     Context = DHCP_GetContext(Device);
     SAFE_USE(Context) {
-        DEBUG(TEXT("[DHCP_SendRequest] Sending DHCP REQUEST"));
+        Flags = DHCP_BROADCAST_FLAG;
+        DestinationIP_Be = DHCP_BROADCAST_IP;
+        ClientIP_Be = 0;
+        RequestedIP_Be = Context->OfferedIP_Be;
+        ServerID_Be = Context->ServerID_Be;
 
-        MemorySet(&Message, 0, sizeof(DHCP_MESSAGE));
+        if (TargetState == DHCP_STATE_RENEWING) {
+            Flags = 0;
+            ClientIP_Be = Context->OfferedIP_Be;
+            DestinationIP_Be = (ServerID_Be != 0) ? ServerID_Be : DHCP_BROADCAST_IP;
+        } else if (TargetState == DHCP_STATE_REBINDING) {
+            Flags = DHCP_BROADCAST_FLAG;
+            ClientIP_Be = Context->OfferedIP_Be;
+            DestinationIP_Be = DHCP_BROADCAST_IP;
+            ServerID_Be = 0;
+        }
 
-        Message.Op = DHCP_OP_REQUEST;
-        Message.HType = DHCP_HTYPE_ETHERNET;
-        Message.HLen = DHCP_HLEN_ETHERNET;
-        Message.Hops = 0;
-        Message.XID = Htonl(Context->TransactionID);
-        Message.Secs = 0;
-        Message.Flags = Htons(0x8000);  // Broadcast flag
-        Message.CIAddr = 0;
-        Message.YIAddr = 0;
-        Message.SIAddr = 0;
-        Message.GIAddr = 0;
-        MemoryCopy(Message.CHAddr, Context->LocalMacAddress, 6);
-        Message.MagicCookie = Htonl(DHCP_MAGIC_COOKIE);
+        if (ClientIP_Be == 0 && RequestedIP_Be == 0) {
+            ERROR(TEXT("[DHCP_SendRequest] No IP available for REQUEST (state %u)"), TargetState);
+            return FALSE;
+        }
+
+        if (ServerID_Be == 0 && TargetState != DHCP_STATE_REBINDING) {
+            ERROR(TEXT("[DHCP_SendRequest] Missing server identifier for REQUEST"));
+            return FALSE;
+        }
+
+        DHCP_InitMessage(&Message, Context, Flags, ClientIP_Be);
 
         // Build options
         OptionsOffset = 0;
@@ -298,23 +370,113 @@ static void DHCP_SendRequest(LPDEVICE Device) {
         MessageType = DHCP_REQUEST;
         OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_MESSAGE_TYPE, 1, &MessageType);
 
+        // Option 61: Client Identifier
+        OptionsOffset = DHCP_WriteClientIdentifier(Message.Options, OptionsOffset, Context->LocalMacAddress);
+
         // Option 50: Requested IP Address
         RequestedIP_Be = Context->OfferedIP_Be;
-        OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_REQUESTED_IP, 4, (const U8*)&RequestedIP_Be);
+        if (RequestedIP_Be != 0) {
+            OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_REQUESTED_IP, 4, (const U8*)&RequestedIP_Be);
+        }
 
         // Option 54: Server Identifier
         ServerID_Be = Context->ServerID_Be;
-        OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_SERVER_ID, 4, (const U8*)&ServerID_Be);
+        if (ServerID_Be != 0) {
+            OptionsOffset = DHCP_WriteOption(Message.Options, OptionsOffset, DHCP_OPTION_SERVER_ID, 4, (const U8*)&ServerID_Be);
+        }
 
         // Option 255: End
         Message.Options[OptionsOffset++] = DHCP_OPTION_END;
 
-        // Send via UDP (broadcast to 255.255.255.255:67)
-        UDP_Send(Device, 0xFFFFFFFF, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (const U8*)&Message, sizeof(DHCP_MESSAGE));
+        DestinationHostOrder = Ntohl(DestinationIP_Be);
+        DEBUG(TEXT("[DHCP_SendRequest] Sending DHCP REQUEST (state %u) to %u.%u.%u.%u"),
+              TargetState,
+              (DestinationHostOrder >> 24) & 0xFF,
+              (DestinationHostOrder >> 16) & 0xFF,
+              (DestinationHostOrder >> 8) & 0xFF,
+              DestinationHostOrder & 0xFF);
 
-        Context->State = DHCP_STATE_REQUESTING;
+        // Send via UDP (broadcast/unicast depending on state)
+        UDP_Send(Device, DestinationIP_Be, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (const U8*)&Message, sizeof(DHCP_MESSAGE));
+
+        if (Context->State != TargetState) {
+            Context->RetryCount = 0;
+        }
+
+        Context->State = TargetState;
         Context->StartMillis = GetSystemTime();
+        return TRUE;
     }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Applies ACK contents to the network configuration.
+ *
+ * @param Context DHCP context.
+ * @param Message Received DHCP ACK message.
+ */
+
+static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
+    U32 AssignedIP_Be;
+    U32 AssignedIP;
+
+    if (Context == NULL || Message == NULL) return;
+
+    AssignedIP_Be = Message->YIAddr;
+    if (AssignedIP_Be == 0) {
+        AssignedIP_Be = Context->OfferedIP_Be;
+    }
+
+    if (AssignedIP_Be == 0) {
+        ERROR(TEXT("[DHCP_ApplyAck] ACK missing assigned IP"));
+        return;
+    }
+
+    Context->OfferedIP_Be = AssignedIP_Be;
+    AssignedIP = Ntohl(Context->OfferedIP_Be);
+
+    DEBUG(TEXT("[DHCP_ApplyAck] Applying ACK: %u.%u.%u.%u"),
+          (AssignedIP >> 24) & 0xFF,
+          (AssignedIP >> 16) & 0xFF,
+          (AssignedIP >> 8) & 0xFF,
+          AssignedIP & 0xFF);
+
+    IPv4_SetNetworkConfig(g_DHCPDevice, Context->OfferedIP_Be, Context->SubnetMask_Be, Context->Gateway_Be);
+
+    Context->State = DHCP_STATE_BOUND;
+    Context->LeaseStartMillis = GetSystemTime();
+    Context->RetryCount = 0;
+
+    // Calculate renewal times (T1 = 50% of lease, T2 = 87.5% of lease)
+    Context->RenewalTime = Context->LeaseTime / 2;
+    Context->RebindTime = (Context->LeaseTime * 7) / 8;
+
+    // Mark network device as ready
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
+            SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
+                if ((LPDEVICE)NetCtx->Device == g_DHCPDevice) {
+                    NetCtx->LocalIPv4_Be = Context->OfferedIP_Be;
+                    DEBUG(TEXT("[DHCP_ApplyAck] Updated network context IP to %u.%u.%u.%u"),
+                          (AssignedIP >> 24) & 0xFF,
+                          (AssignedIP >> 16) & 0xFF,
+                          (AssignedIP >> 8) & 0xFF,
+                          AssignedIP & 0xFF);
+                    NetCtx->IsReady = TRUE;
+                    DEBUG(TEXT("[DHCP_ApplyAck] Network device marked as ready"));
+                    break;
+                }
+            }
+        }
+    }
+
+    DEBUG(TEXT("[DHCP_ApplyAck] DHCP configuration complete"));
 }
 
 /************************************************************************/
@@ -336,7 +498,6 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
     U8 MessageType;
     U32 XID;
 
-    UNUSED(SourceIP);
     UNUSED(SourcePort);
     UNUSED(DestinationPort);
 
@@ -376,60 +537,60 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
 
             DEBUG(TEXT("[DHCP_OnUDPPacket] Received message type %u in state %u"), MessageType, Context->State);
 
+            if (MessageType == DHCP_DECLINE) {
+                WARNING(TEXT("[DHCP_OnUDPPacket] Received DECLINE, restarting DHCP"));
+                Context->State = DHCP_STATE_INIT;
+                DHCP_Start(g_DHCPDevice);
+                return;
+            } else if (MessageType == DHCP_INFORM) {
+                DEBUG(TEXT("[DHCP_OnUDPPacket] Received INFORM, ignored for client flow"));
+                return;
+            }
+
             // Handle message based on state
             switch (Context->State) {
                 case DHCP_STATE_SELECTING:
                     if (MessageType == DHCP_OFFER) {
                         Context->OfferedIP_Be = Message->YIAddr;
+                        if (Context->OfferedIP_Be == 0) {
+                            ERROR(TEXT("[DHCP_OnUDPPacket] OFFER missing IP address"));
+                            break;
+                        }
+
+                        if (Context->ServerID_Be == 0) {
+                            if (Message->SIAddr != 0) {
+                                Context->ServerID_Be = Message->SIAddr;
+                            } else if (SourceIP != 0) {
+                                Context->ServerID_Be = SourceIP;
+                            }
+                        }
+
+                        if (Context->ServerID_Be == 0) {
+                            ERROR(TEXT("[DHCP_OnUDPPacket] OFFER missing server identifier"));
+                            break;
+                        }
+
                         U32 OfferedIP = Ntohl(Context->OfferedIP_Be);
                         DEBUG(TEXT("[DHCP_OnUDPPacket] Received OFFER: %u.%u.%u.%u"),
                               (OfferedIP >> 24) & 0xFF, (OfferedIP >> 16) & 0xFF,
                               (OfferedIP >> 8) & 0xFF, OfferedIP & 0xFF);
-                        DHCP_SendRequest(g_DHCPDevice);
+
+                        DHCP_SendRequest(g_DHCPDevice, DHCP_STATE_REQUESTING);
                     }
                     break;
 
                 case DHCP_STATE_REQUESTING:
+                case DHCP_STATE_RENEWING:
+                case DHCP_STATE_REBINDING:
                     if (MessageType == DHCP_ACK) {
-                        Context->OfferedIP_Be = Message->YIAddr;
-                        U32 AssignedIP = Ntohl(Context->OfferedIP_Be);
+                        U32 AckIP = Message->YIAddr != 0 ? Message->YIAddr : Context->OfferedIP_Be;
+                        U32 AckHostOrder = Ntohl(AckIP);
                         DEBUG(TEXT("[DHCP_OnUDPPacket] Received ACK: %u.%u.%u.%u"),
-                              (AssignedIP >> 24) & 0xFF, (AssignedIP >> 16) & 0xFF,
-                              (AssignedIP >> 8) & 0xFF, AssignedIP & 0xFF);
-
-                        // Configure IPv4 with received parameters
-                        IPv4_SetNetworkConfig(g_DHCPDevice, Context->OfferedIP_Be, Context->SubnetMask_Be, Context->Gateway_Be);
-
-                        Context->State = DHCP_STATE_BOUND;
-                        Context->LeaseStartMillis = GetSystemTime();
-
-                        // Calculate renewal times (T1 = 50% of lease, T2 = 87.5% of lease)
-                        Context->RenewalTime = Context->LeaseTime / 2;
-                        Context->RebindTime = (Context->LeaseTime * 7) / 8;
-
-                        // Mark network device as ready
-                        LPLIST NetworkDeviceList = GetNetworkDeviceList();
-                        SAFE_USE(NetworkDeviceList) {
-                            for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
-                                LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
-                                SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
-                                    if ((LPDEVICE)NetCtx->Device == g_DHCPDevice) {
-                                        NetCtx->LocalIPv4_Be = Context->OfferedIP_Be;
-                                        U32 AssignedHost = Ntohl(Context->OfferedIP_Be);
-                                        DEBUG(TEXT("[DHCP_OnUDPPacket] Updated network context IP to %u.%u.%u.%u"),
-                                              (AssignedHost >> 24) & 0xFF,
-                                              (AssignedHost >> 16) & 0xFF,
-                                              (AssignedHost >> 8) & 0xFF,
-                                              AssignedHost & 0xFF);
-                                        NetCtx->IsReady = TRUE;
-                                        DEBUG(TEXT("[DHCP_OnUDPPacket] Network device marked as ready"));
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        DEBUG(TEXT("[DHCP_OnUDPPacket] DHCP configuration complete"));
+                              (AckHostOrder >> 24) & 0xFF,
+                              (AckHostOrder >> 16) & 0xFF,
+                              (AckHostOrder >> 8) & 0xFF,
+                              AckHostOrder & 0xFF);
+                        DHCP_ApplyAck(Context, Message);
                     } else if (MessageType == DHCP_NAK) {
                         ERROR(TEXT("[DHCP_OnUDPPacket] Received NAK, restarting DHCP"));
                         Context->State = DHCP_STATE_INIT;
@@ -442,6 +603,47 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                     break;
             }
         }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Handles retry/backoff for DHCP requests.
+ *
+ * @param Device  Network device.
+ * @param Context DHCP context.
+ */
+
+static void DHCP_HandleRequestTimeout(LPDEVICE Device, LPDHCP_CONTEXT Context) {
+    UINT CurrentMillis;
+    UINT ElapsedMillis;
+    UINT TimeoutMillis;
+
+    if (Device == NULL || Context == NULL) return;
+
+    CurrentMillis = GetSystemTime();
+    ElapsedMillis = CurrentMillis - Context->StartMillis;
+    TimeoutMillis = DHCP_GetRetryTimeout(Context->RetryCount);
+
+    if (ElapsedMillis < TimeoutMillis) {
+        return;
+    }
+
+    if (Context->RetryCount >= DHCP_MAX_RETRIES) {
+        DEBUG(TEXT("[DHCP_HandleRequestTimeout] DHCP failed after %u retries"), Context->RetryCount);
+        Context->State = DHCP_STATE_FAILED;
+        return;
+    }
+
+    Context->RetryCount++;
+    WARNING(TEXT("[DHCP_HandleRequestTimeout] DHCP timeout, retry %u/%u"), Context->RetryCount, DHCP_MAX_RETRIES);
+
+    if (Context->State == DHCP_STATE_SELECTING) {
+        DHCP_SendDiscover(Device);
+    } else if (Context->State == DHCP_STATE_REQUESTING || Context->State == DHCP_STATE_RENEWING ||
+               Context->State == DHCP_STATE_REBINDING) {
+        DHCP_SendRequest(Device, Context->State);
     }
 }
 
@@ -544,6 +746,15 @@ void DHCP_Start(LPDEVICE Device) {
         Context->State = DHCP_STATE_INIT;
         Context->TransactionID = DHCP_GenerateXID();
         Context->RetryCount = 0;
+        Context->OfferedIP_Be = 0;
+        Context->SubnetMask_Be = 0;
+        Context->Gateway_Be = 0;
+        Context->DNSServer_Be = 0;
+        Context->ServerID_Be = 0;
+        Context->LeaseTime = 0;
+        Context->RenewalTime = 0;
+        Context->RebindTime = 0;
+        Context->LeaseStartMillis = 0;
         DHCP_SendDiscover(Device);
     }
 }
@@ -571,26 +782,14 @@ void DHCP_Tick(LPDEVICE Device) {
         switch (Context->State) {
             case DHCP_STATE_SELECTING:
             case DHCP_STATE_REQUESTING:
-                ElapsedMillis = CurrentMillis - Context->StartMillis;
-                if (ElapsedMillis > DHCP_RETRY_TIMEOUT_MILLIS) {
-                    Context->RetryCount++;
-                    if (Context->RetryCount >= DHCP_MAX_RETRIES) {
-                        DEBUG(TEXT("[DHCP_Tick] DHCP failed after %u retries"), Context->RetryCount);
-                        Context->State = DHCP_STATE_FAILED;
-                    } else {
-                        WARNING(TEXT("[DHCP_Tick] DHCP timeout, retry %u/%u"), Context->RetryCount, DHCP_MAX_RETRIES);
-                        if (Context->State == DHCP_STATE_SELECTING) {
-                            DHCP_SendDiscover(Device);
-                        } else {
-                            DHCP_SendRequest(Device);
-                        }
-                    }
-                }
+            case DHCP_STATE_RENEWING:
+            case DHCP_STATE_REBINDING:
+                DHCP_HandleRequestTimeout(Device, Context);
                 break;
 
             case DHCP_STATE_BOUND:
                 ElapsedMillis = CurrentMillis - Context->LeaseStartMillis;
-                ElapsedSeconds = ElapsedMillis;
+                ElapsedSeconds = ElapsedMillis / 1000;
 
                 if (ElapsedSeconds >= Context->LeaseTime) {
                     WARNING(TEXT("[DHCP_Tick] Lease expired, restarting DHCP"));
