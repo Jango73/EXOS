@@ -906,6 +906,51 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
 
 /************************************************************************/
 
+LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
+    if (PhysicalBase == 0 || Size == 0) {
+        ERROR(TEXT("[MapIOMemory] Invalid parameters (PA=%p Size=%x)"), (LPVOID)PhysicalBase, Size);
+        return 0;
+    }
+
+    PHYSICAL LowWindow = GetCachedLowMemoryWindowLimit();
+    PHYSICAL PageOffset = PhysicalBase & (PAGE_SIZE - 1u);
+    PHYSICAL AlignedPhysicalBase = PhysicalBase & ~(PAGE_SIZE - 1u);
+
+    UINT AdjustedSize = Size + (UINT)PageOffset;
+    if (AlignedPhysicalBase < LowWindow) {
+        AdjustedSize = (AdjustedSize + PAGE_SIZE - 1u) & ~(PAGE_SIZE - 1u);
+    } else {
+        if ((AlignedPhysicalBase & PAGE_2M_MASK) != 0) {
+            ERROR(TEXT("[MapIOMemory] Physical base must be 2M aligned above low window (%p)"), (LPVOID)PhysicalBase);
+            return 0;
+        }
+        AdjustedSize = (AdjustedSize + PAGE_2M_MASK) & ~PAGE_2M_MASK;
+    }
+
+    U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC | ALLOC_PAGES_IO | ALLOC_PAGES_AT_OR_OVER;
+
+    LINEAR AlignedResult = AllocRegion(VMA_KERNEL, AlignedPhysicalBase, AdjustedSize, Flags);
+    if (AlignedResult == 0) {
+        DEBUG(TEXT("[MapIOMemory] AllocRegion failed"));
+        return 0;
+    }
+
+    return AlignedResult + PageOffset;
+}
+
+/************************************************************************/
+
+BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
+    if (LinearBase == 0 || Size == 0) {
+        ERROR(TEXT("[UnMapIOMemory] Invalid parameters (LA=%p Size=%u)"), (LPVOID)LinearBase, Size);
+        return FALSE;
+    }
+
+    return FreeRegion(LinearBase, Size);
+}
+
+/************************************************************************/
+
 
 /**
  * @brief Map a linear address to a physical address in the current CR3.
