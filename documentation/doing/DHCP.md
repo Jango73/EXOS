@@ -11,7 +11,7 @@
   - Track lease expiration and trigger restart when exhausted; reset retry counters appropriately.
   - Emit DHCP RELEASE during shutdown or interface disable; clear network context readiness.
 
-## [ ] Step 3 — Configuration application
+## [X] Step 3 — Configuration application
   - Apply subnet mask, gateway, and DNS server to network context/runtime resolver;
   - Refresh ARP and routing state after IP changes; flush stale entries when lease changes.
 

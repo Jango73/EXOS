@@ -320,6 +320,32 @@ void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32
 
 /************************************************************************/
 
+/**
+ * @brief Clears all pending IPv4 packets queued for ARP resolution.
+ *
+ * Used when network configuration changes to avoid sending packets using
+ * stale routing information.
+ *
+ * @param Device Target network device.
+ */
+void IPv4_ClearPendingPackets(LPDEVICE Device) {
+    LPIPV4_CONTEXT Context;
+    U32 Index;
+
+    if (Device == NULL) return;
+
+    Context = IPv4_GetContext(Device);
+    if (Context == NULL) return;
+
+    for (Index = 0; Index < IPV4_MAX_PENDING_PACKETS; Index++) {
+        Context->PendingPackets[Index].IsValid = 0;
+    }
+
+    DEBUG(TEXT("[IPv4_ClearPendingPackets] Pending packet queue cleared"));
+}
+
+/************************************************************************/
+
 void IPv4_RegisterProtocolHandler(LPDEVICE Device, U8 Protocol, IPv4_ProtocolHandler Handler) {
     LPIPV4_CONTEXT Context;
 

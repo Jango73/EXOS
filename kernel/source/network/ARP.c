@@ -620,6 +620,37 @@ void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
 /************************************************************************/
 
 /**
+ * @brief Flush all ARP cache entries for a device.
+ *
+ * Clears cached and probing entries when IP configuration changes to avoid
+ * using stale MAC resolutions.
+ *
+ * @param Device Target device.
+ */
+void ARP_FlushCache(LPDEVICE Device) {
+    LPARP_CONTEXT Context;
+    U32 Index;
+
+    if (Device == NULL) return;
+
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) return;
+
+    for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
+        LPARP_CACHE_ENTRY Entry = &Context->Cache[Index];
+        Entry->IPv4_Be = 0;
+        Entry->TimeToLive = 0;
+        Entry->IsValid = 0;
+        Entry->IsProbing = 0;
+        AdaptiveDelay_Reset(&Entry->DelayState);
+    }
+
+    DEBUG(TEXT("[ARP_FlushCache] Cleared ARP cache entries"));
+}
+
+/************************************************************************/
+
+/**
  * @brief Destroy the ARP context associated with a device.
  *
  * @param Device Target device.

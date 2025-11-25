@@ -26,6 +26,7 @@
 #include "network/UDP.h"
 #include "UDPContext.h"
 #include "network/IPv4.h"
+#include "network/ARP.h"
 #include "Device.h"
 #include "Heap.h"
 #include "ID.h"
@@ -46,6 +47,51 @@ static LPDEVICE g_DHCPDevice = NULL;
 
 LPDHCP_CONTEXT DHCP_GetContext(LPDEVICE Device) {
     return (LPDHCP_CONTEXT)GetDeviceContext(Device, KOID_DHCP);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the network device context associated with a device.
+ *
+ * @param Device Network device.
+ * @return Pointer to the NETWORK_DEVICE_CONTEXT or NULL if not found.
+ */
+static LPNETWORK_DEVICE_CONTEXT DHCP_GetNetworkDeviceContext(LPDEVICE Device) {
+    LPLIST NetworkDeviceList;
+    LPNETWORK_DEVICE_CONTEXT Result = NULL;
+
+    if (Device == NULL) return NULL;
+
+    NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
+            LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
+            SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
+                if ((LPDEVICE)NetCtx->Device == Device) {
+                    Result = NetCtx;
+                    break;
+                }
+            }
+        }
+    }
+
+    return Result;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clears ARP cache and pending IPv4 packets after configuration changes.
+ *
+ * @param Device Network device whose caches must be reset.
+ */
+static void DHCP_ResetRoutingState(LPDEVICE Device) {
+    if (Device == NULL) return;
+
+    ARP_FlushCache(Device);
+    IPv4_ClearPendingPackets(Device);
+    DEBUG(TEXT("[DHCP_ResetRoutingState] Cleared ARP cache and pending IPv4 packets"));
 }
 
 /************************************************************************/
@@ -442,21 +488,20 @@ static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
  */
 
 static void DHCP_ClearNetworkReady(LPDHCP_CONTEXT Context) {
+    LPNETWORK_DEVICE_CONTEXT NetCtx;
+
     if (Context == NULL) return;
 
-    LPLIST NetworkDeviceList = GetNetworkDeviceList();
-    SAFE_USE(NetworkDeviceList) {
-        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
-            LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
-                if ((LPDEVICE)NetCtx->Device == Context->Device) {
-                    NetCtx->LocalIPv4_Be = 0;
-                    NetCtx->IsReady = FALSE;
-                    DEBUG(TEXT("[DHCP_ClearNetworkReady] Network device marked not ready"));
-                    break;
-                }
-            }
-        }
+    DHCP_ResetRoutingState(Context->Device);
+
+    NetCtx = DHCP_GetNetworkDeviceContext(Context->Device);
+    SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
+        NetCtx->LocalIPv4_Be = 0;
+        NetCtx->SubnetMask_Be = 0;
+        NetCtx->Gateway_Be = 0;
+        NetCtx->DNSServer_Be = 0;
+        NetCtx->IsReady = FALSE;
+        DEBUG(TEXT("[DHCP_ClearNetworkReady] Network device marked not ready"));
     }
 }
 
@@ -529,6 +574,15 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
     U32 AssignedIP;
     U32 RenewalSeconds;
     U32 RebindSeconds;
+    LPNETWORK_DEVICE_CONTEXT NetCtx;
+    LPIPV4_CONTEXT IPv4Context;
+    U32 PreviousIP_Be;
+    U32 PreviousMask_Be;
+    U32 PreviousGateway_Be;
+    U32 PreviousDNS_Be;
+    BOOL ConfigChanged;
+    BOOL DNSChanged;
+    BOOL LeaseTransition;
 
     if (Context == NULL || Message == NULL) return;
 
@@ -551,7 +605,25 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
           (AssignedIP >> 8) & 0xFF,
           AssignedIP & 0xFF);
 
+    NetCtx = DHCP_GetNetworkDeviceContext(Context->Device);
+    IPv4Context = IPv4_GetContext(Context->Device);
+
+    PreviousIP_Be = (IPv4Context != NULL) ? IPv4Context->LocalIPv4_Be : 0;
+    PreviousMask_Be = (IPv4Context != NULL) ? IPv4Context->NetmaskBe : 0;
+    PreviousGateway_Be = (IPv4Context != NULL) ? IPv4Context->DefaultGatewayBe : 0;
+    PreviousDNS_Be = (NetCtx != NULL) ? NetCtx->DNSServer_Be : 0;
+
+    ConfigChanged = (PreviousIP_Be != Context->OfferedIP_Be) ||
+                    (PreviousMask_Be != Context->SubnetMask_Be) ||
+                    (PreviousGateway_Be != Context->Gateway_Be);
+    DNSChanged = (PreviousDNS_Be != Context->DNSServer_Be);
+    LeaseTransition = (Context->State != DHCP_STATE_BOUND) || ConfigChanged;
+
     IPv4_SetNetworkConfig(g_DHCPDevice, Context->OfferedIP_Be, Context->SubnetMask_Be, Context->Gateway_Be);
+
+    if (LeaseTransition) {
+        DHCP_ResetRoutingState(Context->Device);
+    }
 
     Context->State = DHCP_STATE_BOUND;
     Context->LeaseStartMillis = GetSystemTime();
@@ -570,24 +642,26 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
           Context->LeaseTime);
 
     // Mark network device as ready
-    LPLIST NetworkDeviceList = GetNetworkDeviceList();
-    SAFE_USE(NetworkDeviceList) {
-        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
-            LPNETWORK_DEVICE_CONTEXT NetCtx = (LPNETWORK_DEVICE_CONTEXT)Node;
-            SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
-                if ((LPDEVICE)NetCtx->Device == g_DHCPDevice) {
-                    NetCtx->LocalIPv4_Be = Context->OfferedIP_Be;
-                    DEBUG(TEXT("[DHCP_ApplyAck] Updated network context IP to %u.%u.%u.%u"),
-                          (AssignedIP >> 24) & 0xFF,
-                          (AssignedIP >> 16) & 0xFF,
-                          (AssignedIP >> 8) & 0xFF,
-                          AssignedIP & 0xFF);
-                    NetCtx->IsReady = TRUE;
-                    DEBUG(TEXT("[DHCP_ApplyAck] Network device marked as ready"));
-                    break;
-                }
-            }
+    SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
+        NetCtx->LocalIPv4_Be = Context->OfferedIP_Be;
+        NetCtx->SubnetMask_Be = Context->SubnetMask_Be;
+        NetCtx->Gateway_Be = Context->Gateway_Be;
+        NetCtx->DNSServer_Be = Context->DNSServer_Be;
+        DEBUG(TEXT("[DHCP_ApplyAck] Updated network context IP to %u.%u.%u.%u"),
+              (AssignedIP >> 24) & 0xFF,
+              (AssignedIP >> 16) & 0xFF,
+              (AssignedIP >> 8) & 0xFF,
+              AssignedIP & 0xFF);
+        if (DNSChanged) {
+            U32 DNSHost = Ntohl(Context->DNSServer_Be);
+            DEBUG(TEXT("[DHCP_ApplyAck] DNS server set to %u.%u.%u.%u"),
+                  (DNSHost >> 24) & 0xFF,
+                  (DNSHost >> 16) & 0xFF,
+                  (DNSHost >> 8) & 0xFF,
+                  DNSHost & 0xFF);
         }
+        NetCtx->IsReady = TRUE;
+        DEBUG(TEXT("[DHCP_ApplyAck] Network device marked as ready"));
     }
 
     DEBUG(TEXT("[DHCP_ApplyAck] DHCP configuration complete"));

@@ -964,6 +964,10 @@ void InitializeNetworkManager(void) {
 - `NetworkManager_MaintenanceTick()`: Deferred maintenance routine invoked by `DeferredWorkDispatcher`
 - `NetworkManager_GetPrimaryDevice()`: Get primary device for TCP
 
+**DHCP Integration**
+- DHCP ACK applies assigned IP, subnet mask, gateway, and DNS server to the IPv4 layer and network device context.
+- ARP cache and pending IPv4 routes are flushed on lease changes before marking the device ready, ensuring stale mappings are dropped when a lease is renewed or replaced.
+
 ### E1000 Ethernet Driver
 
 **Location:** `kernel/source/network/E1000.c`

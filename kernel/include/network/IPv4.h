@@ -109,6 +109,7 @@ void IPv4_Initialize(LPDEVICE Device, U32 LocalIPv4_Be);
 void IPv4_Destroy(LPDEVICE Device);
 void IPv4_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be);
 void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32 DefaultGatewayBe);
+void IPv4_ClearPendingPackets(LPDEVICE Device);
 void IPv4_RegisterProtocolHandler(LPDEVICE Device, U8 Protocol, IPv4_ProtocolHandler Handler);
 int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload, U32 PayloadLength);
 void IPv4_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length);

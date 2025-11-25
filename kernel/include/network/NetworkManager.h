@@ -42,6 +42,9 @@ typedef struct tag_NETWORK_DEVICE_CONTEXT {
     LISTNODE_FIELDS
     LPPCI_DEVICE Device;
     U32 LocalIPv4_Be;
+    U32 SubnetMask_Be;
+    U32 Gateway_Be;
+    U32 DNSServer_Be;
     BOOL IsInitialized;
     BOOL IsReady;
     NT_RXCB OriginalCallback;
