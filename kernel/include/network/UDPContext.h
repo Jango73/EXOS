@@ -26,7 +26,7 @@
 
 #include "Base.h"
 #include "Device.h"
-#include "network/UDP.h"
+#include "UDP.h"
 #include "Endianness.h"
 
 /************************************************************************/
