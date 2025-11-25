@@ -422,7 +422,10 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
     if (Object == NULL) {
-        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);
+        ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d (HeapBase=%p HeapSize=%x)"),
+              ObjectTypeID,
+              (LPVOID)KernelProcess.HeapBase,
+              KernelProcess.HeapSize);
         return NULL;
     }
 
@@ -723,6 +726,10 @@ void LoadDriver(LPDRIVER Driver) {
 
     SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), TEXT(Driver->Product), Driver);
+        DEBUG(TEXT("[LoadDriver] : Command=%p"), Driver->Command);
+        PHYSICAL DriverPhys = MapLinearToPhysical((LINEAR)Driver);
+        PHYSICAL CommandPhys = MapLinearToPhysical((LINEAR)Driver->Command);
+        DEBUG(TEXT("[LoadDriver] : DriverPhys=%p CommandPhys=%p"), DriverPhys, CommandPhys);
 
         if (Driver->TypeID != KOID_DRIVER) {
             KernelLogText(
@@ -733,6 +740,7 @@ void LoadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_LOAD, 0);
+        DEBUG(TEXT("[LoadDriver] : DF_LOAD returned %x for %s"), Result, TEXT(Driver->Product));
         if (Result == DF_RET_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
             DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
             Success = TRUE;
@@ -743,6 +751,8 @@ void LoadDriver(LPDRIVER Driver) {
                 ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), TEXT(Driver->Product), Result);
             }
         }
+
+        DEBUG(TEXT("[LoadDriver] : Exit %s Success=%u Flags=%x"), TEXT(Driver->Product), Success, Driver->Flags);
     }
 }
 
@@ -778,14 +788,21 @@ void UnloadDriver(LPDRIVER Driver) {
 
 void LoadAllDrivers(void) {
     InitializeDriverList();
+    DEBUG(TEXT("[LoadAllDrivers] Driver list initialized"));
 
     LPLIST DriverList = GetDriverList();
     if (DriverList == NULL || DriverList->First == NULL) {
+        DEBUG(TEXT("[LoadAllDrivers] No drivers to load"));
         return;
     }
 
     for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
-        LoadDriver((LPDRIVER)Node);
+        LPDRIVER Driver = (LPDRIVER)Node;
+        SAFE_USE(Driver) {
+            DEBUG(TEXT("[LoadAllDrivers] Loading %s driver (%p)"), TEXT(Driver->Product), Driver);
+            LoadDriver(Driver);
+            DEBUG(TEXT("[LoadAllDrivers] Done %s driver"), TEXT(Driver->Product));
+        }
     }
 }
 
@@ -961,13 +978,18 @@ static void KillActiveKernelTasks(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
+    DEBUG(TEXT("[InitializeKernel] Enter"));
+
     GetCPUInformation(GetKernelCPUInfo());
     PreInitializeKernel();
+    DEBUG(TEXT("[InitializeKernel] PreInitializeKernel done"));
 
     //-------------------------------------
     // Load all drivers
 
+    DEBUG(TEXT("[InitializeKernel] Loading drivers"));
     LoadAllDrivers();
+    DEBUG(TEXT("[InitializeKernel] Drivers loaded"));
 
     //-------------------------------------
     // Initialize object termination cache

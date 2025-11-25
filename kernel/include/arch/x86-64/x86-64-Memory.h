@@ -181,10 +181,12 @@ PHYSICAL ComputeLowMemoryWindowLimit(UINT TotalMemoryBytes);
 PHYSICAL GetLowMemoryWindowLimit(void);
 
 static inline LINEAR BuildRecursiveAddress(UINT Pml4, UINT Pdpt, UINT Directory, UINT Table) {
-    return (LINEAR)(((U64)Pml4 << 39)
-        | ((U64)Pdpt << 30)
-        | ((U64)Directory << 21)
-        | ((U64)Table << 12));
+    U64 Linear = ((U64)Pml4 << 39) | ((U64)Pdpt << 30) | ((U64)Directory << 21) | ((U64)Table << 12);
+    if ((Pml4 & 0x100u) != 0u) {
+        Linear |= 0xFFFF000000000000ull;  // sign-extend bit 47
+    }
+
+    return (LINEAR)Linear;
 }
 
 #endif  // X86_64_MEMORY_H_INCLUDED

@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "arch/x86-64/x86-64-Memory.h"
+#include "arch/x86-64/x86-64-Log.h"
 
 #include "Kernel.h"
 #include "Log.h"
@@ -34,6 +35,11 @@
 #include "process/Process.h"
 
 /************************************************************************/
+
+#define BOOTSTRAP_REGION_DESCRIPTOR_COUNT 8u
+
+static MEMORY_REGION_DESCRIPTOR BootstrapRegionDescriptors[BOOTSTRAP_REGION_DESCRIPTOR_COUNT];
+static UINT BootstrapRegionDescriptorIndex = 0;
 
 static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
 
@@ -66,12 +72,18 @@ PHYSICAL ComputeLowMemoryWindowLimit(UINT TotalMemoryBytes) {
         return 0;
     }
 
+    PHYSICAL MinWindow = KernelStartup.KernelPhysicalBase + (PHYSICAL)KernelStartup.KernelSize + (PHYSICAL)N_512KB;
+    MinWindow = (PHYSICAL)((MinWindow + PAGE_2M_MASK) & ~PAGE_2M_MASK);
+
     UINT OnePercent = TotalMemoryBytes / 100u;
     if ((TotalMemoryBytes % 100u) != 0u) {
         OnePercent++;
     }
 
     UINT Window = (OnePercent + (PAGE_2M_SIZE - 1u)) & ~(PAGE_2M_MASK);
+    if (Window < MinWindow) {
+        Window = (UINT)MinWindow;
+    }
 
     if (Window > TotalMemoryBytes) {
         Window = TotalMemoryBytes;
@@ -135,16 +147,22 @@ static inline LPPML4 GetCurrentPml4VA(void) {
 }
 
 static inline LPPDPT GetPageDirectoryPointerVAFor(UINT Pml4Index, UINT PdptIndex) {
-    UNUSED(Pml4Index);
-    return (LPPDPT)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PdptIndex);
+    UNUSED(PdptIndex);
+    return (LPPDPT)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, Pml4Index);
 }
 
-static inline LPPAGE_DIRECTORY GetPageDirectoryVAFor(UINT PdptIndex, UINT DirectoryIndex) {
-    return (LPPAGE_DIRECTORY)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PdptIndex, DirectoryIndex);
+static inline LPPAGE_DIRECTORY GetPageDirectoryVAFor(UINT Pml4Index, UINT PdptIndex, UINT DirectoryIndex) {
+    return (LPPAGE_DIRECTORY)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, Pml4Index, PdptIndex);
 }
 
-static inline LPPAGE_TABLE GetPageTableVAFor(UINT PdptIndex, UINT DirectoryIndex) {
-    return (LPPAGE_TABLE)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PdptIndex, DirectoryIndex, 0);
+static inline LPPAGE_TABLE GetPageTableVAFor(UINT Pml4Index, UINT PdptIndex, UINT DirectoryIndex) {
+    return (LPPAGE_TABLE)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, Pml4Index, PdptIndex, DirectoryIndex);
+}
+
+static inline PHYSICAL GetCurrentPml4Physical(void) {
+    U64 Cr3Value;
+    __asm__ volatile("mov %%cr3, %0" : "=r"(Cr3Value));
+    return (PHYSICAL)(Cr3Value & ~((U64)PAGE_SIZE - 1u));
 }
 
 /************************************************************************/
@@ -161,7 +179,7 @@ static BOOL MapLargePage(LINEAR Linear, PHYSICAL Physical, U64 Flags) {
 
     LPPML4 Pml4 = GetCurrentPml4VA();
     LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
 
     if (!Pml4[Pml4Index].Present || !Pdpt[PdptIndex].Present) {
         ERROR(TEXT("[MapLargePage] Missing PML4/PDPT for VA %p"), (LPVOID)Linear);
@@ -257,13 +275,29 @@ static LPMEMORY_REGION_DESCRIPTOR CreateRegionDescriptor(
     UINT Size,
     U32 Flags,
     MEMORY_REGION_GRANULARITY Granularity) {
-    LPMEMORY_REGION_DESCRIPTOR Descriptor =
-        (LPMEMORY_REGION_DESCRIPTOR)CreateKernelObject(sizeof(MEMORY_REGION_DESCRIPTOR), KOID_MEMORY_REGION_DESCRIPTOR);
-    if (Descriptor == NULL) {
-        return NULL;
-    }
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = NULL;
 
-    MemorySet(Descriptor, 0, sizeof(MEMORY_REGION_DESCRIPTOR));
+    if (KernelProcess.HeapBase == 0 || KernelProcess.HeapSize == 0) {
+        if (BootstrapRegionDescriptorIndex >= BOOTSTRAP_REGION_DESCRIPTOR_COUNT) {
+            ERROR(TEXT("[CreateRegionDescriptor] Bootstrap descriptors exhausted"));
+            return NULL;
+        }
+
+        Descriptor = &BootstrapRegionDescriptors[BootstrapRegionDescriptorIndex++];
+        MemorySet(Descriptor, 0, sizeof(MEMORY_REGION_DESCRIPTOR));
+        Descriptor->TypeID = KOID_MEMORY_REGION_DESCRIPTOR;
+        Descriptor->References = 1;
+        Descriptor->OwnerProcess = &KernelProcess;
+        Descriptor->Next = NULL;
+        Descriptor->Prev = NULL;
+    } else {
+        Descriptor = (LPMEMORY_REGION_DESCRIPTOR)CreateKernelObject(sizeof(MEMORY_REGION_DESCRIPTOR), KOID_MEMORY_REGION_DESCRIPTOR);
+        if (Descriptor == NULL) {
+            return NULL;
+        }
+
+        MemorySet(Descriptor, 0, sizeof(MEMORY_REGION_DESCRIPTOR));
+    }
     Descriptor->Base = Base;
     Descriptor->CanonicalBase = (LINEAR)CanonicalizeLinearAddress((U64)Base);
     Descriptor->PhysicalBase = Physical;
@@ -286,11 +320,6 @@ static LPMEMORY_REGION_DESCRIPTOR CreateRegionDescriptor(
 
 /************************************************************************/
 static LINEAR MapTemporaryPhysicalPage(LINEAR TargetLinear, PHYSICAL Physical) {
-    if (!IsInLowWindow(Physical)) {
-        ERROR(TEXT("[MapTemporaryPhysicalPage] Physical %p outside low window"), (LPVOID)Physical);
-        return 0;
-    }
-
     UINT Pml4Index = GetPml4Index(TargetLinear);
     UINT PdptIndex = GetPdptIndex(TargetLinear);
     UINT DirectoryIndex = GetDirectoryIndex(TargetLinear);
@@ -298,8 +327,8 @@ static LINEAR MapTemporaryPhysicalPage(LINEAR TargetLinear, PHYSICAL Physical) {
 
     LPPML4 Pml4 = GetCurrentPml4VA();
     LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
-    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
 
     X86_64_PML4_ENTRY* Pml4Entry = &Pml4[Pml4Index];
     X86_64_PDPT_ENTRY* PdptEntry = &Pdpt[PdptIndex];
@@ -363,8 +392,9 @@ static void MarkLargePage(UINT Index, UINT Used) {
 static PHYSICAL AllocPhysicalPage4K(void) {
     LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
     UINT BitmapSize = GetPhysicalPageBitmapSize();
+    PHYSICAL LowWindow = GetCachedLowMemoryWindowLimit();
 
-    if (Bitmap == NULL || BitmapSize == 0) {
+    if (Bitmap == NULL || BitmapSize == 0 || LowWindow == 0) {
         return 0;
     }
 
@@ -383,8 +413,13 @@ static PHYSICAL AllocPhysicalPage4K(void) {
                 U8 mask = (U8)(1u << bit);
                 if ((v & mask) == 0) {
                     Bitmap[i] = (U8)(v | mask);
+                    PHYSICAL Physical = (PHYSICAL)((U64)page << PAGE_SIZE_MUL);
+                    if (Physical >= LowWindow) {
+                        UINT LargeIndex = (UINT)((Physical - LowWindow) >> MUL_2MB);
+                        MarkLargePage(LargeIndex, 1);
+                    }
                     UnlockMutex(MUTEX_MEMORY);
-                    return (PHYSICAL)(page << PAGE_SIZE_MUL);
+                    return Physical;
                 }
             }
         }
@@ -483,7 +518,7 @@ static BOOL IsRegionFree(LINEAR Base, UINT Size, MEMORY_REGION_GRANULARITY Granu
         LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
         if (!Pdpt[PdptIndex].Present) return TRUE;
 
-        LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+        LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
         const X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
 
         if (!DirEntry->Present) {
@@ -495,7 +530,7 @@ static BOOL IsRegionFree(LINEAR Base, UINT Size, MEMORY_REGION_GRANULARITY Granu
             return FALSE;
         }
 
-        LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+        LPPAGE_TABLE Table = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
         if (Table[TableIndex].Present) {
             return FALSE;
         }
@@ -531,6 +566,13 @@ static BOOL PopulateRegionPages(LINEAR Base,
                                 UINT NumPages,
                                 UINT Flags,
                                 MEMORY_REGION_GRANULARITY Granularity) {
+    DEBUG(TEXT("[PopulateRegionPages] Base=%p Target=%p Pages=%u Flags=%x Granularity=%u"),
+          (LPVOID)Base,
+          (LPVOID)Target,
+          NumPages,
+          Flags,
+          (UINT)Granularity);
+
     U64 PageFlags = PAGE_FLAG_PRESENT;
     if (Flags & ALLOC_PAGES_READWRITE) PageFlags |= PAGE_FLAG_READ_WRITE;
     if (Flags & ALLOC_PAGES_WC) PageFlags |= PAGE_FLAG_WRITE_THROUGH;
@@ -540,6 +582,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
         LINEAR Current = Base + ((LINEAR)Index << ((Granularity == MEMORY_REGION_GRANULARITY_2M) ? MUL_2MB : PAGE_SIZE_MUL));
         PHYSICAL Physical = 0;
         U64 FlagsForPage = PageFlags;
+        UINT Pml4Index = GetPml4Index(Current);
 
         if (PAGE_PRIVILEGE(Current) == PAGE_PRIVILEGE_USER) {
             FlagsForPage |= PAGE_FLAG_USER;
@@ -558,16 +601,17 @@ static BOOL PopulateRegionPages(LINEAR Base,
             }
 
             if (!MapLargePage(Current, Physical, FlagsForPage)) {
+                ERROR(TEXT("[PopulateRegionPages] MapLargePage failed VA=%p PA=%p"), (LPVOID)Current, (LPVOID)Physical);
                 return FALSE;
             }
             UINT CurPdpt = GetPdptIndex(Current);
             UINT CurDir = GetDirectoryIndex(Current);
-            LPPAGE_DIRECTORY CurDirectory = GetPageDirectoryVAFor(CurPdpt, CurDir);
+            LPPAGE_DIRECTORY CurDirectory = GetPageDirectoryVAFor(Pml4Index, CurPdpt, CurDir);
             CurDirectory[CurDir].Available = (Target == 0 && (Flags & ALLOC_PAGES_IO) == 0) ? 1u : 0u;
         } else {
             UINT PdptIndex = GetPdptIndex(Current);
             UINT DirectoryIndex = GetDirectoryIndex(Current);
-            LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+            LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
             X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
 
             if (DirEntry->Present == 0) {
@@ -591,7 +635,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
                 DirEntry->AvailableHigh = 0;
                 DirEntry->NoExecute = 0;
 
-                LPPAGE_TABLE NewTable = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+                LPPAGE_TABLE NewTable = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
                 MemorySet(NewTable, 0, PAGE_TABLE_SIZE);
             } else if (DirEntry->PageSize) {
                 ERROR(TEXT("[PopulateRegionPages] Cannot place 4K page over 2M mapping"));
@@ -610,9 +654,10 @@ static BOOL PopulateRegionPages(LINEAR Base,
             }
 
             if (!MapOnePage(Current, Physical, FlagsForPage)) {
+                ERROR(TEXT("[PopulateRegionPages] MapOnePage failed VA=%p PA=%p"), (LPVOID)Current, (LPVOID)Physical);
                 return FALSE;
             }
-            LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+            LPPAGE_TABLE Table = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
             Table[GetTableIndex(Current)].Available = (Target == 0 && (Flags & ALLOC_PAGES_IO) == 0) ? 1u : 0u;
         }
     }
@@ -639,8 +684,8 @@ static BOOL SelectGranularity(PHYSICAL Target, UINT Size, MEMORY_REGION_GRANULAR
         }
 
         if ((Target & PAGE_2M_MASK) != 0) {
-            ERROR(TEXT("[SelectGranularity] 2M mapping requires aligned physical base (%p)"), (LPVOID)Target);
-            return FALSE;
+            *OutGranularity = MEMORY_REGION_GRANULARITY_4K;
+            return TRUE;
         }
 
         *OutGranularity = MEMORY_REGION_GRANULARITY_2M;
@@ -709,6 +754,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
     AttachRegionDescriptor(Process, Descriptor);
 
     FlushTLB();
+    DEBUG(TEXT("[AllocRegion] Success Base=%p Size=%x Granularity=%u Flags=%x"), (LPVOID)Base, AlignedSize, (UINT)Granularity, Flags);
     return Base;
 }
 
@@ -732,7 +778,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
     UINT Pml4Index = GetPml4Index(Base);
     UINT PdptIndex = GetPdptIndex(Base);
     UINT DirectoryIndex = GetDirectoryIndex(Base);
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
     const X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
     MEMORY_REGION_GRANULARITY Granularity = Descriptor->Granularity;
 
@@ -746,7 +792,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
         if (Granularity == MEMORY_REGION_GRANULARITY_2M) {
             UINT CurPdpt = GetPdptIndex(Current);
             UINT CurDir = GetDirectoryIndex(Current);
-            LPPAGE_DIRECTORY CurDirectory = GetPageDirectoryVAFor(CurPdpt, CurDir);
+            LPPAGE_DIRECTORY CurDirectory = GetPageDirectoryVAFor(Pml4Index, CurPdpt, CurDir);
             X86_64_PAGE_DIRECTORY_ENTRY* Entry = &CurDirectory[CurDir];
 
             if (Entry->Present && Entry->PageSize) {
@@ -761,7 +807,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
             UINT CurPdpt = GetPdptIndex(Current);
             UINT CurDir = GetDirectoryIndex(Current);
             UINT CurTab = GetTableIndex(Current);
-            LPPAGE_TABLE Table = GetPageTableVAFor(CurPdpt, CurDir);
+            LPPAGE_TABLE Table = GetPageTableVAFor(Pml4Index, CurPdpt, CurDir);
             X86_64_PAGE_TABLE_ENTRY* Entry = &Table[CurTab];
 
             if (Entry->Present) {
@@ -796,7 +842,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
     UINT Pml4Index = GetPml4Index(Base);
     UINT PdptIndex = GetPdptIndex(Base);
     UINT DirectoryIndex = GetDirectoryIndex(Base);
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
     const X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
     MEMORY_REGION_GRANULARITY Granularity = Descriptor->Granularity;
 
@@ -1034,7 +1080,7 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
         }
 
         LPPDPT CurrentPdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
-        LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+        LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
         X86_64_PAGE_DIRECTORY_ENTRY* CurrentDirEntry = &CurrentDirectory[DirectoryIndex];
 
         if (KernelDirEntry->PageSize) {
@@ -1063,7 +1109,7 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
                 NeedsFullFlush = TRUE;
             }
 
-            LPPAGE_TABLE CurrentTable = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+            LPPAGE_TABLE CurrentTable = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
             X86_64_PAGE_TABLE_ENTRY* CurrentTableEntry = &CurrentTable[TableIndex];
             if (CurrentTableEntry->Present == 0 || CurrentTableEntry->Address != KernelTableEntry->Address) {
                 *CurrentTableEntry = *KernelTableEntry;
@@ -1091,6 +1137,12 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
 
 void InitializeMemoryManager(void) {
     DEBUG(TEXT("[InitializeMemoryManager] Enter"));
+    DEBUG(TEXT("[InitializeMemoryManager] MemorySize=%u PageCount=%u KernelBase=%p KernelSize=%x LowWindow=%p"),
+          KernelStartup.MemorySize,
+          KernelStartup.PageCount,
+          (LPVOID)KernelStartup.KernelPhysicalBase,
+          KernelStartup.KernelSize,
+          (LPVOID)GetCachedLowMemoryWindowLimit());
 
     UpdateKernelMemoryMetricsFromMultibootMap();
 
@@ -1102,6 +1154,45 @@ void InitializeMemoryManager(void) {
     UINT LargeBitmapSize = GetPhysicalPageBitmap2MSize();
 
     PHYSICAL Base = PAGE_ALIGN(KernelStartup.KernelPhysicalBase + (PHYSICAL)KernelStartup.KernelSize + (PHYSICAL)N_512KB);
+
+    PHYSICAL PagingMax = GetCurrentPml4Physical() + PAGE_TABLE_SIZE;
+    UINT KernelPml4Index = GetPml4Index(VMA_KERNEL);
+    UINT KernelPdptIndex = GetPdptIndex(VMA_KERNEL);
+    UINT KernelDirIndex = GetDirectoryIndex(VMA_KERNEL);
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    const X86_64_PML4_ENTRY* KernelPml4Entry = &Pml4[KernelPml4Index];
+    PHYSICAL KernelPdptPhysical = 0;
+    PHYSICAL KernelPdPhysical = 0;
+    PHYSICAL KernelPtPhysical = 0;
+
+    if (KernelPml4Entry->Present) {
+        KernelPdptPhysical = (PHYSICAL)(KernelPml4Entry->Address << PAGE_SIZE_MUL);
+        if (KernelPdptPhysical + PAGE_TABLE_SIZE > PagingMax) PagingMax = KernelPdptPhysical + PAGE_TABLE_SIZE;
+
+        LPPDPT KernelPdpt = GetPageDirectoryPointerVAFor(KernelPml4Index, KernelPdptIndex);
+        const X86_64_PDPT_ENTRY* KernelPdptEntry = &KernelPdpt[KernelPdptIndex];
+        if (KernelPdptEntry->Present && !KernelPdptEntry->PageSize) {
+            KernelPdPhysical = (PHYSICAL)(KernelPdptEntry->Address << PAGE_SIZE_MUL);
+            if (KernelPdPhysical + PAGE_TABLE_SIZE > PagingMax) PagingMax = KernelPdPhysical + PAGE_TABLE_SIZE;
+
+            LPPAGE_DIRECTORY KernelDirectory = GetPageDirectoryVAFor(KernelPml4Index, KernelPdptIndex, KernelDirIndex);
+            const X86_64_PAGE_DIRECTORY_ENTRY* KernelDirEntry = &KernelDirectory[KernelDirIndex];
+            if (KernelDirEntry->Present && !KernelDirEntry->PageSize) {
+                KernelPtPhysical = (PHYSICAL)(KernelDirEntry->Address << PAGE_SIZE_MUL);
+                if (KernelPtPhysical + PAGE_TABLE_SIZE > PagingMax) PagingMax = KernelPtPhysical + PAGE_TABLE_SIZE;
+            }
+        }
+    }
+
+    if (Base < PagingMax) {
+        Base = PAGE_ALIGN(PagingMax);
+    }
+
+    DEBUG(TEXT("[InitializeMemoryManager] Bitmap sizes: 4K=%x 2M=%x BaseStart=%p"),
+          LowBitmapSize,
+          LargeBitmapSize,
+          (LPVOID)Base);
 
     if (LowBitmapSize != 0) {
         SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)Base);
@@ -1121,12 +1212,61 @@ void InitializeMemoryManager(void) {
         MemorySet(GetPhysicalPageBitmap2M(), 0, LargeBitmapSize);
     }
 
+    if (KernelPml4Entry->Present) {
+        SetPhysicalPageRangeMark((UINT)(GetCurrentPml4Physical() >> PAGE_SIZE_MUL), 1, 1);
+    }
+
+    if (KernelPdptPhysical != 0) {
+        SetPhysicalPageRangeMark((UINT)(KernelPdptPhysical >> PAGE_SIZE_MUL), 1, 1);
+    }
+
+    if (KernelPdPhysical != 0) {
+        SetPhysicalPageRangeMark((UINT)(KernelPdPhysical >> PAGE_SIZE_MUL), 1, 1);
+    }
+
+    if (KernelPtPhysical != 0) {
+        SetPhysicalPageRangeMark((UINT)(KernelPtPhysical >> PAGE_SIZE_MUL), 1, 1);
+    }
+
     MarkUsedPhysicalMemory();
+
+    PHYSICAL NewPageDirectory = AllocPageDirectory();
+    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %p"), (LPVOID)NewPageDirectory);
+
+    if (NewPageDirectory == 0) {
+        ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    LoadPageDirectory(NewPageDirectory);
+    KernelStartup.PageDirectory = NewPageDirectory;
+    FlushTLB();
+    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %p"), (LPVOID)NewPageDirectory);
+
+    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    if (Kernel_i386.GDT == NULL) {
+        ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
+        ConsolePanic(TEXT("Could not allocate critical memory management tool"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+    DEBUG(TEXT("[InitializeMemoryManager] GDT VA=%p PA=%p"),
+        Kernel_i386.GDT,
+        (LPVOID)MapLinearToPhysical((LINEAR)Kernel_i386.GDT));
+
+    InitializeGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT);
+    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
+    LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
+    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 8);
 
     DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
         TEMP_LINEAR_PAGE_1,
         TEMP_LINEAR_PAGE_2,
         TEMP_LINEAR_PAGE_3);
+    DEBUG(TEXT("[InitializeMemoryManager] PPB4K=%p PPB2M=%p BaseEnd=%p"),
+          GetPhysicalPageBitmap(),
+          GetPhysicalPageBitmap2M(),
+          (LPVOID)Base);
 
     DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }
@@ -1141,6 +1281,7 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
             if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
                 return DF_RET_SUCCESS;
             }
+            DEBUG(TEXT("[MemoryManagerCommands] DF_LOAD"));
             InitializeMemoryManager();
             MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
@@ -1171,15 +1312,12 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
     PHYSICAL PageOffset = PhysicalBase & (PAGE_SIZE - 1u);
     PHYSICAL AlignedPhysicalBase = PhysicalBase & ~(PAGE_SIZE - 1u);
 
+    BOOL UseLargePages = (AlignedPhysicalBase >= LowWindow) && ((AlignedPhysicalBase & PAGE_2M_MASK) == 0);
     UINT AdjustedSize = Size + (UINT)PageOffset;
-    if (AlignedPhysicalBase < LowWindow) {
-        AdjustedSize = (AdjustedSize + PAGE_SIZE - 1u) & ~(PAGE_SIZE - 1u);
-    } else {
-        if ((AlignedPhysicalBase & PAGE_2M_MASK) != 0) {
-            ERROR(TEXT("[MapIOMemory] Physical base must be 2M aligned above low window (%p)"), (LPVOID)PhysicalBase);
-            return 0;
-        }
+    if (UseLargePages) {
         AdjustedSize = (AdjustedSize + PAGE_2M_MASK) & ~PAGE_2M_MASK;
+    } else {
+        AdjustedSize = (AdjustedSize + PAGE_SIZE - 1u) & ~(PAGE_SIZE - 1u);
     }
 
     U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC | ALLOC_PAGES_IO | ALLOC_PAGES_AT_OR_OVER;
@@ -1207,6 +1345,7 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 /************************************************************************/
 
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
+    DEBUG(TEXT("[AllocKernelRegion] Target=%p Size=%x Flags=%x"), (LPVOID)Target, Size, Flags);
     return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
 }
 
@@ -1232,11 +1371,17 @@ PHYSICAL MapLinearToPhysical(LINEAR Linear) {
 
     LPPML4 Pml4 = GetCurrentPml4VA();
     const X86_64_PML4_ENTRY* Pml4Entry = &Pml4[Pml4Index];
-    if (!Pml4Entry->Present) return 0;
+    if (!Pml4Entry->Present) {
+        DEBUG(TEXT("[MapLinearToPhysical] PML4[%u] not present for %p (raw=%p)"), Pml4Index, (LPVOID)Linear, (LPVOID)(*(const U64*)Pml4Entry));
+        return 0;
+    }
 
     LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
     const X86_64_PDPT_ENTRY* PdptEntry = &Pdpt[PdptIndex];
-    if (!PdptEntry->Present) return 0;
+    if (!PdptEntry->Present) {
+        DEBUG(TEXT("[MapLinearToPhysical] PDPT[%u] not present for %p (raw=%p)"), PdptIndex, (LPVOID)Linear, (LPVOID)(*(const U64*)PdptEntry));
+        return 0;
+    }
 
     if (PdptEntry->PageSize) {
         PHYSICAL Base = (PHYSICAL)(PdptEntry->Address << 12);
@@ -1244,9 +1389,12 @@ PHYSICAL MapLinearToPhysical(LINEAR Linear) {
         return Base + Offset;
     }
 
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
     const X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
-    if (!DirEntry->Present) return 0;
+    if (!DirEntry->Present) {
+        DEBUG(TEXT("[MapLinearToPhysical] PD[%u] not present for %p (raw=%p)"), DirectoryIndex, (LPVOID)Linear, (LPVOID)(*(const U64*)DirEntry));
+        return 0;
+    }
 
     if (DirEntry->PageSize) {
         PHYSICAL Base = (PHYSICAL)(DirEntry->Address << 12);
@@ -1254,9 +1402,12 @@ PHYSICAL MapLinearToPhysical(LINEAR Linear) {
         return Base + Offset;
     }
 
-    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
     const X86_64_PAGE_TABLE_ENTRY* TabEntry = &Table[TableIndex];
-    if (!TabEntry->Present) return 0;
+    if (!TabEntry->Present) {
+        DEBUG(TEXT("[MapLinearToPhysical] PT[%u] not present for %p (raw=%p)"), TableIndex, (LPVOID)Linear, (LPVOID)(*(const U64*)TabEntry));
+        return 0;
+    }
 
     PHYSICAL Base = (PHYSICAL)(TabEntry->Address << PAGE_SIZE_MUL);
     PHYSICAL Offset = (PHYSICAL)(Linear & PAGE_SIZE_MASK);
@@ -1291,8 +1442,8 @@ static BOOL MapOnePage(LINEAR Linear, PHYSICAL Physical, U64 Flags) {
 
     LPPML4 Pml4 = GetCurrentPml4VA();
     LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
-    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
 
     if (!Pml4[Pml4Index].Present || !Pdpt[PdptIndex].Present || !Directory[DirectoryIndex].Present) {
         ERROR(TEXT("[MapOnePage] Missing paging structures for VA %p"), (LPVOID)Linear);
@@ -1316,7 +1467,7 @@ static void UnmapOnePage(LINEAR Linear) {
     UINT DirectoryIndex = GetDirectoryIndex(Linear);
     UINT TableIndex = GetTableIndex(Linear);
 
-    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(Pml4Index, PdptIndex, DirectoryIndex);
     X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
 
     if (DirEntry->Present && DirEntry->PageSize) {
@@ -1325,7 +1476,7 @@ static void UnmapOnePage(LINEAR Linear) {
         return;
     }
 
-    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_TABLE Table = GetPageTableVAFor(Pml4Index, PdptIndex, DirectoryIndex);
     Table[TableIndex].Present = 0;
     InvalidatePage(Linear);
 }

@@ -68,6 +68,8 @@ void KernelMain(void) {
     __asm__ __volatile__("movl %%ebx, %0" : "=m"(MultibootInfoLinear));
 #endif
 
+    DEBUG(TEXT("[KernelMain] MultibootMagic=%x Info=%p"), MultibootMagic, (LPVOID)MultibootInfoLinear);
+
     // Validate Multiboot magic number
     if (MultibootMagic != MULTIBOOT_BOOTLOADER_MAGIC) {
         ConsolePanic(TEXT("Multiboot information not valid"));
@@ -85,6 +87,10 @@ void KernelMain(void) {
         // Get the command line
         LPCSTR ModuleCommandLine = (LPCSTR)(UINT)(LINEAR)FirstModule->cmdline;
         StringCopy(KernelStartup.CommandLine, ModuleCommandLine);
+        DEBUG(TEXT("[KernelMain] Module KernelBase=%p Size=%x Cmd=%s"),
+              (LPVOID)KernelStartup.KernelPhysicalBase,
+              KernelStartup.KernelSize,
+              KernelStartup.CommandLine);
     } else {
         // Fallback - should not happen with our bootloader
         KernelStartup.KernelPhysicalBase = 0;
@@ -114,6 +120,10 @@ void KernelMain(void) {
     }
 
     UpdateKernelMemoryMetricsFromMultibootMap();
+    DEBUG(TEXT("[KernelMain] MemoryEntryCount=%u MemorySize=%u PageCount=%u"),
+          KernelStartup.MultibootMemoryEntryCount,
+          KernelStartup.MemorySize,
+          KernelStartup.PageCount);
 
     if (KernelStartup.KernelPhysicalBase == 0) {
         ConsolePanic(TEXT("No physical address specified for the kernel"));
@@ -125,6 +135,7 @@ void KernelMain(void) {
     LINEAR BSSEnd = (LINEAR)(&__bss_init_end);
     U32 BSSSize = BSSEnd - BSSStart;
     MemorySet((LPVOID)BSSStart, 0, BSSSize);
+    DEBUG(TEXT("[KernelMain] Cleared BSS %p-%p (%x bytes)"), (LPVOID)BSSStart, (LPVOID)BSSEnd, BSSSize);
 
     //--------------------------------------
     // Main initialization routine

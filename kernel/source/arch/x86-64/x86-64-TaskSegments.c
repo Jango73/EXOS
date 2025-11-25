@@ -22,17 +22,21 @@
 \************************************************************************/
 
 #include "arch/x86-64/x86-64.h"
+#include "arch/x86-64/x86-64-Log.h"
 
 #include "CoreString.h"
 #include "Console.h"
 #include "Driver.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Interrupt.h"
 #include "Memory.h"
 #include "Text.h"
 #include "User.h"
 
 /************************************************************************/
+
+extern DRIVER InterruptsDriver;
 
 #define TASK_SEGMENTS_VER_MAJOR 1
 #define TASK_SEGMENTS_VER_MINOR 0
@@ -88,6 +92,11 @@ void InitializeTaskSegments(void) {
     DEBUG(TEXT("[InitializeTaskSegments] Enter"));
 
     UINT TssSize = sizeof(X86_64_TASK_STATE_SEGMENT);
+    U64 Rflags;
+    __asm__ volatile("pushfq; pop %0" : "=r"(Rflags));
+    DEBUG(TEXT("[InitializeTaskSegments] RFLAGS=%p"), (LPVOID)Rflags);
+
+    DEBUG(TEXT("[InitializeTaskSegments] AllocKernelRegion request Size=%x Flags=%x"), TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
 
     Kernel_i386.TSS = (LPX86_64_TASK_STATE_SEGMENT)AllocKernelRegion(
         0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
@@ -96,6 +105,8 @@ void InitializeTaskSegments(void) {
         ERROR(TEXT("[InitializeTaskSegments] AllocKernelRegion for TSS failed"));
         ConsolePanic(TEXT("AllocKernelRegion for TSS failed"));
     }
+
+    DEBUG(TEXT("[InitializeTaskSegments] TSS allocated at %p"), Kernel_i386.TSS);
 
     MemorySet(Kernel_i386.TSS, 0, TssSize);
     Kernel_i386.TSS->IOMapBase = (U16)TssSize;
@@ -108,10 +119,12 @@ void InitializeTaskSegments(void) {
     LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor =
         (LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR)((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT + GDT_TSS_INDEX);
 
+    DEBUG(TEXT("[InitializeTaskSegments] GDT base=%p"), Kernel_i386.GDT);
+
     MemorySet(Descriptor, 0, sizeof(X86_64_SYSTEM_SEGMENT_DESCRIPTOR));
 
     SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1);
-    SetSystemSegmentDescriptorBase(Descriptor, (UINT)Kernel_i386.TSS);
+    SetSystemSegmentDescriptorBase(Descriptor, (U64)Kernel_i386.TSS);
 
     Descriptor->Accessed = 1;
     Descriptor->Code = 1;
@@ -126,9 +139,30 @@ void InitializeTaskSegments(void) {
     Descriptor->Reserved = 0;
 
     DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
+    DEBUG(TEXT("[InitializeTaskSegments] GDT TSS base=%p limit=%x"),
+          (LPVOID)((((U64)Descriptor->Base_32_63) << 32) |
+                   (((U64)Descriptor->Base_24_31) << 24) |
+                   (((U64)Descriptor->Base_16_23) << 16) |
+                   (U64)Descriptor->Base_00_15),
+          ((U32)Descriptor->Limit_16_19 << 16) | Descriptor->Limit_00_15);
+    DEBUG(TEXT("[InitializeTaskSegments] TSS stacks RSP0=%p RSP1=%p RSP2=%p"),
+          (LPVOID)Kernel_i386.TSS->RSP0,
+          (LPVOID)Kernel_i386.TSS->RSP1,
+          (LPVOID)Kernel_i386.TSS->RSP2);
+    DEBUG(TEXT("[InitializeTaskSegments] TSS IST1=%p IST2=%p IST3=%p IST4=%p"),
+          (LPVOID)Kernel_i386.TSS->IST1,
+          (LPVOID)Kernel_i386.TSS->IST2,
+          (LPVOID)Kernel_i386.TSS->IST3,
+          (LPVOID)Kernel_i386.TSS->IST4);
+    DEBUG(TEXT("[InitializeTaskSegments] TSS IST5=%p IST6=%p IST7=%p"),
+          (LPVOID)Kernel_i386.TSS->IST5,
+          (LPVOID)Kernel_i386.TSS->IST6,
+          (LPVOID)Kernel_i386.TSS->IST7);
+
     DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
 
     LoadInitialTaskRegister(SELECTOR_TSS);
+    DEBUG(TEXT("[InitializeTaskSegments] Task register loaded"));
 
     DEBUG(TEXT("[InitializeTaskSegments] Exit"));
 }
@@ -141,14 +175,19 @@ void InitializeTaskSegments(void) {
 static UINT TaskSegmentsDriverCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
 
+    DEBUG(TEXT("[TaskSegmentsDriverCommands] Function=%u Flags=%x"), Function, TaskSegmentsDriver.Flags);
+
     switch (Function) {
         case DF_LOAD:
             if ((TaskSegmentsDriver.Flags & DRIVER_FLAG_READY) != 0) {
                 return DF_RET_SUCCESS;
             }
 
+            DEBUG(TEXT("[TaskSegmentsDriverCommands] DF_LOAD starting"));
             InitializeTaskSegments();
+            DEBUG(TEXT("[TaskSegmentsDriverCommands] DF_LOAD post-init"));
             TaskSegmentsDriver.Flags |= DRIVER_FLAG_READY;
+            DEBUG(TEXT("[TaskSegmentsDriverCommands] DF_LOAD done"));
             return DF_RET_SUCCESS;
 
         case DF_UNLOAD:

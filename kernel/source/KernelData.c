@@ -1,5 +1,6 @@
 
 #include "Kernel.h"
+#include "Log.h"
 #include "Socket.h"
 #include "utils/Helpers.h"
 #include "process/Process.h"
@@ -249,36 +250,86 @@ static KERNELDATA DATA_SECTION Kernel = {
 /************************************************************************/
 
 /**
+ * @brief Append a driver to the kernel driver list without SAFE_USE guards.
+ * @param DriverList List that stores registered drivers.
+ * @param Driver Driver to append.
+ */
+static void AttachDriverUnsafe(LPLIST DriverList, LPDRIVER Driver) {
+    if (DriverList == NULL || Driver == NULL) return;
+
+    DEBUG(TEXT("[AttachDriverUnsafe] Adding %s Driver=%p"), TEXT(Driver->Product), Driver);
+
+    Driver->Prev = DriverList->Last;
+    Driver->Next = NULL;
+
+    if (DriverList->Last != NULL) {
+        DriverList->Last->Next = (LPLISTNODE)Driver;
+    } else {
+        DriverList->First = (LPLISTNODE)Driver;
+    }
+
+    DriverList->Last = (LPLISTNODE)Driver;
+    DriverList->NumItems++;
+}
+
+/************************************************************************/
+
+/**
  * @brief Populates the kernel driver list in initialization order.
  */
 void InitializeDriverList(void) {
+    DEBUG(TEXT("[InitializeDriverList] Drivers=%p Count=%u"), Kernel.Drivers, (Kernel.Drivers != NULL) ? Kernel.Drivers->NumItems : 0u);
+
     if (Kernel.Drivers == NULL || Kernel.Drivers->NumItems != 0) {
         return;
     }
 
-    ListAddTail(Kernel.Drivers, &ConsoleDriver);
-    ListAddTail(Kernel.Drivers, &KernelLogDriver);
-    ListAddTail(Kernel.Drivers, &MemoryManagerDriver);
-    ListAddTail(Kernel.Drivers, &TaskSegmentsDriver);
-    ListAddTail(Kernel.Drivers, &InterruptsDriver);
-    ListAddTail(Kernel.Drivers, &KernelProcessDriver);
-    ListAddTail(Kernel.Drivers, &ACPIDriver);
-    ListAddTail(Kernel.Drivers, &LocalAPICDriver);
-    ListAddTail(Kernel.Drivers, &IOAPICDriver);
-    ListAddTail(Kernel.Drivers, &InterruptControllerDriver);
-    ListAddTail(Kernel.Drivers, &DeviceInterruptDriver);
-    ListAddTail(Kernel.Drivers, &DeferredWorkDriver);
-    ListAddTail(Kernel.Drivers, &StdKeyboardDriver);
-    ListAddTail(Kernel.Drivers, &SerialMouseDriver);
-    ListAddTail(Kernel.Drivers, &ClockDriver);
-    ListAddTail(Kernel.Drivers, &PCIDriver);
-    ListAddTail(Kernel.Drivers, &ATADiskDriver);
-    ListAddTail(Kernel.Drivers, &SATADiskDriver);
-    ListAddTail(Kernel.Drivers, &RAMDiskDriver);
-    ListAddTail(Kernel.Drivers, &FileSystemDriver);
-    ListAddTail(Kernel.Drivers, &NetworkManagerDriver);
-    ListAddTail(Kernel.Drivers, &UserAccountDriver);
-    ListAddTail(Kernel.Drivers, &VESADriver);
+    AttachDriverUnsafe(Kernel.Drivers, &ConsoleDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added ConsoleDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &KernelLogDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added KernelLogDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &MemoryManagerDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added MemoryManagerDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &TaskSegmentsDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added TaskSegmentsDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &InterruptsDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added InterruptsDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &KernelProcessDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added KernelProcessDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &ACPIDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added ACPIDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &LocalAPICDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added LocalAPICDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &IOAPICDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added IOAPICDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &InterruptControllerDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added InterruptControllerDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &DeviceInterruptDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added DeviceInterruptDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &DeferredWorkDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added DeferredWorkDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &StdKeyboardDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added StdKeyboardDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &SerialMouseDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added SerialMouseDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &ClockDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added ClockDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &PCIDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added PCIDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &ATADiskDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added ATADiskDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &SATADiskDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added SATADiskDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &RAMDiskDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added RAMDiskDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &FileSystemDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added FileSystemDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &NetworkManagerDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added NetworkManagerDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &UserAccountDriver);
+    DEBUG(TEXT("[InitializeDriverList] Added UserAccountDriver"));
+    AttachDriverUnsafe(Kernel.Drivers, &VESADriver);
+    DEBUG(TEXT("[InitializeDriverList] Added VESADriver"));
 }
 
 /************************************************************************/

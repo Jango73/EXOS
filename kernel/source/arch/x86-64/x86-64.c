@@ -235,6 +235,10 @@ static U8 SelectInterruptStackTable(U32 InterruptIndex) {
 void InitializeInterrupts(void) {
     Kernel_i386.IDT = IDT;
 
+    DEBUG(TEXT("[InitializeInterrupts] IDT=%p"), IDT);
+    PHYSICAL IdtPhysical = MapLinearToPhysical((LINEAR)IDT);
+    DEBUG(TEXT("[InitializeInterrupts] IDT physical=%p"), (LPVOID)IdtPhysical);
+
     for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
         U8 InterruptStack = SelectInterruptStackTable(Index);
 
@@ -249,6 +253,7 @@ void InitializeInterrupts(void) {
     InitializeSystemCall();
 
     LoadInterruptDescriptorTable((LINEAR)IDT, IDT_SIZE - 1u);
+    DEBUG(TEXT("[InitializeInterrupts] IDT loaded"));
 
     ClearDR7();
 
@@ -314,6 +319,8 @@ static void InitLegacySegmentDescriptor(LPSEGMENT_DESCRIPTOR This, BOOL Executab
  */
 void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
     DEBUG(TEXT("[InitializeGlobalDescriptorTable] Enter"));
+    PHYSICAL TablePhysical = MapLinearToPhysical((LINEAR)Table);
+    DEBUG(TEXT("[InitializeGlobalDescriptorTable] Table=%p Physical=%p"), Table, (LPVOID)TablePhysical);
 
     MemorySet(Table, 0, GDT_SIZE);
 
@@ -623,12 +630,15 @@ static UINT InterruptsDriverCommands(UINT Function, UINT Parameter) {
 
     switch (Function) {
         case DF_LOAD:
+            DEBUG(TEXT("[InterruptsDriverCommands] DF_LOAD start Flags=%x"), InterruptsDriver.Flags);
             if ((InterruptsDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                DEBUG(TEXT("[InterruptsDriverCommands] Already ready"));
                 return DF_RET_SUCCESS;
             }
 
             InitializeInterrupts();
             InterruptsDriver.Flags |= DRIVER_FLAG_READY;
+            DEBUG(TEXT("[InterruptsDriverCommands] DF_LOAD done"));
             return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
