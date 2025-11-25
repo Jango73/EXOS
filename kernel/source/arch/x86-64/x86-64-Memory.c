@@ -101,6 +101,30 @@ static inline BOOL IsInLowWindow(PHYSICAL Physical) {
 }
 
 /************************************************************************/
+// Paging walkers
+
+static inline UINT GetPml4Index(LINEAR Linear) { return (UINT)((Linear >> 39) & 0x1FFu); }
+static inline UINT GetPdptIndex(LINEAR Linear) { return (UINT)((Linear >> 30) & 0x1FFu); }
+static inline UINT GetDirectoryIndex(LINEAR Linear) { return (UINT)((Linear >> 21) & 0x1FFu); }
+static inline UINT GetTableIndex(LINEAR Linear) { return (UINT)((Linear >> 12) & 0x1FFu); }
+
+static inline LPPML4 GetCurrentPml4VA(void) {
+    return (LPPML4)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT);
+}
+
+static inline LPPDPT GetPageDirectoryPointerVAFor(UINT Pml4Index, UINT PdptIndex) {
+    return (LPPDPT)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PdptIndex);
+}
+
+static inline LPPAGE_DIRECTORY GetPageDirectoryVAFor(UINT PdptIndex, UINT DirectoryIndex) {
+    return (LPPAGE_DIRECTORY)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, DirectoryIndex, 0);
+}
+
+static inline LPPAGE_TABLE GetPageTableVAFor(UINT PdptIndex, UINT DirectoryIndex) {
+    return (LPPAGE_TABLE)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PdptIndex, DirectoryIndex, 0);
+}
+
+/************************************************************************/
 
 static LINEAR MapTemporaryPhysicalPage(LINEAR TargetLinear, PHYSICAL Physical) {
     if (!IsInLowWindow(Physical)) {
@@ -108,15 +132,15 @@ static LINEAR MapTemporaryPhysicalPage(LINEAR TargetLinear, PHYSICAL Physical) {
         return 0;
     }
 
-    UINT Pml4Index = (UINT)((TargetLinear >> 39) & 0x1FFu);
-    UINT PdptIndex = (UINT)((TargetLinear >> 30) & 0x1FFu);
-    UINT DirectoryIndex = (UINT)((TargetLinear >> 21) & 0x1FFu);
-    UINT TableIndex = (UINT)((TargetLinear >> 12) & 0x1FFu);
+    UINT Pml4Index = GetPml4Index(TargetLinear);
+    UINT PdptIndex = GetPdptIndex(TargetLinear);
+    UINT DirectoryIndex = GetDirectoryIndex(TargetLinear);
+    UINT TableIndex = GetTableIndex(TargetLinear);
 
-    LPPML4 Pml4 = (LPPML4)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT);
-    LPPDPT Pdpt = (LPPDPT)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, PdptIndex);
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PML4_RECURSIVE_SLOT, DirectoryIndex, 0);
-    LPPAGE_TABLE Table = (LPPAGE_TABLE)BuildRecursiveAddress(PML4_RECURSIVE_SLOT, PdptIndex, DirectoryIndex, 0);
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
 
     X86_64_PML4_ENTRY* Pml4Entry = &Pml4[Pml4Index];
     X86_64_PDPT_ENTRY* PdptEntry = &Pdpt[PdptIndex];
@@ -151,6 +175,110 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
 
 LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     return MapTemporaryPhysicalPage(G_TempLinear3, Physical);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Map a linear address to a physical address in the current CR3.
+ * @param Linear Linear address to resolve.
+ * @return Physical address or 0 on failure.
+ */
+PHYSICAL MapLinearToPhysical(LINEAR Linear) {
+    UINT Pml4Index = GetPml4Index(Linear);
+    UINT PdptIndex = GetPdptIndex(Linear);
+    UINT DirectoryIndex = GetDirectoryIndex(Linear);
+    UINT TableIndex = GetTableIndex(Linear);
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    const X86_64_PML4_ENTRY* Pml4Entry = &Pml4[Pml4Index];
+    if (!Pml4Entry->Present) return 0;
+
+    LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
+    const X86_64_PDPT_ENTRY* PdptEntry = &Pdpt[PdptIndex];
+    if (!PdptEntry->Present) return 0;
+
+    if (PdptEntry->PageSize) {
+        PHYSICAL Base = (PHYSICAL)(PdptEntry->Address << 12);
+        PHYSICAL Offset = (PHYSICAL)(Linear & (((PHYSICAL)1u << 30) - 1u));
+        return Base + Offset;
+    }
+
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    const X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
+    if (!DirEntry->Present) return 0;
+
+    if (DirEntry->PageSize) {
+        PHYSICAL Base = (PHYSICAL)(DirEntry->Address << 12);
+        PHYSICAL Offset = (PHYSICAL)(Linear & PAGE_2M_MASK);
+        return Base + Offset;
+    }
+
+    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+    const X86_64_PAGE_TABLE_ENTRY* TabEntry = &Table[TableIndex];
+    if (!TabEntry->Present) return 0;
+
+    PHYSICAL Base = (PHYSICAL)(TabEntry->Address << PAGE_SIZE_MUL);
+    PHYSICAL Offset = (PHYSICAL)(Linear & PAGE_SIZE_MASK);
+    return Base + Offset;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check if a linear address is mapped and accessible.
+ * @param Pointer Linear address to test.
+ * @return TRUE if address is valid.
+ */
+BOOL IsValidMemory(LINEAR Pointer) {
+    return MapLinearToPhysical(Pointer) != 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Map or remap a single page (4K) in the low window.
+ * @param Linear Target linear address.
+ * @param Physical Physical address to map.
+ * @param Flags Page flags.
+ * @return TRUE on success.
+ */
+static BOOL MapOnePage(LINEAR Linear, PHYSICAL Physical, U64 Flags) {
+    UINT Pml4Index = GetPml4Index(Linear);
+    UINT PdptIndex = GetPdptIndex(Linear);
+    UINT DirectoryIndex = GetDirectoryIndex(Linear);
+    UINT TableIndex = GetTableIndex(Linear);
+
+    LPPML4 Pml4 = GetCurrentPml4VA();
+    LPPDPT Pdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
+    LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+
+    if (!Pml4[Pml4Index].Present || !Pdpt[PdptIndex].Present || !Directory[DirectoryIndex].Present) {
+        ERROR(TEXT("[MapOnePage] Missing paging structures for VA %p"), (LPVOID)Linear);
+        return FALSE;
+    }
+
+    SetPageFlags(&Table[TableIndex], Flags, Physical);
+    InvalidatePage(Linear);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unmap a 4K page.
+ * @param Linear Linear address.
+ */
+static void UnmapOnePage(LINEAR Linear) {
+    UINT Pml4Index = GetPml4Index(Linear);
+    UINT PdptIndex = GetPdptIndex(Linear);
+    UINT DirectoryIndex = GetDirectoryIndex(Linear);
+    UINT TableIndex = GetTableIndex(Linear);
+
+    LPPAGE_TABLE Table = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+    Table[TableIndex].Present = 0;
+    InvalidatePage(Linear);
 }
 
 /************************************************************************/
