@@ -59,7 +59,7 @@
   - [x] 3.5 MapIOMemory/UnMapIOMemory constrained to low window or 2 MiB-aligned mappings; remaining glue/log helpers.
 - [x] Step 4 - Wire allocators: `AllocPhysicalPage`/`FreePhysicalPage` pick bitmap by physical address; `AllocRegion`/`ResizeRegion`/`FreeRegion` enforce window split and reject straddling; set `Granularity` in descriptors.
 - [x] Step 5 - Build page directory allocator for user/kernel CR3: allocate PML4/PDPT/PD with 2 MiB backing, pre-create low PTs, install recursive slot, clone kernel slots.
-- [ ] Step 6 - Implement `IsValidMemory`/`ResolveKernelPageFault` with 4-level walks handling 2 MiB pages; mirror logging patterns.
-- [ ] Step 7 - Update MMIO mapping helpers to stay in the low window or enforce 2 MiB alignment when above; ensure temp mappings use low PT; add required `invlpg` paths.
+- [x] Step 6 - Implement `IsValidMemory`/`ResolveKernelPageFault` with 4-level walks handling 2 MiB pages; mirror logging patterns.
+- [x] Step 7 - Update MMIO mapping helpers to stay in the low window or enforce 2 MiB alignment when above; ensure temp mappings use low PT; add required `invlpg` paths.
 - [ ] Step 8 - Adjust boot path to set up early low-window identity map, recursive mapping, CR3 load; validate linker alignment for 2 MiB kernel mapping.
 - [ ] Step 9 - Test: build x86-64, boot, confirm no faults; validate bitmap accounting, temporary maps, and region allocations across the window boundary; update `documentation/Kernel.md`.
