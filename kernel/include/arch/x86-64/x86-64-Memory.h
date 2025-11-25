@@ -55,6 +55,14 @@
 
 #define PAGE_ALIGN(a) (((a) + PAGE_SIZE - 1u) & PAGE_MASK)
 
+#define X86_64_TEMP_LINEAR_PAGE_1 (VMA_KERNEL + (LINEAR)0x0000000000100000)
+#define X86_64_TEMP_LINEAR_PAGE_2 (X86_64_TEMP_LINEAR_PAGE_1 + (LINEAR)PAGE_SIZE)
+#define X86_64_TEMP_LINEAR_PAGE_3 (X86_64_TEMP_LINEAR_PAGE_2 + (LINEAR)PAGE_SIZE)
+
+#define TEMP_LINEAR_PAGE_1 X86_64_TEMP_LINEAR_PAGE_1
+#define TEMP_LINEAR_PAGE_2 X86_64_TEMP_LINEAR_PAGE_2
+#define TEMP_LINEAR_PAGE_3 X86_64_TEMP_LINEAR_PAGE_3
+
 #ifndef CONFIG_VMA_KERNEL
 #error "CONFIG_VMA_KERNEL is not defined"
 #endif
@@ -167,5 +175,11 @@ static inline BOOL ClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UI
 PHYSICAL ComputeLowMemoryWindowLimit(UINT TotalMemoryBytes);
 PHYSICAL GetLowMemoryWindowLimit(void);
 
-#endif  // X86_64_MEMORY_H_INCLUDED
+static inline LINEAR BuildRecursiveAddress(UINT Pml4, UINT Pdpt, UINT Directory, UINT Table) {
+    return (LINEAR)(((U64)Pml4 << 39)
+        | ((U64)Pdpt << 30)
+        | ((U64)Directory << 21)
+        | ((U64)Table << 12));
+}
 
+#endif  // X86_64_MEMORY_H_INCLUDED
