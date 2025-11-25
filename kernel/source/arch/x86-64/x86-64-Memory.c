@@ -27,6 +27,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Mutex.h"
+#include "ID.h"
 #include "System.h"
 #include "User.h"
 #include "process/Process.h"
@@ -175,6 +176,97 @@ static BOOL MapLargePage(LINEAR Linear, PHYSICAL Physical, U64 Flags) {
 
 /************************************************************************/
 
+static inline UINT64 RegionPageCount(UINT Size, MEMORY_REGION_GRANULARITY Granularity) {
+    UINT PageSizeMul = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? MUL_2MB : PAGE_SIZE_MUL;
+    UINT PageSizeBytes = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? PAGE_2M_SIZE : PAGE_SIZE;
+    return ((U64)Size + (PageSizeBytes - 1u)) >> PageSizeMul;
+}
+
+/************************************************************************/
+
+static LPMEMORY_REGION_DESCRIPTOR FindRegionDescriptor(LPPROCESS Process, LINEAR Base) {
+    LPMEMORY_REGION_DESCRIPTOR Current = Process->RegionListHead;
+    while (Current != NULL) {
+        if (Current->Base == Base) {
+            return Current;
+        }
+        Current = (LPMEMORY_REGION_DESCRIPTOR)Current->Next;
+    }
+    return NULL;
+}
+
+/************************************************************************/
+
+static void DetachRegionDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+    if (Descriptor->Prev != NULL) {
+        Descriptor->Prev->Next = Descriptor->Next;
+    } else {
+        Process->RegionListHead = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Next;
+    }
+
+    if (Descriptor->Next != NULL) {
+        Descriptor->Next->Prev = Descriptor->Prev;
+    } else {
+        Process->RegionListTail = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Prev;
+    }
+
+    if (Process->RegionCount > 0) {
+        Process->RegionCount--;
+    }
+}
+
+/************************************************************************/
+
+static void AttachRegionDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+    Descriptor->Next = NULL;
+    Descriptor->Prev = Process->RegionListTail;
+
+    if (Process->RegionListTail != NULL) {
+        Process->RegionListTail->Next = Descriptor;
+    } else {
+        Process->RegionListHead = Descriptor;
+    }
+
+    Process->RegionListTail = Descriptor;
+    Process->RegionCount++;
+}
+
+/************************************************************************/
+
+static LPMEMORY_REGION_DESCRIPTOR CreateRegionDescriptor(
+    LINEAR Base,
+    PHYSICAL Physical,
+    UINT Size,
+    U32 Flags,
+    MEMORY_REGION_GRANULARITY Granularity) {
+    LPMEMORY_REGION_DESCRIPTOR Descriptor =
+        (LPMEMORY_REGION_DESCRIPTOR)CreateKernelObject(sizeof(MEMORY_REGION_DESCRIPTOR), KOID_MEMORY_REGION_DESCRIPTOR);
+    if (Descriptor == NULL) {
+        return NULL;
+    }
+
+    MemorySet(Descriptor, 0, sizeof(MEMORY_REGION_DESCRIPTOR));
+    Descriptor->Base = Base;
+    Descriptor->CanonicalBase = (LINEAR)CanonicalizeLinearAddress((U64)Base);
+    Descriptor->PhysicalBase = Physical;
+    Descriptor->Size = Size;
+    Descriptor->PageCount = (UINT)RegionPageCount(Size, Granularity);
+    Descriptor->Flags = Flags;
+    Descriptor->Granularity = Granularity;
+
+    if (Flags & ALLOC_PAGES_COMMIT) {
+        Descriptor->Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_COMMIT;
+    }
+
+    if (Flags & ALLOC_PAGES_IO) {
+        Descriptor->Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_IO;
+        Descriptor->Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_FIXED;
+    }
+
+    return Descriptor;
+}
+
+/************************************************************************/
 static LINEAR MapTemporaryPhysicalPage(LINEAR TargetLinear, PHYSICAL Physical) {
     if (!IsInLowWindow(Physical)) {
         ERROR(TEXT("[MapTemporaryPhysicalPage] Physical %p outside low window"), (LPVOID)Physical);
@@ -320,6 +412,11 @@ static PHYSICAL AllocPhysicalPage2M(void) {
 /************************************************************************/
 
 PHYSICAL AllocPhysicalPage(void) {
+    PHYSICAL Large = AllocPhysicalPage2M();
+    if (Large != 0) {
+        return Large;
+    }
+
     return AllocPhysicalPage4K();
 }
 
@@ -583,6 +680,16 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
         }
     }
 
+    LPPROCESS Process = GetCurrentProcess();
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = CreateRegionDescriptor(Base, Target, AlignedSize, Flags, Granularity);
+    if (Descriptor == NULL) {
+        ERROR(TEXT("[AllocRegion] Failed to allocate region descriptor"));
+        FreeRegion(Base, AlignedSize);
+        return 0;
+    }
+
+    AttachRegionDescriptor(Process, Descriptor);
+
     FlushTLB();
     return Base;
 }
@@ -592,12 +699,24 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
 BOOL FreeRegion(LINEAR Base, UINT Size) {
     if (Base == 0 || Size == 0) return FALSE;
 
+    LPPROCESS Process = GetCurrentProcess();
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = FindRegionDescriptor(Process, Base);
+    if (Descriptor == NULL) {
+        ERROR(TEXT("[FreeRegion] Descriptor not found for %p"), (LPVOID)Base);
+        return FALSE;
+    }
+
+    if (Size != Descriptor->Size) {
+        DEBUG(TEXT("[FreeRegion] Size mismatch, using descriptor size (%x vs %x)"), Size, Descriptor->Size);
+        Size = Descriptor->Size;
+    }
+
     UINT Pml4Index = GetPml4Index(Base);
     UINT PdptIndex = GetPdptIndex(Base);
     UINT DirectoryIndex = GetDirectoryIndex(Base);
     LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
     const X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
-    MEMORY_REGION_GRANULARITY Granularity = (DirEntry != NULL && DirEntry->Present && DirEntry->PageSize) ? MEMORY_REGION_GRANULARITY_2M : MEMORY_REGION_GRANULARITY_4K;
+    MEMORY_REGION_GRANULARITY Granularity = Descriptor->Granularity;
 
     UINT PageSizeMul = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? MUL_2MB : PAGE_SIZE_MUL;
     UINT PageSizeBytes = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? PAGE_2M_SIZE : PAGE_SIZE;
@@ -639,6 +758,8 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
     }
 
     FlushTLB();
+    DetachRegionDescriptor(Process, Descriptor);
+    ReleaseKernelObject(Descriptor);
     return TRUE;
 }
 
@@ -647,18 +768,45 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags) {
     if (Base == 0) return FALSE;
 
+    LPPROCESS Process = GetCurrentProcess();
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = FindRegionDescriptor(Process, Base);
+    if (Descriptor == NULL) {
+        ERROR(TEXT("[ResizeRegion] Descriptor not found for %p"), (LPVOID)Base);
+        return FALSE;
+    }
+
     UINT Pml4Index = GetPml4Index(Base);
     UINT PdptIndex = GetPdptIndex(Base);
     UINT DirectoryIndex = GetDirectoryIndex(Base);
     LPPAGE_DIRECTORY Directory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
     const X86_64_PAGE_DIRECTORY_ENTRY* DirEntry = &Directory[DirectoryIndex];
-    MEMORY_REGION_GRANULARITY Granularity = (DirEntry != NULL && DirEntry->Present && DirEntry->PageSize) ? MEMORY_REGION_GRANULARITY_2M : MEMORY_REGION_GRANULARITY_4K;
+    MEMORY_REGION_GRANULARITY Granularity = Descriptor->Granularity;
 
     UINT PageSizeMul = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? MUL_2MB : PAGE_SIZE_MUL;
     UINT PageSizeBytes = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? PAGE_2M_SIZE : PAGE_SIZE;
 
     UINT CurrentPages = (UINT)(((U64)Size + (PageSizeBytes - 1u)) >> PageSizeMul);
     UINT RequestedPages = (UINT)(((U64)NewSize + (PageSizeBytes - 1u)) >> PageSizeMul);
+
+    PHYSICAL LowWindow = GetCachedLowMemoryWindowLimit();
+    if (Target != 0) {
+        PHYSICAL End = Target + NewSize;
+        if (Granularity == MEMORY_REGION_GRANULARITY_4K) {
+            if (Target >= LowWindow || End > LowWindow) {
+                ERROR(TEXT("[ResizeRegion] 4K region cannot extend into 2M area (Target=%p Size=%x)"), (LPVOID)Target, NewSize);
+                return FALSE;
+            }
+        } else {
+            if ((Target & PAGE_2M_MASK) != 0) {
+                ERROR(TEXT("[ResizeRegion] 2M region requires aligned physical base (%p)"), (LPVOID)Target);
+                return FALSE;
+            }
+            if (Target < LowWindow) {
+                ERROR(TEXT("[ResizeRegion] 2M region cannot start in low window (%p)"), (LPVOID)Target);
+                return FALSE;
+            }
+        }
+    }
 
     if (RequestedPages == CurrentPages) {
         return TRUE;
@@ -685,6 +833,8 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
     }
 
     FlushTLB();
+    Descriptor->Size = RequestedPages << PageSizeMul;
+    Descriptor->PageCount = RequestedPages;
     return TRUE;
 }
 
