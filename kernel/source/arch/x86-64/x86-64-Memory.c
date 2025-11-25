@@ -29,6 +29,7 @@
 #include "Mutex.h"
 #include "System.h"
 #include "User.h"
+#include "process/Process.h"
 
 /************************************************************************/
 
@@ -684,6 +685,222 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
     }
 
     FlushTLB();
+    return TRUE;
+}
+
+/************************************************************************/
+
+static void CopyKernelPml4Entries(LPX86_64_PML4_ENTRY Dest, LPPML4 Src) {
+    for (UINT Index = 256; Index < PML4_ENTRY_COUNT; Index++) {
+        Dest[Index] = Src[Index];
+    }
+
+    Dest[0] = Src[0];
+}
+
+/************************************************************************/
+
+PHYSICAL AllocPageDirectory(void) {
+    PHYSICAL Pml4Physical = AllocPhysicalPage4K();
+    if (Pml4Physical == 0) {
+        ERROR(TEXT("[AllocPageDirectory] Failed to allocate PML4"));
+        return 0;
+    }
+
+    LINEAR Pml4Linear = MapTemporaryPhysicalPage1(Pml4Physical);
+    if (Pml4Linear == 0) {
+        ERROR(TEXT("[AllocPageDirectory] Unable to map new PML4"));
+        FreePhysicalPage(Pml4Physical);
+        return 0;
+    }
+
+    LPPML4 NewPml4 = (LPPML4)Pml4Linear;
+    LPPML4 CurrentPml4 = GetCurrentPml4VA();
+    MemorySet(NewPml4, 0, PAGE_TABLE_SIZE);
+
+    CopyKernelPml4Entries(NewPml4, CurrentPml4);
+
+    X86_64_PML4_ENTRY* Recursive = &NewPml4[PML4_RECURSIVE_SLOT];
+    Recursive->Present = 1;
+    Recursive->ReadWrite = 1;
+    Recursive->Privilege = PAGE_PRIVILEGE_KERNEL;
+    Recursive->WriteThrough = 0;
+    Recursive->CacheDisabled = 0;
+    Recursive->Accessed = 0;
+    Recursive->Dirty = 0;
+    Recursive->PageSize = 0;
+    Recursive->Global = 0;
+    Recursive->Address = (U64)Pml4Physical >> PAGE_SIZE_MUL;
+    Recursive->Available = 0;
+    Recursive->AvailableHigh = 0;
+    Recursive->NoExecute = 0;
+
+    return Pml4Physical;
+}
+
+/************************************************************************/
+
+PHYSICAL AllocUserPageDirectory(void) {
+    PHYSICAL Pml4Physical = AllocPageDirectory();
+    if (Pml4Physical == 0) {
+        return 0;
+    }
+
+    LINEAR Pml4Linear = MapTemporaryPhysicalPage1(Pml4Physical);
+    if (Pml4Linear == 0) {
+        ERROR(TEXT("[AllocUserPageDirectory] Unable to map new PML4"));
+        FreePhysicalPage(Pml4Physical);
+        return 0;
+    }
+
+    LPPML4 NewPml4 = (LPPML4)Pml4Linear;
+
+    for (UINT Index = 1; Index < 256; Index++) {
+        MemorySet(&NewPml4[Index], 0, sizeof(X86_64_PML4_ENTRY));
+    }
+
+    return Pml4Physical;
+}
+
+/************************************************************************/
+
+BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
+    if (FaultAddress < VMA_KERNEL) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Address %p below kernel VMA"), (LPVOID)FaultAddress);
+        return FALSE;
+    }
+
+    PHYSICAL KernelDirectoryPhysical = KernelProcess.PageDirectory;
+    if (KernelDirectoryPhysical == 0) {
+        KernelDirectoryPhysical = KernelStartup.PageDirectory;
+    }
+
+    if (KernelDirectoryPhysical == 0) {
+        DEBUG(TEXT("[ResolveKernelPageFault] No kernel directory available (Fault=%p)"), (LPVOID)FaultAddress);
+        return FALSE;
+    }
+
+    PHYSICAL CurrentDirectoryPhysical = (PHYSICAL)GetPageDirectory();
+    if (CurrentDirectoryPhysical == 0 || CurrentDirectoryPhysical == KernelDirectoryPhysical) {
+        DEBUG(TEXT("[ResolveKernelPageFault] CR3=%p matches kernel directory %p (Fault=%p)"),
+              (LPVOID)CurrentDirectoryPhysical,
+              (LPVOID)KernelDirectoryPhysical,
+              (LPVOID)FaultAddress);
+        return FALSE;
+    }
+
+    UINT Pml4Index = GetPml4Index(FaultAddress);
+    UINT PdptIndex = GetPdptIndex(FaultAddress);
+    UINT DirectoryIndex = GetDirectoryIndex(FaultAddress);
+    UINT TableIndex = GetTableIndex(FaultAddress);
+
+    LINEAR KernelPml4Linear = MapTemporaryPhysicalPage1(KernelDirectoryPhysical);
+    if (KernelPml4Linear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel PML4"));
+        return FALSE;
+    }
+
+    LPPML4 KernelPml4 = (LPPML4)KernelPml4Linear;
+    const X86_64_PML4_ENTRY* KernelPml4Entry = &KernelPml4[Pml4Index];
+    if (!KernelPml4Entry->Present) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Kernel PML4[%u] not present"), Pml4Index);
+        return FALSE;
+    }
+
+    PHYSICAL KernelPdptPhysical = (PHYSICAL)(KernelPml4Entry->Address << PAGE_SIZE_MUL);
+    LINEAR KernelPdptLinear = MapTemporaryPhysicalPage2(KernelPdptPhysical);
+    if (KernelPdptLinear == 0) {
+        ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel PDPT"));
+        return FALSE;
+    }
+
+    LPPDPT KernelPdpt = (LPPDPT)KernelPdptLinear;
+    const X86_64_PDPT_ENTRY* KernelPdptEntry = &KernelPdpt[PdptIndex];
+    if (!KernelPdptEntry->Present) {
+        DEBUG(TEXT("[ResolveKernelPageFault] Kernel PDPT[%u] not present"), PdptIndex);
+        return FALSE;
+    }
+
+    LPPML4 CurrentPml4 = GetCurrentPml4VA();
+    BOOL Updated = FALSE;
+    BOOL NeedsFullFlush = FALSE;
+
+    X86_64_PML4_ENTRY* CurrentPml4Entry = &CurrentPml4[Pml4Index];
+    if (CurrentPml4Entry->Present == 0 || CurrentPml4Entry->Address != KernelPml4Entry->Address) {
+        *CurrentPml4Entry = *KernelPml4Entry;
+        Updated = TRUE;
+        NeedsFullFlush = TRUE;
+    }
+
+    if (KernelPdptEntry->PageSize) {
+        LPPDPT CurrentPdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
+        CurrentPdpt[PdptIndex] = *KernelPdptEntry;
+    } else {
+        PHYSICAL KernelDirectoryPhysical = (PHYSICAL)(KernelPdptEntry->Address << PAGE_SIZE_MUL);
+        LINEAR KernelDirectoryLinear = MapTemporaryPhysicalPage3(KernelDirectoryPhysical);
+        if (KernelDirectoryLinear == 0) {
+            ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel directory"));
+            return FALSE;
+        }
+
+        LPPAGE_DIRECTORY KernelDirectory = (LPPAGE_DIRECTORY)KernelDirectoryLinear;
+        const X86_64_PAGE_DIRECTORY_ENTRY* KernelDirEntry = &KernelDirectory[DirectoryIndex];
+        if (!KernelDirEntry->Present) {
+            DEBUG(TEXT("[ResolveKernelPageFault] Kernel PDE[%u] not present"), DirectoryIndex);
+            return FALSE;
+        }
+
+        LPPDPT CurrentPdpt = GetPageDirectoryPointerVAFor(Pml4Index, PdptIndex);
+        LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(PdptIndex, DirectoryIndex);
+        X86_64_PAGE_DIRECTORY_ENTRY* CurrentDirEntry = &CurrentDirectory[DirectoryIndex];
+
+        if (KernelDirEntry->PageSize) {
+            if (CurrentDirEntry->Present == 0 || CurrentDirEntry->Address != KernelDirEntry->Address || CurrentDirEntry->PageSize == 0) {
+                *CurrentDirEntry = *KernelDirEntry;
+                Updated = TRUE;
+                NeedsFullFlush = TRUE;
+            }
+        } else {
+            PHYSICAL KernelTablePhysical = (PHYSICAL)(KernelDirEntry->Address << PAGE_SIZE_MUL);
+            LINEAR KernelTableLinear = MapTemporaryPhysicalPage2(KernelTablePhysical);
+            if (KernelTableLinear == 0) {
+                ERROR(TEXT("[ResolveKernelPageFault] Unable to map kernel table"));
+                return FALSE;
+            }
+
+            LPPAGE_TABLE KernelTable = (LPPAGE_TABLE)KernelTableLinear;
+            const X86_64_PAGE_TABLE_ENTRY* KernelTableEntry = &KernelTable[TableIndex];
+            if (!KernelTableEntry->Present) {
+                return FALSE;
+            }
+
+            if (CurrentDirEntry->Present == 0 || CurrentDirEntry->PageSize != 0) {
+                *CurrentDirEntry = *KernelDirEntry;
+                Updated = TRUE;
+                NeedsFullFlush = TRUE;
+            }
+
+            LPPAGE_TABLE CurrentTable = GetPageTableVAFor(PdptIndex, DirectoryIndex);
+            X86_64_PAGE_TABLE_ENTRY* CurrentTableEntry = &CurrentTable[TableIndex];
+            if (CurrentTableEntry->Present == 0 || CurrentTableEntry->Address != KernelTableEntry->Address) {
+                *CurrentTableEntry = *KernelTableEntry;
+                Updated = TRUE;
+            }
+        }
+    }
+
+    if (!Updated) {
+        DEBUG(TEXT("[ResolveKernelPageFault] No update required for %p"), (LPVOID)FaultAddress);
+        return FALSE;
+    }
+
+    if (NeedsFullFlush) {
+        FlushTLB();
+    } else {
+        InvalidatePage(FaultAddress);
+    }
+
+    DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel mapping for %p"), (LPVOID)FaultAddress);
     return TRUE;
 }
 
