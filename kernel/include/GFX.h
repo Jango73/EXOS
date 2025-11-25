@@ -52,7 +52,7 @@
 
 // Graphics driver error codes
 
-#define DF_GFX_ERROR_MODEUNAVAIL DF_ERROR_FIRST
+#define DF_GFX_ERROR_MODEUNAVAIL DF_RET_FIRST
 
 /***************************************************************************/
 

@@ -658,15 +658,15 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 /************************************************************************/
 // Error codes common to all EXOS calls
 
-#define DF_ERROR_SUCCESS 0x00000000
-#define DF_ERROR_NOTIMPL 0x00000001
-#define DF_ERROR_BADPARAM 0x00000002
-#define DF_ERROR_NOMEMORY 0x00000003
-#define DF_ERROR_UNEXPECT 0x00000004
-#define DF_ERROR_IO 0x00000005
-#define DF_ERROR_NOPERM 0x00000006
-#define DF_ERROR_FIRST 0x00001000
-#define DF_ERROR_GENERIC 0xFFFFFFFF
+#define DF_RET_SUCCESS 0x00000000
+#define DF_RET_NOTIMPL 0x00000001
+#define DF_RET_BADPARAM 0x00000002
+#define DF_RET_NOMEMORY 0x00000003
+#define DF_RET_UNEXPECT 0x00000004
+#define DF_RET_IO 0x00000005
+#define DF_RET_NOPERM 0x00000006
+#define DF_RET_FIRST 0x00001000
+#define DF_RET_GENERIC 0xFFFFFFFF
 
 /************************************************************************/
 // Window styles

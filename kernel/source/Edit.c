@@ -31,6 +31,7 @@
 #include "List.h"
 #include "Log.h"
 #include "CoreString.h"
+#include "process/Task.h"
 #include "User.h"
 #include "VKey.h"
 
@@ -1741,14 +1742,29 @@ static void GotoEndOfFile(LPEDITFILE File) {
  */
 static I32 Loop(LPEDITCONTEXT Context) {
     KEYCODE KeyCode;
+    MESSAGEINFO Message;
     U32 Item;
     BOOL Handled;
 
     Render(Context);
 
     FOREVER {
-        if (PeekChar()) {
-            GetKeyCode(&KeyCode);
+        MemorySet(&Message, 0, sizeof(Message));
+        Message.Header.Size = sizeof(Message);
+        Message.Header.Version = EXOS_ABI_VERSION;
+        Message.Header.Flags = 0;
+        Message.Target = NULL;
+
+        if (GetMessage(&Message) == FALSE) {
+            continue;
+        }
+
+        if (Message.Message != EWM_KEYDOWN) {
+            continue;
+        }
+
+        KeyCode.VirtualKey = Message.Param1;
+        KeyCode.ASCIICode = (STR)Message.Param2;
 
             Handled = FALSE;
             for (Item = 0; Item < MenuItems; Item++) {
@@ -1834,13 +1850,9 @@ static I32 Loop(LPEDITCONTEXT Context) {
                 }
             }
         }
-
-        Sleep(20);
     }
 
-    return 0;
-}
-
+ 
 /***************************************************************************/
 
 /**
@@ -1980,7 +1992,7 @@ U32 Edit(U32 NumArguments, LPCSTR* Arguments, BOOL LineNumbers) {
     Context = NewEditContext();
 
     if (Context == NULL) {
-        return DF_ERROR_GENERIC;
+        return DF_RET_GENERIC;
     }
 
     Context->ShowLineNumbers = LineNumbers;

@@ -49,7 +49,7 @@ typedef void (*UDP_PortHandler)(U32 SourceIP, U16 SourcePort, U16 DestinationPor
 
 /************************************************************************/
 // Per-device UDP API
-#include "UDPContext.h"
+#include "network/UDPContext.h"
 
 // Utility functions
 U16 UDP_CalculateChecksum(U32 SourceIP, U32 DestinationIP, const UDP_HEADER* Header, const U8* Payload, U32 PayloadLength);

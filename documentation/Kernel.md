@@ -117,10 +117,47 @@ logic.
 
 All reusable helpers —such as the command line editor, adaptive delay, string
 containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
-support, regex, hysteresis control, and network checksum helpers— live under
-`kernel/source/utils` with their public headers in `kernel/include/utils`. This
-keeps generic infrastructure separated from core subsystems and makes it easier
-to share common code across the kernel.
+support, regex, hysteresis control, cooldown timing, and network checksum
+helpers— live under `kernel/source/utils` with their public headers in
+`kernel/include/utils`. This keeps generic infrastructure separated from core
+subsystems and makes it easier to share common code across the kernel.
+
+### Task and window message delivery
+
+Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in
+`kernel/source/process/TaskMessaging.c`) built on the generic list container.
+Only the
+kernel process starts with a queue; user processes and their tasks get a queue
+*only when they explicitly call* `GetMessage()`, `PeekMessage()`, or
+`WaitForMessage()` (which marks the task queue as initialized). No queue is
+created when posting; if a task/process never asked for one, posted messages
+are dropped and keyboard input continues down the classic buffered path for
+`getkey()`. Each queue is capped to 100 pending messages and guarded by a
+per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as
+waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message
+arrives and clears the waiting flag.
+
+Message posting:
+- `PostMessage` accepts NULL targets (current task), task handles, and window
+  handles; window targets enqueue into the owning task queue. Keyboard drivers
+  and the mouse dispatcher push input events into the global input queue using
+  `EnqueueInputMessage` so only the focused process sees them.
+- Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE`
+  with a 10ms cooldown between enqueues, while button changes still dispatch
+  immediately through the shared input queue.
+- `SendMessage` remains synchronous and window-only.
+
+Message retrieval:
+- `GetMessage`/`PeekMessage` first check the global input queue when the
+  caller’s process has focus (desktop focus + per-desktop `FocusedProcess`),
+  then fall back to the task’s own queue. `GetMessage` blocks if neither queue
+  holds messages; `PeekMessage` is non-blocking. Userland syscalls translate
+  handles in `MESSAGEINFO` before dispatching to the kernel implementations.
+- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`.
+  When a process is created on the focused desktop it becomes the focused
+  process; when a focused process dies its desktop falls back to the kernel
+  process. The focus setters ensure a focused process always exists for the
+  active desktop.
 
 Hardware-facing components are grouped under `kernel/source/drivers` with their
 headers in `kernel/include/drivers`. The directory hosts the keyboard, serial
@@ -723,6 +760,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - Every `PROCESS` keeps track of its `MaximumAllocatedMemory`, which is initialized to `N_HalfMemory` for both the kernel and user processes.
 - When a heap allocation exhausts the committed region, the kernel automatically attempts to double the heap size without exceeding the process limit by calling `ResizeRegion`.
 - If the resize operation cannot be completed, the allocator logs an error and the allocation fails gracefully.
+- Kernel heap allocations that still fail now dump the current task interrupt frame through the same logging path used by the #GP/#PF handlers, giving register and backtrace context when diagnosing out-of-heap issues.
 
 ### Status States
 
@@ -876,7 +914,7 @@ typedef struct DeviceTag {
 
 ### Device Interrupt Infrastructure
 
-**Location:** `kernel/source/DeviceInterrupt.c`, `kernel/include/DeviceInterrupt.h`, `kernel/source/DeferredWork.c`
+**Location:** `kernel/source/drivers/DeviceInterrupt.c`, `kernel/include/drivers/DeviceInterrupt.h`, `kernel/source/DeferredWork.c`
 
 The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
 
@@ -925,6 +963,11 @@ void InitializeNetworkManager(void) {
 - `NetworkManager_InitializeDevice()`: Initialize specific network device
 - `NetworkManager_MaintenanceTick()`: Deferred maintenance routine invoked by `DeferredWorkDispatcher`
 - `NetworkManager_GetPrimaryDevice()`: Get primary device for TCP
+
+**DHCP Integration**
+- DHCP ACK applies assigned IP, subnet mask, gateway, and DNS server to the IPv4 layer and network device context.
+- ARP cache and pending IPv4 routes are flushed on lease changes before marking the device ready, ensuring stale mappings are dropped when a lease is renewed or replaced.
+- DHCP retry backoff is capped; on exhaustion, the stack optionally falls back to the configured static IP/mask/gateway before declaring the device ready.
 
 ### E1000 Ethernet Driver
 

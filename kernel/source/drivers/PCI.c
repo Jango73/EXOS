@@ -208,7 +208,6 @@ void PCI_Write8(U8 Bus, U8 Device, U8 Function, U16 Offset, U8 Value) {
 }
 
 /***************************************************************************/
-/* Command helpers                                                          */
 
 /**
  * @brief Enables or disables bus mastering for a PCI function.
@@ -219,14 +218,14 @@ void PCI_Write8(U8 Bus, U8 Device, U8 Function, U16 Offset, U8 Value) {
  * @param Bus      Bus number.
  * @param Device   Device number.
  * @param Function Function number.
- * @param Enable   Non-zero to enable bus mastering, zero to disable.
+ * @param Enable   TRUE to enable bus mastering, FALSE to disable.
  * @return Previous command register value.
  */
 
-U16 PCI_EnableBusMaster(U8 Bus, U8 Device, U8 Function, int Enable) {
+U16 PCI_EnableBusMaster(U8 Bus, U8 Device, U8 Function, BOOL Enable) {
     U16 Command = PCI_Read16(Bus, Device, Function, PCI_CFG_COMMAND);
     U16 Previous = Command;
-    if (Enable) {
+    if (Enable != FALSE) {
         Command |= PCI_CMD_BUSMASTER | PCI_CMD_MEM;
     } else {
         Command &= (U16)~PCI_CMD_BUSMASTER;
@@ -236,7 +235,6 @@ U16 PCI_EnableBusMaster(U8 Bus, U8 Device, U8 Function, int Enable) {
 }
 
 /***************************************************************************/
-/* BAR helpers                                                              */
 
 /**
  * @brief Reads a Base Address Register of a PCI function.
@@ -334,7 +332,6 @@ U32 PCI_GetBARSize(U8 Bus, U8 Device, U8 Function, U8 BarIndex) {
 }
 
 /***************************************************************************/
-/* Capabilities                                                             */
 
 /**
  * @brief Searches the capability list for a specific capability ID.
@@ -366,7 +363,6 @@ U8 PCI_FindCapability(U8 Bus, U8 Device, U8 Function, U8 CapabilityId) {
 }
 
 /***************************************************************************/
-/* Driver registration                                                      */
 
 /**
  * @brief Registers a PCI driver with the bus layer.
@@ -385,7 +381,6 @@ void PCI_RegisterDriver(LPPCI_DRIVER Driver) {
 }
 
 /***************************************************************************/
-/* Scan & bind                                                              */
 
 /**
  * @brief Scans the PCI bus and binds drivers to detected devices.
@@ -491,7 +486,7 @@ void PCI_ScanBus(void) {
                                     (INT)Device, (INT)Function);
 
                                 U32 Result = PciDriver->Command(DF_PROBE, (UINT)(LPVOID)&PciInfo);
-                                if (Result == DF_ERROR_SUCCESS) {
+                                if (Result == DF_RET_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
 
@@ -500,7 +495,7 @@ void PCI_ScanBus(void) {
 
                                         if (NewDev) {
                                             DEBUG(TEXT("[PCI] Adding device %p (ID=%x) to list"), (LINEAR)NewDev, (INT)(NewDev->TypeID));
-                                            ListAddItem(Kernel.PCIDevice, NewDev);
+                                            ListAddItem(GetPCIDeviceList(), NewDev);
                                             DEBUG(TEXT("[PCI] Attached %s to %x:%x.%u"), PciDriver->Product,
                                                 (INT)Bus, (INT)Device, (INT)Function);
 
@@ -522,7 +517,6 @@ void PCI_ScanBus(void) {
 }
 
 /***************************************************************************/
-// Internals
 
 /**
  * @brief Checks whether a PCI device matches a driver's criteria.
@@ -623,7 +617,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD: {
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             extern PCI_DRIVER AHCIPCIDriver;
@@ -633,26 +627,31 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             PCI_ScanBus();
 
             PCIDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
 
         case DF_UNLOAD:
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             PCIDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(PCI_VER_MAJOR, PCI_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /************************************************************************/
 
+/**
+ * @brief Top-level PCI interrupt handler.
+ *
+ * Currently forwards interrupts to AHCI when initialized.
+ */
 void PCIHandler(void) {
     DEBUG(TEXT("[PCIHandler] Enter"));
 

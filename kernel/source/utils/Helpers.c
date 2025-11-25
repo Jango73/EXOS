@@ -41,20 +41,14 @@ LPUSERACCOUNT GetCurrentUser(void) {
 
 /***************************************************************************/
 
-LPTOML GetConfiguration(void) {
-    return Kernel.Configuration;
-}
-
-/***************************************************************************/
-
 LPFILESYSTEM GetSystemFS(void) {
-    return &Kernel.SystemFS.Header;
+    return &(GetSystemFSData()->Header);
 }
 
 /***************************************************************************/
 
 LPSYSTEMFSFILESYSTEM GetSystemFSFilesystem(void) {
-    return &Kernel.SystemFS;
+    return GetSystemFSData();
 }
 
 /***************************************************************************/
@@ -65,9 +59,11 @@ LPSYSTEMFSFILESYSTEM GetSystemFSFilesystem(void) {
  * @return String value or NULL if not found
  */
 LPCSTR GetConfigurationValue(LPCSTR path) {
-    if (Kernel.Configuration == NULL || path == NULL) {
+    LPTOML Configuration = GetConfiguration();
+
+    if (Configuration == NULL || path == NULL) {
         return NULL;
     }
 
-    return TomlGet(Kernel.Configuration, path);
+    return TomlGet(Configuration, path);
 }

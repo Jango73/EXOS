@@ -119,28 +119,9 @@ int IPv4_ValidateChecksum(IPV4_HEADER* Header) {
  * @param Length Frame length in bytes.
  * @return 1 on success, otherwise 0.
  */
-static int IPv4_SendEthernetFrame(LPIPV4_CONTEXT Context, const U8* Data, U32 Length) {
-    NETWORKSEND Send;
-    LPDEVICE Device;
-    int Result = 0;
-
-    if (Context == NULL || Context->Device == NULL) return 0;
-
-    Device = Context->Device;
-
-    LockMutex(&(Device->Mutex), INFINITY);
-
-    Send.Device = (LPPCI_DEVICE)Device;
-    Send.Data = Data;
-    Send.Length = Length;
-    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (UINT)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
-        }
-    }
-
-    UnlockMutex(&(Device->Mutex));
-    return Result;
+static INT IPv4_SendEthernetFrame(LPIPV4_CONTEXT Context, const U8* Data, U32 Length) {
+    if (Context == NULL) return 0;
+    return Network_SendRawFrame(Context->Device, Data, Length);
 }
 
 /************************************************************************/
@@ -339,6 +320,32 @@ void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32
 
 /************************************************************************/
 
+/**
+ * @brief Clears all pending IPv4 packets queued for ARP resolution.
+ *
+ * Used when network configuration changes to avoid sending packets using
+ * stale routing information.
+ *
+ * @param Device Target network device.
+ */
+void IPv4_ClearPendingPackets(LPDEVICE Device) {
+    LPIPV4_CONTEXT Context;
+    U32 Index;
+
+    if (Device == NULL) return;
+
+    Context = IPv4_GetContext(Device);
+    if (Context == NULL) return;
+
+    for (Index = 0; Index < IPV4_MAX_PENDING_PACKETS; Index++) {
+        Context->PendingPackets[Index].IsValid = 0;
+    }
+
+    DEBUG(TEXT("[IPv4_ClearPendingPackets] Pending packet queue cleared"));
+}
+
+/************************************************************************/
+
 void IPv4_RegisterProtocolHandler(LPDEVICE Device, U8 Protocol, IPv4_ProtocolHandler Handler) {
     LPIPV4_CONTEXT Context;
 
@@ -428,7 +435,7 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
 
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_RET_SUCCESS) {
                 DEBUG(TEXT("[IPv4_Send] Failed to get network info"));
                 goto Out;
             }
@@ -558,7 +565,7 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
 
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_ERROR_SUCCESS) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_RET_SUCCESS) {
                 DEBUG(TEXT("[IPv4_SendDirect] Failed to get network info"));
                 goto Out;
             }

@@ -69,7 +69,8 @@ DRIVER DATA_SECTION UserAccountDriver = {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL InitializeUserSystem(void) {
-    if (Kernel.UserAccount == NULL) {
+    LPLIST UserAccountList = GetUserAccountList();
+    if (UserAccountList == NULL) {
         ERROR(TEXT("User account list not initialized in kernel"));
         return FALSE;
     }
@@ -91,9 +92,10 @@ BOOL InitializeUserSystem(void) {
  * @brief Shutdown the user account system.
  */
 void ShutdownUserSystem(void) {
-    SAFE_USE(Kernel.UserAccount) {
+    LPLIST UserAccountList = GetUserAccountList();
+    SAFE_USE(UserAccountList) {
         SaveUserDatabase();
-        ListReset(Kernel.UserAccount);
+        ListReset(UserAccountList);
     }
 }
 
@@ -108,30 +110,30 @@ static UINT UserAccountDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (InitializeUserSystem()) {
                 UserAccountDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
 
         case DF_UNLOAD:
             if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             ShutdownUserSystem();
             UserAccountDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(USER_SYSTEM_VER_MAJOR, USER_SYSTEM_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /************************************************************************/
@@ -194,7 +196,8 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
 
     // Add to list and database
     DEBUG(TEXT("[CreateUserAccount] Adding to user list"));
-    if (ListAddTail(Kernel.UserAccount, NewUser) == 0) {
+    LPLIST UserAccountList = GetUserAccountList();
+    if (UserAccountList == NULL || ListAddTail(UserAccountList, NewUser) == 0) {
         DEBUG(TEXT("[CreateUserAccount] Failed to add to user list"));
         KernelHeapFree(NewUser);
         UnlockMutex(MUTEX_ACCOUNTS);
@@ -237,7 +240,8 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
         return FALSE;
     }
 
-    ListErase(Kernel.UserAccount, User);
+    LPLIST UserAccountList = GetUserAccountList();
+    ListErase(UserAccountList, User);
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
@@ -253,13 +257,14 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
  * @return Pointer to user account or NULL if not found.
  */
 LPUSERACCOUNT FindUserAccount(LPCSTR UserName) {
-    if (UserName == NULL || Kernel.UserAccount == NULL) {
+    LPLIST UserAccountList = GetUserAccountList();
+    if (UserName == NULL || UserAccountList == NULL) {
         return NULL;
     }
 
-    U32 Count = ListGetSize(Kernel.UserAccount);
+    U32 Count = ListGetSize(UserAccountList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(Kernel.UserAccount, i);
+        LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(UserAccountList, i);
         if (User != NULL && STRINGS_EQUAL(User->UserName, UserName)) {
             return User;
         }
@@ -276,13 +281,14 @@ LPUSERACCOUNT FindUserAccount(LPCSTR UserName) {
  * @return Pointer to user account or NULL if not found.
  */
 LPUSERACCOUNT FindUserAccountByID(U64 UserID) {
-    if (Kernel.UserAccount == NULL) {
+    LPLIST UserAccountList = GetUserAccountList();
+    if (UserAccountList == NULL) {
         return NULL;
     }
 
-    U32 Count = ListGetSize(Kernel.UserAccount);
+    U32 Count = ListGetSize(UserAccountList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(Kernel.UserAccount, i);
+        LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(UserAccountList, i);
         if (User != NULL && U64_Cmp(User->UserID, UserID) == 0) {
             return User;
         }
@@ -347,9 +353,15 @@ BOOL LoadUserDatabase(void) {
         return FALSE;
     }
 
+    LPLIST UserAccountList = GetUserAccountList();
+    if (UserAccountList == NULL) {
+        DatabaseFree(Database);
+        return FALSE;
+    }
+
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
 
-    ListReset(Kernel.UserAccount);
+    ListReset(UserAccountList);
 
     for (U32 i = 0; i < Database->Count; i++) {
         LPUSERACCOUNT User = (LPUSERACCOUNT)((U8*)Database->Records + i * Database->RecordSize);
@@ -362,7 +374,7 @@ BOOL LoadUserDatabase(void) {
             NewUser->References = 1;
             NewUser->TypeID = KOID_USERACCOUNT;
 
-            if (ListAddTail(Kernel.UserAccount, NewUser) == 0) {
+            if (ListAddTail(UserAccountList, NewUser) == 0) {
                 KernelHeapFree(NewUser);
             }
         }
@@ -389,12 +401,18 @@ BOOL SaveUserDatabase(void) {
         return FALSE;
     }
 
+    LPLIST UserAccountList = GetUserAccountList();
+    if (UserAccountList == NULL) {
+        DatabaseFree(Database);
+        return FALSE;
+    }
+
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
 
-    SAFE_USE(Kernel.UserAccount) {
-        U32 Count = ListGetSize(Kernel.UserAccount);
+    SAFE_USE(UserAccountList) {
+        U32 Count = ListGetSize(UserAccountList);
         for (U32 i = 0; i < Count && Database->Count < Database->Capacity; i++) {
-            LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(Kernel.UserAccount, i);
+            LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(UserAccountList, i);
 
             SAFE_USE(User) {
                 DatabaseAdd(Database, User);

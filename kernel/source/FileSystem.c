@@ -66,7 +66,7 @@ DRIVER DATA_SECTION FileSystemDriver = {
  * @brief Loads and parses the kernel configuration file.
  *
  * Attempts to read "exos.toml" (case insensitive) and stores the resulting
- * TOML data in Kernel.Configuration.
+ * TOML data in the kernel configuration state.
  */
 static void ReadKernelConfiguration(void) {
     DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
@@ -85,7 +85,7 @@ static void ReadKernelConfiguration(void) {
     }
 
     SAFE_USE(Buffer) {
-        Kernel.Configuration = TomlParse((LPCSTR)Buffer);
+        SetConfiguration(TomlParse((LPCSTR)Buffer));
         KernelHeapFree(Buffer);
     }
 
@@ -99,7 +99,10 @@ static void ReadKernelConfiguration(void) {
  *
  * @return Number of file systems currently mounted in the system
  */
-U32 GetNumFileSystems(void) { return Kernel.FileSystem->NumItems; }
+U32 GetNumFileSystems(void) {
+    LPLIST FileSystemList = GetFileSystemList();
+    return FileSystemList != NULL ? FileSystemList->NumItems : 0;
+}
 
 /***************************************************************************/
 
@@ -121,7 +124,8 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
     U32 DiskIndex = 0;
 
     // Find the index of this disk among disks of the same type
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+    LPLIST DiskList = GetDiskList();
+    for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
         CurrentDisk = (LPPHYSICALDISK)Node;
         if (CurrentDisk == Disk) break;
         if (CurrentDisk->Driver->Type == Disk->Driver->Type) DiskIndex++;
@@ -163,7 +167,8 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
  */
 void FileSystemSetActivePartition(LPFILESYSTEM FileSystem) {
     SAFE_USE(FileSystem) {
-        StringCopy(Kernel.FileSystemInfo.ActivePartitionName, FileSystem->Name);
+        FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+        StringCopy(GlobalInfo->ActivePartitionName, FileSystem->Name);
         DEBUG(TEXT("[FileSystemSetActivePartition] Active partition name set to %s"), FileSystem->Name);
     }
 }
@@ -196,7 +201,7 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32
 
     Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result != DF_ERROR_SUCCESS) return FALSE;
+    if (Result != DF_RET_SUCCESS) return FALSE;
 
     Base += Partition->LBA;
 
@@ -237,7 +242,7 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
         Control.BufferSize = SECTOR_SIZE;
 
         Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
-        if (Result != DF_ERROR_SUCCESS) return FALSE;
+        if (Result != DF_RET_SUCCESS) return FALSE;
 
         Partition = (LPBOOTPARTITION)(Buffer + MBR_PARTITION_START);
     }
@@ -249,7 +254,9 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
         if (Partition[Index].LBA != 0) {
             BOOL PartitionMounted = FALSE;
             BOOL PartitionIsActive = ((Partition[Index].Disk & 0x80) != 0);
-            LPFILESYSTEM PreviousLast = (LPFILESYSTEM)Kernel.FileSystem->Last;
+            LPLIST FileSystemList = GetFileSystemList();
+            LPFILESYSTEM PreviousLast =
+                (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
 
             switch (Partition[Index].Type) {
                 case FSID_NONE:
@@ -303,7 +310,9 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
             }
 
             if (PartitionMounted && PartitionIsActive) {
-                LPFILESYSTEM MountedFileSystem = (LPFILESYSTEM)Kernel.FileSystem->Last;
+                LPLIST FileSystemList = GetFileSystemList();
+                LPFILESYSTEM MountedFileSystem =
+                    (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
 
                 if (MountedFileSystem != NULL && MountedFileSystem != PreviousLast) {
                     FileSystemSetActivePartition(MountedFileSystem);
@@ -323,9 +332,11 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 void InitializeFileSystems(void) {
     LPLISTNODE Node;
 
-    StringClear(Kernel.FileSystemInfo.ActivePartitionName);
+    FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+    StringClear(GlobalInfo->ActivePartitionName);
 
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+    LPLIST DiskList = GetDiskList();
+    for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
 
@@ -348,24 +359,24 @@ static UINT FileSystemDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((FileSystemDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitializeFileSystems();
             FileSystemDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((FileSystemDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             FileSystemDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(FILESYSTEM_VER_MAJOR, FILESYSTEM_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }

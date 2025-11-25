@@ -28,6 +28,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/ACPI.h"
+#include "drivers/Keyboard.h"
 #include "File.h"
 #include "Lang.h"
 #include "Log.h"
@@ -39,19 +40,8 @@
 
 /************************************************************************/
 
-typedef struct tag_CPUIDREGISTERS {
-    U32 reg_EAX;
-    U32 reg_EBX;
-    U32 reg_ECX;
-    U32 reg_EDX;
-} CPUIDREGISTERS, *LPCPUIDREGISTERS;
-
-/***************************************************************************/
 
 extern U32 DeadBeef;
-extern DRIVER SerialMouseDriver;
-extern DRIVER VESADriver;
-extern DRIVER EXFSDriver;
 
 /************************************************************************/
 
@@ -96,20 +86,22 @@ HANDLE PointerToHandle(LINEAR Pointer) {
         return 0;
     }
 
+    LPHANDLE_MAP HandleMap = GetHandleMap();
+
     UINT ExistingHandle = 0;
-    if (HandleMapFindHandleByPointer(&Kernel.HandleMap, Pointer, &ExistingHandle) == HANDLE_MAP_OK) {
+    if (HandleMapFindHandleByPointer(HandleMap, Pointer, &ExistingHandle) == HANDLE_MAP_OK) {
         return ExistingHandle;
     }
 
     UINT Handle = 0;
-    UINT Status = HandleMapAllocateHandle(&Kernel.HandleMap, &Handle);
+    UINT Status = HandleMapAllocateHandle(HandleMap, &Handle);
     if (Status != HANDLE_MAP_OK) {
         return 0;
     }
 
-    Status = HandleMapAttachPointer(&Kernel.HandleMap, Handle, Pointer);
+    Status = HandleMapAttachPointer(HandleMap, Handle, Pointer);
     if (Status != HANDLE_MAP_OK) {
-        HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+        HandleMapReleaseHandle(HandleMap, Handle);
         return 0;
     }
 
@@ -130,7 +122,7 @@ LINEAR HandleToPointer(HANDLE Handle) {
     }
 
     LINEAR Pointer = 0;
-    UINT Status = HandleMapResolveHandle(&Kernel.HandleMap, Handle, &Pointer);
+    UINT Status = HandleMapResolveHandle(GetHandleMap(), Handle, &Pointer);
     if (Status != HANDLE_MAP_OK) {
         return 0;
     }
@@ -192,12 +184,12 @@ void ReleaseHandle(HANDLE Handle) {
     }
 
     LINEAR Pointer = 0;
-    UINT Status = HandleMapDetachPointer(&Kernel.HandleMap, Handle, &Pointer);
+    UINT Status = HandleMapDetachPointer(GetHandleMap(), Handle, &Pointer);
     if (Status != HANDLE_MAP_OK && Status != HANDLE_MAP_ERROR_NOT_ATTACHED) {
         WARNING(TEXT("[ReleaseHandle] Detach failed handle=%u status=%u"), Handle, Status);
     }
 
-    Status = HandleMapReleaseHandle(&Kernel.HandleMap, Handle);
+    Status = HandleMapReleaseHandle(GetHandleMap(), Handle);
     if (Status != HANDLE_MAP_OK) {
         WARNING(TEXT("[ReleaseHandle] Release failed handle=%u status=%u"), Handle, Status);
     }
@@ -206,40 +198,33 @@ void ReleaseHandle(HANDLE Handle) {
 /************************************************************************/
 
 /**
- * @brief Retrieves basic CPU identification data.
- *
- * Populates the provided structure using CPUID information, including
- * vendor string, model and feature flags.
- *
- * @param Info Pointer to structure that receives CPU information.
- * @return TRUE on success.
+ * @brief Initialize focus defaults and the global input queue.
  */
+static void InitializeFocusState(void) {
+    LPLIST DesktopList = GetDesktopList();
 
-BOOL GetCPUInformation(LPCPUINFORMATION Info) {
-    CPUIDREGISTERS Regs[8];
+    // Ensure the main desktop is registered in the kernel's desktop list
+    if (DesktopList != NULL && DesktopList->First == NULL) {
+        DEBUG(TEXT("[InitializeFocusState] Registering MainDesktop in desktop list"));
+        ListAddHead(DesktopList, &MainDesktop);
+    }
 
-    MemorySet(Info, 0, sizeof(CPUINFORMATION));
+    if (GetFocusedDesktop() == NULL) {
+        SetFocusedDesktop(&MainDesktop);
+    }
 
-    GetCPUID(Regs);
+    SetFocusedDesktop(GetFocusedDesktop());
+    SetFocusedProcess(&KernelProcess);
 
-    //-------------------------------------
-    // Fill name with register contents
+    if (KernelProcess.Desktop == NULL) {
+        KernelProcess.Desktop = GetFocusedDesktop();
+    }
 
-    *((U32*)(Info->Name + 0)) = Regs[0].reg_EBX;
-    *((U32*)(Info->Name + 4)) = Regs[0].reg_EDX;
-    *((U32*)(Info->Name + 8)) = Regs[0].reg_ECX;
-    Info->Name[12] = '\0';
-
-    //-------------------------------------
-    // Get model information if available
-
-    Info->Type = (Regs[1].reg_EAX & INTEL_CPU_MASK_TYPE) >> INTEL_CPU_SHFT_TYPE;
-    Info->Family = (Regs[1].reg_EAX & INTEL_CPU_MASK_FAMILY) >> INTEL_CPU_SHFT_FAMILY;
-    Info->Model = (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
-    Info->Stepping = (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
-    Info->Features = Regs[1].reg_EDX;
-
-    return TRUE;
+    SAFE_USE_VALID_ID(GetFocusedDesktop(), KOID_DESKTOP) {
+        if (GetFocusedDesktop()->FocusedProcess == NULL) {
+            GetFocusedDesktop()->FocusedProcess = &KernelProcess;
+        }
+    }
 }
 
 /************************************************************************/
@@ -254,21 +239,21 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
 void InitializeQuantumTime(void) {
     // Set base quantum time based on environment
 #if BARE_METAL == 1
-    Kernel.MinimumQuantum = 10;  // Shorter quantum for bare-metal
-    DEBUG(TEXT("[InitializeQuantumTime] Bare-metal mode, base quantum = %d ms"), Kernel.MinimumQuantum);
+    SetMinimumQuantum(10);  // Shorter quantum for bare-metal
+    DEBUG(TEXT("[InitializeQuantumTime] Bare-metal mode, base quantum = %d ms"), GetMinimumQuantum());
 #else
-    Kernel.MinimumQuantum = 50;  // Longer quantum for emulation/virtualization
-    DEBUG(TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), Kernel.MinimumQuantum);
+    SetMinimumQuantum(50);  // Longer quantum for emulation/virtualization
+    DEBUG(TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), GetMinimumQuantum());
 #endif
 
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
         // Double quantum when scheduling debug is enabled (logs slow down execution)
-        Kernel.MinimumQuantum *= 2;
+        SetMinimumQuantum(GetMinimumQuantum() * 2);
         FINE_DEBUG(TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
-            Kernel.MinimumQuantum);
+            GetMinimumQuantum());
     }
 
-    Kernel.MaximumQuantum = Kernel.MinimumQuantum * 4;
+    SetMaximumQuantum(GetMinimumQuantum() * 4);
 }
 
 /************************************************************************/
@@ -519,18 +504,18 @@ void DeleteUnreferencedObjects(void) {
     LockMutex(MUTEX_KERNEL, INFINITY);
 
     // Process all kernel object lists
-    ProcessList(Kernel.Desktop, TEXT("Desktop"));
-    ProcessList(Kernel.Process, TEXT("Process"));
-    ProcessList(Kernel.Task, TEXT("Task"));
-    ProcessList(Kernel.Mutex, TEXT("Mutex"));
-    ProcessList(Kernel.Disk, TEXT("Disk"));
-    ProcessList(Kernel.PCIDevice, TEXT("PCIDevice"));
-    ProcessList(Kernel.NetworkDevice, TEXT("NetworkDevice"));
-    ProcessList(Kernel.Event, TEXT("KernelEvent"));
-    ProcessList(Kernel.FileSystem, TEXT("FileSystem"));
-    ProcessList(Kernel.File, TEXT("File"));
-    ProcessList(Kernel.TCPConnection, TEXT("TCPConnection"));
-    ProcessList(Kernel.Socket, TEXT("Socket"));
+    ProcessList(GetDesktopList(), TEXT("Desktop"));
+    ProcessList(GetProcessList(), TEXT("Process"));
+    ProcessList(GetTaskList(), TEXT("Task"));
+    ProcessList(GetMutexList(), TEXT("Mutex"));
+    ProcessList(GetDiskList(), TEXT("Disk"));
+    ProcessList(GetPCIDeviceList(), TEXT("PCIDevice"));
+    ProcessList(GetNetworkDeviceList(), TEXT("NetworkDevice"));
+    ProcessList(GetEventList(), TEXT("KernelEvent"));
+    ProcessList(GetFileSystemList(), TEXT("FileSystem"));
+    ProcessList(GetFileList(), TEXT("File"));
+    ProcessList(GetTCPConnectionList(), TEXT("TCPConnection"));
+    ProcessList(GetSocketList(), TEXT("Socket"));
 
     UnlockMutex(MUTEX_KERNEL);
 }
@@ -579,18 +564,18 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
         }
 
         // Process all kernel object lists
-        ReleaseProcessObjectsFromList(Process, Kernel.Desktop);
-        ReleaseProcessObjectsFromList(Process, Kernel.Process);
-        ReleaseProcessObjectsFromList(Process, Kernel.Task);
-        ReleaseProcessObjectsFromList(Process, Kernel.Mutex);
-        ReleaseProcessObjectsFromList(Process, Kernel.Disk);
-        ReleaseProcessObjectsFromList(Process, Kernel.PCIDevice);
-        ReleaseProcessObjectsFromList(Process, Kernel.NetworkDevice);
-        ReleaseProcessObjectsFromList(Process, Kernel.Event);
-        ReleaseProcessObjectsFromList(Process, Kernel.FileSystem);
-        ReleaseProcessObjectsFromList(Process, Kernel.File);
-        ReleaseProcessObjectsFromList(Process, Kernel.TCPConnection);
-        ReleaseProcessObjectsFromList(Process, Kernel.Socket);
+        ReleaseProcessObjectsFromList(Process, GetDesktopList());
+        ReleaseProcessObjectsFromList(Process, GetProcessList());
+        ReleaseProcessObjectsFromList(Process, GetTaskList());
+        ReleaseProcessObjectsFromList(Process, GetMutexList());
+        ReleaseProcessObjectsFromList(Process, GetDiskList());
+        ReleaseProcessObjectsFromList(Process, GetPCIDeviceList());
+        ReleaseProcessObjectsFromList(Process, GetNetworkDeviceList());
+        ReleaseProcessObjectsFromList(Process, GetEventList());
+        ReleaseProcessObjectsFromList(Process, GetFileSystemList());
+        ReleaseProcessObjectsFromList(Process, GetFileList());
+        ReleaseProcessObjectsFromList(Process, GetTCPConnectionList());
+        ReleaseProcessObjectsFromList(Process, GetSocketList());
     }
 }
 
@@ -615,7 +600,7 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
             TermState->Object = KernelObject;
             TermState->ExitCode = ExitCode;
             TermState->ID = KernelObject->ID;
-            CacheAdd(&Kernel.ObjectTerminationCache, TermState, OBJECT_TERMINATION_TTL_MS);
+            CacheAdd(GetObjectTerminationCache(), TermState, OBJECT_TERMINATION_TTL_MS);
 
             DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%u"),
                   KernelObject,
@@ -636,30 +621,25 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
 /************************************************************************/
 
 /**
- * @brief Loads and parses the kernel configuration file.
- *
- * Attempts to read "exos.toml" (case insensitive) and stores the resulting
- * TOML data in Kernel.Configuration.
- */
-
-/**
  * @brief Selects keyboard layout based on configuration.
  *
- * Reads the layout from Kernel.Configuration and applies it with
+ * Reads the layout from the parsed configuration and applies it with
  * SelectKeyboard.
  */
 
 static void UseConfiguration(void) {
     DEBUG(TEXT("[UseConfiguration] Enter"));
 
-    SAFE_USE(Kernel.Configuration) {
+    LPTOML Configuration = GetConfiguration();
+
+    SAFE_USE(Configuration) {
         LPCSTR Layout;
         LPCSTR QuantumMS;
         LPCSTR DoLogin;
 
         DEBUG(TEXT("[UseConfiguration] Handling keyboard layout"));
 
-        Layout = TomlGet(Kernel.Configuration, TEXT("Keyboard.Layout"));
+        Layout = TomlGet(Configuration, TEXT("Keyboard.Layout"));
 
         if (Layout) {
             ConsolePrint(TEXT("Keyboard = %s\n"), Layout);
@@ -669,28 +649,28 @@ static void UseConfiguration(void) {
             SelectKeyboard(TEXT("en-US"));
         }
 
-        QuantumMS = TomlGet(Kernel.Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
+        QuantumMS = TomlGet(Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
         if (STRING_EMPTY(QuantumMS) == FALSE) {
             ConsolePrint(TEXT("Task quantum set to %s\n"), QuantumMS);
-            Kernel.MinimumQuantum = StringToU32(QuantumMS);
+            SetMinimumQuantum(StringToU32(QuantumMS));
         }
 
-        DoLogin = TomlGet(Kernel.Configuration, TEXT("General.DoLogin"));
+        DoLogin = TomlGet(Configuration, TEXT("General.DoLogin"));
 
         if (STRING_EMPTY(DoLogin) == FALSE) {
-            Kernel.DoLogin = (StringToU32(DoLogin) != 0);
+            SetDoLogin((StringToU32(DoLogin) != 0));
         } else {
-            Kernel.DoLogin = TRUE;
+            SetDoLogin(TRUE);
         }
 
-        if (Kernel.DoLogin == FALSE) {
+        if (GetDoLogin() == FALSE) {
             ConsolePrint(TEXT("WARNING : Login sequence disabled\n"));
         }
     }
 
     // Ensure a keyboard layout is always set, even if configuration failed
-    if (StringEmpty(Kernel.KeyboardCode)) {
+    if (StringEmpty(GetKeyboardCode())) {
         SelectKeyboard(TEXT("en-US"));
     }
 
@@ -712,36 +692,19 @@ U32 GetPhysicalMemoryUsed(void) {
     U32 Index = 0;
     U32 Byte = 0;
     U32 Mask = 0;
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
-    for (Index = 0; Index < KernelStartup.PageCount; Index++) {
+    for (Index = 0; Bitmap != NULL && Index < KernelStartup.PageCount; Index++) {
         Byte = Index >> MUL_8;
         Mask = (U32)0x01 << (Index & 0x07);
-        if (Kernel.PPB[Byte] & Mask) NumPages++;
+        if (Bitmap[Byte] & Mask) NumPages++;
     }
 
     UnlockMutex(MUTEX_MEMORY);
 
     return (NumPages << PAGE_SIZE_MUL);
-}
-
-/************************************************************************/
-
-LPDRIVER GetMouseDriver() {
-    return &SerialMouseDriver;
-}
-
-/************************************************************************/
-
-LPDRIVER GetGraphicsDriver() {
-    return &VESADriver;
-}
-
-/************************************************************************/
-
-LPDRIVER GetDefaultFileSystemDriver() {
-    return &EXFSDriver;
 }
 
 /************************************************************************/
@@ -770,7 +733,7 @@ void LoadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_LOAD, 0);
-        if (Result == DF_ERROR_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
+        if (Result == DF_RET_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
             DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
             Success = TRUE;
         } else {
@@ -803,7 +766,7 @@ void UnloadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_UNLOAD, 0);
-        if (Result == DF_ERROR_SUCCESS) {
+        if (Result == DF_RET_SUCCESS) {
             DEBUG(TEXT("[UnloadDriver] : %s driver unloaded successfully"), TEXT(Driver->Product));
         } else {
             WARNING(TEXT("[UnloadDriver] : Failed to unload %s driver (code = %x)"), TEXT(Driver->Product), Result);
@@ -816,11 +779,12 @@ void UnloadDriver(LPDRIVER Driver) {
 void LoadAllDrivers(void) {
     InitializeDriverList();
 
-    if (Kernel.Drivers == NULL || Kernel.Drivers->First == NULL) {
+    LPLIST DriverList = GetDriverList();
+    if (DriverList == NULL || DriverList->First == NULL) {
         return;
     }
 
-    for (LPLISTNODE Node = Kernel.Drivers->First; Node; Node = Node->Next) {
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
         LoadDriver((LPDRIVER)Node);
     }
 }
@@ -834,11 +798,12 @@ void LoadAllDrivers(void) {
  * each registered driver.
  */
 void UnloadAllDrivers(void) {
-    if (Kernel.Drivers == NULL || Kernel.Drivers->Last == NULL) {
+    LPLIST DriverList = GetDriverList();
+    if (DriverList == NULL || DriverList->Last == NULL) {
         return;
     }
 
-    for (LPLISTNODE Node = Kernel.Drivers->Last; Node; Node = Node->Prev) {
+    for (LPLISTNODE Node = DriverList->Last; Node; Node = Node->Prev) {
         UnloadDriver((LPDRIVER)Node);
     }
 }
@@ -876,7 +841,7 @@ static U32 KernelMonitor(LPVOID Parameter) {
     FOREVER {
         DeleteDeadTasksAndProcesses();
         DeleteUnreferencedObjects();
-        CacheCleanup(&Kernel.ObjectTerminationCache, GetSystemTime());
+        CacheCleanup(GetObjectTerminationCache(), GetSystemTime());
 
         LogCounter++;
         if (LogCounter >= 60) {  // 60 * 500ms = 30 seconds
@@ -916,8 +881,9 @@ static void KillActiveUserlandProcesses(void) {
 
     LockMutex(MUTEX_PROCESS, INFINITY);
 
-    SAFE_USE(Kernel.Process) {
-        for (LPPROCESS Process = (LPPROCESS)Kernel.Process->First; Process; Process = (LPPROCESS)Process->Next) {
+    LPLIST ProcessList = GetProcessList();
+    SAFE_USE(ProcessList) {
+        for (LPPROCESS Process = (LPPROCESS)ProcessList->First; Process; Process = (LPPROCESS)Process->Next) {
             SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
                 if (Process != &KernelProcess && Process->Privilege == PRIVILEGE_USER &&
                     Process->Status != PROCESS_STATUS_DEAD) {
@@ -957,8 +923,9 @@ static void KillActiveKernelTasks(void) {
 
     LockMutex(MUTEX_TASK, INFINITY);
 
-    SAFE_USE(Kernel.Task) {
-        for (LPTASK Task = (LPTASK)Kernel.Task->First; Task; Task = (LPTASK)Task->Next) {
+    LPLIST TaskList = GetTaskList();
+    SAFE_USE(TaskList) {
+        for (LPTASK Task = (LPTASK)TaskList->First; Task; Task = (LPTASK)Task->Next) {
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
                 if (Task->Process == &KernelProcess && Task->Type != TASK_TYPE_KERNEL_MAIN &&
                     Task->Status != TASK_STATUS_DEAD) {
@@ -994,7 +961,7 @@ static void KillActiveKernelTasks(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
-    GetCPUInformation(&(Kernel.CPU));
+    GetCPUInformation(GetKernelCPUInfo());
     PreInitializeKernel();
 
     //-------------------------------------
@@ -1005,12 +972,15 @@ void InitializeKernel(void) {
     //-------------------------------------
     // Initialize object termination cache
 
-    CacheInit(&Kernel.ObjectTerminationCache, CACHE_DEFAULT_CAPACITY);
+    CacheInit(GetObjectTerminationCache(), CACHE_DEFAULT_CAPACITY);
 
     DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
 
-    HandleMapInit(&Kernel.HandleMap);
+    HandleMapInit(GetHandleMap());
     DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
+
+    InitializeFocusState();
+    DEBUG(TEXT("[InitializeKernel] Focus state initialized"));
 
     //-------------------------------------
     // Initialize quantum time based on environment and debug settings
@@ -1046,9 +1016,12 @@ void InitializeKernel(void) {
 
     //-------------------------------------
 
-    LPCSTR Mono = TomlGet(Kernel.Configuration, TEXT("General.Mono"));
+    LPTOML Configuration = GetConfiguration();
+    LPCSTR Mono = NULL;
 
-    if (StringCompare(Mono, TEXT("1")) == 0) {
+    SAFE_USE(Configuration) { Mono = TomlGet(Configuration, TEXT("General.Mono")); }
+
+    if (STRING_EMPTY(Mono) == FALSE && StringCompare(Mono, TEXT("1")) == 0) {
         Shell(NULL);
     } else {
         //-------------------------------------

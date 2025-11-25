@@ -47,7 +47,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Mutex = EMPTY_MUTEX,           // Mutex
     .HeapMutex = EMPTY_MUTEX,       // Heap mutex
     .Security = EMPTY_SECURITY,     // Security
-    .Desktop = NULL,                // Desktop
+    .Desktop = &MainDesktop,                // Desktop
     .Privilege = PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
@@ -104,7 +104,6 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
-
     KernelProcess.HeapSize = KERNEL_PROCESS_HEAP_SIZE;
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
@@ -121,6 +120,10 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
     HeapInit(&KernelProcess, KernelProcess.HeapBase, KernelProcess.HeapSize);
+
+    MemorySet(&(KernelProcess.MessageQueue), 0, sizeof(MESSAGEQUEUE));
+    InitMessageQueue(&(KernelProcess.MessageQueue));
+    KernelProcess.MessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
 
     StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
     StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
@@ -163,26 +166,26 @@ static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitializeKernelProcess();
             KernelProcessDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             KernelProcessDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(KERNEL_PROCESS_VER_MAJOR, KERNEL_PROCESS_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /***************************************************************************/
@@ -209,7 +212,12 @@ LPPROCESS NewProcess(void) {
     // Zero out non-LISTNODE_FIELDS (LISTNODE_FIELDS already initialized by CreateKernelObject)
     MemorySet(&This->Mutex, 0, sizeof(PROCESS) - sizeof(LISTNODE));
 
-    This->Desktop = (LPDESKTOP)Kernel.Desktop->First;
+    LPLIST DesktopList = GetDesktopList();
+    if (DesktopList != NULL && DesktopList->First != NULL) {
+        This->Desktop = (LPDESKTOP)DesktopList->First;
+    } else {
+        This->Desktop = &MainDesktop;
+    }
     This->Privilege = PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
@@ -258,6 +266,12 @@ void DeleteProcessCommit(LPPROCESS This) {
 
         DEBUG(TEXT("[DeleteProcessCommit] Deleting process %s (TaskCount=%u)"), This->FileName, This->TaskCount);
 
+        SAFE_USE_VALID_ID(This->Desktop, KOID_DESKTOP) {
+            if (This->Desktop->FocusedProcess == This) {
+                This->Desktop->FocusedProcess = &KernelProcess;
+            }
+        }
+
         // Free page directory if allocated
         // TODO : FREE ALL PD PAGES
         if (This->PageDirectory != 0) {
@@ -270,6 +284,10 @@ void DeleteProcessCommit(LPPROCESS This) {
             DEBUG(TEXT("[DeleteProcessCommit] Freeing process heap base=%p size=%x"), (LINEAR)This->HeapBase,
                 (UINT)This->HeapSize);
             FreeRegion(This->HeapBase, This->HeapSize);
+        }
+
+        if (This->MessageQueue.Messages != NULL) {
+            DeleteMessageQueue(&(This->MessageQueue));
         }
 
         ReleaseKernelObject(This);
@@ -310,10 +328,12 @@ void KillProcess(LPPROCESS This) {
         BOOL FoundChildren = TRUE;
         LPLIST ProcessesToCheck = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
         ListAddItem(ProcessesToCheck, This);
+        LPLIST ProcessList = GetProcessList();
+        LPLIST TaskList = GetTaskList();
 
         while (FoundChildren) {
             FoundChildren = FALSE;
-            LPPROCESS Current = (LPPROCESS)Kernel.Process->First;
+            LPPROCESS Current = (LPPROCESS)ProcessList->First;
 
             while (Current != NULL) {
                 SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
@@ -361,7 +381,7 @@ void KillProcess(LPPROCESS This) {
                     DEBUG(TEXT("[KillProcess] Killing tasks of child process %s"), ChildProcess->FileName);
 
                     // Kill all tasks of this child process
-                    LPTASK Task = (LPTASK)Kernel.Task->First;
+                    LPTASK Task = (LPTASK)TaskList->First;
                     while (Task != NULL) {
                         LPTASK NextTask = (LPTASK)Task->Next;
                         SAFE_USE_VALID_ID(Task, KOID_TASK) {
@@ -396,7 +416,7 @@ void KillProcess(LPPROCESS This) {
         // Kill all tasks of the target process itself
         DEBUG(TEXT("[KillProcess] Killing tasks of target process %s"), This->FileName);
 
-        LPTASK Task = (LPTASK)Kernel.Task->First;
+        LPTASK Task = (LPTASK)TaskList->First;
         while (Task != NULL) {
             LPTASK NextTask = (LPTASK)Task->Next;
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
@@ -715,7 +735,12 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Add the new process to the kernel's process list
 
-    ListAddItem(Kernel.Process, Process);
+    LPLIST ProcessList = GetProcessList();
+    ListAddItem(ProcessList, Process);
+
+    if (GetFocusedDesktop() == Process->Desktop) {
+        SetFocusedProcess(Process);
+    }
 
     //-------------------------------------
     // Add initial task to the scheduler's queue

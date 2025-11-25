@@ -201,7 +201,7 @@ static BOOL InitializeATA(void) {
                     continue;
                 }
 
-                ListAddItem(Kernel.Disk, Disk);
+                ListAddItem(GetDiskList(), Disk);
                 DisksFound++;
             }
         }
@@ -330,20 +330,20 @@ static U32 Read(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Control == NULL) return DF_ERROR_BADPARAM;
+    if (Control == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Control->Disk;
-    if (Disk == NULL) return DF_ERROR_BADPARAM;
+    if (Disk == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
-    if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
-    if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (Disk->IOPort == 0) return DF_RET_BADPARAM;
+    if (Disk->IRQ == 0) return DF_RET_BADPARAM;
 
     CacheCleanup(&Disk->SectorCache, GetSystemTime());
 
@@ -354,7 +354,7 @@ static U32 Read(LPIOCONTROL Control) {
         if (Buffer == NULL) {
             Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-            if (Buffer == NULL) return DF_ERROR_UNEXPECT;
+            if (Buffer == NULL) return DF_RET_UNEXPECT;
 
             Buffer->SectorLow = Context.SectorLow;
             Buffer->SectorHigh = Context.SectorHigh;
@@ -375,14 +375,14 @@ static U32 Read(LPIOCONTROL Control) {
 
             if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
                 KernelHeapFree(Buffer);
-                return DF_ERROR_UNEXPECT;
+                return DF_RET_UNEXPECT;
             }
         }
 
         MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Buffer->Data, SECTOR_SIZE);
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -395,25 +395,25 @@ static U32 Write(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Control == NULL) return DF_ERROR_BADPARAM;
+    if (Control == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Control->Disk;
-    if (Disk == NULL) return DF_ERROR_BADPARAM;
+    if (Disk == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
-    if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
-    if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (Disk->IOPort == 0) return DF_RET_BADPARAM;
+    if (Disk->IRQ == 0) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Check access permissions
 
-    if (Disk->Access & DISK_ACCESS_READONLY) return DF_ERROR_NOPERM;
+    if (Disk->Access & DISK_ACCESS_READONLY) return DF_RET_NOPERM;
 
     CacheCleanup(&Disk->SectorCache, GetSystemTime());
 
@@ -425,7 +425,7 @@ static U32 Write(LPIOCONTROL Control) {
         if (Buffer == NULL) {
             Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-            if (Buffer == NULL) return DF_ERROR_UNEXPECT;
+            if (Buffer == NULL) return DF_RET_UNEXPECT;
 
             Buffer->SectorLow = Context.SectorLow;
             Buffer->SectorHigh = Context.SectorHigh;
@@ -453,12 +453,12 @@ static U32 Write(LPIOCONTROL Control) {
         if (AddedToCache) {
             if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
                 KernelHeapFree(Buffer);
-                return DF_ERROR_UNEXPECT;
+                return DF_RET_UNEXPECT;
             }
         }
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -466,20 +466,20 @@ static U32 Write(LPIOCONTROL Control) {
 static U32 GetInfo(LPDISKINFO Info) {
     LPATADISK Disk;
 
-    if (Info == NULL) return DF_ERROR_BADPARAM;
+    if (Info == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Info->Disk;
-    if (Disk == NULL) return DF_ERROR_BADPARAM;
+    if (Disk == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
-    if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
-    if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (Disk->IOPort == 0) return DF_RET_BADPARAM;
+    if (Disk->IRQ == 0) return DF_RET_BADPARAM;
 
     //-------------------------------------
 
@@ -488,7 +488,7 @@ static U32 GetInfo(LPDISKINFO Info) {
     Info->NumSectors = Disk->Geometry.Cylinders * Disk->Geometry.Heads * Disk->Geometry.SectorsPerTrack;
     Info->Access = Disk->Access;
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -496,24 +496,24 @@ static U32 GetInfo(LPDISKINFO Info) {
 static U32 SetAccess(LPDISKACCESS Access) {
     LPATADISK Disk;
 
-    if (Access == NULL) return DF_ERROR_BADPARAM;
+    if (Access == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Access->Disk;
-    if (Disk == NULL) return DF_ERROR_BADPARAM;
+    if (Disk == NULL) return DF_RET_BADPARAM;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_ERROR_BADPARAM;
-    if (Disk->IOPort == 0) return DF_ERROR_BADPARAM;
-    if (Disk->IRQ == 0) return DF_ERROR_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (Disk->IOPort == 0) return DF_RET_BADPARAM;
+    if (Disk->IRQ == 0) return DF_RET_BADPARAM;
 
     Disk->Access = Access->Access;
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -557,26 +557,26 @@ UINT ATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ATADiskDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (InitializeATA()) {
                 ATADiskDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
         case DF_UNLOAD:
             if ((ATADiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             ATADiskDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_DISK_RESET:
-            return DF_ERROR_NOTIMPL;
+            return DF_RET_NOTIMPL;
         case DF_DISK_READ:
             return Read((LPIOCONTROL)Parameter);
         case DF_DISK_WRITE:
@@ -587,5 +587,5 @@ UINT ATADiskCommands(UINT Function, UINT Parameter) {
             return SetAccess((LPDISKACCESS)Parameter);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }

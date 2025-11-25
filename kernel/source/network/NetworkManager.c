@@ -31,7 +31,7 @@
 #include "network/DHCP.h"
 #include "network/TCP.h"
 #include "Kernel.h"
-#include "DeviceInterrupt.h"
+#include "drivers/DeviceInterrupt.h"
 #include "Log.h"
 #include "Memory.h"
 #include "network/Network.h"
@@ -204,13 +204,15 @@ static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserDa
 static U32 NetworkManager_FindNetworkDevices(void) {
     LPLISTNODE Node;
     U32 Count = 0;
+    LPLIST PciDeviceList = GetPCIDeviceList();
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
 
     DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Enter"));
 
-    SAFE_USE(Kernel.PCIDevice) {
-        SAFE_USE_VALID_ID(Kernel.PCIDevice->First, KOID_PCIDEVICE) {
+    SAFE_USE(PciDeviceList) {
+        SAFE_USE_VALID_ID(PciDeviceList->First, KOID_PCIDEVICE) {
 
-            for (Node = Kernel.PCIDevice->First; Node != NULL; Node = Node->Next) {
+            for (Node = PciDeviceList->First; Node != NULL; Node = Node->Next) {
                 LPPCI_DEVICE Device = (LPPCI_DEVICE)Node;
 
                 SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
@@ -228,7 +230,14 @@ static U32 NetworkManager_FindNetworkDevices(void) {
                                 GetDefaultDeviceName(Device->Name, (LPDEVICE)Device, DRIVER_TYPE_NETWORK);
 
                                 // Use per-device configuration with fallback to global config
-                                Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(NETWORK_FALLBACK_IPV4_BASE + Count));
+                                Context->ActiveConfig.LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(NETWORK_FALLBACK_IPV4_BASE + Count));
+                                Context->ActiveConfig.SubnetMask_Be = 0;
+                                Context->ActiveConfig.Gateway_Be = 0;
+                                Context->ActiveConfig.DNSServer_Be = 0;
+                                Context->StaticConfig.LocalIPv4_Be = Context->ActiveConfig.LocalIPv4_Be;
+                                Context->StaticConfig.SubnetMask_Be = Htonl(NETWORK_FALLBACK_IPV4_NETMASK);
+                                Context->StaticConfig.Gateway_Be = Htonl(NETWORK_FALLBACK_IPV4_GATEWAY);
+                                Context->StaticConfig.DNSServer_Be = 0;
                                 Context->IsInitialized = FALSE;
                                 Context->IsReady = FALSE;
                                 Context->OriginalCallback = NULL;
@@ -238,7 +247,7 @@ static U32 NetworkManager_FindNetworkDevices(void) {
 
                                 // Add to kernel network device list (thread-safe with MUTEX_KERNEL)
                                 LockMutex(MUTEX_KERNEL, INFINITY);
-                                ListAddTail(Kernel.NetworkDevice, (LPVOID)Context);
+                                ListAddTail(NetworkDeviceList, (LPVOID)Context);
                                 UnlockMutex(MUTEX_KERNEL);
 
                                 Count++;
@@ -257,8 +266,9 @@ static U32 NetworkManager_FindNetworkDevices(void) {
         ERROR(TEXT("[NetworkManager_FindNetworkDevices] Kernel.PCIDevice is NULL"));
     }
 
-    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found %u network devices"), Kernel.NetworkDevice->NumItems);
-    return Kernel.NetworkDevice->NumItems;
+    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found %u network devices"),
+          NetworkDeviceList != NULL ? NetworkDeviceList->NumItems : 0);
+    return NetworkDeviceList != NULL ? NetworkDeviceList->NumItems : 0;
 }
 
 /************************************************************************/
@@ -273,24 +283,27 @@ void InitializeNetwork(void) {
     DEBUG(TEXT("[InitializeNetwork] Enter"));
 
     // Find all network devices
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+
     NetworkManager_FindNetworkDevices();
 
-    if (Kernel.NetworkDevice->NumItems == 0) {
+    if (NetworkDeviceList == NULL || NetworkDeviceList->NumItems == 0) {
         WARNING(TEXT("[InitializeNetwork] No network devices found"));
         return;
     }
 
     // Initialize each network device
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
             SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
-                NetworkManager_InitializeDevice(Ctx->Device, Ctx->LocalIPv4_Be);
+                NetworkManager_InitializeDevice(Ctx->Device, Ctx->ActiveConfig.LocalIPv4_Be);
             }
         }
     }
 
-    DEBUG(TEXT("[InitializeNetwork] Initialized %u network devices"), Kernel.NetworkDevice->NumItems);
+    DEBUG(TEXT("[InitializeNetwork] Initialized %u network devices"),
+          NetworkDeviceList->NumItems);
 }
 
 /************************************************************************/
@@ -307,26 +320,26 @@ static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitializeNetwork();
             NetworkManagerDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             NetworkManagerDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(NETWORK_MANAGER_VER_MAJOR, NETWORK_MANAGER_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /************************************************************************/
@@ -353,8 +366,9 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Find device context in the network device list
             LPNETWORK_DEVICE_CONTEXT DeviceContext = NULL;
-            SAFE_USE(Kernel.NetworkDevice) {
-                for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+            LPLIST NetworkDeviceList = GetNetworkDeviceList();
+            SAFE_USE(NetworkDeviceList) {
+                for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
                     LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
                     SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                         if (Ctx->Device == Device) {
@@ -416,6 +430,12 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(NETWORK_FALLBACK_IPV4_NETMASK));
             U32 GatewayBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(NETWORK_FALLBACK_IPV4_GATEWAY));
             IPv4_SetNetworkConfig((LPDEVICE)Device, LocalIPv4_Be, NetmaskBe, GatewayBe);
+            DeviceContext->ActiveConfig.SubnetMask_Be = NetmaskBe;
+            DeviceContext->ActiveConfig.Gateway_Be = GatewayBe;
+            DeviceContext->ActiveConfig.LocalIPv4_Be = LocalIPv4_Be;
+            DeviceContext->StaticConfig.SubnetMask_Be = NetmaskBe;
+            DeviceContext->StaticConfig.Gateway_Be = GatewayBe;
+            DeviceContext->StaticConfig.LocalIPv4_Be = LocalIPv4_Be;
 
             // Initialize TCP subsystem (global for all devices)
             static BOOL TCPInitialized = FALSE;
@@ -443,7 +463,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             InterruptConfig.InterruptEnabled = FALSE;
 
             U32 InterruptResult = Device->Driver->Command(DF_DEV_ENABLE_INTERRUPT, (UINT)(LPVOID)&InterruptConfig);
-            if (InterruptResult == DF_ERROR_SUCCESS && InterruptConfig.VectorSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
+            if (InterruptResult == DF_RET_SUCCESS && InterruptConfig.VectorSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
                 DeviceContext->InterruptSlot = InterruptConfig.VectorSlot;
                 DeviceContext->InterruptsEnabled = InterruptConfig.InterruptEnabled;
                 if (DeviceContext->InterruptsEnabled) {
@@ -481,8 +501,9 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
  */
 LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
     // Return the first initialized network device
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
             SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 if (Ctx->IsInitialized) {
@@ -503,8 +524,9 @@ LPPCI_DEVICE NetworkManager_GetPrimaryDevice(void) {
  * @return TRUE if ready, FALSE otherwise
  */
 BOOL NetworkManager_IsDeviceReady(LPDEVICE Device) {
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (LPLISTNODE Node = Kernel.NetworkDevice->First; Node != NULL; Node = Node->Next) {
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
             SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
                 if ((LPDEVICE)Ctx->Device == Device) {

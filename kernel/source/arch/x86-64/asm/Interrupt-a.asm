@@ -23,7 +23,7 @@
 
 %include "x86-64.inc"
 
-; DEVICE_INTERRUPT_VECTOR_MAX must match kernel/include/DeviceInterrupt.h
+; DEVICE_INTERRUPT_VECTOR_MAX must match kernel/include/drivers/DeviceInterrupt.h
 %define DEVICE_INTERRUPT_VECTOR_MAX 32
 
 BITS 64

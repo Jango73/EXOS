@@ -72,6 +72,9 @@
 #define DHCP_OPTION_MESSAGE_TYPE 53
 #define DHCP_OPTION_SERVER_ID 54
 #define DHCP_OPTION_PARAMETER_LIST 55
+#define DHCP_OPTION_RENEWAL_TIME 58
+#define DHCP_OPTION_REBIND_TIME 59
+#define DHCP_OPTION_CLIENT_ID 61
 #define DHCP_OPTION_END 255
 
 /************************************************************************/
@@ -90,6 +93,10 @@
 
 #define DHCP_RETRY_TIMEOUT_MILLIS (30 * 1000)  // 30 seconds for retry
 #define DHCP_MAX_RETRIES 5
+#define DHCP_RETRY_BACKOFF_MAX_SHIFT 2
+#define DHCP_BROADCAST_FLAG 0x8000
+#define DHCP_BROADCAST_IP 0xFFFFFFFF
+#define DHCP_CLIENT_IDENTIFIER_LENGTH (1 + DHCP_HLEN_ETHERNET)
 
 /************************************************************************/
 // DHCP Message Structure

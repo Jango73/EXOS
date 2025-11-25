@@ -187,7 +187,9 @@ void ClockHandler(void) {
         ManageLocalTime();
     }
 
-    if (SchedulerTime >= (Kernel.MinimumQuantum + SCHEDULING_PERIOD_MILLIS)) {
+    UINT MinimumQuantum = GetMinimumQuantum();
+
+    if (SchedulerTime >= (MinimumQuantum + SCHEDULING_PERIOD_MILLIS)) {
         SchedulerTime = 0;
         Scheduler();
     }
@@ -296,24 +298,24 @@ static UINT ClockDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ClockDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitializeClock();
             ClockDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((ClockDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             ClockDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(CLOCK_VER_MAJOR, CLOCK_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }

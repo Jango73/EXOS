@@ -262,34 +262,9 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
  * @return 1 on success, otherwise 0.
  */
 
-static int ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
-    NETWORKSEND Send;
-    LPDEVICE Device;
-    int Result = 0;
-
-    if (Context == NULL || Context->Device == NULL) return 0;
-
-    // Validate Data pointer and Length to prevent memory corruption
-    if (Data == NULL || Length == 0) {
-        DEBUG(TEXT("[ArpSendFrame] Invalid Data pointer or Length: Data=%x Length=%u"), (U32)Data, Length);
-        return 0;
-    }
-
-    Device = Context->Device;
-
-    LockMutex(&(Device->Mutex), INFINITY);
-
-    Send.Device = (LPPCI_DEVICE)Device;
-    Send.Data = Data;
-    Send.Length = Length;
-    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            Result = (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (UINT)(LPVOID)&Send) == DF_ERROR_SUCCESS) ? 1 : 0;
-        }
-    }
-
-    UnlockMutex(&(Device->Mutex));
-    return Result;
+static INT ArpSendFrame(LPARP_CONTEXT Context, const U8* Data, U32 Length) {
+    if (Context == NULL) return 0;
+    return Network_SendRawFrame(Context->Device, Data, Length);
 }
 
 /************************************************************************/
@@ -567,7 +542,7 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
 
         SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
             SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-                if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_ERROR_SUCCESS) {
+                if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_RET_SUCCESS) {
                     DEBUG(TEXT("[ARP_Initialize] Network MAC = %x:%x:%x:%x:%x:%x"),
                           (U32)Info.MAC[0],
                           (U32)Info.MAC[1],
@@ -640,6 +615,37 @@ void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
           (IpHost >> 16) & 0xFF,
           (IpHost >> 8) & 0xFF,
           IpHost & 0xFF);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Flush all ARP cache entries for a device.
+ *
+ * Clears cached and probing entries when IP configuration changes to avoid
+ * using stale MAC resolutions.
+ *
+ * @param Device Target device.
+ */
+void ARP_FlushCache(LPDEVICE Device) {
+    LPARP_CONTEXT Context;
+    U32 Index;
+
+    if (Device == NULL) return;
+
+    Context = ARP_GetContext(Device);
+    if (Context == NULL) return;
+
+    for (Index = 0; Index < ARP_CACHE_SIZE; Index++) {
+        LPARP_CACHE_ENTRY Entry = &Context->Cache[Index];
+        Entry->IPv4_Be = 0;
+        Entry->TimeToLive = 0;
+        Entry->IsValid = 0;
+        Entry->IsProbing = 0;
+        AdaptiveDelay_Reset(&Entry->DelayState);
+    }
+
+    DEBUG(TEXT("[ARP_FlushCache] Cleared ARP cache entries"));
 }
 
 /************************************************************************/

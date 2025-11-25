@@ -65,12 +65,44 @@ void MemorySet(LPVOID Destination, UINT What, UINT Size) {
  */
 void MemoryCopy(LPVOID Destination, LPCVOID Source, UINT Size) {
     SAFE_USE_2(Destination, Source) {
+        if (Size == 0 || Destination == Source) {
+            return;
+        }
+
         U8* Dst = (U8*)Destination;
         const U8* Src = (const U8*)Source;
 
+#ifdef __KERNEL__
+#if defined(__EXOS_ARCH_X86_64__)
+        UINT QuadCount = Size >> 3;
+        UINT ByteRemainder = Size & 0x7;
+
+        __asm__ __volatile__(
+            "cld\n"
+            "rep movsq\n"
+            "mov %3, %%rcx\n"
+            "rep movsb\n"
+            : "+D"(Dst), "+S"(Src), "+c"(QuadCount)
+            : "r"(ByteRemainder)
+            : "memory", "cc");
+#else
+        UINT DWordCount = Size >> 2;
+        UINT ByteRemainder = Size & 0x3;
+
+        __asm__ __volatile__(
+            "cld\n"
+            "rep movsd\n"
+            "mov %3, %%ecx\n"
+            "rep movsb\n"
+            : "+D"(Dst), "+S"(Src), "+c"(DWordCount)
+            : "r"(ByteRemainder)
+            : "memory", "cc");
+#endif
+#else
         for (UINT Index = 0; Index < Size; Index++) {
             Dst[Index] = Src[Index];
         }
+#endif
     }
 }
 
@@ -94,11 +126,60 @@ INT MemoryCompare(LPCVOID First, LPCVOID Second, UINT Size) {
         const U8* Ptr1 = (const U8*)First;
         const U8* Ptr2 = (const U8*)Second;
 
+        UINT Count = Size;
+        INT Result = 0;
+
+#ifdef __KERNEL__
+    #if defined(__EXOS_ARCH_X86_64__)
+        __asm__ __volatile__(
+            "xor %%eax, %%eax\n"
+            "cld\n"
+            "repe cmpsb\n"
+            "je 2f\n"
+            "movzbl -1(%1), %%eax\n"
+            "movzbl -1(%2), %%edx\n"
+            "cmp %%edx, %%eax\n"
+            "ja 0f\n"
+            "jb 1f\n"
+            "0:\n"
+            "mov $1, %%eax\n"
+            "jmp 2f\n"
+            "1:\n"
+            "mov $-1, %%eax\n"
+            "2:\n"
+            : "=&a"(Result), "+S"(Ptr1), "+D"(Ptr2), "+c"(Count)
+            :
+            : "rdx", "cc", "memory");
+    #else
+        __asm__ __volatile__(
+            "xor %%eax, %%eax\n"
+            "cld\n"
+            "repe cmpsb\n"
+            "je 2f\n"
+            "movzbl -1(%1), %%eax\n"
+            "movzbl -1(%2), %%edx\n"
+            "cmp %%edx, %%eax\n"
+            "ja 0f\n"
+            "jb 1f\n"
+            "0:\n"
+            "mov $1, %%eax\n"
+            "jmp 2f\n"
+            "1:\n"
+            "mov $-1, %%eax\n"
+            "2:\n"
+            : "=&a"(Result), "+S"(Ptr1), "+D"(Ptr2), "+c"(Count)
+            :
+            : "edx", "cc", "memory");
+    #endif
+#else
         for (UINT Index = 0; Index < Size; Index++) {
             if (Ptr1[Index] != Ptr2[Index]) {
                 return (Ptr1[Index] < Ptr2[Index]) ? -1 : 1;
             }
         }
+#endif
+
+        return Result;
     }
 
     return 0;

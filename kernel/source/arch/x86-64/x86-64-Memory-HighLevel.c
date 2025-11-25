@@ -1095,7 +1095,7 @@ Out:
  *
  * @param Function Driver command selector.
  * @param Parameter Unused.
- * @return DF_ERROR_SUCCESS on success, DF_ERROR_NOTIMPL otherwise.
+ * @return DF_RET_SUCCESS on success, DF_RET_NOTIMPL otherwise.
  */
 static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
@@ -1103,26 +1103,26 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitializeMemoryManager();
             MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
 
 /************************************************************************/
@@ -1159,13 +1159,14 @@ void InitializeMemoryManager(void) {
     PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize + TablesSize;
     PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
 
-    Kernel.PPB = (LPPAGEBITMAP)(UINT)PpbPhysical;
-    Kernel.PPBSize = BitmapBytesAligned;
+    SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
+    SetPhysicalPageBitmapSize(BitmapBytesAligned);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB physical base: %p"), (LINEAR)Kernel.PPB);
-    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB size: %x"), Kernel.PPBSize);
+    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB physical base: %p"),
+          (LINEAR)GetPhysicalPageBitmap());
+    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB size: %x"), GetPhysicalPageBitmapSize());
 
-    MemorySet(Kernel.PPB, 0, Kernel.PPBSize);
+    MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
 
     MarkUsedPhysicalMemory();
 

@@ -38,6 +38,7 @@
 #include "UserAccount.h"
 #include "UserSession.h"
 #include "utils/CommandLineEditor.h"
+#include "Profile.h"
 #include "utils/Helpers.h"
 #include "utils/Path.h"
 #include "utils/StringArray.h"
@@ -109,6 +110,7 @@ static U32 CMD_login(LPSHELLCONTEXT);
 static U32 CMD_logout(LPSHELLCONTEXT);
 static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
+static U32 CMD_prof(LPSHELLCONTEXT);
 
 static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
@@ -167,6 +169,7 @@ static struct {
     {"logout", "logout", "", CMD_logout},
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
+    {"prof", "profiling", "", CMD_prof},
     {"", "", "", NULL},
 };
 
@@ -178,12 +181,13 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
         return;
     }
 
-    SAFE_USE(Kernel.Process) {
+    LPLIST ProcessList = GetProcessList();
+    SAFE_USE(ProcessList) {
         if (!ScriptRegisterHostSymbol(
                 Context->ScriptContext,
                 TEXT("process"),
                 SCRIPT_HOST_SYMBOL_ARRAY,
-                Kernel.Process,
+                ProcessList,
                 &ProcessArrayDescriptor,
                 NULL)) {
             DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register process host symbol"));
@@ -719,7 +723,7 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
                 WaitKey();
             }
         }
-    } while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_ERROR_SUCCESS);
+    } while (FileSystem->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_RET_SUCCESS);
 
     FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
 }
@@ -735,7 +739,7 @@ static U32 CMD_commands(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("%s %s\n"), COMMANDS[Index].Name, COMMANDS[Index].Usage);
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -745,7 +749,7 @@ static U32 CMD_cls(LPSHELLCONTEXT Context) {
 
     ClearConsole();
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -781,7 +785,7 @@ static U32 CMD_dir(LPSHELLCONTEXT Context) {
 
     if (FileSystem == NULL || FileSystem->Driver == NULL) {
         ConsolePrint(TEXT("No file system mounted !\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     if (StringLength(Target) == 0) {
@@ -794,21 +798,21 @@ static U32 CMD_dir(LPSHELLCONTEXT Context) {
 
     DEBUG(TEXT("[CMD_dir] Exit"));
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
 
 static U32 CMD_cd(LPSHELLCONTEXT Context) {
     ChangeFolder(Context);
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
 
 static U32 CMD_md(LPSHELLCONTEXT Context) {
     MakeFolder(Context);
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -828,14 +832,14 @@ static U32 CMD_run(LPSHELLCONTEXT Context) {
         SpawnExecutable(Context, Context->Command, Background);
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
 
 static U32 CMD_exit(LPSHELLCONTEXT Context) {
     UNUSED(Context);
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -866,7 +870,7 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("Number of tasks           : %d\n"), Info.NumTasks);
     ConsolePrint(TEXT("Keyboard layout           : %s\n"), Info.KeyboardLayout);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -876,10 +880,11 @@ static U32 CMD_killtask(LPSHELLCONTEXT Context) {
     LPTASK Task = NULL;
     ParseNextCommandLineComponent(Context);
     TaskNum = StringToU32(Context->Command);
-    Task = (LPTASK)ListGetItem(Kernel.Task, TaskNum);
+    LPLIST TaskList = GetTaskList();
+    Task = (LPTASK)ListGetItem(TaskList, TaskNum);
     if (Task) KillTask(Task);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -887,10 +892,11 @@ static U32 CMD_killtask(LPSHELLCONTEXT Context) {
 static U32 CMD_showprocess(LPSHELLCONTEXT Context) {
     LPPROCESS Process;
     ParseNextCommandLineComponent(Context);
-    Process = ListGetItem(Kernel.Process, StringToU32(Context->Command));
+    LPLIST ProcessList = GetProcessList();
+    Process = ListGetItem(ProcessList, StringToU32(Context->Command));
     if (Process) DumpProcess(Process);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -898,20 +904,21 @@ static U32 CMD_showprocess(LPSHELLCONTEXT Context) {
 static U32 CMD_showtask(LPSHELLCONTEXT Context) {
     LPTASK Task;
     ParseNextCommandLineComponent(Context);
-    Task = ListGetItem(Kernel.Task, StringToU32(Context->Command));
+    LPLIST TaskList = GetTaskList();
+    Task = ListGetItem(TaskList, StringToU32(Context->Command));
 
     if (Task) {
         DumpTask(Task);
     } else {
         STR Text[MAX_FILE_NAME];
 
-        for (LPTASK Task = (LPTASK)Kernel.Task->First; Task != NULL; Task = (LPTASK)Task->Next) {
+        for (LPTASK Task = (LPTASK)TaskList->First; Task != NULL; Task = (LPTASK)Task->Next) {
             StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, Task->Status);
             ConsolePrint(Text);
         }
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -920,7 +927,7 @@ static U32 CMD_memedit(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
     MemoryEditor(StringToU32(Context->Command));
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -954,7 +961,7 @@ static U32 CMD_disasm(LPSHELLCONTEXT Context) {
 
     DEBUG(TEXT("[CMD_disasm] Exit"));
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1006,7 +1013,7 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
         }
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1024,10 +1031,10 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     U32 Index;
 
     ParseNextCommandLineComponent(Context);
-    if (QualifyFileName(Context, Context->Command, SrcName) == 0) return DF_ERROR_SUCCESS;
+    if (QualifyFileName(Context, Context->Command, SrcName) == 0) return DF_RET_SUCCESS;
 
     ParseNextCommandLineComponent(Context);
-    if (QualifyFileName(Context, Context->Command, DstName) == 0) return DF_ERROR_SUCCESS;
+    if (QualifyFileName(Context, Context->Command, DstName) == 0) return DF_RET_SUCCESS;
 
     ConsolePrint(TEXT("%s %s\n"), SrcName, DstName);
 
@@ -1037,7 +1044,7 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     FileOpenInfo.Name = SrcName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
     SrcFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
-    if (SrcFile == NULL) return DF_ERROR_SUCCESS;
+    if (SrcFile == NULL) return DF_RET_SUCCESS;
 
     FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
@@ -1047,7 +1054,7 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     DstFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
     if (DstFile == NULL) {
         DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(SrcFile));
@@ -1080,7 +1087,7 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
     DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(DstFile));
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1116,7 +1123,7 @@ static U32 CMD_edit(LPSHELLCONTEXT Context) {
         Edit(0, NULL, LineNumbers);
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1128,7 +1135,8 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
     LPPHYSICALDISK Disk;
     DISKINFO DiskInfo;
 
-    for (Node = Kernel.Disk->First; Node; Node = Node->Next) {
+    LPLIST DiskList = GetDiskList();
+    for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
         Disk = (LPPHYSICALDISK)Node;
 
         DiskInfo.Disk = Disk;
@@ -1140,7 +1148,7 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("\n"));
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1152,9 +1160,10 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
     LPFILESYSTEM FileSystem;
 
     ConsolePrint(TEXT("General information\n"));
+    FILESYSTEM_GLOBAL_INFO* FileSystemInfo = GetFileSystemGlobalInfo();
 
-    if (StringEmpty(Kernel.FileSystemInfo.ActivePartitionName) == FALSE) {
-        ConsolePrint(TEXT("Active partition : %s\n"), Kernel.FileSystemInfo.ActivePartitionName);
+    if (StringEmpty(FileSystemInfo->ActivePartitionName) == FALSE) {
+        ConsolePrint(TEXT("Active partition : %s\n"), FileSystemInfo->ActivePartitionName);
     } else {
         ConsolePrint(TEXT("Active partition : <none>\n"));
     }
@@ -1162,7 +1171,8 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("\n"));
     ConsolePrint(TEXT("Mounted file systems\n"));
 
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+    LPLIST FileSystemList = GetFileSystemList();
+    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FileSystem = (LPFILESYSTEM)Node;
 
         ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
@@ -1171,7 +1181,7 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("\n"));
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1181,8 +1191,9 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
 
     LPLISTNODE Node;
 
-    SAFE_USE(Kernel.NetworkDevice) {
-        for (Node = Kernel.NetworkDevice->First; Node; Node = Node->Next) {
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    SAFE_USE(NetworkDeviceList) {
+        for (Node = NetworkDeviceList->First; Node; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
 
             SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
@@ -1197,7 +1208,7 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
                         Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
                         // Convert IP from network to host byte order
-                        U32 IpHost = Ntohl(NetContext->LocalIPv4_Be);
+                        U32 IpHost = Ntohl(NetContext->ActiveConfig.LocalIPv4_Be);
                         U8 Ip1 = (IpHost >> 24) & 0xFF;
                         U8 Ip2 = (IpHost >> 16) & 0xFF;
                         U8 Ip3 = (IpHost >> 8) & 0xFF;
@@ -1222,7 +1233,7 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
         }
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1235,7 +1246,7 @@ static U32 CMD_pic(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), KernelStartup.IRQMask_21_PM);
     ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), KernelStartup.IRQMask_A1_PM);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -1248,7 +1259,7 @@ static U32 CMD_outp(LPSHELLCONTEXT Context) {
     Data = StringToU32(Context->Command);
     OutPortByte(Port, Data);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -1260,7 +1271,7 @@ static U32 CMD_inp(LPSHELLCONTEXT Context) {
     Data = InPortByte(Port);
     ConsolePrint(TEXT("Port %X = %X\n"), Port, Data);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -1273,7 +1284,7 @@ static U32 CMD_reboot(LPSHELLCONTEXT Context) {
 
     RebootKernel();
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -1290,7 +1301,7 @@ static U32 CMD_shutdown(LPSHELLCONTEXT Context) {
 
     ShutdownKernel();
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -1313,7 +1324,7 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
         DEBUG(TEXT("[CMD_adduser] Username from input: %s"), UserName);
         if (StringLength(UserName) == 0) {
             ConsolePrint(TEXT("ERROR: Username cannot be empty\n"));
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
     }
 
@@ -1324,7 +1335,8 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[CMD_adduser] Password entered (length: %d)"), StringLength(Password));
 
     // Check if this is the first user (no users exist yet)
-    BOOL IsFirstUser = (Kernel.UserAccount == NULL || Kernel.UserAccount->First == NULL);
+    LPLIST UserAccountList = GetUserAccountList();
+    BOOL IsFirstUser = (UserAccountList == NULL || UserAccountList->First == NULL);
     if (IsFirstUser) {
         Privilege = EXOS_PRIVILEGE_ADMIN;
     } else {
@@ -1350,7 +1362,7 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
 
     DEBUG(TEXT("[CMD_adduser] Exit"));
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1366,7 +1378,7 @@ static U32 CMD_deluser(LPSHELLCONTEXT Context) {
         ConsoleGetString(UserName, MAX_USER_NAME - 1);
         if (StringLength(UserName) == 0) {
             ConsolePrint(TEXT("Username cannot be empty\n"));
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
     }
 
@@ -1377,7 +1389,7 @@ static U32 CMD_deluser(LPSHELLCONTEXT Context) {
 
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             ConsolePrint(TEXT("Only admin users can delete accounts\n"));
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
     }
 
@@ -1388,7 +1400,7 @@ static U32 CMD_deluser(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("Failed to delete user '%s'\n"), UserName);
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1413,7 +1425,7 @@ static U32 CMD_login(LPSHELLCONTEXT Context) {
         if (StringLength(UserName) == 0) {
             ConsolePrint(TEXT("ERROR: Username cannot be empty\n"));
             DEBUG(TEXT("[CMD_login] Empty username entered"));
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
     }
 
@@ -1427,14 +1439,14 @@ static U32 CMD_login(LPSHELLCONTEXT Context) {
     if (Account == NULL) {
         ConsolePrint(TEXT("ERROR: User '%s' not found\n"), UserName);
         DEBUG(TEXT("[CMD_login] User not found"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     DEBUG(TEXT("[CMD_login] User found, verifying password"));
     if (!VerifyPassword(Password, Account->PasswordHash)) {
         ConsolePrint(TEXT("ERROR: Invalid password\n"));
         DEBUG(TEXT("[CMD_login] Password verification failed"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     DEBUG(TEXT("[CMD_login] Password verified, creating session"));
@@ -1442,7 +1454,7 @@ static U32 CMD_login(LPSHELLCONTEXT Context) {
     if (Session == NULL) {
         ConsolePrint(TEXT("ERROR: Failed to create session\n"));
         DEBUG(TEXT("[CMD_login] Session creation failed"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     DEBUG(TEXT("[CMD_login] Session created, updating login time"));
@@ -1459,7 +1471,7 @@ static U32 CMD_login(LPSHELLCONTEXT Context) {
 
     DEBUG(TEXT("[CMD_login] Exit"));
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1470,14 +1482,14 @@ static U32 CMD_logout(LPSHELLCONTEXT Context) {
     LPUSERSESSION Session = GetCurrentSession();
     if (Session == NULL) {
         ConsolePrint(TEXT("No active session\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     DestroyUserSession(Session);
     SetCurrentSession(NULL);
     ConsolePrint(TEXT("Logged out successfully\n"));
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1488,13 +1500,13 @@ static U32 CMD_whoami(LPSHELLCONTEXT Context) {
     LPUSERSESSION Session = GetCurrentSession();
     if (Session == NULL) {
         ConsolePrint(TEXT("No active session\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
     if (Account == NULL) {
         ConsolePrint(TEXT("Session user not found\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     ConsolePrint(TEXT("Current user: %s\n"), Account->UserName);
@@ -1504,7 +1516,7 @@ static U32 CMD_whoami(LPSHELLCONTEXT Context) {
         Session->LoginTime.Year, Session->LoginTime.Hour, Session->LoginTime.Minute, Session->LoginTime.Second);
     ConsolePrint(TEXT("Session ID: %lld\n"), Session->SessionID);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1518,13 +1530,13 @@ static U32 CMD_passwd(LPSHELLCONTEXT Context) {
     LPUSERSESSION Session = GetCurrentSession();
     if (Session == NULL) {
         ConsolePrint(TEXT("No active session\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
     if (Account == NULL) {
         ConsolePrint(TEXT("Session user not found\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     ConsolePrint(TEXT("Password: "));
@@ -1533,7 +1545,7 @@ static U32 CMD_passwd(LPSHELLCONTEXT Context) {
 
     if (!VerifyPassword(OldPassword, Account->PasswordHash)) {
         ConsolePrint(TEXT("Invalid current password\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     ConsolePrint(TEXT("New password: "));
@@ -1546,7 +1558,7 @@ static U32 CMD_passwd(LPSHELLCONTEXT Context) {
 
     if (StringCompare(NewPassword, ConfirmPassword) != 0) {
         ConsolePrint(TEXT("Passwords do not match\n"));
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     if (ChangeUserPassword(Account->UserName, OldPassword, NewPassword)) {
@@ -1556,7 +1568,16 @@ static U32 CMD_passwd(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("Failed to change password\n"));
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
+}
+
+/***************************************************************************/
+
+static U32 CMD_prof(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+    DEBUG(TEXT("[CMD_prof] dumping profiling data"));
+    ProfileDump();
+    return 0;
 }
 
 /***************************************************************************/
@@ -1718,14 +1739,14 @@ static void ShellScriptOutput(LPCSTR Message, LPVOID UserData) {
  * @brief Shell callback for script command execution.
  * @param Command Command to execute
  * @param UserData Shell context
- * @return DF_ERROR_SUCCESS on success or an error code on failure
+ * @return DF_RET_SUCCESS on success or an error code on failure
  */
 static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
     U32 Index;
 
     if (Context == NULL || Command == NULL) {
-        return DF_ERROR_BADPARAM;
+        return DF_RET_BADPARAM;
     }
 
     DEBUG(TEXT("[ShellScriptExecuteCommand] Executing: %s"), Command);
@@ -1740,7 +1761,7 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
     {
@@ -1751,12 +1772,12 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
             if (StringCompareNC(CommandName, COMMANDS[Index].Name) == 0 ||
                 StringCompareNC(CommandName, COMMANDS[Index].AltName) == 0) {
                 COMMANDS[Index].Command(Context);
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
         }
 
         if (SpawnExecutable(Context, Context->Input.CommandLine, FALSE) == TRUE) {
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         }
 
         if (Context->ScriptContext) {
@@ -1768,7 +1789,7 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
         }
     }
 
-    return DF_ERROR_GENERIC;
+    return DF_RET_GENERIC;
 }
 
 /************************************************************************/
@@ -1801,7 +1822,7 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
     if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
         if (Context == NULL || Argument == NULL) {
             DEBUG(TEXT("[ShellScriptCallFunction] Missing context or argument for exec"));
-            return DF_ERROR_BADPARAM;
+            return DF_RET_BADPARAM;
         }
 
         // Execute the provided command line using the standard shell command flow
@@ -1821,7 +1842,8 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
 
 static BOOL HandleUserLoginProcess(void) {
     // Check if any users exist
-    BOOL HasUsers = (Kernel.UserAccount != NULL && Kernel.UserAccount->First != NULL);
+    LPLIST UserAccountList = GetUserAccountList();
+    BOOL HasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
 
     if (!HasUsers) {
         // No users exist, prompt to create the first admin user
@@ -1832,7 +1854,8 @@ static BOOL HandleUserLoginProcess(void) {
         CMD_adduser(&TempContext);
 
         // Check if user was created successfully
-        BOOL NewHasUsers = (Kernel.UserAccount != NULL && Kernel.UserAccount->First != NULL);
+        UserAccountList = GetUserAccountList();
+        BOOL NewHasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
 
         if (NewHasUsers == FALSE) {
             ConsolePrint(TEXT("ERROR: Failed to create user account. System will exit.\n"));
@@ -1898,7 +1921,7 @@ U32 Shell(LPVOID Param) {
 
     InitShellContext(&Context);
 
-    if (Kernel.DoLogin && !HandleUserLoginProcess()) { return 0; }
+    if (GetDoLogin() && !HandleUserLoginProcess()) { return 0; }
 
     ExecuteStartupCommands();
 

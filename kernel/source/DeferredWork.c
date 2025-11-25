@@ -103,17 +103,17 @@ BOOL InitializeDeferredWork(void) {
         return TRUE;
     }
 
-    Kernel.DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS;
-    Kernel.DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS;
+    SetDeferredWorkWaitTimeout(DEFERRED_WORK_WAIT_TIMEOUT_MS);
+    SetDeferredWorkPollDelay(DEFERRED_WORK_POLL_DELAY_MS);
 
     LPCSTR WaitTimeoutValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_DEFERRED_WORK_WAIT_TIMEOUT_MS));
     if (STRING_EMPTY(WaitTimeoutValue) == FALSE) {
-        Kernel.DeferredWorkWaitTimeoutMS = StringToU32(WaitTimeoutValue);
+        SetDeferredWorkWaitTimeout(StringToU32(WaitTimeoutValue));
     }
 
     LPCSTR PollDelayValue = GetConfigurationValue(TEXT(CONFIG_GENERAL_DEFERRED_WORK_POLL_DELAY_MS));
     if (STRING_EMPTY(PollDelayValue) == FALSE) {
-        Kernel.DeferredWorkPollDelayMS = StringToU32(PollDelayValue);
+        SetDeferredWorkPollDelay(StringToU32(PollDelayValue));
     }
 
     MemorySet(g_DeferredWork.WorkItems, 0, sizeof(g_DeferredWork.WorkItems));
@@ -396,16 +396,16 @@ static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     WaitInfo.Header.Flags = 0;
     WaitInfo.Count = 1;
     WaitInfo.Objects[0] = (HANDLE)g_DeferredWork.DeferredEvent;
-    WaitInfo.MilliSeconds = Kernel.DeferredWorkWaitTimeoutMS;
+    WaitInfo.MilliSeconds = GetDeferredWorkWaitTimeout();
 
     FOREVER {
         if (DeferredWorkIsPollingMode()) {
             ProcessPollCallbacks();
-            Sleep(Kernel.DeferredWorkPollDelayMS);
+            Sleep(GetDeferredWorkPollDelay());
             continue;
         }
 
-        WaitInfo.MilliSeconds = Kernel.DeferredWorkWaitTimeoutMS;
+        WaitInfo.MilliSeconds = GetDeferredWorkWaitTimeout();
         U32 WaitResult = Wait(&WaitInfo);
         if (WaitResult == WAIT_TIMEOUT) {
             ProcessPollCallbacks();
@@ -436,27 +436,27 @@ static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (InitializeDeferredWork()) {
                 DeferredWorkDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
 
         case DF_UNLOAD:
             if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             DeferredWorkDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(DEFERRED_WORK_VER_MAJOR, DEFERRED_WORK_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }

@@ -72,11 +72,6 @@ struct tag_PROCESS {
     U32 Status;              // Process status (alive/dead)
     U32 Flags;               // Process creation flags
     PHYSICAL PageDirectory;  // This process' page directory
-#if defined(__EXOS_ARCH_X86_64__)
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
-    UINT RegionCount;
-#endif
     LINEAR HeapBase;
     UINT HeapSize;
     UINT MaximumAllocatedMemory;
@@ -85,8 +80,15 @@ struct tag_PROCESS {
     STR CommandLine[MAX_PATH_NAME];
     STR WorkFolder[MAX_PATH_NAME];
     UINT TaskCount;          // Number of active tasks in this process
+    MESSAGEQUEUE MessageQueue;  // Process-level message queue (input, etc.)
     U64 UserID;              // Owner user
     LPUSERSESSION Session;   // User session
+
+#if defined(__EXOS_ARCH_X86_64__)
+    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
+    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
+    UINT RegionCount;
+#endif
 };
 
 /************************************************************************/
@@ -191,12 +193,13 @@ typedef struct tag_PROPERTY {
 
 struct tag_DESKTOP {
     LISTNODE_FIELDS     // Standard EXOS object fields
-        MUTEX Mutex;    // This structure's mutex
+    MUTEX Mutex;    // This structure's mutex
     LPTASK Task;        // The task that created this desktop
     LPDRIVER Graphics;  // This desktop's graphics driver
     LPWINDOW Window;    // Window of the desktop
     LPWINDOW Capture;   // Window that captured mouse
     LPWINDOW Focus;     // Window that has focus
+    LPPROCESS FocusedProcess; // Process with input focus on this desktop
     I32 Order;
 };
 

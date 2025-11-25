@@ -27,6 +27,7 @@
 #include "Log.h"
 #include "Mouse.h"
 #include "process/Process.h"
+#include "process/TaskMessaging.h"
 
 /***************************************************************************/
 
@@ -81,6 +82,7 @@ DESKTOP MainDesktop = {
     .Window = &MainDesktopWindow,
     .Capture = NULL,
     .Focus = NULL,
+    .FocusedProcess = &KernelProcess,
     .Order = 0
 };
 
@@ -206,7 +208,12 @@ LPDESKTOP CreateDesktop(void) {
     This->TypeID = KOID_DESKTOP;
     This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
+    if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
+        KernelHeapFree(This);
+        return NULL;
+    }
     This->Graphics = GetGraphicsDriver();
+    This->FocusedProcess = GetCurrentProcess();
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -236,7 +243,8 @@ LPDESKTOP CreateDesktop(void) {
 
     LockMutex(MUTEX_KERNEL, INFINITY);
 
-    ListAddHead(Kernel.Desktop, This);
+    LPLIST DesktopList = GetDesktopList();
+    ListAddHead(DesktopList, This);
 
     // Process already points to this desktop
 
@@ -293,7 +301,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     //-------------------------------------
     // Sort the kernel's desktop list
 
-    for (Node = Kernel.Desktop->First, Order = 1; Node; Node = Node->Next) {
+    LPLIST DesktopList = GetDesktopList();
+    for (Node = DesktopList->First, Order = 1; Node; Node = Node->Next) {
         Desktop = (LPDESKTOP)Node;
         if (Desktop == This)
             Desktop->Order = 0;
@@ -301,7 +310,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
             Desktop->Order = Order++;
     }
 
-    ListSort(Kernel.Desktop, SortDesktops_Order);
+    ListSort(DesktopList, SortDesktops_Order);
 
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;
@@ -493,6 +502,10 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->Function = Info->Function;
     This->WindowID = Info->ID;
     This->Style = Info->Style;
+    if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
+        KernelHeapFree(This);
+        return NULL;
+    }
     This->Rect.X1 = Info->WindowPosition.X;
     This->Rect.Y1 = Info->WindowPosition.Y;
     This->Rect.X2 = Info->WindowPosition.X + (Info->WindowSize.X - 1);
@@ -536,13 +549,13 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     //-------------------------------------
     // Tell the window it is being created
 
-    SendMessage((HANDLE)This, EWM_CREATE, 0, 0);
+    PostMessage((HANDLE)This, EWM_CREATE, 0, 0);
 
     //-------------------------------------
     // Ensure the freshly created window gets a draw request
 
     InvalidateWindowRect((HANDLE)This, NULL);
-    SendMessage((HANDLE)This, EWM_DRAW, 0, 0);
+    PostMessage((HANDLE)This, EWM_DRAW, 0, 0);
 
     return This;
 }
@@ -595,7 +608,7 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
  * @param Param2 Second parameter.
  * @return TRUE on success.
  */
-BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
+BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     LPLISTNODE Node;
 
     if (This == NULL) return NULL;
@@ -606,7 +619,7 @@ BOOL BroadCastMessage(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     PostMessage((HANDLE)This, Msg, Param1, Param2);
 
     for (Node = This->Children->First; Node; Node = Node->Next) {
-        BroadCastMessage((LPWINDOW)Node, Msg, Param1, Param2);
+        BroadcastMessageToWindow((LPWINDOW)Node, Msg, Param1, Param2);
     }
 
     UnlockMutex(&(This->Mutex));
@@ -801,7 +814,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     //-------------------------------------
     // Tell the window it needs redraw
 
-    BroadCastMessage(This, EWM_DRAW, 0, 0);
+    BroadcastMessageToWindow(This, EWM_DRAW, 0, 0);
 
 Out:
 
@@ -1740,7 +1753,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 Position.X = SIGNED(Param1) - Target->ScreenRect.X1;
                 Position.Y = SIGNED(Param2) - Target->ScreenRect.Y1;
 
-                SendMessage
+                PostMessage
                 (
                   (HANDLE) Target,
                   EWM_MOUSEMOVE,
@@ -1765,7 +1778,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
 
             if (Target) {
-                SendMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
+                PostMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
             }
         } break;
 

@@ -23,10 +23,13 @@
 \************************************************************************/
 
 #include "Base.h"
+#include "Arch.h"
 #include "GFX.h"
+#include "DeferredWork.h"
 #include "InterruptController.h"
 #include "Log.h"
 #include "Mouse.h"
+#include "MouseDispatcher.h"
 #include "process/Process.h"
 #include "CoreString.h"
 #include "User.h"
@@ -66,6 +69,20 @@ typedef struct tag_MOUSEDATA {
 
 static MOUSEDATA Mouse = {
     .Mutex = EMPTY_MUTEX, .Busy = 0, .DeltaX = 0, .DeltaY = 0, .Buttons = 0, .PosX = 1, .PosY = 1};
+
+typedef struct tag_MOUSE_PACKET_BUFFER {
+    I32 DeltaX;
+    I32 DeltaY;
+    U32 Buttons;
+    BOOL Pending;
+} MOUSE_PACKET_BUFFER, *LPMOUSE_PACKET_BUFFER;
+
+static MOUSE_PACKET_BUFFER MousePacket = {.DeltaX = 0, .DeltaY = 0, .Buttons = 0, .Pending = FALSE};
+static U32 MouseDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
+
+/***************************************************************************/
+
+static void MouseDeferredWork(LPVOID Context);
 
 /***************************************************************************/
 
@@ -336,6 +353,28 @@ static BOOL InitializeMouse(void) {
 
     EnableInterrupt(IRQ_MOUSE);
 
+    if (InitializeMouseDispatcher() == FALSE) {
+        return FALSE;
+    }
+
+    MousePacket.DeltaX = 0;
+    MousePacket.DeltaY = 0;
+    MousePacket.Buttons = 0;
+    MousePacket.Pending = FALSE;
+
+    if (MouseDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        DEFERRED_WORK_REGISTRATION Registration;
+        Registration.WorkCallback = MouseDeferredWork;
+        Registration.PollCallback = NULL;
+        Registration.Context = NULL;
+        Registration.Name = TEXT("MouseDispatch");
+
+        MouseDeferredHandle = DeferredWorkRegister(&Registration);
+        if (MouseDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
+            return FALSE;
+        }
+    }
+
     return TRUE;
 }
 
@@ -497,14 +536,117 @@ Out:
 
 /***************************************************************************/
 
+static BOOL ReadMicrosoftPacket(I32* DeltaX, I32* DeltaY, U32* Buttons) {
+    if (DeltaX == NULL || DeltaY == NULL || Buttons == NULL) {
+        return FALSE;
+    }
+
+    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return FALSE;
+
+    U32 RawButtons = InPortByte(MOUSE_PORT + SERIAL_DATA);
+
+    if ((RawButtons & BIT_6) != BIT_6) {
+        SendBreak();
+
+        InPortByte(MOUSE_PORT + SERIAL_DATA);
+        Delay();
+        InPortByte(MOUSE_PORT + SERIAL_DATA);
+        Delay();
+        InPortByte(MOUSE_PORT + SERIAL_DATA);
+        Delay();
+        InPortByte(MOUSE_PORT + SERIAL_DATA);
+        Delay();
+
+        return FALSE;
+    }
+
+    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return FALSE;
+    U32 RawDeltaX = InPortByte(MOUSE_PORT + SERIAL_DATA);
+
+    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return FALSE;
+    U32 RawDeltaY = InPortByte(MOUSE_PORT + SERIAL_DATA);
+
+    RawDeltaX = (RawDeltaX & 0x3F) | ((RawButtons & 0x03) << 6);
+    RawDeltaY = (RawDeltaY & 0x3F) | ((RawButtons & 0x0C) << 4);
+
+    U32 ButtonState = (RawButtons & 0x30) >> 4;
+
+    *Buttons = 0;
+
+    if (ButtonState & 2) *Buttons |= MB_LEFT;
+    if (ButtonState & 1) *Buttons |= MB_RIGHT;
+
+    *DeltaX = *((I8*)&RawDeltaX);
+    *DeltaY = *((I8*)&RawDeltaY);
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+static void MouseDeferredWork(LPVOID Context) {
+    UNUSED(Context);
+
+    I32 DeltaX = 0;
+    I32 DeltaY = 0;
+    U32 Buttons = 0;
+    BOOL Pending = FALSE;
+
+    UINT Flags;
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    if (MousePacket.Pending) {
+        DeltaX = MousePacket.DeltaX;
+        DeltaY = MousePacket.DeltaY;
+        Buttons = MousePacket.Buttons;
+        MousePacket.DeltaX = 0;
+        MousePacket.DeltaY = 0;
+        MousePacket.Pending = FALSE;
+        Pending = TRUE;
+    }
+
+    RestoreFlags(&Flags);
+
+    if (Pending == FALSE) {
+        return;
+    }
+
+    LockMutex(&(Mouse.Mutex), INFINITY);
+    Mouse.DeltaX = DeltaX;
+    Mouse.DeltaY = DeltaY;
+    Mouse.Buttons = Buttons;
+    UnlockMutex(&(Mouse.Mutex));
+
+    MouseDispatcherOnInput(DeltaX, DeltaY, Buttons);
+}
+
+/***************************************************************************/
+
 /**
  * @brief Mouse interrupt handler entry point (placeholder).
  */
 void MouseHandler(void) {
-    DEBUG(TEXT("[MouseHandler]"));
+    I32 DeltaX = 0;
+    I32 DeltaY = 0;
+    U32 Buttons = 0;
 
-    // MouseHandler_Microsoft();
-    // MouseHandler_MouseSystems();
+    if (ReadMicrosoftPacket(&DeltaX, &DeltaY, &Buttons) == FALSE) {
+        return;
+    }
+
+    UINT Flags;
+    SaveFlags(&Flags);
+    DisableInterrupts();
+    MousePacket.DeltaX += DeltaX;
+    MousePacket.DeltaY += DeltaY;
+    MousePacket.Buttons = Buttons;
+    MousePacket.Pending = TRUE;
+    RestoreFlags(&Flags);
+
+    if (MouseDeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
+        DeferredWorkSignal(MouseDeferredHandle);
+    }
 }
 
 /***************************************************************************/
@@ -524,22 +666,27 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             if (InitializeMouse()) {
                 SerialMouseDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
         case DF_UNLOAD:
             if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
+            }
+
+            if (MouseDeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
+                DeferredWorkUnregister(MouseDeferredHandle);
+                MouseDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
             }
 
             SerialMouseDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:

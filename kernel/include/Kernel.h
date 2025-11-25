@@ -35,22 +35,7 @@
 
 /************************************************************************/
 
-#include "Base.h"
-#include "utils/Cache.h"
-#include "utils/Database.h"
-#include "utils/HandleMap.h"
-#include "utils/TOML.h"
-#include "FileSystem.h"
-#include "Heap.h"
-#include "ID.h"
-#include "List.h"
-#include "Memory.h"
-#include "vbr-multiboot.h"
-#include "CoreString.h"
-#include "Text.h"
-#include "User.h"
-#include "UserAccount.h"
-#include "SystemFS.h"
+#include "KernelData.h"
 
 /************************************************************************/
 
@@ -59,18 +44,6 @@
 struct tag_PROCESS;
 struct tag_SEGMENT_DESCRIPTOR;
 struct tag_TSS_DESCRIPTOR;
-
-/************************************************************************/
-// Structure to receive CPU information
-
-typedef struct tag_CPUINFORMATION {
-    STR Name[16];
-    U32 Type;
-    U32 Family;
-    U32 Model;
-    U32 Stepping;
-    U32 Features;
-} CPUINFORMATION, *LPCPUINFORMATION;
 
 /************************************************************************/
 // EXOS system calls
@@ -85,87 +58,9 @@ typedef struct tag_SYSCALLENTRY {
 } SYSCALLENTRY, *LPSYSCALLENTRY;
 
 /************************************************************************/
-// Global Kernel Data
-
-#define OBJECT_TERMINATION_TTL_MS 60000  // 1 minute
-
-#define RESERVED_LOW_MEMORY N_4MB
-#define LOW_MEMORY_HALF (RESERVED_LOW_MEMORY / 2)
-#define LOW_MEMORY_THREE_QUARTER ((RESERVED_LOW_MEMORY * 3) / 4)
-
-typedef struct tag_MULTIBOOTMEMORYENTRY {
-    U64 Base;
-    U64 Length;
-    U32 Type;
-} MULTIBOOTMEMORYENTRY, *LPMULTIBOOTMEMORYENTRY;
-
-typedef struct tag_KERNELSTARTUPINFO {
-    PHYSICAL KernelPhysicalBase;
-    UINT KernelSize;
-    PHYSICAL StackTop;
-    PHYSICAL PageDirectory;
-    U32 IRQMask_21_PM;
-    U32 IRQMask_A1_PM;
-    U32 IRQMask_21_RM;
-    U32 IRQMask_A1_RM;
-    UINT MemorySize;  // Total memory size in bytes
-    UINT PageCount;   // Total memory size in pages (4K)
-    U32 MultibootMemoryEntryCount;
-    MULTIBOOTMEMORYENTRY MultibootMemoryEntries[N_4KB / sizeof(MULTIBOOTMEMORYENTRY)];
-    STR CommandLine[MAX_COMMAND_LINE];
-} KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
-
-extern KERNELSTARTUPINFO KernelStartup;
-
-typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
-
-typedef struct tag_OBJECT_TERMINATION_STATE {
-    LPVOID Object;
-    U64 ID;
-    UINT ExitCode;
-} OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
-
-typedef struct tag_KERNELDATA {
-    LPLIST Desktop;
-    LPLIST Process;
-    LPLIST Task;
-    LPLIST Mutex;
-    LPLIST Disk;
-    LPLIST PCIDevice;
-    LPLIST NetworkDevice;
-    LPLIST Event;
-    LPLIST FileSystem;
-    LPLIST File;
-    LPLIST TCPConnection;
-    LPLIST Socket;
-    LPLIST Drivers;                 // Driver list in initialization order
-    LPLIST UserSessions;            // List of active user sessions
-    LPLIST UserAccount;             // List of user accounts
-    CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
-    FILESYSTEM_GLOBAL_INFO FileSystemInfo;
-    SYSTEMFSFILESYSTEM SystemFS;
-    HANDLE_MAP HandleMap;           // Global handle to pointer mapping
-    UINT PPBSize;                   // Size in bytes of the physical page bitmap
-    LPPAGEBITMAP PPB;               // Physical page bitmap
-    CPUINFORMATION CPU;
-    LPTOML Configuration;
-    UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
-    UINT MaximumQuantum;            // Maximum quantum time in milliseconds (adjusted for emulation)
-    UINT DeferredWorkWaitTimeoutMS; // Wait timeout for deferred work dispatcher in milliseconds
-    UINT DeferredWorkPollDelayMS;   // Polling delay for deferred work dispatcher in milliseconds
-    BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
-    STR LanguageCode[8];
-    STR KeyboardCode[8];
-} KERNELDATA, *LPKERNELDATA;
-
-extern KERNELDATA Kernel;
-
-/************************************************************************/
 // Functions in Kernel.c
 
-BOOL GetCPUInformation(LPCPUINFORMATION);
 void InitializeQuantumTime(void);
-void InitializeDriverList(void);
 U32 ClockTestTask(LPVOID);
 U32 GetPhysicalMemoryUsed(void);
 void TestProcess(void);
@@ -184,9 +79,6 @@ LINEAR HandleToPointer(HANDLE Handle);
 LINEAR EnsureKernelPointer(LINEAR Value);
 HANDLE EnsureHandle(LINEAR Value);
 void ReleaseHandle(HANDLE Handle);
-LPDRIVER GetMouseDriver();
-LPDRIVER GetGraphicsDriver();
-LPDRIVER GetDefaultFileSystemDriver();
 
 /************************************************************************/
 // Functions in MemoryEditor.c

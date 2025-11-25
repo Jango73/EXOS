@@ -176,7 +176,7 @@ void PCI_Write16(U8 bus, U8 dev, U8 func, U16 off, U16 value);
 void PCI_Write8(U8 bus, U8 dev, U8 func, U16 off, U8 value);
 
 /* Enable/disable Bus Mastering bit in COMMAND register. Returns previous COMMAND. */
-U16 PCI_EnableBusMaster(U8 bus, U8 dev, U8 func, int enable);
+U16 PCI_EnableBusMaster(U8 bus, U8 dev, U8 func, BOOL enable);
 
 /* BAR utilities: returns decoded physical base and size. Size is computed by
     writing 0xFFFFFFFF to the BAR then restoring, per PCI spec. */

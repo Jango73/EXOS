@@ -131,7 +131,8 @@ SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     Socket->ReceiveOverflow = FALSE;
 
     // Add to socket list
-    if (ListAddTail(Kernel.Socket, Socket) == 0) {
+    LPLIST SocketList = GetSocketList();
+    if (SocketList == NULL || ListAddTail(SocketList, Socket) == 0) {
         ERROR(TEXT("[SocketCreate] Failed to add socket to list"));
         KernelHeapFree(Socket);
         return (SOCKET_HANDLE)SOCKET_ERROR_NOMEM;
@@ -169,7 +170,8 @@ U32 SocketClose(SOCKET_HANDLE SocketHandle) {
         Socket->State = SOCKET_STATE_CLOSED;
 
         // Remove from list (this will call the destructor)
-        ListErase(Kernel.Socket, Socket);
+        LPLIST SocketList = GetSocketList();
+        ListErase(SocketList, Socket);
 
         DEBUG(TEXT("[SocketClose] Socket %p closed"), (LPVOID)SocketHandle);
         return SOCKET_ERROR_NONE;
@@ -298,9 +300,10 @@ U32 SocketAddressGenericToInet(LPSOCKET_ADDRESS GenericAddress, LPSOCKET_ADDRESS
  */
 void SocketUpdate(void) {
     // Update all sockets (check timeouts, handle state changes, etc.)
-    if (!Kernel.Socket) return;
+    LPLIST SocketList = GetSocketList();
+    if (!SocketList) return;
 
-    LPSOCKET Socket = (LPSOCKET)Kernel.Socket->First;
+    LPSOCKET Socket = (LPSOCKET)SocketList->First;
 
     while (Socket) {
         LPSOCKET NextSocket = (LPSOCKET)Socket->Next;
@@ -369,7 +372,8 @@ U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Address
         }
 
         // Check if address is already in use (simple check)
-        LPSOCKET ExistingSocket = (LPSOCKET)Kernel.Socket->First;
+        LPLIST SocketList = GetSocketList();
+        LPSOCKET ExistingSocket = (LPSOCKET)(SocketList != NULL ? SocketList->First : NULL);
 
         while (ExistingSocket) {
             SAFE_USE(ExistingSocket) {
@@ -900,7 +904,8 @@ U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32
         return 0;
     }
 
-    LPSOCKET Socket = (LPSOCKET)Kernel.Socket->First;
+    LPLIST SocketList = GetSocketList();
+    LPSOCKET Socket = (LPSOCKET)(SocketList != NULL ? SocketList->First : NULL);
     while (Socket) {
         SAFE_USE(Socket) {
             if (Socket->TCPConnection == TCPConnection) {

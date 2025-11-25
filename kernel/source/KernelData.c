@@ -2,6 +2,17 @@
 #include "Kernel.h"
 #include "Socket.h"
 #include "utils/Helpers.h"
+#include "process/Process.h"
+#include "drivers/Keyboard.h"
+
+/************************************************************************/
+
+typedef struct tag_CPUIDREGISTERS {
+    U32 reg_EAX;
+    U32 reg_EBX;
+    U32 reg_ECX;
+    U32 reg_EDX;
+} CPUIDREGISTERS, *LPCPUIDREGISTERS;
 
 /************************************************************************/
 
@@ -187,7 +198,7 @@ static LIST UserAccountList = {
 
 /************************************************************************/
 
-KERNELDATA DATA_SECTION Kernel = {
+static KERNELDATA DATA_SECTION Kernel = {
     .Drivers = &DriverList,
     .Desktop = &DesktopList,
     .Process = &ProcessList,
@@ -203,6 +214,7 @@ KERNELDATA DATA_SECTION Kernel = {
     .Socket = &SocketList,
     .UserSessions = NULL,
     .UserAccount = &UserAccountList,
+    .FocusedDesktop = &MainDesktop,
     .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {
         .Header = {
@@ -228,7 +240,7 @@ KERNELDATA DATA_SECTION Kernel = {
     .DoLogin = 0,
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
-    };
+};
 
 /************************************************************************/
 
@@ -263,4 +275,580 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, &NetworkManagerDriver);
     ListAddTail(Kernel.Drivers, &UserAccountDriver);
     ListAddTail(Kernel.Drivers, &VESADriver);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the kernel driver list.
+ * @return Pointer to the driver list.
+ */
+LPLIST GetDriverList(void) {
+    return Kernel.Drivers;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the desktop list.
+ * @return Pointer to the desktop list.
+ */
+LPLIST GetDesktopList(void) {
+    return Kernel.Desktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the process list.
+ * @return Pointer to the process list.
+ */
+LPLIST GetProcessList(void) {
+    return Kernel.Process;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the task list.
+ * @return Pointer to the task list.
+ */
+LPLIST GetTaskList(void) {
+    return Kernel.Task;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the mutex list.
+ * @return Pointer to the mutex list.
+ */
+LPLIST GetMutexList(void) {
+    return Kernel.Mutex;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the disk list.
+ * @return Pointer to the disk list.
+ */
+LPLIST GetDiskList(void) {
+    return Kernel.Disk;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the PCI device list.
+ * @return Pointer to the PCI device list.
+ */
+LPLIST GetPCIDeviceList(void) {
+    return Kernel.PCIDevice;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the network device list.
+ * @return Pointer to the network device list.
+ */
+LPLIST GetNetworkDeviceList(void) {
+    return Kernel.NetworkDevice;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the event list.
+ * @return Pointer to the event list.
+ */
+LPLIST GetEventList(void) {
+    return Kernel.Event;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the file system list.
+ * @return Pointer to the file system list.
+ */
+LPLIST GetFileSystemList(void) {
+    return Kernel.FileSystem;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the open file list.
+ * @return Pointer to the file list.
+ */
+LPLIST GetFileList(void) {
+    return Kernel.File;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the TCP connection list.
+ * @return Pointer to the TCP connection list.
+ */
+LPLIST GetTCPConnectionList(void) {
+    return Kernel.TCPConnection;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the socket list.
+ * @return Pointer to the socket list.
+ */
+LPLIST GetSocketList(void) {
+    return Kernel.Socket;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the user session list.
+ * @return Pointer to the user session list.
+ */
+LPLIST GetUserSessionList(void) {
+    return Kernel.UserSessions;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the user session list pointer.
+ * @param List Pointer to the user session list.
+ */
+void SetUserSessionList(LPLIST List) {
+    Kernel.UserSessions = List;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the user account list.
+ * @return Pointer to the user account list.
+ */
+LPLIST GetUserAccountList(void) {
+    return Kernel.UserAccount;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the user account list pointer.
+ * @param List Pointer to the user account list.
+ */
+void SetUserAccountList(LPLIST List) {
+    Kernel.UserAccount = List;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the global file system info structure.
+ * @return Pointer to the file system info structure.
+ */
+FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void) {
+    return &(Kernel.FileSystemInfo);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the SystemFS backing structure.
+ * @return Pointer to the SystemFS structure.
+ */
+LPSYSTEMFSFILESYSTEM GetSystemFSData(void) {
+    return &(Kernel.SystemFS);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the object termination cache.
+ * @return Pointer to the cache.
+ */
+LPCACHE GetObjectTerminationCache(void) {
+    return &(Kernel.ObjectTerminationCache);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the handle map.
+ * @return Pointer to the handle map.
+ */
+LPHANDLE_MAP GetHandleMap(void) {
+    return &(Kernel.HandleMap);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the size of the physical page bitmap.
+ * @return Size in bytes.
+ */
+UINT GetPhysicalPageBitmapSize(void) {
+    return Kernel.PPBSize;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the size of the physical page bitmap.
+ * @param Size Size in bytes.
+ */
+void SetPhysicalPageBitmapSize(UINT Size) {
+    Kernel.PPBSize = Size;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the physical page bitmap pointer.
+ * @return Pointer to the bitmap.
+ */
+LPPAGEBITMAP GetPhysicalPageBitmap(void) {
+    return Kernel.PPB;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the physical page bitmap pointer.
+ * @param Bitmap Pointer to the bitmap.
+ */
+void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap) {
+    Kernel.PPB = Bitmap;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the CPU information storage.
+ * @return Pointer to the CPU information structure.
+ */
+LPCPUINFORMATION GetKernelCPUInfo(void) {
+    return &(Kernel.CPU);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the deferred work wait timeout.
+ * @return Timeout in milliseconds.
+ */
+UINT GetDeferredWorkWaitTimeout(void) {
+    return Kernel.DeferredWorkWaitTimeoutMS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the deferred work wait timeout.
+ * @param Timeout Timeout in milliseconds.
+ */
+void SetDeferredWorkWaitTimeout(UINT Timeout) {
+    Kernel.DeferredWorkWaitTimeoutMS = Timeout;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the deferred work poll delay.
+ * @return Poll delay in milliseconds.
+ */
+UINT GetDeferredWorkPollDelay(void) {
+    return Kernel.DeferredWorkPollDelayMS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the deferred work poll delay.
+ * @param Delay Poll delay in milliseconds.
+ */
+void SetDeferredWorkPollDelay(UINT Delay) {
+    Kernel.DeferredWorkPollDelayMS = Delay;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the kernel configuration.
+ * @return Pointer to the parsed configuration or NULL if not set.
+ */
+LPTOML GetConfiguration(void) {
+    return Kernel.Configuration;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the kernel configuration pointer.
+ * @param Configuration Parsed configuration to store.
+ */
+void SetConfiguration(LPTOML Configuration) {
+    Kernel.Configuration = Configuration;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Gets the login sequence flag.
+ * @return TRUE when login is enabled.
+ */
+BOOL GetDoLogin(void) {
+    return Kernel.DoLogin;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the login sequence flag.
+ * @param DoLogin TRUE to enable login, FALSE to disable.
+ */
+void SetDoLogin(BOOL DoLogin) {
+    Kernel.DoLogin = DoLogin;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the active language code.
+ * @return Pointer to language code string.
+ */
+LPCSTR GetLanguageCode(void) {
+    return Kernel.LanguageCode;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the active language code.
+ * @param LanguageCode Null-terminated language code.
+ */
+void SetLanguageCode(LPCSTR LanguageCode) {
+    SAFE_USE(LanguageCode) { StringCopy(Kernel.LanguageCode, LanguageCode); }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the active keyboard code.
+ * @return Pointer to keyboard code string.
+ */
+LPCSTR GetKeyboardCode(void) {
+    return Kernel.KeyboardCode;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the active keyboard code.
+ * @param KeyboardCode Null-terminated keyboard code.
+ */
+void SetKeyboardCode(LPCSTR KeyboardCode) {
+    SAFE_USE(KeyboardCode) { StringCopy(Kernel.KeyboardCode, KeyboardCode); }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the configured minimum scheduler quantum.
+ * @return Minimum quantum in milliseconds.
+ */
+UINT GetMinimumQuantum(void) {
+    return Kernel.MinimumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the configured minimum scheduler quantum.
+ * @param MinimumQuantum Quantum in milliseconds.
+ */
+void SetMinimumQuantum(UINT MinimumQuantum) {
+    Kernel.MinimumQuantum = MinimumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the configured maximum scheduler quantum.
+ * @return Maximum quantum in milliseconds.
+ */
+UINT GetMaximumQuantum(void) {
+    return Kernel.MaximumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Updates the configured maximum scheduler quantum.
+ * @param MaximumQuantum Quantum in milliseconds.
+ */
+void SetMaximumQuantum(UINT MaximumQuantum) {
+    Kernel.MaximumQuantum = MaximumQuantum;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the desktop currently holding input focus.
+ * @return Focused desktop pointer or NULL if none is set.
+ */
+LPDESKTOP GetFocusedDesktop(void) {
+    return Kernel.FocusedDesktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set the desktop that holds input focus.
+ * @param Desktop Desktop to focus, may be NULL to clear focus.
+ */
+void SetFocusedDesktop(LPDESKTOP Desktop) {
+    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        Kernel.FocusedDesktop = Desktop;
+
+        if (Desktop->FocusedProcess == NULL) {
+            Desktop->FocusedProcess = &KernelProcess;
+        }
+    } else {
+        Kernel.FocusedDesktop = &MainDesktop;
+        MainDesktop.FocusedProcess = &KernelProcess;
+    }
+
+    if (Kernel.FocusedDesktop != PreviousDesktop) {
+        ClearKeyboardBuffer();
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the process currently holding input focus.
+ * @return Focused process pointer or NULL if none is set.
+ */
+LPPROCESS GetFocusedProcess(void) {
+    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        SAFE_USE_VALID_ID(Desktop->FocusedProcess, KOID_PROCESS) {
+            if (Desktop->FocusedProcess->Status == PROCESS_STATUS_DEAD) {
+                Desktop->FocusedProcess = &KernelProcess;
+                return &KernelProcess;
+            }
+            return Desktop->FocusedProcess;
+        }
+    }
+
+    return &KernelProcess;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set the process that holds input focus.
+ * @param Process Process to focus, may be NULL to clear focus.
+ */
+void SetFocusedProcess(LPPROCESS Process) {
+    LPDESKTOP Desktop = Kernel.FocusedDesktop;
+    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
+    LPPROCESS PreviousProcess = NULL;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { PreviousProcess = Desktop->FocusedProcess; }
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (Process->Desktop != NULL) {
+            Desktop = Process->Desktop;
+            Kernel.FocusedDesktop = Desktop;
+        }
+    }
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        if (Desktop->FocusedProcess != Process) {
+            Desktop->FocusedProcess = Process;
+        }
+    }
+
+    if (Kernel.FocusedDesktop != PreviousDesktop || PreviousProcess != Process) {
+        ClearKeyboardBuffer();
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves basic CPU identification data.
+ *
+ * Populates the provided structure using CPUID information, including
+ * vendor string, model and feature flags.
+ *
+ * @param Info Pointer to structure that receives CPU information.
+ * @return TRUE on success.
+ */
+BOOL GetCPUInformation(LPCPUINFORMATION Info) {
+    CPUIDREGISTERS Regs[8];
+
+    MemorySet(Info, 0, sizeof(CPUINFORMATION));
+
+    GetCPUID(Regs);
+
+    //-------------------------------------
+    // Fill name with register contents
+
+    *((U32*)(Info->Name + 0)) = Regs[0].reg_EBX;
+    *((U32*)(Info->Name + 4)) = Regs[0].reg_EDX;
+    *((U32*)(Info->Name + 8)) = Regs[0].reg_ECX;
+    Info->Name[12] = '\0';
+
+    //-------------------------------------
+    // Get model information if available
+
+    Info->Type = (Regs[1].reg_EAX & INTEL_CPU_MASK_TYPE) >> INTEL_CPU_SHFT_TYPE;
+    Info->Family = (Regs[1].reg_EAX & INTEL_CPU_MASK_FAMILY) >> INTEL_CPU_SHFT_FAMILY;
+    Info->Model = (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
+    Info->Stepping = (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
+    Info->Features = Regs[1].reg_EDX;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the mouse driver descriptor.
+ * @return Pointer to the mouse driver.
+ */
+LPDRIVER GetMouseDriver(void) {
+    return &SerialMouseDriver;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the graphics driver descriptor.
+ * @return Pointer to the graphics driver.
+ */
+LPDRIVER GetGraphicsDriver(void) {
+    return &VESADriver;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the default file system driver descriptor.
+ * @return Pointer to the default file system driver.
+ */
+LPDRIVER GetDefaultFileSystemDriver(void) {
+    return &EXFSDriver;
 }

@@ -65,10 +65,10 @@
 
 /***************************************************************************/
 
-#define DF_ERROR_FS_BADSECTOR (DF_ERROR_FIRST + 0)
-#define DF_ERROR_FS_NOSPACE (DF_ERROR_FIRST + 1)
-#define DF_ERROR_FS_CANT_READ_SECTOR (DF_ERROR_FIRST + 2)
-#define DF_ERROR_FS_CANT_WRITE_SECTOR (DF_ERROR_FIRST + 3)
+#define DF_RET_FS_BADSECTOR (DF_RET_FIRST + 0)
+#define DF_RET_FS_NOSPACE (DF_RET_FIRST + 1)
+#define DF_RET_FS_CANT_READ_SECTOR (DF_RET_FIRST + 2)
+#define DF_RET_FS_CANT_WRITE_SECTOR (DF_RET_FIRST + 3)
 
 /***************************************************************************/
 

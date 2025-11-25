@@ -94,6 +94,7 @@ LPCSTR GetKeyName(U8);
 LPKEYTRANS GetScanCodeToKeyCodeTable(LPCSTR Code);
 void UseKeyboardLayout(LPCSTR Code);
 U16 DetectKeyboard(void);
+void ClearKeyboardBuffer(void);
 
 /***************************************************************************/
 

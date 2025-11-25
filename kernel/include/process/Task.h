@@ -46,6 +46,19 @@
 #define TASK_TYPE_USER_MAIN 3
 #define TASK_TYPE_USER_OTHER 4
 
+#define TASK_MESSAGE_QUEUE_MAX_MESSAGES 100
+
+/************************************************************************/
+// Message queue
+
+typedef struct tag_MESSAGEQUEUE {
+    MUTEX Mutex;      // Queue mutex
+    LPLIST Messages;  // Underlying list of MESSAGE
+    UINT Capacity;    // Optional max capacity (0 = unlimited)
+    UINT Flags;       // Future flags
+    BOOL Waiting;     // Indicates a waiter is sleeping on this queue
+} MESSAGEQUEUE, *LPMESSAGEQUEUE;
+
 /************************************************************************/
 // The Task structure
 
@@ -63,8 +76,7 @@ struct tag_TASK {
     U32 Flags;                // Task creation flags
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
     UINT WakeUpTime;          // System time at which to wake up the task
-    MUTEX MessageMutex;       // Mutex to access message queue
-    LPLIST Message;           // This task's message queue
+    MESSAGEQUEUE MessageQueue;  // Message queue for this task
 };
 
 typedef struct tag_TASK TASK, *LPTASK;
@@ -83,14 +95,12 @@ void SetTaskStatus(LPTASK Task, U32 Status);
 void SetTaskStatusDirect(LPTASK Task, U32 Status);
 void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
 U32 ComputeTaskQuantumTime(U32 Priority);
-BOOL PostMessage(HANDLE, U32, U32, U32);
-U32 SendMessage(HANDLE, U32, U32, U32);
-BOOL GetMessage(LPMESSAGEINFO);
-BOOL DispatchMessage(LPMESSAGEINFO);
 void DumpTask(LPTASK);
 
 /************************************************************************/
 
 #pragma pack(pop)
+
+#include "process/TaskMessaging.h"
 
 #endif  // TASK_H_INCLUDED

@@ -31,6 +31,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "process/Task.h"
 #include "VKey.h"
 
 /***************************************************************************/
@@ -432,6 +433,23 @@ static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
+static BOOL DispatchKeyMessage(LPKEYCODE KeyCode) {
+    if (KeyCode == NULL) return FALSE;
+    if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return FALSE;
+
+    return EnqueueInputMessage(EWM_KEYDOWN, KeyCode->VirtualKey, KeyCode->ASCIICode);
+}
+
+/***************************************************************************/
+
+static void RouteKeyCode(LPKEYCODE KeyCode) {
+    if (DispatchKeyMessage(KeyCode) == FALSE) {
+        SendKeyCodeToBuffer(KeyCode);
+    }
+}
+
+/***************************************************************************/
+
 static void UpdateKeyboardLEDs(void) {
     U32 LED = 0;
 
@@ -498,7 +516,7 @@ static void HandleScanCode(U32 ScanCode) {
         if (ScanCode & 0x80) {
         } else {
             ScanCodeToKeyCode_E0(ScanCode, &KeyCode);
-            SendKeyCodeToBuffer(&KeyCode);
+            RouteKeyCode(&KeyCode);
         }
     } else if (PreviousCode == 0xE1) {
         PreviousCode = 0;
@@ -510,7 +528,7 @@ static void HandleScanCode(U32 ScanCode) {
         if (ScanCode & 0x80) {
         } else {
             ScanCodeToKeyCode_E1(ScanCode, &KeyCode);
-            SendKeyCodeToBuffer(&KeyCode);
+            RouteKeyCode(&KeyCode);
         }
     } else {
         PreviousCode = 0;
@@ -544,7 +562,7 @@ static void HandleScanCode(U32 ScanCode) {
 
                 default: {
                     ScanCodeToKeyCode(ScanCode, &KeyCode);
-                    SendKeyCodeToBuffer(&KeyCode);
+                    RouteKeyCode(&KeyCode);
 
                     if (KeyCode.VirtualKey == VK_F9) {
                         if (Keyboard.Status[SCAN_CONTROL]) {
@@ -690,6 +708,24 @@ void WaitKey(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Clear buffered keyboard characters.
+ */
+void ClearKeyboardBuffer(void) {
+    U32 Index;
+
+    LockMutex(&(Keyboard.Mutex), INFINITY);
+
+    for (Index = 0; Index < MAXKEYBUFFER; Index++) {
+        Keyboard.Buffer[Index].VirtualKey = 0;
+        Keyboard.Buffer[Index].ASCIICode = 0;
+    }
+
+    UnlockMutex(&(Keyboard.Mutex));
+}
+
+/***************************************************************************/
+
 void KeyboardHandler(void) {
     static U32 Busy = 0;
     U32 Status, Code;
@@ -768,7 +804,7 @@ static U32 InitializeKeyboard(void) {
         DEBUG(TEXT("Keyboard: Failed to enable IRQ_KEYBOARD"));
     }
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -777,22 +813,22 @@ UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            if (InitializeKeyboard() == DF_ERROR_SUCCESS) {
+            if (InitializeKeyboard() == DF_RET_SUCCESS) {
                 StdKeyboardDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
-            return DF_ERROR_UNEXPECT;
+            return DF_RET_UNEXPECT;
         case DF_UNLOAD:
             if ((StdKeyboardDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             StdKeyboardDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GETLASTFUNC:

@@ -87,15 +87,18 @@ void SetPhysicalPageMark(UINT Page, UINT Used) {
 
     if (Page >= KernelStartup.PageCount) return;
 
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    if (Bitmap == NULL) return;
+
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     Offset = Page >> MUL_8;
     Value = (UINT)0x01 << (Page & 0x07);
 
     if (Used) {
-        Kernel.PPB[Offset] |= (U8)Value;
+        Bitmap[Offset] |= (U8)Value;
     } else {
-        Kernel.PPB[Offset] &= (U8)(~Value);
+        Bitmap[Offset] &= (U8)(~Value);
     }
 
     UnlockMutex(MUTEX_MEMORY);
@@ -121,7 +124,8 @@ UINT GetPhysicalPageMark(UINT Page) {
     Offset = Page >> MUL_8;
     Value = (UINT)0x01 << (Page & 0x07);
 
-    if (Kernel.PPB[Offset] & Value) RetVal = 1;
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    if (Bitmap != NULL && (Bitmap[Offset] & Value)) RetVal = 1;
 
     UnlockMutex(MUTEX_MEMORY);
 
@@ -146,13 +150,16 @@ void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
 
     DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %x, %x"), FirstPage, End);
 
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    if (Bitmap == NULL) return;
+
     for (UINT Page = FirstPage; Page < End; Page++) {
         UINT Byte = Page >> MUL_8;
         U8 Mask = (U8)(1u << (Page & 0x07)); /* bit within byte */
         if (Used) {
-            Kernel.PPB[Byte] |= Mask;
+            Bitmap[Byte] |= Mask;
         } else {
-            Kernel.PPB[Byte] &= (U8)~Mask;
+            Bitmap[Byte] &= (U8)~Mask;
         }
     }
 }
@@ -205,8 +212,15 @@ void MarkUsedPhysicalMemory(void) {
         return;
     }
 
-    PHYSICAL PpbPhysicalBase = (PHYSICAL)(UINT)(Kernel.PPB);
-    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)Kernel.PPBSize);
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    UINT BitmapSize = GetPhysicalPageBitmapSize();
+    if (Bitmap == NULL || BitmapSize == 0) {
+        ERROR(TEXT("[MarkUsedPhysicalMemory] PPB not initialized"));
+        return;
+    }
+
+    PHYSICAL PpbPhysicalBase = (PHYSICAL)(UINT)(Bitmap);
+    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)BitmapSize);
     UINT ReservedPageCount = (UINT)(ReservedEnd >> PAGE_SIZE_MUL);
 
     SetPhysicalPageRangeMark(0, ReservedPageCount, 1);
@@ -248,8 +262,13 @@ PHYSICAL AllocPhysicalPage(void) {
     UINT StartByte = 0;
     UINT MaxByte = 0;
     PHYSICAL result = 0;
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
 
     // DEBUG(TEXT("[AllocPhysicalPage] Enter"));
+
+    if (Bitmap == NULL) {
+        return result;
+    }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
@@ -262,13 +281,13 @@ PHYSICAL AllocPhysicalPage(void) {
 
     /* Scan from StartByte upward */
     for (i = StartByte; i < MaxByte; i++) {
-        U8 v = Kernel.PPB[i];
+        U8 v = Bitmap[i];
         if (v != 0xFF) {
             page = (i << MUL_8); /* first page covered by this byte */
             for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
                 mask = 1u << bit;
                 if ((v & mask) == 0) {
-                    Kernel.PPB[i] = (U8)(v | (U8)mask);
+                    Bitmap[i] = (U8)(v | (U8)mask);
                     result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
                     goto Out;
                 }
@@ -320,20 +339,25 @@ void FreePhysicalPage(PHYSICAL Page) {
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    if (Bitmap == NULL) {
+        UnlockMutex(MUTEX_MEMORY);
+        return;
+    }
 
     // Bitmap math: 8 pages per byte
     UINT ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
     U8 mask = (U8)(1u << (PageIndex & 0x07));  // bit within the byte
 
     // If already free, nothing to do
-    if ((Kernel.PPB[ByteIndex] & mask) == 0) {
+    if ((Bitmap[ByteIndex] & mask) == 0) {
         UnlockMutex(MUTEX_MEMORY);
         DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%x)"), Page);
         return;
     }
 
     // Mark page as free
-    Kernel.PPB[ByteIndex] = (U8)(Kernel.PPB[ByteIndex] & (U8)~mask);
+    Bitmap[ByteIndex] = (U8)(Bitmap[ByteIndex] & (U8)~mask);
 
     UnlockMutex(MUTEX_MEMORY);
 }

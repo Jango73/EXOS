@@ -32,6 +32,7 @@
 #include "System.h"
 #include "VKey.h"
 #include "VarArg.h"
+#include "Profile.h"
 
 /***************************************************************************/
 
@@ -82,6 +83,9 @@ CONSOLE_STRUCT Console = {
  * @param CursorY Y coordinate of the cursor.
  */
 void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("SetConsoleCursorPosition"));
+
     U32 Position = (CursorY * Console.Width) + CursorX;
 
     Console.CursorX = CursorX;
@@ -95,6 +99,8 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     OutPortByte(Console.Port + CGA_DATA, (Position >> 0) & 0xFF);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -132,6 +138,9 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
  * @param Char Character to display.
  */
 void SetConsoleCharacter(STR Char) {
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("SetConsoleCharacter"));
+
     U32 Offset = 0;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
@@ -140,6 +149,8 @@ void SetConsoleCharacter(STR Char) {
     Console.Memory[Offset] = Char | (CHARATTR << 0x08);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -148,6 +159,9 @@ void SetConsoleCharacter(STR Char) {
  * @brief Scroll the console up by one line.
  */
 void ScrollConsole(void) {
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("ScrollConsole"));
+
     U32 CurX, CurY, Src, Dst;
     U32 Width, Height;
 
@@ -159,6 +173,9 @@ void ScrollConsole(void) {
     Width = Console.Width;
     Height = Console.Height;
 
+    PROFILE_SCOPE ScopeCopy;
+    ProfileStart(&ScopeCopy, TEXT("ScrollConsole.Copy"));
+
     for (CurY = 1; CurY < Height; CurY++) {
         Src = CurY * Width;
         Dst = Src - Width;
@@ -169,6 +186,8 @@ void ScrollConsole(void) {
         }
     }
 
+    ProfileStop(&ScopeCopy);
+
     CurY = Height - 1;
 
     for (CurX = 0; CurX < Width; CurX++) {
@@ -176,6 +195,8 @@ void ScrollConsole(void) {
     }
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -210,6 +231,9 @@ void ClearConsole(void) {
  * @param Char Character to print.
  */
 void ConsolePrintChar(STR Char) {
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("ConsolePrintChar"));
+
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Char == STR_NEWLINE) {
@@ -246,6 +270,8 @@ void ConsolePrintChar(STR Char) {
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -281,6 +307,9 @@ Out:
  * @param Text String to print.
  */
 static void ConsolePrintString(LPCSTR Text) {
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("ConsolePrintString"));
+
     U32 Index = 0;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
@@ -293,6 +322,8 @@ static void ConsolePrintString(LPCSTR Text) {
     }
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    ProfileStop(&Scope);
 }
 
 /***************************************************************************/
@@ -454,24 +485,24 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             InitializeConsole();
             ConsoleDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_UNLOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
 
             ConsoleDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_ERROR_SUCCESS;
+            return DF_RET_SUCCESS;
 
         case DF_GETVERSION:
             return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }

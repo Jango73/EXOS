@@ -192,7 +192,7 @@ static BOOL IsCircularMount(LPSYSTEMFSFILE Node, LPFILESYSTEM FilesystemToMount)
 /**
  * @brief Mounts a filesystem object into SystemFS.
  * @param Control Mount parameters including target path and filesystem node.
- * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ * @return DF_RET_SUCCESS on success, an error code otherwise.
  */
 static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     LPLIST Parts;
@@ -201,10 +201,10 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
 
-    if (Control == NULL) return DF_ERROR_BADPARAM;
+    if (Control == NULL) return DF_RET_BADPARAM;
 
     Parts = DecomposePath(Control->Path);
-    if (Parts == NULL) return DF_ERROR_BADPARAM;
+    if (Parts == NULL) return DF_RET_BADPARAM;
 
     Parent = GetSystemFSFilesystem()->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
@@ -216,7 +216,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
             Child = NewSystemFile(Part->Name, Parent);
             if (Child == NULL) {
                 DeleteList(Parts);
-                return DF_ERROR_GENERIC;
+                return DF_RET_GENERIC;
             }
             ListAddTail(Parent->Children, Child);
         }
@@ -225,25 +225,25 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 
     if (Part == NULL || Control->Node == NULL) {
         DeleteList(Parts);
-        return DF_ERROR_BADPARAM;
+        return DF_RET_BADPARAM;
     }
 
     if (FindChild(Parent, Part->Name)) {
         DeleteList(Parts);
-        return DF_ERROR_GENERIC;
+        return DF_RET_GENERIC;
     }
 
     Child = NewSystemFile(Part->Name, Parent);
     if (Child == NULL) {
         DeleteList(Parts);
-        return DF_ERROR_GENERIC;
+        return DF_RET_GENERIC;
     }
 
     // Check for circular mount before assigning the filesystem
     if (IsCircularMount(Parent, (LPFILESYSTEM)Control->Node)) {
         KernelHeapFree(Child);
         DeleteList(Parts);
-        return DF_ERROR_GENERIC;
+        return DF_RET_GENERIC;
     }
 
     Child->Mounted = (LPFILESYSTEM)Control->Node;
@@ -255,7 +255,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     ListAddTail(Parent->Children, Child);
 
     DeleteList(Parts);
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -263,19 +263,19 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 /**
  * @brief Unmounts a filesystem object from SystemFS.
  * @param Control Unmount parameters containing the target path.
- * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ * @return DF_RET_SUCCESS on success, an error code otherwise.
  */
 static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
     LPSYSTEMFSFILE Node;
 
-    if (Control == NULL) return DF_ERROR_BADPARAM;
+    if (Control == NULL) return DF_RET_BADPARAM;
 
     Node = FindNode(Control->Path);
-    if (Node == NULL || Node->Parent == NULL) return DF_ERROR_GENERIC;
+    if (Node == NULL || Node->Parent == NULL) return DF_RET_GENERIC;
 
     ListErase(Node->Parent->Children, Node);
     KernelHeapFree(Node);
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -434,7 +434,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
 /**
  * @brief Creates a SystemFS folder structure for the provided path.
  * @param Info File information containing the folder path.
- * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ * @return DF_RET_SUCCESS on success, an error code otherwise.
  */
 static U32 CreateFolder(LPFILEINFO Info) {
     LPLIST Parts;
@@ -443,10 +443,10 @@ static U32 CreateFolder(LPFILEINFO Info) {
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
 
-    if (Info == NULL) return DF_ERROR_BADPARAM;
+    if (Info == NULL) return DF_RET_BADPARAM;
 
     Parts = DecomposePath(Info->Name);
-    if (Parts == NULL) return DF_ERROR_BADPARAM;
+    if (Parts == NULL) return DF_RET_BADPARAM;
 
     Parent = GetSystemFSFilesystem()->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
@@ -458,7 +458,7 @@ static U32 CreateFolder(LPFILEINFO Info) {
             Child = NewSystemFile(Part->Name, Parent);
             if (Child == NULL) {
                 DeleteList(Parts);
-                return DF_ERROR_GENERIC;
+                return DF_RET_GENERIC;
             }
             ListAddTail(Parent->Children, Child);
         }
@@ -467,23 +467,23 @@ static U32 CreateFolder(LPFILEINFO Info) {
 
     if (Part == NULL) {
         DeleteList(Parts);
-        return DF_ERROR_BADPARAM;
+        return DF_RET_BADPARAM;
     }
 
     if (FindChild(Parent, Part->Name)) {
         DeleteList(Parts);
-        return DF_ERROR_GENERIC;
+        return DF_RET_GENERIC;
     }
 
     Child = NewSystemFile(Part->Name, Parent);
     if (Child == NULL) {
         DeleteList(Parts);
-        return DF_ERROR_GENERIC;
+        return DF_RET_GENERIC;
     }
 
     ListAddTail(Parent->Children, Child);
     DeleteList(Parts);
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -491,20 +491,20 @@ static U32 CreateFolder(LPFILEINFO Info) {
 /**
  * @brief Deletes an empty SystemFS folder.
  * @param Info File information specifying the folder path.
- * @return DF_ERROR_SUCCESS on success, an error code otherwise.
+ * @return DF_RET_SUCCESS on success, an error code otherwise.
  */
 static U32 DeleteFolder(LPFILEINFO Info) {
     LPSYSTEMFSFILE Node;
 
-    if (Info == NULL) return DF_ERROR_BADPARAM;
+    if (Info == NULL) return DF_RET_BADPARAM;
 
     Node = FindNode(Info->Name);
-    if (Node == NULL || Node->Parent == NULL) return DF_ERROR_GENERIC;
-    if (Node->Children && Node->Children->NumItems) return DF_ERROR_GENERIC;
+    if (Node == NULL || Node->Parent == NULL) return DF_RET_GENERIC;
+    if (Node->Children && Node->Children->NumItems) return DF_RET_GENERIC;
 
     ListErase(Node->Parent->Children, Node);
     KernelHeapFree(Node);
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
@@ -522,12 +522,14 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
     FILEINFO Info;
     LPFILE TestFile;
     BOOL FileSystemFound = FALSE;
+    LPLIST FileSystemList = GetFileSystemList();
+    LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
 
     if (FileSystem == NULL || Path == NULL) return;
 
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
-        if (FS == &Kernel.SystemFS.Header) continue;
+        if (FS == &SystemFS->Header) continue;
         if (STRINGS_EQUAL(FS->Name, FileSystem)) {
             FileSystemFound = TRUE;
 
@@ -580,31 +582,33 @@ BOOL MountSystemFS(void) {
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
     U32 Result;
     U32 Length;
+    LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
+    LPLIST FileSystemList = GetFileSystemList();
 
     DEBUG(TEXT("[MountSystemFS] Mounting system FileSystem"));
 
-    Kernel.SystemFS.Root = NewSystemFileRoot();
-    if (Kernel.SystemFS.Root == NULL) return FALSE;
+    SystemFS->Root = NewSystemFileRoot();
+    if (SystemFS->Root == NULL) return FALSE;
 
-    InitMutex(&(Kernel.SystemFS.Header.Mutex));
-    Kernel.SystemFS.Header.Driver = &SystemFSDriver;
+    InitMutex(&(SystemFS->Header.Mutex));
+    SystemFS->Header.Driver = &SystemFSDriver;
 
     Info.Size = sizeof(FILEINFO);
-    Info.FileSystem = &Kernel.SystemFS.Header;
+    Info.FileSystem = &SystemFS->Header;
     Info.Attributes = 0;
     Info.Flags = 0;
     StringCopy(Info.Name, FsRoot);
     CreateFolder(&Info);
 
-    for (Node = Kernel.FileSystem->First; Node; Node = Node->Next) {
+    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
-        if (FS == &Kernel.SystemFS.Header) continue;
+        if (FS == &SystemFS->Header) continue;
 
         Volume.Size = sizeof(VOLUMEINFO);
         Volume.Volume = (HANDLE)FS;
         Volume.Name[0] = STR_NULL;
         Result = FS->Driver->Command(DF_FS_GETVOLUMEINFO, (UINT)&Volume);
-        if (Result != DF_ERROR_SUCCESS || Volume.Name[0] == STR_NULL) {
+        if (Result != DF_RET_SUCCESS || Volume.Name[0] == STR_NULL) {
             StringCopy(Volume.Name, FS->Name);
         }
 
@@ -620,7 +624,7 @@ BOOL MountSystemFS(void) {
         MountObject(&Control);
     }
 
-    ListAddItem(Kernel.FileSystem, GetSystemFS());
+    ListAddItem(FileSystemList, GetSystemFS());
 
     return TRUE;
 }
@@ -629,9 +633,9 @@ BOOL MountSystemFS(void) {
 
 /**
  * @brief Performs SystemFS driver initialization.
- * @return DF_ERROR_SUCCESS always.
+ * @return DF_RET_SUCCESS always.
  */
-static U32 Initialize(void) { return DF_ERROR_SUCCESS; }
+static U32 Initialize(void) { return DF_RET_SUCCESS; }
 
 /************************************************************************/
 
@@ -748,19 +752,19 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 /**
  * @brief Retrieves the next directory entry for an open SystemFS enumeration.
  * @param File SYSFSFILE used for iteration.
- * @return DF_ERROR_SUCCESS on success or an error code.
+ * @return DF_RET_SUCCESS on success or an error code.
  */
 static U32 OpenNext(LPSYSFSFILE File) {
     LPFILESYSTEM FS;
     U32 Result;
 
-    if (File == NULL) return DF_ERROR_BADPARAM;
+    if (File == NULL) return DF_RET_BADPARAM;
 
     if (File->MountedFile) {
         FS = File->Parent ? File->Parent->Mounted : NULL;
-        if (FS == NULL) return DF_ERROR_GENERIC;
+        if (FS == NULL) return DF_RET_GENERIC;
         Result = FS->Driver->Command(DF_FS_OPENNEXT, (UINT)File->MountedFile);
-        if (Result != DF_ERROR_SUCCESS) return Result;
+        if (Result != DF_RET_SUCCESS) return Result;
         StringCopy(File->Header.Name, File->MountedFile->Name);
         File->Header.Attributes = File->MountedFile->Attributes;
         File->Header.SizeLow = File->MountedFile->SizeLow;
@@ -768,10 +772,10 @@ static U32 OpenNext(LPSYSFSFILE File) {
         File->Header.Creation = File->MountedFile->Creation;
         File->Header.Accessed = File->MountedFile->Accessed;
         File->Header.Modified = File->MountedFile->Modified;
-        return DF_ERROR_SUCCESS;
+        return DF_RET_SUCCESS;
     }
 
-    if (File->SystemFile == NULL) return DF_ERROR_GENERIC;
+    if (File->SystemFile == NULL) return DF_RET_GENERIC;
 
     // Return current entry then move to the next one
     StringCopy(File->Header.Name, File->SystemFile->Name);
@@ -779,7 +783,7 @@ static U32 OpenNext(LPSYSFSFILE File) {
     File->Header.Creation = File->SystemFile->Creation;
     File->SystemFile = (LPSYSTEMFSFILE)File->SystemFile->Next;
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -787,10 +791,10 @@ static U32 OpenNext(LPSYSFSFILE File) {
 /**
  * @brief Closes a SystemFS file or directory handle.
  * @param File File handle to close.
- * @return DF_ERROR_SUCCESS on success, DF_ERROR_BADPARAM otherwise.
+ * @return DF_RET_SUCCESS on success, DF_RET_BADPARAM otherwise.
  */
 static U32 CloseFile(LPSYSFSFILE File) {
-    if (File == NULL) return DF_ERROR_BADPARAM;
+    if (File == NULL) return DF_RET_BADPARAM;
 
     if (File->MountedFile && File->Parent && File->Parent->Mounted) {
         File->Parent->Mounted->Driver->Command(DF_FS_CLOSEFILE, (UINT)File->MountedFile);
@@ -798,7 +802,7 @@ static U32 CloseFile(LPSYSFSFILE File) {
 
     ReleaseKernelObject(File);
 
-    return DF_ERROR_SUCCESS;
+    return DF_RET_SUCCESS;
 }
 
 /************************************************************************/
@@ -806,7 +810,7 @@ static U32 CloseFile(LPSYSFSFILE File) {
 /**
  * @brief Reads from a mounted file through SystemFS.
  * @param File File handle containing buffer and position information.
- * @return DF_ERROR_SUCCESS on success or an error code.
+ * @return DF_RET_SUCCESS on success or an error code.
  */
 static U32 ReadFile(LPSYSFSFILE File) {
     SAFE_USE(File) {
@@ -817,7 +821,7 @@ static U32 ReadFile(LPSYSFSFILE File) {
         FS = (File->Parent) ? File->Parent->Mounted : NULL;
         Mounted = File->MountedFile;
 
-        if (FS == NULL || Mounted == NULL) return DF_ERROR_NOTIMPL;
+        if (FS == NULL || Mounted == NULL) return DF_RET_NOTIMPL;
 
         Mounted->Buffer = File->Header.Buffer;
         Mounted->ByteCount = File->Header.ByteCount;
@@ -831,7 +835,7 @@ static U32 ReadFile(LPSYSFSFILE File) {
         return Result;
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -839,7 +843,7 @@ static U32 ReadFile(LPSYSFSFILE File) {
 /**
  * @brief Writes to a mounted file through SystemFS.
  * @param File File handle containing buffer and position information.
- * @return DF_ERROR_SUCCESS on success or an error code.
+ * @return DF_RET_SUCCESS on success or an error code.
  */
 static U32 WriteFile(LPSYSFSFILE File) {
     SAFE_USE(File) {
@@ -850,7 +854,7 @@ static U32 WriteFile(LPSYSFSFILE File) {
         FS = (File->Parent) ? File->Parent->Mounted : NULL;
         Mounted = File->MountedFile;
 
-        if (FS == NULL || Mounted == NULL) return DF_ERROR_NOTIMPL;
+        if (FS == NULL || Mounted == NULL) return DF_RET_NOTIMPL;
 
         Mounted->Buffer = File->Header.Buffer;
         Mounted->ByteCount = File->Header.ByteCount;
@@ -864,7 +868,7 @@ static U32 WriteFile(LPSYSFSFILE File) {
         return Result;
     }
 
-    return DF_ERROR_BADPARAM;
+    return DF_RET_BADPARAM;
 }
 
 /************************************************************************/
@@ -957,12 +961,12 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
             LPVOLUMEINFO Info = (LPVOLUMEINFO)Parameter;
             if (Info && Info->Size == sizeof(VOLUMEINFO)) {
                 StringCopy(Info->Name, TEXT("/"));
-                return DF_ERROR_SUCCESS;
+                return DF_RET_SUCCESS;
             }
-            return DF_ERROR_BADPARAM;
+            return DF_RET_BADPARAM;
         }
         case DF_FS_SETVOLUMEINFO:
-            return DF_ERROR_NOTIMPL;
+            return DF_RET_NOTIMPL;
         case DF_FS_CREATEFOLDER:
             return CreateFolder((LPFILEINFO)Parameter);
         case DF_FS_DELETEFOLDER:
@@ -982,20 +986,20 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_CLOSEFILE:
             return (UINT)CloseFile((LPSYSFSFILE)Parameter);
         case DF_FS_DELETEFILE:
-            return DF_ERROR_NOTIMPL;
+            return DF_RET_NOTIMPL;
         case DF_FS_READ:
             return (UINT)ReadFile((LPSYSFSFILE)Parameter);
         case DF_FS_WRITE:
             return (UINT)WriteFile((LPSYSFSFILE)Parameter);
         case DF_FS_GETPOSITION:
-            return DF_ERROR_NOTIMPL;
+            return DF_RET_NOTIMPL;
         case DF_FS_SETPOSITION:
-            return DF_ERROR_NOTIMPL;
+            return DF_RET_NOTIMPL;
         case DF_FS_GETATTRIBUTES:
-            return DF_ERROR_NOTIMPL;
+            return DF_RET_NOTIMPL;
         case DF_FS_SETATTRIBUTES:
-            return DF_ERROR_NOTIMPL;
+            return DF_RET_NOTIMPL;
     }
 
-    return DF_ERROR_NOTIMPL;
+    return DF_RET_NOTIMPL;
 }
