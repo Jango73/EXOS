@@ -1208,7 +1208,7 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
                         Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
                         // Convert IP from network to host byte order
-                        U32 IpHost = Ntohl(NetContext->LocalIPv4_Be);
+                        U32 IpHost = Ntohl(NetContext->ActiveConfig.LocalIPv4_Be);
                         U8 Ip1 = (IpHost >> 24) & 0xFF;
                         U8 Ip2 = (IpHost >> 16) & 0xFF;
                         U8 Ip3 = (IpHost >> 8) & 0xFF;

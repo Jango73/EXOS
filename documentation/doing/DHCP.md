@@ -15,7 +15,7 @@
   - Apply subnet mask, gateway, and DNS server to network context/runtime resolver;
   - Refresh ARP and routing state after IP changes; flush stale entries when lease changes.
 
-## [ ] Step 4 — Error handling and fallback
+## [X] Step 4 — Error handling and fallback
   - Add exponential/backoff or capped retry timings; log retries with reason.
   - Handle NAK in all relevant states (REQUESTING/RENEWING/REBINDING) and restart discovery.
   - Add optional fallback to static configuration when DHCP fails after max retries.

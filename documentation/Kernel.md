@@ -967,6 +967,7 @@ void InitializeNetworkManager(void) {
 **DHCP Integration**
 - DHCP ACK applies assigned IP, subnet mask, gateway, and DNS server to the IPv4 layer and network device context.
 - ARP cache and pending IPv4 routes are flushed on lease changes before marking the device ready, ensuring stale mappings are dropped when a lease is renewed or replaced.
+- DHCP retry backoff is capped; on exhaustion, the stack optionally falls back to the configured static IP/mask/gateway before declaring the device ready.
 
 ### E1000 Ethernet Driver
 

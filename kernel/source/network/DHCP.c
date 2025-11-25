@@ -97,6 +97,55 @@ static void DHCP_ResetRoutingState(LPDEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Applies static network configuration when DHCP exhausts retries.
+ *
+ * @param Context DHCP context.
+ * @return TRUE if fallback applied, FALSE otherwise.
+ */
+static BOOL DHCP_ApplyStaticFallback(LPDHCP_CONTEXT Context) {
+    LPNETWORK_DEVICE_CONTEXT NetCtx;
+    U32 LocalIPv4_Be;
+    U32 Netmask_Be;
+    U32 Gateway_Be;
+
+    if (Context == NULL) return FALSE;
+
+    NetCtx = DHCP_GetNetworkDeviceContext(Context->Device);
+    SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
+        LocalIPv4_Be = NetCtx->StaticConfig.LocalIPv4_Be;
+        Netmask_Be = NetCtx->StaticConfig.SubnetMask_Be;
+        Gateway_Be = NetCtx->StaticConfig.Gateway_Be;
+
+        if (LocalIPv4_Be == 0 || Netmask_Be == 0) {
+            ERROR(TEXT("[DHCP_ApplyStaticFallback] No static configuration available for fallback"));
+            return FALSE;
+        }
+
+        DHCP_ResetRoutingState(Context->Device);
+        IPv4_SetNetworkConfig(Context->Device, LocalIPv4_Be, Netmask_Be, Gateway_Be);
+
+        NetCtx->ActiveConfig.LocalIPv4_Be = LocalIPv4_Be;
+        NetCtx->ActiveConfig.SubnetMask_Be = Netmask_Be;
+        NetCtx->ActiveConfig.Gateway_Be = Gateway_Be;
+        NetCtx->ActiveConfig.DNSServer_Be = NetCtx->StaticConfig.DNSServer_Be;
+        NetCtx->IsReady = TRUE;
+
+        U32 IP = Ntohl(LocalIPv4_Be);
+        DEBUG(TEXT("[DHCP_ApplyStaticFallback] Applied static fallback IP %u.%u.%u.%u"),
+              (IP >> 24) & 0xFF,
+              (IP >> 16) & 0xFF,
+              (IP >> 8) & 0xFF,
+              IP & 0xFF);
+        return TRUE;
+    }
+
+    ERROR(TEXT("[DHCP_ApplyStaticFallback] Network context unavailable for fallback"));
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Generates a pseudo-random transaction ID.
  *
  * @return Transaction ID.
@@ -496,10 +545,10 @@ static void DHCP_ClearNetworkReady(LPDHCP_CONTEXT Context) {
 
     NetCtx = DHCP_GetNetworkDeviceContext(Context->Device);
     SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
-        NetCtx->LocalIPv4_Be = 0;
-        NetCtx->SubnetMask_Be = 0;
-        NetCtx->Gateway_Be = 0;
-        NetCtx->DNSServer_Be = 0;
+        NetCtx->ActiveConfig.LocalIPv4_Be = 0;
+        NetCtx->ActiveConfig.SubnetMask_Be = 0;
+        NetCtx->ActiveConfig.Gateway_Be = 0;
+        NetCtx->ActiveConfig.DNSServer_Be = 0;
         NetCtx->IsReady = FALSE;
         DEBUG(TEXT("[DHCP_ClearNetworkReady] Network device marked not ready"));
     }
@@ -611,7 +660,7 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
     PreviousIP_Be = (IPv4Context != NULL) ? IPv4Context->LocalIPv4_Be : 0;
     PreviousMask_Be = (IPv4Context != NULL) ? IPv4Context->NetmaskBe : 0;
     PreviousGateway_Be = (IPv4Context != NULL) ? IPv4Context->DefaultGatewayBe : 0;
-    PreviousDNS_Be = (NetCtx != NULL) ? NetCtx->DNSServer_Be : 0;
+    PreviousDNS_Be = (NetCtx != NULL) ? NetCtx->ActiveConfig.DNSServer_Be : 0;
 
     ConfigChanged = (PreviousIP_Be != Context->OfferedIP_Be) ||
                     (PreviousMask_Be != Context->SubnetMask_Be) ||
@@ -643,10 +692,10 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
 
     // Mark network device as ready
     SAFE_USE_VALID_ID(NetCtx, KOID_NETWORKDEVICE) {
-        NetCtx->LocalIPv4_Be = Context->OfferedIP_Be;
-        NetCtx->SubnetMask_Be = Context->SubnetMask_Be;
-        NetCtx->Gateway_Be = Context->Gateway_Be;
-        NetCtx->DNSServer_Be = Context->DNSServer_Be;
+        NetCtx->ActiveConfig.LocalIPv4_Be = Context->OfferedIP_Be;
+        NetCtx->ActiveConfig.SubnetMask_Be = Context->SubnetMask_Be;
+        NetCtx->ActiveConfig.Gateway_Be = Context->Gateway_Be;
+        NetCtx->ActiveConfig.DNSServer_Be = Context->DNSServer_Be;
         DEBUG(TEXT("[DHCP_ApplyAck] Updated network context IP to %u.%u.%u.%u"),
               (AssignedIP >> 24) & 0xFF,
               (AssignedIP >> 16) & 0xFF,
@@ -809,6 +858,7 @@ static void DHCP_HandleRequestTimeout(LPDEVICE Device, LPDHCP_CONTEXT Context) {
     UINT CurrentMillis;
     UINT ElapsedMillis;
     UINT TimeoutMillis;
+    BOOL FallbackApplied;
 
     if (Device == NULL || Context == NULL) return;
 
@@ -821,19 +871,32 @@ static void DHCP_HandleRequestTimeout(LPDEVICE Device, LPDHCP_CONTEXT Context) {
     }
 
     if (Context->RetryCount >= DHCP_MAX_RETRIES) {
-        DEBUG(TEXT("[DHCP_HandleRequestTimeout] DHCP failed after %u retries"), Context->RetryCount);
+        DEBUG(TEXT("[DHCP_HandleRequestTimeout] DHCP failed after %u retries in state %u"), Context->RetryCount, Context->State);
         if (Context->State == DHCP_STATE_RENEWING || Context->State == DHCP_STATE_REBINDING) {
             WARNING(TEXT("[DHCP_HandleRequestTimeout] Lease retry limit reached, restarting DHCP"));
             DHCP_ClearNetworkReady(Context);
             DHCP_Start(Device);
         } else {
-            Context->State = DHCP_STATE_FAILED;
+            FallbackApplied = DHCP_ApplyStaticFallback(Context);
+            if (FallbackApplied) {
+                Context->State = DHCP_STATE_FAILED;
+                DEBUG(TEXT("[DHCP_HandleRequestTimeout] Static fallback applied after DHCP failure"));
+            } else {
+                Context->State = DHCP_STATE_FAILED;
+                WARNING(TEXT("[DHCP_HandleRequestTimeout] DHCP failed and no fallback available"));
+            }
         }
         return;
     }
 
+    WARNING(TEXT("[DHCP_HandleRequestTimeout] Timeout in state %u after %u ms (backoff %u ms), retry %u/%u"),
+            Context->State,
+            ElapsedMillis,
+            TimeoutMillis,
+            Context->RetryCount + 1,
+            DHCP_MAX_RETRIES);
+
     Context->RetryCount++;
-    WARNING(TEXT("[DHCP_HandleRequestTimeout] DHCP timeout, retry %u/%u"), Context->RetryCount, DHCP_MAX_RETRIES);
 
     if (Context->State == DHCP_STATE_SELECTING) {
         DHCP_SendDiscover(Device);

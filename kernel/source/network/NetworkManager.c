@@ -230,10 +230,14 @@ static U32 NetworkManager_FindNetworkDevices(void) {
                                 GetDefaultDeviceName(Device->Name, (LPDEVICE)Device, DRIVER_TYPE_NETWORK);
 
                                 // Use per-device configuration with fallback to global config
-                                Context->LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(NETWORK_FALLBACK_IPV4_BASE + Count));
-                                Context->SubnetMask_Be = 0;
-                                Context->Gateway_Be = 0;
-                                Context->DNSServer_Be = 0;
+                                Context->ActiveConfig.LocalIPv4_Be = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("LocalIP"), TEXT(CONFIG_NETWORK_LOCAL_IP), Htonl(NETWORK_FALLBACK_IPV4_BASE + Count));
+                                Context->ActiveConfig.SubnetMask_Be = 0;
+                                Context->ActiveConfig.Gateway_Be = 0;
+                                Context->ActiveConfig.DNSServer_Be = 0;
+                                Context->StaticConfig.LocalIPv4_Be = Context->ActiveConfig.LocalIPv4_Be;
+                                Context->StaticConfig.SubnetMask_Be = Htonl(NETWORK_FALLBACK_IPV4_NETMASK);
+                                Context->StaticConfig.Gateway_Be = Htonl(NETWORK_FALLBACK_IPV4_GATEWAY);
+                                Context->StaticConfig.DNSServer_Be = 0;
                                 Context->IsInitialized = FALSE;
                                 Context->IsReady = FALSE;
                                 Context->OriginalCallback = NULL;
@@ -293,7 +297,7 @@ void InitializeNetwork(void) {
         for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT Ctx = (LPNETWORK_DEVICE_CONTEXT)Node;
             SAFE_USE_VALID_ID(Ctx, KOID_NETWORKDEVICE) {
-                NetworkManager_InitializeDevice(Ctx->Device, Ctx->LocalIPv4_Be);
+                NetworkManager_InitializeDevice(Ctx->Device, Ctx->ActiveConfig.LocalIPv4_Be);
             }
         }
     }
@@ -426,8 +430,12 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             U32 NetmaskBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Netmask"), TEXT(CONFIG_NETWORK_NETMASK), Htonl(NETWORK_FALLBACK_IPV4_NETMASK));
             U32 GatewayBe = NetworkManager_GetDeviceConfigIP(Device->Name, TEXT("Gateway"), TEXT(CONFIG_NETWORK_GATEWAY), Htonl(NETWORK_FALLBACK_IPV4_GATEWAY));
             IPv4_SetNetworkConfig((LPDEVICE)Device, LocalIPv4_Be, NetmaskBe, GatewayBe);
-            DeviceContext->SubnetMask_Be = NetmaskBe;
-            DeviceContext->Gateway_Be = GatewayBe;
+            DeviceContext->ActiveConfig.SubnetMask_Be = NetmaskBe;
+            DeviceContext->ActiveConfig.Gateway_Be = GatewayBe;
+            DeviceContext->ActiveConfig.LocalIPv4_Be = LocalIPv4_Be;
+            DeviceContext->StaticConfig.SubnetMask_Be = NetmaskBe;
+            DeviceContext->StaticConfig.Gateway_Be = GatewayBe;
+            DeviceContext->StaticConfig.LocalIPv4_Be = LocalIPv4_Be;
 
             // Initialize TCP subsystem (global for all devices)
             static BOOL TCPInitialized = FALSE;
