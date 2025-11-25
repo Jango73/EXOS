@@ -144,9 +144,15 @@ UINT GetPhysicalPageMark(UINT Page) {
 void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
     DEBUG(TEXT("[SetPhysicalPageRangeMark] Enter"));
 
+    UINT MaxPages = KernelStartup.PageCount;
+    UINT BitmapPages = GetPhysicalPageBitmapSize() << MUL_8;
+    if (BitmapPages != 0 && BitmapPages < MaxPages) {
+        MaxPages = BitmapPages;
+    }
+
     UINT End = FirstPage + PageCount;
-    if (FirstPage >= KernelStartup.PageCount) return;
-    if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
+    if (FirstPage >= MaxPages) return;
+    if (End > MaxPages) End = MaxPages;
 
     DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %x, %x"), FirstPage, End);
 
@@ -162,6 +168,45 @@ void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
             Bitmap[Byte] &= (U8)~Mask;
         }
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Mark a range of 2M physical pages as used or free.
+ * @param FirstPage First 2M page index relative to the high region base.
+ * @param PageCount Number of 2M pages.
+ * @param Used Non-zero to mark used.
+ */
+static void SetLargePhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
+#if defined(__EXOS_ARCH_X86_64__)
+    UINT MaxPages = GetLargePageCount();
+    if (FirstPage >= MaxPages) return;
+
+    UINT End = FirstPage + PageCount;
+    if (End > MaxPages) {
+        End = MaxPages;
+    }
+
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap2M();
+    if (Bitmap == NULL || GetPhysicalPageBitmap2MSize() == 0) {
+        return;
+    }
+
+    for (UINT Page = FirstPage; Page < End; Page++) {
+        UINT Byte = Page >> MUL_8;
+        U8 Mask = (U8)(1u << (Page & 0x07));
+        if (Used) {
+            Bitmap[Byte] |= Mask;
+        } else {
+            Bitmap[Byte] &= (U8)~Mask;
+        }
+    }
+#else
+    UNUSED(FirstPage);
+    UNUSED(PageCount);
+    UNUSED(Used);
+#endif
 }
 
 /************************************************************************/
@@ -192,8 +237,112 @@ void UpdateKernelMemoryMetricsFromMultibootMap(void) {
     KernelStartup.MemorySize = MaxUsableRAM;
     if (KernelStartup.MemorySize == 0) {
         KernelStartup.PageCount = 0;
-    } else {
-        KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+        SetPhysicalPageBitmapSize(0);
+        SetPhysicalPageBitmap2MSize(0);
+        SetCachedLowMemoryWindowLimit(0);
+        SetLargePageCount(0);
+        return;
+    }
+
+    KernelStartup.PageCount = (KernelStartup.MemorySize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
+
+#if defined(__EXOS_ARCH_X86_64__)
+    PHYSICAL LowWindowLimit = ComputeLowMemoryWindowLimit(KernelStartup.MemorySize);
+#else
+    PHYSICAL LowWindowLimit = KernelStartup.MemorySize;
+#endif
+
+    SetCachedLowMemoryWindowLimit(LowWindowLimit);
+
+    UINT LowWindowPages = (UINT)((LowWindowLimit + (PAGE_SIZE - 1u)) >> PAGE_SIZE_MUL);
+    UINT LowBitmapBytes = (LowWindowPages + 7u) >> MUL_8;
+    if (LowBitmapBytes != 0) {
+        LowBitmapBytes = (UINT)PAGE_ALIGN(LowBitmapBytes);
+    }
+    SetPhysicalPageBitmapSize(LowBitmapBytes);
+
+#if defined(__EXOS_ARCH_X86_64__)
+    PHYSICAL HighBytes = 0;
+    if (KernelStartup.MemorySize > LowWindowLimit) {
+        HighBytes = KernelStartup.MemorySize - LowWindowLimit;
+    }
+
+    UINT LargePageCount = (UINT)((HighBytes + (PAGE_2M_SIZE - 1u)) >> MUL_2MB);
+    UINT LargeBitmapBytes = (LargePageCount + 7u) >> MUL_8;
+    if (LargeBitmapBytes != 0) {
+        LargeBitmapBytes = (UINT)PAGE_ALIGN(LargeBitmapBytes);
+    }
+
+    SetLargePageCount(LargePageCount);
+    SetPhysicalPageBitmap2MSize(LargeBitmapBytes);
+#else
+    SetLargePageCount(0);
+    SetPhysicalPageBitmap2MSize(0);
+#endif
+
+    LPPAGEBITMAP LowBitmap = GetPhysicalPageBitmap();
+    UINT LowBitmapSize = GetPhysicalPageBitmapSize();
+    if (LowBitmap != NULL && LowBitmapSize != 0) {
+        MemorySet(LowBitmap, 0, LowBitmapSize);
+    }
+
+#if defined(__EXOS_ARCH_X86_64__)
+    LPPAGEBITMAP LargeBitmap = GetPhysicalPageBitmap2M();
+    UINT LargeBitmapSize = GetPhysicalPageBitmap2MSize();
+    if (LargeBitmap != NULL && LargeBitmapSize != 0) {
+        MemorySet(LargeBitmap, 0, LargeBitmapSize);
+    }
+#endif
+
+    for (UINT i = 0; i < KernelStartup.MultibootMemoryEntryCount; i++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[i];
+        PHYSICAL Base = 0;
+        UINT Size = 0;
+
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
+            continue;
+        }
+
+        if (Entry->Type == MULTIBOOT_MEMORY_AVAILABLE) {
+            continue;
+        }
+
+        PHYSICAL EntryEnd = Base + Size;
+
+        if (Base < LowWindowLimit) {
+            PHYSICAL LowEnd = EntryEnd;
+            if (LowEnd > LowWindowLimit) {
+                LowEnd = LowWindowLimit;
+            }
+
+            UINT FirstPage = (UINT)(Base >> PAGE_SIZE_MUL);
+            UINT PageCount = (UINT)((LowEnd - Base + PAGE_SIZE - 1u) >> PAGE_SIZE_MUL);
+            if (PageCount != 0) {
+                SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+            }
+        }
+
+#if defined(__EXOS_ARCH_X86_64__)
+        if (EntryEnd > LowWindowLimit && GetLargePageCount() != 0) {
+            PHYSICAL HighStart = Base;
+            if (HighStart < LowWindowLimit) {
+                HighStart = LowWindowLimit;
+            }
+
+            PHYSICAL HighEnd = EntryEnd;
+            if (HighEnd > KernelStartup.MemorySize) {
+                HighEnd = KernelStartup.MemorySize;
+            }
+
+            if (HighEnd > HighStart) {
+                UINT FirstLargePage = (UINT)((HighStart - LowWindowLimit) >> MUL_2MB);
+                UINT LargePageCount = (UINT)(((HighEnd - HighStart) + (PAGE_2M_SIZE - 1u)) >> MUL_2MB);
+                if (LargePageCount != 0) {
+                    SetLargePhysicalPageRangeMark(FirstLargePage, LargePageCount, 1);
+                }
+            }
+        }
+#endif
     }
 }
 

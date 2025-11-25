@@ -128,6 +128,10 @@ typedef struct tag_KERNELDATA {
     HANDLE_MAP HandleMap;           // Global handle to pointer mapping
     UINT PPBSize;                   // Size in bytes of the physical page bitmap
     LPPAGEBITMAP PPB;               // Physical page bitmap
+    UINT PPB2MSize;                 // Size in bytes of the 2M page bitmap
+    LPPAGEBITMAP PPB2M;             // 2M page bitmap (covers memory above low window)
+    PHYSICAL LowMemoryWindowLimit;  // Size in bytes of the low 4K window
+    UINT LargePageCount;            // Number of 2M pages above the low window
     CPUINFORMATION CPU;
     LPTOML Configuration;
     UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
@@ -167,6 +171,14 @@ UINT GetPhysicalPageBitmapSize(void);
 void SetPhysicalPageBitmapSize(UINT Size);
 LPPAGEBITMAP GetPhysicalPageBitmap(void);
 void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap);
+UINT GetPhysicalPageBitmap2MSize(void);
+void SetPhysicalPageBitmap2MSize(UINT Size);
+LPPAGEBITMAP GetPhysicalPageBitmap2M(void);
+void SetPhysicalPageBitmap2M(LPPAGEBITMAP Bitmap);
+PHYSICAL GetCachedLowMemoryWindowLimit(void);
+void SetCachedLowMemoryWindowLimit(PHYSICAL Limit);
+UINT GetLargePageCount(void);
+void SetLargePageCount(UINT Count);
 LPCPUINFORMATION GetKernelCPUInfo(void);
 UINT GetDeferredWorkWaitTimeout(void);
 void SetDeferredWorkWaitTimeout(UINT Timeout);

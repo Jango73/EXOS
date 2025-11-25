@@ -231,6 +231,10 @@ static KERNELDATA DATA_SECTION Kernel = {
     .HandleMap = {0},
     .PPBSize = 0,
     .PPB = NULL,
+    .PPB2MSize = 0,
+    .PPB2M = NULL,
+    .LowMemoryWindowLimit = 0,
+    .LargePageCount = 0,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
     .Configuration = NULL,
     .MinimumQuantum = 10,
@@ -525,6 +529,86 @@ LPPAGEBITMAP GetPhysicalPageBitmap(void) {
  */
 void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap) {
     Kernel.PPB = Bitmap;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the size of the 2M page bitmap.
+ * @return Size in bytes.
+ */
+UINT GetPhysicalPageBitmap2MSize(void) {
+    return Kernel.PPB2MSize;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the size of the 2M page bitmap.
+ * @param Size Size in bytes.
+ */
+void SetPhysicalPageBitmap2MSize(UINT Size) {
+    Kernel.PPB2MSize = Size;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the 2M page bitmap pointer.
+ * @return Pointer to the bitmap.
+ */
+LPPAGEBITMAP GetPhysicalPageBitmap2M(void) {
+    return Kernel.PPB2M;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the 2M page bitmap pointer.
+ * @param Bitmap Pointer to the bitmap.
+ */
+void SetPhysicalPageBitmap2M(LPPAGEBITMAP Bitmap) {
+    Kernel.PPB2M = Bitmap;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the size of the low 4K window in bytes.
+ * @return Size in bytes.
+ */
+PHYSICAL GetCachedLowMemoryWindowLimit(void) {
+    return Kernel.LowMemoryWindowLimit;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Stores the size of the low 4K window in bytes.
+ * @param Limit Size in bytes.
+ */
+void SetCachedLowMemoryWindowLimit(PHYSICAL Limit) {
+    Kernel.LowMemoryWindowLimit = Limit;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the number of 2M pages above the low window.
+ * @return Page count.
+ */
+UINT GetLargePageCount(void) {
+    return Kernel.LargePageCount;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Stores the number of 2M pages above the low window.
+ * @param Count Page count.
+ */
+void SetLargePageCount(UINT Count) {
+    Kernel.LargePageCount = Count;
 }
 
 /************************************************************************/

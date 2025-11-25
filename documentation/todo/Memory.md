@@ -50,7 +50,7 @@
 
 ## Implementation Steps
 - [x] Step 1 - Compute low-window-limit = round_up(1% of total RAM, 2 MiB); clamp against total RAM; publish helper for reuse.
-- [ ] Step 2 - Extend kernel data with 2 MiB bitmap storage/getters/setters; size from high memory; update `UpdateKernelMemoryMetricsFromMultibootMap` to fill both bitmaps using the window split.
+- [x] Step 2 - Extend kernel data with 2 MiB bitmap storage/getters/setters; size from high memory; update `UpdateKernelMemoryMetricsFromMultibootMap` to fill both bitmaps using the window split.
 - [ ] Step 3 - Implement `x86-64-Memory.c` mirroring `i386-Memory.c`: driver entry, temporary mappers, page flag helpers, MapOnePage/UnmapOnePage with 4 KiB PT only in low window; 2 MiB PDEs elsewhere.
 - [ ] Step 4 - Wire allocators: `AllocPhysicalPage`/`FreePhysicalPage` pick bitmap by physical address; `AllocRegion`/`ResizeRegion`/`FreeRegion` enforce window split and reject straddling; set `Granularity` in descriptors.
 - [ ] Step 5 - Build page directory allocator for user/kernel CR3: allocate PML4/PDPT/PD with 2 MiB backing, pre-create low PTs, install recursive slot, clone kernel slots.
