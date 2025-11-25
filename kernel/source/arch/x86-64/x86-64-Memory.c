@@ -885,6 +885,14 @@ PHYSICAL AllocPageDirectory(void) {
     Recursive->AvailableHigh = 0;
     Recursive->NoExecute = 0;
 
+    if (NewPml4[0].Present == 0 && CurrentPml4[0].Present != 0) {
+        NewPml4[0] = CurrentPml4[0];
+    }
+
+    if (NewPml4[511].Present == 0 && CurrentPml4[511].Present != 0) {
+        NewPml4[511] = CurrentPml4[511];
+    }
+
     return Pml4Physical;
 }
 
@@ -907,6 +915,13 @@ PHYSICAL AllocUserPageDirectory(void) {
 
     for (UINT Index = 1; Index < 256; Index++) {
         MemorySet(&NewPml4[Index], 0, sizeof(X86_64_PML4_ENTRY));
+    }
+
+    if (NewPml4[0].Present == 0) {
+        LPPML4 Current = GetCurrentPml4VA();
+        if (Current[0].Present) {
+            NewPml4[0] = Current[0];
+        }
     }
 
     return Pml4Physical;
