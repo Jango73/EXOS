@@ -28,9 +28,31 @@
 #include "Memory.h"
 #include "Mutex.h"
 #include "ID.h"
+#include "Console.h"
 #include "System.h"
 #include "User.h"
 #include "process/Process.h"
+
+/************************************************************************/
+
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter);
+
+DRIVER DATA_SECTION MemoryManagerDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_OTHER,
+    .VersionMajor = 1,
+    .VersionMinor = 0,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Memory",
+    .Flags = DRIVER_FLAG_CRITICAL,
+    .Command = MemoryManagerCommands};
+
+#define MEMORY_MANAGER_VER_MAJOR 1
+#define MEMORY_MANAGER_VER_MINOR 0
 
 /************************************************************************/
 
@@ -76,7 +98,9 @@ static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
 
 /************************************************************************/
 
-static inline void SetPageFlags(LPX86_64_PAGE_TABLE_ENTRY Entry, U64 Flags, PHYSICAL Physical) {
+static BOOL MapOnePage(LINEAR Linear, PHYSICAL Physical, U64 Flags);  // forward
+
+static inline void SetPageFlags(X86_64_PAGE_TABLE_ENTRY* Entry, U64 Flags, PHYSICAL Physical) {
     Entry->Present = (Flags & PAGE_FLAG_PRESENT) ? 1u : 0u;
     Entry->ReadWrite = (Flags & PAGE_FLAG_READ_WRITE) ? 1u : 0u;
     Entry->Privilege = (Flags & PAGE_FLAG_USER) ? 1u : 0u;
@@ -90,12 +114,6 @@ static inline void SetPageFlags(LPX86_64_PAGE_TABLE_ENTRY Entry, U64 Flags, PHYS
     Entry->Available = 0u;
     Entry->AvailableHigh = 0u;
     Entry->NoExecute = (Flags & PAGE_FLAG_NO_EXECUTE) ? 1u : 0u;
-}
-
-/************************************************************************/
-
-static inline void InvalidatePage(LINEAR Linear) {
-    __asm__ volatile("invlpg (%0)" ::"r"(Linear) : "memory");
 }
 
 /************************************************************************/
@@ -176,7 +194,7 @@ static BOOL MapLargePage(LINEAR Linear, PHYSICAL Physical, U64 Flags) {
 
 /************************************************************************/
 
-static inline UINT64 RegionPageCount(UINT Size, MEMORY_REGION_GRANULARITY Granularity) {
+static inline U64 RegionPageCount(UINT Size, MEMORY_REGION_GRANULARITY Granularity) {
     UINT PageSizeMul = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? MUL_2MB : PAGE_SIZE_MUL;
     UINT PageSizeBytes = (Granularity == MEMORY_REGION_GRANULARITY_2M) ? PAGE_2M_SIZE : PAGE_SIZE;
     return ((U64)Size + (PageSizeBytes - 1u)) >> PageSizeMul;
@@ -840,7 +858,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
 
 /************************************************************************/
 
-static void CopyKernelPml4Entries(LPX86_64_PML4_ENTRY Dest, LPPML4 Src) {
+static void CopyKernelPml4Entries(LPPML4 Dest, LPPML4 Src) {
     for (UINT Index = 256; Index < PML4_ENTRY_COUNT; Index++) {
         Dest[Index] = Src[Index];
     }
@@ -1071,6 +1089,78 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
 
 /************************************************************************/
 
+void InitializeMemoryManager(void) {
+    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
+
+    UpdateKernelMemoryMetricsFromMultibootMap();
+
+    if (KernelStartup.PageCount == 0) {
+        ConsolePanic(TEXT("Detected memory = 0"));
+    }
+
+    UINT LowBitmapSize = GetPhysicalPageBitmapSize();
+    UINT LargeBitmapSize = GetPhysicalPageBitmap2MSize();
+
+    PHYSICAL Base = PAGE_ALIGN(KernelStartup.KernelPhysicalBase + (PHYSICAL)KernelStartup.KernelSize + (PHYSICAL)N_512KB);
+
+    if (LowBitmapSize != 0) {
+        SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)Base);
+        Base = PAGE_ALIGN(Base + LowBitmapSize);
+    }
+
+    if (LargeBitmapSize != 0) {
+        SetPhysicalPageBitmap2M((LPPAGEBITMAP)(UINT)Base);
+        Base = PAGE_ALIGN(Base + LargeBitmapSize);
+    }
+
+    if (LowBitmapSize != 0) {
+        MemorySet(GetPhysicalPageBitmap(), 0, LowBitmapSize);
+    }
+
+    if (LargeBitmapSize != 0) {
+        MemorySet(GetPhysicalPageBitmap2M(), 0, LargeBitmapSize);
+    }
+
+    MarkUsedPhysicalMemory();
+
+    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
+        TEMP_LINEAR_PAGE_1,
+        TEMP_LINEAR_PAGE_2,
+        TEMP_LINEAR_PAGE_3);
+
+    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
+}
+
+/************************************************************************/
+
+static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
+    UNUSED(Parameter);
+
+    switch (Function) {
+        case DF_LOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
+                return DF_RET_SUCCESS;
+            }
+            InitializeMemoryManager();
+            MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
+            return DF_RET_SUCCESS;
+
+        case DF_UNLOAD:
+            if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_RET_SUCCESS;
+            }
+            MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
+            return DF_RET_SUCCESS;
+
+        case DF_GETVERSION:
+            return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
+    }
+
+    return DF_RET_NOTIMPL;
+}
+
+/************************************************************************/
+
 LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
     if (PhysicalBase == 0 || Size == 0) {
         ERROR(TEXT("[MapIOMemory] Invalid parameters (PA=%p Size=%x)"), (LPVOID)PhysicalBase, Size);
@@ -1112,6 +1202,18 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
     }
 
     return FreeRegion(LinearBase, Size);
+}
+
+/************************************************************************/
+
+LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
+    return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
+}
+
+/************************************************************************/
+
+BOOL ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags) {
+    return ResizeRegion(Base, 0, Size, NewSize, Flags | ALLOC_PAGES_AT_OR_OVER);
 }
 
 /************************************************************************/

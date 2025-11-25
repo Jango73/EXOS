@@ -402,6 +402,7 @@ void MarkUsedPhysicalMemory(void) {
  * @brief Allocate a free physical page.
  * @return Physical page number or MAX_U32 on failure.
  */
+#if defined(__EXOS_ARCH_I386__)
 PHYSICAL AllocPhysicalPage(void) {
     UINT i = 0;
     UINT bit = 0;
@@ -510,3 +511,5 @@ void FreePhysicalPage(PHYSICAL Page) {
 
     UnlockMutex(MUTEX_MEMORY);
 }
+
+#endif  // __EXOS_ARCH_I386__
