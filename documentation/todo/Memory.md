@@ -54,7 +54,7 @@
 - [ ] Step 3 - Implement `x86-64-Memory.c` mirroring `i386-Memory.c`:
   - [x] 3.1 Driver skeleton, page-flag helpers, temporary mappers using low 4 KiB PT, invlpg paths.
   - [x] 3.2 MapOnePage/UnmapOnePage with 4 KiB PT only in low window; 2 MiB PDEs elsewhere; base `MapLinearToPhysical`/`IsValidMemory`.
-  - [ ] 3.3 AllocPhysicalPage/FreePhysicalPage routing to 4 KiB vs 2 MiB bitmaps; AllocRegion/ResizeRegion/FreeRegion with granularity enforcement and no straddle over low-window-limit.
+  - [x] 3.3 AllocPhysicalPage/FreePhysicalPage routing to 4 KiB vs 2 MiB bitmaps; AllocRegion/ResizeRegion/FreeRegion with granularity enforcement and no straddle over low-window-limit.
   - [ ] 3.4 AllocPageDirectory/AllocUserPageDirectory (PML4/PDPT/PD on 2 MiB frames, precreate low PT), ResolveKernelPageFault/IsValidMemory final pass with 4-level walks.
   - [ ] 3.5 MapIOMemory/UnMapIOMemory constrained to low window or 2 MiB-aligned mappings; remaining glue/log helpers.
 - [ ] Step 4 - Wire allocators: `AllocPhysicalPage`/`FreePhysicalPage` pick bitmap by physical address; `AllocRegion`/`ResizeRegion`/`FreeRegion` enforce window split and reject straddling; set `Granularity` in descriptors.
