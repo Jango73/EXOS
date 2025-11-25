@@ -1,18 +1,18 @@
 # DHCP Completion Plan
 
-## [ ] Step 1 — DHCP client flow
+## [X] Step 1 — DHCP client flow
   - Validate current DISCOVER/OFFER/REQUEST/ACK state machine; add handling for DECLINE and INFORM if needed.
   - Ensure REQUEST includes correct client identifier/server identifier and handles unicast responses.
   - Add REQUEST resend/backoff rules shared by renew/rebind paths to avoid duplication.
 
-## [ ] Step 2 — Lease management
+## [X] Step 2 — Lease management
   - Parse and store T1/T2 (options 58/59); fall back to 50%/87.5% defaults when missing.
   - Implement RENEWING (unicast REQUEST to server ID) and REBINDING (broadcast REQUEST) with state transitions on ACK/NAK/timeout.
   - Track lease expiration and trigger restart when exhausted; reset retry counters appropriately.
   - Emit DHCP RELEASE during shutdown or interface disable; clear network context readiness.
 
 ## [ ] Step 3 — Configuration application
-  - Apply subnet mask, gateway, and DNS server to network context/runtime resolver; expose DNS to userland consumers.
+  - Apply subnet mask, gateway, and DNS server to network context/runtime resolver;
   - Refresh ARP and routing state after IP changes; flush stale entries when lease changes.
 
 ## [ ] Step 4 — Error handling and fallback
