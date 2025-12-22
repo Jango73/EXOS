@@ -88,6 +88,7 @@ BOOL PeekChar(void);
 STR GetChar(void);
 BOOL GetKeyCode(LPKEYCODE);
 BOOL GetKeyCodeDown(KEYCODE);
+U32 GetKeyModifiers(void);
 void WaitKey(void);
 void KeyboardHandler(void);
 LPCSTR GetKeyName(U8);

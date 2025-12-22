@@ -369,6 +369,7 @@ static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
 
     *File = (SYSFSFILE){0};
     File->Header.TypeID = KOID_FILE;
+    File->Header.References = 1;
     File->Header.FileSystem = GetSystemFS();
     File->Parent = Parent;
     File->MountedFile = Mounted;
@@ -707,6 +708,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
             *File = (SYSFSFILE){0};
             File->Header.TypeID = KOID_FILE;
+            File->Header.References = 1;
             File->Header.FileSystem = GetSystemFS();
             File->Parent = Node;
             File->MountedFile = NULL;
@@ -737,6 +739,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
         *File = (SYSFSFILE){0};
         File->Header.TypeID = KOID_FILE;
+        File->Header.References = 1;
         File->Header.FileSystem = GetSystemFS();
         File->SystemFile = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
         File->Parent = Node->Parent;

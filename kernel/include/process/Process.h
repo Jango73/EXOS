@@ -84,11 +84,9 @@ struct tag_PROCESS {
     U64 UserID;              // Owner user
     LPUSERSESSION Session;   // User session
 
-#if defined(__EXOS_ARCH_X86_64__)
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
     UINT RegionCount;
-#endif
 };
 
 /************************************************************************/

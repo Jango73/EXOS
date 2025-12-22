@@ -36,6 +36,7 @@
 #define MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_COMMIT ((U32)0x00000001)
 #define MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_IO ((U32)0x00000002)
 #define MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_FIXED ((U32)0x00000004)
+#define MEMORY_REGION_TAG_MAX 32
 
 /************************************************************************/
 // typedefs
@@ -58,6 +59,7 @@ struct tag_MEMORY_REGION_DESCRIPTOR {
     U32 Flags;
     U32 Attributes;
     MEMORY_REGION_GRANULARITY Granularity;
+    STR Tag[MEMORY_REGION_TAG_MAX];
 };
 
 /************************************************************************/
@@ -98,7 +100,7 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress);
 PHYSICAL MapLinearToPhysical(LINEAR Address);
 
 // Allocates physical space for a new region of virtual memory
-LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags);
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag);
 
 // Resizes an existing region of virtual memory
 BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
@@ -111,7 +113,7 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size);
 BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 
 // Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
-LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags);
+LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag);
 
 // Kernel region resize wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
 LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags);

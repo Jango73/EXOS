@@ -182,7 +182,7 @@ static BOOL DeviceInterruptAllocateEntries(void) {
     U32 PageMask = PAGE_SIZE - 1;
     AllocationSize = (AllocationSize + PageMask) & ~PageMask;
 
-    LINEAR Buffer = AllocKernelRegion(0, AllocationSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    LINEAR Buffer = AllocKernelRegion(0, AllocationSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("DeviceInterrupt"));
     if (Buffer == 0) {
         ERROR(TEXT("[DeviceInterruptAllocateEntries] AllocKernelRegion failed (size=%u)"), AllocationSize);
         return FALSE;

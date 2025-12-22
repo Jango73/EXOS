@@ -35,6 +35,11 @@ extern "C" {
 
 /************************************************************************/
 
+// Helper macro to cast parameters to the architecture-sized integer type.
+#ifndef EXOS_PARAM
+#define EXOS_PARAM(Value) ((uint_t)(Value))
+#endif
+
 typedef struct tag_MESSAGE {
     HANDLE Target;
     DATETIME Time;
@@ -50,6 +55,9 @@ BOOL KillTask(HANDLE);
 void Exit(void);
 void Sleep(U32);
 U32 Wait(LPWAITINFO);
+U32 GetSystemTime(void);
+U32 FindFirstFile(FILEFINDINFO* Info);
+U32 FindNextFile(FILEFINDINFO* Info);
 BOOL GetMessage(HANDLE, LPMESSAGE, U32, U32);
 BOOL PeekMessage(HANDLE, LPMESSAGE, U32, U32, U32);
 BOOL DispatchMessage(LPMESSAGE);
@@ -86,6 +94,12 @@ BOOL GetMousePos(LPPOINT);
 U32 GetMouseButtons(void);
 HANDLE CaptureMouse(HANDLE);
 BOOL ReleaseMouse(void);
+U32 GetKeyModifiers(void);
+U32 ConsoleGetKey(LPKEYCODE);
+U32 ConsoleBlitBuffer(LPCONSOLEBLITBUFFER);
+void ConsoleGotoXY(LPPOINT);
+void ConsoleClear(void);
+BOOL DeleteObject(HANDLE);
 void srand(U32);
 U32 rand(void);
 

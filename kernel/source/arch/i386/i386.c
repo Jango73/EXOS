@@ -456,10 +456,26 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Stack.Size = Info->StackSize;
     Task->Arch.SysStack.Size = TASK_MINIMUM_SYSTEM_STACK_SIZE;
 
-    Task->Arch.Stack.Base = AllocRegion(BaseVMA, 0, Task->Arch.Stack.Size,
-        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER);
+    /* Place user stack just below TaskRunner to keep distance from the heap. */
+    Task->Arch.Stack.Base = 0;
+    {
+        LINEAR Candidate = VMA_TASK_RUNNER - Task->Arch.Stack.Size;
+        while (Candidate >= VMA_USER && Task->Arch.Stack.Base == 0) {
+            Task->Arch.Stack.Base = AllocRegion(Candidate,
+                                                0,
+                                                Task->Arch.Stack.Size,
+                                                ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                                TEXT("TaskStack"));
+
+            if (Task->Arch.Stack.Base != 0) break;
+
+            if (Candidate < VMA_USER + Task->Arch.Stack.Size) break;
+            Candidate -= Task->Arch.Stack.Size;
+        }
+    }
+
     Task->Arch.SysStack.Base =
-        AllocKernelRegion(0, Task->Arch.SysStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(0, Task->Arch.SysStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("SysStack"));
 
     DEBUG(TEXT("[SetupTask] BaseVMA=%p, Requested StackBase at BaseVMA"), BaseVMA);
     DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.Stack.Base);

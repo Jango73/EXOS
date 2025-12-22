@@ -156,7 +156,38 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_ConsolePrint 0x00000030
 #define SYSCALL_ConsoleGetString 0x00000031
 #define SYSCALL_ConsoleGotoXY 0x00000032
-#define SYSCALL_ClearScreen 0x00000034
+#define SYSCALL_ConsoleClear 0x00000034
+#define SYSCALL_ConsoleBlitBuffer 0x00000077
+#define SYSCALL_ConsoleGetKeyModifiers 0x00000078
+
+/************************************************************************/
+/* Console Colors                                                        */
+/************************************************************************/
+
+#define CONSOLE_BLACK           0
+#define CONSOLE_BLUE            1
+#define CONSOLE_GREEN           2
+#define CONSOLE_CYAN            3
+#define CONSOLE_RED             4
+#define CONSOLE_MAGENTA         5
+#define CONSOLE_BROWN           6
+#define CONSOLE_GRAY            7
+#define CONSOLE_DARK_GRAY       8
+#define CONSOLE_LIGHT_BLUE      9
+#define CONSOLE_LIGHT_GREEN     10
+#define CONSOLE_LIGHT_CYAN      11
+#define CONSOLE_SALMON          12
+#define CONSOLE_LIGHT_MAGENTA   13
+#define CONSOLE_YELLOW          14
+#define CONSOLE_WHITE           15
+
+/************************************************************************/
+/* Key modifier flags                                                   */
+/************************************************************************/
+
+#define KEYMOD_SHIFT            0x00000001
+#define KEYMOD_CONTROL          0x00000002
+#define KEYMOD_ALT              0x00000004
 
 /************************************************************************/
 // Authentication Services
@@ -241,7 +272,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000077
+#define SYSCALL_Last 0x00000079
 
 /************************************************************************/
 // Structure limits
@@ -296,6 +327,19 @@ typedef struct PACKED tag_PROCESSINFO {
     HANDLE Task;
     SECURITYATTRIBUTES Security;
 } PROCESSINFO, *LPPROCESSINFO;
+
+typedef struct PACKED tag_CONSOLEBLITBUFFER {
+    UINT X;
+    UINT Y;
+    UINT Width;
+    UINT Height;
+    LPCSTR Text;
+    UINT ForeColor;
+    UINT BackColor;
+    UINT TextPitch;
+    const U8* Attr;      /* Fore | (Back << 4) per cell, optional */
+    UINT AttrPitch;      /* Bytes per row in Attr when provided */
+} CONSOLEBLITBUFFER, *LPCONSOLEBLITBUFFER;
 
 typedef struct PACKED tag_TASKINFO {
     ABI_HEADER Header;
@@ -387,6 +431,15 @@ typedef struct PACKED tag_FILEOPERATION {
     U32 NumBytes;
     LPVOID Buffer;
 } FILEOPERATION, *LPFILEOPERATION;
+
+typedef struct PACKED tag_FILEFINDINFO {
+    ABI_HEADER Header;
+    LPCSTR Path;         // Base directory to search
+    LPCSTR Pattern;      // Wildcard pattern (supports '*')
+    HANDLE SearchHandle; // Internal search state
+    U32 Attributes;
+    STR Name[MAX_FILE_NAME];
+} FILEFINDINFO, *LPFILEFINDINFO;
 
 typedef struct PACKED tag_NETWORKINFO {
     ABI_HEADER Header;

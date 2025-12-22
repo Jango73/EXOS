@@ -141,11 +141,13 @@ exoscall :
 
     push    ebp
     mov     ebp, esp
+    push    ebx
 
-    mov     eax, [ebp+(PBN+0)]
-    mov     ebx, [ebp+(PBN+4)]
+    mov     eax, [ebp+(PBN+0)]    ; syscall number
+    mov     ebx, [ebp+(PBN+4)]    ; argument
     int     EXOS_USER_CALL
 
+    pop     ebx
     pop     ebp
     ret
 %endif ; __KERNEL__

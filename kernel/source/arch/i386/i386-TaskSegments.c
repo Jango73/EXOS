@@ -58,7 +58,8 @@ void InitializeTaskSegments(void) {
 
     U32 TssSize = sizeof(TASK_STATE_SEGMENT);
 
-    Kernel_i386.TSS = (LPTASK_STATE_SEGMENT)AllocKernelRegion(0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Kernel_i386.TSS = (LPTASK_STATE_SEGMENT)AllocKernelRegion(
+        0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("TSS"));
 
     if (Kernel_i386.TSS == NULL) {
         ERROR(TEXT("[InitializeTaskSegments] AllocRegion for TSS failed"));

@@ -31,6 +31,7 @@
 #include "File.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory-Descriptors.h"
 #include "network/Network.h"
 #include "network/NetworkManager.h"
 #include "process/Process.h"
@@ -96,6 +97,7 @@ static U32 CMD_disasm(LPSHELLCONTEXT);
 static U32 CMD_cat(LPSHELLCONTEXT);
 static U32 CMD_copy(LPSHELLCONTEXT);
 static U32 CMD_edit(LPSHELLCONTEXT);
+static U32 CMD_memorymap(LPSHELLCONTEXT);
 static U32 CMD_hd(LPSHELLCONTEXT);
 static U32 CMD_filesystem(LPSHELLCONTEXT);
 static U32 CMD_network(LPSHELLCONTEXT);
@@ -152,6 +154,7 @@ static struct {
     {"task", "showtask", "Number", CMD_showtask},
     {"mem", "memedit", "Address", CMD_memedit},
     {"dis", "disasm", "Address InstructionCount", CMD_disasm},
+    {"memory-map", "memory-map", "", CMD_memorymap},
     {"cat", "type", "", CMD_cat},
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
@@ -926,6 +929,52 @@ static U32 CMD_showtask(LPSHELLCONTEXT Context) {
 static U32 CMD_memedit(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
     MemoryEditor(StringToU32(Context->Command));
+
+    return DF_RET_SUCCESS;
+}
+
+/***************************************************************************/
+
+static U32 CMD_memorymap(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+
+    LPPROCESS Process = &KernelProcess;
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = Process->RegionListHead;
+    UINT Index = 0;
+
+    ConsolePrint(TEXT("Kernel regions: %u\n"), Process->RegionCount);
+    DEBUG(TEXT("[CMD_memorymap] Kernel regions: %u"), Process->RegionCount);
+
+    while (Descriptor != NULL) {
+        LPCSTR Tag = (Descriptor->Tag[0] == STR_NULL) ? TEXT("???") : Descriptor->Tag;
+        if (Descriptor->PhysicalBase == 0) {
+            ConsolePrint(TEXT("%u: tag=%s base=%p size=%u phys=???\n"),
+                Index,
+                Tag,
+                (LPVOID)Descriptor->CanonicalBase,
+                Descriptor->Size);
+            DEBUG(TEXT("[CMD_memorymap] %u: tag=%s base=%p size=%u phys=???"),
+                Index,
+                Tag,
+                (LPVOID)Descriptor->CanonicalBase,
+                Descriptor->Size);
+        } else {
+            ConsolePrint(TEXT("%u: tag=%s base=%p size=%u phys=%p\n"),
+                Index,
+                Tag,
+                (LPVOID)Descriptor->CanonicalBase,
+                Descriptor->Size,
+                (LPVOID)Descriptor->PhysicalBase);
+            DEBUG(TEXT("[CMD_memorymap] %u: tag=%s base=%p size=%u phys=%p"),
+                Index,
+                Tag,
+                (LPVOID)Descriptor->CanonicalBase,
+                Descriptor->Size,
+                (LPVOID)Descriptor->PhysicalBase);
+        }
+        Descriptor = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Next;
+        Index++;
+    }
 
     return DF_RET_SUCCESS;
 }
@@ -1801,6 +1850,7 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
  * @return Variable value or NULL if not found
  */
 static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData) {
+    UNUSED(VarName);
     UNUSED(UserData);
     DEBUG(TEXT("[ShellScriptResolveVariable] Resolving: %s"), VarName);
     return NULL;

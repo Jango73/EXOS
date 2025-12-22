@@ -33,6 +33,7 @@
 #include "process/Process.h"
 #include "process/Task.h"
 #include "VKey.h"
+#include "User.h"
 
 /***************************************************************************/
 
@@ -312,6 +313,9 @@ static void ScanCodeToKeyCode(U32 ScanCode, LPKEYCODE KeyCode) {
     } else if (Keyboard.Status[SCAN_ALT] || Keyboard.Status[SCAN_RIGHT_ALT]) {
         if (ScanCodeMap) {
             *KeyCode = ScanCodeMap[ScanCode].Alt;
+            if (KeyCode->VirtualKey == VK_NONE && KeyCode->ASCIICode == 0 && KeyCode->Unicode == 0) {
+                *KeyCode = ScanCodeMap[ScanCode].Normal;
+            }
         }
     } else {
         if (ScanCodeMap) {
@@ -378,12 +382,13 @@ static void ScanCodeToKeyCode_E0(U32 ScanCode, LPKEYCODE KeyCode) {
 
     // Check reboot sequence
 
-    if (KeyCode->VirtualKey == VK_DELETE) {
-        if (Keyboard.Status[SCAN_CONTROL] && Keyboard.Status[SCAN_ALT]) {
-            INTEL_X86_REGISTERS Regs;
-            // RealModeCall(0xF000FFF0, &Regs);
+        if (KeyCode->VirtualKey == VK_DELETE) {
+            if (Keyboard.Status[SCAN_CONTROL] && Keyboard.Status[SCAN_ALT]) {
+                INTEL_X86_REGISTERS Regs;
+                UNUSED(Regs);
+                // RealModeCall(0xF000FFF0, &Regs);
+            }
         }
-    }
 }
 
 /***************************************************************************/
@@ -514,7 +519,14 @@ static void HandleScanCode(U32 ScanCode) {
         PreviousCode = 0;
 
         if (ScanCode & 0x80) {
+            U32 baseCode = ScanCode & 0x7F;
+            if (baseCode == SCAN_RIGHT_CONTROL || baseCode == SCAN_RIGHT_ALT) {
+                Keyboard.Status[baseCode] = 0;
+            }
         } else {
+            if (ScanCode == SCAN_RIGHT_CONTROL || ScanCode == SCAN_RIGHT_ALT) {
+                Keyboard.Status[ScanCode] = 1;
+            }
             ScanCodeToKeyCode_E0(ScanCode, &KeyCode);
             RouteKeyCode(&KeyCode);
         }
@@ -695,6 +707,24 @@ BOOL GetKeyCodeDown(KEYCODE KeyCode) {
     }
 
     return FALSE;
+}
+
+/***************************************************************************/
+
+U32 GetKeyModifiers(void) {
+    U32 modifiers = 0;
+
+    if (Keyboard.Status[SCAN_LEFT_SHIFT] || Keyboard.Status[SCAN_RIGHT_SHIFT]) {
+        modifiers |= KEYMOD_SHIFT;
+    }
+    if (Keyboard.Status[SCAN_CONTROL] || Keyboard.Status[SCAN_RIGHT_CONTROL]) {
+        modifiers |= KEYMOD_CONTROL;
+    }
+    if (Keyboard.Status[SCAN_ALT] || Keyboard.Status[SCAN_RIGHT_ALT]) {
+        modifiers |= KEYMOD_ALT;
+    }
+
+    return modifiers;
 }
 
 /***************************************************************************/

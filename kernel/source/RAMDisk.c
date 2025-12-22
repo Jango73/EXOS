@@ -413,7 +413,7 @@ static U32 RAMDiskInitialize(void) {
     if (Disk == NULL) return DF_RET_NOMEMORY;
 
     Disk->Size = N_512KB;
-    Disk->Base = AllocKernelRegion(0, Disk->Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Disk->Base = AllocKernelRegion(0, Disk->Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("RamDisk"));
 
     if (Disk->Base == NULL) {
         return DF_RET_NOMEMORY;

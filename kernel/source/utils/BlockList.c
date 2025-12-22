@@ -212,7 +212,7 @@ static BOOL BlockListGrowBySlabs(LPBLOCK_LIST List, UINT AdditionalSlabs) {
     LINEAR Base = List->RegionBase;
 
     if (Base == 0) {
-        LINEAR Allocated = AllocKernelRegion(0, NewSize, List->AllocationFlags);
+        LINEAR Allocated = AllocKernelRegion(0, NewSize, List->AllocationFlags, TEXT("BlockList"));
         if (Allocated == 0) {
             ERROR(TEXT("[BlockListGrowBySlabs] AllocKernelRegion failed (size=%u flags=%x)"),
                   NewSize,

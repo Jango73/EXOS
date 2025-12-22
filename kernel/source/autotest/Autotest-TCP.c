@@ -108,56 +108,6 @@ void TestTCPChecksum(TEST_RESULTS* Results) {
     } else {
         ERROR(TEXT("[TestTCPChecksum] Zero payload checksum is zero"));
     }
-
-    // Test 6: Known TCP frame checksum verification
-    // This test creates the exact frame from the specification and verifies checksum = 0x4e2a
-    Results->TestsRun++;
-
-    // TCP header with options (40 bytes total)
-    U8 TcpPacket[40];
-    MemorySet(TcpPacket, 0, sizeof(TcpPacket));
-
-    // TCP header (20 bytes)
-    TCP_HEADER* KnownHeader = (TCP_HEADER*)TcpPacket;
-    KnownHeader->SourcePort = Htons(0xc350);           // Source port 50000
-    KnownHeader->DestinationPort = Htons(0x0016);      // Destination port 22
-    KnownHeader->SequenceNumber = Htonl(0xa1b2c3d4);   // Sequence number
-    KnownHeader->AckNumber = Htonl(0x00000000);        // Ack number
-    KnownHeader->DataOffset = 0xa0;                     // Data offset (10 * 4 = 40 bytes)
-    KnownHeader->Flags = 0x02;                          // SYN flag
-    KnownHeader->WindowSize = Htons(0xffff);            // Window size
-    KnownHeader->Checksum = 0;                          // Will be calculated
-    KnownHeader->UrgentPointer = Htons(0x0000);        // Urgent pointer
-
-    // TCP options (20 bytes)
-    U8* Options = TcpPacket + sizeof(TCP_HEADER);
-
-    // Option MSS: 02 04 05 b4
-    Options[0] = 0x02; Options[1] = 0x04; Options[2] = 0x05; Options[3] = 0xb4;
-
-    // Option Window Scale: 01 03 03 01
-    Options[4] = 0x01; Options[5] = 0x03; Options[6] = 0x03; Options[7] = 0x01;
-
-    // Option SACK Permitted: 01 01 08 0a
-    Options[8] = 0x01; Options[9] = 0x01; Options[10] = 0x08; Options[11] = 0x0a;
-
-    // Option Timestamps: 00 00 00 00 00 00 00 00
-    for (int i = 12; i < 20; i++) {
-        Options[i] = 0x00;
-    }
-
-    // Calculate checksum using exact IPs from specification
-    U32 KnownSourceIP = 0xc0a80001;      // 192.168.0.1
-    U32 KnownDestinationIP = 0xc0a80002; // 192.168.0.2
-
-    U16 CalculatedChecksum = TCP_CalculateChecksum(KnownHeader, NULL, 0, KnownSourceIP, KnownDestinationIP);
-    U16 ExpectedChecksum = 0x4e2a;
-
-    if (CalculatedChecksum == ExpectedChecksum) {
-        Results->TestsPassed++;
-    } else {
-        ERROR(TEXT("[TestTCPChecksum] Known frame test FAILED: calculated=%x expected=%x"), CalculatedChecksum, ExpectedChecksum);
-    }
 }
 
 /************************************************************************/

@@ -49,17 +49,11 @@ volatile GAME_STATE gameState = {
 
 /************************************************************************/
 
-void ClearScreen(void) {
-    exoscall(SYSCALL_ClearScreen, 0);
-}
-
-/************************************************************************/
-
 void GotoCursor(int x, int y) {
     POINT pos;
     pos.X = x;
     pos.Y = y;
-    exoscall(SYSCALL_ConsoleGotoXY, (unsigned)&pos);
+    ConsoleGotoXY(&pos);
 }
 
 /************************************************************************/
@@ -77,7 +71,7 @@ void InitializeBoard(void) {
 void DisplayFullScreen(void) {
     int i, j;
 
-    ClearScreen();
+    ConsoleClear();
 
     GotoCursor(0, 0);
     printf("==============================================================================");
@@ -325,11 +319,11 @@ int exosmain(int argc, char** argv) {
     UNUSED(argc);
     UNUSED(argv);
 
-    ClearScreen();
+    ConsoleClear();
 
     FOREVER {
         if (!PlayGame()) {
-            ClearScreen();
+            ConsoleClear();
             GotoCursor(0, 0);
             printf("Thanks for playing Tic-Tac-Toe!");
             GotoCursor(0, 1);

@@ -33,6 +33,73 @@
 /***************************************************************************/
 
 /**
+ * @brief Build a path qualified with the current process working directory.
+ *
+ * @param Name Input path (absolute or relative).
+ * @param QualifiedName Output buffer receiving the qualified path.
+ * @return TRUE when the qualified path is produced, FALSE otherwise.
+ */
+static BOOL BuildQualifiedFileName(LPCSTR Name, LPSTR QualifiedName) {
+    LPPROCESS Process;
+    U32 BaseLength;
+    U32 RelativeLength;
+
+    if (Name == NULL || QualifiedName == NULL) {
+        ERROR(TEXT("[BuildQualifiedFileName] Bad parameters"));
+        return FALSE;
+    }
+
+    Process = GetCurrentProcess();
+
+    // Kernel process keeps legacy lookup (relative to system partition)
+    if (Process == &KernelProcess) {
+        StringCopy(QualifiedName, Name);
+        return TRUE;
+    }
+
+    if (Name[0] == PATH_SEP) {
+        StringCopy(QualifiedName, Name);
+        return TRUE;
+    }
+
+    QualifiedName[0] = STR_NULL;
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) { StringCopy(QualifiedName, Process->WorkFolder); }
+
+    if (QualifiedName[0] == STR_NULL) {
+        StringCopy(QualifiedName, TEXT(ROOT));
+    }
+
+    BaseLength = StringLength(QualifiedName);
+    if (BaseLength == 0) {
+        ERROR(TEXT("[BuildQualifiedFileName] Empty base path"));
+        return FALSE;
+    }
+
+    if (QualifiedName[BaseLength - 1] != PATH_SEP) {
+        if (BaseLength + 1 >= MAX_PATH_NAME) {
+            ERROR(TEXT("[BuildQualifiedFileName] Base path too long (%u)"), BaseLength);
+            return FALSE;
+        }
+        QualifiedName[BaseLength] = PATH_SEP;
+        QualifiedName[BaseLength + 1] = STR_NULL;
+        BaseLength++;
+    }
+
+    RelativeLength = StringLength(Name);
+    if (BaseLength + RelativeLength >= MAX_PATH_NAME) {
+        ERROR(TEXT("[BuildQualifiedFileName] Path too long (%u + %u)"), BaseLength, RelativeLength);
+        return FALSE;
+    }
+
+    StringConcat(QualifiedName, Name);
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Opens a file based on provided information
  * @param Info Pointer to file open information structure
  * @return Pointer to opened file structure, or NULL on failure
@@ -43,11 +110,29 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
+    STR QualifiedName[MAX_PATH_NAME];
+    LPCSTR RequestedName;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Info == NULL) return NULL;
+    if (Info == NULL || Info->Name == NULL) return NULL;
+
+    //-------------------------------------
+    // Resolve the requested name against the process working directory
+
+    if (!BuildQualifiedFileName(Info->Name, QualifiedName)) return NULL;
+
+    DEBUG(TEXT("[OpenFile] Name=%s, Flags=%x"), Info->Name, Info->Flags);
+    {
+        LPPROCESS Process = GetCurrentProcess();
+        if (Process != NULL) {
+            DEBUG(TEXT("[OpenFile] Current process workfolder=%s"), Process->WorkFolder);
+        }
+    }
+
+    RequestedName = QualifiedName;
+    DEBUG(TEXT("[OpenFile] QualifiedName=%s"), RequestedName);
 
     //-------------------------------------
     // Lock access to file systems
@@ -65,7 +150,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
         LockMutex(&(AlreadyOpen->Mutex), INFINITY);
 
-        if (STRINGS_EQUAL(AlreadyOpen->Name, Info->Name)) {
+        if (STRINGS_EQUAL(AlreadyOpen->Name, RequestedName) || STRINGS_EQUAL(AlreadyOpen->Name, Info->Name)) {
             if (AlreadyOpen->OwnerTask == GetCurrentTask()) {
                 if (AlreadyOpen->OpenFlags == Info->Flags) {
                     File = AlreadyOpen;
@@ -86,12 +171,14 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     //-------------------------------------
     // Use SystemFS if an absolute path is provided
 
-    if (Info->Name[0] == PATH_SEP) {
+    if (RequestedName[0] == PATH_SEP) {
         Find.Size = sizeof Find;
         Find.FileSystem = GetSystemFS();
         Find.Attributes = MAX_U32;
         Find.Flags = Info->Flags;
-        StringCopy(Find.Name, Info->Name);
+        StringCopy(Find.Name, RequestedName);
+
+        DEBUG(TEXT("[OpenFile] Using SystemFS, path=%s"), Find.Name);
 
         File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
@@ -113,7 +200,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     // Get the name of the volume in which the file
     // is supposed to be located
 
-    DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), Info->Name);
+    DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), RequestedName);
 
     LPLIST FileSystemList = GetFileSystemList();
     for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
@@ -123,12 +210,14 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         Find.FileSystem = FileSystem;
         Find.Attributes = MAX_U32;
         Find.Flags = Info->Flags;
-        StringCopy(Find.Name, Info->Name);
+        StringCopy(Find.Name, RequestedName);
+
+        DEBUG(TEXT("[OpenFile] Probing %s with %s"), FileSystem->Driver->Product, Find.Name);
 
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
 
         SAFE_USE(File) {
-            DEBUG(TEXT("[OpenFile] Found %s in %s"), Info->Name, FileSystem->Driver->Product);
+            DEBUG(TEXT("[OpenFile] Found %s in %s"), RequestedName, FileSystem->Driver->Product);
 
             LockMutex(MUTEX_FILE, INFINITY);
 

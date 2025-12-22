@@ -86,13 +86,17 @@ UINT SysCall_WriteFile(UINT Parameter);
 UINT SysCall_GetFileSize(UINT Parameter);
 UINT SysCall_GetFilePosition(UINT Parameter);
 UINT SysCall_SetFilePosition(UINT Parameter);
+UINT SysCall_FindFirstFile(UINT Parameter);
+UINT SysCall_FindNextFile(UINT Parameter);
 UINT SysCall_ConsolePeekKey(UINT Parameter);
 UINT SysCall_ConsoleGetKey(UINT Parameter);
+UINT SysCall_ConsoleGetKeyModifiers(UINT Parameter);
 UINT SysCall_ConsoleGetChar(UINT Parameter);
 UINT SysCall_ConsolePrint(UINT Parameter);
+UINT SysCall_ConsoleBlitBuffer(UINT Parameter);
 UINT SysCall_ConsoleGetString(UINT Parameter);
 UINT SysCall_ConsoleGotoXY(UINT Parameter);
-UINT SysCall_ClearScreen(UINT Parameter);
+UINT SysCall_ConsoleClear(UINT Parameter);
 
 UINT SysCall_CreateDesktop(UINT Parameter);
 UINT SysCall_ShowDesktop(UINT Parameter);

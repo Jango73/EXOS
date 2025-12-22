@@ -27,6 +27,7 @@
 #define X86_64_MEMORY_INTERNAL_H_INCLUDED
 
 #include "Memory.h"
+#include "Memory-Descriptors.h"
 #include "Console.h"
 #include "CoreString.h"
 #include "Kernel.h"
@@ -42,21 +43,6 @@
 #ifndef EXOS_X86_64_FAST_VMM
 #define EXOS_X86_64_FAST_VMM 1
 #endif
-
-extern BOOL G_RegionDescriptorsEnabled;
-extern BOOL G_RegionDescriptorBootstrap;
-extern LPMEMORY_REGION_DESCRIPTOR G_FreeRegionDescriptors;
-extern UINT G_FreeRegionDescriptorCount;
-extern UINT G_TotalRegionDescriptorCount;
-extern UINT G_RegionDescriptorPages;
-
-LPPROCESS ResolveCurrentAddressSpaceOwner(void);
-void InitializeRegionDescriptorTracking(void);
-LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR CanonicalBase);
-LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(LPPROCESS Process, LINEAR CanonicalBase);
-void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPages);
-BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags);
-void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes);
 
 #if EXOS_X86_64_FAST_VMM
 void InitializeTransientDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor,

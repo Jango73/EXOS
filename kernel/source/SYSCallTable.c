@@ -108,14 +108,18 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_GetFileSize] = (SYSCALLENTRY){SysCall_GetFileSize, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetFilePointer] = (SYSCALLENTRY){SysCall_GetFilePosition, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_SetFilePointer] = (SYSCALLENTRY){SysCall_SetFilePosition, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_FindFirstFile] = (SYSCALLENTRY){SysCall_FindFirstFile, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_FindNextFile] = (SYSCALLENTRY){SysCall_FindNextFile, EXOS_PRIVILEGE_USER};
 
     // Console Services
     SysCallTable[SYSCALL_ConsolePeekKey] = (SYSCALLENTRY){SysCall_ConsolePeekKey, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGetKey] = (SYSCALLENTRY){SysCall_ConsoleGetKey, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ConsoleGetKeyModifiers] = (SYSCALLENTRY){SysCall_ConsoleGetKeyModifiers, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsolePrint] = (SYSCALLENTRY){SysCall_ConsolePrint, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGetString] = (SYSCALLENTRY){SysCall_ConsoleGetString, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGotoXY] = (SYSCALLENTRY){SysCall_ConsoleGotoXY, EXOS_PRIVILEGE_USER};
-    SysCallTable[SYSCALL_ClearScreen] = (SYSCALLENTRY){SysCall_ClearScreen, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ConsoleClear] = (SYSCALLENTRY){SysCall_ConsoleClear, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ConsoleBlitBuffer] = (SYSCALLENTRY){SysCall_ConsoleBlitBuffer, EXOS_PRIVILEGE_USER};
 
     // Authentication Services
     SysCallTable[SYSCALL_Login] = (SYSCALLENTRY){SysCall_Login, EXOS_PRIVILEGE_USER};

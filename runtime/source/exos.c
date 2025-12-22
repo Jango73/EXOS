@@ -28,9 +28,6 @@
 
 /***************************************************************************/
 
-// Helper macro to cast parameters to the architecture-sized integer type.
-#define EXOS_PARAM(Value) ((uint_t)(Value))
-
 // Every user structure passed to the kernel begins with an ABI_HDR. Populate
 // Header.Size with sizeof(struct), set Header.Version to EXOS_ABI_VERSION, and clear
 // Header.Flags before invoking system calls.
@@ -52,6 +49,10 @@ void Sleep(U32 MilliSeconds) { exoscall(SYSCALL_Sleep, EXOS_PARAM(MilliSeconds))
 /***************************************************************************/
 
 U32 Wait(LPWAITINFO WaitInfo) { return (U32)exoscall(SYSCALL_Wait, EXOS_PARAM(WaitInfo)); }
+
+/***************************************************************************/
+
+U32 GetSystemTime(void) { return (U32)exoscall(SYSCALL_GetSystemTime, EXOS_PARAM(0)); }
 
 /***************************************************************************/
 
@@ -158,6 +159,20 @@ U32 SendMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
     MessageInfo.Param2 = Param2;
 
     return (U32)exoscall(SYSCALL_SendMessage, EXOS_PARAM(&MessageInfo));
+}
+
+/***************************************************************************/
+
+U32 FindFirstFile(FILEFINDINFO* Info) {
+    if (Info == NULL) return 0;
+    return (U32)exoscall(SYSCALL_FindFirstFile, EXOS_PARAM(Info));
+}
+
+/***************************************************************************/
+
+U32 FindNextFile(FILEFINDINFO* Info) {
+    if (Info == NULL) return 0;
+    return (U32)exoscall(SYSCALL_FindNextFile, EXOS_PARAM(Info));
 }
 
 /***************************************************************************/
@@ -493,6 +508,44 @@ HANDLE CaptureMouse(HANDLE Window) {
 /***************************************************************************/
 
 BOOL ReleaseMouse(void) { return FALSE; }
+
+/***************************************************************************/
+
+U32 GetKeyModifiers(void) {
+    U32 modifiers = 0;
+    exoscall(SYSCALL_ConsoleGetKeyModifiers, EXOS_PARAM(&modifiers));
+    return modifiers;
+}
+
+/***************************************************************************/
+
+U32 ConsoleGetKey(LPKEYCODE KeyCode) {
+    return exoscall(SYSCALL_ConsoleGetKey, EXOS_PARAM(KeyCode));
+}
+
+/***************************************************************************/
+
+U32 ConsoleBlitBuffer(LPCONSOLEBLITBUFFER Buffer) {
+    return exoscall(SYSCALL_ConsoleBlitBuffer, EXOS_PARAM(Buffer));
+}
+
+/***************************************************************************/
+
+void ConsoleGotoXY(LPPOINT Position) {
+    exoscall(SYSCALL_ConsoleGotoXY, EXOS_PARAM(Position));
+}
+
+/***************************************************************************/
+
+void ConsoleClear(void) {
+    exoscall(SYSCALL_ConsoleClear, EXOS_PARAM(0));
+}
+
+/***************************************************************************/
+
+BOOL DeleteObject(HANDLE Object) {
+    return (BOOL)exoscall(SYSCALL_DeleteObject, EXOS_PARAM(Object));
+}
 
 /***************************************************************************/
 

@@ -1192,7 +1192,7 @@ void InitializeMemoryManager(void) {
 
     DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
 
-    Kernel_i386.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    Kernel_i386.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
 
     if (Kernel_i386.GDT == NULL) {
         ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
@@ -1456,7 +1456,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
  *              - ALLOC_PAGES_IO: keep physical pages marked fixed for MMIO.
  * @return Allocated linear base address or 0 on failure.
  */
-LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     LINEAR Pointer = NULL;
     UINT NumPages = 0;
     DEBUG(TEXT("[AllocRegion] Enter: Base=%x Target=%x Size=%x Flags=%x"), Base, Target, Size, Flags);
@@ -1566,13 +1566,11 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
         }
     }
 
-    if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
-        if (RegisterRegionDescriptor(Pointer, NumPages, Target, Flags) == FALSE) {
-            G_RegionDescriptorBootstrap = TRUE;
-            FreeRegion(Pointer, NumPages << PAGE_SIZE_MUL);
-            G_RegionDescriptorBootstrap = FALSE;
-            return NULL;
-        }
+    if (RegionTrackAlloc(Pointer, Target, NumPages << PAGE_SIZE_MUL, Flags, Tag) == FALSE) {
+        G_RegionDescriptorBootstrap = TRUE;
+        FreeRegion(Pointer, NumPages << PAGE_SIZE_MUL);
+        G_RegionDescriptorBootstrap = FALSE;
+        return NULL;
     }
 
     // Flush the Translation Look-up Buffer of the CPU
@@ -1617,15 +1615,6 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
         return FALSE;
     }
 
-    LPMEMORY_REGION_DESCRIPTOR Descriptor = NULL;
-    if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
-        Descriptor = FindDescriptorForBase(ResolveCurrentAddressSpaceOwner(), Base);
-        if (Descriptor == NULL) {
-            WARNING(TEXT("[ResizeRegion] Missing descriptor for base=%p"),
-                (LPVOID)Base);
-        }
-    }
-
     UINT CurrentPages = (Size + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
     UINT RequestedPages = (NewSize + (PAGE_SIZE - 1)) >> PAGE_SIZE_MUL;
     if (CurrentPages == 0) CurrentPages = 1;
@@ -1655,7 +1644,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
 
 #if EXOS_X86_64_FAST_VMM
         BOOL ExpansionFastPathUsed = FALSE;
-        if (Descriptor != NULL && G_RegionDescriptorBootstrap == FALSE) {
+        if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
             MEMORY_REGION_DESCRIPTOR TempDescriptor;
             InitializeTransientDescriptor(&TempDescriptor, NewBase, AdditionalPages, AdditionalTarget, Flags);
 
@@ -1702,9 +1691,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
             }
         }
 
-        if (Descriptor != NULL) {
-            ExtendDescriptor(Descriptor, AdditionalPages);
-        }
+        RegionTrackResize(Base, Size, NewSize, Flags);
 
         FlushTLB();
     } else {
@@ -1747,7 +1734,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 #if EXOS_X86_64_FAST_VMM
     if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
         if (ReleaseRegionWithFastWalker(CanonicalBase, NumPages) == TRUE) {
-            UpdateDescriptorsForFree(CanonicalBase, NumPages << PAGE_SIZE_MUL);
+            RegionTrackFree(CanonicalBase, NumPages << PAGE_SIZE_MUL);
             FreeEmptyPageTables();
             FlushTLB();
             DEBUG(TEXT("[FreeRegion] Exit base=%p size=%u"), (LPVOID)OriginalBase, Size);
@@ -1793,7 +1780,8 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
         AdjustedSize,        // Page-aligned size
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
             ALLOC_PAGES_IO |
-            ALLOC_PAGES_AT_OR_OVER  // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
+            ALLOC_PAGES_AT_OR_OVER,  // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
+        TEXT("IOMemory")
     );
 
     if (AlignedResult == NULL) {
@@ -1836,9 +1824,9 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
  * @param Flags Additional allocation flags.
  * @return Linear address or 0 on failure.
  */
-LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
+LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
-    return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
+    return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER, Tag);
 }
 
 /************************************************************************/

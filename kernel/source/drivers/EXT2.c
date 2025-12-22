@@ -100,6 +100,8 @@ static BOOL LoadGroupDescriptors(LPEXT2FILESYSTEM FileSystem);
 static BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
 static BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
 static BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, U32* BlockNumber);
+static BOOL ResolveInodeBlock(
+    LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, BOOL Allocate, U32* BlockNumber);
 static BOOL FindInodeInDirectory(
     LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Directory, LPCSTR Name, U32* InodeIndex);
 static BOOL ResolvePath(
@@ -123,6 +125,7 @@ static BOOL AllocateInode(
     LPEXT2FILESYSTEM FileSystem, BOOL Directory, U32* InodeIndex, LPEXT2INODE Inode, U32* GroupIndexOut);
 static BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Directory);
 static BOOL TruncateInode(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode);
+static BOOL FreeIndirectTree(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber, U32 Depth);
 static BOOL AddDirectoryEntry(
     LPEXT2FILESYSTEM FileSystem,
     LPEXT2INODE Directory,
@@ -959,8 +962,73 @@ static BOOL TruncateInode(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode) {
         }
     }
 
+    // Free single, double and triple indirect trees if present
+    if (Inode->Block[EXT2_DIRECT_BLOCKS] != 0) {
+        FreeIndirectTree(FileSystem, Inode->Block[EXT2_DIRECT_BLOCKS], 1);
+        Inode->Block[EXT2_DIRECT_BLOCKS] = 0;
+    }
+
+    if (Inode->Block[EXT2_DIRECT_BLOCKS + 1] != 0) {
+        FreeIndirectTree(FileSystem, Inode->Block[EXT2_DIRECT_BLOCKS + 1], 2);
+        Inode->Block[EXT2_DIRECT_BLOCKS + 1] = 0;
+    }
+
+    if (Inode->Block[EXT2_DIRECT_BLOCKS + 2] != 0) {
+        FreeIndirectTree(FileSystem, Inode->Block[EXT2_DIRECT_BLOCKS + 2], 3);
+        Inode->Block[EXT2_DIRECT_BLOCKS + 2] = 0;
+    }
+
     Inode->Size = 0;
     Inode->Blocks = 0;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Recursively frees an indirect block tree.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param BlockNumber Block number of the indirect root to free.
+ * @param Depth Indirection depth (1=single, 2=double, 3=triple).
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL FreeIndirectTree(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber, U32 Depth) {
+    U32 EntriesPerBlock;
+    U32 Index;
+    U32* Buffer;
+
+    if (FileSystem == NULL) return FALSE;
+    if (BlockNumber == 0) return TRUE;
+    if (FileSystem->BlockSize == 0) return FALSE;
+
+    EntriesPerBlock = FileSystem->BlockSize / sizeof(U32);
+    if (EntriesPerBlock == 0) return FALSE;
+
+    Buffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+    if (Buffer == NULL) return FALSE;
+
+    if (ReadBlock(FileSystem, BlockNumber, Buffer) == FALSE) {
+        KernelHeapFree(Buffer);
+        return FALSE;
+    }
+
+    if (Depth > 1) {
+        for (Index = 0; Index < EntriesPerBlock; Index++) {
+            if (Buffer[Index] != 0) {
+                FreeIndirectTree(FileSystem, Buffer[Index], Depth - 1);
+            }
+        }
+    } else {
+        for (Index = 0; Index < EntriesPerBlock; Index++) {
+            if (Buffer[Index] != 0) {
+                FreeBlock(FileSystem, Buffer[Index]);
+            }
+        }
+    }
+
+    KernelHeapFree(Buffer);
+    FreeBlock(FileSystem, BlockNumber);
 
     return TRUE;
 }
@@ -1645,71 +1713,147 @@ static BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE I
  * @return TRUE if the block number could be determined, FALSE otherwise.
  */
 static BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, U32* BlockNumber) {
+    return ResolveInodeBlock(FileSystem, Inode, BlockIndex, FALSE, BlockNumber);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolves a logical block index to a physical block, allocating
+ *        the necessary indirection blocks when requested.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param Inode Pointer to the inode describing the file.
+ * @param BlockIndex Zero-based data block index within the file.
+ * @param Allocate When TRUE, create missing data/indirect blocks.
+ * @param BlockNumber Receives the resolved physical block (0 if absent).
+ * @return TRUE on success, FALSE on error.
+ */
+static BOOL ResolveInodeBlock(
+    LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, BOOL Allocate, U32* BlockNumber) {
     U32 EntriesPerBlock;
+    U32 BlocksPerEntry;
+    U32 LogicalIndex;
+    U32 SingleSpan;
+    U32 DoubleSpan;
+    U32 TripleSpan;
 
     if (FileSystem == NULL || Inode == NULL || BlockNumber == NULL) return FALSE;
-
-    if (BlockIndex < EXT2_DIRECT_BLOCKS) {
-        *BlockNumber = Inode->Block[BlockIndex];
-        return TRUE;
-    }
-
     if (FileSystem->BlockSize == 0) return FALSE;
 
     EntriesPerBlock = FileSystem->BlockSize / sizeof(U32);
     if (EntriesPerBlock == 0) return FALSE;
 
-    BlockIndex -= EXT2_DIRECT_BLOCKS;
+    BlocksPerEntry = FileSystem->BlockSize / 512;
+    if (BlocksPerEntry == 0) return FALSE;
 
-    if (BlockIndex < EntriesPerBlock) {
-        U32 SingleBlock = Inode->Block[EXT2_DIRECT_BLOCKS];
-        U32* Indirect;
+    if (BlockIndex < EXT2_DIRECT_BLOCKS) {
+        U32 DataBlock = Inode->Block[BlockIndex];
 
-        if (SingleBlock == 0) {
-            *BlockNumber = 0;
-            return TRUE;
+        if (DataBlock == 0 && Allocate) {
+            if (AllocateBlock(FileSystem, &DataBlock) == FALSE) return FALSE;
+            Inode->Block[BlockIndex] = DataBlock;
+            Inode->Blocks += BlocksPerEntry;
         }
 
-        Indirect = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
-        if (Indirect == NULL) return FALSE;
+        *BlockNumber = DataBlock;
+        return TRUE;
+    }
 
-        if (ReadBlock(FileSystem, SingleBlock, Indirect) == FALSE) {
-            KernelHeapFree(Indirect);
+    LogicalIndex = BlockIndex - EXT2_DIRECT_BLOCKS;
+    SingleSpan = EntriesPerBlock;
+    DoubleSpan = SingleSpan * EntriesPerBlock;
+    TripleSpan = DoubleSpan * EntriesPerBlock;
+
+    if (LogicalIndex < SingleSpan) {
+        U32 IndirectBlock = Inode->Block[EXT2_DIRECT_BLOCKS];
+        U32* Buffer;
+
+        if (IndirectBlock == 0) {
+            if (Allocate == FALSE) {
+                *BlockNumber = 0;
+                return TRUE;
+            }
+
+            if (AllocateBlock(FileSystem, &IndirectBlock) == FALSE) return FALSE;
+            Inode->Block[EXT2_DIRECT_BLOCKS] = IndirectBlock;
+            Inode->Blocks += BlocksPerEntry;
+
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, IndirectBlock, FileSystem->IOBuffer) == FALSE) return FALSE;
+        }
+
+        Buffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (Buffer == NULL) return FALSE;
+
+        if (ReadBlock(FileSystem, IndirectBlock, Buffer) == FALSE) {
+            KernelHeapFree(Buffer);
             return FALSE;
         }
 
-        *BlockNumber = Indirect[BlockIndex];
-        KernelHeapFree(Indirect);
+        if (Buffer[LogicalIndex] == 0 && Allocate) {
+            U32 NewBlock = 0;
+
+            if (AllocateBlock(FileSystem, &NewBlock) == FALSE) {
+                KernelHeapFree(Buffer);
+                return FALSE;
+            }
+
+            Inode->Blocks += BlocksPerEntry;
+            Buffer[LogicalIndex] = NewBlock;
+
+            if (WriteBlock(FileSystem, IndirectBlock, Buffer) == FALSE) {
+                KernelHeapFree(Buffer);
+                return FALSE;
+            }
+
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, NewBlock, FileSystem->IOBuffer) == FALSE) {
+                KernelHeapFree(Buffer);
+                return FALSE;
+            }
+        }
+
+        *BlockNumber = Buffer[LogicalIndex];
+        KernelHeapFree(Buffer);
         return TRUE;
     }
 
-    BlockIndex -= EntriesPerBlock;
+    LogicalIndex -= SingleSpan;
 
-    if (Inode->Block[EXT2_DIRECT_BLOCKS + 1] == 0) {
-        *BlockNumber = 0;
-        return TRUE;
-    }
-
-    {
+    if (LogicalIndex < DoubleSpan) {
+        U32 DoubleBlock = Inode->Block[EXT2_DIRECT_BLOCKS + 1];
         U32* DoubleBuffer;
-        U32 DoubleEntries = EntriesPerBlock;
+        U32* SingleBuffer;
         U32 DoubleIndex;
         U32 SingleIndex;
         U32 SingleBlock;
-        U32* SingleBuffer;
+
+        if (DoubleBlock == 0) {
+            if (Allocate == FALSE) {
+                *BlockNumber = 0;
+                return TRUE;
+            }
+
+            if (AllocateBlock(FileSystem, &DoubleBlock) == FALSE) return FALSE;
+            Inode->Block[EXT2_DIRECT_BLOCKS + 1] = DoubleBlock;
+            Inode->Blocks += BlocksPerEntry;
+
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, DoubleBlock, FileSystem->IOBuffer) == FALSE) return FALSE;
+        }
 
         DoubleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
         if (DoubleBuffer == NULL) return FALSE;
 
-        if (ReadBlock(FileSystem, Inode->Block[EXT2_DIRECT_BLOCKS + 1], DoubleBuffer) == FALSE) {
+        if (ReadBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
             KernelHeapFree(DoubleBuffer);
             return FALSE;
         }
 
-        DoubleIndex = BlockIndex / EntriesPerBlock;
-        SingleIndex = BlockIndex % EntriesPerBlock;
+        DoubleIndex = (U32)(LogicalIndex / SingleSpan);
+        SingleIndex = (U32)(LogicalIndex % SingleSpan);
 
-        if (DoubleIndex >= DoubleEntries) {
+        if (DoubleIndex >= EntriesPerBlock) {
             KernelHeapFree(DoubleBuffer);
             return FALSE;
         }
@@ -1717,9 +1861,29 @@ static BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, 
         SingleBlock = DoubleBuffer[DoubleIndex];
 
         if (SingleBlock == 0) {
-            *BlockNumber = 0;
-            KernelHeapFree(DoubleBuffer);
-            return TRUE;
+            if (Allocate == FALSE) {
+                *BlockNumber = 0;
+                KernelHeapFree(DoubleBuffer);
+                return TRUE;
+            }
+
+            if (AllocateBlock(FileSystem, &SingleBlock) == FALSE) {
+                KernelHeapFree(DoubleBuffer);
+                return FALSE;
+            }
+
+            Inode->Blocks += BlocksPerEntry;
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, SingleBlock, FileSystem->IOBuffer) == FALSE) {
+                KernelHeapFree(DoubleBuffer);
+                return FALSE;
+            }
+
+            DoubleBuffer[DoubleIndex] = SingleBlock;
+            if (WriteBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
+                KernelHeapFree(DoubleBuffer);
+                return FALSE;
+            }
         }
 
         SingleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
@@ -1734,11 +1898,214 @@ static BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, 
             return FALSE;
         }
 
+        if (SingleBuffer[SingleIndex] == 0 && Allocate) {
+            U32 NewBlock = 0;
+
+            if (AllocateBlock(FileSystem, &NewBlock) == FALSE) {
+                KernelHeapFree(SingleBuffer);
+                KernelHeapFree(DoubleBuffer);
+                return FALSE;
+            }
+
+            Inode->Blocks += BlocksPerEntry;
+            SingleBuffer[SingleIndex] = NewBlock;
+
+            if (WriteBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
+                KernelHeapFree(SingleBuffer);
+                KernelHeapFree(DoubleBuffer);
+                return FALSE;
+            }
+
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, NewBlock, FileSystem->IOBuffer) == FALSE) {
+                KernelHeapFree(SingleBuffer);
+                KernelHeapFree(DoubleBuffer);
+                return FALSE;
+            }
+        }
+
         *BlockNumber = SingleBuffer[SingleIndex];
         KernelHeapFree(SingleBuffer);
         KernelHeapFree(DoubleBuffer);
         return TRUE;
     }
+
+    LogicalIndex -= DoubleSpan;
+
+    if (LogicalIndex < TripleSpan) {
+        U32 TripleBlock = Inode->Block[EXT2_DIRECT_BLOCKS + 2];
+        U32* TripleBuffer;
+        U32* DoubleBuffer;
+        U32* SingleBuffer;
+        U32 TripleIndex;
+        U32 DoubleIndex;
+        U32 SingleIndex;
+        U32 DoubleBlock;
+        U32 SingleBlock;
+
+        if (TripleBlock == 0) {
+            if (Allocate == FALSE) {
+                *BlockNumber = 0;
+                return TRUE;
+            }
+
+            if (AllocateBlock(FileSystem, &TripleBlock) == FALSE) return FALSE;
+            Inode->Block[EXT2_DIRECT_BLOCKS + 2] = TripleBlock;
+            Inode->Blocks += BlocksPerEntry;
+
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, TripleBlock, FileSystem->IOBuffer) == FALSE) return FALSE;
+        }
+
+        TripleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (TripleBuffer == NULL) return FALSE;
+
+        if (ReadBlock(FileSystem, TripleBlock, TripleBuffer) == FALSE) {
+            KernelHeapFree(TripleBuffer);
+            return FALSE;
+        }
+
+        TripleIndex = (U32)(LogicalIndex / DoubleSpan);
+        LogicalIndex %= DoubleSpan;
+
+        if (TripleIndex >= EntriesPerBlock) {
+            KernelHeapFree(TripleBuffer);
+            return FALSE;
+        }
+
+        DoubleBlock = TripleBuffer[TripleIndex];
+
+        if (DoubleBlock == 0) {
+            if (Allocate == FALSE) {
+                *BlockNumber = 0;
+                KernelHeapFree(TripleBuffer);
+                return TRUE;
+            }
+
+            if (AllocateBlock(FileSystem, &DoubleBlock) == FALSE) {
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+
+            Inode->Blocks += BlocksPerEntry;
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, DoubleBlock, FileSystem->IOBuffer) == FALSE) {
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+
+            TripleBuffer[TripleIndex] = DoubleBlock;
+            if (WriteBlock(FileSystem, TripleBlock, TripleBuffer) == FALSE) {
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+        }
+
+        DoubleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (DoubleBuffer == NULL) {
+            KernelHeapFree(TripleBuffer);
+            return FALSE;
+        }
+
+        if (ReadBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
+            KernelHeapFree(DoubleBuffer);
+            KernelHeapFree(TripleBuffer);
+            return FALSE;
+        }
+
+        DoubleIndex = (U32)(LogicalIndex / SingleSpan);
+        SingleIndex = (U32)(LogicalIndex % SingleSpan);
+
+        if (DoubleIndex >= EntriesPerBlock) {
+            KernelHeapFree(DoubleBuffer);
+            KernelHeapFree(TripleBuffer);
+            return FALSE;
+        }
+
+        SingleBlock = DoubleBuffer[DoubleIndex];
+
+        if (SingleBlock == 0) {
+            if (Allocate == FALSE) {
+                *BlockNumber = 0;
+                KernelHeapFree(DoubleBuffer);
+                KernelHeapFree(TripleBuffer);
+                return TRUE;
+            }
+
+            if (AllocateBlock(FileSystem, &SingleBlock) == FALSE) {
+                KernelHeapFree(DoubleBuffer);
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+
+            Inode->Blocks += BlocksPerEntry;
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, SingleBlock, FileSystem->IOBuffer) == FALSE) {
+                KernelHeapFree(DoubleBuffer);
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+
+            DoubleBuffer[DoubleIndex] = SingleBlock;
+            if (WriteBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
+                KernelHeapFree(DoubleBuffer);
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+        }
+
+        SingleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        if (SingleBuffer == NULL) {
+            KernelHeapFree(DoubleBuffer);
+            KernelHeapFree(TripleBuffer);
+            return FALSE;
+        }
+
+        if (ReadBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
+            KernelHeapFree(SingleBuffer);
+            KernelHeapFree(DoubleBuffer);
+            KernelHeapFree(TripleBuffer);
+            return FALSE;
+        }
+
+        if (SingleBuffer[SingleIndex] == 0 && Allocate) {
+            U32 NewBlock = 0;
+
+            if (AllocateBlock(FileSystem, &NewBlock) == FALSE) {
+                KernelHeapFree(SingleBuffer);
+                KernelHeapFree(DoubleBuffer);
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+
+            Inode->Blocks += BlocksPerEntry;
+            SingleBuffer[SingleIndex] = NewBlock;
+
+            if (WriteBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
+                KernelHeapFree(SingleBuffer);
+                KernelHeapFree(DoubleBuffer);
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+
+            MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
+            if (WriteBlock(FileSystem, NewBlock, FileSystem->IOBuffer) == FALSE) {
+                KernelHeapFree(SingleBuffer);
+                KernelHeapFree(DoubleBuffer);
+                KernelHeapFree(TripleBuffer);
+                return FALSE;
+            }
+        }
+
+        *BlockNumber = SingleBuffer[SingleIndex];
+        KernelHeapFree(SingleBuffer);
+        KernelHeapFree(DoubleBuffer);
+        KernelHeapFree(TripleBuffer);
+        return TRUE;
+    }
+
+    *BlockNumber = 0;
+    return FALSE;
 }
 
 /************************************************************************/
@@ -2290,21 +2657,14 @@ static U32 WriteFile(LPEXT2FILE File) {
         BlockIndex = File->Header.Position / FileSystem->BlockSize;
         OffsetInBlock = File->Header.Position % FileSystem->BlockSize;
 
-        if (BlockIndex >= EXT2_DIRECT_BLOCKS) {
+        if (ResolveInodeBlock(FileSystem, &(File->Inode), BlockIndex, TRUE, &BlockNumber) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_NOTIMPL;
+            return DF_RET_IO;
         }
 
-        BlockNumber = File->Inode.Block[BlockIndex];
-
         if (BlockNumber == 0) {
-            if (AllocateBlock(FileSystem, &BlockNumber) == FALSE) {
-                UnlockMutex(&(FileSystem->FilesMutex));
-                return DF_RET_IO;
-            }
-
-            File->Inode.Block[BlockIndex] = BlockNumber;
-            File->Inode.Blocks += FileSystem->BlockSize / 512;
+            UnlockMutex(&(FileSystem->FilesMutex));
+            return DF_RET_IO;
         }
 
         Chunk = FileSystem->BlockSize - OffsetInBlock;

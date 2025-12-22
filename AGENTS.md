@@ -18,6 +18,7 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Freestanding**: The codebase **MUST NOT** rely on **ANY** library/module outside of the EXOS codebase. **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
 - **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done. Use "%p" for pointers and adresses, "%x" for values except for sizes which use "%u".
+- **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
 - **I18n**: Write comments, console output and technical doc in english.
 - **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
 - **Order**: Group the declarations in headers. 1: #defines, 2: typedefs, 3: inlines, 4: external symbols

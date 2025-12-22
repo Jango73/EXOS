@@ -738,7 +738,9 @@ UINT SysCall_UnlockMutex(UINT Parameter) {
 UINT SysCall_AllocRegion(UINT Parameter) {
     LPALLOCREGIONINFO Info = (LPALLOCREGIONINFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, ALLOCREGIONINFO) { return AllocRegion(Info->Base, Info->Target, Info->Size, Info->Flags); }
+    SAFE_USE_INPUT_POINTER(Info, ALLOCREGIONINFO) {
+        return AllocRegion(Info->Base, Info->Target, Info->Size, Info->Flags, NULL);
+    }
 
     return 0;
 }
@@ -1049,6 +1051,155 @@ UINT SysCall_SetFilePosition(UINT Parameter) {
 
 /************************************************************************/
 
+static BOOL MatchPattern(LPCSTR Name, LPCSTR Pattern) {
+    /* Simple '*' wildcard matcher */
+    if (Pattern == NULL || Pattern[0] == STR_NULL) {
+        return TRUE;
+    }
+
+    /* If no wildcard, direct compare */
+    LPSTR Star = StringFindChar((LPCSTR)Pattern, '*');
+    if (Star == NULL) {
+        return STRINGS_EQUAL(Name, Pattern);
+    }
+
+    STR Prefix[MAX_FILE_NAME];
+    STR Suffix[MAX_FILE_NAME];
+
+    U32 PrefixLen = (U32)(Star - (LPSTR)Pattern);
+    for (U32 i = 0; i < PrefixLen && i < MAX_FILE_NAME - 1; i++) {
+        Prefix[i] = Pattern[i];
+    }
+    Prefix[PrefixLen] = STR_NULL;
+    StringCopy(Suffix, (LPCSTR)(Star + 1));
+
+    /* Check prefix */
+    for (U32 i = 0; i < PrefixLen; i++) {
+        if (Name[i] == STR_NULL || Name[i] != Prefix[i]) {
+            return FALSE;
+        }
+    }
+
+    U32 NameLen = StringLength(Name);
+    U32 SuffixLen = StringLength(Suffix);
+    if (SuffixLen > NameLen) return FALSE;
+
+    if (SuffixLen == 0) return TRUE;
+
+    return STRINGS_EQUAL(Name + (NameLen - SuffixLen), Suffix);
+}
+
+static BOOL BuildEnumeratePattern(LPCSTR Path, LPSTR OutPattern) {
+    if (OutPattern == NULL) return FALSE;
+    OutPattern[0] = STR_NULL;
+
+    if (Path == NULL || Path[0] == STR_NULL) {
+        StringCopy(OutPattern, TEXT("*"));
+        return TRUE;
+    }
+
+    StringCopy(OutPattern, Path);
+    U32 Len = StringLength(OutPattern);
+    if (Len > 0 && OutPattern[Len - 1] != PATH_SEP) {
+        StringConcat(OutPattern, TEXT("/"));
+    }
+    StringConcat(OutPattern, TEXT("*"));
+    return TRUE;
+}
+
+UINT SysCall_FindFirstFile(UINT Parameter) {
+    LPFILEFINDINFO Info = (LPFILEFINDINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, FILEFINDINFO) {
+        STR EnumeratePattern[MAX_PATH_NAME];
+        if (!BuildEnumeratePattern(Info->Path, EnumeratePattern)) {
+            return FALSE;
+        }
+
+        FILEINFO Find;
+        Find.Size = sizeof(FILEINFO);
+        Find.FileSystem = GetSystemFS();
+        Find.Attributes = MAX_U32;
+        Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
+        StringCopy(Find.Name, EnumeratePattern);
+
+        LPFILESYSTEM FS = GetSystemFS();
+        if (FS == NULL || FS->Driver == NULL || FS->Driver->Command == NULL) {
+            return FALSE;
+        }
+
+        LPFILE File = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
+        if (File == NULL) {
+            return FALSE;
+        }
+
+        BOOL Found = FALSE;
+        do {
+            if (MatchPattern(File->Name, Info->Pattern)) {
+                StringCopy(Info->Name, File->Name);
+                Info->Attributes = File->Attributes;
+                Found = TRUE;
+                break;
+            }
+        } while (FS->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_RET_SUCCESS);
+
+        if (!Found) {
+            FS->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
+            return FALSE;
+        }
+
+        HANDLE Handle = PointerToHandle((LINEAR)File);
+        if (Handle == 0) {
+            FS->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
+            return FALSE;
+        }
+
+        Info->SearchHandle = Handle;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+UINT SysCall_FindNextFile(UINT Parameter) {
+    LPFILEFINDINFO Info = (LPFILEFINDINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, FILEFINDINFO) {
+        LPFILE File = (LPFILE)HandleToPointer(Info->SearchHandle);
+        LPFILESYSTEM FS = GetSystemFS();
+
+        SAFE_USE_VALID_ID(File, KOID_FILE) {
+            if (FS == NULL || FS->Driver == NULL || FS->Driver->Command == NULL) {
+                return FALSE;
+            }
+
+            BOOL Found = FALSE;
+            while (FS->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_RET_SUCCESS) {
+                if (MatchPattern(File->Name, Info->Pattern)) {
+                    StringCopy(Info->Name, File->Name);
+                    Info->Attributes = File->Attributes;
+                    Found = TRUE;
+                    break;
+                }
+            }
+
+            if (!Found) {
+                FS->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
+                Info->SearchHandle = 0;
+                return FALSE;
+            }
+
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Peek the next keyboard character without removing it.
  *
@@ -1077,6 +1228,23 @@ UINT SysCall_ConsoleGetKey(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Retrieve current key modifier state.
+ *
+ * @param Parameter Linear address of a U32 to fill with KEYMOD_* flags.
+ * @return UINT TRUE on success, FALSE on error.
+ */
+UINT SysCall_ConsoleGetKeyModifiers(UINT Parameter) {
+    U32* Modifiers = (U32*)Parameter;
+    SAFE_USE_VALID(Modifiers) {
+        *Modifiers = GetKeyModifiers();
+        return 1;
+    }
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieve the next character from the console input.
  *
  * Currently unimplemented; reserved for future console work.
@@ -1099,6 +1267,80 @@ UINT SysCall_ConsoleGetChar(UINT Parameter) {
  */
 UINT SysCall_ConsolePrint(UINT Parameter) {
     SAFE_USE_VALID((LPCSTR)Parameter) { ConsolePrint((LPCSTR)Parameter); }
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Blit a text buffer to the console at the given position.
+ *
+ * @param Parameter Linear address of CONSOLEBLITBUFFER.
+ * @return UINT Always returns 0.
+ */
+UINT SysCall_ConsoleBlitBuffer(UINT Parameter) {
+    LPCONSOLEBLITBUFFER Info = (LPCONSOLEBLITBUFFER)Parameter;
+
+    if (Info != NULL && IsValidMemory((LINEAR)Info) && IsValidMemory((LINEAR)Info->Text)) {
+        UINT maxWidth = Console.Width;
+        UINT maxHeight = Console.Height;
+        UINT row;
+        UINT width = Info->Width;
+        UINT height = Info->Height;
+        UINT x = Info->X;
+        UINT y = Info->Y;
+        UINT textPitch = (Info->TextPitch != 0) ? Info->TextPitch : (Info->Width + 1);
+        UINT attrPitch = (Info->AttrPitch != 0) ? Info->AttrPitch : Info->Width;
+        BOOL useAttr = (Info->Attr != NULL) && IsValidMemory((LINEAR)Info->Attr);
+        U32 savedFore = Console.ForeColor;
+        U32 savedBack = Console.BackColor;
+        U32 fore = Info->ForeColor;
+        U32 back = Info->BackColor;
+
+        if (fore > 15) fore = savedFore;
+        if (back > 15) back = savedBack;
+
+        if (width > maxWidth) width = maxWidth;
+        if (height > maxHeight) height = maxHeight;
+        if (x >= maxWidth || y >= maxHeight) return 0;
+        if (x + width > maxWidth) width = maxWidth - x;
+        if (y + height > maxHeight) height = maxHeight - y;
+
+        if (!useAttr) {
+            SetConsoleForeColor(fore);
+            SetConsoleBackColor(back);
+        }
+
+        for (row = 0; row < height; row++) {
+            const U8* attrRow = useAttr ? (Info->Attr + (row * attrPitch)) : NULL;
+            UINT col;
+
+            if (!useAttr) {
+                ConsolePrintLine(y + row, x, Info->Text + (row * textPitch), width);
+                continue;
+            }
+
+            /* Per-cell attributes */
+            for (col = 0; col < width; col++) {
+                U8 attr = attrRow[col];
+                U32 cellFore = attr & 0x0F;
+                U32 cellBack = (attr >> 4) & 0x0F;
+                U16 attribute = (U16)(cellFore | (cellBack << 0x04) | (Console.Blink << 0x07));
+                attribute = (U16)(attribute << 0x08);
+                if (x + col < maxWidth && y + row < maxHeight) {
+                    UINT offset = ((y + row) * Console.Width) + (x + col);
+                    STR character = Info->Text[(row * textPitch) + col];
+                    Console.Memory[offset] = (U16)character | attribute;
+                }
+            }
+        }
+
+        if (!useAttr) {
+            SetConsoleForeColor(savedFore);
+            SetConsoleBackColor(savedBack);
+        }
+    }
+
     return 0;
 }
 
@@ -1139,7 +1381,7 @@ UINT SysCall_ConsoleGotoXY(UINT Parameter) {
  * @param Parameter Reserved.
  * @return UINT Always returns 0.
  */
-UINT SysCall_ClearScreen(UINT Parameter) {
+UINT SysCall_ConsoleClear(UINT Parameter) {
     UNUSED(Parameter);
     ClearConsole();
     return 0;

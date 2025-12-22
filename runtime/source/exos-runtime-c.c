@@ -30,7 +30,14 @@
 
 /************************************************************************/
 
-#define EXOS_PARAM(Value) ((uint_t)(Value))
+#ifdef __KERNEL__
+/* In kernel mode, use kernel heap functions directly */
+extern void* KernelHeapAlloc(unsigned long size);
+extern void KernelHeapFree(void* ptr);
+extern void* KernelHeapRealloc(void* ptr, unsigned long size);
+#endif
+
+/************************************************************************/
 
 /************************************************************************/
 
@@ -61,8 +68,46 @@ int atoi(const char* str) { return (int)StringToU32((LPCSTR)str); }
 
 /************************************************************************/
 
+char* strncat(char* dest, const char* src, size_t n) {
+    size_t dest_len = strlen(dest);
+    size_t i;
+
+    for (i = 0; i < n && src[i] != '\0'; i++) {
+        dest[dest_len + i] = src[i];
+    }
+
+    dest[dest_len + i] = '\0';
+    return dest;
+}
+
+/************************************************************************/
+
+char* strrchr(const char* string, int character) {
+    const char* last = NULL;
+    char target = (char)character;
+
+    if (string == NULL) {
+        return NULL;
+    }
+
+    while (*string != '\0') {
+        if (*string == target) {
+            last = string;
+        }
+        string++;
+    }
+
+    if (target == '\0') {
+        return (char*)string;
+    }
+
+    return (char*)last;
+}
+
+/************************************************************************/
+
 #ifndef __KERNEL__
-void debug(char* format, ...) {
+void debug(const char* format, ...) {
     char Buffer[MAX_STRING_BUFFER];
     VarArgList Args;
 
@@ -83,11 +128,6 @@ void exit(int ErrorCode) { __exit__(ErrorCode); }
 /************************************************************************/
 
 #ifdef __KERNEL__
-/* In kernel mode, use kernel heap functions directly */
-extern void* KernelHeapAlloc(unsigned long size);
-extern void KernelHeapFree(void* ptr);
-extern void* KernelHeapRealloc(void* ptr, unsigned long size);
-
 void* malloc(size_t s) { return KernelHeapAlloc(s); }
 #else
 void* malloc(size_t s) { return (void*)exoscall(SYSCALL_HeapAlloc, EXOS_PARAM(s)); }
@@ -137,6 +177,55 @@ int sprintf(char* str, const char* fmt, ...) {
 
 /************************************************************************/
 
+int snprintf(char* str, size_t size, const char* fmt, ...) {
+    char Buffer[MAX_STRING_BUFFER];
+    VarArgList Args;
+    UINT FormattedLength;
+    UINT CopyLength;
+
+    VarArgStart(Args, fmt);
+    StringPrintFormatArgs((LPSTR)Buffer, (LPCSTR)fmt, Args);
+    VarArgEnd(Args);
+
+    FormattedLength = strlen(Buffer);
+
+    if (str != NULL && size > 0) {
+        CopyLength = (FormattedLength < (size - 1)) ? FormattedLength : (UINT)(size - 1);
+        if (CopyLength > 0) {
+            memmove(str, Buffer, CopyLength);
+        }
+        str[CopyLength] = 0;
+    }
+
+    return (int)FormattedLength;
+}
+
+/************************************************************************/
+
+char* getcwd(char* buffer, size_t size) {
+    size_t length;
+
+    if (buffer == NULL || size == 0) {
+        return NULL;
+    }
+
+    if (_ProcessInfo.WorkFolder[0] == '\0') {
+        buffer[0] = '\0';
+        return buffer;
+    }
+
+    length = strlen((const char*)_ProcessInfo.WorkFolder);
+    if (length + 1 > size) {
+        return NULL;
+    }
+
+    memmove(buffer, _ProcessInfo.WorkFolder, length);
+    buffer[length] = '\0';
+    return buffer;
+}
+
+/************************************************************************/
+
 #ifndef __KERNEL__
 int printf(const char* fmt, ...) {
     char Buffer[MAX_STRING_BUFFER];
@@ -171,6 +260,14 @@ int fprintf(FILE* fp, const char* fmt, ...) {
 /************************************************************************/
 
 #ifndef __KERNEL__
+int peekch(void) {
+    return exoscall(SYSCALL_ConsolePeekKey, EXOS_PARAM(0));
+}
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
 int getch(void) {
     KEYCODE KeyCode;
 
@@ -197,6 +294,14 @@ int getkey(void) {
     exoscall(SYSCALL_ConsoleGetKey, EXOS_PARAM(&KeyCode));
 
     return (int)KeyCode.VirtualKey;
+}
+#endif
+
+/************************************************************************/
+
+#ifndef __KERNEL__
+unsigned getkeymodifiers(void) {
+    return (unsigned)GetKeyModifiers();
 }
 #endif
 
@@ -378,12 +483,7 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
 size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
     FILEOPERATION fileop;
 
-    debug("[fwrite] Called with elsize=%u, num=%u, fp=%x", elsize, num, (unsigned)fp);
-
-    if (!fp) {
-        debug("[fwrite] NULL file pointer");
-        return 0;
-    }
+    if (!fp) return 0;
 
     fileop.Header.Size = sizeof(fileop);
     fileop.Header.Version = EXOS_ABI_VERSION;
@@ -392,9 +492,7 @@ size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
     fileop.NumBytes = elsize * num;
     fileop.Buffer = (void*)buf;
 
-    debug("[fwrite] Calling SYSCALL_WriteFile with %u bytes", fileop.NumBytes);
     size_t result = (size_t)exoscall(SYSCALL_WriteFile, EXOS_PARAM(&fileop));
-    debug("[fwrite] SYSCALL_WriteFile returned: %u", result);
 
     return result;
 }
@@ -402,17 +500,51 @@ size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
 /************************************************************************/
 
 int fseek(FILE* fp, long int pos, int whence) {
-    UNUSED(fp);
-    UNUSED(pos);
-    UNUSED(whence);
-    return 0;
+    FILEOPERATION Operation;
+    long Target = 0;
+    long Current;
+    long Size;
+    UINT Result;
+
+    if (fp == NULL) return -1;
+
+    Current = (long)exoscall(SYSCALL_GetFilePointer, EXOS_PARAM(fp->_handle));
+
+    switch (whence) {
+        case SEEK_SET:
+            Target = pos;
+            break;
+        case SEEK_CUR:
+            Target = Current + pos;
+            break;
+        case SEEK_END:
+            Size = (long)exoscall(SYSCALL_GetFileSize, EXOS_PARAM(fp->_handle));
+            Target = Size + pos;
+            break;
+        default:
+            return -1;
+    }
+
+    if (Target < 0) {
+        return -1;
+    }
+
+    Operation.Header.Size = sizeof(Operation);
+    Operation.Header.Version = EXOS_ABI_VERSION;
+    Operation.Header.Flags = 0;
+    Operation.File = (HANDLE)fp->_handle;
+    Operation.NumBytes = (U32)Target;
+    Operation.Buffer = NULL;
+
+    Result = (UINT)exoscall(SYSCALL_SetFilePointer, EXOS_PARAM(&Operation));
+    return (Result == DF_RET_SUCCESS) ? 0 : -1;
 }
 
 /************************************************************************/
 
 long int ftell(FILE* fp) {
-    UNUSED(fp);
-    return 0;
+    if (fp == NULL) return -1;
+    return (long int)exoscall(SYSCALL_GetFilePointer, EXOS_PARAM(fp->_handle));
 }
 
 /************************************************************************/
@@ -431,9 +563,131 @@ int fflush(FILE* fp) {
 
 /************************************************************************/
 
+/* Input helpers */
+
 int fgetc(FILE* fp) {
-    UNUSED(fp);
-    return 0;
+    unsigned char c;
+    size_t readCount;
+
+    if (!fp) return -1;
+
+    readCount = fread(&c, 1, 1, fp);
+    if (readCount == 0) {
+        return -1;
+    }
+
+    return (int)c;
+}
+
+int fgets(char* str, int num, FILE* fp) {
+    int count = 0;
+    int ch;
+
+    if (str == NULL || num <= 0 || fp == NULL) return 0;
+
+    while (count < num - 1) {
+        ch = fgetc(fp);
+        if (ch == -1) {
+            break;
+        }
+        str[count++] = (char)ch;
+        if (ch == '\n') {
+            break;
+        }
+    }
+
+    if (count == 0) {
+        return 0;
+    }
+
+    str[count] = '\0';
+    return (int)count;
+}
+
+/************************************************************************/
+// Math
+
+#define COS_TABLE_SIZE 512
+
+static const float cos_table[COS_TABLE_SIZE] = {
+    1.0000000f, 0.9999247f, 0.9996988f, 0.9993224f, 0.9987955f, 0.9981181f, 0.9972904f, 0.9963126f,
+    0.9951847f, 0.9939070f, 0.9924796f, 0.9909027f, 0.9891765f, 0.9873014f, 0.9852777f, 0.9831055f,
+    0.9807853f, 0.9783174f, 0.9757021f, 0.9729400f, 0.9700313f, 0.9669765f, 0.9637761f, 0.9604305f,
+    0.9569404f, 0.9533060f, 0.9495282f, 0.9456073f, 0.9415441f, 0.9373390f, 0.9329928f, 0.9285061f,
+    0.9238795f, 0.9191139f, 0.9142098f, 0.9091680f, 0.9039893f, 0.8986745f, 0.8932243f, 0.8876396f,
+    0.8819213f, 0.8760701f, 0.8700869f, 0.8639728f, 0.8577286f, 0.8513552f, 0.8448536f, 0.8382247f,
+    0.8314696f, 0.8245893f, 0.8175848f, 0.8104572f, 0.8032075f, 0.7958369f, 0.7883464f, 0.7807372f,
+    0.7730105f, 0.7651673f, 0.7572088f, 0.7491364f, 0.7409511f, 0.7326543f, 0.7242471f, 0.7157308f,
+    0.7071068f, 0.6983762f, 0.6895405f, 0.6806010f, 0.6715590f, 0.6624158f, 0.6531728f, 0.6438315f,
+    0.6343933f, 0.6248595f, 0.6152316f, 0.6055110f, 0.5956993f, 0.5857979f, 0.5758082f, 0.5657318f,
+    0.5555702f, 0.5453250f, 0.5349976f, 0.5245897f, 0.5141027f, 0.5035384f, 0.4928982f, 0.4821838f,
+    0.4713967f, 0.4605387f, 0.4496113f, 0.4386162f, 0.4275551f, 0.4164296f, 0.4052413f, 0.3939920f,
+    0.3826834f, 0.3713172f, 0.3598950f, 0.3484189f, 0.3368899f, 0.3253103f, 0.3136817f, 0.3020059f,
+    0.2902847f, 0.2785197f, 0.2667128f, 0.2548656f, 0.2429802f, 0.2310581f, 0.2191012f, 0.2071114f,
+    0.1950903f, 0.1830399f, 0.1709619f, 0.1588581f, 0.1467305f, 0.1345807f, 0.1224107f, 0.1102222f,
+    0.0980171f, 0.0857973f, 0.0735646f, 0.0613207f, 0.0490677f, 0.0368072f, 0.0245412f, 0.0122715f,
+    0.0000000f, -0.0122715f, -0.0245412f, -0.0368072f, -0.0490677f, -0.0613207f, -0.0735646f, -0.0857973f,
+    -0.0980171f, -0.1102222f, -0.1224107f, -0.1345807f, -0.1467305f, -0.1588581f, -0.1709619f, -0.1830399f,
+    -0.1950903f, -0.2071114f, -0.2191012f, -0.2310581f, -0.2429802f, -0.2548656f, -0.2667128f, -0.2785197f,
+    -0.2902847f, -0.3020059f, -0.3136817f, -0.3253103f, -0.3368899f, -0.3484189f, -0.3598950f, -0.3713172f,
+    -0.3826834f, -0.3939920f, -0.4052413f, -0.4164296f, -0.4275551f, -0.4386162f, -0.4496113f, -0.4605387f,
+    -0.4713967f, -0.4821838f, -0.4928982f, -0.5035384f, -0.5141027f, -0.5245897f, -0.5349976f, -0.5453250f,
+    -0.5555702f, -0.5657318f, -0.5758082f, -0.5857979f, -0.5956993f, -0.6055110f, -0.6152316f, -0.6248595f,
+    -0.6343933f, -0.6438315f, -0.6531728f, -0.6624158f, -0.6715590f, -0.6806010f, -0.6895405f, -0.6983762f,
+    -0.7071068f, -0.7157308f, -0.7242471f, -0.7326543f, -0.7409511f, -0.7491364f, -0.7572088f, -0.7651673f,
+    -0.7730105f, -0.7807372f, -0.7883464f, -0.7958369f, -0.8032075f, -0.8104572f, -0.8175848f, -0.8245893f,
+    -0.8314696f, -0.8382247f, -0.8448536f, -0.8513552f, -0.8577286f, -0.8639728f, -0.8700869f, -0.8760701f,
+    -0.8819213f, -0.8876396f, -0.8932243f, -0.8986745f, -0.9039893f, -0.9091680f, -0.9142098f, -0.9191139f,
+    -0.9238795f, -0.9285061f, -0.9329928f, -0.9373390f, -0.9415441f, -0.9456073f, -0.9495282f, -0.9533060f,
+    -0.9569404f, -0.9604305f, -0.9637761f, -0.9669765f, -0.9700313f, -0.9729400f, -0.9757021f, -0.9783174f,
+    -0.9807853f, -0.9831055f, -0.9852777f, -0.9873014f, -0.9891765f, -0.9909027f, -0.9924796f, -0.9939070f,
+    -0.9951847f, -0.9963126f, -0.9972904f, -0.9981181f, -0.9987955f, -0.9993224f, -0.9996988f, -0.9999247f,
+    -1.0000000f, -0.9999247f, -0.9996988f, -0.9993224f, -0.9987955f, -0.9981181f, -0.9972904f, -0.9963126f,
+    -0.9951847f, -0.9939070f, -0.9924796f, -0.9909027f, -0.9891765f, -0.9873014f, -0.9852777f, -0.9831055f,
+    -0.9807853f, -0.9783174f, -0.9757021f, -0.9729400f, -0.9700313f, -0.9669765f, -0.9637761f, -0.9604305f,
+    -0.9569404f, -0.9533060f, -0.9495282f, -0.9456073f, -0.9415441f, -0.9373390f, -0.9329928f, -0.9285061f,
+    -0.9238795f, -0.9191139f, -0.9142098f, -0.9091680f, -0.9039893f, -0.8986745f, -0.8932243f, -0.8876396f,
+    -0.8819213f, -0.8760701f, -0.8700869f, -0.8639728f, -0.8577286f, -0.8513552f, -0.8448536f, -0.8382247f,
+    -0.8314696f, -0.8245893f, -0.8175848f, -0.8104572f, -0.8032075f, -0.7958369f, -0.7883464f, -0.7807372f,
+    -0.7730105f, -0.7651673f, -0.7572088f, -0.7491364f, -0.7409511f, -0.7326543f, -0.7242471f, -0.7157308f,
+    -0.7071068f, -0.6983762f, -0.6895405f, -0.6806010f, -0.6715590f, -0.6624158f, -0.6531728f, -0.6438315f,
+    -0.6343933f, -0.6248595f, -0.6152316f, -0.6055110f, -0.5956993f, -0.5857979f, -0.5758082f, -0.5657318f,
+    -0.5555702f, -0.5453250f, -0.5349976f, -0.5245897f, -0.5141027f, -0.5035384f, -0.4928982f, -0.4821838f,
+    -0.4713967f, -0.4605387f, -0.4496113f, -0.4386162f, -0.4275551f, -0.4164296f, -0.4052413f, -0.3939920f,
+    -0.3826834f, -0.3713172f, -0.3598950f, -0.3484189f, -0.3368899f, -0.3253103f, -0.3136817f, -0.3020059f,
+    -0.2902847f, -0.2785197f, -0.2667128f, -0.2548656f, -0.2429802f, -0.2310581f, -0.2191012f, -0.2071114f,
+    -0.1950903f, -0.1830399f, -0.1709619f, -0.1588581f, -0.1467305f, -0.1345807f, -0.1224107f, -0.1102222f,
+    -0.0980171f, -0.0857973f, -0.0735646f, -0.0613207f, -0.0490677f, -0.0368072f, -0.0245412f, -0.0122715f,
+    -0.0000000f, 0.0122715f, 0.0245412f, 0.0368072f, 0.0490677f, 0.0613207f, 0.0735646f, 0.0857973f,
+    0.0980171f, 0.1102222f, 0.1224107f, 0.1345807f, 0.1467305f, 0.1588581f, 0.1709619f, 0.1830399f,
+    0.1950903f, 0.2071114f, 0.2191012f, 0.2310581f, 0.2429802f, 0.2548656f, 0.2667128f, 0.2785197f,
+    0.2902847f, 0.3020059f, 0.3136817f, 0.3253103f, 0.3368899f, 0.3484189f, 0.3598950f, 0.3713172f,
+    0.3826834f, 0.3939920f, 0.4052413f, 0.4164296f, 0.4275551f, 0.4386162f, 0.4496113f, 0.4605387f,
+    0.4713967f, 0.4821838f, 0.4928982f, 0.5035384f, 0.5141027f, 0.5245897f, 0.5349976f, 0.5453250f,
+    0.5555702f, 0.5657318f, 0.5758082f, 0.5857979f, 0.5956993f, 0.6055110f, 0.6152316f, 0.6248595f,
+    0.6343933f, 0.6438315f, 0.6531728f, 0.6624158f, 0.6715590f, 0.6806010f, 0.6895405f, 0.6983762f,
+    0.7071068f, 0.7157308f, 0.7242471f, 0.7326543f, 0.7409511f, 0.7491364f, 0.7572088f, 0.7651673f,
+    0.7730105f, 0.7807372f, 0.7883464f, 0.7958369f, 0.8032075f, 0.8104572f, 0.8175848f, 0.8245893f,
+    0.8314696f, 0.8382247f, 0.8448536f, 0.8513552f, 0.8577286f, 0.8639728f, 0.8700869f, 0.8760701f,
+    0.8819213f, 0.8876396f, 0.8932243f, 0.8986745f, 0.9039893f, 0.9091680f, 0.9142098f, 0.9191139f,
+    0.9238795f, 0.9285061f, 0.9329928f, 0.9373390f, 0.9415441f, 0.9456073f, 0.9495282f, 0.9533060f,
+    0.9569404f, 0.9604305f, 0.9637761f, 0.9669765f, 0.9700313f, 0.9729400f, 0.9757021f, 0.9783174f,
+    0.9807853f, 0.9831055f, 0.9852777f, 0.9873014f, 0.9891765f, 0.9909027f, 0.9924796f, 0.9939070f,
+    0.9951847f, 0.9963126f, 0.9972904f, 0.9981181f, 0.9987955f, 0.9993224f, 0.9996988f, 0.9999247f
+};
+
+/************************************************************************/
+
+float cos(float angle) {
+    angle = angle - (int)(angle / TWO_PI) * TWO_PI;
+    if (angle < 0.0f) {
+        angle += TWO_PI;
+    }
+    
+    float pos = angle * COS_TABLE_SIZE / TWO_PI;
+    int index = (int)pos;
+    
+    return cos_table[index];
 }
 
 /************************************************************************/
@@ -611,6 +865,8 @@ void _SetupArguments(void) {
     char* StoragePtr;
     char* p;
     int InQuotes;
+
+    debug("[_SetupArguments] enter");
 
     _argc = 0;
     _argv = _static_argv;

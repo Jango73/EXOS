@@ -126,11 +126,11 @@ INT MemoryCompare(LPCVOID First, LPCVOID Second, UINT Size) {
         const U8* Ptr1 = (const U8*)First;
         const U8* Ptr2 = (const U8*)Second;
 
-        UINT Count = Size;
         INT Result = 0;
 
 #ifdef __KERNEL__
-    #if defined(__EXOS_ARCH_X86_64__)
+        UINT Count = Size;
+        #if defined(__EXOS_ARCH_X86_64__)
         __asm__ __volatile__(
             "xor %%eax, %%eax\n"
             "cld\n"
@@ -1002,7 +1002,9 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
     UINT NumberValue = 0;
     BOOL NumberIsNegative = FALSE;
     BOOL NumberIsPreloaded = FALSE;
+    #if defined(__EXOS_64__)
     BOOL QualifierIsLongLong = FALSE;
+    #endif
     int Flags, FieldWidth, Precision, Qualifier, Base, Length, i;
     LPSTR Dst = Destination;  // Output pointer
 
@@ -1081,12 +1083,16 @@ void StringPrintFormatArgs(LPSTR Destination, LPCSTR Format, VarArgList Args) {
         }
 
         Qualifier = -1;
+        #if defined(__EXOS_64__)
         QualifierIsLongLong = FALSE;
+        #endif
         if (*Format == 'h' || *Format == 'l' || *Format == 'L') {
             Qualifier = *Format;
             Format++;
             if (Qualifier == 'l' && *Format == 'l') {
+                #if defined(__EXOS_64__)
                 QualifierIsLongLong = TRUE;
+                #endif
                 Format++;
             }
         }

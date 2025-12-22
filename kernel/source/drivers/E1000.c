@@ -393,7 +393,7 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
         return FALSE;
     }
     Device->RxRingLinear =
-        AllocKernelRegion(Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000RxRing"));
     if (Device->RxRingLinear == 0) {
         ERROR(TEXT("[E1000_SetupReceive] Rx ring map failed"));
         return FALSE;
@@ -402,7 +402,7 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
 
     // RX buffer pool: allocate N pages in one shot (no target; VMM picks pages)
     Device->RxPoolLinear =
-        AllocKernelRegion(0, E1000_RX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(0, E1000_RX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000RxPool"));
     if (Device->RxPoolLinear == 0) {
         ERROR(TEXT("[E1000_SetupReceive] Rx pool alloc failed"));
         return FALSE;
@@ -572,7 +572,7 @@ static BOOL E1000_SetupTransmit(LPE1000DEVICE Device) {
         return FALSE;
     }
     Device->TxRingLinear =
-        AllocKernelRegion(Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000TxRing"));
     if (Device->TxRingLinear == 0) {
         ERROR(TEXT("[E1000_SetupTransmit] Tx ring map failed"));
         return FALSE;
@@ -581,7 +581,7 @@ static BOOL E1000_SetupTransmit(LPE1000DEVICE Device) {
 
     // TX buffer pool: allocate N pages in one shot
     Device->TxPoolLinear =
-        AllocKernelRegion(0, E1000_TX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+        AllocKernelRegion(0, E1000_TX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000TxPool"));
     if (Device->TxPoolLinear == 0) {
         ERROR(TEXT("[E1000_SetupTransmit] Tx pool alloc failed"));
         return FALSE;

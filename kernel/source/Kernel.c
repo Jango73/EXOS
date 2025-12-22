@@ -342,22 +342,31 @@ void DumpCriticalInformation(void) {
 
 static void Welcome(void) {
 
+/*
+    ConsolePrint(TEXT("███████╗██╗  ██╗ ██████╗ ███████╗\n"));
+    ConsolePrint(TEXT("██╔════╝╚██╗██╔╝██╔═══██╗██╔════╝\n"));
+    ConsolePrint(TEXT("█████╗   ╚═╝╚═╝ ██║   ██║███████╗\n"));
+    ConsolePrint(TEXT("██╔══╝   ██╔██╗ ██║   ██║╚════██║\n"));
+    ConsolePrint(TEXT("███████╗██╔╝ ██╗╚██████╔╝███████║\n"));
+    ConsolePrint(TEXT("╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝\n"));
+*/
+
+    ConsolePrint(TEXT("#######\\ ##\\  ##\\  ######\\  #######\\ \n"));
+    ConsolePrint(TEXT("##<----/ \\##\\##// ##/---##\\ ##/----/ \n"));
+    ConsolePrint(TEXT("#####\\    \\-/\\-/  ##|   ##| #######\\ \n"));
+    ConsolePrint(TEXT("##/--/    ##/##\\  ##|   ##| \\----##|  \n"));
+    ConsolePrint(TEXT("#######\\ ##// ##\\ \\######// #######| \n"));
+    ConsolePrint(TEXT("\\------/ \\-/  \\-/  \\-----/  \\------/ \n\n"));
+
 #if DEBUG_OUTPUT == 1 || SCHEDULING_DEBUG_OUTPUT == 1
-    ConsolePrint(TEXT("WARNING : This is a debug build.\n"));
+    ConsolePrint(TEXT("WARNING : This is a debug build.\n\n"));
 #endif
 
-    //-------------------------------------
-    // Print information on memory
-
-    ConsolePrint(TEXT("Physical memory : %lu"), KernelStartup.MemorySize / 1024);
-    ConsolePrint(Text_Space);
-    ConsolePrint(Text_KB);
-    ConsolePrint(Text_NewLine);
-
     ConsolePrint(
-        TEXT("\n"
-        "EXOS - Extensible Operating System for %s computers\n"
-        "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"),
+        TEXT(
+            "Extensible Operating System for %s computers\n"
+            "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"
+            ),
         Text_Architecture,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );

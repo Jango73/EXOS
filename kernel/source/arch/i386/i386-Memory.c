@@ -28,6 +28,7 @@
 #include "Console.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory-Descriptors.h"
 #include "arch/i386/i386-Log.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
@@ -231,6 +232,19 @@ static inline BOOL ClipTo32Bit(U64 base, U64 len, U32* outBase, U32* outLen) {
         *outLen = newLen.LO;
     }
     return (*outLen != 0);
+}
+
+/************************************************************************/
+/**
+ * @brief Determine the largest paging granularity compatible with a region.
+ * @param Base Canonical base of the region.
+ * @param PageCount Number of pages described by the region.
+ * @return Corresponding granularity.
+ */
+MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount) {
+    UNUSED(Base);
+    UNUSED(PageCount);
+    return MEMORY_REGION_GRANULARITY_4K;
 }
 
 /************************************************************************/
@@ -1201,7 +1215,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
  *              - ALLOC_PAGES_IO: keep physical pages marked fixed for MMIO.
  * @return Allocated linear base address or 0 on failure.
  */
-LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     LINEAR Pointer = NULL;
     UINT NumPages = 0;
     DEBUG(TEXT("[AllocRegion] Enter: Base=%x Target=%x Size=%x Flags=%x"), Base, Target, Size, Flags);
@@ -1265,6 +1279,11 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags) {
     DEBUG(TEXT("[AllocRegion] Allocating pages"));
 
     if (PopulateRegionPages(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
+        return NULL;
+    }
+
+    if (RegionTrackAlloc(Pointer, Target, NumPages << PAGE_SIZE_MUL, Flags, Tag) == FALSE) {
+        FreeRegion(Pointer, NumPages << PAGE_SIZE_MUL);
         return NULL;
     }
 
@@ -1344,6 +1363,8 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
             return FALSE;
         }
 
+        RegionTrackResize(Base, Size, NewSize, Flags);
+
         FlushTLB();
     } else {
         UINT PagesToRelease = CurrentPages - RequestedPages;
@@ -1369,6 +1390,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
  * @return TRUE on success.
  */
 BOOL FreeRegion(LINEAR Base, UINT Size) {
+    LINEAR OriginalBase = Base;
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)GetCurrentPageDirectoryVA();
     LPPAGE_TABLE Table = NULL;
     UINT DirEntry = 0;
@@ -1401,6 +1423,8 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 
         Base += PAGE_SIZE;
     }
+
+    RegionTrackFree(OriginalBase, NumPages << PAGE_SIZE_MUL);
 
     FreeEmptyPageTables();
 
@@ -1440,7 +1464,8 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
         AdjustedSize,        // Page-aligned size
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
             ALLOC_PAGES_IO |
-            ALLOC_PAGES_AT_OR_OVER  // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
+            ALLOC_PAGES_AT_OR_OVER,  // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
+        TEXT("IOMemory")
     );
 
     if (AlignedResult == NULL) {
@@ -1482,9 +1507,9 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
  * @param Flags Additional allocation flags.
  * @return Linear address or 0 on failure.
  */
-LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags) {
+LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
-    return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER);
+    return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER, Tag);
 }
 
 /************************************************************************/
@@ -1600,7 +1625,10 @@ void InitializeMemoryManager(void) {
 
     DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
 
-    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    InitializeRegionDescriptorTracking();
+
+    Kernel_i386.GDT = (LPSEGMENT_DESCRIPTOR)AllocKernelRegion(
+        0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
 
     if (Kernel_i386.GDT == NULL) {
         ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));

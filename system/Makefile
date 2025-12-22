@@ -22,7 +22,7 @@ SUBMAKE = $(MAKE) ARCH=$(ARCH)
 
 .PHONY: all clean hello portal tictactoe netget master slave
 
-all: hello portal tictactoe netget master slave
+all: hello portal tictactoe terminal_tactics netget master slave
 
 ################################################################################
 # Hello program
@@ -53,6 +53,16 @@ tictactoe:
 
 tictactoe_clean:
 	+$(SUBMAKE) -C tictactoe clean
+
+################################################################################
+# Terminal Tactics program
+
+terminal_tactics:
+	@echo "[ Building terminal tactics ]"
+	+$(SUBMAKE) -C terminal-tactics all
+
+terminal_tactics_clean:
+	+$(SUBMAKE) -C terminal-tactics clean
 
 ################################################################################
 # NetGet program
@@ -86,5 +96,5 @@ slave_clean:
 
 ################################################################################
 
-clean: hello_clean portal_clean tictactoe_clean netget_clean master_clean slave_clean
+clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean master_clean slave_clean
 	@echo "[ Cleaning system programs ]"

@@ -143,6 +143,10 @@ static inline U64 GetMaxPhysicalAddressPlusOne(void) {
     return U64_Make(1, 0x00000000u);
 }
 
+static inline LINEAR CanonicalizeLinearAddress(LINEAR Address) {
+    return Address;
+}
+
 static inline BOOL ClipPhysicalRange(U64 Base, U64 Length, PHYSICAL* OutBase, UINT* OutLength) {
     U64 Limit = GetMaxPhysicalAddressPlusOne();
 

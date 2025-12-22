@@ -22,6 +22,8 @@
 
 \************************************************************************/
 
+#include "../../kernel/include/User.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,6 +61,9 @@ extern "C" {
 #ifndef NULL
 #define NULL 0L
 #endif
+
+#define PI 3.1415926535f
+#define TWO_PI 6.283185307179586f
 
 /************************************************************************/
 // Types
@@ -144,7 +149,7 @@ static inline unsigned long ntohl(unsigned long Value) { return htonl(Value); }
 
 /************************************************************************/
 
-extern void debug(char* format, ...);
+extern void debug(const char* format, ...);
 
 /************************************************************************/
 
@@ -162,21 +167,34 @@ extern unsigned strcmp(const char*, const char*);
 extern int strncmp(const char*, const char*, unsigned);
 extern char* strstr(const char* haystack, const char* needle);
 extern char* strchr(const char* string, int character);
+extern char* strrchr(const char* string, int character);
 extern void memset(void*, int, size_t);
 extern void memcpy(void*, const void*, size_t);
 extern void* memmove(void*, const void*, size_t);
 extern int memcmp(const void* s1, const void* s2, size_t n);
 extern unsigned strlen(const char*);
 extern char* strcpy(char*, const char*);
+extern char* strncat(char* dest, const char* src, size_t n);
+extern char* getcwd(char* buffer, size_t size);
+
+/************************************************************************/
+/* fseek constants                                                      */
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 /************************************************************************/
 
 extern void exit(int code);
 extern void* malloc(size_t size);
 extern void free(void* pointer);
+extern int peekch(void);
 extern int getch(void);
 extern int getkey(void);
+extern unsigned getkeymodifiers(void);
 extern int sprintf(char* str, const char* fmt, ...);
+extern int snprintf(char* str, size_t size, const char* fmt, ...);
 extern int printf(const char* format, ...);
 extern int _beginthread(void (*function)(void*), unsigned stack_size, void* arg_list);
 extern void _endthread(void);
@@ -199,6 +217,10 @@ typedef struct __iobuf {
 
 /************************************************************************/
 
+/* FILEFINDINFO comes from kernel/include/User.h via exos.h */
+
+/************************************************************************/
+
 extern FILE* fopen(const char*, const char*);
 extern size_t fread(void*, size_t, size_t, FILE*);
 extern size_t fwrite(const void*, size_t, size_t, FILE*);
@@ -209,6 +231,12 @@ extern int fclose(FILE*);
 extern int feof(FILE*);
 extern int fflush(FILE*);
 extern int fgetc(FILE*);
+extern int fgets(char* str, int num, FILE* fp);
+
+/************************************************************************/
+// Math
+
+extern float cos(float code);
 
 /************************************************************************/
 // POSIX Socket interface

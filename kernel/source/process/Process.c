@@ -52,11 +52,9 @@ PROCESS DATA_SECTION KernelProcess = {
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .PageDirectory = 0,             // Page directory
-#if defined(__EXOS_ARCH_X86_64__)
     .RegionListHead = NULL,
     .RegionListTail = NULL,
     .RegionCount = 0,
-#endif
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
     .MaximumAllocatedMemory = N_HalfMemory, // Maximum heap allocation limit
@@ -109,7 +107,10 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = AllocKernelRegion(0, KernelProcess.HeapSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE);
+    LINEAR HeapBase = AllocKernelRegion(0,
+                                        KernelProcess.HeapSize,
+                                        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                        TEXT("KernelHeap"));
 
     DEBUG(TEXT("[InitializeKernelProcess] HeapBase : %p"), (LINEAR)HeapBase);
 
@@ -654,7 +655,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     DEBUG(TEXT("[CreateProcess] Allocating process space"));
 
-    if (AllocRegion(VMA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE) == NULL) {
+    if (AllocRegion(VMA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("ProcessSpace")) == NULL) {
         ERROR(TEXT("[CreateProcess] Failed to allocate process space"));
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
