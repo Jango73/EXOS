@@ -787,6 +787,12 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 **Process Creation Flags (Process.Flags):**
 - `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` (0x00000001): When the process terminates, all child processes are also killed. If this flag is not set, child processes are orphaned (their Parent field is set to NULL).
 
+### Session Inheritance
+
+- New processes inherit the user session pointer from their `OwnerProcess` during `NewProcess`.
+- Session ownership is therefore tied to the process tree: children share the same session by default unless explicitly reassigned.
+- This keeps user identity and security context consistent across a spawned process hierarchy.
+
 ### Lifecycle Flow
 
 **1. Task Termination:**
