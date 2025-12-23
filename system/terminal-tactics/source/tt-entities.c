@@ -33,6 +33,24 @@ extern void RecalculateEnergy(void);
 
 /************************************************************************/
 
+void LogTeamAction(I32 team, const char* action, U32 id, U32 x, U32 y, const char* name, const char* extra) {
+    if (action == NULL) action = "Unknown";
+    if (name == NULL) name = "None";
+    if (extra == NULL) extra = "None";
+    debug("[LogTeamAction] Team=%x Action=%s Id=%x X=%x Y=%x Name=%s Extra=%s",
+          (U32)team, action, id, x, y, name, extra);
+}
+
+/************************************************************************/
+
+void LogTeamActionCounts(I32 team, const char* action, U32 a, U32 b, U32 c, U32 d) {
+    if (action == NULL) action = "Unknown";
+    debug("[LogTeamActionCounts] Team=%x Action=%s A=%x B=%x C=%x D=%x",
+          (U32)team, action, a, b, c, d);
+}
+
+/************************************************************************/
+
 const BUILDING_TYPE* GetBuildingTypeById(I32 typeId) {
     for (I32 i = 0; i < BUILDING_TYPE_COUNT; i++) {
         if (BuildingTypes[i].Id == typeId) return &BuildingTypes[i];
@@ -98,13 +116,17 @@ BOOL IsTeamEliminated(I32 team) {
     TEAM_RESOURCES* res;
 
     if (!IsValidTeam(team)) return FALSE;
-    if (!TeamHasConstructionYard(team)) return TRUE;
+    if (!TeamHasConstructionYard(team)) {
+        LogTeamAction(team, "Eliminated", 0, 0, 0, "", "NoConstructionYard");
+        return TRUE;
+    }
 
     res = GetTeamResources(team);
     if (res == NULL) return FALSE;
     if (res->Plasma > 0) return FALSE;
 
     if (FindTeamUnit(team, UNIT_TYPE_DRILLER) != NULL) return FALSE;
+    LogTeamAction(team, "Eliminated", 0, 0, 0, "", "NoPlasmaNoDriller");
     return TRUE;
 }
 
@@ -395,6 +417,11 @@ void RemoveUnitFromTeamList(I32 team, UNIT* target) {
     current = *head;
     while (current != NULL) {
         if (current == target) {
+            if (team != HUMAN_TEAM_INDEX) {
+                const UNIT_TYPE* ut = GetUnitTypeById(current->TypeId);
+                LogTeamAction(team, "UnitRemoved", (U32)current->Id, (U32)current->X, (U32)current->Y,
+                              ut != NULL ? ut->Name : "Unknown", "");
+            }
             if (prev == NULL) {
                 *head = current->Next;
             } else {
@@ -428,6 +455,9 @@ void RemoveBuildingFromTeamList(I32 team, BUILDING* target) {
     current = *head;
     while (current != NULL) {
         if (current == target) {
+            const BUILDING_TYPE* bt = GetBuildingTypeById(current->TypeId);
+            LogTeamAction(team, "BuildingRemoved", (U32)current->Id, (U32)current->X, (U32)current->Y,
+                          bt != NULL ? bt->Name : "Unknown", "");
             if (prev == NULL) {
                 *head = current->Next;
             } else {

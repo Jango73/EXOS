@@ -33,6 +33,8 @@ UNIT** GetTeamUnitHead(I32 team);
 TEAM_RESOURCES* GetTeamResources(I32 team);
 BOOL TeamHasConstructionYard(I32 team);
 BOOL IsTeamEliminated(I32 team);
+void LogTeamAction(I32 team, const char* action, U32 id, U32 x, U32 y, const char* name, const char* extra);
+void LogTeamActionCounts(I32 team, const char* action, U32 a, U32 b, U32 c, U32 d);
 BUILDING* FindTeamBuilding(I32 team, I32 typeId);
 UNIT* FindTeamUnit(I32 team, I32 typeId);
 BUILDING* FindBuildingById(I32 team, I32 buildingId);

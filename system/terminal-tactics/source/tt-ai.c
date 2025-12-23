@@ -83,6 +83,7 @@ static I32 CountUnitsInRadius(I32 team, I32 centerX, I32 centerY, I32 radius, BO
             if (memory[idx].OccupiedType == 0) continue;
             if (memory[idx].IsBuilding) continue;
             if (countEnemiesOnly) {
+                if (App.GameState->GhostMode && memory[idx].Team == HUMAN_TEAM_INDEX) continue;
                 if (memory[idx].Team != team) count++;
             } else {
                 if (memory[idx].Team == team) count++;
@@ -133,6 +134,7 @@ static BOOL IsHostileMemoryCell(I32 team, const MEMORY_CELL* cell, BOOL* outIsBu
     if (cell == NULL) return FALSE;
     if (cell->OccupiedType == 0) return FALSE;
     if (cell->Team == team) return FALSE;
+    if (App.GameState != NULL && App.GameState->GhostMode && cell->Team == HUMAN_TEAM_INDEX) return FALSE;
 
     if (cell->IsBuilding) {
         if (cell->OccupiedType != BUILDING_TYPE_TURRET) return FALSE;
@@ -286,6 +288,8 @@ static BOOL GetAttackClusterTarget(I32 team, I32 availableForce, I32* outTargetX
 static void ApplyDamageToUnit(I32 targetTeam, UNIT* target, I32 damage, U32 now) {
     if (target == NULL) return;
     if (damage <= 0) return;
+    LogTeamAction(targetTeam, "UnitDamaged", (U32)target->Id, (U32)target->X, (U32)target->Y,
+                  "", "");
     target->LastDamageTime = now;
     target->Hp -= damage;
     if (target->Hp <= 0) {
@@ -298,6 +302,8 @@ static void ApplyDamageToUnit(I32 targetTeam, UNIT* target, I32 damage, U32 now)
 static void ApplyDamageToBuilding(I32 targetTeam, BUILDING* target, I32 damage) {
     if (target == NULL) return;
     if (damage <= 0) return;
+    LogTeamAction(targetTeam, "BuildingDamaged", (U32)target->Id, (U32)target->X, (U32)target->Y,
+                  "", "");
     target->LastDamageTime = GetSystemTime();
     target->Hp -= damage;
     if (target->Hp <= 0) {
@@ -327,6 +333,7 @@ static BOOL TryAttackTargets(UNIT* attacker, const UNIT_TYPE* attackerType, U32 
     I32 mapW;
     I32 mapH;
     I32 attackRange;
+    BOOL ghostBlock;
 
     if (App.GameState == NULL || attacker == NULL || attackerType == NULL) return FALSE;
     if (attackerType->Damage <= 0) return FALSE;
@@ -337,18 +344,26 @@ static BOOL TryAttackTargets(UNIT* attacker, const UNIT_TYPE* attackerType, U32 
     teamCount = GetTeamCountSafe();
     /* Use vision as effective attack envelope (range and sight are treated the same here) */
     attackRange = (attackerType->Sight > 0) ? attackerType->Sight : 1;
+    ghostBlock = (App.GameState->GhostMode && attackerTeam != HUMAN_TEAM_INDEX);
 
     for (I32 team = 0; team < teamCount; team++) {
         if (team == attackerTeam) continue;
+        if (App.GameState->GhostMode && team == HUMAN_TEAM_INDEX && attackerTeam != HUMAN_TEAM_INDEX) continue;
 
         /* Prioritize units */
         UNIT* enemyUnit = App.GameState->TeamData[team].Units;
         while (enemyUnit != NULL) {
+            if (ghostBlock && enemyUnit->Team == HUMAN_TEAM_INDEX) {
+                enemyUnit = enemyUnit->Next;
+                continue;
+            }
             const UNIT_TYPE* enemyType = GetUnitTypeById(enemyUnit->TypeId);
             if (enemyType != NULL &&
                 IsAreaVisibleToTeam(enemyUnit->X, enemyUnit->Y, enemyType->Width, enemyType->Height, attackerTeam) &&
                 IsTargetInRange(attacker->X, attacker->Y, attackRange, enemyUnit->X, enemyUnit->Y, enemyType->Width, enemyType->Height, mapW, mapH)) {
                 I32 dmg = ComputeMitigatedDamage(attackerType->Damage, enemyType->Armor);
+                LogTeamAction(attackerTeam, "AttackUnit", (U32)attacker->Id, (U32)enemyUnit->Id, (U32)enemyUnit->Team,
+                              attackerType->Name, enemyType->Name);
                 ApplyDamageToUnit(team, enemyUnit, dmg, currentTime);
                 attacker->LastAttackTime = currentTime;
                 return TRUE;
@@ -359,6 +374,10 @@ static BOOL TryAttackTargets(UNIT* attacker, const UNIT_TYPE* attackerType, U32 
         /* Then buildings */
         BUILDING* enemyBuilding = App.GameState->TeamData[team].Buildings;
         while (enemyBuilding != NULL) {
+            if (ghostBlock && enemyBuilding->Team == HUMAN_TEAM_INDEX) {
+                enemyBuilding = enemyBuilding->Next;
+                continue;
+            }
             const BUILDING_TYPE* enemyType = GetBuildingTypeById(enemyBuilding->TypeId);
             I32 armor = (enemyType != NULL) ? enemyType->Armor : 0;
             I32 width = (enemyType != NULL) ? enemyType->Width : 1;
@@ -367,6 +386,8 @@ static BOOL TryAttackTargets(UNIT* attacker, const UNIT_TYPE* attackerType, U32 
                 IsAreaVisibleToTeam(enemyBuilding->X, enemyBuilding->Y, width, height, attackerTeam) &&
                 IsTargetInRange(attacker->X, attacker->Y, attackRange, enemyBuilding->X, enemyBuilding->Y, width, height, mapW, mapH)) {
                 I32 dmg = ComputeMitigatedDamage(attackerType->Damage, armor);
+                LogTeamAction(attackerTeam, "AttackBuilding", (U32)attacker->Id, (U32)enemyBuilding->Id, (U32)team,
+                              attackerType->Name, enemyType->Name);
                 ApplyDamageToBuilding(team, enemyBuilding, dmg);
                 attacker->LastAttackTime = currentTime;
                 return TRUE;
@@ -471,13 +492,22 @@ static BOOL AiQueueBuildingForTeam(I32 team, I32 typeId) {
     yard->BuildQueue[queueCount].TypeId = type->Id;
     yard->BuildQueue[queueCount].TimeRemaining = (U32)type->BuildTime;
     yard->BuildQueueCount++;
+    LogTeamAction(team, "QueueBuilding", (U32)type->Id, (U32)type->CostPlasma,
+                  (U32)yard->BuildQueueCount, type->Name, "");
     return TRUE;
 }
 
 /************************************************************************/
 
 static BOOL AiProduceUnit(I32 team, I32 unitTypeId, BUILDING* producer) {
-    return EnqueueUnitProduction(producer, unitTypeId, team, NULL);
+    BOOL result = EnqueueUnitProduction(producer, unitTypeId, team, NULL);
+    if (result) {
+        const UNIT_TYPE* ut = GetUnitTypeById(unitTypeId);
+        const BUILDING_TYPE* bt = (producer != NULL) ? GetBuildingTypeById(producer->TypeId) : NULL;
+        LogTeamAction(team, "QueueUnit", (U32)unitTypeId, (U32)(producer != NULL ? producer->Id : 0),
+                      0, ut != NULL ? ut->Name : "Unknown", bt != NULL ? bt->Name : "Unknown");
+    }
+    return result;
 }
 
 /************************************************************************/
@@ -1128,6 +1158,8 @@ static void UpdateAIForTeam(I32 team, I32 mindset) {
     const BUILDING_TYPE* techType = GetBuildingTypeById(BUILDING_TYPE_TECH_CENTER);
     BOOL energyLow = FALSE;
     BOOL queuedBuilding = FALSE;
+    I32 energyProduction = 0;
+    I32 energyConsumption = 0;
     I32 drillerCount;
     I32 queuedDrillers;
     I32 drillerTarget;
@@ -1140,7 +1172,8 @@ static void UpdateAIForTeam(I32 team, I32 mindset) {
 
     if (res == NULL || yard == NULL) return;
 
-    energyLow = (res->Energy <= 0 && res->MaxEnergy <= AI_ENERGY_LOW_MAX);
+    GetEnergyTotals(team, &energyProduction, &energyConsumption);
+    energyLow = (energyConsumption >= energyProduction);
     drillerCount = CountUnitsOfType(team, UNIT_TYPE_DRILLER);
     queuedDrillers = CountQueuedUnitType(FindTeamBuilding(team, BUILDING_TYPE_FACTORY), UNIT_TYPE_DRILLER);
     drillerTarget = RequiredUnitCount(team, UNIT_TYPE_DRILLER);
@@ -1275,6 +1308,7 @@ static void AssignScoutOrders(I32 team) {
             I32 ty;
             if (PickExplorationTarget(team, &tx, &ty)) {
                 SetUnitStateExplore(scout, tx, ty);
+                LogTeamAction(team, "SetExplore", (U32)scout->Id, (U32)tx, (U32)ty, "Scout", "");
             }
         }
     }
@@ -1333,12 +1367,22 @@ static void AssignDrillerOrders(I32 team) {
     UNIT* unit = App.GameState->TeamData[team].Units;
     while (unit != NULL) {
         if (unit->TypeId == UNIT_TYPE_DRILLER) {
-            I32 tx;
-            I32 ty;
+            I32 tx = unit->X;
+            I32 ty = unit->Y;
+            BOOL hasTarget = FALSE;
+
             if (FindNearestSafePlasmaCell(team, unit->X, unit->Y, avoidRadius, &tx, &ty)) {
-                if (unit->State != UNIT_STATE_EXPLORE || unit->StateTargetX != tx || unit->StateTargetY != ty) {
-                    SetUnitStateExplore(unit, tx, ty);
-                }
+                hasTarget = TRUE;
+            } else if (FindNearestPlasmaCell(unit->X, unit->Y, &tx, &ty)) {
+                hasTarget = TRUE;
+            } else {
+                hasTarget = TRUE;
+            }
+
+            if (hasTarget && (unit->State != UNIT_STATE_EXPLORE ||
+                unit->StateTargetX != tx || unit->StateTargetY != ty)) {
+                SetUnitStateExplore(unit, tx, ty);
+                LogTeamAction(team, "SetExplore", (U32)unit->Id, (U32)tx, (U32)ty, "Driller", "");
             }
         }
         unit = unit->Next;
@@ -1353,6 +1397,7 @@ static void ClearDrillerEscorts(I32 team, I32 drillerId) {
     while (unit != NULL) {
         if (unit->State == UNIT_STATE_ESCORT && unit->EscortUnitId == drillerId) {
             SetUnitStateIdle(unit);
+            LogTeamAction(team, "ClearEscort", (U32)unit->Id, (U32)drillerId, 0, "", "");
         }
         unit = unit->Next;
     }
@@ -1371,6 +1416,7 @@ static void UpdateDrillerEscort(I32 team, I32 attitude) {
     if (attitude == AI_ATTITUDE_DEFENSIVE) {
         ClearDrillerEscorts(team, driller->Id);
         SetUnitStateEscort(escort, driller->Team, driller->Id);
+        LogTeamAction(team, "SetEscort", (U32)escort->Id, (U32)driller->Id, 0, "", "Defensive");
         return;
     }
 
@@ -1378,6 +1424,7 @@ static void UpdateDrillerEscort(I32 team, I32 attitude) {
     BOOL underAttack = (driller->LastDamageTime != 0 && now - driller->LastDamageTime <= AI_DRILLER_ALERT_MS);
     if (underAttack) {
         SetUnitStateEscort(escort, driller->Team, driller->Id);
+        LogTeamAction(team, "SetEscort", (U32)escort->Id, (U32)driller->Id, 0, "", "UnderAttack");
     } else {
         ClearDrillerEscorts(team, driller->Id);
     }
@@ -1415,6 +1462,7 @@ static void UpdateAggressiveOrders(I32 team) {
             unit->State == UNIT_STATE_IDLE &&
             !unit->IsMoving) {
             SetUnitMoveTarget(unit, targetX, targetY);
+            LogTeamAction(team, "SetMoveTarget", (U32)unit->Id, (U32)targetX, (U32)targetY, "", "");
         }
         unit = unit->Next;
     }
@@ -1470,6 +1518,12 @@ void ProcessAITeams(void) {
             default:
                 nextMindset = AI_MINDSET_IDLE;
                 break;
+        }
+
+        if (nextMindset != currentMindset) {
+            LogTeamActionCounts(team, "MindsetChange", (U32)currentMindset, (U32)nextMindset,
+                                (U32)(threatActive ? 1 : 0), (U32)(canAfford ? 1 : 0));
+            LogTeamActionCounts(team, "ThreatCounts", (U32)enemyNearby, (U32)friendlyNearby, 0, 0);
         }
 
         App.GameState->TeamData[team].AiMindset = nextMindset;

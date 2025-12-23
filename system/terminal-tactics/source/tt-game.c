@@ -39,6 +39,187 @@ static U32 LastDeployWarningTime = 0;
 
 /************************************************************************/
 
+#define TEAM_START_ESCAPE_DIAMETER  (TEAM_START_ESCAPE_RADIUS * 2 + 1)
+#define TEAM_START_ESCAPE_MAX_CELLS (TEAM_START_ESCAPE_DIAMETER * TEAM_START_ESCAPE_DIAMETER)
+
+/************************************************************************/
+
+/// @brief Check if a start position has a tank-accessible path to the edge of a radius.
+static BOOL HasTankEscapeRoute(I32 startX, I32 startY, I32 mapW, I32 mapH, I32 radius) {
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+    if (radius < 0 || radius > TEAM_START_ESCAPE_RADIUS) return FALSE;
+    if (!IsTerrainWalkableForUnitType(startX, startY, 1, 1, UNIT_TYPE_TANK)) return FALSE;
+
+    BOOL visited[TEAM_START_ESCAPE_DIAMETER][TEAM_START_ESCAPE_DIAMETER] = {0};
+    I32 queueX[TEAM_START_ESCAPE_MAX_CELLS];
+    I32 queueY[TEAM_START_ESCAPE_MAX_CELLS];
+    I32 head = 0;
+    I32 tail = 0;
+
+    visited[radius][radius] = TRUE;
+    queueX[tail] = 0;
+    queueY[tail] = 0;
+    tail++;
+
+    while (head < tail) {
+        I32 dx = queueX[head];
+        I32 dy = queueY[head];
+        head++;
+
+        if (dx == -radius || dx == radius || dy == -radius || dy == radius) {
+            return TRUE;
+        }
+
+        const I32 steps[][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (I32 i = 0; i < (I32)(sizeof(steps) / sizeof(steps[0])); i++) {
+            I32 ndx = dx + steps[i][0];
+            I32 ndy = dy + steps[i][1];
+            if (ndx < -radius || ndx > radius || ndy < -radius || ndy > radius) continue;
+
+            I32 vx = ndx + radius;
+            I32 vy = ndy + radius;
+            if (visited[vy][vx]) continue;
+
+            I32 mapX = WrapCoord(startX, ndx, mapW);
+            I32 mapY = WrapCoord(startY, ndy, mapH);
+            if (!IsTerrainWalkableForUnitType(mapX, mapY, 1, 1, UNIT_TYPE_TANK)) continue;
+
+            visited[vy][vx] = TRUE;
+            queueX[tail] = ndx;
+            queueY[tail] = ndy;
+            tail++;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/// @brief Check if a map cell is inside a footprint anchored at a position.
+static BOOL IsPointInFootprint(I32 px, I32 py, I32 anchorX, I32 anchorY, I32 width, I32 height, I32 mapW, I32 mapH) {
+    for (I32 dy = 0; dy < height; dy++) {
+        for (I32 dx = 0; dx < width; dx++) {
+            I32 tx = WrapCoord(anchorX, dx, mapW);
+            I32 ty = WrapCoord(anchorY, dy, mapH);
+            if (tx == px && ty == py) {
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+/************************************************************************/
+
+/// @brief Check if a map cell is blocked by existing buildings or a pending one.
+static BOOL IsCellBlockedByBuildings(I32 px, I32 py, I32 mapW, I32 mapH, I32 pendingX, I32 pendingY, const BUILDING_TYPE* pendingType) {
+    I32 teamCount = GetTeamCountSafe();
+
+    if (pendingType != NULL &&
+        IsPointInFootprint(px, py, pendingX, pendingY, pendingType->Width, pendingType->Height, mapW, mapH)) {
+        return TRUE;
+    }
+
+    for (I32 team = 0; team < teamCount; team++) {
+        BUILDING* building = App.GameState->TeamData[team].Buildings;
+        while (building != NULL) {
+            const BUILDING_TYPE* bt = GetBuildingTypeById(building->TypeId);
+            if (bt != NULL &&
+                IsPointInFootprint(px, py, building->X, building->Y, bt->Width, bt->Height, mapW, mapH)) {
+                return TRUE;
+            }
+            building = building->Next;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/// @brief Check if a position has a tank-accessible path to the edge of a radius, honoring buildings.
+static BOOL HasTankEscapeRouteWithBuildings(I32 startX, I32 startY, I32 mapW, I32 mapH,
+                                            I32 pendingX, I32 pendingY, const BUILDING_TYPE* pendingType) {
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+    if (!IsTerrainWalkableForUnitType(startX, startY, 1, 1, UNIT_TYPE_TANK)) return FALSE;
+    if (IsCellBlockedByBuildings(startX, startY, mapW, mapH, pendingX, pendingY, pendingType)) return FALSE;
+
+    BOOL visited[TEAM_START_ESCAPE_DIAMETER][TEAM_START_ESCAPE_DIAMETER] = {0};
+    I32 queueX[TEAM_START_ESCAPE_MAX_CELLS];
+    I32 queueY[TEAM_START_ESCAPE_MAX_CELLS];
+    I32 head = 0;
+    I32 tail = 0;
+    I32 radius = TEAM_START_ESCAPE_RADIUS;
+
+    visited[radius][radius] = TRUE;
+    queueX[tail] = 0;
+    queueY[tail] = 0;
+    tail++;
+
+    while (head < tail) {
+        I32 dx = queueX[head];
+        I32 dy = queueY[head];
+        head++;
+
+        if (dx == -radius || dx == radius || dy == -radius || dy == radius) {
+            return TRUE;
+        }
+
+        const I32 steps[][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (I32 i = 0; i < (I32)(sizeof(steps) / sizeof(steps[0])); i++) {
+            I32 ndx = dx + steps[i][0];
+            I32 ndy = dy + steps[i][1];
+            if (ndx < -radius || ndx > radius || ndy < -radius || ndy > radius) continue;
+
+            I32 vx = ndx + radius;
+            I32 vy = ndy + radius;
+            if (visited[vy][vx]) continue;
+
+            I32 mapX = WrapCoord(startX, ndx, mapW);
+            I32 mapY = WrapCoord(startY, ndy, mapH);
+            if (!IsTerrainWalkableForUnitType(mapX, mapY, 1, 1, UNIT_TYPE_TANK)) continue;
+            if (IsCellBlockedByBuildings(mapX, mapY, mapW, mapH, pendingX, pendingY, pendingType)) continue;
+
+            visited[vy][vx] = TRUE;
+            queueX[tail] = ndx;
+            queueY[tail] = ndy;
+            tail++;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/// @brief Check if a pending building would newly enclose a team unit within the escape radius.
+static BOOL WouldEncloseTeamUnit(I32 team, I32 placeX, I32 placeY, const BUILDING_TYPE* type) {
+    if (!IsValidTeam(team) || type == NULL || App.GameState == NULL) return FALSE;
+
+    I32 mapW = App.GameState->MapWidth;
+    I32 mapH = App.GameState->MapHeight;
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+
+    I32 maxDim = (type->Width > type->Height) ? type->Width : type->Height;
+    UNIT* unit = App.GameState->TeamData[team].Units;
+    while (unit != NULL) {
+        I32 dist = ChebyshevDistance(unit->X, unit->Y, placeX, placeY, mapW, mapH);
+        if (dist <= TEAM_START_ESCAPE_RADIUS + maxDim) {
+            BOOL hadEscape = HasTankEscapeRouteWithBuildings(unit->X, unit->Y, mapW, mapH, 0, 0, NULL);
+            if (hadEscape &&
+                !HasTankEscapeRouteWithBuildings(unit->X, unit->Y, mapW, mapH, placeX, placeY, type)) {
+                return TRUE;
+            }
+        }
+        unit = unit->Next;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
 static void InitTeamStartPositions(void) {
     I32 zones[MAX_TEAMS][2];
     I32 zoneIndices[MAX_TEAMS];
@@ -75,8 +256,29 @@ static void InitTeamStartPositions(void) {
 
     for (I32 team = 0; team < App.GameState->TeamCount; team++) {
         I32 zone = zoneIndices[team % zoneCount];
-        TeamStartPositions[team][0] = zones[zone][0];
-        TeamStartPositions[team][1] = zones[zone][1];
+        I32 baseX = zones[zone][0];
+        I32 baseY = zones[zone][1];
+
+        if (!HasTankEscapeRoute(baseX, baseY, mapW, mapH, TEAM_START_ESCAPE_RADIUS)) {
+            BOOL found = FALSE;
+            I32 maxRadius = mapW > mapH ? mapW : mapH;
+            for (I32 radius = 1; radius <= maxRadius && !found; radius++) {
+                for (I32 dy = -radius; dy <= radius && !found; dy++) {
+                    for (I32 dx = -radius; dx <= radius && !found; dx++) {
+                        I32 candidateX = WrapCoord(baseX, dx, mapW);
+                        I32 candidateY = WrapCoord(baseY, dy, mapH);
+                        if (HasTankEscapeRoute(candidateX, candidateY, mapW, mapH, TEAM_START_ESCAPE_RADIUS)) {
+                            baseX = candidateX;
+                            baseY = candidateY;
+                            found = TRUE;
+                        }
+                    }
+                }
+            }
+        }
+
+        TeamStartPositions[team][0] = baseX;
+        TeamStartPositions[team][1] = baseY;
     }
 
     TeamStartPositionsReady = TRUE;
@@ -316,10 +518,7 @@ BOOL FindNearestSafePlasmaCell(I32 team, I32 startX, I32 startY, I32 minEnemyDis
 static void SpawnStartingTroopers(I32 difficulty) {
     const UNIT_TYPE* trooper = GetUnitTypeById(UNIT_TYPE_TROOPER);
     I32 spawnCount;
-    const I32 offsets[][2] = {
-        {0, 0}, {2, 0}, {-2, 0}, {0, 2}, {0, -2},
-        {2, 2}, {-2, -2}, {2, -2}, {-2, 2}
-    };
+    I32 maxRadius;
 
     if (App.GameState == NULL || trooper == NULL) return;
 
@@ -334,22 +533,35 @@ static void SpawnStartingTroopers(I32 difficulty) {
         InitTeamStartPositions();
     }
 
+    maxRadius = App.GameState->MapWidth > App.GameState->MapHeight
+        ? App.GameState->MapWidth
+        : App.GameState->MapHeight;
+
     for (I32 team = 0; team < App.GameState->TeamCount; team++) {
         UNIT** head = GetTeamUnitHead(team);
         if (head == NULL) continue;
 
         I32 placed = 0;
-        for (I32 off = 0; off < (I32)(sizeof(offsets) / sizeof(offsets[0])) && placed < spawnCount; off++) {
-            I32 px = WrapCoord(TeamStartPositions[team][0], offsets[off][0], App.GameState->MapWidth);
-            I32 py = WrapCoord(TeamStartPositions[team][1], offsets[off][1], App.GameState->MapHeight);
-            if (IsAreaBlocked(px, py, trooper->Width, trooper->Height, NULL, NULL)) continue;
+        for (I32 spawnIndex = 0; spawnIndex < spawnCount; spawnIndex++) {
+            BOOL placedThis = FALSE;
+            for (I32 radius = 0; radius <= maxRadius && !placedThis; radius++) {
+                I32 spawnX;
+                I32 spawnY;
+                if (!FindFreeSpotNear(TeamStartPositions[team][0], TeamStartPositions[team][1],
+                                      trooper->Width, trooper->Height,
+                                      App.GameState->MapWidth, App.GameState->MapHeight,
+                                      radius, &spawnX, &spawnY)) {
+                    continue;
+                }
 
-            UNIT* unit = CreateUnit(UNIT_TYPE_TROOPER, team, px, py);
-            if (unit != NULL) {
-                unit->MoveProgress = 0;
-                unit->Next = *head;
-                *head = unit;
-                placed++;
+                UNIT* unit = CreateUnit(UNIT_TYPE_TROOPER, team, spawnX, spawnY);
+                if (unit != NULL) {
+                    unit->MoveProgress = 0;
+                    unit->Next = *head;
+                    *head = unit;
+                    placed++;
+                    placedThis = TRUE;
+                }
             }
         }
     }
@@ -661,6 +873,7 @@ BOOL InitializeGame(I32 mapWidth, I32 mapHeight, I32 difficulty, I32 teamCount) 
     App.GameState->ShowGrid = TRUE;
     App.GameState->ShowCoordinates = FALSE;
     App.GameState->SeeEverything = FALSE;
+    App.GameState->GhostMode = FALSE;
     App.GameState->IsCommandMode = FALSE;
     App.GameState->CommandType = COMMAND_NONE;
     App.GameState->CommandX = 0;
@@ -1363,6 +1576,11 @@ static BOOL TryAutoPlaceForProducer(BUILDING* producer, I32* queueIndex) {
     }
 
     if (IsAreaBlocked(placeX, placeY, type->Width, type->Height, NULL, NULL)) {
+        return FALSE;
+    }
+
+    if (producer->Team != HUMAN_TEAM_INDEX &&
+        WouldEncloseTeamUnit(producer->Team, placeX, placeY, type)) {
         return FALSE;
     }
 

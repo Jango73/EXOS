@@ -124,9 +124,9 @@
 - Build Time: 45s
 
 ```graphics
-o---o
-| C |
-o---o
+/===\
+|[Y]|
+|_|_|
 ```
 
 **Barracks** - Infantry production
@@ -140,9 +140,8 @@ o---o
 - Build Time: 25s
 
 ```graphics
-+---+
-| B |
-+---+
+|^^^|
+|_B_|
 ```
 
 **Power Plant** - Energy generation
@@ -155,9 +154,8 @@ o---o
 - Build Time: 30s
 
 ```graphics
-/+\
-+P+
-\+/
+|~~~|
+|_P_|
 ```
 
 **Factory** - Vehicle production
@@ -171,9 +169,9 @@ o---o
 - Build Time: 40s
 
 ```graphics
-.:::.
-: F :
-.:::.
+~ ~
+||||
+|_F_|
 ```
 
 **Tech Center** - Research
@@ -187,9 +185,9 @@ o---o
 - Build Time: 55s
 
 ```graphics
-|---|
-| T |
-|---|
+| I |
+|[=]|
+\_T_/
 ```
 
 **Wall** - Basic defense

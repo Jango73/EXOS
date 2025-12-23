@@ -704,6 +704,30 @@ void HandleInGameInput(I32 key) {
         return;
     }
 
+    if (key == VK_F4) {
+        if (App.GameState != NULL) {
+            App.GameState->GhostMode = !App.GameState->GhostMode;
+            SetStatus(App.GameState->GhostMode ? "Ghost mode enabled" : "Ghost mode disabled");
+            LogTeamAction(HUMAN_TEAM_INDEX, "GhostMode", 0,
+                          (U32)(App.GameState->GhostMode ? 1 : 0), 0, "", "");
+        }
+        return;
+    }
+
+    if (key == VK_PLUS || key == VK_MINUS) {
+        if (App.GameState != NULL) {
+            char msg[SCREEN_WIDTH + 1];
+            if (key == VK_PLUS) {
+                App.GameState->GameSpeed++;
+            } else if (App.GameState->GameSpeed > 1) {
+                App.GameState->GameSpeed--;
+            }
+            snprintf(msg, sizeof(msg), "Game speed: %d", App.GameState->GameSpeed);
+            SetStatus(msg);
+        }
+        return;
+    }
+
     if (App.GameState != NULL && App.GameState->SelectedUnit != NULL) {
         if (key == VK_M) {
             StartUnitCommand(COMMAND_MOVE);

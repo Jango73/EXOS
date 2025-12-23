@@ -57,6 +57,7 @@
 #define TEAM_START_ZONE_HALF_DIVISOR 2
 #define TEAM_START_ZONE_THREE_QUARTERS_NUM 3
 #define TEAM_START_SEARCH_RADIUS     6
+#define TEAM_START_ESCAPE_RADIUS     15
 
 #define AI_ATTITUDE_AGGRESSIVE       1
 #define AI_ATTITUDE_DEFENSIVE        2
@@ -380,6 +381,7 @@ typedef struct {
     BOOL ShowGrid;
     BOOL ShowCoordinates;
     BOOL SeeEverything;
+    BOOL GhostMode;
     BOOL FogDirty;
     BOOL IsCommandMode;
     I32 CommandType;

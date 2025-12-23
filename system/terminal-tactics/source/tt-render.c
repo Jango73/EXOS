@@ -1256,7 +1256,14 @@ void RenderDebugScreen(void) {
     }
 
     for (I32 y = 0; y < SCREEN_HEIGHT; y++) {
-        CONSOLEBLITBUFFER Line = {0, (U32)y, SCREEN_WIDTH, 1, (LPCSTR)App.Render.ScreenBuffer[y], CONSOLE_GRAY, CONSOLE_BLACK, SCREEN_WIDTH, NULL, 0};
+        U8 fore = CONSOLE_GRAY;
+        if (y >= 3) {
+            I32 team = (y - 3) / 2;
+            if (team >= 0 && team < teamCount) {
+                fore = TeamColors[(U32)team % MAX_TEAMS];
+            }
+        }
+        CONSOLEBLITBUFFER Line = {0, (U32)y, SCREEN_WIDTH, 1, (LPCSTR)App.Render.ScreenBuffer[y], fore, CONSOLE_BLACK, SCREEN_WIDTH, NULL, 0};
         ConsoleBlitBuffer(&Line);
         strcpy(App.Render.PrevScreenBuffer[y], App.Render.ScreenBuffer[y]);
     }
