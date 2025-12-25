@@ -449,30 +449,12 @@ BOOL LoadGame(const char* path) {
         return FALSE;
     }
 
-    if (version >= 5) {
-        if (!ReadBlock(file, &teamCount, sizeof(teamCount), "teamCount", fileSize) ||
-            !ReadBlock(file, &res, sizeof(res), "resources[]", fileSize) ||
-            !ReadBlock(file, &aiAttitudes, sizeof(aiAttitudes), "aiAttitudes[]", fileSize) ||
-            !ReadBlock(file, &aiMindsets, sizeof(aiMindsets), "aiMindsets[]", fileSize)) {
-            fclose(file);
-            return FALSE;
-        }
-    } else if (version >= 4) {
-        if (!ReadBlock(file, &teamCount, sizeof(teamCount), "teamCount", fileSize) ||
-            !ReadBlock(file, &res, sizeof(res), "resources[]", fileSize)) {
-            fclose(file);
-            return FALSE;
-        }
-        memset(aiAttitudes, 0, sizeof(aiAttitudes));
-        memset(aiMindsets, 0, sizeof(aiMindsets));
-    } else {
-        if (!ReadBlock(file, &res[0], sizeof(TEAM_RESOURCES), "resources", fileSize)) {
-            fclose(file);
-            return FALSE;
-        }
-        teamCount = 1;
-        memset(aiAttitudes, 0, sizeof(aiAttitudes));
-        memset(aiMindsets, 0, sizeof(aiMindsets));
+    if (!ReadBlock(file, &teamCount, sizeof(teamCount), "teamCount", fileSize) ||
+        !ReadBlock(file, &res, sizeof(res), "resources[]", fileSize) ||
+        !ReadBlock(file, &aiAttitudes, sizeof(aiAttitudes), "aiAttitudes[]", fileSize) ||
+        !ReadBlock(file, &aiMindsets, sizeof(aiMindsets), "aiMindsets[]", fileSize)) {
+        fclose(file);
+        return FALSE;
     }
 
     if (!ReadBlock(file, &gameTime, sizeof(gameTime), "gameTime", fileSize) ||
@@ -526,26 +508,12 @@ BOOL LoadGame(const char* path) {
     for (I32 y = 0; y < mapHeight; y++) {
         char label[UI_SAVE_LABEL_SIZE];
         snprintf(label, sizeof(label), "terrain row %d/%d", y + 1, mapHeight);
-        if (version >= 3) {
-            if (!ReadBlock(file, App.GameState->Terrain[y], sizeof(TERRAIN) * (size_t)mapWidth, label, fileSize)) {
-                App.GameState = newState;
-                CleanupGame();
-                App.GameState = oldState;
-                fclose(file);
-                return FALSE;
-            }
-        } else {
-            char row[MAX_MAP_SIZE];
-            if (!ReadBlock(file, row, (size_t)mapWidth, label, fileSize)) {
-                App.GameState = newState;
-                CleanupGame();
-                App.GameState = oldState;
-                fclose(file);
-                return FALSE;
-            }
-            for (I32 x = 0; x < mapWidth; x++) {
-                TerrainInitCell(&App.GameState->Terrain[y][x], TerrainCharToType(row[x]));
-            }
+        if (!ReadBlock(file, App.GameState->Terrain[y], sizeof(TERRAIN) * (size_t)mapWidth, label, fileSize)) {
+            App.GameState = newState;
+            CleanupGame();
+            App.GameState = oldState;
+            fclose(file);
+            return FALSE;
         }
     }
 
@@ -702,6 +670,7 @@ BOOL LoadGame(const char* path) {
             App.GameState->TeamData[i].AiAttitude = attitude;
             App.GameState->TeamData[i].AiMindset = mindset;
             App.GameState->TeamData[i].AiLastClusterUpdate = 0;
+            App.GameState->TeamData[i].AiLastShuffleTime = 0;
         }
     App.GameState->GameTime = gameTime;
     App.GameState->LastUpdate = GetSystemTime();

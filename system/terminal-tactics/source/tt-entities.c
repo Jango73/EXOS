@@ -250,6 +250,8 @@ void SetUnitMoveTarget(UNIT* unit, I32 targetX, I32 targetY) {
     unit->TargetX = WrapNearest(unit->X, targetX, App.GameState->MapWidth);
     unit->TargetY = WrapNearest(unit->Y, targetY, App.GameState->MapHeight);
     unit->IsMoving = (unit->TargetX != unit->X || unit->TargetY != unit->Y);
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
     ClearUnitPath(unit);
     unit->StuckDetourActive = FALSE;
     unit->StuckDetourCount = 0;
@@ -280,6 +282,8 @@ void SetUnitStateIdle(UNIT* unit) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
     unit->StuckDetourActive = FALSE;
     unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
@@ -299,6 +303,8 @@ void SetUnitStateEscort(UNIT* unit, I32 targetTeam, I32 targetUnitId) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
     unit->StuckDetourActive = FALSE;
     unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
@@ -319,6 +325,8 @@ void SetUnitStateExplore(UNIT* unit, I32 targetX, I32 targetY) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
     unit->StuckDetourActive = FALSE;
     unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
@@ -349,6 +357,7 @@ BUILDING* CreateBuilding(I32 typeId, I32 team, I32 x, I32 y) {
     node->BuildQueueCount = 0;
     node->UnitQueueCount = 0;
     node->LastDamageTime = 0;
+    node->LastAttackTime = 0;
     node->Next = NULL;
 
     SetBuildingOccupancy(node, TRUE);
@@ -407,6 +416,8 @@ UNIT* CreateUnit(I32 typeId, I32 team, I32 x, I32 y) {
     node->StuckOriginalTargetY = y;
     node->StuckDetourTargetX = x;
     node->StuckDetourTargetY = y;
+    node->IsGridlocked = FALSE;
+    node->GridlockLastUpdateTime = 0;
     node->PathHead = NULL;
     node->PathTail = NULL;
     node->PathTargetX = x;

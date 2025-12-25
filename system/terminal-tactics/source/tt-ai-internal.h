@@ -95,7 +95,7 @@ typedef struct tag_AI_CONTEXT {
 /************************************************************************/
 
 typedef BOOL (*AI_CONDITION_FUNC)(AI_CONTEXT* Context);
-typedef void (*AI_ACTION_FUNC)(AI_CONTEXT* Context);
+typedef BOOL (*AI_ACTION_FUNC)(AI_CONTEXT* Context);
 
 typedef struct tag_AI_DECISION {
     AI_CONDITION_FUNC Condition;
@@ -111,7 +111,7 @@ I32 SelectBarracksUnitType(I32 Team, I32 Mindset, I32 InfantryTarget, const BUIL
 I32 SelectFactoryUnitType(I32 Team, I32 Mindset, I32 VehicleTarget, const BUILDING* Factory);
 BOOL GetAttackClusterTarget(I32 Team, I32 AvailableForce, I32* OutTargetX, I32* OutTargetY, I32* OutTargetScore);
 void ClearDrillerEscorts(I32 Team, I32 DrillerId);
-void AssignDrillerEscorts(I32 Team, UNIT* Driller, I32 DesiredForce);
+BOOL AssignDrillerEscorts(I32 Team, UNIT* Driller, I32 DesiredForce);
 
 /************************************************************************/
 
@@ -128,22 +128,24 @@ BOOL ConditionForOrderScoutExplore(AI_CONTEXT* Context);
 BOOL ConditionForProduceBarracksUnit(AI_CONTEXT* Context);
 BOOL ConditionForProduceFactoryUnit(AI_CONTEXT* Context);
 BOOL ConditionForAggressiveOrders(AI_CONTEXT* Context);
+BOOL ConditionForShuffleBaseUnits(AI_CONTEXT* Context);
 
 /************************************************************************/
 
-void ActionUpdateDrillerEscort(AI_CONTEXT* Context);
-void ActionQueueFactoryForDrillers(AI_CONTEXT* Context);
-void ActionQueueBarracks(AI_CONTEXT* Context);
-void ActionQueuePowerPlant(AI_CONTEXT* Context);
-void ActionQueueTechCenter(AI_CONTEXT* Context);
-void ActionQueueFactory(AI_CONTEXT* Context);
-void ActionQueueFortress(AI_CONTEXT* Context);
-void ActionProduceDriller(AI_CONTEXT* Context);
-void ActionProduceScout(AI_CONTEXT* Context);
-void ActionOrderScoutExplore(AI_CONTEXT* Context);
-void ActionProduceBarracksUnit(AI_CONTEXT* Context);
-void ActionProduceFactoryUnit(AI_CONTEXT* Context);
-void ActionAggressiveOrders(AI_CONTEXT* Context);
+BOOL ActionUpdateDrillerEscort(AI_CONTEXT* Context);
+BOOL ActionQueueFactoryForDrillers(AI_CONTEXT* Context);
+BOOL ActionQueueBarracks(AI_CONTEXT* Context);
+BOOL ActionQueuePowerPlant(AI_CONTEXT* Context);
+BOOL ActionQueueTechCenter(AI_CONTEXT* Context);
+BOOL ActionQueueFactory(AI_CONTEXT* Context);
+BOOL ActionQueueFortress(AI_CONTEXT* Context);
+BOOL ActionProduceDriller(AI_CONTEXT* Context);
+BOOL ActionProduceScout(AI_CONTEXT* Context);
+BOOL ActionOrderScoutExplore(AI_CONTEXT* Context);
+BOOL ActionProduceBarracksUnit(AI_CONTEXT* Context);
+BOOL ActionProduceFactoryUnit(AI_CONTEXT* Context);
+BOOL ActionAggressiveOrders(AI_CONTEXT* Context);
+BOOL ActionShuffleBaseUnits(AI_CONTEXT* Context);
 
 /************************************************************************/
 

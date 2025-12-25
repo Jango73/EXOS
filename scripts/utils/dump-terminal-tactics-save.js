@@ -188,6 +188,7 @@ const buildingLayout = [
     { name: 'UnitQueue', layout: unitJobLayout, count: MAX_UNIT_QUEUE },
     { name: 'UnitQueueCount', type: 'i32' },
     { name: 'LastDamageTime', type: 'u32' },
+    { name: 'LastAttackTime', type: 'u32' },
     { name: 'Next', type: 'ptr' }
 ];
 
@@ -221,6 +222,8 @@ const unitLayout = [
     { name: 'StuckOriginalTargetY', type: 'i32' },
     { name: 'StuckDetourTargetX', type: 'i32' },
     { name: 'StuckDetourTargetY', type: 'i32' },
+    { name: 'IsGridlocked', type: 'word' },
+    { name: 'GridlockLastUpdateTime', type: 'u32' },
     { name: 'PathHead', type: 'ptr' },
     { name: 'PathTail', type: 'ptr' },
     { name: 'PathTargetX', type: 'i32' },
@@ -330,8 +333,16 @@ function parseSave(ptrSize) {
     };
 }
 
-const attempt32 = parseSave(4);
-const attempt64 = parseSave(8);
+function safeParse(ptrSize) {
+    try {
+        return parseSave(ptrSize);
+    } catch (err) {
+        return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+}
+
+const attempt32 = safeParse(4);
+const attempt64 = safeParse(8);
 
 let parsed = null;
 
@@ -359,6 +370,42 @@ function terrainAt(x, y) {
 function plasmaAt(x, y) {
     if (x < 0 || y < 0 || x >= parsed.mapWidth || y >= parsed.mapHeight) return null;
     return parsed.plasma[y * parsed.mapWidth + x];
+}
+
+function wrapCoord(value, size) {
+    if (size <= 0) return value;
+    let result = value % size;
+    if (result < 0) result += size;
+    return result;
+}
+
+function countPlasmaInFootprint(x, y, width, height) {
+    let count = 0;
+    for (let dy = 0; dy < height; dy++) {
+        for (let dx = 0; dx < width; dx++) {
+            const px = wrapCoord(x + dx, parsed.mapWidth);
+            const py = wrapCoord(y + dy, parsed.mapHeight);
+            const plasma = plasmaAt(px, py);
+            if (plasma !== null && plasma > 0) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+function hasBlockedTerrainInFootprint(x, y, width, height) {
+    for (let dy = 0; dy < height; dy++) {
+        for (let dx = 0; dx < width; dx++) {
+            const px = wrapCoord(x + dx, parsed.mapWidth);
+            const py = wrapCoord(y + dy, parsed.mapHeight);
+            const terrain = terrainAt(px, py);
+            if (terrain === 1 || terrain === 3) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 console.log(`File: ${filePath}`);
@@ -429,6 +476,7 @@ for (const u of parsed.units) {
     const isMoving = (typeof u.IsMoving === 'bigint') ? u.IsMoving !== 0n : u.IsMoving !== 0;
     const isSelected = (typeof u.IsSelected === 'bigint') ? u.IsSelected !== 0n : u.IsSelected !== 0;
     const stuck = (typeof u.StuckDetourActive === 'bigint') ? u.StuckDetourActive !== 0n : u.StuckDetourActive !== 0;
+    const gridlocked = (typeof u.IsGridlocked === 'bigint') ? u.IsGridlocked !== 0n : u.IsGridlocked !== 0;
     const targetTerrain = terrainAt(u.TargetX, u.TargetY);
     const targetPlasma = plasmaAt(u.TargetX, u.TargetY);
     const stateTargetTerrain = terrainAt(u.StateTargetX, u.StateTargetY);
@@ -437,7 +485,7 @@ for (const u of parsed.units) {
     const stateTerrainName = stateTargetTerrain === null ? 'OUT' : (TERRAIN_NAMES[stateTargetTerrain] || `TYPE(${stateTargetTerrain})`);
     const targetPlasmaText = targetPlasma === null ? 'n/a' : `${targetPlasma}`;
     const statePlasmaText = stateTargetPlasma === null ? 'n/a' : `${stateTargetPlasma}`;
-    console.log(`- Id=${u.Id} Team=${u.Team} Type=${name} Pos=${u.X},${u.Y} Hp=${u.Hp} State=${u.State} Move=${isMoving} Target=${u.TargetX},${u.TargetY} TT=${targetTerrainName} TP=${targetPlasmaText} ST=${u.StateTargetX},${u.StateTargetY} STT=${stateTerrainName} STP=${statePlasmaText} Escort=${u.EscortUnitId}/${u.EscortUnitTeam} Selected=${isSelected} Stuck=${stuck} StuckCount=${u.StuckDetourCount}`);
+    console.log(`- Id=${u.Id} Team=${u.Team} Type=${name} Pos=${u.X},${u.Y} Hp=${u.Hp} State=${u.State} Move=${isMoving} Target=${u.TargetX},${u.TargetY} TT=${targetTerrainName} TP=${targetPlasmaText} ST=${u.StateTargetX},${u.StateTargetY} STT=${stateTerrainName} STP=${statePlasmaText} Escort=${u.EscortUnitId}/${u.EscortUnitTeam} Selected=${isSelected} Stuck=${stuck} Gridlock=${gridlocked} StuckCount=${u.StuckDetourCount}`);
 }
 
 const drillers = parsed.units.filter((u) => u.TypeId === 8);
@@ -447,8 +495,10 @@ if (drillers.length > 0) {
     for (const u of drillers) {
         const targetTerrain = terrainAt(u.TargetX, u.TargetY);
         const targetPlasma = plasmaAt(u.TargetX, u.TargetY);
+        const targetPlasmaCount = countPlasmaInFootprint(u.TargetX, u.TargetY, 5, 2);
+        const targetBlocked = hasBlockedTerrainInFootprint(u.TargetX, u.TargetY, 5, 2);
         const terrainName = targetTerrain === null ? 'OUT' : (TERRAIN_NAMES[targetTerrain] || `TYPE(${targetTerrain})`);
-        console.log(`- Id=${u.Id} Team=${u.Team} Pos=${u.X},${u.Y} Target=${u.TargetX},${u.TargetY} Terrain=${terrainName} Plasma=${targetPlasma}`);
+        console.log(`- Id=${u.Id} Team=${u.Team} Pos=${u.X},${u.Y} Target=${u.TargetX},${u.TargetY} Terrain=${terrainName} Plasma=${targetPlasma} TargetPlasmaCount=${targetPlasmaCount} TargetBlocked=${targetBlocked}`);
     }
 }
 

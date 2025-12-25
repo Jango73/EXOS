@@ -32,6 +32,8 @@ void CleanupGame(void);
 void UpdateGame(void);
 void RunGameLoop(void);
 I32 GetMaxUnitsForMap(I32 mapW, I32 mapH);
+BOOL FindFreeSpotNear(I32 centerX, I32 centerY, I32 width, I32 height, I32 mapW, I32 mapH, I32 searchRadius,
+                      I32* outX, I32* outY);
 U32 CountUnitsAllTeams(void);
 U32 CountUnitsForTeam(I32 team);
 U32 CountBuildingsForTeam(I32 team);
@@ -48,5 +50,6 @@ void MovePlacement(I32 dx, I32 dy);
 BOOL PickExplorationTarget(I32 team, I32* outX, I32* outY);
 BOOL FindNearestPlasmaCell(I32 startX, I32 startY, I32* outX, I32* outY);
 BOOL FindNearestSafePlasmaCell(I32 team, I32 startX, I32 startY, I32 minEnemyDistance, I32* outX, I32* outY);
+void SpawnDebugBaseForAllTeams(void);
 
 #endif /* TT_GAME_H */

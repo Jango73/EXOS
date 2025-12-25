@@ -116,12 +116,18 @@
 **Construction Yard** - Starting building
 - Tech level 1
 - Plasma Cost: 1000
-- Energy Cost: 0
-- Energy Production: 50
-- Produces: Structures
+- Build Time: 45s
 - HP: 500
 - Armor: 10
-- Build Time: 45s
+- Energy Cost: 0
+- Energy Production: 50
+- Moving time: 0s per cell
+- Speed: 0
+- Sight: 0
+- Attack Damage: 0
+- Attack Range: 0
+- Attack Speed: 0ms
+- Produces: Structures
 
 ```graphics
 /===\
@@ -132,12 +138,18 @@
 **Barracks** - Infantry production
 - Tech level 1
 - Plasma Cost: 500
-- Energy Cost: 50
-- Energy Production: 0
-- Produces: Trooper and Soldier
+- Build Time: 25s
 - HP: 400
 - Armor: 10
-- Build Time: 25s
+- Energy Cost: 50
+- Energy Production: 0
+- Moving time: 0s per cell
+- Speed: 0
+- Sight: 0
+- Attack Damage: 0
+- Attack Range: 0
+- Attack Speed: 0ms
+- Produces: Trooper and Soldier
 
 ```graphics
 |^^^|
@@ -147,11 +159,17 @@
 **Power Plant** - Energy generation
 - Tech level 1
 - Plasma Cost: 800
-- Energy Cost: 0
-- Energy Production: 100
+- Build Time: 30s
 - HP: 600
 - Armor: 10
-- Build Time: 30s
+- Energy Cost: 0
+- Energy Production: 100
+- Moving time: 0s per cell
+- Speed: 0
+- Sight: 0
+- Attack Damage: 0
+- Attack Range: 0
+- Attack Speed: 0ms
 
 ```graphics
 |~~~|
@@ -161,12 +179,18 @@
 **Factory** - Vehicle production
 - Tech level 1
 - Plasma Cost: 1000
-- Energy Cost: 150
-- Energy Production: 0
-- Produces: Heavy units
+- Build Time: 40s
 - HP: 800
 - Armor: 10
-- Build Time: 40s
+- Energy Cost: 150
+- Energy Production: 0
+- Moving time: 0s per cell
+- Speed: 0
+- Sight: 0
+- Attack Damage: 0
+- Attack Range: 0
+- Attack Speed: 0ms
+- Produces: Heavy units
 
 ```graphics
 ~ ~
@@ -177,12 +201,18 @@
 **Tech Center** - Research
 - Tech level 1
 - Plasma Cost: 1500
-- Energy Cost: 200
-- Energy Production: 0
-- Enables tech 2 units/structures
+- Build Time: 55s
 - HP: 1000
 - Armor: 10
-- Build Time: 55s
+- Energy Cost: 200
+- Energy Production: 0
+- Moving time: 0s per cell
+- Speed: 0
+- Sight: 0
+- Attack Damage: 0
+- Attack Range: 0
+- Attack Speed: 0ms
+- Enables tech 2 units/structures
 
 ```graphics
 | I |
@@ -193,11 +223,17 @@
 **Wall** - Basic defense
 - Tech level 2
 - Plasma Cost: 25
-- Energy Cost: 0
-- Energy Production: 0
+- Build Time: 2s
 - HP: 200
 - Armor: 10
-- Build Time: 2s
+- Energy Cost: 0
+- Energy Production: 0
+- Moving time: 0s per cell
+- Speed: 0
+- Sight: 0
+- Attack Damage: 0
+- Attack Range: 0
+- Attack Speed: 0ms
 
 ```graphics
 #
@@ -206,12 +242,17 @@
 **Turret** - Defensive tower
 - Tech level 2
 - Plasma Cost: 500
-- Energy Cost: 25
-- Energy Production: 0
+- Build Time: 20s
 - HP: 600
 - Armor: 10
-- Attacks nearby enemies
-- Build Time: 20s
+- Energy Cost: 25
+- Energy Production: 0
+- Moving time: 0s per cell
+- Speed: 0
+- Sight: 0
+- Attack Damage: 10
+- Attack Range: 3
+- Attack Speed: 1000ms
 
 ```graphics
 <o>
@@ -230,13 +271,19 @@
 #### Infantry
 
 **Trooper**
-- Plasma Cost: 50
 - Tech level 1
+- Plasma Cost: 50
 - Build Time: 10s
 - HP: 100
-- Moving time: 2s per cell
-- Attack Damage: 10
 - Armor: 5
+- Energy Cost: 0
+- Energy Production: 0
+- Moving time: 2s per cell
+- Speed: 3
+- Sight: 5
+- Attack Damage: 10
+- Attack Range: 1
+- Attack Speed: 1000ms
 
 ```graphics
 __
@@ -244,13 +291,19 @@ __
 ```
 
 **Soldier**
-- Plasma Cost: 120
 - Tech level 1
+- Plasma Cost: 120
 - Build Time: 20s
 - HP: 150
-- Moving time: 2s per cell
-- Attack Damage: 20
 - Armor: 5
+- Energy Cost: 0
+- Energy Production: 0
+- Moving time: 2s per cell
+- Speed: 3
+- Sight: 5
+- Attack Damage: 20
+- Attack Range: 1
+- Attack Speed: 1000ms
 
 ```graphics
 o|
@@ -258,13 +311,19 @@ o|
 ```
 
 **Engineer** - Repairs buildings
-- Plasma Cost: 200
 - Tech level 1
+- Plasma Cost: 200
 - Build Time: 25s
 - HP: 120
-- Moving time: 2s per cell
-- Attack Damage: 5
 - Armor: 5
+- Energy Cost: 0
+- Energy Production: 0
+- Moving time: 2s per cell
+- Speed: 2
+- Sight: 4
+- Attack Damage: 5
+- Attack Range: 1
+- Attack Speed: 1000ms
 
 ```graphics
 --
@@ -272,13 +331,19 @@ o|
 ```
 
 **Scout** - Fast, low combat
-- Plasma Cost: 80
 - Tech level 1
+- Plasma Cost: 80
 - Build Time: 10s
 - HP: 90
-- Moving time: 1s per cell
-- Attack Damage: 5
 - Armor: 5
+- Energy Cost: 0
+- Energy Production: 0
+- Moving time: 1s per cell
+- Speed: 4
+- Sight: 6
+- Attack Damage: 5
+- Attack Range: 1
+- Attack Speed: 1000ms
 
 ```graphics
 oo
@@ -292,9 +357,15 @@ oo
 - Plasma Cost: 300
 - Build Time: 60s
 - HP: 350
+- Armor: 10
+- Energy Cost: 0
+- Energy Production: 0
 - Moving time: 2s per cell
+- Speed: 1
+- Sight: 6
 - Attack Damage: 40
-- Armor: 15
+- Attack Range: 6
+- Attack Speed: 1000ms
 
 ```graphics
  ||
@@ -306,10 +377,16 @@ oo
 - Plasma Cost: 600
 - Build Time: 30s
 - HP: 400
-- Harvest: +20 plasma every 10s if a plasma field is within sight (consumes terrain plasma)
+- Armor: 5
+- Energy Cost: 0
+- Energy Production: 0
 - Moving time: 2s per cell
+- Speed: 1
+- Sight: 3
 - Attack Damage: 0
-- Armor: 10
+- Attack Range: 1
+- Attack Speed: 1000ms
+- Harvest: +20 plasma every 10s if a plasma field is within sight (consumes terrain plasma)
 
 ```graphics
 [###]
@@ -321,9 +398,15 @@ vvvvv
 - Plasma Cost: 400
 - Build Time: 90s
 - HP: 500
+- Armor: 20
+- Energy Cost: 0
+- Energy Production: 0
 - Moving time: 2s per cell
-- Attack Damage: 10
-- Armor: 30
+- Speed: 2
+- Sight: 3
+- Attack Damage: 20
+- Attack Range: 3
+- Attack Speed: 2000ms
 
 ```graphics
  /o\
@@ -335,9 +418,15 @@ vvvvv
 - Plasma Cost: 200
 - Build Time: 120s
 - HP: 300
+- Armor: 5
+- Energy Cost: 0
+- Energy Production: 0
 - Moving time: 2s per cell
+- Speed: 3
+- Sight: 4
 - Attack Damage: 10
-- Armor: 10
+- Attack Range: 1
+- Attack Speed: 1000ms
 
 ```graphics
 /==\

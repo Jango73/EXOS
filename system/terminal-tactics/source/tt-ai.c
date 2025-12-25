@@ -249,10 +249,6 @@ static BOOL IsHostileMemoryCell(I32 team, const MEMORY_CELL* cell, BOOL* outIsBu
     if (cell->Team == team) return FALSE;
     if (App.GameState != NULL && App.GameState->GhostMode && cell->Team == HUMAN_TEAM_INDEX) return FALSE;
 
-    if (cell->IsBuilding) {
-        if (cell->OccupiedType != BUILDING_TYPE_TURRET) return FALSE;
-    }
-
     if (outIsBuilding != NULL) *outIsBuilding = cell->IsBuilding ? TRUE : FALSE;
     if (outTypeId != NULL) *outTypeId = cell->OccupiedType;
     return TRUE;
@@ -477,76 +473,117 @@ static BOOL IsTargetInRange(I32 ax, I32 ay, I32 range, I32 tx, I32 ty, I32 tw, I
 
 /************************************************************************/
 
-static BOOL TryAttackTargets(UNIT* attacker, const UNIT_TYPE* attackerType, U32 currentTime) {
-    I32 teamCount;
-    I32 attackerTeam;
-    I32 mapW;
-    I32 mapH;
-    I32 attackRange;
-    BOOL ghostBlock;
+/// @brief Return a priority value for building attack targeting (lower is higher priority).
+static I32 GetBuildingAttackPriority(I32 typeId) {
+    switch (typeId) {
+        case BUILDING_TYPE_TURRET:
+            return 0;
+        case BUILDING_TYPE_CONSTRUCTION_YARD:
+            return 1;
+        case BUILDING_TYPE_FACTORY:
+            return 2;
+        case BUILDING_TYPE_BARRACKS:
+            return 3;
+        case BUILDING_TYPE_POWER_PLANT:
+            return 4;
+        case BUILDING_TYPE_WALL:
+            return 5;
+        default:
+            return 6;
+    }
+}
 
-    if (App.GameState == NULL || attacker == NULL || attackerType == NULL) return FALSE;
-    if (attackerType->Damage <= 0) return FALSE;
+/************************************************************************/
 
-    attackerTeam = attacker->Team;
-    mapW = App.GameState->MapWidth;
-    mapH = App.GameState->MapHeight;
-    teamCount = GetTeamCountSafe();
-    /* Use vision as effective attack envelope (range and sight are treated the same here) */
-    attackRange = (attackerType->Sight > 0) ? attackerType->Sight : 1;
-    ghostBlock = (App.GameState->GhostMode && attackerTeam != HUMAN_TEAM_INDEX);
+static BOOL TryAttackTargetsFromList(I32 attackerTeam, I32 originX, I32 originY, I32 attackRange,
+                                     I32 baseDamage, const char* attackerName, U32 attackerId, U32 currentTime,
+                                     U32* inOutLastAttackTime) {
+    if (App.GameState == NULL) return FALSE;
+    if (!IsValidTeam(attackerTeam)) return FALSE;
+    if (baseDamage <= 0) return FALSE;
 
-    for (I32 team = 0; team < teamCount; team++) {
-        if (team == attackerTeam) continue;
-        if (App.GameState->GhostMode && team == HUMAN_TEAM_INDEX && attackerTeam != HUMAN_TEAM_INDEX) continue;
+    TEAM_DATA* teamData = &App.GameState->TeamData[attackerTeam];
+    if (teamData == NULL) return FALSE;
 
-        /* Prioritize units */
-        UNIT* enemyUnit = App.GameState->TeamData[team].Units;
-        while (enemyUnit != NULL) {
-            if (ghostBlock && enemyUnit->Team == HUMAN_TEAM_INDEX) {
-                enemyUnit = enemyUnit->Next;
-                continue;
+    I32 mapW = App.GameState->MapWidth;
+    I32 mapH = App.GameState->MapHeight;
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+
+    BOOL ghostBlock = (App.GameState->GhostMode && attackerTeam != HUMAN_TEAM_INDEX);
+    BUILDING* bestBuilding = NULL;
+    const BUILDING_TYPE* bestBuildingType = NULL;
+    I32 bestBuildingTeam = -1;
+    I32 bestPriority = 0x7FFFFFFF;
+    I32 bestBuildingId = 0x7FFFFFFF;
+
+    for (I32 i = 0; i < teamData->VisibleEnemyUnitCount; i++) {
+        VISIBLE_ENTITY entry = teamData->VisibleEnemyUnits[i];
+        UNIT* enemyUnit = FindUnitById(entry.Team, entry.Id);
+        if (enemyUnit == NULL) continue;
+        if (ghostBlock && enemyUnit->Team == HUMAN_TEAM_INDEX) continue;
+        const UNIT_TYPE* enemyType = GetUnitTypeById(enemyUnit->TypeId);
+        if (enemyType != NULL &&
+            IsTargetInRange(originX, originY, attackRange, enemyUnit->X, enemyUnit->Y, enemyType->Width, enemyType->Height, mapW, mapH)) {
+            I32 dmg = ComputeMitigatedDamage(baseDamage, enemyType->Armor);
+            LogTeamAction(attackerTeam, "AttackUnit", attackerId, (U32)enemyUnit->Id, (U32)enemyUnit->Team,
+                          attackerName, enemyType->Name);
+            ApplyDamageToUnit(entry.Team, enemyUnit, dmg, currentTime);
+            if (inOutLastAttackTime != NULL) {
+                *inOutLastAttackTime = currentTime;
             }
-            const UNIT_TYPE* enemyType = GetUnitTypeById(enemyUnit->TypeId);
-            if (enemyType != NULL &&
-                IsAreaVisibleToTeam(enemyUnit->X, enemyUnit->Y, enemyType->Width, enemyType->Height, attackerTeam) &&
-                IsTargetInRange(attacker->X, attacker->Y, attackRange, enemyUnit->X, enemyUnit->Y, enemyType->Width, enemyType->Height, mapW, mapH)) {
-                I32 dmg = ComputeMitigatedDamage(attackerType->Damage, enemyType->Armor);
-                LogTeamAction(attackerTeam, "AttackUnit", (U32)attacker->Id, (U32)enemyUnit->Id, (U32)enemyUnit->Team,
-                              attackerType->Name, enemyType->Name);
-                ApplyDamageToUnit(team, enemyUnit, dmg, currentTime);
-                attacker->LastAttackTime = currentTime;
-                return TRUE;
-            }
-            enemyUnit = enemyUnit->Next;
-        }
-
-        /* Then buildings */
-        BUILDING* enemyBuilding = App.GameState->TeamData[team].Buildings;
-        while (enemyBuilding != NULL) {
-            if (ghostBlock && enemyBuilding->Team == HUMAN_TEAM_INDEX) {
-                enemyBuilding = enemyBuilding->Next;
-                continue;
-            }
-            const BUILDING_TYPE* enemyType = GetBuildingTypeById(enemyBuilding->TypeId);
-            I32 armor = (enemyType != NULL) ? enemyType->Armor : 0;
-            I32 width = (enemyType != NULL) ? enemyType->Width : 1;
-            I32 height = (enemyType != NULL) ? enemyType->Height : 1;
-            if (enemyType != NULL &&
-                IsAreaVisibleToTeam(enemyBuilding->X, enemyBuilding->Y, width, height, attackerTeam) &&
-                IsTargetInRange(attacker->X, attacker->Y, attackRange, enemyBuilding->X, enemyBuilding->Y, width, height, mapW, mapH)) {
-                I32 dmg = ComputeMitigatedDamage(attackerType->Damage, armor);
-                LogTeamAction(attackerTeam, "AttackBuilding", (U32)attacker->Id, (U32)enemyBuilding->Id, (U32)team,
-                              attackerType->Name, enemyType->Name);
-                ApplyDamageToBuilding(team, enemyBuilding, dmg);
-                attacker->LastAttackTime = currentTime;
-                return TRUE;
-            }
-            enemyBuilding = enemyBuilding->Next;
+            return TRUE;
         }
     }
 
+    for (I32 i = 0; i < teamData->VisibleEnemyBuildingCount; i++) {
+        VISIBLE_ENTITY entry = teamData->VisibleEnemyBuildings[i];
+        BUILDING* enemyBuilding = FindBuildingById(entry.Team, entry.Id);
+        if (enemyBuilding == NULL) continue;
+        if (ghostBlock && enemyBuilding->Team == HUMAN_TEAM_INDEX) continue;
+        const BUILDING_TYPE* enemyType = GetBuildingTypeById(enemyBuilding->TypeId);
+        if (enemyType == NULL) continue;
+
+        I32 width = enemyType->Width;
+        I32 height = enemyType->Height;
+        if (!IsTargetInRange(originX, originY, attackRange, enemyBuilding->X, enemyBuilding->Y, width, height, mapW, mapH)) {
+            continue;
+        }
+
+        I32 priority = GetBuildingAttackPriority(enemyType->Id);
+        if (priority < bestPriority ||
+            (priority == bestPriority && enemyBuilding->Id < bestBuildingId)) {
+            bestPriority = priority;
+            bestBuilding = enemyBuilding;
+            bestBuildingType = enemyType;
+            bestBuildingTeam = entry.Team;
+            bestBuildingId = enemyBuilding->Id;
+        }
+    }
+
+    if (bestBuilding != NULL && bestBuildingType != NULL) {
+        I32 dmg = ComputeMitigatedDamage(baseDamage, bestBuildingType->Armor);
+        LogTeamAction(attackerTeam, "AttackBuilding", attackerId, (U32)bestBuilding->Id, (U32)bestBuildingTeam,
+                      attackerName, bestBuildingType->Name);
+        ApplyDamageToBuilding(bestBuildingTeam, bestBuilding, dmg);
+        if (inOutLastAttackTime != NULL) {
+            *inOutLastAttackTime = currentTime;
+        }
+        return TRUE;
+    }
+
     return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL TryAttackTargets(UNIT* attacker, const UNIT_TYPE* attackerType, U32 currentTime) {
+    if (App.GameState == NULL || attacker == NULL || attackerType == NULL) return FALSE;
+    if (attackerType->Damage <= 0) return FALSE;
+    /* Use vision as effective attack envelope (range and sight are treated the same here) */
+    I32 attackRange = (attackerType->Sight > 0) ? attackerType->Sight : 1;
+    return TryAttackTargetsFromList(attacker->Team, attacker->X, attacker->Y, attackRange,
+                                    attackerType->Damage, attackerType->Name, (U32)attacker->Id,
+                                    currentTime, &attacker->LastAttackTime);
 }
 
 /************************************************************************/
@@ -566,6 +603,36 @@ void ProcessUnitAttacks(U32 currentTime) {
                 }
             }
             unit = unit->Next;
+        }
+    }
+}
+
+/************************************************************************/
+
+void ProcessTurretAttacks(U32 currentTime) {
+    if (App.GameState == NULL) return;
+    I32 teamCount = GetTeamCountSafe();
+    if (teamCount <= 0) return;
+
+    for (I32 team = 0; team < teamCount; team++) {
+        BUILDING* building = App.GameState->TeamData[team].Buildings;
+        while (building != NULL) {
+            if (building->TypeId == BUILDING_TYPE_TURRET && IsBuildingPowered(building)) {
+                const BUILDING_TYPE* bt = GetBuildingTypeById(building->TypeId);
+                if (bt != NULL) {
+                    I32 attackInterval = (bt->AttackSpeed > 0) ? bt->AttackSpeed : UNIT_ATTACK_INTERVAL_MS;
+                    if (building->LastAttackTime == 0 || currentTime - building->LastAttackTime >= (U32)attackInterval) {
+                        I32 centerX = building->X + bt->Width / 2;
+                        I32 centerY = building->Y + bt->Height / 2;
+                        I32 range = (bt->Range > 0) ? bt->Range : 1;
+                        I32 damage = bt->Damage;
+                        TryAttackTargetsFromList(team, centerX, centerY, range,
+                                                damage, bt->Name, (U32)building->Id,
+                                                currentTime, &building->LastAttackTime);
+                    }
+                }
+            }
+            building = building->Next;
         }
     }
 }
@@ -957,6 +1024,11 @@ static I32 RequiredUnitCount(I32 team, I32 unitTypeId) {
                 I32 aggressiveMin = (maxUnits + 1) / 2;
                 if (aggressiveMin < 1) aggressiveMin = 1;
                 if (target < aggressiveMin) target = aggressiveMin;
+            } else if (attitude == AI_ATTITUDE_DEFENSIVE) {
+                I32 maxUnits = GetMaxUnitsForMap(App.GameState->MapWidth, App.GameState->MapHeight);
+                I32 defensiveMin = (maxUnits + 2) / 3;
+                if (defensiveMin < 1) defensiveMin = 1;
+                if (target < defensiveMin) target = defensiveMin;
             }
             return target;
         }
@@ -1319,6 +1391,27 @@ static UNIT* FindStrongestCombatUnit(I32 team, const UNIT* exclude) {
 
 /************************************************************************/
 
+/// @brief Return TRUE if at least one combat unit can be assigned as an escort.
+static BOOL HasAvailableEscortCandidate(I32 team) {
+    if (!IsValidTeam(team) || App.GameState == NULL) return FALSE;
+
+    UNIT* unit = App.GameState->TeamData[team].Units;
+    while (unit != NULL) {
+        const UNIT_TYPE* ut = GetUnitTypeById(unit->TypeId);
+        if (ut != NULL &&
+            ut->Damage > 0 &&
+            ut->Id != UNIT_TYPE_SCOUT &&
+            ut->Id != UNIT_TYPE_DRILLER &&
+            unit->State != UNIT_STATE_ESCORT) {
+            return TRUE;
+        }
+        unit = unit->Next;
+    }
+    return FALSE;
+}
+
+/************************************************************************/
+
 /// @brief Find the first driller unit for a team.
 static UNIT* FindFirstDriller(I32 team) {
     UNIT* unit = IsValidTeam(team) ? App.GameState->TeamData[team].Units : NULL;
@@ -1383,13 +1476,15 @@ static void GetDrillerEscortStatus(I32 Team, I32 DrillerId, const UNIT* Preferre
 
 /************************************************************************/
 
-void AssignDrillerEscorts(I32 Team, UNIT* Driller, I32 DesiredForce) {
-    if (Driller == NULL) return;
-    if (!IsValidTeam(Team)) return;
+BOOL AssignDrillerEscorts(I32 Team, UNIT* Driller, I32 DesiredForce) {
+    if (Driller == NULL) return FALSE;
+    if (!IsValidTeam(Team)) return FALSE;
+    if (!HasAvailableEscortCandidate(Team)) return FALSE;
 
     ClearDrillerEscorts(Team, Driller->Id);
 
     I32 assignedForce = 0;
+    BOOL assigned = FALSE;
     while (assignedForce < DesiredForce) {
         UNIT* best = NULL;
         I32 bestScore = 0;
@@ -1415,7 +1510,9 @@ void AssignDrillerEscorts(I32 Team, UNIT* Driller, I32 DesiredForce) {
         SetUnitStateEscort(best, Driller->Team, Driller->Id);
         LogTeamAction(Team, "SetEscort", (U32)best->Id, (U32)Driller->Id, 0, "", "Force");
         assignedForce += bestScore;
+        assigned = TRUE;
     }
+    return assigned;
 }
 
 /************************************************************************/
@@ -1600,6 +1697,9 @@ static void BuildAIContext(I32 Team, AI_CONTEXT* Context) {
         BOOL HasExtra = FALSE;
         I32 EscortForce = 0;
         I32 EscortCount = 0;
+        BOOL HasAvailableEscort;
+        BOOL PreferredAvailable;
+        BOOL NeedsEscortUpdate;
         GetDrillerEscortStatus(Team, Context->Driller->Id, Context->Escort,
                                &EscortForce, &EscortCount, &PreferredAssigned, &HasExtra);
 
@@ -1614,9 +1714,20 @@ static void BuildAIContext(I32 Team, AI_CONTEXT* Context) {
             Context->DesiredEscortForce = desired;
         }
 
+        HasAvailableEscort = HasAvailableEscortCandidate(Team);
+        PreferredAvailable = (Context->Escort != NULL &&
+                              (Context->Escort->State != UNIT_STATE_ESCORT ||
+                               (Context->Escort->EscortUnitTeam == Team &&
+                                Context->Escort->EscortUnitId == Context->Driller->Id)));
+        NeedsEscortUpdate = (EscortCount == 0 || HasExtra);
+        if (!NeedsEscortUpdate && !PreferredAssigned && PreferredAvailable) {
+            NeedsEscortUpdate = TRUE;
+        }
+
         if (Context->DesiredEscortForce > 0 &&
-            Context->Escort != NULL &&
-            EscortForce < Context->DesiredEscortForce) {
+            EscortForce < Context->DesiredEscortForce &&
+            HasAvailableEscort &&
+            NeedsEscortUpdate) {
             Context->EscortNeedsUpdate = TRUE;
         }
     }
@@ -1635,20 +1746,22 @@ static void ThinkAITeam(AI_CONTEXT* Context) {
         {ConditionForQueueFactoryForDrillers, ActionQueueFactoryForDrillers, "QueueFactoryForDrillers"},
         {ConditionForQueueTechCenter, ActionQueueTechCenter, "QueueTechCenter"},
         {ConditionForQueueFactory, ActionQueueFactory, "QueueFactory"},
-        {ConditionForQueueFortress, ActionQueueFortress, "QueueFortress"},
         {ConditionForProduceDriller, ActionProduceDriller, "ProduceDriller"},
         {ConditionForProduceScout, ActionProduceScout, "ProduceScout"},
         {ConditionForOrderScoutExplore, ActionOrderScoutExplore, "OrderScoutExplore"},
         {ConditionForProduceBarracksUnit, ActionProduceBarracksUnit, "ProduceBarracksUnit"},
         {ConditionForProduceFactoryUnit, ActionProduceFactoryUnit, "ProduceFactoryUnit"},
-        {ConditionForAggressiveOrders, ActionAggressiveOrders, "AggressiveOrders"}
+        {ConditionForAggressiveOrders, ActionAggressiveOrders, "AggressiveOrders"},
+        {ConditionForShuffleBaseUnits, ActionShuffleBaseUnits, "ShuffleBaseUnits"},
+        {ConditionForQueueFortress, ActionQueueFortress, "QueueFortress"}
     };
 
     for (I32 Index = 0; Index < (I32)(sizeof(Decisions) / sizeof(Decisions[0])); Index++) {
         if (Decisions[Index].Condition(Context)) {
-            Decisions[Index].Action(Context);
-            SetAiLastDecision(Context->Team, Decisions[Index].Name);
-            return;
+            if (Decisions[Index].Action(Context)) {
+                SetAiLastDecision(Context->Team, Decisions[Index].Name);
+                return;
+            }
         }
     }
 }

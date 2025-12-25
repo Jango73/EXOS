@@ -85,6 +85,9 @@
 #define AI_DRILLER_TARGET_COUNT      2
 #define AI_DRILLER_PER_NON_DRILLER   30
 #define AI_SCOUT_TARGET_COUNT        2
+#define AI_BASE_SHUFFLE_RADIUS       8
+#define AI_BASE_SHUFFLE_COUNT        3
+#define AI_BASE_SHUFFLE_COOLDOWN_MS  10000
 #define AI_ATTITUDE_RANDOM_THRESHOLD 0.5f
 #define DRILLER_HARVEST_AMOUNT       40
 #define DRILLER_HARVEST_INTERVAL_MS  10000
@@ -95,6 +98,7 @@
 #define UNIT_MOVE_TIME_MS             2000
 #define UNIT_STUCK_BACKOFF_TILES      5
 #define UNIT_STUCK_TIMEOUT_MULTIPLIER 3
+#define UNIT_GRIDLOCK_MOVE_LIMIT      3
 #define AI_LAST_DECISION_LEN          64
 #define ENABLE_CHEATS                 1
 #define COMMAND_NONE                  0
@@ -250,6 +254,9 @@ typedef struct {
     I32 Height;
     I32 MaxHp;
     I32 Armor;
+    I32 Damage;
+    I32 Range;
+    I32 AttackSpeed;
     I32 CostPlasma;
     I32 EnergyConsumption;
     I32 EnergyProduction;
@@ -307,6 +314,7 @@ struct BUILDING_STRUCT {
     UNIT_JOB UnitQueue[MAX_UNIT_QUEUE];
     I32 UnitQueueCount;
     U32 LastDamageTime;
+    U32 LastAttackTime;
     struct BUILDING_STRUCT* Next;
 };
 
@@ -339,6 +347,8 @@ struct UNIT_STRUCT {
     I32 StuckOriginalTargetY;
     I32 StuckDetourTargetX;
     I32 StuckDetourTargetY;
+    BOOL IsGridlocked;
+    U32 GridlockLastUpdateTime;
     PATH_NODE* PathHead;
     PATH_NODE* PathTail;
     I32 PathTargetX;
@@ -352,6 +362,11 @@ struct PATH_NODE_STRUCT {
 };
 
 typedef struct {
+    I32 Team;
+    I32 Id;
+} VISIBLE_ENTITY;
+
+typedef struct {
     TEAM_RESOURCES Resources;
     BUILDING* Buildings;
     UNIT* Units;
@@ -360,8 +375,15 @@ typedef struct {
     char AiLastDecision[AI_LAST_DECISION_LEN];
     U32 AiLastUpdate;
     U32 AiLastClusterUpdate;
+    U32 AiLastShuffleTime;
     MEMORY_CELL* MemoryMap;
     U8* VisibleNow;
+    VISIBLE_ENTITY* VisibleEnemyUnits;
+    I32 VisibleEnemyUnitCount;
+    I32 VisibleEnemyUnitCapacity;
+    VISIBLE_ENTITY* VisibleEnemyBuildings;
+    I32 VisibleEnemyBuildingCount;
+    I32 VisibleEnemyBuildingCapacity;
 } TEAM_DATA;
 
 typedef struct {

@@ -710,6 +710,13 @@ void HandleInGameInput(I32 key) {
         return;
     }
 
+    if (key == VK_F5) {
+        if (App.GameState != NULL) {
+            SpawnDebugBaseForAllTeams();
+        }
+        return;
+    }
+
     if (key == VK_PLUS || key == VK_MINUS) {
         if (App.GameState != NULL) {
             char msg[SCREEN_WIDTH + 1];
