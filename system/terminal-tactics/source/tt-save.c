@@ -28,10 +28,11 @@
 #include "tt-entities.h"
 #include "tt-game.h"
 #include "tt-render.h"
+#include "tt-ai.h"
 
 /************************************************************************/
 
-#define SAVE_VERSION 9
+#define SAVE_VERSION 11
 
 /************************************************************************/
 
@@ -743,7 +744,9 @@ BOOL LoadGame(const char* path) {
 
     App.GameState->MapWidth = mapWidth;
     App.GameState->MapHeight = mapHeight;
+    App.GameState->MapMaxDim = imax(mapWidth, mapHeight);
     App.GameState->Difficulty = difficulty;
+    InitializeAiConstants();
     App.GameState->ViewportPos.X = viewportX;
     App.GameState->ViewportPos.Y = viewportY;
     App.GameState->TeamCount = teamCount;

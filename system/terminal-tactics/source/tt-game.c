@@ -39,24 +39,72 @@ static U32 LastDeployWarningTime = 0;
 
 /************************************************************************/
 
-#define TEAM_START_ESCAPE_DIAMETER  (TEAM_START_ESCAPE_RADIUS * 2 + 1)
-#define TEAM_START_ESCAPE_MAX_CELLS (TEAM_START_ESCAPE_DIAMETER * TEAM_START_ESCAPE_DIAMETER)
+static I32 GetMaxUnitFootprint(I32* outWidth, I32* outHeight) {
+    static I32 CachedDim = 0;
+    static I32 CachedWidth = 0;
+    static I32 CachedHeight = 0;
+
+    if (CachedDim > 0) {
+        if (outWidth != NULL) *outWidth = CachedWidth;
+        if (outHeight != NULL) *outHeight = CachedHeight;
+        return CachedDim;
+    }
+
+    for (I32 i = 0; i < UNIT_TYPE_COUNT; i++) {
+        const UNIT_TYPE* ut = GetUnitTypeById(i + 1);
+        if (ut == NULL) continue;
+        if (ut->Width > CachedWidth) CachedWidth = ut->Width;
+        if (ut->Height > CachedHeight) CachedHeight = ut->Height;
+        I32 dim = (ut->Width > ut->Height) ? ut->Width : ut->Height;
+        if (dim > CachedDim) CachedDim = dim;
+    }
+
+    if (CachedWidth < 1) CachedWidth = 1;
+    if (CachedHeight < 1) CachedHeight = 1;
+    if (CachedDim < 1) CachedDim = 1;
+
+    if (outWidth != NULL) *outWidth = CachedWidth;
+    if (outHeight != NULL) *outHeight = CachedHeight;
+    return CachedDim;
+}
 
 /************************************************************************/
 
-/// @brief Check if a start position has a tank-accessible path to the edge of a radius.
-static BOOL HasTankEscapeRoute(I32 startX, I32 startY, I32 mapW, I32 mapH, I32 radius) {
-    if (mapW <= 0 || mapH <= 0) return FALSE;
-    if (radius < 0 || radius > TEAM_START_ESCAPE_RADIUS) return FALSE;
-    if (!IsTerrainWalkableForUnitType(startX, startY, 1, 1, UNIT_TYPE_TANK)) return FALSE;
-
-    BOOL visited[TEAM_START_ESCAPE_DIAMETER][TEAM_START_ESCAPE_DIAMETER] = {0};
-    I32 queueX[TEAM_START_ESCAPE_MAX_CELLS];
-    I32 queueY[TEAM_START_ESCAPE_MAX_CELLS];
+/// @brief Check if a unit footprint can reach the edge of a radius.
+static BOOL HasUnitEscapeRoute(I32 startX, I32 startY, I32 mapW, I32 mapH, I32 radius,
+                               I32 unitTypeId, I32 unitWidth, I32 unitHeight) {
+    const I32 steps[][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    I32 diameter;
+    I32 maxCells;
+    U8* visited;
+    I32* queueX;
+    I32* queueY;
     I32 head = 0;
     I32 tail = 0;
+    BOOL result = FALSE;
 
-    visited[radius][radius] = TRUE;
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+    if (radius < 0) return FALSE;
+    if (unitWidth <= 0 || unitHeight <= 0) return FALSE;
+    if (IsAreaBlockedForUnitType(startX, startY, unitWidth, unitHeight, unitTypeId)) return FALSE;
+
+    diameter = radius * 2 + 1;
+    if (diameter <= 0) return FALSE;
+    maxCells = diameter * diameter;
+    if (maxCells <= 0) return FALSE;
+
+    visited = (U8*)malloc((size_t)maxCells);
+    queueX = (I32*)malloc(sizeof(I32) * (size_t)maxCells);
+    queueY = (I32*)malloc(sizeof(I32) * (size_t)maxCells);
+    if (visited == NULL || queueX == NULL || queueY == NULL) {
+        if (visited != NULL) free(visited);
+        if (queueX != NULL) free(queueX);
+        if (queueY != NULL) free(queueY);
+        return FALSE;
+    }
+    memset(visited, 0, (size_t)maxCells);
+
+    visited[radius * diameter + radius] = 1;
     queueX[tail] = 0;
     queueY[tail] = 0;
     tail++;
@@ -67,10 +115,10 @@ static BOOL HasTankEscapeRoute(I32 startX, I32 startY, I32 mapW, I32 mapH, I32 r
         head++;
 
         if (dx == -radius || dx == radius || dy == -radius || dy == radius) {
-            return TRUE;
+            result = TRUE;
+            break;
         }
 
-        const I32 steps[][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (I32 i = 0; i < (I32)(sizeof(steps) / sizeof(steps[0])); i++) {
             I32 ndx = dx + steps[i][0];
             I32 ndy = dy + steps[i][1];
@@ -78,20 +126,24 @@ static BOOL HasTankEscapeRoute(I32 startX, I32 startY, I32 mapW, I32 mapH, I32 r
 
             I32 vx = ndx + radius;
             I32 vy = ndy + radius;
-            if (visited[vy][vx]) continue;
+            I32 vIndex = vy * diameter + vx;
+            if (visited[vIndex]) continue;
 
             I32 mapX = WrapCoord(startX, ndx, mapW);
             I32 mapY = WrapCoord(startY, ndy, mapH);
-            if (!IsTerrainWalkableForUnitType(mapX, mapY, 1, 1, UNIT_TYPE_TANK)) continue;
+            if (IsAreaBlockedForUnitType(mapX, mapY, unitWidth, unitHeight, unitTypeId)) continue;
 
-            visited[vy][vx] = TRUE;
+            visited[vIndex] = 1;
             queueX[tail] = ndx;
             queueY[tail] = ndy;
             tail++;
         }
     }
 
-    return FALSE;
+    free(visited);
+    free(queueX);
+    free(queueY);
+    return result;
 }
 
 /************************************************************************/
@@ -138,21 +190,43 @@ static BOOL IsCellBlockedByBuildings(I32 px, I32 py, I32 mapW, I32 mapH, I32 pen
 
 /************************************************************************/
 
-/// @brief Check if a position has a tank-accessible path to the edge of a radius, honoring buildings.
-static BOOL HasTankEscapeRouteWithBuildings(I32 startX, I32 startY, I32 mapW, I32 mapH,
+/// @brief Check if a position has an escape route within a radius, honoring buildings.
+static BOOL HasUnitEscapeRouteWithBuildings(I32 startX, I32 startY, I32 mapW, I32 mapH, I32 radius,
+                                            I32 unitTypeId, I32 unitWidth, I32 unitHeight,
                                             I32 pendingX, I32 pendingY, const BUILDING_TYPE* pendingType) {
-    if (mapW <= 0 || mapH <= 0) return FALSE;
-    if (!IsTerrainWalkableForUnitType(startX, startY, 1, 1, UNIT_TYPE_TANK)) return FALSE;
-    if (IsCellBlockedByBuildings(startX, startY, mapW, mapH, pendingX, pendingY, pendingType)) return FALSE;
-
-    BOOL visited[TEAM_START_ESCAPE_DIAMETER][TEAM_START_ESCAPE_DIAMETER] = {0};
-    I32 queueX[TEAM_START_ESCAPE_MAX_CELLS];
-    I32 queueY[TEAM_START_ESCAPE_MAX_CELLS];
+    const I32 steps[][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    I32 diameter;
+    I32 maxCells;
+    U8* visited;
+    I32* queueX;
+    I32* queueY;
     I32 head = 0;
     I32 tail = 0;
-    I32 radius = TEAM_START_ESCAPE_RADIUS;
+    BOOL result = FALSE;
 
-    visited[radius][radius] = TRUE;
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+    if (radius < 0) return FALSE;
+    if (unitWidth <= 0 || unitHeight <= 0) return FALSE;
+    if (IsAreaBlockedForUnitType(startX, startY, unitWidth, unitHeight, unitTypeId)) return FALSE;
+    if (IsCellBlockedByBuildings(startX, startY, mapW, mapH, pendingX, pendingY, pendingType)) return FALSE;
+
+    diameter = radius * 2 + 1;
+    if (diameter <= 0) return FALSE;
+    maxCells = diameter * diameter;
+    if (maxCells <= 0) return FALSE;
+
+    visited = (U8*)malloc((size_t)maxCells);
+    queueX = (I32*)malloc(sizeof(I32) * (size_t)maxCells);
+    queueY = (I32*)malloc(sizeof(I32) * (size_t)maxCells);
+    if (visited == NULL || queueX == NULL || queueY == NULL) {
+        if (visited != NULL) free(visited);
+        if (queueX != NULL) free(queueX);
+        if (queueY != NULL) free(queueY);
+        return FALSE;
+    }
+    memset(visited, 0, (size_t)maxCells);
+
+    visited[radius * diameter + radius] = 1;
     queueX[tail] = 0;
     queueY[tail] = 0;
     tail++;
@@ -163,10 +237,10 @@ static BOOL HasTankEscapeRouteWithBuildings(I32 startX, I32 startY, I32 mapW, I3
         head++;
 
         if (dx == -radius || dx == radius || dy == -radius || dy == radius) {
-            return TRUE;
+            result = TRUE;
+            break;
         }
 
-        const I32 steps[][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (I32 i = 0; i < (I32)(sizeof(steps) / sizeof(steps[0])); i++) {
             I32 ndx = dx + steps[i][0];
             I32 ndy = dy + steps[i][1];
@@ -174,21 +248,25 @@ static BOOL HasTankEscapeRouteWithBuildings(I32 startX, I32 startY, I32 mapW, I3
 
             I32 vx = ndx + radius;
             I32 vy = ndy + radius;
-            if (visited[vy][vx]) continue;
+            I32 vIndex = vy * diameter + vx;
+            if (visited[vIndex]) continue;
 
             I32 mapX = WrapCoord(startX, ndx, mapW);
             I32 mapY = WrapCoord(startY, ndy, mapH);
-            if (!IsTerrainWalkableForUnitType(mapX, mapY, 1, 1, UNIT_TYPE_TANK)) continue;
+            if (IsAreaBlockedForUnitType(mapX, mapY, unitWidth, unitHeight, unitTypeId)) continue;
             if (IsCellBlockedByBuildings(mapX, mapY, mapW, mapH, pendingX, pendingY, pendingType)) continue;
 
-            visited[vy][vx] = TRUE;
+            visited[vIndex] = 1;
             queueX[tail] = ndx;
             queueY[tail] = ndy;
             tail++;
         }
     }
 
-    return FALSE;
+    free(visited);
+    free(queueX);
+    free(queueY);
+    return result;
 }
 
 /************************************************************************/
@@ -202,13 +280,23 @@ static BOOL WouldEncloseTeamUnit(I32 team, I32 placeX, I32 placeY, const BUILDIN
     if (mapW <= 0 || mapH <= 0) return FALSE;
 
     I32 maxDim = (type->Width > type->Height) ? type->Width : type->Height;
+    I32 escapeRadius = GetMaxUnitFootprint(NULL, NULL);
     UNIT* unit = App.GameState->TeamData[team].Units;
     while (unit != NULL) {
         I32 dist = ChebyshevDistance(unit->X, unit->Y, placeX, placeY, mapW, mapH);
-        if (dist <= TEAM_START_ESCAPE_RADIUS + maxDim) {
-            BOOL hadEscape = HasTankEscapeRouteWithBuildings(unit->X, unit->Y, mapW, mapH, 0, 0, NULL);
+        if (dist <= escapeRadius + maxDim) {
+            const UNIT_TYPE* unitType = GetUnitTypeById(unit->TypeId);
+            if (unitType == NULL) {
+                unit = unit->Next;
+                continue;
+            }
+            BOOL hadEscape = HasUnitEscapeRouteWithBuildings(unit->X, unit->Y, mapW, mapH, escapeRadius,
+                                                             unit->TypeId, unitType->Width, unitType->Height,
+                                                             0, 0, NULL);
             if (hadEscape &&
-                !HasTankEscapeRouteWithBuildings(unit->X, unit->Y, mapW, mapH, placeX, placeY, type)) {
+                !HasUnitEscapeRouteWithBuildings(unit->X, unit->Y, mapW, mapH, escapeRadius,
+                                                 unit->TypeId, unitType->Width, unitType->Height,
+                                                 placeX, placeY, type)) {
                 return TRUE;
             }
         }
@@ -259,15 +347,20 @@ static void InitTeamStartPositions(void) {
         I32 baseX = zones[zone][0];
         I32 baseY = zones[zone][1];
 
-        if (!HasTankEscapeRoute(baseX, baseY, mapW, mapH, TEAM_START_ESCAPE_RADIUS)) {
+        I32 maxWidth;
+        I32 maxHeight;
+        I32 escapeRadius = GetMaxUnitFootprint(&maxWidth, &maxHeight);
+        if (!HasUnitEscapeRoute(baseX, baseY, mapW, mapH, escapeRadius,
+                                UNIT_TYPE_TANK, maxWidth, maxHeight)) {
             BOOL found = FALSE;
-            I32 maxRadius = mapW > mapH ? mapW : mapH;
+            I32 maxRadius = App.GameState->MapMaxDim;
             for (I32 radius = 1; radius <= maxRadius && !found; radius++) {
                 for (I32 dy = -radius; dy <= radius && !found; dy++) {
                     for (I32 dx = -radius; dx <= radius && !found; dx++) {
                         I32 candidateX = WrapCoord(baseX, dx, mapW);
                         I32 candidateY = WrapCoord(baseY, dy, mapH);
-                        if (HasTankEscapeRoute(candidateX, candidateY, mapW, mapH, TEAM_START_ESCAPE_RADIUS)) {
+                        if (HasUnitEscapeRoute(candidateX, candidateY, mapW, mapH, escapeRadius,
+                                               UNIT_TYPE_TANK, maxWidth, maxHeight)) {
                             baseX = candidateX;
                             baseY = candidateY;
                             found = TRUE;
@@ -285,12 +378,34 @@ static void InitTeamStartPositions(void) {
 }
 
 /************************************************************************/
-static void SpawnStartingYards(void) {
+BOOL FindFreeSpotNear(I32 centerX, I32 centerY, I32 width, I32 height, I32 mapW, I32 mapH, I32 searchRadius,
+                      I32* outX, I32* outY) {
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+
+    for (I32 radius = 0; radius <= searchRadius; radius++) {
+        for (I32 dy = -radius; dy <= radius; dy++) {
+            for (I32 dx = -radius; dx <= radius; dx++) {
+                I32 x = WrapCoord(centerX, dx, mapW);
+                I32 y = WrapCoord(centerY, dy, mapH);
+                if (!IsAreaBlocked(x, y, width, height, NULL, NULL)) {
+                    if (outX != NULL) *outX = x;
+                    if (outY != NULL) *outY = y;
+                    return TRUE;
+                }
+            }
+        }
+    }
+    return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL SpawnStartingYards(void) {
     const BUILDING_TYPE* yardType = GetBuildingTypeById(BUILDING_TYPE_CONSTRUCTION_YARD);
     I32 mapW;
     I32 mapH;
 
-    if (App.GameState == NULL || yardType == NULL) return;
+    if (App.GameState == NULL || yardType == NULL) return FALSE;
 
     mapW = App.GameState->MapWidth;
     mapH = App.GameState->MapHeight;
@@ -333,39 +448,25 @@ static void SpawnStartingYards(void) {
         }
 
         if (!placed) {
-            I32 x = WrapCoord(baseX, 0, mapW) - halfW;
-            I32 y = WrapCoord(baseY, 0, mapH) - halfH;
-            BUILDING* yard = CreateBuilding(BUILDING_TYPE_CONSTRUCTION_YARD, team, x, y);
-            if (yard != NULL) {
-                BUILDING** head = GetTeamBuildingHead(team);
-                if (head != NULL) {
-                    yard->Next = *head;
-                    *head = yard;
+            I32 x = 0;
+            I32 y = 0;
+            if (FindFreeSpotNear(baseX, baseY, yardType->Width, yardType->Height, mapW, mapH,
+                                 App.GameState->MapMaxDim, &x, &y)) {
+                BUILDING* yard = CreateBuilding(BUILDING_TYPE_CONSTRUCTION_YARD, team, x, y);
+                if (yard != NULL) {
+                    BUILDING** head = GetTeamBuildingHead(team);
+                    if (head != NULL) {
+                        yard->Next = *head;
+                        *head = yard;
+                    }
                 }
             }
         }
-    }
-}
-
-/************************************************************************/
-
-BOOL FindFreeSpotNear(I32 centerX, I32 centerY, I32 width, I32 height, I32 mapW, I32 mapH, I32 searchRadius, I32* outX, I32* outY) {
-    if (mapW <= 0 || mapH <= 0) return FALSE;
-
-    for (I32 radius = 0; radius <= searchRadius; radius++) {
-        for (I32 dy = -radius; dy <= radius; dy++) {
-            for (I32 dx = -radius; dx <= radius; dx++) {
-                I32 x = WrapCoord(centerX, dx, mapW);
-                I32 y = WrapCoord(centerY, dy, mapH);
-                if (!IsAreaBlocked(x, y, width, height, NULL, NULL)) {
-                    if (outX != NULL) *outX = x;
-                    if (outY != NULL) *outY = y;
-                    return TRUE;
-                }
-            }
+        if (!placed) {
+            return FALSE;
         }
     }
-    return FALSE;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -387,6 +488,138 @@ static BOOL FindFreeSpotNearExplored(I32 team, I32 centerX, I32 centerY, I32 wid
             }
         }
     }
+    return FALSE;
+}
+
+/************************************************************************/
+
+static I32* PlasmaSearchQueueX = NULL;
+static I32* PlasmaSearchQueueY = NULL;
+static U8* PlasmaSearchVisited = NULL;
+static size_t PlasmaSearchCells = 0;
+
+/************************************************************************/
+
+static BOOL EnsurePlasmaSearchBuffers(I32 mapW, I32 mapH) {
+    size_t cells;
+    size_t queueBytes;
+    size_t visitedBytes;
+
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+    cells = (size_t)mapW * (size_t)mapH;
+    if (cells == 0) return FALSE;
+
+    if (PlasmaSearchCells < cells) {
+        if (PlasmaSearchQueueX != NULL) {
+            free(PlasmaSearchQueueX);
+            PlasmaSearchQueueX = NULL;
+        }
+        if (PlasmaSearchQueueY != NULL) {
+            free(PlasmaSearchQueueY);
+            PlasmaSearchQueueY = NULL;
+        }
+        if (PlasmaSearchVisited != NULL) {
+            free(PlasmaSearchVisited);
+            PlasmaSearchVisited = NULL;
+        }
+
+        queueBytes = cells * sizeof(I32);
+        visitedBytes = cells * sizeof(U8);
+        PlasmaSearchQueueX = (I32*)malloc(queueBytes);
+        PlasmaSearchQueueY = (I32*)malloc(queueBytes);
+        PlasmaSearchVisited = (U8*)malloc(visitedBytes);
+        if (PlasmaSearchQueueX == NULL || PlasmaSearchQueueY == NULL || PlasmaSearchVisited == NULL) {
+            if (PlasmaSearchQueueX != NULL) free(PlasmaSearchQueueX);
+            if (PlasmaSearchQueueY != NULL) free(PlasmaSearchQueueY);
+            if (PlasmaSearchVisited != NULL) free(PlasmaSearchVisited);
+            PlasmaSearchQueueX = NULL;
+            PlasmaSearchQueueY = NULL;
+            PlasmaSearchVisited = NULL;
+            PlasmaSearchCells = 0;
+            return FALSE;
+        }
+        PlasmaSearchCells = cells;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/// @brief Find a reachable plasma cell target for a unit footprint.
+static BOOL FindNearestReachablePlasmaTarget(const UNIT* unit, const UNIT_TYPE* unitType, I32* outX, I32* outY) {
+    static const I32 steps[8][2] = {
+        {1, 0}, {-1, 0}, {0, 1}, {0, -1},
+        {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+    };
+    I32 mapW;
+    I32 mapH;
+    I32 head = 0;
+    I32 tail = 0;
+
+    if (App.GameState == NULL || unit == NULL || unitType == NULL) return FALSE;
+    if (App.GameState->PlasmaDensity == NULL) return FALSE;
+    mapW = App.GameState->MapWidth;
+    mapH = App.GameState->MapHeight;
+    if (mapW <= 0 || mapH <= 0) return FALSE;
+
+    if (!EnsurePlasmaSearchBuffers(mapW, mapH)) return FALSE;
+    memset(PlasmaSearchVisited, 0, PlasmaSearchCells * sizeof(U8));
+
+    {
+        I32 sx = unit->X;
+        I32 sy = unit->Y;
+        I32 sIndex = sy * mapW + sx;
+        PlasmaSearchVisited[sIndex] = 1;
+        PlasmaSearchQueueX[tail] = sx;
+        PlasmaSearchQueueY[tail] = sy;
+        tail++;
+    }
+
+    while (head < tail) {
+        I32 cx = PlasmaSearchQueueX[head];
+        I32 cy = PlasmaSearchQueueY[head];
+        head++;
+
+        for (I32 dy = 0; dy < unitType->Height; dy++) {
+            for (I32 dx = 0; dx < unitType->Width; dx++) {
+                I32 px = WrapCoord(cx, dx, mapW);
+                I32 py = WrapCoord(cy, dy, mapH);
+                if (App.GameState->PlasmaDensity[py][px] > 0) {
+                    if (outX != NULL) *outX = cx;
+                    if (outY != NULL) *outY = cy;
+                    return TRUE;
+                }
+            }
+        }
+
+        for (I32 i = 0; i < (I32)(sizeof(steps) / sizeof(steps[0])); i++) {
+            I32 stepX = steps[i][0];
+            I32 stepY = steps[i][1];
+            I32 nx = WrapCoord(cx, stepX, mapW);
+            I32 ny = WrapCoord(cy, stepY, mapH);
+            I32 nIndex = ny * mapW + nx;
+
+            if (PlasmaSearchVisited[nIndex]) continue;
+
+            if (stepX != 0 && stepY != 0) {
+                I32 ox = WrapCoord(cx, stepX, mapW);
+                I32 oy = cy;
+                if (IsAreaBlocked(ox, oy, unitType->Width, unitType->Height, NULL, unit)) continue;
+                ox = cx;
+                oy = WrapCoord(cy, stepY, mapH);
+                if (IsAreaBlocked(ox, oy, unitType->Width, unitType->Height, NULL, unit)) continue;
+            }
+
+            if (IsAreaBlocked(nx, ny, unitType->Width, unitType->Height, NULL, unit)) continue;
+
+            PlasmaSearchVisited[nIndex] = 1;
+            PlasmaSearchQueueX[tail] = nx;
+            PlasmaSearchQueueY[tail] = ny;
+            tail++;
+        }
+    }
+
     return FALSE;
 }
 
@@ -440,7 +673,7 @@ BOOL FindNearestPlasmaCell(I32 startX, I32 startY, I32* outX, I32* outY) {
     I32 mapH = App.GameState->MapHeight;
     if (mapW <= 0 || mapH <= 0) return FALSE;
 
-    I32 maxRadius = mapW > mapH ? mapW : mapH;
+    I32 maxRadius = App.GameState->MapMaxDim;
     for (I32 radius = 0; radius <= maxRadius; radius++) {
         for (I32 dy = -radius; dy <= radius; dy++) {
             for (I32 dx = -radius; dx <= radius; dx++) {
@@ -473,7 +706,7 @@ BOOL FindNearestSafePlasmaCell(I32 team, I32 startX, I32 startY, I32 minEnemyDis
     if (memory == NULL) return FALSE;
 
     I32 teamCount = GetTeamCountSafe();
-    I32 maxRadius = mapW > mapH ? mapW : mapH;
+    I32 maxRadius = App.GameState->MapMaxDim;
     for (I32 radius = 0; radius <= maxRadius; radius++) {
         for (I32 dy = -radius; dy <= radius; dy++) {
             for (I32 dx = -radius; dx <= radius; dx++) {
@@ -533,9 +766,7 @@ static void SpawnStartingTroopers(I32 difficulty) {
         InitTeamStartPositions();
     }
 
-    maxRadius = App.GameState->MapWidth > App.GameState->MapHeight
-        ? App.GameState->MapWidth
-        : App.GameState->MapHeight;
+    maxRadius = App.GameState->MapMaxDim;
 
     for (I32 team = 0; team < App.GameState->TeamCount; team++) {
         UNIT** head = GetTeamUnitHead(team);
@@ -552,6 +783,13 @@ static void SpawnStartingTroopers(I32 difficulty) {
                                       App.GameState->MapWidth, App.GameState->MapHeight,
                                       radius, &spawnX, &spawnY)) {
                     continue;
+                }
+                {
+                    I32 escapeRadius = GetMaxUnitFootprint(NULL, NULL);
+                    if (!HasUnitEscapeRoute(spawnX, spawnY, App.GameState->MapWidth, App.GameState->MapHeight,
+                                            escapeRadius, trooper->Id, trooper->Width, trooper->Height)) {
+                        continue;
+                    }
                 }
 
                 UNIT* unit = CreateUnit(UNIT_TYPE_TROOPER, team, spawnX, spawnY);
@@ -586,12 +824,28 @@ static void SpawnStartingDrillers(void) {
                               App.GameState->MapWidth, App.GameState->MapHeight, START_DRILLER_SPAWN_RADIUS, &spawnX, &spawnY)) {
             continue;
         }
+        {
+            I32 escapeRadius = GetMaxUnitFootprint(NULL, NULL);
+            if (!HasUnitEscapeRoute(spawnX, spawnY, App.GameState->MapWidth, App.GameState->MapHeight,
+                                    escapeRadius, driller->Id, driller->Width, driller->Height)) {
+                continue;
+            }
+        }
 
         UNIT* unit = CreateUnit(UNIT_TYPE_DRILLER, team, spawnX, spawnY);
         if (unit != NULL) {
             unit->MoveProgress = 0;
             unit->Next = *head;
             *head = unit;
+            if (team != HUMAN_TEAM_INDEX) {
+                I32 TargetX = unit->X;
+                I32 TargetY = unit->Y;
+                if (!FindNearestReachablePlasmaTarget(unit, driller, &TargetX, &TargetY)) {
+                    FindNearestPlasmaCell(unit->X, unit->Y, &TargetX, &TargetY);
+                }
+                SetUnitStateExplore(unit, TargetX, TargetY);
+                LogTeamAction(team, "SetExplore", (U32)unit->Id, (U32)TargetX, (U32)TargetY, "Driller", "Spawn");
+            }
         }
     }
 }
@@ -641,6 +895,17 @@ float PerlinNoise(float x, float y, float persistence, I32 octaves) {
     }
 
     return total / maxValue;
+}
+
+/************************************************************************/
+
+/// @brief Set plasma on a cell unless it is water or mountain.
+static void SetPlasmaCellIfAllowed(I32 x, I32 y, I32 minDensity, I32 rangeDensity) {
+    if (App.GameState == NULL) return;
+    U8 type = TerrainGetType(&App.GameState->Terrain[y][x]);
+    if (type == TERRAIN_TYPE_WATER || type == TERRAIN_TYPE_MOUNTAIN) return;
+    TerrainInitCell(&App.GameState->Terrain[y][x], TERRAIN_TYPE_PLASMA);
+    App.GameState->PlasmaDensity[y][x] = minDensity + (I32)(RandomFloat() * (F32)rangeDensity);
 }
 
 /************************************************************************/
@@ -724,10 +989,7 @@ void GenerateMap(I32 difficulty) {
                 if (ChebyshevDistance(0, 0, dx, dy, App.GameState->MapWidth, App.GameState->MapHeight) > radius) continue;
                 I32 px = WrapCoord(centerX, dx, App.GameState->MapWidth);
                 I32 py = WrapCoord(centerY, dy, App.GameState->MapHeight);
-                U8 type = TerrainGetType(&App.GameState->Terrain[py][px]);
-                if (type == TERRAIN_TYPE_WATER || type == TERRAIN_TYPE_MOUNTAIN) continue;
-                TerrainInitCell(&App.GameState->Terrain[py][px], TERRAIN_TYPE_PLASMA);
-                App.GameState->PlasmaDensity[py][px] = 120 + (I32)(RandomFloat() * 120.0f);
+                SetPlasmaCellIfAllowed(px, py, 120, 120);
             }
         }
     }
@@ -740,20 +1002,69 @@ void GenerateMap(I32 difficulty) {
         for (j = startX - 10; j < startX + 10; j++) {
             if (i >= 0 && i < App.GameState->MapHeight &&
                 j >= 0 && j < App.GameState->MapWidth) {
-                /* Make area mostly plains with some plasma */
+                /* Make area mostly plains */
                 U8 type = TerrainGetType(&App.GameState->Terrain[i][j]);
                 if (type == TERRAIN_TYPE_WATER ||
                     type == TERRAIN_TYPE_MOUNTAIN) {
                     TerrainInitCell(&App.GameState->Terrain[i][j], TERRAIN_TYPE_PLAINS);
                 }
+            }
+        }
+    }
+}
 
-                /* Add starting plasma deposits */
-                if (abs(i - startY) < 5 && abs(j - startX) < 5) {
-                    if (RandomFloat() > 0.7f) {
-                        TerrainInitCell(&App.GameState->Terrain[i][j], TERRAIN_TYPE_PLASMA);
-                        App.GameState->PlasmaDensity[i][j] = 100 + (I32)(RandomFloat() * 100.0f);
-                    }
-                }
+/************************************************************************/
+
+static void EnsureStartingPlasmaReachable(void) {
+    const UNIT_TYPE* drillerType;
+    const BUILDING_TYPE* yardType;
+    I32 mapW;
+    I32 mapH;
+
+    if (App.GameState == NULL) return;
+    mapW = App.GameState->MapWidth;
+    mapH = App.GameState->MapHeight;
+    if (mapW <= 0 || mapH <= 0) return;
+
+    drillerType = GetUnitTypeById(UNIT_TYPE_DRILLER);
+    yardType = GetBuildingTypeById(BUILDING_TYPE_CONSTRUCTION_YARD);
+    if (drillerType == NULL || yardType == NULL) return;
+
+    for (I32 team = 0; team < App.GameState->TeamCount; team++) {
+        BUILDING* yard = FindTeamBuilding(team, BUILDING_TYPE_CONSTRUCTION_YARD);
+        UNIT* driller = App.GameState->TeamData[team].Units;
+        UNIT tempUnit;
+        const UNIT* origin;
+        I32 targetX = 0;
+        I32 targetY = 0;
+
+        if (yard == NULL) continue;
+
+        while (driller != NULL && driller->TypeId != UNIT_TYPE_DRILLER) {
+            driller = driller->Next;
+        }
+
+        if (driller != NULL) {
+            origin = driller;
+        } else {
+            memset(&tempUnit, 0, sizeof(tempUnit));
+            tempUnit.X = yard->X + yardType->Width / 2;
+            tempUnit.Y = yard->Y + yardType->Height / 2;
+            origin = &tempUnit;
+        }
+
+        if (FindNearestReachablePlasmaTarget(origin, drillerType, &targetX, &targetY)) {
+            continue;
+        }
+
+        I32 centerX = yard->X + yardType->Width / 2;
+        I32 centerY = yard->Y + yardType->Height / 2;
+        for (I32 dy = -3; dy <= 3; dy++) {
+            for (I32 dx = -3; dx <= 3; dx++) {
+                if (ChebyshevDistance(0, 0, dx, dy, mapW, mapH) > 3) continue;
+                I32 px = WrapCoord(centerX, dx, mapW);
+                I32 py = WrapCoord(centerY, dy, mapH);
+                SetPlasmaCellIfAllowed(px, py, 120, 120);
             }
         }
     }
@@ -789,8 +1100,6 @@ BOOL InitializeGame(I32 mapWidth, I32 mapHeight, I32 difficulty, I32 teamCount) 
         App.GameState = NULL;
         return FALSE;
     }
-    GenerateMap(difficulty);
-
     /* Initialize viewport position */
     App.GameState->ViewportPos.X = App.GameState->MapWidth / 2 - VIEWPORT_WIDTH / 2;
     App.GameState->ViewportPos.Y = App.GameState->MapHeight / 2 - VIEWPORT_HEIGHT / 2;
@@ -883,13 +1192,30 @@ BOOL InitializeGame(I32 mapWidth, I32 mapHeight, I32 difficulty, I32 teamCount) 
     App.GameState->LastUpdate = GetSystemTime();
     App.GameState->LastFogUpdate = 0;
     App.GameState->FogDirty = TRUE;
+    InitializeAiConstants();
 
-    TeamStartPositionsReady = FALSE;
-    InitTeamStartPositions();
+    BOOL placed = FALSE;
+    U32 attempt = 0;
+    while (!placed) {
+        for (I32 team = 0; team < App.GameState->TeamCount; team++) {
+            RemoveTeamEntities(team);
+        }
 
-    SpawnStartingYards();
+        App.GameState->NoiseSeed = GetSystemTime() + attempt;
+        GenerateMap(difficulty);
+
+        App.GameState->NextUnitId = 1;
+        App.GameState->NextBuildingId = 1;
+
+        TeamStartPositionsReady = FALSE;
+        InitTeamStartPositions();
+
+        placed = SpawnStartingYards();
+        attempt++;
+    }
     SpawnStartingTroopers(difficulty);
     SpawnStartingDrillers();
+    EnsureStartingPlasmaReachable();
     RebuildOccupancy();
     RecalculateEnergy();
 
@@ -1508,16 +1834,29 @@ void ProcessUnitQueueForProducer(BUILDING* producer, U32 timeStep, BOOL notify) 
               I32 spawnX;
               I32 spawnY;
               if (FindUnitSpawnNear(producer, ut, &spawnX, &spawnY)) {
-                  UNIT* unit = CreateUnit(ut->Id, producer->Team, spawnX, spawnY);
-                  if (unit != NULL) {
-                      UNIT** head = GetTeamUnitHead(producer->Team);
-                      if (head != NULL) {
-                          unit->Next = *head;
-                          *head = unit;
-                      }
-                      App.GameState->FogDirty = TRUE;
-                      /* Shift unit queue */
-                      producer->UnitQueueCount--;
+                UNIT* unit = CreateUnit(ut->Id, producer->Team, spawnX, spawnY);
+                if (unit != NULL) {
+                    UNIT** head = GetTeamUnitHead(producer->Team);
+                    if (head != NULL) {
+                        unit->Next = *head;
+                        *head = unit;
+                    }
+                    if (unit->TypeId == UNIT_TYPE_DRILLER && producer->Team != HUMAN_TEAM_INDEX) {
+                        I32 TargetX = unit->X;
+                        I32 TargetY = unit->Y;
+                        const UNIT_TYPE* DrillerType = GetUnitTypeById(UNIT_TYPE_DRILLER);
+                        if (DrillerType != NULL &&
+                            FindNearestReachablePlasmaTarget(unit, DrillerType, &TargetX, &TargetY)) {
+                        } else {
+                            FindNearestPlasmaCell(unit->X, unit->Y, &TargetX, &TargetY);
+                        }
+                        SetUnitStateExplore(unit, TargetX, TargetY);
+                        LogTeamAction(producer->Team, "SetExplore", (U32)unit->Id, (U32)TargetX, (U32)TargetY,
+                                      "Driller", "Spawn");
+                    }
+                    App.GameState->FogDirty = TRUE;
+                    /* Shift unit queue */
+                    producer->UnitQueueCount--;
                       for (I32 i = 1; i <= producer->UnitQueueCount; i++) {
                           producer->UnitQueue[i - 1] = producer->UnitQueue[i];
                       }
@@ -1651,6 +1990,119 @@ static I32 SignedWrapDelta(I32 origin, I32 target, I32 size) {
         else if (delta < -size / 2) delta += size;
     }
     return delta;
+}
+
+/************************************************************************/
+
+/// @brief Apply a backoff move when a unit is stuck away from its target.
+static void UpdateUnitStuckBehavior(UNIT* unit, const UNIT_TYPE* unitType, U32 currentTime) {
+    I32 mapW;
+    I32 mapH;
+    I32 targetX;
+    I32 targetY;
+    I32 originalTargetX;
+    I32 originalTargetY;
+    I32 deltaX;
+    I32 deltaY;
+    I32 stepX;
+    I32 stepY;
+    I32 detourX;
+    I32 detourY;
+    U32 moveTime;
+    U32 timeoutMs;
+
+    if (App.GameState == NULL || unit == NULL || unitType == NULL) return;
+    mapW = App.GameState->MapWidth;
+    mapH = App.GameState->MapHeight;
+    if (mapW <= 0 || mapH <= 0) return;
+
+    if (unit->TargetX == unit->X && unit->TargetY == unit->Y) {
+        unit->StuckDetourActive = FALSE;
+        return;
+    }
+
+    if (unit->StuckDetourActive &&
+        unit->X == unit->TargetX &&
+        unit->Y == unit->TargetY) {
+        unit->StuckDetourActive = FALSE;
+        SetUnitMoveTarget(unit, unit->StuckOriginalTargetX, unit->StuckOriginalTargetY);
+        return;
+    }
+
+    if (unit->LastMoveTime == 0) {
+        unit->LastMoveTime = currentTime;
+        unit->LastMoveX = unit->X;
+        unit->LastMoveY = unit->Y;
+        return;
+    }
+
+    if (unit->X != unit->LastMoveX || unit->Y != unit->LastMoveY) {
+        unit->LastMoveX = unit->X;
+        unit->LastMoveY = unit->Y;
+        unit->LastMoveTime = currentTime;
+        return;
+    }
+
+    moveTime = (unitType->MoveTimeMs > 0) ? (U32)unitType->MoveTimeMs : (U32)UNIT_MOVE_TIME_MS;
+    timeoutMs = moveTime * (U32)UNIT_STUCK_TIMEOUT_MULTIPLIER;
+    if (timeoutMs == 0) timeoutMs = (U32)UNIT_MOVE_TIME_MS;
+
+    if (currentTime - unit->LastMoveTime < timeoutMs) return;
+
+    if (unitType->Id == UNIT_TYPE_DRILLER &&
+        unit->State == UNIT_STATE_EXPLORE &&
+        unit->StuckDetourActive &&
+        unit->StuckDetourCount > 0) {
+        I32 newTargetX = UNIT_STATE_TARGET_NONE;
+        I32 newTargetY = UNIT_STATE_TARGET_NONE;
+        if (FindNearestReachablePlasmaTarget(unit, unitType, &newTargetX, &newTargetY)) {
+            SetUnitStateExplore(unit, newTargetX, newTargetY);
+        } else {
+            unit->StateTargetX = UNIT_STATE_TARGET_NONE;
+            unit->StateTargetY = UNIT_STATE_TARGET_NONE;
+            unit->IsMoving = FALSE;
+            unit->MoveProgress = 0;
+            ClearUnitPath(unit);
+        }
+        unit->StuckDetourActive = FALSE;
+        unit->StuckDetourCount = 0;
+        unit->LastMoveTime = currentTime;
+        return;
+    }
+
+    if (unit->StuckDetourActive) {
+        targetX = unit->StuckOriginalTargetX;
+        targetY = unit->StuckOriginalTargetY;
+    } else {
+        targetX = unit->TargetX;
+        targetY = unit->TargetY;
+    }
+
+    deltaX = SignedWrapDelta(unit->X, targetX, mapW);
+    deltaY = SignedWrapDelta(unit->Y, targetY, mapH);
+    stepX = (deltaX > 0) ? 1 : (deltaX < 0 ? -1 : 0);
+    stepY = (deltaY > 0) ? 1 : (deltaY < 0 ? -1 : 0);
+    if (stepX == 0 && stepY == 0) return;
+
+    detourX = WrapCoord(unit->X, -stepX * UNIT_STUCK_BACKOFF_TILES, mapW);
+    detourY = WrapCoord(unit->Y, -stepY * UNIT_STUCK_BACKOFF_TILES, mapH);
+
+    if (!unit->StuckDetourActive) {
+        originalTargetX = unit->TargetX;
+        originalTargetY = unit->TargetY;
+    } else {
+        originalTargetX = unit->StuckOriginalTargetX;
+        originalTargetY = unit->StuckOriginalTargetY;
+    }
+
+    SetUnitMoveTarget(unit, detourX, detourY);
+    unit->StuckDetourActive = TRUE;
+    unit->StuckDetourCount++;
+    unit->StuckOriginalTargetX = originalTargetX;
+    unit->StuckOriginalTargetY = originalTargetY;
+    unit->StuckDetourTargetX = detourX;
+    unit->StuckDetourTargetY = detourY;
+    unit->LastMoveTime = currentTime;
 }
 
 /************************************************************************/
@@ -1831,7 +2283,7 @@ static void UpdateUnitStateBehavior(UNIT* unit, const UNIT_TYPE* unitType, U32 c
             BOOL found = FALSE;
 
             if (unitType->Id == UNIT_TYPE_DRILLER) {
-                found = FindNearestPlasmaCell(unit->X, unit->Y, &targetX, &targetY);
+                found = FindNearestReachablePlasmaTarget(unit, unitType, &targetX, &targetY);
             } else {
                 found = PickExplorationTarget(unit->Team, &targetX, &targetY);
             }
@@ -1947,6 +2399,9 @@ void UpdateGame(void) {
                         unit->Y = nextY;
                         SetUnitOccupancy(unit, TRUE);
                         App.GameState->FogDirty = TRUE;
+                        unit->LastMoveX = unit->X;
+                        unit->LastMoveY = unit->Y;
+                        unit->LastMoveTime = App.GameState->GameTime;
                     }
 
                     /* Check if reached destination */
@@ -1955,6 +2410,8 @@ void UpdateGame(void) {
                     }
                 }
             }
+
+            UpdateUnitStuckBehavior(unit, unitType, App.GameState->GameTime);
 
             if (unitType->Id == UNIT_TYPE_DRILLER) {
                 if (App.GameState->GameTime - unit->LastHarvestTime >= DRILLER_HARVEST_INTERVAL_MS &&

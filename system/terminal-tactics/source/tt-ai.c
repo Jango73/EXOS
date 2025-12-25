@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "tt-ai.h"
+#include "tt-ai-internal.h"
 #include "tt-types.h"
 #include "tt-map.h"
 #include "tt-fog.h"
@@ -63,6 +64,18 @@ static BOOL ShouldProcessAITeam(I32 team, U32 currentTime) {
 
     App.GameState->TeamData[team].AiLastUpdate = currentTime;
     return TRUE;
+}
+
+/************************************************************************/
+
+static void SetAiLastDecision(I32 team, const char* decision) {
+    if (App.GameState == NULL) return;
+    if (!IsValidTeam(team)) return;
+    if (decision == NULL) decision = "";
+    snprintf(App.GameState->TeamData[team].AiLastDecision,
+             sizeof(App.GameState->TeamData[team].AiLastDecision),
+             "%s",
+             decision);
 }
 
 /************************************************************************/
@@ -116,9 +129,33 @@ static I32 ComputeMitigatedDamage(I32 baseDamage, I32 targetArmor) {
 
 /************************************************************************/
 
-static I32 ComputeUnitScore(const UNIT_TYPE* unitType) {
+static I32 AiDrillerEscortMinForce = 0;
+
+/************************************************************************/
+
+/// @brief Compute the AI strength score for a unit type.
+I32 AiComputeUnitScore(const UNIT_TYPE* unitType) {
     if (unitType == NULL) return 0;
     return unitType->Damage * AI_UNIT_SCORE_DAMAGE_WEIGHT + unitType->MaxHp;
+}
+
+/************************************************************************/
+
+/// @brief Initialize AI constants computed from unit stats.
+void InitializeAiConstants(void) {
+    I32 best = 0;
+
+    for (I32 i = 1; i <= UNIT_TYPE_COUNT; i++) {
+        const UNIT_TYPE* unitType = GetUnitTypeById(i);
+        if (unitType == NULL) continue;
+        if (unitType->Damage <= 0) continue;
+        if (unitType->Id == UNIT_TYPE_SCOUT || unitType->Id == UNIT_TYPE_DRILLER) continue;
+
+        I32 score = AiComputeUnitScore(unitType);
+        if (score > best) best = score;
+    }
+
+    AiDrillerEscortMinForce = best;
 }
 
 /************************************************************************/
@@ -126,6 +163,82 @@ static I32 ComputeUnitScore(const UNIT_TYPE* unitType) {
 static I32 ComputeTurretScore(const BUILDING_TYPE* buildingType) {
     if (buildingType == NULL) return 0;
     return buildingType->MaxHp;
+}
+
+/************************************************************************/
+
+static I32 CountQueuedBuildingType(const BUILDING* yard, I32 typeId) {
+    if (yard == NULL || typeId <= 0) return 0;
+    I32 count = 0;
+    for (I32 i = 0; i < yard->BuildQueueCount; i++) {
+        if (yard->BuildQueue[i].TypeId == typeId) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/************************************************************************/
+
+static I32 ComputeAvailableEscortForce(I32 Team) {
+    I32 force = 0;
+    UNIT* Unit = IsValidTeam(Team) ? App.GameState->TeamData[Team].Units : NULL;
+    while (Unit != NULL) {
+        const UNIT_TYPE* ut = GetUnitTypeById(Unit->TypeId);
+        if (ut != NULL &&
+            ut->Damage > 0 &&
+            ut->Id != UNIT_TYPE_SCOUT &&
+            ut->Id != UNIT_TYPE_DRILLER) {
+            force += AiComputeUnitScore(ut);
+        }
+        Unit = Unit->Next;
+    }
+    return force;
+}
+
+/************************************************************************/
+
+static void UpdatePlannedBuilding(AI_CONTEXT* Context) {
+    I32 plannedTypeId;
+    const BUILDING_TYPE* plannedType;
+    BOOL hasBarracks;
+    BOOL hasFactory;
+    BOOL hasTech;
+
+    if (Context == NULL) return;
+
+    Context->PlannedBuildingTypeId = -1;
+    Context->PlannedBuildingCost = 0;
+    if (!Context->YardHasSpace) return;
+
+    hasBarracks = Context->HasBarracks || Context->QueuedBarracks > 0;
+    hasFactory = Context->HasFactory || Context->QueuedFactory > 0;
+    hasTech = Context->HasTechCenter || Context->QueuedTechCenter > 0;
+
+    plannedTypeId = -1;
+    if (Context->PowerPlantType != NULL && Context->EnergyLow) {
+        plannedTypeId = BUILDING_TYPE_POWER_PLANT;
+    } else if (Context->BarracksType != NULL && !hasBarracks) {
+        plannedTypeId = BUILDING_TYPE_BARRACKS;
+    } else if (Context->FactoryType != NULL &&
+               !hasFactory &&
+               (Context->DrillerCount + Context->QueuedDrillers) < Context->DrillerTarget) {
+        plannedTypeId = BUILDING_TYPE_FACTORY;
+    } else if (Context->TechCenterType != NULL && !hasTech) {
+        plannedTypeId = BUILDING_TYPE_TECH_CENTER;
+    } else if (Context->FactoryType != NULL && !hasFactory) {
+        plannedTypeId = BUILDING_TYPE_FACTORY;
+    } else if (Context->FortressTypeId >= 0) {
+        plannedTypeId = Context->FortressTypeId;
+    }
+
+    if (plannedTypeId < 0) return;
+
+    plannedType = GetBuildingTypeById(plannedTypeId);
+    if (plannedType == NULL) return;
+
+    Context->PlannedBuildingTypeId = plannedTypeId;
+    Context->PlannedBuildingCost = plannedType->CostPlasma;
 }
 
 /************************************************************************/
@@ -165,6 +278,42 @@ static BOOL IsHostileAnchorCell(I32 team, I32 x, I32 y, BOOL isBuilding, I32 typ
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+static I32 ComputeKnownEnemyForce(I32 Team) {
+    I32 mapW = App.GameState != NULL ? App.GameState->MapWidth : 0;
+    I32 mapH = App.GameState != NULL ? App.GameState->MapHeight : 0;
+    MEMORY_CELL* memory = (App.GameState != NULL && IsValidTeam(Team)) ? App.GameState->TeamData[Team].MemoryMap : NULL;
+    U8* visible = (App.GameState != NULL && IsValidTeam(Team)) ? App.GameState->TeamData[Team].VisibleNow : NULL;
+    if (App.GameState == NULL || mapW <= 0 || mapH <= 0 || memory == NULL || visible == NULL) return 0;
+
+    I32 force = 0;
+    for (I32 y = 0; y < mapH; y++) {
+        for (I32 x = 0; x < mapW; x++) {
+            size_t idx = (size_t)y * (size_t)mapW + (size_t)x;
+            if (visible[idx] == 0) continue;
+            BOOL isBuilding = FALSE;
+            I32 typeId = 0;
+            if (!IsHostileMemoryCell(Team, &memory[idx], &isBuilding, &typeId)) continue;
+            if (!IsHostileAnchorCell(Team, x, y, isBuilding, typeId, memory, mapW, mapH)) continue;
+
+            if (isBuilding) {
+                const BUILDING_TYPE* bt = GetBuildingTypeById(typeId);
+                if (bt != NULL) {
+                    force += ComputeTurretScore(bt);
+                }
+            } else {
+                const UNIT_TYPE* ut = GetUnitTypeById(typeId);
+                if (ut != NULL) {
+                    force += AiComputeUnitScore(ut);
+                }
+            }
+        }
+    }
+
+    return force;
 }
 
 /************************************************************************/
@@ -226,7 +375,7 @@ static BOOL FindAttackCluster(I32 team, I32 availableForce, I32* outTargetX, I32
                             clusterScore += ComputeTurretScore(bt);
                         } else {
                             const UNIT_TYPE* ut = GetUnitTypeById(curTypeId);
-                            clusterScore += ComputeUnitScore(ut);
+                            clusterScore += AiComputeUnitScore(ut);
                         }
                     }
                 }
@@ -272,15 +421,16 @@ static BOOL FindAttackCluster(I32 team, I32 availableForce, I32* outTargetX, I32
 
 /************************************************************************/
 
-static BOOL GetAttackClusterTarget(I32 team, I32 availableForce, I32* outTargetX, I32* outTargetY, I32* outTargetScore) {
-    if (!IsValidTeam(team) || App.GameState == NULL) return FALSE;
+/// @brief Get the best attack cluster target for the team.
+BOOL GetAttackClusterTarget(I32 Team, I32 AvailableForce, I32* OutTargetX, I32* OutTargetY, I32* OutTargetScore) {
+    if (!IsValidTeam(Team) || App.GameState == NULL) return FALSE;
 
-    U32 now = App.GameState->GameTime;
-    U32 last = App.GameState->TeamData[team].AiLastClusterUpdate;
-    if (last != 0 && now - last < AI_CLUSTER_UPDATE_INTERVAL_MS) return FALSE;
+    U32 Now = App.GameState->GameTime;
+    U32 Last = App.GameState->TeamData[Team].AiLastClusterUpdate;
+    if (Last != 0 && Now - Last < AI_CLUSTER_UPDATE_INTERVAL_MS) return FALSE;
 
-    App.GameState->TeamData[team].AiLastClusterUpdate = now;
-    return FindAttackCluster(team, availableForce, outTargetX, outTargetY, outTargetScore);
+    App.GameState->TeamData[Team].AiLastClusterUpdate = Now;
+    return FindAttackCluster(Team, AvailableForce, OutTargetX, OutTargetY, OutTargetScore);
 }
 
 /************************************************************************/
@@ -473,7 +623,7 @@ static BOOL CanAffordCheapestMobileUnit(I32 team) {
 
 /************************************************************************/
 
-static BOOL AiQueueBuildingForTeam(I32 team, I32 typeId) {
+BOOL AiQueueBuildingForTeam(I32 team, I32 typeId) {
     TEAM_RESOURCES* res = GetTeamResources(team);
     const BUILDING_TYPE* type = GetBuildingTypeById(typeId);
     BUILDING* yard;
@@ -499,7 +649,7 @@ static BOOL AiQueueBuildingForTeam(I32 team, I32 typeId) {
 
 /************************************************************************/
 
-static BOOL AiProduceUnit(I32 team, I32 unitTypeId, BUILDING* producer) {
+BOOL AiProduceUnit(I32 team, I32 unitTypeId, BUILDING* producer) {
     BOOL result = EnqueueUnitProduction(producer, unitTypeId, team, NULL);
     if (result) {
         const UNIT_TYPE* ut = GetUnitTypeById(unitTypeId);
@@ -639,7 +789,7 @@ static I32 CountVehicleUnits(const I32* counts) {
 /************************************************************************/
 
 /// @brief Pick an infantry unit type to enqueue for barracks.
-static I32 SelectBarracksUnitType(I32 team, I32 mindset, I32 infantryTarget, const BUILDING* barracks) {
+I32 SelectBarracksUnitType(I32 team, I32 mindset, I32 infantryTarget, const BUILDING* barracks) {
     I32 counts[UNIT_TYPE_COUNT];
     GetUnitCounts(team, counts);
     AddQueuedUnitCounts(barracks, counts);
@@ -707,7 +857,7 @@ static I32 SelectBarracksUnitType(I32 team, I32 mindset, I32 infantryTarget, con
 /************************************************************************/
 
 /// @brief Pick a vehicle unit type to enqueue for factory.
-static I32 SelectFactoryUnitType(I32 team, I32 mindset, I32 vehicleTarget, const BUILDING* factory) {
+I32 SelectFactoryUnitType(I32 team, I32 mindset, I32 vehicleTarget, const BUILDING* factory) {
     I32 counts[UNIT_TYPE_COUNT];
     GetUnitCounts(team, counts);
     AddQueuedUnitCounts(factory, counts);
@@ -797,8 +947,6 @@ static I32 RequiredUnitCount(I32 team, I32 unitTypeId) {
             }
             return target;
         }
-        case UNIT_TYPE_SCOUT:
-            return AI_SCOUT_TARGET_COUNT;
         case UNIT_TYPE_TROOPER: {
             I32 attitude = App.GameState->TeamData[team].AiAttitude;
             I32 mindset = App.GameState->TeamData[team].AiMindset;
@@ -1117,201 +1265,26 @@ static BOOL ShouldInvestInFortress(I32 attitude, I32 plasma, I32 cost) {
 
 /************************************************************************/
 
-/// @brief Attempts to queue a wall or turret based on the fortress plan.
-static void TryQueueFortressBuilding(I32 team, I32 attitude) {
-    TEAM_RESOURCES* res;
-    BUILDING* yard;
-    const BUILDING_TYPE* type;
-    I32 placeX;
-    I32 placeY;
+/// @brief Select a fortress building type to queue when a placement exists.
+static I32 SelectFortressQueueType(I32 Team, I32 Attitude, I32 Plasma) {
+    const BUILDING_TYPE* Type;
+    I32 PlaceX;
+    I32 PlaceY;
 
-    if (!IsValidTeam(team) || App.GameState == NULL) return;
-    if (!HasTechLevel(2, team)) return;
+    if (!IsValidTeam(Team) || App.GameState == NULL) return -1;
+    if (!HasTechLevel(2, Team)) return -1;
 
-    yard = FindTeamBuilding(team, BUILDING_TYPE_CONSTRUCTION_YARD);
-    if (yard == NULL) return;
-    if (yard->BuildQueueCount >= MAX_PLACEMENT_QUEUE) return;
-
-    if (FindFortressPlacement(team, BUILDING_TYPE_WALL, &placeX, &placeY)) {
-        type = GetBuildingTypeById(BUILDING_TYPE_WALL);
-    } else if (FindFortressPlacement(team, BUILDING_TYPE_TURRET, &placeX, &placeY)) {
-        type = GetBuildingTypeById(BUILDING_TYPE_TURRET);
+    if (FindFortressPlacement(Team, BUILDING_TYPE_WALL, &PlaceX, &PlaceY)) {
+        Type = GetBuildingTypeById(BUILDING_TYPE_WALL);
+    } else if (FindFortressPlacement(Team, BUILDING_TYPE_TURRET, &PlaceX, &PlaceY)) {
+        Type = GetBuildingTypeById(BUILDING_TYPE_TURRET);
     } else {
-        return;
+        return -1;
     }
 
-    if (type == NULL) return;
-    res = GetTeamResources(team);
-    if (res == NULL) return;
-    if (!ShouldInvestInFortress(attitude, res->Plasma, type->CostPlasma)) return;
-    AiQueueBuildingForTeam(team, type->Id);
-}
-
-/************************************************************************/
-
-static void UpdateAIForTeam(I32 team, I32 mindset) {
-    TEAM_RESOURCES* res = GetTeamResources(team);
-    BUILDING* yard = FindTeamBuilding(team, BUILDING_TYPE_CONSTRUCTION_YARD);
-    BOOL hasBarracks = FindTeamBuilding(team, BUILDING_TYPE_BARRACKS) != NULL;
-    BOOL hasFactory = FindTeamBuilding(team, BUILDING_TYPE_FACTORY) != NULL;
-    BOOL hasTechCenter = FindTeamBuilding(team, BUILDING_TYPE_TECH_CENTER) != NULL;
-    const BUILDING_TYPE* techType = GetBuildingTypeById(BUILDING_TYPE_TECH_CENTER);
-    BOOL energyLow = FALSE;
-    BOOL queuedBuilding = FALSE;
-    I32 energyProduction = 0;
-    I32 energyConsumption = 0;
-    I32 drillerCount;
-    I32 queuedDrillers;
-    I32 drillerTarget;
-    I32 mobileTarget;
-    I32 mobileCount;
-    I32 infantryTarget;
-    I32 vehicleTarget;
-    I32 counts[UNIT_TYPE_COUNT];
-    BOOL allowUnitProduction = TRUE;
-
-    if (res == NULL || yard == NULL) return;
-
-    GetEnergyTotals(team, &energyProduction, &energyConsumption);
-    energyLow = (energyConsumption >= energyProduction);
-    drillerCount = CountUnitsOfType(team, UNIT_TYPE_DRILLER);
-    queuedDrillers = CountQueuedUnitType(FindTeamBuilding(team, BUILDING_TYPE_FACTORY), UNIT_TYPE_DRILLER);
-    drillerTarget = RequiredUnitCount(team, UNIT_TYPE_DRILLER);
-
-    /* Build priority */
-    if (drillerCount + queuedDrillers < drillerTarget && !hasFactory) {
-        queuedBuilding = AiQueueBuildingForTeam(team, BUILDING_TYPE_FACTORY);
-    }
-    if (!queuedBuilding && !hasBarracks) {
-        queuedBuilding = AiQueueBuildingForTeam(team, BUILDING_TYPE_BARRACKS);
-    }
-    if (!queuedBuilding && energyLow) {
-        queuedBuilding = AiQueueBuildingForTeam(team, BUILDING_TYPE_POWER_PLANT);
-    }
-    if (!queuedBuilding && !hasTechCenter && techType != NULL && res->Plasma >= techType->CostPlasma) {
-        queuedBuilding = AiQueueBuildingForTeam(team, BUILDING_TYPE_TECH_CENTER);
-    }
-    if (!queuedBuilding && !hasFactory) {
-        AiQueueBuildingForTeam(team, BUILDING_TYPE_FACTORY);
-    }
-
-    if (!hasTechCenter && techType != NULL && res->Plasma < techType->CostPlasma &&
-        mindset == AI_MINDSET_IDLE && (drillerCount + queuedDrillers) >= drillerTarget) {
-        I32 mobileCount = CountMobileUnits(team);
-        if (mobileCount >= AI_IDLE_MIN_DEFENSE) {
-            allowUnitProduction = FALSE;
-            if (App.GameState->TeamData[team].AiAttitude == AI_ATTITUDE_AGGRESSIVE) {
-                I32 aggressiveTarget = RequiredUnitCount(team, UNIT_TYPE_TROOPER);
-                if (mobileCount < aggressiveTarget) {
-                    allowUnitProduction = TRUE;
-                }
-            }
-        }
-    }
-
-    TryQueueFortressBuilding(team, App.GameState->TeamData[team].AiAttitude);
-
-    /* Unit production */
-    if (!allowUnitProduction) return;
-    mobileTarget = RequiredUnitCount(team, UNIT_TYPE_TROOPER);
-    mobileCount = CountMobileUnits(team);
-    GetUnitCounts(team, counts);
-
-    if (hasBarracks) {
-        BUILDING* barracks = FindTeamBuilding(team, BUILDING_TYPE_BARRACKS);
-        I32 infantryCounts[UNIT_TYPE_COUNT];
-        for (I32 i = 0; i < UNIT_TYPE_COUNT; i++) {
-            infantryCounts[i] = counts[i];
-        }
-        AddQueuedUnitCounts(barracks, infantryCounts);
-        if (hasFactory) {
-            vehicleTarget = mobileTarget / 3;
-            infantryTarget = mobileTarget - vehicleTarget;
-        } else {
-            infantryTarget = mobileTarget;
-        }
-        if (infantryTarget < 0) infantryTarget = 0;
-
-        if (mobileCount < mobileTarget && CountInfantryUnits(infantryCounts) < infantryTarget) {
-            I32 unitTypeId = SelectBarracksUnitType(team, mindset, infantryTarget, barracks);
-            if (unitTypeId >= 0) {
-                AiProduceUnit(team, unitTypeId, barracks);
-            }
-        }
-    }
-    if (hasFactory) {
-        BUILDING* factory = FindTeamBuilding(team, BUILDING_TYPE_FACTORY);
-        if (factory != NULL) {
-            I32 vehicleCounts[UNIT_TYPE_COUNT];
-            for (I32 i = 0; i < UNIT_TYPE_COUNT; i++) {
-                vehicleCounts[i] = counts[i];
-            }
-            AddQueuedUnitCounts(factory, vehicleCounts);
-            if (drillerCount + queuedDrillers < drillerTarget) {
-                AiProduceUnit(team, UNIT_TYPE_DRILLER, factory);
-            } else if (mobileTarget > 0) {
-                if (hasBarracks) {
-                    vehicleTarget = mobileTarget / 3;
-                } else {
-                    vehicleTarget = mobileTarget;
-                }
-                if (vehicleTarget < 0) vehicleTarget = 0;
-
-                if (mobileCount < mobileTarget && CountVehicleUnits(vehicleCounts) < vehicleTarget) {
-                    I32 unitTypeId = SelectFactoryUnitType(team, mindset, vehicleTarget, factory);
-                    if (unitTypeId >= 0) {
-                        AiProduceUnit(team, unitTypeId, factory);
-                    }
-                }
-            }
-        }
-    }
-}
-
-/************************************************************************/
-
-
-
-static void AssignScoutOrders(I32 team) {
-    UNIT* scouts[2];
-    I32 scoutCount = 0;
-
-    if (!IsValidTeam(team) || App.GameState == NULL) return;
-
-    UNIT* unit = App.GameState->TeamData[team].Units;
-    while (unit != NULL && scoutCount < 2) {
-        const UNIT_TYPE* ut = GetUnitTypeById(unit->TypeId);
-        if (ut != NULL && ut->Id == UNIT_TYPE_SCOUT) {
-            scouts[scoutCount++] = unit;
-        }
-        unit = unit->Next;
-    }
-
-    BUILDING* barracks = FindTeamBuilding(team, BUILDING_TYPE_BARRACKS);
-    I32 queuedScouts = CountQueuedUnitType(barracks, UNIT_TYPE_SCOUT);
-    I32 targetScouts = RequiredUnitCount(team, UNIT_TYPE_SCOUT);
-    while (scoutCount + queuedScouts < targetScouts) {
-        if (barracks == NULL) {
-            break;
-        }
-        if (!AiProduceUnit(team, UNIT_TYPE_SCOUT, barracks)) {
-            break;
-        }
-        queuedScouts++;
-    }
-
-    for (I32 i = 0; i < scoutCount; i++) {
-        UNIT* scout = scouts[i];
-        if (scout == NULL) continue;
-        if (scout->State != UNIT_STATE_EXPLORE) {
-            I32 tx;
-            I32 ty;
-            if (PickExplorationTarget(team, &tx, &ty)) {
-                SetUnitStateExplore(scout, tx, ty);
-                LogTeamAction(team, "SetExplore", (U32)scout->Id, (U32)tx, (U32)ty, "Scout", "");
-            }
-        }
-    }
+    if (Type == NULL) return -1;
+    if (!ShouldInvestInFortress(Attitude, Plasma, Type->CostPlasma)) return -1;
+    return Type->Id;
 }
 
 /************************************************************************/
@@ -1332,7 +1305,7 @@ static UNIT* FindStrongestCombatUnit(I32 team, const UNIT* exclude) {
 
         const UNIT_TYPE* ut = GetUnitTypeById(unit->TypeId);
         if (ut != NULL && ut->Damage > 0) {
-            I32 score = ComputeUnitScore(ut);
+            I32 score = AiComputeUnitScore(ut);
             if (best == NULL || score > bestScore) {
                 best = unit;
                 bestScore = score;
@@ -1358,113 +1331,325 @@ static UNIT* FindFirstDriller(I32 team) {
 
 /************************************************************************/
 
-/// @brief Assign drillers to their nearest plasma fields.
-static void AssignDrillerOrders(I32 team) {
-    if (!IsValidTeam(team) || App.GameState == NULL) return;
-
-    I32 avoidRadius = GetMaxUnitSight();
-
-    UNIT* unit = App.GameState->TeamData[team].Units;
-    while (unit != NULL) {
-        if (unit->TypeId == UNIT_TYPE_DRILLER) {
-            I32 tx = unit->X;
-            I32 ty = unit->Y;
-            BOOL hasTarget = FALSE;
-
-            if (FindNearestSafePlasmaCell(team, unit->X, unit->Y, avoidRadius, &tx, &ty)) {
-                hasTarget = TRUE;
-            } else if (FindNearestPlasmaCell(unit->X, unit->Y, &tx, &ty)) {
-                hasTarget = TRUE;
-            } else {
-                hasTarget = TRUE;
-            }
-
-            if (hasTarget && (unit->State != UNIT_STATE_EXPLORE ||
-                unit->StateTargetX != tx || unit->StateTargetY != ty)) {
-                SetUnitStateExplore(unit, tx, ty);
-                LogTeamAction(team, "SetExplore", (U32)unit->Id, (U32)tx, (U32)ty, "Driller", "");
-            }
-        }
-        unit = unit->Next;
-    }
-}
-
-/************************************************************************/
-
 /// @brief Clear escort state for units currently escorting a driller.
-static void ClearDrillerEscorts(I32 team, I32 drillerId) {
-    UNIT* unit = IsValidTeam(team) ? App.GameState->TeamData[team].Units : NULL;
-    while (unit != NULL) {
-        if (unit->State == UNIT_STATE_ESCORT && unit->EscortUnitId == drillerId) {
-            SetUnitStateIdle(unit);
-            LogTeamAction(team, "ClearEscort", (U32)unit->Id, (U32)drillerId, 0, "", "");
+void ClearDrillerEscorts(I32 Team, I32 DrillerId) {
+    UNIT* Unit = IsValidTeam(Team) ? App.GameState->TeamData[Team].Units : NULL;
+    while (Unit != NULL) {
+        if (Unit->State == UNIT_STATE_ESCORT && Unit->EscortUnitId == DrillerId) {
+            SetUnitStateIdle(Unit);
+            LogTeamAction(Team, "ClearEscort", (U32)Unit->Id, (U32)DrillerId, 0, "", "");
         }
-        unit = unit->Next;
+        Unit = Unit->Next;
     }
 }
 
 /************************************************************************/
 
-/// @brief Keep a driller protected depending on AI attitude.
-static void UpdateDrillerEscort(I32 team, I32 attitude) {
-    UNIT* driller = FindFirstDriller(team);
-    if (driller == NULL) return;
+/// @brief Get escort status for a driller within the team.
+static void GetDrillerEscortStatus(I32 Team, I32 DrillerId, const UNIT* PreferredEscort,
+                                   I32* OutEscortForce, I32* OutEscortCount,
+                                   BOOL* OutPreferredAssigned, BOOL* OutHasExtra) {
+    BOOL PreferredAssigned = FALSE;
+    BOOL HasExtra = FALSE;
+    I32 EscortForce = 0;
+    I32 EscortCount = 0;
 
-    UNIT* escort = FindStrongestCombatUnit(team, driller);
-    if (escort == NULL) return;
-
-    if (attitude == AI_ATTITUDE_DEFENSIVE) {
-        ClearDrillerEscorts(team, driller->Id);
-        SetUnitStateEscort(escort, driller->Team, driller->Id);
-        LogTeamAction(team, "SetEscort", (U32)escort->Id, (U32)driller->Id, 0, "", "Defensive");
-        return;
+    UNIT* Unit = IsValidTeam(Team) ? App.GameState->TeamData[Team].Units : NULL;
+    while (Unit != NULL) {
+        if (Unit->State == UNIT_STATE_ESCORT &&
+            Unit->EscortUnitId == DrillerId &&
+            Unit->EscortUnitTeam == Team) {
+            EscortCount++;
+            if (PreferredEscort != NULL && Unit == PreferredEscort) {
+                PreferredAssigned = TRUE;
+            } else {
+                HasExtra = TRUE;
+            }
+            {
+                const UNIT_TYPE* ut = GetUnitTypeById(Unit->TypeId);
+                if (ut != NULL) {
+                    EscortForce += AiComputeUnitScore(ut);
+                }
+            }
+        }
+        Unit = Unit->Next;
     }
 
-    U32 now = GetSystemTime();
-    BOOL underAttack = (driller->LastDamageTime != 0 && now - driller->LastDamageTime <= AI_DRILLER_ALERT_MS);
-    if (underAttack) {
-        SetUnitStateEscort(escort, driller->Team, driller->Id);
-        LogTeamAction(team, "SetEscort", (U32)escort->Id, (U32)driller->Id, 0, "", "UnderAttack");
-    } else {
-        ClearDrillerEscorts(team, driller->Id);
+    if (OutEscortForce != NULL) *OutEscortForce = EscortForce;
+    if (OutEscortCount != NULL) *OutEscortCount = EscortCount;
+    if (OutPreferredAssigned != NULL) *OutPreferredAssigned = PreferredAssigned;
+    if (OutHasExtra != NULL) *OutHasExtra = HasExtra;
+}
+
+/************************************************************************/
+
+void AssignDrillerEscorts(I32 Team, UNIT* Driller, I32 DesiredForce) {
+    if (Driller == NULL) return;
+    if (!IsValidTeam(Team)) return;
+
+    ClearDrillerEscorts(Team, Driller->Id);
+
+    I32 assignedForce = 0;
+    while (assignedForce < DesiredForce) {
+        UNIT* best = NULL;
+        I32 bestScore = 0;
+        UNIT* Unit = App.GameState->TeamData[Team].Units;
+        while (Unit != NULL) {
+            const UNIT_TYPE* ut = GetUnitTypeById(Unit->TypeId);
+            if (ut != NULL &&
+                ut->Damage > 0 &&
+                ut->Id != UNIT_TYPE_SCOUT &&
+                ut->Id != UNIT_TYPE_DRILLER &&
+                Unit->State != UNIT_STATE_ESCORT) {
+                I32 score = AiComputeUnitScore(ut);
+                if (best == NULL || score > bestScore) {
+                    best = Unit;
+                    bestScore = score;
+                }
+            }
+            Unit = Unit->Next;
+        }
+
+        if (best == NULL) break;
+
+        SetUnitStateEscort(best, Driller->Team, Driller->Id);
+        LogTeamAction(Team, "SetEscort", (U32)best->Id, (U32)Driller->Id, 0, "", "Force");
+        assignedForce += bestScore;
     }
 }
 
 /************************************************************************/
 
-static void UpdateAggressiveOrders(I32 team) {
-    if (!IsValidTeam(team) || App.GameState == NULL) return;
+/// @brief Update the team mindset and cache values into the context.
+static void UpdateMindsetForTeam(I32 Team, AI_CONTEXT* Context) {
+    I32 EnemyNearby = 0;
+    I32 FriendlyNearby = 0;
 
-    I32 availableForce = 0;
-    UNIT* unit = App.GameState->TeamData[team].Units;
-    while (unit != NULL) {
-        const UNIT_TYPE* ut = GetUnitTypeById(unit->TypeId);
-        if (ut != NULL && ut->Damage > 0 &&
-            ut->Id != UNIT_TYPE_SCOUT && ut->Id != UNIT_TYPE_DRILLER &&
-            unit->State == UNIT_STATE_IDLE) {
-            availableForce += ComputeUnitScore(ut);
-        }
-        unit = unit->Next;
+    BOOL CanAfford = CanAffordCheapestMobileUnit(Team);
+    EvaluateThreatNearTeamBuildings(Team, AI_THREAT_RADIUS_DEFAULT, &EnemyNearby, &FriendlyNearby);
+    BOOL ThreatActive = (EnemyNearby > FriendlyNearby);
+
+    I32 CurrentMindset = App.GameState->TeamData[Team].AiMindset;
+    I32 NextMindset = CurrentMindset;
+
+    switch (CurrentMindset) {
+        case AI_MINDSET_IDLE:
+            if (ThreatActive) {
+                NextMindset = CanAfford ? AI_MINDSET_URGENCY : AI_MINDSET_PANIC;
+            }
+            break;
+
+        case AI_MINDSET_URGENCY:
+            if (ThreatActive && !CanAfford) {
+                NextMindset = AI_MINDSET_PANIC;
+            } else if (!ThreatActive) {
+                NextMindset = AI_MINDSET_IDLE;
+            }
+            break;
+
+        case AI_MINDSET_PANIC:
+            if (ThreatActive && CanAfford) {
+                NextMindset = AI_MINDSET_URGENCY;
+            } else if (!ThreatActive) {
+                NextMindset = AI_MINDSET_IDLE;
+            }
+            break;
+
+        default:
+            NextMindset = AI_MINDSET_IDLE;
+            break;
     }
 
-    I32 targetX;
-    I32 targetY;
-    I32 targetScore;
-    if (!GetAttackClusterTarget(team, availableForce, &targetX, &targetY, &targetScore)) {
-        return;
+    if (NextMindset != CurrentMindset) {
+        LogTeamActionCounts(Team, "MindsetChange", (U32)CurrentMindset, (U32)NextMindset,
+                            (U32)(ThreatActive ? 1 : 0), (U32)(CanAfford ? 1 : 0));
+        LogTeamActionCounts(Team, "ThreatCounts", (U32)EnemyNearby, (U32)FriendlyNearby, 0, 0);
     }
 
-    unit = App.GameState->TeamData[team].Units;
-    while (unit != NULL) {
-        const UNIT_TYPE* ut = GetUnitTypeById(unit->TypeId);
-        if (ut != NULL && ut->Damage > 0 &&
-            ut->Id != UNIT_TYPE_SCOUT && ut->Id != UNIT_TYPE_DRILLER &&
-            unit->State == UNIT_STATE_IDLE &&
-            !unit->IsMoving) {
-            SetUnitMoveTarget(unit, targetX, targetY);
-            LogTeamAction(team, "SetMoveTarget", (U32)unit->Id, (U32)targetX, (U32)targetY, "", "");
+    App.GameState->TeamData[Team].AiMindset = NextMindset;
+
+    if (Context != NULL) {
+        Context->Mindset = NextMindset;
+        Context->EnemyNearby = EnemyNearby;
+        Context->FriendlyNearby = FriendlyNearby;
+        Context->ThreatActive = ThreatActive;
+        Context->CanAffordCheapestMobile = CanAfford;
+    }
+}
+
+/************************************************************************/
+
+/// @brief Build the AI context used by condition checks.
+static void BuildAIContext(I32 Team, AI_CONTEXT* Context) {
+    if (Context == NULL || App.GameState == NULL) return;
+    memset(Context, 0, sizeof(*Context));
+
+    Context->Team = Team;
+    Context->Now = App.GameState->GameTime;
+    Context->NowSystem = GetSystemTime();
+    Context->Attitude = App.GameState->TeamData[Team].AiAttitude;
+
+    UpdateMindsetForTeam(Team, Context);
+
+    Context->Resources = GetTeamResources(Team);
+    Context->Plasma = (Context->Resources != NULL) ? Context->Resources->Plasma : 0;
+    Context->Yard = FindTeamBuilding(Team, BUILDING_TYPE_CONSTRUCTION_YARD);
+    Context->Barracks = FindTeamBuilding(Team, BUILDING_TYPE_BARRACKS);
+    Context->Factory = FindTeamBuilding(Team, BUILDING_TYPE_FACTORY);
+    Context->TechCenter = FindTeamBuilding(Team, BUILDING_TYPE_TECH_CENTER);
+    Context->HasBarracks = Context->Barracks != NULL;
+    Context->HasFactory = Context->Factory != NULL;
+    Context->HasTechCenter = Context->TechCenter != NULL;
+    Context->QueuedBarracks = CountQueuedBuildingType(Context->Yard, BUILDING_TYPE_BARRACKS);
+    Context->QueuedFactory = CountQueuedBuildingType(Context->Yard, BUILDING_TYPE_FACTORY);
+    Context->QueuedTechCenter = CountQueuedBuildingType(Context->Yard, BUILDING_TYPE_TECH_CENTER);
+    Context->YardQueueCount = (Context->Yard != NULL) ? Context->Yard->BuildQueueCount : 0;
+    Context->YardHasSpace = (Context->Yard != NULL && Context->Yard->BuildQueueCount < MAX_PLACEMENT_QUEUE);
+
+    GetEnergyTotals(Team, &Context->EnergyProduction, &Context->EnergyConsumption);
+    Context->EnergyLow = (Context->EnergyConsumption >= Context->EnergyProduction);
+
+    Context->EnemyKnownForce = ComputeKnownEnemyForce(Team);
+
+    Context->PowerPlantType = GetBuildingTypeById(BUILDING_TYPE_POWER_PLANT);
+    Context->BarracksType = GetBuildingTypeById(BUILDING_TYPE_BARRACKS);
+    Context->FactoryType = GetBuildingTypeById(BUILDING_TYPE_FACTORY);
+    Context->TechCenterType = GetBuildingTypeById(BUILDING_TYPE_TECH_CENTER);
+
+    Context->DrillerCount = CountUnitsOfType(Team, UNIT_TYPE_DRILLER);
+    Context->QueuedDrillers = CountQueuedUnitType(Context->Factory, UNIT_TYPE_DRILLER);
+    Context->DrillerTarget = RequiredUnitCount(Team, UNIT_TYPE_DRILLER);
+    Context->MobileTarget = RequiredUnitCount(Team, UNIT_TYPE_TROOPER);
+    Context->MobileCount = CountMobileUnits(Team);
+    GetUnitCounts(Team, Context->UnitCounts);
+
+    Context->ScoutCount = Context->UnitCounts[UNIT_TYPE_SCOUT];
+    Context->QueuedScouts = CountQueuedUnitType(Context->Barracks, UNIT_TYPE_SCOUT);
+    Context->TargetScouts = imax(1, App.GameState->MapMaxDim / 50);
+
+    Context->AllowUnitProduction = TRUE;
+    if (!Context->HasTechCenter && Context->TechCenterType != NULL &&
+        Context->Plasma < Context->TechCenterType->CostPlasma &&
+        Context->Mindset == AI_MINDSET_IDLE &&
+        (Context->DrillerCount + Context->QueuedDrillers) >= Context->DrillerTarget) {
+        if (Context->MobileCount >= AI_IDLE_MIN_DEFENSE) {
+            Context->AllowUnitProduction = FALSE;
+            if (Context->Attitude == AI_ATTITUDE_AGGRESSIVE) {
+                I32 AggressiveTarget = RequiredUnitCount(Team, UNIT_TYPE_TROOPER);
+                if (Context->MobileCount < AggressiveTarget) {
+                    Context->AllowUnitProduction = TRUE;
+                }
+            }
         }
-        unit = unit->Next;
+    }
+
+    if (Context->HasBarracks) {
+        if (Context->HasFactory) {
+            Context->VehicleTarget = Context->MobileTarget / 3;
+            Context->InfantryTarget = Context->MobileTarget - Context->VehicleTarget;
+        } else {
+            Context->InfantryTarget = Context->MobileTarget;
+        }
+    } else if (Context->HasFactory) {
+        Context->VehicleTarget = Context->MobileTarget;
+    }
+    if (Context->InfantryTarget < 0) Context->InfantryTarget = 0;
+    if (Context->VehicleTarget < 0) Context->VehicleTarget = 0;
+
+    if (Context->Barracks != NULL) {
+        I32 InfantryCounts[UNIT_TYPE_COUNT];
+        for (I32 Index = 0; Index < UNIT_TYPE_COUNT; Index++) {
+            InfantryCounts[Index] = Context->UnitCounts[Index];
+        }
+        AddQueuedUnitCounts(Context->Barracks, InfantryCounts);
+        Context->InfantryCountWithQueue = CountInfantryUnits(InfantryCounts);
+    }
+
+    if (Context->Factory != NULL) {
+        I32 VehicleCounts[UNIT_TYPE_COUNT];
+        for (I32 Index = 0; Index < UNIT_TYPE_COUNT; Index++) {
+            VehicleCounts[Index] = Context->UnitCounts[Index];
+        }
+        AddQueuedUnitCounts(Context->Factory, VehicleCounts);
+        Context->VehicleCountWithQueue = CountVehicleUnits(VehicleCounts);
+    }
+
+    Context->FortressTypeId = SelectFortressQueueType(Team, Context->Attitude, Context->Plasma);
+    UpdatePlannedBuilding(Context);
+
+    UNIT* Unit = App.GameState->TeamData[Team].Units;
+    while (Unit != NULL) {
+        const UNIT_TYPE* UnitType = GetUnitTypeById(Unit->TypeId);
+        if (Context->ScoutToOrder == NULL && UnitType != NULL &&
+            UnitType->Id == UNIT_TYPE_SCOUT && Unit->State != UNIT_STATE_EXPLORE) {
+            Context->ScoutToOrder = Unit;
+        }
+
+        if (UnitType != NULL && UnitType->Damage > 0 &&
+            UnitType->Id != UNIT_TYPE_SCOUT && UnitType->Id != UNIT_TYPE_DRILLER &&
+            Unit->State == UNIT_STATE_IDLE) {
+            Context->AvailableForce += AiComputeUnitScore(UnitType);
+        }
+        Unit = Unit->Next;
+    }
+
+    Context->Driller = FindFirstDriller(Team);
+    Context->Escort = FindStrongestCombatUnit(Team, Context->Driller);
+    if (Context->Driller != NULL) {
+        BOOL PreferredAssigned = FALSE;
+        BOOL HasExtra = FALSE;
+        I32 EscortForce = 0;
+        I32 EscortCount = 0;
+        GetDrillerEscortStatus(Team, Context->Driller->Id, Context->Escort,
+                               &EscortForce, &EscortCount, &PreferredAssigned, &HasExtra);
+
+        Context->HasDrillerEscort = (EscortCount > 0);
+        Context->CurrentEscortForce = EscortForce;
+        {
+            I32 desired = AiDrillerEscortMinForce +
+                          (Context->EnemyKnownForce / AI_DRILLER_ESCORT_FORCE_DIVISOR);
+            I32 available = ComputeAvailableEscortForce(Team);
+            if (desired > available) desired = available;
+            if (desired < 0) desired = 0;
+            Context->DesiredEscortForce = desired;
+        }
+
+        if (Context->DesiredEscortForce > 0 &&
+            Context->Escort != NULL &&
+            EscortForce < Context->DesiredEscortForce) {
+            Context->EscortNeedsUpdate = TRUE;
+        }
+    }
+}
+
+/************************************************************************/
+
+/// @brief Execute exactly one AI action based on priority.
+static void ThinkAITeam(AI_CONTEXT* Context) {
+    if (Context == NULL) return;
+
+    static const AI_DECISION Decisions[] = {
+        {ConditionForQueuePowerPlant, ActionQueuePowerPlant, "QueuePowerPlant"},
+        {ConditionForUpdateDrillerEscort, ActionUpdateDrillerEscort, "UpdateDrillerEscort"},
+        {ConditionForQueueBarracks, ActionQueueBarracks, "QueueBarracks"},
+        {ConditionForQueueFactoryForDrillers, ActionQueueFactoryForDrillers, "QueueFactoryForDrillers"},
+        {ConditionForQueueTechCenter, ActionQueueTechCenter, "QueueTechCenter"},
+        {ConditionForQueueFactory, ActionQueueFactory, "QueueFactory"},
+        {ConditionForQueueFortress, ActionQueueFortress, "QueueFortress"},
+        {ConditionForProduceDriller, ActionProduceDriller, "ProduceDriller"},
+        {ConditionForProduceScout, ActionProduceScout, "ProduceScout"},
+        {ConditionForOrderScoutExplore, ActionOrderScoutExplore, "OrderScoutExplore"},
+        {ConditionForProduceBarracksUnit, ActionProduceBarracksUnit, "ProduceBarracksUnit"},
+        {ConditionForProduceFactoryUnit, ActionProduceFactoryUnit, "ProduceFactoryUnit"},
+        {ConditionForAggressiveOrders, ActionAggressiveOrders, "AggressiveOrders"}
+    };
+
+    for (I32 Index = 0; Index < (I32)(sizeof(Decisions) / sizeof(Decisions[0])); Index++) {
+        if (Decisions[Index].Condition(Context)) {
+            Decisions[Index].Action(Context);
+            SetAiLastDecision(Context->Team, Decisions[Index].Name);
+            return;
+        }
     }
 }
 
@@ -1473,67 +1658,17 @@ static void UpdateAggressiveOrders(I32 team) {
 void ProcessAITeams(void) {
     if (App.GameState == NULL) return;
 
-    U32 now = App.GameState->GameTime;
-    I32 teamCount = GetTeamCountSafe();
-    for (I32 team = 1; team < teamCount; team++) {
-        if (IsTeamEliminated(team)) {
-            RemoveTeamEntities(team);
+    U32 Now = App.GameState->GameTime;
+    I32 TeamCount = GetTeamCountSafe();
+    for (I32 Team = 1; Team < TeamCount; Team++) {
+        if (IsTeamEliminated(Team)) {
+            RemoveTeamEntities(Team);
             continue;
         }
-        if (!ShouldProcessAITeam(team, now)) continue;
+        if (!ShouldProcessAITeam(Team, Now)) continue;
 
-        I32 enemyNearby = 0;
-        I32 friendlyNearby = 0;
-        BOOL canAfford = CanAffordCheapestMobileUnit(team);
-
-        EvaluateThreatNearTeamBuildings(team, AI_THREAT_RADIUS_DEFAULT, &enemyNearby, &friendlyNearby);
-        BOOL threatActive = (enemyNearby > friendlyNearby);
-
-        I32 currentMindset = App.GameState->TeamData[team].AiMindset;
-        I32 nextMindset = currentMindset;
-
-        switch (currentMindset) {
-            case AI_MINDSET_IDLE:
-                if (threatActive) {
-                    nextMindset = canAfford ? AI_MINDSET_URGENCY : AI_MINDSET_PANIC;
-                }
-                break;
-
-            case AI_MINDSET_URGENCY:
-                if (threatActive && !canAfford) {
-                    nextMindset = AI_MINDSET_PANIC;
-                } else if (!threatActive) {
-                    nextMindset = AI_MINDSET_IDLE;
-                }
-                break;
-
-            case AI_MINDSET_PANIC:
-                if (threatActive && canAfford) {
-                    nextMindset = AI_MINDSET_URGENCY;
-                } else if (!threatActive) {
-                    nextMindset = AI_MINDSET_IDLE;
-                }
-                break;
-
-            default:
-                nextMindset = AI_MINDSET_IDLE;
-                break;
-        }
-
-        if (nextMindset != currentMindset) {
-            LogTeamActionCounts(team, "MindsetChange", (U32)currentMindset, (U32)nextMindset,
-                                (U32)(threatActive ? 1 : 0), (U32)(canAfford ? 1 : 0));
-            LogTeamActionCounts(team, "ThreatCounts", (U32)enemyNearby, (U32)friendlyNearby, 0, 0);
-        }
-
-        App.GameState->TeamData[team].AiMindset = nextMindset;
-
-        UpdateAIForTeam(team, nextMindset);
-        AssignScoutOrders(team);
-        AssignDrillerOrders(team);
-        UpdateDrillerEscort(team, App.GameState->TeamData[team].AiAttitude);
-        if (App.GameState->TeamData[team].AiAttitude == AI_ATTITUDE_AGGRESSIVE) {
-            UpdateAggressiveOrders(team);
-        }
+        AI_CONTEXT Context;
+        BuildAIContext(Team, &Context);
+        ThinkAITeam(&Context);
     }
 }

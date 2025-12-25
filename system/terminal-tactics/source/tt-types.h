@@ -70,6 +70,7 @@
 #define AI_UPDATE_INTERVAL_NORMAL_MS 4000
 #define AI_UPDATE_INTERVAL_HARD_MS   0
 #define AI_DRILLER_ALERT_MS          3000
+#define AI_DRILLER_ESCORT_FORCE_DIVISOR 2
 #define AI_DAMAGE_REDUCTION_MIN      10
 #define AI_DAMAGE_REDUCTION_MAX      30
 #define AI_DAMAGE_REDUCTION_DIVISOR  20
@@ -92,6 +93,9 @@
 #define FOG_OF_WAR_UPDATE_INTERVAL_MS 2000
 #define FOG_OF_WAR_SIGHT_RADIUS       5
 #define UNIT_MOVE_TIME_MS             2000
+#define UNIT_STUCK_BACKOFF_TILES      5
+#define UNIT_STUCK_TIMEOUT_MULTIPLIER 3
+#define AI_LAST_DECISION_LEN          64
 #define ENABLE_CHEATS                 1
 #define COMMAND_NONE                  0
 #define COMMAND_MOVE                  1
@@ -326,6 +330,15 @@ struct UNIT_STRUCT {
     U32 LastHarvestTime;
     U32 LastStateUpdateTime;
     U32 MoveProgress;
+    I32 LastMoveX;
+    I32 LastMoveY;
+    U32 LastMoveTime;
+    BOOL StuckDetourActive;
+    U32 StuckDetourCount;
+    I32 StuckOriginalTargetX;
+    I32 StuckOriginalTargetY;
+    I32 StuckDetourTargetX;
+    I32 StuckDetourTargetY;
     PATH_NODE* PathHead;
     PATH_NODE* PathTail;
     I32 PathTargetX;
@@ -344,6 +357,7 @@ typedef struct {
     UNIT* Units;
     I32 AiAttitude;
     I32 AiMindset;
+    char AiLastDecision[AI_LAST_DECISION_LEN];
     U32 AiLastUpdate;
     U32 AiLastClusterUpdate;
     MEMORY_CELL* MemoryMap;
@@ -353,6 +367,7 @@ typedef struct {
 typedef struct {
     I32 MapWidth;
     I32 MapHeight;
+    I32 MapMaxDim;
     TERRAIN** Terrain;
     I32** PlasmaDensity;
     I32 TeamCount;

@@ -40,6 +40,9 @@ extern "C" {
 #define EXOS_PARAM(Value) ((uint_t)(Value))
 #endif
 
+static inline I32 imin(I32 A, I32 B) { return (A < B) ? A : B; }
+static inline I32 imax(I32 A, I32 B) { return (A > B) ? A : B; }
+
 typedef struct tag_MESSAGE {
     HANDLE Target;
     DATETIME Time;

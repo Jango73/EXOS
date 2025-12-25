@@ -425,10 +425,6 @@ void HandleMainMenuInput(I32 key) {
     switch (key) {
         case VK_N:
             App.Menu.CurrentMenu = MENU_NEW_GAME;
-            App.Menu.PendingMapWidth = DEFAULT_MAP_SIZE;
-            App.Menu.PendingMapHeight = DEFAULT_MAP_SIZE;
-            App.Menu.PendingDifficulty = DIFFICULTY_NORMAL;
-            App.Menu.PendingTeamCount = 2;
             App.Menu.SelectedOption = NEW_GAME_SELECT_WIDTH;
             break;
 

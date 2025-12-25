@@ -244,8 +244,17 @@ void SetUnitMoveTarget(UNIT* unit, I32 targetX, I32 targetY) {
     unit->TargetY = WrapNearest(unit->Y, targetY, App.GameState->MapHeight);
     unit->IsMoving = (unit->TargetX != unit->X || unit->TargetY != unit->Y);
     ClearUnitPath(unit);
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
+    unit->StuckOriginalTargetX = unit->TargetX;
+    unit->StuckOriginalTargetY = unit->TargetY;
+    unit->StuckDetourTargetX = unit->TargetX;
+    unit->StuckDetourTargetY = unit->TargetY;
     if (unit->IsMoving) {
         unit->MoveProgress = 0;
+        unit->LastMoveTime = App.GameState->GameTime;
+        unit->LastMoveX = unit->X;
+        unit->LastMoveY = unit->Y;
     }
 }
 
@@ -262,6 +271,8 @@ void SetUnitStateIdle(UNIT* unit) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
 }
 
@@ -278,6 +289,8 @@ void SetUnitStateEscort(UNIT* unit, I32 targetTeam, I32 targetUnitId) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
 }
 
@@ -294,6 +307,8 @@ void SetUnitStateExplore(UNIT* unit, I32 targetX, I32 targetY) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
 }
 
@@ -367,6 +382,15 @@ UNIT* CreateUnit(I32 typeId, I32 team, I32 x, I32 y) {
     node->LastHarvestTime = 0;
     node->LastStateUpdateTime = 0;
     node->MoveProgress = 0;
+    node->LastMoveX = x;
+    node->LastMoveY = y;
+    node->LastMoveTime = (App.GameState != NULL) ? App.GameState->GameTime : 0;
+    node->StuckDetourActive = FALSE;
+    node->StuckDetourCount = 0;
+    node->StuckOriginalTargetX = x;
+    node->StuckOriginalTargetY = y;
+    node->StuckDetourTargetX = x;
+    node->StuckDetourTargetY = y;
     node->PathHead = NULL;
     node->PathTail = NULL;
     node->PathTargetX = x;

@@ -672,6 +672,21 @@ void RenderMapArea(void) {
         }
     }
 
+    if (App.GameState->SelectedUnit != NULL) {
+        UNIT* selected = App.GameState->SelectedUnit;
+        const UNIT_TYPE* selectedType = GetUnitTypeById(selected->TypeId);
+        if (selectedType != NULL &&
+            selectedType->Id == UNIT_TYPE_DRILLER &&
+            selected->StateTargetX != UNIT_STATE_TARGET_NONE &&
+            selected->StateTargetY != UNIT_STATE_TARGET_NONE) {
+            I32 screenX;
+            I32 screenY;
+            if (GetScreenPosition(selected->StateTargetX, selected->StateTargetY, 1, 1, &screenX, &screenY)) {
+                App.Render.ViewColors[screenY][screenX] = MakeAttr(CONSOLE_WHITE, CONSOLE_BLACK);
+            }
+        }
+    }
+
     if (App.GameState->IsPlacingBuilding) {
         const BUILDING_TYPE* previewType = GetBuildingTypeById(App.GameState->PendingBuildingTypeId);
         if (previewType != NULL && App.GameState->Terrain != NULL) {
@@ -1218,6 +1233,10 @@ void RenderDebugScreen(void) {
         TEAM_RESOURCES* res = &App.GameState->TeamData[team].Resources;
         I32 buildingCount = 0;
         I32 unitCount = 0;
+        const char* lastDecision = App.GameState->TeamData[team].AiLastDecision;
+        if (lastDecision == NULL || lastDecision[0] == '\0') {
+            lastDecision = "None";
+        }
         BUILDING* b = App.GameState->TeamData[team].Buildings;
         while (b != NULL) {
             buildingCount++;
@@ -1233,6 +1252,7 @@ void RenderDebugScreen(void) {
 
         char line0[SCREEN_WIDTH + 1];
         char line1[SCREEN_WIDTH + 1];
+        char line2[SCREEN_WIDTH + 1];
         snprintf(line0, sizeof(line0),
                  "Team %d | Plasma:%d Energy:%d/%d",
                  team,
@@ -1242,23 +1262,30 @@ void RenderDebugScreen(void) {
                  buildingCount, unitCount,
                  GetAttitudeName(attitude),
                  GetMindsetName(mindset));
+        snprintf(line2, sizeof(line2),
+                 "LastAI:%s",
+                 lastDecision);
 
-        I32 y0 = 3 + team * 2;
+        I32 y0 = 3 + team * 3;
         I32 y1 = y0 + 1;
-        if (y1 >= SCREEN_HEIGHT) break;
+        I32 y2 = y0 + 2;
+        if (y2 >= SCREEN_HEIGHT) break;
 
         size_t len0 = strlen(line0);
         size_t len1 = strlen(line1);
+        size_t len2 = strlen(line2);
         if (len0 > (size_t)SCREEN_WIDTH) len0 = SCREEN_WIDTH;
         if (len1 > (size_t)SCREEN_WIDTH) len1 = SCREEN_WIDTH;
+        if (len2 > (size_t)SCREEN_WIDTH) len2 = SCREEN_WIDTH;
         memcpy(&App.Render.ScreenBuffer[y0][0], line0, len0);
         memcpy(&App.Render.ScreenBuffer[y1][0], line1, len1);
+        memcpy(&App.Render.ScreenBuffer[y2][0], line2, len2);
     }
 
     for (I32 y = 0; y < SCREEN_HEIGHT; y++) {
         U8 fore = CONSOLE_GRAY;
         if (y >= 3) {
-            I32 team = (y - 3) / 2;
+            I32 team = (y - 3) / 3;
             if (team >= 0 && team < teamCount) {
                 fore = TeamColors[(U32)team % MAX_TEAMS];
             }
