@@ -30,6 +30,7 @@
 #include "tt-render.h"
 #include "tt-ai.h"
 #include "tt-commands.h"
+#include "tt-log.h"
 
 /************************************************************************/
 
@@ -1080,6 +1081,7 @@ BOOL InitializeGame(I32 mapWidth, I32 mapHeight, I32 difficulty, I32 teamCount) 
     /* Initialize game state */
     memset(App.GameState, 0, sizeof(GAME_STATE));
     App.GameState->NoiseSeed = GetSystemTime();
+    GameLogInit();
 
     /* Allocate and generate map */
     if (!AllocateMap(mapWidth, mapHeight)) {
@@ -1234,6 +1236,8 @@ BOOL InitializeGame(I32 mapWidth, I32 mapHeight, I32 difficulty, I32 teamCount) 
 
 void CleanupGame(void) {
     if (App.GameState == NULL) return;
+
+    GameLogShutdown();
 
     I32 teamCount = GetTeamCountSafe();
     if (teamCount <= 0) teamCount = MAX_TEAMS;
@@ -1527,6 +1531,12 @@ static BUILDING* GetHumanConstructionYard(void) {
 static void RemovePlacementAt(BUILDING* producer, I32 index) {
     if (producer == NULL) return;
     if (index < 0 || index >= producer->BuildQueueCount) return;
+    {
+        const BUILDING_TYPE* type = GetBuildingTypeById(producer->BuildQueue[index].TypeId);
+        GAME_LOGF(producer->Team, "BuildQueueRemove Producer=%x Type=%s Count=%u",
+                  (U32)producer->Id, type != NULL ? type->Name : "Unknown",
+                  (U32)(producer->BuildQueueCount - 1));
+    }
     for (I32 i = index + 1; i < producer->BuildQueueCount; i++) {
         producer->BuildQueue[i - 1] = producer->BuildQueue[i];
     }
@@ -1588,6 +1598,9 @@ BOOL CancelSelectedBuildingProduction(void) {
         for (I32 i = 1; i <= building->UnitQueueCount; i++) {
             building->UnitQueue[i - 1] = building->UnitQueue[i];
         }
+        GAME_LOGF(building->Team, "UnitQueueRemove Producer=%x Type=%s Count=%u",
+                  (U32)building->Id, type != NULL ? type->Name : "Unknown",
+                  (U32)building->UnitQueueCount);
 
         if (type != NULL) {
             snprintf(msg, sizeof(msg), "Cancelled %s", type->Name);
@@ -1630,6 +1643,8 @@ BOOL EnqueuePlacement(I32 typeId) {
     yard->BuildQueue[count].TypeId = typeId;
     yard->BuildQueue[count].TimeRemaining = (U32)type->BuildTime;
     yard->BuildQueueCount++;
+    GAME_LOGF(HUMAN_TEAM_INDEX, "BuildQueueAdd Producer=%x Type=%s Count=%u",
+              (U32)yard->Id, type->Name, (U32)yard->BuildQueueCount);
 
     return TRUE;
 }
@@ -1860,6 +1875,8 @@ void ProcessUnitQueueForProducer(BUILDING* producer, U32 timeStep, BOOL notify) 
                       for (I32 i = 1; i <= producer->UnitQueueCount; i++) {
                           producer->UnitQueue[i - 1] = producer->UnitQueue[i];
                       }
+                      GAME_LOGF(producer->Team, "UnitQueueRemove Producer=%x Type=%s Count=%u",
+                                (U32)producer->Id, ut->Name, (U32)producer->UnitQueueCount);
                       if (notify && producer->Team == HUMAN_TEAM_INDEX) {
                           char msg[SCREEN_WIDTH + 1];
                           snprintf(msg, sizeof(msg), "%s deployed", ut->Name);
@@ -1944,12 +1961,17 @@ static void UpdateBuildQueueForProducer(BUILDING* producer, U32 timeStep, BOOL n
 
     for (I32 i = 0; i < producer->BuildQueueCount; i++) {
         BUILD_JOB* job = &producer->BuildQueue[i];
+        U32 previous = job->TimeRemaining;
         if (job->TimeRemaining > 0) {
             if (job->TimeRemaining > timeStep) {
                 job->TimeRemaining -= timeStep;
             } else {
                 job->TimeRemaining = 0;
                 const BUILDING_TYPE* type = GetBuildingTypeById(job->TypeId);
+                if (type != NULL && previous > 0) {
+                    GAME_LOGF(producer->Team, "BuildReady Producer=%x Type=%s QueueIndex=%x",
+                              (U32)producer->Id, type->Name, (U32)i);
+                }
                 if (type != NULL && notify && producer->Team == HUMAN_TEAM_INDEX) {
                     char msg[SCREEN_WIDTH + 1];
                     snprintf(msg, sizeof(msg), "%s ready to place", type->Name);

@@ -406,6 +406,7 @@ typedef struct {
     MEMORY_CELL* ScratchOccupancy;
     size_t ScratchOccupancyBytes;
     size_t TeamMemoryBytes;
+    BOOL TeamDefeatedLogged[MAX_TEAMS];
 } GAME_STATE;
 
 typedef enum {

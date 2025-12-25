@@ -895,11 +895,9 @@ void HandleLoadInput(I32 key) {
 
     if (key == VK_ENTER && App.Menu.SavedGameCount > 0) {
         if (LoadGame(App.Menu.SavedGames[App.Menu.SelectedSaveIndex])) {
-            debug("[HandleLoadInput] Load succeeded");
             App.Menu.CurrentMenu = MENU_IN_GAME;
             App.Menu.PrevMenu = -1;
         } else {
-            debug("[HandleLoadInput] Load failed");
             App.Menu.CurrentMenu = MENU_MAIN;
         }
         return;

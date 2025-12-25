@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <save-file>"
     exit 1
@@ -11,4 +13,4 @@ if [ ! -f "$1" ]; then
     exit 1
 fi
 
-node scripts/dump-terminal-tactics-save.js "$1"
+node "$SCRIPT_DIR/dump-terminal-tactics-save.js" "$1"

@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Sample program - Terminal Tactics
@@ -22,15 +21,22 @@
 
 \************************************************************************/
 
-#ifndef TT_SAVE_H
-#define TT_SAVE_H
+#ifndef TT_LOG_H
+#define TT_LOG_H
 
 #include "tt-types.h"
 
-BOOL SaveGame(const char* path);
-BOOL LoadGame(const char* path);
-void LoadSaveList(void);
-BOOL IsValidFilenameChar(char c);
-BOOL ResolveAppFilePath(const char* fileName, char* fullPath, U32 fullPathSize);
+void GameLogInit(void);
+void GameLogShutdown(void);
+void GameLogWrite(const char* origin, I32 team, const char* message);
+const char* GetGameLogFileName(void);
 
-#endif /* TT_SAVE_H */
+#define GAME_LOG(team, message) GameLogWrite(__func__, (team), (message))
+#define GAME_LOGF(team, format, ...)                          \
+    do {                                                      \
+        char _msg[128];                                       \
+        snprintf(_msg, sizeof(_msg), (format), ##__VA_ARGS__);\
+        GameLogWrite(__func__, (team), _msg);                 \
+    } while (0)
+
+#endif /* TT_LOG_H */
